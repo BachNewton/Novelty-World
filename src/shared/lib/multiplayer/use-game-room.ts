@@ -69,16 +69,16 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     };
   }, [isHost, phase, roomCode, game, maxPlayers, advertise]);
 
-  // --- Transition: waiting → connecting when first peer appears ---
+  // --- Transition: waiting → connecting when all expected peers appear ---
   useEffect(() => {
     if (phase !== "waiting") return;
-    if (peers.length > 0) {
+    if (peers.length >= maxPlayers - 1) {
       setPhase("connecting");
-      // Stop advertising once someone joins
+      // Stop advertising once the room is full
       unadvertiseRef.current?.();
       unadvertiseRef.current = null;
     }
-  }, [phase, peers.length]);
+  }, [phase, peers.length, maxPlayers]);
 
   // --- Guest: auto-transition to connecting once peer hook initializes ---
   useEffect(() => {

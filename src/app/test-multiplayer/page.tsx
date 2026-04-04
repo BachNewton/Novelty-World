@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useGameRoom } from "@/shared/lib/multiplayer";
 import type { GameRoom } from "@/shared/lib/multiplayer";
 
@@ -10,9 +11,14 @@ import type { GameRoom } from "@/shared/lib/multiplayer";
  *
  * Each browser context loads this page. The test clicks buttons
  * to drive the flow: create room → join room → verify ready → send messages.
+ *
+ * URL params:
+ *   ?players=N — set maxPlayers (default: 2)
  */
 export default function TestMultiplayerPage() {
-  const room = useGameRoom({ game: "test", maxPlayers: 2 });
+  const searchParams = useSearchParams();
+  const maxPlayers = Number(searchParams.get("players")) || 2;
+  const room = useGameRoom({ game: "test", maxPlayers });
 
   return (
     <div data-testid="test-multiplayer">

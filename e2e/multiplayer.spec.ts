@@ -148,4 +148,74 @@ test.describe("Multiplayer Framework", () => {
     await hostCtx.close();
     await guestCtx.close();
   });
+
+  test("3 players all reach ready and exchange messages", async ({ browser }) => {
+    const URL_3P = "/test-multiplayer?players=3";
+
+    const hostCtx = await browser.newContext();
+    const guest1Ctx = await browser.newContext();
+    const guest2Ctx = await browser.newContext();
+    const hostPage = await hostCtx.newPage();
+    const guest1Page = await guest1Ctx.newPage();
+    const guest2Page = await guest2Ctx.newPage();
+
+    // Host creates a 3-player room
+    await hostPage.goto(URL_3P);
+    await hostPage.getByTestId("create-room").click();
+    await expect(hostPage.getByTestId("session")).toBeVisible();
+
+    // Guest 1 joins
+    await guest1Page.goto(URL_3P);
+    await expect(guest1Page.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+    await guest1Page.getByTestId("join-room").first().click();
+    await expect(guest1Page.getByTestId("session")).toBeVisible();
+
+    // Guest 2 joins
+    await guest2Page.goto(URL_3P);
+    await expect(guest2Page.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+    await guest2Page.getByTestId("join-room").first().click();
+    await expect(guest2Page.getByTestId("session")).toBeVisible();
+
+    // All 3 reach ready phase
+    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+    await expect(guest1Page.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+    await expect(guest2Page.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+
+    // Host sees 2 peers, guests see 1 (star topology)
+    await expect(hostPage.getByTestId("peer-count")).toHaveText("2");
+    await expect(guest1Page.getByTestId("peer-count")).toHaveText("1");
+    await expect(guest2Page.getByTestId("peer-count")).toHaveText("1");
+
+    // Host broadcasts a ping — both guests receive it
+    await hostPage.getByTestId("send-ping").click();
+    await expect(guest1Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+    await expect(guest2Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    // Guest 1 sends a ping — host receives it (star topology: guest→host only)
+    await guest1Page.getByTestId("send-ping").click();
+    await expect(hostPage.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    await hostCtx.close();
+    await guest1Ctx.close();
+    await guest2Ctx.close();
+  });
 });
