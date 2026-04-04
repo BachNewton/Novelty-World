@@ -76,6 +76,10 @@ export default function HomePage() {
         </main>
       </div>
 
+      <span className="fixed bottom-2 left-3 z-20 select-none text-xs text-text-primary">
+        v{process.env.APP_VERSION}
+      </span>
+
       {/* Wave footer */}
       <svg
         className="pointer-events-none fixed inset-x-0 bottom-0 z-0 h-32 w-full sm:h-40"
