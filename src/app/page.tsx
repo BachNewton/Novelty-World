@@ -15,23 +15,23 @@ export default function HomePage() {
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
           <span className="text-brand-orange">N</span>
           <span className="text-brand-blue">o</span>
-          <span className="text-brand-green">v</span>
-          <span className="text-brand-purple">e</span>
+          <span className="text-brand-pink">v</span>
+          <span className="text-brand-green">e</span>
           <span>lty </span>
           <span className="text-brand-orange">W</span>
           <span className="text-brand-blue">o</span>
-          <span className="text-brand-green">r</span>
-          <span className="text-brand-purple">l</span>
+          <span className="text-brand-pink">r</span>
+          <span className="text-brand-green">l</span>
           <span>d</span>
         </h1>
         <p className="mt-3 text-text-secondary">
-          Games, tools, and ideas — all in one place
+          Kyle's novel ideas built with imagination and code
         </p>
         <div className="mx-auto mt-4 flex justify-center gap-1.5">
-          <div className="h-1 w-12 rounded-full bg-brand-orange" />
-          <div className="h-1 w-12 rounded-full bg-brand-blue" />
-          <div className="h-1 w-12 rounded-full bg-brand-green" />
-          <div className="h-1 w-12 rounded-full bg-brand-purple" />
+          <div className="h-1 w-20 rounded-full bg-brand-orange" />
+          <div className="h-1 w-20 rounded-full bg-brand-blue" />
+          <div className="h-1 w-20 rounded-full bg-brand-pink" />
+          <div className="h-1 w-20 rounded-full bg-brand-green" />
         </div>
       </header>
 
@@ -46,8 +46,8 @@ export default function HomePage() {
                 {category.name}
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                {projects.map((project, i) => (
-                  <ProjectCard key={project.slug} project={project} index={i} />
+                {projects.map((project) => (
+                  <ProjectCard key={project.slug} project={project} />
                 ))}
               </div>
             </section>
