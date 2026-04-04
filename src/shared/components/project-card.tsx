@@ -26,8 +26,8 @@ export function ProjectCard({ project }: ProjectCardProps) {
     <Link href={getProjectPath(project)} className="h-full">
       <Card
         className={cn(
-          "group relative h-full p-5 transition-all duration-200 border-brand-green/20",
-          "hover:-translate-y-1 hover:border-brand-pink/40 hover:shadow-lg"
+          "group relative h-full p-5 transition-all duration-200 border-brand-green/80",
+          "hover:-translate-y-1 hover:border-brand-pink/80 hover:shadow-lg"
         )}
       >
         <div className="flex items-start gap-4">
