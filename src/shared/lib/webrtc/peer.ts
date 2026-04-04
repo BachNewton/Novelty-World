@@ -9,16 +9,6 @@ import type {
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  // TURN servers from env — needed for peers behind symmetric NATs or when mDNS fails
-  ...(process.env.NEXT_PUBLIC_TURN_URL
-    ? [
-        {
-          urls: process.env.NEXT_PUBLIC_TURN_URL,
-          username: process.env.NEXT_PUBLIC_TURN_USERNAME ?? "",
-          credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL ?? "",
-        },
-      ]
-    : []),
 ];
 
 export interface PeerConnectionConfig {
