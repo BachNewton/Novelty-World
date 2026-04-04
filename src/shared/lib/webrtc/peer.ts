@@ -35,6 +35,7 @@ export class PeerConnection {
   private pc: RTCPeerConnection;
   private dataChannel: RTCDataChannel | null = null;
   private messageHandlers = new Map<string, Set<MessageHandler>>();
+  private pendingMessages: DataMessage[] = [];
   private connectionState: ConnectionState = "new";
   private onSignalOut: PeerConnectionConfig["onSignalOut"];
   private onConnectionStateChange?: (state: ConnectionState) => void;
@@ -71,11 +72,15 @@ export class PeerConnection {
       }
     };
 
-    // Track connection state changes
+    // Track connection state changes — but only failures/disconnects.
+    // "connected" is set exclusively by dc.onopen so we don't report
+    // connected before the DataChannel is actually usable.
     this.pc.onconnectionstatechange = () => {
       if (this.destroyed) return;
       const state = this.mapConnectionState(this.pc.connectionState);
-      this.setConnectionState(state);
+      if (state !== "connected") {
+        this.setConnectionState(state);
+      }
     };
   }
 
@@ -141,6 +146,18 @@ export class PeerConnection {
       this.messageHandlers.set(type, handlers);
     }
     handlers.add(handler as MessageHandler);
+
+    // Deliver any buffered messages for this type
+    const remaining: DataMessage[] = [];
+    for (const msg of this.pendingMessages) {
+      if (msg.type === type) {
+        handler(msg as DataMessage<T>);
+      } else {
+        remaining.push(msg);
+      }
+    }
+    this.pendingMessages = remaining;
+
     return () => {
       handlers!.delete(handler as MessageHandler);
     };
@@ -162,6 +179,7 @@ export class PeerConnection {
 
     this.pc.close();
     this.messageHandlers.clear();
+    this.pendingMessages = [];
     this.pendingCandidates = [];
   }
 
@@ -186,10 +204,13 @@ export class PeerConnection {
       try {
         const message = JSON.parse(event.data as string) as DataMessage;
         const handlers = this.messageHandlers.get(message.type);
-        if (handlers) {
+        if (handlers && handlers.size > 0) {
           for (const handler of handlers) {
             handler(message);
           }
+        } else {
+          // No handler yet — buffer for later delivery
+          this.pendingMessages.push(message);
         }
       } catch {
         // Ignore malformed messages

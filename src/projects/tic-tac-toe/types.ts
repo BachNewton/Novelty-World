@@ -10,18 +10,17 @@ export type Board = [
 
 export type Player = "X" | "O";
 
-export type GamePhase = "lobby" | "waiting" | "playing" | "finished";
+export type GamePhase = "playing" | "finished";
 
 export type GameResult = { winner: Player } | { draw: true };
 
-/** Full game state */
+/** Game-only state (no connection/lifecycle — owned by multiplayer framework) */
 export interface GameState {
   board: Board;
   currentTurn: Player;
-  phase: GamePhase;
+  phase: GamePhase | null;
   result: GameResult | null;
   myPlayer: Player | null;
-  roomCode: string | null;
   /** Indices of the 3 winning cells, for highlighting */
   winLine: number[] | null;
 }
@@ -45,14 +44,21 @@ export interface StateUpdate {
 /** Either → other: request to play again */
 export type PlayAgainRequest = Record<string, never>;
 
+/** Host → Guest: initial player assignment when connection is established */
+export interface GameStart {
+  hostPlayer: Player;
+}
+
 /** Host → Guest: new game started */
 export interface PlayAgainAccepted {
   board: Board;
   currentTurn: Player;
+  hostPlayer: Player;
 }
 
 /** Message type string constants */
 export const MSG = {
+  GAME_START: "game-start",
   MOVE_REQUEST: "move-request",
   STATE_UPDATE: "state-update",
   PLAY_AGAIN_REQUEST: "play-again-request",

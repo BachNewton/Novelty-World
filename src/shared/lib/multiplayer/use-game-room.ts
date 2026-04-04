@@ -1,0 +1,205 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { usePeer } from "../webrtc";
+import type { PeerRole, MessageHandler } from "../webrtc";
+import { useLobby } from "./use-lobby";
+import type { RoomPhase, GameRoom, UseGameRoomOptions } from "./types";
+import { MP_PREFIX } from "./types";
+
+/**
+ * Game-agnostic multiplayer room hook.
+ *
+ * Owns the full lifecycle: lobby → room creation → WebRTC connection →
+ * application-level ready handshake → game messaging → disconnect detection.
+ *
+ * Games only interact once `phase === "ready"`.
+ */
+export function useGameRoom(options: UseGameRoomOptions): GameRoom {
+  const { game, maxPlayers } = options;
+
+  // --- Local lifecycle state ---
+  const [phase, setPhase] = useState<RoomPhase>("lobby");
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
+
+  // Derive role and whether peer hook should be active
+  const role: PeerRole = isHost ? "host" : "guest";
+  const peerActive = phase !== "lobby" && roomCode !== null;
+
+  // --- Transport hooks (conditionally active) ---
+  const { rooms, advertise } = useLobby({ game });
+  const {
+    peers,
+    connectionState,
+    isConnected,
+    send: peerSend,
+    sendTo: peerSendTo,
+    onMessage: peerOnMessage,
+    disconnect: peerDisconnect,
+  } = usePeer(
+    roomCode ?? "",
+    role,
+    { maxPeers: maxPlayers - 1, enabled: peerActive },
+  );
+
+  // --- Refs for handshake tracking ---
+  const readyCountRef = useRef(0);
+  const wasConnectedRef = useRef(false);
+  const unadvertiseRef = useRef<(() => void) | null>(null);
+
+  // Track if we ever reached "ready" to distinguish disconnect from initial failure
+  if (phase === "ready") wasConnectedRef.current = true;
+
+  // --- Host: advertise room while waiting ---
+  useEffect(() => {
+    if (!isHost || phase !== "waiting" || !roomCode) return;
+
+    unadvertiseRef.current = advertise({
+      roomCode,
+      game,
+      playerCount: 1,
+      maxPlayers,
+      createdAt: Date.now(),
+    });
+
+    return () => {
+      unadvertiseRef.current?.();
+      unadvertiseRef.current = null;
+    };
+  }, [isHost, phase, roomCode, game, maxPlayers, advertise]);
+
+  // --- Transition: waiting → connecting when first peer appears ---
+  useEffect(() => {
+    if (phase !== "waiting") return;
+    if (peers.length > 0) {
+      setPhase("connecting");
+      // Stop advertising once someone joins
+      unadvertiseRef.current?.();
+      unadvertiseRef.current = null;
+    }
+  }, [phase, peers.length]);
+
+  // --- Guest: auto-transition to connecting once peer hook initializes ---
+  useEffect(() => {
+    if (!isHost && phase === "waiting") {
+      setPhase("connecting");
+    }
+  }, [isHost, phase]);
+
+  // --- Application-level ready handshake ---
+
+  // Guest: once any peer is connected, register __mp:start listener, then send __mp:ready
+  useEffect(() => {
+    if (isHost || phase !== "connecting") return;
+    if (!isConnected) return;
+
+    // Register start listener FIRST, then send ready — deterministic ordering
+    const unsub = peerOnMessage(`${MP_PREFIX}start`, () => {
+      setPhase("ready");
+    });
+
+    peerSend(`${MP_PREFIX}ready`, {});
+
+    return unsub;
+  }, [isHost, phase, isConnected, peerOnMessage, peerSend]);
+
+  // Host: collect __mp:ready from guests, send __mp:start when all are ready
+  useEffect(() => {
+    if (!isHost || phase !== "connecting") return;
+
+    readyCountRef.current = 0;
+    const needed = maxPlayers - 1;
+
+    const unsub = peerOnMessage(`${MP_PREFIX}ready`, () => {
+      readyCountRef.current += 1;
+      if (readyCountRef.current >= needed) {
+        peerSend(`${MP_PREFIX}start`, {});
+        setPhase("ready");
+      }
+    });
+
+    return unsub;
+  }, [isHost, phase, maxPlayers, peerOnMessage, peerSend]);
+
+  // --- Failure detection ---
+  useEffect(() => {
+    if (phase !== "connecting" && phase !== "ready") return;
+    if (connectionState === "failed") {
+      setPhase("failed");
+    }
+  }, [phase, connectionState]);
+
+  // --- Disconnect detection (only after we reached "ready") ---
+  useEffect(() => {
+    if (phase !== "ready") return;
+    if (peers.length > 0 && peers.every((p) => !p.connected)) {
+      setPhase("disconnected");
+    }
+  }, [phase, peers]);
+
+  // --- Actions ---
+
+  const createRoom = useCallback(() => {
+    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+    setRoomCode(code);
+    setIsHost(true);
+    setPhase("waiting");
+  }, []);
+
+  const joinRoom = useCallback((code: string) => {
+    setRoomCode(code.toUpperCase());
+    setIsHost(false);
+    setPhase("waiting");
+  }, []);
+
+  const leave = useCallback(() => {
+    peerDisconnect();
+    unadvertiseRef.current?.();
+    unadvertiseRef.current = null;
+    readyCountRef.current = 0;
+    wasConnectedRef.current = false;
+    setRoomCode(null);
+    setIsHost(false);
+    setPhase("lobby");
+  }, [peerDisconnect]);
+
+  // --- Filtered messaging (strip __mp: internal messages) ---
+
+  const send = useCallback(
+    <T,>(type: string, payload: T) => {
+      peerSend(type, payload);
+    },
+    [peerSend],
+  );
+
+  const sendTo = useCallback(
+    <T,>(peerId: string, type: string, payload: T) => {
+      peerSendTo(peerId, type, payload);
+    },
+    [peerSendTo],
+  );
+
+  const onMessage = useCallback(
+    <T,>(type: string, handler: MessageHandler<T>): (() => void) => {
+      // Block game code from subscribing to internal messages
+      if (type.startsWith(MP_PREFIX)) return () => {};
+      return peerOnMessage(type, handler);
+    },
+    [peerOnMessage],
+  );
+
+  return {
+    rooms,
+    createRoom,
+    joinRoom,
+    phase,
+    roomCode,
+    isHost,
+    players: peers,
+    send,
+    sendTo,
+    onMessage,
+    leave,
+  };
+}

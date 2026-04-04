@@ -14,6 +14,8 @@ import type {
 
 interface UsePeerOptions {
   maxPeers?: number;
+  /** When false, the hook stays dormant — no signaling, no connections. */
+  enabled?: boolean;
 }
 
 /**
@@ -28,7 +30,7 @@ export function usePeer(
   role: PeerRole,
   options: UsePeerOptions = {},
 ): PeerHookState {
-  const { maxPeers = 1 } = options;
+  const { maxPeers = 1, enabled = true } = options;
 
   const [peers, setPeers] = useState<PeerState[]>([]);
   const [connectionState, setConnectionState] =
@@ -76,6 +78,8 @@ export function usePeer(
 
   // Main setup effect — owns all signal routing
   useEffect(() => {
+    if (!enabled) return;
+
     let cleanedUp = false;
     const connections = connectionsRef.current;
     const buffer: SignalingMessage[] = [];
@@ -196,7 +200,7 @@ export function usePeer(
       signaling.destroy();
       signalingRef.current = null;
     };
-  }, [roomId, role, peerId, maxPeers, syncPeers]);
+  }, [roomId, role, peerId, maxPeers, syncPeers, enabled]);
 
   // --- Stable callbacks for consumers ---
 

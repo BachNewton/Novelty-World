@@ -1,73 +1,69 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
-import { usePeer, useLobby } from "@/shared/lib/webrtc";
-import type { PeerRole } from "@/shared/lib/webrtc";
+import { useEffect, useCallback } from "react";
+import type { GameRoom } from "@/shared/lib/multiplayer";
 import { useTicTacToeStore } from "../store";
+import { randomPlayer } from "../logic";
 import { MSG } from "../types";
-import type { MoveRequest, StateUpdate, PlayAgainAccepted } from "../types";
+import type {
+  Player,
+  MoveRequest,
+  StateUpdate,
+  GameStart,
+  PlayAgainAccepted,
+} from "../types";
 import { Board } from "./board";
 import { GameStatus } from "./game-status";
 import { ConnectionStatus } from "./connection-status";
 import { Button } from "@/shared/components/ui/button";
 
 interface GameSessionProps {
-  roomCode: string;
-  role: PeerRole;
+  room: GameRoom;
+  onLeave: () => void;
 }
 
-export function GameSession({ roomCode, role }: GameSessionProps) {
-  const {
-    isConnected,
-    connectionState,
-    peers,
-    send,
-    onMessage,
-    disconnect,
-  } = usePeer(roomCode, role, { maxPeers: 1 });
+/** Return the opposite player */
+function otherPlayer(p: Player): Player {
+  return p === "X" ? "O" : "X";
+}
 
-  const { advertise } = useLobby({ game: "tic-tac-toe" });
-  const unadvertiseRef = useRef<(() => void) | null>(null);
+export function GameSession({ room, onLeave }: GameSessionProps) {
+  const { phase: roomPhase, isHost, roomCode, send, onMessage } = room;
 
-  const phase = useTicTacToeStore((s) => s.phase);
+  const myPlayer = useTicTacToeStore((s) => s.myPlayer);
   const applyMove = useTicTacToeStore((s) => s.applyMove);
-  const setPhase = useTicTacToeStore((s) => s.setPhase);
-  const resetGame = useTicTacToeStore((s) => s.resetGame);
-  const resetToLobby = useTicTacToeStore((s) => s.resetToLobby);
 
-  // Host: advertise room in lobby while waiting
+  // HOST: when room is ready, assign players and send GAME_START
   useEffect(() => {
-    if (role !== "host") return;
-    if (phase !== "waiting") return;
+    if (roomPhase !== "ready" || !isHost) return;
 
-    unadvertiseRef.current = advertise({
-      roomCode,
-      game: "tic-tac-toe",
-      playerCount: 1,
-      maxPlayers: 2,
-      createdAt: Date.now(),
+    const store = useTicTacToeStore.getState();
+    // Skip if already assigned (e.g. strict mode remount)
+    if (store.phase === "playing") return;
+
+    const hostPlayer = store.myPlayer ?? randomPlayer();
+    store.setMyPlayer(hostPlayer);
+    store.setPhase("playing");
+    send<GameStart>(MSG.GAME_START, { hostPlayer });
+  }, [roomPhase, isHost, send]);
+
+  // GUEST: listen for GAME_START to learn player assignment
+  useEffect(() => {
+    if (isHost) return;
+    return onMessage<GameStart>(MSG.GAME_START, (msg) => {
+      const store = useTicTacToeStore.getState();
+      store.setMyPlayer(otherPlayer(msg.payload.hostPlayer));
+      store.setPhase("playing");
     });
-
-    return () => {
-      unadvertiseRef.current?.();
-      unadvertiseRef.current = null;
-    };
-  }, [role, phase, roomCode, advertise]);
-
-  // When WebRTC connects, transition to playing (and stop advertising)
-  useEffect(() => {
-    if (isConnected && phase === "waiting") {
-      setPhase("playing");
-      unadvertiseRef.current?.();
-      unadvertiseRef.current = null;
-    }
-  }, [isConnected, phase, setPhase]);
+  }, [isHost, onMessage]);
 
   // HOST: listen for move requests from guest
   useEffect(() => {
-    if (role !== "host") return;
+    if (!isHost) return;
     return onMessage<MoveRequest>(MSG.MOVE_REQUEST, (msg) => {
-      const valid = useTicTacToeStore.getState().applyMove(msg.payload.cellIndex, "O");
+      const store = useTicTacToeStore.getState();
+      const guestPlayer = otherPlayer(store.myPlayer!);
+      const valid = store.applyMove(msg.payload.cellIndex, guestPlayer);
       if (valid) {
         send<StateUpdate>(
           MSG.STATE_UPDATE,
@@ -75,43 +71,50 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
         );
       }
     });
-  }, [role, onMessage, send]);
+  }, [isHost, onMessage, send]);
 
   // GUEST: listen for state updates from host
   useEffect(() => {
-    if (role !== "guest") return;
+    if (isHost) return;
     return onMessage<StateUpdate>(MSG.STATE_UPDATE, (msg) => {
       useTicTacToeStore.getState().applyStateUpdate(msg.payload);
     });
-  }, [role, onMessage]);
+  }, [isHost, onMessage]);
 
   // HOST: listen for play-again requests
   useEffect(() => {
-    if (role !== "host") return;
+    if (!isHost) return;
     return onMessage(MSG.PLAY_AGAIN_REQUEST, () => {
+      const hostPlayer = randomPlayer();
       useTicTacToeStore.getState().resetGame();
+      useTicTacToeStore.getState().setMyPlayer(hostPlayer);
       send<PlayAgainAccepted>(MSG.PLAY_AGAIN_ACCEPTED, {
         board: useTicTacToeStore.getState().board,
         currentTurn: useTicTacToeStore.getState().currentTurn,
+        hostPlayer,
       });
     });
-  }, [role, onMessage, send]);
+  }, [isHost, onMessage, send]);
 
   // GUEST: listen for play-again accepted
   useEffect(() => {
-    if (role !== "guest") return;
+    if (isHost) return;
     return onMessage<PlayAgainAccepted>(
       MSG.PLAY_AGAIN_ACCEPTED,
       (msg) => {
+        useTicTacToeStore.getState().setMyPlayer(
+          otherPlayer(msg.payload.hostPlayer),
+        );
         useTicTacToeStore.getState().applyStateUpdate({
-          ...msg.payload,
+          board: msg.payload.board,
+          currentTurn: msg.payload.currentTurn,
           phase: "playing",
           result: null,
           winLine: null,
         });
       },
     );
-  }, [role, onMessage]);
+  }, [isHost, onMessage]);
 
   const handleCellClick = useCallback(
     (cellIndex: number) => {
@@ -123,8 +126,8 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
       )
         return;
 
-      if (role === "host") {
-        const valid = applyMove(cellIndex, "X");
+      if (isHost) {
+        const valid = applyMove(cellIndex, state.myPlayer!);
         if (valid) {
           send<StateUpdate>(
             MSG.STATE_UPDATE,
@@ -135,48 +138,39 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
         send<MoveRequest>(MSG.MOVE_REQUEST, { cellIndex });
       }
     },
-    [role, applyMove, send],
+    [isHost, applyMove, send],
   );
 
   const handlePlayAgain = useCallback(() => {
-    if (role === "host") {
-      resetGame();
+    if (isHost) {
+      const hostPlayer = randomPlayer();
+      useTicTacToeStore.getState().resetGame();
+      useTicTacToeStore.getState().setMyPlayer(hostPlayer);
       send<PlayAgainAccepted>(MSG.PLAY_AGAIN_ACCEPTED, {
         board: useTicTacToeStore.getState().board,
         currentTurn: useTicTacToeStore.getState().currentTurn,
+        hostPlayer,
       });
     } else {
       send(MSG.PLAY_AGAIN_REQUEST, {});
     }
-  }, [role, resetGame, send]);
+  }, [isHost, send]);
 
-  const handleLeave = useCallback(() => {
-    disconnect();
-    resetToLobby();
-  }, [disconnect, resetToLobby]);
+  // --- Render based on framework phase ---
 
-  // Track if we've ever been connected so we don't show "disconnected" during initial handshake
-  const wasConnectedRef = useRef(false);
-  if (isConnected) wasConnectedRef.current = true;
-
-  // Opponent disconnected (only after we were connected at least once)
-  const peerDisconnected =
-    wasConnectedRef.current &&
-    peers.length > 0 &&
-    peers.every((p) => !p.connected);
-
-  if (peerDisconnected) {
+  // Opponent disconnected
+  if (roomPhase === "disconnected") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="text-2xl font-bold">Tic Tac Toe</h1>
         <p className="text-brand-pink font-medium">Opponent disconnected</p>
-        <Button onClick={handleLeave}>Back to Lobby</Button>
+        <Button onClick={onLeave}>Back to Lobby</Button>
       </div>
     );
   }
 
   // Connection failed
-  if (connectionState === "failed") {
+  if (roomPhase === "failed") {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="text-2xl font-bold">Tic Tac Toe</h1>
@@ -184,18 +178,18 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
         <p className="text-text-muted text-sm">
           Could not connect to the other player.
         </p>
-        <Button onClick={handleLeave}>Back to Lobby</Button>
+        <Button onClick={onLeave}>Back to Lobby</Button>
       </div>
     );
   }
 
-  // Waiting for connection
-  if (!isConnected) {
+  // Waiting / connecting / ready but no player assignment yet
+  if (roomPhase !== "ready" || !myPlayer) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="text-2xl font-bold">Tic Tac Toe</h1>
-        <ConnectionStatus state={connectionState} />
-        {role === "host" && (
+        <ConnectionStatus state={roomPhase === "waiting" ? "new" : "connecting"} />
+        {isHost && roomPhase === "waiting" && (
           <>
             <p className="text-text-secondary">
               Share this code with your opponent:
@@ -208,12 +202,12 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
             </p>
           </>
         )}
-        {role === "guest" && (
+        {!isHost && (
           <p className="text-text-muted text-sm animate-pulse">
             Connecting to room...
           </p>
         )}
-        <Button variant="ghost" onClick={handleLeave}>
+        <Button variant="ghost" onClick={onLeave}>
           Cancel
         </Button>
       </div>
@@ -223,7 +217,7 @@ export function GameSession({ roomCode, role }: GameSessionProps) {
   // Game is active
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4">
-      <GameStatus onPlayAgain={handlePlayAgain} onLeave={handleLeave} />
+      <GameStatus onPlayAgain={handlePlayAgain} onLeave={onLeave} />
       <Board onCellClick={handleCellClick} />
     </div>
   );

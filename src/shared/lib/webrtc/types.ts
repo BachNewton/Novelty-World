@@ -39,15 +39,6 @@ export type ConnectionState =
   | "disconnected"
   | "failed";
 
-/** A room visible in the lobby */
-export interface LobbyRoom {
-  roomCode: string;
-  game: string;
-  playerCount: number;
-  maxPlayers: number;
-  createdAt: number;
-}
-
 /** Return type of the usePeer hook */
 export interface PeerHookState {
   peerId: string;

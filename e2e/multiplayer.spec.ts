@@ -1,0 +1,151 @@
+import { test, expect } from "@playwright/test";
+
+const URL = "/test-multiplayer";
+
+/**
+ * Multiplayer framework tests.
+ *
+ * These test the useGameRoom hook (lobby + WebRTC + ready handshake)
+ * independent of any game. Every multiplayer game depends on this flow.
+ */
+
+test.describe("Multiplayer Framework", () => {
+  test("room can be created and appears in lobby", async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Host creates a room
+    await hostPage.goto(URL);
+    await hostPage.getByTestId("create-room").click();
+    await expect(hostPage.getByTestId("session")).toBeVisible();
+    const roomCode = await hostPage.getByTestId("room-code").textContent();
+    expect(roomCode).toBeTruthy();
+
+    // Guest sees the room in the lobby
+    await guestPage.goto(URL);
+    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+
+    const joinButton = guestPage.getByTestId("join-room").first();
+    await expect(joinButton).toBeVisible();
+    expect(await joinButton.textContent()).toBe(roomCode);
+
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+
+  test("guest can join a room and both reach ready", async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Host creates room
+    await hostPage.goto(URL);
+    await hostPage.getByTestId("create-room").click();
+    await expect(hostPage.getByTestId("session")).toBeVisible();
+
+    // Guest joins
+    await guestPage.goto(URL);
+    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+    await guestPage.getByTestId("join-room").first().click();
+    await expect(guestPage.getByTestId("session")).toBeVisible();
+
+    // Both sides reach ready phase (application-level handshake complete)
+    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+    await expect(guestPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+
+    // Both see 1 peer
+    await expect(hostPage.getByTestId("peer-count")).toHaveText("1");
+    await expect(guestPage.getByTestId("peer-count")).toHaveText("1");
+
+    // Roles are correct
+    await expect(hostPage.getByTestId("role")).toHaveText("host");
+    await expect(guestPage.getByTestId("role")).toHaveText("guest");
+
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+
+  test("ready peers can exchange messages", async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Connect and reach ready
+    await hostPage.goto(URL);
+    await hostPage.getByTestId("create-room").click();
+    await guestPage.goto(URL);
+    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+    await guestPage.getByTestId("join-room").first().click();
+
+    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+    await expect(guestPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+
+    // Host sends a ping, guest receives it
+    await hostPage.getByTestId("send-ping").click();
+    await expect(hostPage.getByTestId("messages")).toContainText("sent:hello");
+    await expect(guestPage.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    // Guest sends a ping, host receives it
+    await guestPage.getByTestId("send-ping").click();
+    await expect(guestPage.getByTestId("messages")).toContainText("sent:hello");
+    await expect(hostPage.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+
+  test("host detects when guest disconnects", async ({ browser }) => {
+    const hostCtx = await browser.newContext();
+    const guestCtx = await browser.newContext();
+    const hostPage = await hostCtx.newPage();
+    const guestPage = await guestCtx.newPage();
+
+    // Connect and reach ready
+    await hostPage.goto(URL);
+    await hostPage.getByTestId("create-room").click();
+    await guestPage.goto(URL);
+    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
+      timeout: 10_000,
+    });
+    await guestPage.getByTestId("join-room").first().click();
+
+    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
+      timeout: 15_000,
+    });
+
+    // Guest closes their tab
+    await guestPage.close();
+
+    // Host sees disconnected phase
+    await expect(hostPage.getByTestId("phase")).toHaveText("disconnected", {
+      timeout: 15_000,
+    });
+
+    await hostCtx.close();
+    await guestCtx.close();
+  });
+});

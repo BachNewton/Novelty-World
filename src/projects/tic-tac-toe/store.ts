@@ -10,7 +10,6 @@ import {
 } from "./logic";
 
 interface TicTacToeActions {
-  setRoomCode: (code: string) => void;
   setMyPlayer: (player: Player) => void;
   setPhase: (phase: GamePhase) => void;
 
@@ -26,11 +25,11 @@ interface TicTacToeActions {
     winLine: number[] | null;
   }) => void;
 
-  /** Reset board for a new round (keeps connection info) */
+  /** Reset board for a new round */
   resetGame: () => void;
 
-  /** Full reset back to lobby */
-  resetToLobby: () => void;
+  /** Full reset back to initial state */
+  reset: () => void;
 
   /** Get the wire-format state update (for host to send) */
   getStateUpdate: () => ReturnType<typeof toStateUpdate>;
@@ -41,7 +40,6 @@ export type TicTacToeStore = GameState & TicTacToeActions;
 export const useTicTacToeStore = create<TicTacToeStore>((set, get) => ({
   ...createInitialState(),
 
-  setRoomCode: (code) => set({ roomCode: code }),
   setMyPlayer: (player) => set({ myPlayer: player }),
   setPhase: (phase) => set({ phase }),
 
@@ -57,7 +55,7 @@ export const useTicTacToeStore = create<TicTacToeStore>((set, get) => ({
 
   resetGame: () => set(logicResetBoard(get())),
 
-  resetToLobby: () => set(createInitialState()),
+  reset: () => set(createInitialState()),
 
   getStateUpdate: () => toStateUpdate(get()),
 }));

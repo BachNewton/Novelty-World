@@ -1,4 +1,4 @@
-import type { Board, Player, GameState, GameResult } from "./types";
+import type { Board, Player, GamePhase, GameResult, GameState } from "./types";
 
 /** All possible winning lines (indices into the 9-cell board) */
 export const WIN_LINES: readonly number[][] = [
@@ -13,15 +13,19 @@ const EMPTY_BOARD: Board = [
   null, null, null,
 ];
 
+/** Randomly return "X" or "O" */
+export function randomPlayer(): Player {
+  return Math.random() < 0.5 ? "X" : "O";
+}
+
 /** Create a fresh initial game state */
 export function createInitialState(): GameState {
   return {
     board: [...EMPTY_BOARD] as Board,
     currentTurn: "X",
-    phase: "lobby",
+    phase: null,
     result: null,
     myPlayer: null,
-    roomCode: null,
     winLine: null,
   };
 }
@@ -101,7 +105,7 @@ export function applyMove(
   };
 }
 
-/** Reset just the board for a new round, keeping connection info */
+/** Reset just the board for a new round */
 export function resetBoard(state: GameState): GameState {
   return {
     ...state,
@@ -116,11 +120,11 @@ export function resetBoard(state: GameState): GameState {
 /** Extract the fields sent over the wire as a state update */
 export function toStateUpdate(
   state: GameState,
-): Pick<GameState, "board" | "currentTurn" | "phase" | "result" | "winLine"> {
+): { board: Board; currentTurn: Player; phase: GamePhase; result: GameResult | null; winLine: number[] | null } {
   return {
     board: state.board,
     currentTurn: state.currentTurn,
-    phase: state.phase,
+    phase: state.phase!,
     result: state.result,
     winLine: state.winLine,
   };

@@ -1,19 +1,23 @@
 "use client";
 
-import type { PeerRole } from "@/shared/lib/webrtc";
+import { useGameRoom } from "@/shared/lib/multiplayer";
 import { useTicTacToeStore } from "../store";
 import { Lobby } from "./lobby";
 import { GameSession } from "./game-session";
 
 export function TicTacToe() {
-  const phase = useTicTacToeStore((s) => s.phase);
-  const roomCode = useTicTacToeStore((s) => s.roomCode);
-  const myPlayer = useTicTacToeStore((s) => s.myPlayer);
+  const room = useGameRoom({ game: "tic-tac-toe", maxPlayers: 2 });
+  const reset = useTicTacToeStore((s) => s.reset);
 
-  if (phase === "lobby" || !roomCode || !myPlayer) {
-    return <Lobby />;
+  // Wrap leave to also reset game state
+  function handleLeave() {
+    room.leave();
+    reset();
   }
 
-  const role: PeerRole = myPlayer === "X" ? "host" : "guest";
-  return <GameSession roomCode={roomCode} role={role} key={roomCode} />;
+  if (room.phase === "lobby") {
+    return <Lobby room={room} />;
+  }
+
+  return <GameSession room={room} onLeave={handleLeave} key={room.roomCode} />;
 }
