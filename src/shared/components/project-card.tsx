@@ -5,12 +5,13 @@ import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/components/ui/card";
 import { getProjectPath } from "@/shared/lib/constants";
 import type { Project } from "@/shared/types";
-import { Dice5, Spade, Club, Calculator, type LucideIcon } from "lucide-react";
+import { Dice5, Spade, Club, Hash, Calculator, type LucideIcon } from "lucide-react";
 
 const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Dice5,
   Spade,
   Club,
+  Hash,
   Calculator,
 };
 
@@ -22,10 +23,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const Icon = ICON_MAP[project.icon];
 
   return (
-    <Link href={getProjectPath(project)}>
+    <Link href={getProjectPath(project)} className="h-full">
       <Card
         className={cn(
-          "group relative p-5 transition-all duration-200 border-brand-blue/20",
+          "group relative h-full p-5 transition-all duration-200 border-brand-green/20",
           "hover:-translate-y-1 hover:border-brand-pink/40 hover:shadow-lg"
         )}
       >
@@ -37,7 +38,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           )}
           <div className="min-w-0 flex-1">
             <h3 className="font-medium text-text-primary">{project.name}</h3>
-            <p className="mt-1 text-sm text-text-muted line-clamp-2">
+            <p className="mt-1 text-sm text-text-secondary line-clamp-2">
               {project.description}
             </p>
           </div>

@@ -33,7 +33,7 @@ export default async function ProjectPage({ params }: Props) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
       <h1 className="text-3xl font-bold">{project.name}</h1>
       <p className="text-text-secondary">{project.description}</p>
       <p className="text-sm text-text-muted">Coming soon</p>

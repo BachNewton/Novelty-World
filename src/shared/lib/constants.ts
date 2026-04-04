@@ -28,6 +28,13 @@ export const PROJECTS: Project[] = [
     icon: "Club",
   },
   {
+    name: "Tic Tac Toe",
+    slug: "tic-tac-toe",
+    description: "The classic game of X's and O's",
+    categorySlug: "games",
+    icon: "Hash",
+  },
+  {
     name: "Pi Solver",
     slug: "pi-solver",
     description: "Compute digits of Pi with various algorithms",
