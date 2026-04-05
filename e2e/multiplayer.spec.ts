@@ -1,6 +1,24 @@
 import { test, expect } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 const URL = "/test-multiplayer";
+
+/** Get the room code from a host page that's already in a session. */
+async function getRoomCode(hostPage: Page): Promise<string> {
+  const code = await hostPage.getByTestId("room-code").textContent();
+  expect(code).toBeTruthy();
+  return code!;
+}
+
+/** Wait for a specific room to appear in the guest's lobby and join it. */
+async function joinByCode(guestPage: Page, roomCode: string): Promise<void> {
+  const joinButton = guestPage.locator(
+    `[data-testid="join-room"][data-room-code="${roomCode}"]`,
+  );
+  await expect(joinButton).toBeVisible({ timeout: 10_000 });
+  await joinButton.click();
+  await expect(guestPage.getByTestId("session")).toBeVisible();
+}
 
 /**
  * Multiplayer framework tests.
@@ -20,17 +38,14 @@ test.describe("Multiplayer Framework", () => {
     await hostPage.goto(URL);
     await hostPage.getByTestId("create-room").click();
     await expect(hostPage.getByTestId("session")).toBeVisible();
-    const roomCode = await hostPage.getByTestId("room-code").textContent();
-    expect(roomCode).toBeTruthy();
+    const roomCode = await getRoomCode(hostPage);
 
     // Guest sees the room in the lobby
     await guestPage.goto(URL);
-    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-
-    const joinButton = guestPage.getByTestId("join-room").first();
-    await expect(joinButton).toBeVisible();
+    const joinButton = guestPage.locator(
+      `[data-testid="join-room"][data-room-code="${roomCode}"]`,
+    );
+    await expect(joinButton).toBeVisible({ timeout: 10_000 });
     expect(await joinButton.textContent()).toBe(roomCode);
 
     await hostCtx.close();
@@ -47,14 +62,11 @@ test.describe("Multiplayer Framework", () => {
     await hostPage.goto(URL);
     await hostPage.getByTestId("create-room").click();
     await expect(hostPage.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(hostPage);
 
-    // Guest joins
+    // Guest joins the specific room
     await guestPage.goto(URL);
-    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-    await guestPage.getByTestId("join-room").first().click();
-    await expect(guestPage.getByTestId("session")).toBeVisible();
+    await joinByCode(guestPage, roomCode);
 
     // Both sides reach ready phase (application-level handshake complete)
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
@@ -85,11 +97,11 @@ test.describe("Multiplayer Framework", () => {
     // Connect and reach ready
     await hostPage.goto(URL);
     await hostPage.getByTestId("create-room").click();
+    await expect(hostPage.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(hostPage);
+
     await guestPage.goto(URL);
-    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-    await guestPage.getByTestId("join-room").first().click();
+    await joinByCode(guestPage, roomCode);
 
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
       timeout: 15_000,
@@ -127,11 +139,11 @@ test.describe("Multiplayer Framework", () => {
     // Connect and reach ready
     await hostPage.goto(URL);
     await hostPage.getByTestId("create-room").click();
+    await expect(hostPage.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(hostPage);
+
     await guestPage.goto(URL);
-    await expect(guestPage.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-    await guestPage.getByTestId("join-room").first().click();
+    await joinByCode(guestPage, roomCode);
 
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
       timeout: 15_000,
@@ -163,22 +175,15 @@ test.describe("Multiplayer Framework", () => {
     await hostPage.goto(URL_3P);
     await hostPage.getByTestId("create-room").click();
     await expect(hostPage.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(hostPage);
 
     // Guest 1 joins
     await guest1Page.goto(URL_3P);
-    await expect(guest1Page.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-    await guest1Page.getByTestId("join-room").first().click();
-    await expect(guest1Page.getByTestId("session")).toBeVisible();
+    await joinByCode(guest1Page, roomCode);
 
     // Guest 2 joins
     await guest2Page.goto(URL_3P);
-    await expect(guest2Page.getByTestId("room-count")).not.toHaveText("0", {
-      timeout: 10_000,
-    });
-    await guest2Page.getByTestId("join-room").first().click();
-    await expect(guest2Page.getByTestId("session")).toBeVisible();
+    await joinByCode(guest2Page, roomCode);
 
     // All 3 reach ready phase
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useGameRoom } from "@/shared/lib/multiplayer";
 import type { GameRoom } from "@/shared/lib/multiplayer";
@@ -16,6 +16,14 @@ import type { GameRoom } from "@/shared/lib/multiplayer";
  *   ?players=N — set maxPlayers (default: 2)
  */
 export default function TestMultiplayerPage() {
+  return (
+    <Suspense>
+      <TestMultiplayerContent />
+    </Suspense>
+  );
+}
+
+function TestMultiplayerContent() {
   const searchParams = useSearchParams();
   const maxPlayers = Number(searchParams.get("players")) || 2;
   const room = useGameRoom({ game: "test", maxPlayers });

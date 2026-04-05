@@ -44,7 +44,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   );
 
   // --- Refs for handshake tracking ---
-  const readyCountRef = useRef(0);
+  const readyPeersRef = useRef<Set<string>>(new Set());
   const wasConnectedRef = useRef(false);
   const unadvertiseRef = useRef<(() => void) | null>(null);
 
@@ -108,12 +108,12 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   useEffect(() => {
     if (!isHost || phase !== "connecting") return;
 
-    readyCountRef.current = 0;
+    readyPeersRef.current.clear();
     const needed = maxPlayers - 1;
 
-    const unsub = peerOnMessage(`${MP_PREFIX}ready`, () => {
-      readyCountRef.current += 1;
-      if (readyCountRef.current >= needed) {
+    const unsub = peerOnMessage(`${MP_PREFIX}ready`, (msg) => {
+      readyPeersRef.current.add(msg.from);
+      if (readyPeersRef.current.size >= needed) {
         peerSend(`${MP_PREFIX}start`, {});
         setPhase("ready");
       }
@@ -157,7 +157,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     peerDisconnect();
     unadvertiseRef.current?.();
     unadvertiseRef.current = null;
-    readyCountRef.current = 0;
+    readyPeersRef.current.clear();
     wasConnectedRef.current = false;
     setRoomCode(null);
     setIsHost(false);
