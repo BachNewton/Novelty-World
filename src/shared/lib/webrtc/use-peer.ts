@@ -89,15 +89,16 @@ export function usePeer(
 
     // --- Local helper: route a signal to a PeerConnection ---
     function routeSignal(conn: PeerConnection, msg: SignalingMessage) {
+      const onErr = (e: unknown) => console.warn("[usePeer] signal routing error:", e);
       switch (msg.type) {
         case "offer":
-          conn.handleOffer(msg.payload as RTCSessionDescriptionInit);
+          conn.handleOffer(msg.payload as RTCSessionDescriptionInit).catch(onErr);
           break;
         case "answer":
-          conn.handleAnswer(msg.payload as RTCSessionDescriptionInit);
+          conn.handleAnswer(msg.payload as RTCSessionDescriptionInit).catch(onErr);
           break;
         case "ice-candidate":
-          conn.addIceCandidate(msg.payload as RTCIceCandidateInit);
+          conn.addIceCandidate(msg.payload as RTCIceCandidateInit).catch(onErr);
           break;
       }
     }
@@ -163,7 +164,7 @@ export function usePeer(
         if (connections.size >= maxPeers) return;
 
         const conn = createConn(remotePeerId);
-        conn.createOffer();
+        conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
       });
 
       // Check for peers that arrived before us
@@ -181,7 +182,7 @@ export function usePeer(
             if (connections.size >= maxPeers) return;
 
             const conn = createConn(remotePeerId);
-            conn.createOffer();
+            conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
           }
         }
       });
@@ -232,9 +233,8 @@ export function usePeer(
       handlers.add(handler as MessageHandler);
 
       // Register on all existing connections
-      const unsubs: (() => void)[] = [];
       for (const conn of connectionsRef.current.values()) {
-        unsubs.push(conn.onMessage(type, handler as MessageHandler));
+        conn.onMessage(type, handler as MessageHandler);
       }
 
       return () => {
@@ -242,8 +242,9 @@ export function usePeer(
         if (handlers!.size === 0) {
           messageHandlersRef.current.delete(type);
         }
-        for (const unsub of unsubs) {
-          unsub();
+        // Remove from ALL current connections, not just those that existed at registration
+        for (const conn of connectionsRef.current.values()) {
+          conn.removeHandler(type, handler as MessageHandler);
         }
       };
     },

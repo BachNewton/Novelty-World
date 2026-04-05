@@ -138,6 +138,14 @@ export class PeerConnection {
     this.dataChannel.send(JSON.stringify(message));
   }
 
+  /** Remove a previously registered handler for a message type. */
+  removeHandler<T>(type: string, handler: MessageHandler<T>): void {
+    const handlers = this.messageHandlers.get(type);
+    if (handlers) {
+      handlers.delete(handler as MessageHandler);
+    }
+  }
+
   /** Register a handler for a specific message type. Returns unsubscribe fn. */
   onMessage<T>(type: string, handler: MessageHandler<T>): () => void {
     let handlers = this.messageHandlers.get(type);
