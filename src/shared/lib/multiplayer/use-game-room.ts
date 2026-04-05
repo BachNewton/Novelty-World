@@ -45,11 +45,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   // --- Refs for handshake tracking ---
   const readyPeersRef = useRef<Set<string>>(new Set());
-  const wasConnectedRef = useRef(false);
   const unadvertiseRef = useRef<(() => void) | null>(null);
-
-  // Track if we ever reached "ready" to distinguish disconnect from initial failure
-  if (phase === "ready") wasConnectedRef.current = true;
 
   // --- Host: advertise room while waiting ---
   useEffect(() => {
@@ -133,7 +129,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   // --- Disconnect detection (only after we reached "ready") ---
   useEffect(() => {
     if (phase !== "ready") return;
-    if (peers.length > 0 && peers.every((p) => !p.connected)) {
+    if (peers.length > 0 && peers.every((p) => p.status !== "connected")) {
       setPhase("disconnected");
     }
   }, [phase, peers]);
@@ -158,7 +154,6 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     unadvertiseRef.current?.();
     unadvertiseRef.current = null;
     readyPeersRef.current.clear();
-    wasConnectedRef.current = false;
     setRoomCode(null);
     setIsHost(false);
     setPhase("lobby");

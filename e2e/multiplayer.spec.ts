@@ -76,9 +76,11 @@ test.describe("Multiplayer Framework", () => {
       timeout: 15_000,
     });
 
-    // Both see 1 peer
+    // Both see 1 peer with "connected" status
     await expect(hostPage.getByTestId("peer-count")).toHaveText("1");
     await expect(guestPage.getByTestId("peer-count")).toHaveText("1");
+    await expect(hostPage.getByTestId("player-status")).toHaveText("connected");
+    await expect(guestPage.getByTestId("player-status")).toHaveText("connected");
 
     // Roles are correct
     await expect(hostPage.getByTestId("role")).toHaveText("host");
@@ -152,10 +154,12 @@ test.describe("Multiplayer Framework", () => {
     // Guest closes their tab
     await guestPage.close();
 
-    // Host sees disconnected phase
+    // Host sees disconnected phase and peer status reflects it
     await expect(hostPage.getByTestId("phase")).toHaveText("disconnected", {
       timeout: 15_000,
     });
+    const peerStatus = await hostPage.getByTestId("player-status").textContent();
+    expect(["disconnected", "failed"]).toContain(peerStatus);
 
     await hostCtx.close();
     await guestCtx.close();
@@ -200,6 +204,14 @@ test.describe("Multiplayer Framework", () => {
     await expect(hostPage.getByTestId("peer-count")).toHaveText("2");
     await expect(guest1Page.getByTestId("peer-count")).toHaveText("1");
     await expect(guest2Page.getByTestId("peer-count")).toHaveText("1");
+
+    // All peers show "connected" status
+    const hostStatuses = hostPage.getByTestId("player-status");
+    await expect(hostStatuses).toHaveCount(2);
+    await expect(hostStatuses.nth(0)).toHaveText("connected");
+    await expect(hostStatuses.nth(1)).toHaveText("connected");
+    await expect(guest1Page.getByTestId("player-status")).toHaveText("connected");
+    await expect(guest2Page.getByTestId("player-status")).toHaveText("connected");
 
     // Host broadcasts a ping — both guests receive it
     await hostPage.getByTestId("send-ping").click();

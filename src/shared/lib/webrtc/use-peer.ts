@@ -53,7 +53,7 @@ export function usePeer(
     for (const [id, conn] of connectionsRef.current) {
       peerStates.push({
         id,
-        connected: conn.getConnectionState() === "connected",
+        status: conn.getConnectionState(),
       });
     }
     setPeers(peerStates);
@@ -61,15 +61,9 @@ export function usePeer(
     // Derive overall connection state
     if (peerStates.length === 0) {
       setConnectionState("new");
-    } else if (peerStates.some((p) => p.connected)) {
+    } else if (peerStates.some((p) => p.status === "connected")) {
       setConnectionState("connected");
-    } else if (
-      peerStates.every(
-        (p) =>
-          !p.connected &&
-          connectionsRef.current.get(p.id)?.getConnectionState() === "failed",
-      )
-    ) {
+    } else if (peerStates.some((p) => p.status === "failed")) {
       setConnectionState("failed");
     } else {
       setConnectionState("connecting");
@@ -267,8 +261,8 @@ export function usePeer(
     role,
     peers,
     connectionState,
-    isConnected: peers.some((p) => p.connected),
-    allConnected: peers.filter((p) => p.connected).length >= maxPeers,
+    isConnected: peers.some((p) => p.status === "connected"),
+    allConnected: peers.filter((p) => p.status === "connected").length >= maxPeers,
     send,
     sendTo,
     onMessage,

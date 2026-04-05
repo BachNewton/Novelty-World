@@ -9,7 +9,7 @@ export interface SignalingMessage {
 
 export interface PeerState {
   id: string;
-  connected: boolean;
+  status: ConnectionState;
 }
 
 export interface RoomConfig {

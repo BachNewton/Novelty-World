@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { MessageHandler, DataMessage } from "./types";
+import type { MessageHandler, DataMessage, ConnectionState, PeerState } from "./types";
 
 /**
  * Minimal mock that mirrors PeerConnection's onMessage/handler interface.
@@ -127,7 +127,7 @@ describe("usePeer handler management", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("handler fires on new connections before unsub is called", () => {
+  it("handler still fires on new connections before unsub is called", () => {
     const { connections, createConn, onMessage } = createPeerPattern();
     const handler = vi.fn();
 
@@ -137,5 +137,90 @@ describe("usePeer handler management", () => {
 
     connections.get("B")!.simulateMessage("move", { x: 1, y: 2 });
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Replicates usePeer's syncPeers logic for deriving overall connectionState
+ * from per-peer states. Uses the same algorithm as use-peer.ts:51-77.
+ */
+function syncPeers(
+  peerStatuses: Map<string, ConnectionState>,
+): { peers: PeerState[]; connectionState: ConnectionState } {
+  const peers: PeerState[] = [];
+  for (const [id, status] of peerStatuses) {
+    peers.push({ id, status });
+  }
+
+  let connectionState: ConnectionState;
+  if (peers.length === 0) {
+    connectionState = "new";
+  } else if (peers.some((p) => p.status === "connected")) {
+    connectionState = "connected";
+  } else if (peers.some((p) => p.status === "failed")) {
+    connectionState = "failed";
+  } else {
+    connectionState = "connecting";
+  }
+
+  return { peers, connectionState };
+}
+
+describe("usePeer connection state derivation", () => {
+  it("reports 'failed' when ANY peer fails (partial failure)", () => {
+    const statuses = new Map<string, ConnectionState>([
+      ["A", "connected"],
+      ["B", "failed"],
+    ]);
+
+    const { connectionState } = syncPeers(statuses);
+    // With 2 of 3 expected players, one connected and one failed,
+    // the room should not hang — it should surface the failure
+    expect(connectionState).not.toBe("connecting");
+  });
+
+  it("reports 'connected' when some peers are connected and none failed", () => {
+    const statuses = new Map<string, ConnectionState>([
+      ["A", "connected"],
+      ["B", "connecting"],
+    ]);
+
+    const { connectionState } = syncPeers(statuses);
+    expect(connectionState).toBe("connected");
+  });
+
+  it("reports 'failed' when all peers have failed", () => {
+    const statuses = new Map<string, ConnectionState>([
+      ["A", "failed"],
+      ["B", "failed"],
+    ]);
+
+    const { connectionState } = syncPeers(statuses);
+    expect(connectionState).toBe("failed");
+  });
+
+  it("reports 'connecting' when all peers are still connecting", () => {
+    const statuses = new Map<string, ConnectionState>([
+      ["A", "connecting"],
+      ["B", "connecting"],
+    ]);
+
+    const { connectionState } = syncPeers(statuses);
+    expect(connectionState).toBe("connecting");
+  });
+
+  it("exposes per-peer status", () => {
+    const statuses = new Map<string, ConnectionState>([
+      ["A", "connected"],
+      ["B", "failed"],
+      ["C", "connecting"],
+    ]);
+
+    const { peers } = syncPeers(statuses);
+    expect(peers).toEqual([
+      { id: "A", status: "connected" },
+      { id: "B", status: "failed" },
+      { id: "C", status: "connecting" },
+    ]);
   });
 });

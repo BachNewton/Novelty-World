@@ -86,6 +86,11 @@ function Session({ room }: { room: GameRoom }) {
       <div data-testid="role">{isHost ? "host" : "guest"}</div>
       <div data-testid="phase">{phase}</div>
       <div data-testid="peer-count">{players.length}</div>
+      <div data-testid="player-statuses">
+        {players.map((p) => (
+          <span key={p.id} data-testid="player-status">{p.status}</span>
+        ))}
+      </div>
       <div data-testid="is-ready">{String(phase === "ready")}</div>
       <button data-testid="send-ping" onClick={handleSendPing}>
         Send Ping
