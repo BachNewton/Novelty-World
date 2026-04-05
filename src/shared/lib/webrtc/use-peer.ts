@@ -161,6 +161,12 @@ export function usePeer(
       }
     });
 
+    // --- Handle signaling failure for all roles ---
+    signaling.ready.catch(() => {
+      if (cleanedUp) return;
+      setConnectionState("failed");
+    });
+
     // --- Host: Presence-based peer discovery ---
     let unsubJoined: (() => void) | undefined;
     if (role === "host") {
