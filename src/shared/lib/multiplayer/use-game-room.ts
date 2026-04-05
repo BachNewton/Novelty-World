@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePeer } from "../webrtc";
-import type { PeerRole, MessageHandler } from "../webrtc";
+import type { PeerRole, MessageHandler, DataMessage } from "../webrtc";
 import { useLobby } from "./use-lobby";
 import type { RoomPhase, GameRoom, UseGameRoomOptions } from "./types";
-import { MP_PREFIX } from "./types";
+import { MP_PREFIX, GAME_PREFIX } from "./types";
 
 /**
  * Game-agnostic multiplayer room hook.
@@ -159,27 +159,27 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     setPhase("lobby");
   }, [peerDisconnect]);
 
-  // --- Filtered messaging (strip __mp: internal messages) ---
+  // --- Namespaced messaging — game messages are prefixed automatically ---
 
   const send = useCallback(
     <T,>(type: string, payload: T) => {
-      peerSend(type, payload);
+      peerSend(GAME_PREFIX + type, payload);
     },
     [peerSend],
   );
 
   const sendTo = useCallback(
     <T,>(peerId: string, type: string, payload: T) => {
-      peerSendTo(peerId, type, payload);
+      peerSendTo(peerId, GAME_PREFIX + type, payload);
     },
     [peerSendTo],
   );
 
   const onMessage = useCallback(
     <T,>(type: string, handler: MessageHandler<T>): (() => void) => {
-      // Block game code from subscribing to internal messages
-      if (type.startsWith(MP_PREFIX)) return () => {};
-      return peerOnMessage(type, handler);
+      return peerOnMessage(GAME_PREFIX + type, (msg) => {
+        handler({ ...msg, type } as DataMessage<T>);
+      });
     },
     [peerOnMessage],
   );

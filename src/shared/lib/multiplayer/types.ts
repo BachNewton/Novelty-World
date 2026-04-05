@@ -48,4 +48,7 @@ export interface GameRoom {
 /** Internal protocol message prefix — never exposed to game code */
 export const MP_PREFIX = "__mp:";
 
+/** Game message prefix — applied automatically by useGameRoom */
+export const GAME_PREFIX = "__game:";
+
 export type { PeerState, DataMessage, MessageHandler };
