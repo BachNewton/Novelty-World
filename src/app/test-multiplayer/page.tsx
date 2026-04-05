@@ -65,8 +65,9 @@ function Lobby({ room }: { room: GameRoom }) {
 }
 
 function Session({ room }: { room: GameRoom }) {
-  const { roomCode, isHost, phase, players, send, onMessage } = room;
+  const { roomCode, isHost, phase, players, send, onMessage, onPlayerLeave } = room;
   const [messages, setMessages] = useState<string[]>([]);
+  const [leftPlayers, setLeftPlayers] = useState<string[]>([]);
 
   // Listen for ping messages
   useEffect(() => {
@@ -74,6 +75,13 @@ function Session({ room }: { room: GameRoom }) {
       setMessages((prev) => [...prev, `received:${msg.payload.text}`]);
     });
   }, [onMessage]);
+
+  // Listen for player leave events
+  useEffect(() => {
+    return onPlayerLeave((peerId) => {
+      setLeftPlayers((prev) => [...prev, peerId]);
+    });
+  }, [onPlayerLeave]);
 
   const handleSendPing = useCallback(() => {
     send("ping", { text: "hello" });
@@ -96,6 +104,8 @@ function Session({ room }: { room: GameRoom }) {
         Send Ping
       </button>
       <div data-testid="messages">{JSON.stringify(messages)}</div>
+      <div data-testid="left-players">{JSON.stringify(leftPlayers)}</div>
+      <div data-testid="left-count">{leftPlayers.length}</div>
     </div>
   );
 }

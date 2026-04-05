@@ -161,6 +161,9 @@ test.describe("Multiplayer Framework", () => {
     const peerStatus = await hostPage.getByTestId("player-status").textContent();
     expect(["disconnected", "failed"]).toContain(peerStatus);
 
+    // onPlayerLeave callback fired with the departed peer's ID
+    await expect(hostPage.getByTestId("left-count")).toHaveText("1");
+
     await hostCtx.close();
     await guestCtx.close();
   });

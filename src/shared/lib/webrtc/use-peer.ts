@@ -45,6 +45,11 @@ export function usePeer(
     new Map(),
   );
 
+  // Stable peer-leave handlers (fire when any peer disconnects or fails)
+  const peerLeaveHandlersRef = useRef<Set<(peerId: string) => void>>(
+    new Set(),
+  );
+
   const peerId = peerIdRef.current;
 
   // Update peers state from the connections map
@@ -106,7 +111,14 @@ export function usePeer(
         onSignalOut: (signal) => {
           signaling.sendSignal({ ...signal, to: remotePeerId });
         },
-        onConnectionStateChange: () => syncPeers(),
+        onConnectionStateChange: (state) => {
+          if (state === "disconnected" || state === "failed") {
+            for (const handler of [...peerLeaveHandlersRef.current]) {
+              handler(remotePeerId);
+            }
+          }
+          syncPeers();
+        },
       });
 
       connections.set(remotePeerId, conn);
@@ -245,6 +257,16 @@ export function usePeer(
     [],
   );
 
+  const onPeerLeave = useCallback(
+    (handler: (peerId: string) => void): (() => void) => {
+      peerLeaveHandlersRef.current.add(handler);
+      return () => {
+        peerLeaveHandlersRef.current.delete(handler);
+      };
+    },
+    [],
+  );
+
   const disconnect = useCallback(() => {
     for (const conn of connectionsRef.current.values()) {
       conn.destroy();
@@ -266,6 +288,7 @@ export function usePeer(
     send,
     sendTo,
     onMessage,
+    onPeerLeave,
     disconnect,
   };
 }

@@ -141,6 +141,116 @@ describe("usePeer handler management", () => {
 });
 
 /**
+ * Replicates the peer-leave handler pattern from usePeer:
+ * - peerLeaveHandlers: global registry of leave handlers
+ * - onPeerLeave: registers handler, returns unsub
+ * - createConn: when state becomes disconnected/failed, fires leave handlers
+ */
+function createPeerLeavePattern() {
+  const peerLeaveHandlers = new Set<(peerId: string) => void>();
+
+  const connections = new Map<
+    string,
+    { simulateStateChange: (state: ConnectionState) => void }
+  >();
+
+  function createConn(remotePeerId: string) {
+    const conn = {
+      // Simulates PeerConnection calling onConnectionStateChange (use-peer.ts:109-116)
+      simulateStateChange(state: ConnectionState) {
+        if (state === "disconnected" || state === "failed") {
+          for (const handler of [...peerLeaveHandlers]) {
+            handler(remotePeerId);
+          }
+        }
+      },
+    };
+    connections.set(remotePeerId, conn);
+    return conn;
+  }
+
+  function onPeerLeave(handler: (peerId: string) => void): () => void {
+    peerLeaveHandlers.add(handler);
+    return () => {
+      peerLeaveHandlers.delete(handler);
+    };
+  }
+
+  return { connections, createConn, onPeerLeave };
+}
+
+describe("usePeer peer-leave handlers", () => {
+  it("handler fires with correct peerId when a peer disconnects", () => {
+    const { connections, createConn, onPeerLeave } = createPeerLeavePattern();
+    const handler = vi.fn();
+
+    createConn("A");
+    createConn("B");
+    onPeerLeave(handler);
+
+    // Peer A disconnects
+    connections.get("A")!.simulateStateChange("disconnected");
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith("A");
+  });
+
+  it("handler fires when a peer fails", () => {
+    const { connections, createConn, onPeerLeave } = createPeerLeavePattern();
+    const handler = vi.fn();
+
+    createConn("A");
+    onPeerLeave(handler);
+
+    connections.get("A")!.simulateStateChange("failed");
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith("A");
+  });
+
+  it("handler does NOT fire for non-leave state changes", () => {
+    const { connections, createConn, onPeerLeave } = createPeerLeavePattern();
+    const handler = vi.fn();
+
+    createConn("A");
+    onPeerLeave(handler);
+
+    connections.get("A")!.simulateStateChange("connecting");
+    connections.get("A")!.simulateStateChange("connected");
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("unsubscribed handler does not fire", () => {
+    const { connections, createConn, onPeerLeave } = createPeerLeavePattern();
+    const handler = vi.fn();
+
+    createConn("A");
+    const unsub = onPeerLeave(handler);
+    unsub();
+
+    connections.get("A")!.simulateStateChange("disconnected");
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("handler fires for peers created AFTER registration", () => {
+    const { connections, createConn, onPeerLeave } = createPeerLeavePattern();
+    const handler = vi.fn();
+
+    // Register handler before any connections exist
+    onPeerLeave(handler);
+
+    // Peer joins later
+    createConn("A");
+    connections.get("A")!.simulateStateChange("disconnected");
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith("A");
+  });
+});
+
+/**
  * Replicates usePeer's syncPeers logic for deriving overall connectionState
  * from per-peer states. Uses the same algorithm as use-peer.ts:51-77.
  */

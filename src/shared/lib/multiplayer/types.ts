@@ -41,6 +41,10 @@ export interface GameRoom {
   sendTo: <T>(peerId: string, type: string, payload: T) => void;
   onMessage: <T>(type: string, handler: MessageHandler<T>) => () => void;
 
+  // Player events
+  /** Listen for individual players leaving (disconnected or failed). Returns unsubscribe fn. */
+  onPlayerLeave: (handler: (peerId: string) => void) => () => void;
+
   // Lifecycle
   leave: () => void;
 }

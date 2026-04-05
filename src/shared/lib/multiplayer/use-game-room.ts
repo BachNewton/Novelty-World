@@ -36,6 +36,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     send: peerSend,
     sendTo: peerSendTo,
     onMessage: peerOnMessage,
+    onPeerLeave,
     disconnect: peerDisconnect,
   } = usePeer(
     roomCode ?? "",
@@ -184,6 +185,13 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     [peerOnMessage],
   );
 
+  const onPlayerLeave = useCallback(
+    (handler: (peerId: string) => void): (() => void) => {
+      return onPeerLeave(handler);
+    },
+    [onPeerLeave],
+  );
+
   return {
     rooms,
     createRoom,
@@ -195,6 +203,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     send,
     sendTo,
     onMessage,
+    onPlayerLeave,
     leave,
   };
 }

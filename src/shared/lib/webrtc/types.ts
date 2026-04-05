@@ -58,6 +58,8 @@ export interface PeerHookState {
     type: string,
     handler: MessageHandler<T>,
   ) => () => void;
+  /** Listen for peers leaving (disconnected or failed). Returns unsubscribe fn. */
+  onPeerLeave: (handler: (peerId: string) => void) => () => void;
   /** Tear down all connections and signaling */
   disconnect: () => void;
 }
