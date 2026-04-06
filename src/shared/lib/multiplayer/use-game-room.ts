@@ -1,22 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePeer } from "../webrtc";
-import type { PeerRole, MessageHandler, DataMessage } from "../webrtc";
+import type { PeerRole, MessageHandler, DataMessage, ConnectionState } from "../webrtc";
 import { useLobby } from "./use-lobby";
-import type { RoomPhase, GameRoom, UseGameRoomOptions } from "./types";
+import type { RoomPhase, GameRoom, UseGameRoomOptions, PlayerInfo } from "./types";
 import { MP_PREFIX, GAME_PREFIX } from "./types";
 
-/**
- * Game-agnostic multiplayer room hook.
- *
- * Owns the full lifecycle: lobby → room creation → WebRTC connection →
- * application-level ready handshake → game messaging → disconnect detection.
- *
- * Games only interact once `phase === "ready"`.
- */
+/** Wire format for roster entries in __mp:start */
+interface RosterEntry {
+  playerId: string;
+  playerName: string;
+  peerId: string;
+}
+
 export function useGameRoom(options: UseGameRoomOptions): GameRoom {
-  const { game, maxPlayers } = options;
+  const { game, maxPlayers, profile } = options;
 
   // --- Local lifecycle state ---
   const [phase, setPhase] = useState<RoomPhase>("lobby");
@@ -31,6 +30,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   const { rooms, advertise } = useLobby({ game });
   const maxPeers = maxPlayers ? maxPlayers - 1 : undefined;
   const {
+    peerId,
     peers,
     connectionState,
     isConnected,
@@ -47,8 +47,12 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   // --- Handshake tracking ---
   const readyPeersRef = useRef<Set<string>>(new Set());
+  const readyProfilesRef = useRef<Map<string, { playerId: string; playerName: string }>>(new Map());
   const [neededPeers, setNeededPeers] = useState(0);
   const unadvertiseRef = useRef<(() => void) | null>(null);
+
+  // --- Player identity ---
+  const [rosterEntries, setRosterEntries] = useState<RosterEntry[]>([]);
 
   // --- Host: advertise room while waiting ---
   useEffect(() => {
@@ -81,39 +85,55 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   // --- Application-level ready handshake ---
 
-  // Guest: once any peer is connected, register __mp:start listener, then send __mp:ready
+  // Guest: once any peer is connected, register __mp:start listener, then send __mp:ready.
+  // Re-sends __mp:ready when peers change — in mesh, a guest may connect to another
+  // guest before the host, so we resend when new peers appear. Host deduplicates.
   useEffect(() => {
     if (isHost || phase !== "connecting") return;
     if (!isConnected) return;
 
     // Register start listener FIRST, then send ready — deterministic ordering
-    const unsub = peerOnMessage(`${MP_PREFIX}start`, () => {
+    const unsub = peerOnMessage<{ roster: RosterEntry[] }>(`${MP_PREFIX}start`, (msg) => {
+      setRosterEntries(msg.payload.roster);
       setPhase("ready");
     });
 
-    peerSend(`${MP_PREFIX}ready`, {});
+    peerSend(`${MP_PREFIX}ready`, { playerId: profile.id, playerName: profile.name });
 
     return unsub;
-  }, [isHost, phase, isConnected, peerOnMessage, peerSend]);
+  }, [isHost, phase, isConnected, peers, peerOnMessage, peerSend, profile.id, profile.name]);
 
   // Host: collect __mp:ready from guests, send __mp:start when all are ready.
-  // neededPeersRef is set at transition time (auto-transition or manual start()).
+  // neededPeers is set at transition time (auto-transition or manual start()).
   useEffect(() => {
     if (!isHost || phase !== "connecting") return;
 
     readyPeersRef.current.clear();
+    readyProfilesRef.current.clear();
     if (neededPeers === 0) return;
 
-    const unsub = peerOnMessage(`${MP_PREFIX}ready`, (msg) => {
+    const unsub = peerOnMessage<{ playerId: string; playerName: string }>(`${MP_PREFIX}ready`, (msg) => {
       readyPeersRef.current.add(msg.from);
+      readyProfilesRef.current.set(msg.from, msg.payload);
       if (readyPeersRef.current.size >= neededPeers) {
-        peerSend(`${MP_PREFIX}start`, {});
+        // Build roster: host first, then guests in join order
+        const roster: RosterEntry[] = [
+          { playerId: profile.id, playerName: profile.name, peerId },
+        ];
+        for (const guestPeerId of readyPeersRef.current) {
+          const guestProfile = readyProfilesRef.current.get(guestPeerId);
+          if (guestProfile) {
+            roster.push({ ...guestProfile, peerId: guestPeerId });
+          }
+        }
+        setRosterEntries(roster);
+        peerSend(`${MP_PREFIX}start`, { roster });
         setPhase("ready");
       }
     });
 
     return unsub;
-  }, [isHost, phase, neededPeers, peerOnMessage, peerSend]);
+  }, [isHost, phase, neededPeers, peerOnMessage, peerSend, peerId, profile.id, profile.name]);
 
   // --- Derive failure / disconnect from transport state (no effects needed) ---
   let effectivePhase = phase;
@@ -123,6 +143,18 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   if (phase === "ready" && peers.length > 0 && peers.every((p) => p.status !== "connected")) {
     effectivePhase = "disconnected";
   }
+
+  // --- Player roster with live connection status ---
+  const playerRoster: PlayerInfo[] = useMemo(() => {
+    return rosterEntries.map((entry) => {
+      if (entry.peerId === peerId) {
+        // Local player is always "connected" from our perspective
+        return { ...entry, status: "connected" as ConnectionState };
+      }
+      const peer = peers.find((p) => p.id === entry.peerId);
+      return { ...entry, status: (peer?.status ?? "disconnected") as ConnectionState };
+    });
+  }, [rosterEntries, peers, peerId]);
 
   // --- Actions ---
 
@@ -152,6 +184,8 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     unadvertiseRef.current?.();
     unadvertiseRef.current = null;
     readyPeersRef.current.clear();
+    readyProfilesRef.current.clear();
+    setRosterEntries([]);
     setRoomCode(null);
     setIsHost(false);
     setPhase("lobby");
@@ -198,6 +232,8 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     roomCode,
     isHost,
     players: peers,
+    playerId: profile.id,
+    playerRoster,
     send,
     sendTo,
     onMessage,

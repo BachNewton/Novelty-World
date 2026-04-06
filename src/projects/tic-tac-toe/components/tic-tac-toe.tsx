@@ -1,12 +1,14 @@
 "use client";
 
 import { useGameRoom } from "@/shared/lib/multiplayer";
+import { useProfile } from "@/shared/lib/profile";
 import { useTicTacToeStore } from "../store";
 import { Lobby } from "./lobby";
 import { GameSession } from "./game-session";
 
 export function TicTacToe() {
-  const room = useGameRoom({ game: "tic-tac-toe", maxPlayers: 2 });
+  const profile = useProfile();
+  const room = useGameRoom({ game: "tic-tac-toe", maxPlayers: 2, profile });
   const reset = useTicTacToeStore((s) => s.reset);
 
   // Wrap leave to also reset game state

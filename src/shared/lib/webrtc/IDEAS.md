@@ -1,8 +1,8 @@
 # WebRTC Library Ideas
 
-## Full Mesh Topology
+## Full Mesh Topology ✅ Implemented
 
-Currently `usePeer` uses a star topology: the host connects to every guest,
+~~Currently `usePeer` uses a star topology: the host connects to every guest,
 guests only connect to the host. This makes the host a single point of failure.
 If the host leaves, all guests lose their connections and host migration
 requires reconnection + state transfer.
@@ -32,7 +32,11 @@ the connection graph.
   endpoint. A TURN server solves it.
 - **Connection count**: N*(N-1)/2 total, but each client still maxes at N-1 —
   same as the host handles today in star. Fine for typical game sizes (4-8
-  players).
+  players).~~
+
+`usePeer` now uses full mesh topology with a deterministic offer-initiation
+rule (higher peer ID sends the offer). `PeerConnection` uses an `initiator`
+boolean instead of `role` for DataChannel creation.
 
 ## TURN Server
 

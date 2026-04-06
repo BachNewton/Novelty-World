@@ -1,8 +1,8 @@
 # Multiplayer Library Ideas
 
-## Player Identity Framework
+## Player Identity Framework ✅ Implemented
 
-Currently the multiplayer layer provides `players: PeerState[]` with peer IDs
+~~Currently the multiplayer layer provides `players: PeerState[]` with peer IDs
 and connection status, but no concept of player ordering, seat assignment, or
 stable identity. Each game must implement this itself — Tic-Tac-Toe assigns
 X/O via a GAME_START message.
@@ -29,4 +29,12 @@ reimplementing discovery and ordering.
 
 - Adds opinion to the framework — not all games care about order.
 - Simple games like Tic-Tac-Toe don't benefit much.
-- But every game with 3+ players would use it.
+- But every game with 3+ players would use it.~~
+
+`useGameRoom` now accepts a `profile: { id, name }` option (from the app-wide
+`useProfile` store). During the ready handshake, the host collects profiles
+from all guests and broadcasts a `playerRoster: PlayerInfo[]` with persistent
+`playerId`, `playerName`, ephemeral `peerId`, and live connection `status`.
+Games map player IDs to game roles (seats, teams) without reimplementing
+discovery. The original "playerIndex" proposal was replaced with unordered
+identity — games decide ordering, not the framework.

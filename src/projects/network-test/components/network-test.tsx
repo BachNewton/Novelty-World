@@ -1,13 +1,15 @@
 "use client";
 
 import { useGameRoom } from "@/shared/lib/multiplayer";
+import { useProfile } from "@/shared/lib/profile";
 import { useNetworkTestStore } from "../store";
 import { Lobby } from "./lobby";
 import { WaitingRoom } from "./waiting-room";
 import { TestSession } from "./test-session";
 
 export function NetworkTest() {
-  const room = useGameRoom({ game: "network-test" });
+  const profile = useProfile();
+  const room = useGameRoom({ game: "network-test", profile });
   const reset = useNetworkTestStore((s) => s.reset);
 
   function handleLeave() {

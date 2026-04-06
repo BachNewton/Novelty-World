@@ -1,4 +1,4 @@
-import type { PeerState, DataMessage, MessageHandler } from "../webrtc";
+import type { PeerState, DataMessage, MessageHandler, ConnectionState } from "../webrtc";
 
 export type RoomPhase =
   | "lobby"
@@ -18,11 +18,25 @@ export interface LobbyRoom {
   createdAt: number;
 }
 
+/** A player in the room roster — persistent identity + live connection status */
+export interface PlayerInfo {
+  /** Persistent profile ID (survives reconnects) */
+  playerId: string;
+  /** Display name (can change) */
+  playerName: string;
+  /** Ephemeral WebRTC peer ID (changes on reconnect) */
+  peerId: string;
+  /** Live connection status */
+  status: ConnectionState;
+}
+
 export interface UseGameRoomOptions {
   /** Lobby channel name — determines which game's rooms are visible */
   game: string;
   /** Total players including the host. Omit for open rooms where host starts manually via start(). */
   maxPlayers?: number;
+  /** Player profile — persistent identity for this client */
+  profile: { id: string; name: string };
 }
 
 export interface GameRoom {
@@ -36,6 +50,12 @@ export interface GameRoom {
   roomCode: string | null;
   isHost: boolean;
   players: PeerState[];
+
+  // Player identity
+  /** This client's persistent player ID (from profile) */
+  playerId: string;
+  /** All players in the room with persistent identity and live connection status */
+  playerRoster: PlayerInfo[];
 
   /** Manually start the game. Required when maxPlayers is omitted. No-op if room already transitioned. */
   start: () => void;

@@ -3,6 +3,7 @@ export type {
   GameRoom,
   UseGameRoomOptions,
   LobbyRoom,
+  PlayerInfo,
   PeerState,
   DataMessage,
   MessageHandler,

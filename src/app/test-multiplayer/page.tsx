@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { useGameRoom } from "@/shared/lib/multiplayer";
 import type { GameRoom } from "@/shared/lib/multiplayer";
@@ -27,7 +27,9 @@ function TestMultiplayerContent() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
   const maxPlayers = mode === "open" ? undefined : (Number(searchParams.get("players")) || 2);
-  const room = useGameRoom({ game: "test", ...(maxPlayers !== undefined && { maxPlayers }) });
+  // Generate a stable profile per browser context (unique per tab for e2e tests)
+  const profile = useMemo(() => ({ id: crypto.randomUUID(), name: "Test Player" }), []);
+  const room = useGameRoom({ game: "test", ...(maxPlayers !== undefined && { maxPlayers }), profile });
 
   return (
     <div data-testid="test-multiplayer">
@@ -66,7 +68,7 @@ function Lobby({ room }: { room: GameRoom }) {
 }
 
 function Session({ room }: { room: GameRoom }) {
-  const { roomCode, isHost, phase, players, send, onMessage, onPlayerLeave, start } = room;
+  const { roomCode, isHost, phase, players, playerId, playerRoster, send, onMessage, onPlayerLeave, start } = room;
   const [messages, setMessages] = useState<string[]>([]);
   const [leftPlayers, setLeftPlayers] = useState<string[]>([]);
 
@@ -101,6 +103,15 @@ function Session({ room }: { room: GameRoom }) {
         ))}
       </div>
       <div data-testid="is-ready">{String(phase === "ready")}</div>
+      <div data-testid="player-id">{playerId}</div>
+      <div data-testid="roster-count">{playerRoster.length}</div>
+      <div data-testid="roster">
+        {playerRoster.map((p) => (
+          <span key={p.playerId} data-testid="roster-entry" data-player-id={p.playerId}>
+            {p.playerName}:{p.status}
+          </span>
+        ))}
+      </div>
       {phase === "waiting" && isHost && (
         <button data-testid="start-game" onClick={start}>Start</button>
       )}

@@ -3,7 +3,6 @@ import type {
   ConnectionState,
   DataMessage,
   MessageHandler,
-  PeerRole,
 } from "./types";
 
 const ICE_SERVERS: RTCIceServer[] = [
@@ -12,7 +11,8 @@ const ICE_SERVERS: RTCIceServer[] = [
 ];
 
 export interface PeerConnectionConfig {
-  role: PeerRole;
+  /** True when this peer sends the offer and creates the DataChannel. */
+  initiator: boolean;
   localPeerId: string;
   remotePeerId: string;
   /** Called when this peer needs to send a signal outward (offer, answer, ICE candidate) */
@@ -28,7 +28,7 @@ export interface PeerConnectionConfig {
  * Signals are fed IN via public methods and emitted OUT via onSignalOut.
  */
 export class PeerConnection {
-  readonly role: PeerRole;
+  readonly initiator: boolean;
   readonly peerId: string;
   readonly remotePeerId: string;
 
@@ -49,7 +49,7 @@ export class PeerConnection {
   private draining = false;
 
   constructor(config: PeerConnectionConfig) {
-    this.role = config.role;
+    this.initiator = config.initiator;
     this.peerId = config.localPeerId;
     this.remotePeerId = config.remotePeerId;
     this.onSignalOut = config.onSignalOut;
@@ -57,8 +57,8 @@ export class PeerConnection {
 
     this.pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
-    // Host creates the DataChannel; guest waits for it
-    if (this.role === "host") {
+    // Initiator creates the DataChannel; responder waits for it
+    if (this.initiator) {
       const dc = this.pc.createDataChannel("game");
       this.setupDataChannel(dc);
     } else {

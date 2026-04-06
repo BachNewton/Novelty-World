@@ -21,7 +21,8 @@ interface UsePeerOptions {
 
 /**
  * React hook for WebRTC peer connections.
- * Supports N-player via star topology (host connects to each guest).
+ * Supports N-player via full mesh topology (every peer connects to every other).
+ * Uses a deterministic offer rule (higher peer ID initiates) to avoid duplicate offers.
  *
  * This hook is the SOLE signal router — PeerConnection has no knowledge
  * of the signaling transport.
@@ -102,9 +103,9 @@ export function usePeer(
     }
 
     // --- Local helper: create a PeerConnection for a remote peer ---
-    function createConn(remotePeerId: string): PeerConnection {
+    function createConn(remotePeerId: string, initiator: boolean): PeerConnection {
       const conn = new PeerConnection({
-        role,
+        initiator,
         localPeerId: peerId,
         remotePeerId,
         onSignalOut: (signal) => {
@@ -152,8 +153,9 @@ export function usePeer(
       const conn = connections.get(msg.from);
       if (conn) {
         routeSignal(conn, msg);
-      } else if (role === "guest" && msg.type === "offer") {
-        const newConn = createConn(msg.from);
+      } else if (msg.type === "offer") {
+        // Offer from unknown peer — they initiated, we respond
+        const newConn = createConn(msg.from, false);
         routeSignal(newConn, msg);
       } else {
         buffer.push(msg);
@@ -166,44 +168,46 @@ export function usePeer(
       setConnectionState("failed");
     });
 
-    // --- Host: Presence-based peer discovery ---
-    let unsubJoined: (() => void) | undefined;
-    if (role === "host") {
-      unsubJoined = signaling.onPeerJoined((remotePeerId) => {
-        if (cleanedUp) return;
-        if (connections.has(remotePeerId)) return;
-        if (maxPeers !== undefined && connections.size >= maxPeers) return;
+    // --- Mesh: Presence-based peer discovery (all peers) ---
+    // Deterministic rule: the peer with the higher ID sends the offer.
+    // The other peer waits for the offer (handled by signal routing above).
+    function maybeInitiate(remotePeerId: string) {
+      if (cleanedUp) return;
+      if (connections.has(remotePeerId)) return;
+      if (maxPeers !== undefined && connections.size >= maxPeers) return;
 
-        const conn = createConn(remotePeerId);
+      if (peerId > remotePeerId) {
+        const conn = createConn(remotePeerId, true);
         conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
-      });
+      }
+      // Otherwise, wait for their offer (they have the higher ID)
+    }
 
-      // Check for peers that arrived before us
-      signaling.ready.then(() => {
-        if (cleanedUp) return;
-        const presenceState = signaling.channel.presenceState();
-        for (const key of Object.keys(presenceState)) {
-          const presences = presenceState[key] as unknown as Array<{
-            peerId: string;
-          }>;
-          for (const presence of presences) {
-            const remotePeerId = presence.peerId;
-            if (remotePeerId === peerId) continue;
-            if (connections.has(remotePeerId)) continue;
-            if (maxPeers !== undefined && connections.size >= maxPeers) return;
+    const unsubJoined = signaling.onPeerJoined((remotePeerId) => {
+      maybeInitiate(remotePeerId);
+    });
 
-            const conn = createConn(remotePeerId);
-            conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
+    // Check for peers that arrived before us
+    signaling.ready.then(() => {
+      if (cleanedUp) return;
+      const presenceState = signaling.channel.presenceState();
+      for (const key of Object.keys(presenceState)) {
+        const presences = presenceState[key] as unknown as Array<{
+          peerId: string;
+        }>;
+        for (const presence of presences) {
+          if (presence.peerId !== peerId) {
+            maybeInitiate(presence.peerId);
           }
         }
-      });
-    }
+      }
+    });
 
     // --- Cleanup ---
     return () => {
       cleanedUp = true;
       unsubSignal();
-      unsubJoined?.();
+      unsubJoined();
       for (const conn of connections.values()) {
         conn.destroy();
       }
@@ -212,7 +216,7 @@ export function usePeer(
       signaling.destroy();
       signalingRef.current = null;
     };
-  }, [roomId, role, peerId, maxPeers, syncPeers, enabled]);
+  }, [roomId, peerId, maxPeers, syncPeers, enabled]);
 
   // --- Stable callbacks for consumers ---
 

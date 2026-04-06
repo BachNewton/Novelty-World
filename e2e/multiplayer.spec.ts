@@ -86,6 +86,15 @@ test.describe("Multiplayer Framework", () => {
     await expect(hostPage.getByTestId("role")).toHaveText("host");
     await expect(guestPage.getByTestId("role")).toHaveText("guest");
 
+    // Player identity: both have IDs and roster has 2 entries
+    const hostPlayerId = await hostPage.getByTestId("player-id").textContent();
+    const guestPlayerId = await guestPage.getByTestId("player-id").textContent();
+    expect(hostPlayerId).toBeTruthy();
+    expect(guestPlayerId).toBeTruthy();
+    expect(hostPlayerId).not.toBe(guestPlayerId);
+    await expect(hostPage.getByTestId("roster-count")).toHaveText("2");
+    await expect(guestPage.getByTestId("roster-count")).toHaveText("2");
+
     await hostCtx.close();
     await guestCtx.close();
   });
@@ -203,18 +212,20 @@ test.describe("Multiplayer Framework", () => {
       timeout: 15_000,
     });
 
-    // Host sees 2 peers, guests see 1 (star topology)
+    // All peers see 2 others (full mesh)
     await expect(hostPage.getByTestId("peer-count")).toHaveText("2");
-    await expect(guest1Page.getByTestId("peer-count")).toHaveText("1");
-    await expect(guest2Page.getByTestId("peer-count")).toHaveText("1");
+    await expect(guest1Page.getByTestId("peer-count")).toHaveText("2");
+    await expect(guest2Page.getByTestId("peer-count")).toHaveText("2");
 
     // All peers show "connected" status
     const hostStatuses = hostPage.getByTestId("player-status");
     await expect(hostStatuses).toHaveCount(2);
     await expect(hostStatuses.nth(0)).toHaveText("connected");
     await expect(hostStatuses.nth(1)).toHaveText("connected");
-    await expect(guest1Page.getByTestId("player-status")).toHaveText("connected");
-    await expect(guest2Page.getByTestId("player-status")).toHaveText("connected");
+    const guest1Statuses = guest1Page.getByTestId("player-status");
+    await expect(guest1Statuses).toHaveCount(2);
+    await expect(guest1Statuses.nth(0)).toHaveText("connected");
+    await expect(guest1Statuses.nth(1)).toHaveText("connected");
 
     // Host broadcasts a ping — both guests receive it
     await hostPage.getByTestId("send-ping").click();
@@ -227,12 +238,21 @@ test.describe("Multiplayer Framework", () => {
       { timeout: 5_000 },
     );
 
-    // Guest 1 sends a ping — host receives it (star topology: guest→host only)
+    // Guest 1 sends a ping — host AND guest 2 receive it (mesh: all peers connected)
     await guest1Page.getByTestId("send-ping").click();
     await expect(hostPage.getByTestId("messages")).toContainText(
       "received:hello",
       { timeout: 5_000 },
     );
+    await expect(guest2Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    // Player identity: roster has 3 entries with distinct IDs
+    await expect(hostPage.getByTestId("roster-count")).toHaveText("3");
+    await expect(guest1Page.getByTestId("roster-count")).toHaveText("3");
+    await expect(guest2Page.getByTestId("roster-count")).toHaveText("3");
 
     await hostCtx.close();
     await guest1Ctx.close();
@@ -358,10 +378,10 @@ test.describe("Open Room Mode (no maxPlayers)", () => {
       timeout: 15_000,
     });
 
-    // Host sees 2 peers, guests see 1
+    // All peers see 2 others (full mesh)
     await expect(hostPage.getByTestId("peer-count")).toHaveText("2");
-    await expect(guest1Page.getByTestId("peer-count")).toHaveText("1");
-    await expect(guest2Page.getByTestId("peer-count")).toHaveText("1");
+    await expect(guest1Page.getByTestId("peer-count")).toHaveText("2");
+    await expect(guest2Page.getByTestId("peer-count")).toHaveText("2");
 
     await hostCtx.close();
     await guest1Ctx.close();
