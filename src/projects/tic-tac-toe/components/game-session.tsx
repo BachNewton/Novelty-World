@@ -39,11 +39,10 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
 
     const store = useTicTacToeStore.getState();
     // Skip if already assigned (e.g. strict mode remount)
-    if (store.phase === "playing") return;
+    if (store.myPlayer) return;
 
-    const hostPlayer = store.myPlayer ?? randomPlayer();
+    const hostPlayer = randomPlayer();
     store.setMyPlayer(hostPlayer);
-    store.setPhase("playing");
     send<GameStart>(MSG.GAME_START, { hostPlayer });
   }, [roomPhase, isHost, send]);
 
@@ -53,7 +52,6 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
     return onMessage<GameStart>(MSG.GAME_START, (msg) => {
       const store = useTicTacToeStore.getState();
       store.setMyPlayer(otherPlayer(msg.payload.hostPlayer));
-      store.setPhase("playing");
     });
   }, [isHost, onMessage]);
 

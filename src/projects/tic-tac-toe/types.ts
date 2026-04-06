@@ -18,7 +18,7 @@ export type GameResult = { winner: Player } | { draw: true };
 export interface GameState {
   board: Board;
   currentTurn: Player;
-  phase: GamePhase | null;
+  phase: GamePhase;
   result: GameResult | null;
   myPlayer: Player | null;
   /** Indices of the 3 winning cells, for highlighting */

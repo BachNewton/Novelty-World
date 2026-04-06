@@ -23,7 +23,7 @@ export function createInitialState(): GameState {
   return {
     board: [...EMPTY_BOARD] as Board,
     currentTurn: "X",
-    phase: null,
+    phase: "playing",
     result: null,
     myPlayer: null,
     winLine: null,
@@ -124,7 +124,7 @@ export function toStateUpdate(
   return {
     board: state.board,
     currentTurn: state.currentTurn,
-    phase: state.phase!,
+    phase: state.phase,
     result: state.result,
     winLine: state.winLine,
   };

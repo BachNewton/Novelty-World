@@ -126,7 +126,15 @@ export class PeerConnection {
     await this.pc.addIceCandidate(candidate);
   }
 
-  /** Send a typed message over the DataChannel */
+  /**
+   * Send a typed message over the DataChannel.
+   *
+   * Buffer limits: Chrome/Edge/Safari close the channel at ~16 MB queued;
+   * Firefox applies backpressure via SCTP's 256 KiB send buffer.
+   * Not a concern for small game messages — would require tens of thousands
+   * of queued messages to hit. Monitor `dataChannel.bufferedAmount` if
+   * sending large or high-frequency payloads in the future.
+   */
   send<T>(type: string, payload: T): void {
     if (!this.dataChannel || this.dataChannel.readyState !== "open") return;
     const message: DataMessage<T> = {
