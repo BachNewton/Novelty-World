@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePeer } from "../webrtc";
-import type { PeerRole, MessageHandler, DataMessage, ConnectionState } from "../webrtc";
+import type { PeerRole, MessageHandler, ConnectionState } from "../webrtc";
 import { useLobby } from "./use-lobby";
-import type { RoomPhase, GameRoom, UseGameRoomOptions, PlayerInfo } from "./types";
-import { MP_PREFIX, GAME_PREFIX } from "./types";
+import type { LobbyRoomPhase, LobbyRoomState, UseLobbyRoomOptions, PlayerInfo } from "./types";
+import { MP_PREFIX } from "./types";
+import { generateRoomCode, createNamespacedMessaging } from "./shared";
 
 /** Wire format for roster entries in __mp:start */
 interface RosterEntry {
@@ -14,11 +15,11 @@ interface RosterEntry {
   peerId: string;
 }
 
-export function useGameRoom(options: UseGameRoomOptions): GameRoom {
-  const { game, maxPlayers, profile } = options;
+export function useLobbyRoom(options: UseLobbyRoomOptions): LobbyRoomState {
+  const { game, profile } = options;
 
   // --- Local lifecycle state ---
-  const [phase, setPhase] = useState<RoomPhase>("lobby");
+  const [phase, setPhase] = useState<LobbyRoomPhase>("lobby");
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
 
@@ -28,7 +29,6 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   // --- Transport hooks (conditionally active) ---
   const { rooms, advertise } = useLobby({ game });
-  const maxPeers = maxPlayers ? maxPlayers - 1 : undefined;
   const {
     peerId,
     peers,
@@ -42,7 +42,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   } = usePeer(
     roomCode ?? "",
     role,
-    { maxPeers, enabled: peerActive },
+    { enabled: peerActive },
   );
 
   // --- Handshake tracking ---
@@ -62,7 +62,6 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
       roomCode,
       game,
       playerCount: 1,
-      ...(maxPlayers && { maxPlayers }),
       createdAt: Date.now(),
     });
 
@@ -70,15 +69,9 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
       unadvertiseRef.current?.();
       unadvertiseRef.current = null;
     };
-  }, [isHost, phase, roomCode, game, maxPlayers, advertise]);
+  }, [isHost, phase, roomCode, game, advertise]);
 
-  // --- Transition: waiting → connecting (state adjustment during render) ---
-  // Room full (fixed mode): all expected peers have appeared
-  if (phase === "waiting" && maxPlayers && peers.length >= maxPlayers - 1) {
-    setNeededPeers(maxPlayers - 1);
-    setPhase("connecting");
-  }
-  // Guest: skip waiting phase entirely
+  // --- Guest: skip waiting phase entirely ---
   if (!isHost && phase === "waiting") {
     setPhase("connecting");
   }
@@ -104,7 +97,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   }, [isHost, phase, isConnected, peers, peerOnMessage, peerSend, profile.id, profile.name]);
 
   // Host: collect __mp:ready from guests, send __mp:start when all are ready.
-  // neededPeers is set at transition time (auto-transition or manual start()).
+  // neededPeers is set when host calls start().
   useEffect(() => {
     if (!isHost || phase !== "connecting") return;
 
@@ -135,7 +128,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     return unsub;
   }, [isHost, phase, neededPeers, peerOnMessage, peerSend, peerId, profile.id, profile.name]);
 
-  // --- Derive failure / disconnect from transport state (no effects needed) ---
+  // --- Derive failure / disconnect from transport state ---
   let effectivePhase = phase;
   if ((phase === "connecting" || phase === "ready") && connectionState === "failed") {
     effectivePhase = "failed";
@@ -156,10 +149,16 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     });
   }, [rosterEntries, peers, peerId]);
 
+  // --- Namespaced messaging ---
+  const { send, sendTo, onMessage } = useMemo(
+    () => createNamespacedMessaging(peerSend, peerSendTo, peerOnMessage),
+    [peerSend, peerSendTo, peerOnMessage],
+  );
+
   // --- Actions ---
 
   const createRoom = useCallback(() => {
-    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const code = generateRoomCode();
     setRoomCode(code);
     setIsHost(true);
     setPhase("waiting");
@@ -190,31 +189,6 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     setIsHost(false);
     setPhase("lobby");
   }, [peerDisconnect]);
-
-  // --- Namespaced messaging — game messages are prefixed automatically ---
-
-  const send = useCallback(
-    <T,>(type: string, payload: T) => {
-      peerSend(GAME_PREFIX + type, payload);
-    },
-    [peerSend],
-  );
-
-  const sendTo = useCallback(
-    <T,>(peerId: string, type: string, payload: T) => {
-      peerSendTo(peerId, GAME_PREFIX + type, payload);
-    },
-    [peerSendTo],
-  );
-
-  const onMessage = useCallback(
-    <T,>(type: string, handler: MessageHandler<T>): (() => void) => {
-      return peerOnMessage(GAME_PREFIX + type, (msg) => {
-        handler({ ...msg, type } as DataMessage<T>);
-      });
-    },
-    [peerOnMessage],
-  );
 
   const onPlayerLeave = useCallback(
     (handler: (peerId: string) => void): (() => void) => {

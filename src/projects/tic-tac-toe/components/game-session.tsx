@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback } from "react";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 import { useTicTacToeStore } from "../store";
 import { randomPlayer } from "../logic";
 import { MSG } from "../types";
@@ -18,7 +18,7 @@ import { ConnectionStatus } from "./connection-status";
 import { Button } from "@/shared/components/ui/button";
 
 interface GameSessionProps {
-  room: GameRoom;
+  room: LobbyRoomState;
   onLeave: () => void;
 }
 

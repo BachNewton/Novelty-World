@@ -4,10 +4,10 @@ import Link from "next/link";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { Activity } from "lucide-react";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 
 interface LobbyProps {
-  room: GameRoom;
+  room: LobbyRoomState;
 }
 
 export function Lobby({ room }: LobbyProps) {

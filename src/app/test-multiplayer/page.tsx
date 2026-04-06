@@ -2,8 +2,9 @@
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
-import { useGameRoom } from "@/shared/lib/multiplayer";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import { useLobbyRoom } from "@/shared/lib/multiplayer";
+import { useWorldRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState, WorldRoomState, LobbyRoom } from "@/shared/lib/multiplayer";
 
 /**
  * Test harness page for the multiplayer framework.
@@ -13,7 +14,7 @@ import type { GameRoom } from "@/shared/lib/multiplayer";
  * to drive the flow: create room → join room → verify ready → send messages.
  *
  * URL params:
- *   ?players=N — set maxPlayers (default: 2)
+ *   ?mode=world — use useWorldRoom (default: useLobbyRoom)
  */
 export default function TestMultiplayerPage() {
   return (
@@ -26,60 +27,41 @@ export default function TestMultiplayerPage() {
 function TestMultiplayerContent() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
-  const maxPlayers = mode === "open" ? undefined : (Number(searchParams.get("players")) || 2);
-  // Generate a stable profile per browser context (unique per tab for e2e tests)
+
+  if (mode === "world") {
+    return <WorldRoomTest />;
+  }
+  return <LobbyRoomTest />;
+}
+
+// --- Lobby Room Test ---
+
+function LobbyRoomTest() {
   const profile = useMemo(() => ({ id: crypto.randomUUID(), name: "Test Player" }), []);
-  const room = useGameRoom({ game: "test", ...(maxPlayers !== undefined && { maxPlayers }), profile });
+  const room = useLobbyRoom({ game: "test", profile });
 
   return (
     <div data-testid="test-multiplayer">
       {room.phase === "lobby" ? (
-        <Lobby room={room} />
+        <SharedLobby rooms={room.rooms} createRoom={room.createRoom} joinRoom={room.joinRoom} />
       ) : (
-        <Session room={room} />
+        <LobbySession room={room} />
       )}
     </div>
   );
 }
 
-function Lobby({ room }: { room: GameRoom }) {
-  const { rooms, createRoom, joinRoom } = room;
-
-  return (
-    <div>
-      <button data-testid="create-room" onClick={createRoom}>
-        Create Room
-      </button>
-      <div data-testid="room-count">{rooms.length}</div>
-      <div data-testid="room-list">
-        {rooms.map((r) => (
-          <button
-            key={r.roomCode}
-            data-testid="join-room"
-            data-room-code={r.roomCode}
-            onClick={() => joinRoom(r.roomCode)}
-          >
-            {r.roomCode}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Session({ room }: { room: GameRoom }) {
+function LobbySession({ room }: { room: LobbyRoomState }) {
   const { roomCode, isHost, phase, players, playerId, playerRoster, send, onMessage, onPlayerLeave, start } = room;
   const [messages, setMessages] = useState<string[]>([]);
   const [leftPlayers, setLeftPlayers] = useState<string[]>([]);
 
-  // Listen for ping messages
   useEffect(() => {
     return onMessage<{ text: string }>("ping", (msg) => {
       setMessages((prev) => [...prev, `received:${msg.payload.text}`]);
     });
   }, [onMessage]);
 
-  // Listen for player leave events
   useEffect(() => {
     return onPlayerLeave((peerId) => {
       setLeftPlayers((prev) => [...prev, peerId]);
@@ -121,6 +103,106 @@ function Session({ room }: { room: GameRoom }) {
       <div data-testid="messages">{JSON.stringify(messages)}</div>
       <div data-testid="left-players">{JSON.stringify(leftPlayers)}</div>
       <div data-testid="left-count">{leftPlayers.length}</div>
+    </div>
+  );
+}
+
+// --- World Room Test ---
+
+function WorldRoomTest() {
+  const profile = useMemo(() => ({ id: crypto.randomUUID(), name: "Test Player" }), []);
+  const room = useWorldRoom({ game: "test", profile });
+
+  return (
+    <div data-testid="test-multiplayer">
+      {room.phase === "lobby" ? (
+        <SharedLobby rooms={room.rooms} createRoom={room.create} joinRoom={room.join} />
+      ) : (
+        <WorldSession room={room} />
+      )}
+    </div>
+  );
+}
+
+function WorldSession({ room }: { room: WorldRoomState }) {
+  const { roomCode, phase, playerId, playerRoster, send, onMessage, onPlayerJoin, onPlayerLeave } = room;
+  const [messages, setMessages] = useState<string[]>([]);
+  const [leftPlayers, setLeftPlayers] = useState<string[]>([]);
+  const [joinedPlayers, setJoinedPlayers] = useState<string[]>([]);
+
+  useEffect(() => {
+    return onMessage<{ text: string }>("ping", (msg) => {
+      setMessages((prev) => [...prev, `received:${msg.payload.text}`]);
+    });
+  }, [onMessage]);
+
+  useEffect(() => {
+    return onPlayerLeave((peerId) => {
+      setLeftPlayers((prev) => [...prev, peerId]);
+    });
+  }, [onPlayerLeave]);
+
+  useEffect(() => {
+    return onPlayerJoin((player) => {
+      setJoinedPlayers((prev) => [...prev, player.playerId]);
+    });
+  }, [onPlayerJoin]);
+
+  const handleSendPing = useCallback(() => {
+    send("ping", { text: "hello" });
+    setMessages((prev) => [...prev, "sent:hello"]);
+  }, [send]);
+
+  return (
+    <div data-testid="session">
+      <div data-testid="room-code">{roomCode}</div>
+      <div data-testid="phase">{phase}</div>
+      <div data-testid="player-id">{playerId}</div>
+      <div data-testid="roster-count">{playerRoster.length}</div>
+      <div data-testid="roster">
+        {playerRoster.map((p) => (
+          <span key={p.playerId} data-testid="roster-entry" data-player-id={p.playerId}>
+            {p.playerName}:{p.status}
+          </span>
+        ))}
+      </div>
+      <button data-testid="send-ping" onClick={handleSendPing}>
+        Send Ping
+      </button>
+      <div data-testid="messages">{JSON.stringify(messages)}</div>
+      <div data-testid="left-players">{JSON.stringify(leftPlayers)}</div>
+      <div data-testid="left-count">{leftPlayers.length}</div>
+      <div data-testid="joined-players">{JSON.stringify(joinedPlayers)}</div>
+      <div data-testid="joined-count">{joinedPlayers.length}</div>
+    </div>
+  );
+}
+
+// --- Shared Lobby UI ---
+
+function SharedLobby({ rooms, createRoom, joinRoom }: {
+  rooms: LobbyRoom[];
+  createRoom: () => void;
+  joinRoom: (code: string) => void;
+}) {
+  return (
+    <div>
+      <button data-testid="create-room" onClick={createRoom}>
+        Create Room
+      </button>
+      <div data-testid="room-count">{rooms.length}</div>
+      <div data-testid="room-list">
+        {rooms.map((r) => (
+          <button
+            key={r.roomCode}
+            data-testid="join-room"
+            data-room-code={r.roomCode}
+            onClick={() => joinRoom(r.roomCode)}
+          >
+            {r.roomCode}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

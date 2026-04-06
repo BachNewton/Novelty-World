@@ -4,10 +4,10 @@ import Link from "next/link";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import { Hash } from "lucide-react";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 
 interface LobbyProps {
-  room: GameRoom;
+  room: LobbyRoomState;
 }
 
 export function Lobby({ room }: LobbyProps) {
@@ -52,14 +52,11 @@ export function Lobby({ room }: LobbyProps) {
                     {r.roomCode}
                   </span>
                   <span className="text-sm text-text-secondary">
-                    {r.maxPlayers
-                      ? `${r.playerCount}/${r.maxPlayers} players`
-                      : `${r.playerCount} players`}
+                    {r.playerCount} players
                   </span>
                 </div>
                 <Button
                   onClick={() => room.joinRoom(r.roomCode)}
-                  disabled={r.maxPlayers !== undefined && r.playerCount >= r.maxPlayers}
                   className="text-sm"
                 >
                   Join

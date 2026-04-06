@@ -35,24 +35,28 @@ export function useLobby(options: UseLobbyOptions = {}): UseLobbyReturn {
     if (!channel) return;
 
     const presenceState = channel.presenceState();
-    const lobbyRooms: LobbyRoom[] = [];
+    const roomMap = new Map<string, LobbyRoom>();
 
     for (const key of Object.keys(presenceState)) {
       const presences = presenceState[key] as unknown as Array<
         LobbyRoom & { presence_ref: string }
       >;
       for (const presence of presences) {
-        lobbyRooms.push({
-          roomCode: presence.roomCode,
-          game: presence.game,
-          playerCount: presence.playerCount,
-          maxPlayers: presence.maxPlayers,
-          createdAt: presence.createdAt,
-        });
+        const existing = roomMap.get(presence.roomCode);
+        if (!existing || presence.createdAt < existing.createdAt) {
+          // Deduplicate by roomCode — keep the earliest advertiser
+          roomMap.set(presence.roomCode, {
+            roomCode: presence.roomCode,
+            game: presence.game,
+            playerCount: presence.playerCount,
+            createdAt: presence.createdAt,
+          });
+        }
       }
     }
 
     // Sort by newest first
+    const lobbyRooms = Array.from(roomMap.values());
     lobbyRooms.sort((a, b) => b.createdAt - a.createdAt);
     setRooms(lobbyRooms);
   }, []);

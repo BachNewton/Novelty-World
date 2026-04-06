@@ -1,20 +1,18 @@
 import type { PeerState, DataMessage, MessageHandler, ConnectionState } from "../webrtc";
 
-export type RoomPhase =
-  | "lobby"
-  | "waiting"
-  | "connecting"
-  | "ready"
-  | "disconnected"
-  | "failed";
+// --- Shared types ---
+
+/** Player profile — persistent identity for a client */
+export interface PlayerProfile {
+  id: string;
+  name: string;
+}
 
 /** A room visible in the lobby */
 export interface LobbyRoom {
   roomCode: string;
   game: string;
   playerCount: number;
-  /** Total capacity including host. Undefined = no limit (open room). */
-  maxPlayers?: number;
   createdAt: number;
 }
 
@@ -30,23 +28,31 @@ export interface PlayerInfo {
   status: ConnectionState;
 }
 
-export interface UseGameRoomOptions {
+// --- Lobby Room types ---
+
+export type LobbyRoomPhase =
+  | "lobby"
+  | "waiting"
+  | "connecting"
+  | "ready"
+  | "disconnected"
+  | "failed";
+
+export interface UseLobbyRoomOptions {
   /** Lobby channel name — determines which game's rooms are visible */
   game: string;
-  /** Total players including the host. Omit for open rooms where host starts manually via start(). */
-  maxPlayers?: number;
   /** Player profile — persistent identity for this client */
-  profile: { id: string; name: string };
+  profile: PlayerProfile;
 }
 
-export interface GameRoom {
+export interface LobbyRoomState {
   // Lobby
   rooms: LobbyRoom[];
   createRoom: () => void;
   joinRoom: (code: string) => void;
 
   // State
-  phase: RoomPhase;
+  phase: LobbyRoomPhase;
   roomCode: string | null;
   isHost: boolean;
   players: PeerState[];
@@ -57,7 +63,7 @@ export interface GameRoom {
   /** All players in the room with persistent identity and live connection status */
   playerRoster: PlayerInfo[];
 
-  /** Manually start the game. Required when maxPlayers is omitted. No-op if room already transitioned. */
+  /** Manually start the game. Host-only, only callable during "waiting" phase. */
   start: () => void;
 
   // Messaging — only usable after phase is "ready"
@@ -73,10 +79,56 @@ export interface GameRoom {
   leave: () => void;
 }
 
+// --- World Room types ---
+
+export type WorldRoomPhase =
+  | "lobby"
+  | "joined"
+  | "disconnected"
+  | "failed";
+
+export interface UseWorldRoomOptions {
+  /** Lobby channel name — determines which game's rooms are visible */
+  game: string;
+  /** Player profile — persistent identity for this client */
+  profile: PlayerProfile;
+}
+
+export interface WorldRoomState {
+  // Lobby
+  rooms: LobbyRoom[];
+  create: () => void;
+  join: (code: string) => void;
+
+  // State
+  phase: WorldRoomPhase;
+  roomCode: string | null;
+
+  // Player identity
+  /** This client's persistent player ID (from profile) */
+  playerId: string;
+  /** All players currently known (self + announced peers) */
+  playerRoster: PlayerInfo[];
+
+  // Messaging — usable immediately after joining
+  send: <T>(type: string, payload: T) => void;
+  sendTo: <T>(peerId: string, type: string, payload: T) => void;
+  onMessage: <T>(type: string, handler: MessageHandler<T>) => () => void;
+
+  // Player events
+  /** Listen for new players joining. Returns unsubscribe fn. */
+  onPlayerJoin: (handler: (player: PlayerInfo) => void) => () => void;
+  /** Listen for players leaving (disconnected or failed). Returns unsubscribe fn. */
+  onPlayerLeave: (handler: (peerId: string) => void) => () => void;
+
+  // Lifecycle
+  leave: () => void;
+}
+
 /** Internal protocol message prefix — never exposed to game code */
 export const MP_PREFIX = "__mp:";
 
-/** Game message prefix — applied automatically by useGameRoom */
+/** Game message prefix — applied automatically by room hooks */
 export const GAME_PREFIX = "__game:";
 
 export type { PeerState, DataMessage, MessageHandler };

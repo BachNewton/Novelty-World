@@ -2,10 +2,10 @@
 
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 
 interface WaitingRoomProps {
-  room: GameRoom;
+  room: LobbyRoomState;
   onLeave: () => void;
 }
 

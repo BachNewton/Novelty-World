@@ -21,13 +21,13 @@ async function joinByCode(guestPage: Page, roomCode: string): Promise<void> {
 }
 
 /**
- * Multiplayer framework tests.
+ * Lobby Room tests.
  *
- * These test the useGameRoom hook (lobby + WebRTC + ready handshake)
- * independent of any game. Every multiplayer game depends on this flow.
+ * These test the useLobbyRoom hook (lobby + WebRTC + ready handshake)
+ * independent of any game. Every lobby-based multiplayer game depends on this flow.
  */
 
-test.describe("Multiplayer Framework", () => {
+test.describe("Lobby Room", () => {
   test("room can be created and appears in lobby", async ({ browser }) => {
     const hostCtx = await browser.newContext();
     const guestCtx = await browser.newContext();
@@ -52,7 +52,7 @@ test.describe("Multiplayer Framework", () => {
     await guestCtx.close();
   });
 
-  test("guest can join a room and both reach ready", async ({ browser }) => {
+  test("guest can join a room, host starts, and both reach ready", async ({ browser }) => {
     const hostCtx = await browser.newContext();
     const guestCtx = await browser.newContext();
     const hostPage = await hostCtx.newPage();
@@ -67,6 +67,14 @@ test.describe("Multiplayer Framework", () => {
     // Guest joins the specific room
     await guestPage.goto(URL);
     await joinByCode(guestPage, roomCode);
+
+    // Wait for peer connection
+    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+      timeout: 15_000,
+    });
+
+    // Host clicks start
+    await hostPage.getByTestId("start-game").click();
 
     // Both sides reach ready phase (application-level handshake complete)
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
@@ -114,6 +122,11 @@ test.describe("Multiplayer Framework", () => {
     await guestPage.goto(URL);
     await joinByCode(guestPage, roomCode);
 
+    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+      timeout: 15_000,
+    });
+    await hostPage.getByTestId("start-game").click();
+
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
       timeout: 15_000,
     });
@@ -156,6 +169,11 @@ test.describe("Multiplayer Framework", () => {
     await guestPage.goto(URL);
     await joinByCode(guestPage, roomCode);
 
+    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+      timeout: 15_000,
+    });
+    await hostPage.getByTestId("start-game").click();
+
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
       timeout: 15_000,
     });
@@ -178,8 +196,6 @@ test.describe("Multiplayer Framework", () => {
   });
 
   test("3 players all reach ready and exchange messages", async ({ browser }) => {
-    const URL_3P = "/test-multiplayer?players=3";
-
     const hostCtx = await browser.newContext();
     const guest1Ctx = await browser.newContext();
     const guest2Ctx = await browser.newContext();
@@ -187,19 +203,30 @@ test.describe("Multiplayer Framework", () => {
     const guest1Page = await guest1Ctx.newPage();
     const guest2Page = await guest2Ctx.newPage();
 
-    // Host creates a 3-player room
-    await hostPage.goto(URL_3P);
+    // Host creates room
+    await hostPage.goto(URL);
     await hostPage.getByTestId("create-room").click();
     await expect(hostPage.getByTestId("session")).toBeVisible();
     const roomCode = await getRoomCode(hostPage);
 
     // Guest 1 joins
-    await guest1Page.goto(URL_3P);
+    await guest1Page.goto(URL);
     await joinByCode(guest1Page, roomCode);
 
     // Guest 2 joins
-    await guest2Page.goto(URL_3P);
+    await guest2Page.goto(URL);
     await joinByCode(guest2Page, roomCode);
+
+    // Wait for both peers to connect
+    await expect(hostPage.getByTestId("peer-count")).toHaveText("2", {
+      timeout: 15_000,
+    });
+    const hostStatuses = hostPage.getByTestId("player-status");
+    await expect(hostStatuses.nth(0)).toHaveText("connected");
+    await expect(hostStatuses.nth(1)).toHaveText("connected");
+
+    // Host clicks start
+    await hostPage.getByTestId("start-game").click();
 
     // All 3 reach ready phase
     await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
@@ -218,10 +245,6 @@ test.describe("Multiplayer Framework", () => {
     await expect(guest2Page.getByTestId("peer-count")).toHaveText("2");
 
     // All peers show "connected" status
-    const hostStatuses = hostPage.getByTestId("player-status");
-    await expect(hostStatuses).toHaveCount(2);
-    await expect(hostStatuses.nth(0)).toHaveText("connected");
-    await expect(hostStatuses.nth(1)).toHaveText("connected");
     const guest1Statuses = guest1Page.getByTestId("player-status");
     await expect(guest1Statuses).toHaveCount(2);
     await expect(guest1Statuses.nth(0)).toHaveText("connected");
@@ -260,168 +283,212 @@ test.describe("Multiplayer Framework", () => {
   });
 });
 
-test.describe("Open Room Mode (no maxPlayers)", () => {
-  const OPEN_URL = "/test-multiplayer?mode=open";
+/**
+ * World Room tests.
+ *
+ * These test the useWorldRoom hook (decentralized announce, no host, no handshake gate).
+ */
 
-  test("open room stays in waiting after guest connects", async ({ browser }) => {
-    const hostCtx = await browser.newContext();
-    const guestCtx = await browser.newContext();
-    const hostPage = await hostCtx.newPage();
-    const guestPage = await guestCtx.newPage();
+test.describe("World Room", () => {
+  const WORLD_URL = "/test-multiplayer?mode=world";
 
-    // Host creates an open room
-    await hostPage.goto(OPEN_URL);
-    await hostPage.getByTestId("create-room").click();
-    await expect(hostPage.getByTestId("session")).toBeVisible();
-    const roomCode = await getRoomCode(hostPage);
+  test("peers join and reach joined phase immediately", async ({ browser }) => {
+    const peer1Ctx = await browser.newContext();
+    const peer2Ctx = await browser.newContext();
+    const peer1Page = await peer1Ctx.newPage();
+    const peer2Page = await peer2Ctx.newPage();
 
-    // Guest joins
-    await guestPage.goto(OPEN_URL);
-    await joinByCode(guestPage, roomCode);
+    // Peer 1 creates a world room
+    await peer1Page.goto(WORLD_URL);
+    await peer1Page.getByTestId("create-room").click();
+    await expect(peer1Page.getByTestId("session")).toBeVisible();
 
-    // Wait for peer to connect at the WebRTC level
-    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+    // Phase is "joined" immediately (no waiting/connecting)
+    await expect(peer1Page.getByTestId("phase")).toHaveText("joined");
+
+    const roomCode = await getRoomCode(peer1Page);
+
+    // Peer 2 joins
+    await peer2Page.goto(WORLD_URL);
+    await joinByCode(peer2Page, roomCode);
+
+    // Peer 2 is also "joined" immediately
+    await expect(peer2Page.getByTestId("phase")).toHaveText("joined");
+
+    // Wait for announce protocol to complete — both see 2 in roster
+    await expect(peer1Page.getByTestId("roster-count")).toHaveText("2", {
+      timeout: 15_000,
+    });
+    await expect(peer2Page.getByTestId("roster-count")).toHaveText("2", {
       timeout: 15_000,
     });
 
-    // Host phase should stay "waiting" — NOT auto-transition
-    await expect(hostPage.getByTestId("phase")).toHaveText("waiting");
-
-    await hostCtx.close();
-    await guestCtx.close();
+    await peer1Ctx.close();
+    await peer2Ctx.close();
   });
 
-  test("host calls start() and both reach ready", async ({ browser }) => {
-    const hostCtx = await browser.newContext();
-    const guestCtx = await browser.newContext();
-    const hostPage = await hostCtx.newPage();
-    const guestPage = await guestCtx.newPage();
+  test("onPlayerJoin fires when peer connects", async ({ browser }) => {
+    const peer1Ctx = await browser.newContext();
+    const peer2Ctx = await browser.newContext();
+    const peer1Page = await peer1Ctx.newPage();
+    const peer2Page = await peer2Ctx.newPage();
+
+    // Peer 1 creates room
+    await peer1Page.goto(WORLD_URL);
+    await peer1Page.getByTestId("create-room").click();
+    await expect(peer1Page.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(peer1Page);
+
+    // Peer 2 joins
+    await peer2Page.goto(WORLD_URL);
+    await joinByCode(peer2Page, roomCode);
+
+    // onPlayerJoin fired on both sides
+    await expect(peer1Page.getByTestId("joined-count")).toHaveText("1", {
+      timeout: 15_000,
+    });
+    await expect(peer2Page.getByTestId("joined-count")).toHaveText("1", {
+      timeout: 15_000,
+    });
+
+    await peer1Ctx.close();
+    await peer2Ctx.close();
+  });
+
+  test("peers can exchange messages immediately", async ({ browser }) => {
+    const peer1Ctx = await browser.newContext();
+    const peer2Ctx = await browser.newContext();
+    const peer1Page = await peer1Ctx.newPage();
+    const peer2Page = await peer2Ctx.newPage();
 
     // Connect
-    await hostPage.goto(OPEN_URL);
-    await hostPage.getByTestId("create-room").click();
-    await expect(hostPage.getByTestId("session")).toBeVisible();
-    const roomCode = await getRoomCode(hostPage);
+    await peer1Page.goto(WORLD_URL);
+    await peer1Page.getByTestId("create-room").click();
+    await expect(peer1Page.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(peer1Page);
 
-    await guestPage.goto(OPEN_URL);
-    await joinByCode(guestPage, roomCode);
+    await peer2Page.goto(WORLD_URL);
+    await joinByCode(peer2Page, roomCode);
 
-    // Wait for peer connection
-    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+    // Wait for announce to complete (roster has 2)
+    await expect(peer1Page.getByTestId("roster-count")).toHaveText("2", {
       timeout: 15_000,
     });
 
-    // Host clicks start
-    await hostPage.getByTestId("start-game").click();
-
-    // Both reach ready
-    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
-      timeout: 15_000,
-    });
-    await expect(guestPage.getByTestId("phase")).toHaveText("ready", {
-      timeout: 15_000,
-    });
-
-    // Can exchange messages
-    await hostPage.getByTestId("send-ping").click();
-    await expect(guestPage.getByTestId("messages")).toContainText(
+    // Send ping immediately — no start() needed
+    await peer1Page.getByTestId("send-ping").click();
+    await expect(peer1Page.getByTestId("messages")).toContainText("sent:hello");
+    await expect(peer2Page.getByTestId("messages")).toContainText(
       "received:hello",
       { timeout: 5_000 },
     );
 
-    await hostCtx.close();
-    await guestCtx.close();
+    // Peer 2 sends back
+    await peer2Page.getByTestId("send-ping").click();
+    await expect(peer1Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+
+    await peer1Ctx.close();
+    await peer2Ctx.close();
   });
 
-  test("start() with multiple guests", async ({ browser }) => {
-    const hostCtx = await browser.newContext();
-    const guest1Ctx = await browser.newContext();
-    const guest2Ctx = await browser.newContext();
-    const hostPage = await hostCtx.newPage();
-    const guest1Page = await guest1Ctx.newPage();
-    const guest2Page = await guest2Ctx.newPage();
+  test("peer detects disconnect", async ({ browser }) => {
+    const peer1Ctx = await browser.newContext();
+    const peer2Ctx = await browser.newContext();
+    const peer1Page = await peer1Ctx.newPage();
+    const peer2Page = await peer2Ctx.newPage();
 
-    // Host creates open room
-    await hostPage.goto(OPEN_URL);
-    await hostPage.getByTestId("create-room").click();
-    await expect(hostPage.getByTestId("session")).toBeVisible();
-    const roomCode = await getRoomCode(hostPage);
+    // Connect
+    await peer1Page.goto(WORLD_URL);
+    await peer1Page.getByTestId("create-room").click();
+    await expect(peer1Page.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(peer1Page);
 
-    // Both guests join
-    await guest1Page.goto(OPEN_URL);
-    await joinByCode(guest1Page, roomCode);
-    await guest2Page.goto(OPEN_URL);
-    await joinByCode(guest2Page, roomCode);
+    await peer2Page.goto(WORLD_URL);
+    await joinByCode(peer2Page, roomCode);
 
-    // Wait for both peers to connect
-    await expect(hostPage.getByTestId("peer-count")).toHaveText("2", {
-      timeout: 15_000,
-    });
-    const hostStatuses = hostPage.getByTestId("player-status");
-    await expect(hostStatuses.nth(0)).toHaveText("connected");
-    await expect(hostStatuses.nth(1)).toHaveText("connected");
-
-    // Host still in waiting
-    await expect(hostPage.getByTestId("phase")).toHaveText("waiting");
-
-    // Host clicks start
-    await hostPage.getByTestId("start-game").click();
-
-    // All three reach ready
-    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
-      timeout: 15_000,
-    });
-    await expect(guest1Page.getByTestId("phase")).toHaveText("ready", {
-      timeout: 15_000,
-    });
-    await expect(guest2Page.getByTestId("phase")).toHaveText("ready", {
+    // Wait for connection
+    await expect(peer1Page.getByTestId("roster-count")).toHaveText("2", {
       timeout: 15_000,
     });
 
-    // All peers see 2 others (full mesh)
-    await expect(hostPage.getByTestId("peer-count")).toHaveText("2");
-    await expect(guest1Page.getByTestId("peer-count")).toHaveText("2");
-    await expect(guest2Page.getByTestId("peer-count")).toHaveText("2");
+    // Peer 2 disconnects
+    await peer2Page.close();
 
-    await hostCtx.close();
-    await guest1Ctx.close();
-    await guest2Ctx.close();
+    // Peer 1 detects disconnect
+    await expect(peer1Page.getByTestId("phase")).toHaveText("disconnected", {
+      timeout: 15_000,
+    });
+    await expect(peer1Page.getByTestId("left-count")).toHaveText("1");
+
+    await peer1Ctx.close();
+    await peer2Ctx.close();
   });
 
-  test("host detects disconnect in open room", async ({ browser }) => {
-    const hostCtx = await browser.newContext();
-    const guestCtx = await browser.newContext();
-    const hostPage = await hostCtx.newPage();
-    const guestPage = await guestCtx.newPage();
+  test("multiple peers join dynamically", async ({ browser }) => {
+    const peer1Ctx = await browser.newContext();
+    const peer2Ctx = await browser.newContext();
+    const peer3Ctx = await browser.newContext();
+    const peer1Page = await peer1Ctx.newPage();
+    const peer2Page = await peer2Ctx.newPage();
+    const peer3Page = await peer3Ctx.newPage();
 
-    // Connect and start
-    await hostPage.goto(OPEN_URL);
-    await hostPage.getByTestId("create-room").click();
-    await expect(hostPage.getByTestId("session")).toBeVisible();
-    const roomCode = await getRoomCode(hostPage);
+    // Peer 1 creates room
+    await peer1Page.goto(WORLD_URL);
+    await peer1Page.getByTestId("create-room").click();
+    await expect(peer1Page.getByTestId("session")).toBeVisible();
+    const roomCode = await getRoomCode(peer1Page);
 
-    await guestPage.goto(OPEN_URL);
-    await joinByCode(guestPage, roomCode);
+    // Peer 2 joins
+    await peer2Page.goto(WORLD_URL);
+    await joinByCode(peer2Page, roomCode);
 
-    await expect(hostPage.getByTestId("player-status")).toHaveText("connected", {
+    // Wait for peer 1 and 2 to see each other
+    await expect(peer1Page.getByTestId("roster-count")).toHaveText("2", {
       timeout: 15_000,
     });
 
-    await hostPage.getByTestId("start-game").click();
-    await expect(hostPage.getByTestId("phase")).toHaveText("ready", {
+    // Peer 3 joins later
+    await peer3Page.goto(WORLD_URL);
+    await joinByCode(peer3Page, roomCode);
+
+    // All 3 peers see each other in roster
+    await expect(peer1Page.getByTestId("roster-count")).toHaveText("3", {
+      timeout: 15_000,
+    });
+    await expect(peer2Page.getByTestId("roster-count")).toHaveText("3", {
+      timeout: 15_000,
+    });
+    await expect(peer3Page.getByTestId("roster-count")).toHaveText("3", {
       timeout: 15_000,
     });
 
-    // Guest disconnects
-    await guestPage.close();
+    // All can message each other
+    await peer1Page.getByTestId("send-ping").click();
+    await expect(peer2Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+    await expect(peer3Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
 
-    // Host detects disconnect
-    await expect(hostPage.getByTestId("phase")).toHaveText("disconnected", {
-      timeout: 15_000,
-    });
-    await expect(hostPage.getByTestId("left-count")).toHaveText("1");
+    // Peer 3 sends — peer 1 and peer 2 receive (mesh)
+    await peer3Page.getByTestId("send-ping").click();
+    await expect(peer1Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
+    await expect(peer2Page.getByTestId("messages")).toContainText(
+      "received:hello",
+      { timeout: 5_000 },
+    );
 
-    await hostCtx.close();
-    await guestCtx.close();
+    await peer1Ctx.close();
+    await peer2Ctx.close();
+    await peer3Ctx.close();
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
-import type { GameRoom } from "@/shared/lib/multiplayer";
+import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 import { useNetworkTestStore } from "../store";
 import {
   computePingStats,
@@ -40,7 +40,7 @@ import { TestResults } from "./test-results";
 import { Button } from "@/shared/components/ui/button";
 
 interface TestSessionProps {
-  room: GameRoom;
+  room: LobbyRoomState;
   onLeave: () => void;
 }
 
