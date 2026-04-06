@@ -29,6 +29,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   // --- Transport hooks (conditionally active) ---
   const { rooms, advertise } = useLobby({ game });
+  const maxPeers = maxPlayers ? maxPlayers - 1 : undefined;
   const {
     peers,
     connectionState,
@@ -41,11 +42,12 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
   } = usePeer(
     roomCode ?? "",
     role,
-    { maxPeers: maxPlayers - 1, enabled: peerActive },
+    { maxPeers, enabled: peerActive },
   );
 
   // --- Refs for handshake tracking ---
   const readyPeersRef = useRef<Set<string>>(new Set());
+  const neededPeersRef = useRef(0);
   const unadvertiseRef = useRef<(() => void) | null>(null);
 
   // --- Host: advertise room while waiting ---
@@ -56,7 +58,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
       roomCode,
       game,
       playerCount: 1,
-      maxPlayers,
+      ...(maxPlayers && { maxPlayers }),
       createdAt: Date.now(),
     });
 
@@ -66,10 +68,11 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     };
   }, [isHost, phase, roomCode, game, maxPlayers, advertise]);
 
-  // --- Transition: waiting → connecting when all expected peers appear ---
+  // --- Transition: waiting → connecting when all expected peers appear (fixed mode only) ---
   useEffect(() => {
-    if (phase !== "waiting") return;
+    if (phase !== "waiting" || !maxPlayers) return;
     if (peers.length >= maxPlayers - 1) {
+      neededPeersRef.current = maxPlayers - 1;
       setPhase("connecting");
       // Stop advertising once the room is full
       unadvertiseRef.current?.();
@@ -101,12 +104,14 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     return unsub;
   }, [isHost, phase, isConnected, peerOnMessage, peerSend]);
 
-  // Host: collect __mp:ready from guests, send __mp:start when all are ready
+  // Host: collect __mp:ready from guests, send __mp:start when all are ready.
+  // neededPeersRef is set at transition time (auto-transition or manual start()).
   useEffect(() => {
     if (!isHost || phase !== "connecting") return;
 
     readyPeersRef.current.clear();
-    const needed = maxPlayers - 1;
+    const needed = neededPeersRef.current;
+    if (needed === 0) return;
 
     const unsub = peerOnMessage(`${MP_PREFIX}ready`, (msg) => {
       readyPeersRef.current.add(msg.from);
@@ -117,7 +122,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     });
 
     return unsub;
-  }, [isHost, phase, maxPlayers, peerOnMessage, peerSend]);
+  }, [isHost, phase, peerOnMessage, peerSend]);
 
   // --- Failure detection ---
   useEffect(() => {
@@ -149,6 +154,14 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     setIsHost(false);
     setPhase("waiting");
   }, []);
+
+  const start = useCallback(() => {
+    if (!isHost || phase !== "waiting") return;
+    neededPeersRef.current = peers.filter((p) => p.status === "connected").length;
+    setPhase("connecting");
+    unadvertiseRef.current?.();
+    unadvertiseRef.current = null;
+  }, [isHost, phase, peers]);
 
   const leave = useCallback(() => {
     peerDisconnect();
@@ -196,6 +209,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     rooms,
     createRoom,
     joinRoom,
+    start,
     phase,
     roomCode,
     isHost,

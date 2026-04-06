@@ -1,17 +1,14 @@
 import { dirname } from "path";
 import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import tseslint from "typescript-eslint";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [
-  ...compat.extends("next/core-web-vitals"),
+const eslintConfig = defineConfig([
+  ...nextCoreWebVitals,
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
   {
     files: ["**/*.ts", "**/*.tsx"],
     plugins: {
@@ -28,6 +25,6 @@ const eslintConfig = [
       "@typescript-eslint/no-unnecessary-condition": "error",
     },
   },
-];
+]);
 
 export default eslintConfig;

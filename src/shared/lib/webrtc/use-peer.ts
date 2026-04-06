@@ -13,6 +13,7 @@ import type {
 } from "./types";
 
 interface UsePeerOptions {
+  /** Max peer connections to accept. Omit for no limit. */
   maxPeers?: number;
   /** When false, the hook stays dormant — no signaling, no connections. */
   enabled?: boolean;
@@ -30,7 +31,7 @@ export function usePeer(
   role: PeerRole,
   options: UsePeerOptions = {},
 ): PeerHookState {
-  const { maxPeers = 1, enabled = true } = options;
+  const { maxPeers, enabled = true } = options;
 
   const [peers, setPeers] = useState<PeerState[]>([]);
   const [connectionState, setConnectionState] =
@@ -173,7 +174,7 @@ export function usePeer(
       unsubJoined = signaling.onPeerJoined((remotePeerId) => {
         if (cleanedUp) return;
         if (connections.has(remotePeerId)) return;
-        if (connections.size >= maxPeers) return;
+        if (maxPeers !== undefined && connections.size >= maxPeers) return;
 
         const conn = createConn(remotePeerId);
         conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
@@ -191,7 +192,7 @@ export function usePeer(
             const remotePeerId = presence.peerId;
             if (remotePeerId === peerId) continue;
             if (connections.has(remotePeerId)) continue;
-            if (connections.size >= maxPeers) return;
+            if (maxPeers !== undefined && connections.size >= maxPeers) return;
 
             const conn = createConn(remotePeerId);
             conn.createOffer().catch((e) => console.warn("[usePeer] createOffer error:", e));
@@ -290,7 +291,9 @@ export function usePeer(
     peers,
     connectionState,
     isConnected: peers.some((p) => p.status === "connected"),
-    allConnected: peers.filter((p) => p.status === "connected").length >= maxPeers,
+    allConnected: maxPeers !== undefined
+      ? peers.filter((p) => p.status === "connected").length >= maxPeers
+      : peers.length > 0 && peers.every((p) => p.status === "connected"),
     send,
     sendTo,
     onMessage,

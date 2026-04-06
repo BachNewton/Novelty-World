@@ -5,7 +5,7 @@ import { cn } from "@/shared/lib/utils";
 import { Card } from "@/shared/components/ui/card";
 import { getProjectPath } from "@/shared/lib/constants";
 import type { Project } from "@/shared/types";
-import { Dice5, Spade, Club, Hash, Calculator, type LucideIcon } from "lucide-react";
+import { Dice5, Spade, Club, Hash, Calculator, Activity, type LucideIcon } from "lucide-react";
 
 const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Dice5,
@@ -13,6 +13,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Club,
   Hash,
   Calculator,
+  Activity,
 };
 
 interface ProjectCardProps {

@@ -32,6 +32,9 @@ export class PeerConnection {
   readonly peerId: string;
   readonly remotePeerId: string;
 
+  /** Once bufferedAmount exceeds this, new messages queue internally. */
+  private static HIGH_WATER = 1024 * 1024; // 1 MB
+
   private pc: RTCPeerConnection;
   private dataChannel: RTCDataChannel | null = null;
   private messageHandlers = new Map<string, Set<MessageHandler>>();
@@ -42,6 +45,8 @@ export class PeerConnection {
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private remoteDescriptionSet = false;
   private destroyed = false;
+  private sendQueue: string[] = [];
+  private draining = false;
 
   constructor(config: PeerConnectionConfig) {
     this.role = config.role;
@@ -129,11 +134,9 @@ export class PeerConnection {
   /**
    * Send a typed message over the DataChannel.
    *
-   * Buffer limits: Chrome/Edge/Safari close the channel at ~16 MB queued;
-   * Firefox applies backpressure via SCTP's 256 KiB send buffer.
-   * Not a concern for small game messages — would require tens of thousands
-   * of queued messages to hit. Monitor `dataChannel.bufferedAmount` if
-   * sending large or high-frequency payloads in the future.
+   * If the browser's send buffer is above HIGH_WATER, the message is queued
+   * internally and drained automatically via `onbufferedamountlow`.
+   * Callers can send as fast as they like without risking channel closure.
    */
   send<T>(type: string, payload: T): void {
     if (!this.dataChannel || this.dataChannel.readyState !== "open") return;
@@ -143,7 +146,16 @@ export class PeerConnection {
       timestamp: Date.now(),
       from: this.peerId,
     };
-    this.dataChannel.send(JSON.stringify(message));
+    const serialized = JSON.stringify(message);
+
+    if (
+      this.sendQueue.length > 0 ||
+      this.dataChannel.bufferedAmount > PeerConnection.HIGH_WATER
+    ) {
+      this.sendQueue.push(serialized);
+    } else {
+      this.dataChannel.send(serialized);
+    }
   }
 
   /** Remove a previously registered handler for a message type. */
@@ -197,9 +209,24 @@ export class PeerConnection {
     this.messageHandlers.clear();
     this.pendingMessages = [];
     this.pendingCandidates = [];
+    this.sendQueue = [];
   }
 
   // --- Private methods ---
+
+  private drainSendQueue(): void {
+    if (this.draining) return;
+    this.draining = true;
+    while (
+      this.sendQueue.length > 0 &&
+      this.dataChannel &&
+      this.dataChannel.readyState === "open" &&
+      this.dataChannel.bufferedAmount <= PeerConnection.HIGH_WATER
+    ) {
+      this.dataChannel.send(this.sendQueue.shift()!);
+    }
+    this.draining = false;
+  }
 
   private async drainPendingCandidates(): Promise<void> {
     const candidates = [...this.pendingCandidates];
@@ -215,6 +242,8 @@ export class PeerConnection {
   // and pendingMessages are already cleared — nothing observable happens.
   private setupDataChannel(dc: RTCDataChannel): void {
     this.dataChannel = dc;
+    dc.bufferedAmountLowThreshold = 256 * 1024; // 256 KB
+    dc.onbufferedamountlow = () => this.drainSendQueue();
 
     dc.onopen = () => {
       this.setConnectionState("connected");

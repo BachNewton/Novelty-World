@@ -35,6 +35,13 @@ export const PROJECTS: Project[] = [
     icon: "Hash",
   },
   {
+    name: "Network Test",
+    slug: "network-test",
+    description: "Multiplayer network diagnostics and benchmarking",
+    categorySlug: "tools",
+    icon: "Activity",
+  },
+  {
     name: "Pi Solver",
     slug: "pi-solver",
     description: "Compute digits of Pi with various algorithms",

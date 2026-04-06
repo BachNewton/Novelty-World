@@ -25,8 +25,9 @@ export default function TestMultiplayerPage() {
 
 function TestMultiplayerContent() {
   const searchParams = useSearchParams();
-  const maxPlayers = Number(searchParams.get("players")) || 2;
-  const room = useGameRoom({ game: "test", maxPlayers });
+  const mode = searchParams.get("mode");
+  const maxPlayers = mode === "open" ? undefined : (Number(searchParams.get("players")) || 2);
+  const room = useGameRoom({ game: "test", ...(maxPlayers !== undefined && { maxPlayers }) });
 
   return (
     <div data-testid="test-multiplayer">
@@ -65,7 +66,7 @@ function Lobby({ room }: { room: GameRoom }) {
 }
 
 function Session({ room }: { room: GameRoom }) {
-  const { roomCode, isHost, phase, players, send, onMessage, onPlayerLeave } = room;
+  const { roomCode, isHost, phase, players, send, onMessage, onPlayerLeave, start } = room;
   const [messages, setMessages] = useState<string[]>([]);
   const [leftPlayers, setLeftPlayers] = useState<string[]>([]);
 
@@ -100,6 +101,9 @@ function Session({ room }: { room: GameRoom }) {
         ))}
       </div>
       <div data-testid="is-ready">{String(phase === "ready")}</div>
+      {phase === "waiting" && isHost && (
+        <button data-testid="start-game" onClick={start}>Start</button>
+      )}
       <button data-testid="send-ping" onClick={handleSendPing}>
         Send Ping
       </button>

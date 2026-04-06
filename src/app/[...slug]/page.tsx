@@ -10,6 +10,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "tic-tac-toe": dynamic(() =>
     import("@/projects/tic-tac-toe").then((m) => ({ default: m.TicTacToe })),
   ),
+  "network-test": dynamic(() =>
+    import("@/projects/network-test").then((m) => ({ default: m.NetworkTest })),
+  ),
 };
 
 interface Props {
