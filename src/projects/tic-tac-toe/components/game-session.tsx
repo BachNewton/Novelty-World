@@ -80,7 +80,7 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
   }, [isHost, onMessage]);
 
   // Host: reset board and broadcast new game to all peers
-  function hostStartNewRound() {
+  const hostStartNewRound = useCallback(() => {
     const hostPlayer = randomPlayer();
     useTicTacToeStore.getState().resetGame();
     useTicTacToeStore.getState().setMyPlayer(hostPlayer);
@@ -89,13 +89,13 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
       currentTurn: useTicTacToeStore.getState().currentTurn,
       hostPlayer,
     });
-  }
+  }, [send]);
 
   // HOST: listen for play-again requests
   useEffect(() => {
     if (!isHost) return;
     return onMessage(MSG.PLAY_AGAIN_REQUEST, () => hostStartNewRound());
-  }, [isHost, onMessage, send]);
+  }, [isHost, onMessage, hostStartNewRound]);
 
   // GUEST: listen for play-again accepted
   useEffect(() => {
@@ -148,7 +148,7 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
     } else {
       send(MSG.PLAY_AGAIN_REQUEST, {});
     }
-  }, [isHost, send]);
+  }, [isHost, send, hostStartNewRound]);
 
   // --- Render based on framework phase ---
 

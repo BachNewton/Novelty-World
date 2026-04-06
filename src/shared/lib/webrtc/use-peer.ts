@@ -37,7 +37,7 @@ export function usePeer(
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("new");
 
-  const peerIdRef = useRef(crypto.randomUUID());
+  const [peerId] = useState(() => crypto.randomUUID());
   const connectionsRef = useRef<Map<string, PeerConnection>>(new Map());
   const signalingRef = useRef<ReturnType<typeof createSignalingChannel> | null>(null);
 
@@ -50,8 +50,6 @@ export function usePeer(
   const peerLeaveHandlersRef = useRef<Set<(peerId: string) => void>>(
     new Set(),
   );
-
-  const peerId = peerIdRef.current;
 
   // Update peers state from the connections map
   const syncPeers = useCallback(() => {

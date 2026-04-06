@@ -319,13 +319,19 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
         }
 
         // Wait for downstream ack (guest sends after inactivity detection)
+        // NOTE: These timeouts are generous because the framework queues sends
+        // when the DataChannel buffer is full. On slow connections the send queue
+        // can back up significantly, so the receiver's idle-detection timer won't
+        // fire until the queue fully drains. A future improvement is to adopt
+        // Cloudflare-style adaptive rounds instead of a fixed flood window — see
+        // IDEAS.md in this project folder.
         updateOverall(pi, `Throughput ↓ ${peer.id.slice(0, 8)} — measuring`);
-        const downAck = await withTimeout(downAckPromise, 30_000, "throughput down ack");
+        const downAck = await withTimeout(downAckPromise, 120_000, "throughput down ack");
         store.setThroughputResult(peer.id, "down", downAck.bytesReceived, downAck.elapsedMs);
 
         // Wait for upstream data (guest auto-starts after sending downstream ack)
         updateOverall(pi, `Throughput ↑ ${peer.id.slice(0, 8)} — starting`);
-        const upResult = await withTimeout(upPromise, 30_000, "throughput up");
+        const upResult = await withTimeout(upPromise, 120_000, "throughput up");
         store.setThroughputResult(peer.id, "up", upResult.bytes, upResult.ms);
 
         completedSteps++;

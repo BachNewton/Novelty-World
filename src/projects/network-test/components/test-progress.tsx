@@ -14,16 +14,18 @@ export function TestProgress() {
   const testPhase = useNetworkTestStore((s) => s.testPhase);
   const progress = useNetworkTestStore((s) => s.progress);
   const [elapsed, setElapsed] = useState(0);
-  const phaseStartRef = useRef(Date.now());
+  const phaseStartRef = useRef(0);
 
-  // Reset elapsed timer when phase changes
+  // Reset elapsed when phase changes (state adjustment during render)
+  const [prevTestPhase, setPrevTestPhase] = useState(testPhase);
+  if (testPhase !== prevTestPhase) {
+    setPrevTestPhase(testPhase);
+    setElapsed(0);
+  }
+
+  // Tick elapsed every second (also resets phaseStart on phase change)
   useEffect(() => {
     phaseStartRef.current = Date.now();
-    setElapsed(0);
-  }, [testPhase]);
-
-  // Tick elapsed every second
-  useEffect(() => {
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - phaseStartRef.current) / 1000));
     }, 1000);

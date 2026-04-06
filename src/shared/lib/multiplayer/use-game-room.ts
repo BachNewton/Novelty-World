@@ -45,9 +45,9 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     { maxPeers, enabled: peerActive },
   );
 
-  // --- Refs for handshake tracking ---
+  // --- Handshake tracking ---
   const readyPeersRef = useRef<Set<string>>(new Set());
-  const neededPeersRef = useRef(0);
+  const [neededPeers, setNeededPeers] = useState(0);
   const unadvertiseRef = useRef<(() => void) | null>(null);
 
   // --- Host: advertise room while waiting ---
@@ -68,24 +68,16 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     };
   }, [isHost, phase, roomCode, game, maxPlayers, advertise]);
 
-  // --- Transition: waiting → connecting when all expected peers appear (fixed mode only) ---
-  useEffect(() => {
-    if (phase !== "waiting" || !maxPlayers) return;
-    if (peers.length >= maxPlayers - 1) {
-      neededPeersRef.current = maxPlayers - 1;
-      setPhase("connecting");
-      // Stop advertising once the room is full
-      unadvertiseRef.current?.();
-      unadvertiseRef.current = null;
-    }
-  }, [phase, peers.length, maxPlayers]);
-
-  // --- Guest: auto-transition to connecting once peer hook initializes ---
-  useEffect(() => {
-    if (!isHost && phase === "waiting") {
-      setPhase("connecting");
-    }
-  }, [isHost, phase]);
+  // --- Transition: waiting → connecting (state adjustment during render) ---
+  // Room full (fixed mode): all expected peers have appeared
+  if (phase === "waiting" && maxPlayers && peers.length >= maxPlayers - 1) {
+    setNeededPeers(maxPlayers - 1);
+    setPhase("connecting");
+  }
+  // Guest: skip waiting phase entirely
+  if (!isHost && phase === "waiting") {
+    setPhase("connecting");
+  }
 
   // --- Application-level ready handshake ---
 
@@ -110,35 +102,27 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     if (!isHost || phase !== "connecting") return;
 
     readyPeersRef.current.clear();
-    const needed = neededPeersRef.current;
-    if (needed === 0) return;
+    if (neededPeers === 0) return;
 
     const unsub = peerOnMessage(`${MP_PREFIX}ready`, (msg) => {
       readyPeersRef.current.add(msg.from);
-      if (readyPeersRef.current.size >= needed) {
+      if (readyPeersRef.current.size >= neededPeers) {
         peerSend(`${MP_PREFIX}start`, {});
         setPhase("ready");
       }
     });
 
     return unsub;
-  }, [isHost, phase, peerOnMessage, peerSend]);
+  }, [isHost, phase, neededPeers, peerOnMessage, peerSend]);
 
-  // --- Failure detection ---
-  useEffect(() => {
-    if (phase !== "connecting" && phase !== "ready") return;
-    if (connectionState === "failed") {
-      setPhase("failed");
-    }
-  }, [phase, connectionState]);
-
-  // --- Disconnect detection (only after we reached "ready") ---
-  useEffect(() => {
-    if (phase !== "ready") return;
-    if (peers.length > 0 && peers.every((p) => p.status !== "connected")) {
-      setPhase("disconnected");
-    }
-  }, [phase, peers]);
+  // --- Derive failure / disconnect from transport state (no effects needed) ---
+  let effectivePhase = phase;
+  if ((phase === "connecting" || phase === "ready") && connectionState === "failed") {
+    effectivePhase = "failed";
+  }
+  if (phase === "ready" && peers.length > 0 && peers.every((p) => p.status !== "connected")) {
+    effectivePhase = "disconnected";
+  }
 
   // --- Actions ---
 
@@ -157,7 +141,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
 
   const start = useCallback(() => {
     if (!isHost || phase !== "waiting") return;
-    neededPeersRef.current = peers.filter((p) => p.status === "connected").length;
+    setNeededPeers(peers.filter((p) => p.status === "connected").length);
     setPhase("connecting");
     unadvertiseRef.current?.();
     unadvertiseRef.current = null;
@@ -210,7 +194,7 @@ export function useGameRoom(options: UseGameRoomOptions): GameRoom {
     createRoom,
     joinRoom,
     start,
-    phase,
+    phase: effectivePhase,
     roomCode,
     isHost,
     players: peers,
