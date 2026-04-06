@@ -209,6 +209,10 @@ export class PeerConnection {
     }
   }
 
+  // Note: onopen and onmessage don't check `this.destroyed` because
+  // destroy() calls dc.close() + pc.close() first, so browsers won't
+  // fire these after teardown. Even if a stale event arrived, handlers
+  // and pendingMessages are already cleared — nothing observable happens.
   private setupDataChannel(dc: RTCDataChannel): void {
     this.dataChannel = dc;
 

@@ -79,19 +79,22 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
     });
   }, [isHost, onMessage]);
 
+  // Host: reset board and broadcast new game to all peers
+  function hostStartNewRound() {
+    const hostPlayer = randomPlayer();
+    useTicTacToeStore.getState().resetGame();
+    useTicTacToeStore.getState().setMyPlayer(hostPlayer);
+    send<PlayAgainAccepted>(MSG.PLAY_AGAIN_ACCEPTED, {
+      board: useTicTacToeStore.getState().board,
+      currentTurn: useTicTacToeStore.getState().currentTurn,
+      hostPlayer,
+    });
+  }
+
   // HOST: listen for play-again requests
   useEffect(() => {
     if (!isHost) return;
-    return onMessage(MSG.PLAY_AGAIN_REQUEST, () => {
-      const hostPlayer = randomPlayer();
-      useTicTacToeStore.getState().resetGame();
-      useTicTacToeStore.getState().setMyPlayer(hostPlayer);
-      send<PlayAgainAccepted>(MSG.PLAY_AGAIN_ACCEPTED, {
-        board: useTicTacToeStore.getState().board,
-        currentTurn: useTicTacToeStore.getState().currentTurn,
-        hostPlayer,
-      });
-    });
+    return onMessage(MSG.PLAY_AGAIN_REQUEST, () => hostStartNewRound());
   }, [isHost, onMessage, send]);
 
   // GUEST: listen for play-again accepted
@@ -141,14 +144,7 @@ export function GameSession({ room, onLeave }: GameSessionProps) {
 
   const handlePlayAgain = useCallback(() => {
     if (isHost) {
-      const hostPlayer = randomPlayer();
-      useTicTacToeStore.getState().resetGame();
-      useTicTacToeStore.getState().setMyPlayer(hostPlayer);
-      send<PlayAgainAccepted>(MSG.PLAY_AGAIN_ACCEPTED, {
-        board: useTicTacToeStore.getState().board,
-        currentTurn: useTicTacToeStore.getState().currentTurn,
-        hostPlayer,
-      });
+      hostStartNewRound();
     } else {
       send(MSG.PLAY_AGAIN_REQUEST, {});
     }

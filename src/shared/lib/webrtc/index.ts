@@ -2,7 +2,6 @@ export type {
   SignalType,
   SignalingMessage,
   PeerState,
-  RoomConfig,
   PeerRole,
   DataMessage,
   MessageHandler,

@@ -12,11 +12,6 @@ export interface PeerState {
   status: ConnectionState;
 }
 
-export interface RoomConfig {
-  roomId: string;
-  maxPeers?: number;
-}
-
 /** Role in the room */
 export type PeerRole = "host" | "guest";
 
