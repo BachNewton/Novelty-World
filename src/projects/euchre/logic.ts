@@ -49,12 +49,18 @@ export const NON_TRUMP_RANK_ORDER: readonly Rank[] = [
 
 /** Return the color of a suit. (RULES §5.3) */
 export function getSuitColor(suit: Suit): Color {
-  throw new Error("Not implemented");
+  return suit === "hearts" || suit === "diamonds" ? "red" : "black";
 }
 
 /** Return the other suit of the same color. (RULES §5.3) */
 export function getPartnerSuit(suit: Suit): Suit {
-  throw new Error("Not implemented");
+  const pairs: Record<Suit, Suit> = {
+    hearts: "diamonds",
+    diamonds: "hearts",
+    clubs: "spades",
+    spades: "clubs",
+  };
+  return pairs[suit];
 }
 
 /**
@@ -62,22 +68,23 @@ export function getPartnerSuit(suit: Suit): Suit {
  * The Left Bower belongs to the trump suit, not its printed suit. (RULES §5.1)
  */
 export function getEffectiveSuit(card: Card, trumpSuit: Suit): Suit {
-  throw new Error("Not implemented");
+  if (isLeftBower(card, trumpSuit)) return trumpSuit;
+  return card.suit;
 }
 
 /** Is this card the Right Bower? (RULES §5.1) */
 export function isRightBower(card: Card, trumpSuit: Suit): boolean {
-  throw new Error("Not implemented");
+  return card.rank === "jack" && card.suit === trumpSuit;
 }
 
 /** Is this card the Left Bower? (RULES §5.1) */
 export function isLeftBower(card: Card, trumpSuit: Suit): boolean {
-  throw new Error("Not implemented");
+  return card.rank === "jack" && card.suit === getPartnerSuit(trumpSuit);
 }
 
 /** Is this card a trump card (including bowers)? */
 export function isTrump(card: Card, trumpSuit: Suit): boolean {
-  throw new Error("Not implemented");
+  return getEffectiveSuit(card, trumpSuit) === trumpSuit;
 }
 
 /**
@@ -91,7 +98,29 @@ export function compareCards(
   trumpSuit: Suit,
   leadSuit: Suit,
 ): number {
-  throw new Error("Not implemented");
+  const aRank = cardStrength(a, trumpSuit, leadSuit);
+  const bRank = cardStrength(b, trumpSuit, leadSuit);
+  return bRank - aRank; // higher strength = better, so if a > b => negative
+}
+
+/** Internal: assigns a numeric strength to a card for trick comparison. */
+function cardStrength(card: Card, trumpSuit: Suit, leadSuit: Suit): number {
+  if (isRightBower(card, trumpSuit)) return 100;
+  if (isLeftBower(card, trumpSuit)) return 99;
+  if (isTrump(card, trumpSuit)) {
+    // Trump cards ranked: A=98, K=97, Q=96, 10=95, 9=94
+    const trumpNonBowerOrder: Rank[] = ["ace", "king", "queen", "10", "9"];
+    const idx = trumpNonBowerOrder.indexOf(card.rank);
+    return 98 - idx;
+  }
+  const effectiveSuit = getEffectiveSuit(card, trumpSuit);
+  if (effectiveSuit === leadSuit) {
+    // Lead suit cards ranked: A=50, K=49, Q=48, J=47, 10=46, 9=45
+    const idx = NON_TRUMP_RANK_ORDER.indexOf(card.rank);
+    return 50 - idx;
+  }
+  // Off-suit cards can't win
+  return 0;
 }
 
 // ============================================================
@@ -100,12 +129,23 @@ export function compareCards(
 
 /** Create an unshuffled 24-card Euchre deck. */
 export function createDeck(): Card[] {
-  throw new Error("Not implemented");
+  const deck: Card[] = [];
+  for (const suit of SUITS) {
+    for (const rank of RANKS) {
+      deck.push({ suit, rank });
+    }
+  }
+  return deck;
 }
 
 /** Shuffle a deck using Fisher-Yates. Returns a new array. */
 export function shuffleDeck(deck: Card[]): Card[] {
-  throw new Error("Not implemented");
+  const result = [...deck];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 /**
@@ -116,7 +156,12 @@ export function deal(deck: Card[]): {
   hands: [Card[], Card[], Card[], Card[]];
   kitty: Card[];
 } {
-  throw new Error("Not implemented");
+  const hands: [Card[], Card[], Card[], Card[]] = [[], [], [], []];
+  for (let i = 0; i < 20; i++) {
+    hands[i % 4].push(deck[i]);
+  }
+  const kitty = deck.slice(20, 24);
+  return { hands, kitty };
 }
 
 // ============================================================
@@ -125,12 +170,12 @@ export function deal(deck: Card[]): {
 
 /** Get the team a player belongs to. 0,2 = A; 1,3 = B. */
 export function getTeam(player: PlayerIndex): Team {
-  throw new Error("Not implemented");
+  return player % 2 === 0 ? "A" : "B";
 }
 
 /** Get a player's partner. 0↔2, 1↔3. */
 export function getPartner(player: PlayerIndex): PlayerIndex {
-  throw new Error("Not implemented");
+  return ((player + 2) % 4) as PlayerIndex;
 }
 
 /** Get the next player clockwise, optionally skipping the alone player's partner. */
@@ -138,7 +183,11 @@ export function getNextPlayer(
   current: PlayerIndex,
   skipPlayer?: PlayerIndex | null,
 ): PlayerIndex {
-  throw new Error("Not implemented");
+  let next = ((current + 1) % 4) as PlayerIndex;
+  if (skipPlayer != null && next === skipPlayer) {
+    next = ((next + 1) % 4) as PlayerIndex;
+  }
+  return next;
 }
 
 /** Get the player to the left of the dealer (leads first trick). (RULES §8.1) */
@@ -147,7 +196,10 @@ export function getLeadPlayer(
   goingAlone: boolean,
   alonePlayer: PlayerIndex | null,
 ): PlayerIndex {
-  throw new Error("Not implemented");
+  const skipPlayer = goingAlone && alonePlayer != null
+    ? getPartner(alonePlayer)
+    : null;
+  return getNextPlayer(dealer, skipPlayer);
 }
 
 // ============================================================
@@ -164,14 +216,89 @@ export function applyBid(
   player: PlayerIndex,
   action: BidAction,
 ): ActionResult {
-  throw new Error("Not implemented");
+  if (player !== state.currentPlayer) {
+    return { valid: false, state };
+  }
+
+  const s = { ...state };
+
+  if (s.phase === "bidding-round-1") {
+    if (action.type === "call") {
+      return { valid: false, state };
+    }
+
+    if (action.type === "pass") {
+      s.bidPassCount++;
+      if (s.bidPassCount >= 4) {
+        // All four passed — move to round 2
+        s.phase = "bidding-round-2";
+        s.turnedDownSuit = s.upCard!.suit;
+        s.upCard = null;
+        s.bidPassCount = 0;
+        s.currentPlayer = getNextPlayer(s.dealer);
+      } else {
+        s.currentPlayer = getNextPlayer(s.currentPlayer);
+      }
+      return { valid: true, state: s };
+    }
+
+    // order-up
+    s.trumpSuit = s.upCard!.suit;
+    s.maker = player;
+    s.goingAlone = action.alone;
+    // Dealer picks up the up card
+    s.hands = [...s.hands] as GameState["hands"];
+    s.hands[s.dealer] = [...s.hands[s.dealer], s.upCard!];
+    s.phase = "dealer-discard";
+    s.currentPlayer = s.dealer;
+    s.upCard = null;
+    return { valid: true, state: s };
+  }
+
+  if (s.phase === "bidding-round-2") {
+    if (action.type === "order-up") {
+      return { valid: false, state };
+    }
+
+    if (action.type === "pass") {
+      // Stick the dealer: dealer can't pass if everyone else has
+      if (!canPass(s)) {
+        return { valid: false, state };
+      }
+      s.bidPassCount++;
+      s.currentPlayer = getNextPlayer(s.currentPlayer);
+      return { valid: true, state: s };
+    }
+
+    // call suit
+    if (action.suit === s.turnedDownSuit) {
+      return { valid: false, state };
+    }
+
+    s.trumpSuit = action.suit;
+    s.maker = player;
+    s.goingAlone = action.alone;
+    s.phase = "playing";
+    s.currentPlayer = getLeadPlayer(s.dealer, s.goingAlone, s.maker);
+    return { valid: true, state: s };
+  }
+
+  return { valid: false, state };
 }
 
 /**
  * Can the current player pass, or must they bid? (stick-the-dealer check)
  */
 export function canPass(state: GameState): boolean {
-  throw new Error("Not implemented");
+  if (state.phase === "bidding-round-1") return true;
+  if (state.phase === "bidding-round-2") {
+    // Stick the dealer: if current player IS the dealer and 3 others have passed
+    if (state.currentPlayer === state.dealer && state.bidPassCount >= 3) {
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 // ============================================================
@@ -186,7 +313,25 @@ export function applyDealerDiscard(
   state: GameState,
   card: Card,
 ): ActionResult {
-  throw new Error("Not implemented");
+  if (state.phase !== "dealer-discard") {
+    return { valid: false, state };
+  }
+
+  const dealerHand = state.hands[state.dealer];
+  const cardIdx = dealerHand.findIndex(
+    (c) => c.rank === card.rank && c.suit === card.suit,
+  );
+  if (cardIdx === -1) {
+    return { valid: false, state };
+  }
+
+  const s = { ...state };
+  s.hands = [...s.hands] as GameState["hands"];
+  s.hands[s.dealer] = dealerHand.filter((_, i) => i !== cardIdx);
+  s.kitty = [...s.kitty, card];
+  s.phase = "playing";
+  s.currentPlayer = getLeadPlayer(s.dealer, s.goingAlone, s.maker);
+  return { valid: true, state: s };
 }
 
 // ============================================================
@@ -202,7 +347,12 @@ export function getValidPlays(
   leadSuit: Suit | null,
   trumpSuit: Suit,
 ): Card[] {
-  throw new Error("Not implemented");
+  if (leadSuit === null) return [...hand];
+
+  const followers = hand.filter(
+    (c) => getEffectiveSuit(c, trumpSuit) === leadSuit,
+  );
+  return followers.length > 0 ? followers : [...hand];
 }
 
 /**
@@ -214,7 +364,15 @@ export function isValidPlay(
   leadSuit: Suit | null,
   trumpSuit: Suit,
 ): boolean {
-  throw new Error("Not implemented");
+  const inHand = hand.some(
+    (c) => c.rank === card.rank && c.suit === card.suit,
+  );
+  if (!inHand) return false;
+
+  const validPlays = getValidPlays(hand, leadSuit, trumpSuit);
+  return validPlays.some(
+    (c) => c.rank === card.rank && c.suit === card.suit,
+  );
 }
 
 /**
@@ -224,7 +382,14 @@ export function determineTrickWinner(
   trick: TrickCard[],
   trumpSuit: Suit,
 ): PlayerIndex {
-  throw new Error("Not implemented");
+  const leadSuit = getEffectiveSuit(trick[0].card, trumpSuit);
+  let winner = trick[0];
+  for (let i = 1; i < trick.length; i++) {
+    if (compareCards(trick[i].card, winner.card, trumpSuit, leadSuit) < 0) {
+      winner = trick[i];
+    }
+  }
+  return winner.player;
 }
 
 /**
@@ -237,7 +402,68 @@ export function applyPlay(
   player: PlayerIndex,
   card: Card,
 ): ActionResult {
-  throw new Error("Not implemented");
+  if (state.phase !== "playing") return { valid: false, state };
+  if (player !== state.currentPlayer) return { valid: false, state };
+
+  const leadSuit =
+    state.currentTrick.length > 0
+      ? getEffectiveSuit(state.currentTrick[0].card, state.trumpSuit!)
+      : null;
+
+  if (!isValidPlay(state.hands[player], card, leadSuit, state.trumpSuit!)) {
+    return { valid: false, state };
+  }
+
+  const s = { ...state };
+  // Remove card from hand
+  s.hands = [...s.hands] as GameState["hands"];
+  s.hands[player] = s.hands[player].filter(
+    (c) => !(c.rank === card.rank && c.suit === card.suit),
+  );
+
+  // Add to current trick
+  s.currentTrick = [...s.currentTrick, { player, card }];
+
+  // Determine how many players are in this trick
+  const playersInTrick = s.goingAlone ? 3 : 4;
+
+  if (s.currentTrick.length >= playersInTrick) {
+    // Trick complete — resolve it
+    const trickLeadSuit = getEffectiveSuit(
+      s.currentTrick[0].card,
+      s.trumpSuit!,
+    );
+    const winner = determineTrickWinner(s.currentTrick, s.trumpSuit!);
+    const completedTrick: CompletedTrick = {
+      cards: s.currentTrick,
+      winner,
+      leadSuit: trickLeadSuit,
+    };
+    s.completedTricks = [...s.completedTricks, completedTrick];
+    s.currentTrick = [];
+
+    if (s.completedTricks.length >= 5) {
+      // Hand over
+      s.phase = "hand-over";
+      s.handResult = scoreHand(s);
+    } else {
+      // Winner leads next trick
+      const skipPlayer =
+        s.goingAlone && s.maker != null ? getPartner(s.maker) : null;
+      s.currentPlayer = winner;
+      // If winner is the sitting-out partner (shouldn't happen), advance
+      if (skipPlayer != null && s.currentPlayer === skipPlayer) {
+        s.currentPlayer = getNextPlayer(s.currentPlayer, skipPlayer);
+      }
+    }
+  } else {
+    // Advance to next player
+    const skipPlayer =
+      s.goingAlone && s.maker != null ? getPartner(s.maker) : null;
+    s.currentPlayer = getNextPlayer(s.currentPlayer, skipPlayer);
+  }
+
+  return { valid: true, state: s };
 }
 
 // ============================================================
@@ -251,14 +477,47 @@ export function calculateHandScore(
   makerTricksWon: number,
   wentAlone: boolean,
 ): { points: number; euchred: boolean; march: boolean } {
-  throw new Error("Not implemented");
+  const march = makerTricksWon === 5;
+  const euchred = makerTricksWon < 3;
+
+  if (euchred) {
+    return { points: 2, euchred: true, march: false };
+  }
+  if (march) {
+    return { points: wentAlone ? 4 : 2, euchred: false, march: true };
+  }
+  // 3 or 4 tricks
+  return { points: 1, euchred: false, march: false };
 }
 
 /**
  * Score a completed hand and return the full result.
  */
 export function scoreHand(state: GameState): HandResult {
-  throw new Error("Not implemented");
+  const [teamATricks, teamBTricks] = countTricksByTeam(state.completedTricks);
+  const makerTeam = getTeam(state.maker!);
+  const makerTricksWon = makerTeam === "A" ? teamATricks : teamBTricks;
+  const defenderTricksWon = makerTeam === "A" ? teamBTricks : teamATricks;
+
+  const { points, euchred, march } = calculateHandScore(
+    makerTricksWon,
+    state.goingAlone,
+  );
+
+  const scoringTeam: Team = euchred
+    ? (makerTeam === "A" ? "B" : "A")
+    : makerTeam;
+
+  return {
+    makerTeam,
+    makerTricksWon,
+    defenderTricksWon,
+    points,
+    scoringTeam,
+    euchred,
+    march,
+    wentAlone: state.goingAlone,
+  };
 }
 
 /**
@@ -267,7 +526,16 @@ export function scoreHand(state: GameState): HandResult {
 export function countTricksByTeam(
   completedTricks: CompletedTrick[],
 ): [number, number] {
-  throw new Error("Not implemented");
+  let teamA = 0;
+  let teamB = 0;
+  for (const trick of completedTricks) {
+    if (getTeam(trick.winner) === "A") {
+      teamA++;
+    } else {
+      teamB++;
+    }
+  }
+  return [teamA, teamB];
 }
 
 // ============================================================
@@ -276,7 +544,27 @@ export function countTricksByTeam(
 
 /** Create the initial game state with a given starting dealer. */
 export function createGameState(startingDealer: PlayerIndex): GameState {
-  throw new Error("Not implemented");
+  const deck = shuffleDeck(createDeck());
+  const { hands, kitty } = deal(deck);
+  const upCard = kitty[0];
+
+  return {
+    phase: "bidding-round-1",
+    hands,
+    kitty: kitty.slice(1),
+    upCard,
+    trumpSuit: null,
+    turnedDownSuit: null,
+    dealer: startingDealer,
+    currentPlayer: getNextPlayer(startingDealer),
+    bidPassCount: 0,
+    maker: null,
+    goingAlone: false,
+    currentTrick: [],
+    completedTricks: [],
+    scores: [0, 0],
+    handResult: null,
+  };
 }
 
 /**
@@ -284,15 +572,36 @@ export function createGameState(startingDealer: PlayerIndex): GameState {
  * The current dealer on the state is used.
  */
 export function dealHand(state: GameState): GameState {
-  throw new Error("Not implemented");
+  const deck = shuffleDeck(createDeck());
+  const { hands, kitty } = deal(deck);
+  const upCard = kitty[0];
+
+  return {
+    ...state,
+    phase: "bidding-round-1",
+    hands,
+    kitty: kitty.slice(1),
+    upCard,
+    trumpSuit: null,
+    turnedDownSuit: null,
+    currentPlayer: getNextPlayer(state.dealer),
+    bidPassCount: 0,
+    maker: null,
+    goingAlone: false,
+    currentTrick: [],
+    completedTricks: [],
+    handResult: null,
+  };
 }
 
 /** Rotate dealer one seat clockwise. (RULES §10) */
 export function rotateDealer(dealer: PlayerIndex): PlayerIndex {
-  throw new Error("Not implemented");
+  return ((dealer + 1) % 4) as PlayerIndex;
 }
 
 /** Check if the game is over (a team reached 10). (RULES §9.1) */
 export function isGameOver(scores: [number, number]): Team | null {
-  throw new Error("Not implemented");
+  if (scores[0] >= WINNING_SCORE) return "A";
+  if (scores[1] >= WINNING_SCORE) return "B";
+  return null;
 }
