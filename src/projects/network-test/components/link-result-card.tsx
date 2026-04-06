@@ -2,10 +2,10 @@
 
 import { Card } from "@/shared/components/ui/card";
 import { formatMs, formatBytesPerSec } from "../logic";
-import type { PeerTestResult } from "../types";
+import type { LinkTestResult } from "../types";
 
-interface PeerResultCardProps {
-  result: PeerTestResult;
+interface LinkResultCardProps {
+  result: LinkTestResult;
 }
 
 function pingColor(avg: number): string {
@@ -39,13 +39,13 @@ function Stat({ label, value, className }: { label: string; value: string; class
   );
 }
 
-export function PeerResultCard({ result }: PeerResultCardProps) {
-  const { ping, throughput, ordering, loss } = result;
+export function LinkResultCard({ result }: LinkResultCardProps) {
+  const { ping, throughput, ordering, loss, playerNameA, playerNameB } = result;
 
   return (
     <Card className="p-4 space-y-4">
       <h3 className="font-mono text-sm tracking-widest text-brand-orange">
-        {result.peerId.slice(0, 8)}
+        {playerNameA} ↔ {playerNameB}
       </h3>
 
       {/* Ping */}
@@ -66,12 +66,12 @@ export function PeerResultCard({ result }: PeerResultCardProps) {
           Throughput
         </h4>
         <Stat
-          label="Download"
+          label={`${playerNameA} → ${playerNameB}`}
           value={formatBytesPerSec(throughput.downBytesPerSec)}
           className={throughputColor(throughput.downBytesPerSec)}
         />
         <Stat
-          label="Upload"
+          label={`${playerNameB} → ${playerNameA}`}
           value={formatBytesPerSec(throughput.upBytesPerSec)}
           className={throughputColor(throughput.upBytesPerSec)}
         />

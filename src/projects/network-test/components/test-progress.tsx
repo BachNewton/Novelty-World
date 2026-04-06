@@ -44,6 +44,13 @@ export function TestProgress() {
           {phaseLabel}
         </p>
 
+        {/* Current link */}
+        {progress.currentNameA && progress.currentNameB && (
+          <p className="text-sm font-medium text-text-primary">
+            {progress.currentNameA} ↔ {progress.currentNameB}
+          </p>
+        )}
+
         {/* Animated activity indicator */}
         <div className="flex items-center justify-center gap-1.5">
           {[0, 1, 2, 3].map((i) => (

@@ -1,64 +1,84 @@
 import { create } from "zustand";
-import type { TestPhase, PeerTestResult } from "./types";
+import type { TestPhase, ThroughputMeasurement, LinkTestResult } from "./types";
 
 interface Progress {
-  currentPeerId: string | null;
+  currentLinkId: string | null;
+  currentNameA: string | null;
+  currentNameB: string | null;
   currentTest: string;
   overallPercent: number;
 }
 
 interface PeerSideData {
+  /** Sequence numbers received for ordering test */
   orderReceived: number[];
+  /** Count of loss bursts received */
   lossReceived: number;
+  /** Total loss bursts expected */
   lossTotal: number;
-  tpStartTime: number;
-  tpBytesReceived: number;
+  /** Throughput round tracking */
+  tpRoundStartTime: number;
+  tpRoundBytesReceived: number;
 }
 
 const initialPeerSideData: PeerSideData = {
   orderReceived: [],
   lossReceived: 0,
   lossTotal: 0,
-  tpStartTime: 0,
-  tpBytesReceived: 0,
+  tpRoundStartTime: 0,
+  tpRoundBytesReceived: 0,
 };
 
 interface NetworkTestState {
   testPhase: TestPhase;
   progress: Progress;
 
-  // Host accumulates
+  // Host accumulates — keyed by linkId
   pingRawSamples: Record<string, number[]>;
-  throughputRaw: Record<string, { downBytes: number; downMs: number; upBytes: number; upMs: number }>;
+  throughputRaw: Record<
+    string,
+    {
+      downMeasurements: ThroughputMeasurement[];
+      upMeasurements: ThroughputMeasurement[];
+    }
+  >;
   orderingRaw: Record<string, { received: number[]; outOfOrder: number }>;
   lossRaw: Record<string, { received: number; total: number }>;
 
-  // Guest tracks
+  // Local peer tracks (for when this peer is a test participant)
   peerSideData: PeerSideData;
 
   // Final
-  results: PeerTestResult[] | null;
+  results: LinkTestResult[] | null;
 }
 
 interface NetworkTestActions {
   setTestPhase: (phase: TestPhase) => void;
   updateProgress: (update: Partial<Progress>) => void;
 
-  // Host-side
-  addPingSample: (peerId: string, rtt: number) => void;
-  setThroughputResult: (peerId: string, direction: "down" | "up", bytes: number, ms: number) => void;
-  setOrderingResult: (peerId: string, received: number[], outOfOrder: number) => void;
-  setLossResult: (peerId: string, received: number, total: number) => void;
+  // Host-side (linkId-keyed)
+  addPingSample: (linkId: string, rtt: number) => void;
+  addThroughputMeasurement: (
+    linkId: string,
+    direction: "down" | "up",
+    measurement: ThroughputMeasurement,
+  ) => void;
+  setOrderingResult: (
+    linkId: string,
+    received: number[],
+    outOfOrder: number,
+  ) => void;
+  setLossResult: (linkId: string, received: number, total: number) => void;
 
-  // Guest-side
+  // Peer-side
   resetPeerSideData: () => void;
   recordOrderSeq: (seq: number) => void;
   recordLossBurst: (total: number) => void;
-  recordThroughputStart: () => void;
-  recordThroughputData: (bytes: number) => void;
+  recordTpRoundStart: () => void;
+  recordTpRoundData: (bytes: number) => void;
 
   // Final
-  setResults: (results: PeerTestResult[]) => void;
+  setResults: (results: LinkTestResult[]) => void;
   reset: () => void;
 }
 
@@ -66,7 +86,13 @@ export type NetworkTestStore = NetworkTestState & NetworkTestActions;
 
 const initialState: NetworkTestState = {
   testPhase: "idle",
-  progress: { currentPeerId: null, currentTest: "", overallPercent: 0 },
+  progress: {
+    currentLinkId: null,
+    currentNameA: null,
+    currentNameB: null,
+    currentTest: "",
+    overallPercent: 0,
+  },
   pingRawSamples: {},
   throughputRaw: {},
   orderingRaw: {},
@@ -83,35 +109,48 @@ export const useNetworkTestStore = create<NetworkTestStore>((set) => ({
   updateProgress: (update) =>
     set((s) => ({ progress: { ...s.progress, ...update } })),
 
-  addPingSample: (peerId, rtt) =>
+  addPingSample: (linkId, rtt) =>
     set((s) => ({
       pingRawSamples: {
         ...s.pingRawSamples,
-        [peerId]: [...(s.pingRawSamples[peerId] ?? []), rtt],
+        [linkId]: [...(s.pingRawSamples[linkId] ?? []), rtt],
       },
     })),
 
-  setThroughputResult: (peerId, direction, bytes, ms) =>
+  addThroughputMeasurement: (linkId, direction, measurement) =>
     set((s) => {
-      const prev = s.throughputRaw[peerId] ?? { downBytes: 0, downMs: 0, upBytes: 0, upMs: 0 };
+      const prev = s.throughputRaw[linkId] ?? {
+        downMeasurements: [],
+        upMeasurements: [],
+      };
       return {
         throughputRaw: {
           ...s.throughputRaw,
-          [peerId]: direction === "down"
-            ? { ...prev, downBytes: bytes, downMs: ms }
-            : { ...prev, upBytes: bytes, upMs: ms },
+          [linkId]:
+            direction === "down"
+              ? {
+                  ...prev,
+                  downMeasurements: [...prev.downMeasurements, measurement],
+                }
+              : {
+                  ...prev,
+                  upMeasurements: [...prev.upMeasurements, measurement],
+                },
         },
       };
     }),
 
-  setOrderingResult: (peerId, received, outOfOrder) =>
+  setOrderingResult: (linkId, received, outOfOrder) =>
     set((s) => ({
-      orderingRaw: { ...s.orderingRaw, [peerId]: { received, outOfOrder } },
+      orderingRaw: {
+        ...s.orderingRaw,
+        [linkId]: { received, outOfOrder },
+      },
     })),
 
-  setLossResult: (peerId, received, total) =>
+  setLossResult: (linkId, received, total) =>
     set((s) => ({
-      lossRaw: { ...s.lossRaw, [peerId]: { received, total } },
+      lossRaw: { ...s.lossRaw, [linkId]: { received, total } },
     })),
 
   resetPeerSideData: () => set({ peerSideData: { ...initialPeerSideData } }),
@@ -133,16 +172,20 @@ export const useNetworkTestStore = create<NetworkTestStore>((set) => ({
       },
     })),
 
-  recordThroughputStart: () =>
-    set((s) => ({
-      peerSideData: { ...s.peerSideData, tpStartTime: performance.now(), tpBytesReceived: 0 },
-    })),
-
-  recordThroughputData: (bytes) =>
+  recordTpRoundStart: () =>
     set((s) => ({
       peerSideData: {
         ...s.peerSideData,
-        tpBytesReceived: s.peerSideData.tpBytesReceived + bytes,
+        tpRoundStartTime: performance.now(),
+        tpRoundBytesReceived: 0,
+      },
+    })),
+
+  recordTpRoundData: (bytes) =>
+    set((s) => ({
+      peerSideData: {
+        ...s.peerSideData,
+        tpRoundBytesReceived: s.peerSideData.tpRoundBytesReceived + bytes,
       },
     })),
 

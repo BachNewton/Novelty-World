@@ -3,6 +3,7 @@
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import type { LobbyRoomState } from "@/shared/lib/multiplayer";
+import { formatPlayer } from "../logic";
 
 interface WaitingRoomProps {
   room: LobbyRoomState;
@@ -10,9 +11,15 @@ interface WaitingRoomProps {
 }
 
 export function WaitingRoom({ room, onLeave }: WaitingRoomProps) {
-  const { roomCode, isHost, players } = room;
+  const { roomCode, isHost, players, playerRoster } = room;
   const connectedPeers = players.filter((p) => p.status === "connected");
   const canStart = isHost && connectedPeers.length > 0;
+
+  // Build peerId → formatted label lookup from roster (available after handshake)
+  const labelMap = new Map<string, string>();
+  for (const p of playerRoster) {
+    labelMap.set(p.peerId, formatPlayer(p.playerName, p.playerId));
+  }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
@@ -44,8 +51,8 @@ export function WaitingRoom({ room, onLeave }: WaitingRoomProps) {
                 key={p.id}
                 className="flex items-center justify-between text-sm"
               >
-                <span className="font-mono text-text-secondary">
-                  {p.id.slice(0, 8)}
+                <span className="text-text-secondary">
+                  {labelMap.get(p.id) ?? p.id.slice(0, 8)}
                 </span>
                 <span
                   className={
