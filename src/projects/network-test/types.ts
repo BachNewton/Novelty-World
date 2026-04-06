@@ -37,6 +37,9 @@ export const MSG = {
   LOSS_BURST: "loss-burst",
   LOSS_REPORT: "loss-report",
 
+  // Progress (host → all)
+  PROGRESS: "progress",
+
   // Results
   FINAL_RESULTS: "final-results",
 } as const;
@@ -47,6 +50,12 @@ export const MSG = {
 
 export interface StartPhasePayload {
   phase: TestPhase;
+}
+
+export interface ProgressPayload {
+  currentPeerId: string | null;
+  currentTest: string;
+  overallPercent: number;
 }
 
 export interface PingPayload {
@@ -143,6 +152,8 @@ export const PING_COUNT = 20;
 export const PING_INTERVAL_MS = 50;
 export const THROUGHPUT_DURATION_MS = 5_000;
 export const THROUGHPUT_CHUNK_SIZE = 64 * 1024; // 64 KB
+export const THROUGHPUT_BATCH_PER_TICK = 10; // chunks sent per event-loop yield
+export const THROUGHPUT_IDLE_MS = 1_000; // receiver reports after this idle gap
 export const ORDER_COUNT = 100;
 export const LOSS_COUNT = 200;
 export const LOSS_WAIT_MS = 2_000;

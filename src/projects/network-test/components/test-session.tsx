@@ -16,6 +16,8 @@ import {
   PING_COUNT,
   PING_INTERVAL_MS,
   THROUGHPUT_DURATION_MS,
+  THROUGHPUT_BATCH_PER_TICK,
+  THROUGHPUT_IDLE_MS,
   ORDER_COUNT,
   LOSS_COUNT,
   LOSS_WAIT_MS,
@@ -23,7 +25,6 @@ import {
 import type {
   PingPayload,
   PongPayload,
-  ThroughputStartPayload,
   ThroughputDataPayload,
   ThroughputAckPayload,
   OrderSeqPayload,
@@ -31,6 +32,7 @@ import type {
   LossBurstPayload,
   LossReportPayload,
   StartPhasePayload,
+  ProgressPayload,
   PeerTestResult,
 } from "../types";
 import { TestProgress } from "./test-progress";
@@ -71,60 +73,76 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
     });
   }, [onMessage, send]);
 
-  // Listen for phase announcements (guest display)
+  // Listen for phase announcements
   useEffect(() => {
     return onMessage<StartPhasePayload>(MSG.START_PHASE, (msg) => {
       useNetworkTestStore.getState().setTestPhase(msg.payload.phase);
     });
   }, [onMessage]);
 
-  // Throughput: track incoming data (guest is receiver for downstream)
+  // Listen for progress updates
   useEffect(() => {
-    const unsub1 = onMessage<ThroughputStartPayload>(MSG.THROUGHPUT_START, (msg) => {
-      const store = useNetworkTestStore.getState();
-      store.resetPeerSideData();
-      if (msg.payload.direction === "down") {
-        store.recordThroughputStart();
-      }
+    return onMessage<ProgressPayload>(MSG.PROGRESS, (msg) => {
+      useNetworkTestStore.getState().updateProgress(msg.payload);
+    });
+  }, [onMessage]);
+
+  // Guest throughput: single THROUGHPUT_START triggers the full sequence.
+  // 1. Track incoming downstream data from host
+  // 2. When data stops (inactivity), send downstream ACK
+  // 3. Immediately start sending upstream data for THROUGHPUT_DURATION_MS
+  const tpIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (isHost) return;
+    let tracking = false;
+    let ackSent = false;
+
+    const unsub1 = onMessage(MSG.THROUGHPUT_START, () => {
+      useNetworkTestStore.getState().resetPeerSideData();
+      useNetworkTestStore.getState().recordThroughputStart();
+      tracking = true;
+      ackSent = false;
     });
 
     const unsub2 = onMessage<ThroughputDataPayload>(MSG.THROUGHPUT_DATA, (msg) => {
-      useNetworkTestStore.getState().recordThroughputData(msg.payload.chunk.length);
-    });
+      if (!tracking || ackSent) return;
 
-    const unsub3 = onMessage(MSG.THROUGHPUT_DONE, () => {
-      const store = useNetworkTestStore.getState();
-      const { tpStartTime, tpBytesReceived } = store.peerSideData;
-      if (tpStartTime > 0) {
-        const elapsed = performance.now() - tpStartTime;
+      useNetworkTestStore.getState().recordThroughputData(msg.payload.chunk.length);
+
+      // Reset inactivity timer
+      if (tpIdleTimerRef.current) clearTimeout(tpIdleTimerRef.current);
+      tpIdleTimerRef.current = setTimeout(() => {
+        if (ackSent) return;
+        ackSent = true;
+        tracking = false;
+
+        // Send downstream result
+        const { tpStartTime, tpBytesReceived } = useNetworkTestStore.getState().peerSideData;
         send<ThroughputAckPayload>(MSG.THROUGHPUT_ACK, {
           bytesReceived: tpBytesReceived,
-          elapsedMs: elapsed,
+          elapsedMs: performance.now() - tpStartTime,
         });
-      }
+
+        // Immediately start upstream
+        const chunk = generatePaddingChunk();
+        const endTime = performance.now() + THROUGHPUT_DURATION_MS;
+        function sendBatch() {
+          if (performance.now() >= endTime) return;
+          for (let b = 0; b < THROUGHPUT_BATCH_PER_TICK && performance.now() < endTime; b++) {
+            send<ThroughputDataPayload>(MSG.THROUGHPUT_DATA, { chunk });
+          }
+          setTimeout(sendBatch, 0);
+        }
+        sendBatch();
+      }, THROUGHPUT_IDLE_MS);
     });
 
-    return () => { unsub1(); unsub2(); unsub3(); };
-  }, [onMessage, send]);
-
-  // Throughput upstream: guest sends data when told
-  useEffect(() => {
-    if (isHost) return;
-
-    return onMessage<ThroughputStartPayload>(MSG.THROUGHPUT_START, (msg) => {
-      if (msg.payload.direction !== "up") return;
-
-      const chunk = generatePaddingChunk();
-      const endTime = performance.now() + THROUGHPUT_DURATION_MS;
-
-      function sendBurst() {
-        const now = performance.now();
-        if (now >= endTime) return;
-        send<ThroughputDataPayload>(MSG.THROUGHPUT_DATA, { chunk });
-        setTimeout(sendBurst, 0);
-      }
-      sendBurst();
-    });
+    return () => {
+      unsub1();
+      unsub2();
+      if (tpIdleTimerRef.current) clearTimeout(tpIdleTimerRef.current);
+    };
   }, [isHost, onMessage, send]);
 
   // Ordering: guest records sequence
@@ -185,11 +203,13 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
     let completedSteps = 0;
 
     function updateOverall(peerIdx: number, testName: string) {
-      store.updateProgress({
+      const progress: ProgressPayload = {
         currentPeerId: connectedPeers[peerIdx]?.id ?? null,
         currentTest: testName,
         overallPercent: (completedSteps / totalSteps) * 100,
-      });
+      };
+      store.updateProgress(progress);
+      send<ProgressPayload>(MSG.PROGRESS, progress);
     }
 
     try {
@@ -235,56 +255,78 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
         const peer = connectedPeers[pi];
         if (isAborted()) return;
 
-        // Downstream: host → peer
-        updateOverall(pi, `Throughput ↓ ${peer.id.slice(0, 8)}`);
-        sendTo<ThroughputStartPayload>(peer.id, MSG.THROUGHPUT_START, { direction: "down" });
-        await delay(50);
-
-        const chunk = generatePaddingChunk();
-        const downStart = performance.now();
-        const downEnd = downStart + THROUGHPUT_DURATION_MS;
-        let downBytesSent = 0;
-
-        while (performance.now() < downEnd && !isAborted()) {
-          sendTo<ThroughputDataPayload>(peer.id, MSG.THROUGHPUT_DATA, { chunk });
-          downBytesSent += chunk.length;
-          await delay(0); // yield to event loop
-        }
-
-        sendTo(peer.id, MSG.THROUGHPUT_DONE, {});
-
-        // Wait for ack
-        const downAck = await withTimeout(
-          new Promise<ThroughputAckPayload>((resolve) => {
-            const unsub = onMessage<ThroughputAckPayload>(MSG.THROUGHPUT_ACK, (msg) => {
-              if (msg.from === peer.id) {
-                unsub();
-                resolve(msg.payload);
-              }
-            });
-          }),
-          15_000,
-          "throughput down ack",
-        );
-        store.setThroughputResult(peer.id, "down", downAck.bytesReceived, downAck.elapsedMs);
-
-        // Upstream: peer → host
-        updateOverall(pi, `Throughput ↑ ${peer.id.slice(0, 8)}`);
-        let upBytesReceived = 0;
-        let upStartTime = 0;
-
-        const upDataUnsub = onMessage<ThroughputDataPayload>(MSG.THROUGHPUT_DATA, (msg) => {
-          if (msg.from !== peer.id) return;
-          if (upStartTime === 0) upStartTime = performance.now();
-          upBytesReceived += msg.payload.chunk.length;
+        // Register listeners BEFORE sending any data
+        const downAckPromise = new Promise<ThroughputAckPayload>((resolve) => {
+          const unsub = onMessage<ThroughputAckPayload>(MSG.THROUGHPUT_ACK, (msg) => {
+            if (msg.from === peer.id) {
+              unsub();
+              resolve(msg.payload);
+            }
+          });
         });
 
-        sendTo<ThroughputStartPayload>(peer.id, MSG.THROUGHPUT_START, { direction: "up" });
-        await delay(THROUGHPUT_DURATION_MS + 1000); // wait for peer to finish + buffer
-        upDataUnsub();
+        const upPromise = new Promise<{ bytes: number; ms: number }>((resolve) => {
+          let upBytes = 0;
+          let upStart = 0;
+          let idleTimer: ReturnType<typeof setTimeout> | null = null;
+          let lastUpProgress = 0;
 
-        const upElapsed = upStartTime > 0 ? performance.now() - upStartTime : 0;
-        store.setThroughputResult(peer.id, "up", upBytesReceived, upElapsed);
+          const unsub = onMessage<ThroughputDataPayload>(MSG.THROUGHPUT_DATA, (msg) => {
+            if (msg.from !== peer.id) return;
+            const now = performance.now();
+            if (upStart === 0) upStart = now;
+            upBytes += msg.payload.chunk.length;
+
+            // Broadcast progress every 500ms
+            if (now - lastUpProgress > 500) {
+              const pct = Math.min((now - upStart) / THROUGHPUT_DURATION_MS, 1);
+              updateOverall(pi, `Throughput ↑ ${peer.id.slice(0, 8)} (${Math.round(pct * 100)}%)`);
+              lastUpProgress = now;
+            }
+
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+              unsub();
+              resolve({ bytes: upBytes, ms: performance.now() - upStart });
+            }, THROUGHPUT_IDLE_MS);
+          });
+        });
+
+        // Single control message — guest auto-sequences downstream→upstream
+        sendTo(peer.id, MSG.THROUGHPUT_START, {});
+        await delay(50);
+
+        // Downstream: host → peer (with periodic progress updates)
+        const chunk = generatePaddingChunk();
+        const downEnd = performance.now() + THROUGHPUT_DURATION_MS;
+        let lastProgressUpdate = 0;
+
+        while (performance.now() < downEnd && !isAborted()) {
+          for (let b = 0; b < THROUGHPUT_BATCH_PER_TICK && performance.now() < downEnd; b++) {
+            sendTo<ThroughputDataPayload>(peer.id, MSG.THROUGHPUT_DATA, { chunk });
+          }
+
+          // Update progress every 500ms
+          const now = performance.now();
+          if (now - lastProgressUpdate > 500) {
+            const elapsed = now - (downEnd - THROUGHPUT_DURATION_MS);
+            const pct = Math.min(elapsed / THROUGHPUT_DURATION_MS, 1);
+            updateOverall(pi, `Throughput ↓ ${peer.id.slice(0, 8)} (${Math.round(pct * 100)}%)`);
+            lastProgressUpdate = now;
+          }
+
+          await delay(0); // yield to keep UI responsive
+        }
+
+        // Wait for downstream ack (guest sends after inactivity detection)
+        updateOverall(pi, `Throughput ↓ ${peer.id.slice(0, 8)} — measuring`);
+        const downAck = await withTimeout(downAckPromise, 30_000, "throughput down ack");
+        store.setThroughputResult(peer.id, "down", downAck.bytesReceived, downAck.elapsedMs);
+
+        // Wait for upstream data (guest auto-starts after sending downstream ack)
+        updateOverall(pi, `Throughput ↑ ${peer.id.slice(0, 8)} — starting`);
+        const upResult = await withTimeout(upPromise, 30_000, "throughput up");
+        store.setThroughputResult(peer.id, "up", upResult.bytes, upResult.ms);
 
         completedSteps++;
       }
@@ -304,31 +346,19 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
           sendTo<OrderSeqPayload>(peer.id, MSG.ORDER_SEQ, { seq });
         }
 
-        // Wait a bit, then ask for report
+        // Wait for messages to arrive, then request report
         await delay(2_000);
 
         const report = await withTimeout(
           new Promise<OrderReportPayload>((resolve) => {
-            // Send a nudge to get the report
-            sendTo(peer.id, MSG.THROUGHPUT_DONE, {}); // reuse as "send your report"
-
-            // Guest will need to send their report — let's request it via a timer
-            const checkInterval = setInterval(() => {
-              const guestData = useNetworkTestStore.getState().peerSideData;
-              // Host can't see guest store — we need guest to send the report
-              clearInterval(checkInterval);
-            }, 500);
-
             const unsub = onMessage<OrderReportPayload>(MSG.ORDER_REPORT, (msg) => {
               if (msg.from === peer.id) {
                 unsub();
-                clearInterval(checkInterval);
                 resolve(msg.payload);
               }
             });
-
-            // Tell guest to send their report by sending a specific message
-            sendTo(peer.id, MSG.ORDER_REPORT, {}); // trigger guest to respond
+            // Request guest to send their report
+            sendTo(peer.id, MSG.ORDER_REPORT, {});
           }),
           10_000,
           "ordering report",
@@ -376,7 +406,13 @@ export function TestSession({ room, onLeave }: TestSessionProps) {
       }
 
       // --- AGGREGATE ---
-      store.updateProgress({ overallPercent: 100, currentTest: "Complete" });
+      const finalProgress: ProgressPayload = {
+        currentPeerId: null,
+        currentTest: "Complete",
+        overallPercent: 100,
+      };
+      store.updateProgress(finalProgress);
+      send<ProgressPayload>(MSG.PROGRESS, finalProgress);
 
       const storeState = useNetworkTestStore.getState();
       const results: PeerTestResult[] = connectedPeers.map((peer) => {
