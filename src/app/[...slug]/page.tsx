@@ -1,8 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { findProjectBySlug, PROJECTS, getProjectPath } from "@/shared/lib/constants";
 import { Button } from "@/shared/components/ui/button";
 import type { Metadata } from "next";
+
+// Project component registry — lazy loaded
+const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
+  "tic-tac-toe": dynamic(() =>
+    import("@/projects/tic-tac-toe").then((m) => ({ default: m.TicTacToe })),
+  ),
+};
 
 interface Props {
   params: Promise<{ slug: string[] }>;
@@ -30,6 +38,12 @@ export default async function ProjectPage({ params }: Props) {
 
   if (!project) {
     notFound();
+  }
+
+  const ProjectComponent = PROJECT_COMPONENTS[project.slug];
+
+  if (ProjectComponent) {
+    return <ProjectComponent />;
   }
 
   return (
