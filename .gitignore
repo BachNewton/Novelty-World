@@ -6,6 +6,7 @@ __pnp.*
 
 # testing
 /coverage
+/test-results
 
 # next.js
 /.next/
