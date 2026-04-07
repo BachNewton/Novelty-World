@@ -48,6 +48,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "Calculator",
   },
+  {
+    name: "Open World Test",
+    slug: "open-world-test",
+    description: "Real-time peer connection mesh visualizer",
+    categorySlug: "tools",
+    icon: "Globe",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

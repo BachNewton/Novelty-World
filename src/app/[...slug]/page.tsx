@@ -16,6 +16,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "network-test": dynamic(() =>
     import("@/projects/network-test").then((m) => ({ default: m.NetworkTest })),
   ),
+  "open-world-test": dynamic(() =>
+    import("@/projects/open-world-test").then((m) => ({ default: m.OpenWorldTest })),
+  ),
 };
 
 interface Props {
