@@ -36,10 +36,8 @@ export function ProfileEditor() {
     setIsEditing(false);
   }
 
-  if (!mounted) return null;
-
   return (
-    <div className="mt-3 flex items-center justify-center gap-2">
+    <div className={`mt-3 flex items-center justify-center gap-2${mounted ? "" : " invisible"}`}>
       {isEditing ? (
         <input
           ref={attachInput}
