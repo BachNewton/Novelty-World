@@ -31,3 +31,27 @@ body {
   color: var(--color-text-primary);
   font-size: 120%;
 }
+
+/* Thin, dark scrollbar that blends with the dark theme.
+   Standard scrollbar-width/scrollbar-color omitted because Chrome
+   prioritises them over ::-webkit-scrollbar and renders arrows we can't hide. */
+*::-webkit-scrollbar {
+  width: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-hover);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-muted);
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+}
