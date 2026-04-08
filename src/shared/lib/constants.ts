@@ -14,7 +14,7 @@ export const PROJECTS: Project[] = [
     name: "Monopoly",
     slug: "monopoly",
     description: "The classic property trading board game",
-    categorySlug: "games",
+    categorySlug: "board-games",
     icon: "Dice5",
   },
   {
