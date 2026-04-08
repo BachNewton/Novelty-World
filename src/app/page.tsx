@@ -1,14 +1,17 @@
-import { ProjectCard } from "@/shared/components/project-card";
+import { ProfileEditor } from "@/shared/components/profile-editor";
+import { ProjectRow } from "@/shared/components/project-row";
 import {
-  getProjectsByCategory,
   getCategoryTree,
+  PROJECTS,
 } from "@/shared/lib/constants";
 
 export default function HomePage() {
   const categoryTree = getCategoryTree();
 
+  let colorIndex = 0;
+
   return (
-    <div className="relative min-h-screen">
+    <div className="relative flex h-screen flex-col">
       {/* Stars - scale with viewport width */}
       <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[20vw]">
         {/* Orange star - top left */}
@@ -30,63 +33,112 @@ export default function HomePage() {
         </svg>
       </div>
 
-      <div className="relative z-10 px-4 py-12 sm:px-6 lg:px-8">
-        <header className="mx-auto max-w-5xl text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            <span className="text-brand-orange">N</span>
-            <span className="text-brand-blue">o</span>
-            <span className="text-brand-pink">v</span>
-            <span className="text-brand-green">e</span>
-            <span>lty </span>
-            <span className="text-brand-orange">W</span>
-            <span className="text-brand-blue">o</span>
-            <span className="text-brand-pink">r</span>
-            <span className="text-brand-green">l</span>
-            <span>d</span>
-          </h1>
-          <p className="mt-3 text-text-secondary">
-            Kyle&apos;s novel ideas built with imagination and code
-          </p>
-          <div className="mx-auto mt-4 flex justify-center gap-1.5">
-            <div className="h-1 w-20 rounded-full bg-brand-orange" />
-            <div className="h-1 w-20 rounded-full bg-brand-blue" />
-            <div className="h-1 w-20 rounded-full bg-brand-pink" />
-            <div className="h-1 w-20 rounded-full bg-brand-green" />
+      <div className="relative z-10 flex h-full flex-col">
+        {/* Header — fixed at top, doesn't scroll */}
+        <header className="shrink-0 px-4 pb-4 pt-8 text-center sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-5xl">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+              <span className="text-brand-orange">N</span>
+              <span className="text-brand-blue">o</span>
+              <span className="text-brand-pink">v</span>
+              <span className="text-brand-green">e</span>
+              <span>lty </span>
+              <span className="text-brand-orange">W</span>
+              <span className="text-brand-blue">o</span>
+              <span className="text-brand-pink">r</span>
+              <span className="text-brand-green">l</span>
+              <span>d</span>
+            </h1>
+            <p className="mt-3 text-text-secondary">
+              Kyle&apos;s novel ideas built with imagination and code
+            </p>
+            <div className="mx-auto mt-4 flex justify-center gap-1.5">
+              <div className="h-1 w-20 rounded-full bg-brand-orange" />
+              <div className="h-1 w-20 rounded-full bg-brand-blue" />
+              <div className="h-1 w-20 rounded-full bg-brand-pink" />
+              <div className="h-1 w-20 rounded-full bg-brand-green" />
+            </div>
+            <ProfileEditor />
           </div>
         </header>
 
-        <main className="mx-auto mt-12 max-w-5xl space-y-10">
-          {categoryTree.map((category) => {
-            const projects = getProjectsByCategory(category.slug);
-            if (projects.length === 0) return null;
+        {/* Projects — scrollable area with gradient fade */}
+        <div className="relative min-h-0 flex-1">
+          <main className="h-full space-y-8 overflow-y-auto px-4 pb-44 pt-4 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-5xl">
+              {categoryTree.map((category) => {
+                const directProjects = PROJECTS.filter(
+                  (p) => p.categorySlug === category.slug,
+                );
+                const hasContent =
+                  directProjects.length > 0 || category.children.length > 0;
+                if (!hasContent) return null;
 
-            return (
-              <section key={category.slug}>
-                <h2 className="mb-4 text-lg font-semibold text-white">
-                  {category.name}
-                </h2>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {projects.map((project) => (
-                    <ProjectCard key={project.slug} project={project} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </main>
+                return (
+                  <section key={category.slug} className="mb-8">
+                    <h2 className="mb-3 text-2xl font-semibold text-brand-orange">
+                      {category.name}
+                    </h2>
+
+                    {/* Root category's own projects */}
+                    {directProjects.length > 0 && (
+                      <div className="divide-y divide-border-default">
+                        {directProjects.map((project) => (
+                          <ProjectRow
+                            key={project.slug}
+                            project={project}
+                            index={colorIndex++}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Subcategories */}
+                    {category.children.map((child) => {
+                      const childProjects = PROJECTS.filter(
+                        (p) => p.categorySlug === child.slug,
+                      );
+                      if (childProjects.length === 0) return null;
+
+                      return (
+                        <div key={child.slug} className="mt-4 ml-6">
+                          <h3 className="mb-2 text-xl font-medium text-brand-blue">
+                            {child.name}
+                          </h3>
+                          <div className="divide-y divide-border-default">
+                            {childProjects.map((project) => (
+                              <ProjectRow
+                                key={project.slug}
+                                project={project}
+                                index={colorIndex++}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </section>
+                );
+              })}
+            </div>
+          </main>
+
+        </div>
       </div>
 
+      {/* Version badge */}
       <span className="fixed bottom-2 left-3 z-20 select-none text-xs text-text-primary">
         v{process.env.APP_VERSION}
       </span>
 
       {/* Wave footer */}
       <svg
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-0 h-32 w-full sm:h-40"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-32 w-full sm:h-40"
         viewBox="0 0 1200 200"
         preserveAspectRatio="none"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <rect x="0" y="130" width="1200" height="70" fill="#0a0a0a" />
         <path
           d="M0 80 Q140 40 280 80 Q420 120 560 80 Q700 40 840 80 Q980 120 1200 80 L1200 200 L0 200 Z"
           fill="#0a5e60"

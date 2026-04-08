@@ -2,6 +2,10 @@ import type { Category, Project } from "@/shared/types";
 
 export const CATEGORIES: Category[] = [
   { name: "Games", slug: "games", description: "Multiplayer and single-player games" },
+  { name: "Card Games", slug: "card-games", parentSlug: "games", description: "Classic card games" },
+  { name: "2D Games", slug: "2d-games", parentSlug: "games", description: "Two-dimensional game worlds" },
+  { name: "3D Games", slug: "3d-games", parentSlug: "games", description: "Three-dimensional game worlds" },
+  { name: "Board Games", slug: "board-games", parentSlug: "games", description: "Classic board games" },
   { name: "Tools", slug: "tools", description: "Utilities and solvers" },
 ];
 
@@ -17,14 +21,14 @@ export const PROJECTS: Project[] = [
     name: "Euchre",
     slug: "euchre",
     description: "The trick-taking card game",
-    categorySlug: "games",
+    categorySlug: "card-games",
     icon: "Spade",
   },
   {
     name: "Poker",
     slug: "poker",
     description: "Texas Hold'em and more",
-    categorySlug: "games",
+    categorySlug: "card-games",
     icon: "Club",
   },
   {
@@ -33,6 +37,48 @@ export const PROJECTS: Project[] = [
     description: "The classic game of X's and O's",
     categorySlug: "games",
     icon: "Hash",
+  },
+  {
+    name: "Burraco",
+    slug: "burraco",
+    description: "The Italian rummy card game",
+    categorySlug: "card-games",
+    icon: "Club",
+  },
+  {
+    name: "Pokémon Ranker",
+    slug: "pokemon-ranker",
+    description: "Rank and tier your favorite Pokémon",
+    categorySlug: "games",
+    icon: "Star",
+  },
+  {
+    name: "RPG",
+    slug: "rpg",
+    description: "A 2D role-playing game adventure",
+    categorySlug: "2d-games",
+    icon: "Swords",
+  },
+  {
+    name: "Labyrinth",
+    slug: "labyrinth",
+    description: "Navigate the shifting maze board game",
+    categorySlug: "board-games",
+    icon: "Grid3x3",
+  },
+  {
+    name: "Flag Game",
+    slug: "flag-game",
+    description: "Test your knowledge of world flags",
+    categorySlug: "games",
+    icon: "Flag",
+  },
+  {
+    name: "Fortuna",
+    slug: "fortuna",
+    description: "A 3D game of fortune and chance",
+    categorySlug: "3d-games",
+    icon: "Box",
   },
   {
     name: "Network Test",
@@ -54,6 +100,13 @@ export const PROJECTS: Project[] = [
     description: "Real-time peer connection mesh visualizer",
     categorySlug: "tools",
     icon: "Globe",
+  },
+  {
+    name: "For The Stats 2",
+    slug: "for-the-stats-2",
+    description: "Advanced sports statistics and analytics",
+    categorySlug: "tools",
+    icon: "BarChart3",
   },
 ];
 
