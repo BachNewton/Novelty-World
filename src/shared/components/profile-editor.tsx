@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { useProfile } from "@/shared/lib/profile";
 import { Pencil } from "lucide-react";
 
@@ -13,11 +13,17 @@ export function ProfileEditor() {
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Callback ref: focus + select as soon as the input mounts.
+  // This keeps focus inside the original user-gesture frame so
+  // mobile browsers open the virtual keyboard immediately.
+  const attachInput = useCallback((node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    node?.select();
+  }, []);
+
   function startEdit() {
     setDraft(name);
     setIsEditing(true);
-    // Focus after render
-    setTimeout(() => inputRef.current?.select(), 0);
   }
 
   function save() {
@@ -36,7 +42,7 @@ export function ProfileEditor() {
     <div className="mt-3 flex items-center justify-center gap-2">
       {isEditing ? (
         <input
-          ref={inputRef}
+          ref={attachInput}
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
