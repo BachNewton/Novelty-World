@@ -1,10 +1,21 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
+import { Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLobbyRoom } from "@/shared/lib/multiplayer";
 import { useWorldRoom } from "@/shared/lib/multiplayer";
 import type { LobbyRoomState, WorldRoomState, LobbyRoom } from "@/shared/lib/multiplayer";
+import { setClientOverride } from "@/shared/lib/supabase/client";
+import { createMockSupabaseClient } from "@/shared/lib/supabase/mock-client";
+
+// Use local BroadcastChannel mock instead of Supabase Realtime for tests.
+// Eliminates rate limits and external service dependency.
+if (typeof window !== "undefined") {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("local")) {
+    setClientOverride(createMockSupabaseClient());
+  }
+}
 
 /**
  * Test harness page for the multiplayer framework.
@@ -14,7 +25,10 @@ import type { LobbyRoomState, WorldRoomState, LobbyRoom } from "@/shared/lib/mul
  * to drive the flow: create room → join room → verify ready → send messages.
  *
  * URL params:
- *   ?mode=world — use useWorldRoom (default: useLobbyRoom)
+ *   ?mode=world    — use useWorldRoom (default: useLobbyRoom)
+ *   ?game=xxx      — lobby channel name (default: "test"); use unique values for test isolation
+ *   ?playerId=xxx  — use a fixed player ID instead of generating one (for reconnection tests)
+ *   ?join=ROOMCODE — auto-join this room on mount (skip lobby)
  */
 export default function TestMultiplayerPage() {
   return (
@@ -27,26 +41,62 @@ export default function TestMultiplayerPage() {
 function TestMultiplayerContent() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
+  const playerId = searchParams.get("playerId");
+  const autoJoin = searchParams.get("join");
+  const game = searchParams.get("game") ?? "test";
 
   if (mode === "world") {
-    return <WorldRoomTest />;
+    return <WorldRoomTest playerId={playerId} autoJoin={autoJoin} game={game} />;
   }
-  return <LobbyRoomTest />;
+  return <LobbyRoomTest playerId={playerId} autoJoin={autoJoin} game={game} />;
 }
 
 // --- Lobby Room Test ---
 
-function LobbyRoomTest() {
-  const profile = useMemo(() => ({ id: crypto.randomUUID(), name: "Test Player" }), []);
-  const room = useLobbyRoom({ game: "test", profile });
+interface TestProps {
+  playerId: string | null;
+  autoJoin: string | null;
+  game: string;
+}
+
+function LobbyRoomTest({ playerId, autoJoin, game }: TestProps) {
+  const profile = useMemo(
+    () => ({ id: playerId ?? crypto.randomUUID(), name: "Test Player" }),
+    [playerId],
+  );
+  const room = useLobbyRoom({ game, profile });
+
+  // Auto-join a room on mount (for reconnection tests)
+  const autoJoinedRef = useRef(false);
+  useEffect(() => {
+    if (autoJoin && !autoJoinedRef.current && room.phase === "lobby") {
+      autoJoinedRef.current = true;
+      room.joinRoom(autoJoin);
+    }
+  }, [autoJoin, room]);
+
+  if (room.phase === "lobby" && !autoJoin) {
+    return (
+      <div data-testid="test-multiplayer">
+        <SharedLobby rooms={room.rooms} createRoom={room.createRoom} joinRoom={room.joinRoom} />
+      </div>
+    );
+  }
+
+  if (room.phase === "lobby") {
+    // Auto-join triggered but hasn't taken effect yet
+    return (
+      <div data-testid="test-multiplayer">
+        <div data-testid="session">
+          <div data-testid="phase">connecting</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="test-multiplayer">
-      {room.phase === "lobby" ? (
-        <SharedLobby rooms={room.rooms} createRoom={room.createRoom} joinRoom={room.joinRoom} />
-      ) : (
-        <LobbySession room={room} />
-      )}
+      <LobbySession room={room} />
     </div>
   );
 }
@@ -109,17 +159,43 @@ function LobbySession({ room }: { room: LobbyRoomState }) {
 
 // --- World Room Test ---
 
-function WorldRoomTest() {
-  const profile = useMemo(() => ({ id: crypto.randomUUID(), name: "Test Player" }), []);
-  const room = useWorldRoom({ game: "test", profile });
+function WorldRoomTest({ playerId, autoJoin, game }: TestProps) {
+  const profile = useMemo(
+    () => ({ id: playerId ?? crypto.randomUUID(), name: "Test Player" }),
+    [playerId],
+  );
+  const room = useWorldRoom({ game, profile });
+
+  // Auto-join a room on mount (for reconnection tests)
+  const autoJoinedRef = useRef(false);
+  useEffect(() => {
+    if (autoJoin && !autoJoinedRef.current && room.phase === "lobby") {
+      autoJoinedRef.current = true;
+      room.join(autoJoin);
+    }
+  }, [autoJoin, room]);
+
+  if (room.phase === "lobby" && !autoJoin) {
+    return (
+      <div data-testid="test-multiplayer">
+        <SharedLobby rooms={room.rooms} createRoom={room.create} joinRoom={room.join} />
+      </div>
+    );
+  }
+
+  if (room.phase === "lobby") {
+    return (
+      <div data-testid="test-multiplayer">
+        <div data-testid="session">
+          <div data-testid="phase">connecting</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="test-multiplayer">
-      {room.phase === "lobby" ? (
-        <SharedLobby rooms={room.rooms} createRoom={room.create} joinRoom={room.join} />
-      ) : (
-        <WorldSession room={room} />
-      )}
+      <WorldSession room={room} />
     </div>
   );
 }

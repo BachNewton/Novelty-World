@@ -31,7 +31,7 @@ export function createSignalingChannel(
   let destroyed = false;
 
   // Listen for broadcast signaling messages (SDP/ICE)
-  channel.on("broadcast", { event: "signal" }, ({ payload }) => {
+  channel.on("broadcast", { event: "signal" }, ({ payload }: { payload: unknown }) => {
     const msg = payload as SignalingMessage;
     // Ignore our own messages and messages not addressed to us
     if (msg.from === peerId) return;
@@ -43,7 +43,7 @@ export function createSignalingChannel(
   });
 
   // Listen for Presence join events (peer discovery)
-  channel.on("presence", { event: "join" }, ({ newPresences }) => {
+  channel.on("presence", { event: "join" }, ({ newPresences }: { newPresences: Array<Record<string, unknown>> }) => {
     for (const presence of newPresences) {
       const joinedId = presence.peerId as string;
       if (joinedId === peerId) continue;
@@ -55,7 +55,7 @@ export function createSignalingChannel(
 
   // Subscribe and track presence
   const ready = new Promise<void>((resolve, reject) => {
-    channel.subscribe(async (status) => {
+    channel.subscribe(async (status: string) => {
       if (status === "SUBSCRIBED") {
         try {
           await channel.track({ peerId });

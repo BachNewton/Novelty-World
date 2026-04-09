@@ -6,7 +6,7 @@ import type { PeerRole, MessageHandler, ConnectionState } from "../webrtc";
 import { useLobby } from "./use-lobby";
 import type { LobbyRoomPhase, LobbyRoomState, UseLobbyRoomOptions, PlayerInfo } from "./types";
 import { MP_PREFIX } from "./types";
-import { generateRoomCode, createNamespacedMessaging } from "./shared";
+import { generateRoomCode, createNamespacedMessaging, applyReconnect } from "./shared";
 
 /** Wire format for roster entries in __mp:start */
 interface RosterEntry {
@@ -63,6 +63,7 @@ export function useLobbyRoom(options: UseLobbyRoomOptions): LobbyRoomState {
       game,
       playerCount: 1,
       createdAt: Date.now(),
+      status: "waiting",
     });
 
     return () => {
@@ -70,6 +71,28 @@ export function useLobbyRoom(options: UseLobbyRoomOptions): LobbyRoomState {
       unadvertiseRef.current = null;
     };
   }, [isHost, phase, roomCode, game, advertise]);
+
+  // --- All clients: advertise during "ready" phase for reconnection ---
+  // The room stays visible in the lobby to members who disconnected.
+  // Non-members are filtered out below.
+  useEffect(() => {
+    if (phase !== "ready" || !roomCode) return;
+
+    const ids = rosterEntries.map((e) => e.playerId);
+    unadvertiseRef.current = advertise({
+      roomCode,
+      game,
+      playerCount: rosterEntries.length,
+      createdAt: Date.now(),
+      status: "in-progress",
+      playerIds: ids,
+    });
+
+    return () => {
+      unadvertiseRef.current?.();
+      unadvertiseRef.current = null;
+    };
+  }, [phase, roomCode, game, rosterEntries, advertise]);
 
   // --- Guest: skip waiting phase entirely ---
   if (!isHost && phase === "waiting") {
@@ -127,6 +150,39 @@ export function useLobbyRoom(options: UseLobbyRoomOptions): LobbyRoomState {
 
     return unsub;
   }, [isHost, phase, neededPeers, peerOnMessage, peerSend, peerId, profile.id, profile.name]);
+
+  // --- Reconnection: handle returning players during "ready" phase ---
+  useEffect(() => {
+    if (phase !== "ready") return;
+
+    return peerOnMessage<{ playerId: string; playerName: string }>(
+      `${MP_PREFIX}ready`,
+      (msg) => {
+        // Only process if this is a genuine reconnection (new peerId for known playerId).
+        const existing = rosterEntries.find((e) => e.playerId === msg.payload.playerId);
+        if (!existing || existing.peerId === msg.from) return;
+
+        const result = applyReconnect(rosterEntries, msg.payload.playerId, msg.from, msg.payload.playerName);
+        if (!result) return;
+
+        setRosterEntries(result.roster);
+        peerSendTo(msg.from, `${MP_PREFIX}start`, { roster: result.roster });
+        peerSend(`${MP_PREFIX}roster-update`, { roster: result.roster });
+      },
+    );
+  }, [phase, rosterEntries, peerOnMessage, peerSendTo, peerSend]);
+
+  // All clients: accept roster updates from peers (e.g. after a reconnection)
+  useEffect(() => {
+    if (phase !== "ready") return;
+
+    return peerOnMessage<{ roster: RosterEntry[] }>(
+      `${MP_PREFIX}roster-update`,
+      (msg) => {
+        setRosterEntries(msg.payload.roster);
+      },
+    );
+  }, [phase, peerOnMessage]);
 
   // --- Derive failure / disconnect from transport state ---
   let effectivePhase = phase;
@@ -197,8 +253,17 @@ export function useLobbyRoom(options: UseLobbyRoomOptions): LobbyRoomState {
     [onPeerLeave],
   );
 
+  // --- Filter rooms: hide in-progress rooms from non-members ---
+  const filteredRooms = useMemo(
+    () =>
+      rooms.filter(
+        (r) => !r.status || r.status === "waiting" || r.playerIds?.includes(profile.id),
+      ),
+    [rooms, profile.id],
+  );
+
   return {
-    rooms,
+    rooms: filteredRooms,
     createRoom,
     joinRoom,
     start,

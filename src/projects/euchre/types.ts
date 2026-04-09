@@ -125,14 +125,64 @@ export interface ActionResult {
   state: GameState;
 }
 
-// --- DataChannel message payloads (for future networking) ---
+// --- DataChannel message types ---
 
 export const MSG = {
   GAME_START: "game-start",
   BID: "bid",
   DISCARD: "discard",
   PLAY_CARD: "play-card",
+  NEXT_HAND: "next-hand",
   STATE_UPDATE: "state-update",
   PLAY_AGAIN_REQUEST: "play-again-request",
   PLAY_AGAIN_ACCEPTED: "play-again-accepted",
+  TEAM_SELECT: "team-select",
+  TEAM_UPDATE: "team-update",
 } as const;
+
+// --- Message payloads ---
+
+export interface SeatAssignment {
+  playerId: string;
+  seatIndex: PlayerIndex;
+}
+
+export interface GameStartPayload {
+  seatAssignments: SeatAssignment[];
+  gameState: GameState;
+}
+
+export interface BidPayload {
+  player: PlayerIndex;
+  action: BidAction;
+}
+
+export interface DiscardPayload {
+  card: Card;
+}
+
+export interface PlayCardPayload {
+  player: PlayerIndex;
+  card: Card;
+}
+
+export interface StateUpdatePayload {
+  gameState: GameState;
+}
+
+export interface PlayAgainAcceptedPayload {
+  gameState: GameState;
+}
+
+export interface TeamSelectPayload {
+  team: Team;
+}
+
+export interface TeamAssignment {
+  playerId: string;
+  team: Team;
+}
+
+export interface TeamUpdatePayload {
+  assignments: TeamAssignment[];
+}

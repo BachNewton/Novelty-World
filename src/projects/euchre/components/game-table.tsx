@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useEuchreStore } from "../store";
 import type { Card, PlayerIndex, BidAction, Team } from "../types";
+import type { ConnectionState } from "@/shared/lib/multiplayer";
 import {
   getTeam,
   getPartner,
@@ -19,8 +20,27 @@ import { BiddingControls } from "./bidding-controls";
 import { HandResultDisplay } from "./hand-result";
 import { GameOver } from "./game-over";
 
-// Player names by index (will be replaced by real names in multiplayer)
-const PLAYER_NAMES = ["Player 0", "Player 1", "Player 2", "Player 3"];
+const DEFAULT_NAMES: Record<PlayerIndex, string> = {
+  0: "Player 0",
+  1: "Player 1",
+  2: "Player 2",
+  3: "Player 3",
+};
+
+export interface GameTableProps {
+  /** Player display names by seat index. */
+  playerNames?: Record<PlayerIndex, string>;
+  /** Connection status per seat (multiplayer only). */
+  playerStatuses?: Record<PlayerIndex, ConnectionState>;
+  /** Whether this client is the game authority. Controls "Next Hand" button. */
+  isAuthority?: boolean;
+  /** Override callbacks for multiplayer routing. */
+  onBid?: (action: BidAction) => void;
+  onCardClick?: (card: Card) => void;
+  onNextHand?: () => void;
+  onPlayAgain?: () => void;
+  onLeave?: () => void;
+}
 
 /** Map a game-table player to a screen seat relative to the local player. */
 function getSeat(player: PlayerIndex, myPlayer: PlayerIndex): SeatPosition {
@@ -35,7 +55,18 @@ function seatOrder(myPlayer: PlayerIndex): PlayerIndex[] {
   );
 }
 
-export function GameTable() {
+export function GameTable(props: GameTableProps = {}) {
+  const {
+    playerNames = DEFAULT_NAMES,
+    playerStatuses,
+    isAuthority = true,
+    onBid: onBidProp,
+    onCardClick: onCardClickProp,
+    onNextHand: onNextHandProp,
+    onPlayAgain: onPlayAgainProp,
+    onLeave: onLeaveProp,
+  } = props;
+
   const myPlayer = useEuchreStore((s) => s.myPlayer);
   const game = useEuchreStore((s) => s.game);
   const bid = useEuchreStore((s) => s.bid);
@@ -77,22 +108,28 @@ export function GameTable() {
 
   const handleBid = useCallback(
     (action: BidAction) => {
-      bid(me, action);
+      if (onBidProp) {
+        onBidProp(action);
+      } else {
+        bid(me, action);
+      }
     },
-    [bid, me],
+    [bid, me, onBidProp],
   );
 
   const handleCardClick = useCallback(
     (card: Card) => {
       if (!game) return;
 
-      if (game.phase === "dealer-discard" && game.dealer === me) {
+      if (onCardClickProp) {
+        onCardClickProp(card);
+      } else if (game.phase === "dealer-discard" && game.dealer === me) {
         dealerDiscard(card);
       } else if (game.phase === "playing" && game.currentPlayer === me) {
         playCard(me, card);
       }
     },
-    [game, me, dealerDiscard, playCard],
+    [game, me, dealerDiscard, playCard, onCardClickProp],
   );
 
   if (!game) return null;
@@ -138,8 +175,9 @@ export function GameTable() {
           position="top"
           faceDown
           isActive={game.currentPlayer === players[2]}
-          label={playerLabel(players[2], me, game.dealer)}
+          label={playerLabel(players[2], me, game.dealer, playerNames)}
           trickCount={trickCountForPlayer(players[2], game)}
+          disconnected={playerStatuses?.[players[2]] === "disconnected" || playerStatuses?.[players[2]] === "failed"}
         />
 
         {/*
@@ -158,8 +196,9 @@ export function GameTable() {
             position="left"
             faceDown
             isActive={game.currentPlayer === players[1]}
-            label={playerLabel(players[1], me, game.dealer)}
+            label={playerLabel(players[1], me, game.dealer, playerNames)}
             trickCount={trickCountForPlayer(players[1], game)}
+            disconnected={playerStatuses?.[players[1]] === "disconnected" || playerStatuses?.[players[1]] === "failed"}
           />
 
           {/* Right opponent — col 2 on mobile, col 3 on desktop */}
@@ -169,8 +208,9 @@ export function GameTable() {
               position="right"
               faceDown
               isActive={game.currentPlayer === players[3]}
-              label={playerLabel(players[3], me, game.dealer)}
+              label={playerLabel(players[3], me, game.dealer, playerNames)}
               trickCount={trickCountForPlayer(players[3], game)}
+              disconnected={playerStatuses?.[players[3]] === "disconnected" || playerStatuses?.[players[3]] === "failed"}
             />
           </div>
 
@@ -192,7 +232,7 @@ export function GameTable() {
           validPlays={myValidCards}
           onCardClick={handleCardClick}
           isActive={game.currentPlayer === me}
-          label={playerLabel(me, me, game.dealer)}
+          label={playerLabel(me, me, game.dealer, playerNames)}
           trickCount={trickCountForPlayer(me, game)}
         />
       </div>
@@ -226,13 +266,19 @@ export function GameTable() {
         <HandResultDisplay
           result={game.handResult}
           myTeam={myTeam}
-          onNextHand={nextHand}
+          onNextHand={onNextHandProp ?? nextHand}
+          isAuthority={isAuthority}
         />
       )}
 
       {/* Game over */}
       {isGameOver && (
-        <GameOver scores={game.scores} myTeam={myTeam} />
+        <GameOver
+          scores={game.scores}
+          myTeam={myTeam}
+          onPlayAgain={onPlayAgainProp}
+          onLeave={onLeaveProp}
+        />
       )}
     </div>
   );
@@ -244,10 +290,11 @@ function playerLabel(
   player: PlayerIndex,
   me: PlayerIndex,
   dealer: PlayerIndex,
+  names: Record<PlayerIndex, string>,
 ): string {
   const parts: string[] = [];
   if (player === me) parts.push("You");
-  else parts.push(PLAYER_NAMES[player]);
+  else parts.push(names[player]);
 
   if (player === getPartner(me) && player !== me) parts[0] += " (partner)";
   if (player === dealer) parts.push("D");

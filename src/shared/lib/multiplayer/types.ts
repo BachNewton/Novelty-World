@@ -14,6 +14,10 @@ export interface LobbyRoom {
   game: string;
   playerCount: number;
   createdAt: number;
+  /** Room lifecycle status. "waiting" = open for new players, "in-progress" = game started. */
+  status?: "waiting" | "in-progress";
+  /** Persistent player IDs of room members (used to filter rejoinable rooms). */
+  playerIds?: string[];
 }
 
 /** A player in the room roster — persistent identity + live connection status */
@@ -131,4 +135,4 @@ export const MP_PREFIX = "__mp:";
 /** Game message prefix — applied automatically by room hooks */
 export const GAME_PREFIX = "__game:";
 
-export type { PeerState, DataMessage, MessageHandler };
+export type { PeerState, DataMessage, MessageHandler, ConnectionState };

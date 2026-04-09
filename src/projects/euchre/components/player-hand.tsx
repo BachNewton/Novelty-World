@@ -19,6 +19,8 @@ interface PlayerHandProps {
   isActive?: boolean;
   label?: string;
   trickCount?: number;
+  /** Show disconnected indicator (multiplayer). */
+  disconnected?: boolean;
 }
 
 function isCardInList(card: Card, list: Card[]): boolean {
@@ -34,6 +36,7 @@ export function PlayerHand({
   isActive,
   label,
   trickCount,
+  disconnected,
 }: PlayerHandProps) {
   const isSide = position === "left" || position === "right";
   const cardSize = position === "bottom" ? "md" : "sm";
@@ -46,10 +49,15 @@ export function PlayerHand({
           <span
             className={cn(
               "font-medium",
-              isActive ? "text-brand-green" : "text-text-secondary",
+              disconnected
+                ? "text-brand-pink"
+                : isActive
+                  ? "text-brand-green"
+                  : "text-text-secondary",
             )}
           >
             {label}
+            {disconnected && " (offline)"}
           </span>
           {trickCount != null && (
             <span className="text-text-muted text-xs">

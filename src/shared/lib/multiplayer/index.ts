@@ -6,6 +6,7 @@ export type {
   PeerState,
   DataMessage,
   MessageHandler,
+  ConnectionState,
   // Lobby room
   LobbyRoomPhase,
   LobbyRoomState,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Hash } from "lucide-react";
+import { Spade } from "lucide-react";
 import { GameLobby } from "@/shared/components/game-lobby";
 import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 
@@ -8,13 +8,13 @@ interface LobbyProps {
   room: LobbyRoomState;
 }
 
-export function Lobby({ room }: LobbyProps) {
+export function EuchreLobby({ room }: LobbyProps) {
   return (
     <GameLobby
       room={room}
-      icon={<Hash size={32} />}
-      title="Tic Tac Toe"
-      subtitle="Challenge a friend online"
+      icon={<Spade size={32} />}
+      title="Euchre"
+      subtitle="Play Euchre with friends"
     />
   );
 }

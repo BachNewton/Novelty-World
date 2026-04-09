@@ -1,7 +1,9 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+
+const NW_PREFIX = "nw:";
 
 export interface PlayerProfile {
   id: string;
@@ -12,6 +14,17 @@ interface ProfileStore extends PlayerProfile {
   setName: (name: string) => void;
 }
 
+/**
+ * Zustand storage that writes to localStorage under the `nw:` app-wide
+ * namespace, matching the convention in shared/lib/storage.
+ */
+const appPersistStorage = createJSONStorage<ProfileStore>(() => ({
+  getItem: (key: string) => localStorage.getItem(NW_PREFIX + key),
+  setItem: (key: string, value: string) =>
+    localStorage.setItem(NW_PREFIX + key, value),
+  removeItem: (key: string) => localStorage.removeItem(NW_PREFIX + key),
+}));
+
 export const useProfile = create<ProfileStore>()(
   persist(
     (set) => ({
@@ -20,7 +33,8 @@ export const useProfile = create<ProfileStore>()(
       setName: (name: string) => set({ name }),
     }),
     {
-      name: "novelty-world-profile",
+      name: "profile",
+      storage: appPersistStorage,
     },
   ),
 );

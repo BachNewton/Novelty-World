@@ -9,12 +9,15 @@ interface HandResultProps {
   result: HandResult;
   myTeam: Team;
   onNextHand: () => void;
+  /** When false, show "Waiting..." instead of the button. */
+  isAuthority?: boolean;
 }
 
 export function HandResultDisplay({
   result,
   myTeam,
   onNextHand,
+  isAuthority = true,
 }: HandResultProps) {
   const myTeamScored = result.scoringTeam === myTeam;
 
@@ -49,7 +52,13 @@ export function HandResultDisplay({
         +{result.points} to Team {result.scoringTeam}
       </div>
 
-      <Button onClick={onNextHand}>Next Hand</Button>
+      {isAuthority ? (
+        <Button onClick={onNextHand}>Next Hand</Button>
+      ) : (
+        <p className="text-sm text-text-muted animate-pulse">
+          Waiting for next hand...
+        </p>
+      )}
     </Card>
   );
 }

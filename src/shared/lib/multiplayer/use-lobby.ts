@@ -50,6 +50,8 @@ export function useLobby(options: UseLobbyOptions = {}): UseLobbyReturn {
             game: presence.game,
             playerCount: presence.playerCount,
             createdAt: presence.createdAt,
+            ...(presence.status && { status: presence.status }),
+            ...(presence.playerIds && { playerIds: presence.playerIds }),
           });
         }
       }
@@ -73,7 +75,7 @@ export function useLobby(options: UseLobbyOptions = {}): UseLobbyReturn {
       syncRooms();
     });
 
-    channel.subscribe((status) => {
+    channel.subscribe((status: string) => {
       if (status === "SUBSCRIBED") {
         subscribedRef.current = true;
         // Flush any pending advertise call

@@ -1,4 +1,5 @@
 import type { MessageHandler, DataMessage } from "../webrtc";
+import type { PlayerInfo } from "./types";
 import { GAME_PREFIX } from "./types";
 
 /** Generate a random 4-char uppercase room code */
@@ -31,4 +32,25 @@ export function createNamespacedMessaging(
   };
 
   return { send, sendTo, onMessage };
+}
+
+/**
+ * Try to update a roster entry for a reconnecting player (same playerId, new peerId).
+ *
+ * Used by useLobbyRoom so the reconnection logic stays consistent.
+ *
+ * Returns the updated array and matched index, or null if the playerId was not found.
+ */
+export function applyReconnect<T extends Pick<PlayerInfo, "playerId" | "peerId" | "playerName">>(
+  roster: T[],
+  playerId: string,
+  newPeerId: string,
+  playerName: string,
+): { roster: T[]; index: number } | null {
+  const index = roster.findIndex((e) => e.playerId === playerId);
+  if (index === -1) return null;
+
+  const updated = [...roster];
+  updated[index] = { ...updated[index], peerId: newPeerId, playerName };
+  return { roster: updated, index };
 }
