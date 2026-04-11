@@ -14,9 +14,15 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://novelty-world.vercel.app"),
   title: "Novelty World",
-  description: "Kyle's all-in-one platform for games, tools, and ideas",
+  description: "Kyle's novel ideas built with imagination and code",
   manifest: "/manifest.json",
+  openGraph: {
+    title: "Novelty World",
+    description: "Kyle's novel ideas built with imagination and code",
+    siteName: "Novelty World",
+  },
 };
 
 export const viewport: Viewport = {
@@ -32,9 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
-      <head>
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-      </head>
+      <head />
       <body className="font-sans antialiased">
         {children}
         <script

@@ -1,5 +1,6 @@
 import { ProfileEditor } from "@/shared/components/profile-editor";
 import { ProjectRow } from "@/shared/components/project-row";
+import { Star } from "@/shared/components/star";
 import {
   getCategoryTree,
   PROJECTS,
@@ -14,23 +15,9 @@ export default function HomePage() {
     <div className="relative flex h-screen flex-col">
       {/* Stars - scale with viewport width */}
       <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[20vw]">
-        {/* Orange star - top left */}
-        <svg className="absolute left-[2vw] top-[1vw] h-[10vw] w-[10vw]" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="60" cy="60" r="50" fill="#ff8c00" opacity="0.15" />
-          <polygon points="60,5 72,42 110,42 79,64 90,100 60,78 30,100 41,64 10,42 48,42" fill="#ff8c00" />
-        </svg>
-
-        {/* Pink star - top right, slightly lower */}
-        <svg className="absolute right-[8vw] top-[2vw] h-[7vw] w-[7vw]" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="60" cy="60" r="50" fill="#FF2D95" opacity="0.12" />
-          <polygon points="60,5 72,42 110,42 79,64 90,100 60,78 30,100 41,64 10,42 48,42" fill="#FF2D95" />
-        </svg>
-
-        {/* Green star - top right, lower */}
-        <svg className="absolute right-[2vw] top-[7vw] h-[5vw] w-[5vw]" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="60" cy="60" r="50" fill="#22c55e" opacity="0.12" />
-          <polygon points="60,5 72,42 110,42 79,64 90,100 60,78 30,100 41,64 10,42 48,42" fill="#22c55e" />
-        </svg>
+        <Star fill="#ff8c00" className="absolute left-[2vw] top-[1vw] h-[10vw] w-[10vw]" />
+        <Star fill="#FF2D95" className="absolute right-[8vw] top-[2vw] h-[7vw] w-[7vw]" />
+        <Star fill="#22c55e" className="absolute right-[2vw] top-[7vw] h-[5vw] w-[5vw]" />
       </div>
 
       <div className="relative z-10 flex h-full flex-col">
