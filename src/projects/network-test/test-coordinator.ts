@@ -4,7 +4,7 @@
 
 import type { MessageHandler, PlayerInfo } from "@/shared/lib/multiplayer";
 import { useNetworkTestStore } from "./store";
-import { getAllLinks, makeLinkId, aggregateLinkResult, computePingStats, computeAdaptiveThroughputResult, computeOrderingResult, computeLossResult, formatPlayer } from "./logic";
+import { getAllLinks, aggregateLinkResult, computePingStats, computeAdaptiveThroughputResult, computeOrderingResult, computeLossResult, formatPlayer } from "./logic";
 import { MSG, ORDER_COUNT, LOSS_COUNT } from "./types";
 import type {
   TestPhase,

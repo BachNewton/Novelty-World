@@ -1,30 +1,39 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import tseslint from "typescript-eslint";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+import security from "eslint-plugin-security";
 
 const eslintConfig = defineConfig([
-  ...nextCoreWebVitals,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  ...nextVitals,
+  ...nextTs,
+  security.configs.recommended,
   {
-    files: ["**/*.ts", "**/*.tsx"],
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
     languageOptions: {
-      parser: tseslint.parser,
       parserOptions: {
-        projectService: true,
-        tsconfigRootDir: __dirname,
+        project: true,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      "security/detect-object-injection": "off",
       "@typescript-eslint/no-unnecessary-condition": "error",
+      "@typescript-eslint/no-explicit-any": "error",
     },
   },
+  {
+    files: ["*.mjs", "public/**/*.js"],
+    languageOptions: {
+      parserOptions: { project: false },
+    },
+    rules: {
+      "@typescript-eslint/no-unnecessary-condition": "off",
+    },
+  },
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
 ]);
 
 export default eslintConfig;

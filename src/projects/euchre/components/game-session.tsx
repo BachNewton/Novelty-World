@@ -9,7 +9,6 @@ import {
   type Card,
   type BidAction,
   type Team,
-  type GameState,
   type GameStartPayload,
   type BidPayload,
   type DiscardPayload,
@@ -150,7 +149,7 @@ function TeamSelection({
 // ---------------------------------------------------------------------------
 
 export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
-  const { phase: roomPhase, isHost, roomCode, playerRoster, send, sendTo, onMessage, onPlayerLeave } = room;
+  const { phase: roomPhase, isHost, roomCode, playerRoster, send, sendTo, onMessage } = room;
 
   // Store actions
   const startGame = useEuchreStore((s) => s.startGame);

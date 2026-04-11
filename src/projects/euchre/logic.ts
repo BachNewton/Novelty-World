@@ -6,7 +6,6 @@ import type {
   PlayerIndex,
   Team,
   GameState,
-  GamePhase,
   BidAction,
   TrickCard,
   CompletedTrick,

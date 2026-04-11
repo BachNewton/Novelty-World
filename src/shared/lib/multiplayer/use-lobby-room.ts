@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { usePeer } from "../webrtc";
-import type { PeerRole, MessageHandler, ConnectionState } from "../webrtc";
+import type { PeerRole, ConnectionState } from "../webrtc";
 import { useLobby } from "./use-lobby";
 import type { LobbyRoomPhase, LobbyRoomState, UseLobbyRoomOptions, PlayerInfo } from "./types";
 import { MP_PREFIX } from "./types";

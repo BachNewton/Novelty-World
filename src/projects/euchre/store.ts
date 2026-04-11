@@ -3,11 +3,9 @@
 import { create } from "zustand";
 import type {
   Card,
-  Suit,
   PlayerIndex,
   GameState,
   BidAction,
-  HandResult,
 } from "./types";
 import {
   createGameState,
@@ -17,7 +15,6 @@ import {
   applyDealerDiscard as logicApplyDealerDiscard,
   applyPlay as logicApplyPlay,
   isGameOver,
-  getTeam,
 } from "./logic";
 
 // ============================================================

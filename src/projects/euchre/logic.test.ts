@@ -6,7 +6,6 @@ import type {
   GameState,
   TrickCard,
   CompletedTrick,
-  BidAction,
 } from "./types";
 import {
   // Card utilities
@@ -38,14 +37,12 @@ import {
   applyPlay,
   // Scoring
   calculateHandScore,
-  scoreHand,
   countTricksByTeam,
   // Game flow
   createGameState,
   dealHand,
   rotateDealer,
   isGameOver,
-  WINNING_SCORE,
 } from "./logic";
 
 // ============================================================

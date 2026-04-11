@@ -24,10 +24,6 @@ import type {
   PairTestStartPayload,
   PairTestDonePayload,
   StartPhasePayload,
-  PingResult,
-  ThroughputResult,
-  OrderingResult,
-  LossResult,
 } from "./types";
 import type { TestContext } from "./test-runner";
 import {

@@ -25,7 +25,7 @@ async function getRoomCode(hostPage: Page): Promise<string> {
 }
 
 /** Wait for a specific room to appear in the guest's lobby and join it. */
-async function joinByCode(guestPage: Page, roomCode: string): Promise<void> {
+async function _joinByCode(guestPage: Page, roomCode: string): Promise<void> {
   const joinButton = guestPage.locator(
     `[data-testid="join-room"][data-room-code="${roomCode}"]`,
   );
