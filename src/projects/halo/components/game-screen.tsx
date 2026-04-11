@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import { useHaloStore } from "../store";
 import { getAllMapNames } from "../logic";
 import { MapImage } from "./map-image";
@@ -29,8 +29,6 @@ export function GameScreen() {
   const nextMap = shuffledMaps[currentIndex + 1] ?? null;
   const isRevealing = phase === "reveal";
 
-  const stableAdvance = useCallback(() => advance(), [advance]);
-
   return (
     <div className="flex min-h-screen w-full flex-col items-center px-4 pb-8 pt-6">
       {/* Header */}
@@ -58,7 +56,7 @@ export function GameScreen() {
             correct={!!lastGuessCorrect}
             mapName={correctAnswer}
             sourceGame={sourceGame}
-            onNext={stableAdvance}
+            onNext={advance}
           />
         ) : (
           <MapCombobox

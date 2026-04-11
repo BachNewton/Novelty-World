@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { useHaloStore } from "../store";
+import { useEffect, useCallback } from "react";
 
 export function GameOverScreen() {
   const score = useHaloStore((s) => s.score);
@@ -15,6 +16,23 @@ export function GameOverScreen() {
 
   const isNewHighScore = score === highScore && score > 0;
   const isVictory = lives > 0;
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Enter") playAgain();
+    },
+    [playAgain],
+  );
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      window.addEventListener("keydown", handleKeyDown);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">

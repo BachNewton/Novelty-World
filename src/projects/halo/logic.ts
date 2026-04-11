@@ -105,7 +105,7 @@ export function applyWrongGuess(state: GameState): GameState {
   const newLives = state.lives - 1;
   return {
     ...state,
-    phase: newLives <= 0 ? "game-over" : "reveal",
+    phase: "reveal",
     lives: newLives,
     lastGuessCorrect: false,
     correctAnswer: current.name,
@@ -115,6 +115,9 @@ export function applyWrongGuess(state: GameState): GameState {
 }
 
 export function advanceToNextMap(state: GameState): GameState {
+  if (state.lives <= 0) {
+    return { ...state, phase: "game-over", correctAnswer: null, sourceGame: null };
+  }
   const nextIndex = state.currentIndex + 1;
   if (nextIndex >= state.shuffledMaps.length) {
     return { ...state, phase: "game-over", correctAnswer: null, sourceGame: null };
