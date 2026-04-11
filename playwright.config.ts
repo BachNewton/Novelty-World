@@ -14,7 +14,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "pnpm dev",
+    command: "npm run dev",
     port: 3001,
     reuseExistingServer: true,
   },
