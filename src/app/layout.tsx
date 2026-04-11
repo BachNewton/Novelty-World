@@ -22,6 +22,7 @@ export const metadata: Metadata = {
     title: "Novelty World",
     description: "Kyle's novel ideas built with imagination and code",
     siteName: "Novelty World",
+    images: ["/opengraph-image"],
   },
 };
 
