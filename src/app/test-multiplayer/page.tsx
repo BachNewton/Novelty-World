@@ -8,7 +8,7 @@ import type { LobbyRoomState, WorldRoomState, LobbyRoom } from "@/shared/lib/mul
 import { setClientOverride } from "@/shared/lib/supabase/client";
 import { createMockSupabaseClient } from "@/shared/lib/supabase/mock-client";
 
-// Use local BroadcastChannel mock instead of Supabase Realtime for tests.
+// Use local WebSocket relay mock instead of Supabase Realtime for tests.
 // Eliminates rate limits and external service dependency.
 if (typeof window !== "undefined") {
   const params = new URLSearchParams(window.location.search);

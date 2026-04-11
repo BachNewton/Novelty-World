@@ -10,26 +10,10 @@ function uniqueGameId(): string {
 }
 
 /**
- * Navigate pages to about:blank before closing to trigger React cleanup effects.
- * This ensures Supabase channels are properly untracked/removed instead of being
- * abandoned when the browser context is killed.
+ * Close browser context cleanly. Closing the context kills all WebSocket
+ * connections (mock relay + WebRTC), so React cleanup effects handle the rest.
  */
 async function cleanupContext(ctx: BrowserContext): Promise<void> {
-  for (const page of ctx.pages()) {
-    try {
-      // Explicitly disconnect all Supabase Realtime channels.
-      // The Supabase browser client is a singleton, so this cleans up
-      // every channel created by useLobby/signaling hooks. Without this,
-      // the server holds the connection for ~30 seconds after the page closes,
-      // exhausting the connection pool across test runs.
-      await page.evaluate(() => {
-        const cleanup = (window as unknown as Record<string, unknown>).__supabaseCleanup;
-        if (typeof cleanup === "function") cleanup();
-      });
-    } catch {
-      // Page may already be closed
-    }
-  }
   await ctx.close();
 }
 

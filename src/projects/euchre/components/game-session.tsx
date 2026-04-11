@@ -3,7 +3,6 @@
 import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import type { LobbyRoomState, PlayerInfo, ConnectionState } from "@/shared/lib/multiplayer";
 import { useEuchreStore } from "../store";
-import { getTeam } from "../logic";
 import {
   MSG,
   type PlayerIndex,
@@ -238,15 +237,12 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       const fromPlayer = playerRoster.find((p) => p.peerId === msg.from);
       if (!fromPlayer) return;
 
-      setTeamAssignments((prev) => {
-        const updated = prev.filter((a) => a.playerId !== fromPlayer.playerId);
-        updated.push({ playerId: fromPlayer.playerId, team: msg.payload.team });
-        // Broadcast updated assignments
-        send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: updated });
-        return updated;
-      });
+      const updated = teamAssignments.filter((a) => a.playerId !== fromPlayer.playerId);
+      updated.push({ playerId: fromPlayer.playerId, team: msg.payload.team });
+      setTeamAssignments(updated);
+      send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: updated });
     });
-  }, [isAuthority, roomPhase, onMessage, playerRoster, send]);
+  }, [isAuthority, roomPhase, onMessage, playerRoster, teamAssignments, send]);
 
   // All: handle TEAM_UPDATE broadcasts
   useEffect(() => {
@@ -269,17 +265,15 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
     (team: Team) => {
       if (isAuthority) {
         // Authority applies directly
-        setTeamAssignments((prev) => {
-          const updated = prev.filter((a) => a.playerId !== room.playerId);
-          updated.push({ playerId: room.playerId, team });
-          send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: updated });
-          return updated;
-        });
+        const updated = teamAssignments.filter((a) => a.playerId !== room.playerId);
+        updated.push({ playerId: room.playerId, team });
+        setTeamAssignments(updated);
+        send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: updated });
       } else {
         send<TeamSelectPayload>(MSG.TEAM_SELECT, { team });
       }
     },
-    [isAuthority, room.playerId, send],
+    [isAuthority, room.playerId, teamAssignments, send],
   );
 
   // ---------------------------------------------------------------------------
@@ -562,25 +556,25 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
 
   // Waiting / connecting
   if (roomPhase !== "ready") {
+    const connectedCount = room.players.filter((p) => p.status === "connected").length;
+    const totalNeeded = 3; // 3 guests for 4-player Euchre
+
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
         <h1 className="text-2xl font-bold">Euchre</h1>
-        {isHost && roomPhase === "waiting" && (
+        {roomCode && (
           <>
             <p className="text-text-secondary">Share this code with friends:</p>
             <p className="text-4xl font-bold font-mono tracking-widest text-brand-orange">
               {roomCode}
             </p>
-            <p className="text-text-muted text-sm animate-pulse">
-              Waiting for 3 more players...
-            </p>
           </>
         )}
-        {!isHost && (
-          <p className="text-text-muted text-sm animate-pulse">
-            Connecting to room...
-          </p>
-        )}
+        <p className="text-text-muted text-sm animate-pulse">
+          {connectedCount < totalNeeded
+            ? `Waiting for players... (${connectedCount + 1}/4)`
+            : "Starting game..."}
+        </p>
         <Button variant="ghost" onClick={onLeave}>
           Cancel
         </Button>
