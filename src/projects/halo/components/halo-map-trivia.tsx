@@ -11,7 +11,7 @@ import { GameFilter } from "./game-filter";
 export function HaloMapTrivia() {
   const phase = useHaloStore((s) => s.phase);
   const selectedGames = useHaloStore((s) => s.selectedGames);
-  const highScore = useHaloStore((s) => s.highScore);
+
   const startGame = useHaloStore((s) => s.startGame);
   const reset = useHaloStore((s) => s.reset);
 
@@ -39,12 +39,6 @@ export function HaloMapTrivia() {
         </div>
 
         <GameFilter />
-
-        {highScore > 0 && (
-          <span className="text-xs text-text-muted">
-            High Score: <span className="text-brand-orange">{highScore}</span>
-          </span>
-        )}
 
         <Button
           onClick={startGame}

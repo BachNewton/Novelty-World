@@ -20,6 +20,7 @@ const SOURCE_GAMES: { value: string; label: string }[] = [
 
 export function GameFilter() {
   const selectedGames = useHaloStore((s) => s.selectedGames);
+  const highScore = useHaloStore((s) => s.highScore);
   const toggleGame = useHaloStore((s) => s.toggleGame);
   const selectAllGames = useHaloStore((s) => s.selectAllGames);
   const deselectAllGames = useHaloStore((s) => s.deselectAllGames);
@@ -62,9 +63,12 @@ export function GameFilter() {
         })}
       </div>
 
-      <p className="mt-2 text-center text-xs text-text-muted">
-        {mapCount} map{mapCount !== 1 ? "s" : ""}
-      </p>
+      <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
+        <span>{mapCount} map{mapCount !== 1 ? "s" : ""}</span>
+        <span>
+          High Score: <span className="text-brand-orange" suppressHydrationWarning>{highScore}</span>
+        </span>
+      </div>
     </div>
   );
 }

@@ -24,9 +24,16 @@ export function GuessResult({
     [onNext],
   );
 
+  // Delay attaching the listener so the Enter keypress that triggered
+  // the reveal doesn't immediately fire advance.
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const id = requestAnimationFrame(() => {
+      window.addEventListener("keydown", handleKeyDown);
+    });
+    return () => {
+      cancelAnimationFrame(id);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [handleKeyDown]);
 
   return (
