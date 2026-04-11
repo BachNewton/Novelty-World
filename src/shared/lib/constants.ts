@@ -71,7 +71,7 @@ export const PROJECTS: Project[] = [
     name: "Flag Game",
     slug: "flag-game",
     description: "Test your knowledge of world flags",
-    categorySlug: "games",
+    categorySlug: "trivia",
     icon: "Flag",
   },
   {
