@@ -6,9 +6,12 @@ import { Button } from "@/shared/components/ui/button";
 import { useHaloStore } from "../store";
 import { GameScreen } from "./game-screen";
 import { GameOverScreen } from "./game-over-screen";
+import { GameFilter } from "./game-filter";
 
 export function HaloMapTrivia() {
   const phase = useHaloStore((s) => s.phase);
+  const selectedGames = useHaloStore((s) => s.selectedGames);
+  const highScore = useHaloStore((s) => s.highScore);
   const startGame = useHaloStore((s) => s.startGame);
   const reset = useHaloStore((s) => s.reset);
 
@@ -20,24 +23,34 @@ export function HaloMapTrivia() {
 
   if (phase === "idle") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-4 py-8 text-center">
         <div className="rounded-full bg-surface-elevated p-4">
           <Crosshair size={40} className="text-brand-orange" />
         </div>
 
         <div>
           <h1 className="text-3xl font-bold">Halo Map Trivia</h1>
-          <p className="mt-2 text-sm text-text-secondary">
-            Guess the Halo multiplayer map from its image
+          <p className="mt-1 text-sm text-text-secondary">
+            Guess the map from its image
+          </p>
+          <p className="mt-1 text-xs text-text-muted">
+            You get <span className="font-medium text-brand-pink">3 lives</span> — how many can you name?
           </p>
         </div>
 
-        <div className="flex flex-col items-center gap-2 text-sm text-text-muted">
-          <p>You get <span className="text-brand-pink font-medium">3 lives</span></p>
-          <p>How many maps can you name?</p>
-        </div>
+        <GameFilter />
 
-        <Button onClick={startGame} className="mt-2 px-8">
+        {highScore > 0 && (
+          <span className="text-xs text-text-muted">
+            High Score: <span className="text-brand-orange">{highScore}</span>
+          </span>
+        )}
+
+        <Button
+          onClick={startGame}
+          disabled={selectedGames.length === 0}
+          className="px-8"
+        >
           Start Game
         </Button>
       </div>

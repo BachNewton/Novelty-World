@@ -20,10 +20,11 @@ export function GameScreen() {
   const lastGuessCorrect = useHaloStore((s) => s.lastGuessCorrect);
   const correctAnswer = useHaloStore((s) => s.correctAnswer);
   const sourceGame = useHaloStore((s) => s.sourceGame);
+  const selectedGames = useHaloStore((s) => s.selectedGames);
   const submitGuess = useHaloStore((s) => s.submitGuess);
   const advance = useHaloStore((s) => s.advance);
 
-  const mapNames = useMemo(() => getAllMapNames(), []);
+  const mapNames = useMemo(() => getAllMapNames(selectedGames), [selectedGames]);
   const currentMap = shuffledMaps[currentIndex];
   const nextMap = shuffledMaps[currentIndex + 1] ?? null;
   const isRevealing = phase === "reveal";

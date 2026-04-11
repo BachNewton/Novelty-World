@@ -4,6 +4,8 @@ import { create } from "zustand";
 import type { GameState } from "./types";
 import {
   createInitialState,
+  getSourceGames,
+  highScoreKey,
   checkGuess,
   applyCorrectGuess,
   applyWrongGuess,
@@ -13,17 +15,21 @@ import {
 import { getProjectStorage } from "@/shared/lib/storage";
 
 const storage = getProjectStorage("halo");
-const HIGHSCORE_KEY = "highScore";
 
-function loadHighScore(): number {
-  return storage.get<number>(HIGHSCORE_KEY) ?? 0;
+function loadHighScore(selectedGames: string[]): number {
+  return storage.get<number>(highScoreKey(selectedGames)) ?? 0;
 }
 
-function saveHighScore(score: number): void {
-  storage.set(HIGHSCORE_KEY, score);
+function saveHighScore(selectedGames: string[], score: number): void {
+  storage.set(highScoreKey(selectedGames), score);
 }
+
+const allGames = getSourceGames();
 
 interface HaloActions {
+  toggleGame: (game: string) => void;
+  selectAllGames: () => void;
+  deselectAllGames: () => void;
   startGame: () => void;
   submitGuess: (guess: string) => void;
   advance: () => void;
@@ -34,10 +40,30 @@ interface HaloActions {
 export type HaloStore = GameState & HaloActions;
 
 export const useHaloStore = create<HaloStore>((set, get) => ({
-  ...createInitialState(loadHighScore()),
+  ...createInitialState(allGames, loadHighScore(allGames)),
+
+  toggleGame: (game: string) => {
+    const { selectedGames } = get();
+    const next = selectedGames.includes(game)
+      ? selectedGames.filter((g) => g !== game)
+      : [...selectedGames, game];
+    set({ selectedGames: next, highScore: loadHighScore(next) });
+  },
+
+  selectAllGames: () => {
+    set({ selectedGames: allGames, highScore: loadHighScore(allGames) });
+  },
+
+  deselectAllGames: () => {
+    set({ selectedGames: [], highScore: 0 });
+  },
 
   startGame: () => {
-    set({ ...createInitialState(loadHighScore()), phase: "playing" });
+    const { selectedGames } = get();
+    set({
+      ...createInitialState(selectedGames, loadHighScore(selectedGames)),
+      phase: "playing",
+    });
   },
 
   submitGuess: (guess: string) => {
@@ -48,7 +74,7 @@ export const useHaloStore = create<HaloStore>((set, get) => ({
     const newState = isCorrect
       ? applyCorrectGuess(state)
       : applyWrongGuess(state);
-    saveHighScore(newState.highScore);
+    saveHighScore(state.selectedGames, newState.highScore);
     set(newState);
   },
 
@@ -59,10 +85,14 @@ export const useHaloStore = create<HaloStore>((set, get) => ({
   },
 
   playAgain: () => {
-    set({ ...restartGame(get()), phase: "playing" });
+    const state = get();
+    set({
+      ...restartGame(state),
+      phase: "playing",
+    });
   },
 
   reset: () => {
-    set(createInitialState(loadHighScore()));
+    set(createInitialState(allGames, loadHighScore(allGames)));
   },
 }));

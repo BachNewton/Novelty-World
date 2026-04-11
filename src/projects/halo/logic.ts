@@ -11,18 +11,29 @@ export function shuffleArray<T>(arr: readonly T[]): T[] {
   return out;
 }
 
+/** All distinct source game titles, sorted alphabetically. */
+export function getSourceGames(): string[] {
+  const games = new Set<string>();
+  for (const m of allMaps as HaloMapEntry[]) {
+    games.add(m.sourceGame);
+  }
+  return [...games].sort((a, b) => a.localeCompare(b));
+}
+
 /**
  * Maps that can appear as questions — must have an image, deduplicated by name.
- * Keeps the first occurrence of each name.
+ * When `selectedGames` is provided, only maps from those games are included.
  */
-export function getPlayableMaps(): HaloMapEntry[] {
+export function getPlayableMaps(selectedGames?: string[]): HaloMapEntry[] {
+  const gameSet = selectedGames ? new Set(selectedGames) : null;
   const seen = new Set<string>();
   const result: HaloMapEntry[] = [];
   for (const m of allMaps as HaloMapEntry[]) {
-    if (m.imageUrl && !seen.has(m.name)) {
-      seen.add(m.name);
-      result.push(m);
-    }
+    if (!m.imageUrl) continue;
+    if (gameSet && !gameSet.has(m.sourceGame)) continue;
+    if (seen.has(m.name)) continue;
+    seen.add(m.name);
+    result.push(m);
   }
   return result;
 }
@@ -30,19 +41,35 @@ export function getPlayableMaps(): HaloMapEntry[] {
 /**
  * All unique map names sorted alphabetically — used for combobox options.
  * Includes maps with null images so the full roster is represented.
+ * When `selectedGames` is provided, only names from those games are included.
  */
-export function getAllMapNames(): string[] {
+export function getAllMapNames(selectedGames?: string[]): string[] {
+  const gameSet = selectedGames ? new Set(selectedGames) : null;
   const names = new Set<string>();
   for (const m of allMaps as HaloMapEntry[]) {
+    if (gameSet && !gameSet.has(m.sourceGame)) continue;
     names.add(m.name);
   }
   return [...names].sort((a, b) => a.localeCompare(b));
 }
 
-export function createInitialState(highScore: number): GameState {
+/**
+ * Build a deterministic storage key for a set of selected games.
+ * Sorted so the same selection always produces the same key.
+ */
+export function highScoreKey(selectedGames: string[]): string {
+  const sorted = [...selectedGames].sort((a, b) => a.localeCompare(b));
+  return `highScore:${sorted.join(",")}`;
+}
+
+export function createInitialState(
+  selectedGames: string[],
+  highScore: number,
+): GameState {
   return {
     phase: "idle",
-    shuffledMaps: shuffleArray(getPlayableMaps()),
+    selectedGames,
+    shuffledMaps: shuffleArray(getPlayableMaps(selectedGames)),
     currentIndex: 0,
     score: 0,
     lives: 3,
@@ -103,5 +130,5 @@ export function advanceToNextMap(state: GameState): GameState {
 }
 
 export function restartGame(state: GameState): GameState {
-  return createInitialState(state.highScore);
+  return createInitialState(state.selectedGames, state.highScore);
 }

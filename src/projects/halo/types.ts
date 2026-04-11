@@ -9,6 +9,7 @@ export type GamePhase = "idle" | "playing" | "reveal" | "game-over";
 
 export interface GameState {
   phase: GamePhase;
+  selectedGames: string[];
   shuffledMaps: HaloMapEntry[];
   currentIndex: number;
   score: number;

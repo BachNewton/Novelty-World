@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useCallback } from "react";
 import { Check, X } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 
@@ -14,6 +17,18 @@ export function GuessResult({
   sourceGame,
   onNext,
 }: GuessResultProps) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Enter") onNext();
+    },
+    [onNext],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
   return (
     <div className="flex w-full max-w-md flex-col items-center gap-3 px-4">
       <div className="flex items-center gap-2">
