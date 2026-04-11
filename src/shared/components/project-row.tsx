@@ -17,6 +17,7 @@ import {
   Grid3x3,
   Flag,
   Box,
+  Crosshair,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +36,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Grid3x3,
   Flag,
   Box,
+  Crosshair,
 };
 
 const BRAND_COLORS = [

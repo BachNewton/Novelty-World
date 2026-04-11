@@ -2,6 +2,7 @@ import type { Category, Project } from "@/shared/types";
 
 export const CATEGORIES: Category[] = [
   { name: "Games", slug: "games", description: "Multiplayer and single-player games" },
+  { name: "Trivia", slug: "trivia", parentSlug: "games", description: "Test your knowledge" },
   { name: "Card Games", slug: "card-games", parentSlug: "games", description: "Classic card games" },
   { name: "2D Games", slug: "2d-games", parentSlug: "games", description: "Two-dimensional game worlds" },
   { name: "3D Games", slug: "3d-games", parentSlug: "games", description: "Three-dimensional game worlds" },
@@ -72,6 +73,13 @@ export const PROJECTS: Project[] = [
     description: "Test your knowledge of world flags",
     categorySlug: "games",
     icon: "Flag",
+  },
+  {
+    name: "Halo",
+    slug: "halo",
+    description: "Guess the Halo map from its image",
+    categorySlug: "trivia",
+    icon: "Crosshair",
   },
   {
     name: "Fortuna",
