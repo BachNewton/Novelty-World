@@ -14,11 +14,6 @@ export function MapImage({ src, alt, nextSrc }: MapImageProps) {
     "loading",
   );
 
-  // Reset loading state when src changes
-  useEffect(() => {
-    setStatus("loading");
-  }, [src]);
-
   // Preload the next image
   useEffect(() => {
     if (!nextSrc) return;

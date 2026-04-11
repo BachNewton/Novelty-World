@@ -23,19 +23,10 @@ export function MapCombobox({ mapNames, onSubmit, disabled }: MapComboboxProps) 
       )
     : mapNames;
 
-  // Reset input when disabled changes (new round)
-  useEffect(() => {
-    if (disabled) {
-      setInput("");
-      setIsOpen(false);
-      setHighlightedIndex(-1);
-    }
-  }, [disabled]);
-
   // Scroll highlighted item into view
   useEffect(() => {
     if (highlightedIndex < 0 || !listRef.current) return;
-    const item = listRef.current.children[highlightedIndex] as HTMLElement;
+    const item = listRef.current.children[highlightedIndex] as HTMLElement | undefined;
     item?.scrollIntoView({ block: "nearest" });
   }, [highlightedIndex]);
 

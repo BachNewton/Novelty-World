@@ -26,7 +26,7 @@ export function GameScreen() {
 
   const mapNames = useMemo(() => getAllMapNames(selectedGames), [selectedGames]);
   const currentMap = shuffledMaps[currentIndex];
-  const nextMap = shuffledMaps[currentIndex + 1] ?? null;
+  const nextMap = shuffledMaps.at(currentIndex + 1);
   const isRevealing = phase === "reveal";
 
   return (
@@ -44,7 +44,8 @@ export function GameScreen() {
 
       {/* Map image */}
       <MapImage
-        src={currentMap?.imageUrl ?? null}
+        key={currentMap.imageUrl}
+        src={currentMap.imageUrl ?? null}
         alt="Guess this Halo map"
         nextSrc={nextMap?.imageUrl}
       />
@@ -60,6 +61,7 @@ export function GameScreen() {
           />
         ) : (
           <MapCombobox
+            key={currentIndex}
             mapNames={mapNames}
             onSubmit={submitGuess}
             disabled={isRevealing}
