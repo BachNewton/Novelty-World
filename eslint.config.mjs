@@ -41,7 +41,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unnecessary-condition": "off",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "scripts/**"]),
 ]);
 
 export default eslintConfig;

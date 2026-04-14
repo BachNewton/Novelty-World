@@ -1,15 +1,6 @@
 import type { HaloMapEntry, GameState } from "./types";
 import allMaps from "./data/halo-maps.json";
-
-/** Fisher-Yates shuffle — returns a new array. */
-export function shuffleArray<T>(arr: readonly T[]): T[] {
-  const out = [...arr];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
+import { shuffleArray } from "@/shared/trivia";
 
 /** All distinct source game titles, sorted alphabetically. */
 export function getSourceGames(): string[] {
@@ -51,15 +42,6 @@ export function getAllMapNames(selectedGames?: string[]): string[] {
     names.add(m.name);
   }
   return [...names].sort((a, b) => a.localeCompare(b));
-}
-
-/**
- * Build a deterministic storage key for a set of selected games.
- * Sorted so the same selection always produces the same key.
- */
-export function highScoreKey(selectedGames: string[]): string {
-  const sorted = [...selectedGames].sort((a, b) => a.localeCompare(b));
-  return `highScore:${sorted.join(",")}`;
 }
 
 export function createInitialState(

@@ -5,7 +5,6 @@ import type { GameState } from "./types";
 import {
   createInitialState,
   getSourceGames,
-  highScoreKey,
   checkGuess,
   applyCorrectGuess,
   applyWrongGuess,
@@ -13,6 +12,7 @@ import {
   restartGame,
 } from "./logic";
 import { getProjectStorage } from "@/shared/lib/storage";
+import { highScoreKey } from "@/shared/trivia";
 
 const storage = getProjectStorage("halo");
 

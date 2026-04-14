@@ -26,6 +26,30 @@
   --radius-sm: 0.25rem;
 }
 
+/* Canonical Pokemon type colors, used by the Pokemon trivia game. Declared
+   outside @theme so they're reliably available as raw CSS custom properties
+   for inline `style` references (the @theme block is for Tailwind utilities). */
+:root {
+  --color-poke-normal: #a8a77a;
+  --color-poke-fire: #ee8130;
+  --color-poke-water: #6390f0;
+  --color-poke-electric: #f7d02c;
+  --color-poke-grass: #7ac74c;
+  --color-poke-ice: #96d9d6;
+  --color-poke-fighting: #c22e28;
+  --color-poke-poison: #a33ea1;
+  --color-poke-ground: #e2bf65;
+  --color-poke-flying: #a98ff3;
+  --color-poke-psychic: #f95587;
+  --color-poke-bug: #a6b91a;
+  --color-poke-rock: #b6a136;
+  --color-poke-ghost: #735797;
+  --color-poke-dragon: #6f35fc;
+  --color-poke-dark: #705746;
+  --color-poke-steel: #b7b7ce;
+  --color-poke-fairy: #d685ad;
+}
+
 body {
   background-color: var(--color-surface-primary);
   color: var(--color-text-primary);

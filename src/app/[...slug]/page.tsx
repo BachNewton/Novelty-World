@@ -22,6 +22,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   halo: dynamic(() =>
     import("@/projects/halo").then((m) => ({ default: m.HaloMapTrivia })),
   ),
+  pokemon: dynamic(() =>
+    import("@/projects/pokemon").then((m) => ({ default: m.PokemonTrivia })),
+  ),
 };
 
 interface Props {

@@ -1,11 +1,11 @@
+import type { GamePhase } from "@/shared/trivia";
+
 export interface HaloMapEntry {
   name: string;
   imageUrl: string | null;
   sourceGame: string;
   sourceUrl: string;
 }
-
-export type GamePhase = "idle" | "playing" | "reveal" | "game-over";
 
 export interface GameState {
   phase: GamePhase;

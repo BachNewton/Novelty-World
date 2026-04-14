@@ -82,6 +82,13 @@ export const PROJECTS: Project[] = [
     icon: "Crosshair",
   },
   {
+    name: "Pokémon",
+    slug: "pokemon",
+    description: "Guess each Pokémon's type(s) from its sprite",
+    categorySlug: "trivia",
+    icon: "Sparkles",
+  },
+  {
     name: "Fortuna",
     slug: "fortuna",
     description: "A 3D game of fortune and chance",

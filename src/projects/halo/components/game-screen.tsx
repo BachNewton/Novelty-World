@@ -1,13 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { GuessResult, LivesDisplay, ScoreDisplay } from "@/shared/trivia";
 import { useHaloStore } from "../store";
 import { getAllMapNames } from "../logic";
 import { MapImage } from "./map-image";
 import { MapCombobox } from "./map-combobox";
-import { GuessResult } from "./guess-result";
-import { LivesDisplay } from "./lives-display";
-import { ScoreDisplay } from "./score-display";
 
 export function GameScreen() {
   const phase = useHaloStore((s) => s.phase);
@@ -53,12 +51,17 @@ export function GameScreen() {
       {/* Guess area */}
       <div className="mt-4 flex w-full flex-col items-center">
         {isRevealing && correctAnswer && sourceGame != null ? (
-          <GuessResult
-            correct={!!lastGuessCorrect}
-            mapName={correctAnswer}
-            sourceGame={sourceGame}
-            onNext={advance}
-          />
+          <GuessResult correct={!!lastGuessCorrect} onNext={advance}>
+            {!lastGuessCorrect && (
+              <p className="text-center text-sm text-text-secondary">
+                It was:{" "}
+                <span className="font-semibold text-text-primary">
+                  {correctAnswer}
+                </span>
+              </p>
+            )}
+            <p className="text-center text-xs text-text-muted">{sourceGame}</p>
+          </GuessResult>
         ) : (
           <MapCombobox
             key={currentIndex}
