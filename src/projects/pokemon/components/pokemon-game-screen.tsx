@@ -24,7 +24,7 @@ export function PokemonGameScreen() {
   const isRevealing = phase === "reveal";
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center overflow-hidden px-3 pb-4 pt-3">
+    <div className="flex min-h-screen w-full flex-col items-center overflow-hidden px-3 pb-25 pt-3">
       <div className="flex w-full max-w-2xl items-center justify-between gap-4 pb-2">
         <ScoreDisplay score={score} highScore={highScore} />
 
@@ -35,37 +35,56 @@ export function PokemonGameScreen() {
         <LivesDisplay lives={lives} maxLives={maxLives} columns={5} />
       </div>
 
-      <PokemonImage
-        key={current.id}
-        src={current.spriteUrl}
-        alt="Guess this Pokemon's type"
-        nextSrc={next?.spriteUrl}
-      />
+      <div className="flex w-full flex-1 items-center justify-center">
+        <PokemonImage
+          key={current.id}
+          src={current.spriteUrl}
+          alt="Guess this Pokemon's type"
+          nextSrc={next?.spriteUrl}
+        />
+      </div>
 
-      <div className="relative z-10 mt-3 flex w-full flex-col items-center">
-        {isRevealing && revealed ? (
-          <GuessResult correct={!!lastGuessCorrect} onNext={advance}>
-            <p className="text-center text-lg font-semibold text-text-primary">
-              {revealed.name}
-            </p>
-            <div className="flex items-center gap-2">
-              {revealed.types.map((t) => (
-                <div key={t} className="flex items-center gap-1">
-                  <TypeIcon type={t} size={28} />
-                  <span className="text-sm capitalize text-text-secondary">
-                    {t}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </GuessResult>
-        ) : (
+      {/* Stack TypeSelector and GuessResult in the same grid cell so the
+          cell always reserves TypeSelector's (taller) natural height. This
+          keeps the image wrapper's flex-1 space constant between phases,
+          so the Pokemon doesn't visually jump when we reveal the answer. */}
+      <div className="relative z-10 grid w-full">
+        <div
+          className={`col-start-1 row-start-1 flex flex-col items-center ${
+            isRevealing ? "invisible" : ""
+          }`}
+          aria-hidden={isRevealing}
+        >
           <TypeSelector
             key={currentIndex}
             onSubmit={submitGuess}
             disabled={isRevealing}
           />
-        )}
+        </div>
+        <div
+          className={`col-start-1 row-start-1 flex flex-col items-center justify-end ${
+            isRevealing && revealed ? "" : "invisible"
+          }`}
+          aria-hidden={!(isRevealing && revealed)}
+        >
+          {revealed && (
+            <GuessResult correct={!!lastGuessCorrect} onNext={advance}>
+              <p className="text-center text-lg font-semibold text-text-primary">
+                {revealed.name}
+              </p>
+              <div className="flex items-center gap-2">
+                {revealed.types.map((t) => (
+                  <div key={t} className="flex items-center gap-1">
+                    <TypeIcon type={t} size={28} />
+                    <span className="text-sm capitalize text-text-secondary">
+                      {t}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </GuessResult>
+          )}
+        </div>
       </div>
     </div>
   );

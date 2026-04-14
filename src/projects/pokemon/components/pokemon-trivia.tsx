@@ -28,7 +28,7 @@ export function PokemonTrivia() {
         description="Pick the correct type (or types) for each Pokémon"
         tagline={
           <>
-            You get <span className="font-medium text-brand-pink">3 lives</span> — how many can you type?
+            You get <span className="font-medium text-brand-pink">10 lives</span>, and lose one for every missing or wrong type. How far can you get?
           </>
         }
         onStart={startGame}
