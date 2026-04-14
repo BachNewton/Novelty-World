@@ -162,37 +162,41 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
   const game = useEuchreStore((s) => s.game);
   const myPlayer = useEuchreStore((s) => s.myPlayer);
 
-  // Seat assignment: playerId -> PlayerIndex
-  const seatMapRef = useRef<Map<string, PlayerIndex>>(new Map());
-  const [seatMapReady, setSeatMapReady] = useState(false);
+  // Seat assignment: playerId -> PlayerIndex.
+  // Real state, not a ref: rendering derives mySeat/playerNames/playerStatuses
+  // from this, so it must trigger re-renders on change. `null` means unassigned.
+  const [seatMap, setSeatMap] = useState<Map<string, PlayerIndex> | null>(null);
 
-  // Team selection state
-  const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>([]);
+  // Team selection state. Host is pre-assigned to Team A via lazy initializer
+  // so we don't have to setState-in-effect to establish the invariant.
+  const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>(() =>
+    room.isHost ? [{ playerId: room.playerId, team: "A" }] : [],
+  );
 
   // ---------------------------------------------------------------------------
   // Authority: connected player with the lowest seat index
   // ---------------------------------------------------------------------------
 
-  const mySeat = seatMapRef.current.get(room.playerId) ?? null;
+  const mySeat = seatMap?.get(room.playerId) ?? null;
 
   const isAuthority = useMemo(() => {
-    if (!seatMapReady) return isHost; // Before seats assigned, host is authority
+    if (!seatMap) return isHost; // Before seats assigned, host is authority
     const connectedSeats = playerRoster
       .filter((p) => p.status === "connected")
-      .map((p) => seatMapRef.current.get(p.playerId))
+      .map((p) => seatMap.get(p.playerId))
       .filter((s): s is PlayerIndex => s !== undefined)
       .sort((a, b) => a - b);
     return connectedSeats.length > 0 && connectedSeats[0] === mySeat;
-  }, [seatMapReady, playerRoster, mySeat, isHost]);
+  }, [seatMap, playerRoster, mySeat, isHost]);
 
   // Broadcast state when becoming authority (migration ground truth)
   const prevAuthorityRef = useRef(false);
   useEffect(() => {
-    if (isAuthority && !prevAuthorityRef.current && game && seatMapReady) {
+    if (isAuthority && !prevAuthorityRef.current && game && seatMap) {
       send<StateUpdatePayload>(MSG.STATE_UPDATE, { gameState: game });
     }
     prevAuthorityRef.current = isAuthority;
-  }, [isAuthority, game, seatMapReady, send]);
+  }, [isAuthority, game, seatMap, send]);
 
   // ---------------------------------------------------------------------------
   // Player names derived from roster + seat map
@@ -200,13 +204,13 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
 
   const playerNames = useMemo(() => {
     const names: Record<PlayerIndex, string> = { 0: "", 1: "", 2: "", 3: "" };
-    for (const [playerId, seat] of seatMapRef.current.entries()) {
+    if (!seatMap) return names;
+    for (const [playerId, seat] of seatMap.entries()) {
       const entry = playerRoster.find((p) => p.playerId === playerId);
       names[seat] = entry?.playerName ?? `Player ${seat}`;
     }
     return names;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seatMapRef is a ref, not reactive state; we intentionally recompute only when roster or seatMapReady changes
-  }, [playerRoster, seatMapReady]);
+  }, [playerRoster, seatMap]);
 
   // Player connection statuses by seat
   const playerStatuses = useMemo(() => {
@@ -216,14 +220,14 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       2: "connected",
       3: "connected",
     };
-    for (const [playerId, seat] of seatMapRef.current.entries()) {
+    if (!seatMap) return statuses;
+    for (const [playerId, seat] of seatMap.entries()) {
       if (playerId === room.playerId) continue; // Self is always connected
       const entry = playerRoster.find((p) => p.playerId === playerId);
       statuses[seat] = (entry?.status ?? "disconnected") as ConnectionState;
     }
     return statuses;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seatMapRef is a ref, not reactive state; we intentionally recompute only when roster or seatMapReady changes
-  }, [playerRoster, seatMapReady, room.playerId]);
+  }, [playerRoster, seatMap, room.playerId]);
 
   // ---------------------------------------------------------------------------
   // Team selection message handlers
@@ -251,14 +255,18 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
     });
   }, [roomPhase, onMessage]);
 
-  // Host: auto-assign self to Team A on ready
+  // Host: broadcast the initial team assignment once peers are ready.
+  // The assignment itself is set in the useState initializer above; this
+  // effect is purely the side effect of telling peers about it. Subsequent
+  // changes are broadcast by the select handlers, so we guard with a ref
+  // to run exactly once.
+  const didBroadcastInitialTeamRef = useRef(false);
   useEffect(() => {
+    if (didBroadcastInitialTeamRef.current) return;
     if (!isHost || roomPhase !== "ready" || game) return;
-    if (teamAssignments.some((a) => a.playerId === room.playerId)) return;
-    const initial: TeamAssignment[] = [{ playerId: room.playerId, team: "A" }];
-    setTeamAssignments(initial);
-    send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: initial });
-  }, [isHost, roomPhase, game, teamAssignments, room.playerId, send]);
+    didBroadcastInitialTeamRef.current = true;
+    send<TeamUpdatePayload>(MSG.TEAM_UPDATE, { assignments: teamAssignments });
+  }, [isHost, roomPhase, game, teamAssignments, send]);
 
   const handleSelectTeam = useCallback(
     (team: Team) => {
@@ -299,8 +307,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
     for (const a of assignments) {
       newMap.set(a.playerId, a.seatIndex);
     }
-    seatMapRef.current = newMap;
-    setSeatMapReady(true);
+    setSeatMap(newMap);
 
     // Set local player
     const mySeatIdx = newMap.get(room.playerId)!;
@@ -331,8 +338,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       for (const a of seatAssignments) {
         newMap.set(a.playerId, a.seatIndex);
       }
-      seatMapRef.current = newMap;
-      setSeatMapReady(true);
+      setSeatMap(newMap);
 
       // Set local player
       const mySeatIdx = newMap.get(room.playerId);
@@ -349,7 +355,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!isAuthority || !seatMapReady) return;
+    if (!isAuthority || !seatMap) return;
 
     const unsubs = [
       onMessage<BidPayload>(MSG.BID, (msg) => {
@@ -397,7 +403,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
     ];
 
     return () => unsubs.forEach((u) => u());
-  }, [isAuthority, seatMapReady, onMessage, send]);
+  }, [isAuthority, seatMap, onMessage, send]);
 
   // ---------------------------------------------------------------------------
   // Non-authority: state sync
@@ -424,7 +430,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
   const prevRosterRef = useRef<PlayerInfo[]>([]);
 
   useEffect(() => {
-    if (!isAuthority || !seatMapReady) return;
+    if (!isAuthority || !seatMap) return;
 
     const prev = prevRosterRef.current;
     for (const player of playerRoster) {
@@ -435,7 +441,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
         player.playerId !== room.playerId
       ) {
         // Player just reconnected — send them seat assignments + current state
-        const seatAssignments = Array.from(seatMapRef.current.entries()).map(
+        const seatAssignments = Array.from(seatMap.entries()).map(
           ([playerId, seatIndex]) => ({ playerId, seatIndex }),
         );
         const currentGame = useEuchreStore.getState().game;
@@ -448,7 +454,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       }
     }
     prevRosterRef.current = [...playerRoster];
-  }, [isAuthority, seatMapReady, playerRoster, room.playerId, sendTo]);
+  }, [isAuthority, seatMap, playerRoster, room.playerId, sendTo]);
 
   // ---------------------------------------------------------------------------
   // Action routing callbacks (passed to GameTable)
