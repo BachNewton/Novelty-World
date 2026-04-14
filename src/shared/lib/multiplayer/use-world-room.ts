@@ -42,10 +42,14 @@ export function useWorldRoom(options: UseWorldRoomOptions): WorldRoomState {
   );
 
   // --- Roster tracking ---
-  // Keyed by playerId (persistent) to handle reconnects with new peerId
-  const rosterRef = useRef<Map<string, PlayerInfo>>(new Map());
-  const [rosterVersion, setRosterVersion] = useState(0);
+  // Keyed by playerId (persistent) to handle reconnects with new peerId.
+  // Real state, not a ref: render-phase reads must see the latest value, and
+  // React's concurrent rendering can tear if we read `.current` during render.
+  const [roster, setRoster] = useState<Map<string, PlayerInfo>>(new Map());
   const announcedToRef = useRef<Set<string>>(new Set());
+  // Tracks which playerIds we've already fired onPlayerJoin for, so the
+  // derivation effect below doesn't re-fire on every roster update.
+  const firedJoinForRef = useRef<Set<string>>(new Set());
 
   // --- Player event handlers ---
   const playerJoinHandlersRef = useRef<Set<(player: PlayerInfo) => void>>(new Set());
@@ -76,29 +80,36 @@ export function useWorldRoom(options: UseWorldRoomOptions): WorldRoomState {
     return peerOnMessage<{ playerId: string; playerName: string }>(
       `${MP_PREFIX}announce`,
       (msg) => {
-        const existing = rosterRef.current.get(msg.payload.playerId);
-        if (existing && existing.peerId === msg.from) return; // Already known, same peer
+        setRoster((prev) => {
+          const existing = prev.get(msg.payload.playerId);
+          if (existing && existing.peerId === msg.from) return prev; // Already known, same peer
 
-        const player: PlayerInfo = {
-          playerId: msg.payload.playerId,
-          playerName: msg.payload.playerName,
-          peerId: msg.from,
-          status: "connected",
-        };
-
-        // Update or add — handles reconnect (same playerId, new peerId)
-        rosterRef.current.set(msg.payload.playerId, player);
-        setRosterVersion((v) => v + 1);
-
-        // Fire onPlayerJoin handlers only for genuinely new players
-        if (!existing) {
-          for (const handler of [...playerJoinHandlersRef.current]) {
-            handler(player);
-          }
-        }
+          // Update or add — handles reconnect (same playerId, new peerId)
+          const next = new Map(prev);
+          next.set(msg.payload.playerId, {
+            playerId: msg.payload.playerId,
+            playerName: msg.payload.playerName,
+            peerId: msg.from,
+            status: "connected",
+          });
+          return next;
+        });
       },
     );
   }, [phase, peerOnMessage]);
+
+  // --- Fire onPlayerJoin for genuinely new players ---
+  // Derived from roster state rather than fired inside the message handler,
+  // so the state updater stays pure (safe under concurrent rendering).
+  useEffect(() => {
+    for (const player of roster.values()) {
+      if (firedJoinForRef.current.has(player.playerId)) continue;
+      firedJoinForRef.current.add(player.playerId);
+      for (const handler of [...playerJoinHandlersRef.current]) {
+        handler(player);
+      }
+    }
+  }, [roster]);
 
   // --- Send announce to newly connected peers ---
   useEffect(() => {
@@ -133,14 +144,13 @@ export function useWorldRoom(options: UseWorldRoomOptions): WorldRoomState {
       status: "connected",
     };
 
-    const others = Array.from(rosterRef.current.values()).map((entry) => {
+    const others = Array.from(roster.values()).map((entry) => {
       const peer = peers.find((p) => p.id === entry.peerId);
       return { ...entry, status: (peer?.status ?? "disconnected") as ConnectionState };
     });
 
     return [self, ...others];
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rosterRef is a ref, not reactive state; rosterVersion is bumped explicitly when the ref mutates to drive this recompute
-  }, [profile.id, profile.name, peerId, peers, rosterVersion]);
+  }, [profile.id, profile.name, peerId, peers, roster]);
 
   // --- Namespaced messaging ---
   const { send, sendTo, onMessage } = useMemo(
@@ -165,9 +175,9 @@ export function useWorldRoom(options: UseWorldRoomOptions): WorldRoomState {
     peerDisconnect();
     unadvertiseRef.current?.();
     unadvertiseRef.current = null;
-    rosterRef.current.clear();
+    setRoster(new Map());
     announcedToRef.current.clear();
-    setRosterVersion(0);
+    firedJoinForRef.current.clear();
     setRoomCode(null);
     setPhase("lobby");
   }, [peerDisconnect]);
