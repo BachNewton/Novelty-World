@@ -5,9 +5,7 @@ import type { GameState } from "./types";
 import {
   createInitialState,
   GENERATIONS,
-  checkGuess,
-  applyCorrectGuess,
-  applyWrongGuess,
+  applyGuess,
   advanceToNextPokemon,
   restartGame,
 } from "./logic";
@@ -83,10 +81,7 @@ export const usePokemonStore = create<PokemonStore>((set, get) => ({
     const state = get();
     if (state.phase !== "playing") return;
 
-    const isCorrect = checkGuess(state, types);
-    const newState = isCorrect
-      ? applyCorrectGuess(state)
-      : applyWrongGuess(state);
+    const newState = applyGuess(state, types);
     saveHighScore(state.selectedGenerations, newState.highScore);
     set(newState);
   },

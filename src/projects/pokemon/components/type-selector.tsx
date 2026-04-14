@@ -49,12 +49,15 @@ export function TypeSelector({ onSubmit, disabled }: TypeSelectorProps) {
               aria-label={type}
               style={
                 isSelected
-                  ? { borderColor: `var(--color-poke-${type})` }
+                  ? {
+                      borderColor: `var(--color-poke-${type})`,
+                      backgroundColor: `color-mix(in srgb, var(--color-poke-${type}) 18%, transparent)`,
+                    }
                   : undefined
               }
-              className={`flex flex-col items-center gap-0.5 rounded-lg border-2 p-1 transition-all ${
+              className={`relative flex flex-col items-center gap-0.5 rounded-lg border-2 p-1 transition-colors ${
                 isSelected
-                  ? "scale-105"
+                  ? "z-10"
                   : "border-border-default hover:border-border-hover"
               } ${atCap ? "opacity-40" : ""} ${disabled ? "cursor-not-allowed" : ""}`}
             >

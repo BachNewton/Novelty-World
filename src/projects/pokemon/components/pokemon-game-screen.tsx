@@ -32,7 +32,7 @@ export function PokemonGameScreen() {
           {currentIndex + 1} / {shuffled.length}
         </span>
 
-        <LivesDisplay lives={lives} maxLives={maxLives} />
+        <LivesDisplay lives={lives} maxLives={maxLives} columns={5} />
       </div>
 
       <PokemonImage

@@ -43,6 +43,8 @@ export function getPlayablePokemon(
   return result;
 }
 
+export const POKEMON_MAX_LIVES = 10;
+
 export function createInitialState(
   selectedGenerations: number[],
   highScore: number,
@@ -53,8 +55,8 @@ export function createInitialState(
     shuffled: shuffleArray(getPlayablePokemon(selectedGenerations)),
     currentIndex: 0,
     score: 0,
-    lives: 3,
-    maxLives: 3,
+    lives: POKEMON_MAX_LIVES,
+    maxLives: POKEMON_MAX_LIVES,
     highScore,
     lastGuessCorrect: null,
     revealed: null,
@@ -68,33 +70,55 @@ export function typeSetsEqual(a: readonly string[], b: readonly string[]): boole
   return a.every((t) => normalized.has(t.toLowerCase()));
 }
 
-export function checkGuess(state: GameState, guess: readonly string[]): boolean {
-  const current = state.shuffled[state.currentIndex];
-  return typeSetsEqual(current.types, guess);
+export interface GuessEvaluation {
+  isPerfect: boolean;
+  /** Correct types the player failed to select. */
+  missingCount: number;
+  /** Selected types the Pokemon doesn't actually have. */
+  wrongCount: number;
 }
 
-export function applyCorrectGuess(state: GameState): GameState {
+export function evaluateGuess(
+  state: GameState,
+  guess: readonly string[],
+): GuessEvaluation {
   const current = state.shuffled[state.currentIndex];
-  const newScore = state.score + 1;
+  const correct = new Set(current.types.map((t) => t.toLowerCase()));
+  const picked = new Set(guess.map((t) => t.toLowerCase()));
+  let missingCount = 0;
+  let wrongCount = 0;
+  for (const t of correct) if (!picked.has(t)) missingCount++;
+  for (const t of picked) if (!correct.has(t)) wrongCount++;
   return {
-    ...state,
-    phase: "reveal",
-    score: newScore,
-    highScore: Math.max(newScore, state.highScore),
-    lastGuessCorrect: true,
-    revealed: current,
+    isPerfect: missingCount === 0 && wrongCount === 0,
+    missingCount,
+    wrongCount,
   };
 }
 
-export function applyWrongGuess(state: GameState): GameState {
+/**
+ * Apply a guess with graduated penalty: the player loses one heart per
+ * missing type (correct answer not selected) plus one per wrong type
+ * (selected type the Pokemon doesn't have). Score only advances on a
+ * perfect guess.
+ */
+export function applyGuess(
+  state: GameState,
+  guess: readonly string[],
+): GameState {
   const current = state.shuffled[state.currentIndex];
+  const result = evaluateGuess(state, guess);
+  const penalty = result.missingCount + result.wrongCount;
+  const newLives = Math.max(0, state.lives - penalty);
+  const newScore = result.isPerfect ? state.score + 1 : state.score;
   return {
     ...state,
     phase: "reveal",
-    lives: state.lives - 1,
-    lastGuessCorrect: false,
+    lives: newLives,
+    score: newScore,
+    highScore: Math.max(newScore, state.highScore),
+    lastGuessCorrect: result.isPerfect,
     revealed: current,
-    highScore: Math.max(state.score, state.highScore),
   };
 }
 

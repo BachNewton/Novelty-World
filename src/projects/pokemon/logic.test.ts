@@ -2,12 +2,12 @@ import { describe, it, expect } from "vitest";
 import type { GameState, PokemonEntry } from "./types";
 import {
   typeSetsEqual,
-  checkGuess,
-  applyCorrectGuess,
-  applyWrongGuess,
+  evaluateGuess,
+  applyGuess,
   advanceToNextPokemon,
   getPlayablePokemon,
   POKEMON_TYPES,
+  POKEMON_MAX_LIVES,
 } from "./logic";
 
 function makeEntry(overrides: Partial<PokemonEntry> = {}): PokemonEntry {
@@ -28,8 +28,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
     shuffled: [makeEntry()],
     currentIndex: 0,
     score: 0,
-    lives: 3,
-    maxLives: 3,
+    lives: POKEMON_MAX_LIVES,
+    maxLives: POKEMON_MAX_LIVES,
     highScore: 0,
     lastGuessCorrect: null,
     revealed: null,
@@ -57,55 +57,63 @@ describe("typeSetsEqual", () => {
   it("rejects different types of same length", () => {
     expect(typeSetsEqual(["grass", "poison"], ["grass", "fire"])).toBe(false);
   });
+});
 
-  it("handles single-type comparisons", () => {
-    expect(typeSetsEqual(["fire"], ["fire"])).toBe(true);
-    expect(typeSetsEqual(["fire"], ["water"])).toBe(false);
+describe("evaluateGuess", () => {
+  it("is perfect when the guessed set matches exactly", () => {
+    const result = evaluateGuess(makeState(), ["poison", "grass"]);
+    expect(result).toEqual({ isPerfect: true, missingCount: 0, wrongCount: 0 });
+  });
+
+  it("counts one missing when a correct type is omitted", () => {
+    const result = evaluateGuess(makeState(), ["grass"]);
+    expect(result).toEqual({ isPerfect: false, missingCount: 1, wrongCount: 0 });
+  });
+
+  it("counts one wrong when an unrelated type is included", () => {
+    const result = evaluateGuess(makeState(), ["grass", "poison", "fire"]);
+    expect(result).toEqual({ isPerfect: false, missingCount: 0, wrongCount: 1 });
+  });
+
+  it("counts both missing and wrong independently", () => {
+    const result = evaluateGuess(makeState(), ["fire"]);
+    expect(result).toEqual({ isPerfect: false, missingCount: 2, wrongCount: 1 });
   });
 });
 
-describe("checkGuess", () => {
-  it("is correct when the guessed set matches", () => {
-    const state = makeState();
-    expect(checkGuess(state, ["poison", "grass"])).toBe(true);
-  });
-
-  it("is wrong when a type is missing", () => {
-    const state = makeState();
-    expect(checkGuess(state, ["grass"])).toBe(false);
-  });
-
-  it("is wrong when an extra type is present", () => {
-    const state = makeState();
-    expect(checkGuess(state, ["grass", "poison", "fire"])).toBe(false);
-  });
-});
-
-describe("applyCorrectGuess", () => {
-  it("increments score and enters reveal", () => {
-    const state = makeState();
-    const next = applyCorrectGuess(state);
+describe("applyGuess", () => {
+  it("increments score and leaves lives intact on a perfect guess", () => {
+    const next = applyGuess(makeState(), ["grass", "poison"]);
     expect(next.phase).toBe("reveal");
     expect(next.score).toBe(1);
+    expect(next.lives).toBe(POKEMON_MAX_LIVES);
     expect(next.lastGuessCorrect).toBe(true);
-    expect(next.revealed?.name).toBe("Bulbasaur");
     expect(next.highScore).toBe(1);
+    expect(next.revealed?.name).toBe("Bulbasaur");
   });
 
-  it("leaves lives unchanged", () => {
-    const state = makeState({ lives: 3 });
-    expect(applyCorrectGuess(state).lives).toBe(3);
-  });
-});
-
-describe("applyWrongGuess", () => {
-  it("decrements lives and enters reveal", () => {
-    const state = makeState({ lives: 3 });
-    const next = applyWrongGuess(state);
-    expect(next.phase).toBe("reveal");
-    expect(next.lives).toBe(2);
-    expect(next.lastGuessCorrect).toBe(false);
+  it("subtracts one life per missing type", () => {
+    const next = applyGuess(makeState(), ["grass"]);
+    expect(next.lives).toBe(POKEMON_MAX_LIVES - 1);
     expect(next.score).toBe(0);
+    expect(next.lastGuessCorrect).toBe(false);
+  });
+
+  it("subtracts one life per wrong type", () => {
+    const next = applyGuess(makeState(), ["grass", "poison", "fire"]);
+    expect(next.lives).toBe(POKEMON_MAX_LIVES - 1);
+    expect(next.lastGuessCorrect).toBe(false);
+  });
+
+  it("combines missing and wrong penalties", () => {
+    const next = applyGuess(makeState({ lives: 5 }), ["fire"]);
+    // missing grass, missing poison, wrong fire → penalty 3
+    expect(next.lives).toBe(2);
+  });
+
+  it("clamps lives at zero", () => {
+    const next = applyGuess(makeState({ lives: 1 }), ["fire", "water"]);
+    expect(next.lives).toBe(0);
   });
 });
 
@@ -115,7 +123,7 @@ describe("advanceToNextPokemon", () => {
       phase: "reveal",
       shuffled: [makeEntry({ id: 1 }), makeEntry({ id: 2 })],
       currentIndex: 0,
-      lives: 2,
+      lives: 5,
     });
     const next = advanceToNextPokemon(state);
     expect(next.phase).toBe("playing");
@@ -133,7 +141,6 @@ describe("advanceToNextPokemon", () => {
       phase: "reveal",
       shuffled: [makeEntry()],
       currentIndex: 0,
-      lives: 3,
     });
     expect(advanceToNextPokemon(state).phase).toBe("game-over");
   });
