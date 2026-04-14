@@ -29,6 +29,7 @@ E2E tests (Playwright) expect the dev server on port 3001 and a WS relay on port
 - **Share code aggressively.** This platform has many projects and will keep growing. When patterns repeat across projects, refactor them into `src/shared/`. Look for reuse opportunities proactively.
 - **Responsive everywhere.** All layouts must work from iPhone SE (375px) through ultrawide desktop. Use a single fluid layout when possible, or build distinct mobile/desktop layouts when the UX demands it.
 - **Sanity-check the approach.** If a request or direction is far outside industry-standard practice, or if there's a significantly simpler way to achieve the same result, flag it before implementing. Push back with a brief explanation — don't just go along with an overcomplicated approach.
+- **Consistency, but not with bad code.** Observe and follow existing patterns where they're sound — consistency makes a codebase easier to read and maintain. But don't double down on bad design just to match what's already there. If the current pattern is poor, do the new work the better way and flag the existing code as a refactor target so it can be brought in line.
 
 ## Architecture
 
