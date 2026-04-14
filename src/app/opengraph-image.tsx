@@ -55,21 +55,22 @@ export default async function Image() {
           overflow: "hidden",
         }}
       >
-        {/* Stars */}
+        {/* eslint-disable @next/next/no-img-element -- next/og ImageResponse is rendered by Satori to a PNG, not real React DOM, so next/image cannot be used; plain <img> is the documented Satori API */}
         <img
+          alt=""
           src={`data:image/svg+xml,${encodeURIComponent(STARS_SVG)}`}
           width={1200}
           height={630}
           style={{ position: "absolute", top: 0, left: 0 }}
         />
-
-        {/* Waves */}
         <img
+          alt=""
           src={`data:image/svg+xml,${encodeURIComponent(WAVES_SVG)}`}
           width={1200}
           height={200}
           style={{ position: "absolute", bottom: 0, left: 0 }}
         />
+        {/* eslint-enable @next/next/no-img-element -- re-enable after Satori <img> block */}
 
         {/* Content */}
         <div

@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   env: {
     APP_VERSION: commitCount,
   },
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "halo.wiki.gallery" },
+    ],
+  },
 };
 
 export default nextConfig;

@@ -139,7 +139,7 @@ export function useWorldRoom(options: UseWorldRoomOptions): WorldRoomState {
     });
 
     return [self, ...others];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rosterRef is a ref, not reactive state; rosterVersion is bumped explicitly when the ref mutates to drive this recompute
   }, [profile.id, profile.name, peerId, peers, rosterVersion]);
 
   // --- Namespaced messaging ---

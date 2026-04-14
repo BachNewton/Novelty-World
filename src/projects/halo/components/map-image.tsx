@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { ImageOff } from "lucide-react";
 
 interface MapImageProps {
@@ -14,10 +15,9 @@ export function MapImage({ src, alt, nextSrc }: MapImageProps) {
     "loading",
   );
 
-  // Preload the next image
   useEffect(() => {
     if (!nextSrc) return;
-    const img = new Image();
+    const img = new window.Image();
     img.src = nextSrc;
   }, [nextSrc]);
 
@@ -45,13 +45,15 @@ export function MapImage({ src, alt, nextSrc }: MapImageProps) {
           </div>
         </div>
       )}
-      <img
+      <Image
         src={src}
         alt={alt}
-        loading="eager"
+        fill
+        priority
+        sizes="(max-width: 672px) 100vw, 672px"
         onLoad={() => setStatus("loaded")}
         onError={() => setStatus("error")}
-        className={`h-full w-full object-cover transition-opacity duration-300 ${
+        className={`object-cover transition-opacity duration-300 ${
           status === "loaded" ? "opacity-100" : "opacity-0"
         }`}
       />

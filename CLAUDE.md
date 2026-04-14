@@ -58,8 +58,18 @@ Reusable components, hooks, and utilities live in `src/shared/`. Check there bef
 
 ### Styling
 
-Tailwind CSS v4. Novelty World's visual identity is colorful, bold, fun, and quirky — lean into that when designing UI. The design system tokens (brand colors, surfaces, text, borders) are defined in `globals.css`. Use the semantic token classes rather than raw Tailwind colors.
+Tailwind CSS v4. Novelty World's visual identity is colorful, bold, fun, and quirky — lean into that when designing UI. The design system tokens (brand colors, surfaces, text, borders) are defined in `globals.css`.
 
-### Linting
+**Rule: Never use raw Tailwind color classes (e.g. `text-sky-400`, `bg-red-500`) or hardcoded hex values.** All colors must come from the semantic tokens defined in `globals.css` (`text-text`, `bg-surface`, etc.). This keeps the design system as a single source of truth for brand identity.
 
-ESLint is configured strictly — run `npm run lint` and fix all errors. No `any` types, no unnecessary conditions.
+## Code Style
+
+### Lint must be clean — treat warnings as design signals
+
+**Rule: `npm run lint` must produce zero errors and zero warnings.** Our lint config is strict on purpose (no `any`, no unnecessary conditions, etc.). When lint flags a line, resist the urge to silence it with a one-line patch (a cast, a disable comment, a throwaway rename). Stop and ask: *why* is the linter unhappy? The flagged line is usually a symptom — the real problem is often a design issue one or two levels up (wrong type at the boundary, a function doing two things, state living in the wrong place, a missing abstraction). Fix the underlying cause so the warning goes away naturally.
+
+**Rule: Suppressing a lint rule (`eslint-disable`, `// @ts-expect-error`, etc.) requires strong justification and an inline `--` description explaining it.** Suppression is a last resort, not a shortcut. Only suppress when you've concluded the rule genuinely does not apply to this specific case (e.g. `<img>` inside `next/og`'s `ImageResponse`, which Satori requires) — and write *why* directly next to the disable comment in the form `// eslint-disable-next-line some-rule -- reason here`. "Lint was noisy" is not a justification. This is mechanically enforced by `@eslint-community/eslint-comments/require-description` — an undescribed disable will fail lint.
+
+### Non-obvious workarounds need comments
+
+When code exists to work around a framework bug, environment quirk, browser-specific behavior, or other non-obvious reason, add a comment explaining **why** it's needed. The code should be readable on its own — if someone would look at a line and wonder "why is this here?", it needs a comment. This is the main exception to "code is its own documentation": workarounds aren't self-explaining, because the reason lives outside the codebase.

@@ -205,7 +205,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       names[seat] = entry?.playerName ?? `Player ${seat}`;
     }
     return names;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seatMapRef is a ref, not reactive state; we intentionally recompute only when roster or seatMapReady changes
   }, [playerRoster, seatMapReady]);
 
   // Player connection statuses by seat
@@ -222,7 +222,7 @@ export function EuchreGameSession({ room, onLeave }: GameSessionProps) {
       statuses[seat] = (entry?.status ?? "disconnected") as ConnectionState;
     }
     return statuses;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seatMapRef is a ref, not reactive state; we intentionally recompute only when roster or seatMapReady changes
   }, [playerRoster, seatMapReady, room.playerId]);
 
   // ---------------------------------------------------------------------------
