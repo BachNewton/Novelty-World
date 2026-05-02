@@ -49,15 +49,15 @@ export interface IdeaAvailability {
 
 /** Where the idea takes place. */
 export interface IdeaLocation {
-  /** Broad region. The canonical regions in use today are **"Helsinki"**
-   *  and **"Lapland"**. New regions are added only when an idea genuinely
-   *  needs one (same policy as `tags` — the skill suggests a new region
-   *  rather than inventing one ad-hoc). When in doubt, prefer an existing
-   *  region with the specifics in `address`: e.g. a Porvoo day trip can
-   *  still be `"Helsinki"` if it's a typical Helsinki-base activity, with
-   *  the address spelling out where it actually is. Use
-   *  "Anywhere in Finland" for ideas with no place at all (e.g.
-   *  "go foraging"). */
+  /** Broad region. Pulls from the canonical `KNOWN_REGIONS` list in
+   *  `filters.ts` — currently just **"Helsinki"**. New regions are added
+   *  only when an idea genuinely needs one (same policy as `tags` —
+   *  the skill suggests a new region rather than inventing one ad-hoc).
+   *  When in doubt, prefer an existing region with the specifics in
+   *  `address`: e.g. a Porvoo day trip can still be `"Helsinki"` if it's
+   *  a typical Helsinki-base activity, with the address spelling out
+   *  where it actually is. Use "Anywhere in Finland" for ideas with no
+   *  place at all (e.g. "go foraging"). */
   region: string;
   /** Street address if it's a specific venue. Skip for region-wide
    *  activities or events that move year to year. */

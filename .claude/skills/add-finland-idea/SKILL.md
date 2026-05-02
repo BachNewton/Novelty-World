@@ -150,10 +150,12 @@ a chip, whether or not any current idea uses it.
 restaurants, food markets, and food-focused experiences (food tours,
 cooking classes). For everything else leave `tags` as `[]`.
 
-**Regions** — current canonical list: **`Helsinki`**, **`Lapland`**.
-Pick the closest match. Satellite cities reachable as Helsinki day trips
-(Espoo, Vantaa, Porvoo) usually fit best as `Helsinki` with the actual
-location in `address` and `accessFromHelsinki.notes`.
+**Regions** — current canonical list: **`Helsinki`**. Pick it for any
+Helsinki-area idea, including satellite cities reachable as day trips
+(Espoo, Vantaa, Porvoo) — put the actual location in `address` and
+`accessFromHelsinki.notes`. For an idea outside the Helsinki area,
+suggest a new region in your summary; do NOT silently add an entry with
+a non-canonical region.
 
 **Do not invent new tags or regions and apply them silently.** If a new
 idea would form a clear grouping with multiple existing entries — three

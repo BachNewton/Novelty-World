@@ -240,11 +240,7 @@ function EmptyState({
   }
   return (
     <div className="rounded-lg border border-border-default bg-surface-secondary p-8 text-center text-text-secondary">
-      No ideas yet — add some with the{" "}
-      <code className="rounded bg-surface-elevated px-1.5 py-0.5 text-xs">
-        /add-finland-idea
-      </code>{" "}
-      skill.
+      Nothing here yet — check back soon.
     </div>
   );
 }

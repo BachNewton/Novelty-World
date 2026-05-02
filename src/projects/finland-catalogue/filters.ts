@@ -32,7 +32,7 @@ export const KNOWN_TAGS: readonly string[] = ["food"] as const;
 /** Canonical region vocabulary. Same policy as KNOWN_TAGS — the filter
  *  always renders these, and new regions get added when an idea genuinely
  *  needs one. */
-export const KNOWN_REGIONS: readonly string[] = ["Helsinki", "Lapland"] as const;
+export const KNOWN_REGIONS: readonly string[] = ["Helsinki"] as const;
 
 export function bucketCost(eur: number): CostBucket {
   if (eur === 0) return "free";
