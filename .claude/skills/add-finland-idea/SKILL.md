@@ -71,15 +71,26 @@ think of X"), use it as background and leave it out of the prose.
    pricing and access details. The mindset throughout is *what does someone
    planning a trip need to know to decide if this fits their visit?*
 
-3. **Pick image URLs.** Hotlink real images from stable sources where you can
-   (Wikimedia Commons, the venue's own site, established tourism sites like
-   visitfinland.com or myhelsinki.fi). Aim for 3-5 gallery images plus a
-   thumbnail, up to ~10 if you find genuinely varied high-quality images
-   from stable sources. Vary the angles — don't pick five photos of the
-   same façade.
-   If you can't find good images, set thumbnailUrl to a picsum placeholder
-   (`https://picsum.photos/seed/<idea-slug>/1200/900`) and leave galleryUrls
-   short — flag this in your summary so the user can replace them.
+3. **Pick image URLs — real photos matter, work for them.** Real photos
+   are *significantly* better than placeholders; the catalogue lives or
+   dies on its imagery. Try multiple sources before giving up:
+   - Wikimedia Commons (search the article + the
+     `Category:<topic>` page for filenames)
+   - The venue's own site — fetch the homepage and any `/gallery`,
+     `/media`, or `/press` page and look for `wp-content/uploads/...`,
+     `/static/`, or CDN URLs in the HTML
+   - The venue's press kit or media bank if linked
+   - Established tourism sites: visitfinland.com, myhelsinki.fi,
+     visit<city>.fi, the regional tourism board
+   - For events, the previous year's gallery on the official site is
+     usually fair game (e.g. last year's Uiva photos for next year's
+     Uiva entry)
+   Aim for 3-5 gallery images plus a thumbnail, up to ~10 if you find
+   genuinely varied high-quality images. Vary the angles — don't pick
+   five photos of the same façade.
+   Picsum placeholders are a last resort, only when you've genuinely
+   exhausted the above and still come up empty. If you fall back to
+   picsum, flag it loudly in your summary so the user can replace them.
 
 4. **Fill out the entry.** Use the schema in `src/projects/finland-catalogue/types.ts`
    as the source of truth — read the JSDoc comments on each property, they
@@ -164,17 +175,38 @@ prefer an existing tag or region over a near-duplicate (`"Helsinki"`
 not `"Helsinki, Finland"`; `"food"` not `"foods"` or `"culinary"`).
 Typos and casing variations create duplicate filter chips.
 
-**Tags** — short freeform labels for grouping. Currently used: **`'food'`**
-(cafes, restaurants, food markets, food experiences). Add a new tag only
-when at least two ideas would share it; one-off tags clutter the filter.
-For ideas that don't fit any existing tag, leave `tags` as `[]`.
+**Tags** — short freeform labels for grouping. Currently used: **`food`,
+`landmark`, `museum`, `historical`**. Add a new tag only when at least
+two ideas would share it; one-off tags clutter the filter. For ideas
+that don't fit any existing tag, leave `tags` as `[]`.
 
-**Regions** — broad geographic groupings. Currently used: **`Helsinki`,
-`Turku`**. Pick the existing region for any idea reachable from it as
-the natural base — including satellite cities (Espoo, Vantaa, Porvoo
-sit under `Helsinki`; Naantali sits under `Turku`) — with specifics in
-`address` and `accessFromHelsinki.notes`. Introduce a new region only
-when an idea genuinely doesn't belong in any existing one.
+**Regions** — geographic groupings. The filter UI renders one chip per
+unique region, so the granularity of these chips IS the planner's
+mental model of "where could I go?". Currently used: **`Helsinki`,
+`Turku`, `Tampere`, `Hämeenlinna`, `Lapland`**.
+
+**Region granularity scales inversely with distance from Helsinki.**
+Close-in trips are independent day-trip decisions, so each destination
+earns its own chip. Far-away trips bundle together, so individual sites
+cluster under a broader region — once you've committed to the
+12-hour journey to Lapland, you're going to do multiple things up
+there, and the chip is the trip.
+
+- **Within ~1 hour of Helsinki**: every meaningful destination is its
+  own region (Helsinki, Porvoo, Espoo, etc.). These are distinct
+  decisions a planner makes one-at-a-time.
+- **1–3 hours out**: each city is its own region (Turku, Tampere,
+  Hämeenlinna). Immediate satellites cluster under it (Naantali under
+  Turku — same trip, same base).
+- **3+ hours out**: cluster into broad regions (Lapland). **Exception**:
+  a city substantial enough to be its own destination keeps its own
+  region even when far away — Oulu would not cluster under Lapland.
+
+Reuse an existing region where the rules above point to one (typos
+and casing variants create duplicate chips: `"Helsinki"` not
+`"Helsinki, Finland"`). Introduce a new region whenever the rules call
+for one — don't be reluctant; the filter chip is how the user sees
+that destination exists.
 
 In your summary, call out any new tag or region you introduced so the
 user can sanity-check it.

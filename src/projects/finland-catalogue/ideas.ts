@@ -602,4 +602,623 @@ export const IDEAS: Idea[] = [
     website: "https://www.kansallismuseo.fi/en/haemeenlinna",
     tags: ["museum", "landmark", "historical"],
   },
+  {
+    slug: "uiva-flytande",
+    title: "Uiva Flytande – Helsinki Boat-Afloat Show",
+    shortDescription:
+      "The largest in-water boat show in the Nordics — nearly 300 boats moored at HSK yacht club in Lauttasaari for four days each August, plus 3,000 m² of land-based exhibits and food trucks on the quay.",
+    longDescription: [
+      "Uiva Flytande (\"Floating\" in Finnish/Swedish) is the Helsinki Boat-Afloat Show, organised every August by Finnboat — the Finnish Marine Industries Federation — at the Helsingfors Segelklubb (HSK) yacht club marina on the eastern shore of Lauttasaari. HSK is one of Finland's oldest sailing clubs, founded in 1899, and the harbour has hosted the show since 1980. The 2026 edition is the 14th to use the Uiva Flytande branding and runs Thu–Sun, 13–16 August.",
+      "The pitch is simple: instead of looking at boats parked on land in a convention centre, you walk the floating pontoons and step aboard nearly 300 boats actually in the water — 5–7 m motorboats (the dominant Finnish category), bigger cabin cruisers, sailboats, RIBs, fishing boats, catamarans. About 30 of those are Nordic premieres each year. On shore, 3,000 m² of land-based stands cover engines, electronics, trailers, marine clothing, and brokerage services, plus a row of food trucks, a café tent, and a small stage for product talks and family activities.",
+      "Even if you have zero intention of buying a boat, it's a satisfying afternoon — the marina setting is genuinely beautiful, the boats range from approachable runabouts up to half-million-euro yachts you can climb on, and Finnish boating culture is on full display (this is a country with one of the highest boats-per-capita ratios in the world). Allow two to three hours; longer if you actually want to sea-trial something.",
+      "Adults €14 online (€18 at the gate), kids 7–15 €5 online (€8 gate), under-7 free. Tickets go on sale in May. Take the metro to Lauttasaari station, then the free shuttle bus that runs every 20 min from outside Lauttis shopping centre — it drops you at the gate. Driving is awkward; the lot fills early and costs €10/day.",
+    ],
+    thumbnailUrl: "https://uiva.fi/wp-content/uploads/2025/08/Uiva36-1024x576.jpg",
+    galleryUrls: [
+      "https://uiva.fi/wp-content/uploads/2025/08/Uiva94-1024x576.jpg",
+      "https://uiva.fi/wp-content/uploads/2025/08/Uiva42-1024x683.jpg",
+      "https://uiva.fi/wp-content/uploads/2025/08/Uiva91-1024x577.jpg",
+      "https://uiva.fi/wp-content/uploads/2025/08/Uiva29-1024x576.jpg",
+      "https://uiva.fi/wp-content/uploads/2025/06/Uiva5-1024x576.jpg",
+      "https://uiva.fi/wp-content/uploads/2025/08/Uiva6-1024x579.jpg",
+    ],
+    availability: {
+      suitableMonths: [8],
+      events: [
+        {
+          from: "08-13",
+          to: "08-16",
+          name: "Uiva Flytande – Helsinki Boat-Afloat Show",
+        },
+      ],
+      weeklySchedule: "Thu–Sat 11:00–19:00, Sun 11:00–18:00",
+      notes:
+        "Four-day annual event in mid-August. Exact weekend shifts a day or two each year — check uiva.fi before booking flights around it.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "HSK Yacht Club, Vattuniemen puistotie 1, 00210 Helsinki (Lauttasaari)",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "~25 min",
+      notes:
+        "Metro from Helsinki Central Station to Lauttasaari (~6 min), then the free event shuttle bus from outside Lauttis shopping centre — runs every 20 min while the show is open. Driving not recommended; small paid lot (€10/day) fills early.",
+    },
+    cost: {
+      perPersonEur: 14,
+      notes:
+        "Adults €14 online / €18 at the gate. Kids 7–15 €5 online / €8 gate. Under-7 free with a parent. VIP ticket €50 (online only) adds a lounge tent with refreshments. E-tickets carry a small Floud delivery fee.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Buy online for the discount and to skip the gate queue. Tickets open in May. No need to book months ahead.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "Family activities run on the land area each day — face painting, kid-sized RIB rides in past years. Pontoons are floating planks above open water; keep small kids close. Strollers fit but the gangway joints are bumpy.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://uiva.fi/en/",
+    tags: [],
+  },
+  {
+    slug: "santa-claus-village",
+    title: "Santa Claus Village",
+    shortDescription:
+      "Meet Santa Claus year-round at his official residence on the Arctic Circle just outside Rovaniemi — free to enter, with reindeer, the Arctic Circle crossing line, his post office, and a constellation of cabins that doubles as the start point for husky and aurora trips.",
+    longDescription: [
+      "Santa Claus Village (Joulupukin Pajakylä) opened in 1985, eight kilometres northeast of Rovaniemi at the spot where the Arctic Circle crosses the highway. It started as a single log cabin built for Eleanor Roosevelt's 1950 visit and grew into Finland's most-visited single attraction — a small theme park of timber lodges, reindeer pens, and gift shops, with the painted Arctic Circle line running across the central square. The village is open every day of the year and there's no admission fee.",
+      "The headline experience is meeting Santa himself, who holds office at Santa Claus's Office every day from morning to evening. The meeting is free; you only pay if you want the photo or video package (from €55 for a group of up to five — paid on the spot, no booking needed, photos start at around €40). Beyond Santa's office: the official Main Post Office where you can write a letter that gets stamped with the Arctic Circle postmark and posted on Christmas Eve, Mrs. Santa Claus's Cottage at the Reindeer Resort, the Christmas House next door, a snowmobile museum, and a row of husky-, reindeer-, and snowmobile-tour operators who all dispatch from the village.",
+      "It's unapologetically commercial — the gift shops outnumber the actual things to do, the queues to meet Santa run long all December — but it lands harder than expected. The Arctic Circle crossing certificate, the reindeer in the snow, the genuinely-old Santa with a thoughtful manner all hit the right notes for kids and the kid-adjacent. November through January is peak: snow on the ground, lights up everywhere, and aurora visible most clear nights. Summer keeps the village open but it loses most of the magic — the cabins look bare without snow.",
+      "From Helsinki, the romance is the Santa Claus Express overnight train (departs Helsinki ~19:30 or ~22:30, arrives Rovaniemi around 08:00 — sleeper berths from €49, basic seat from €29 via VR). Faster: a 1h 20m Finnair or Norwegian flight to Rovaniemi Airport, which sits 3 km from the village (a 5-min taxi or hotel shuttle). From central Rovaniemi, local bus 8 runs to the village year-round (~30 min, €4 single). Most people pair this with a husky safari or aurora trip, since you're already up here.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Claus_Village.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Land_Rovaniemi_Arctic_Circle1.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Land_Rovaniemi_Arctic_Circle2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Rovaniemi-SantaClausVillage.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Snowball_pyramid_at_Santa_Claus'_Village_Large.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Rovaniemi-santa's-post-office.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Rovaniemi_Santa_Claus.JPG",
+    ],
+    availability: {
+      suitableMonths: [11, 12, 1, 2, 3],
+      weeklySchedule:
+        "Open 365 days a year. Peak season (mid-Nov to early Jan) ~10:00–19:00; Santa's Office runs slightly shorter morning/lunch/afternoon shifts (e.g. 10–11:30, 12–14, 15–17). Off-peak hours shorter.",
+      notes:
+        "Year-round but the experience is wildly seasonal. November–January is peak Christmas magic with reliable snow. December queues to meet Santa are heaviest 11:00–14:00 — go right at opening or after 16:00. Summer is open but the village looks bare without snow and most of the appeal evaporates.",
+    },
+    location: {
+      region: "Lapland",
+      address: "Tähtikuja 1, 96930 Napapiiri (Arctic Circle), Rovaniemi",
+    },
+    accessFromHelsinki: {
+      complexity: "complex",
+      duration: "Overnight train ~12h, or flight ~1h 20m + 5-min taxi",
+      notes:
+        "Two routes from Helsinki. (1) VR's Santa Claus Express overnight train: departs ~19:30 or ~22:30, arrives Rovaniemi ~07:30–08:30; sleeper berths from €49, basic seat from €29. (2) Finnair or Norwegian flight to Rovaniemi Airport (~1h 20m); the airport is only 3 km from the village — taxi or hotel shuttle. From central Rovaniemi, local bus 8 runs to the village year-round (~30 min, ~€4). Effectively a multi-day trip — almost no one does this as a same-day return.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Village entry and meeting Santa are free. Photo packages from ~€40 single / €55 group of 5. Reindeer rides ~€20–40, husky safaris from €130, snowmobile tours from €150. Lunch in a village restaurant ~€15–25. Easy to spend €100+ per person across the day even with free entry.",
+    },
+    booking: {
+      leadTime: "months",
+      notes:
+        "The village itself doesn't need booking, but the December train berths, flights, hotels, and husky/aurora tours sell out months in advance for the Christmas-week window. Aim 4–6 months out for a December trip; 2–3 weeks is fine November or shoulder-season.",
+    },
+    suitableAgeRange: { min: 2, max: 12 },
+    childrenNotes:
+      "The whole village is built for young children. Strollers handle the main paths but get bogged down in fresh snow — a sled or carrier is better in deep winter. Bring proper outerwear; daytime temps run −15 to −25°C in midwinter and kids bail fast if they're cold.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://santaclausvillage.info/",
+    tags: [],
+  },
+  {
+    slug: "helsinki-coastal-bike-ride",
+    title: "Helsinki & Espoo Coastal Trail",
+    shortDescription:
+      "Helsinki's Rantareitti and Espoo's Rantaraitti link end-to-end into one of Northern Europe's longest dedicated seaside cycling and walking routes — over 130 km of paved, car-free paths skirting beaches, embassies, rocky islets, and harbour cafés.",
+    longDescription: [
+      "Most capitals have a token waterfront promenade. Helsinki has 130 kilometres of them. The Rantareitti (\"shore route\") wraps the entire coastal edge of the city as a continuous, dedicated, car-separated path, then crosses into Espoo where it becomes the Rantaraitti and continues another 40+ km past Westend, Haukilahti, Matinkylä, Suomenoja, and Kivenlahti almost to Kirkkonummi. The surface flips between paved promenade, fine gravel, and timber boardwalk depending on the section, but it's almost always flat, well-marked, and shared courteously between cyclists, joggers, dog-walkers, and parents with strollers.",
+      "The most photogenic stretch — the one to do if you only have an afternoon — is the southern Helsinki loop: from Kauppatori along the South Harbour, around Kaivopuisto's rocky shoreline (where the trail opens onto the open Baltic with Suomenlinna on the horizon), past the Eira and Ullanlinna embassy villas, along the Hietaniemi waterfront and beach, and over the bridge into Lauttasaari. Roughly 15 km round-trip, two hours casual, and you can stop at half a dozen seaside cafés along the way (Café Ursula on Ehrenströmintie, Cafe Birgitta at Hietaniemi, Mattolaituri).",
+      "If you want a longer day, ride west into Espoo's Rantaraitti — the trail runs through nature reserves, past coastal cliffs, modern marina developments, and historic manors, with seaside cafés like Mellsten and Haukilahden Paviljonki to break up the ride. East of the city centre, the parallel Eastern Coastal Route runs ~23 km from Kalasatama out to the Uutela nature reserve through Mustikkamaa, Kulosaari, and Vuosaari pine woods.",
+      "For visitors, the easiest bike option is HSL Citybikes — bright yellow Alepa-branded share bikes with 460+ stations across Helsinki and Espoo, in season 1 April – 31 October. Day pass €5, week €10, season €35; each pass gives unlimited 30-minute rides, with a small extra fee if you stay on a single bike longer (the trick on a long ride is to dock and re-rent every 30 min). Register in the HSL app with a card and a 4-digit PIN. Outside the season, several private rentals operate year-round; the trails themselves are cleared and ridable in winter but icy in patches — pick a clear day. Mid-May through mid-September is the sweet spot.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kaivopuisto_and_Suomenlinna_2020.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Espoon_rantaraitti_Espoonlahti_190519_b.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Westendin_rantaa_250719_d.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Espoon_rantaraitti_Kaitaa_rantametsikkö_300519_b.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Espoon_rantaraitti_Haukilahden_silta_070619.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kävelysilta_Nuottaniemi_rantaraitti_300519_b.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Kaivopuisto_Syksy_2018_01.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hyväntoivonpuisto_park_in_Jätkäsaari,_Helsinki,_Finland,_2020_November.jpg",
+    ],
+    availability: {
+      suitableMonths: [4, 5, 6, 7, 8, 9, 10],
+      notes:
+        "Citybike season runs 1 April – 31 October — bikes are removed for winter. Mid-May through mid-September is the sweet spot for warmth and dry pavement. You can also bring or rent your own bike outside the city-bike season; the paths are cleared and ridable but cold and often icy.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Coastal cycle path — easiest to start at Kauppatori (Market Square) or Kaivopuisto, both with city-bike stations.",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "Start anywhere along the southern coast",
+      notes:
+        "Citybike stations are at Kauppatori, Kaivopuisto, Hietaranta, and dozens of other points along the route. Register the HSL Citybike app first (debit/credit card + 4-digit PIN), buy a day/week/season pass, then unlock any yellow bike. Trams 2/3/6 reach the coastal start points.",
+    },
+    cost: {
+      perPersonEur: 5,
+      notes:
+        "Day pass €5, week €10, season €35 (each gives unlimited 30-min rides; €1 per additional 30 min if you stay on a single bike longer). Coffee/lunch stops along the route €5–15.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No booking needed — just register the HSL Citybikes app on the day. Season passes go on sale 16 March each year.",
+    },
+    suitableAgeRange: { min: 8 },
+    childrenNotes:
+      "Citybikes are adult-sized and the system has no children's bikes or child seats — bring kids on their own bikes from a private rental. The paths themselves are kid-friendly: separated from cars, flat, well-marked. Keep an eye on the busier sections through Kalasatama and the Lauttasaari bridge approach.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website: "https://www.hsl.fi/en/citybikes",
+    tags: [],
+  },
+  {
+    slug: "vapriikki-tampere",
+    title: "Vapriikki Museum Centre (Hockey Hall of Fame & Finnish Museum of Games)",
+    shortDescription:
+      "Tampere's main museum complex packs ten exhibitions into one ticket — including the Finnish Hockey Hall of Fame and the Finnish Museum of Games, the only national gaming museum in the Nordics.",
+    longDescription: [
+      "Vapriikki is housed inside the converted Tampella ironworks on the Tammerkoski rapids, a hulk of red brick that's a landmark in its own right. One €16 adult ticket gets you into all ten exhibitions under the roof — natural history, the Tampere city museum, the post museum, a mineral collection, the Finnish Shoe Museum, the Doll Museum — but the two that draw most visitors are the Finnish Hockey Hall of Fame and the Finnish Museum of Games.",
+      "The Hockey Hall of Fame (Suomen Jääkiekkomuseo) sits on the third floor in a 440 m² hall and traces Finnish ice hockey from the 1930s to the present. Authentic Canada Cup and World Championship trophies, a wall of induction plaques (six new ones added each year since 1985), and a row of artefacts from Selänne, Kurri, and Koivu. The interactive draw is the slap-shot and goaltender simulators — you stand in front of a sensor wall and try to score, which is more fun than it sounds.",
+      "The Finnish Museum of Games (Suomen Pelimuseo) is the country's gaming museum proper — about 100 playable games on cabinets, consoles, and PCs spanning 1980 to today, plus themed period rooms (a Pong booth, a Commodore 64 setup, a NES living room, a recreated arcade with Space Invaders and pinball, a 1990s game-store recreation). Notable Finnish titles get pride of place: Afrikan Tähti (the 1951 board game), Max Payne, Angry Birds, Alan Wake, My Summer Car. You can sit down and play almost everything.",
+      "Allow three to four hours to do the two flagship exhibits and a third one of your choice (Tampere 1918 — the Civil War exhibit — is the standout among the smaller ones). Open Tue–Sun 10:00–18:00, closed Mondays. Adult €16, family €38 (2 adults + up to 4 kids), kids 7–17 and students €8, under-7 free; Museum Card OK. Friday 15:00–18:00 is free entry.",
+      "From Helsinki, VR Pendolino or Intercity to Tampere takes ~1h 50m and runs every 30–60 minutes throughout the day; tickets from ~€5 booked in advance. Vapriikki is a 10-minute walk from Tampere station along the rapids — easy half-day trip, comfortably done with no overnight, though Tampere's worth a longer stay if you have it.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Museum_Centre_Vapriikki.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vapriikki_-_interior.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vapriikki_center_hall.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Pelimuseo_overview.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suomen_Pelimuseo_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Sega_Dreamcast_arcade_machine.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Magnavox_Odyssey_in_museum.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Afrikan_tähti_Suomen_Pelimuseo.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tampere_model.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule: "Tue–Sun 10:00–18:00. Closed Mondays.",
+      notes:
+        "Open year-round. Free entry every Friday 15:00–18:00. A handful of public-holiday closures and a few exceptional Mondays (Tampere school holidays) — check the site if your trip lands on a Monday.",
+    },
+    location: {
+      region: "Tampere",
+      address: "Alaverstaanraitti 5, 33100 Tampere",
+    },
+    accessFromHelsinki: {
+      complexity: "moderate",
+      duration: "~2h each way",
+      notes:
+        "VR Pendolino or Intercity train Helsinki – Tampere (~1h 50m, every 30–60 min). Vapriikki is a 10-min walk from Tampere station along the Tammerkoski rapids. Doable as a half-day from Helsinki with no overnight.",
+    },
+    cost: {
+      perPersonEur: 16,
+      notes:
+        "Adults €16, kids 7–17 / students €8, family ticket (2 adults + 1–4 kids) €38, under-7 free. Free entry every Friday 15:00–18:00. Museum Card covered.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in. Train tickets are cheaper booked a few days ahead via VR.",
+    },
+    suitableAgeRange: { min: 6 },
+    childrenNotes:
+      "The games museum is a magnet for ~8+ kids who recognise some of the consoles, but younger kids enjoy just sitting at the controllers. The hockey simulators and dress-up corners suit ~5+. Strollers fit on all floors via lifts.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.vapriikki.fi/en/",
+    tags: ["museum"],
+  },
+  {
+    slug: "sparakoff",
+    title: "SpåraKoff – Helsinki's Pub Tram",
+    shortDescription:
+      "A bright-red 1959 vintage tram converted into a rolling pub — order a Koff lager at the bar, take a 40-minute loop past the central sights of Helsinki, and watch the city slide by from a tram window.",
+    longDescription: [
+      "SpåraKoff (the name puns on \"spåra\", Helsinki slang for tram, plus the Sinebrychoff brewery's KOFF brand) launched on Walpurgis Eve 1995 to mark Sinebrychoff's 175th anniversary. It was meant to run for two summers; thirty years later it's still going. Tram number 175 — an HM V model built in 1959 — was stripped out, refitted with a small bar, dark-wood tables and bench seating for 30, and repainted vivid post-box red so it stands out against the city's standard green-and-cream livery. The destination board reads simply \"PUB\".",
+      "The 40-minute loop departs from Mikonkatu, just behind Helsinki Central Station, and runs through downtown — past the Cathedral, Senate Square, Market Square, Hakaniemi, the Linnanmäki amusement park, the Opera House, and back through Töölö. You can't get off mid-route; you stay on for the loop, drink a beer, look out the window. The bar pours Koff lager and a few ciders on draft, plus wine and soft drinks; pay-as-you-go on top of the ticket, and there's an onboard toilet.",
+      "Tickets €12 adult / €10 with an S-Etukortti / €6 child, paid when boarding (cash or card). Seats can't be reserved, so for a busy summer evening turn up 15 minutes early. The tram runs Fridays and Saturdays from mid-May through end of May, daily Mon–Sat from June through August, then back to Fri/Sat from late August into early September. Departures at 14:00, 15:00, 17:00, 18:00, 19:00, and 20:00 (no Midsummer service). Closed entirely outside this season.",
+      "Heads up: as of 2026 the tram has been on a renovation pause and the operator hasn't confirmed a return date. Check raflaamo.fi/en/restaurant/helsinki/sparakoff before showing up. If it's still off-line, the same operator runs charter bookings on other vintage trams via Kaupunkiliikenne — pricier (~€800–1,100 for a 2-hour private tram) but a workable backup if you're set on the experience.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/SpåraKoff_pub_tram_in_Helsinki,_Finland,_2021.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/SpåraKoff_pub_tram_at_Mikonkatu_in_Kluuvi,_Helsinki,_Finland,_2024_July.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Aleksanterinkatu_with_Spårakoff_on_an_evening_in_June_2023.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Spårakoff_interior_1.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Spårakoff_interior_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mannerheimintie_in_Taka-Töölö_in_December_with_Spårakoff.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Spårakoff_arriving_on_Liisankatu_in_June_2024.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      weeklySchedule:
+        "15–31 May: Fri–Sat. 1 Jun – 30 Aug: Mon–Sat. 31 Aug – 12 Sept: Fri–Sat. Departures at 14:00, 15:00, 17:00, 18:00, 19:00, 20:00. No service during Midsummer (~18–21 Jun).",
+      notes:
+        "Summer-only — closed October through April. As of 2026 the tram is on a renovation pause; verify the schedule on raflaamo.fi before turning up. Charter on other vintage trams is available year-round through Kaupunkiliikenne if SpåraKoff is still down.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Mikonkatu 17 (Tilausratikan pysäkki), 00100 Helsinki",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "~2 min walk",
+      notes:
+        "Departs from a dedicated charter-tram stop on Mikonkatu, ~2-min walk from Helsinki Central Station's east exit. Just walk up.",
+    },
+    cost: {
+      perPersonEur: 12,
+      notes:
+        "Adults €12 / €10 with S-Etukortti, kids €6. Drinks paid separately at the onboard bar (~€7 a beer). Cash and card accepted.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No reservations — first-come, first-served at the stop. Arrive 15 min early on a summer Friday or Saturday evening; weekday early departures are usually walk-on without a wait.",
+    },
+    childrenNotes:
+      "Kids 6+ are technically welcome with a parent and a child ticket, but it's a working bar tram — most groups onboard are drinking, and there's nothing for a child to do for 40 minutes. Skip if you're travelling with kids.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "<1h",
+    website: "https://www.raflaamo.fi/en/restaurant/helsinki/sparakoff",
+    tags: [],
+  },
+  {
+    slug: "porvoo",
+    title: "Porvoo (by m/s J.L. Runeberg)",
+    shortDescription:
+      "Finland's second-oldest town — a perfectly preserved medieval old town of cobbled lanes, red wooden riverside warehouses, and the 15th-century Porvoo Cathedral — reached from Helsinki by a 3.5-hour cruise on the historic 1912 steamer m/s J.L. Runeberg.",
+    longDescription: [
+      "Porvoo (Borgå in Swedish) is the second-oldest town in Finland — granted town rights around 1380, eclipsed only by Turku — and its old town is the postcard-perfect bit. A grid of wooden houses on medieval foundations spilling down a hill to the Porvoonjoki river, anchored by the stone-and-brick Porvoo Cathedral (built 1410–1418, partially burnt and restored in 2008) at the top and the famous red-painted timber warehouses along the water's edge at the bottom. About two-thirds of the town burned in a 1760 fire, but it was rebuilt on the same medieval street pattern, so what you walk through today is genuinely centuries-old in plan if not in every plank.",
+      "The town is small — you can do the entire old town in 90 minutes, longer if you stop. The classic loop: walk up Kirkkokatu to the cathedral, down through the Devil's Steps alleyway, along Välikatu's pastel wooden facades, finish at Brunberg's chocolate factory shop (Porvoo's other claim to fame — soft toffees and chocolate kisses since 1871). Lunch options range from Café Helmi for cardamom buns to Sicapelle for proper sit-down. There's a small Runeberg cake shop near the Runeberg House museum (the home of national poet J.L. Runeberg, after whom the boat is named).",
+      "The marquee way to get there is the m/s J.L. Runeberg, a steel-hulled passenger steamer built in 1912 and still in seasonal service. She sails from Linnanlaituri at Helsinki's South Harbour at 10:00, takes 3.5 hours along the archipelago to Porvoo, gives you 2.5 hours ashore, then sails back at 16:00 and docks Helsinki at ~19:30. Round-trip €50 adult / €25 child 7–15 / under-7 free; senior €46. Optional onboard lunch (Finnish salmon soup with bread, Runeberg cake, coffee) is €16 if pre-booked, €18 onboard. Operates May–September: Tue/Wed/Fri/Sat year-round, plus Sundays in June–August. In rough weather she sometimes substitutes the smaller Queen.",
+      "If you'd rather a quick out-and-back without dedicating the whole day, take the OnniBus from Kamppi terminal — €6–9, ~50 minutes, hourly through the day — and you can be back in Helsinki for dinner. The boat is the experience, but the bus is the practical answer for a short visit.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Old_Porvoo_riverside.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Porvoo_in_January.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Porvoo_Cathedral_and_old_town_Dec_2017.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vanha_Porvoo_Kirkkokatu.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Porvoon_Tuomiokirkko.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Barns_on_the_shore_of_the_river.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Porvoo_Old_Town_Hall.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9, 10, 11, 12],
+      notes:
+        "Old town itself is open and walkable year-round and is especially atmospheric under snow in December. The m/s J.L. Runeberg cruise runs only May–September; outside that window, take the OnniBus from Helsinki Kamppi terminal (~50 min, hourly).",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Old Porvoo, 06100 Porvoo (~50 km east of Helsinki)",
+    },
+    accessFromHelsinki: {
+      complexity: "moderate",
+      duration: "~50 min by bus, or 3.5h cruise each way",
+      notes:
+        "Two routes. (1) m/s J.L. Runeberg from Linnanlaituri (South Harbour, next to Market Square) at 10:00, returning from Porvoo 16:00 — May–Sept, Tue/Wed/Fri/Sat plus Sun Jun–Aug. (2) OnniBus from Kamppi bus terminal — hourly, ~50 min, €6–9, year-round.",
+    },
+    cost: {
+      perPersonEur: 50,
+      notes:
+        "Round-trip cruise €50 adult / €46 senior / €25 child 7–15 / under-7 free. Optional lunch package €16 pre-booked / €18 onboard. Bus alternative €12–18 round-trip. Lunch in old Porvoo €15–25.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Book the cruise online a week or two ahead in summer — Saturdays and Sundays in July sell out. Bus tickets fine same-day.",
+    },
+    suitableAgeRange: { min: 5 },
+    childrenNotes:
+      "Old town is stroller-doable on the flat riverside but the cobbled hill streets are bumpy and the Devil's Steps are stairs only — bring a carrier for under-3s. Kids enjoy the chocolate factory shop and the boat ride; the cathedral and museums skew adult.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "full-day",
+    website: "https://msjlruneberg.fi/en/",
+    tags: ["historical", "landmark"],
+  },
+  {
+    slug: "heureka",
+    title: "Heureka – The Finnish Science Centre",
+    shortDescription:
+      "Finland's flagship hands-on science museum in Tikkurila — three floors of touch-everything exhibitions, a domed planetarium, and a summer outdoor science park, all 25 minutes from Helsinki Central by train.",
+    longDescription: [
+      "Heureka opened in 1989 in the Tikkurila district of Vantaa, in a striking concrete-and-steel cube designed by Heikkinen–Komonen Architects (the building has won awards for both materials separately). The brief was to popularise science the way the Exploratorium did in San Francisco — touch the exhibits, run the experiments yourself, no \"do not lean on the glass\" signs. Three decades later it pulls about 300,000 visitors a year and is the obvious rainy-day move for any Helsinki-area family with curious kids.",
+      "Inside, the permanent and rotating exhibitions cover physics, biology, technology, the human mind, and Earth science — pendulums you set in motion, optical illusions, simulators, a big roomy space about probability and chance, an electricity demonstration that culminates in a live Tesla coil. The Planetarium runs digital fulldome films through the day on rotation (included with admission) — think astronomy and natural history rather than commercial blockbusters. Summer adds the outdoor Galileo Science Park: water-flow experiments, big-format puzzles, a dinosaur trail.",
+      "Tickets €26 adult / €23 in advance / under-5 free with an adult; child and senior pricing slots in between. Thursday evenings 15:00–20:00 is a flat €10 for everyone, advance or door — easily the best value if you can swing a weekday late visit. Allow 3–4 hours (longer with kids who don't want to leave). Open daily; high-summer hours (1 Jun – 9 Aug 2026) are Mon–Fri 09:00–18:00, Sat–Sun 10:00–18:00; the rest of the year it follows a similar pattern with a couple of seasonal closures.",
+      "From Helsinki, take any commuter train heading north to Tikkurila — lines I, P, K, R, T, D, N, Z all stop there, about 20 minutes from Central Station. Then it's a 700-metre signposted walk to the Heureka entrance. The same airport-bound P train means you can fit a Heureka stop on the way to or from Helsinki–Vantaa Airport, if you've planned a long layover.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Science_centre_Heureka_in_Tikkurila,_Vantaa,_Finland,_2022_June.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Heureka_(8001).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Smilodon_model_at_Heureka.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Heureka_Tiedekeskus.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Heureka_planetarium_2.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Summer (1 Jun – 9 Aug 2026): Mon–Fri 09:00–18:00, Sat–Sun 10:00–18:00. Off-season: typically Tue–Fri 10:00–17:00, Sat–Sun 10:00–18:00, closed Mondays. Thursday evenings 15:00–20:00 are flat €10.",
+      notes:
+        "Closed a few public holidays — verify before Easter weekend or late December. Year-round indoor destination; the outdoor Galileo Science Park is summer-only.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Tiedepuisto 1, 01300 Vantaa (Tikkurila district)",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "~30 min",
+      notes:
+        "VR commuter trains I, P, K, R, T, D, N, or Z from Helsinki Central Station to Tikkurila (~20 min, included in HSL ABC zone ticket). 700-m signposted walk from the station. Conveniently near Helsinki–Vantaa Airport — easy stopover on the airport-bound P train.",
+    },
+    cost: {
+      perPersonEur: 26,
+      notes:
+        "Adults €26 (€23 advance online); seniors/students discounted; children 7–17 cheaper; under-5 free with an adult. Thursday 15:00–20:00 is €10 flat for everyone. Includes all exhibitions, planetarium films, and the summer outdoor science park.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Book online a few days ahead for the €3 advance discount and to skip the ticket queue at peak weekends and school holidays. Thursday €10 evening doesn't sell out but does fill up.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "The whole place is built for families — strollers fit everywhere, there are family bathrooms, and most exhibits work for ages 4 up. Older kids (~10+) get the most out of the physics and probability rooms; younger ones gravitate to the rat basketball arena and the outdoor science park in summer.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.heureka.fi/en",
+    tags: ["museum"],
+  },
+  {
+    slug: "skipperi",
+    title: "Helsinki Archipelago by Boat (Skipperi)",
+    shortDescription:
+      "Skipperi runs the Nordics' biggest boat-sharing platform: a Fleet membership lets you reserve a fully-equipped motorboat from a Helsinki harbour app-and-go style, and the peer-to-peer Rent side lets you book a private owner's sailboat for the day.",
+    longDescription: [
+      "Helsinki sits at the head of an archipelago of more than 300 islands and 130 km of shoreline — and most of it is invisible from land. Renting or chartering a boat is the way out, but full ownership is overkill for a holiday. Skipperi (founded in Helsinki, 2015) is the practical answer: a tech-led boat-sharing platform that runs two parallel products under one app — a Fleet subscription (their own equipped motorboats) and Rent (peer-to-peer access to private owners' boats, including sailboats).",
+      "Skipperi Fleet works like a car-share for boats. Pay a monthly or season subscription, then reserve any of the Fleet motorboats at any harbour through the app — show up, the boat is fueled and prepped, you take it out for the booked window, return it to the same berth. Maintenance, insurance, lifejackets, and the chartplotter are all included; you only pay for fuel. Helsinki-area Fleet harbours include Lauttasaari, Vuosaari, Hanasaari, and a handful of mainland and island bases that put you 10–30 minutes from Suomenlinna, Pihlajasaari, or the open archipelago east toward Porvoo. Pricing tiers run from a weekday-only month to a full-season pass; expect roughly €300–500 per month depending on tier (current pricing on the site — they also do trial weeks).",
+      "Skipperi Rent is the Airbnb-style side: private owners list their boats — sailboats, ribs, day cruisers, the occasional bigger yacht — and you book by the day or weekend through the app, with insurance and identity verification handled by the platform. This is the route to a sailboat: Fleet doesn't include sailing yachts, but Rent has dozens listed in the Helsinki area, typically €200–400 a day for a 25–35 ft cruiser. The owner usually meets you at the boat for a handover.",
+      "Finland doesn't legally require a boat licence for private craft of any size, but Skipperi requires you to pass their own boating exam (free, online + a short practical) before unlocking the Fleet. Allow an evening for the theory and book a practical session at a Helsinki harbour. Once cleared, you're in their global network — your membership also works in Sweden, Norway, Denmark, and a few overseas markets.",
+      "Best months are late May through early September — the season Fleet boats are in the water. Plan for the wind: the open archipelago east of Suomenlinna can get choppy in afternoon onshore breezes; sheltered routes through Lauttasaari and Espoo's Suvisaaristo are the right call for first-time outings. Pack lifejackets-for-everyone (the Fleet boats carry them; check before leaving the dock), sunscreen, and warm layers — even a 25°C day on land is 18°C with wind on the water.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Purjehdus_Helsingin_edustalla_1.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Purjehdus_Helsingin_edustalla_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Nordic_folkboats_(14775215050).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Strömsinlahden_venesatama_C_IMG_2160.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suomenlinna_mereltä_5.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      notes:
+        "Fleet boats are in the water roughly 1 May – 30 September; the exact window shifts a week or two with the weather. Mid-June to mid-August is peak — long daylight, warm water — so popular Saturday morning slots get booked a week or two ahead. Outside the season, no boating, just Skipperi Academy theory courses.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Multiple Helsinki-area Fleet harbours (Lauttasaari, Vuosaari, Hanasaari, others). Rent boats listed at private berths across the metro area.",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "10–30 min by tram/metro to the harbour, then on the water",
+      notes:
+        "Each Fleet harbour is reachable by tram, metro, or HSL bus. Lauttasaari (~12 min metro) and Vuosaari (~25 min metro) are the most central. Once on board you're 10–30 min by boat to Suomenlinna, Pihlajasaari, or the inner archipelago.",
+    },
+    cost: {
+      perPersonEur: 80,
+      notes:
+        "Highly variable. Fleet membership: ~€300–500/month for full access in season, or pro-rated trial weeks. Rent (peer-to-peer sailboats): ~€200–400/day for a 25–35 ft cruiser, plus fuel. €80 is a per-person estimate assuming 2–4 people split a typical day on a Rent sailboat or share Fleet usage.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Book Fleet slots in the app a few days ahead — same-day works on weekdays, weekends fill 1–2 weeks out. Rent sailboats listed by individual owners; popular boats book several weeks ahead for July–August. Skipperi Academy boating exam must be completed before you can take a Fleet boat out — budget an evening plus a short practical session.",
+    },
+    childrenNotes:
+      "Fleet boats carry kid-sized lifejackets but verify before pushing off. Pick a sheltered route (Lauttasaari, Suvisaaristo) for kids under ~8 — open archipelago waves get genuinely uncomfortable. Bring sunscreen and warm layers regardless of the air temperature on land.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.skipperi.com/",
+    tags: [],
+  },
+  {
+    slug: "helsinki-hop-on-hop-off",
+    title: "Helsinki Hop-On Hop-Off Bus",
+    shortDescription:
+      "A red open-top double-decker that loops nineteen stops past every major Helsinki sight in 90 minutes — the lazy, jet-lagged-traveller way to orient yourself on day one before deciding what to come back to.",
+    longDescription: [
+      "There are two operators running near-identical Hop-On Hop-Off routes in Helsinki: Strömma (Strawberry Group) and Red Sightseeing (City Sightseeing affiliate). Both run open-top red double-deckers that depart from Senate Square, follow a 19-stop loop past every major central sight, and let you reboard with the same ticket as many times as you like over a 24-hour or 48-hour window. They're functionally interchangeable — pick whichever gate is in front of you when you decide.",
+      "The route hits the obvious set: Senate Square / Helsinki Cathedral, Uspenski Cathedral, Market Square and the harbour, Esplanadi, Kamppi Chapel of Silence, the Sibelius Monument, the Olympic Stadium, the Temppeliaukio (Rock) Church, the National Museum, Kiasma, the Helsinki Art Museum, and the Botanic Garden. The full loop without getting off is about 90 minutes; with hop-offs at three or four favourites it's an easy day. Recorded audio commentary plays through earbuds at every seat in 8–11 languages.",
+      "Tickets €36 adult / €32.40 online (24h); 48-hour and combo tickets with the canal cruise are about 30% more. Kids 7–17 are typically half-price; under-7 free with an adult. The 2026 season runs roughly 2 May – 10 October; service is daily, every 30–40 minutes, with the first bus leaving Senate Square around 10:00 and the last around 16:00. Outside the season the buses are off the road entirely — there's no winter hop-on bus.",
+      "Honest take: it's not a deep dive into Helsinki, but it's exactly what it claims — the fastest way to map the city, especially if you're off a cruise ship or jet-lagged on day one. If you only have one day in Helsinki, save the bus and walk; if you have three, the bus is a worthwhile €30 and a comfortable seat for the longer cross-town transfers (e.g. Senate Square → Sibelius Monument is 25 minutes by bus and worth it once).",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hop_On_Hop_Off_Helsinki_sightseeing-kierros_kaksikerrosbussilla_2017_(HK8048-72).jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/11-07-29-helsinki-by-RalfR-040.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki,_Neoplan_N4026_3_č._27.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki,_Neoplan_N4026_3L_č._46.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Cathedral_in_2019.08.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9, 10],
+      weeklySchedule:
+        "Daily during season. 2026 runs ~2 May – 10 October. First departure from Senate Square around 10:00, last around 16:00, every 30–40 minutes.",
+      notes:
+        "Strictly summer-season — the buses are off the road from mid-October to late April. Open-top deck is closed in heavy rain; lower deck stays warm and dry.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Main boarding point: Senate Square (Senaatintori), 00170 Helsinki. Tickets also sold at Market Square and onboard.",
+    },
+    accessFromHelsinki: {
+      complexity: "simple",
+      duration: "~5 min walk from Central Station",
+      notes:
+        "5-min walk from Helsinki Central Station to Senate Square. Trams 2/4/5/7 stop a block away. Buy tickets online for the discount; otherwise pay the driver in cash or card at the door.",
+    },
+    cost: {
+      perPersonEur: 32,
+      notes:
+        "24h adult €32.40 online / €36 at the door. 48h adult ~€42–48. Kids 7–17 half-price; under-7 free with an adult. Combo tickets with Strömma's harbour canal cruise add ~€10–15.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-on. Buy online for a small discount or just board. Buses don't sell out.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "Open-top deck is a hit with kids; bring a hat and warm layer even in summer (sea wind is colder than it looks). Strollers fit on the lower deck. The audio commentary is too dry for under-8s — bring something for them to look at out the window.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.stromma.com/en-fi/helsinki/sightseeing/sightseeing-by-bus/hop-on-hop-off/",
+    tags: [],
+  },
+  {
+    slug: "tallinn-ferry-day-trip",
+    title: "Tallinn Day Trip by Ferry",
+    shortDescription:
+      "Catch a ~2-hour ferry across the Gulf of Finland to Tallinn's medieval UNESCO old town in the morning, wander cobbled lanes and Toompea Hill all day, and ferry back by evening — three operators, ~10 sailings a day, easy walk-on round-trip from €30.",
+    longDescription: [
+      "Helsinki and Tallinn sit only 80 km apart across the Gulf of Finland, and the ferry corridor between them is one of the busiest in Europe — three operators (Tallink Silja, Eckerö Line, Viking Line) run roughly 10–12 sailings a day in each direction, with crossings between 2h and 2h 30m. Walk-on tickets are cheap, the ferries are oversized cruise ships with restaurants, duty-free, and viewing decks, and Tallinn's UNESCO-listed old town starts a 10-minute walk from the port. It's the easy double-up day from Helsinki — leave at 07:30, back by 22:30, and you've added a country.",
+      "Tallinn's Old Town is the draw: a near-fully-intact medieval merchant quarter ringed by walls and towers, with Toompea Hill rising at the western edge crowned by the onion-domed Alexander Nevsky Cathedral and the parliament building. The Lower Town below is denser and busier — Town Hall Square (Raekoja plats), the 14th-century Old Town Hall, the Niguliste Church (now a museum, with the panoramic spire view), the Three Sisters merchant houses on Pikk, and the cluster of Russian-spy-novel cellar bars off Vene. A full lap of the walls plus a Toompea viewpoint plus lunch is a comfortable day; serious museum-going needs two.",
+      "Practical: the cheapest, simplest day-trip operator is Eckerö Line on M/S Finlandia from Helsinki West Terminal — round-trip walk-on tickets often €25–35 if you book a few days ahead, two daily round-trip pairings that work for a full day in Tallinn (depart Helsinki ~08:30, depart Tallinn ~17:30 for example). Tallink Silja's MyStar/Megastar are faster (~2h), more frequent (8 daily), and a notch nicer — €35–60 round-trip. Viking Line is in between. All three depart from West Terminal 2 (T2) — 5 min by tram 7 from Central Station — and arrive at Tallinn's D-Terminal, a 10-min walk from the old town gate.",
+      "Bring a passport even though Finland and Estonia are both Schengen — onboard purchases (especially alcohol) want ID. The shopping ferries' famous draw for Finns is duty-free booze; Estonian alcohol is cheaper, the currency is the euro, and the ferries themselves run a tax-free shop on the half-hour stretch in international waters. If you're doing only one of the side trips described in this catalogue (Tallinn or Stockholm), Tallinn is the easier choice — same-day return, no overnight planning, and the medieval old town is tighter and more walkable than Stockholm's Gamla Stan.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tallinn-panorama-2011.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tallinn_old_town_roof_tops_2008.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tallinn_Old_Town_(drone_shot)_(22377086281).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Punased_katused_Tallinna_vanalinnas.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tallinna_vanalinn_päikesetõusu_ajal.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vistas_panorámicas_desde_Toompea,_Tallinn,_Estonia,_2012-08-05,_DD_16.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Oleviste_kirik_ja_Raekoja_plats_Niguliste_kiriku_tornist_74.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      notes:
+        "Year-round route — ferries run daily through winter. Summer (May–September) is peak: long days, warm cobbles, packed cafés. Winter trips have shorter daylight (Tallinn closes early in December/January) but the Old Town under snow is genuinely beautiful and the December Christmas Market on Raekoja plats is one of the best in Northern Europe.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Departure: West Terminal (Länsiterminaali) T2, Tyynenmerenkatu 14, 00220 Helsinki. Arrival: D-Terminal, Lootsi 13, Tallinn.",
+    },
+    accessFromHelsinki: {
+      complexity: "moderate",
+      duration: "~2h each way on the ferry; 5–10 min to/from terminals",
+      notes:
+        "Tram 7 from Helsinki Central Station to West Terminal 2 (~10 min). All three ferries (Tallink Silja MyStar/Megastar, Eckerö M/S Finlandia, Viking Line XPRS) depart from T2. In Tallinn the ferries dock at D-Terminal, a 10-min walk or short bus 2 ride to the Old Town gate.",
+    },
+    cost: {
+      perPersonEur: 35,
+      notes:
+        "Walk-on day-return €25–35 (Eckerö, advance), €35–60 (Tallink Silja MyStar/Megastar). Add €5–15 for an upgraded seat or lounge access. Onboard food/duty-free is extra. Lunch and sightseeing in Tallinn ~€20–40.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Book online a few days ahead for the cheap fares — same-day works but you'll pay the door price. Saturday and Sunday round-trips in July fill up; book a week ahead in summer.",
+    },
+    suitableAgeRange: { min: 5 },
+    childrenNotes:
+      "The ferries themselves are kid-friendly — play areas, cafés, lots of windows. Tallinn's cobblestone Old Town is hard on strollers (bring a carrier). Old Town has limited public toilets — duck into a café.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "full-day",
+    website: "https://www.tallink.com/",
+    tags: ["historical", "landmark"],
+  },
+  {
+    slug: "stockholm-overnight-ferry",
+    title: "Stockholm Overnight Ferry",
+    shortDescription:
+      "Board a Tallink Silja or Viking Line cruiseferry at Helsinki's Olympia Terminal at 17:00, sleep in a cabin while the ship threads the Åland archipelago, dock in central Stockholm at ~10:00 — a full day in Gamla Stan, then sail back the same way.",
+    longDescription: [
+      "The Helsinki–Stockholm overnight ferry is one of the great European travel rituals — Finns and Swedes have ridden it for generations as a working booze-cruise (alcohol stays duty-free as long as the route touches Åland's tax-loophole waters), and visitors take it because it's a frankly novel way to add Stockholm to a Helsinki trip without flying. Two operators run it: Tallink Silja with the sister ships Silja Serenade (1990) and Silja Symphony (1991), and Viking Line with the new Viking Glory. All are massive 200-metre cruiseferries with 13 decks, multiple restaurants, bars, a spa, a small casino, kid play areas, and the famous central indoor promenade that runs almost the full length of the ship like a high-street.",
+      "The schedule is the appeal: depart Helsinki Olympia Terminal at 17:00, sail across the Gulf of Finland and through the Åland archipelago overnight (a brief stop at Mariehamn around midnight reset the duty-free clock — most passengers sleep through it), and dock in central Stockholm's Värtahamnen at ~10:00. You have a full day in Stockholm — Gamla Stan (the medieval old town), the Vasa Museum, the Royal Palace, Skansen — and reboard at 16:00ish for the return overnight, back in Helsinki by mid-morning. Total trip: two nights aboard plus one day in Stockholm.",
+      "Cabins come in tiers: a windowless C-class inside cabin (bunk beds, en-suite, ~9 m²) starts around €70–90 per person twin-share booked early; a sea-view A-class is €100–130; family cabins for four around €150 per person; suites and Commodore class are luxury territory at €250+. Foot-passenger walk-on tickets without a cabin start at €25 each way (you ride in the public lounges for 17 hours), but the cabin is most of the point. Food is à la carte or via the famous breakfast/dinner buffets (~€35 dinner, €15 breakfast, drink package extra).",
+      "The ship is the experience as much as Stockholm is. Try to grab a sea-view cabin so you can see the Åland skerries at sunrise; book dinner at the buffet for the full Finnish-Swedish smörgåsbord experience; and budget at least a couple of hours for the duty-free liquor shop on the way back — half the locals onboard are doing exactly that, with carts piled high. Year-round daily service; summer (June–August) is the peak when cabins on prime weekends sell out months ahead. Winter sailings hit ice in the archipelago — quietly spectacular if you're up before sunrise.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Silja_Serenade,_Stockholm,_2019_(02).jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Silja_Serenade_promenade.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/MS_Silja_Symphony_interior_view.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Serenade_Sundeck.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Stortorget_i_Gamla_Stan_i_Stockholm-2.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Sweden._Stockholm._Gamla_stan_051.JPG",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Year-round daily service. Tallink Silja and Viking Line each run one departure per day in each direction. Helsinki → Stockholm departs ~17:00, arrives ~10:00 next day. Stockholm → Helsinki departs ~16:30, arrives ~10:00.",
+      notes:
+        "Daily year-round. Summer school-holiday weekends sell out cabins 2–3 months ahead. Winter sailings push through Baltic ice — atmospheric, especially around dawn through the Åland archipelago.",
+    },
+    location: {
+      region: "Helsinki",
+      address: "Departure: Olympia Terminal, Olympiaranta 1, 00140 Helsinki. Arrival: Värtahamnen, Hamnpirsvägen 10, 11556 Stockholm.",
+    },
+    accessFromHelsinki: {
+      complexity: "moderate",
+      duration: "~17h each way (overnight)",
+      notes:
+        "Tram 2 from Helsinki Central Station to Olympia Terminal (~10 min, included in HSL ticket). Two-night minimum for the full Stockholm experience — sleep in a cabin both nights, full day in the city in between.",
+    },
+    cost: {
+      perPersonEur: 200,
+      notes:
+        "Round-trip with a 2-person cabin twin-share: ~€140–250 per person depending on cabin tier and how far ahead you book. Foot-passenger walk-on (no cabin) from €50 round-trip but unrealistic for an overnight. Onboard buffet dinners ~€35, breakfast ~€15. Hotel in Stockholm not needed if you ferry both nights.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Book 4–8 weeks ahead for cabin choice and decent prices; summer (Jun–Aug) and Christmas/New Year sell out 2–3 months ahead. Walk-on the day-of works in shoulder season but you'll get what's left, often an inside cabin near the engine.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "Both Silja and Viking ships are aggressively kid-friendly: dedicated play areas, kids' meals, family cabins with bunk beds. The ship itself is the experience for ~5–10 year olds — they'll happily explore decks for hours. Bring noise-cancelling headphones for the Mariehamn stop at midnight if you're a light sleeper.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "multi-day",
+    website: "https://www.tallink.com/",
+    tags: [],
+  },
 ];
