@@ -14,6 +14,7 @@ import {
   Trees,
 } from "lucide-react";
 import type { Idea } from "../types";
+import { formatEventRange, summarizeMonths } from "../months";
 import { ImageCarousel } from "./image-carousel";
 import { StarButton } from "./star-button";
 
@@ -55,11 +56,6 @@ const INTENSITY_LABELS: Record<Idea["physicalIntensity"], string> = {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function formatSeasons(availability: Idea["availability"]): string {
-  if (availability.seasons === "year-round") return "Year-round";
-  return availability.seasons.map(capitalize).join(", ");
 }
 
 function MetaRow({
@@ -181,15 +177,24 @@ export function IdeaDetail({ idea, basePath }: { idea: Idea; basePath: string })
             </MetaRow>
 
             <MetaRow icon={<CalendarDays size={14} />} label="When to go">
-              <div className="font-medium">{formatSeasons(idea.availability)}</div>
+              <div className="font-medium">
+                {summarizeMonths(idea.availability.suitableMonths)}
+              </div>
+              {idea.availability.events && idea.availability.events.length > 0 && (
+                <ul className="mt-2 flex flex-col gap-1 text-text-secondary">
+                  {idea.availability.events.map((event, i) => (
+                    <li key={i} className="flex items-baseline gap-2">
+                      <span className="text-text-primary">
+                        {formatEventRange(event)}
+                      </span>
+                      {event.name && <span>· {event.name}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {idea.availability.weeklySchedule && (
                 <div className="mt-1 text-text-secondary">
                   {idea.availability.weeklySchedule}
-                </div>
-              )}
-              {idea.availability.specificDates && (
-                <div className="mt-1 text-text-secondary">
-                  {idea.availability.specificDates}
                 </div>
               )}
               {idea.availability.notes && (

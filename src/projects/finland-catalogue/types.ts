@@ -8,29 +8,56 @@
  * types — restaurants, day trips, multi-day adventures, festivals, etc.
  */
 
+/** A date-locked event that recurs annually. Use ONLY for true date locks
+ *  — festivals, holiday markets, eclipses — not soft "best in late summer"
+ *  ranges (use `suitableMonths` for those). The from/to are "MM-DD" format
+ *  without a year; assume the date pattern recurs each year. */
+export interface IdeaEvent {
+  /** Start of the event window, "MM-DD". e.g. "06-21". */
+  from: string;
+  /** End of the event window inclusive, "MM-DD". For a single-day event,
+   *  set to the same value as from. */
+  to: string;
+  /** Optional event name. e.g. "Helsinki Festival", "Lux Helsinki". */
+  name?: string;
+}
+
 /** Calendar/season constraints. The mindset: "if I'm planning a visit, what
  *  do I need to know about timing to fit this into my trip?" */
 export interface IdeaAvailability {
-  /** When this is available. "year-round" if open all year. Otherwise a list
-   *  of seasons. Finnish "winter" is roughly Nov-Mar; "summer" is Jun-Aug. */
-  seasons: "year-round" | ("winter" | "spring" | "summer" | "fall")[];
+  /** Months (1 = Jan, 12 = Dec) when this idea is well-suited. This is the
+   *  soft planning window — a husky safari with `[12, 1, 2, 3]` is sayng
+   *  "Dec through Mar are the months snow is reliable enough"; a museum
+   *  open all year uses all 12. The UI derives a friendly summary
+   *  ("Dec–Mar", "Jun–Aug", "Year-round") from this array.
+   *
+   *  Be precise: research the actual months (snow reliability, daylight,
+   *  aurora visibility, festival timing) rather than defaulting to broad
+   *  season buckets. */
+  suitableMonths: number[];
+  /** Date-locked events that recur annually. Empty/omitted for everything
+   *  that isn't a true date lock. See IdeaEvent comment for guidance. */
+  events?: IdeaEvent[];
   /** Day-of-week or hours-of-day constraints. e.g. "Wed-Sun, 10am-6pm",
    *  "Closed Mondays". Omit if open daily without restriction. */
   weeklySchedule?: string;
-  /** For events that only happen on specific dates. e.g.
-   *  "Mid-July annually (Helsinki Festival)", "Dec 24-26".
-   *  Omit unless the activity is actually date-locked. */
-  specificDates?: string;
   /** Anything else a planner needs to know about timing that doesn't fit
-   *  the structured fields above. */
+   *  the structured fields above. e.g. "February has the most reliable
+   *  snow", "Avoid Mondays — many places close". */
   notes?: string;
 }
 
 /** Where the idea takes place. */
 export interface IdeaLocation {
-  /** Broad region. Use "Helsinki" for the metro area, otherwise the Finnish
-   *  region or city ("Lapland", "Turku", "Finnish Lakeland"). Use
-   *  "Anywhere in Finland" for non-place-specific ideas (e.g. "go foraging"). */
+  /** Broad region. The canonical regions in use today are **"Helsinki"**
+   *  and **"Lapland"**. New regions are added only when an idea genuinely
+   *  needs one (same policy as `tags` — the skill suggests a new region
+   *  rather than inventing one ad-hoc). When in doubt, prefer an existing
+   *  region with the specifics in `address`: e.g. a Porvoo day trip can
+   *  still be `"Helsinki"` if it's a typical Helsinki-base activity, with
+   *  the address spelling out where it actually is. Use
+   *  "Anywhere in Finland" for ideas with no place at all (e.g.
+   *  "go foraging"). */
   region: string;
   /** Street address if it's a specific venue. Skip for region-wide
    *  activities or events that move year to year. */

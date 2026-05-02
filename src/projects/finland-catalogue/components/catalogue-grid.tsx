@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, SlidersHorizontal, Star } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { IDEAS } from "../ideas";
 import {
   applyFilters,
-  collectTags,
   countActive,
   EMPTY_FILTERS,
   type Filters,
@@ -42,8 +42,6 @@ export function CatalogueGrid({
     [baseIdeas, filters],
   );
 
-  const availableTags = useMemo(() => collectTags(baseIdeas), [baseIdeas]);
-
   const activeCount = countActive(filters);
 
   return (
@@ -62,18 +60,18 @@ export function CatalogueGrid({
             <div>
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
                 <span className="text-brand-blue">Finland</span>{" "}
-                <span className="text-text-primary">
-                  {mode === "favorites" ? "Favorites" : "Catalogue"}
-                </span>
+                <span className="text-text-primary">Catalogue</span>
               </h1>
               <p className="mt-2 text-text-secondary">
-                {mode === "favorites"
-                  ? "Ideas you've starred for later."
-                  : "Hand-picked things to do in Finland — for friends, family, and anyone planning a visit."}
+                Hand-picked things to do in Finland — for friends, family, and anyone planning a visit.
               </p>
             </div>
 
-            <ModeToggle mode={mode} basePath={basePath} favoriteCount={favoriteSlugs.length} />
+            <FavoritesSwitch
+              mode={mode}
+              basePath={basePath}
+              favoriteCount={favoriteSlugs.length}
+            />
           </div>
         </div>
 
@@ -106,11 +104,7 @@ export function CatalogueGrid({
                 mobilePanelOpen ? "block" : "hidden lg:block",
               )}
             >
-              <FilterPanel
-                filters={filters}
-                onChange={setFilters}
-                availableTags={availableTags}
-              />
+              <FilterPanel filters={filters} onChange={setFilters} />
             </div>
           </aside>
 
@@ -137,7 +131,7 @@ export function CatalogueGrid({
   );
 }
 
-function ModeToggle({
+function FavoritesSwitch({
   mode,
   basePath,
   favoriteCount,
@@ -146,27 +140,46 @@ function ModeToggle({
   basePath: string;
   favoriteCount: number;
 }) {
-  const tabClass = (active: boolean) =>
-    cn(
-      "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-      active
-        ? "bg-surface-elevated text-text-primary"
-        : "text-text-secondary hover:text-text-primary",
-    );
-
+  const router = useRouter();
+  const on = mode === "favorites";
   return (
-    <div className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border-default bg-surface-secondary p-1">
-      <Link href={basePath} className={tabClass(mode === "all")}>
-        All
-      </Link>
-      <Link href={`${basePath}/favorites`} className={tabClass(mode === "favorites")}>
-        <Star size={14} fill={mode === "favorites" ? "currentColor" : "none"} />
-        Favorites
-        {favoriteCount > 0 && (
-          <span className="ml-0.5 text-xs text-text-muted">({favoriteCount})</span>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => router.push(on ? basePath : `${basePath}/favorites`)}
+      className="inline-flex shrink-0 items-center gap-3 rounded-full border border-border-default bg-surface-secondary px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:border-border-hover"
+    >
+      <Star
+        size={16}
+        className={on ? "text-brand-orange" : "text-text-secondary"}
+        fill={on ? "currentColor" : "none"}
+      />
+      <span>Favorites only</span>
+      {favoriteCount > 0 && (
+        <span className="text-xs text-text-muted">({favoriteCount})</span>
+      )}
+      <SwitchTrack on={on} />
+    </button>
+  );
+}
+
+function SwitchTrack({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "relative inline-block h-5 w-9 shrink-0 rounded-full transition-colors",
+        on ? "bg-brand-orange" : "bg-surface-primary",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-text-primary shadow-sm transition-transform",
+          on ? "translate-x-4" : "translate-x-0",
         )}
-      </Link>
-    </div>
+      />
+    </span>
   );
 }
 

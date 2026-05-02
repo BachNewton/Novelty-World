@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Baby, Clock, Euro, Snowflake, Sun, Leaf, CalendarDays } from "lucide-react";
 import type { Idea } from "../types";
+import { summarizeMonths } from "../months";
 import { HotlinkImage } from "./hotlink-image";
 import { StarButton } from "./star-button";
 
@@ -19,44 +20,40 @@ function formatCost(cost: Idea["cost"]): string {
   return `€${cost.perPersonEur}`;
 }
 
-function SeasonChip({ availability }: { availability: Idea["availability"] }) {
-  const seasons = availability.seasons;
+/** Pick a glanceable icon for the months chip. Year-round = sun
+ *  (always-on); winter-dominated window = snowflake; summer-dominated =
+ *  sun; transitional/mixed = leaf. */
+function MonthsIcon({ months }: { months: number[] }) {
+  if (months.length >= 12) return <Sun size={13} />;
+  const winterCount = months.filter((m) => m === 12 || m === 1 || m === 2).length;
+  const summerCount = months.filter((m) => m >= 6 && m <= 8).length;
+  if (winterCount >= 2 && summerCount === 0) return <Snowflake size={13} />;
+  if (summerCount >= 2 && winterCount === 0) return <Sun size={13} />;
+  return <Leaf size={13} />;
+}
 
-  if (seasons === "year-round") {
-    return (
-      <Chip>
-        <Sun size={13} />
-        Year-round
-      </Chip>
-    );
-  }
-
-  if (availability.specificDates) {
-    return (
-      <Chip>
-        <CalendarDays size={13} />
-        {availability.specificDates.length > 18
-          ? `${seasons.map(capitalize).join(", ")} only`
-          : availability.specificDates}
-      </Chip>
-    );
-  }
-
-  const onlyWinter = seasons.length === 1 && seasons[0] === "winter";
-  const onlySummer = seasons.length === 1 && seasons[0] === "summer";
-  const Icon = onlyWinter ? Snowflake : onlySummer ? Sun : Leaf;
-  const label = `${seasons.map(capitalize).join(", ")} only`;
-
+function MonthsChip({ months }: { months: number[] }) {
   return (
     <Chip>
-      <Icon size={13} />
-      {label}
+      <MonthsIcon months={months} />
+      {summarizeMonths(months)}
     </Chip>
   );
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function EventsChip({ events }: { events: NonNullable<Idea["availability"]["events"]> }) {
+  // Card-level chip is just a count + first event name (if any) — full
+  // detail goes on the detail page.
+  const label =
+    events.length === 1
+      ? events[0].name ?? "Annual event"
+      : `${events.length} annual events`;
+  return (
+    <Chip>
+      <CalendarDays size={13} />
+      {label}
+    </Chip>
+  );
 }
 
 function Chip({ children }: { children: React.ReactNode }) {
@@ -68,6 +65,8 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 export function IdeaCard({ idea, basePath }: { idea: Idea; basePath: string }) {
+  const events = idea.availability.events;
+
   return (
     <Link
       href={`${basePath}/${idea.slug}`}
@@ -97,7 +96,8 @@ export function IdeaCard({ idea, basePath }: { idea: Idea; basePath: string }) {
             <Clock size={13} />
             {DURATION_LABELS[idea.duration]}
           </Chip>
-          <SeasonChip availability={idea.availability} />
+          <MonthsChip months={idea.availability.suitableMonths} />
+          {events && events.length > 0 && <EventsChip events={events} />}
           {idea.toddlerFriendly && (
             <Chip>
               <Baby size={13} />

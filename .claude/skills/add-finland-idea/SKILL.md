@@ -11,15 +11,50 @@ entry is a fully-researched `Idea` object appended to
 
 ## Input format
 
-The user provides one or more ideas as a comma-separated list. Examples:
+The user gives you one or more ideas, typically as a bullet list. Each
+bullet may optionally include a parenthetical context note explaining
+*why* that idea is on the list — taste, a constraint, a hook to capture
+in the entry. Both the title and the context are inputs to your research
+and writing.
 
-- `Allas Sea Pool` — one specific venue
-- `husky safari, ice swimming, Helsinki sauna culture` — three ideas, mixed specificity
-- `a good cafe in Kallio, the Iittala outlet` — vague + specific in the same call
+Examples of how the user might invoke this skill:
 
-Split on commas and process each idea sequentially. **Do not parallelize web
-research across ideas** — research one, write one, move to the next. This keeps
-the diff readable and lets you reason about each entry on its own.
+```
+/add-finland-idea
+- Allas Sea Pool
+- Löyly (the architecture is the draw, not just the sauna)
+- a good ramen place in Helsinki (somewhere I'd take a friend visiting)
+- husky safari (something for the winter trip in February)
+```
+
+A comma-separated single-line form is also supported as a shortcut:
+`/add-finland-idea allas sea pool, suomenlinna, ice swimming`.
+
+Process each idea sequentially. **Do not parallelize web research across
+ideas** — research one, write one, move to the next. This keeps the diff
+readable and lets you reason about each entry on its own.
+
+### Using the parenthetical context
+
+When the user includes `(some context)` on a bullet, treat it as a
+high-signal hint about what they care about. It should shape the entry
+in concrete ways:
+
+- **Pick the right representative for vague inputs.** "(somewhere I'd
+  take a friend visiting)" steers a "good ramen place" toward an
+  established, easy-to-recommend spot rather than a hidden gem with
+  obscure hours.
+- **Frame the longDescription.** If the context says "the architecture
+  is the draw", make sure the description leads with the architecture
+  rather than burying it.
+- **Influence judgment-call fields.** "(for a winter trip in February)"
+  is a planning hint — when narrowing `suitableMonths` for a snow-
+  dependent activity, lean toward months that will reliably have snow
+  in February.
+
+Don't quote the context verbatim in the entry; let it inform the entry
+naturally. If the context is purely for your benefit ("this made me
+think of X"), use it as background and leave it out of the prose.
 
 ## Workflow per idea
 
@@ -72,8 +107,19 @@ Highlights worth restating:
   describes what it actually is. Middle paragraph(s) cover what to expect,
   what makes it special, who it's for. Last paragraph practical tips
   (bring this, book like this, watch for that).
-- **availability.seasons**: `'year-round'` if open all year. Otherwise a
-  list of seasons. Finnish winter is roughly Nov-Mar; summer is Jun-Aug.
+- **availability.suitableMonths**: array of month numbers (1=Jan, 12=Dec)
+  when the idea is well-suited. Be specific: research the actual months
+  rather than defaulting to broad seasons. A husky safari is `[12,1,2,3]`
+  because that's the snow-reliable window — not all four "winter" months.
+  An aurora-viewing experience is `[9,10,11,12,1,2,3]`. Year-round
+  things use all 12: `[1,2,3,4,5,6,7,8,9,10,11,12]`. The UI summarizes
+  this into a friendly chip ("Dec–Mar", "Year-round") so be precise
+  about the boundaries.
+- **availability.events**: ONLY for true date-locked events that recur
+  annually — festivals, holiday markets, eclipses. Use "MM-DD" for from/to
+  (no year — the year is implicit and recurring). Soft "best in late
+  summer" ranges go in `suitableMonths`, not here. Most ideas have no
+  events and should omit this field.
 - **accessFromHelsinki**: `complexity` is the *planning effort* signal,
   not the literal mode count. A single 8h train to Lapland is `'complex'`
   because of the duration. A two-stop tram ride is `'simple'` even though
@@ -93,18 +139,27 @@ Highlights worth restating:
 - **website**: only if there's a real official site or canonical booking
   page. Don't link random blog posts.
 
-## Tag policy
+## Tag and region policy
 
-The only canonical tag right now is **`'food'`** — apply it to cafes,
+Tags and `location.region` both pull from canonical vocabularies defined
+in `src/projects/finland-catalogue/filters.ts` (`KNOWN_TAGS` and
+`KNOWN_REGIONS`). The filter UI renders every value in those lists as
+a chip, whether or not any current idea uses it.
+
+**Tags** — current canonical list: **`'food'`**. Apply it to cafes,
 restaurants, food markets, and food-focused experiences (food tours,
-cooking classes).
+cooking classes). For everything else leave `tags` as `[]`.
 
-For everything else, leave `tags` as `[]`. Do **not** invent new tags and
-apply them. If you notice that the new idea would form a clear grouping
-with multiple existing entries (e.g. you've now added three
-sauna-focused ideas), suggest the new tag in your summary — list which
-existing entries would also get the tag and let the user decide whether
-to adopt it. Don't apply it without confirmation.
+**Regions** — current canonical list: **`Helsinki`**, **`Lapland`**.
+Pick the closest match. Satellite cities reachable as Helsinki day trips
+(Espoo, Vantaa, Porvoo) usually fit best as `Helsinki` with the actual
+location in `address` and `accessFromHelsinki.notes`.
+
+**Do not invent new tags or regions and apply them silently.** If a new
+idea would form a clear grouping with multiple existing entries — three
+sauna-focused ideas, two Turku ideas — suggest the new tag/region in
+your summary. List existing entries that would share it, and let the
+user decide whether to add it to `KNOWN_TAGS` / `KNOWN_REGIONS`.
 
 ## After writing
 

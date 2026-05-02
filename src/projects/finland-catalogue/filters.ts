@@ -1,35 +1,38 @@
 import type { Idea } from "./types";
 
-export type Season = "winter" | "spring" | "summer" | "fall" | "year-round";
 export type CostBucket = "free" | "under-30" | "under-100" | "over-100";
 export type AccessComplexity = Idea["accessFromHelsinki"]["complexity"];
 export type Duration = Idea["duration"];
 
 export interface Filters {
-  seasons: Season[];
+  /** Months (1-12) the user is interested in. An idea matches if its
+   *  suitableMonths overlaps the selection. Empty = no month filter. */
+  months: number[];
+  regions: string[];
   costs: CostBucket[];
   durations: Duration[];
   access: AccessComplexity[];
   tags: string[];
-  toddlerOnly: boolean;
 }
 
 export const EMPTY_FILTERS: Filters = {
-  seasons: [],
+  months: [],
+  regions: [],
   costs: [],
   durations: [],
   access: [],
   tags: [],
-  toddlerOnly: false,
 };
 
-export function collectTags(ideas: Idea[]): string[] {
-  const set = new Set<string>();
-  for (const idea of ideas) {
-    for (const tag of idea.tags) set.add(tag);
-  }
-  return Array.from(set).sort();
-}
+/** Canonical tag vocabulary. The filter renders every value here as a chip,
+ *  whether or not any current idea uses it. Grow this list when the
+ *  add-finland-idea skill flags a clear new grouping. */
+export const KNOWN_TAGS: readonly string[] = ["food"] as const;
+
+/** Canonical region vocabulary. Same policy as KNOWN_TAGS — the filter
+ *  always renders these, and new regions get added when an idea genuinely
+ *  needs one. */
+export const KNOWN_REGIONS: readonly string[] = ["Helsinki", "Lapland"] as const;
 
 export function bucketCost(eur: number): CostBucket {
   if (eur === 0) return "free";
@@ -38,23 +41,17 @@ export function bucketCost(eur: number): CostBucket {
   return "over-100";
 }
 
-function ideaSeasons(idea: Idea): Season[] {
-  return idea.availability.seasons === "year-round"
-    ? ["year-round"]
-    : idea.availability.seasons;
-}
-
 export function applyFilters(ideas: Idea[], filters: Filters): Idea[] {
   return ideas.filter((idea) => {
-    if (filters.toddlerOnly && !idea.toddlerFriendly) return false;
+    if (filters.months.length > 0) {
+      const overlap = filters.months.some((m) =>
+        idea.availability.suitableMonths.includes(m),
+      );
+      if (!overlap) return false;
+    }
 
-    if (filters.seasons.length > 0) {
-      const seasons = ideaSeasons(idea);
-      // Year-round ideas match any season filter — they're always available.
-      const matches =
-        seasons.includes("year-round") ||
-        filters.seasons.some((s) => seasons.includes(s));
-      if (!matches) return false;
+    if (filters.regions.length > 0) {
+      if (!filters.regions.includes(idea.location.region)) return false;
     }
 
     if (filters.costs.length > 0) {
@@ -84,11 +81,11 @@ export function applyFilters(ideas: Idea[], filters: Filters): Idea[] {
 
 export function countActive(filters: Filters): number {
   return (
-    filters.seasons.length +
+    filters.months.length +
+    filters.regions.length +
     filters.costs.length +
     filters.durations.length +
     filters.access.length +
-    filters.tags.length +
-    (filters.toddlerOnly ? 1 : 0)
+    filters.tags.length
   );
 }

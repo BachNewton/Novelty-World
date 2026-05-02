@@ -7,18 +7,12 @@ import {
   type CostBucket,
   type Duration,
   type Filters,
-  type Season,
   countActive,
   EMPTY_FILTERS,
+  KNOWN_REGIONS,
+  KNOWN_TAGS,
 } from "../filters";
-
-const SEASON_OPTIONS: { value: Season; label: string }[] = [
-  { value: "year-round", label: "Year-round" },
-  { value: "winter", label: "Winter" },
-  { value: "spring", label: "Spring" },
-  { value: "summer", label: "Summer" },
-  { value: "fall", label: "Fall" },
-];
+import { ALL_MONTHS, MONTH_ABBREV } from "../months";
 
 const COST_OPTIONS: { value: CostBucket; label: string }[] = [
   { value: "free", label: "Free" },
@@ -48,14 +42,13 @@ function toggle<T>(arr: T[], value: T): T[] {
 interface FilterPanelProps {
   filters: Filters;
   onChange: (filters: Filters) => void;
-  availableTags: string[];
 }
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function FilterPanel({ filters, onChange, availableTags }: FilterPanelProps) {
+export function FilterPanel({ filters, onChange }: FilterPanelProps) {
   const active = countActive(filters);
 
   return (
@@ -76,11 +69,16 @@ export function FilterPanel({ filters, onChange, availableTags }: FilterPanelPro
         )}
       </div>
 
+      <MonthGrid
+        selected={filters.months}
+        onToggle={(m) => onChange({ ...filters, months: toggle(filters.months, m) })}
+      />
+
       <ChipGroup
-        label="Season"
-        options={SEASON_OPTIONS}
-        selected={filters.seasons}
-        onToggle={(v) => onChange({ ...filters, seasons: toggle(filters.seasons, v) })}
+        label="Region"
+        options={KNOWN_REGIONS.map((r) => ({ value: r, label: r }))}
+        selected={filters.regions}
+        onToggle={(v) => onChange({ ...filters, regions: toggle(filters.regions, v) })}
       />
 
       <ChipGroup
@@ -106,34 +104,12 @@ export function FilterPanel({ filters, onChange, availableTags }: FilterPanelPro
         onToggle={(v) => onChange({ ...filters, access: toggle(filters.access, v) })}
       />
 
-      {availableTags.length > 0 && (
-        <ChipGroup
-          label="Tags"
-          options={availableTags.map((t) => ({ value: t, label: capitalize(t) }))}
-          selected={filters.tags}
-          onToggle={(v) => onChange({ ...filters, tags: toggle(filters.tags, v) })}
-        />
-      )}
-
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
-          Family
-        </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={filters.toddlerOnly}
-          onClick={() => onChange({ ...filters, toddlerOnly: !filters.toddlerOnly })}
-          className={cn(
-            "inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-            filters.toddlerOnly
-              ? "border-brand-pink bg-brand-pink text-surface-primary"
-              : "border-border-default bg-surface-elevated text-text-secondary hover:border-border-hover",
-          )}
-        >
-          Toddler-friendly only
-        </button>
-      </div>
+      <ChipGroup
+        label="Tags"
+        options={KNOWN_TAGS.map((t) => ({ value: t, label: capitalize(t) }))}
+        selected={filters.tags}
+        onToggle={(v) => onChange({ ...filters, tags: toggle(filters.tags, v) })}
+      />
     </div>
   );
 }
@@ -143,6 +119,42 @@ interface ChipGroupProps<T extends string> {
   options: { value: T; label: string }[];
   selected: T[];
   onToggle: (value: T) => void;
+}
+
+interface MonthGridProps {
+  selected: number[];
+  onToggle: (month: number) => void;
+}
+
+function MonthGrid({ selected, onToggle }: MonthGridProps) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+        Visiting in
+      </span>
+      <div className="grid grid-cols-4 gap-1.5">
+        {ALL_MONTHS.map((m) => {
+          const isSelected = selected.includes(m);
+          return (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onToggle(m)}
+              className={cn(
+                "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+                isSelected
+                  ? "border-brand-pink bg-brand-pink text-surface-primary"
+                  : "border-border-default bg-surface-elevated text-text-secondary hover:border-border-hover",
+              )}
+            >
+              {MONTH_ABBREV[m - 1]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function ChipGroup<T extends string>({

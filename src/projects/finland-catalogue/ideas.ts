@@ -28,7 +28,7 @@ export const IDEAS: Idea[] = [
       "https://picsum.photos/seed/allas-4/1000/1000",
     ],
     availability: {
-      seasons: "year-round",
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       weeklySchedule: "Daily, typically 6:30am-9pm (check site for current hours)",
     },
     location: {
@@ -74,9 +74,9 @@ export const IDEAS: Idea[] = [
       "https://picsum.photos/seed/suomenlinna-3/1400/900",
     ],
     availability: {
-      seasons: "year-round",
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       notes:
-        "Islands are open year-round; some museums and cafes are summer-only.",
+        "Islands are open year-round; some museums and cafes are summer-only (roughly May–Sep).",
     },
     location: {
       region: "Helsinki",
@@ -124,8 +124,9 @@ export const IDEAS: Idea[] = [
       "https://picsum.photos/seed/husky-5/1800/900",
     ],
     availability: {
-      seasons: ["winter"],
-      specificDates: "Operates roughly December through March, depending on snow",
+      suitableMonths: [12, 1, 2, 3],
+      notes:
+        "Snow-dependent. Late January through early March is typically the most reliable; early December and late March can be hit-or-miss.",
     },
     location: {
       region: "Lapland",
