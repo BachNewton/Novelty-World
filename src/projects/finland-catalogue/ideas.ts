@@ -25,6 +25,9 @@ export const IDEAS: Idea[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/The_double_spiral_staircase_in_Helsinki_Central_Library_Oodi.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Central_Library_Oodi_at_night_in_2018_December.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Interior_of_Oodi_on_an_afternoon_in_March_2025.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Central_Library_Oodi_from_north.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kansalaistori_square_and_the_Central_Library_in_Helsinki,_Finland,_2020_April.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Terrace,_Helsinki_Central_Library_Oodi,_2019_(01).jpg",
     ],
     availability: {
       suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -133,6 +136,9 @@ export const IDEAS: Idea[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/Castle_of_Turku,_courtyard_renaissance_part.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Castle_of_Turku,_larger_room.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Åbo_slott_1724.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Turku_Castle_from_Linnankatu.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Turku_Castle_in_September_2024.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Courtyard,_Turunlinna.jpg",
     ],
     availability: {
       suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -294,6 +300,10 @@ export const IDEAS: Idea[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Cathedral,_1852_(15)_(36294114320).jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Cathedral_John_the_Evangelist.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Philip_the_Apostle_Helsinki_Cathedral.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Interior_of_the_Helsinki_Cathedral.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lascar_Suurkirkko_(Helsinki_Cathedral)_(4548657637).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Senaatintori_(Helsinki_Senate_Square)_elokuussa_2018_02.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Sofiankatu_lumisateessa.jpg",
     ],
     availability: {
       suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -456,6 +466,8 @@ export const IDEAS: Idea[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/Kauppahalli_-_inside,_Helsinki_FIN.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Vanha_kauppahalli_Helsinki_at_night_2022-09-18_01.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Antiguo_Mercado_de_Helsinki,_Finlandia,_2012-08-14,_DD_01.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Old_Market_Hall_-_Vanha_Kauppahalli,_Helsinki_(29282721726).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vanha_Kauppahalli_Helsinki_04.jpg",
     ],
     availability: {
       suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
@@ -511,6 +523,10 @@ export const IDEAS: Idea[] = [
       "https://commons.wikimedia.org/wiki/Special:FilePath/Suomenlinna_Tunnels.jpg",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Suomenlinnaferry.JPG",
       "https://commons.wikimedia.org/wiki/Special:FilePath/Viapori,_Sveaborg,_Helsinki_-_20240905_-_14.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/King's_Gate,_Kustaanmiekka,_Suomenlinna,_Helsinki,_Finland_02.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Submarine_Vesikko_on_Susisaari_Suomenlinna.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suomenlinnan_kirkko_Iso_Mustasaari_Suomenlinna_2022-09-17_01.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Cannons_on_Kustaanmiekka_Suomenlinna_2022-09-17_01.jpg",
     ],
     availability: {
       suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
