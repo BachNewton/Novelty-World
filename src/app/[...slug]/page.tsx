@@ -59,8 +59,11 @@ export function generateStaticParams() {
   const ideaParams = FINLAND_IDEAS.map((idea) => ({
     slug: [...finlandBase, idea.slug],
   }));
+  const favoritesParam = finlandBase.length
+    ? [{ slug: [...finlandBase, "favorites"] }]
+    : [];
 
-  return [...projectParams, ...ideaParams];
+  return [...projectParams, ...ideaParams, ...favoritesParam];
 }
 
 export default async function ProjectPage({ params }: Props) {

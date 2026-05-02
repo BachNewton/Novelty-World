@@ -18,7 +18,11 @@ export function FinlandCatalogue() {
     : "";
 
   if (!rest) {
-    return <CatalogueGrid basePath={BASE_PATH} />;
+    return <CatalogueGrid basePath={BASE_PATH} mode="all" />;
+  }
+
+  if (rest === "favorites") {
+    return <CatalogueGrid basePath={BASE_PATH} mode="favorites" />;
   }
 
   const idea = IDEAS.find((i) => i.slug === rest);
