@@ -251,7 +251,7 @@ export function IdeaDetail({ idea, basePath }: { idea: Idea; basePath: string })
                   {idea.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-md bg-surface-elevated px-2 py-0.5 text-xs text-text-secondary"
+                      className="rounded-md bg-surface-elevated px-2 py-0.5 text-xs capitalize text-text-secondary"
                     >
                       {tag}
                     </span>
