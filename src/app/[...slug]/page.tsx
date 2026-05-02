@@ -3,6 +3,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { findProjectBySlug, PROJECTS, getProjectPath } from "@/shared/lib/constants";
 import { Button } from "@/shared/components/ui/button";
+import { IDEAS as FINLAND_IDEAS } from "@/projects/finland-catalogue/ideas";
 import type { Metadata } from "next";
 
 // Project component registry — lazy loaded
@@ -25,6 +26,11 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   pokemon: dynamic(() =>
     import("@/projects/pokemon").then((m) => ({ default: m.PokemonTrivia })),
   ),
+  "finland-catalogue": dynamic(() =>
+    import("@/projects/finland-catalogue").then((m) => ({
+      default: m.FinlandCatalogue,
+    })),
+  ),
 };
 
 interface Props {
@@ -42,9 +48,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export function generateStaticParams() {
-  return PROJECTS.map((project) => ({
+  const projectParams = PROJECTS.map((project) => ({
     slug: getProjectPath(project).slice(1).split("/"),
   }));
+
+  const finlandProject = PROJECTS.find((p) => p.slug === "finland-catalogue");
+  const finlandBase = finlandProject
+    ? getProjectPath(finlandProject).slice(1).split("/")
+    : [];
+  const ideaParams = FINLAND_IDEAS.map((idea) => ({
+    slug: [...finlandBase, idea.slug],
+  }));
+
+  return [...projectParams, ...ideaParams];
 }
 
 export default async function ProjectPage({ params }: Props) {

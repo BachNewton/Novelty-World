@@ -8,6 +8,7 @@ export const CATEGORIES: Category[] = [
   { name: "3D Games", slug: "3d-games", parentSlug: "games", description: "Three-dimensional game worlds" },
   { name: "Board Games", slug: "board-games", parentSlug: "games", description: "Classic board games" },
   { name: "Tools", slug: "tools", description: "Utilities and solvers" },
+  { name: "Travel", slug: "travel", parentSlug: "tools", description: "Travel guides and catalogues" },
 ];
 
 export const PROJECTS: Project[] = [
@@ -123,6 +124,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "BarChart3",
   },
+  {
+    name: "Finland Catalogue",
+    slug: "finland-catalogue",
+    description: "Hand-picked things to do in Finland",
+    categorySlug: "travel",
+    icon: "Map",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */
@@ -142,14 +150,20 @@ export function getProjectPath(project: Project): string {
   return `/${segments.join("/")}`;
 }
 
-/** Find a project by its URL slug segments (e.g., ["games", "monopoly"]) */
+/** Find a project by its URL slug segments (e.g., ["games", "monopoly"]).
+ *  Walks from the longest prefix to the shortest so that nested project routes
+ *  (e.g., /tools/travel/finland-catalogue/<idea-slug>) still resolve to the
+ *  parent project. */
 export function findProjectBySlug(slug: string[]): Project | undefined {
-  if (slug.length < 2) return undefined;
-  const projectSlug = slug[slug.length - 1];
-  const categorySlug = slug[slug.length - 2];
-  return PROJECTS.find(
-    (p) => p.slug === projectSlug && p.categorySlug === categorySlug
-  );
+  for (let end = slug.length; end >= 2; end--) {
+    const projectSlug = slug[end - 1];
+    const categorySlug = slug[end - 2];
+    const project = PROJECTS.find(
+      (p) => p.slug === projectSlug && p.categorySlug === categorySlug
+    );
+    if (project) return project;
+  }
+  return undefined;
 }
 
 /** Get categories organized as a tree */
