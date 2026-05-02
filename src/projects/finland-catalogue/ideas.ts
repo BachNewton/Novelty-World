@@ -58,7 +58,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://oodihelsinki.fi/en/",
-    tags: [],
+    tags: ["landmark"],
   },
   {
     slug: "moomin-world",
@@ -168,7 +168,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "moderate",
     duration: "1-3h",
     website: "https://turunlinna.fi/en/",
-    tags: [],
+    tags: ["museum", "landmark", "historical"],
   },
   {
     slug: "forum-marinum",
@@ -221,7 +221,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://www.forum-marinum.fi/en/",
-    tags: [],
+    tags: ["museum", "historical"],
   },
   {
     slug: "suomen-joutsen",
@@ -276,7 +276,7 @@ export const IDEAS: Idea[] = [
     duration: "<1h",
     website:
       "https://www.forum-marinum.fi/en/exhibitions/museum-ships/the-full-rigger-suomen-joutsen/",
-    tags: [],
+    tags: ["museum", "historical"],
   },
   {
     slug: "helsinki-cathedral",
@@ -327,7 +327,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://www.helsingintuomiokirkko.fi/en/",
-    tags: [],
+    tags: ["landmark", "historical"],
   },
   {
     slug: "esplanadi",
@@ -546,7 +546,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "moderate",
     duration: "half-day",
     website: "https://www.suomenlinna.fi/en/",
-    tags: [],
+    tags: ["museum", "landmark", "historical"],
   },
   {
     slug: "hame-castle",
@@ -575,7 +575,7 @@ export const IDEAS: Idea[] = [
         "Closed 1 Jan, Good Friday, Easter Monday, 1 May, Midsummer Eve, and 15 Dec – 1 Jan (Christmas closure).",
     },
     location: {
-      region: "Helsinki",
+      region: "Hämeenlinna",
       address: "Kustaa III:n katu 6, 13100 Hämeenlinna (~100 km north of Helsinki)",
     },
     accessFromHelsinki: {
@@ -600,6 +600,6 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "moderate",
     duration: "1-3h",
     website: "https://www.kansallismuseo.fi/en/haemeenlinna",
-    tags: [],
+    tags: ["museum", "landmark", "historical"],
   },
 ];

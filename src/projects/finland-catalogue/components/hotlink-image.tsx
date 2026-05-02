@@ -49,12 +49,17 @@ export function HotlinkImage({
         <img
           src={src}
           alt={alt}
-          loading="lazy"
           onLoad={() => setStatus("loaded")}
           onError={() => setStatus("error")}
           className={cn(
+            // Don't use `hidden` here — it removes the layout box, and a
+            // lazy-loading img with no layout box is never observed as
+            // in-viewport, so the browser never starts the load and
+            // onLoad never fires. Stack the img after the placeholder
+            // so the placeholder reserves space until the real height
+            // is known from natural sizing.
             "block h-auto w-full",
-            status === "loaded" ? "" : "hidden",
+            status === "loaded" ? "" : "absolute inset-x-0 top-0 opacity-0",
             imgClassName,
           )}
         />
