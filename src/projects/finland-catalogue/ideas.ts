@@ -1356,7 +1356,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://www.caferegatta.fi/in-english",
-    tags: ["food", "nautical"],
+    tags: ["food", "café", "nautical"],
   },
   {
     slug: "kasinonranta",
@@ -1465,7 +1465,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://www.allaspool.fi/en/",
-    tags: [],
+    tags: ["sauna"],
   },
   {
     slug: "uspenski-cathedral",
@@ -2155,7 +2155,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://www.instagram.com/kahvilakaffeli/",
-    tags: ["food"],
+    tags: ["food", "café"],
   },
   {
     slug: "lapinlahden-lahde",
@@ -2213,7 +2213,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://lapinlahdenlahde.fi/en/",
-    tags: ["museum", "historical"],
+    tags: ["museum", "historical", "sauna"],
   },
   {
     slug: "helsinki-city-museum",
@@ -2295,7 +2295,7 @@ export const IDEAS: Idea[] = [
         "Date-locked: only runs roughly 15 November through 23 December each year. Exact dates shift slightly — confirm via designkaverit.fi before planning a special trip. Outside this window the second-floor space reverts to ordinary mall retail.",
     },
     location: {
-      region: ["Helsinki", "Uusimaa"],
+      region: ["Helsinki", "Kamppi", "Uusimaa"],
       address: "Forum, 2nd floor, Mannerheimintie 20, 00100 Helsinki",
     },
     accessFromLauttasaari: {
@@ -2350,7 +2350,7 @@ export const IDEAS: Idea[] = [
         "Local Design Village runs year-round during mall hours. Community Market is bi-weekly Fri–Sat — pick a market weekend if you want the maker-fair experience, otherwise the Local Design Village still gives you the curated Finnish-design selection.",
     },
     location: {
-      region: ["Helsinki", "Uusimaa"],
+      region: ["Helsinki", "Kamppi", "Uusimaa"],
       address: "Kamppi Shopping Centre, 4th floor, Urho Kekkosen katu 1, 00100 Helsinki",
     },
     accessFromLauttasaari: {
@@ -2430,7 +2430,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://andantecoffee.com/",
-    tags: ["food"],
+    tags: ["food", "café"],
   },
   {
     slug: "cafetoria",
@@ -2484,6 +2484,279 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://cafetoria.fi/en/",
-    tags: ["food"],
+    tags: ["food", "café"],
+  },
+  {
+    slug: "heritage-cafe",
+    title: "Heritage Café",
+    shortDescription:
+      "A self-styled café-museum-gallery a minute from Kamppi station: an old-Helsinki parlour vibe under a façade banner reading CAFE | MUSEUM | ART GALLERY, with specialty coffee, daily-baked banana bread, rotating local-artist exhibitions, and a Finnish Heritage Museum room opening alongside.",
+    longDescription: [
+      "Heritage Café opened in mid-2024 on a quiet ground-floor strip of Fredrikinkatu, a minute's walk from Kamppi metro, and announces itself with a single deadpan banner across the brick façade: \"CAFE | MUSEUM | ART GALLERY.\" That's the trio the place is built around. The cafe room is the immediate draw — soft music, low lamps, plump cushions on the bench seating, books, a glossy red espresso machine working behind a marble counter, and a chalkboard menu that runs drinks, food, and pastry on the wall. The museum and art-gallery sides are the larger story: a rotating wall of work from local artists is hung salon-style around the seating (and is genuinely for sale, with a new artist or two cycling through every few weeks), and the adjoining shopfront window currently advertises a \"Finnish Heritage Museum opening soon\" — a small curated room of Finnish-made everyday objects and design history that complements the café rather than charging separately.",
+      "The coffee programme is the everyday reason to stop. Heritage hosts roaster takeovers during Helsinki Coffee Week (Kahiwa was the 2024 partner) and otherwise runs a tight specialty menu — flat whites, cappuccinos, hand-brewed filter, plus a matcha latte that has become one of the café's signature orders. Pastry is the supporting act: banana bread regulars come specifically for, gluten-free cookies, cinnamon buns, daily-baked sandwiches and quiches. Average sit-down spend is €5–10; nothing on the menu is expensive.",
+      "The room rewards a slow stop. It's small enough that on a busy Saturday afternoon you'll wait for a table, but quiet enough that on a weekday morning it functions as one of the better laptop-friendly cafés in Kamppi. The artwork rotates as live shows with a free vernissage when each new artist's work goes up, so a return visit a month later is genuinely a different room. The cheeky window decals (\"Sometimes I go hours without drinking coffee… it's called sleeping\") set the tone — earnest about the coffee and the curation, not earnest about itself.",
+      "From Lauttasaari it's the easiest possible trip: M1/M2 metro one stop east to Kamppi (~3 min), exit toward Fredrikinkatu, the café is on the same block. Open Mon–Fri 09:00–20:00, Sat 11:00–18:00, Sun 12:00–18:00. Walk-in only — no reservations. Pair naturally with a Kamppi browse (MUJI Kamppi flagship, the Designkaverit Christmas pop-up at Forum in winter) or a wander south through Punavuori's Design District in the same afternoon.",
+    ],
+    thumbnailUrl:
+      "https://itin-dev.wanderlogstatic.com/freeImage/wGqABPqDCe08t00LKA9pqXfntv6AQF6w",
+    galleryUrls: [
+      "https://itin-dev.wanderlogstatic.com/freeImage/RZlX2iXYbwYecUARj2ejbbCorEeUTQ5N",
+      "https://itin-dev.wanderlogstatic.com/freeImage/72cL0Ft1AIF8U2AAPosccmtahaoIzoNm",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Fredrikinkatu_on_an_evening_in_May_2025.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kamppi_bus_station_on_an_afternoon_in_August_2024.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule: "Mon–Fri 09:00–20:00, Sat 11:00–18:00, Sun 12:00–18:00",
+      notes:
+        "Year-round. Especially welcome on a winter afternoon — small, warm, and lamp-lit when the city is dark by 16:00. Quietest mid-morning weekdays; wait for a table on weekend afternoons.",
+    },
+    location: {
+      region: ["Helsinki", "Kamppi", "Uusimaa"],
+      address: "Fredrikinkatu 61A, 00100 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min",
+      notes:
+        "M1 or M2 metro one stop east from Lauttasaari to Kamppi (~3 min), exit toward Fredrikinkatu, then ~2 min walk south on the same block. The café sits at street level on Fredrikinkatu, two doors from the Kamppi metro/bus terminal complex.",
+    },
+    cost: {
+      perPersonEur: 8,
+      notes:
+        "Coffee €4–5, pastries €4–6, sandwiches and quiches €6–9. A typical sit-down stop is €5–10. Browsing the wall art is free; pieces are individually priced if you want to take one home.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in only, no reservations. Small room — go before 11:00 on a weekend or any weekday morning to be sure of a seat.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Single ground-floor room with step-free entry — stroller-accessible, but tight on space when the café is busy. Quiet, conversational atmosphere; works for older kids comfortable with sitting still, less so for active toddlers. Pastry case usually has something kid-friendly.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "<1h",
+    tags: ["food", "café", "museum"],
+  },
+  {
+    slug: "punavuori-walk",
+    title: "Walking around Punavuori",
+    shortDescription:
+      "Helsinki's most-walkable neighbourhood — 42 hectares of late-1800s tenements, design shops, second-hand stores, specialty cafés, and Iso Roobertinkatu (the city's first pedestrian street). The heart of the Design District, designed for an unhurried afternoon on foot.",
+    longDescription: [
+      "Punavuori (\"red mountain,\" named for the red cliffs that once showed between Sepänkatu and Punavuorenkatu before the area was built up in the late 1800s) is the small, dense neighbourhood that anchors Helsinki's Design District. It sits south of Bulevardi, between Hietalahti to the west and Ullanlinna to the east, and packs roughly 9,600 residents into 0.42 km² — among the densest blocks in Finland. Once Helsinki's working-class quarter (\"most of the brothels and beerhouses,\" per the Wikipedia summary), it gentrified slowly through the late 20th century into the city's de facto creative quarter, and today functions as the most walkable, browsable, café-and-shop-stacked neighbourhood in central Helsinki.",
+      "The walk doesn't need a fixed route — most of the pleasure is wandering — but the shape that works well is a loop. Start at Viiskulma (\"Five Corners\"), the small five-way square where five streets meet, walk south down Iso Roobertinkatu (Helsinki's first pedestrianised street, opened 1985, now a long stretch of cafés, restaurants, and small shops), drift west into the parallel Uudenmaankatu and Fredrikinkatu corridors for the design shops, and curl back north via Korkeavuorenkatu past the Design Museum. The neighbourhood's commercial spine is Finnish Design at its most live: Lokal (curated ceramics and small-batch craft), U26 (a co-op of eight Finnish designers), Marimekko's outlet, dozens of independent jewellers and clothiers, and Helsinki's strongest cluster of vintage shops (Relove, Kaunis Veera, Frida Marina) for second-hand Iittala and old Marimekko at fraction-of-retail prices.",
+      "Café stops are the other half of the day. Andante on Fredrikinkatu (a former florist turned specialty café — also catalogued separately here) is the slow filter-coffee stop. Café Engel, Moko Market, Chez Janet, and the new Heritage Café in Kamppi at the northern edge are all in walkable range. For lunch, Sandro Punavuori, Yes Yes Yes (vegetarian), Soi Soi (Thai), or any of the Bulevardi restaurants on the way back. Add the Sinebrychoff Park (the green pocket where the KOFF Race runs every July) for a sit-down break and you've spent a comfortable half-day without ever boarding a tram.",
+      "Free, self-guided, and viable in any weather — the streets are walkable on cleared snow in winter and shaded by tenement façades in summer. The official Design District guide (designdistrict.fi) maintains a free map of all ~200 member shops if you want to plan the route; the @designdistrict.helsinki Instagram tracks pop-ups and openings in real time. From Lauttasaari, the easiest entry is M1/M2 to Kamppi (~3 min) and walking south down Fredrikinkatu, or bus 21 to Erottaja for the eastern entry via Uudenmaankatu. Plan two to four hours for a meaningful loop with stops; longer if you actually shop. Most shops are 10:00–18:00 Mon–Sat, with reduced or closed Sundays.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Iso_Roobertinkatu_on_an_evening_in_June_2024.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Viiskulma.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Punavuori.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Albertinkatu_kaakkoisosa.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Fredrikinkatu_from_Ratakatu.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Telakkakatu_in_Punavuori,_Helsinki,_Finland,_2021_April.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Viiskulma_Junction_in_Fog_(2025).jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Most shops open Mon–Sat ~10:00–18:00, with reduced or closed Sundays. Cafés and restaurants run their own (mostly daily) hours.",
+      notes:
+        "Year-round. Best on long-daylight weekday afternoons (May–September) when terrace cafés are out and Iso Roobertinkatu's pedestrian stretch fills with people, but the indoor shops and cafés make this a perfectly good rainy-day or winter wander too. Most shops closed on Sundays — pick a Saturday or weekday if shopping is part of the plan.",
+    },
+    location: {
+      region: ["Helsinki", "Punavuori", "Uusimaa"],
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min",
+      notes:
+        "M1 or M2 metro one stop east from Lauttasaari to Kamppi (~3 min), then walk south down Fredrikinkatu (~5 min) into the heart of the Design District. Alternative: bus 21 from Lauttasaari to Erottaja (~12 min) for the eastern entry via Uudenmaankatu. The whole neighbourhood is then walkable.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Walking is free. Budget what you'd spend on coffee/lunch (€10–20) plus whatever the shopping temptation gets you — €0 if you're disciplined, €100+ if you fall for a piece of Lokal ceramics.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No bookings needed for a self-guided wander. If you want a guided design tour, Helsinki Design Walks runs scheduled small-group tours from May–September (book a few days ahead via designdistrict.fi).",
+    },
+    suitableAgeRange: { min: 5 },
+    childrenNotes:
+      "Stroller-friendly throughout — pavements are wide, Iso Roobertinkatu is car-free, most shops have step-free entry. The walk works best for kids old enough to be patient through a shop browse; under-5s lose interest quickly. Cafés along the way (Andante, Moko Market) usually have something kid-friendly. Toilets at any café or at the Forum/Kamppi malls.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website: "https://www.designdistrict.fi/",
+    tags: ["design"],
+  },
+  {
+    slug: "ekberg",
+    title: "Café Ekberg",
+    shortDescription:
+      "Finland's oldest still-operating café — founded 1852, on Bulevardi since 1915 — serving Helsinki's most-talked-about weekend brunch (and most-talked-about price tag, €29.90), with the Runeberg tortes, Alexander cakes, and Napoleon pastries that have been on the counter since the 19th century.",
+    longDescription: [
+      "Café Ekberg was founded in February 1852 by the master baker Fredrik Edvard Ekberg, originally on Aleksanterinkatu and at its current address on Bulevardi 9 since 1915. It is the oldest still-operating café in Helsinki — the bakery and patisserie are part of the same business, and the current owner Otto Ekberg is a direct descendant of the founder. The orange façade, the polished pastry counter, and the Krapfens, Runeberg tortes, Alexandertårta, Napoleonbakelse, and Berlinermunk in the window are essentially the same range a Helsinki bourgeois shopper would have walked past in 1900. Locals will tell you the pastries here are the best in the city, full stop, and the case for it is hard to argue with after one Alexander cake.",
+      "The brunch is the famous one and the famously expensive one. €29.90 per adult on Saturday and Sunday between 09:00 and 14:30 buys an open buffet of hand-baked breads and croissants, cheese, charcuterie, fresh fruit, salads, oat porridge, yoghurt, muesli, boiled eggs, creamy oven-baked omelette, a rotating warm dish (sausages, meatballs, baked potatoes — changes weekly), a sweet dessert, and unlimited coffee, tea, and orange juice. It's not cheap by Helsinki standards (most cafés do brunch at €15–22), but the consensus among Helsinki brunch-rankers is that it's worth the splurge once: the pastry programme alone justifies the gap. The weekday Helsinki Breakfast version (Mon–Fri, 08:00 onwards) is a smaller buffet at €15.90.",
+      "If brunch isn't the plan, the café also runs a weekday lunch (~€12.50 buffet) and the year-round à la carte menu — lohikeitto (salmon soup) and a toasted mozzarella–pesto sandwich are the two reliable orders. The bakery counter at the front of the shop sells everything to take away; the Runeberg tortes (only in season around 5 February, Runeberg's Day) and the Christmas-season pulla are the runs locals plan their week around. The 2016 renovation was controversial — much of the original Art Nouveau interior was lost — but the room still photographs beautifully and the summer terrace overlooking the Bulevardi tram tracks is one of central Helsinki's better people-watching seats.",
+      "Bulevardi 9 sits in northern Punavuori at the Kamppi edge — about a 5-minute walk south from Kamppi metro, or 15 minutes from Central Station. Open daily, with Mon–Fri breakfast 08:00–10:30, weekend brunch 09:00–14:30, and the bakery shop and à la carte service running roughly 09:00–18:00. Reservations recommended for weekend brunch — it books out a few days ahead, especially on Sundays.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Cafe_Ekberg_-_Bulevardi_9_-_Kamppi_-_Helsinki_-_m.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Cafe_Ekberg_-_Bulevardi_9_-_Kamppi_-_Helsinki_1.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Cafe_Ekberg_-_Bulevardi_9_-_Kamppi_-_Helsinki_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bulevardin_Ekberg_kesällä_-_Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bulevardin_Ekberg_talvella_-_Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Runeberg's_torte_from_Ekberg.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bulevardi_9_May_8th_2019.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Daily. Weekday Helsinki Breakfast Mon–Fri 08:00–10:30. Weekend Brunch Sat–Sun 09:00–14:30. Bakery shop and café service roughly 09:00–18:00 daily; weekday lunch from 11:00.",
+      notes:
+        "Year-round. Runeberg tortes are in season around 5 February (Runeberg's Day); seasonal pulla and pastries cycle through Easter, Vappu, midsummer, and Christmas. Weekend brunch books out — reserve at least a few days ahead.",
+    },
+    location: {
+      region: ["Helsinki", "Kamppi", "Uusimaa"],
+      address: "Bulevardi 9, 00120 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min",
+      notes:
+        "M1 or M2 metro one stop east from Lauttasaari to Kamppi (~3 min), then a 5-min walk south down Fredrikinkatu and east on Bulevardi to no. 9. Alternative: bus 21 from Lauttasaari to Erottaja (~12 min) then a 5-min walk west on Bulevardi.",
+    },
+    cost: {
+      perPersonEur: 30,
+      notes:
+        "Weekend brunch €29.90 adult. Weekday Helsinki Breakfast €15.90. Weekday lunch buffet ~€12.50. À la carte mains €15–25. Bakery counter pastries €4–7 each. The pricing is famously the highest in central Helsinki for brunch — locals consider it worth it once, but not weekly.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Reservations recommended for weekend brunch (especially Sunday) — books out 2–4 days ahead. Walk-in is fine for the bakery counter, à la carte, and weekday breakfast.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Stroller-accessible at the front entrance; the dining room is spacious and the bakery counter is at kid-eye-level. High chairs available. The brunch buffet is a good fit for picky eaters — bread, fruit, eggs, oatmeal, sweet pastries all in one stop. Weekend mornings are busy and noisy; younger kids do better at weekday breakfast.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.ekberg.fi/en/",
+    tags: ["food", "café", "historical"],
+  },
+  {
+    slug: "loylykontti-sornainen",
+    title: "Löylykontti Sörnäinen",
+    shortDescription:
+      "A two-container shipping-container sauna dropped on the Sörnäinen waterfront — book online, get a door code, let yourself in for two hours of 80–90°C löyly with floor-to-ceiling sea views and a heated ladder straight into the Baltic for the cold-plunge half of the ritual.",
+    longDescription: [
+      "Löylykontti (\"löyly container\") is the unstaffed-container model of public sauna that has quietly become one of Helsinki's most accessible introductions to the löyly-and-ice-water ritual. The Sörnäinen branch — opened on Christmas Eve 2024 — sits on the waterfront promenade in Suvilahti, the cultural-industrial district one metro stop east of Hakaniemi, and consists of two ten-person wooden saunas (named Meri, \"sea,\" and Suvi, \"summer\") built into modified shipping containers with floor-to-ceiling glass facing the Baltic. Electric stoves under a generous mass of stones produce the soft, humid steam Finns associate with wood-fired heat, and the door opens directly onto a heated ladder into the sea — open all year, with a maintained avanto (ice hole) through the winter for proper avantouinti.",
+      "The format is the appeal. You book a 2-hour slot online (loylykontti.fi), receive a door code 10 minutes before your start time, and let yourself in. There's no reception, no membership, no waiting in line; the door code expires at the end of your slot, the next group's code starts. Inside the container is the sauna, a small dressing room, indoor showers, and the sea ladder; outside is the promenade, the gym Rautaranta, the padel courts at Pro Padel Sörnäinen, and the seafood restaurant La Terrasse. The whole complex was built into the working waterfront, not on top of it — you can walk past joggers, dog-walkers, and Suvilahti food-truck nights on the way in.",
+      "Pricing depends on whether you book the whole container or a public mixed session. A private 2-hour container booking is roughly €25–35 depending on weekday vs weekend; public sessions (when offered) run €7–12 a head. Swimsuits are mandatory in mixed public sessions; private bookings run by your group's preference. The walk-in option is genuinely cheaper than Allas or Löyly by half on a weekday — the trade-off is you're getting a clean, well-built but small container, not a destination spa with a restaurant and a sun deck.",
+      "Open 06:00–24:00 daily; full availability is on the booking calendar at the website. From Lauttasaari, M1 or M2 metro to Sörnäinen (~12 min) or Hakaniemi (~10 min), then a 5–8 minute walk along the seafront promenade. Bring your own swimsuit, towel, and a flip-flop or sandal for the walk to the sea ladder; everything else is provided. Pair with a meal at La Terrasse or a craft beer at one of the Suvilahti microbreweries afterwards — the Kallio district is a 10-minute walk inland and runs the densest restaurant strip in eastern Helsinki.",
+    ],
+    thumbnailUrl:
+      "https://d4erwbryg41cq.cloudfront.net/saunaimage-89-1.jpg",
+    galleryUrls: [
+      "https://i.media.fi/incoming/sno9l/10553016.jpg/alternates/FREE_1440/10553016.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suvilahti_in_Helsinki,_Finland,_2024_January.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kalasatama_high-rises_seen_from_Suvilahti_in_Helsinki,_Finland,_2020_November.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule: "Daily 06:00–24:00. Bookable in 2-hour slots via loylykontti.fi.",
+      notes:
+        "Year-round. Especially memorable December–March when the avanto is cut and you can do the full sauna-plunge-sauna cycle. Quietest mid-day weekdays; weekend slots book out 1–3 weeks ahead.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Sörnäisten Rantapromenadi, 00530 Helsinki (Suvilahti waterfront)",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~25 min",
+      notes:
+        "M1 or M2 metro from Lauttasaari to Sörnäinen (~12 min), then a 5–8 min walk south along Sörnäisten rantatie / rantapromenadi to the seafront. Alternative: get off at Hakaniemi (~10 min) for a slightly longer waterfront walk. The container is on the promenade next to Rautaranta gym and the padel courts.",
+    },
+    cost: {
+      perPersonEur: 15,
+      notes:
+        "Private 2-hour container bookings €25–35 depending on weekday vs weekend (split across your group). Public mixed sessions €7–12 per person when available. No towel/swimsuit rental — bring your own.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Online-only via loylykontti.fi. Weekday slots usually available a few days ahead; popular Friday and Saturday evening slots book out 1–3 weeks ahead in winter. Door code arrives 10 minutes before your slot.",
+    },
+    childrenNotes:
+      "Adult-oriented unstaffed sauna without a lifeguard or attendant; the cold sea ladder and 80–90°C heat make this unsuitable for young children. Older teens comfortable with the sauna ritual are fine in a private booking with parents. Public mixed sessions: swimsuits required, no nudity, but the format still works better for adults.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.loylykontti.fi/en/saunas/helsinki/sornainen",
+    tags: ["sauna"],
+  },
+  {
+    slug: "kotiharjun-sauna",
+    title: "Kotiharjun Sauna",
+    shortDescription:
+      "Helsinki's only remaining traditional wood-heated public sauna — burning a cubic metre of birch every sauna day, men's bench on the ground floor, women's identical room upstairs, the same way since 1928. €16 for the no-frills, no-reservation, real-thing löyly.",
+    longDescription: [
+      "Kotiharjun Sauna opened in 1928 on the corner of Harjutorinkatu and Franzeninkatu in Kallio, Helsinki's bohemian district. Of the dozens of district saunas (kortteli- ja kotitaloyhtiösaunat) that once served working-class neighbourhoods before private bathrooms became common, Kotiharju is the last traditional wood-heated public sauna left in Helsinki — every other public sauna in the city now runs on electric or gas. The building, the schedule, and the experience have barely changed in a century: a 7,000 kg cast-iron and stone stove on the ground floor, a cubic metre of split birch burned to heat it, men on the ground floor, women on the second floor, both rooms the same size, and a small electric private rental sauna in the back for families and groups.",
+      "The wood-heated kiuas is the reason to come. Aficionados will tell you that softer, more humid steam (löyly) comes off rocks heated by burning wood than off any electric stove, and Kotiharju's 1,500 kg of stones bedded into 1,000 kg of iron produce arguably the best traditional löyly available to anyone walking in off the street in Helsinki. The men's room has a piippuhylly (chimney shelf) — a top-tier seat closest to the rising flue, where the heat is most intense and the regulars gravitate. There's a small heated outdoor terrace facing the back yard where bathers cool off in towels, beer in hand, in winter or summer; locals come for the löyly and stay for the cold-air cool-down on the bench outside.",
+      "It's a real working-class neighbourhood sauna, not a tourist spa. The interior is plain tile and wooden bench; you bathe naked (single-sex rooms), shower before entering, sit on a small towel for hygiene, ask before throwing more water on the stones. €16 adult, €13 student/senior, €4 towel rental, €7–8 birch whisk (vasta) if you want to do it the full traditional way. The owners also offer a €15 full-body washing service on Thursdays and Saturdays — a bather (kylvettäjä) scrubs you on a wooden bench, also unchanged since the 1920s. No reservations for the public sauna; walk in any time during opening hours.",
+      "Open Tuesday–Sunday 14:00–20:00 (last admission; bathing until 21:30). Closed Mondays and 1 May. From Lauttasaari, M1 or M2 metro to Sörnäinen (~12 min), then a 5-minute walk west into Kallio to Harjutorinkatu 1 — the bright neon \"SAUNA\" sign on the corner is the marker. Pair with a beer at one of the Kallio bars (Sori Taproom, Bar Kuja) afterwards, the standard local sequence. UNESCO listed Finnish sauna culture as Intangible Cultural Heritage in 2020 in part because of the survival of places like this; Kotiharju is, in a real sense, the listed thing itself.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kotiharjun_sauna_neon_sign_2008.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kotiharjun_yleinen_sauna_(Kotiharju_public_sauna_in_Helsinki)_Helsingin_Torkkelinmäellä_Kalliossa_01.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kotiharjun_yleinen_sauna_(Kotiharju_public_sauna_in_Helsinki)_Helsingin_Torkkelinmäellä_Kalliossa_03.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kotiharjun_sauna_-_Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kotiharjun_sauna_2025-1_Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/20140529_harjutorin_sauna.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Tue–Sun 14:00–20:00 (last admission); bathing continues until 21:30. Closed Mondays and 1 May. Full-body washing service Thu and Sat only.",
+      notes:
+        "Year-round. The wood-fired heat hits differently in deep winter when you can step out onto the small terrace and let -10°C air do the cooling. Quietest weekday afternoons; busy on Friday and Saturday evenings — go before 17:00 if you want a piippuhylly seat.",
+    },
+    location: {
+      region: ["Helsinki", "Kallio", "Uusimaa"],
+      address: "Harjutorinkatu 1, 00500 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~25 min",
+      notes:
+        "M1 or M2 metro from Lauttasaari to Sörnäinen (~12 min), then a 5-min walk west into Kallio along Hämeentie and up Harjutorinkatu. Alternative: tram 9 from the city centre stops a 3-min walk away. The neon SAUNA sign on the corner is the visual marker.",
+    },
+    cost: {
+      perPersonEur: 16,
+      notes:
+        "Public sauna €16 adult, €13 student/senior/unemployed, €9 children 12–16. Towel rental €4. Birch whisk (vasta) €7–8. Optional full-body wash service (kylvettäjä) €15 — Thu and Sat only. Private electric-rental sauna in the back priced separately for groups.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No reservations for the public sauna — walk in any time during opening hours. The private electric sauna at the back is bookable in advance via phone (+358 9 7531535) for groups and families.",
+    },
+    childrenNotes:
+      "Children 12–16 admitted at €9 with a parent in the same-sex public sauna. Below 12 is fine on a private booking of the back electric sauna; the public rooms are nudity-required and adult-paced and not the right introduction for younger kids. Plan to be the only family in the room — bring towels, sandals, water.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.kotiharjunsauna.fi/",
+    tags: ["sauna", "historical"],
   },
 ];

@@ -82,6 +82,13 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
       />
 
       <ChipGroup
+        label="Tags"
+        options={KNOWN_TAGS.map((t) => ({ value: t, label: titleCase(t) }))}
+        selected={filters.tags}
+        onToggle={(v) => onChange({ ...filters, tags: toggle(filters.tags, v) })}
+      />
+
+      <ChipGroup
         label="Region"
         options={KNOWN_REGIONS.map((r) => ({ value: r, label: r }))}
         selected={filters.regions}
@@ -118,13 +125,6 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
         onToggle={(v) =>
           onChange({ ...filters, indoorOutdoor: toggle(filters.indoorOutdoor, v) })
         }
-      />
-
-      <ChipGroup
-        label="Tags"
-        options={KNOWN_TAGS.map((t) => ({ value: t, label: titleCase(t) }))}
-        selected={filters.tags}
-        onToggle={(v) => onChange({ ...filters, tags: toggle(filters.tags, v) })}
       />
     </div>
   );
