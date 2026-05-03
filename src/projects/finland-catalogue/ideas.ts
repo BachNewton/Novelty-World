@@ -3323,4 +3323,302 @@ export const IDEAS: Idea[] = [
     website: "https://www.muumimuseo.fi/en/",
     tags: ["museum"],
   },
+  {
+    slug: "ekenas-tammisaari",
+    title: "Ekenäs (Tammisaari)",
+    shortDescription:
+      "A bilingual seaside old town of pastel wooden houses, Finland's first pedestrian street, and the country's oldest still-running cinema (1912) — an easy 1h45 train trip west of Helsinki, with the Ekenäs Archipelago National Park on its doorstep.",
+    longDescription: [
+      "Ekenäs (Swedish: Ekenäs, Finnish: Tammisaari) is a small bilingual coastal town on the south-western Uusimaa coast — about 80 km west of Helsinki and the same again east of Turku. King Gustav Vasa granted it town rights in 1546, making it Finland's seventh-oldest town, and the layer that survives today is the 18th- and 19th-century wooden quarter that climbs the slope from the harbour. Most of the town burnt in 1821 and was rebuilt on the same plan; the protected old town is now one of the best-preserved wooden grids in Finland, alongside Old Rauma and Old Porvoo. The population is small (~14,000) and predominantly Swedish-speaking — about 81% of residents have Swedish as their first language, which is unusual even for the bilingual coastal belt.",
+      "What makes Ekenäs worth a day trip is the texture of the place. The oldest streets — Linvävaregatan, Hattmakaregatan, Skomakaregatan — are named after the trades that worked them, and most of the houses still carry hand-painted name signs of marine species over the doorways. Decorative \"gossip mirrors\" angled out from upper windows let residents see who was approaching the door without leaning out. Kungsgatan, the spine of the old town, was designated Finland's first pedestrian street in 1971 and is now lined with independent shops — bookbinding, watchmaking, framing, ceramics, design — plus a handful of cafés and pizzerias in the €10–18 range. The Neoclassical stone church at the top of the slope was designed by Italian-born architect Charles Bassi in 1839–1842; Bio Forum on Kungsgatan, opened in 1912, is the oldest still-functioning cinema in the country. Two Alvar Aalto buildings — the 1964 Ekenäs Savings Bank and Villa Skeppet (1969, his last completed villa, currently open for guided tours) — sit a short walk from the centre and are an easy bonus for design fans.",
+      "The painter Helene Schjerfbeck spent her summers here from 1918 and lived in Ekenäs permanently from 1925 to 1941; her later self-portraits and many of her best-known works were painted in the town. The local Ekta museum centre is currently rebuilding a permanent Schjerfbeck exhibition (planned to reopen in spring 2026), and a dramatised \"in Schjerfbeck's footsteps\" walking tour runs through the summer. About one kilometre from the centre, the Ramsholmen nature park — 55 hectares of mixed woodland threaded with pram- and wheelchair-friendly trails, with a sandy swimming beach on the inner edge — is where locals go for a summer afternoon; in May the forest floor is carpeted white with wood anemones. Out beyond the harbour, the Ekenäs Archipelago National Park covers ~50 km² of skerries; in summer a scheduled passenger ferry runs from Norra Hamnen out to Jussarö island, where there's a small café and walking trails on a former iron-mine settlement.",
+      "Day-trip from Lauttasaari is comfortable. Hourly VR trains run Helsinki Central → Karis/Karjaa (~1h), where you transfer onto the small local Y-train for the 11-minute hop to Tammisaari station. There are also a few direct Helsinki–Tammisaari trains a week (Wed/Fri/Sun, ~1h 28m) that skip the change. Round-trip costs roughly €20–35 booked a few days ahead. Once you arrive, everything except the archipelago is on foot. Wednesday and Saturday mornings are market days on the square, including fresh fish from Hanko-area boats; the December weekends bring a small but well-loved Christmas market along Kungsgatan. May to September is the prime window — cafés, the harbour, the national park ferry, Ramsholmen swimming all running — but the town is genuinely walkable year-round and the wooden quarter under fresh snow is one of the prettier December afternoons in the country.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vanhaa_Tammisaarta1.JPG",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tammisaaren_kirkko.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tammisaari_etelasta.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/2003_-_Västra_Nyland_-_Biograf_i_Ekenäs.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Alvar_Aalto,_Tammisaari_Savings_Bank.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Raseborg_city_hall.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Ekenäs_-_Magnus_von_Wright_-_Finland_framställdt_i_teckningar_-_37.jpg",
+    ],
+    availability: {
+      suitableMonths: [4, 5, 6, 7, 8, 9, 12],
+      notes:
+        "Old town is walkable year-round and snowy December is genuinely beautiful, but May–September is the heart of the season — cafés open, the archipelago ferry running, Ramsholmen swim beach, weekly market days at full strength. December weekends bring the Christmas market on Kungsgatan; January–March is quiet enough that several restaurants close.",
+    },
+    location: {
+      region: ["Ekenäs", "Raseborg", "Uusimaa"],
+      address: "Old Town, 10600 Ekenäs (Tammisaari), Raseborg",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~1h 45m each way",
+      notes:
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR train Helsinki Central → Karis/Karjaa (~1h, hourly), transferring to the local Y-train Karis → Tammisaari (~11 min, ~7 services a day). A few direct Helsinki–Tammisaari trains a week (Wed/Fri/Sun, ~1h 28m) skip the change. From Tammisaari station, the old town is a 5-minute walk down to the harbour.",
+    },
+    cost: {
+      perPersonEur: 25,
+      notes:
+        "Round-trip train Helsinki ↔ Tammisaari roughly €20–35 booked a few days ahead. Wandering the old town is free; cafés and lunch €10–18; archipelago ferry to Jussarö separate ticket; Villa Skeppet guided tour separately ticketed.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in for the town itself. Train tickets are cheaper booked a few days ahead. Villa Skeppet guided tours and the Jussarö archipelago ferry both require advance booking via Visit Raseborg in summer.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Stroller-friendly old town (cobbles are gentle, mostly flat near the harbour) and a kid-friendly summer beach at Ramsholmen 1 km from the centre. Bio Forum runs occasional family screenings. The full-day train round-trip is doable with babies but plan for a long day.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.visitraseborg.com/en/see-and-experience/ekenas-old-town/",
+    tags: ["historical", "landmark", "nautical"],
+  },
+  {
+    slug: "hanko",
+    title: "Hanko (Hangö)",
+    shortDescription:
+      "Finland's southernmost town and its most unapologetically seaside one — 130 km of coast, 30 km of sand, candy-coloured wooden spa villas, striped beach huts at Plagen, and the M/S Summersea cruise out to the 52-metre Bengtskär lighthouse.",
+    longDescription: [
+      "Hanko (Swedish: Hangö) sits on the tip of a long sandy peninsula at the southern edge of Finland — the country's southernmost city and, by some margin, its sunniest. It was founded in 1874 around an ice-free deep-water port and the brand-new Hanko–Hyvinkää railway, and almost immediately reinvented itself as a seaside spa town for the Russian aristocracy. Between roughly 1880 and 1914 the wealthy of Saint Petersburg, Helsinki, and Stockholm built rows of elaborate wooden villas along Appelgrenintie and the streets behind it — turreted, balconied, painted in mint, salmon, and butter-yellow — and the town gained a casino, bath houses, dance halls, and a steamer service. World War I ended the spa era, the Continuation War left the peninsula a frontline (the Soviet Union leased it as a naval base in 1940–41 and Finnish forces held the Bengtskär lighthouse against a 1941 amphibious assault), and Hanko emerged afterwards as a working port that quietly preserved its 19th-century skin.",
+      "What you actually come for is the seaside. The peninsula has roughly 130 kilometres of coastline and 30 kilometres of fine sand, and the central beaches are walkable from the train station: Plagen on the south side, the long classic strand backed by rows of striped wooden beach huts (Hanko's most photographed motif); Regattaranta in the centre, sheltered and family-paced; Bellevue toward the west, breezier and good for kites and small wind-sport; and the wilder Tulliniemi nature beach beyond it, on the way to mainland Finland's southernmost point. A 6.7-kilometre marked nature trail runs through Tulliniemi, with information boards and a snorkel route in the shallows. The 48-metre Hanko water tower in the centre opens for the climb in summer; from the top you can pick out the Gustavsvärn fortress lighthouse 3 km out, the pink Russarö lighthouse further off, and on a clear day even the silhouette of Bengtskär 30 km to the southwest.",
+      "Bengtskär itself is the headline excursion. The 52-metre granite lighthouse — the tallest in the Nordic countries, completed in 1906 — was the target of a Soviet special-forces raid on 26 July 1941; you can still see shrapnel scars on the masonry. M/S Summersea sails from Hanko Eastern Harbour daily in summer (Sat–Thu 11:00, Fri 14:00, 6 June – 22 Aug 2026), about 5.5 hours round-trip including a guided lighthouse climb and lunch on board, €78 adult / €42 child 4–14, weather permitting. Back ashore, summer life centres on the harbour cafés (HSF and Park Café for sunset, På Kroken for fish, Beurre for upscale, Hangon Makaronitehdas for vegan and pasta), the small but well-loved Hanko Museum, and the surviving 1940s Kino Olympia cinema. Early July is the Hangon Regatta — Finland's biggest sailing party, a working regatta wrapped around three days of sold-out hotels, harbour bands, and dawn-light parties; book accommodation by spring if you want to be there for it.",
+      "Logistics from Lauttasaari are a single-day kind of straightforward. Metro to Helsinki Central, VR train to Karis/Karjaa (~1h, hourly), transfer onto the local Y-train to Hanko (~50 min); total 1h 45m–2h depending on connection. The same train passes through Tammisaari, so Hanko-and-Ekenäs makes a natural overnight pair if you want both. Driving via highway 25 is ~1h 30m. June through August is the prime window — café terraces, beach huts up, lighthouse cruise running, water warm enough; May and September are quieter and cheaper with cooler dips; the off-season is genuinely quiet. Most accommodation in town is small guesthouses and converted villas; Villa Maija and Hotel Continental are the classic stays.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hankoo_water_tower_and_church_July_10_2005.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Långsanda_beach_in_Hanko.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bellevuen_uimaranta.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Coast_of_Tulliniemi_in_Hanko,_Finland,_2021_July.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Regattanranta_beach_in_Hanko,_Finland,_2021_October_-_01.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hangon_satama-aluetta_280720_b.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hangö_hamn,_2005.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lighthouse_Bengtskär.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bengtskär_Lighthouse.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      events: [
+        {
+          from: "07-02",
+          to: "07-04",
+          name: "Hangon Regatta",
+        },
+      ],
+      notes:
+        "Strictly a summer destination — June through August is peak (warm water, terraces, beach huts up, lighthouse cruise running). May and September are quieter, cheaper, and cooler-but-fine. Off-season the town is sleepy and most cafés/restaurants close.",
+    },
+    location: {
+      region: ["Hanko", "Uusimaa"],
+      address: "Hanko, 10900 Hanko (city centre and Eastern Harbour at Satamakatu)",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~1h 50m each way",
+      notes:
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR train Helsinki Central → Karis/Karjaa (~1h, hourly), transferring to the local Y-train Karis → Hanko (~50 min, ~5–7 services a day). Total 1h 50m–2h. Driving via highway 25 takes about 1h 30m. The Bengtskär cruise leaves from Hanko Eastern Harbour (Itäsatama, Satamakatu 4) — a 10-minute walk from the train station.",
+    },
+    cost: {
+      perPersonEur: 30,
+      notes:
+        "Round-trip train Helsinki ↔ Hanko roughly €25–40. Beaches are free. Bengtskär lighthouse cruise €78 adult / €42 child including lunch and guiding — book separately. Lunch in town €15–25; villa-stay rooms in summer €120–250/night.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Town itself is walk-in. Bengtskär cruise should be booked a few days to a week ahead in summer (and only runs with 30+ passengers). Hangon Regatta weekend (early July) — book hotels by March or stay in Ekenäs/Karis and commute. Train tickets cheaper booked a few days ahead.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Plagen and Regattaranta are shallow, fine-sand, family beaches with the iconic striped huts. Strollers are easy along the seafront promenade. Bengtskär cruise is 5.5 hours and involves climbing the lighthouse — workable for kids 6+ but a long day for younger ones. Pack sunscreen — Hanko is the sunniest place in Finland.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "full-day",
+    website: "https://www.visithanko.fi/en/",
+    tags: ["nature", "nautical", "historical"],
+  },
+  {
+    slug: "aland-ferry",
+    title: "Åland Islands (Ferry over)",
+    shortDescription:
+      "Sail the autonomous Swedish-speaking archipelago between Finland and Sweden — overnight cabin from Helsinki West Terminal or a 5.5-hour day crossing from Turku. Pommern, the only original four-masted barque in the world, is moored in Mariehamn's harbour.",
+    longDescription: [
+      "Åland (in Swedish; Ahvenanmaa in Finnish) is the autonomous, demilitarised, Swedish-speaking-only archipelago of about 6,500 islands and skerries that sits between Finland and Sweden in the Baltic. It became autonomous by League of Nations decision in 1920 — Finland kept sovereignty, Sweden's claim was denied, and Åland in return got its own parliament, flag, license plates, postage stamps, and a constitutional guarantee of Swedish as the sole official language. It's been demilitarised since the Treaty of Paris in 1856; Ålanders are exempt from Finnish military service. Crucially for the visitor experience, when Finland joined the EU in 1995 Åland negotiated its way out of the EU VAT area, which means ferries that touch Åland waters can sell duty-free alcohol, tobacco, and cosmetics — the entire Helsinki–Stockholm cruise economy depends on this loophole and so does most of Åland's tourism.",
+      "There are two practical routes. From Helsinki, board a Viking Line cruiseferry (Viking Glory or Viking Grace) at the West Terminal at 17:30; sleep in a cabin while the ship threads the archipelago overnight; dock in Mariehamn around 04:30. The cruise ferries also continue to Stockholm — most riders book the round trip via Stockholm and treat Mariehamn as an in-passing stop, but you can disembark at Mariehamn, spend a day or two, and pick up the return sailing. From Turku the crossing is much shorter — Viking Line and Tallink Silja each run roughly one daily sailing in each direction, taking about 5.5 hours, which makes a same-day return from Turku just possible if you catch the morning ferry out and the late one back. Cabin-class round-trip from Helsinki via Mariehamn runs €100–250 per person depending on tier and season; foot-passenger day-cruise from Turku starts around €25–40.",
+      "Mariehamn (~12,000 people) is small and walkable, with two harbours bracketing a low wooden grid. The headline museum is Pommern, a 1903 four-masted steel barque permanently moored alongside the Maritime Quarter — the only four-masted merchant sailing ship in the world preserved in fully original condition, with sensor-guided audio inside that drops you into the voices of her crew on the Cape Horn grain runs of the 1930s. Next door, the Åland Maritime Museum tells the wider story of how a population of 30,000 islanders built one of the world's last great deep-water sailing fleets under shipowner Gustaf Erikson, racing for grain prices on routes most countries had given up on by 1920. The Sjökvarteret (Maritime Quarter) is a cluster of working wooden boatyards, a sail loft, a smithy, a small chapel, and a few cafés and shops — the working spiritual heir of the Erikson tradition. Beyond Mariehamn the islands are flat, narrow-roaded, and made for cycling — south to the Järsö archipelago over a chain of bridges with sea on both sides, west toward Eckerö's red post office (Finland's westernmost), or out to one of the inhabited skerries by the small inter-island car ferries that locals use as buses (free for foot passengers).",
+      "What to expect: an overnight ferry that is loud, social, and unmistakably Finnish — buffet dinner with herring and salmon, a cabaret on the showboat decks, a duty-free shop the size of a supermarket, families in pyjamas in the corridors at midnight. Mariehamn itself is small-town quiet, very Swedish-speaking (English works, Finnish is hit-or-miss), and most charming May through September when the harbours are alive and Pommern is open (1 May – 30 Sept). Plan two nights and a day for an unhurried visit, three for cycling. The Helsinki–Stockholm-via-Åland round-trip is also catalogued separately — the entries differ in intent: this one is *about* Åland, not Stockholm.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Pommern2009.JPG",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/View_of_Mariehamn,_2022.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mariehamn_harbor_5.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mariehamn.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Storagatan_(Mariehamn),_2019_(01).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mariehamn_Church.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Åland_Museum_2022.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Silja_Serenade,_Stockholm,_2019_(02).jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      weeklySchedule:
+        "Helsinki → Mariehamn (Viking Line): daily 17:30, arrives ~04:30. Turku → Mariehamn (Viking Line / Tallink Silja): daily ~08:45 and ~20:45, ~5.5h crossing. Pommern museum ship: 1 May – 30 Sept daily 10:00–17:00, closed in winter.",
+      notes:
+        "Year-round ferries operate, but Åland-on-foot really wants summer — Pommern shut, cycling impossible, and most cafés/restaurants closed Oct–April. The overnight ferry as an experience (cabaret, buffet, duty-free shop) works year-round; the destination only really opens in May.",
+    },
+    location: {
+      region: ["Åland"],
+      address: "Mariehamn, 22100 Åland (West Terminal Helsinki: Tyynenmerenkatu 8, 00220 Helsinki)",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~11h overnight from Helsinki, or ~5.5h from Turku",
+      notes:
+        "From Helsinki: bus 21V or 65 to West Terminal (~15 min), or metro to Ruoholahti and tram 7 (~20 min). Viking Line departs at 17:30, arrives Mariehamn ~04:30. Disembark and walk into town (~10 min). From Turku: VR train Helsinki Central → Turku Harbour (~2h), then Viking Line / Tallink Silja ferry (~5.5h). Same-day return from Turku is possible (out 08:45, back by 20:45) but tight; overnight in Mariehamn is the better visit. Cars can be brought aboard for an additional fee.",
+    },
+    cost: {
+      perPersonEur: 120,
+      notes:
+        "Round-trip overnight from Helsinki via Mariehamn: ~€100–250 per person twin-share cabin depending on tier and season (foot-passenger walk-on tickets from ~€25 each way but unrealistic for the overnight). Turku day-cruise round-trip ~€25–40 foot-passenger. Pommern + Åland Maritime Museum combo €15. Buffet dinner onboard €35. Tax-free shop discounts make Åland-route alcohol meaningfully cheaper than mainland prices.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "Book 4–8 weeks ahead for cabin choice and decent prices; summer weekends sell out 2–3 months ahead. Christmas and Midsummer cruises book even further out. Bringing bicycles for cycling on Åland — reserve the bike spot when buying the ticket.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Both Viking Line and Tallink ferries are aggressively kid-friendly — family cabins with bunks, kids' play areas, mid-deck pool. The Mariehamn quayside walk to Pommern and the Maritime Quarter is stroller-flat. Cycling on Åland's quiet narrow roads works for kids confident on a bike — flat terrain, very little traffic. Onboard the overnight ferry, the bass from the show floor carries; a sea-view cabin on a higher deck helps light sleepers.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "multi-day",
+    website: "https://visitaland.com/en/",
+    tags: ["nautical", "historical", "nature"],
+  },
+  {
+    slug: "berry-mushroom-foraging",
+    title: "Berry Picking & Mushroom Foraging",
+    shortDescription:
+      "Walk into any Finnish forest in late summer with a bucket and walk out with blueberries, lingonberries, chanterelles, or ceps — Everyman's Right makes it free, legal, and entirely the point of August and September weekends in Finland. Nuuksio National Park is the closest practical patch from Helsinki.",
+    longDescription: [
+      "Foraging is, in Finland, less a hobby than a national reflex. Under jokamiehenoikeus — Everyman's Right — anyone (Finn, resident, visitor) can walk into almost any Finnish forest, regardless of who owns the land, and pick wild berries and mushrooms for their own use. No permission, no fee, no one to ask. The only places it doesn't apply are private yards, cultivated fields, and a small number of restricted nature reserves. You'll see entire Finnish families at it on August weekends, with sturdy plastic buckets, paper mushroom guides, and the slightly stained fingers of someone who has eaten a lot of bilberries already that morning.",
+      "The seasons run roughly: bilberries (mustikka — the small wild blueberries that stain everything blue) from mid-July through August, lingonberries (puolukka — tart red, used fresh and preserved) from late August into October, cloudberries (lakka — orange, expensive in shops because the bogs that produce them are inaccessible) for two short weeks in late July up north. Chanterelles (kantarelli) are the easiest mushroom for beginners — bright yolk-yellow, false-gilled, no dangerous lookalikes — and run August through September. Funnel chanterelles (suppilovahvero) and ceps/porcini (herkkutatti) extend the season into October. The sweet spot is the first weekend of September: late berries and early mushrooms in one outing.",
+      "From Helsinki, the closest serious patch is Nuuksio National Park (53 km², 35 minutes from the city by car), and within Nuuksio, Haukkalampi and the Korpinkierros loop are the classic starts. Sipoonkorpi National Park to the east of Helsinki is less crowded and very good for chanterelles. Luukki recreation area in Espoo is the easy-mode option — flat, well-marked, family-friendly. None of them require a guide; what you bring is a basket or paper bag (don't use plastic, mushrooms sweat and rot), a small knife for the mushrooms, sturdy boots, water, and a download of the Sieni-opas (Mushroom Guide) app or a printed mushroom book in Finnish, Swedish, or English. If you'd rather have a beginner's introduction, Feel The Nature, Finnish Friend, and Honkajoki Nature Tours all run guided 3–4 hour foraging walks in Nuuksio in season for around €70–95 per person, including a campfire-cooked snack and ID help on what you find.",
+      "What to do with what you pick: blueberries go straight into porridge, pancakes, or the freezer; lingonberries get made into a quick jam (raw-stir 1 kg berries with 500 g sugar, no cooking, will keep months); chanterelles fry hot in butter with a pinch of salt and a slice of toast; ceps are dried on a string over a radiator. The unwritten rule is take what you'll use and leave the rest. Public transport from Lauttasaari: M2 metro to Helsinki Central, commuter train (Y, U, E, L, X) to Espoon Keskus, then HSL bus 245 (or 245A in summer, May–October only) to one of the Nuuksio stops — about 1h 15m end to end. The Haltia Finnish Nature Centre at the park entrance has English-language exhibits, mushroom-ID stations during the season, and is the place to start if you've never done this before.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Picking_natural_blackberries_in_Finland.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Bilberries_and_lingonberries.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Berry-picking_rake.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Chanterelle_Finland.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mustalampi_Lake_in_Nuuksio.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Eero_Järnefelt_-_Berry_Pickers.jpg",
+    ],
+    availability: {
+      suitableMonths: [7, 8, 9, 10],
+      notes:
+        "Bilberry season: mid-July through August. Lingonberry season: late August into October. Chanterelles: August–September. Funnel chanterelles and ceps: September–October. The first weekend of September is the magic overlap — late berries and early mushrooms in one outing. Outside this window the forests are still beautiful but there's nothing to pick.",
+    },
+    location: {
+      region: ["Anywhere in Finland", "Espoo", "Uusimaa"],
+      address: "Practical entry: Haltia Finnish Nature Centre, Nuuksiontie 84, 02820 Espoo (or Haukkalampi entrance to Nuuksio National Park)",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~1h 15m to Nuuksio",
+      notes:
+        "M2 metro from Lauttasaari to Helsinki Central (~6 min), commuter train (Y, U, E, L or X) Helsinki Central → Espoon Keskus (~25 min), then HSL bus 245 (or 245A in summer, May–October) to Haltia Nature Centre or Haukkalampi entrance (~25 min). Bus 245 runs roughly hourly so check timetables. For Sipoonkorpi: M1 metro → Mellunmäki, then HSL bus 787K or 989. Driving is faster (~35 min to Nuuksio) but the bus works.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Free under Everyman's Right — no fees, no permits, no permission needed. HSL public transport ~€8 round-trip. A bucket, knife, and mushroom guidebook (~€20) are the only real costs. Optional guided forage tours run €70–95 per person including snacks and ID help.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "DIY foraging: walk-in, no booking. Guided tours: book a few days to a week ahead in season; weekend slots fill fastest in September. The Haltia Nature Centre also runs free mushroom-ID drop-in days in autumn — bring your basket of finds, a Finnish forest expert checks them.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "Kids 4+ love berry-picking but tire on mushroom hunts (longer walks, more squinting at the ground). Bring a carrier for under-3s — the Nuuksio trails run on roots and rock, stroller-unfriendly. Critical safety rule with kids: nothing goes in the mouth without an adult ID — Finland has a small number of dangerous lookalike mushrooms (Cortinarius rubellus, false morel) and the cautious rule is to identify everything twice.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website: "https://www.nationalparks.fi/berryandmushroompicking",
+    tags: ["nature", "food"],
+  },
+  {
+    slug: "korkeasaari-zoo",
+    title: "Korkeasaari Zoo (Korkeasaaren eläintarha)",
+    shortDescription:
+      "Helsinki's zoo — opened in 1889, set on its own 22-hectare wooded island, and built around cold-climate species: snow leopards, Amur tigers, Amur leopards, lynx, wolverine, Przewalski's horses, plus the warm Africasia and Amazonia houses for tropical species.",
+    longDescription: [
+      "Korkeasaari Zoo (Korkeasaaren eläintarha, Högholmens djurgård) opened in 1889 on a small wooded island just east of Helsinki Cathedral, making it one of the oldest zoos in continental Europe. It was founded by a private association as a temperance-movement Sunday-outing destination — a green island with a few caged bears, a place to escape the brewery economy of central Helsinki — and gradually grew into a serious institutional zoo run today by the city as a nonprofit foundation. It now holds about 1,500 animals across 150 species on 22 hectares, which by design feels like exploring a small forested island rather than walking down rows of cages: the paths wind, the enclosures are large by European-zoo standards, and most of the time you're under birch and pine canopy rather than concrete.",
+      "The collection is built deliberately around species that thrive in Finland's climate, which makes Korkeasaari unusual among European zoos. The headline residents are the Amur tiger and Amur leopard (the rarest big cat in the world; Korkeasaari coordinates the European studbook for them), the snow leopard, and the Eurasian lynx — all comfortable in the long sub-zero winters that would stress most zoo populations. Around them, the Nordic side of the island shows off Przewalski's horses, brown bears, wolverines, Arctic foxes, snowy owls, bearded vultures, takin, markhors, and the Finnish forest reindeer (the wild cousin of the herded reindeer further north — Korkeasaari coordinates the European studbook for these too). Two tropical buildings — Amazonia (Amazon basin) and Africasia (African and Asian) — add small mammals, monkeys, reptiles, amphibians, and aquariums for visitors who want to thaw and see warm-climate species. Most enclosures have weather-protected viewing shelters, which matters in February.",
+      "Conservation is genuinely the operating mission and not just signage. Korkeasaari runs the Wildlife Hospital (Villieläinsairaala), Finland's largest wild-bird-and-mammal rescue centre — every year they take in about 1,500 injured wild Finnish animals, mostly hedgehogs, swans, and waterfowl, and release the survivors back to the wild. Two long-running fundraising drives — Lux Korkeasaari each January (light installations through the dark zoo, raising money for snow leopards) and Night of Cats each summer (Amur tiger and leopard projects) — are the nights regulars come back for. There's a nature school for kids, English-language guided feeding talks scheduled through the day, and food in three on-site restaurants (the riverside Pukki, the playground-adjacent Kahvila, and the historic 1880s wooden Restaurant Pukki near the entrance).",
+      "Allow 3–5 hours; in summer with kids closer to a full day. Year-round operation, but the experience changes radically with the season: summer is full crowds, all enclosures fully accessible, the ferries running, and the outdoor playground open; winter is cold-climate species at their most active (the snow leopards in particular), deeply quiet, the tropical houses welcome warm-up stops. Tickets €24 adult / €17 child 4–17 in the Sept–May low season, €29 / €20 in the Jun–Aug high season; €19 evening ticket from 16:00 in summer; under-3s free. Annual pass €65 (adult) / €30 (child) — pays for itself in three visits and locals do exactly that. Helsinki Card holders save €2 adult / €1 child.",
+      "From Lauttasaari without a car: M2 metro to Helsinki Central (~6 min), then HSL bus 16 to the island (~15 min, three buses an hour, year-round) — the bus crosses the bridge from Mustikkamaa right into the zoo carpark. In summer (mid-May to late August) the JT-Line ferry from Market Square (Kauppatori) is the more atmospheric arrival — ~10-minute crossing, €8 round-trip, runs every 30 minutes. There's also an HSL water-bus option from Hakaniemi. Bus 16's terminus inside the island is the most reliable winter route. The whole zoo is stroller-friendly with paved main paths and lift access in the tropical buildings.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Snow_leopard_in_Korkeasaari_Zoo.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Amur_tiger_female_in_Korkeasaari_Zoo.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Panthera_pardus_orientalis_Korkeasaari.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Korkeasaari_Zoo's_tropical_building_Africasia.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Barbary_macaque_in_Korkeasaari_Zoo,_Helsinki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Korkeasaari_island_in_Helsinki,_Finland.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Restaurant_at_Helsinki_Zoo,_Korkeasaari_(Högholmen).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Camels_(8567053632).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Gypaetus_barbatus_Partakorppikotka,_Bearded_Vulture,_Lammgam_C_IMG_2309.JPG",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      events: [
+        {
+          from: "01-02",
+          to: "01-31",
+          name: "Lux Korkeasaari (light festival)",
+        },
+      ],
+      weeklySchedule:
+        "Daily year-round. Sept–May 10:00–16:00; June–Aug 10:00–20:00 (last entry 1h before closing). Closed Christmas Eve and Christmas Day.",
+      notes:
+        "Year-round, but the experience swings hard with the season. Winter — especially January with Lux Korkeasaari light installations — shows the cold-climate cats at their most active and the zoo at its quietest. Summer is families-with-strollers crowded but everything is open and the ferry from Market Square is running. Spring (April–May) and autumn (Sept–Oct) are the locals' favourite uncrowded windows.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Mustikkamaanpolku 12, 00270 Helsinki (Korkeasaari island)",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~25 min",
+      notes:
+        "M2 metro from Lauttasaari to Helsinki Central (~6 min), then HSL bus 16 from Rautatientori (Railway Square) directly across the bridge into the zoo (~15 min, three buses an hour, year-round). Summer alternative: JT-Line passenger ferry from Market Square (Kauppatori) — ~10 min crossing, €8 round-trip, runs roughly every 30 minutes mid-May to late August. The 16 bus stops inside the gates so it's rain-friendly.",
+    },
+    cost: {
+      perPersonEur: 24,
+      notes:
+        "Low season (Sept–May): adults €24, children 4–17 €17, students/seniors €19. High season (Jun–Aug): adults €29, children €20, students/seniors €22. Summer evening ticket from 16:00: €19 adult / €13 child. Under-3s free. Annual pass €65 adult / €30 child (best value if visiting 3+ times). Helsinki Card knocks €2 off adult tickets. Buying advance online (valid 30 days) at the same price as on-site.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in fine year-round. Buy online to skip the gate queue on warm summer weekends. Lux Korkeasaari evening tickets in January should be booked a few days ahead — the timed-entry slots can sell out on Saturdays.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "One of the easiest big-day-out destinations in Helsinki for families. Stroller-accessible main paths and lifts, family bathrooms, an outdoor playground in summer, the warm Africasia/Amazonia houses for break-warm-ups in winter. Carry the kid into the tropical buildings — the temperature jump can wake babies. Feeding talks scheduled through the day are a hit with kids 4+. Dress them warmer than you think for January visits — the most rewarding enclosures are outside.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website: "https://korkeasaari.fi/en/",
+    tags: ["nature", "landmark"],
+  },
 ];
