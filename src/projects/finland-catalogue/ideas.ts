@@ -227,7 +227,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://www.forum-marinum.fi/en/",
-    tags: ["museum", "historical"],
+    tags: ["museum", "historical", "nautical"],
   },
   {
     slug: "suomen-joutsen",
@@ -282,7 +282,7 @@ export const IDEAS: Idea[] = [
     duration: "<1h",
     website:
       "https://www.forum-marinum.fi/en/exhibitions/museum-ships/the-full-rigger-suomen-joutsen/",
-    tags: ["museum", "historical"],
+    tags: ["museum", "historical", "nautical"],
   },
   {
     slug: "helsinki-cathedral",
@@ -562,7 +562,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "moderate",
     duration: "half-day",
     website: "https://www.suomenlinna.fi/en/",
-    tags: ["museum", "landmark", "historical"],
+    tags: ["museum", "landmark", "historical", "nautical", "nature"],
   },
   {
     slug: "hame-castle",
@@ -678,7 +678,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://uiva.fi/en/",
-    tags: [],
+    tags: ["nautical"],
   },
   {
     slug: "santa-claus-village",
@@ -791,7 +791,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "moderate",
     duration: "half-day",
     website: "https://www.hsl.fi/en/citybikes",
-    tags: [],
+    tags: ["nature", "nautical"],
   },
   {
     slug: "vapriikki-tampere",
@@ -961,7 +961,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "full-day",
     website: "https://msjlruneberg.fi/en/",
-    tags: ["historical", "landmark"],
+    tags: ["historical", "landmark", "nautical"],
   },
   {
     slug: "heureka",
@@ -1069,7 +1069,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "half-day",
     website: "https://www.skipperi.com/",
-    tags: [],
+    tags: ["nautical"],
   },
   {
     slug: "helsinki-hop-on-hop-off",
@@ -1179,7 +1179,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "full-day",
     website: "https://www.tallink.com/",
-    tags: ["historical", "landmark"],
+    tags: ["historical", "landmark", "nautical"],
   },
   {
     slug: "stockholm-overnight-ferry",
@@ -1235,7 +1235,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "multi-day",
     website: "https://www.tallink.com/",
-    tags: [],
+    tags: ["nautical"],
   },
   {
     slug: "savonlinna",
@@ -1356,7 +1356,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "<1h",
     website: "https://www.caferegatta.fi/in-english",
-    tags: ["food"],
+    tags: ["food", "nautical"],
   },
   {
     slug: "kasinonranta",
@@ -1408,7 +1408,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "half-day",
     website: "https://www.myhelsinki.fi/places/lauttasaari-beach-kasinonranta/",
-    tags: [],
+    tags: ["nature"],
   },
   {
     slug: "allas-pool",
@@ -1575,5 +1575,249 @@ export const IDEAS: Idea[] = [
     duration: "1-3h",
     website: "https://www.sushihelsinki.fi/ravintola-fuji-sushi",
     tags: ["food"],
+  },
+  {
+    slug: "helride",
+    title: "Helride – Helsinki Skateboarding Weekender",
+    shortDescription:
+      "A free, multi-venue skate festival roving the city for one July weekend — best-trick contests, downhill cash-for-tricks, open rail sessions, and a spectator's window into Helsinki's surprisingly deep skate scene.",
+    longDescription: [
+      "Helride is the annual flagship of Helsinki skateboarding, organised since 2015 by the volunteer-run HELride Collective. It celebrated its 10-year anniversary in 2025 and has grown from a single-venue contest at Suvilahti DIY into a sprawling Friday-to-Sunday weekender that takes over multiple Helsinki spots — recent editions have stitched together stops at Suvilahti DIY, Ruoholahti, Lasipalatsi square, Mauno Koivisto square, Alppipuisto, and the Micropolis skate plaza in Eläintarha. The 2026 edition runs Friday 3 – Sunday 5 July.",
+      "The format is a string of contests and jam sessions rather than one finals-on-Sunday show. Expect best-trick competitions on different obstacles each day, open rail sessions inspired by Suvilahti's late co-founder René, a women and gender minorities cash-for-tricks session, a Nikon-sponsored photography contest running alongside the weekend, and free skate schools (11:00–13:00, all three days) at Micropolis where any kid with a board can join in. Music, gear giveaways, and a Vans unboxing pack out the evenings; the after-parties at Hobo Hotel and Olarin Panimo are part of the programme. The companion downhill longboard race — Koffin Vauhtikisat at Sinebrychoff Park, also catalogued here — usually lands a week or two later in mid-July; many visiting riders stick around for both.",
+      "If you've never paid attention to Finnish skating, the weekend doubles as a crash course. Helsinki has been a quietly serious skate city for two decades — the legendary Suvilahti DIY skatepark in Kalasatama (community-built since 2011, visited by Tony Hawk, soon to be demolished by 2026's end as the city builds the Suvilahti Event Hub on top of it) is the spiritual home, but the scene has plenty more: Micropolis Skate Plaza, designed by pro skater Janne Sarrio next to the Töölö rowing stadium and free to use; the indoor Kontula Skeittihalli (Finland's largest, €1 youth / €3.50 adult); and the spotless new Skeittikontti at Korkeasaari Zoo. Helride is the one weekend a year when the whole community converges in public.",
+      "Spectating is free at every venue. The simplest plan: pick the contest schedule off helride.fi closer to the weekend, ride the metro to whichever venue is hosting that afternoon, and stay for as long as the energy holds. Suvilahti DIY (Kaasutehtaankatu 1) is a 12-minute metro hop from Lauttasaari and a 10-min walk from Kalasatama metro; Ruoholahti is the next stop along the same line. Bring your own board if you want to drop into the open sessions between contests — locals are welcoming.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/DIY_skatepark_in_Suvilahti,_Helsinki,_Finland,_2022_October.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suvilahti_DIY_Skatepark_ja_tornitalot_Kalasatamassa_2022_(202311;%2BG71901).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suvilahti_DIY_skatepark_in_Kalasatama,_Sörnäinen,_Helsinki,_Finland,_2021_June.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suvilahti_DIY_skatepark_in_Kalasatama,_Sörnäinen,_Helsinki,_Finland,_2021_June_-_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Suvilahti_DIY_skatepark_in_Kalasatama,_Sörnäinen,_Helsinki,_Finland,_2021_June_-_3.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Skatepark_in_Suvilahti,_Helsinki,_Finland,_2018.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Spray_can_in_Suvilahti_DIY_skatepark_in_Kalasatama,_Sörnäinen,_Helsinki,_Finland,_2021_June.jpg",
+    ],
+    availability: {
+      suitableMonths: [7],
+      events: [
+        {
+          from: "07-03",
+          to: "07-05",
+          name: "Helride",
+        },
+      ],
+      weeklySchedule:
+        "Fri–Sun, contest sessions typically run 12:00–18:00 with after-parties most evenings. Schedule shifts venue by venue — check helride.fi the week of.",
+      notes:
+        "Annual late-June / early-July festival; exact weekend shifts a day or two each year. Outdoor only — a rainy weekend can scramble the schedule.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address:
+        "Multi-venue across Helsinki. Suvilahti DIY anchor: Kaasutehtaankatu 1, 00540 Helsinki. Other recent stops include Micropolis (Eläintarha), Ruoholahti, Lasipalatsi square, and Mauno Koivisto square.",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~15–20 min to the central venues",
+      notes:
+        "Suvilahti DIY: metro from Lauttasaari east to Kalasatama (~12 min direct on the M1/M2 line), then a 10-min walk south past the gas tower. Ruoholahti is the next metro stop east of Lauttasaari (~3 min). Lasipalatsi/Mauno Koivisto are central — metro to Kamppi or Helsinki Central. Micropolis is a tram 9 ride from the Central Station.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Free to watch every contest and session. After-party tickets at Hobo Hotel / Olarin Panimo €10–20 if you want the evening programme. Bring some cash if you want to enter the cash-for-tricks sessions yourself.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No booking needed for spectating — just show up. The free skate schools at Micropolis sometimes ask for a quick on-the-day signup if numbers fill.",
+    },
+    suitableAgeRange: { min: 8 },
+    childrenNotes:
+      "Free skate schools at Micropolis run 11:00–13:00 on all three days and welcome kids who can already stand on a board. The contest sites get loud and crowded; the open jam sessions at Suvilahti DIY between contests are the gentler window for kids on their own boards.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.helride.fi/helride-event",
+    tags: [],
+  },
+  {
+    slug: "koff-race",
+    title: "Koffin Vauhtikisat (KOFF Race) – Helsinki Downhill Skate",
+    shortDescription:
+      "One Sunday every July, longboarders bomb a narrow asphalt path down Sinebrychoff Park's hillside in central Helsinki — Europe's most slamfest-prone urban downhill race, free to watch and casually anarchic.",
+    longDescription: [
+      "Koffin Vauhtikisat — \"Koff Speed Race\" in Finnish, more commonly \"the KOFF Race\" — is an annual one-day downhill skateboarding event held in Sinebrychoff Park (Koffin puisto), a small leafy hill park in Punavuori a few blocks from Hietalahti Market Hall. The park is named after the Sinebrychoff brewery that operated here from 1819, and its English-landscape topology — winding asphalt paths cutting down a steep tree-covered hillside — turns out to be a near-perfect natural downhill course. The race has been running since 2014, with the 2025 edition (Sunday 13 July) marking its 11th year. The 2026 date hadn't been announced as of mid-spring; expect a Sunday in mid-July.",
+      "The format is part race, part chaos. Riders register in advance and sign liability waivers; the actual course is a thin asphalt strip winding through trees with concrete walls and railings on the edges, so wipeouts at speed are routine — Skate Sonr called it \"Europe's most dangerous downhill race\" in 2024 and that's not unfair marketing. Heats run head-to-head down the hill in a tournament bracket that runs until a winner is decided, interleaved with a best-trick contest on the steepest section (ollies, coffins, slides over obstacles). The Governor — Marius Syvanen, who runs the show — both presides and takes runs himself. International riders fly in: Kevin Baekkel, Tom Remillard, and friends from the Pocket Pistols / OJ Wheels orbit have been regulars.",
+      "For spectators, it's about as good as urban skate racing gets — the park is small enough that you can hike up the hill once, find a perch on the grass with a view of two or three corners, and watch the whole bracket from one spot. Unofficially: people bring picnic blankets and beers, the hill is dotted with locals from open to close (14:00–20:00 in 2024), and the vibe is closer to a neighbourhood block party than a sanctioned sporting event. Organisers ask spectators to keep at least 5 m off the course — boards regularly fly off it at speed.",
+      "Entry is free for spectators. Sinebrychoff Park is at Bulevardi 40 / Sinebrychoffinkatu 1 in Punavuori. From Lauttasaari it's a short metro hop east to Ruoholahti, then a 10–12-minute walk south, or tram 6/6T from the city centre. Bring layered clothes — Helsinki midsummer afternoons swing between 15 °C and 25 °C — and don't expect any food or drink stalls in the park itself; Hietalahti Market Hall is two minutes' walk away and stays open until 18:00 on Sundays.",
+    ],
+    thumbnailUrl: "https://live.staticflickr.com/65535/54655242519_8af618c558.jpg",
+    galleryUrls: [
+      "https://live.staticflickr.com/65535/54654175047_923b2b51da.jpg",
+      "https://live.staticflickr.com/65535/54655245529_cdfecb0207.jpg",
+      "https://live.staticflickr.com/65535/54655335610_d309730f9b.jpg",
+      "https://live.staticflickr.com/65535/54654174997_8efafd8377.jpg",
+      "https://live.staticflickr.com/65535/54655245384_5502fb69e7.jpg",
+      "https://live.staticflickr.com/65535/54655245564_edee82649c.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Sinebrychoffin_taidemuseo.jpg",
+    ],
+    availability: {
+      suitableMonths: [7],
+      events: [
+        {
+          from: "07-12",
+          to: "07-12",
+          name: "Koffin Vauhtikisat (KOFF Race)",
+        },
+      ],
+      weeklySchedule:
+        "Single-day event, Sunday only. Racing typically runs 14:00–20:00.",
+      notes:
+        "Annual mid-July Sunday — exact date shifts year to year (2024: 14 Jul; 2025: 13 Jul). Check @koffinvauhtikisat on Instagram or fourstore.fi for the year's announcement.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Sinebrychoff Park, Bulevardi 40 / Sinebrychoffinkatu 1, 00120 Helsinki (Punavuori)",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~20 min",
+      notes:
+        "Metro from Lauttasaari east to Ruoholahti (~3 min), then a 10–12-min walk south down Hietalahdenkatu and Bulevardi to the park. Alternatively tram 6 from Helsinki Central to Hietalahdentori. The park itself is small — once inside, the whole course is visible from a single perch on the grass.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Free for spectators. Racers pay a small registration fee (typically €15–25) handled by the organisers in advance via Instagram DM. No food or drink stalls in the park — pick up a meal at Hietalahti Market Hall (2 min walk) before or after.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No tickets needed for spectating. Racers must register in advance via @koffinvauhtikisat on Instagram and sign liability waivers — slots are capped and fill weeks ahead.",
+    },
+    suitableAgeRange: { min: 8 },
+    childrenNotes:
+      "Boards routinely fly off the course at 50+ km/h. Older kids who understand to stay well back are fine; small children and strollers don't pair well with the steep, busy grass slopes here. The 5 m course-distance rule is strictly enforced.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.instagram.com/koffinvauhtikisat/",
+    tags: [],
+  },
+  {
+    slug: "hifk-hockey",
+    title: "HIFK Hockey at Nordis (Helsinki Ice Hall)",
+    shortDescription:
+      "A Liiga night at the 1966-vintage Helsinki Ice Hall — 8,200 seats packed with HIFK's red-and-black faithful, no jumbotron pyrotechnics, just organ stings, organic chants, and Finland's national religion at full volume.",
+    longDescription: [
+      "HIFK Hockey is the men's ice hockey team of the Helsingfors IFK athletics club, founded in 1897 — Finland's oldest sports club, originally Swedish-speaking. The hockey side has played in the Liiga (Finland's top division) for decades, won seven national titles, and produced a steady stream of NHLers. They wear red and black, their crest is a stylised panther, and they take the ice at Helsinki Ice Hall on Nordenskiöldinkatu — colloquially \"Nordis\" after the address, or \"Petoluola\" (\"the Beast Cave\") after the panther logo. Built in 1966 by architects Jaakko Kontio and Kauko Räike, it's a low-slung concrete bowl that seats 8,200, and it has been HIFK's home since the puck dropped on opening night.",
+      "Compared to the bigger, glassier Helsinki Halli (the renamed Hartwall Arena), Nordis is unapologetically old-school. The lighting is dim, the seats are tight, the concourses are narrow, and a few seats have obstructed views — but the soundtrack is a real organ played live, the chants are entirely fan-driven (no scoreboard prompts), and the rink is close enough to feel skates carve and pucks ring off the boards. HIFK fans treat away-team goals with a hush followed by deliberately tepid applause, then erupt at any home counter. The Stadin derby with Jokerit — Helsinki's other club, who returned to the Liiga in 2023 after a KHL detour — is back on the calendar and remains the loudest night of the year.",
+      "Finnish hockey culture rewards a visit even if you don't follow the league. Hockey is the country's most-watched sport by a long way; the men's national team (Leijonat — \"the Lions\") has won three world championships and the 2022 Olympic gold, and the Liiga is where most of those players cut their teeth. The on-ice game is structured, defensive, and physically honest — sisu hockey, in the local idiom — and the in-arena rituals (the singing of the second-period intermission anthem, the pre-game player-arrival hand-shaking, the post-goal flag waving from the home end) are tight and consistent in a way you don't get at NHL games.",
+      "The regular season runs September through March, with playoffs in April; HIFK plays roughly 30 home games, mostly Tuesday and Friday/Saturday evenings (face-off 18:30). Tickets are around €25 for a standard seat, €40+ for closer; buy via liiga.fi, hifk.fi, or Ticketmaster.fi. From Lauttasaari, take the metro to Helsinki Central (~6 min) and switch to tram 4 or 10 northbound to Auroran sairaala — total ~25 min door-to-door. Beer and food at the arena are pricey but plentiful (alcohol stays on the concourse — not allowed in the seating bowl). The full game runs ~2.5 hours including two 18-minute intermissions; arrive 20 min early to soak up the warm-up.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/HIFK-Tappara.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Ice_Hall_May_2022.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Ice_Hall_2018-11-01_15-17-06.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Nordis_ja_Finnair.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Helsinki_Ice_Hall_(FIN)_2010.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/HIFK-Kärpät_pääty.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Nordis_Valotaulu_HIFK-HPK.jpg",
+    ],
+    availability: {
+      suitableMonths: [9, 10, 11, 12, 1, 2, 3, 4],
+      weeklySchedule:
+        "Home games typically Tue and Fri or Sat, face-off 18:30. Around 30 home games per regular season + playoffs. Check liiga.fi for the schedule.",
+      notes:
+        "Liiga regular season runs early September to mid-March; playoffs in late March / April. The Stadin derby (HIFK vs. Jokerit) is the marquee fixture and sells out earliest. No hockey May–August.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Helsinki Ice Hall (Nordis), Nordenskiöldinkatu 11–13, 00250 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~25 min",
+      notes:
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then tram 4 or 10 northbound to Auroran sairaala (~10 min) — the arena is a 3-min walk from the stop. Alternatively walk 25–30 min from Central straight up Mannerheimintie. The arena sits in the Töölö sports complex right next to the Olympic Stadium.",
+    },
+    cost: {
+      perPersonEur: 25,
+      notes:
+        "Standard end-zone seats from ~€25, mid-tier ~€35, lower-bowl centre-ice ~€45+. Premium and derby fixtures higher. Beer at arena ~€8–10, hot dogs ~€6. Buy via liiga.fi, hifk.fi, or Ticketmaster.fi.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Most regular-season Tuesdays go on sale day-of without trouble. Friday/Saturday games sell briskly — book a few days ahead. The Stadin derby vs. Jokerit and any playoff game need 2–3 weeks' notice.",
+    },
+    suitableAgeRange: { min: 6 },
+    childrenNotes:
+      "Family-friendly atmosphere; the arena is loud but no louder than a Finnish school sports day. Bring soft ear protection for under-7s. Family ticket bundles available some weeknights. Strollers fit through accessible entrances; check seat sightlines when booking.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://hifk.fi/",
+    tags: [],
+  },
+  {
+    slug: "lauttasaari-coastal-walk",
+    title: "Lauttasaari Coastal Walking Trail",
+    shortDescription:
+      "A 10 km waymarked loop around the entire shore of Lauttasaari — the trip's home island — stitching together rocky outcrops, three beaches, the wooded Myllykallio ridge, and a half-dozen marinas, all without leaving the city.",
+    longDescription: [
+      "The Lauttasaaren rantareitti circles the whole of Lauttasaari, the wedge-shaped island in western Helsinki where the trip is based. The cycling-and-walking version is 10 km flat around the seaward edge; the walking-only version branches inland through the Myllykallio rocky-ridge nature area for 6.7 km. Both keep the open Baltic, the Lauttasaarensalmi sound, or the sheltered Hevosenkenkälahti bay in view almost the whole way, and both are ankle-comfortable: paved and gravel paths for the seafront, with one short bit of rocky scramble through Myllykallio if you take the inland branch.",
+      "Highlights, going clockwise from the north bridge: the Lauttasaarensilta crossing with its view straight down the city skyline; the eastern shore past Pajalahti and the historic timber Casino building; Kasinonranta (Lauttasaari's main beach) and the Café Pärlan kiosk; the rocky southern tip at Vattuniemi where the open sea finally appears; Veijarivuori beach and its winter-swimming jetty; Vaskiniemi with the second avantouinti spot; and the western shore back up past the HSK marina, the Koirakivenniemi rocks, and the parade of cliffside saunas at Kaijonen. The Myllykallio observation tower is a 10-min detour with a view that beats the price of admission (free).",
+      "It's an all-seasons walk in different ways. Late spring through September the path is dotted with picnickers, runners, and stroller-pushing parents; the southern outcrops are full of teenagers with speakers; the marinas are lively. Late autumn and winter shift it from social to atmospheric — the sea smokes off the open water on cold mornings, the light goes blue and pink for hours at a time, and the avantouinti regulars chop through the ice at Kasinonranta and Vaskiniemi. Birders pick up eider, smew, and goldeneye at Sisä-Hattu in passage seasons. Even at midwinter the city clears the path quickly after snow.",
+      "Practical notes. Start anywhere — the loop is loop. Total walking time at a casual pace is 2.5–3 hours; allow 4–5 if you stop for café/sauna/ice-swim breaks. Stroller-friendly except for the Myllykallio inland section (skip it, or carry the stroller). HSL Citybikes (April–October) make it easy to cover the cycling 10 km in under an hour. Combine with Café Regatta or Cafe Birgitta on the Hietaniemi side if you want to extend across the Lauttasaarensilta into central Helsinki — the city's longer Rantareitti continues seamlessly from there.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_waterfront_trail_near_the_southern_tip_of_the_island_on_an_evening_in_May_2025.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_waterfront_trail_on_the_western_shore_of_the_southern_part_of_the_island_on_an_evening_in_May_2025.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/A_Sunset_In_Lauttasaari_Helsinki_Finland_Seascape_Photography_(153009409).jpeg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_At_Sunset_Helsinki_Finland_Seascape_Photography_(154382461).jpeg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_in_winter.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_Pohjoiskaari_kalliot_250508_b.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hevosenkenkälahden_ranta_2022_(202308;%2BG71678).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Vaskiniemen_talviuintipaikka_2022_(202220;%2BG70716).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_beach_in_September.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      notes:
+        "Year-round; the path is plowed in winter. May–September is the warm-and-busy window; October–April is quieter, often more atmospheric (sea smoke, low light, ice swimmers).",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address:
+        "Lauttasaari, Helsinki — start anywhere on the shoreline. Convenient access points: Lauttasaarensilta (north end), Kasinonranta beach (east), Vattuniemi (south tip).",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "Walk straight from the door",
+      notes:
+        "The trail starts where the island starts. From any point on Lauttasaari, walk 5–15 minutes downhill to the nearest stretch of shore and pick up the loop. No transit needed.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Free. Coffee/pastry stops along the way (Pärlan kiosk at Kasinonranta, Café Birgitta if you cross the bridge) ~€5–10. HSL Citybike day pass €5 if you'd rather ride than walk.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes: "No booking, no permit, no entrance — just go.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "The seafront 10 km loop is fully stroller-friendly — paved or hard gravel the whole way. The Myllykallio inland branch crosses bare rock and needs a carrier, not a stroller. Cafés and toilets at Kasinonranta and the HSK marina; not many in between, so plan accordingly with toddlers.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website:
+      "https://www.hel.fi/en/culture-and-leisure/outdoor-activities-parks-and-nature-destinations/hiking/routes-and-nature-trails",
+    tags: ["nature"],
   },
 ];
