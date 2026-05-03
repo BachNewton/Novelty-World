@@ -2,7 +2,7 @@ import { IDEAS } from "./ideas";
 import type { Idea } from "./types";
 
 export type CostBucket = "free" | "under-30" | "under-100" | "over-100";
-export type AccessComplexity = Idea["accessFromHelsinki"]["complexity"];
+export type AccessComplexity = Idea["accessFromLauttasaari"]["complexity"];
 export type Duration = Idea["duration"];
 export type IndoorOutdoor = Idea["indoorOutdoor"];
 
@@ -75,7 +75,7 @@ export function applyFilters(ideas: Idea[], filters: Filters): Idea[] {
     }
 
     if (filters.access.length > 0) {
-      if (!filters.access.includes(idea.accessFromHelsinki.complexity)) {
+      if (!filters.access.includes(idea.accessFromLauttasaari.complexity)) {
         return false;
       }
     }

@@ -105,7 +105,7 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
       />
 
       <ChipGroup
-        label="Access from Helsinki"
+        label="Access from Lauttasaari"
         options={ACCESS_OPTIONS}
         selected={filters.access}
         onToggle={(v) => onChange({ ...filters, access: toggle(filters.access, v) })}

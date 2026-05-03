@@ -66,23 +66,39 @@ export interface IdeaLocation {
   address?: string;
 }
 
-/** How you get there from Helsinki. The mindset: "is this trivial to reach,
- *  or does it need real planning?" — not the specific transit modes. */
+/** How you get there from Lauttasaari, the residential island in western
+ *  Helsinki where the trip is based (one metro stop / ~6 min from Helsinki
+ *  Central). The mindset: "is this trivial to reach, or does it need real
+ *  planning?" — not the specific transit modes. Lauttasaari sits on the M1/M2
+ *  metro line, so most central-Helsinki destinations are a short metro ride
+ *  away; long-distance trips typically begin with a metro hop to Helsinki
+ *  Central for the VR train or to a ferry terminal. Disregard flying as a
+ *  mode of transit — even when an airport route exists, describe the
+ *  ground-transport alternative instead. */
 export interface IdeaAccess {
-  /** Planning effort and journey complexity.
-   *  - 'simple'   = direct walk, single tram, single bus — no transfers
-   *  - 'moderate' = one transfer, or a longer single ride (e.g. train to
+  /** Planning effort and journey complexity. This is *not* about how long
+   *  the trip takes (`duration` already covers that) — it's about how
+   *  many transfers are needed, how sparse the transit options are, and
+   *  how much advance planning the route demands.
+   *  - 'simple'   = direct walk, single tram, single bus, or a metro hop
+   *                 with at most one short connecting walk — no transfers
+   *  - 'moderate' = one transfer (e.g. metro + tram, or metro + train to
    *                 a nearby city)
-   *  - 'complex'  = multiple transfers, long travel time, requires car
-   *                 rental, advance ticket booking, or a full-day journey */
+   *  - 'complex'  = multiple transfers, sparse/limited transit windows,
+   *                 requires car rental, or needs material advance
+   *                 planning (booked-out tours, ticketed connections that
+   *                 don't run frequently). A 12h overnight train with no
+   *                 transfers is NOT complex — it's just long. */
   complexity: "simple" | "moderate" | "complex";
-  /** Total realistic one-way travel time, including transfers. e.g.
-   *  "15 min", "~1 hour", "Overnight train (12h) + 30min taxi". Anything
-   *  3h+ each way effectively means a multi-day trip — flag that in notes. */
+  /** Total realistic one-way travel time from Lauttasaari, including
+   *  transfers. e.g. "15 min", "~1 hour", "Overnight train (12h) + 30min
+   *  taxi". Anything 3h+ each way effectively means a multi-day trip —
+   *  flag that in notes. */
   duration: string;
-  /** Concrete how-to: specific lines, transfer points, rental needs,
-   *  ferry schedules, etc. e.g. "Tram 4 from Central Station",
-   *  "Train to Rovaniemi (~8h), then 30min taxi to lodge". */
+  /** Concrete how-to from Lauttasaari: specific lines, transfer points,
+   *  rental needs, ferry schedules, etc. e.g. "Bus 21V to Ruoholahti, then
+   *  tram 7 to West Terminal", "Metro to Helsinki Central, then VR train
+   *  to Rovaniemi (~8h)". Don't include flight options. */
   notes: string;
 }
 
@@ -143,7 +159,7 @@ export interface Idea {
 
   availability: IdeaAvailability;
   location: IdeaLocation;
-  accessFromHelsinki: IdeaAccess;
+  accessFromLauttasaari: IdeaAccess;
   cost: IdeaCost;
   booking: IdeaBooking;
 
@@ -174,7 +190,7 @@ export interface Idea {
    *                 active sport */
   physicalIntensity: "low" | "moderate" | "high";
 
-  /** Realistic time on-site, excluding travel from Helsinki. */
+  /** Realistic time on-site, excluding travel from Lauttasaari. */
   duration: "<1h" | "1-3h" | "half-day" | "full-day" | "multi-day";
 
   /** Official website or booking page. Omit if there isn't a real one —

@@ -133,10 +133,26 @@ Highlights worth restating:
   (no year — the year is implicit and recurring). Soft "best in late
   summer" ranges go in `suitableMonths`, not here. Most ideas have no
   events and should omit this field.
-- **accessFromHelsinki**: `complexity` is the *planning effort* signal,
-  not the literal mode count. A single 8h train to Lapland is `'complex'`
-  because of the duration. A two-stop tram ride is `'simple'` even though
-  it has a transfer.
+- **accessFromLauttasaari**: travel is measured from Lauttasaari, the
+  residential island in western Helsinki where the trip is based.
+  Lauttasaari sits one metro stop / ~6 min from Helsinki Central, and
+  bus 21 is the other common way into downtown — both are worth
+  mentioning when one or the other is more convenient (e.g. bus 21 if
+  the destination is closer to a 21-route stop than to a metro station).
+  For most central-Helsinki destinations this means a short metro hop
+  or bus ride plus a walk; for things already on Lauttasaari (the
+  southern beaches, Vattuniemi, the HSK marina) it's just a walk. For
+  long-distance trips, start the route with a metro hop to Helsinki
+  Central and pick up the train/ferry there. **Disregard flying as a
+  transit mode** — even when an airport route exists (Rovaniemi,
+  Savonlinna), describe the ground-transport alternative instead.
+  `complexity` is about *transfers and planning effort*, not duration —
+  `duration` already captures how long the trip takes. A 12h overnight
+  train with no transfers is `'simple'` or `'moderate'`, not `'complex'`,
+  because the journey itself is straightforward (one comfortable train,
+  no fragile connections). `'complex'` is reserved for routes with
+  multiple transfers, sparse connecting services, required car rental,
+  or material advance planning.
 - **cost.perPersonEur**: best-guess EUR for one adult. 0 for free. If the
   cost varies wildly, pick a typical number and use `notes` for the spread.
 - **booking.leadTime**: realistic horizon. `'months'` is for genuinely

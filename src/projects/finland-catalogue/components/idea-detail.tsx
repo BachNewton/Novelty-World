@@ -26,14 +26,14 @@ const DURATION_LABELS: Record<Idea["duration"], string> = {
   "multi-day": "Multi-day",
 };
 
-const COMPLEXITY_LABELS: Record<Idea["accessFromHelsinki"]["complexity"], string> = {
+const COMPLEXITY_LABELS: Record<Idea["accessFromLauttasaari"]["complexity"], string> = {
   simple: "Simple",
   moderate: "Moderate",
   complex: "Complex",
 };
 
 const COMPLEXITY_TONE: Record<
-  Idea["accessFromHelsinki"]["complexity"],
+  Idea["accessFromLauttasaari"]["complexity"],
   string
 > = {
   simple: "text-brand-green",
@@ -157,20 +157,20 @@ export function IdeaDetail({ idea, basePath }: { idea: Idea; basePath: string })
               )}
             </MetaRow>
 
-            <MetaRow icon={<Route size={14} />} label="Access from Helsinki">
+            <MetaRow icon={<Route size={14} />} label="Access from Lauttasaari">
               <div className="flex items-center gap-2">
                 <span
                   className={`font-medium ${
-                    COMPLEXITY_TONE[idea.accessFromHelsinki.complexity]
+                    COMPLEXITY_TONE[idea.accessFromLauttasaari.complexity]
                   }`}
                 >
-                  {COMPLEXITY_LABELS[idea.accessFromHelsinki.complexity]}
+                  {COMPLEXITY_LABELS[idea.accessFromLauttasaari.complexity]}
                 </span>
                 <span className="text-text-muted">·</span>
-                <span>{idea.accessFromHelsinki.duration}</span>
+                <span>{idea.accessFromLauttasaari.duration}</span>
               </div>
               <div className="mt-1 text-text-secondary">
-                {idea.accessFromHelsinki.notes}
+                {idea.accessFromLauttasaari.notes}
               </div>
             </MetaRow>
 

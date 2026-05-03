@@ -39,11 +39,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Töölönlahdenkatu 4, 00100 Helsinki",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~5 min walk",
+      duration: "~15 min",
       notes:
-        "Directly opposite Helsinki Central Station across Kansalaistori square. Trams 1, 2, 4, 10 (Lasipalatsi) and 3, 5, 6, 7, 9 (Kaivokatu) also stop within a block.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then a 5-min walk across Kansalaistori square. Oodi sits directly opposite the Central Station.",
     },
     cost: {
       perPersonEur: 0,
@@ -93,11 +93,11 @@ export const IDEAS: Idea[] = [
       region: ["Turku"],
       address: "Kailo Island, Naantali (next to Naantali old town, ~16 km west of Turku)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "complex",
-      duration: "~3h each way",
+      duration: "~3h 10m each way",
       notes:
-        "VR train Helsinki – Turku (~2h, frequent), then Föli local bus 6 or 6A from Turku to Naantali (~30 min). Park is a short walk from the bus stop across a wooden bridge. Doable as a long day trip but most visitors stay overnight in Naantali or Turku.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), VR train Helsinki – Turku (~2h, frequent), then Föli local bus 6 or 6A from Turku to Naantali (~30 min). Park is a short walk from the bus stop across a wooden bridge. Doable as a long day trip but most visitors stay overnight in Naantali or Turku.",
     },
     cost: {
       perPersonEur: 43,
@@ -151,11 +151,11 @@ export const IDEAS: Idea[] = [
       region: ["Turku"],
       address: "Linnankatu 80, 20100 Turku",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
       duration: "~2.5h each way",
       notes:
-        "VR train Helsinki – Turku (~2h, frequent), then Föli bus 1 from Turku Central Station (~15 min) or a 25-min riverside walk. The castle is by the harbour, next to the ferry terminal.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), VR train Helsinki – Turku (~2h, frequent), then Föli bus 1 from Turku Central Station (~15 min) or a 25-min riverside walk. The castle is by the harbour, next to the ferry terminal.",
     },
     cost: {
       perPersonEur: 18,
@@ -205,11 +205,11 @@ export const IDEAS: Idea[] = [
       region: ["Turku"],
       address: "Linnankatu 72, 20100 Turku",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
       duration: "~2.5h each way",
       notes:
-        "VR train Helsinki – Turku (~2h), then Föli bus 1 from the station (~15 min) or a 25-min riverside walk. Right next to Turku Castle — pair them as one day.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), VR train Helsinki – Turku (~2h), then Föli bus 1 from the station (~15 min) or a 25-min riverside walk. Right next to Turku Castle — pair them as one day.",
     },
     cost: {
       perPersonEur: 12,
@@ -258,11 +258,11 @@ export const IDEAS: Idea[] = [
       region: ["Turku"],
       address: "Linnankatu 72, 20100 Turku (moored at Forum Marinum dock)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
       duration: "~2.5h each way",
       notes:
-        "Same as Forum Marinum: VR train Helsinki – Turku (~2h), then Föli bus 1 (~15 min) or 25-min riverside walk. Right next to Turku Castle.",
+        "Same as Forum Marinum: metro to Helsinki Central (~6 min), VR train Helsinki – Turku (~2h), then Föli bus 1 (~15 min) or 25-min riverside walk. Right next to Turku Castle.",
     },
     cost: {
       perPersonEur: 12,
@@ -316,11 +316,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Unioninkatu 29, 00170 Helsinki (Senate Square)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~5 min walk",
+      duration: "~15 min",
       notes:
-        "Senate Square is a 5-min walk from Helsinki Central Station. Trams 2 and 4–7 stop on Aleksanterinkatu a block away. Walk up the granite steps from the south side of the square.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then a 5-min walk up Aleksanterinkatu to Senate Square. Walk up the granite steps from the south side of the square.",
     },
     cost: {
       perPersonEur: 0,
@@ -366,11 +366,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Esplanadi park, between Erottaja and Market Square, 00130 Helsinki",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~5 min walk",
+      duration: "~15 min",
       notes:
-        "5–10 min walk from Helsinki Central Station. Trams 2, 4, 5 stop at Ylioppilastalo or Senaatintori within a block.",
+        "Bus 21 from Lauttasaari runs straight through downtown — get off at Erottaja or Kauppatori for either end of the park. Alternative: metro to Helsinki Central (~6 min), then a 5-min walk down Mannerheimintie.",
     },
     cost: {
       perPersonEur: 0,
@@ -426,11 +426,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Kauppatori, 00170 Helsinki (South Harbour)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~10 min walk",
+      duration: "~15 min",
       notes:
-        "10-min walk from Helsinki Central Station along Esplanadi. Trams 2 and 5 stop at Kauppatori; ferry to Suomenlinna leaves from the same square.",
+        "Bus 21 from Lauttasaari runs straight to Kauppatori — most direct. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi. Ferry to Suomenlinna leaves from the same square.",
     },
     cost: {
       perPersonEur: 15,
@@ -479,11 +479,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Eteläranta, 00130 Helsinki (South Harbour, beside Kauppatori)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~10 min walk",
+      duration: "~15 min",
       notes:
-        "10-min walk from Helsinki Central Station along Esplanadi, then turn right at Market Square. Trams 2 and 5 stop at Kauppatori.",
+        "Bus 21 from Lauttasaari runs to Kauppatori — the hall is a 30-second walk from the stop. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi.",
     },
     cost: {
       perPersonEur: 20,
@@ -539,11 +539,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Suomenlinna islands, 00190 Helsinki (15-min ferry from Kauppatori)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~25 min total (10 min walk + 15 min ferry)",
+      duration: "~30 min total (~15 min bus + 15 min ferry)",
       notes:
-        "HSL public ferry from Kauppatori (Market Square). Buy an AB single ticket (€3.30) at the dock or in the HSL app — same ticket as the trams. Departs every 20 min in summer, 40–60 min in winter. The private JT-Line waterbus also runs in summer (separate ticket, more scenic).",
+        "Bus 21 from Lauttasaari runs straight to the Suomenlinna ferry pier at Kauppatori — the most direct route. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi. AB single ticket (€3.30) covers the whole trip — same ticket as the metro. Ferry departs every 20 min in summer, 40–60 min in winter. The private JT-Line waterbus also runs in summer (separate ticket, more scenic).",
     },
     cost: {
       perPersonEur: 3,
@@ -594,11 +594,11 @@ export const IDEAS: Idea[] = [
       region: ["Hämeenlinna"],
       address: "Kustaa III:n katu 6, 13100 Hämeenlinna (~100 km north of Helsinki)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
-      duration: "~1h 15 min each way",
+      duration: "~1h 25m each way",
       notes:
-        "VR Intercity or Pendolino train Helsinki – Hämeenlinna (~1h, frequent), then a 15-min walk along the lake from the station to the castle peninsula. Easy half-day from Helsinki — no overnight needed.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR Intercity or Pendolino to Hämeenlinna (~1h, frequent), then a 15-min walk along the lake from the station to the castle peninsula. Easy half-day from Lauttasaari — no overnight needed.",
     },
     cost: {
       perPersonEur: 15,
@@ -627,7 +627,7 @@ export const IDEAS: Idea[] = [
       "Uiva Flytande (\"Floating\" in Finnish/Swedish) is the Helsinki Boat-Afloat Show, organised every August by Finnboat — the Finnish Marine Industries Federation — at the Helsingfors Segelklubb (HSK) yacht club marina on the eastern shore of Lauttasaari. HSK is one of Finland's oldest sailing clubs, founded in 1899, and the harbour has hosted the show since 1980. The 2026 edition is the 14th to use the Uiva Flytande branding and runs Thu–Sun, 13–16 August.",
       "The pitch is simple: instead of looking at boats parked on land in a convention centre, you walk the floating pontoons and step aboard nearly 300 boats actually in the water — 5–7 m motorboats (the dominant Finnish category), bigger cabin cruisers, sailboats, RIBs, fishing boats, catamarans. About 30 of those are Nordic premieres each year. On shore, 3,000 m² of land-based stands cover engines, electronics, trailers, marine clothing, and brokerage services, plus a row of food trucks, a café tent, and a small stage for product talks and family activities.",
       "Even if you have zero intention of buying a boat, it's a satisfying afternoon — the marina setting is genuinely beautiful, the boats range from approachable runabouts up to half-million-euro yachts you can climb on, and Finnish boating culture is on full display (this is a country with one of the highest boats-per-capita ratios in the world). Allow two to three hours; longer if you actually want to sea-trial something.",
-      "Adults €14 online (€18 at the gate), kids 7–15 €5 online (€8 gate), under-7 free. Tickets go on sale in May. Take the metro to Lauttasaari station, then the free shuttle bus that runs every 20 min from outside Lauttis shopping centre — it drops you at the gate. Driving is awkward; the lot fills early and costs €10/day.",
+      "Adults €14 online (€18 at the gate), kids 7–15 €5 online (€8 gate), under-7 free. Tickets go on sale in May. From central Lauttasaari, walk down to Vattuniemi (~25 min) or catch the free shuttle bus that runs every 20 min from outside Lauttis shopping centre — it drops you at the gate. Driving is awkward; the lot fills early and costs €10/day.",
     ],
     thumbnailUrl: "https://uiva.fi/wp-content/uploads/2025/08/Uiva36-1024x576.jpg",
     galleryUrls: [
@@ -649,17 +649,17 @@ export const IDEAS: Idea[] = [
       ],
       weeklySchedule: "Thu–Sat 11:00–19:00, Sun 11:00–18:00",
       notes:
-        "Four-day annual event in mid-August. Exact weekend shifts a day or two each year — check uiva.fi before booking flights around it.",
+        "Four-day annual event in mid-August. Exact weekend shifts a day or two each year — check uiva.fi before locking in plans around it.",
     },
     location: {
       region: ["Helsinki", "Uusimaa"],
       address: "HSK Yacht Club, Vattuniemen puistotie 1, 00210 Helsinki (Lauttasaari)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~25 min",
+      duration: "~10–25 min",
       notes:
-        "Metro from Helsinki Central Station to Lauttasaari (~6 min), then the free event shuttle bus from outside Lauttis shopping centre — runs every 20 min while the show is open. Driving not recommended; small paid lot (€10/day) fills early.",
+        "On the same island. From Lauttasaari metro station, hop on the free event shuttle bus from outside Lauttis shopping centre (~10 min, runs every 20 min while the show is open) or walk south down to Vattuniemi (~25 min). Bus 21 also serves the area.",
     },
     cost: {
       perPersonEur: 14,
@@ -689,7 +689,7 @@ export const IDEAS: Idea[] = [
       "Santa Claus Village (Joulupukin Pajakylä) opened in 1985, eight kilometres northeast of Rovaniemi at the spot where the Arctic Circle crosses the highway. It started as a single log cabin built for Eleanor Roosevelt's 1950 visit and grew into Finland's most-visited single attraction — a small theme park of timber lodges, reindeer pens, and gift shops, with the painted Arctic Circle line running across the central square. The village is open every day of the year and there's no admission fee.",
       "The headline experience is meeting Santa himself, who holds office at Santa Claus's Office every day from morning to evening. The meeting is free; you only pay if you want the photo or video package (from €55 for a group of up to five — paid on the spot, no booking needed, photos start at around €40). Beyond Santa's office: the official Main Post Office where you can write a letter that gets stamped with the Arctic Circle postmark and posted on Christmas Eve, Mrs. Santa Claus's Cottage at the Reindeer Resort, the Christmas House next door, a snowmobile museum, and a row of husky-, reindeer-, and snowmobile-tour operators who all dispatch from the village.",
       "It's unapologetically commercial — the gift shops outnumber the actual things to do, the queues to meet Santa run long all December — but it lands harder than expected. The Arctic Circle crossing certificate, the reindeer in the snow, the genuinely-old Santa with a thoughtful manner all hit the right notes for kids and the kid-adjacent. November through January is peak: snow on the ground, lights up everywhere, and aurora visible most clear nights. Summer keeps the village open but it loses most of the magic — the cabins look bare without snow.",
-      "From Helsinki, the romance is the Santa Claus Express overnight train (departs Helsinki ~19:30 or ~22:30, arrives Rovaniemi around 08:00 — sleeper berths from €49, basic seat from €29 via VR). Faster: a 1h 20m Finnair or Norwegian flight to Rovaniemi Airport, which sits 3 km from the village (a 5-min taxi or hotel shuttle). From central Rovaniemi, local bus 8 runs to the village year-round (~30 min, €4 single). Most people pair this with a husky safari or aurora trip, since you're already up here.",
+      "From Helsinki, the romance is the Santa Claus Express overnight train (departs Helsinki ~19:30 or ~22:30, arrives Rovaniemi around 08:00 — sleeper berths from €49, basic seat from €29 via VR). Once in Rovaniemi, local bus 8 runs to the village year-round (~30 min, €4 single), or it's a quick taxi from the train station. Most people pair this with a husky safari or aurora trip, since you're already up here.",
     ],
     thumbnailUrl:
       "https://commons.wikimedia.org/wiki/Special:FilePath/Santa_Claus_Village.jpg",
@@ -712,11 +712,11 @@ export const IDEAS: Idea[] = [
       region: ["Rovaniemi", "Lapland"],
       address: "Tähtikuja 1, 96930 Napapiiri (Arctic Circle), Rovaniemi",
     },
-    accessFromHelsinki: {
-      complexity: "complex",
-      duration: "Overnight train ~12h, or flight ~1h 20m + 5-min taxi",
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~12h overnight train (incl. metro to Helsinki Central)",
       notes:
-        "Two routes from Helsinki. (1) VR's Santa Claus Express overnight train: departs ~19:30 or ~22:30, arrives Rovaniemi ~07:30–08:30; sleeper berths from €49, basic seat from €29. (2) Finnair or Norwegian flight to Rovaniemi Airport (~1h 20m); the airport is only 3 km from the village — taxi or hotel shuttle. From central Rovaniemi, local bus 8 runs to the village year-round (~30 min, ~€4). Effectively a multi-day trip — almost no one does this as a same-day return.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR's Santa Claus Express overnight train: departs ~19:30 or ~22:30, arrives Rovaniemi ~07:30–08:30; sleeper berths from €49, basic seat from €29. From central Rovaniemi, local bus 8 runs to the village year-round (~30 min, ~€4), or grab a taxi. Long journey but logistically simple — one straightforward overnight train with no fragile connections. Effectively a multi-day trip — almost no one does this as a same-day return.",
     },
     cost: {
       perPersonEur: 0,
@@ -726,7 +726,7 @@ export const IDEAS: Idea[] = [
     booking: {
       leadTime: "months",
       notes:
-        "The village itself doesn't need booking, but the December train berths, flights, hotels, and husky/aurora tours sell out months in advance for the Christmas-week window. Aim 4–6 months out for a December trip; 2–3 weeks is fine November or shoulder-season.",
+        "The village itself doesn't need booking, but December train berths, hotels, and husky/aurora tours sell out months in advance for the Christmas-week window. Aim 4–6 months out for a December trip; 2–3 weeks is fine November or shoulder-season.",
     },
     suitableAgeRange: { min: 2, max: 12 },
     childrenNotes:
@@ -768,11 +768,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Espoo", "Uusimaa"],
       address: "Coastal cycle path — easiest to start at Kauppatori (Market Square) or Kaivopuisto, both with city-bike stations.",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "Start anywhere along the southern coast",
+      duration: "Start straight from Lauttasaari",
       notes:
-        "Citybike stations are at Kauppatori, Kaivopuisto, Hietaranta, and dozens of other points along the route. Register the HSL Citybike app first (debit/credit card + 4-digit PIN), buy a day/week/season pass, then unlock any yellow bike. Trams 2/3/6 reach the coastal start points.",
+        "Lauttasaari is directly on the coastal route — Citybike stations are dotted across the island, and the rantareitti runs around the whole shore. Cross the Hietaniemi bridge to pick up the central Helsinki section, or head west into Espoo's Rantaraitti. Register the HSL Citybike app first (debit/credit card + 4-digit PIN), buy a day/week/season pass, then unlock any yellow bike.",
     },
     cost: {
       perPersonEur: 5,
@@ -827,11 +827,11 @@ export const IDEAS: Idea[] = [
       region: ["Tampere"],
       address: "Alaverstaanraitti 5, 33100 Tampere",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
-      duration: "~2h each way",
+      duration: "~2h 10m each way",
       notes:
-        "VR Pendolino or Intercity train Helsinki – Tampere (~1h 50m, every 30–60 min). Vapriikki is a 10-min walk from Tampere station along the Tammerkoski rapids. Doable as a half-day from Helsinki with no overnight.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR Pendolino or Intercity train Helsinki – Tampere (~1h 50m, every 30–60 min). Vapriikki is a 10-min walk from Tampere station along the Tammerkoski rapids. Doable as a half-day with no overnight.",
     },
     cost: {
       perPersonEur: 16,
@@ -884,11 +884,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Mikonkatu 17 (Tilausratikan pysäkki), 00100 Helsinki",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~2 min walk",
+      duration: "~10 min",
       notes:
-        "Departs from a dedicated charter-tram stop on Mikonkatu, ~2-min walk from Helsinki Central Station's east exit. Just walk up.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then a 2-min walk from the station's east exit to the dedicated charter-tram stop on Mikonkatu.",
     },
     cost: {
       perPersonEur: 12,
@@ -938,11 +938,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Porvoo", "Uusimaa"],
       address: "Old Porvoo, 06100 Porvoo (~50 km east of Helsinki)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
-      duration: "~50 min by bus, or 3.5h cruise each way",
+      duration: "~1h 5m by bus, or ~4h cruise each way",
       notes:
-        "Two routes. (1) m/s J.L. Runeberg from Linnanlaituri (South Harbour, next to Market Square) at 10:00, returning from Porvoo 16:00 — May–Sept, Tue/Wed/Fri/Sat plus Sun Jun–Aug. (2) OnniBus from Kamppi bus terminal — hourly, ~50 min, €6–9, year-round.",
+        "Two routes, both starting with a short metro hop. (1) Metro to Helsinki Central (~6 min), walk to Kamppi bus terminal (~5 min), then OnniBus to Porvoo — hourly, ~50 min, €6–9, year-round. (2) Metro to Helsinki Central, walk to Linnanlaituri at the South Harbour (~10 min) for the m/s J.L. Runeberg cruise at 10:00, returning from Porvoo 16:00 — May–Sept, Tue/Wed/Fri/Sat plus Sun Jun–Aug.",
     },
     cost: {
       perPersonEur: 50,
@@ -972,7 +972,7 @@ export const IDEAS: Idea[] = [
       "Heureka opened in 1989 in the Tikkurila district of Vantaa, in a striking concrete-and-steel cube designed by Heikkinen–Komonen Architects (the building has won awards for both materials separately). The brief was to popularise science the way the Exploratorium did in San Francisco — touch the exhibits, run the experiments yourself, no \"do not lean on the glass\" signs. Three decades later it pulls about 300,000 visitors a year and is the obvious rainy-day move for any Helsinki-area family with curious kids.",
       "Inside, the permanent and rotating exhibitions cover physics, biology, technology, the human mind, and Earth science — pendulums you set in motion, optical illusions, simulators, a big roomy space about probability and chance, an electricity demonstration that culminates in a live Tesla coil. The Planetarium runs digital fulldome films through the day on rotation (included with admission) — think astronomy and natural history rather than commercial blockbusters. Summer adds the outdoor Galileo Science Park: water-flow experiments, big-format puzzles, a dinosaur trail.",
       "Tickets €26 adult / €23 in advance / under-5 free with an adult; child and senior pricing slots in between. Thursday evenings 15:00–20:00 is a flat €10 for everyone, advance or door — easily the best value if you can swing a weekday late visit. Allow 3–4 hours (longer with kids who don't want to leave). Open daily; high-summer hours (1 Jun – 9 Aug 2026) are Mon–Fri 09:00–18:00, Sat–Sun 10:00–18:00; the rest of the year it follows a similar pattern with a couple of seasonal closures.",
-      "From Helsinki, take any commuter train heading north to Tikkurila — lines I, P, K, R, T, D, N, Z all stop there, about 20 minutes from Central Station. Then it's a 700-metre signposted walk to the Heureka entrance. The same airport-bound P train means you can fit a Heureka stop on the way to or from Helsinki–Vantaa Airport, if you've planned a long layover.",
+      "From Lauttasaari, hop on the metro to Helsinki Central (~6 min) and pick up any commuter train heading north to Tikkurila — lines I, P, K, R, T, D, N, Z all stop there, about 20 minutes from Central Station. Then it's a 700-metre signposted walk to the Heureka entrance.",
     ],
     thumbnailUrl:
       "https://commons.wikimedia.org/wiki/Special:FilePath/Science_centre_Heureka_in_Tikkurila,_Vantaa,_Finland,_2022_June.jpg",
@@ -993,11 +993,11 @@ export const IDEAS: Idea[] = [
       region: ["Vantaa", "Uusimaa"],
       address: "Tiedepuisto 1, 01300 Vantaa (Tikkurila district)",
     },
-    accessFromHelsinki: {
-      complexity: "simple",
-      duration: "~30 min",
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~45 min",
       notes:
-        "VR commuter trains I, P, K, R, T, D, N, or Z from Helsinki Central Station to Tikkurila (~20 min, included in HSL ABC zone ticket). 700-m signposted walk from the station. Conveniently near Helsinki–Vantaa Airport — easy stopover on the airport-bound P train.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then any northbound VR commuter train (I, P, K, R, T, D, N, or Z) to Tikkurila (~20 min). 700-m signposted walk from the station. Whole trip is one HSL ABC zone ticket.",
     },
     cost: {
       perPersonEur: 26,
@@ -1047,11 +1047,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Multiple Helsinki-area Fleet harbours (Lauttasaari, Vuosaari, Hanasaari, others). Rent boats listed at private berths across the metro area.",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "10–30 min by tram/metro to the harbour, then on the water",
+      duration: "0–25 min to a harbour, then on the water",
       notes:
-        "Each Fleet harbour is reachable by tram, metro, or HSL bus. Lauttasaari (~12 min metro) and Vuosaari (~25 min metro) are the most central. Once on board you're 10–30 min by boat to Suomenlinna, Pihlajasaari, or the inner archipelago.",
+        "The Lauttasaari Fleet harbour is on the same island — a short walk or bus 21 ride from anywhere central in Lauttasaari. Other harbours (Vuosaari, Hanasaari) are reachable by metro or bus, ~25 min away. Once on board you're 10–30 min by boat to Suomenlinna, Pihlajasaari, or the inner archipelago.",
     },
     cost: {
       perPersonEur: 80,
@@ -1101,11 +1101,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Main boarding point: Senate Square (Senaatintori), 00170 Helsinki. Tickets also sold at Market Square and onboard.",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~5 min walk from Central Station",
+      duration: "~15 min",
       notes:
-        "5-min walk from Helsinki Central Station to Senate Square. Trams 2/4/5/7 stop a block away. Buy tickets online for the discount; otherwise pay the driver in cash or card at the door.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then a 5-min walk up Aleksanterinkatu to Senate Square. Buy tickets online for the discount; otherwise pay the driver in cash or card at the door.",
     },
     cost: {
       perPersonEur: 32,
@@ -1156,11 +1156,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Departure: West Terminal (Länsiterminaali) T2, Tyynenmerenkatu 14, 00220 Helsinki. Arrival: D-Terminal, Lootsi 13, Tallinn.",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
-      duration: "~2h each way on the ferry; 5–10 min to/from terminals",
+      duration: "~2h each way on the ferry; ~10 min to/from terminals",
       notes:
-        "Tram 7 from Helsinki Central Station to West Terminal 2 (~10 min). All three ferries (Tallink Silja MyStar/Megastar, Eckerö M/S Finlandia, Viking Line XPRS) depart from T2. In Tallinn the ferries dock at D-Terminal, a 10-min walk or short bus 2 ride to the Old Town gate.",
+        "West Terminal 2 sits right across the bridge from Lauttasaari. Take bus 21V or 65A to Länsiterminaali, or hop one stop on the metro to Ruoholahti and walk ~10 min. All three ferries (Tallink Silja MyStar/Megastar, Eckerö M/S Finlandia, Viking Line XPRS) depart from T2. In Tallinn the ferries dock at D-Terminal, a 10-min walk or short bus 2 ride to the Old Town gate.",
     },
     cost: {
       perPersonEur: 35,
@@ -1187,7 +1187,7 @@ export const IDEAS: Idea[] = [
     shortDescription:
       "Board a Tallink Silja or Viking Line cruiseferry at Helsinki's Olympia Terminal at 17:00, sleep in a cabin while the ship threads the Åland archipelago, dock in central Stockholm at ~10:00 — a full day in Gamla Stan, then sail back the same way.",
     longDescription: [
-      "The Helsinki–Stockholm overnight ferry is one of the great European travel rituals — Finns and Swedes have ridden it for generations as a working booze-cruise (alcohol stays duty-free as long as the route touches Åland's tax-loophole waters), and visitors take it because it's a frankly novel way to add Stockholm to a Helsinki trip without flying. Two operators run it: Tallink Silja with the sister ships Silja Serenade (1990) and Silja Symphony (1991), and Viking Line with the new Viking Glory. All are massive 200-metre cruiseferries with 13 decks, multiple restaurants, bars, a spa, a small casino, kid play areas, and the famous central indoor promenade that runs almost the full length of the ship like a high-street.",
+      "The Helsinki–Stockholm overnight ferry is one of the great European travel rituals — Finns and Swedes have ridden it for generations as a working booze-cruise (alcohol stays duty-free as long as the route touches Åland's tax-loophole waters), and visitors take it because it's a frankly novel way to add Stockholm to a Helsinki trip. Two operators run it: Tallink Silja with the sister ships Silja Serenade (1990) and Silja Symphony (1991), and Viking Line with the new Viking Glory. All are massive 200-metre cruiseferries with 13 decks, multiple restaurants, bars, a spa, a small casino, kid play areas, and the famous central indoor promenade that runs almost the full length of the ship like a high-street.",
       "The schedule is the appeal: depart Helsinki Olympia Terminal at 17:00, sail across the Gulf of Finland and through the Åland archipelago overnight (a brief stop at Mariehamn around midnight reset the duty-free clock — most passengers sleep through it), and dock in central Stockholm's Värtahamnen at ~10:00. You have a full day in Stockholm — Gamla Stan (the medieval old town), the Vasa Museum, the Royal Palace, Skansen — and reboard at 16:00ish for the return overnight, back in Helsinki by mid-morning. Total trip: two nights aboard plus one day in Stockholm.",
       "Cabins come in tiers: a windowless C-class inside cabin (bunk beds, en-suite, ~9 m²) starts around €70–90 per person twin-share booked early; a sea-view A-class is €100–130; family cabins for four around €150 per person; suites and Commodore class are luxury territory at €250+. Foot-passenger walk-on tickets without a cabin start at €25 each way (you ride in the public lounges for 17 hours), but the cabin is most of the point. Food is à la carte or via the famous breakfast/dinner buffets (~€35 dinner, €15 breakfast, drink package extra).",
       "The ship is the experience as much as Stockholm is. Try to grab a sea-view cabin so you can see the Åland skerries at sunrise; book dinner at the buffet for the full Finnish-Swedish smörgåsbord experience; and budget at least a couple of hours for the duty-free liquor shop on the way back — half the locals onboard are doing exactly that, with carts piled high. Year-round daily service; summer (June–August) is the peak when cabins on prime weekends sell out months ahead. Winter sailings hit ice in the archipelago — quietly spectacular if you're up before sunrise.",
@@ -1212,11 +1212,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Departure: Olympia Terminal, Olympiaranta 1, 00140 Helsinki. Arrival: Värtahamnen, Hamnpirsvägen 10, 11556 Stockholm.",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "moderate",
       duration: "~17h each way (overnight)",
       notes:
-        "Tram 2 from Helsinki Central Station to Olympia Terminal (~10 min, included in HSL ticket). Two-night minimum for the full Stockholm experience — sleep in a cabin both nights, full day in the city in between.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then tram 2 to Olympia Terminal (~10 min). Whole transfer covered by one HSL AB ticket. Two-night minimum for the full Stockholm experience — sleep in a cabin both nights, full day in the city in between.",
     },
     cost: {
       perPersonEur: 200,
@@ -1278,11 +1278,11 @@ export const IDEAS: Idea[] = [
       region: ["Savonlinna", "Lakeland"],
       address: "Olavinkatu 27, 57130 Savonlinna",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "complex",
-      duration: "~4h 10m each way by train",
+      duration: "~4h 20m each way by train",
       notes:
-        "VR train Helsinki → Parikkala (~3h) with a 5–10 min transfer onto the Parikkala → Savonlinna connecting train (~1h). About 11 services a day. Effectively a multi-day trip — a same-day return is not realistic. Driving (~4h) and the small Savonlinna airport (Finnair via Helsinki, seasonal) are alternatives.",
+        "Metro from Lauttasaari to Helsinki Central (~6 min), then VR train Helsinki → Parikkala (~3h) with a 5–10 min transfer onto the Parikkala → Savonlinna connecting train (~1h). About 11 services a day. Effectively a multi-day trip — a same-day return is not realistic. Driving (~4h) is the alternative.",
     },
     cost: {
       perPersonEur: 15,
@@ -1333,11 +1333,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Merikannontie 8, 00260 Helsinki",
     },
-    accessFromHelsinki: {
-      complexity: "simple",
-      duration: "~15 min",
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~25 min",
       notes:
-        "Tram 4 from Helsinki Central Station to Töölön halli, then a 5-min walk down the slope to the bay. Or walk along the Töölö coastal path from the centre (~25 min). 2-min walk from the Sibelius Monument.",
+        "Metro from Lauttasaari to Ruoholahti (~3 min), then tram 4 to Töölön halli and a 5-min walk down the slope to the bay. In summer the prettier route is to bike or walk the coastal path over the Hietaniemi bridge (~30 min from northern Lauttasaari). 2-min walk from the Sibelius Monument.",
     },
     cost: {
       perPersonEur: 8,
@@ -1367,7 +1367,7 @@ export const IDEAS: Idea[] = [
       "Kasinonranta (\"Casino Beach\", a nod to the 1930s seaside casino-restaurant that once stood here) sits on the south shore of Lauttasaari, a residential island five minutes by metro west of the city centre. It's the larger and livelier of Lauttasaari's two main beaches — a wide arc of soft sand, calm shallow water, a wooden pier with diving steps, and a backdrop of pine woods and rocky outcrops you can scramble up for a view back over the bay. Helsinki city lifeguards staff it during the official swimming season.",
       "On a warm summer Saturday it's the obvious move: families spread blankets and parasols, teenagers cannonball off the pier, kiteboarders launch from the western end (it's one of the better Helsinki spots for it), and the beach volleyball and basketball courts behind the sand run all afternoon. Facilities are unusually complete for a Finnish city beach — proper changing cabins, showers, toilets, a children's playground with a big wooden climbing ship, and a kiosk for ice cream and beach essentials.",
       "Lauttasaaren Paviljonki (also called Kahvila Kasinonranta or \"Kassari\") sits right on the sand — a wood-and-glass pavilion with a terrace facing the water and a fireplace inside for cooler days. The kitchen runs Nordic-leaning lunches and dinners, the terrace is a destination for sundowners on long July evenings, and they extend the season into autumn with covered heated outdoor seating. The Paseo café-sauna nearby serves the cold-water-swim-and-sauna ritual through winter when the beach itself is quiet.",
-      "Take the metro to Lauttasaari station (~6 min from Helsinki Central), then walk 10 minutes south to the shore. Or do the coastal walk/bike route from Hietaniemi over the bridge and along the Lauttasaari rantareitti (~30 min). Free entry, free everything except food and drinks at the pavilion.",
+      "From central Lauttasaari it's a 10-minute walk south to the shore — or hop on bus 21 if you're staying further north on the island. Free entry, free everything except food and drinks at the pavilion.",
     ],
     thumbnailUrl:
       "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_beach_in_September.jpg",
@@ -1385,11 +1385,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Vattuniemenranta 4, 00210 Helsinki (Lauttasaari)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~20 min total",
+      duration: "~10 min walk",
       notes:
-        "Metro from Helsinki Central Station to Lauttasaari (~6 min), then a 10-min walk south through the residential streets to the beach. Or walk/cycle the Lauttasaari coastal route from Ruoholahti or over the Hietaniemi bridge.",
+        "Same island. ~10-min walk south through the residential streets from Lauttasaari metro station to the beach, or shorter from the southern half of the island. Bus 21 also serves the area.",
     },
     cost: {
       perPersonEur: 0,
@@ -1442,11 +1442,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Katajanokanlaituri 2a, 00160 Helsinki",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~10 min walk",
+      duration: "~20 min",
       notes:
-        "10-min walk from Helsinki Central Station via Esplanadi and Market Square. Trams 4 and 5 stop on Aleksanterinkatu / Mariankatu within a block. Right under the SkyWheel.",
+        "Bus 21 from Lauttasaari to Kauppatori, then a 5-min walk along the quay to Katajanokanlaituri. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi and across Market Square. Right under the SkyWheel.",
     },
     cost: {
       perPersonEur: 18,
@@ -1500,11 +1500,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Kanavakatu 1, 00160 Helsinki",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~10 min walk",
+      duration: "~20 min",
       notes:
-        "10-min walk from Helsinki Central Station via Esplanadi, Market Square, and the Katajanokka bridge — then up the granite steps. Trams 4 and 5 stop a block away.",
+        "Bus 21 from Lauttasaari to Kauppatori, then a 5-min walk across the Katajanokka bridge and up the granite steps. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi.",
     },
     cost: {
       perPersonEur: 5,
@@ -1533,7 +1533,7 @@ export const IDEAS: Idea[] = [
       "Fuji Sushi sits in a quiet block of Vattuniemi at the southern end of Lauttasaari, in among the residential apartment buildings rather than on any tourist drag. It's the kind of place that doesn't show up on best-of-Helsinki lists but is on a steady rotation for half the families on the island — high-quality fish, careful preparation, and a price point in the €10–25 mains range that makes it a regular weeknight option rather than a once-a-trip splurge.",
       "The menu hits the full range of a Japanese restaurant in Helsinki: nigiri and sashimi at the heart of it (tamago €3.50 a pair, salmon and tuna nigiri in the €4–6 range), maki and uramaki rolls, big party platters that go up to a 56-piece set at €60, plus ramen, tempura, edamame, miso soup, gyoza, and poke bowls. They'll also do an omakase (chef's selection) if you ask for it — call ahead and discuss budget. Lunch sets are good value.",
       "The reason it's a parent-favourite: there's a small children's play corner — a rare commodity in central Helsinki sit-down restaurants — which means a sushi dinner with a 3-year-old is actually possible without speed-eating. The staff are unflappable about kids. Food shows up quickly enough that you can leave with the post-bedtime patience reserves still topped up. Highchairs available.",
-      "From central Helsinki, take the metro to Lauttasaari station (~6 min), then walk south down Lauttasaarentie and turn onto Vattuniemenkatu — about 12 minutes door-to-door, and the same metro line that takes you to Allas Sea Pool or downtown after dinner. Open Mon–Fri 10:30–20:30, Sat–Sun 12:00–20:30. Walk-ins fine on weeknights; book a table for Friday/Saturday evenings.",
+      "From central Lauttasaari it's a 12-minute walk south down Lauttasaarentie onto Vattuniemenkatu — and the same metro line drops you at Allas Sea Pool or downtown if you want to keep the night going. Open Mon–Fri 10:30–20:30, Sat–Sun 12:00–20:30. Walk-ins fine on weeknights; book a table for Friday/Saturday evenings.",
     ],
     thumbnailUrl:
       "https://img02.restaurantguru.com/cc57-Fuji-Sushi-Helsinki-meals.jpg",
@@ -1551,11 +1551,11 @@ export const IDEAS: Idea[] = [
       region: ["Helsinki", "Uusimaa"],
       address: "Vattuniemenkatu 13, 00210 Helsinki (Lauttasaari)",
     },
-    accessFromHelsinki: {
+    accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~20 min",
+      duration: "~12 min walk",
       notes:
-        "Metro from Helsinki Central Station to Lauttasaari (~6 min), then a 12-min walk south down Lauttasaarentie and along Vattuniemenkatu. Bus 21 also serves the area.",
+        "Same island. ~12-min walk south from Lauttasaari metro station down Lauttasaarentie and along Vattuniemenkatu — shorter from the southern half of the island. Bus 21 also serves the area.",
     },
     cost: {
       perPersonEur: 25,
