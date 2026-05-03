@@ -52,8 +52,8 @@ const INTENSITY_LABELS: Record<Idea["physicalIntensity"], string> = {
   high: "High",
 };
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatAgeRange(range: { min: number; max?: number }): string {
@@ -176,7 +176,7 @@ function IdeaMetadataAside({ idea }: { idea: Idea }) {
       </MetaRow>
 
       <MetaRow icon={<Trees size={14} />} label="Indoor / outdoor">
-        <div>{capitalize(idea.indoorOutdoor)}</div>
+        <div>{titleCase(idea.indoorOutdoor)}</div>
       </MetaRow>
 
       <MetaRow icon={<Baby size={14} />} label="Children-friendly">

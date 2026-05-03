@@ -1330,7 +1330,7 @@ export const IDEAS: Idea[] = [
         "Genuine year-round destination — the fire pit and cottage charm work just as well in February snow as in July sun. Lunchtime weekend queues in summer are heaviest 11:00–14:00.",
     },
     location: {
-      region: ["Helsinki", "Uusimaa"],
+      region: ["Helsinki", "Töölö", "Uusimaa"],
       address: "Merikannontie 8, 00260 Helsinki",
     },
     accessFromLauttasaari: {
@@ -1734,7 +1734,7 @@ export const IDEAS: Idea[] = [
         "Liiga regular season runs early September to mid-March; playoffs in late March / April. The Stadin derby (HIFK vs. Jokerit) is the marquee fixture and sells out earliest. No hockey May–August.",
     },
     location: {
-      region: ["Helsinki", "Uusimaa"],
+      region: ["Helsinki", "Töölö", "Uusimaa"],
       address: "Helsinki Ice Hall (Nordis), Nordenskiöldinkatu 11–13, 00250 Helsinki",
     },
     accessFromLauttasaari: {
@@ -2321,7 +2321,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://www.designkaverit.fi/",
-    tags: [],
+    tags: ["design"],
   },
   {
     slug: "muji-kamppi-community-market",
@@ -2376,7 +2376,7 @@ export const IDEAS: Idea[] = [
     physicalIntensity: "low",
     duration: "1-3h",
     website: "https://www.muji.com/flagship/kamppi-helsinki/en/",
-    tags: [],
+    tags: ["design"],
   },
   {
     slug: "andante",
@@ -2458,7 +2458,7 @@ export const IDEAS: Idea[] = [
         "Year-round, weekday-leaning. Quietest mid-morning and after 14:00. Holiday breaks around Christmas/New Year and Midsummer — the locations page is the canonical schedule.",
     },
     location: {
-      region: ["Helsinki", "Uusimaa"],
+      region: ["Helsinki", "Töölö", "Uusimaa"],
       address: "Runeberginkatu 31, 00100 Helsinki",
     },
     accessFromLauttasaari: {

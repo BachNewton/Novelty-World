@@ -51,8 +51,8 @@ interface FilterPanelProps {
   onChange: (filters: Filters) => void;
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function titleCase(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export function FilterPanel({ filters, onChange }: FilterPanelProps) {
@@ -122,7 +122,7 @@ export function FilterPanel({ filters, onChange }: FilterPanelProps) {
 
       <ChipGroup
         label="Tags"
-        options={KNOWN_TAGS.map((t) => ({ value: t, label: capitalize(t) }))}
+        options={KNOWN_TAGS.map((t) => ({ value: t, label: titleCase(t) }))}
         selected={filters.tags}
         onToggle={(v) => onChange({ ...filters, tags: toggle(filters.tags, v) })}
       />
