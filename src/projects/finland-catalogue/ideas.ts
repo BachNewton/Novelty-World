@@ -541,9 +541,9 @@ export const IDEAS: Idea[] = [
     },
     accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~30 min total (~15 min bus + 15 min ferry)",
+      duration: "~20 min by boat (May–Oct), ~30 min by ferry (year-round)",
       notes:
-        "Bus 21 from Lauttasaari runs straight to the Suomenlinna ferry pier at Kauppatori — the most direct route. Alternative: metro to Helsinki Central (~6 min), then a 10-min walk down Esplanadi. AB single ticket (€3.30) covers the whole trip — same ticket as the metro. Ferry departs every 20 min in summer, 40–60 min in winter. The private JT-Line waterbus also runs in summer (separate ticket, more scenic).",
+        "By boat from HSK Marina (May–Oct): a ~20-minute direct crossing east across the Lauttasaarensalmi and southern harbour into Suomenlinna's Tykistölahti guest harbour — the simplest and fastest option in season. Watch for HSL ferry traffic on the Suomenlinna approach and shipping lanes south of Hernesaari. Off-season / boatless guests: bus 21 from Lauttasaari runs straight to the Suomenlinna HSL ferry pier at Kauppatori (~15 min bus + ~15 min ferry, AB single ticket €3.30 covers both legs). Metro to Helsinki Central + 10-min walk to Kauppatori is the other transit option. The HSL ferry runs every 20 min in summer, 40–60 min in winter; the private JT-Line waterbus runs in summer (separate ticket, more scenic).",
     },
     cost: {
       perPersonEur: 3,
@@ -3598,9 +3598,9 @@ export const IDEAS: Idea[] = [
     },
     accessFromLauttasaari: {
       complexity: "simple",
-      duration: "~25 min",
+      duration: "~25 min by boat (May–Oct), ~25 min by transit (year-round)",
       notes:
-        "M2 metro from Lauttasaari to Helsinki Central (~6 min), then HSL bus 16 from Rautatientori (Railway Square) directly across the bridge into the zoo (~15 min, three buses an hour, year-round). Summer alternative: JT-Line passenger ferry from Market Square (Kauppatori) — ~10 min crossing, €8 round-trip, runs roughly every 30 minutes mid-May to late August. The 16 bus stops inside the gates so it's rain-friendly.",
+        "By boat from HSK Marina (May–Oct): a ~25-minute crossing east through the southern harbour and up the Kruunuvuorenselkä channel to the Korkeasaari visitor pier on the south shore of the island — slightly faster than transit and with no transfers. Mind the shipping traffic in the central harbour area. Off-season / boatless guests: M2 metro from Lauttasaari to Helsinki Central (~6 min), then HSL bus 16 from Rautatientori (Railway Square) directly across the bridge into the zoo (~15 min, three buses an hour, year-round) — the bus stops inside the gates, which is the rain-friendly option. Summer transit alternative: JT-Line passenger ferry from Market Square (Kauppatori) — ~10 min crossing, €8 round-trip, runs roughly every 30 minutes mid-May to late August.",
     },
     cost: {
       perPersonEur: 24,
@@ -4226,10 +4226,10 @@ export const IDEAS: Idea[] = [
       address: "Läntinen Pihlajasaari, 00150 Helsinki (ferry from Merisatama or Ruoholahti)",
     },
     accessFromLauttasaari: {
-      complexity: "moderate",
-      duration: "~30 min each way",
+      complexity: "simple",
+      duration: "~10 min by boat (May–Oct), ~30 min by ferry (Jun–Aug only)",
       notes:
-        "Bus 21 from Lauttasaari to Ruoholahti pier (~10 min), then the 10-minute JT-Line waterbus to Pihlajasaari. Alternative: tram 6 or 6T to Hernesaari/Merisatama and pick up the same waterbus from there. The Ruoholahti pier is closer; Merisatama runs more frequently in peak season. Ticket purchase walk-up on the boat or online.",
+        "By boat from HSK Marina (May–Oct): a ~10-minute direct crossing south to the Pihlajasaari day-trippers' harbour — the fastest and simplest option in season, and the boat season conveniently brackets the island's own May–August public season. Off-season / boatless guests: bus 21 from Lauttasaari to Ruoholahti pier (~10 min), then the 10-minute JT-Line waterbus to Pihlajasaari (~30 min total). Alternative: tram 6 or 6T to Hernesaari/Merisatama and pick up the same waterbus from there. The Ruoholahti pier is closer; Merisatama runs more frequently in peak season. Note JT-Line waterbus runs only May 16 – August 30 — outside that window the island is effectively unreachable without a private boat.",
     },
     cost: {
       perPersonEur: 10,
@@ -4393,10 +4393,10 @@ export const IDEAS: Idea[] = [
       address: "Läntinen Pihlajasaari, 00150 Helsinki",
     },
     accessFromLauttasaari: {
-      complexity: "moderate",
-      duration: "~30–45 min",
+      complexity: "simple",
+      duration: "~15 min by boat (May–Oct), ~30–45 min by ferry (mid-May–Aug)",
       notes:
-        "Two sensible routes from Lauttasaari, both about 30–45 minutes door to door. (1) Bus 21 or metro one stop to Ruoholahti, walk to the JT-Line dock at Hernesaari/Ruoholahti, ferry ~10 min to Pihlajasaari western pier, walk 5 min to the restaurant. (2) Metro to Helsinki Central, tram 3 to Kaivopuisto, walk to Merisatamanranta (behind Café Carusel), ferry ~10 min. JT-Line ferries run every 30–60 min through summer; tickets €9.80 round-trip adult, €6.80 child/senior, buyable online or onboard.",
+        "By boat from HSK Marina (May–Oct): a ~10-minute direct crossing south to Pihlajasaari's day-trippers' harbour, then a 5-minute walk along the sandy path to the restaurant — the fastest option, and the boat season brackets the restaurant's own mid-May to end-of-August window. Boatless / shoulder-season guests use the public ferry: (1) bus 21 or metro one stop to Ruoholahti, walk to the JT-Line dock at Hernesaari/Ruoholahti, ferry ~10 min to Pihlajasaari western pier, walk 5 min to the restaurant; or (2) metro to Helsinki Central, tram 3 to Kaivopuisto, walk to Merisatamanranta (behind Café Carusel), ferry ~10 min. JT-Line ferries run every 30–60 min through summer; tickets €9.80 round-trip adult, €6.80 child/senior, buyable online or onboard.",
     },
     cost: {
       perPersonEur: 30,
@@ -4453,9 +4453,9 @@ export const IDEAS: Idea[] = [
     },
     accessFromLauttasaari: {
       complexity: "moderate",
-      duration: "~2h each way",
+      duration: "~1h 15min by boat in fair weather (May–Oct), ~2h by ferry (May–Sep)",
       notes:
-        "Two transfers and a long ferry — plan the full day. Metro M2 from Lauttasaari east to the end of the line at Vuosaari (~25 min), then HSL bus 90 or a ~2 km walk through Aurinkolahti to the Hiekkalaituri pier (Hiekkalaituri 1) — total mainland leg ~45–60 min. From Hiekkalaituri the FRS Finland ferry crosses to Kaunissaari in 50–60 min. Round-trip ferry is €24.99 adult; check the live timetable before going (sailings vary by day of the week and by season).",
+        "By boat from HSK Marina (May–Oct, weather permitting): ~22 km east into the Sipoo archipelago, ~1h 15min direct in a small boat at cruising speed, mooring at Kaunissaari's 80-berth guest harbour on the south shore — faster than the public-transport route and with no transfers, but a long open-water passage that demands a settled forecast and calm sea state. Don't push it in marginal weather; the outer-archipelago stretch beyond Sipoo is exposed. Off-season / boatless / weather-cancelled: metro M2 from Lauttasaari east to the end of the line at Vuosaari (~25 min), then HSL bus 90 or a ~2 km walk through Aurinkolahti to the Hiekkalaituri pier (Hiekkalaituri 1) — total mainland leg ~45–60 min. From Hiekkalaituri the FRS Finland ferry crosses in 50–60 min (round-trip €24.99 adult). Check the live timetable; sailings vary by day of the week and by season.",
     },
     cost: {
       perPersonEur: 45,
@@ -4507,10 +4507,10 @@ export const IDEAS: Idea[] = [
       address: "Liuskaluoto, 00140 Helsinki (ferry from Merisatamanranta)",
     },
     accessFromLauttasaari: {
-      complexity: "moderate",
-      duration: "~25–35 min",
+      complexity: "simple",
+      duration: "~15 min by boat (May–Oct), ~25–35 min by transit (year-round)",
       notes:
-        "Metro from Lauttasaari to Helsinki Central (~6 min), then tram 3 toward Kaivopuisto, get off at Kaivopuisto stop and walk ~5 min south to Merisatamanranta — the HSS pontoon is halfway between Café Carusel and Kompassitori, signposted. The small open ferry runs every 10–15 min and crosses to Liuskaluoto in about a minute (€6 round-trip). Alternative: bus 24 from central Helsinki gets you closer to Merisatama if the tram is awkward.",
+        "By boat from HSK Marina (May–Oct, brackets Skiffer's own May–Sep season): a ~12-minute direct crossing east-southeast across the Lauttasaarensalmi to the HSS guest harbour on Liuskaluoto, then a 30-second walk to Skiffer's terrace — by far the fastest option in season, and there's a real charm to mooring up next to the Skiffer pontoon for lunch. Watch for the small HSS shuttle ferry crossing your bow on the Merisatama approach. Off-season / boatless guests: metro from Lauttasaari to Helsinki Central (~6 min), tram 3 toward Kaivopuisto, get off at Kaivopuisto stop and walk ~5 min south to Merisatamanranta — the HSS pontoon is halfway between Café Carusel and Kompassitori, signposted. The small open ferry runs every 10–15 min and crosses in about a minute (€6 round-trip). Bus 24 from central Helsinki gets you closer to Merisatama if the tram is awkward.",
     },
     cost: {
       perPersonEur: 30,
@@ -4561,10 +4561,10 @@ export const IDEAS: Idea[] = [
       address: "Henrik Borgströmin polku 3, 00590 Helsinki",
     },
     accessFromLauttasaari: {
-      complexity: "moderate",
-      duration: "~50–60 min",
+      complexity: "simple",
+      duration: "~30 min by boat (May–Oct), ~50–60 min by transit (year-round)",
       notes:
-        "Metro from Lauttasaari to Hakaniemi or Rautatientori (~10 min), then HSL bus 88 toward Laajasalo to the Kaitalahti stop (~25 min). From Kaitalahti, walk ~1 km along the Tullisaari park trail to the small footbridge that connects to Pyysaari. Bus 84 from Lauri Mikonpojan tien stop is the alternate route (~1.4 km walk). Private boat: guest pier on the north side of the island, in the strait between Laajasalo and Kulosaari.",
+        "By boat from HSK Marina (May–Oct, brackets the restaurant's own sailing-season opening): ~30 min east across the southern harbour and up the Kruunuvuorenselkä strait, mooring at HTPS's guest pier on Pyysaari's north shore — by far the most natural way to arrive, since you're docking at the sailing-club's own pier and walking a few metres to the terrace. The route passes south of Suomenlinna and threads the channel between Laajasalo and Kulosaari; standard Helsinki harbour caution. Off-season / boatless guests: metro from Lauttasaari to Hakaniemi or Rautatientori (~10 min), HSL bus 88 toward Laajasalo to the Kaitalahti stop (~25 min), then walk ~1 km along the Tullisaari park trail to the small footbridge that connects to Pyysaari. Bus 84 from Lauri Mikonpojan tien stop is the alternate route (~1.4 km walk).",
     },
     cost: {
       perPersonEur: 35,

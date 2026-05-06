@@ -107,13 +107,36 @@ Highlights worth restating:
   Central and pick up the train/ferry there. **Disregard flying as a
   transit mode** — even when an airport route exists (Rovaniemi,
   Savonlinna), describe the ground-transport alternative instead.
+  **Private-boat option (May 1 – Oct 31).** A small private boat is
+  docked at HSK Marina (Helsingfors Segelklubb) on Lauttasaari's
+  southern shore. When the destination is on an island that has a
+  public visitor dock (guest harbor, public pier, ferry-shared
+  landing), evaluate boat-from-HSK against the public-transport
+  route. **If the boat option is faster or simpler in season,
+  present it as the PRIMARY route — let it drive `complexity`,
+  `duration`, and the lead sentence of `notes` — and demote
+  public transit to the secondary "off-season / boatless guests"
+  fallback in the same `notes` field.** Frame the boat route
+  with explicit seasonality ("By boat from HSK (May–Oct):
+  ~Xmin direct across to the [destination] guest pier") and
+  mention obvious caveats (open-sea exposure, weather sensitivity
+  for a small boat, visitor-dock fees). Keep the public-transport
+  description complete enough that it stands alone for the rest
+  of the year. Skip the boat option entirely for mainland-only
+  destinations, islands without public docking, ideas outside the
+  May–October season, and destinations realistically out of
+  small-boat range (Åland, Hanko, Kvarken, anything multi-hour
+  open water). When the boat option exists but isn't faster or
+  simpler than transit, mention it as a parenthetical alternative
+  rather than promoting it.
   `complexity` is about *transfers and planning effort*, not duration —
   `duration` already captures how long the trip takes. A 12h overnight
   train with no transfers is `'simple'` or `'moderate'`, not `'complex'`,
   because the journey itself is straightforward (one comfortable train,
   no fragile connections). `'complex'` is reserved for routes with
   multiple transfers, sparse connecting services, required car rental,
-  or material advance planning.
+  or material advance planning. A direct boat trip with no transfers
+  is `'simple'` regardless of crossing time.
 - **cost.perPersonEur**: best-guess EUR for one adult. 0 for free. If the
   cost varies wildly, pick a typical number and use `notes` for the spread.
 - **booking.leadTime**: realistic horizon. `'months'` is for genuinely
