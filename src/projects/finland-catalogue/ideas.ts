@@ -4695,4 +4695,398 @@ export const IDEAS: Idea[] = [
     website: "https://rautatiemuseo.fi/en/",
     tags: ["museum", "historical", "train"],
   },
+  {
+    slug: "lammassaari",
+    title: "Lammassaari Boardwalk",
+    shortDescription:
+      "A 2.4 km wooden boardwalk out across the reedbeds of Vanhankaupunginlahti to a small wooded island — Helsinki's best urban bird-watching site, and arguably the city's most photogenic walk when the marsh turns gold in late September.",
+    longDescription: [
+      "Lammassaari (\"Sheep Island\") sits in the middle of Vanhankaupunginlahti, the protected bay at the mouth of the Vantaanjoki river that is Helsinki's largest nature reserve. To reach it you cross the Pornaistenniemi peninsula on a boardwalk and then strike out across open reedbed on a kilometre-long wooden plank path that floats just above the water. The current boardwalk was rebuilt in 2017–2018 by landscape architects Nomaji and Studio Puisto in untreated Siberian larch — fully accessible, with viewing platforms and an enclosed bird hide along the route, and one of the most-photographed pieces of public infrastructure in the city.",
+      "It is a serious birding site in a way that's rare for somewhere you can reach on a city bus. Vanhankaupunginlahti is a stop on the Atlantic flyway, and during the spring and autumn migrations thousands of waterfowl, waders, and passerines stop to feed and rest on the marsh: cormorants and grey herons (around 80 and 50 nesting pairs respectively in 2023 on the small Loppi islet), plus ruffs, wood sandpipers, spotted redshanks, common greenshanks, ringed plovers, ospreys overhead, and the occasional white-tailed eagle. Bring binoculars; the bird hide on Lammassaari has narrow viewing slits oriented out across the most-trafficked stretch of marsh.",
+      "Autumn is when the place earns the visit. From mid-September into October the reeds turn straw-gold and the birch and alder around the boardwalk go yellow, the migration peaks, the low northern sun catches the larch boards, and the whole marsh photographs better than it has any right to. Spring and summer are good too — May for nesting song, June for wildflowers along the edges, July for a quiet midweek walk — but the late-September version is the one to plan for. Winter is technically open, but the boardwalk is unmaintained, unlit, and slick with frozen spray; come prepared for ice underfoot or stick to the warmer months.",
+      "Practicalities: the boardwalk is free, walk-in, no booking. The 2.4 km round trip from the Pornaistenniemi parking takes 45–90 minutes depending on how often you stop at the platforms; allow longer with binoculars. Picnic tables and a composting toilet at Pornaistenniemi; no café on the boardwalk itself. The nearest food is in central Viikki by the campus, a 15-minute walk west. Combine the boardwalk with a stop at the Vanhankaupunginkoski rapids (the original site of Helsinki, with the working hydropower station and a small open-air museum) for a half-day in this corner of the city.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Duckboards_at_Lammassaari_in_Viikinranta,_Helsinki,_Finland,_2021_August.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Path_to_Lammassaari_(12860568943).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lammassaari_Bird_Hide_in_Viikinranta,_Helsinki,_Finland,_2024_March.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/At_the_south_coast_of_Lammassari.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Forest_path_on_Lammassari.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/19th_century_wooden_building_in_Lammassaari_(Viikinranta),_Helsinki,_Finland,_2021.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Cows_in_Lammassaari,_Helsinki,_Finland,_2021.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lammassaari_in_Helsinki,_Finland;_2023_January.jpg",
+    ],
+    availability: {
+      suitableMonths: [4, 5, 6, 7, 8, 9, 10],
+      notes:
+        "Migration peaks (Apr–May, Aug–Oct) are the best birding windows; mid-September into early October is the ruska-and-reedbed photographic peak the locals come for. Winter visits possible but the boardwalk is unmaintained and unlit — slippery underfoot, no facilities open.",
+    },
+    location: {
+      region: ["Helsinki", "Viikki", "Uusimaa"],
+      address: "Pornaistenniemi, Katariina Saksilaisen katu 11, 00560 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~45 min each way",
+      notes:
+        "M1/M2 metro from Lauttasaari to Hakaniemi (~10 min), then bus 71 or 78 northbound on Hämeentie to the Mustapuro stop (~12 min), then a 10–15-min walk along Hämeentie and Viikintie to the Pornaistenniemi entrance and the start of the boardwalk. By bike it's a flatter, scenic ~12 km along the eastern coastal route via Hakaniemi and Kumpula — ~40 min one way.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes: "Free. No facilities to spend money on at the site itself.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes: "Walk-in, no reservation needed.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "The boardwalk is fully accessible — flat wooden planks, no steps, gentle width, stroller- and wheelchair-friendly the entire 1.2 km out. Composting toilet at the Pornaistenniemi entrance. Bring snacks; nothing on the boardwalk itself. Watch toddlers near the unfenced edges over open water.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website:
+      "https://www.hel.fi/en/culture-and-leisure/outdoor-activities-parks-and-nature-destinations/outdoor-recreation-areas/pornaistenniemi-and-lammassaari",
+    tags: ["nature", "island"],
+  },
+  {
+    slug: "snowcastle-kemi",
+    title: "SnowCastle of Kemi (LumiLinna)",
+    shortDescription:
+      "The world's largest snow fort, sculpted from scratch every winter on the Bothnian coast — a snow hotel, an ice-tabled restaurant, an ecumenical snow chapel, and a fully ice-themed slide and bar park, all of it gone again by April.",
+    longDescription: [
+      "LumiLinna — the SnowCastle of Kemi — has been rebuilt every winter since 1996 on the Gulf of Bothnia coast. It is the largest snow construction in the world: over a thousand metres of walls, towers above 20 metres, footprint between 13,000 and 20,000 m² depending on the year, with three storeys of corridors carved out of compacted snow and clear ice. A different architectural theme each season — past years have given a fairytale castle, an ocean-and-icebreaker theme, sport-themed bedrooms, and last year a fantasy forest. The whole structure is built between November and early January by a permanent crew of sculptors and snow-blowers, opens to visitors mid-January, and finishes melting back into the ground around mid-April. Nothing about it is permanent.",
+      "Inside the castle proper there are three named spaces. The SnowHotel is 18 themed double rooms plus family rooms and a honeymoon suite, each one a unique sculpted bedroom — bed frame of ice, mattress and reindeer hides on top, an arctic-rated sleeping bag rated to −20 °C and a thermal liner, the room itself held at around −5 °C. (Showers, sauna, and the warm breakfast lounge are in a heated reception building next door.) The SnowRestaurant seats around 200 at carved ice tables draped in reindeer fur, glass-walled by ice sculptures backlit in colour, with a fixed-menu of arctic-feeling food (salmon, reindeer, cloudberry). The SnowChapel is a 50–100-seat ecumenical chapel that has hosted hundreds of weddings — couples have flown in from as far as Hong Kong and Japan to be married in it.",
+      "The surrounding SnowCastle Winter Park is the day-visitor side of the experience: an enormous ice slide for kids, a snow labyrinth, a traditional Finnish carousel, the SnowBar (drinks served in carved ice glasses), and bookable husky and reindeer rides on site. Entrance to the Winter Park itself is free; the indoor SnowExperience365 exhibition (a year-round real-snow-and-ice gallery with the current season's centrepiece sculptures) is a separate ~€20-ish ticket. The 2026 season runs 9 January – 6 April; the 2027 dates will land mid-January again.",
+      "From Helsinki this is a serious-but-easy trip — the Santa Claus Express overnight sleeper to Rovaniemi from Helsinki Central stops at Kemi station around 06:30, ~7.5 hours from departure. From Kemi station it's a 10-minute taxi or a 20-minute walk to the SnowCastle on Lumilinnankatu, on the harbourfront. Most visitors combine it with the Sampo icebreaker cruise and the Kemi Gemstone Gallery as a 2–3 day trip; a SnowHotel night runs around €380–€550 per double room and books out for the season by November. Day-tripping with the Winter Park alone is doable as a long single day plus the return night train. Dress hard — proper winter parka, thermal layers, snow boots, gloves, hat. Many tour operators include winter clothing rentals; ask when booking the train or hotel.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/SnowCastle,_Kemi,_Finland.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/LumiLinna_SnowCastle_2012,_outside_view.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lumilinna_kappeli.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/LumiLinna_SnowCastle_2012,_restaurant_area_1.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/LumiLinna_SnowCastle_2012,_honeymoon_suite.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/LumiLinna_SnowCastle_2012,_hotel_rooms.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/The_Ice_Slide.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/LumiLinna-2018.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Snow_restaurant.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4],
+      weeklySchedule: "Daily 10:00–19:00 during the season (mid-Jan to early Apr).",
+      events: [{ from: "01-09", to: "04-06", name: "SnowCastle Winter Park" }],
+      notes:
+        "Each year's castle opens around mid-January and closes by early April when the structure starts to lose integrity in the spring sun. The 2026 season runs 9 Jan – 6 Apr; subsequent years follow the same window. The indoor SnowExperience365 exhibition runs all year, but the headline castle, hotel, restaurant, and chapel only exist Jan–Apr.",
+    },
+    location: {
+      region: ["Kemi", "Lapland"],
+      address: "Lumilinnankatu 15, 94100 Kemi",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "Overnight train (~7.5h) + 10-min taxi",
+      notes:
+        "Effectively a multi-day trip. M1/M2 metro from Lauttasaari to Helsinki Central (~6 min), then the VR Santa Claus Express overnight sleeper to Kemi (~7.5h, departs ~22:30, arrives ~06:30). 10-min taxi or 20-min walk from Kemi station to the SnowCastle on Lumilinnankatu. One transfer; book sleeper berths well ahead, especially Dec–Feb. Direct day trains to Kemi also run (~9.5h) but the night train is the standard play.",
+    },
+    cost: {
+      perPersonEur: 25,
+      notes:
+        "Outdoor Winter Park entry is free; SnowExperience365 indoor exhibition ~€20–25 adult; husky and reindeer rides ~€30–60 each. SnowHotel night ~€380–550 per double room incl. breakfast and arctic-grade sleeping kit. SnowRestaurant fixed-menu dinner ~€60–80. Round-trip Santa Claus Express sleeper Helsinki ↔ Kemi ~€100–250 depending on cabin class and how far ahead you book.",
+    },
+    booking: {
+      leadTime: "months",
+      notes:
+        "SnowHotel rooms book up by November for the prime mid-Feb to mid-March window. Sleeper-train cabins also fill weeks ahead in peak winter. SnowExperience365 day tickets and Winter Park entry are walk-up fine.",
+    },
+    suitableAgeRange: { min: 4 },
+    childrenNotes:
+      "Built for families — the ice slide and snow labyrinth are the obvious wins. SnowHotel allows children but consider the cold (rooms held at −5 °C, kid-sized arctic sleeping bags available on request); under-fours often struggle with the temperature. Bring proper winter clothing — Helsinki-grade isn't enough; Kemi in February can sit at −20 °C. Stroller-passable on the cleared paths but a sled or carrier is easier in deep snow.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.icebreaking.com/snowcastle-of-kemi/",
+    tags: ["landmark", "castle"],
+  },
+  {
+    slug: "sandcastle-lappeenranta",
+    title: "Lappeenranta Sandcastle (Hiekkalinna)",
+    shortDescription:
+      "Three million kilos of sand sculpted into the largest sandcastle in the Nordics, on the harbour of Lake Saimaa — a different theme every summer, free to walk through, with a bouncy-castle and carousel midway behind it for the kids.",
+    longDescription: [
+      "Lappeenranta's Hiekkalinna has been built every summer since 2004 in the city's old harbour at the southern end of Lake Saimaa. About three million kilograms of sand are packed into plywood moulds, watered, compacted, then carved top-down by a team of sand sculptors over six weeks in May and early June. The whole structure goes up around a different theme each year — past years have given dinosaurs, the Wild West with a giant steam locomotive, an outer-space castle complete with ET and Darth Vader, and the 2025 \"Lappeenranta — Heart of Lake Saimaa\" lake-life theme. The same sand is reused every year; come autumn it gets watered down, blanket-covered, and saved for next summer's build.",
+      "It is genuinely large — a multi-tower castle with carved figures, scenes, and animals worked into the walls and surrounding sandscape, easily ten metres tall at the peaks. Around 100,000–150,000 visitors come through each year, mostly Finnish families on summer road trips and Russian-border day-trippers in normal years. The whole site is free to walk through, no ticket, no queue. You can climb on parts of the structure (the official ones, marked) and there's a fish-and-chips kiosk, an ice-cream stand, and a Fazer candy shop on the harbour boardwalk.",
+      "Behind the castle the harbour park does the rest of the family-day work: a bouncy-castle inflatables area, a giant trampoline, a carousel, and a small train that loops the harbour. None of it is theme-park-priced — these are the cheap-ride summer-fair sort of operators, a couple of euros a go. The harbour quay also rents bikes, kayaks, canoes, and SUP boards for the lake, and a 40-minute hop-on-hop-off sightseeing bus runs from the sandcastle through the old town and the Lappeenranta fortress on the hill above. Open daily 10:00–21:00 through the summer; the castle is best in the long evening light from 18:00 onward.",
+      "From Helsinki it's a manageable day trip. Direct VR InterCity trains run Helsinki Central to Lappeenranta in just over two hours; from Lappeenranta station it's a flat 15-minute walk down through the old town to the harbour and the sandcastle. The 2026 season runs from Saturday 6 June through 31 August. Combine the sandcastle with a Saimaa lake cruise (the Camilla and other harbour boats run scheduled scenic loops) and a walk up to Lappeenranta Fortress for the half-day version of the trip; add a visit to the Saimaa Canal sluices for a full day.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lappeenranta,_Finland_-_panoramio_(13).jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lappeenranta,_Finland_-_panoramio_(10).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lappeenranta,_Finland_-_panoramio_(11).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Fish_sand_sculpture.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Sandy_horses_-_panoramio.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lappenranta_sandfigures_-_panoramio.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lappeenranta,_Finland_-_panoramio_(8).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kiipeilyrata_Lappeenranta.JPG",
+    ],
+    availability: {
+      suitableMonths: [6, 7, 8],
+      weeklySchedule: "Daily 10:00–21:00 during the summer season.",
+      events: [{ from: "06-06", to: "08-31", name: "Sandcastle of Lappeenranta" }],
+      notes:
+        "Open early June through end of August only; outside that window the harbour is open but the castle isn't built yet (May) or has been wound down (Sept). 2026 season: 6 Jun – 31 Aug. Long evening light from 18:00–21:00 is the photographic peak; midday weekends are the busiest.",
+    },
+    location: {
+      region: ["Lappeenranta", "Lakeland"],
+      address: "Satamatie 11, 53900 Lappeenranta",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~2h 30m each way",
+      notes:
+        "M1/M2 metro from Lauttasaari to Helsinki Central (~6 min), then VR InterCity train Helsinki ↔ Lappeenranta (~2h 5m, 8–10 services per day), then a flat 15-min walk through the old town down to the harbour. One train, no transfers — easy day trip.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Sandcastle area itself is free. Carousel, bouncy castles, trampoline, train rides each ~€3–5 a go. Bike or SUP rental ~€15–25/day. 40-min sightseeing bus ~€15. Round-trip VR train Helsinki ↔ Lappeenranta ~€40–80 depending on how far ahead you book.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "No booking for the sandcastle. VR train tickets are cheaper a few days ahead than at the kiosk. SUP/kayak rental fine to walk up to in the morning, busy weekends sometimes book out by midday.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Sweet-spot ages 2–10. Strollers fine — the harbour is paved and flat. Bouncy castles and the carousel target the under-8 crowd directly; older kids gravitate to the SUP/kayak rentals on the harbour. Bring sunscreen and hats — the harbour is open and hot in July.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.visitlappeenranta.fi/en/Experience/Sandcastle",
+    tags: ["landmark"],
+  },
+  {
+    slug: "meripaviljonki",
+    title: "Ravintola Meripaviljonki",
+    shortDescription:
+      "Finland's first floating public building — a glass-walled seafood restaurant on pontoons in Hakaniemi Bay, with a live lobster tank, a terrace that rises and falls with the water, and the city skyline reflecting off the water at sunset.",
+    longDescription: [
+      "Meripaviljonki opened in 2015 on Säästöpankinranta in Eläintarhanlahti Bay, the inlet that cuts into Helsinki between Hakaniemi and Kaisaniemi. The building, designed by architect Simo Freese, was a decade in zoning purgatory before it was approved — Finland's first floating public building, and a deliberate riff on the form of a flower on the water. The pavilion sits on pontoons that had to be built in two pieces to fit under the Pitkäsilta bridge so they could be towed into place; it rises and falls with the lake-meets-sea water level the bay is famous for, and the entry walkway is wide and stable enough that you don't really notice you're on water until you sit down.",
+      "The kitchen is seafood-led — fish, shellfish, and lobster from the restaurant's own live tank are the headline, with seasonal Finnish ingredients (white asparagus in spring, crayfish in late July through August, mushrooms in autumn) running underneath. The menu does keep meat and vegetable mains in rotation but the reason to come is the fish. The lunch buffet (weekdays 11:00–15:00, ~€34.90, around €20 if taken as a starter) is the more accessible price point and a good way to test the kitchen; the multi-course evening menus run €56–60 per person, mains à la carte €28–42. Wine list is large and Finnish-server-helpful. Run by Graniittiravintolat, who own a handful of Helsinki landmarks.",
+      "The terrace is the headline of the experience May through September — glass-railed all around, awnings overhead, gas heaters for cool evenings, sun on the deck right through the day, and the Hakaniemi skyline plus the Linnanmäki Ferris wheel directly across the bay. Dogs are welcome on the terrace if they behave. The dining room is a glass box with the same view from the inside, which is the winter version of the experience — particularly good when the bay freezes and you're eating blini or salmon soup looking out across snow-and-ice cover.",
+      "Address: Säästöpankinranta 3, 00530 Helsinki (a 5-min walk from Hakaniemi metro station, on the south shore of the bay just past the Paasitorni building). Reservations strongly recommended for dinner, particularly summer Fri–Sat evenings on the terrace which book out 1–2 weeks ahead; weekday lunch is usually walkable. Boat moorage is available on the dock for guests arriving by their own boat.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Restaurant_Meripaviljonki.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/17_Meripaviljonki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Interior_of_restaurant_Meripaviljonki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Seafood_buffet_at_restaurant_Meripaviljonki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Blini_at_restaurant_Meripaviljonki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/View_of_restaurant_Meripaviljonki_over_frozen_Baltic_Sea.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Pink_Gin_G%26T_at_restaurant_Meripaviljonki.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Lunch Mon–Fri 11:00–15:00; dinner Mon–Sat from 17:00; closed Sundays. Terrace open ~May–Sept, weather permitting.",
+      notes:
+        "Two distinct experiences: summer terrace (May–Sept) is the showpiece — sunset over the bay, Linnanmäki across the water; winter dining room with blini and salmon soup looking over the frozen bay is the quieter cult favourite.",
+    },
+    location: {
+      region: ["Helsinki", "Hakaniemi", "Uusimaa"],
+      address: "Säästöpankinranta 3, 00530 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~15 min",
+      notes:
+        "M1/M2 metro from Lauttasaari to Hakaniemi (~10 min), then a 5-min walk west along the bay past Paasitorni to the restaurant. Bus 21 from central Lauttasaari to Hakaniemi works equally well. Boat moorage on site for guests arriving by their own boat (small boats only — Pitkäsilta bridge clearance constrains the approach).",
+    },
+    cost: {
+      perPersonEur: 60,
+      notes:
+        "Lunch buffet ~€35 weekdays; multi-course evening menus €56–60 per person; à la carte mains €28–42; full dinner with wine €70–90 per person. Home-style daily lunch is the cheap entry at ~€14.",
+    },
+    booking: {
+      leadTime: "weeks",
+      notes:
+        "1–2 weeks ahead for summer Fri–Sat dinner on the terrace; few-days fine for weekday dinner; weekday lunch typically walk-in.",
+    },
+    childrenNotes:
+      "Kids are allowed and the menu has a children's section, but this is a fine-dining seafood restaurant — not the natural family destination. High chairs available on request. The terrace is fully glass-railed; toddlers won't fall in the water but the long evening tempo of the meal isn't built for them.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://meripaviljonki.fi/english/",
+    tags: ["food", "nautical"],
+  },
+  {
+    slug: "blue-peter",
+    title: "Ravintola Blue Peter",
+    shortDescription:
+      "The clubhouse restaurant of Helsingfors Segelklubb on Lauttasaari's southern shore — open year-round to non-members, with a sea-view terrace looking straight out across the marina and a Thursday-night sailing race that finishes at the bar.",
+    longDescription: [
+      "Blue Peter has run since 1976 as the clubhouse restaurant of Helsingfors Segelklubb (HSK), one of Finland's oldest and largest sailing clubs (founded 1899, here on Lauttasaari since 1959, ~1,600 members and 600 boats today). It sits in the modern HSK clubhouse, completed in 2010 on the eastern side of the southern Lauttasaari shore at Vattuniemen puistotie 1, looking straight out across the harbour at the lines of moored sailboats and, beyond them, the open Gulf of Finland and the Helsinki skyline. Despite the yacht-club setting, it is fully open to walk-in guests year-round — no membership required, no special access — and has been one of the few seaside restaurants in Helsinki that holds onto regulars through the dark months.",
+      "The kitchen is unfussy seaside-bistro tilted toward Finnish ingredients and seafood. The signature is the creamy salmon soup with archipelago bread (a €9 starter or generous portion that can stand in as a full lunch). Bistro mains run €19–31 — pike-perch, roasted duck breast, raw-spiced whitefish, burgers, a children's menu, plus a rotating seasonal menu that follows the Finnish calendar (cloudberry desserts, crayfish in late July, Christmas-period buffet). Lunch is served weekdays 11:00–14:00 with salad-bar, bread, and coffee included; dinner runs evenings through to ~21:00. Wine list is good, sommelier-curated, mid-range.",
+      "The view is what carries it. Inside, full-height windows wrap the dining room; outside, the terrace sits a few metres above the water with the marina's wooden piers and rigging directly below. On Thursday evenings May through August the HSK Blue Peter Race series sends a fleet of one-design and handicap classes out into the Gulf, and the boats stream back into the harbour from about 19:30 — sit on the terrace with a glass of something cold and watch them come home. The annual HSK Floating Boat Show in late August (the largest in Finland, since 1998) turns the marina into a full waterborne expo for a weekend; the restaurant is busy but worth pushing through.",
+      "From central Lauttasaari it's a 15-min walk south down Lauttasaarentie, through Vattuniemi, to the harbour at the southern end of Vattuniemen puistotie. Bus 21 from Lauttasaarentie to Vattuniemenpuisto and a 5-min walk through the marina is the shortcut. By bike, ~5–8 min from anywhere on the island. Address: Vattuniemen puistotie 1, 00210 Helsinki. Booking advised for Fri–Sat dinner and any sunny evening from May through early September; weekday lunches and winter dinners almost always walkable. Boat moorage and pump-out for guests arriving by their own boat.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Restaurant_Blue_Peter_on_a_cloudy_evening_in_October_2025.jpg",
+    galleryUrls: [
+      "https://bluepeter.fi/wp-content/uploads/2020/06/Blue_Peter-logo.png",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Mon–Fri 11:00–22:00, Sat 12:00–22:00, Sun 12:00–20:00. Lunch served weekdays 11:00–14:00. Kitchen closes ~1h before closing.",
+      notes:
+        "Year-round but two distinct experiences: summer terrace with the marina view and the Thursday-night Blue Peter sailing race finish (May–Aug ~19:30); winter is a warm, glass-walled dining room with the harbour iced over outside. HSK Floating Boat Show late August.",
+    },
+    location: {
+      region: ["Helsinki", "Lauttasaari", "Uusimaa"],
+      address: "Vattuniemen puistotie 1, 00210 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~15–20 min walk",
+      notes:
+        "Same island. From Lauttasaari metro station, ~15-min walk south down Lauttasaarentie and through Vattuniemi to the marina at the south end of Vattuniemen puistotie. Bus 21 to Vattuniemenpuisto cuts the walk to ~5 min. By bike ~5–8 min. Boat moorage on site for guests arriving by water.",
+    },
+    cost: {
+      perPersonEur: 40,
+      notes:
+        "Bistro mains €19–31; salmon-soup-as-a-lunch ~€15 incl. salad and bread; full dinner with a glass of wine ~€40–55 per person. Weekday lunch is the value play.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "1–2 weeks ahead for summer Fri–Sat dinner on the terrace and Thursday-race nights; same-day fine for winter dinners and weekday lunches. The HSK Floating Boat Show weekend (late August) is the one to book a fortnight ahead for.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Family-friendly — children's menu, high chairs, and the marina full of boats is a built-in distraction for kids who lose interest in the meal. Stroller-friendly inside; the terrace has gaps in the railings so keep small kids close on the outdoor side.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://bluepeter.fi/en/",
+    tags: ["food", "nautical"],
+  },
+  {
+    slug: "tuusulanjarvi-ice-trail",
+    title: "Lake Tuusulanjärvi Ice Trail",
+    shortDescription:
+      "A 7 km maintained ice route across the frozen lake north of Järvenpää — skate, kicksled, walk, ski, or fat-bike between Gustavelund and Rantapuisto, the longest natural ice track in the Helsinki region.",
+    longDescription: [
+      "Tuusulanjärvi is a 6-kilometre-long shallow lake about 30 km north of Helsinki, shared between the towns of Tuusula on the western shore and Järvenpää on the eastern. From mid-January once the ice has thickened, the Jäähavaintomiehet ice-observers community works with both municipalities to plough and groom a marked route on the frozen surface running roughly the length of the lake — Gustavelund (Tuusula) at the southern end through Onnela, Halosenniemi (the painter Pekka Halonen's lakeside studio-home, now a museum), and Vanhankylänniemi up to Rantapuisto in central Järvenpää. End-to-end the maintained track is around 7 km one way; you can pick it up from any of half a dozen access points around the shoreline and walk or skate as much of it as you like.",
+      "The route is genuinely multi-use and that is the appeal: a single-file skating lane is brushed smooth alongside a wider walking-and-kicksledding lane and a cross-country skiing track. On a clear weekend afternoon you'll see touring skaters in long-blade Nordic skates moving briskly past pram-pushers, kicksledding grandparents, kids on plastic sleds, fat-bike riders, and the occasional kite-skier when there's wind on the lake. The southern end at Gustavelund has the best skating surface in most years and is the natural starting point if you want to actually skate; the northern end at Rantapuisto is the easier walk-and-coffee approach from the train station. Sarvikallio's wooded ridge rises above the eastern shore halfway along, and a 3.7 km circular shore trail (Seittelinreitti) with a lit campfire site offers a warming detour off the ice.",
+      "Equipment is straightforward to rent if you don't have your own. Sportuna at the Hotel Gustavelund hire centre rents touring skates, kicksleds, snowshoes, and cross-country skis at €20 for two hours; Helsinki Retkiluistelu runs pop-up self-service rental boxes at Rantapuisto in Järvenpää for the same price. The trail itself is free, walk-on, no booking. Kicksledding is the gentlest entry point — Finnish snow-shoe-on-runners that everyone can manage in five minutes, and the way to do it with kids or non-skaters in tow.",
+      "Season is the constraint. The reliable window in southern Finland these days is mid-January through early March, sometimes pushing into early April in a colder year; before mid-January the ice often isn't thick enough to maintain a proper route, and from mid-March on the surface gets unreliable in the spring sun. Always check current ice conditions before going on the lake — the Jäähavaintomiehen Instagram and the Visit Tuusulanjärvi YouTube weather camera at Tuuskoto are the local sources, and signs at each access point indicate that day's status. Wear ice cleats over normal boots if you're walking; bring layers and a wind-breaking outer shell because the open lake is colder than the surrounding forest. Pair the ice trail with lunch at Krapi or the Hotel Gustavelund restaurant, or warm up at Halosenniemi's small museum café halfway along.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Skiing_and_ice_skating_on_Lake_Tuusulanjärvi_I3790_C.JPG",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kicksled_IMG_3736_C.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kite_skiing_in_Tuusula_IM4076_C.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Tuusulanjärvi_ja_peilijää_2009_-_panoramio.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Halosenniemi_-_Näkymä_järvelle_C_IMG_7035.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Gustavelundin_laituri_C_IMG_6803.JPG",
+      "https://www.visittuusulanjarvi.fi/wp-content/uploads/2020/09/12089-Kick_sledges_Lake_Tuusula-scaled.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3],
+      notes:
+        "Mid-January through early March is the reliable window; some years the trail extends into early April or starts in late December if winter sets in early. Always check current ice and grooming conditions before going — the Jäähavaintomiehen social channels and the Tuuskoto weather camera are the local references.",
+    },
+    location: {
+      region: ["Järvenpää", "Tuusula", "Uusimaa"],
+      address:
+        "Rantapuisto, 04400 Järvenpää (north access) / Hotel Gustavelund, Kirkkotie 36, 04310 Tuusula (south access)",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~50 min each way",
+      notes:
+        "M1/M2 metro from Lauttasaari to Helsinki Central (~6 min), then VR commuter R train Helsinki Central → Järvenpää (~30 min, two trains per hour all day), then a 10-min walk from Järvenpää station to the Rantapuisto access point on the lakeshore. One easy transfer. For the southern Gustavelund access, the same R train stops at Kerava and a short bus ride continues to Tuusula — but most visitors enter from Järvenpää.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "Trail itself is free. Round-trip HSL ABCD train ticket Helsinki ↔ Järvenpää ~€10. Skate, kicksled, ski, or snowshoe rental ~€20 for two hours at Sportuna (Gustavelund) or Helsinki Retkiluistelu (Rantapuisto). Lunch at Krapi or the Gustavelund restaurant ~€20–35.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-on. No reservation needed. Equipment rentals are first-come on weekends but rarely run out. Always verify ice conditions on the day you go.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Excellent for kids — kicksledding works from babies-on-board upward (parent pushes, child rides on the front seat), and the walking lane is stroller-passable on most of the maintained track. Skating wants 4+ for a child to enjoy it independently. Bring proper winter clothing, layered; the open lake is colder and windier than it looks from the shore. Carry a thermos — there is no café or shelter on the ice itself.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "moderate",
+    duration: "half-day",
+    website: "https://www.visittuusulanjarvi.fi/en/",
+    tags: ["nature"],
+  },
+  {
+    slug: "aura-river-walk-turku",
+    title: "Aura Riverside Walk (Turku)",
+    shortDescription:
+      "Turku's defining stroll: 3.5 km along the Aurajoki between the medieval Cathedral and 13th-century Castle, past riverboat restaurants, the free Föri ferry, museums, and quayside terraces — the walk every Turku visitor does and most do twice.",
+    longDescription: [
+      "The Aura runs through the centre of Turku for about three kilometres before emptying into the archipelago, and that stretch is the city's defining urban space — a working river still busy with passenger ferries and restaurant boats, walked end-to-end every weekend by locals and visitors alike. The classic route is roughly 3.5 km along the eastern bank from Turku Cathedral down to Turku Castle near the harbour, with the option to cross at any of half a dozen bridges and walk part of the return on the western side. The cathedral and castle bookend more than seven hundred years of Turku's history; in between, the path threads past the Old Great Square, the Brinkkala Mansion, the wooden warehouse rows along Itäinen Rantakatu, the Forum Marinum maritime museum, and the Suomen Joutsen full-rigger moored permanently at her quay.",
+      "Three things make the walk distinctive. The first is the riverboats — a long line of converted wooden ships permanently moored along the Martinsilta-to-Auransilta stretch, each one a bar or restaurant: the most famous are Svarte Rudolf, Bore (also a hostel), Sigyn, and Cindy. By June they spread terraces onto the quay; on a warm Friday evening the whole riverbank between the bridges turns into one long open-air pub crawl. The second is Föri, a tiny black-and-yellow chain ferry that has shuttled the 76 metres across the river continuously since 1904 — free, takes about 90 seconds, runs 06:15–21:00 most of the year. It is genuinely the way locals cross between the museum quarter and the western side, and the ride is a small joy in itself. The third is the bridges: Auransilta with its lions, the wooden Teatterisilta footbridge, the modernist Myllysilta — each one its own micro-landmark.",
+      "Season changes the experience completely. May through September is when the walk earns its reputation — riverboats serving from late afternoon, café terraces along Läntinen Rantakatu, the SUP boards and rental kayaks of Låna at Vähätori square, the Medieval Market in late June and the Music Festival in August both spilling onto the riverbank. October brings ruska colours along the upstream stretch toward Halistenkoski rapids. Winter strips it back: the boats are tarped, the terraces packed away, the quays quieter, but the lit cathedral reflected in the half-frozen river at dusk is one of Finland's quietly classic urban scenes — and the walk itself is shorter and crisper than in summer crowds. Christmas brings small markets at Vanha Suurtori and warm light into the cathedral's glühwein cafés.",
+      "Practical: it's a flat, paved walk on both sides (some cobbles near the cathedral), fully stroller- and wheelchair-friendly along the main quayside path, free, and walk-in. Allow 1–1.5 hours one way at a strolling pace, 3 hours with stops. From Lauttasaari this is a long day-trip — metro to Helsinki Central, VR InterCity train to Turku in around two hours, then a 5-minute walk from the station down Eerikinkatu to the river. Pair the walk with Turku Castle and Forum Marinum at the southern end, or with the cathedral and the Aboa Vetus & Ars Nova museum at the northern end, for a full day. A salmon soup lunch on one of the riverboats, or kahvi-and-korvapuusti at one of the terraces, is the obligatory midpoint.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Aura_River_and_Turku_Cathedral,_Turku_(20110603).jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Boats_and_Föri_in_November_sunshine.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Aura_river_at_dusk,_Turku,_Finland.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Hostel_ship_Bore_and_Turku_castle_from_Korppolaismäki.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Color_of_the_fall_in_Turku_-_panoramio.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Aura_sunset.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Martinsilta_in_November_sunshine.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Föri_seen_from_Martinsilta.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Aura_river_in_Turku_looking_south_from_Teatterisilta.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      notes:
+        "Year-round walkable. May through September is the headline experience — riverboats serving, terraces out, festivals on the quays. October adds autumn colour. Winter is quieter and pretty in a different way; the riverboats are tarped and most terraces packed away, but the lit cathedral reflected in the half-frozen river is its own scene. Föri ferry runs all year (06:15–21:00 most of the year, reduced winter Sundays).",
+    },
+    location: {
+      region: ["Turku"],
+      address:
+        "Aurakatu / Itäinen Rantakatu, 20100 Turku (between Turku Cathedral and Turku Castle)",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~2h 15m each way",
+      notes:
+        "M1/M2 metro from Lauttasaari to Helsinki Central (~6 min), then VR InterCity train Helsinki ↔ Turku (~2h, ~hourly) to Turku station, then a 5-min walk down Eerikinkatu to the river. One transfer. Long day trip — book the train both ways, leave Helsinki by 09:00 to get a full afternoon along the river before the return.",
+    },
+    cost: {
+      perPersonEur: 0,
+      notes:
+        "The walk itself is free; Föri ferry crossing is free. Riverboat restaurants and quayside cafés are mid-priced (a riverboat lunch ~€18–28; salmon soup ~€15). Aboa Vetus & Ars Nova entry €13; Forum Marinum €12; Turku Castle €13. Round-trip VR train Helsinki ↔ Turku ~€30–60 depending on how far ahead you book.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in for the river itself. Riverboat restaurants take reservations on summer weekends and a popular one (Svarte Rudolf, Donna) can book out — reserve a few days ahead in July–August. VR train tickets cheaper booked online than at the station.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Stroller- and wheelchair-friendly along the main paved quayside path on both banks (some cobbles near the cathedral). Föri ferry is a small adventure for kids — free and runs every few minutes. Plenty of ice-cream and snack stops in summer; in winter pack snacks because most quayside cafés close. Watch toddlers near the unfenced river edges, particularly at the riverboats' gangplanks.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://en.visitturku.fi/the-aura-riverside---turku--s-living-room",
+    tags: ["historical"],
+  },
 ];
