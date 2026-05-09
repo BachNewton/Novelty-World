@@ -496,6 +496,38 @@ describe("computeLayout", () => {
     expect(interMomDad).toBeGreaterThan(intraSp * 1.25);
   });
 
+  it("never overlaps two couples on the same generation row", () => {
+    // Great-grandparent with two children: one is on focal's lineage
+    // (a paired couple), the other is a singleton sibling. The earlier
+    // single-width packer placed the singleton at the same x as the
+    // paired couple, since it was nested inside the paired couple's
+    // BFS subtree slot. Per-generation extent tracking pushes them apart.
+    const t = makeTree([
+      p("me", "M", ["dad"]),
+      p("dad", "M", ["ggma"]),
+      p("ggma", "F"),
+      p("auntDad", "M", ["ggma"], ["auntDadW"]),
+      p("auntDadW", "F", [], ["auntDad"]),
+      p("aunt", "F", ["ggma"]),
+      p("greatAunt", "F", ["ggma"]),
+    ]);
+    const layout = computeLayout(t);
+    const persons = t.persons;
+    for (let i = 0; i < layout.nodes.length; i++) {
+      for (let j = i + 1; j < layout.nodes.length; j++) {
+        const a = layout.nodes[i];
+        const b = layout.nodes[j];
+        const xOverlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x);
+        const yOverlap = !(a.y + a.h <= b.y || b.y + b.h <= a.y);
+        if (xOverlap && yOverlap) {
+          throw new Error(
+            `nodes overlap: ${persons[a.id].name} and ${persons[b.id].name}`,
+          );
+        }
+      }
+    }
+  });
+
   it("is deterministic — repeated layouts produce identical positions", () => {
     const build = (): Tree =>
       makeTree([

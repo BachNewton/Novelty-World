@@ -986,12 +986,20 @@ function heuristicMinimizeCrossings(
   refineByAdjacentSwaps(layered);
 }
 
-// Recursive subtree packing. Builds a BFS tree from `focalId` over the
-// couple-DAG, then walks it twice: bottom-up to compute each subtree's
-// horizontal extent, top-down to place each couple at the centre of its
-// allocated slot. Above-row children (parent couples) sit centered above the
-// couple, below-row children (child couples) centered below. Inter-sibling
-// gaps grow with proximity to the focal couple, producing the fan-out shape.
+// Recursive subtree packing using per-generation extents. Builds a BFS tree
+// from `focalId` over the couple-DAG, then walks it twice: bottom-up to
+// compute each subtree's horizontal footprint at every generation it spans,
+// top-down to place each couple at an offset relative to its BFS-parent.
+// Above-row children (parent couples) sit centered above the couple,
+// below-row children (child couples) centered below. Inter-sibling gaps grow
+// with proximity to the focal couple, producing the fan-out shape.
+//
+// The single-width approach was buggy: a deeply nested branch could drop a
+// cousin or great-aunt back onto a generation already occupied by another
+// branch, since "subtree width" only considered the layered hull, not the
+// per-row footprint. Tracking [min, max] per generation lets us pack siblings
+// tightly while still guaranteeing no two couples on the same row collide.
+//
 // Disconnected couples (no path to focal) are appended at the right with the
 // flat SUBTREE_GAP cursor — should be unreachable for a normally-built tree
 // but the renderer must not drop them.
@@ -1060,58 +1068,211 @@ function packSubtrees(
     belowOf.set(cid, below);
   }
 
-  // Bottom-up: subtreeWidth(C) = max of (couple width, above-row width,
-  // below-row width). Each row width is the sum of the children's subtree
-  // widths plus the inter-sibling gap at this couple's depth.
-  const subtreeWidth = new Map<string, number>();
-  const computeWidth = (cid: string): number => {
-    const cached = subtreeWidth.get(cid);
+  // Per-generation extent: x range occupied at each generation, in
+  // coordinates relative to the subtree root's center (= 0).
+  type Extent = Map<number, [number, number]>;
+  const extentOf = new Map<string, Extent>();
+  // Offset of each BFS-child relative to this couple's center.
+  const childOffsetOf = new Map<string, Map<string, number>>();
+
+  const mergeShifted = (target: Extent, src: Extent, shift: number): void => {
+    for (const [g, [a, b]] of src) {
+      const sa = a + shift;
+      const sb = b + shift;
+      const cur = target.get(g);
+      if (cur === undefined) target.set(g, [sa, sb]);
+      else target.set(g, [Math.min(cur[0], sa), Math.max(cur[1], sb)]);
+    }
+  };
+
+  // Re-center a packed row so its midpoint sits at 0 (i.e. centered under
+  // the parent). Mutates both the offsets array and the rowExtent in place.
+  const centerRow = (offsets: number[], rowExtent: Extent): void => {
+    let rowMin = Infinity;
+    let rowMax = -Infinity;
+    for (const [, [a, b]] of rowExtent) {
+      if (a < rowMin) rowMin = a;
+      if (b > rowMax) rowMax = b;
+    }
+    if (!isFinite(rowMin) || !isFinite(rowMax)) return;
+    const shift = -(rowMin + rowMax) / 2;
+    for (let i = 0; i < offsets.length; i++) offsets[i] += shift;
+    for (const [g, [a, b]] of rowExtent) {
+      rowExtent.set(g, [a + shift, b + shift]);
+    }
+  };
+
+  // Detect collision between a row's combined extent and the parent's own
+  // extent. Returns true if any shared generation has overlapping ranges.
+  const rowCollidesWithOwn = (rowExtent: Extent, own: Extent): boolean => {
+    for (const [g, [rmin, rmax]] of rowExtent) {
+      const cur = own.get(g);
+      if (cur === undefined) continue;
+      if (rmax > cur[0] && rmin < cur[1]) return true;
+    }
+    return false;
+  };
+
+  // Place a sequence of kids outward from a starting extent, returning each
+  // kid's offset along with the resulting combined extent. `direction = +1`
+  // packs left-to-right (each kid sits to the right of the prior); `-1` packs
+  // right-to-left (each kid sits to the left of the prior).
+  const packOutward = (
+    kids: string[],
+    gap: number,
+    direction: 1 | -1,
+  ): { offsets: number[]; rowExtent: Extent } => {
+    const offsets: number[] = [];
+    const rowExtent: Extent = new Map();
+    for (const k of kids) {
+      const kext = extentOf.get(k)!;
+      let bestOff: number;
+      if (rowExtent.size === 0) {
+        bestOff = 0;
+      } else if (direction === 1) {
+        let minOff = -Infinity;
+        for (const [g, [kmin]] of kext) {
+          const cur = rowExtent.get(g);
+          if (cur === undefined) continue;
+          const need = cur[1] + gap - kmin;
+          if (need > minOff) minOff = need;
+        }
+        bestOff = isFinite(minOff) ? minOff : 0;
+      } else {
+        let maxOff = Infinity;
+        for (const [g, [, kmax]] of kext) {
+          const cur = rowExtent.get(g);
+          if (cur === undefined) continue;
+          const need = cur[0] - gap - kmax;
+          if (need < maxOff) maxOff = need;
+        }
+        bestOff = isFinite(maxOff) ? maxOff : 0;
+      }
+      offsets.push(bestOff);
+      mergeShifted(rowExtent, kext, bestOff);
+    }
+    return { offsets, rowExtent };
+  };
+
+  const shiftExtent = (e: Extent, shift: number): void => {
+    for (const [g, [a, b]] of e) e.set(g, [a + shift, b + shift]);
+  };
+
+  const compute = (cid: string): Extent => {
+    const cached = extentOf.get(cid);
     if (cached !== undefined) return cached;
-    const couple = couplesById.get(cid);
-    const ownW = couple ? coupleWidth(couple) : NODE_W;
+
     const above = aboveOf.get(cid) ?? [];
     const below = belowOf.get(cid) ?? [];
+    for (const k of above) compute(k);
+    for (const k of below) compute(k);
+
+    const couple = couplesById.get(cid);
+    const cw = couple ? coupleWidth(couple) : NODE_W;
+    const cgen = couple?.generation ?? 0;
+    const ext: Extent = new Map();
+    ext.set(cgen, [-cw / 2, cw / 2]);
+
+    const childOffsets = new Map<string, number>();
     const gap = gapAtDepth(bfsDepth.get(cid) ?? 0);
-    const rowWidth = (kids: string[]): number => {
-      if (kids.length === 0) return 0;
-      const sum = kids.reduce((s, k) => s + computeWidth(k), 0);
-      return sum + gap * (kids.length - 1);
-    };
-    const w = Math.max(ownW, rowWidth(above), rowWidth(below));
-    subtreeWidth.set(cid, w);
-    return w;
-  };
-  computeWidth(focalId);
+    const pivot = orderingX.get(cid) ?? 0;
 
-  // Top-down: place each couple at the centre of its allocated slot. Lay
-  // out above-row centred above the couple, below-row centred below. Each
-  // child gets a slot equal to its own subtreeWidth — recursion handles the
-  // inner structure.
-  const place = (cid: string, slotLeft: number): void => {
-    const w = subtreeWidth.get(cid) ?? NODE_W;
-    centerX.set(cid, slotLeft + w / 2);
-    const placeRow = (kids: string[]): void => {
-      if (kids.length === 0) return;
-      const gap = gapAtDepth(bfsDepth.get(cid) ?? 0);
-      const rowSum =
-        kids.reduce((s, k) => s + (subtreeWidth.get(k) ?? 0), 0) +
-        gap * (kids.length - 1);
-      let cursor = slotLeft + (w - rowSum) / 2;
-      for (const k of kids) {
-        const kw = subtreeWidth.get(k) ?? 0;
-        place(k, cursor);
-        cursor += kw + gap;
+    for (const row of [above, below]) {
+      if (row.length === 0) continue;
+
+      // First attempt: pack all kids together, center them under the parent.
+      // This is the desired layout when descendants of one row don't wrap
+      // back onto a generation already occupied by the parent's own footprint.
+      const packed = packOutward(row, gap, 1);
+      centerRow(packed.offsets, packed.rowExtent);
+
+      let finalOffsets = packed.offsets;
+      let finalExt = packed.rowExtent;
+
+      if (rowCollidesWithOwn(packed.rowExtent, ext)) {
+        // Re-pack with the row split by orderingX: kids whose ordering
+        // position is left of the parent go left-of-parent (pushed outward
+        // from the parent's left edge), kids on the right of pivot go right.
+        // This keeps the parent geographically between its left- and
+        // right-leaning subtrees instead of pushing the whole branch to one
+        // side, which is what produces a sensible spouse-on-each-side layout
+        // when a deep ancestor branch wraps back to the parent's own row.
+        const leftKids = row.filter(
+          (k) => (orderingX.get(k) ?? 0) < pivot,
+        );
+        const rightKids = row.filter(
+          (k) => (orderingX.get(k) ?? 0) >= pivot,
+        );
+
+        const r = packOutward(rightKids, gap, 1);
+        let rShift = 0;
+        for (const [g, [rmin]] of r.rowExtent) {
+          const own = ext.get(g);
+          if (own === undefined) continue;
+          const need = own[1] + gap - rmin;
+          if (need > rShift) rShift = need;
+        }
+        for (let i = 0; i < r.offsets.length; i++) r.offsets[i] += rShift;
+        shiftExtent(r.rowExtent, rShift);
+
+        const lReversed = [...leftKids].reverse();
+        const l = packOutward(lReversed, gap, -1);
+        let lShift = 0;
+        for (const [g, [, lmax]] of l.rowExtent) {
+          const own = ext.get(g);
+          if (own === undefined) continue;
+          const need = own[0] - gap - lmax;
+          if (need < lShift) lShift = need;
+        }
+        for (let i = 0; i < l.offsets.length; i++) l.offsets[i] += lShift;
+        shiftExtent(l.rowExtent, lShift);
+
+        const offsetByKid = new Map<string, number>();
+        for (let i = 0; i < rightKids.length; i++) {
+          offsetByKid.set(rightKids[i], r.offsets[i]);
+        }
+        for (let i = 0; i < lReversed.length; i++) {
+          offsetByKid.set(lReversed[i], l.offsets[i]);
+        }
+        finalOffsets = row.map((k) => offsetByKid.get(k) ?? 0);
+
+        finalExt = new Map();
+        mergeShifted(finalExt, r.rowExtent, 0);
+        mergeShifted(finalExt, l.rowExtent, 0);
       }
-    };
-    placeRow(aboveOf.get(cid) ?? []);
-    placeRow(belowOf.get(cid) ?? []);
-  };
-  place(focalId, 0);
 
-  // Fallback for any couples not reachable from focal in the couple-DAG.
-  // In a normally-built tree this is empty; defensive code so we never lose
-  // a node from the rendered layout.
-  let extraCursor = (subtreeWidth.get(focalId) ?? 0) + SUBTREE_GAP;
+      for (let i = 0; i < row.length; i++) {
+        childOffsets.set(row[i], finalOffsets[i]);
+      }
+      mergeShifted(ext, finalExt, 0);
+    }
+
+    extentOf.set(cid, ext);
+    childOffsetOf.set(cid, childOffsets);
+    return ext;
+  };
+
+  compute(focalId);
+
+  // Translate the focal subtree so its leftmost point sits at x = 0.
+  const focalExt = extentOf.get(focalId)!;
+  let globalMin = 0;
+  for (const [, [a]] of focalExt) if (a < globalMin) globalMin = a;
+  const place = (cid: string, x: number): void => {
+    centerX.set(cid, x);
+    const offsets = childOffsetOf.get(cid);
+    if (offsets === undefined) return;
+    for (const [k, off] of offsets) place(k, x + off);
+  };
+  place(focalId, -globalMin);
+
+  // Disconnected couples fallback. Anchor at the right edge of the focal
+  // subtree's overall hull. In a normally-built tree this is empty; defensive
+  // code so we never lose a node from the rendered layout.
+  let focalRight = -Infinity;
+  for (const [, [, b]] of focalExt) if (b > focalRight) focalRight = b;
+  let extraCursor =
+    (isFinite(focalRight) ? focalRight - globalMin : 0) + SUBTREE_GAP;
   for (const couple of couples) {
     if (centerX.has(couple.id)) continue;
     const w = coupleWidth(couple);
