@@ -88,6 +88,104 @@ export function PanZoom({
     return () => { el.removeEventListener("wheel", handler); };
   }, [minScale, maxScale]);
 
+  // Keyboard pan (WASD) and zoom (-/+). Tracks held keys and runs an rAF loop
+  // while any are pressed so the motion is smooth and resolution-independent.
+  useEffect(() => {
+    const pressed = new Set<string>();
+    let raf: number | null = null;
+    let lastTime = 0;
+
+    const PAN_SPEED = 700; // screen px per second
+    const ZOOM_RATE = 1.8; // multiplicative factor per second
+
+    const tick = (now: number): void => {
+      const dt = lastTime === 0 ? 16 : Math.min(50, now - lastTime);
+      lastTime = now;
+
+      let dx = 0;
+      let dy = 0;
+      let zoomFactor = 1;
+      const seconds = dt / 1000;
+      if (pressed.has("w")) dy += PAN_SPEED * seconds;
+      if (pressed.has("s")) dy -= PAN_SPEED * seconds;
+      if (pressed.has("a")) dx += PAN_SPEED * seconds;
+      if (pressed.has("d")) dx -= PAN_SPEED * seconds;
+      if (pressed.has("+")) zoomFactor *= Math.pow(ZOOM_RATE, seconds);
+      if (pressed.has("-")) zoomFactor /= Math.pow(ZOOM_RATE, seconds);
+
+      if (dx !== 0 || dy !== 0 || zoomFactor !== 1) {
+        const el = containerRef.current;
+        const rect = el?.getBoundingClientRect();
+        const cx = rect ? rect.width / 2 : 0;
+        const cy = rect ? rect.height / 2 : 0;
+        setTransform((t) => {
+          let next: Transform = { x: t.x + dx, y: t.y + dy, s: t.s };
+          if (zoomFactor !== 1) {
+            next = zoomToward(next, zoomFactor, cx, cy, minScale, maxScale);
+          }
+          return next;
+        });
+      }
+
+      if (pressed.size > 0) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        raf = null;
+        lastTime = 0;
+      }
+    };
+
+    const startLoop = (): void => {
+      if (raf !== null) return;
+      lastTime = 0;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const isInteractive = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+      return target.isContentEditable;
+    };
+
+    const keyToken = (e: KeyboardEvent): string | null => {
+      const k = e.key.toLowerCase();
+      if (k === "w" || k === "a" || k === "s" || k === "d") return k;
+      if (e.key === "+" || e.key === "=") return "+";
+      if (e.key === "-" || e.key === "_") return "-";
+      return null;
+    };
+
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isInteractive(e.target)) return;
+      const token = keyToken(e);
+      if (token === null) return;
+      e.preventDefault();
+      if (e.repeat) return;
+      pressed.add(token);
+      startLoop();
+    };
+
+    const onKeyUp = (e: KeyboardEvent): void => {
+      const token = keyToken(e);
+      if (token !== null) pressed.delete(token);
+    };
+
+    const clearPressed = (): void => { pressed.clear(); };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", clearPressed);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", clearPressed);
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [minScale, maxScale]);
+
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });

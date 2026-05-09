@@ -71,7 +71,7 @@ export function FamilyTree() {
             </Button>
           ) : null}
           <p className="hidden text-xs text-text-muted lg:block">
-            Drag to pan · scroll or pinch to zoom · click a person
+            Drag or WASD to pan · scroll, pinch, or +/− to zoom · click a person
           </p>
         </div>
       </header>

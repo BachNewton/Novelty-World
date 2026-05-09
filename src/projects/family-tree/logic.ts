@@ -3,7 +3,6 @@ import type { Gender, Layout, Person, Tree, LaidOutNode } from "./types";
 export const NODE_W = 160;
 export const NODE_H = 64;
 export const SPOUSE_GAP = 28;
-export const SIBLING_GAP = 36;
 export const ROW_GAP = 96;
 export const SUBTREE_GAP = 72;
 
@@ -504,13 +503,17 @@ function chainLabel(tree: Tree, fromId: string, toId: string): string | null {
 }
 
 // ---------- Layout ----------
+//
+// Standard genealogical convention: each generation sits on a horizontal row;
+// spouses are placed adjacent with a marriage line; parents drop a vertical
+// edge from the midpoint of their marriage line down to each child. Both
+// spouses' parent couples (when present) appear on the row above with their
+// own marriage lines, each connecting down to the matching spouse.
 
-interface UnitInternal {
+interface CoupleUnit {
   id: string;
-  primaryId: string;
-  partnerId: string | null;
-  parentUnitId: string | null;
-  childUnitIds: string[];
+  members: string[]; // [primary] or [primary, partner]
+  generation: number;
 }
 
 function childrenOf(tree: Tree, parentId: string): string[] {
@@ -546,156 +549,179 @@ function bfsOrder(tree: Tree): string[] {
   return order;
 }
 
-function buildUnits(tree: Tree): {
-  units: Map<string, UnitInternal>;
-  unitOf: Map<string, string>;
-  order: string[];
-} {
-  const order = bfsOrder(tree);
-  const unitOf = new Map<string, string>();
-  const units = new Map<string, UnitInternal>();
+function computeGenerations(tree: Tree): Map<string, number> {
+  const childrenIdx = buildChildrenIndex(tree);
+  const gen = new Map<string, number>();
+  gen.set(tree.rootId, 0);
+  const queue: string[] = [tree.rootId];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const g = gen.get(id)!;
+    const person = tree.persons[id];
+    const visit = (otherId: string, otherGen: number): void => {
+      if (gen.has(otherId)) return;
+      gen.set(otherId, otherGen);
+      queue.push(otherId);
+    };
+    for (const parentId of person.parentIds) visit(parentId, g - 1);
+    for (const spouseId of person.spouseIds) visit(spouseId, g);
+    for (const childId of childrenIdx.get(id) ?? []) visit(childId, g + 1);
+  }
+  for (const id of Object.keys(tree.persons)) {
+    if (!gen.has(id)) gen.set(id, 0);
+  }
+  return gen;
+}
 
+function buildCoupleUnits(
+  tree: Tree,
+  order: string[],
+  gen: Map<string, number>,
+): { couples: CoupleUnit[]; coupleOf: Map<string, string> } {
+  const coupleOf = new Map<string, string>();
+  const couples: CoupleUnit[] = [];
   for (const id of order) {
-    if (unitOf.has(id)) continue;
+    if (coupleOf.has(id)) continue;
     const p = tree.persons[id];
-    const partner = p.spouseIds.find((sid) => !unitOf.has(sid)) ?? null;
-    units.set(id, {
+    const partner = p.spouseIds.find((sid) => !coupleOf.has(sid)) ?? null;
+    couples.push({
       id,
-      primaryId: id,
-      partnerId: partner,
-      parentUnitId: null,
-      childUnitIds: [],
+      members: partner !== null ? [id, partner] : [id],
+      generation: gen.get(id)!,
     });
-    unitOf.set(id, id);
-    if (partner !== null) unitOf.set(partner, id);
+    coupleOf.set(id, id);
+    if (partner !== null) coupleOf.set(partner, id);
   }
-
-  // Determine parent unit for each unit, then attach as child of that parent unit.
-  for (const id of order) {
-    const unitId = unitOf.get(id);
-    if (unitId !== id) continue;
-    const unit = units.get(unitId)!;
-    const primary = tree.persons[unit.primaryId];
-    if (primary.parentIds.length > 0) {
-      const anchorParentId = primary.parentIds[0];
-      const parentUnitId = unitOf.get(anchorParentId);
-      if (parentUnitId !== undefined && parentUnitId !== unit.id) {
-        unit.parentUnitId = parentUnitId;
-      }
-    }
-  }
-  for (const unit of units.values()) {
-    if (unit.parentUnitId !== null) {
-      const parentUnit = units.get(unit.parentUnitId)!;
-      if (!parentUnit.childUnitIds.includes(unit.id)) {
-        parentUnit.childUnitIds.push(unit.id);
-      }
-    }
-  }
-
-  return { units, unitOf, order };
+  return { couples, coupleOf };
 }
 
-function unitWidth(unit: UnitInternal): number {
-  return unit.partnerId !== null ? NODE_W * 2 + SPOUSE_GAP : NODE_W;
-}
-
-function subtreeWidth(
-  unit: UnitInternal,
-  units: Map<string, UnitInternal>,
-  cache: Map<string, number>,
-): number {
-  const cached = cache.get(unit.id);
-  if (cached !== undefined) return cached;
-  const own = unitWidth(unit);
-  if (unit.childUnitIds.length === 0) {
-    cache.set(unit.id, own);
-    return own;
-  }
-  const childTotal =
-    unit.childUnitIds.reduce(
-      (sum, cid) => sum + subtreeWidth(units.get(cid)!, units, cache),
-      0,
-    ) + SIBLING_GAP * (unit.childUnitIds.length - 1);
-  const w = Math.max(own, childTotal);
-  cache.set(unit.id, w);
-  return w;
-}
-
-function placeUnit(
-  unit: UnitInternal,
-  units: Map<string, UnitInternal>,
-  startX: number,
-  y: number,
-  layout: Layout,
-  widths: Map<string, number>,
-): void {
-  const width = widths.get(unit.id)!;
-  const own = unitWidth(unit);
-  const centerX = startX + width / 2;
-  const leftX = centerX - own / 2;
-
-  layout.nodes.push({ id: unit.primaryId, x: leftX, y, w: NODE_W, h: NODE_H });
-  if (unit.partnerId !== null) {
-    layout.nodes.push({
-      id: unit.partnerId,
-      x: leftX + NODE_W + SPOUSE_GAP,
-      y,
-      w: NODE_W,
-      h: NODE_H,
-    });
-    layout.edges.push({
-      kind: "spouse",
-      aId: unit.primaryId,
-      bId: unit.partnerId,
-    });
-  }
-
-  if (unit.childUnitIds.length === 0) return;
-
-  const childTotal =
-    unit.childUnitIds.reduce((sum, cid) => sum + widths.get(cid)!, 0) +
-    SIBLING_GAP * (unit.childUnitIds.length - 1);
-  let cursor = centerX - childTotal / 2;
-  for (const cid of unit.childUnitIds) {
-    const child = units.get(cid)!;
-    const cw = widths.get(cid)!;
-    placeUnit(child, units, cursor, y + NODE_H + ROW_GAP, layout, widths);
-    layout.edges.push({
-      kind: "parent-child",
-      parentAId: unit.primaryId,
-      parentBId: unit.partnerId,
-      childId: child.primaryId,
-    });
-    cursor += cw + SIBLING_GAP;
-  }
+function coupleWidth(couple: CoupleUnit): number {
+  return couple.members.length === 2 ? 2 * NODE_W + SPOUSE_GAP : NODE_W;
 }
 
 export function computeLayout(tree: Tree): Layout {
-  const { units, order } = buildUnits(tree);
-  const layout: Layout = { nodes: [], edges: [], width: 0, height: 0 };
-  const widths = new Map<string, number>();
+  const order = bfsOrder(tree);
+  const gen = computeGenerations(tree);
+  const { couples, coupleOf } = buildCoupleUnits(tree, order, gen);
 
-  // Topmost units, ordered by BFS-from-root so root's lineage tends to render first.
-  const seenUnit = new Set<string>();
-  const tops: UnitInternal[] = [];
-  for (const id of order) {
-    const u = units.get(id);
-    if (!u || seenUnit.has(u.id)) continue;
-    if (u.parentUnitId === null) {
-      tops.push(u);
-      seenUnit.add(u.id);
+  const orderIndex = new Map<string, number>();
+  order.forEach((id, i) => { orderIndex.set(id, i); });
+
+  // For each couple, the set of distinct parent couples (one per spouse who
+  // has parents in the tree). A couple may have 0, 1, or 2 parent couples.
+  const parentCouplesOf = new Map<string, string[]>();
+  for (const couple of couples) {
+    const parents: string[] = [];
+    for (const memberId of couple.members) {
+      for (const parentId of tree.persons[memberId].parentIds) {
+        const pc = coupleOf.get(parentId);
+        if (pc !== undefined && pc !== couple.id && !parents.includes(pc)) {
+          parents.push(pc);
+        }
+      }
+    }
+    parentCouplesOf.set(couple.id, parents);
+  }
+
+  const byGen = new Map<number, CoupleUnit[]>();
+  for (const couple of couples) {
+    let arr = byGen.get(couple.generation);
+    if (arr === undefined) {
+      arr = [];
+      byGen.set(couple.generation, arr);
+    }
+    arr.push(couple);
+  }
+  const sortedGens = [...byGen.keys()].sort((a, b) => a - b);
+
+  // Top-down placement: each couple's ideal x is the average of its already-
+  // placed parent couples. Couples are sorted by ideal then placed left-to-
+  // right with a min spacing, so the order respects parent positions when
+  // possible without ever overlapping.
+  const centerX = new Map<string, number>();
+  for (const g of sortedGens) {
+    const inGen = byGen.get(g)!;
+    const items = inGen.map((couple) => {
+      const placedParents = parentCouplesOf
+        .get(couple.id)!
+        .filter((pid) => centerX.has(pid));
+      const ideal =
+        placedParents.length > 0
+          ? placedParents.reduce((sum, pid) => sum + centerX.get(pid)!, 0) /
+            placedParents.length
+          : null;
+      return { couple, ideal };
+    });
+    items.sort((a, b) => {
+      if (a.ideal === null && b.ideal === null) {
+        return (
+          (orderIndex.get(a.couple.id) ?? 0) -
+          (orderIndex.get(b.couple.id) ?? 0)
+        );
+      }
+      if (a.ideal === null) return 1;
+      if (b.ideal === null) return -1;
+      return a.ideal - b.ideal;
+    });
+
+    let cursor = 0;
+    for (const { couple, ideal } of items) {
+      const w = coupleWidth(couple);
+      let center = ideal !== null ? ideal : cursor + w / 2;
+      let leftX = center - w / 2;
+      if (leftX < cursor) {
+        leftX = cursor;
+        center = leftX + w / 2;
+      }
+      centerX.set(couple.id, center);
+      cursor = leftX + w + SUBTREE_GAP;
     }
   }
 
-  let cursor = 0;
-  for (const top of tops) {
-    const w = subtreeWidth(top, units, widths);
-    placeUnit(top, units, cursor, 0, layout, widths);
-    cursor += w + SUBTREE_GAP;
+  const minGen = sortedGens.length > 0 ? sortedGens[0] : 0;
+  const yFor = (g: number): number => (g - minGen) * (NODE_H + ROW_GAP);
+
+  const layout: Layout = { nodes: [], edges: [], width: 0, height: 0 };
+
+  for (const couple of couples) {
+    const center = centerX.get(couple.id)!;
+    const y = yFor(couple.generation);
+    const w = coupleWidth(couple);
+    const leftX = center - w / 2;
+    layout.nodes.push({ id: couple.members[0], x: leftX, y, w: NODE_W, h: NODE_H });
+    if (couple.members.length === 2) {
+      layout.nodes.push({
+        id: couple.members[1],
+        x: leftX + NODE_W + SPOUSE_GAP,
+        y,
+        w: NODE_W,
+        h: NODE_H,
+      });
+      layout.edges.push({
+        kind: "spouse",
+        aId: couple.members[0],
+        bId: couple.members[1],
+      });
+    }
   }
 
-  layout.width = Math.max(0, cursor - SUBTREE_GAP);
+  // One parent-child edge per child. The renderer drops from the midpoint of
+  // the parents' marriage line (or the lone parent's center) down to the
+  // child — so in-laws naturally get their own visible drop into their child.
+  for (const person of Object.values(tree.persons)) {
+    if (person.parentIds.length === 0) continue;
+    layout.edges.push({
+      kind: "parent-child",
+      parentAId: person.parentIds[0],
+      parentBId: person.parentIds.length === 2 ? person.parentIds[1] : null,
+      childId: person.id,
+    });
+  }
+
+  layout.width = layout.nodes.reduce(
+    (max: number, n: LaidOutNode) => Math.max(max, n.x + n.w),
+    0,
+  );
   layout.height = layout.nodes.reduce(
     (max: number, n: LaidOutNode) => Math.max(max, n.y + n.h),
     0,

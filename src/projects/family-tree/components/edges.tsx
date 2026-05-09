@@ -41,9 +41,16 @@ export function Edges({ layout }: EdgesProps) {
         const a = byId.get(edge.parentAId);
         const b = edge.parentBId !== null ? byId.get(edge.parentBId) : null;
         if (!child || !a) return null;
-        const parentMidX = b
-          ? (a.x + a.w + b.x) / 2
-          : a.x + a.w / 2;
+        let parentMidX: number;
+        if (b) {
+          // Use the inner edges of the marriage line regardless of which
+          // parent was passed first.
+          const left = a.x <= b.x ? a : b;
+          const right = a.x <= b.x ? b : a;
+          parentMidX = (left.x + left.w + right.x) / 2;
+        } else {
+          parentMidX = a.x + a.w / 2;
+        }
         const parentBottomY = a.y + a.h;
         const childTopY = child.y;
         const childMidX = child.x + child.w / 2;

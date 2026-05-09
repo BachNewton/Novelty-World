@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "security/detect-object-injection": "off",
+      // Heuristic flags any boolean-ish comparison; no crypto code in this app.
+      "security/detect-possible-timing-attacks": "off",
       "@typescript-eslint/no-unnecessary-condition": "error",
       "@typescript-eslint/no-explicit-any": "error",
       // Every lint suppression (eslint-disable, @ts-expect-error, etc.) must
