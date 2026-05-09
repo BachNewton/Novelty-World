@@ -131,6 +131,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "travel",
     icon: "Map",
   },
+  {
+    name: "Family Tree",
+    slug: "family-tree",
+    description: "A shared, dynamically laid-out family tree",
+    categorySlug: "tools",
+    icon: "Users",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

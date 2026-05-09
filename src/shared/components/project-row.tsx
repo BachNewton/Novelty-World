@@ -20,6 +20,7 @@ import {
   Crosshair,
   Sparkles,
   Map,
+  Users,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Crosshair,
   Sparkles,
   Map,
+  Users,
 };
 
 const BRAND_COLORS = [

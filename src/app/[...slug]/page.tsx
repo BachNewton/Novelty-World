@@ -31,6 +31,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
       default: m.FinlandCatalogue,
     })),
   ),
+  "family-tree": dynamic(() =>
+    import("@/projects/family-tree").then((m) => ({ default: m.FamilyTree })),
+  ),
 };
 
 interface Props {
