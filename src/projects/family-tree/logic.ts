@@ -728,3 +728,53 @@ export function computeLayout(tree: Tree): Layout {
   );
   return layout;
 }
+
+export type NavDirection = "up" | "down" | "left" | "right";
+
+export function nearestInDirection(
+  current: LaidOutNode,
+  all: LaidOutNode[],
+  dir: NavDirection,
+): LaidOutNode | null {
+  const cx = current.x + current.w / 2;
+  const cy = current.y + current.h / 2;
+  let best: LaidOutNode | null = null;
+  let bestScore = Infinity;
+  for (const n of all) {
+    if (n.id === current.id) continue;
+    const nx = n.x + n.w / 2;
+    const ny = n.y + n.h / 2;
+    const dx = nx - cx;
+    const dy = ny - cy;
+    let principal: number;
+    let perp: number;
+    if (dir === "up") { principal = -dy; perp = Math.abs(dx); }
+    else if (dir === "down") { principal = dy; perp = Math.abs(dx); }
+    else if (dir === "left") { principal = -dx; perp = Math.abs(dy); }
+    else { principal = dx; perp = Math.abs(dy); }
+    if (principal <= 0) continue;
+    // Bias the score toward the requested axis so off-axis nodes lose to
+    // straighter neighbors of similar distance.
+    const score = principal + perp * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = n;
+    }
+  }
+  return best;
+}
+
+export const GENDER_CYCLE: Gender[] = ["M", "F", "NB", null];
+
+export function nextGender(g: Gender): Gender {
+  const i = GENDER_CYCLE.indexOf(g);
+  return GENDER_CYCLE[(i + 1) % GENDER_CYCLE.length];
+}
+
+export function countChildren(tree: Tree, parentId: string): number {
+  let count = 0;
+  for (const p of Object.values(tree.persons)) {
+    if (p.parentIds.includes(parentId)) count++;
+  }
+  return count;
+}

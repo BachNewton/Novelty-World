@@ -1,13 +1,56 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFamilyTreeStore } from "../store";
-import { ROOT_ID, ROOT_NAME, computeLayout, describeRelation } from "../logic";
+import {
+  ROOT_ID,
+  ROOT_NAME,
+  computeLayout,
+  countChildren,
+  describeRelation,
+  nearestInDirection,
+  nextGender,
+  type NavDirection,
+} from "../logic";
+import type { Layout, Tree } from "../types";
 import { PanZoom } from "./pan-zoom";
 import { Node } from "./node";
 import { Edges } from "./edges";
-import { ActionPanel } from "./action-panel";
+import { ActionPanel, type PanelMode } from "./action-panel";
 import { Button } from "@/shared/components/ui/button";
+
+function arrowDirection(key: string): NavDirection | null {
+  if (key === "ArrowUp") return "up";
+  if (key === "ArrowDown") return "down";
+  if (key === "ArrowLeft") return "left";
+  if (key === "ArrowRight") return "right";
+  return null;
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "BUTTON") return true;
+  return target.isContentEditable;
+}
+
+function deleteWithConfirm(
+  tree: Tree,
+  personId: string,
+  remove: (id: string) => void,
+): void {
+  const p = tree.persons[personId];
+  if (p.id === ROOT_ID) return;
+  const childCount = countChildren(tree, personId);
+  if (childCount > 0) {
+    const ok = window.confirm(
+      `${p.name} has ${childCount} ${childCount === 1 ? "child" : "children"} listed. Remove anyway? Their children will keep their other parent (if any).`,
+    );
+    if (!ok) return;
+  }
+  remove(personId);
+}
 
 export function FamilyTree() {
   const tree = useFamilyTreeStore((s) => s.tree);
@@ -30,8 +73,111 @@ export function FamilyTree() {
 
   const layout = useMemo(() => computeLayout(tree), [tree]);
 
-  // If viewRootId points at a person no longer in the tree (shouldn't happen
-  // since `remove` clears it, but be defensive after a hydrate), fall back.
+  const [panelMode, setPanelMode] = useState<PanelMode>("menu");
+  // Reset to the menu whenever the active selection changes — tracking the
+  // previous selection in state is React's recommended pattern for resets:
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId);
+  if (prevSelectedId !== selectedId) {
+    setPrevSelectedId(selectedId);
+    if (panelMode !== "menu") setPanelMode("menu");
+  }
+
+  // Refs let the keyboard handler read latest values without re-attaching
+  // the listener on every keystroke (which would also break OS auto-repeat).
+  const layoutRef = useRef<Layout>(layout);
+  const panelModeRef = useRef<PanelMode>(panelMode);
+  useEffect(() => { layoutRef.current = layout; }, [layout]);
+  useEffect(() => { panelModeRef.current = panelMode; }, [panelMode]);
+
+  const handleDelete = useCallback(
+    (id: string) => { deleteWithConfirm(tree, id, remove); },
+    [tree, remove],
+  );
+
+  useEffect(() => {
+    const store = useFamilyTreeStore;
+    const handler = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // Esc always escapes — back out of a submode, or deselect.
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (panelModeRef.current !== "menu") {
+          setPanelMode("menu");
+        } else if (store.getState().selectedId !== null) {
+          store.getState().setSelected(null);
+        }
+        return;
+      }
+
+      if (isInteractiveTarget(e.target)) return;
+
+      const dir = arrowDirection(e.key);
+      if (dir !== null) {
+        e.preventDefault();
+        const sid = store.getState().selectedId;
+        if (sid === null) {
+          store.getState().setSelected(ROOT_ID);
+          return;
+        }
+        const lay = layoutRef.current;
+        const current = lay.nodes.find((n) => n.id === sid);
+        if (!current) {
+          store.getState().setSelected(ROOT_ID);
+          return;
+        }
+        const next = nearestInDirection(current, lay.nodes, dir);
+        if (next) store.getState().setSelected(next.id);
+        return;
+      }
+
+      if (e.repeat) return;
+
+      const sid = store.getState().selectedId;
+      if (sid === null) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          store.getState().setSelected(ROOT_ID);
+        }
+        return;
+      }
+
+      const tr = store.getState().tree;
+      const person = tr.persons[sid];
+
+      const k = e.key.toLowerCase();
+      if (k === "p") {
+        if (person.parentIds.length >= 2) return;
+        e.preventDefault();
+        setPanelMode("add-parent");
+      } else if (k === "c") {
+        e.preventDefault();
+        setPanelMode("add-child");
+      } else if (k === "m") {
+        e.preventDefault();
+        setPanelMode("add-spouse");
+      } else if (k === "r") {
+        e.preventDefault();
+        setPanelMode("rename");
+      } else if (k === "g") {
+        e.preventDefault();
+        store.getState().setGender(sid, nextGender(person.gender));
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteWithConfirm(tr, sid, store.getState().remove);
+      } else if (e.key === "Enter") {
+        if (panelModeRef.current !== "menu") {
+          e.preventDefault();
+          setPanelMode("menu");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => { window.removeEventListener("keydown", handler); };
+  }, []);
+
   const effectiveViewRootId =
     viewRootId in tree.persons ? viewRootId : ROOT_ID;
   const viewRoot = tree.persons[effectiveViewRootId];
@@ -71,7 +217,7 @@ export function FamilyTree() {
             </Button>
           ) : null}
           <p className="hidden text-xs text-text-muted lg:block">
-            Drag or WASD to pan · scroll, pinch, or +/− to zoom · click a person
+            Drag/WASD pan · scroll/+− zoom · arrows select · P/C/M add · R rename · G gender · Del delete
           </p>
         </div>
       </header>
@@ -100,9 +246,10 @@ export function FamilyTree() {
         {selectedPerson ? (
           <ActionPanel
             key={selectedPerson.id}
-            tree={tree}
             person={selectedPerson}
             isViewRoot={selectedPerson.id === effectiveViewRootId}
+            mode={panelMode}
+            onModeChange={setPanelMode}
             onClose={() => { setSelected(null); }}
             onAddParent={(name, gender) => { addParent(selectedPerson.id, name, gender); }}
             onAddChild={(name, gender) => { addChild(selectedPerson.id, name, gender); }}
@@ -110,7 +257,7 @@ export function FamilyTree() {
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}
-            onDelete={() => { remove(selectedPerson.id); }}
+            onDelete={() => { handleDelete(selectedPerson.id); }}
           />
         ) : null}
       </div>

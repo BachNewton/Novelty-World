@@ -1,16 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import type { Gender, Person, Tree } from "../types";
+import type { Gender, Person } from "../types";
 import { ROOT_ID } from "../logic";
 import { Button } from "@/shared/components/ui/button";
 
-type Mode = "menu" | "add-parent" | "add-child" | "add-spouse" | "rename";
+export type PanelMode =
+  | "menu"
+  | "add-parent"
+  | "add-child"
+  | "add-spouse"
+  | "rename";
 
 interface ActionPanelProps {
-  tree: Tree;
   person: Person;
   isViewRoot: boolean;
+  mode: PanelMode;
+  onModeChange: (mode: PanelMode) => void;
   onClose: () => void;
   onAddParent: (name: string, gender: Gender) => void;
   onAddChild: (name: string, gender: Gender) => void;
@@ -62,9 +68,10 @@ function GenderPicker({
 }
 
 export function ActionPanel({
-  tree,
   person,
   isViewRoot,
+  mode,
+  onModeChange,
   onClose,
   onAddParent,
   onAddChild,
@@ -74,21 +81,21 @@ export function ActionPanel({
   onSetAsViewRoot,
   onDelete,
 }: ActionPanelProps) {
-  const [mode, setMode] = useState<Mode>("menu");
   const [draft, setDraft] = useState("");
   const [draftGender, setDraftGender] = useState<Gender>(null);
 
-  const isCanonicalRoot = person.id === ROOT_ID;
-  const canAddParent = person.parentIds.length < 2;
-  const childCount = Object.values(tree.persons).filter((p) =>
-    p.parentIds.includes(person.id),
-  ).length;
-
-  function enterMode(next: Exclude<Mode, "menu">) {
-    setMode(next);
-    setDraft(next === "rename" ? person.name : "");
+  // Reset draft state when mode changes (including hotkey-driven changes from
+  // the parent). Tracking the previous prop in state is React's recommended
+  // pattern: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevMode, setPrevMode] = useState(mode);
+  if (prevMode !== mode) {
+    setPrevMode(mode);
+    setDraft(mode === "rename" ? person.name : "");
     setDraftGender(null);
   }
+
+  const isCanonicalRoot = person.id === ROOT_ID;
+  const canAddParent = person.parentIds.length < 2;
 
   function submit() {
     const name = draft.trim();
@@ -97,19 +104,7 @@ export function ActionPanel({
     else if (mode === "add-child") onAddChild(name, draftGender);
     else if (mode === "add-spouse") onAddSpouse(name, draftGender);
     else if (mode === "rename") onRename(name);
-    setMode("menu");
-    setDraft("");
-    setDraftGender(null);
-  }
-
-  function handleDelete() {
-    if (childCount > 0) {
-      const ok = window.confirm(
-        `${person.name} has ${childCount} ${childCount === 1 ? "child" : "children"} listed. Remove anyway? Their children will keep their other parent (if any).`,
-      );
-      if (!ok) return;
-    }
-    onDelete();
+    onModeChange("menu");
   }
 
   return (
@@ -148,25 +143,25 @@ export function ActionPanel({
             <Button
               variant="secondary"
               disabled={!canAddParent}
-              onClick={() => { enterMode("add-parent"); }}
+              onClick={() => { onModeChange("add-parent"); }}
             >
               + Parent
             </Button>
             <Button
               variant="secondary"
-              onClick={() => { enterMode("add-child"); }}
+              onClick={() => { onModeChange("add-child"); }}
             >
               + Child
             </Button>
             <Button
               variant="secondary"
-              onClick={() => { enterMode("add-spouse"); }}
+              onClick={() => { onModeChange("add-spouse"); }}
             >
               + Spouse
             </Button>
             <Button
               variant="secondary"
-              onClick={() => { enterMode("rename"); }}
+              onClick={() => { onModeChange("rename"); }}
             >
               Rename
             </Button>
@@ -174,7 +169,7 @@ export function ActionPanel({
               variant="ghost"
               disabled={isCanonicalRoot}
               className="col-span-2 text-brand-pink hover:text-brand-pink"
-              onClick={handleDelete}
+              onClick={onDelete}
             >
               {isCanonicalRoot ? "Root can't be deleted" : "Delete"}
             </Button>
@@ -219,7 +214,7 @@ export function ActionPanel({
             <Button
               type="button"
               variant="ghost"
-              onClick={() => { setMode("menu"); }}
+              onClick={() => { onModeChange("menu"); }}
             >
               Cancel
             </Button>

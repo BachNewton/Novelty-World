@@ -6,12 +6,16 @@ import {
   addParent,
   addSpouse,
   computeLayout,
+  countChildren,
   createInitialTree,
   deletePerson,
   describeRelation,
+  nearestInDirection,
+  nextGender,
   renamePerson,
   setGender,
 } from "./logic";
+import type { LaidOutNode } from "./types";
 import type { Gender, Person, Tree } from "./types";
 
 function p(
@@ -377,5 +381,58 @@ describe("computeLayout", () => {
     const coupleMid = (root.x + root.w + spouse.x) / 2;
     const kidMid = kid.x + kid.w / 2;
     expect(Math.abs(coupleMid - kidMid)).toBeLessThan(1);
+  });
+});
+
+function node(id: string, x: number, y: number): LaidOutNode {
+  return { id, x, y, w: 100, h: 50 };
+}
+
+describe("nearestInDirection", () => {
+  it("picks the closest node in each cardinal direction", () => {
+    const center = node("c", 200, 200);
+    const up = node("u", 200, 50);
+    const down = node("d", 200, 400);
+    const left = node("l", 50, 200);
+    const right = node("r", 400, 200);
+    const nodes = [center, up, down, left, right];
+    expect(nearestInDirection(center, nodes, "up")?.id).toBe("u");
+    expect(nearestInDirection(center, nodes, "down")?.id).toBe("d");
+    expect(nearestInDirection(center, nodes, "left")?.id).toBe("l");
+    expect(nearestInDirection(center, nodes, "right")?.id).toBe("r");
+  });
+
+  it("returns null when no candidate lies in the direction", () => {
+    const a = node("a", 100, 100);
+    const b = node("b", 200, 200);
+    expect(nearestInDirection(a, [a, b], "up")).toBeNull();
+    expect(nearestInDirection(a, [a, b], "left")).toBeNull();
+  });
+
+  it("prefers axis-aligned neighbors over diagonal ones", () => {
+    const center = node("c", 500, 500);
+    const straightUp = node("u", 500, 350);
+    const diagUp = node("d", 700, 360);
+    const result = nearestInDirection(center, [center, straightUp, diagUp], "up");
+    expect(result?.id).toBe("u");
+  });
+});
+
+describe("nextGender", () => {
+  it("cycles M -> F -> NB -> null -> M", () => {
+    expect(nextGender("M")).toBe("F");
+    expect(nextGender("F")).toBe("NB");
+    expect(nextGender("NB")).toBeNull();
+    expect(nextGender(null)).toBe("M");
+  });
+});
+
+describe("countChildren", () => {
+  it("counts persons whose parentIds contain the given id", () => {
+    let t = createInitialTree();
+    t = addChild(t, ROOT_ID, "a", "A", null);
+    t = addChild(t, ROOT_ID, "b", "B", null);
+    expect(countChildren(t, ROOT_ID)).toBe(2);
+    expect(countChildren(t, "a")).toBe(0);
   });
 });
