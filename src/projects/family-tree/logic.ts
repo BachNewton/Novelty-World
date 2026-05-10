@@ -1,10 +1,18 @@
 import {
   coordSimplex,
   decrossOpt,
+  decrossTwoLayer,
   graphStratify,
   sugiyama,
 } from "d3-dag";
-import type { Gender, Layout, Person, Tree, LaidOutNode } from "./types";
+import type {
+  Gender,
+  LaidOutEdge,
+  LaidOutNode,
+  Layout,
+  Person,
+  Tree,
+} from "./types";
 
 export const NODE_W = 160;
 export const NODE_H = 64;
@@ -43,7 +51,7 @@ export function addParent(
   childId: string,
   newId: string,
   name: string,
-  gender: Gender = null,
+  gender: Gender,
 ): Tree {
   const next = clone(tree);
   const child = next.persons[childId];
@@ -74,7 +82,7 @@ export function addChild(
   parentId: string,
   newId: string,
   name: string,
-  gender: Gender = null,
+  gender: Gender,
 ): Tree {
   const next = clone(tree);
   const parent = next.persons[parentId];
@@ -95,7 +103,7 @@ export function addSpouse(
   personId: string,
   newId: string,
   name: string,
-  gender: Gender = null,
+  gender: Gender,
 ): Tree {
   const next = clone(tree);
   const person = next.persons[personId];
@@ -143,8 +151,7 @@ export function deletePerson(tree: Tree, id: string): Tree {
   return next;
 }
 
-// Backfill gender on persons loaded from older data that predates the field,
-// and reconcile any children who only list one parent when that parent has a
+// Reconcile any children who only list one parent when that parent has a
 // (single) spouse — the spouse becomes the second parent. This heals data
 // written before addSpouse propagated to existing single-parent kids.
 // `changed` reports whether any normalization actually modified the input,
@@ -154,11 +161,10 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
   let changed = false;
   const persons: Record<string, Person> = {};
   for (const [id, person] of Object.entries(t.persons)) {
-    if ((person as Partial<Person>).gender === undefined) changed = true;
     persons[id] = {
       id: person.id,
       name: person.name,
-      gender: (person as Partial<Person>).gender ?? null,
+      gender: person.gender,
       parentIds: [...person.parentIds],
       spouseIds: [...person.spouseIds],
     };
@@ -636,15 +642,21 @@ function buildLayered(couples: CoupleUnit[]): LayeredOrdering {
   return { byGen, sortedGens };
 }
 
+export type DecrossStrategy = "opt" | "two-layer";
+
 // Hand the couple-DAG to d3-dag's sugiyama pipeline and return the per-couple
-// center x. decrossOpt picks the layer ordering that minimizes parent-child
-// edge crossings; coordSimplex assigns x via an LP that pulls children under
-// their parents (subject to the layer ordering and width/gap constraints).
+// center x. The decross strategy picks the layer ordering: "opt" minimizes
+// crossings via an integer program (slow but optimal — exponential worst case);
+// "two-layer" is a fast barycenter heuristic (good enough for a progressive
+// first pass while the optimal pass runs). coordSimplex assigns x via an LP
+// that pulls children under their parents (subject to the layer ordering and
+// width/gap constraints).
 // Returns null on failure (degenerate graph the LP solver can't handle); the
 // caller falls back to a flat per-layer placement.
 function layoutCouplesViaSugiyama(
   couples: CoupleUnit[],
   parentCouplesOf: Map<string, string[]>,
+  strategy: DecrossStrategy,
 ): Map<string, number> | null {
   if (couples.length === 0) return null;
   interface CoupleData { id: string; parentIds: string[] }
@@ -660,10 +672,13 @@ function layoutCouplesViaSugiyama(
     // accepts our typed dag. The runtime is unaffected — nodeSize only ever
     // needs node.data.id, which is present on the stratified data.
     const dag = graphStratify()(data);
+    // `slow` lets the LP solver attempt graphs the default `fast` check
+    // would refuse.
+    const decross = strategy === "opt"
+      ? decrossOpt().check("slow")
+      : decrossTwoLayer();
     const layout = sugiyama()
-      // `slow` lets the LP solver attempt graphs the default `fast` check
-      // would refuse.
-      .decross(decrossOpt().check("slow"))
+      .decross(decross)
       .coord(coordSimplex())
       .nodeSize((node: { data: CoupleData }) => [
         widthById.get(node.data.id) ?? NODE_W,
@@ -711,7 +726,15 @@ function fallbackLayout(
   return centerX;
 }
 
-export function computeLayout(tree: Tree): Layout {
+export interface ComputeLayoutOptions {
+  decross?: DecrossStrategy;
+}
+
+export function computeLayout(
+  tree: Tree,
+  options: ComputeLayoutOptions = {},
+): Layout {
+  const decross: DecrossStrategy = options.decross ?? "opt";
   const order = bfsOrder(tree);
   const gen = computeGenerations(tree);
   const { couples, coupleOf } = buildCoupleUnits(tree, order, gen);
@@ -752,7 +775,11 @@ export function computeLayout(tree: Tree): Layout {
   }
 
   const layered = buildLayered(couples);
-  const sugiyamaCenterX = layoutCouplesViaSugiyama(couples, parentCouplesOf);
+  const sugiyamaCenterX = layoutCouplesViaSugiyama(
+    couples,
+    parentCouplesOf,
+    decross,
+  );
   const rawCenterX =
     sugiyamaCenterX ?? fallbackLayout(couples, layered, fallbackOrder);
 
@@ -960,7 +987,7 @@ export function nearestInDirection(
   return best;
 }
 
-export const GENDER_CYCLE: Gender[] = ["M", "F", "NB", null];
+export const GENDER_CYCLE: Gender[] = ["M", "F", "NB"];
 
 export function nextGender(g: Gender): Gender {
   const i = GENDER_CYCLE.indexOf(g);
@@ -974,3 +1001,164 @@ export function countChildren(tree: Tree, parentId: string): number {
   }
   return count;
 }
+
+// ---------- Optimistic layout patching ----------
+//
+// `computeLayout` runs in a Web Worker and can take seconds for large trees.
+// While it runs, we still need to show the user the result of their click.
+// `optimisticPatch` produces a "good enough" layout by reusing the previous
+// layout's positions and dropping new nodes near a relative whose position is
+// already known. The real layout replaces it when the worker returns.
+
+export interface TreeDiff {
+  added: string[];
+  removed: string[];
+  structurallyEqual: boolean;
+}
+
+function sameStringArray(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+// Topology only — names and genders don't count, since they don't affect the
+// layout. Used to skip worker dispatch on cosmetic-only edits.
+export function diffTree(prev: Tree, next: Tree): TreeDiff {
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const id of Object.keys(next.persons)) {
+    if (!(id in prev.persons)) added.push(id);
+  }
+  for (const id of Object.keys(prev.persons)) {
+    if (!(id in next.persons)) removed.push(id);
+  }
+  let structurallyEqual = added.length === 0 && removed.length === 0;
+  if (structurallyEqual) {
+    for (const id of Object.keys(next.persons)) {
+      const a = prev.persons[id];
+      const b = next.persons[id];
+      if (
+        !sameStringArray(a.parentIds, b.parentIds) ||
+        !sameStringArray(a.spouseIds, b.spouseIds)
+      ) {
+        structurallyEqual = false;
+        break;
+      }
+    }
+  }
+  return { added, removed, structurallyEqual };
+}
+
+// Reuse positions from `current` for surviving nodes. For each newly-added
+// person, place them near a known relative: below a parent, beside a spouse,
+// or above a child. Then rebuild edges from `nextTree` (so newly-added
+// relationships render right away) and shift everything so min x/y = 0.
+export function optimisticPatch(
+  current: Layout,
+  nextTree: Tree,
+  diff: TreeDiff,
+): Layout {
+  const nodes: LaidOutNode[] = current.nodes
+    .filter((n) => n.id in nextTree.persons)
+    .map((n) => ({ ...n }));
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+
+  for (const id of diff.added) {
+    const person = nextTree.persons[id];
+    let pos: { x: number; y: number } | null = null;
+
+    for (const pid of person.parentIds) {
+      const p = byId.get(pid);
+      if (p) {
+        pos = { x: p.x, y: p.y + p.h + ROW_GAP };
+        break;
+      }
+    }
+    if (!pos) {
+      for (const sid of person.spouseIds) {
+        const s = byId.get(sid);
+        if (s) {
+          pos = { x: s.x + s.w + SPOUSE_GAP, y: s.y };
+          break;
+        }
+      }
+    }
+    if (!pos) {
+      // Newly-added person is somebody else's parent.
+      for (const candidate of Object.values(nextTree.persons)) {
+        if (!candidate.parentIds.includes(id)) continue;
+        const c = byId.get(candidate.id);
+        if (c) {
+          pos = { x: c.x, y: c.y - c.h - ROW_GAP };
+          break;
+        }
+      }
+    }
+    if (!pos) pos = { x: 0, y: 0 };
+
+    const node: LaidOutNode = { id, x: pos.x, y: pos.y, w: NODE_W, h: NODE_H };
+    nodes.push(node);
+    byId.set(id, node);
+  }
+
+  const edges: LaidOutEdge[] = [];
+  const seenSpouse = new Set<string>();
+  for (const person of Object.values(nextTree.persons)) {
+    if (!byId.has(person.id)) continue;
+    for (const sid of person.spouseIds) {
+      if (!byId.has(sid)) continue;
+      const key = person.id < sid ? `${person.id}|${sid}` : `${sid}|${person.id}`;
+      if (seenSpouse.has(key)) continue;
+      seenSpouse.add(key);
+      edges.push({ kind: "spouse", aId: person.id, bId: sid });
+    }
+    if (person.parentIds.length === 0) continue;
+    const parent = byId.get(person.parentIds[0]);
+    if (!parent) continue;
+    edges.push({
+      kind: "parent-child",
+      parentAId: person.parentIds[0],
+      parentBId: person.parentIds.length === 2 ? person.parentIds[1] : null,
+      childId: person.id,
+      elbowY: parent.y + parent.h + ROW_GAP / 2,
+    });
+  }
+
+  // Newly-added parent goes to negative y; shift so min x/y = 0 to keep the
+  // canvas origin sane.
+  let minX = Infinity;
+  let minY = Infinity;
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x;
+    if (n.y < minY) minY = n.y;
+  }
+  const dx = isFinite(minX) ? -minX : 0;
+  const dy = isFinite(minY) ? -minY : 0;
+  if (dx !== 0 || dy !== 0) {
+    for (const n of nodes) {
+      n.x += dx;
+      n.y += dy;
+    }
+    for (const e of edges) {
+      if (e.kind === "parent-child") e.elbowY += dy;
+    }
+  }
+
+  let width = 0;
+  let height = 0;
+  for (const n of nodes) {
+    if (n.x + n.w > width) width = n.x + n.w;
+    if (n.y + n.h > height) height = n.y + n.h;
+  }
+  return { nodes, edges, width, height };
+}
+
+export const EMPTY_LAYOUT: Layout = {
+  nodes: [],
+  edges: [],
+  width: 0,
+  height: 0,
+};

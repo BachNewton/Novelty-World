@@ -31,14 +31,13 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: "M", label: "M" },
   { value: "F", label: "F" },
   { value: "NB", label: "NB" },
-  { value: null, label: "?" },
 ];
 
 function GenderPicker({
   value,
   onChange,
 }: {
-  value: Gender;
+  value: Gender | null;
   onChange: (g: Gender) => void;
 }) {
   return (
@@ -82,7 +81,7 @@ export function ActionPanel({
   onDelete,
 }: ActionPanelProps) {
   const [draft, setDraft] = useState("");
-  const [draftGender, setDraftGender] = useState<Gender>(null);
+  const [draftGender, setDraftGender] = useState<Gender | null>(null);
 
   // Reset draft state when mode changes (including hotkey-driven changes from
   // the parent). Tracking the previous prop in state is React's recommended
@@ -96,14 +95,21 @@ export function ActionPanel({
 
   const isCanonicalRoot = person.id === ROOT_ID;
   const canAddParent = person.parentIds.length < 2;
+  const needsGender = mode !== "rename" && mode !== "menu";
+  const canSubmit =
+    mode === "rename" ? draft.trim().length > 0 : draft.trim().length > 0 && draftGender !== null;
 
   function submit() {
     const name = draft.trim();
-    if (mode !== "rename" && !name) return;
-    if (mode === "add-parent") onAddParent(name, draftGender);
-    else if (mode === "add-child") onAddChild(name, draftGender);
-    else if (mode === "add-spouse") onAddSpouse(name, draftGender);
-    else if (mode === "rename") onRename(name);
+    if (mode === "rename") {
+      if (!name) return;
+      onRename(name);
+    } else {
+      if (!name || draftGender === null) return;
+      if (mode === "add-parent") onAddParent(name, draftGender);
+      else if (mode === "add-child") onAddChild(name, draftGender);
+      else if (mode === "add-spouse") onAddSpouse(name, draftGender);
+    }
     onModeChange("menu");
   }
 
@@ -203,7 +209,7 @@ export function ActionPanel({
             />
           </div>
 
-          {mode !== "rename" ? (
+          {needsGender ? (
             <div className="flex flex-col gap-1">
               <label className="text-xs text-text-secondary">Gender</label>
               <GenderPicker value={draftGender} onChange={setDraftGender} />
@@ -218,7 +224,7 @@ export function ActionPanel({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={!draft.trim()}>
+            <Button type="submit" variant="primary" disabled={!canSubmit}>
               {mode === "rename" ? "Save" : "Add"}
             </Button>
           </div>

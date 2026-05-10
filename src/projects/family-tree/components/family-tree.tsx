@@ -5,13 +5,13 @@ import { useFamilyTreeStore } from "../store";
 import {
   ROOT_ID,
   ROOT_NAME,
-  computeLayout,
   countChildren,
   describeRelation,
   nearestInDirection,
   nextGender,
   type NavDirection,
 } from "../logic";
+import { useLayoutWorker } from "../use-layout-worker";
 import type { Layout, Tree } from "../types";
 import { PanZoom } from "./pan-zoom";
 import { Node } from "./node";
@@ -71,7 +71,7 @@ export function FamilyTree() {
 
   useEffect(() => { void hydrate(); }, [hydrate]);
 
-  const layout = useMemo(() => computeLayout(tree), [tree]);
+  const { layout, kind } = useLayoutWorker(tree);
 
   const [panelMode, setPanelMode] = useState<PanelMode>("menu");
   // Reset to the menu whenever the active selection changes — tracking the
@@ -211,6 +211,23 @@ export function FamilyTree() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {layout.nodes.length > 0 && (kind === "simple" || kind === "nice") ? (
+            <span
+              className="flex items-center gap-1.5 rounded-full border border-border-default bg-surface-elevated px-2.5 py-1 text-xs text-text-secondary"
+              aria-live="polite"
+              title={
+                kind === "simple"
+                  ? "Showing a quick draft. Computing the nicer layout next, then the optimal one."
+                  : "Showing a refined layout. Optimizing for fewest crossings…"
+              }
+            >
+              <span
+                className="inline-block h-2 w-2 animate-pulse rounded-full bg-brand-orange"
+                aria-hidden
+              />
+              {kind === "simple" ? "Simple draft · refining…" : "Nice layout · optimizing…"}
+            </span>
+          ) : null}
           {showResetView ? (
             <Button variant="ghost" onClick={resetViewRoot}>
               Reset to {ROOT_NAME.split(" ")[0]}
@@ -242,6 +259,21 @@ export function FamilyTree() {
             />
           ))}
         </PanZoom>
+
+        {layout.nodes.length === 0 ? (
+          <div
+            className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            aria-live="polite"
+          >
+            <div className="flex flex-col items-center gap-3 text-text-secondary">
+              <div
+                className="h-8 w-8 animate-spin rounded-full border-2 border-border-default border-t-brand-orange"
+                aria-hidden
+              />
+              <span className="text-sm">Computing layout…</span>
+            </div>
+          </div>
+        ) : null}
 
         {selectedPerson ? (
           <ActionPanel
