@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import { execSync } from "child_process";
-import path from "path";
 
 const commitCount = execSync("git rev-list --count HEAD").toString().trim();
 
@@ -12,8 +11,10 @@ const commitCount = execSync("git rev-list --count HEAD").toString().trim();
 //   - Client / Web Worker: bundler traces highs but `m` (the Node detection
 //     flag inside highs.js) is false at runtime, so fs/path are never called.
 //     We still need the static IDs to resolve, so we alias them to an empty
-//     stub. Turbopack on Windows rejects backslash paths — normalize.
-const emptyStub = path.resolve("src/shared/lib/empty-module.ts").replace(/\\/g, "/");
+//     stub. Use a project-relative path with `./` prefix — Turbopack rejects
+//     absolute paths cross-platform (Linux `/vercel/path0/...` reads as
+//     "server relative", which it doesn't support).
+const emptyStub = "./src/shared/lib/empty-module.ts";
 
 const nextConfig: NextConfig = {
   env: {
