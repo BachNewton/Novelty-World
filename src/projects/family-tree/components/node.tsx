@@ -1,6 +1,5 @@
 "use client";
 
-import { type PointerEvent } from "react";
 import type { LaidOutNode, Person } from "../types";
 import { fullName } from "../logic";
 
@@ -21,10 +20,6 @@ export function Node({
   relation,
   onSelect,
 }: NodeProps) {
-  function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
-    e.stopPropagation();
-  }
-
   function handleClick() {
     onSelect(person.id);
   }
@@ -42,7 +37,6 @@ export function Node({
             : "border-border-default bg-surface-secondary hover:border-border-hover",
       ].join(" ")}
       style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
-      onPointerDown={handlePointerDown}
       onClick={handleClick}
     >
       <span className="text-sm font-medium text-text-primary leading-tight">

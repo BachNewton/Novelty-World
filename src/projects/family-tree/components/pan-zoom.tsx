@@ -192,13 +192,18 @@ export function PanZoom({
   }, [minScale, maxScale]);
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
-    e.currentTarget.setPointerCapture(e.pointerId);
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     draggedRef.current = false;
     if (pointersRef.current.size === 1) {
+      // Defer setPointerCapture until movement crosses the drag threshold —
+      // capturing here would redirect the follow-up `click` event away from
+      // the original target (e.g. a node), breaking child onClick handlers.
       singleRef.current = { x: e.clientX, y: e.clientY };
       pinchRef.current = null;
     } else if (pointersRef.current.size === 2) {
+      // For pinch we want capture immediately so a finger sliding off the
+      // container doesn't drop the gesture.
+      e.currentTarget.setPointerCapture(e.pointerId);
       const [a, b] = [...pointersRef.current.values()];
       pinchRef.current = computePinch(a, b);
       singleRef.current = null;
@@ -212,9 +217,14 @@ export function PanZoom({
     if (pointersRef.current.size === 1 && singleRef.current) {
       const dx = e.clientX - singleRef.current.x;
       const dy = e.clientY - singleRef.current.y;
-      if (Math.abs(dx) + Math.abs(dy) > 2) draggedRef.current = true;
+      if (!draggedRef.current && Math.abs(dx) + Math.abs(dy) > 2) {
+        draggedRef.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
       singleRef.current = { x: e.clientX, y: e.clientY };
-      setTransform((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
+      if (draggedRef.current) {
+        setTransform((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
+      }
     } else if (pointersRef.current.size === 2 && pinchRef.current) {
       const el = containerRef.current;
       if (!el) return;
@@ -236,6 +246,7 @@ export function PanZoom({
   }
 
   function handlePointerUp(e: PointerEvent<HTMLDivElement>) {
+    const wasDragging = draggedRef.current;
     pointersRef.current.delete(e.pointerId);
     if (pointersRef.current.size === 1) {
       const [remaining] = [...pointersRef.current.values()];
@@ -244,6 +255,23 @@ export function PanZoom({
     } else if (pointersRef.current.size === 0) {
       singleRef.current = null;
       pinchRef.current = null;
+    }
+
+    // After a drag-pan, the browser still fires `click` on whatever element
+    // pointerdown started on. Swallow it in the capture phase so dragging
+    // off a node doesn't also select it.
+    if (wasDragging && pointersRef.current.size === 0) {
+      const el = containerRef.current;
+      if (el) {
+        const suppress = (ev: Event): void => {
+          ev.stopPropagation();
+          el.removeEventListener("click", suppress, true);
+        };
+        el.addEventListener("click", suppress, true);
+        window.setTimeout(() => {
+          el.removeEventListener("click", suppress, true);
+        }, 250);
+      }
     }
   }
 
