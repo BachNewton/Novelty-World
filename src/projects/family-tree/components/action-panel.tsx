@@ -40,7 +40,7 @@ interface ActionPanelProps {
     status: MarriageStatus,
   ) => void;
   onDivorce: (partnerId: string) => void;
-  onRename: (firstName: string, lastName: string) => void;
+  onRename: (firstName: string, lastName: string, commonName: string) => void;
   onSetGender: (gender: Gender) => void;
   onSetAsViewRoot: () => void;
   onDelete: () => void;
@@ -141,6 +141,7 @@ export function ActionPanel({
 }: ActionPanelProps) {
   const [firstDraft, setFirstDraft] = useState("");
   const [lastDraft, setLastDraft] = useState("");
+  const [commonDraft, setCommonDraft] = useState("");
   const [draftGender, setDraftGender] = useState<Gender | null>(null);
   const [draftStatus, setDraftStatus] = useState<MarriageStatus>("married");
   // null === "this person alone" for add-child; partnerId for a marriage.
@@ -165,12 +166,15 @@ export function ActionPanel({
     if (mode === "rename") {
       setFirstDraft(person.firstName);
       setLastDraft(person.lastName);
+      setCommonDraft(person.commonName);
     } else if (mode === "menu" || mode === "divorce") {
       setFirstDraft("");
       setLastDraft("");
+      setCommonDraft("");
     } else {
       setFirstDraft("");
       setLastDraft(person.lastName);
+      setCommonDraft("");
     }
     setDraftGender(null);
     setDraftStatus("married");
@@ -193,9 +197,10 @@ export function ActionPanel({
   function submit() {
     const f = firstDraft.trim();
     const l = lastDraft.trim();
+    const c = commonDraft.trim();
     if (mode === "rename") {
       if (!f) return;
-      onRename(f, l);
+      onRename(f, l, c);
     } else {
       if (!f || draftGender === null) return;
       if (mode === "add-parent") onAddParent(f, l, draftGender);
@@ -356,6 +361,22 @@ export function ActionPanel({
               />
             </div>
           </div>
+
+          {mode === "rename" ? (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-secondary">
+                Common name <span className="text-text-muted">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={commonDraft}
+                onChange={(e) => { setCommonDraft(e.target.value); }}
+                onFocus={(e) => { e.currentTarget.select(); }}
+                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
+                placeholder="Nickname"
+              />
+            </div>
+          ) : null}
 
           {needsGender ? (
             <div className="flex flex-col gap-1">

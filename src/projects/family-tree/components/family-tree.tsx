@@ -314,7 +314,7 @@ export function FamilyTree() {
             }}
             onAddSpouse={(firstName, lastName, gender, status) => { addSpouse(selectedPerson.id, firstName, lastName, gender, status); }}
             onDivorce={(partnerId) => { divorce(selectedPerson.id, partnerId); }}
-            onRename={(firstName, lastName) => { rename(selectedPerson.id, firstName, lastName); }}
+            onRename={(firstName, lastName, commonName) => { rename(selectedPerson.id, firstName, lastName, commonName); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}
             onDelete={() => { handleDelete(selectedPerson.id); }}

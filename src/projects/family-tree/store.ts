@@ -54,7 +54,7 @@ interface FamilyTreeState {
     status?: MarriageStatus,
   ) => void;
   divorce: (aId: string, bId: string) => void;
-  rename: (id: string, firstName: string, lastName: string) => void;
+  rename: (id: string, firstName: string, lastName: string, commonName: string) => void;
   setGender: (id: string, gender: Gender) => void;
   remove: (id: string) => void;
 }
@@ -189,12 +189,13 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => ({
     scheduleSave(next, (b) => { set({ saving: b }); });
   },
 
-  rename: (id, firstName, lastName) => {
+  rename: (id, firstName, lastName, commonName) => {
     const { tree } = get();
     const f = firstName.trim();
     if (!f) return;
     const l = lastName.trim();
-    const next = logicRenamePerson(tree, id, f, l);
+    const c = commonName.trim();
+    const next = logicRenamePerson(tree, id, f, l, c);
     if (next === tree) return;
     set({ tree: next });
     scheduleSave(next, (b) => { set({ saving: b }); });

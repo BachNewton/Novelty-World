@@ -72,6 +72,12 @@ export function useLayoutWorker(tree: Tree): UseLayoutWorker {
   const workerRef = useRef<Worker | null>(null);
   const generationRef = useRef(0);
   const latestRequestedRef = useRef(0);
+  // Read inside the dispatch effect so tree changes don't trigger it on their
+  // own — only pending bumps do. Without this, a cosmetic edit (rename,
+  // commonName, gender) re-runs the worker because `tree` is a new reference
+  // even though diffTree returned structurallyEqual.
+  const treeRef = useRef(tree);
+  useEffect(() => { treeRef.current = tree; }, [tree]);
 
   let currentLayout = layout;
   let currentKind = kind;
@@ -152,9 +158,13 @@ export function useLayoutWorker(tree: Tree): UseLayoutWorker {
     const id = generationRef.current + 1;
     generationRef.current = id;
     latestRequestedRef.current = id;
-    const req: LayoutRequest = { id, tree, skipNice: pending.skipNice };
+    const req: LayoutRequest = {
+      id,
+      tree: treeRef.current,
+      skipNice: pending.skipNice,
+    };
     worker.postMessage(req);
-  }, [pending, tree]);
+  }, [pending]);
 
   return {
     layout: currentLayout,

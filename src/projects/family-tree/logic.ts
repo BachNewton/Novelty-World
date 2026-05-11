@@ -24,10 +24,12 @@ export const ROOT_ID = "kyle-hutchinson";
 export const ROOT_FIRST_NAME = "Kyle";
 export const ROOT_LAST_NAME = "Hutchinson";
 
-export function fullName(person: Pick<Person, "firstName" | "lastName">): string {
-  return person.lastName
-    ? `${person.firstName} ${person.lastName}`
-    : person.firstName;
+export function fullName(
+  person: Pick<Person, "firstName" | "lastName" | "commonName">,
+): string {
+  const middle = person.commonName ? ` "${person.commonName}"` : "";
+  const last = person.lastName ? ` ${person.lastName}` : "";
+  return `${person.firstName}${middle}${last}`;
 }
 
 export function createInitialTree(): Tree {
@@ -38,6 +40,7 @@ export function createInitialTree(): Tree {
         id: ROOT_ID,
         firstName: ROOT_FIRST_NAME,
         lastName: ROOT_LAST_NAME,
+        commonName: "",
         gender: "M",
         parentIds: [],
         spouseIds: [],
@@ -75,6 +78,7 @@ export function addParent(
     id: newId,
     firstName,
     lastName,
+    commonName: "",
     gender,
     parentIds: [],
     spouseIds: [],
@@ -122,6 +126,7 @@ export function addChild(
     id: newId,
     firstName,
     lastName,
+    commonName: "",
     gender,
     parentIds: parents,
     spouseIds: [],
@@ -145,6 +150,7 @@ export function addSpouse(
     id: newId,
     firstName,
     lastName,
+    commonName: "",
     gender,
     parentIds: [],
     spouseIds: status === "married" ? [personId] : [],
@@ -184,10 +190,12 @@ export function renamePerson(
   id: string,
   firstName: string,
   lastName: string,
+  commonName: string,
 ): Tree {
   const next = clone(tree);
   next.persons[id].firstName = firstName;
   next.persons[id].lastName = lastName;
+  next.persons[id].commonName = commonName;
   return next;
 }
 
@@ -209,7 +217,7 @@ export function deletePerson(tree: Tree, id: string): Tree {
   return next;
 }
 
-// Backfill schema fields added later (currently: divorcedSpouseIds) so older
+// Backfill schema fields added later (divorcedSpouseIds, commonName) so older
 // persisted rows hydrate without crashing. Returns `changed: true` when a
 // field had to be added — callers can use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -219,10 +227,13 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
   for (const [id, person] of Object.entries(t.persons)) {
     const divorced = person.divorcedSpouseIds as string[] | undefined;
     if (divorced === undefined) changed = true;
+    const common = person.commonName as string | undefined;
+    if (common === undefined) changed = true;
     persons[id] = {
       id: person.id,
       firstName: person.firstName,
       lastName: person.lastName,
+      commonName: common ?? "",
       gender: person.gender,
       parentIds: [...person.parentIds],
       spouseIds: [...person.spouseIds],

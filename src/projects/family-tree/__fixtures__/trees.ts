@@ -32,6 +32,7 @@ function p(
     id,
     firstName: id,
     lastName: "",
+    commonName: "",
     gender,
     parentIds: [...parents],
     spouseIds: [...spouses],

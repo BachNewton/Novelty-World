@@ -32,6 +32,7 @@ function p(
     id,
     firstName: id,
     lastName: "",
+    commonName: "",
     gender,
     parentIds,
     spouseIds,
@@ -58,13 +59,31 @@ describe("createInitialTree", () => {
 
 describe("fullName", () => {
   it("joins first and last with a space", () => {
-    expect(fullName({ firstName: "Kyle", lastName: "Hutchinson" })).toBe(
-      "Kyle Hutchinson",
-    );
+    expect(
+      fullName({ firstName: "Kyle", lastName: "Hutchinson", commonName: "" }),
+    ).toBe("Kyle Hutchinson");
   });
 
   it("omits the trailing space when last name is empty", () => {
-    expect(fullName({ firstName: "Kyle", lastName: "" })).toBe("Kyle");
+    expect(fullName({ firstName: "Kyle", lastName: "", commonName: "" })).toBe(
+      "Kyle",
+    );
+  });
+
+  it('renders common name in quotes between first and last', () => {
+    expect(
+      fullName({
+        firstName: "Daniel",
+        lastName: "Santoro",
+        commonName: "Dan",
+      }),
+    ).toBe('Daniel "Dan" Santoro');
+  });
+
+  it("renders common name with no last name", () => {
+    expect(
+      fullName({ firstName: "Daniel", lastName: "", commonName: "Dan" }),
+    ).toBe('Daniel "Dan"');
   });
 });
 
@@ -205,15 +224,28 @@ describe("divorceSpouse", () => {
 });
 
 describe("renamePerson", () => {
-  it("updates first and last name", () => {
-    const t = renamePerson(createInitialTree(), ROOT_ID, "K.", "Hutchinson");
+  it("updates first, last, and common name", () => {
+    const t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      "K.",
+      "Hutchinson",
+      "Kyle",
+    );
     expect(t.persons[ROOT_ID].firstName).toBe("K.");
     expect(t.persons[ROOT_ID].lastName).toBe("Hutchinson");
+    expect(t.persons[ROOT_ID].commonName).toBe("Kyle");
   });
 
   it("allows clearing the last name to empty", () => {
-    const t = renamePerson(createInitialTree(), ROOT_ID, "Kyle", "");
+    const t = renamePerson(createInitialTree(), ROOT_ID, "Kyle", "", "");
     expect(t.persons[ROOT_ID].lastName).toBe("");
+  });
+
+  it("allows clearing the common name to empty", () => {
+    let t = renamePerson(createInitialTree(), ROOT_ID, "Daniel", "Santoro", "Dan");
+    t = renamePerson(t, ROOT_ID, "Daniel", "Santoro", "");
+    expect(t.persons[ROOT_ID].commonName).toBe("");
   });
 });
 

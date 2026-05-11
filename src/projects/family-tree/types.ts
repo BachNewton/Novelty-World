@@ -8,6 +8,9 @@ export interface Person {
   // Empty string means "no last name". Keeping it always-present (never
   // optional) avoids null/undefined plumbing through the layout/render path.
   lastName: string;
+  // Empty string means "no nickname". When set, fullName renders it as
+  // First "Common" Last (e.g., Daniel "Dan" Santoro).
+  commonName: string;
   gender: Gender;
   parentIds: string[];
   spouseIds: string[];
