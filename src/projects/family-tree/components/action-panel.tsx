@@ -19,10 +19,18 @@ export interface MarriageOption {
   status: MarriageStatus;
 }
 
+// Existing children of the selected person whose only listed bio parent is
+// the selected person — eligible to be co-parented by a newly added spouse.
+export interface BioChildCandidate {
+  id: string;
+  name: string;
+}
+
 interface ActionPanelProps {
   person: Person;
   isViewRoot: boolean;
   marriages: MarriageOption[];
+  bioChildCandidates: BioChildCandidate[];
   mode: PanelMode;
   onModeChange: (mode: PanelMode) => void;
   onClose: () => void;
@@ -36,6 +44,7 @@ interface ActionPanelProps {
     name: NameFields,
     gender: Gender,
     status: MarriageStatus,
+    bioChildIds: string[],
   ) => void;
   onDivorce: (partnerId: string) => void;
   onRename: (name: NameFields) => void;
@@ -125,6 +134,7 @@ export function ActionPanel({
   person,
   isViewRoot,
   marriages,
+  bioChildCandidates,
   mode,
   onModeChange,
   onClose,
@@ -144,6 +154,8 @@ export function ActionPanel({
   const [draftStatus, setDraftStatus] = useState<MarriageStatus>("married");
   // null === "this person alone" for add-child; partnerId for a marriage.
   const [draftCoParent, setDraftCoParent] = useState<string | null>(null);
+  // IDs of existing single-parent children the new spouse should also bio-parent.
+  const [draftBioChildIds, setDraftBioChildIds] = useState<string[]>([]);
 
   const currentMarriages = marriages.filter((m) => m.status === "married");
   // Show the marriage picker on +Child whenever the person has any spouse.
@@ -179,6 +191,7 @@ export function ActionPanel({
     // Default: first current marriage if any, else first ex. marriages
     // is ordered [...current, ...ex] so marriages[0] gives both correctly.
     setDraftCoParent(marriages[0]?.partnerId ?? null);
+    setDraftBioChildIds([]);
   }
 
   const isCanonicalRoot = person.id === ROOT_ID;
@@ -205,7 +218,8 @@ export function ActionPanel({
       if (!name.firstName || draftGender === null) return;
       if (mode === "add-parent") onAddParent(name, draftGender);
       else if (mode === "add-child") onAddChild(name, draftGender, draftCoParent);
-      else if (mode === "add-spouse") onAddSpouse(name, draftGender, draftStatus);
+      else if (mode === "add-spouse")
+        onAddSpouse(name, draftGender, draftStatus, draftBioChildIds);
     }
     onModeChange("menu");
   }
@@ -386,6 +400,46 @@ export function ActionPanel({
             <div className="flex flex-col gap-1">
               <label className="text-xs text-text-secondary">Status</label>
               <StatusPicker value={draftStatus} onChange={setDraftStatus} />
+            </div>
+          ) : null}
+
+          {mode === "add-spouse" && bioChildCandidates.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-text-secondary">
+                Also bio parent of{" "}
+                <span className="text-text-muted">(optional)</span>
+              </label>
+              <div className="flex flex-col gap-1">
+                {bioChildCandidates.map((child) => {
+                  const active = draftBioChildIds.includes(child.id);
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={active}
+                      onClick={() => {
+                        setDraftBioChildIds((prev) =>
+                          active
+                            ? prev.filter((id) => id !== child.id)
+                            : [...prev, child.id],
+                        );
+                      }}
+                      className={[
+                        "rounded-md border px-3 py-1.5 text-left text-xs transition-colors",
+                        active
+                          ? "border-brand-orange bg-surface-elevated text-text-primary"
+                          : "border-border-default bg-surface-primary text-text-secondary hover:border-border-hover",
+                      ].join(" ")}
+                    >
+                      <span aria-hidden className="mr-2">
+                        {active ? "☑" : "☐"}
+                      </span>
+                      {child.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 

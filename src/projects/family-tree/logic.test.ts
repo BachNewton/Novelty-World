@@ -209,6 +209,37 @@ describe("addSpouse", () => {
     expect(t.persons[ROOT_ID].divorcedSpouseIds).toEqual(["ex"]);
     expect(t.persons.ex.divorcedSpouseIds).toEqual([ROOT_ID]);
   });
+
+  it("bio-parents the listed children when bioChildIds is passed", () => {
+    let t = createInitialTree();
+    t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
+    t = addChild(t, "mom", "kid2", n("Kid2"), "F");
+    t = addChild(t, "mom", "kid3", n("Kid3"), "M");
+    // Marrying mom and explicitly opting in kid2 + kid3 (but not root)
+    // should make the new spouse the second bio parent of those two.
+    t = addSpouse(t, "mom", "dad", n("Dad"), "M", "married", ["kid2", "kid3"]);
+    expect(t.persons.kid2.parentIds.sort()).toEqual(["dad", "mom"]);
+    expect(t.persons.kid3.parentIds.sort()).toEqual(["dad", "mom"]);
+    expect(t.persons[ROOT_ID].parentIds).toEqual(["mom"]);
+  });
+
+  it("skips children that already have two parents", () => {
+    let t = createInitialTree();
+    t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
+    t = addParent(t, ROOT_ID, "dad", n("Dad"), "M");
+    // Caller passing root in bioChildIds (e.g. UI bug) must not push a
+    // third parent — root is full.
+    t = addSpouse(t, "mom", "stepDad", n("Step"), "M", "married", [ROOT_ID]);
+    expect(t.persons[ROOT_ID].parentIds.sort()).toEqual(["dad", "mom"]);
+  });
+
+  it("supports bio-parenting on a divorced add-spouse too", () => {
+    let t = createInitialTree();
+    t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
+    t = addSpouse(t, "mom", "exDad", n("Ex"), "M", "divorced", [ROOT_ID]);
+    expect(t.persons[ROOT_ID].parentIds.sort()).toEqual(["exDad", "mom"]);
+    expect(t.persons.mom.divorcedSpouseIds).toEqual(["exDad"]);
+  });
 });
 
 describe("divorceSpouse", () => {

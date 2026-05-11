@@ -17,7 +17,12 @@ import type { Layout, Tree } from "../types";
 import { PanZoom } from "./pan-zoom";
 import { Node } from "./node";
 import { Edges } from "./edges";
-import { ActionPanel, type MarriageOption, type PanelMode } from "./action-panel";
+import {
+  ActionPanel,
+  type BioChildCandidate,
+  type MarriageOption,
+  type PanelMode,
+} from "./action-panel";
 import { Button } from "@/shared/components/ui/button";
 
 function arrowDirection(key: string): NavDirection | null {
@@ -213,6 +218,20 @@ export function FamilyTree() {
     ];
   }, [selectedPerson, tree.persons]);
 
+  // Kids of the selected person whose only listed bio parent IS the selected
+  // person — a newly added spouse can be opted in as the missing second
+  // parent for any subset of them.
+  const bioChildCandidates: BioChildCandidate[] = useMemo(() => {
+    if (!selectedPerson) return [];
+    const out: BioChildCandidate[] = [];
+    for (const candidate of Object.values(tree.persons)) {
+      if (candidate.parentIds.length !== 1) continue;
+      if (candidate.parentIds[0] !== selectedPerson.id) continue;
+      out.push({ id: candidate.id, name: fullName(candidate) });
+    }
+    return out;
+  }, [selectedPerson, tree.persons]);
+
   return (
     <div className="relative flex h-[calc(100vh-4rem)] w-full flex-col bg-surface-primary">
       <header className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
@@ -297,6 +316,7 @@ export function FamilyTree() {
             person={selectedPerson}
             isViewRoot={selectedPerson.id === effectiveViewRootId}
             marriages={selectedMarriages}
+            bioChildCandidates={bioChildCandidates}
             mode={panelMode}
             onModeChange={setPanelMode}
             onClose={() => { setSelected(null); }}
@@ -306,7 +326,9 @@ export function FamilyTree() {
               // "explicit single parent" and undefined as "use default".
               addChild(selectedPerson.id, name, gender, coParentId);
             }}
-            onAddSpouse={(name, gender, status) => { addSpouse(selectedPerson.id, name, gender, status); }}
+            onAddSpouse={(name, gender, status, bioChildIds) => {
+              addSpouse(selectedPerson.id, name, gender, status, bioChildIds);
+            }}
             onDivorce={(partnerId) => { divorce(selectedPerson.id, partnerId); }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}

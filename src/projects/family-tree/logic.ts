@@ -140,6 +140,11 @@ export function addSpouse(
   name: NameFields,
   gender: Gender,
   status: MarriageStatus = "married",
+  // Existing children of `personId` the new spouse should also bio-parent.
+  // The UI picker presents these as opt-in checkboxes so the silent
+  // step-parent promotion that previously corrupted data can't happen — the
+  // user names exactly which kids the new spouse is also a bio parent of.
+  bioChildIds: readonly string[] = [],
 ): Tree {
   const next = clone(tree);
   const person = next.persons[personId];
@@ -152,10 +157,12 @@ export function addSpouse(
   } else {
     person.divorcedSpouseIds.push(newId);
   }
-  // Intentionally NO auto-coparenting of existing single-parent children:
-  // a new spouse may or may not be the missing second parent (step-children
-  // exist), and the silent promotion silently corrupted data when wrong.
-  // Users assign parentage explicitly via the +Child marriage picker.
+  for (const childId of bioChildIds) {
+    const child = next.persons[childId];
+    if (child.parentIds.includes(newId)) continue;
+    if (child.parentIds.length >= 2) continue;
+    child.parentIds.push(newId);
+  }
   return next;
 }
 

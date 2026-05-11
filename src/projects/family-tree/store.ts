@@ -50,6 +50,7 @@ interface FamilyTreeState {
     name: NameFields,
     gender: Gender,
     status?: MarriageStatus,
+    bioChildIds?: readonly string[],
   ) => void;
   divorce: (aId: string, bId: string) => void;
   rename: (id: string, name: NameFields) => void;
@@ -182,9 +183,17 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
     );
   },
 
-  addSpouse: (personId, name, gender, status) => {
+  addSpouse: (personId, name, gender, status, bioChildIds) => {
     applyMutation((tree) =>
-      logicAddSpouse(tree, personId, newId(), cleanName(name), gender, status),
+      logicAddSpouse(
+        tree,
+        personId,
+        newId(),
+        cleanName(name),
+        gender,
+        status,
+        bioChildIds,
+      ),
     );
   },
 
