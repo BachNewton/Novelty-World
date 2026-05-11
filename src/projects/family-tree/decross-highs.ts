@@ -33,7 +33,7 @@ let highsPromise: Promise<HighsInstance> | undefined;
 // at. In Node (tests), highs's own __dirname-based resolution finds the
 // file in node_modules without help.
 function highsLoaderOptions(): Parameters<typeof highsLoader>[0] {
-  if (typeof process !== "undefined" && process.versions?.node !== undefined) {
+  if (typeof process !== "undefined") {
     return undefined;
   }
   const wasmUrl = new URL(
