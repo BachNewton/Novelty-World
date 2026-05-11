@@ -33,7 +33,12 @@ let highsPromise: Promise<HighsInstance> | undefined;
 // at. In Node (tests), highs's own __dirname-based resolution finds the
 // file in node_modules without help.
 function highsLoaderOptions(): Parameters<typeof highsLoader>[0] {
-  if (typeof process !== "undefined") {
+  // Next.js polyfills `process` in the browser bundle but without
+  // `process.versions.node`, so we use that field's presence as the
+  // real-Node discriminator. Typed via globalThis so the optional chains
+  // aren't flagged as unnecessary against @types/node's stricter shape.
+  const proc = (globalThis as { process?: { versions?: { node?: string } } }).process;
+  if (proc?.versions?.node !== undefined) {
     return undefined;
   }
   const wasmUrl = new URL(
