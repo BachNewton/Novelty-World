@@ -5089,4 +5089,349 @@ export const IDEAS: Idea[] = [
     website: "https://en.visitturku.fi/the-aura-riverside---turku--s-living-room",
     tags: ["historical"],
   },
+  {
+    slug: "99-topmeal",
+    title: "99 TopMeal",
+    shortDescription:
+      "A tiny owner-run Chinese noodle shop on Mikonkatu pulling 4.9-star reviews for its Nanchang braised pork and Taiwanese beef noodle soups — house-made broths, hand-pulled noodles, €15–18 a bowl, three blocks from Central Station.",
+    longDescription: [
+      "99 TopMeal is a small, owner-operated noodle counter at Mikonkatu 8 — a pedestrian stretch in the Kluuvi district three blocks east of Helsinki Central, in the ground floor of the 1961 Aikatalo office building. The format is closer to a Chinese street-noodle shop than to a sit-down restaurant: a short menu of regional noodle dishes, hand-pulled wheat noodles cooked to order, broths simmered all day from beef and pork bones in the back kitchen, and a counter of small cold sides — pickled mustard, sweet-sour radish, Chaozhou sauerkraut, peanut-and-chili — that Chinese diners stack alongside the main bowl the way Finns stack rye bread next to lohikeitto.",
+      "The dishes the regulars come for are the Nanchang Braised Pork Noodle Soup (the owner's home-region speciality from Jiangxi, rich with star anise and soy-glazed pork belly) and the Taiwanese Braised Beef Noodle Soup — both around €18, both built on broths that simmer for hours. The cold-noodle plates (mixed cold noodle with beef chili sauce, cold shredded chicken with scallion oil) are the summer move and the lunch-counter favourite. The seasonal Boiled Moose Meat and Sauerkraut Noodle Soup is the one specifically-Finnish riff — moose game meat from a local supplier slipped into a north-Chinese sour-cabbage broth. The owner — voluble, attentive, openly chasing a Michelin nod — works the room and remembers people on the second visit.",
+      "On Restaurant Guru the place sits at 4.9 stars across roughly 1,700 reviews, and Luncher.fi's customer survey returns 100% would-recommend — both vanishingly rare for a Helsinki Asian restaurant in this price range. The room itself is small and unfussy: a dozen tables, plastic-laminate menus, no booking system; on a weekday between 12:00 and 13:30 you queue out the door, but at 11:30 or after 14:00 you walk straight in. Open daily roughly 11:00–23:00 (12:00 start on Saturdays). Cash and card both fine; Wolt delivery available across central Helsinki if eating in isn't on.",
+      "Mikonkatu 8 is a 4-minute walk from Rautatientori (Central Station) or 3 minutes from Helsinki University metro station, so it's a natural pre-Oodi or post-Ateneum stop. The Forum Marinum / National Museum / Kiasma cluster is fifteen minutes' walk west; Esplanadi is five minutes south. For a properly hot bowl of noodles after a freezing walk through the city in February, this is the closest Helsinki gets to a Lanzhou-style noodle bar.",
+    ],
+    thumbnailUrl:
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256af0",
+    galleryUrls: [
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256aed",
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256aee",
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256af3",
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256af2",
+      "https://imageproxy.wolt.com/assets/68d14dfebc0cceb3d1256aef",
+      "https://imageproxy.wolt.com/assets/68d14e41f2907a1e91b86f16",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Mikonkatu_Helsinki_2022-09-16_01.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Roughly Mon–Fri 11:00–23:00, Sat 12:00–23:00, Sun 11:00–23:00. Queue spikes 12:00–13:30 on weekdays — go before or after for walk-in seating.",
+      notes:
+        "Year-round. Hot noodle soups land hardest in winter; cold-noodle plates are the better July order. Check the restaurant's Instagram (@99.topmeal) for the seasonal Boiled Moose Meat and Sauerkraut Noodle Soup window — it usually runs autumn into early winter.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Mikonkatu 8, 00100 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min",
+      notes:
+        "M1 or M2 metro from Lauttasaari direct east to Helsingin yliopisto (~6 min, three stops via Ruoholahti, Kamppi, Rautatientori), then a 3-min walk south down Mikonkatu to no. 8. Alternative: get off at Rautatientori (Central Station) and walk 4 minutes east through Ateneumin aukio.",
+    },
+    cost: {
+      perPersonEur: 18,
+      notes:
+        "Mains €15–18 per bowl. Cold sides €3.50–5 each — locals order two or three alongside the main. A full lunch with one main, a side, and water comes to ~€20–22 per person; dinner with a side and a soft drink ~€25.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in only — the room is too small for a reservation system. Weekday lunch peak (12:00–13:30) means a 10–20 min wait. Arrive at 11:30 or after 14:00 to walk straight to a table. Wolt delivery available if eating out isn't on.",
+    },
+    suitableAgeRange: { min: 3 },
+    childrenNotes:
+      "Kid-friendly in a casual sense — the noodle bowls are mild on heat by default (chili sauces are served on the side), and the cold sides work well for picky eaters. Plastic chairs, no high chairs available, tight seating between tables. Under-3s do better at the quieter off-peak hours.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "<1h",
+    website: "https://www.instagram.com/99.topmeal/",
+    tags: ["food"],
+  },
+  {
+    slug: "seurasaari",
+    title: "Seurasaari Open-Air Museum",
+    shortDescription:
+      "A pine-forest island 4 km from the city centre with 87 historical wooden buildings transplanted from all over Finland, tame red squirrels that climb onto your shoulder, and Helsinki's biggest Midsummer bonfire across the water on Juhannus Eve.",
+    longDescription: [
+      "Seurasaari is a small wooded island in northwest Helsinki linked to the mainland by a long white-painted pedestrian bridge. The whole island has been a public park since 1890 and an open-air museum since 1909 — 87 historical wooden buildings, gathered from every corner of Finland and rebuilt here piece by piece: a 1685 Karuna wooden church from the southwest archipelago, a Karelian peasant farmstead, Niemelä torppa crofter's cottage, a windmill and a rare smoke sauna, Lapland Sámi structures, manor houses, a parsonage. The point of the place is to walk through eight centuries of Finnish rural building tradition in two hours of forest stroll. The island itself is free year-round; the €14 museum ticket lets you go inside the buildings during the summer season.",
+      "What people remember from a visit isn't usually the buildings — it's the squirrels. Seurasaari's red squirrels (oravat) are so used to people that they will climb your leg and sit on your shoulder if they think you have food, and a generation of Helsinki schoolchildren has learned the trick of holding a hazelnut at arm's length to summon one. The bird life is also unusual: nesting swans on the southern beach, herring gulls everywhere, hares in the underbrush. There are two cafés on the island (Antin kaffeliiteri and Kahvihuone Mieritz) and a sandy nude beach on the western side, divided men/women in the old style — one of two such beaches in Helsinki and a quietly Finnish thing to discover.",
+      "Seurasaari hosts Helsinki's biggest Midsummer (Juhannus) celebration: enormous bonfires (juhannuskokot) lit from boats on the water at dusk on Midsummer Eve, with folk-dance, kantele music, and a juhannussalko Midsummer pole raised in the traditional way. The whole island closes to non-ticketed visitors from noon on Midsummer Eve and the bonfire event itself is ticketed (~€27.50 adult, under-12 free). It's the most authentic Juhannus most visitors will see without a friend's mökki to retreat to, but the night is short — the sun barely sets — and the rest of the country has cleared out for their summer cabins.",
+      "The museum season runs 15 May – 15 September: weekdays 09:00–15:00 and weekends 11:00–17:00 in late May, then daily 11:00–17:00 from June onwards. Off-season the island is open as a park — winter walks across the bridge, fall ruska colours, ice on the strait — but the buildings are locked. From Lauttasaari take the metro one stop to Kamppi and bus 24 the rest of the way (the bus runs from Erottaja north past Kamppi and terminates at the Seurasaari bridge). Bring something small and unsalted for the squirrels; bring rye-bread sandwiches and a thermos because the cafés are tiny and a sandwich on a flat rock by the water is the better lunch anyway.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Seurasaari_Karuna_Church.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kaunis_maisema_seurasaaren_sillalta.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Squirrel_in_Seurasaari_autumn.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Niemelän_torppa_Seurasaaressa_2013_(202326;+G187148).jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Seurasaari_2022.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Seurasaari-2005-johannus.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Fall_colors_in_Seurasaari.JPG",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Seurasaari_talvella_-_Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Joutsen_pariskunta_iltauinnilla_Seurasaaressa.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      events: [{ from: "06-19", to: "06-19", name: "Seurasaari Midsummer Bonfires" }],
+      weeklySchedule:
+        "Museum season 15 May – 15 September. 15–31 May: Mon–Fri 9:00–15:00, Sat–Sun 11:00–17:00. 1 Jun – 15 Sep: daily 11:00–17:00. Closed Midsummer Eve (entire island ticketed-only for the bonfire event).",
+      notes:
+        "Museum buildings only open in summer. The island park is open year-round and free; off-season walks in winter snow or October ruska are quiet and atmospheric, but you can only see the buildings from the outside. Date of Juhannus shifts annually — falls on the Saturday between 20–26 June, with bonfires on Midsummer Eve the previous Friday.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Seurasaari, 00250 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "moderate",
+      duration: "~30 min",
+      notes:
+        "M1 or M2 metro from Lauttasaari one stop east to Kamppi (~3 min), then HSL bus 24 (terminus at Seurasaari) north to the final stop at the bridge (~15 min). Cross the long white pedestrian bridge on foot to the island. One transfer. Bus 24 runs roughly every 10–15 minutes daytime. City bikes are an alternative in summer — station 091 sits at the bridge.",
+    },
+    cost: {
+      perPersonEur: 14,
+      notes:
+        "Adult ticket €14 at the gate, €13 online via webshop. Reduced €10 (students, seniors). Under 18 free. Single-building ticket €6. Combined ticket with Tamminiemi presidential residence €24. The island park itself is free all year — the ticket only covers building interiors during the museum season. Midsummer bonfire event is separately ticketed at ~€27.50 adult, under-12 free.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in for both the park (always) and the museum (during season). Buy online to skip the small queue at the gate. The Midsummer bonfire event books out — buy tickets weeks ahead via juhannusvalkeat.fi.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Kids love it — the squirrels are the main event for under-10s, the buildings turn into a forest hide-and-seek, and the gentle paths and the small sandy beaches give them somewhere to burn off energy. Bring unsalted nuts for the squirrels. The trails are mostly stroller-friendly (some rooty stretches near the manor houses); buggies fine for under-3s. The Midsummer bonfire event is a long evening — fine for older kids, hard for toddlers past 21:00.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "half-day",
+    website: "https://www.kansallismuseo.fi/en/seurasaarenulkomuseo",
+    tags: ["museum", "historical", "nature", "island"],
+  },
+  {
+    slug: "lauttasaaren-paviljonki",
+    title: "Lauttasaaren Paviljonki (Kahvila Kasinonranta)",
+    shortDescription:
+      "The wooden pavilion-café on Lauttasaari's main beach — terrace facing south over the bay, fireplace inside for the cold months, breaded-chicken-and-skagen-shrimp lunch menu, the local sundowner spot ten minutes' walk from home.",
+    longDescription: [
+      "Lauttasaaren Paviljonki sits directly on the sand at Kasinonranta, Lauttasaari's main south-facing beach, in a low wooden pavilion that's the social heart of the bay. The name traces back to the 1930s seaside casino-restaurant that once stood on this stretch; the current building is the old beach kiosk and changing rooms, rebuilt and extended in 2019 by Talli Architects into a year-round café-restaurant with an open Nordic-modern interior, a long sun terrace stepping down to the alders and the sand, and a wood-burning fireplace for the days when the terrace isn't an option. Locals call it variations: Kahvila Kasinonranta, Paviljonki, or — depending who you ask — Kassari.",
+      "The menu is casual seaside food at proper-restaurant standards. The runs are the Skagen hodari (a Nordic-twist hot dog with horseradish-shrimp salad, pickled red onion, and lime, €14.90), the rapea kana (breaded chicken pieces with chipotle and lime aioli, €12.90), the breaded-chicken caesar burger or hot-honey kanaburger (~€15.90), and a short rotation of sourdough sandwiches — halloumi-apricot, smoked ham-cheddar, chimichurri eggplant for the vegan order — all around €13.90. Kassarin fries with aioli (€6.50) are the table-share. The drinks side carries the seaside-bar vibe: champagne by the glass, IPAs from the local breweries, cocktails, a long list of teas, an espresso programme that takes itself seriously, and ice cream by the scoop on the terrace in summer.",
+      "What it isn't is fine dining — it's the proper bar by the beach. On a July evening the terrace fills with families who've come in from the sand, neighbours walking home from the pier, and the after-work sundowner crowd; on a January Sunday it's the locals' breakfast-with-toddler refuge, fireplace lit, snow on the terrace, the only sounds being the espresso machine and the muffled crunch of someone walking on the frozen shore outside. The beach is right there: ten metres from the terrace to the high-tide line, and the pier and the children's playground are both within sight.",
+      "Open year-round, with the kitchen running until 18:30 most days and 20:30 Fri–Sat. From central Lauttasaari it's a 10-minute walk south through the residential streets; from HSK Marina or anywhere along the southern shore, it's a five-minute walk along the waterfront path. No reservations needed for the café-counter — walk straight in — but it's worth booking a table on a Friday or Saturday evening in July when the terrace fills before sunset.",
+    ],
+    thumbnailUrl:
+      "https://talli.fi/wp-content/uploads/2019/01/kansiimg_5649-1900x1200.jpg",
+    galleryUrls: [
+      "https://talli.fi/wp-content/uploads/2019/01/saarelle_jalkeen4-1024x577.jpg",
+      "https://talli.fi/wp-content/uploads/2022/07/Merelle_jalkeen4-1024x576.jpg",
+      "https://static.wixstatic.com/media/f22700_677fb4816593476eb64d685f7368fad5~mv2.jpg",
+      "https://static.wixstatic.com/media/deba3c_a6c1c2b813254dc6932fa60bd4fd7e68~mv2.jpg",
+      "https://static.wixstatic.com/media/f22700_930a43858a824ee49d6b21b77ed0dd24~mv2_d_1968_1312_s_2.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_beach_in_September.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_waterfront_trail_near_the_southern_tip_of_the_island_on_an_evening_in_May_2025.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Mon–Thu 11:00–19:00 (kitchen 11:00–18:30), Fri 11:00–21:00 (kitchen 11:00–20:30), Sat 10:00–21:00 (kitchen 12:00–20:30), Sun 10:00–19:00 (kitchen 12:00–18:30).",
+      notes:
+        "Year-round. Terrace is the main event May–September, fireplace inside takes over October–April. June–August Fri/Sat evenings are busiest — book a table if you want one on the terrace at sunset. Hours occasionally extend for private events; check the website before a long detour off-peak.",
+    },
+    location: {
+      region: ["Helsinki", "Lauttasaari", "Uusimaa"],
+      address: "Kuikkarinne 1, Kasinonrannan uimaranta, 00200 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min walk",
+      notes:
+        "Same island. ~10-min walk south through the residential streets from Lauttasaari metro station to the beach pavilion, or 5 min along the waterfront path from HSK Marina. Bus 21 stops near Vattuniemenranta if walking the full distance isn't on. The pavilion sits directly on the sand at the eastern end of Kasinonranta beach.",
+    },
+    cost: {
+      perPersonEur: 25,
+      notes:
+        "Mains €12.90–15.90, sourdough sandwiches €13.90, fries €6.50–9.50. A typical sit-down with a main and a drink is €20–28 per person; a couple of small plates and two beers on the terrace is closer to €35–45 for two. Coffee and pastry only is ~€8.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-in for café service and most lunches. Tables on the terrace book out on summer Fri/Sat evenings — reserve a few days ahead via the website. Off-season walk-in is always fine.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Properly kid-friendly — the children's playground and the beach are both right there, the menu has burgers and fries and ice cream, and the terrace seating is roomy enough for buggies. Inside is quieter in winter but the indoor space is small; toddlers do better on the terrace in summer. High chairs available on request.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.lauttasaarenpaviljonki.com/",
+    tags: ["food", "café"],
+  },
+  {
+    slug: "kesakahvila-buffetti",
+    title: "Kesäkahvila Buffetti",
+    shortDescription:
+      "A tiny weekend-only summer café tucked into the Länsiulapanniemi summer-cottage allotment on Lauttasaari's western tip — red-checked tablecloths, homemade rhubarb pie and feta-vegetable pies, a soft-serve machine, and a sea view that looks like the Turku archipelago.",
+    longDescription: [
+      "Kesäkahvila Buffetti is a small wooden summer café sitting inside the Länsiulapanniemi kesämaja-alue — a public summer-cottage allotment on the western tip of Lauttasaari, set up by the City of Helsinki in 1928 so working families without country cottages could still spend their summers by the sea. The allotment is one of the city's hidden curiosities: 12-square-metre standard-pattern wooden cottages (the blueprint dates from 1946, designed by architect Hilding Ekelund), no electricity, seasonal water only, shared dry toilets, and a community of HKL transit workers, police officers, and Disabled War Veterans Association members who own the cottages and pass them along by word of mouth. The land underneath remains public park, so the shoreline path is open to everyone, and the café — sitting at Länsiulapanniemi 1, next to the old Police House — is the social heart of the area.",
+      "The vibe is the point. Red-and-white checked tablecloths, red geraniums by the door, a long wooden table in a rocky yard, a freshly-painted dance pavilion next to it, and the open sea opening west. Locals say the spot feels less like Helsinki and more like the Turku archipelago — partly because the path here genuinely runs out into a rocky cape, partly because the cottages around it have been doing summer-leisure in this exact unchanged form for nearly a hundred years. It is the kind of place where you walk up to the counter, point at a slice of rhubarb pie, and end up sitting for an hour watching the sailboats go past.",
+      "The counter runs on what the kitchen baked that morning: rhubarb pie, tiger cake, pulla, savoury spinach and feta-vegetable pastries, ice-cream from a soft-serve machine, coffee. A small soup lunch is usually on for around €8. Card and cash both fine. Buffetti opened under its current name a few seasons back — older locals still call it Kesäkahvila Puhvetti, the previous owners' name — and runs as a weekend-only operation: roughly Friday to Sunday, midday to early evening, from late May through September while the allotment is open. Hours shift week to week (and on weather); the Facebook page (@kesakahvilabuffetti) posts that week's window.",
+      "Buffetti is the longest walk-only stop on Lauttasaari: it's at the actual western tip, where the residential streets end and the shoreline path picks up. From central Lauttasaari it's a 25-minute walk west through Vattuniemi and along the coastal trail (the same path the lauttasaari-coastal-walk loop runs on), or a 10-minute cycle. The reward is a bowl of soup, a slice of pie, and the most off-the-grid corner of urban Helsinki — the city visible across Laajalahti but a world removed from it.",
+    ],
+    thumbnailUrl:
+      "https://vihreatsylit.fi/hp/wp-content/uploads/2020/11/o-Lansiulapanniemen_kesamajat_Hemmo_Rattya.jpg",
+    galleryUrls: [
+      "https://vihreatsylit.fi/hp/wp-content/uploads/2020/11/lansi-lansiulapanniemen_kesamajat_Hemmo_Rattya.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_waterfront_trail_on_the_western_shore_of_the_southern_part_of_the_island_on_an_evening_in_May_2025.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Battery_4B_Länsiulapanniemi.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Lauttasaari_waterfront_trail_near_the_southern_tip_of_the_island_on_an_evening_in_May_2025.jpg",
+    ],
+    availability: {
+      suitableMonths: [5, 6, 7, 8, 9],
+      weeklySchedule:
+        "Approximately Fri–Sun, midday to early evening (typical window 11:00–18:00). Closed Mon–Thu. Hours shift week to week and on weather — check the @kesakahvilabuffetti Facebook page before walking out.",
+      notes:
+        "Late May through September only. Closed entirely outside the summer cottage season — when the allotment shuts for winter, the café shuts with it. Worth the walk on a sunny weekend; not worth it in driving rain because most seating is outdoor and the indoor space is tiny.",
+    },
+    location: {
+      region: ["Helsinki", "Lauttasaari", "Uusimaa"],
+      address: "Länsiulapanniemi 1, 00200 Helsinki (Lauttasaari western tip)",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~25 min walk",
+      notes:
+        "Same island. ~25-min walk west from Lauttasaari metro station through the Vattuniemi neighbourhood and onto the southwestern shoreline path, then around the rocky western tip to the summer-cottage entrance. ~10 min by city bike along the same route. Bus 21 covers part of the distance — get off at Tiirasaarentie and walk the last ~15 minutes south through the trees.",
+    },
+    cost: {
+      perPersonEur: 10,
+      notes:
+        "Coffee + slice of pie ~€8. Soft-serve ice cream ~€3–4. Savoury pastry ~€5–6. Soup lunch ~€8. Card and cash both fine.",
+    },
+    booking: {
+      leadTime: "same-day",
+      notes:
+        "Walk-up counter only. No reservations. Bring patience on sunny Sunday afternoons — it's a small operation and the queue can stretch onto the cottage path.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Lovely for kids in the right weather — the yard is open, the rocks are climbable, the sea is right there, soft-serve is in play. The walk to get here is too long for a tired toddler; bring a buggy or accept the carrier. Outdoor toilets are dry-composting in the cottage tradition — not stroller-friendly but kids tend to find them an adventure. No high chairs.",
+    indoorOutdoor: "outdoor",
+    physicalIntensity: "low",
+    duration: "<1h",
+    website: "https://www.facebook.com/kesakahvilabuffetti/",
+    tags: ["food", "café"],
+  },
+  {
+    slug: "solmu-brewery",
+    title: "Solmu Brewery",
+    shortDescription:
+      "Lauttasaari's own brewpub — opened 2024 in a 220-seat maritime-themed taproom on Vattuniemenkatu, with 28 taps (8 house beers, 20 guest), a four-level terrace, weekend brunch, and a proper English Sunday Roast carved from 14:00 every Sunday.",
+    longDescription: [
+      "Solmu Brewery opened on Vattuniemenkatu in September 2024 — Lauttasaari's first proper brewpub, and the social anchor the island's southern half had been quietly waiting for. The brewery is the operating arm of Lauttasaari Brewing Company; founder Juhani Salo wanted somewhere on the island that worked equally as a Wednesday-night-after-work pint, a Saturday brunch with the kids, and a Friday-night sit-down dinner without driving anyone over the bridge into town. The room seats 220 across a high-ceilinged taproom and a four-level outdoor terrace, with hand-painted ship flags and maritime decor leaning into the Lauttasaari-as-island identity. Salo's framing for the place was \"we're building this for decades, not as a fleeting venture\" — which the menu and the volume of taps quietly back up.",
+      "There are 28 lines on tap: eight Solmu house beers plus 20 rotating guest taps from across Finnish craft brewing. The house range is anchored by Solmu Dry Lager — the clean unfiltered everyday beer the regulars order without thinking — alongside specialty batches brewed on the small kit in Lauttasaari itself (the larger production volumes of Dry Lager are contract-brewed at Sinebrychoff in Kerava). The kitchen, run by Head Chef Sylvester Soisalo (formerly of Boulevard and The Grand Bar & Grill), is brewpub-with-actual-cooking: oysters and a couple of grilled-fish plates, a fish-and-chips at €27 that locals swear by, a 150g steak frites at €27, the burger at €18, and rotating weekday lunch specials €14.90–27.",
+      "The Sunday Roast is the entry — the British transplant friend's seal of approval is on this one. From 14:00 every Sunday until the kitchen runs out (usually around 17:30) the kitchen plates a proper roast: roasted vegetables, potatoes, Yorkshire pudding, pan gravy and horseradish cream, with the choice of roast beef, roasted chicken breast, or a roasted cauliflower steak. €25 for the plate; the protein upgrade adds €6 if you want a larger cut. It is one of the few honest Sunday-Roast plates in Helsinki — gravy-on-Yorkshire-pudding rather than the Finnish-Sunday-stew substitute most kitchens default to — and it pairs with the unfiltered Dry Lager in the obvious way. Weekend brunch (Sat/Sun 10:00–14:00) is the other anchor — a three-course set for €25 with filtered coffee and juice, last orders at 13:30.",
+      "Closed Monday and Tuesday; otherwise Wed–Thu 11:00–22:00, Fri 11:00–00:00, Sat 10:00–00:00, Sun 10:00–18:00. From central Lauttasaari it's a 5–10 minute walk south through Vattuniemi; bus 21 stops on Vattuniemenkatu itself. The terrace is the move May–September; the indoor room with the boats-and-pennants ceiling is the move October–April. Reservations recommended for the Sunday Roast and for weekend brunch — both book up most weekends, particularly when the rugby is on.",
+    ],
+    thumbnailUrl:
+      "https://www.lauttasaari.fi/content/uploads/2024/09/Panimorav.verkko-800x0-c-default.jpg",
+    galleryUrls: [
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/ad9c336f-a409-4d3d-be85-28833706acf0/D9036AA5-7F43-409B-A2AB-42397E5C2D77.JPG",
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/84c41a18-9593-4b2d-b6c3-956e923c735e/7A9999A3-D9A4-4D93-837A-994B8AAC8935.JPG",
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/329669f3-e689-4a80-8157-a52f38c03c7a/6569897D-B949-4DE4-962F-D6EA05FAD19E.JPG",
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/92a77689-16b4-4796-a856-69fe44004c7b/9F3F895F-E0BF-45EA-AFB1-2A396C102B02.JPG",
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/002bc4ff-5883-4e86-9ea1-686031c0bdfa/A7030979-94BA-4012-B84E-85FC46161474.JPG",
+      "https://images.squarespace-cdn.com/content/v1/66cc618b955ff62a43a8b35d/e5097b30-8594-46da-ac1a-60de41215d71/SOLMU_DRY_LAGER_50CL_CAN.jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Closed Mon–Tue. Wed–Thu 11:00–22:00, Fri 11:00–00:00, Sat 10:00–00:00, Sun 10:00–18:00. Weekend brunch Sat–Sun 10:00–14:00 (last orders 13:30). Sunday Roast Sun 14:00–17:30 (until the kitchen runs out).",
+      notes:
+        "Year-round. Terrace is the May–September experience; the indoor taproom is the October–April experience. Sunday Roast and weekend brunch both book out — reserve 2–3 days ahead, more for special weekends (rugby fixtures, Christmas season).",
+    },
+    location: {
+      region: ["Helsinki", "Lauttasaari", "Uusimaa"],
+      address: "Vattuniemenkatu 11, 00210 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~10 min walk",
+      notes:
+        "Same island. ~5–10-min walk south from Lauttasaari metro station through Vattuniemi to Vattuniemenkatu 11. Bus 21 stops on the same street. ~5 min on foot from HSK Marina along Heikkiläntie.",
+    },
+    cost: {
+      perPersonEur: 35,
+      notes:
+        "Pints €7–9; house Dry Lager 50cl ~€7.50. Weekday lunch specials €14.90–27. Mains à la carte €18–29 (burger €18, fish and chips €27, salmon €29). Sunday Roast €25 (€31 with the larger protein cut). Weekend brunch €25 three-course incl. coffee + juice. A typical sit-down dinner with two drinks is €50–65 per person; a brunch or Sunday Roast comes in around €35–40 with a pint.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Walk-in fine for the taproom and most weekday meals. Sunday Roast and Sat/Sun brunch reserve out — book 2–3 days ahead via dinnerbooking.com or the website. Larger groups (6+) always reserve.",
+    },
+    childrenNotes:
+      "Daytime and brunch service is family-friendly — the room is loud-enough-to-absorb-toddlers but not bar-loud, high chairs available, and the kitchen does a kids-friendly plate from the brunch menu. Evenings (Fri/Sat after ~19:00) skew adult/pub and the noise level rises. No dedicated kids menu but the burger and the fish-and-chips both split easily.",
+    indoorOutdoor: "mixed",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.solmubrewery.com/",
+    tags: ["food"],
+  },
+  {
+    slug: "kappeli",
+    title: "Kappeli",
+    shortDescription:
+      "The grand iron-and-glass restaurant at the eastern end of Esplanadi park, opened 1867 — the room where Sibelius, Eino Leino, Akseli Gallen-Kallela and the rest of the Golden Age artists ate, drank, and paid their tabs in donated paintings still hanging on the walls.",
+    longDescription: [
+      "Kappeli (\"the Chapel\") sits at the eastern end of Esplanadi park, directly across from the Havis Amanda fountain and Market Square, in a long iron-and-glass pavilion that has been the pearl of the boulevard since 1867. The name comes from the original 1840 wooden kiosk that stood here — a confectioner's pastry-and-lemonade stand that resembled a small church — and the current building, designed by architect Hampus Dalström and opened on 4 June 1867, kept the nickname. The glass-and-cast-iron pavilions that flank it were added in 1891, and the shell-shaped orchestra bandstand on the park side (still in use for the free Espa Stage summer concerts) went up in 1887. It's a piece of working 19th-century city infrastructure, still doing exactly what it was built for.",
+      "What makes Kappeli more than a pretty room is its place in Finland's Golden Age. Between roughly 1880 and 1910 this was the table where the people who were inventing modern Finnish culture sat, drank, and argued: composer Jean Sibelius, poet Eino Leino, writer Juhani Aho, painter Akseli Gallen-Kallela, composer Oskar Merikanto. Several of them paid for meals in paintings rather than money — a private joke about how broke the country's national-romantic generation was — and those paintings still hang on the dining-room walls. The most-cited are Albert Edelfelt's Gambrinus medallion on the kitchen wall, Oskar Kleineh's Streets of Rouen, and Hjalmar Munsterhjelm's Seascape. The cellar bar (Kappelin Krypta) is the old wine-vault directly below the dining hall, a tight low-ceilinged space that doubles as an evening bar in winter.",
+      "The food is the classic restaurant version of Finnish cooking — salmon soup served daily from the café from 11:00 to 19:00, reindeer, Baltic herring during the autumn Silakkamarkkinat herring festival on the square outside, white asparagus from Lauttasaari in May, blinis with whitefish roe through January and February (the traditional Russian Maslenitsa-week opener of the Finnish dining year), a Christmas-season pikkujoulu programme. It is not the cheapest meal in Helsinki and it isn't trying to be — Kappeli is where you take parents who are visiting, where you propose, where the company holds its Christmas dinner — but for the room and the history and a properly cooked plate of lohikeitto with a glass of crisp white at a window facing Esplanadi, the price is honest.",
+      "The premises now operate under HOK-Elanto (who bought the building in 2020 for €20m) and split across the restaurant, the café, the cellar, and the summer terrace. Address Eteläesplanadi 1; open daily, kitchen Mon–Thu 11:00–22:00, Fri–Sat 12:00–22:00, Sun 12:00–20:00 (drinks service runs later, until midnight Fri/Sat). From Lauttasaari take bus 21 direct to Erottaja and walk two minutes east, or the metro to Helsinki Central and 8 minutes south. Reservations recommended for dinner; the café (no reservation) is the way to drop in for a bowl of salmon soup at any time of day.",
+    ],
+    thumbnailUrl:
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Esplanade_Chapel_restaurant_in_Helsinki,_Finland,_2021_January.jpg",
+    galleryUrls: [
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Interior_of_Esplanadikappeli_restaurant_in_Helsinki,_Finland,_2021_January.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kappeli_Esplanadinpuisto_Helsinki_2022-09-17_01.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Terrace_in_snow_at_Esplanadikappeli_restaurant_in_Helsinki,_Finland,_2021_January.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Restaurant_Kappeli_in_March.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Kappeli_2025-7-Marit_Henriksson.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Ravintola_Kappeli_-_N4475_-_hkm.HKMS000005-km0030h1.jpg",
+      "https://commons.wikimedia.org/wiki/Special:FilePath/Architectural_Detail_-_Helsinki_-_Finland_-_03_(35945550786).jpg",
+    ],
+    availability: {
+      suitableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      weeklySchedule:
+        "Daily. Mon–Tue 10:00–23:00 (kitchen 11:00–22:00), Wed–Thu 09:00–00:00 (kitchen 11:00–22:00), Fri–Sat 10:00–00:00 (kitchen 12:00–22:00), Sun 10:00–22:00 (kitchen 12:00–20:00). Salmon soup served from the café 11:00–19:00 daily.",
+      notes:
+        "Year-round. Seasonal programmes cycle through the kitchen — blini season (Jan–Feb), white asparagus weeks (May), Baltic herring during the Silakkamarkkinat festival on the square outside (early October), Christmas pikkujoulu menu (Nov–Dec). Summer terrace operates roughly May–September.",
+    },
+    location: {
+      region: ["Helsinki", "Uusimaa"],
+      address: "Eteläesplanadi 1, 00130 Helsinki",
+    },
+    accessFromLauttasaari: {
+      complexity: "simple",
+      duration: "~15 min",
+      notes:
+        "Bus 21 from Lauttasaari direct east through downtown — get off at Erottaja and walk 2 minutes east through the park (~12 min total). Alternative: M1 or M2 metro to Helsinki Central (~6 min), then a 7-min walk south down Mikonkatu and through Esplanadi park. No transfers either way.",
+    },
+    cost: {
+      perPersonEur: 50,
+      notes:
+        "Café orders ~€15–22 (salmon soup €16, sandwiches and cakes €8–15). Restaurant à la carte mains €28–45; tasting menus from ~€65; wine pairings extra. A full dinner with starter, main, dessert and two glasses of wine runs €70–90 per person. Cellar/bar drinks: cocktails €14–18, glasses of wine €10–14.",
+    },
+    booking: {
+      leadTime: "few-days",
+      notes:
+        "Restaurant reservations strongly recommended for dinner (book 3–5 days ahead, more in December for the pikkujoulu Christmas-party season — the room books out solid through November and December). Café is walk-in only and the queue is rarely more than a few minutes. Book via raflaamo.fi or the restaurant's website.",
+    },
+    suitableAgeRange: { min: 0 },
+    childrenNotes:
+      "Café is family-friendly — high chairs available, the salmon soup is mild and toddler-tested, the room is roomy enough for a buggy. The formal restaurant works for older children at a lunch but is too quiet and adult-paced for under-5s at a dinner sitting. Stroller-accessible at the main entrance.",
+    indoorOutdoor: "indoor",
+    physicalIntensity: "low",
+    duration: "1-3h",
+    website: "https://www.raflaamo.fi/en/restaurant/helsinki/kappeli",
+    tags: ["food", "historical", "landmark"],
+  },
 ];
