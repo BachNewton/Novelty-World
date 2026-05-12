@@ -930,6 +930,52 @@ function fallbackLayout(
   return centerX;
 }
 
+// ---------- Elbow row packing ----------
+//
+// Each parent set in a generation draws a horizontal "sibling bar" at the
+// elbow Y, spanning from min(parentMidX, leftmost child mid) to
+// max(parentMidX, rightmost child mid). Two bars in the same generation can
+// share an elbow row iff their X-intervals don't overlap. We solve this as
+// classic interval graph coloring (greedy left-to-right) — provably uses the
+// minimum number of rows, which minimizes the row gap dragged into every
+// downstream generation. Strict inequality means endpoint-touching bars get
+// separate rows so they don't visually merge into one continuous line.
+
+export interface ElbowBarInterval {
+  key: string;
+  left: number;
+  right: number;
+}
+
+export interface ElbowRowPacking {
+  rowIndexByKey: Map<string, number>;
+  rowCount: number;
+}
+
+export function packElbowRows(
+  intervals: readonly ElbowBarInterval[],
+): ElbowRowPacking {
+  const sorted = [...intervals].sort((a, b) => a.left - b.left);
+  const rowMaxRight: number[] = [];
+  const rowIndexByKey = new Map<string, number>();
+  for (const iv of sorted) {
+    let placed = false;
+    for (let i = 0; i < rowMaxRight.length; i++) {
+      if (rowMaxRight[i] < iv.left) {
+        rowMaxRight[i] = iv.right;
+        rowIndexByKey.set(iv.key, i);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      rowIndexByKey.set(iv.key, rowMaxRight.length);
+      rowMaxRight.push(iv.right);
+    }
+  }
+  return { rowIndexByKey, rowCount: rowMaxRight.length };
+}
+
 export async function computeLayout(tree: Tree): Promise<Layout> {
   const order = bfsOrder(tree);
   const gen = computeGenerations(tree);
@@ -990,17 +1036,16 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
   const centerX = new Map<string, number>();
   for (const [id, x] of rawCenterX) centerX.set(id, x + shift);
 
-  // Each distinct parent ID set in a generation gets its own elbow row (so
-  // child-drops from different marriages don't visually merge). Keying by
-  // parent SET — not by couple unit — matters for 3-member [ex, person,
-  // current] clusters: a kid from the left marriage and a kid from the right
-  // marriage share a couple unit but represent different parent sets, and
-  // their horizontal sibling bars can otherwise touch at the inner marriage
-  // midpoint when a kid's x happens to land there. We need at least
-  // ELBOW_FIRST_OFFSET below the parent for the topmost elbow, ELBOW_SPACING
-  // between elbows, and ELBOW_LAST_MARGIN below the bottommost elbow before
-  // the child top. When a generation has many parent sets this grows the row
-  // gap dynamically.
+  // Sibling-bar elbow Y. Each parent-set gets a horizontal bar at the elbow
+  // row connecting parentMidX to its children's columns. Two parent sets in
+  // the same generation only need *different* elbow Ys when their bar
+  // X-intervals overlap — otherwise they share a row. We solve this as
+  // interval graph coloring once node X positions are finalized (further
+  // below); for now we just stash the constants and index which parent sets
+  // exist per generation. Keying by parent SET — not by couple unit — matters
+  // for 3-member [ex, person, current] clusters: a kid from the left marriage
+  // and a kid from the right marriage share a couple unit but represent
+  // different parent sets, and their bars must still be analyzed separately.
   const ELBOW_FIRST_OFFSET = 28;
   const ELBOW_SPACING = 32;
   const ELBOW_LAST_MARGIN = 28;
@@ -1021,27 +1066,9 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
     if (!arr.includes(key)) arr.push(key);
   }
 
-  const rowGapAfter = (g: number): number => {
-    const numParentSets = parentSetKeysByGen.get(g)?.length ?? 0;
-    if (numParentSets <= 1) return ROW_GAP;
-    const required =
-      ELBOW_FIRST_OFFSET +
-      (numParentSets - 1) * ELBOW_SPACING +
-      ELBOW_LAST_MARGIN;
-    return Math.max(ROW_GAP, required);
-  };
-
+  // Filled in after node X positions are finalized — the elbow-row packer
+  // needs bar X-intervals, which depend on the child-reorder pass below.
   const yByGen = new Map<number, number>();
-  if (layered.sortedGens.length > 0) {
-    yByGen.set(layered.sortedGens[0], 0);
-    for (let i = 1; i < layered.sortedGens.length; i++) {
-      const prev = layered.sortedGens[i - 1];
-      yByGen.set(
-        layered.sortedGens[i],
-        (yByGen.get(prev) ?? 0) + NODE_H + rowGapAfter(prev),
-      );
-    }
-  }
   const yFor = (g: number): number => yByGen.get(g) ?? 0;
 
   const layout: Layout = { nodes: [], edges: [], width: 0, height: 0 };
@@ -1166,6 +1193,97 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
     }
   }
 
+  // Now that centerX is final, compute each person's center column. This
+  // feeds the elbow-row packer below, which measures each parent set's
+  // sibling-bar X-interval to decide how many distinct elbow rows the
+  // generation actually needs (vs. the old formula that always reserved one
+  // row per parent set, dragging the whole canvas down for free).
+  const personCenterX = new Map<string, number>();
+  for (const couple of couples) {
+    const center = centerX.get(couple.id);
+    if (center === undefined) continue;
+    const leftX = center - coupleWidth(couple) / 2;
+    const sides = spouseSideOrder.get(couple.id) ?? couple.members;
+    for (let i = 0; i < sides.length; i++) {
+      personCenterX.set(
+        sides[i],
+        leftX + i * (NODE_W + SPOUSE_GAP) + NODE_W / 2,
+      );
+    }
+  }
+
+  const childrenByParentSet = new Map<string, string[]>();
+  for (const person of Object.values(tree.persons)) {
+    if (person.parentIds.length === 0) continue;
+    const key = parentSetKey(person.parentIds);
+    let arr = childrenByParentSet.get(key);
+    if (arr === undefined) {
+      arr = [];
+      childrenByParentSet.set(key, arr);
+    }
+    arr.push(person.id);
+  }
+
+  const parentMidXFromCenters = (ids: readonly string[]): number => {
+    if (ids.length === 2) {
+      const ax = personCenterX.get(ids[0]);
+      const bx = personCenterX.get(ids[1]);
+      if (ax === undefined || bx === undefined) return 0;
+      return (ax + bx) / 2;
+    }
+    const x = personCenterX.get(ids[0]);
+    return x ?? 0;
+  };
+
+  // Build each parent set's sibling-bar X-interval and pack them into the
+  // minimum number of elbow rows per generation. See packElbowRows above.
+  const rowIndexByParentSet = new Map<string, number>();
+  const numRowsByGen = new Map<number, number>();
+  for (const [parentGen, keys] of parentSetKeysByGen) {
+    const intervals: ElbowBarInterval[] = [];
+    for (const key of keys) {
+      const ids = key.split("|");
+      const parentMidX = parentMidXFromCenters(ids);
+      const childIds = childrenByParentSet.get(key) ?? [];
+      if (childIds.length === 0) continue;
+      let minChildX = Infinity;
+      let maxChildX = -Infinity;
+      for (const cid of childIds) {
+        const cx = personCenterX.get(cid);
+        if (cx === undefined) continue;
+        if (cx < minChildX) minChildX = cx;
+        if (cx > maxChildX) maxChildX = cx;
+      }
+      const left = Math.min(parentMidX, minChildX);
+      const right = Math.max(parentMidX, maxChildX);
+      intervals.push({ key, left, right });
+    }
+    const packing = packElbowRows(intervals);
+    for (const [key, idx] of packing.rowIndexByKey) {
+      rowIndexByParentSet.set(key, idx);
+    }
+    numRowsByGen.set(parentGen, packing.rowCount);
+  }
+
+  const rowGapAfter = (g: number): number => {
+    const nRows = numRowsByGen.get(g) ?? 0;
+    if (nRows <= 1) return ROW_GAP;
+    const required =
+      ELBOW_FIRST_OFFSET + (nRows - 1) * ELBOW_SPACING + ELBOW_LAST_MARGIN;
+    return Math.max(ROW_GAP, required);
+  };
+
+  if (layered.sortedGens.length > 0) {
+    yByGen.set(layered.sortedGens[0], 0);
+    for (let i = 1; i < layered.sortedGens.length; i++) {
+      const prev = layered.sortedGens[i - 1];
+      yByGen.set(
+        layered.sortedGens[i],
+        (yByGen.get(prev) ?? 0) + NODE_H + rowGapAfter(prev),
+      );
+    }
+  }
+
   for (const couple of couples) {
     const center = centerX.get(couple.id)!;
     const y = yFor(couple.generation);
@@ -1202,44 +1320,24 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
     }
   }
 
-  // Assign each parent SET its own elbow Y, sorted left-to-right by the
-  // x where the drop emerges. Spacing is absolute (ELBOW_SPACING) so
-  // adjacent rows are visually distinct regardless of how many parent sets
-  // share a generation. parentMidX matches the renderer's drop x: midpoint
-  // of the inner marriage gap for two-parent sets, single-parent center
-  // otherwise.
-  const nodeById = new Map(layout.nodes.map((n) => [n.id, n] as const));
-  const parentMidXForSet = (key: string): number => {
-    const ids = key.split("|");
-    if (ids.length === 2) {
-      const a = nodeById.get(ids[0]);
-      const b = nodeById.get(ids[1]);
-      if (a === undefined || b === undefined) return 0;
-      const left = a.x <= b.x ? a : b;
-      const right = a.x <= b.x ? b : a;
-      return (left.x + left.w + right.x) / 2;
-    }
-    const node = nodeById.get(ids[0]);
-    return node === undefined ? 0 : node.x + node.w / 2;
-  };
-
+  // Translate the packed row index for each parent set into an elbow Y.
+  // Single-row generations keep the ROW_GAP/2 convention (elbows sit halfway
+  // down the gap); multi-row generations stack from ELBOW_FIRST_OFFSET down
+  // by ELBOW_SPACING per row.
   const elbowYByParentSet = new Map<string, number>();
   for (const g of layered.sortedGens) {
     const keys = parentSetKeysByGen.get(g) ?? [];
     if (keys.length === 0) continue;
-    const sortedKeys = [...keys].sort(
-      (a, b) => parentMidXForSet(a) - parentMidXForSet(b),
-    );
     const parentBottomY = yFor(g) + NODE_H;
-    if (sortedKeys.length === 1) {
-      elbowYByParentSet.set(sortedKeys[0], parentBottomY + ROW_GAP / 2);
-    } else {
-      sortedKeys.forEach((key, i) => {
-        elbowYByParentSet.set(
-          key,
-          parentBottomY + ELBOW_FIRST_OFFSET + i * ELBOW_SPACING,
-        );
-      });
+    const nRows = numRowsByGen.get(g) ?? 0;
+    for (const key of keys) {
+      const rowIdx = rowIndexByParentSet.get(key);
+      if (rowIdx === undefined) continue;
+      const elbowY =
+        nRows <= 1
+          ? parentBottomY + ROW_GAP / 2
+          : parentBottomY + ELBOW_FIRST_OFFSET + rowIdx * ELBOW_SPACING;
+      elbowYByParentSet.set(key, elbowY);
     }
   }
 

@@ -21,6 +21,7 @@ import {
   nearestInDirection,
   nextGender,
   optimisticPatch,
+  packElbowRows,
   renamePerson,
   setGender,
   topologyHash,
@@ -727,13 +728,19 @@ describe("computeLayout", () => {
     expect(firstGroup).toBe("maya-gary");
   });
 
-  it("gives step-siblings in a 3-member cluster distinct elbow Ys", async () => {
-    // Regression: in [Maya, Gary, Marta] with Maya+Gary kids and Marta-solo
-    // kids, both groups used to share one elbow Y keyed by couple unit. If a
-    // Marta-solo kid's center landed on the Maya|Gary marriage midpoint
-    // (which happened on the live tree), the two groups' horizontal sibling
-    // bars kissed at exactly that x and read as one merged bar covering all
-    // five step-siblings. Step-sibling groups must get separate elbow rows.
+  it("groups same-marriage siblings on one elbow row in a 3-member cluster", async () => {
+    // In [Maya, Gary, Marta] with Maya+Gary kids and Marta-solo kids, the
+    // two parent sets are keyed separately so their bars are analyzed
+    // independently. When the X solver cleanly groups each marriage's kids
+    // on its own side (typical for leaf clusters), the bars don't overlap
+    // and the elbow-row packer puts both groups on row 0 — which is fine
+    // because there's a SUBTREE_GAP of empty space between the bars.
+    //
+    // The dangerous case the previous unconditional split guarded against
+    // (a Marta-solo kid landing on Maya|Gary's parent-midpoint X, making
+    // the bars kiss visually) is now caught by interval overlap: when bars
+    // overlap, packElbowRows assigns distinct rows — see its dedicated
+    // unit tests.
     const t = makeTree([
       p("gary", "M", [], ["marta"], ["maya"]),
       p("marta", "F", [], ["gary"], []),
@@ -751,8 +758,6 @@ describe("computeLayout", () => {
     const kathleenEdge = edgeFor("kathleen");
     const lucasEdge = edgeFor("lucas");
     const sebastianEdge = edgeFor("sebastian");
-    expect(jamesEdge?.kind).toBe("parent-child");
-    expect(lucasEdge?.kind).toBe("parent-child");
     if (
       jamesEdge?.kind !== "parent-child" ||
       kathleenEdge?.kind !== "parent-child" ||
@@ -761,12 +766,25 @@ describe("computeLayout", () => {
     ) {
       throw new Error("expected parent-child edges");
     }
-    // Siblings within the same marriage share an elbow row.
+    // Siblings within the same marriage always share an elbow row.
     expect(jamesEdge.elbowY).toBe(kathleenEdge.elbowY);
     expect(lucasEdge.elbowY).toBe(sebastianEdge.elbowY);
-    // Step-siblings (different marriages) get DIFFERENT elbow rows so their
-    // sibling bars can't merge into one.
-    expect(jamesEdge.elbowY).not.toBe(lucasEdge.elbowY);
+
+    // Sanity: the bars really don't overlap in this clean arrangement,
+    // which is why they can share a row.
+    const xOf = (id: string): number =>
+      layout.nodes.find((n) => n.id === id)?.x ?? -1;
+    const mayaX = xOf("maya");
+    const garyX = xOf("gary");
+    const mayaGaryMid = (mayaX + NODE_W / 2 + garyX + NODE_W / 2) / 2;
+    const martaX = xOf("marta") + NODE_W / 2;
+    const jamesCenter = xOf("james") + NODE_W / 2;
+    const kathleenCenter = xOf("kathleen") + NODE_W / 2;
+    const lucasCenter = xOf("lucas") + NODE_W / 2;
+    const sebastianCenter = xOf("sebastian") + NODE_W / 2;
+    const mayaGaryRight = Math.max(mayaGaryMid, jamesCenter, kathleenCenter);
+    const martaLeft = Math.min(martaX, lucasCenter, sebastianCenter);
+    expect(mayaGaryRight).toBeLessThan(martaLeft);
   });
 
   it("doesn't orphan a current spouse when the partner's ex is processed first", async () => {
@@ -928,6 +946,84 @@ describe("computeLayout", () => {
     expect(b.nodes.map((n) => `${n.id}:${n.x},${n.y}`)).toEqual(
       a.nodes.map((n) => `${n.id}:${n.x},${n.y}`),
     );
+  });
+});
+
+describe("packElbowRows", () => {
+  it("packs non-overlapping bars onto a single row", () => {
+    // Reid vs Hillard from the live tree: branches that don't interact —
+    // both should share row 0.
+    const packing = packElbowRows([
+      { key: "reid", left: 100, right: 300 },
+      { key: "hillard", left: 500, right: 700 },
+    ]);
+    expect(packing.rowCount).toBe(1);
+    expect(packing.rowIndexByKey.get("reid")).toBe(0);
+    expect(packing.rowIndexByKey.get("hillard")).toBe(0);
+  });
+
+  it("splits overlapping bars across rows", () => {
+    // Hoff vs Ridenour: bars overlap, so they need distinct rows.
+    const packing = packElbowRows([
+      { key: "hoff", left: 100, right: 400 },
+      { key: "ridenour", left: 300, right: 600 },
+    ]);
+    expect(packing.rowCount).toBe(2);
+    expect(packing.rowIndexByKey.get("hoff")).toBe(0);
+    expect(packing.rowIndexByKey.get("ridenour")).toBe(1);
+  });
+
+  it("allows a bent (wide) bar to share a row when its interval doesn't overlap", () => {
+    // John+Kristin vs Anthony from the live tree: Anthony's line bends to
+    // reach his child but its X-extent doesn't overlap John+Kristin's bar,
+    // so they share row 0 despite the bend.
+    const packing = packElbowRows([
+      { key: "john+kristin", left: 100, right: 250 },
+      { key: "anthony", left: 400, right: 550 }, // bend: parentMidX=550, childMidX=400
+    ]);
+    expect(packing.rowCount).toBe(1);
+    expect(packing.rowIndexByKey.get("john+kristin")).toBe(0);
+    expect(packing.rowIndexByKey.get("anthony")).toBe(0);
+  });
+
+  it("collapses identical-column bars (no bend) onto one row", () => {
+    // Degenerate case: parent set with a single child directly under
+    // parentMidX has a zero-width bar. Multiple such point-bars at different
+    // X share row 0.
+    const packing = packElbowRows([
+      { key: "a", left: 100, right: 100 },
+      { key: "b", left: 200, right: 200 },
+      { key: "c", left: 300, right: 300 },
+    ]);
+    expect(packing.rowCount).toBe(1);
+  });
+
+  it("treats endpoint-touching bars as conflicts so they don't visually merge", () => {
+    const packing = packElbowRows([
+      { key: "a", left: 100, right: 200 },
+      { key: "b", left: 200, right: 300 },
+    ]);
+    expect(packing.rowCount).toBe(2);
+  });
+
+  it("packs into minimum rows even when input order is not left-to-right", () => {
+    // Three bars: A and C don't overlap each other but both overlap B.
+    // Optimal coloring is 2 rows (A and C share, B alone).
+    const packing = packElbowRows([
+      { key: "c", left: 500, right: 700 },
+      { key: "a", left: 100, right: 300 },
+      { key: "b", left: 200, right: 600 },
+    ]);
+    expect(packing.rowCount).toBe(2);
+    expect(packing.rowIndexByKey.get("a")).toBe(0);
+    expect(packing.rowIndexByKey.get("c")).toBe(0);
+    expect(packing.rowIndexByKey.get("b")).toBe(1);
+  });
+
+  it("returns an empty packing for empty input", () => {
+    const packing = packElbowRows([]);
+    expect(packing.rowCount).toBe(0);
+    expect(packing.rowIndexByKey.size).toBe(0);
   });
 });
 
