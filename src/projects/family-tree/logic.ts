@@ -4,7 +4,7 @@ import {
   graphStratify,
   sugiyama,
 } from "d3-dag";
-import type { Decross, Graph, Layering, Separation } from "d3-dag";
+import type { Graph, Layering, Separation } from "d3-dag";
 import type {
   Gender,
   LaidOutEdge,
@@ -812,7 +812,7 @@ function buildLayered(couples: CoupleUnit[]): LayeredOrdering {
 
 export type DecrossStrategy = "opt" | "two-layer";
 
-export interface CoupleData {
+interface CoupleData {
   id: string;
   parentIds: string[];
   generation: number;
@@ -865,7 +865,6 @@ async function layoutCouplesViaSugiyama(
   couples: CoupleUnit[],
   parentCouplesOf: Map<string, string[]>,
   strategy: DecrossStrategy,
-  decrossOverride: Decross<CoupleData, unknown> | undefined,
 ): Promise<Map<string, number> | null> {
   if (couples.length === 0) return null;
   const data: CoupleData[] = couples.map((c) => ({
@@ -890,9 +889,7 @@ async function layoutCouplesViaSugiyama(
     // (which is the sole caller of computeLayout) ever fetches this chunk.
     // For "two-layer" we keep d3-dag's barycenter heuristic.
     let decross;
-    if (decrossOverride !== undefined) {
-      decross = decrossOverride;
-    } else if (strategy === "opt") {
+    if (strategy === "opt") {
       const mod = await import("./decross-highs");
       decross = mod.decrossHighs(await mod.loadHighs());
     } else {
@@ -950,10 +947,6 @@ function fallbackLayout(
 
 export interface ComputeLayoutOptions {
   decross?: DecrossStrategy;
-  // Benchmarking hook: when set, replaces the d3-dag decross plugin used inside
-  // sugiyama. The `decross` strategy is ignored. Used by layout-phases.bench.ts
-  // to wrap the real plugin with timing/recording/warm-start logic.
-  decrossOverride?: Decross<CoupleData, unknown>;
 }
 
 export async function computeLayout(
@@ -1005,7 +998,6 @@ export async function computeLayout(
     couples,
     parentCouplesOf,
     decross,
-    options.decrossOverride,
   );
   const rawCenterX =
     sugiyamaCenterX ?? fallbackLayout(couples, layered, fallbackOrder);
