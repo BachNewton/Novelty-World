@@ -29,9 +29,15 @@ export function SquareRow({ state, position }: Props) {
   const leftBackground = isProperty
     ? PROPERTY_COLOR_VAR[space.color]
     : "var(--mono-card)";
+  // 1px row divider drawn as an inset bottom shadow on each child rather
+  // than as a flex gap on the parent. With the line painted by the same
+  // element that owns the background, the browser composites it more
+  // consistently across rows at fractional device-pixel ratios.
+  const dividerShadow = "inset 0 -1px 0 var(--mono-frame)";
   const leftStyle: CSSProperties = {
     width: "72px",
     backgroundColor: leftBackground,
+    boxShadow: dividerShadow,
     ...(mortgaged && isProperty
       ? {
           backgroundImage:
@@ -55,12 +61,12 @@ export function SquareRow({ state, position }: Props) {
         {isProperty ? (
           <Development houses={houses} />
         ) : (
-          <SpaceIcon space={space} mortgaged={mortgaged} />
+          <SpaceIcon space={space} />
         )}
       </div>
       <div
         className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden px-2"
-        style={{ background: contextTint }}
+        style={{ background: contextTint, boxShadow: dividerShadow }}
       >
         <NameCell space={space} mortgaged={mortgaged} />
         <TokenStrip tokens={tokens} />
@@ -110,27 +116,25 @@ function Development({ houses }: { houses: number }) {
   );
 }
 
-function SpaceIcon({
-  space,
-  mortgaged,
-}: {
-  space: Space;
-  mortgaged: boolean;
-}) {
+function SpaceIcon({ space }: { space: Space }) {
   const iconStyle: CSSProperties = {
-    height: "1.1rem",
+    height: "1.9rem",
     width: "auto",
-    opacity: mortgaged ? 0.4 : 1,
   };
   switch (space.kind) {
     case "railroad":
-      return <Train strokeWidth={1.75} style={iconStyle} />;
+      return (
+        <Train
+          strokeWidth={1.75}
+          style={{ ...iconStyle, color: "var(--mono-pink)" }}
+        />
+      );
     case "utility": {
       const Icon = space.name === "Electric Company" ? Zap : Droplets;
       return (
         <Icon
           strokeWidth={1.75}
-          style={{ ...iconStyle, color: "var(--mono-neutral)" }}
+          style={{ ...iconStyle, color: "var(--mono-green)" }}
         />
       );
     }
@@ -144,34 +148,52 @@ function SpaceIcon({
     case "chance":
       return (
         <span
-          className="text-lg font-extrabold italic"
-          style={{ color: "var(--mono-orange)" }}
+          className="font-extrabold italic leading-none"
+          style={{ color: "var(--mono-dark-blue)", fontSize: "1.9rem" }}
         >
           ?
         </span>
       );
     case "tax":
       return (
-        <Diamond fill="currentColor" strokeWidth={1.5} style={iconStyle} />
+        <Diamond
+          fill="currentColor"
+          strokeWidth={1.5}
+          style={{ ...iconStyle, color: "var(--mono-yellow)" }}
+        />
       );
     case "go":
       return (
         <span
-          className="text-[10px] font-bold"
+          className="text-lg font-bold"
           style={{ color: "var(--mono-red)" }}
         >
           GO
         </span>
       );
     case "jail":
-      return <span className="text-[10px] font-bold">JAIL</span>;
+      return (
+        <span
+          className="text-lg font-bold"
+          style={{ color: "var(--mono-orange)" }}
+        >
+          JAIL
+        </span>
+      );
     case "free-parking":
-      return <span className="text-[10px] font-bold">FREE</span>;
+      return (
+        <span
+          className="text-lg font-bold"
+          style={{ color: "var(--mono-red)" }}
+        >
+          FREE
+        </span>
+      );
     case "go-to-jail":
       return (
         <span
-          className="text-[10px] font-bold"
-          style={{ color: "var(--mono-red)" }}
+          className="text-lg font-bold"
+          style={{ color: "var(--mono-orange)" }}
         >
           JAIL→
         </span>

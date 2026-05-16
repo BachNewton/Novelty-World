@@ -10,7 +10,7 @@ interface Props {
 
 export function Header({ state }: Props) {
   return (
-    <div className="flex shrink-0 flex-col gap-px">
+    <div className="flex shrink-0 flex-col">
       {state.players.map((player) => (
         <PlayerRow
           key={player.id}
@@ -39,7 +39,11 @@ function PlayerRow({
   return (
     <div
       className="flex items-center gap-2 px-2 py-1.5"
-      style={{ backgroundColor: "var(--mono-board)", color: "var(--mono-ink)" }}
+      style={{
+        backgroundColor: "var(--mono-board)",
+        color: "var(--mono-ink)",
+        boxShadow: "inset 0 -1px 0 var(--mono-frame)",
+      }}
     >
       <PlayerToken player={player} className="h-7 w-7" />
       <div

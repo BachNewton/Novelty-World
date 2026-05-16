@@ -5,8 +5,9 @@ import { SPACES } from "../data";
 import type { GameState } from "../types";
 import { SquareRow } from "./square-row";
 
-// Each row is 44px (h-11) with a 1px gap below it.
-const CYCLE_PX = SPACES.length * (44 + 1);
+// Each row is 44px (h-11). The 1px divider is painted as an inset bottom
+// shadow on the row itself, so it doesn't add to the row's box.
+const CYCLE_PX = SPACES.length * 44;
 
 interface Props {
   state: GameState;
@@ -39,8 +40,7 @@ export function Squares({ state }: Props) {
     <div
       ref={ref}
       onScroll={handleScroll}
-      className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      style={{ backgroundColor: "var(--mono-frame)" }}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {[0, 1, 2].flatMap((copy) =>
         SPACES.map((_, position) => (

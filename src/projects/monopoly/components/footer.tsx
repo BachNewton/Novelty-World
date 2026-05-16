@@ -1,9 +1,6 @@
 export function Footer() {
   return (
-    <div
-      className="flex shrink-0 gap-px"
-      style={{ backgroundColor: "var(--mono-frame)" }}
-    >
+    <div className="flex shrink-0">
       <FooterButton label="Roll" />
       <FooterButton label="Buy" />
       <FooterButton label="Trade" />
