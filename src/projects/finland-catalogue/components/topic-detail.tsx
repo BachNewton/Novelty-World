@@ -1,5 +1,5 @@
 import type { Topic } from "../types";
-import { AudioPlayer } from "./audio-player";
+import { AudioPlayer, countWords } from "./audio-player";
 import { EntryDetail } from "./entry-detail";
 
 export function TopicDetail({
@@ -21,7 +21,17 @@ export function TopicDetail({
       longDescription={topic.longDescription}
       accent="blue"
       excludeTopicSlug={topic.slug}
-      audioPlayer={<AudioPlayer slug={topic.slug} kind="topic" />}
+      audioPlayer={
+        <AudioPlayer
+          slug={topic.slug}
+          kind="topic"
+          approxWordCount={countWords([
+            topic.title,
+            topic.shortDescription,
+            ...topic.longDescription,
+          ])}
+        />
+      }
     />
   );
 }

@@ -1,11 +1,25 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState, useSyncExternalStore } from "react";
+import { shuffleArray } from "@/shared/lib/utils";
 import { applySearch, topicHaystack } from "../filters";
 import { TOPICS } from "../topics";
+import type { Topic } from "../types";
+import { LoadingSpinner } from "./loading-spinner";
 import { PageHeader } from "./page-header";
 import { SearchBar } from "./search-bar";
 import { TopicCard } from "./topic-card";
+
+// Session-stable shuffle — see catalogue-grid for the full reasoning.
+let clientShuffledTopics: readonly Topic[] | null = null;
+const getClientTopics = (): readonly Topic[] => {
+  if (clientShuffledTopics === null) clientShuffledTopics = shuffleArray(TOPICS);
+  return clientShuffledTopics;
+};
+const getServerTopics = (): readonly Topic[] => TOPICS;
+const subscribeNoop = () => () => {};
+const getTrue = () => true;
+const getFalse = () => false;
 
 export function TopicsLanding({ basePath }: { basePath: string }) {
   const [query, setQuery] = useState("");
@@ -13,9 +27,16 @@ export function TopicsLanding({ basePath }: { basePath: string }) {
   // input stays responsive while the topic cards re-render.
   const deferredQuery = useDeferredValue(query);
 
+  const orderedTopics = useSyncExternalStore(
+    subscribeNoop,
+    getClientTopics,
+    getServerTopics,
+  );
+  const isHydrated = useSyncExternalStore(subscribeNoop, getTrue, getFalse);
+
   const visibleTopics = useMemo(
-    () => applySearch(TOPICS, deferredQuery, topicHaystack),
-    [deferredQuery],
+    () => applySearch(orderedTopics, deferredQuery, topicHaystack),
+    [orderedTopics, deferredQuery],
   );
 
   const total = TOPICS.length;
@@ -46,6 +67,8 @@ export function TopicsLanding({ basePath }: { basePath: string }) {
           <div className="rounded-lg border border-border-default bg-surface-secondary p-8 text-center text-text-secondary">
             Topics coming soon.
           </div>
+        ) : !isHydrated ? (
+          <LoadingSpinner label="Loading topics…" accentClass="border-t-brand-blue" />
         ) : (
           <>
             <div className="mb-4 text-sm text-text-muted">

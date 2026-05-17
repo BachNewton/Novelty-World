@@ -1,6 +1,6 @@
 import type { PokemonEntry, GameState } from "./types";
 import allPokemon from "./data/pokemon.json";
-import { shuffleArray } from "@/shared/trivia";
+import { shuffleArray } from "@/shared/lib/utils";
 
 /**
  * The 18 canonical Pokemon types, ordered to roughly group related types

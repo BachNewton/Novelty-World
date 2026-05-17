@@ -48,7 +48,7 @@ export function bucketCost(eur: number): CostBucket {
   return "over-100";
 }
 
-export function applyFilters(ideas: Idea[], filters: Filters): Idea[] {
+export function applyFilters(ideas: readonly Idea[], filters: Filters): Idea[] {
   return ideas.filter((idea) => {
     if (filters.months.length > 0) {
       const overlap = filters.months.some((m) =>

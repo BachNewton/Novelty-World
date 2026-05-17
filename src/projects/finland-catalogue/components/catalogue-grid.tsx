@@ -1,11 +1,12 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, SlidersHorizontal, Star } from "lucide-react";
-import { cn } from "@/shared/lib/utils";
+import { cn, shuffleArray } from "@/shared/lib/utils";
 import { IDEAS } from "../ideas";
+import type { Idea } from "../types";
 import {
   applyFilters,
   applySearch,
@@ -17,10 +18,26 @@ import {
 import { useFavorites } from "../store";
 import { FilterPanel } from "./filter-panel";
 import { IdeaCard } from "./idea-card";
+import { LoadingSpinner } from "./loading-spinner";
 import { PageHeader } from "./page-header";
 import { SearchBar } from "./search-bar";
 
 type GridMode = "all" | "favorites";
+
+// Shuffled once per JS session and reused across mounts so the catalogue
+// looks fresh each visit, while staying on a stable order as the user
+// drills into a detail page and back. The list is only rendered after
+// hydration (see isHydrated below) so users see the shuffled order on
+// first paint — never the source order.
+let clientShuffledIdeas: readonly Idea[] | null = null;
+const getClientIdeas = (): readonly Idea[] => {
+  if (clientShuffledIdeas === null) clientShuffledIdeas = shuffleArray(IDEAS);
+  return clientShuffledIdeas;
+};
+const getServerIdeas = (): readonly Idea[] => IDEAS;
+const subscribeNoop = () => () => {};
+const getTrue = () => true;
+const getFalse = () => false;
 
 export function CatalogueGrid({
   basePath,
@@ -34,6 +51,13 @@ export function CatalogueGrid({
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const favoriteSlugs = useFavorites((s) => s.slugs);
 
+  const orderedIdeas = useSyncExternalStore(
+    subscribeNoop,
+    getClientIdeas,
+    getServerIdeas,
+  );
+  const isHydrated = useSyncExternalStore(subscribeNoop, getTrue, getFalse);
+
   // Re-rendering the grid (50+ IdeaCards with images) on every keystroke
   // makes typing feel sluggish. useDeferredValue lets React interrupt the
   // grid re-render to keep the input responsive — the input updates
@@ -43,9 +67,9 @@ export function CatalogueGrid({
   const baseIdeas = useMemo(
     () =>
       mode === "favorites"
-        ? IDEAS.filter((i) => favoriteSlugs.includes(i.slug))
-        : IDEAS,
-    [mode, favoriteSlugs],
+        ? orderedIdeas.filter((i) => favoriteSlugs.includes(i.slug))
+        : orderedIdeas,
+    [mode, favoriteSlugs, orderedIdeas],
   );
 
   const visibleIdeas = useMemo(
@@ -120,26 +144,32 @@ export function CatalogueGrid({
           </aside>
 
           <section>
-            <ResultsHeader
-              total={baseIdeas.length}
-              showing={visibleIdeas.length}
-              narrowed={hasNarrowing}
-            />
-
-            {visibleIdeas.length === 0 ? (
-              <EmptyState
-                mode={mode}
-                narrowed={hasNarrowing}
-                basePath={basePath}
-              />
+            {!isHydrated ? (
+              <LoadingSpinner label="Loading ideas…" accentClass="border-t-brand-pink" />
             ) : (
-              <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
-                {visibleIdeas.map((idea) => (
-                  <div key={idea.slug} className="mb-5 break-inside-avoid">
-                    <IdeaCard idea={idea} basePath={basePath} />
+              <>
+                <ResultsHeader
+                  total={baseIdeas.length}
+                  showing={visibleIdeas.length}
+                  narrowed={hasNarrowing}
+                />
+
+                {visibleIdeas.length === 0 ? (
+                  <EmptyState
+                    mode={mode}
+                    narrowed={hasNarrowing}
+                    basePath={basePath}
+                  />
+                ) : (
+                  <div className="columns-1 gap-5 sm:columns-2 xl:columns-3 2xl:columns-4">
+                    {visibleIdeas.map((idea) => (
+                      <div key={idea.slug} className="mb-5 break-inside-avoid">
+                        <IdeaCard idea={idea} basePath={basePath} />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </section>
         </div>

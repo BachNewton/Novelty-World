@@ -13,83 +13,91 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+export function countWords(parts: readonly string[]): number {
+  return parts.join(" ").trim().split(/\s+/).filter(Boolean).length;
+}
+
+// Ava Multilingual reads English prose at roughly 150 words per minute.
+// The streaming response has no Content-Length so the browser can't
+// report a duration until the full MP3 has arrived; estimating from word
+// count lets the scrubber and time display work from the first frame.
+// durationchange replaces this with the real value once known.
+const WORDS_PER_SECOND = 2.5;
+
 export function AudioPlayer({
   slug,
   kind,
+  approxWordCount,
   className,
 }: {
   slug: string;
   kind: "idea" | "topic";
+  approxWordCount: number;
   className?: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
   const [state, setState] = useState<State>("idle");
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(approxWordCount / WORDS_PER_SECOND);
 
   const audioUrl = `/api/finland-tts?kind=${kind}&slug=${slug}`;
 
   useEffect(() => {
     return () => {
-      audioRef.current?.pause();
-      audioRef.current = null;
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
+      const a = audioRef.current;
+      if (a) {
+        a.pause();
+        // Drop the src and reload the element so the browser cancels the
+        // in-flight HTTP stream — otherwise a slow Edge TTS synthesis can
+        // keep an orphan <audio> playing after the user navigates away.
+        a.removeAttribute("src");
+        a.load();
+        audioRef.current = null;
       }
     };
   }, []);
 
-  async function loadAudio(): Promise<HTMLAudioElement | null> {
-    if (audioRef.current) return audioRef.current;
-    setState("loading");
-    try {
-      // Download the full MP3 as a Blob first, then play from a local
-      // object URL. Seeking from a blob source works freely without the
-      // server needing to support Range requests.
-      const res = await fetch(audioUrl);
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      blobUrlRef.current = blobUrl;
-      const a = new Audio(blobUrl);
-      const onMeta = () => {
-        if (Number.isFinite(a.duration)) setDuration(a.duration);
-      };
-      a.addEventListener("loadedmetadata", onMeta);
-      a.addEventListener("durationchange", onMeta);
-      a.addEventListener("timeupdate", () => setCurrentTime(a.currentTime));
-      a.addEventListener("seeked", () => setCurrentTime(a.currentTime));
-      a.addEventListener("playing", () => setState("playing"));
-      a.addEventListener("pause", () => {
-        if (!a.ended) setState("paused");
-      });
-      a.addEventListener("ended", () => {
-        setState("idle");
-        setCurrentTime(0);
-      });
-      a.addEventListener("error", () => {
-        audioRef.current = null;
-        setState("idle");
-      });
-      audioRef.current = a;
-      return a;
-    } catch (err) {
+  function createAudio(): HTMLAudioElement {
+    const a = new Audio(audioUrl);
+    const onMeta = () => {
+      if (Number.isFinite(a.duration)) setDuration(a.duration);
+    };
+    a.addEventListener("loadedmetadata", onMeta);
+    a.addEventListener("durationchange", onMeta);
+    a.addEventListener("timeupdate", () => setCurrentTime(a.currentTime));
+    a.addEventListener("seeked", () => setCurrentTime(a.currentTime));
+    a.addEventListener("playing", () => setState("playing"));
+    a.addEventListener("waiting", () => {
+      if (!a.paused) setState("loading");
+    });
+    a.addEventListener("pause", () => {
+      if (!a.ended) setState("paused");
+    });
+    a.addEventListener("ended", () => {
       setState("idle");
-      console.error("Audio load failed", err);
-      return null;
-    }
+      setCurrentTime(0);
+    });
+    a.addEventListener("error", () => {
+      console.error("Audio load failed");
+      audioRef.current = null;
+      setState("idle");
+    });
+    return a;
   }
 
-  async function togglePlay() {
+  function togglePlay() {
     let a = audioRef.current;
     if (!a) {
-      a = await loadAudio();
-      if (!a) return;
+      a = createAudio();
+      audioRef.current = a;
     }
     if (a.paused) {
-      void a.play();
+      setState("loading");
+      void a.play().catch(() => {
+        // play() rejects on autoplay restrictions, navigation, or media
+        // load failure; the audio's own "error" event handles the latter.
+        setState("idle");
+      });
     } else {
       a.pause();
     }
@@ -97,14 +105,14 @@ export function AudioPlayer({
 
   function seek(seconds: number) {
     const a = audioRef.current;
-    if (a && Number.isFinite(a.duration)) {
-      const clamped = Math.min(Math.max(0, seconds), a.duration);
-      a.currentTime = clamped;
-      setCurrentTime(clamped);
-    }
+    if (!a || duration <= 0) return;
+    const clamped = Math.min(Math.max(0, seconds), duration);
+    a.currentTime = clamped;
+    setCurrentTime(clamped);
   }
 
-  const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const pct =
+    duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const isPlaying = state === "playing";
   const isLoading = state === "loading";
 

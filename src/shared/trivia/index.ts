@@ -1,5 +1,5 @@
 export type { GamePhase } from "./types";
-export { shuffleArray, highScoreKey } from "./logic";
+export { highScoreKey } from "./logic";
 export { LivesDisplay } from "./components/lives-display";
 export { ScoreDisplay } from "./components/score-display";
 export { GuessResult } from "./components/guess-result";
