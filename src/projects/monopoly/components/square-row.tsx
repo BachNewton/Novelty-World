@@ -211,7 +211,7 @@ function NameCell({
     >
       <span
         className={`truncate text-xs font-semibold${
-          mortgaged ? " line-through" : ""
+          mortgaged ? " line-through opacity-50" : ""
         }`}
       >
         {displayName(space)}
@@ -344,8 +344,8 @@ function CostCell({
   if (!content) return null;
   return (
     <div
-      className={`shrink-0 text-right font-mono text-xs font-semibold ${
-        mortgaged ? "opacity-50" : ""
+      className={`shrink-0 text-right font-mono text-xs font-semibold${
+        mortgaged ? " opacity-50" : ""
       }`}
       style={{ minWidth: "60px" }}
     >

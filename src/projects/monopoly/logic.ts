@@ -57,7 +57,6 @@ export function rentAt(state: GameState, position: number): RentDisplay | null {
   const space = SPACES[position];
   const ownerId = state.ownership[position];
   if (!ownerId) return null;
-  if (state.mortgaged[position]) return { kind: "dollars", amount: 0 };
 
   if (space.kind === "property") {
     const houses = state.houses[position] ?? 0;
