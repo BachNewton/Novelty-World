@@ -41,3 +41,8 @@ next-env.d.ts
 # supabase cli cache
 supabase/.temp/
 supabase/.branches/
+
+# finland catalogue audiobook generator
+scripts/.audiobook-cache/
+audiobook-gen*.log
+finland-catalogue-audiobook*.mp3
