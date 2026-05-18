@@ -177,8 +177,117 @@ export interface TurnGroup {
   events: readonly GameEvent[];
 }
 
-/** Authoritative game state. Once the multiplayer wiring lands this will be
- *  driven by the host; for now it's a static mock for visual development. */
+/** Phase of the active turn. Drives which intents are legal next and
+ *  whether `autoStep` may keep advancing the state. See
+ *  `monopoly/CLAUDE.md` for the full state-machine sketch. */
+export type TurnPhase =
+  | "pre-roll"
+  | "post-roll"
+  | "buy-decision"
+  | "auction"
+  | "jail-decision"
+  | "trade-pending"
+  | "game-over";
+
+/** Auction in progress after a player declined to buy a property they
+ *  landed on. */
+export interface AuctionState {
+  position: number;
+  /** Players still in the auction, in bidding order. */
+  active: readonly string[];
+  /** Whose turn to bid or pass. */
+  currentBidderId: string;
+  /** Highest bid so far. 0 before anyone has bid. */
+  highBid: number;
+  /** Null until someone bids. */
+  leaderId: string | null;
+}
+
+/** Trade proposal awaiting accept / decline / counter. */
+export interface PendingTrade {
+  id: string;
+  proposerId: string;
+  recipientId: string;
+  /** What the proposer would give up. */
+  gives: TradePayload;
+  /** What the proposer would receive in return. */
+  receives: TradePayload;
+}
+
+/** Active-turn block. The single source of truth for whose turn it is,
+ *  what decision we're waiting on, and any in-flight sub-game. */
+export interface TurnState {
+  playerId: string;
+  phase: TurnPhase;
+  /** Consecutive doubles rolled this turn (0-2). A third doubles emits a
+   *  `go-to-jail` event with reason "three-doubles" and ends the turn. */
+  doublesStreak: number;
+  /** Active player has requested a pause at this phase. `autoStep` will
+   *  not advance while true; the player keeps issuing intents until they
+   *  emit `resume`. */
+  paused: boolean;
+  /** Position of an unowned ownable square the active player just landed
+   *  on, awaiting a buy / decline-buy decision. */
+  pendingBuy?: number;
+  auction?: AuctionState;
+  pendingTrade?: PendingTrade;
+}
+
+/** Per-player automation policy. Drives the auto-play spectrum: the engine
+ *  consults these before prompting for a decision the player has already
+ *  decided in advance. */
+export interface PlayerPreferences {
+  /** "leave" = use a card or pay $50 whenever legal. "stay" = roll for
+   *  doubles for as long as possible. */
+  jailStance: "leave" | "stay";
+  /** Auto-buy a landed-on property when its price is ≤ this fraction of
+   *  current cash. 1 = always buy when affordable; 0 = always auction. */
+  autoBuyCashFraction: number;
+}
+
+/** External decisions submitted to the engine. Mechanical actions (roll,
+ *  move, pay rent, draw card) are NOT intents — they live inside
+ *  `autoStep`. See `monopoly/CLAUDE.md` "Intents vs mechanics — the line". */
+export type Intent =
+  | { kind: "buy"; playerId: string }
+  | { kind: "decline-buy"; playerId: string }
+  | { kind: "bid"; playerId: string; amount: number }
+  | { kind: "pass-bid"; playerId: string }
+  | { kind: "build"; playerId: string; position: number }
+  | { kind: "sell-building"; playerId: string; position: number }
+  | { kind: "mortgage"; playerId: string; position: number }
+  | { kind: "unmortgage"; playerId: string; position: number }
+  | {
+      kind: "propose-trade";
+      playerId: string;
+      recipientId: string;
+      gives: TradePayload;
+      receives: TradePayload;
+    }
+  | { kind: "accept-trade"; playerId: string; tradeId: string }
+  | { kind: "decline-trade"; playerId: string; tradeId: string }
+  | {
+      kind: "counter-trade";
+      playerId: string;
+      tradeId: string;
+      gives: TradePayload;
+      receives: TradePayload;
+    }
+  | { kind: "pay-to-leave-jail"; playerId: string }
+  | { kind: "use-jail-card"; playerId: string }
+  | { kind: "pause"; playerId: string; when: "pre-roll" | "post-roll" }
+  | { kind: "resume"; playerId: string }
+  | { kind: "end-turn"; playerId: string };
+
+/** Result of applying an external intent to the state. On success the
+ *  caller should then run `autoStep` to drain mechanics until the next
+ *  decision point. */
+export type ApplyResult =
+  | { ok: true; state: GameState; newEvents: readonly GameEvent[] }
+  | { ok: false; reason: string };
+
+/** Authoritative game state. Stored as a single Supabase row; broadcast to
+ *  guests via Realtime. */
 export interface GameState {
   players: readonly Player[];
   /** position -> player id; absent means unowned. */
@@ -192,4 +301,12 @@ export interface GameState {
   jailFreeCards: Readonly<{ chance?: string; communityChest?: string }>;
   /** Chronological play log, grouped by turn. Newest turn last. */
   turns: readonly TurnGroup[];
+  /** Whose turn it is and what we're waiting on. */
+  turn: TurnState;
+  /** Per-player automation policy, keyed by player id. */
+  preferences: Readonly<Record<string, PlayerPreferences>>;
+  /** Opaque seed for the RNG. Engine functions take an RNG argument and
+   *  advance it; this seed is what lets a game be deterministically
+   *  replayed from its event log. */
+  rngSeed: string;
 }

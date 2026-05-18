@@ -1,4 +1,9 @@
-import type { GameState, Player, TurnGroup } from "./types";
+import type {
+  GameState,
+  Player,
+  PlayerPreferences,
+  TurnGroup,
+} from "./types";
 
 const PLAYERS: readonly Player[] = [
   { id: "p1", name: "Kyle",   color: "crimson", icon: "dog",    cash: 1240, position: 10, inJail: true,  jailTurns: 1 },
@@ -10,6 +15,11 @@ const PLAYERS: readonly Player[] = [
   { id: "p7", name: "Morgan", color: "magenta", icon: "rocket", cash: 410,  position: 11, inJail: false, jailTurns: 0 },
   { id: "p8", name: "Drew",   color: "slate",   icon: "bird",   cash: 3210, position: 12, inJail: false, jailTurns: 0 },
 ];
+
+const DEFAULT_PREFERENCES: PlayerPreferences = {
+  jailStance: "leave",
+  autoBuyCashFraction: 1,
+};
 
 /** Hardcoded GameState for visual development. 4 players at JAIL (2 jailed,
  *  2 visiting), 3 on St. Charles Place, and 1 on the Electric Company —
@@ -84,6 +94,16 @@ export const MOCK_STATE: GameState = {
     34: 4, // Pennsylvania Avenue
   },
   turns: MOCK_TURNS(),
+  turn: {
+    playerId: "p2",
+    phase: "pre-roll",
+    doublesStreak: 0,
+    paused: false,
+  },
+  preferences: Object.fromEntries(
+    PLAYERS.map((p) => [p.id, DEFAULT_PREFERENCES]),
+  ),
+  rngSeed: "mock-seed",
 };
 
 /** Synthetic play history exercising every GameEvent kind so the EventLog
