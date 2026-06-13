@@ -245,6 +245,18 @@ export interface PlayerPreferences {
   autoBuyCashFraction: number;
 }
 
+/** One-shot pause flags a player can arm to interrupt the auto-pacer at
+ *  their next pre-roll (to trade / build / mortgage before rolling) or
+ *  post-roll (to do the same before ending the turn). Each flag is
+ *  consumed as soon as the engine reaches the matching phase for that
+ *  player — auto-cleared at the moment of pause. Players can also clear
+ *  it manually before it fires by unchecking the action-bar checkbox.
+ *  Not "preferences" because they're transient: arm → trigger → clear. */
+export interface ArmedPauses {
+  beforeRoll: boolean;
+  beforeEnd: boolean;
+}
+
 /** External decisions submitted to the engine. Mechanical actions (roll,
  *  move, pay rent, draw card) are NOT intents — they live inside
  *  `autoStep`. See `monopoly/CLAUDE.md` "Intents vs mechanics — the line". */
@@ -276,6 +288,17 @@ export type Intent =
   | { kind: "pay-to-leave-jail"; playerId: string }
   | { kind: "use-jail-card"; playerId: string }
   | { kind: "pause"; playerId: string; when: "pre-roll" | "post-roll" }
+  | {
+      /** Arm or disarm a one-shot pause for this player at the named
+       *  phase. Anyone can submit for themselves — it doesn't need to
+       *  be the active turn. The flag is consumed (and the box clears
+       *  in the UI) the next time the engine reaches that phase for
+       *  this player. See `ArmedPauses`. */
+      kind: "set-armed-pause";
+      playerId: string;
+      when: "before-roll" | "before-end";
+      armed: boolean;
+    }
   | { kind: "resume"; playerId: string }
   | { kind: "end-turn"; playerId: string };
 
@@ -305,6 +328,9 @@ export interface GameState {
   turn: TurnState;
   /** Per-player automation policy, keyed by player id. */
   preferences: Readonly<Record<string, PlayerPreferences>>;
+  /** Per-player armed one-shot pause flags, keyed by player id. Dense:
+   *  every player has an entry, even if both flags are false. */
+  armedPauses: Readonly<Record<string, ArmedPauses>>;
   /** Immutable identifier for the game's RNG stream. Set once when the
    *  game starts; used to derive the initial `rngState` and useful as a
    *  human-readable handle when debugging. */

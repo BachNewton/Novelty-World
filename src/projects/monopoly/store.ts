@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { apply, autoStep } from "./engine";
+import { ownablePrice } from "./logic";
 import { freshGame } from "./mocks";
 import { loadGame, saveGame, subscribeGame } from "./sync";
 import type { ApplyResult, GameState, Intent, TurnPhase } from "./types";
@@ -12,10 +13,16 @@ import type { ApplyResult, GameState, Intent, TurnPhase } from "./types";
 // that a 4-player no-op loop doesn't feel sluggish.
 const STEP_DELAY_MS = 1000;
 
-// Phases the auto-pacer is allowed to drive. Anything else (decision
-// phases, game-over) is a fixed point; the pacer leaves it alone and waits
-// for an intent to break out.
-const PACED_PHASES: ReadonlySet<TurnPhase> = new Set(["pre-roll", "post-roll"]);
+// Phases the auto-pacer is allowed to drive. Anything else (auction,
+// trade, game-over) is a fixed point; the pacer leaves it alone and waits
+// for an intent to break out. `buy-decision` is paced only when the active
+// player is not the local user — bots auto-buy / auto-pass, the human gets
+// the Buy/Pass UI and decides at their own speed.
+const PACED_PHASES: ReadonlySet<TurnPhase> = new Set([
+  "pre-roll",
+  "post-roll",
+  "buy-decision",
+]);
 
 /** "live": auto-pacing drives the game forward; this is the actual play
  *  loop. "demo": the state is a hand-picked snapshot for UI inspection;
@@ -326,16 +333,37 @@ if (typeof window !== "undefined") {
     if (store.mode !== "live") return false;
     if (store.state.turn.paused) return false;
     if (!store.isHost) return false;
-    return PACED_PHASES.has(store.state.turn.phase);
+    const { phase, playerId } = store.state.turn;
+    if (!PACED_PHASES.has(phase)) return false;
+    // Buy decisions belong to the player landing on the square. The pacer
+    // bot-plays everyone else (no input channel for non-local seats yet),
+    // but the local human gets the Buy/Pass UI and chooses themselves.
+    if (phase === "buy-decision" && playerId === store.myPlayerId) return false;
+    return true;
   };
 
   const tick = (): void => {
     pacingTimer = null;
     const store = useMonopolyStore.getState();
     if (!pacerEnabled(store)) return;
-    const { phase, playerId } = store.state.turn;
-    if (phase === "pre-roll") store.step();
-    else if (phase === "post-roll") store.submit({ kind: "end-turn", playerId });
+    const { phase, playerId, pendingBuy } = store.state.turn;
+    if (phase === "pre-roll") {
+      store.step();
+    } else if (phase === "post-roll") {
+      store.submit({ kind: "end-turn", playerId });
+    } else if (phase === "buy-decision" && pendingBuy !== undefined) {
+      // Bot policy: buy whenever affordable, otherwise decline. This is the
+      // baseline behavior CLAUDE.md sketches; smarter policies will plug in
+      // later via `preferences` and a real bot module.
+      const player = store.state.players.find((p) => p.id === playerId);
+      const price = ownablePrice(pendingBuy);
+      if (!player || price === null) return;
+      const intent: Intent =
+        player.cash >= price
+          ? { kind: "buy", playerId }
+          : { kind: "decline-buy", playerId };
+      store.submit(intent);
+    }
   };
 
   const schedule = (): void => {
@@ -355,12 +383,15 @@ if (typeof window !== "undefined") {
     if (
       next.state === prev.state &&
       next.mode === prev.mode &&
-      next.isHost === prev.isHost
+      next.isHost === prev.isHost &&
+      next.myPlayerId === prev.myPlayerId
     ) {
       return;
     }
-    // State, mode, or role changed — drop any pending tick that was
-    // scheduled against the old state, then re-evaluate from scratch.
+    // State, mode, role, or local-seat changed — drop any pending tick that
+    // was scheduled against the old context, then re-evaluate from scratch.
+    // `myPlayerId` matters because the buy-decision pacer skips the local
+    // seat; assigning or clearing it must wake/sleep the pacer accordingly.
     cancel();
     schedule();
   });

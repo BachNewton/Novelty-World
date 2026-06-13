@@ -16,6 +16,18 @@ const RAILROAD_RENT: readonly [number, number, number, number] = [25, 50, 100, 2
 const UTILITY_MULT_PARTIAL = 4;
 const UTILITY_MULT_FULL = 10;
 
+/** Buy price of an ownable square (property, railroad, utility), or null
+ *  for any other space. Used by the engine to validate buy intents, by the
+ *  bot pacer to decide buy vs. decline, and by the action bar to show the
+ *  player what they'd pay. */
+export function ownablePrice(position: number): number | null {
+  const space = SPACES[position];
+  if (space.kind === "property") return space.price;
+  if (space.kind === "railroad") return space.price;
+  if (space.kind === "utility") return space.price;
+  return null;
+}
+
 /** True when ownerId holds every property of `color`. */
 export function hasMonopoly(
   state: GameState,

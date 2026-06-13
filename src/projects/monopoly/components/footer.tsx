@@ -1,5 +1,7 @@
 import type { GameState } from "../types";
+import { ActionBar } from "./action-bar";
 import { EventLog } from "./event-log";
+import { PromptSection } from "./prompt-section";
 
 interface Props {
   state: GameState;
@@ -16,30 +18,9 @@ export function Footer({ state }: Props) {
           "0 -1px 0 var(--mono-frame), 0 -6px 12px rgba(0, 0, 0, 0.75)",
       }}
     >
+      <PromptSection state={state} />
       <EventLog state={state} />
-      <div className="flex">
-        <FooterButton label="Roll" />
-        <FooterButton label="Buy" />
-        <FooterButton label="Trade" />
-        <FooterButton label="End" />
-      </div>
+      <ActionBar state={state} />
     </div>
-  );
-}
-
-function FooterButton({ label }: { label: string }) {
-  return (
-    <button
-      type="button"
-      className="flex flex-1 items-center justify-center px-3 py-5 font-semibold uppercase tracking-wide"
-      style={{
-        backgroundColor: "var(--mono-board)",
-        color: "var(--mono-ink)",
-        fontSize: "clamp(0.875rem, 2.5vmin, 1.125rem)",
-        minHeight: "56px",
-      }}
-    >
-      {label}
-    </button>
   );
 }

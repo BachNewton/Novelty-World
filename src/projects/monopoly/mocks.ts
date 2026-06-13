@@ -1,6 +1,7 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { createRng } from "./engine";
 import type {
+  ArmedPauses,
   GameEvent,
   GameState,
   Player,
@@ -26,6 +27,11 @@ const STARTING_CASH = 1500;
 const DEFAULT_PREFERENCES: PlayerPreferences = {
   jailStance: "leave",
   autoBuyCashFraction: 1,
+};
+
+const NO_ARMED_PAUSES: ArmedPauses = {
+  beforeRoll: false,
+  beforeEnd: false,
 };
 
 /** Fresh 4-player game: all tokens on GO, no ownership, empty log with the
@@ -69,6 +75,9 @@ export function freshGame(
     },
     preferences: Object.fromEntries(
       players.map((p) => [p.id, DEFAULT_PREFERENCES]),
+    ),
+    armedPauses: Object.fromEntries(
+      players.map((p) => [p.id, NO_ARMED_PAUSES]),
     ),
     rngSeed,
     rngState: createRng(rngSeed).getState(),
@@ -156,6 +165,9 @@ export const MOCK_STATE: GameState = {
   },
   preferences: Object.fromEntries(
     PLAYERS.map((p) => [p.id, DEFAULT_PREFERENCES]),
+  ),
+  armedPauses: Object.fromEntries(
+    PLAYERS.map((p) => [p.id, NO_ARMED_PAUSES]),
   ),
   rngSeed: "mock-seed",
   rngState: createRng("mock-seed").getState(),
@@ -335,6 +347,9 @@ export function sliceState(state: GameState, count: PlayerCount): GameState {
   const preferences = Object.fromEntries(
     Object.entries(state.preferences).filter(([pid]) => ids.has(pid)),
   );
+  const armedPauses = Object.fromEntries(
+    Object.entries(state.armedPauses).filter(([pid]) => ids.has(pid)),
+  );
   // If the active turn references a player we just sliced away, fall back
   // to the first surviving player so the UI has a coherent turn pointer.
   // Auction/pendingTrade contents are dropped for the same reason.
@@ -355,6 +370,7 @@ export function sliceState(state: GameState, count: PlayerCount): GameState {
     turns,
     turn,
     preferences,
+    armedPauses,
     rngSeed: state.rngSeed,
     rngState: state.rngState,
   };
