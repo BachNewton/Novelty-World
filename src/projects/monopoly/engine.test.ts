@@ -256,7 +256,7 @@ describe("autoStep buy-decision", () => {
   });
 
   it("stays at post-roll when landing on a non-ownable space", () => {
-    const state = freshGame("test-land-tax");
+    const state = freshGame("test-land-tax-b");
     const { total } = predictRoll(state.rngState);
     const target = 4; // Income Tax
     const positioned = placeActivePlayerAt(
@@ -266,6 +266,61 @@ describe("autoStep buy-decision", () => {
     const { state: next } = autoStep(positioned);
     expect(next.turn.phase).toBe("post-roll");
     expect(next.turn.pendingBuy).toBeUndefined();
+  });
+});
+
+describe("autoStep doubles", () => {
+  it("grants the active player another roll on doubles, keeping the streak", () => {
+    const start = freshGame("test-doubles-roll"); // rolls [4,4]
+    const { total } = predictRoll(start.rngState);
+    // Land on Income Tax (4): non-ownable, so the roll resolves past landing.
+    const placed = placeActivePlayerAt(start, (4 - total + 40) % 40);
+    const { state: next, newEvents } = autoStep(placed);
+
+    const roll = newEvents[0];
+    if (roll.kind !== "roll") throw new Error("expected a roll event");
+    expect(roll.dice[0]).toBe(roll.dice[1]);
+    expect(roll.doublesStreak).toBe(1);
+    // Same player rolls again — back to pre-roll, streak kept, no handoff.
+    expect(next.turn.playerId).toBe("p1");
+    expect(next.turn.phase).toBe("pre-roll");
+    expect(next.turn.doublesStreak).toBe(1);
+    expect(next.turns).toHaveLength(1);
+  });
+
+  it("does not grant a fourth roll after the third consecutive double", () => {
+    const start = freshGame("test-doubles-roll"); // rolls [4,4]
+    const { total } = predictRoll(start.rngState);
+    const placed: GameState = {
+      ...placeActivePlayerAt(start, (4 - total + 40) % 40),
+      turn: { ...start.turn, doublesStreak: 2 },
+    };
+    const { state: next } = autoStep(placed);
+
+    // Third double: no bonus roll. Jail is deferred, so it settles at
+    // post-roll and the turn ends through the normal end-turn path.
+    expect(next.turn.phase).toBe("post-roll");
+    expect(next.turn.playerId).toBe("p1");
+    expect(next.turn.doublesStreak).toBe(3);
+
+    const ended = apply(next, { kind: "end-turn", playerId: "p1" });
+    if (!ended.ok) throw new Error(`expected ok, got ${ended.reason}`);
+    expect(ended.state.turn.playerId).toBe("p2");
+    expect(ended.state.turn.doublesStreak).toBe(0);
+  });
+
+  it("settles into post-roll and resets the streak on a non-double", () => {
+    const start = freshGame("test-rent-basic"); // rolls [4,6]
+    const { total } = predictRoll(start.rngState);
+    const placed = placeActivePlayerAt(start, (4 - total + 40) % 40);
+    const { state: next, newEvents } = autoStep(placed);
+
+    const roll = newEvents[0];
+    if (roll.kind !== "roll") throw new Error("expected a roll event");
+    expect(roll.dice[0]).not.toBe(roll.dice[1]);
+    expect(roll.doublesStreak).toBe(0);
+    expect(next.turn.phase).toBe("post-roll");
+    expect(next.turn.doublesStreak).toBe(0);
   });
 });
 
@@ -771,7 +826,7 @@ describe("bankruptcy", () => {
 
 describe("end-turn skips bankrupt players", () => {
   it("advances past a bankrupt player in the rotation", () => {
-    const start = freshGame("test-end-skip-bankrupt");
+    const start = freshGame("test-end-skip-bankrupt-b");
     // p1 is rolling. Position them on Income Tax so autoStep stops at
     // post-roll without triggering any rent path.
     const { state: placed } = setupLandingOn(start, 4); // Income Tax

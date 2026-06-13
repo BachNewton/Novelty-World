@@ -139,6 +139,34 @@ function enterPostRoll(
   return { turn, armedPauses };
 }
 
+/** Decide where the active player goes once a landing is fully resolved.
+ *  Rolling doubles grants another roll (back to pre-roll, same player, streak
+ *  kept) — but only up to two: a third consecutive double would jail the
+ *  player, which isn't built yet, so the turn ends normally through post-roll
+ *  rather than granting a fourth roll. A non-double settles into post-roll.
+ *  Centralized so every resolution path (autoStep's default landing,
+ *  applyBuy, applyDeclineBuy) handles doubles identically. */
+function afterLanding(state: GameState): GameState {
+  const streak = state.turn.doublesStreak;
+  if (streak === 1 || streak === 2) {
+    // Rolled doubles: same player rolls again. Keep the streak and honor an
+    // armed before-roll pause exactly as a fresh turn would.
+    const paused = state.armedPauses[state.turn.playerId].beforeRoll;
+    const turn: TurnState = {
+      ...state.turn,
+      phase: "pre-roll",
+      paused,
+      pendingBuy: undefined,
+    };
+    const armedPauses = paused
+      ? clearArmedFlag(state.armedPauses, state.turn.playerId, "beforeRoll")
+      : state.armedPauses;
+    return { ...state, turn, armedPauses };
+  }
+  const { turn, armedPauses } = enterPostRoll(state);
+  return { ...state, turn, armedPauses };
+}
+
 function clearArmedFlag(
   armedPauses: GameState["armedPauses"],
   playerId: string,
@@ -323,10 +351,9 @@ function applyBuy(
     ownership,
     turns,
   };
-  const { turn, armedPauses } = enterPostRoll(afterPurchase);
   return {
     ok: true,
-    state: { ...afterPurchase, turn, armedPauses },
+    state: afterLanding(afterPurchase),
     newEvents: [buyEvent],
   };
 }
@@ -346,9 +373,9 @@ function applyDeclineBuy(
   }
   // CLAUDE.md says decline-buy sends the property to auction, but the
   // auction sub-game isn't built yet. Until it lands, declining just leaves
-  // the property unowned and drops the active turn into post-roll.
-  const { turn, armedPauses } = enterPostRoll(state);
-  return { ok: true, state: { ...state, turn, armedPauses }, newEvents: [] };
+  // the property unowned and resolves the landing (post-roll, or another
+  // roll when the move was doubles).
+  return { ok: true, state: afterLanding(state), newEvents: [] };
 }
 
 function applySetArmedPause(
@@ -417,9 +444,10 @@ function applyEndTurn(
  *  player to the creditor when they can't cover), then either stops at
  *  `buy-decision` (unowned ownable), `game-over` (only one survivor),
  *  the next non-bankrupt player's `pre-roll` (active player just busted),
- *  or `post-roll` (default). Doubles, jail, card draws, and tax are
- *  intentionally deferred — those landings remain no-ops while we grow
- *  the loop. */
+ *  another `pre-roll` for the same player (rolled doubles), or `post-roll`
+ *  (default). Doubles grant another roll, capped at three in a row — the
+ *  third would jail the player, which isn't built yet, so the turn just
+ *  ends. Jail, card draws, and tax remain deferred. */
 export function autoStep(
   state: GameState,
 ): { state: GameState; newEvents: readonly GameEvent[] } {
@@ -439,6 +467,7 @@ export function autoStep(
   const sum = fromPos + total;
   const toPos = sum % SPACES.length;
   const passedGo = sum >= SPACES.length;
+  const doublesStreak = d1 === d2 ? state.turn.doublesStreak + 1 : 0;
 
   const movedPlayer: Player = {
     ...player,
@@ -452,7 +481,7 @@ export function autoStep(
   const rollEvent: GameEvent = {
     kind: "roll",
     dice: [d1, d2],
-    doublesStreak: 0,
+    doublesStreak,
     toPosition: toPos,
     passedGo,
   };
@@ -462,6 +491,7 @@ export function autoStep(
     players,
     turns,
     rngState: rng.getState(),
+    turn: { ...state.turn, doublesStreak },
   };
 
   const landedOnUnownedOwnable =
@@ -472,7 +502,7 @@ export function autoStep(
     // applyBuy / applyDeclineBuy paths route through `enterPostRoll` and
     // honor the armed flag then.
     const turn: TurnState = {
-      ...state.turn,
+      ...afterMove.turn,
       phase: "buy-decision",
       pendingBuy: toPos,
     };
@@ -513,11 +543,7 @@ export function autoStep(
     };
   }
 
-  const { turn, armedPauses } = enterPostRoll(workingState);
-  return {
-    state: { ...workingState, turn, armedPauses },
-    newEvents,
-  };
+  return { state: afterLanding(workingState), newEvents };
 }
 
 function rollDie(rng: Rng): number {

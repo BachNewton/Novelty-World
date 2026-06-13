@@ -8,10 +8,10 @@ import { freshGame } from "./mocks";
 import { loadGame, saveGame, subscribeGame } from "./sync";
 import type { ApplyResult, GameState, Intent, TurnPhase } from "./types";
 
-// Visible pause between mechanical steps so the user can read each roll
-// land in the log and watch tokens move. Slow enough to follow; fast enough
-// that a 4-player no-op loop doesn't feel sluggish.
-const STEP_DELAY_MS = 1000;
+// Visible pause between mechanical steps so the user can read each roll land
+// in the log and watch the camera glide + token slide settle before the next
+// one. Slow enough to follow; fast enough that a no-op loop isn't sluggish.
+const STEP_DELAY_MS = 2000;
 
 // Phases the auto-pacer is allowed to drive. Anything else (auction,
 // trade, game-over) is a fixed point; the pacer leaves it alone and waits
