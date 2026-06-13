@@ -6,6 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { SPACES } from "../data";
 import { rentAt, type RentDisplay } from "../logic";
 import { useMonopolyStore } from "../store";
+import { useTokenAnim } from "../token-anim-store";
 import { PLAYER_COLOR_VAR, PROPERTY_COLOR_VAR } from "../theme";
 import type { Player, Space } from "../types";
 import { MortgageMarker } from "./mortgage-marker";
@@ -33,6 +34,13 @@ export function SquareRow({ position }: Props) {
   const tokens = useMonopolyStore(
     useShallow((s) => s.state.players.filter((p) => p.position === position)),
   );
+  // While a token is sliding to this square on the overlay, drop it here so it
+  // isn't drawn twice. The position-keyed selector keeps every other row's
+  // result at null, so only this row re-renders when the animation flips.
+  const hiddenId = useTokenAnim((s) => (s.hidePos === position ? s.hideId : null));
+  const visibleTokens = hiddenId
+    ? tokens.filter((p) => p.id !== hiddenId)
+    : tokens;
   const rent = useMonopolyStore(useShallow((s) => rentAt(s.state, position)));
 
   // Two zones: a left identity panel (property color full-bleed, or card bg
@@ -77,7 +85,7 @@ export function SquareRow({ position }: Props) {
         style={{ background: contextTint, boxShadow: dividerShadow }}
       >
         <NameCell space={space} mortgaged={mortgaged} />
-        <TokenStrip tokens={tokens} />
+        <TokenStrip tokens={visibleTokens} />
         <CostCell space={space} mortgaged={mortgaged} rent={rent} />
       </div>
     </div>
