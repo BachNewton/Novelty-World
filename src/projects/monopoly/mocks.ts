@@ -1,3 +1,4 @@
+import type { PlayerProfile } from "@/shared/lib/profile";
 import { createRng } from "./engine";
 import type {
   GameEvent,
@@ -29,15 +30,29 @@ const DEFAULT_PREFERENCES: PlayerPreferences = {
 
 /** Fresh 4-player game: all tokens on GO, no ownership, empty log with the
  *  first TurnGroup opened for the starting player. Names/colors/icons come
- *  from the same roster the mock state uses (p1 = Kyle, the human seat). */
-export function freshGame(rngSeed = "fresh-1"): GameState {
-  const players: Player[] = PLAYERS.slice(0, 4).map((p) => ({
-    ...p,
-    cash: STARTING_CASH,
-    position: 0,
-    inJail: false,
-    jailTurns: 0,
-  }));
+ *  from the same roster the mock state uses (p1 = Kyle, the human seat).
+ *
+ *  Pass `seat` to replace slot 0's id and name with a real PlayerProfile —
+ *  used by online games so the seeding client is recognized as a member
+ *  (and therefore the authoritative writer) on reload. Slots 1-3 stay as
+ *  the bot roster until the lobby lands. */
+export function freshGame(
+  rngSeed = "fresh-1",
+  seat?: PlayerProfile,
+): GameState {
+  const players: Player[] = PLAYERS.slice(0, 4).map((p, i) => {
+    const base: Player = {
+      ...p,
+      cash: STARTING_CASH,
+      position: 0,
+      inJail: false,
+      jailTurns: 0,
+    };
+    if (i === 0 && seat) {
+      return { ...base, id: seat.id, name: seat.name };
+    }
+    return base;
+  });
   const firstPlayer = players[0];
   return {
     players,

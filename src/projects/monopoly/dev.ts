@@ -23,7 +23,9 @@ const OWNABLE_POSITIONS = SPACES.flatMap((s, i) =>
  *    2 / 4 / 8 — load a sliced mock with that player count (demo)
  *    0         — give every ownable square to the first player (demo)
  *    1         — randomly assign every ownable square (demo)
- *    n         — new live game (auto-pacing resumes)
+ *    n         — new live game, drop online connection (auto-pacing resumes)
+ *    r         — online host: overwrite the row with a fresh game seating me
+ *    f         — online: re-fetch the row from Supabase and apply it locally
  *
  *  No-ops in production builds. */
 export function useMonopolyDebugKeys() {
@@ -38,6 +40,8 @@ export function useMonopolyDebugKeys() {
       else if (e.key === "0") store.loadDemo(withAllOwnedByFirst(current));
       else if (e.key === "1") store.loadDemo(withRandomOwnership(current));
       else if (e.key === "n") store.reset();
+      else if (e.key === "r") void store.restart();
+      else if (e.key === "f") void store.resume();
     };
     window.addEventListener("keydown", handler);
     return () => {
