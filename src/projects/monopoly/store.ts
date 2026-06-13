@@ -2,9 +2,9 @@
 
 import { create } from "zustand";
 import type { PlayerProfile } from "@/shared/lib/profile";
+import { botIntent } from "./bots/policy";
 import { driverRole } from "./driver";
 import { apply, autoStep } from "./engine";
-import { mortgageValueAt, ownablePrice } from "./logic";
 import { freshGame } from "./mocks";
 import type { MonopolyResult } from "./protocol";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
@@ -471,6 +471,9 @@ if (typeof window !== "undefined") {
 
   const pacerEnabled = (store: MonopolyStore): boolean => {
     if (store.mode !== "live") return false;
+    // Only an in-play game auto-advances; a lobby (or a finished game) is at
+    // rest until `startGame` flips it to `active`.
+    if (store.state.status !== "active") return false;
     if (store.state.turn.paused) return false;
     const role = driverRole(store.connection, store.state, store.myPlayerId);
     if (role === "none") return false;
@@ -489,46 +492,18 @@ if (typeof window !== "undefined") {
     pacingTimer = null;
     const store = useMonopolyStore.getState();
     if (!pacerEnabled(store)) return;
-    const { phase, playerId, pendingBuy, pendingDebt } = store.state.turn;
+    const { phase, playerId } = store.state.turn;
     if (phase === "pre-roll") {
+      // Mechanical beat — applies to "self" and "proxy" drivers alike.
       store.step();
     } else if (phase === "post-roll") {
+      // No "end turn" button by design: auto-end once the turn settles.
       store.submit({ kind: "end-turn", playerId });
-    } else if (phase === "buy-decision" && pendingBuy !== undefined) {
-      // Bot policy: buy whenever affordable, otherwise decline. This is the
-      // baseline behavior CLAUDE.md sketches; smarter policies will plug in
-      // later via `preferences` and a real bot module.
-      const player = store.state.players.find((p) => p.id === playerId);
-      const price = ownablePrice(pendingBuy);
-      if (!player || price === null) return;
-      const intent: Intent =
-        player.cash >= price
-          ? { kind: "buy", playerId }
-          : { kind: "decline-buy", playerId };
-      store.submit(intent);
-    } else if (phase === "must-raise-cash" && pendingDebt) {
-      // Bot policy: mortgage the cheapest un-mortgaged, building-free
-      // property the bot owns. The engine auto-settles the debt once cash
-      // crosses the threshold, so one mortgage per tick is enough — the
-      // pacer will fire again next state change until the phase exits.
-      const candidates: { pos: number; value: number }[] = [];
-      for (const [posStr, oid] of Object.entries(store.state.ownership)) {
-        if (oid !== playerId) continue;
-        const pos = Number(posStr);
-        if (store.state.mortgaged[pos]) continue;
-        if (store.state.houses[pos]) continue;
-        const value = mortgageValueAt(pos);
-        if (value !== null) candidates.push({ pos, value });
-      }
-      // Cheapest first preserves the more valuable assets for as long as
-      // possible — pure heuristic, swap in a real policy when bots learn.
-      if (candidates.length === 0) return;
-      candidates.sort((a, b) => a.value - b.value);
-      store.submit({
-        kind: "mortgage",
-        playerId,
-        position: candidates[0].pos,
-      });
+    } else {
+      // buy-decision / must-raise-cash — reached here only as a "proxy" driver
+      // (pacerEnabled gates the human out). Resolve via bot policy.
+      const intent = botIntent(store.state, playerId);
+      if (intent) store.submit(intent);
     }
   };
 

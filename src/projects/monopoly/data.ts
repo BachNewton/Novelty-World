@@ -1,4 +1,31 @@
-import type { Space } from "./types";
+import type { PlayerColor, PlayerIcon, Space } from "./types";
+
+/** Canonical assignment order for player seats. The lobby hands out the first
+ *  free color / icon in these orders, so seat N defaults to the Nth entry —
+ *  matching the pairing the mock roster uses (crimson/dog, violet/car, …).
+ *  `satisfies` keeps each array in sync with its union type (a typo or a hue
+ *  dropped from `PlayerColor` fails the build). */
+export const PLAYER_COLORS = [
+  "crimson",
+  "violet",
+  "teal",
+  "amber",
+  "emerald",
+  "indigo",
+  "magenta",
+  "slate",
+] as const satisfies readonly PlayerColor[];
+
+export const PLAYER_ICONS = [
+  "dog",
+  "car",
+  "ship",
+  "crown",
+  "cat",
+  "plane",
+  "rocket",
+  "bird",
+] as const satisfies readonly PlayerIcon[];
 
 /** The 40 spaces of a standard US Monopoly board, in order starting from GO
  *  and proceeding clockwise (GO is the bottom-right corner). */

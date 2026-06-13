@@ -1,13 +1,11 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { createRng } from "./engine";
-import type {
-  ArmedPauses,
-  GameEvent,
-  GameState,
-  Player,
-  PlayerPreferences,
-  TurnGroup,
-} from "./types";
+import {
+  DEFAULT_PREFERENCES,
+  NO_ARMED_PAUSES,
+  STARTING_CASH,
+} from "./lobby";
+import type { GameEvent, GameState, Player, TurnGroup } from "./types";
 
 export type PlayerCount = 2 | 4 | 8;
 
@@ -23,18 +21,6 @@ const PLAYERS: readonly Player[] = [
   { id: "p7", name: "Morgan", color: "magenta", icon: "rocket", cash: 410,  position: 11, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
   { id: "p8", name: "Drew",   color: "slate",   icon: "bird",   cash: 3210, position: 12, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
 ];
-
-const STARTING_CASH = 1500;
-
-const DEFAULT_PREFERENCES: PlayerPreferences = {
-  jailStance: "leave",
-  autoBuyCashFraction: 1,
-};
-
-const NO_ARMED_PAUSES: ArmedPauses = {
-  beforeRoll: false,
-  beforeEnd: false,
-};
 
 /** Fresh 4-player game: all tokens on GO, no ownership, empty log with the
  *  first TurnGroup opened for the starting player. Names/colors/icons come
@@ -67,6 +53,9 @@ export function freshGame(
   });
   const firstPlayer = players[0];
   return {
+    // Immediate-play seed (local `dev` sandbox and the current online seed):
+    // skips the lobby entirely, so it starts already `active`.
+    status: "active",
     players,
     ownership: {},
     mortgaged: {},
@@ -95,6 +84,7 @@ export function freshGame(
  *  exercises the no-cost crowded square, the property crowded square, and
  *  a solo token on a cost-bearing utility row all in one view. */
 export const MOCK_STATE: GameState = {
+  status: "active",
   players: PLAYERS,
   ownership: {
     // Browns — Kyle holds the monopoly (one mortgaged)
@@ -368,6 +358,7 @@ export function sliceState(state: GameState, count: PlayerCount): GameState {
         paused: false,
       };
   return {
+    status: state.status,
     players,
     ownership,
     mortgaged,

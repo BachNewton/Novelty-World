@@ -87,6 +87,7 @@ interface TurnState {
 
 interface GameState {
   ...existing fields,
+  status: "lobby" | "active" | "finished";  // lifecycle (see "Lobby")
   turn: TurnState;
   preferences: Readonly<Record<string, PlayerPreferences>>;
   rngSeed: string;           // for deterministic replay + RL training
@@ -106,6 +107,16 @@ type Bot = (state: GameState, playerId: string) => Intent;
 ```
 
 The bot is given the full state (Monopoly is open-information) and returns one intent. The engine handles everything else. The same shape works for the dumb early bot, the rule-based bot, and an eventual learned policy.
+
+The baseline lives in `bots/policy.ts` as `botIntent(state, playerId): Intent | null` — pure, returning an intent for the two proxy-only decision phases (`buy-decision`: buy when affordable; `must-raise-cash`: mortgage the cheapest free property) and `null` when there's nothing to decide. The store's auto-pacer calls it **only as a "proxy" driver** (a bot seat or an absent human — see `driver.ts`); the universal mechanical beats (`pre-roll` → step, `post-roll` → end-turn) stay in the pacer because they apply to "self" drivers too. Swap in a smarter policy here without touching the pacer.
+
+## Lobby
+
+A game row carries a `GameState.status` of `lobby` | `active` | `finished`. The lifecycle:
+
+- `createLobby(host, rngSeed)` seeds a `lobby` row seating the host alone. Other clients `joinLobby` (auto-assigned the first free color + icon), `addBot`, `removePlayer`, and tweak seats via `setPlayerColor` / `setPlayerIcon` / `setPlayerName`. `startGame` validates the roster (≥2 players, ≥1 human) and flips `status` to `active`.
+- These **lobby ops live in `lobby.ts` and are pure** (same discipline as the engine: no side effects, no `Math.random`/`Date.now` — the rng seed and any ids are injected or derived from the roster). Color/icon uniqueness is enforced on every seat and edit. Stage 4 wires them through the authoritative route + UI.
+- The auto-pacer only runs while `status === "active"`, so a lobby (or a finished game) sits at rest. The immediate-play seed (`freshGame`, used by the local `dev` sandbox and the current online seed) skips the lobby and starts `active`; the engine flips `status` to `finished` when a winner is declared.
 
 ## Multiplayer / networking
 
@@ -159,18 +170,22 @@ that never touches the DB; no param is the lobby (Stage 4).
 src/projects/monopoly/
   CLAUDE.md            ← this file
   index.tsx            ← re-export of the root component
-  types.ts             ← GameState, Intent, GameEvent, TurnState, etc.
-  data.ts              ← static board data (SPACES, cards)
+  types.ts             ← GameState, Intent, GameEvent, TurnState, GameStatus, etc.
+  data.ts              ← static board data (SPACES, cards, PLAYER_COLORS/ICONS palette)
   theme.ts             ← color tokens, theming
   logic.ts             ← pure helpers (hasMonopoly, rentAt, isLegal*, ...)
+  lobby.ts             ← pure lobby ops (createLobby, joinLobby, addBot, startGame, ...) + setup constants
+  lobby.test.ts        ← unit tests for lobby ops (uniqueness, start validation)
   engine.ts            ← apply(intent), autoStep, applyXxx per-intent reducers
   engine.test.ts       ← unit tests for apply / autoStep
   logic.test.ts        ← unit tests for pure helpers
-  store.ts             ← Zustand store, "use client", wraps engine for the UI
-  mocks.ts             ← MOCK_STATE for visual development
+  driver.ts            ← driverRole(connection, state, myId): self | proxy | none
+  driver.test.ts       ← unit tests for driver role
+  store.ts             ← Zustand store, "use client", wraps engine + auto-pacer for the UI
+  mocks.ts             ← MOCK_STATE + freshGame (immediate-play seed) for visual development
   dev.ts               ← debug-only helpers (slice state, randomize ownership, debug keys)
   bots/
-    random.ts          ← stupid bot baseline
+    policy.ts          ← botIntent baseline policy (+ policy.test.ts)
   components/          ← React components, dumb where possible
 ```
 

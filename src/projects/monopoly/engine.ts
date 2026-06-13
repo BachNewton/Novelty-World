@@ -418,6 +418,7 @@ function goBankrupt(
     newEvents.push(winnerEvent);
     next = {
       ...next,
+      status: "finished",
       turns,
       turn: { ...next.turn, phase: "game-over", paused: false },
     };

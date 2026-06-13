@@ -342,9 +342,22 @@ export type ApplyResult =
   | { ok: true; state: GameState; newEvents: readonly GameEvent[] }
   | { ok: false; reason: string };
 
+/** Lifecycle stage of a game row.
+ *  - `lobby`: players are still joining and configuring their seats; the
+ *    engine and auto-pacer are idle until someone starts the game.
+ *  - `active`: in play — the normal turn loop runs.
+ *  - `finished`: a winner has been declared (`turn.phase === "game-over"`).
+ *    The row is kept for history but excluded from the lobby's joinable list. */
+export type GameStatus = "lobby" | "active" | "finished";
+
 /** Authoritative game state. Stored as a single Supabase row; broadcast to
  *  guests via Realtime. */
 export interface GameState {
+  /** Lifecycle stage — gates the lobby against the play loop. See
+   *  `GameStatus`. Local (`dev`) and the current online seed start `active`;
+   *  the lobby flow (`createLobby`) starts `lobby` and `startGame` flips it
+   *  to `active`. */
+  status: GameStatus;
   players: readonly Player[];
   /** position -> player id; absent means unowned. */
   ownership: Readonly<Record<number, string>>;
