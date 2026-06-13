@@ -83,13 +83,18 @@ flag it loudly in your summary so the user can replace them.
 ## Slug generation
 
 kebab-case, derived from the title. Verify it doesn't collide with an
-existing entry's slug — read the destination file first and check.
+existing entry's slug before writing. *How* you check depends on the
+catalogue's storage layout — see the skill's own file-layout guidance
+(e.g. ideas are one file per slug, so the check is "does that file
+already exist?").
 
-## Append, don't reformat
+## Add, don't reformat
 
-Add the new object inside the relevant exported array, after the last
-existing entry. Keep alphabetical-by-slug ordering only if the file
-already follows it; otherwise just append.
+Add the new entry without rewriting, re-indenting, or reordering the
+existing ones — keep the diff to the entry you're adding. Exactly *where*
+a new entry goes depends on the catalogue's storage layout, which differs
+per skill (a single exported array vs. one file per entry plus a barrel),
+so follow the skill's own file-layout guidance for the mechanics.
 
 ## After writing
 

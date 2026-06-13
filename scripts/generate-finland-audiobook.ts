@@ -19,8 +19,8 @@ import { createHash } from "node:crypto";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
-import { IDEAS } from "../src/projects/finland-catalogue/ideas.ts";
-import { TOPICS } from "../src/projects/finland-catalogue/topics.ts";
+import { IDEAS } from "../src/projects/finland-catalogue/ideas/index.ts";
+import { TOPICS } from "../src/projects/finland-catalogue/topics/index.ts";
 import type { Idea } from "../src/projects/finland-catalogue/types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

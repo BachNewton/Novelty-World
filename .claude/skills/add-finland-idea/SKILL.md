@@ -1,19 +1,56 @@
 ---
 name: add-finland-idea
-description: Add one or more travel ideas to the Finland Catalogue project (src/projects/finland-catalogue). Researches each idea on the web, fills out every property defined in the Idea schema, and appends fully-populated entries to ideas.ts. Use whenever the user asks to "add an idea (or ideas) to Finland", "/add-finland-idea X, Y, Z", or anything similar. Pass one or more ideas as a comma-separated list.
+description: Add one or more travel ideas to the Finland Catalogue project (src/projects/finland-catalogue). Researches each idea on the web, fills out every property defined in the Idea schema, and adds fully-populated entries under src/projects/finland-catalogue/ideas/ (one file per idea). Use whenever the user asks to "add an idea (or ideas) to Finland", "/add-finland-idea X, Y, Z", or anything similar. Pass one or more ideas as a comma-separated list.
 ---
 
 # Add Finland Catalogue Idea
 
 You are adding entries to a hand-curated travel catalogue for Finland. Each
-entry is a fully-researched `Idea` object appended to
-`src/projects/finland-catalogue/ideas.ts`.
+entry is a fully-researched `Idea` object living in its own file under
+`src/projects/finland-catalogue/ideas/` (see **File layout** below).
 
 **Read `.claude/skills/_finland-shared/AUTHORING.md` first.** It covers
 input parsing, parenthetical-context handling, image sourcing, slug
 generation, append/commit/lint expectations — all identical between this
 skill and `add-finland-topic`. The guidance below is the Idea-specific
 layer on top of that.
+
+## File layout
+
+Ideas are stored **one file per idea** under
+`src/projects/finland-catalogue/ideas/`. Each file exports a single `Idea`
+const named after the camelCased slug, and `ideas/index.ts` is the barrel
+that gathers them into the `IDEAS` array the app consumes:
+
+```
+ideas/
+  oodi.ts          export const oodi: Idea = { slug: "oodi", ... }
+  allas-pool.ts    export const allasPool: Idea = { slug: "allas-pool", ... }
+  index.ts         import { oodi } from "./oodi"; ... export const IDEAS = [oodi, ...]
+```
+
+(The split exists because a single source file over 500KB trips a Babel
+deoptimisation note during lint. One file per idea keeps every file tiny
+and the note gone — don't reintroduce a monolithic `ideas.ts`.)
+
+**Adding an idea is three mechanical steps:**
+
+1. **Create `ideas/<slug>.ts`** containing
+   `import type { Idea } from "../types";` then
+   `export const <camelSlug>: Idea = { ... };`. CamelCase the kebab slug
+   for the const name (`allas-pool` → `allasPool`).
+2. **Register it in `ideas/index.ts`**: add
+   `import { <camelSlug> } from "./<slug>";` alongside the other imports,
+   and add `<camelSlug>,` to the `IDEAS` array. Order doesn't matter (the
+   grid shuffles on render), so appending to the end of both lists is fine.
+3. **Slug-collision check**: before writing, confirm `ideas/<slug>.ts`
+   does not already exist.
+
+**Surveying existing ideas** (needed for the tag/region work below): read
+`ideas/index.ts` for the full slug list, and `grep` across `ideas/*.ts`
+for `tags:` / `region:` lines rather than opening all the files.
+**Backfilling** a tag onto an existing idea means editing that idea's own
+`ideas/<slug>.ts` file.
 
 ## Examples of how the user might invoke this skill
 
@@ -52,7 +89,8 @@ layer on top of that.
    hours or addresses you didn't find. If you genuinely don't know, omit
    the optional field.
 
-5. **Cross-link with Topics.** Read `topics.ts` and check that each
+5. **Cross-link with Topics.** Survey the topic files (`topics/*.ts`,
+   `grep` for `slug:`/`aliases:`) and check that each
    genuinely-Topic-worthy concept in your new Idea's prose (cultural
    touchstones like sauna, sisu, the Winter War; distinctively Finnish
    things; recurring concepts that several Ideas reference) is matched
@@ -170,20 +208,22 @@ filter UI renders one chip per unique value, so adding a new tag or
 region to an idea makes its chip appear automatically. The catalogue is
 the source of truth; there is no separate canonical list to update.
 
-**Reuse existing values where they fit.** Read `ideas.ts` first and
-prefer an existing tag or region over a near-duplicate (`"Helsinki"`
-not `"Helsinki, Finland"`; `"food"` not `"foods"` or `"culinary"`).
-Typos and casing variations create duplicate filter chips.
+**Reuse existing values where they fit.** Survey the `ideas/` directory
+first (`grep` across `ideas/*.ts`) and prefer an existing tag or region
+over a near-duplicate (`"Helsinki"` not `"Helsinki, Finland"`; `"food"`
+not `"foods"` or `"culinary"`). Typos and casing variations create
+duplicate filter chips.
 
 **Tags** — short labels for grouping. The catalogue itself is the
-source of truth: tag names live in `ideas.ts`, and a tag's meaning is
-whatever it consistently describes across the entries that carry it.
+source of truth: tag names live across the idea files (`ideas/*.ts`),
+and a tag's meaning is whatever it consistently describes across the
+entries that carry it.
 The skill tells you *how* to think about tags, not which ones exist.
 
 **Workflow when filling in tags:**
 
-1. **Survey first.** Before writing tags, scan every entry in
-   `ideas.ts` and note which tags each carries. To know what
+1. **Survey first.** Before writing tags, scan every entry across
+   `ideas/*.ts` and note which tags each carries. To know what
    `historical` means (or any other tag), look at every idea tagged
    with it and infer the pattern from usage — not from the bare word.
 2. **Apply existing tags where they genuinely fit.** Match the new
@@ -233,7 +273,7 @@ Reuse existing region values where the rules above point to them —
 casing and spelling variants create duplicate chips. Introduce a new
 region when the rules genuinely call for one and no existing region
 fits; the filter chip is how a user discovers that destination exists
-in the catalogue. Survey `ideas.ts` first to see what's already in use
+in the catalogue. Survey `ideas/*.ts` first to see what's already in use
 before deciding whether to reuse or introduce.
 
 ## Idea-specific summary callouts
@@ -246,7 +286,9 @@ In addition to the shared "After writing" guidance in AUTHORING.md:
   catch a phrasing in your new Idea, list which Topic and which alias.
 - If you spotted a Topic-shaped concept in your Idea that doesn't yet
   have a Topic, flag it as a candidate for `add-finland-topic`.
-- The file you should normally be modifying is
-  `src/projects/finland-catalogue/ideas.ts`. The one exception is
-  `topics.ts` when you're adding aliases to existing Topics — don't
-  create or otherwise edit Topic entries from this skill.
+- The files you should normally be modifying are the new
+  `ideas/<slug>.ts` you create plus `ideas/index.ts` to register it (and
+  an existing `ideas/<slug>.ts` when you backfill a tag onto it). The one
+  exception is an existing Topic's file (`topics/<slug>.ts`) when you're
+  adding aliases to it — don't create or otherwise edit Topic entries from
+  this skill.
