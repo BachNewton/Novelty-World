@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { SPACES } from "../data";
+import { LANE_TOKEN_PX, STRIP_LEFT_PX, lanePitch, laneOffset } from "../lanes";
 import { glideAnimMs, slideAnimMs } from "../pacing";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
@@ -24,12 +25,10 @@ const CYCLE_PX = SPACES.length * ROW_PX;
 const ANCHOR_TOP_PX = 4;
 const FOLLOW_BOTTOM_GAP = ROW_PX * 1.5;
 
-// Geometry of the animated token. The strip starts after the 72px left panel,
-// the context panel's 8px left padding, and the 150px name cell — so a token's
-// first (leftmost) slot sits at this x, which is where the overlay token both
-// starts and lands. See `TokenStrip` in square-row.tsx.
-const TOKEN_PX = 30;
-const LANE_X = 72 + 8 + 150;
+// The overlay token rides the same per-player lanes as the static tokens: its x
+// is the strip's left edge plus the player's lane offset, so it slides and
+// trails in the column its static copy occupies. See `lanes.ts` and the
+// `TokenStrip` in square-row.tsx.
 
 // Slides up to a die roll's reach (incl. passing GO) animate; longer jumps
 // (teleports, "advance to" cards, going to jail) cut instantly so the token
@@ -46,12 +45,16 @@ const MAX_SLIDE_ROWS = 12;
 interface ActivePlayer {
   id: string;
   position: number;
+  // Seat index in the roster — the player's fixed lane (see `lanes.ts`).
+  seat: number;
 }
 
 // Render + animation data for the overlay token mid-move. The token is parked
 // at fromTop; the slide effect carries it to toTop.
 interface MovingToken {
   player: Player;
+  // Left edge of the token's lane (content coords) — its fixed column.
+  laneX: number;
   fromTop: number;
   toTop: number;
   trailTop: number;
@@ -92,10 +95,32 @@ export function Squares() {
 
   const active = useMonopolyStore(
     useShallow((s): ActivePlayer | null => {
-      const p = s.state.players.find((pl) => pl.id === s.state.turn.playerId);
-      return p ? { id: p.id, position: p.position } : null;
+      const seat = s.state.players.findIndex(
+        (pl) => pl.id === s.state.turn.playerId,
+      );
+      if (seat < 0) return null;
+      const p = s.state.players[seat];
+      return { id: p.id, position: p.position, seat };
     }),
   );
+
+  // Lane geometry: track the board's width and the roster size, and publish the
+  // resulting lane pitch so every SquareRow's TokenStrip and the overlay below
+  // lay tokens out in the same per-player columns. See `lanes.ts`.
+  const playerCount = useMonopolyStore((s) => s.state.players.length);
+  const [boardWidth, setBoardWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setBoardWidth(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    useTokenAnim.getState().setLanePitch(lanePitch(playerCount, boardWidth));
+  }, [playerCount, boardWidth]);
 
   // True while a follow scroll is animating, so the infinite-scroll snap-back
   // (handleScroll) holds off — a ±CYCLE snap mid-scroll would jump the overlay
@@ -264,12 +289,17 @@ export function Squares() {
     const startCenter = (copy * SPACES.length + from) * ROW_PX + ROW_PX / 2;
     const endCenter = startCenter + signed * ROW_PX;
     const durationMs = slideAnimMs(useMonopolyStore.getState().turnMs, signed);
+    // Slide and trail in the player's fixed lane, reading the live pitch
+    // published by the measurement effect above.
+    const laneX =
+      STRIP_LEFT_PX + laneOffset(active.seat, useTokenAnim.getState().lanePitch);
 
     // Package the hop; the slide effect below plays it.
     setMoving({
       player,
-      fromTop: startCenter - TOKEN_PX / 2,
-      toTop: endCenter - TOKEN_PX / 2,
+      laneX,
+      fromTop: startCenter - LANE_TOKEN_PX / 2,
+      toTop: endCenter - LANE_TOKEN_PX / 2,
       trailTop: Math.min(startCenter, endCenter),
       trailHeight: Math.abs(signed) * ROW_PX,
       durationMs,
@@ -355,7 +385,7 @@ export function Squares() {
               aria-hidden
               className="pointer-events-none absolute rounded-full"
               style={{
-                left: LANE_X + TOKEN_PX / 2 - 2,
+                left: moving.laneX + LANE_TOKEN_PX / 2 - 2,
                 top: moving.trailTop,
                 width: 4,
                 height: moving.trailHeight,
@@ -368,10 +398,10 @@ export function Squares() {
               ref={tokenRef}
               className="pointer-events-none absolute"
               style={{
-                left: LANE_X,
+                left: moving.laneX,
                 top: moving.fromTop,
-                width: TOKEN_PX,
-                height: TOKEN_PX,
+                width: LANE_TOKEN_PX,
+                height: LANE_TOKEN_PX,
                 zIndex: 10,
               }}
             >

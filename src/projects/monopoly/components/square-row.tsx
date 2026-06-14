@@ -5,6 +5,7 @@ import { Diamond, Dice5, Droplets, Package, Train, Zap } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { SPACES } from "../data";
 import { firstNegativePlayer } from "../engine";
+import { laneOffset } from "../lanes";
 import { rentAt, type RentDisplay } from "../logic";
 import { useMonopolyStore } from "../store";
 import { useTokenAnim } from "../token-anim-store";
@@ -43,6 +44,14 @@ export function SquareRow({ position }: Props) {
   const tokens = useMonopolyStore(
     useShallow((s) => s.state.players.filter((p) => p.position === position)),
   );
+  // Seat order (stable element-wise) drives each token's fixed lane, and the
+  // pitch is published by Squares from the measured board width. Subscribing to
+  // the id list rather than the players keeps this re-render-cheap: it only
+  // changes when the roster does.
+  const order = useMonopolyStore(
+    useShallow((s) => s.state.players.map((p) => p.id)),
+  );
+  const pitch = useTokenAnim((s) => s.lanePitch);
   // While a token is sliding to this square on the overlay, drop it here so it
   // isn't drawn twice. The position-keyed selector keeps every other row's
   // result at null, so only this row re-renders when the animation flips.
@@ -154,7 +163,7 @@ export function SquareRow({ position }: Props) {
         style={{ background: contextTint, boxShadow: dividerShadow }}
       >
         <NameCell space={space} mortgaged={mortgaged} />
-        <TokenStrip tokens={visibleTokens} />
+        <TokenStrip tokens={visibleTokens} order={order} pitch={pitch} />
         <CostCell space={space} mortgaged={mortgaged} rent={rent} />
       </div>
       {stageOverlay}
@@ -361,40 +370,42 @@ function displayName(space: Space): string {
   }
 }
 
-function TokenStrip({ tokens }: { tokens: readonly Player[] }) {
-  const n = tokens.length;
-  // Each token occupies a "slot" whose width is the horizontal pitch
-  // between consecutive tokens. The token itself is always 1.925rem wide
-  // (70% of the 2.75rem row); when slots are narrower than that, each
-  // token bleeds rightward into the next slot and the leftmost-on-top
-  // z-index turns the row into a left-to-right avatar pile.
+function TokenStrip({
+  tokens,
+  order,
+  pitch,
+}: {
+  tokens: readonly Player[];
+  order: readonly string[];
+  pitch: number;
+}) {
+  // Every player owns a fixed lane (their seat index), so a token sits at the
+  // same x on every square — whether alone or sharing — and lines up with its
+  // sliding overlay token. The pitch (lane spacing) is published by Squares
+  // from the measured board width; when it's tight, tokens overlap and the
+  // leftmost-on-top z-index turns the row into a left-to-right avatar pile.
   //
-  // The pitch is (strip width - token width) / (n - 1), so the rightmost
-  // token's right edge lands at the strip's right edge — the whole pile
-  // fits no matter how crowded the row gets. Capped at 2.3rem (token
-  // width + 0.375rem of breathing room) so tokens don't spread apart
-  // arbitrarily when there's slack but still get visible gaps when room
-  // allows. Always rendered (even empty) so the strip absorbs leftover
-  // width and keeps the cost cell pinned to the right.
-  const slotWidth =
-    n <= 1
-      ? "1.925rem"
-      : `clamp(0px, calc((100% - 1.925rem) / ${n - 1}), 2.3rem)`;
+  // Tokens are positioned absolutely within the strip, so the strip stays
+  // flex-1 to absorb leftover width and keep the cost cell pinned to the right
+  // regardless of how the lanes fall. See `lanes.ts`.
   return (
-    <div className="flex h-full min-w-0 flex-1 items-center overflow-hidden">
-      {tokens.map((p, i) => (
-        <div
-          key={p.id}
-          className="relative flex h-full items-center"
-          style={{ width: slotWidth, zIndex: n - i }}
-        >
-          {p.inJail ? (
-            <JailedToken player={p} />
-          ) : (
-            <PlayerToken player={p} className="aspect-square h-[70%]" />
-          )}
-        </div>
-      ))}
+    <div className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden">
+      {tokens.map((p) => {
+        const seat = order.indexOf(p.id);
+        return (
+          <div
+            key={p.id}
+            className="absolute flex h-full items-center"
+            style={{ left: laneOffset(seat, pitch), zIndex: order.length - seat }}
+          >
+            {p.inJail ? (
+              <JailedToken player={p} />
+            ) : (
+              <PlayerToken player={p} className="aspect-square h-[70%]" />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
