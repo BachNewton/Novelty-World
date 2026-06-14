@@ -35,6 +35,10 @@ export type MonopolyAction =
    *  other id seeds a lobby. Fails (conflict) if the row already exists — the
    *  caller then loads the existing row. */
   | { type: "create"; profile: PlayerProfile }
+  /** Permanently delete a game row. A destructive lobby-browser op confirmed by
+   *  the user; carries no `fromVersion` because the browser holds only the
+   *  summary, and a delete is idempotent regardless of the row's version. */
+  | { type: "delete" }
   /** Debug state override — applied only for the `dev` game (see `DevCommand`). */
   | { type: "dev"; command: DevCommand; fromVersion: number }
   /** Seat the caller in a lobby, auto-assigning the first free color + icon.
@@ -71,4 +75,6 @@ export interface MonopolyRequest {
  *  failure). */
 export type MonopolyResult =
   | { ok: true; state: GameState; version: number }
+  /** A `delete` succeeded — the row is gone, so there's no state to fold in. */
+  | { ok: true; deleted: true }
   | { ok: false; conflict?: boolean; reason?: string };

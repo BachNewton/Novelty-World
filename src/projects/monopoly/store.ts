@@ -245,7 +245,9 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
   // genuine rejection surfaces as a sync error.
   function handleResult(res: MonopolyResult): void {
     if (res.ok) {
-      get().applyStateUpdate(res.state, res.version);
+      // A `delete` result carries no state — but the store never submits one
+      // (deletes come from the lobby browser), so there's nothing to fold in.
+      if ("state" in res) get().applyStateUpdate(res.state, res.version);
     } else if (!res.conflict && res.reason !== undefined) {
       set({ syncError: res.reason });
     }
@@ -553,7 +555,8 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const res = await submitAction(gameId, { type: "create", profile });
       if (activeGameId !== gameId) return;
       if (res.ok) {
-        get().applyStateUpdate(res.state, res.version);
+        // `create` always returns state on success (never the `delete` variant).
+        if ("state" in res) get().applyStateUpdate(res.state, res.version);
         return;
       }
       if (res.conflict) {

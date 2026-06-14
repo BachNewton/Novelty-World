@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
+import { useHoldToActivate } from "@/shared/lib/use-hold-to-activate";
 import { ProfileEditor } from "@/shared/components/profile-editor";
-import { listGames, type GameSummary } from "../sync";
+import { deleteGame, listGames, type GameSummary } from "../sync";
 import { PlayerToken } from "./player-token";
 
 interface Props {
@@ -30,6 +31,8 @@ function newGameId(): string {
 export function LobbyBrowser({ onOpen }: Props) {
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The game awaiting a delete confirmation, or null when no dialog is open.
+  const [pendingDelete, setPendingDelete] = useState<GameSummary | null>(null);
 
   // State updates happen only in the promise callbacks (never synchronously
   // in the effect body), so a fetch doesn't trigger a cascading render.
@@ -108,11 +111,21 @@ export function LobbyBrowser({ onOpen }: Props) {
               No games yet. Start one!
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {games.map((game) => (
-                <GameRow key={game.id} game={game} onOpen={onOpen} />
-              ))}
-            </ul>
+            <>
+              <ul className="flex flex-col gap-2">
+                {games.map((game) => (
+                  <GameRow
+                    key={game.id}
+                    game={game}
+                    onOpen={onOpen}
+                    onDelete={setPendingDelete}
+                  />
+                ))}
+              </ul>
+              <p className="text-center text-[0.7rem]" style={{ color: "var(--mono-rail)" }}>
+                Tap to open · hold to delete
+              </p>
+            </>
           )}
         </section>
 
@@ -123,6 +136,108 @@ export function LobbyBrowser({ onOpen }: Props) {
         >
           ← Back to Novelty World
         </Link>
+      </div>
+
+      {pendingDelete !== null && (
+        <DeleteDialog
+          game={pendingDelete}
+          onClose={() => { setPendingDelete(null); }}
+          onDeleted={() => {
+            setPendingDelete(null);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Confirmation modal for the destructive "delete game" action. Deleting is
+ *  permanent, so it always goes through this explicit confirm step. Surfaces a
+ *  route error inline and keeps the dialog open so the user can retry. */
+function DeleteDialog({
+  game,
+  onClose,
+  onDeleted,
+}: {
+  game: GameSummary;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirm = useCallback(() => {
+    setBusy(true);
+    setError(null);
+    deleteGame(game.id)
+      .then((err) => {
+        if (err === null) {
+          onDeleted();
+        } else {
+          setError(err);
+          setBusy(false);
+        }
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+        setBusy(false);
+      });
+  }, [game.id, onDeleted]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgb(0 0 0 / 0.6)" }}
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Delete game"
+        className="flex w-full max-w-sm flex-col gap-4 rounded-xl p-5"
+        style={{ backgroundColor: "var(--mono-frame)", color: "var(--mono-ink)" }}
+        onClick={(e) => { e.stopPropagation(); }}
+      >
+        <h2 className="text-lg font-black">Delete this game?</h2>
+        <p className="text-sm" style={{ color: "var(--mono-rail)" }}>
+          This permanently deletes the game for everyone. This can&apos;t be undone.
+        </p>
+
+        {error !== null && (
+          <p
+            className="rounded-md px-3 py-2 text-sm"
+            style={{ backgroundColor: "var(--mono-card)", color: "var(--mono-red)" }}
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-lg px-4 py-2 text-sm font-bold transition-colors hover:bg-white/10 disabled:opacity-50"
+            style={{ color: "var(--mono-rail)" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={busy}
+            className="flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: "var(--mono-red)", color: "var(--mono-frame)" }}
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            )}
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -142,9 +257,11 @@ function formatLastPlayed(iso: string): string {
 function GameRow({
   game,
   onOpen,
+  onDelete,
 }: {
   game: GameSummary;
   onOpen: (gameId: string) => void;
+  onDelete: (game: GameSummary) => void;
 }) {
   const myId = useProfile((s) => s.id);
   const inGame = game.players.some((p) => p.id === myId);
@@ -153,15 +270,36 @@ function GameRow({
   // sit down in a lobby, or spectate a game already in play.
   const cta = inGame ? "Rejoin" : isLobby ? "Join" : "Watch";
 
+  // Tap opens the game; pressing and holding requests deletion (which opens the
+  // confirm dialog). A hold has no horizontal motion, so it never collides with
+  // the browser's swipe-to-go-back gesture.
+  const { holding, fillDurationMs, handlers } = useHoldToActivate({
+    onActivate: () => { onOpen(game.id); },
+    onHold: () => { onDelete(game); },
+  });
+
   return (
     <li>
       <button
         type="button"
-        onClick={() => { onOpen(game.id); }}
-        className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:brightness-125"
-        style={{ backgroundColor: "var(--mono-card)" }}
+        {...handlers}
+        aria-label={`${cta} game ${game.id}. Press and hold to delete.`}
+        className="relative flex w-full select-none items-center gap-3 overflow-hidden rounded-lg px-3 py-3 text-left transition-colors hover:brightness-125"
+        style={{ backgroundColor: "var(--mono-card)", WebkitTouchCallout: "none", touchAction: "manipulation" }}
       >
-        <span className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        {/* Hold affordance: a red wash sweeps across as the press is held, and
+            snaps away instantly on release (transition only while holding). */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 w-full origin-left"
+          style={{
+            backgroundColor: "var(--mono-red)",
+            opacity: 0.35,
+            transform: holding ? "scaleX(1)" : "scaleX(0)",
+            transition: holding ? `transform ${fillDurationMs.toString()}ms linear` : "none",
+          }}
+        />
+        <span className="relative flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
           {game.players.map((p) => (
             <span key={p.id} className="flex items-center gap-1.5">
               <PlayerToken player={p} className="h-6 w-6" />
@@ -169,7 +307,7 @@ function GameRow({
             </span>
           ))}
         </span>
-        <span className="flex flex-col items-end gap-0.5">
+        <span className="relative flex flex-col items-end gap-0.5">
           <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
             {cta}
           </span>

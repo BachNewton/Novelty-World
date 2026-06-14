@@ -92,6 +92,7 @@ function parseAction(v: unknown): MonopolyAction | null {
     const profile = parseProfile(v.profile);
     return profile ? { type, profile } : null;
   }
+  if (type === "delete") return { type };
   // Every op below is version-guarded.
   const fromVersion = v.fromVersion;
   if (typeof fromVersion !== "number") return null;
@@ -167,7 +168,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (action.type === "create") {
     return seed(supabase, gameId, action);
   }
+  if (action.type === "delete") {
+    return remove(supabase, gameId);
+  }
   return mutate(supabase, gameId, action);
+}
+
+/** Permanently delete a game row. Unguarded by design (see the `delete` action
+ *  in protocol.ts): a confirmed lobby-browser teardown, idempotent — deleting
+ *  an already-gone row still succeeds. */
+async function remove(supabase: Db, gameId: string): Promise<NextResponse> {
+  const { error } = await supabase.from(TABLE).delete().eq("id", gameId);
+  if (error) return json({ ok: false, reason: error.message }, 500);
+  return json({ ok: true, deleted: true });
 }
 
 async function seed(

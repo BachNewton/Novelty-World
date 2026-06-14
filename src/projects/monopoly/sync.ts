@@ -97,6 +97,15 @@ export async function submitAction(
   }
 }
 
+/** Permanently delete a game via the authoritative route (clients can't delete
+ *  the row directly — RLS). Returns `null` on success, or an error message to
+ *  surface. A destructive op; callers must confirm with the user first. */
+export async function deleteGame(gameId: string): Promise<string | null> {
+  const res = await submitAction(gameId, { type: "delete" });
+  if (res.ok) return null;
+  return res.reason ?? "Failed to delete game";
+}
+
 /** Subscribe to authoritative state changes for a game. `onState` fires for
  *  every insert/update to the row with the new state and version. Returns a
  *  cleanup function that tears down the channel — call it on unmount or when
