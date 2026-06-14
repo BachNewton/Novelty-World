@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
+import {
+  ROW_PX,
+  CYCLE_PX,
+  MAX_SLIDE_ROWS,
+  anchorNear,
+  signedRows,
+  slideGeometry,
+  followTarget,
+} from "../camera";
 import { SPACES } from "../data";
 import { LANE_TOKEN_PX, STRIP_LEFT_PX, lanePitch, laneOffset } from "../lanes";
 import { glideAnimMs, slideAnimMs } from "../pacing";
@@ -13,18 +22,11 @@ import type { Player } from "../types";
 import { PlayerToken } from "./player-token";
 import { SquareRow } from "./square-row";
 
-// Each row is 44px (h-11). The 1px divider is painted as an inset bottom
-// shadow on the row itself, so it doesn't add to the row's box.
-const ROW_PX = 44;
-const CYCLE_PX = SPACES.length * ROW_PX;
-
 // On each turn the active player's square is parked just under the header, so
 // the squares ahead of them fill the screen. The camera then holds still while
 // they move — you watch the token slide down — and only scrolls to follow if
-// the move would carry the token within this margin of the bottom edge.
-const ANCHOR_TOP_PX = 4;
-const FOLLOW_BOTTOM_GAP = ROW_PX * 1.5;
-
+// the move would carry the token within a margin of the bottom edge.
+//
 // The overlay token rides the same per-player lanes as the static tokens: its x
 // is the strip's left edge plus the player's lane offset, so it slides and
 // trails in the column its static copy occupies. See `lanes.ts` and the
@@ -32,15 +34,16 @@ const FOLLOW_BOTTOM_GAP = ROW_PX * 1.5;
 
 // Slides up to a die roll's reach (incl. passing GO) animate; longer jumps
 // (teleports, "advance to" cards, going to jail) cut instantly so the token
-// never zips the wrong way around the board.
+// never zips the wrong way around the board. The scroll-content geometry
+// (ROW_PX, CYCLE_PX, anchorNear, slideGeometry, followTarget, …) is pure and
+// lives in `../camera`.
 //
-// All sub-timings (glide ms, slide ms) now derive from the store's per-client
+// All sub-timings (glide ms, slide ms) derive from the store's per-client
 // `TURN_MS` via `glideAnimMs` / `slideAnimMs` — the board no longer owns
 // pacing. Each playback-head change is one atomic transition (a glide to a new
 // active player, or a token slide); the store budgets the dwell that holds
 // after each, so this component just animates the motion and lets the hold
 // fall out of the next snapshot's arrival.
-const MAX_SLIDE_ROWS = 12;
 
 interface ActivePlayer {
   id: string;
@@ -71,18 +74,8 @@ interface MovingToken {
   follow: boolean;
 }
 
-const clampCopy = (n: number) => Math.max(0, Math.min(2, n));
 const easeInOut = (t: number) =>
   t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-// Scroll offset that parks `position`'s row at the top anchor, normalized into
-// the middle band so the infinite-scroll snap never fires from a camera write.
-const bandedAnchor = (position: number) => {
-  let top = position * ROW_PX - ANCHOR_TOP_PX;
-  while (top < CYCLE_PX * 0.5) top += CYCLE_PX;
-  while (top >= CYCLE_PX * 1.5) top -= CYCLE_PX;
-  return top;
-};
 
 // SquareRow subscribes to the store per-instance, so Squares doesn't take
 // or thread state — it lays out three copies of the board, handles the
@@ -134,7 +127,7 @@ export function Squares() {
   // non-sliding cases (mount, follow toggle, teleports).
   const anchorTop = useCallback((position: number) => {
     const el = ref.current;
-    if (el) el.scrollTop = bandedAnchor(position);
+    if (el) el.scrollTop = anchorNear(position, el.scrollTop);
   }, []);
 
   const anchorActiveTop = useCallback(() => {
@@ -256,9 +249,7 @@ export function Squares() {
     const from = map.get(active.id);
     map.set(active.id, active.position);
 
-    const forward =
-      from === undefined ? 0 : (active.position - from + 40) % 40;
-    const signed = forward <= 20 ? forward : forward - 40;
+    const signed = from === undefined ? 0 : signedRows(from, active.position);
     // Not a slide (first time we see this player, they didn't move, or a
     // teleport like jail / "advance to" cards): re-anchor, no slide.
     if (from === undefined || signed === 0 || Math.abs(signed) > MAX_SLIDE_ROWS) {
@@ -266,7 +257,7 @@ export function Squares() {
         // A handoff is its own `glide` transition — glide the camera to the new
         // active player so the next turn doesn't snap into view. Same-player
         // non-moves (teleports) still snap.
-        if (isHandoff) glideToAnchor(el, bandedAnchor(active.position));
+        if (isHandoff) glideToAnchor(el, anchorNear(active.position, el.scrollTop));
         else anchorActiveTop();
       }
       return;
@@ -282,12 +273,12 @@ export function Squares() {
     // the top; a doubles re-roll just continues from where the last slide left
     // off (no re-anchor). The copy math finds the nearest board copy in both
     // cases, so one path serves follow and free view.
-    const viewCenter = el.scrollTop + el.clientHeight / 2;
-    const copy = clampCopy(
-      Math.round((viewCenter - (from * ROW_PX + ROW_PX / 2)) / CYCLE_PX),
+    const { startCenter, endCenter } = slideGeometry(
+      el.scrollTop,
+      el.clientHeight,
+      from,
+      active.position,
     );
-    const startCenter = (copy * SPACES.length + from) * ROW_PX + ROW_PX / 2;
-    const endCenter = startCenter + signed * ROW_PX;
     const durationMs = slideAnimMs(useMonopolyStore.getState().turnMs, signed);
     // Slide and trail in the player's fixed lane, reading the live pitch
     // published by the measurement effect above.
@@ -342,11 +333,8 @@ export function Squares() {
     // Follow only if the landing would fall past the bottom margin; otherwise
     // hold the camera still and let the token slide down into view.
     if (follow) {
-      const overflow =
-        endCenter - scrollEl.scrollTop - (viewportHeight - FOLLOW_BOTTOM_GAP);
-      if (overflow > 0) {
-        animateScroll(scrollEl, scrollEl.scrollTop + overflow, durationMs);
-      }
+      const target = followTarget(scrollEl.scrollTop, viewportHeight, endCenter);
+      if (target !== null) animateScroll(scrollEl, target, durationMs);
     }
 
     return () => {
