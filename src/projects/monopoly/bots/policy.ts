@@ -1,6 +1,12 @@
+import {
+  colorAt,
+  developmentLevel,
+  groupPositions,
+  houseCostAt,
+} from "../development";
 import { firstNegativePlayer } from "../engine";
 import { mortgageValueAt, ownablePrice } from "../logic";
-import type { GameState, Intent } from "../types";
+import type { GameState, Intent, PropertyColor } from "../types";
 
 /** Baseline bot policy: the decision a bot `playerId` should submit right now,
  *  or null if it isn't this bot's move. The store's auto-pacer iterates the bot
@@ -14,7 +20,8 @@ import type { GameState, Intent } from "../types";
  *  - `buy-decision`: buy whenever affordable, otherwise decline.
  *  - `must-raise-cash`: if this bot is the current debtor (whoever is in the
  *    red, possibly out of turn after a trade), mortgage the cheapest
- *    un-mortgaged, building-free property — one per call until back to ≥ 0.
+ *    un-mortgaged, building-free property — one per call until back to ≥ 0 —
+ *    then, once nothing's left to mortgage, sell off a built set's buildings.
  *  - `trade-pending`: if this bot is an un-voted party, accept. v1 placeholder
  *    — permissive, no valuation. TODO: weigh the trade before accepting.
  *
@@ -35,9 +42,16 @@ export function botIntent(state: GameState, playerId: string): Intent | null {
 
   if (phase === "must-raise-cash") {
     if (firstNegativePlayer(state) !== playerId) return null;
-    const cheapest = cheapestMortgageable(state, playerId);
-    if (cheapest === null) return null;
-    return { kind: "mortgage", playerId, position: cheapest };
+    // Mortgage building-free properties first (cheapest first), sparing
+    // developed monopolies as long as possible.
+    const toMortgage = cheapestMortgageable(state, playerId);
+    if (toMortgage !== null) {
+      return { kind: "mortgage", playerId, position: toMortgage };
+    }
+    // Only developed property is left — sell a built set's buildings. Without
+    // this the debtor stalls (a built property can't be mortgaged), so the
+    // forced phase would never clear.
+    return sellCheapestBuiltSet(state, playerId);
   }
 
   if (phase === "trade-pending" && pendingTrade) {
@@ -68,4 +82,38 @@ function cheapestMortgageable(
     if (!best || value < best.value) best = { pos, value };
   }
   return best?.pos ?? null;
+}
+
+/** A `manage` intent that liquidates the cheapest color set the player has
+ *  built on — every property in it back to a bare lot — or null if they have
+ *  no buildings. The forced raise-cash branch of `applyManage` applies it and
+ *  re-checks the debt, so the bot just keeps returning these (and mortgages)
+ *  until settled. Selling a whole set to zero is always supply-feasible (the
+ *  planner's liquidation escape covers any hotel shortage). v1 heuristic: a
+ *  whole set at a time, cheapest first to spare pricier development — a smarter
+ *  policy can sell more granularly. */
+function sellCheapestBuiltSet(
+  state: GameState,
+  playerId: string,
+): Intent | null {
+  const builtColors = new Set<PropertyColor>();
+  for (const [posStr, ownerId] of Object.entries(state.ownership)) {
+    if (ownerId !== playerId) continue;
+    if (!developmentLevel(state, Number(posStr))) continue;
+    const color = colorAt(Number(posStr));
+    if (color) builtColors.add(color);
+  }
+  let cheapest: PropertyColor | null = null;
+  let cheapestCost = Infinity;
+  for (const color of builtColors) {
+    const cost = houseCostAt(groupPositions(color)[0]) ?? Infinity;
+    if (cost < cheapestCost) {
+      cheapestCost = cost;
+      cheapest = color;
+    }
+  }
+  if (cheapest === null) return null;
+  const build: Record<number, number> = {};
+  for (const pos of groupPositions(cheapest)) build[pos] = 0;
+  return { kind: "manage", playerId, build, mortgage: {} };
 }

@@ -66,7 +66,28 @@ describe("botIntent — must-raise-cash", () => {
     expect(botIntent(state, "p2")).toBeNull();
   });
 
-  it("returns null when the debtor has nothing to mortgage", () => {
+  it("sells a built set's buildings once nothing is left to mortgage", () => {
+    // p1 is in the red and owns only developed property: oranges ($100 houses)
+    // and greens ($200). With nothing mortgageable, the bot liquidates the
+    // cheaper set (oranges) back to bare lots.
+    const state: GameState = {
+      ...inTheRed(
+        withTurn({ phase: "must-raise-cash", raiseCash: "after-landing" }),
+        "p1",
+        -400,
+      ),
+      ownership: { 16: "p1", 18: "p1", 19: "p1", 31: "p1", 32: "p1", 34: "p1" },
+      houses: { 16: 1, 18: 1, 19: 1, 31: 1, 32: 1, 34: 1 },
+    };
+    expect(botIntent(state, "p1")).toEqual({
+      kind: "manage",
+      playerId: "p1",
+      build: { 16: 0, 18: 0, 19: 0 },
+      mortgage: {},
+    });
+  });
+
+  it("returns null when the debtor has nothing to liquidate at all", () => {
     const state = inTheRed(
       withTurn({ phase: "must-raise-cash", raiseCash: "after-landing" }),
       "p1",
