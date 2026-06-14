@@ -2,8 +2,8 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { SPACES } from "../data";
-import { firstNegativePlayer } from "../engine";
-import { ownablePrice } from "../logic";
+import { firstNegativePlayer, JAIL_FEE } from "../engine";
+import { heldJailCard, ownablePrice } from "../logic";
 import { useMonopolyStore } from "../store";
 import { PROPERTY_COLOR_VAR } from "../theme";
 import type { GameState } from "../types";
@@ -30,6 +30,7 @@ interface Props {
 export function PromptSection({ state }: Props) {
   const myPlayerId = useMonopolyStore((s) => s.myPlayerId);
   const submit = useMonopolyStore((s) => s.submit);
+  const step = useMonopolyStore((s) => s.step);
 
   const { phase, pendingBuy } = state.turn;
 
@@ -60,6 +61,28 @@ export function PromptSection({ state }: Props) {
 
   // Everything below is the active player's own decision.
   if (state.turn.playerId !== myPlayerId) return null;
+
+  // Jail: a per-turn prompt (a deliberate exception to "jail is a stance, not a
+  // prompt" — see monopoly/CLAUDE.md). The player chooses each jail turn: roll
+  // for doubles (the mechanical jail roll, fired via `step`), pay the $50 fine,
+  // or play a held Get-Out-of-Jail-Free card.
+  if (phase === "jail-decision") {
+    return (
+      <JailPrompt
+        state={state}
+        playerId={myPlayerId}
+        onRoll={() => {
+          step();
+        }}
+        onPay={() => {
+          submit({ kind: "pay-to-leave-jail", playerId: myPlayerId });
+        }}
+        onCard={() => {
+          submit({ kind: "use-jail-card", playerId: myPlayerId });
+        }}
+      />
+    );
+  }
 
   if (phase === "buy-decision" && pendingBuy !== undefined) {
     return (
@@ -148,6 +171,44 @@ function BuyPrompt({
         disabled={!canAfford}
         variant="primary"
       />
+    </div>
+  );
+}
+
+function JailPrompt({
+  state,
+  playerId,
+  onRoll,
+  onPay,
+  onCard,
+}: {
+  state: GameState;
+  playerId: string;
+  onRoll: () => void;
+  onPay: () => void;
+  onCard: () => void;
+}) {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return null;
+  const canPay = player.cash >= JAIL_FEE;
+  const hasCard = heldJailCard(state, playerId) !== null;
+
+  return (
+    <div className="relative z-10 flex shrink-0" style={SECTION_STYLE}>
+      <div
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 font-semibold uppercase tracking-wide"
+        style={{ minHeight: "56px", fontSize: "clamp(0.75rem, 2.2vmin, 0.95rem)" }}
+      >
+        <span className="truncate" style={{ color: "var(--mono-orange)" }}>
+          In Jail
+        </span>
+        <span style={{ opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
+          {player.jailTurns}/3
+        </span>
+      </div>
+      {hasCard && <PromptButton label="Card" onClick={onCard} />}
+      <PromptButton label={`Pay $${JAIL_FEE.toString()}`} onClick={onPay} disabled={!canPay} />
+      <PromptButton label="Roll" onClick={onRoll} variant="primary" />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   planDevelopment,
 } from "./development";
 import {
+  heldJailCard,
   mortgageInterestAt,
   mortgageValueAt,
   ownablePrice,
@@ -27,6 +28,15 @@ import type {
 
 /** Salary paid to a player whose move passes (or lands on) GO. */
 const PASS_GO_SALARY = 200;
+
+/** Fixed fee to buy out of jail (official $50). Charged to the bank on a
+ *  voluntary `pay-to-leave-jail` and on the forced exit after a failed third
+ *  jail roll. Exported so the bot policy and the jail prompt share the value. */
+export const JAIL_FEE = 50;
+
+/** The Jail cell a jailed token sits on, derived from the static board so the
+ *  jail logic never hardcodes the index. */
+const JAIL_POSITION = SPACES.findIndex((s) => s.kind === "jail");
 
 /** Random number source for the engine. Every roll, deck shuffle, and
  *  card draw goes through this; `Math.random` may not be called directly
@@ -85,11 +95,12 @@ export function createRng(seedOrState: string | number): Rng {
  *  `autoStep` to drain mechanics until the next decision point.
  *
  *  Wired so far: `buy`, `decline-buy`, `manage`, `mortgage`, the trade
- *  sub-game, `toggle-queue`, `cancel-manage`, `end-turn`. Richer intents
- *  (auction, jail, …) are rejected until they're implemented. The surface
- *  deliberately stays small per `monopoly/CLAUDE.md`. No RNG argument — these
- *  are deterministic; engine functions that need randomness read it out of
- *  `state.rngState` themselves. */
+ *  sub-game, `toggle-queue`, `cancel-manage`, the jail decisions
+ *  (`pay-to-leave-jail`, `use-jail-card`), `end-turn`. Richer intents (auction,
+ *  …) are rejected until they're implemented. The surface deliberately stays
+ *  small per `monopoly/CLAUDE.md`. No RNG argument — these are deterministic;
+ *  engine functions that need randomness read it out of `state.rngState`
+ *  themselves. */
 export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "buy") return applyBuy(state, intent);
   if (intent.kind === "decline-buy") return applyDeclineBuy(state, intent);
@@ -104,6 +115,10 @@ export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "propose-trade") return applyProposeTrade(state, intent);
   if (intent.kind === "accept-trade") return applyAcceptTrade(state, intent);
   if (intent.kind === "decline-trade") return applyDeclineTrade(state, intent);
+  if (intent.kind === "pay-to-leave-jail") {
+    return applyPayToLeaveJail(state, intent);
+  }
+  if (intent.kind === "use-jail-card") return applyUseJailCard(state, intent);
   if (intent.kind === "end-turn") return applyEndTurn(state, intent);
   return { ok: false, reason: `intent ${intent.kind} not yet implemented` };
 }
@@ -323,20 +338,28 @@ function chargeRent(
   };
 }
 
-/** Settle a player's estate to a creditor: their properties (with houses
- *  and mortgage status) and Get-Out-of-Jail-Free cards flow to the
- *  creditor; cash already moved in `chargeRent` so this just zeroes
- *  whatever remains. Emits a `bankrupt` event, and a `winner` event +
- *  game-over phase transition if exactly one non-bankrupt player remains.
+/** Settle a player's estate when they go bankrupt. Two creditors:
  *
- *  Simplification flagged in CLAUDE.md (deferred): real Monopoly forces
- *  houses to be sold back to the bank at half price when the estate
- *  transfers. Here they ride along with the property — most house games
- *  play it this way and the simpler rule keeps the engine lean. */
+ *  - A **player** creditor (`creditorId` set, the usual rent / fee bust): their
+ *    properties (with houses and mortgage status) and Get-Out-of-Jail-Free cards
+ *    flow to that creditor.
+ *  - The **bank** (`creditorId === null`, e.g. an unpayable jail fine, later
+ *    tax): the estate reverts — properties become unowned (buildings and
+ *    mortgage flags cleared), held GOJF cards return to their decks.
+ *
+ *  Cash already moved in the charge path, so this just zeroes whatever remains.
+ *  Emits a `bankrupt` event, and a `winner` event + game-over phase transition
+ *  if exactly one non-bankrupt player remains.
+ *
+ *  Simplifications flagged in CLAUDE.md (deferred): real Monopoly forces houses
+ *  to be sold back to the bank at half price when an estate transfers (here they
+ *  ride along to a player creditor), and a bank estate is auctioned off rather
+ *  than simply freed (auction isn't built). Both keep the engine lean and most
+ *  house games play them this way. */
 function goBankrupt(
   state: GameState,
   debtorId: string,
-  creditorId: string,
+  creditorId: string | null,
 ): { state: GameState; newEvents: readonly GameEvent[] } {
   const debtorIdx = state.players.findIndex((p) => p.id === debtorId);
   const players = state.players.map((p, i) =>
@@ -344,15 +367,29 @@ function goBankrupt(
   );
 
   const ownership: Record<number, string> = {};
+  const houses = { ...state.houses };
+  const mortgaged = { ...state.mortgaged };
   for (const [posStr, ownerId] of Object.entries(state.ownership)) {
     const pos = Number(posStr);
-    ownership[pos] = ownerId === debtorId ? creditorId : ownerId;
+    if (ownerId !== debtorId) {
+      ownership[pos] = ownerId;
+    } else if (creditorId !== null) {
+      ownership[pos] = creditorId;
+    } else {
+      // To the bank: the lot reverts to unowned, buildings and mortgage gone.
+      delete houses[pos];
+      delete mortgaged[pos];
+    }
   }
 
   const jailFreeCards = { ...state.jailFreeCards };
-  if (jailFreeCards.chance === debtorId) jailFreeCards.chance = creditorId;
+  if (jailFreeCards.chance === debtorId) {
+    if (creditorId !== null) jailFreeCards.chance = creditorId;
+    else delete jailFreeCards.chance;
+  }
   if (jailFreeCards.communityChest === debtorId) {
-    jailFreeCards.communityChest = creditorId;
+    if (creditorId !== null) jailFreeCards.communityChest = creditorId;
+    else delete jailFreeCards.communityChest;
   }
 
   const bankruptEvent: GameEvent = { kind: "bankrupt", creditorId };
@@ -362,6 +399,8 @@ function goBankrupt(
     ...state,
     players,
     ownership,
+    houses,
+    mortgaged,
     jailFreeCards,
     turns,
   };
@@ -1068,22 +1107,255 @@ function applyDeclineTrade(
   return { ok: true, state: returnToPreRoll(state), newEvents: [] };
 }
 
-/** Run mechanical transitions (dice, movement, rent, card draws, …) until
- *  the state hits a phase that requires a decision. No-op when the state is
- *  already at a decision phase (the gate is purely `phase !== "pre-roll"`).
+// ---------------------------------------------------------------------------
+// Jail. Three ways in (the "Go to Jail" tile, three doubles, and — once cards
+// land — a card), and four ways out: roll a double, pay the $50 fine, play a
+// Get-Out-of-Jail-Free card, or serve the three-turn sentence (the third failed
+// roll forces the fine). A jailed player's turn opens at `jail-decision`; a
+// human picks pay / card / roll in the prompt, a bot is driven by the policy.
+// See `monopoly/CLAUDE.md` "Jail".
+// ---------------------------------------------------------------------------
+
+/** Move the active player forward `total` squares, crediting GO salary on a
+ *  board wrap. Pure position / cash update — the caller has already emitted the
+ *  roll / jail-roll event and resolves the landed tile next via `resolveTile`. */
+function moveActivePlayer(state: GameState, total: number): GameState {
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const player = state.players[idx];
+  const sum = player.position + total;
+  const toPos = sum % SPACES.length;
+  const passedGo = sum >= SPACES.length;
+  const players = state.players.map((p, i) =>
+    i === idx
+      ? { ...p, position: toPos, cash: passedGo ? p.cash + PASS_GO_SALARY : p.cash }
+      : p,
+  );
+  return { ...state, players };
+}
+
+/** Resolve the tile the active player has just moved onto: a "Go to Jail" cell
+ *  sends them away, an unowned ownable opens a buy-decision, an owned square
+ *  charges rent (which may bust them), anything else settles the landing.
+ *  `total` is the dice sum (for utility rent). Shared by the normal-roll and the
+ *  jail-escape paths in `autoStep` so both resolve a landing identically. */
+function resolveTile(
+  state: GameState,
+  total: number,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const toPos = state.players[idx].position;
+  if (SPACES[toPos].kind === "go-to-jail") return sendToJail(state, "tile");
+
+  const landedOnUnownedOwnable =
+    ownablePrice(toPos) !== null && !(toPos in state.ownership);
+  if (landedOnUnownedOwnable) {
+    const turn: TurnState = {
+      ...state.turn,
+      phase: "buy-decision",
+      pendingBuy: toPos,
+    };
+    return { state: { ...state, turn }, newEvents: [] };
+  }
+
+  const amount = rentDue(state, toPos, total, state.turn.playerId);
+  if (amount !== null && amount > 0) {
+    const ownerId = state.ownership[toPos];
+    return chargeRent(state, state.turn.playerId, ownerId, toPos, amount);
+  }
+
+  return { state: afterLanding(state), newEvents: [] };
+}
+
+/** Send the active player to jail — landing on the "Go to Jail" tile or rolling
+ *  a third consecutive double. Relocate them to the Jail cell, lock them in on
+ *  jail turn 1, log `go-to-jail`, and end the turn: going to jail forfeits the
+ *  rest of the turn even if the move was a double. No GO salary (you're sent,
+ *  not advanced past GO). */
+function sendToJail(
+  state: GameState,
+  reason: "tile" | "three-doubles",
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, position: JAIL_POSITION, inJail: true, jailTurns: 1 } : p,
+  );
+  const event: GameEvent = { kind: "go-to-jail", reason };
+  const turns = appendEventToActiveTurn(state.turns, event);
+  const next = advanceToNextPlayer({ ...state, players, turns }, state.turn.playerId);
+  return { state: next, newEvents: [event] };
+}
+
+/** Resolve one jail turn for the active (jailed) player by rolling for doubles:
+ *  - Doubles → escape and move out by the roll. Escaping on a double does NOT
+ *    grant another roll (official), so the turn settles after the landing.
+ *  - No doubles on jail turn 1 or 2 → serve another turn; the turn ends, still
+ *    jailed, with `jailTurns` advanced.
+ *  - No doubles on jail turn 3 → the sentence is up: pay the $50 fine (to the
+ *    bank) and move out by the roll. If they can't cover the fine even after
+ *    liquidating, they go bankrupt to the bank.
  *
- *  Current scope: rolls 2d6 in `pre-roll`, moves the active player, pays
- *  rent if the landed square is owned by someone else (busting the active
- *  player to the creditor when they can't cover), then either stops at
- *  `buy-decision` (unowned ownable), `game-over` (only one survivor),
- *  the next non-bankrupt player's `pre-roll` (active player just busted),
- *  another `pre-roll` for the same player (rolled doubles), or `post-roll`
- *  (default). Doubles grant another roll, capped at three in a row — the
- *  third would jail the player, which isn't built yet, so the turn just
- *  ends. Jail, card draws, and tax remain deferred. */
+ *  Entered from `autoStep` at `jail-decision` when nobody chose to pay / use a
+ *  card. See `monopoly/CLAUDE.md` "Jail". */
+function jailRoll(
+  state: GameState,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const rng = createRng(state.rngState);
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const player = state.players[idx];
+  const d1 = rollDie(rng);
+  const d2 = rollDie(rng);
+  const total = d1 + d2;
+  const escaped = d1 === d2;
+  const jailTurn = player.jailTurns;
+  const rngState = rng.getState();
+  const rollEvent: GameEvent = { kind: "jail-roll", dice: [d1, d2], escaped, jailTurn };
+
+  if (escaped) {
+    // Leave on the double and move out — no bonus roll (doublesStreak stays 0).
+    const freed = state.players.map((p, i) =>
+      i === idx ? { ...p, inJail: false, jailTurns: 0 } : p,
+    );
+    const base: GameState = {
+      ...state,
+      players: freed,
+      turns: appendEventToActiveTurn(state.turns, rollEvent),
+      rngState,
+    };
+    const resolved = resolveTile(moveActivePlayer(base, total), total);
+    return { state: resolved.state, newEvents: [rollEvent, ...resolved.newEvents] };
+  }
+
+  if (jailTurn < 3) {
+    // Failed roll, sentence continues: serve another turn, still jailed.
+    const stayed = state.players.map((p, i) =>
+      i === idx ? { ...p, jailTurns: p.jailTurns + 1 } : p,
+    );
+    const turns = appendEventToActiveTurn(state.turns, rollEvent);
+    const next = advanceToNextPlayer(
+      { ...state, players: stayed, turns, rngState },
+      state.turn.playerId,
+    );
+    return { state: next, newEvents: [rollEvent] };
+  }
+
+  // Third failed roll: forced to pay the fine to the bank, then move out.
+  const payEvent: GameEvent = { kind: "jail-pay" };
+  const freed = state.players.map((p, i) =>
+    i === idx ? { ...p, inJail: false, jailTurns: 0, cash: p.cash - JAIL_FEE } : p,
+  );
+  let turns = appendEventToActiveTurn(state.turns, rollEvent);
+  turns = appendEventToActiveTurn(turns, payEvent);
+  const paid: GameState = { ...state, players: freed, turns, rngState };
+  const events: GameEvent[] = [rollEvent, payEvent];
+
+  // Can't cover the $50 even after liquidating everything → bankrupt to the bank.
+  const freedPlayer = paid.players[idx];
+  if (freedPlayer.cash + maxRaisableCash(paid, freedPlayer.id) < 0) {
+    const bust = goBankrupt(paid, freedPlayer.id, null);
+    const resolved =
+      bust.state.turn.phase === "game-over"
+        ? bust.state
+        : advanceToNextPlayer(bust.state, freedPlayer.id);
+    return { state: resolved, newEvents: [...events, ...bust.newEvents] };
+  }
+
+  const moved = moveActivePlayer(paid, total);
+  if (moved.players[idx].cash < 0) {
+    // The fine alone put them in the red: settle before play continues. The
+    // landing's own rent is skipped in this rare case (they raise cash first) —
+    // a deliberate v1 simplification noted in monopoly/CLAUDE.md.
+    return { state: settleOrRaise(moved, "after-landing"), newEvents: events };
+  }
+  const resolved = resolveTile(moved, total);
+  return { state: resolved.state, newEvents: [...events, ...resolved.newEvents] };
+}
+
+function applyPayToLeaveJail(
+  state: GameState,
+  intent: Extract<Intent, { kind: "pay-to-leave-jail" }>,
+): ApplyResult {
+  if (state.turn.phase !== "jail-decision") {
+    return { ok: false, reason: `cannot pay to leave jail in phase ${state.turn.phase}` };
+  }
+  if (intent.playerId !== state.turn.playerId) {
+    return { ok: false, reason: "not your turn" };
+  }
+  const idx = state.players.findIndex((p) => p.id === intent.playerId);
+  const player = state.players[idx];
+  if (!player.inJail) return { ok: false, reason: "not in jail" };
+  if (player.cash < JAIL_FEE) return { ok: false, reason: "insufficient cash" };
+
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, cash: p.cash - JAIL_FEE, inJail: false, jailTurns: 0 } : p,
+  );
+  const payEvent: GameEvent = { kind: "jail-pay" };
+  const turns = appendEventToActiveTurn(state.turns, payEvent);
+  // Out of jail: resume at pre-roll so the normal auto-roll moves them this
+  // turn. A double rolled after paying DOES grant another roll — they're a free
+  // player now — which falls out of routing through the standard pre-roll path.
+  return {
+    ok: true,
+    state: { ...state, players, turns, turn: enterPreRoll(intent.playerId) },
+    newEvents: [payEvent],
+  };
+}
+
+function applyUseJailCard(
+  state: GameState,
+  intent: Extract<Intent, { kind: "use-jail-card" }>,
+): ApplyResult {
+  if (state.turn.phase !== "jail-decision") {
+    return { ok: false, reason: `cannot use a jail card in phase ${state.turn.phase}` };
+  }
+  if (intent.playerId !== state.turn.playerId) {
+    return { ok: false, reason: "not your turn" };
+  }
+  const idx = state.players.findIndex((p) => p.id === intent.playerId);
+  const player = state.players[idx];
+  if (!player.inJail) return { ok: false, reason: "not in jail" };
+  const source = heldJailCard(state, intent.playerId);
+  if (source === null) return { ok: false, reason: "no jail card held" };
+
+  // Return the card to the bottom of its deck (holder cleared).
+  const jailFreeCards = { ...state.jailFreeCards };
+  delete jailFreeCards[source];
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, inJail: false, jailTurns: 0 } : p,
+  );
+  const cardEvent: GameEvent = { kind: "jail-card", source };
+  const turns = appendEventToActiveTurn(state.turns, cardEvent);
+  return {
+    ok: true,
+    state: {
+      ...state,
+      players,
+      jailFreeCards,
+      turns,
+      turn: enterPreRoll(intent.playerId),
+    },
+    newEvents: [cardEvent],
+  };
+}
+
+/** Run mechanical transitions (dice, movement, rent, card draws, …) until the
+ *  state hits a phase that requires a decision. No-op outside the two phases it
+ *  drives from: `jail-decision` (a jailed player's turn — roll for doubles via
+ *  `jailRoll`, only reached when nobody chose to pay / use a card) and
+ *  `pre-roll` (the normal turn start).
+ *
+ *  At pre-roll it opens a queued boundary intermission, else sends a jailed
+ *  player to `jail-decision`, else rolls 2d6 and moves. A third consecutive
+ *  double sends the player to jail without moving. Otherwise `resolveTile`
+ *  finishes the landing — `go-to-jail` tile, `buy-decision` (unowned ownable),
+ *  rent (busting to the creditor when uncoverable), `game-over`, another roll
+ *  (doubles), or `post-roll`. Card draws and tax remain deferred. */
 export function autoStep(
   state: GameState,
 ): { state: GameState; newEvents: readonly GameEvent[] } {
+  // A jailed player's turn: roll for doubles. Only reached when neither the
+  // human prompt nor the bot policy resolved the jail decision with pay / card.
+  if (state.turn.phase === "jail-decision") return jailRoll(state);
+
   if (state.turn.phase !== "pre-roll") {
     return { state, newEvents: [] };
   }
@@ -1095,30 +1367,31 @@ export function autoStep(
   const boundary = tryEnterBoundary(state);
   if (boundary) return { state: boundary, newEvents: [] };
 
-  const rng = createRng(state.rngState);
   const playerIdx = state.players.findIndex(
     (p) => p.id === state.turn.playerId,
   );
   const player = state.players[playerIdx];
 
+  // A jailed player rolls for doubles instead of moving: open their jail
+  // decision. Reached only after the boundary queue is empty, so a jailed
+  // player's turn boundary still honors others' trade / manage intermissions.
+  // No event — the jail-roll fires on the next autoStep, or the chosen
+  // pay / use-card intent resolves it first.
+  if (player.inJail) {
+    return {
+      state: { ...state, turn: { ...state.turn, phase: "jail-decision" } },
+      newEvents: [],
+    };
+  }
+
+  const rng = createRng(state.rngState);
   const d1 = rollDie(rng);
   const d2 = rollDie(rng);
   const total = d1 + d2;
-  const fromPos = player.position;
-  const sum = fromPos + total;
+  const sum = player.position + total;
   const toPos = sum % SPACES.length;
   const passedGo = sum >= SPACES.length;
   const doublesStreak = d1 === d2 ? state.turn.doublesStreak + 1 : 0;
-
-  const movedPlayer: Player = {
-    ...player,
-    position: toPos,
-    cash: passedGo ? player.cash + PASS_GO_SALARY : player.cash,
-  };
-  const players = state.players.map((p, i) =>
-    i === playerIdx ? movedPlayer : p,
-  );
-
   const rollEvent: GameEvent = {
     kind: "roll",
     dice: [d1, d2],
@@ -1126,42 +1399,21 @@ export function autoStep(
     toPosition: toPos,
     passedGo,
   };
-  const turns = appendEventToActiveTurn(state.turns, rollEvent);
-  const afterMove: GameState = {
+  const base: GameState = {
     ...state,
-    players,
-    turns,
+    turns: appendEventToActiveTurn(state.turns, rollEvent),
     rngState: rng.getState(),
     turn: { ...state.turn, doublesStreak },
   };
 
-  const landedOnUnownedOwnable =
-    ownablePrice(toPos) !== null && !(toPos in state.ownership);
-  if (landedOnUnownedOwnable) {
-    // Buy-decision is its own phase; the armed `beforeEnd` pause is
-    // consumed at post-roll, not here. If the player buys or declines, the
-    // applyBuy / applyDeclineBuy paths route through `enterPostRoll` and
-    // honor the armed flag then.
-    const turn: TurnState = {
-      ...afterMove.turn,
-      phase: "buy-decision",
-      pendingBuy: toPos,
-    };
-    return { state: { ...afterMove, turn }, newEvents: [rollEvent] };
+  // Third consecutive double: straight to jail without moving or passing GO.
+  if (doublesStreak === 3) {
+    const jailed = sendToJail(base, "three-doubles");
+    return { state: jailed.state, newEvents: [rollEvent, ...jailed.newEvents] };
   }
 
-  // Charge rent if owed. `rentDue` already returns null for unowned,
-  // self-owned, and mortgaged squares. `chargeRent` fully resolves the
-  // landing — it busts + hands off, parks in must-raise-cash, or routes
-  // through afterLanding itself — so its result is returned directly.
-  const amount = rentDue(afterMove, toPos, total, state.turn.playerId);
-  if (amount !== null && amount > 0) {
-    const ownerId = afterMove.ownership[toPos];
-    const charged = chargeRent(afterMove, state.turn.playerId, ownerId, toPos, amount);
-    return { state: charged.state, newEvents: [rollEvent, ...charged.newEvents] };
-  }
-
-  return { state: afterLanding(afterMove), newEvents: [rollEvent] };
+  const resolved = resolveTile(moveActivePlayer(base, total), total);
+  return { state: resolved.state, newEvents: [rollEvent, ...resolved.newEvents] };
 }
 
 function rollDie(rng: Rng): number {

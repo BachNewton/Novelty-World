@@ -64,6 +64,14 @@ function turnOp(state: GameState, myPlayerId: string | null): DriveOp | null {
       ? null
       : { kind: "intent", intent: { kind: "end-turn", playerId } };
   }
+  if (phase === "jail-decision") {
+    // A human in jail decides via their own UI (pay / card / roll), so only a
+    // proxied (bot / disconnected) seat is driven here: pay or use a card per
+    // the policy, else step the jail roll (the policy returns null for "roll").
+    if (driverRole(state, myPlayerId) !== "proxy") return null;
+    const intent = botIntent(state, playerId);
+    return intent ? { kind: "intent", intent } : { kind: "step" };
+  }
   if (
     phase === "buy-decision" ||
     phase === "must-raise-cash" ||

@@ -76,6 +76,38 @@ describe("driveOp — human-turn sync barrier", () => {
   });
 });
 
+describe("driveOp — jail decision", () => {
+  it("proxies a bot's jail pay when it can afford the fine", () => {
+    const botJail = withTurn(base, { playerId: "p2", phase: "jail-decision" });
+    expect(driveOp(botJail, true, "p1")).toEqual({
+      kind: "intent",
+      intent: { kind: "pay-to-leave-jail", playerId: "p2" },
+    });
+  });
+
+  it("steps a bot's jail roll when it can neither pay nor use a card", () => {
+    const botJail = mapPlayer(
+      withTurn(base, { playerId: "p2", phase: "jail-decision" }),
+      "p2",
+      { cash: 0 },
+    );
+    expect(driveOp(botJail, true, "p1")).toEqual({ kind: "step" });
+  });
+
+  it("leaves the local human's own jail decision to their UI", () => {
+    const myJail = withTurn(base, { phase: "jail-decision" });
+    expect(driveOp(myJail, true, "p1")).toBeNull();
+  });
+
+  it("does not drive another connected human's jail decision", () => {
+    const otherJail = withTurn(mapPlayer(base, "p2", { isBot: false }), {
+      playerId: "p2",
+      phase: "jail-decision",
+    });
+    expect(driveOp(otherJail, true, "p1")).toBeNull();
+  });
+});
+
 describe("paceTransition", () => {
   it("reads a handoff to a new active player as a glide", () => {
     const from = base;

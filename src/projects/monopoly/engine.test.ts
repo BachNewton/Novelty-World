@@ -605,25 +605,31 @@ describe("autoStep doubles", () => {
     expect(next.turns).toHaveLength(1);
   });
 
-  it("does not grant a fourth roll after the third consecutive double", () => {
+  it("sends the player to jail on the third consecutive double", () => {
     const start = freshGame("test-doubles-roll"); // rolls [4,4]
-    const { total } = predictRoll(start.rngState);
     const placed: GameState = {
-      ...placeActivePlayerAt(start, (4 - total + 40) % 40),
+      ...placeActivePlayerAt(start, 20),
       turn: { ...start.turn, doublesStreak: 2 },
     };
-    const { state: next } = autoStep(placed);
+    const { state: next, newEvents } = autoStep(placed);
 
-    // Third double: no bonus roll. Jail is deferred, so it settles at
-    // post-roll and the turn ends through the normal end-turn path.
-    expect(next.turn.phase).toBe("post-roll");
-    expect(next.turn.playerId).toBe("p1");
-    expect(next.turn.doublesStreak).toBe(3);
+    // Third double: straight to jail, no move, turn ends.
+    const roll = newEvents[0];
+    if (roll.kind !== "roll") throw new Error("expected a roll event");
+    expect(roll.doublesStreak).toBe(3);
+    expect(newEvents).toContainEqual({
+      kind: "go-to-jail",
+      reason: "three-doubles",
+    });
 
-    const ended = apply(next, { kind: "end-turn", playerId: "p1" });
-    if (!ended.ok) throw new Error(`expected ok, got ${ended.reason}`);
-    expect(ended.state.turn.playerId).toBe("p2");
-    expect(ended.state.turn.doublesStreak).toBe(0);
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(true);
+    expect(p1?.jailTurns).toBe(1);
+    expect(p1?.position).toBe(10);
+
+    // The turn ends — control passes to p2 at a fresh pre-roll.
+    expect(next.turn.playerId).toBe("p2");
+    expect(next.turn.phase).toBe("pre-roll");
   });
 
   it("settles into post-roll and resets the streak on a non-double", () => {
@@ -1413,5 +1419,203 @@ describe("trade mortgaged-property interest", () => {
     if (!staged.ok) throw new Error(staged.reason);
     const proposed = apply(staged.state, { kind: "propose-trade", playerId: "p1" });
     expect(proposed.ok).toBe(false);
+  });
+});
+
+// Put the active player (p1) in jail at the given jail turn, parked at the
+// jail-decision phase — the state a jailed player's turn opens at.
+function inJailDecision(state: GameState, jailTurns: number): GameState {
+  return {
+    ...state,
+    players: state.players.map((p, i): Player =>
+      i === 0 ? { ...p, position: 10, inJail: true, jailTurns } : p,
+    ),
+    turn: { ...state.turn, phase: "jail-decision" },
+  };
+}
+
+describe("jail entry", () => {
+  it("jails the player who lands on the Go to Jail tile", () => {
+    const start = freshGame("test-rent-basic"); // rolls [4,6] = 10
+    const { total } = predictRoll(start.rngState);
+    const placed = placeActivePlayerAt(start, (30 - total + 40) % 40);
+    const { state: next, newEvents } = autoStep(placed);
+
+    const roll = newEvents[0];
+    if (roll.kind !== "roll") throw new Error("expected a roll event");
+    expect(roll.toPosition).toBe(30); // the dice carried them onto the tile
+    expect(newEvents).toContainEqual({ kind: "go-to-jail", reason: "tile" });
+
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(true);
+    expect(p1?.jailTurns).toBe(1);
+    expect(p1?.position).toBe(10); // relocated to Jail, not left on 30
+    // No GO salary for being sent to jail.
+    expect(p1?.cash).toBe(1500);
+
+    expect(next.turn.playerId).toBe("p2");
+    expect(next.turn.phase).toBe("pre-roll");
+  });
+
+  it("opens the jail decision at a jailed player's turn start", () => {
+    const start = freshGame("test-jail-open");
+    const jailed: GameState = {
+      ...start,
+      players: start.players.map((p, i): Player =>
+        i === 0 ? { ...p, position: 10, inJail: true, jailTurns: 1 } : p,
+      ),
+    };
+    const { state: next, newEvents } = autoStep(jailed);
+    expect(next.turn.phase).toBe("jail-decision");
+    expect(next.turn.playerId).toBe("p1");
+    expect(newEvents).toHaveLength(0);
+    // No roll consumed yet — the dice fire on the jail roll.
+    expect(next.rngState).toBe(jailed.rngState);
+    expect(next.players[0].position).toBe(10);
+  });
+
+  it("resolves a queued intermission before opening the jail decision", () => {
+    // A jailed player's turn boundary still honors others' trade / manage arms.
+    const start = freshGame("test-jail-boundary");
+    const jailed: GameState = {
+      ...start,
+      players: start.players.map((p, i): Player =>
+        i === 0 ? { ...p, position: 10, inJail: true, jailTurns: 1 } : p,
+      ),
+      boundaryQueue: [{ playerId: "p3", kind: "manage" }],
+    };
+    const { state: next } = autoStep(jailed);
+    expect(next.turn.phase).toBe("managing");
+    expect(next.turn.managerId).toBe("p3");
+  });
+});
+
+describe("jail roll", () => {
+  it("escapes on a double and moves out by the roll, no bonus roll", () => {
+    const start = inJailDecision(freshGame("test-doubles-roll"), 1); // [4,4]
+    const { state: next, newEvents } = autoStep(start);
+
+    expect(newEvents).toContainEqual({
+      kind: "jail-roll",
+      dice: [4, 4],
+      escaped: true,
+      jailTurn: 1,
+    });
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(false);
+    expect(p1?.jailTurns).toBe(0);
+    expect(p1?.position).toBe(18); // 10 + 8
+    // Escaping on a double does NOT grant another roll: the streak stays 0, so
+    // once the landing resolves the turn ends rather than re-rolling.
+    expect(next.turn.doublesStreak).toBe(0);
+    expect(next.turn.playerId).toBe("p1");
+  });
+
+  it("serves another turn on a failed roll before the third", () => {
+    const start = inJailDecision(freshGame("test-rent-basic"), 1); // [4,6]
+    const { state: next, newEvents } = autoStep(start);
+
+    expect(newEvents).toContainEqual({
+      kind: "jail-roll",
+      dice: [4, 6],
+      escaped: false,
+      jailTurn: 1,
+    });
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(true);
+    expect(p1?.jailTurns).toBe(2); // sentence advances
+    expect(p1?.position).toBe(10); // didn't move
+    // The turn ends — control passes on.
+    expect(next.turn.playerId).toBe("p2");
+    expect(next.turn.phase).toBe("pre-roll");
+  });
+
+  it("forces the $50 fine and moves out after a failed third roll", () => {
+    const start = inJailDecision(freshGame("test-rent-basic"), 3); // [4,6]
+    const { state: next, newEvents } = autoStep(start);
+
+    const kinds = newEvents.map((e) => e.kind);
+    expect(kinds).toContain("jail-roll");
+    expect(kinds).toContain("jail-pay");
+    const jailRollEvent = newEvents.find((e) => e.kind === "jail-roll");
+    expect(jailRollEvent).toMatchObject({ escaped: false, jailTurn: 3 });
+
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(false);
+    expect(p1?.jailTurns).toBe(0);
+    expect(p1?.cash).toBe(1500 - 50); // fine paid to the bank
+    expect(p1?.position).toBe(20); // 10 + 10, Free Parking (safe) → post-roll
+    expect(next.turn.phase).toBe("post-roll");
+  });
+
+  it("bankrupts to the bank when the forced fine is unaffordable", () => {
+    // p1 on jail turn 3 with $0 and nothing to liquidate can't cover the $50.
+    let start = inJailDecision(freshGame("test-rent-basic"), 3);
+    start = setCash(start, "p1", 0);
+    const { state: next, newEvents } = autoStep(start);
+
+    const bust = newEvents.find((e) => e.kind === "bankrupt");
+    if (!bust) throw new Error("expected a bankrupt event");
+    expect(bust.creditorId).toBe(null); // estate to the bank
+
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.bankrupt).toBe(true);
+    expect(next.turn.playerId).toBe("p2");
+  });
+});
+
+describe("apply pay-to-leave-jail", () => {
+  it("pays the fine, leaves jail, and resumes at pre-roll", () => {
+    const start = inJailDecision(freshGame("test-jail-pay"), 1);
+    const result = apply(start, { kind: "pay-to-leave-jail", playerId: "p1" });
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+    expect(result.newEvents).toEqual([{ kind: "jail-pay" }]);
+    const p1 = result.state.players.find((p) => p.id === "p1");
+    expect(p1?.cash).toBe(1500 - 50);
+    expect(p1?.inJail).toBe(false);
+    expect(p1?.jailTurns).toBe(0);
+    // Back to pre-roll so the normal auto-roll moves them this turn.
+    expect(result.state.turn.phase).toBe("pre-roll");
+    expect(result.state.turn.playerId).toBe("p1");
+  });
+
+  it("rejects paying with insufficient cash", () => {
+    let start = inJailDecision(freshGame("test-jail-pay-broke"), 1);
+    start = setCash(start, "p1", 40);
+    const result = apply(start, { kind: "pay-to-leave-jail", playerId: "p1" });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects paying to leave jail outside the jail-decision phase", () => {
+    const start = freshGame("test-jail-pay-phase");
+    const result = apply(start, { kind: "pay-to-leave-jail", playerId: "p1" });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("apply use-jail-card", () => {
+  it("spends a held card, leaves jail, and returns it to the deck", () => {
+    const start: GameState = {
+      ...inJailDecision(freshGame("test-jail-card"), 1),
+      jailFreeCards: { chance: "p1" },
+    };
+    const result = apply(start, { kind: "use-jail-card", playerId: "p1" });
+    if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
+
+    expect(result.newEvents).toEqual([{ kind: "jail-card", source: "chance" }]);
+    const p1 = result.state.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(false);
+    expect(p1?.jailTurns).toBe(0);
+    expect(p1?.cash).toBe(1500); // free — no fine
+    // Card returns to the bottom of its deck (holder cleared).
+    expect(result.state.jailFreeCards.chance).toBeUndefined();
+    expect(result.state.turn.phase).toBe("pre-roll");
+  });
+
+  it("rejects using a card the player doesn't hold", () => {
+    const start = inJailDecision(freshGame("test-jail-card-none"), 1);
+    const result = apply(start, { kind: "use-jail-card", playerId: "p1" });
+    expect(result.ok).toBe(false);
   });
 });

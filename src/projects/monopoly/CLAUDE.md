@@ -12,7 +12,11 @@ This is Monopoly for players who know the game cold. They don't need explanation
 - Build / sell houses and hotels.
 - Mortgage / unmortgage.
 - Propose, accept, decline trades — what, with whom, how much.
-- Jail: leave ASAP or stay (typically a stance, not a per-turn prompt).
+- Jail: leave ASAP or stay. The long-term aim is a set-and-forget *stance*, not
+  a per-turn prompt — but **v1 ships the per-turn prompt** (pay / card / roll
+  each jail turn), a deliberate, owner-approved exception. The `jailStance`
+  preference stays in the type, reserved for the future stance toggle. See the
+  "Jail" section below.
 
 **Everything else is mechanical and should run on its own:**
 - Rolling dice, moving the token, passing GO, paying rent, paying tax, drawing and resolving Chance/Community Chest, going to jail on three doubles, busting at the end of a turn — none of this is a decision. The engine does it automatically.
@@ -128,6 +132,24 @@ A queued `manage` request opens a **`managing`** intermission at the pre-roll bo
 - **`must-raise-cash` reuses the same `manage` reducer** (forced branch): the current debtor (`firstNegativePlayer`, possibly off-turn) raises by selling buildings and/or mortgaging — no builds, no un-mortgages — and `settleOrRaise` resumes play once they're back to ≥ 0. `maxRaisableCash` counts building sale value so a debtor with only built property settles instead of busting.
 - **Board UI:** the manage panel uses the board rows as its surface — tapping a property's **color strip** cycles its build level (`square-row.tsx` splits the row into two tap zones), tapping the **row body** toggles its mortgage. The `ManagePanel` summary bar shows the combined net cash, the **remaining bank supply** (houses/hotels — surfaced only here), and a shortage-liquidation note when one is forced. Staging is local client state (`store.ts` `manageStaged`); the pure preview math is in `manage.ts` (`manageSummary` = build plan with staged mortgages applied + the mortgage cash deltas). The **same panel serves `must-raise-cash`** (forced "Pay" mode: sell down / mortgage only), so a human debtor can sell buildings, not just mortgage. The log is hidden during `managing`, as for trades.
 - **TODO (building auction):** the official rule auctions scarce houses/hotels to the highest bidder when demand exceeds supply; we approximate with the arm-order FIFO for now. Wire the real auction when the property-auction sub-game lands (they share machinery).
+
+### Jail
+
+**Three ways in** — landing on the "Go to Jail" tile, rolling three consecutive doubles, and (deferred with the card system) drawing a "Go to Jail" card. All three relocate the player to the Jail cell, set `inJail` + `jailTurns: 1`, log `go-to-jail`, and **end the turn immediately** — going to jail forfeits the rest of the turn even if the move was a double, and never pays GO. `sendToJail` is the single entry helper.
+
+**A jailed player's turn opens at `jail-decision`.** `autoStep` at `pre-roll` resolves the boundary queue first (so others' trade/manage arms still fire), then — if the active player is jailed — flips to `jail-decision` and stops. From there:
+
+- **Human:** the prompt (`prompt-section.tsx` `JailPrompt`) offers **Pay $50 / Use card / Roll** each jail turn. Pay and card are intents; "Roll" fires the mechanical jail roll via the store's `step`. This per-turn prompt is the v1 exception to the "stance, not a prompt" philosophy (see Philosophy above).
+- **Bot:** the policy leaves ASAP — **card → cash → roll**: spend a held Get-Out-of-Jail-Free card first (free), else pay the $50 fine if affordable, else return `null` so the pacer steps the jail roll. `turnOp` drives only a proxied seat here; a human's own jail turn waits for their UI.
+
+**Four ways out:**
+- **Roll a double** (`jailRoll`): leave and move out by the roll. Escaping on a double does **not** grant another roll (official) — `doublesStreak` stays 0, so the turn settles after the landing.
+- **Pay $50** (`pay-to-leave-jail`, only when affordable) or **play a card** (`use-jail-card`, returns the card to the bottom of its deck): leave, then resume at `pre-roll` so the normal auto-roll moves them this turn — a double rolled *after* paying/carding *does* grant another roll (they're a free player again).
+- **Serve the sentence:** a failed roll on jail turns 1–2 advances `jailTurns` and ends the turn; a failed **third** roll forces the $50 fine, then moves out.
+
+**The $50 fine is a bank charge.** Voluntary pay is gated on cash ≥ $50 (no debt path). The forced third-turn fine routes through the unified debt model: `goBankrupt` is generalized to a **null (bank) creditor** (estate reverts to unowned / cards return to deck — not auctioned, a simplification matching the others). v1 simplification flagged in code: if the forced fine alone pushes the player into the red, they settle (`must-raise-cash`) before the turn ends and the landing's *rent* is skipped for that rare case.
+
+**Card-driven jail is deferred** with the Chance/Community-Chest deck: going to jail by card and *acquiring* a GOJF card from a deck don't exist yet. `use-jail-card` is fully wired, since a card can already be held via a trade. `jailStance` is reserved in the type for the future stance toggle.
 
 ### RNG: always injected, never `Math.random()`
 

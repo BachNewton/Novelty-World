@@ -1,5 +1,5 @@
 import { SPACES } from "./data";
-import type { GameState, PropertyColor } from "./types";
+import type { CardSource, GameState, PropertyColor } from "./types";
 
 const PROPS_PER_COLOR: Readonly<Record<PropertyColor, number>> = {
   brown: 2,
@@ -59,6 +59,20 @@ export function mortgageInterestAt(position: number): number | null {
   const cost = unmortgageCostAt(position);
   if (value === null || cost === null) return null;
   return cost - value;
+}
+
+/** The Get-Out-of-Jail-Free card source this player holds, or null if they
+ *  hold none. Prefers Chance when they hold both — an arbitrary but stable
+ *  choice so "use a card" consumes a deterministic one. Used by the engine
+ *  (use-jail-card), the bot policy, and the jail prompt to know whether the
+ *  "Use card" option is available. */
+export function heldJailCard(
+  state: GameState,
+  playerId: string,
+): CardSource | null {
+  if (state.jailFreeCards.chance === playerId) return "chance";
+  if (state.jailFreeCards.communityChest === playerId) return "communityChest";
+  return null;
 }
 
 /** True when ownerId holds every property of `color`. */

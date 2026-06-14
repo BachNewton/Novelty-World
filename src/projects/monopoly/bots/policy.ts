@@ -4,8 +4,8 @@ import {
   groupPositions,
   houseCostAt,
 } from "../development";
-import { firstNegativePlayer } from "../engine";
-import { mortgageValueAt, ownablePrice } from "../logic";
+import { firstNegativePlayer, JAIL_FEE } from "../engine";
+import { heldJailCard, mortgageValueAt, ownablePrice } from "../logic";
 import type { GameState, Intent, PropertyColor } from "../types";
 
 /** Baseline bot policy: the decision a bot `playerId` should submit right now,
@@ -24,11 +24,28 @@ import type { GameState, Intent, PropertyColor } from "../types";
  *    then, once nothing's left to mortgage, sell off a built set's buildings.
  *  - `trade-pending`: if this bot is an un-voted party, accept. v1 placeholder
  *    — permissive, no valuation. TODO: weigh the trade before accepting.
+ *  - `jail-decision`: leave ASAP — a held Get-Out-of-Jail-Free card first (it's
+ *    free), else pay the $50 fine when affordable, else `null` so the pacer
+ *    issues the jail roll (gamble on doubles).
  *
  *  Mechanical phases (`pre-roll` → step, `post-roll` → end-turn) are handled by
  *  the pacer itself, not here. */
 export function botIntent(state: GameState, playerId: string): Intent | null {
   const { phase, pendingBuy, pendingTrade } = state.turn;
+
+  if (phase === "jail-decision") {
+    if (state.turn.playerId !== playerId) return null;
+    // Card → cash → roll: spend a free card before $50, and only roll for
+    // doubles (returning null, the pacer steps) when neither is available.
+    if (heldJailCard(state, playerId) !== null) {
+      return { kind: "use-jail-card", playerId };
+    }
+    const player = state.players.find((p) => p.id === playerId);
+    if (player && player.cash >= JAIL_FEE) {
+      return { kind: "pay-to-leave-jail", playerId };
+    }
+    return null;
+  }
 
   if (phase === "buy-decision" && pendingBuy !== undefined) {
     if (state.turn.playerId !== playerId) return null;

@@ -130,6 +130,53 @@ describe("botIntent — trade-pending", () => {
   });
 });
 
+describe("botIntent — jail-decision", () => {
+  it("uses a held Get-Out-of-Jail-Free card first (it's free)", () => {
+    const state: GameState = {
+      ...withTurn({ phase: "jail-decision" }),
+      jailFreeCards: { chance: "p1" },
+    };
+    expect(botIntent(state, "p1")).toEqual({
+      kind: "use-jail-card",
+      playerId: "p1",
+    });
+  });
+
+  it("prefers a held card over paying even with cash on hand", () => {
+    // Card → cash → roll: a held card is spent before $50 even when affordable.
+    const state: GameState = {
+      ...withTurn({ phase: "jail-decision" }),
+      jailFreeCards: { communityChest: "p1" },
+    };
+    expect(botIntent(state, "p1")).toEqual({
+      kind: "use-jail-card",
+      playerId: "p1",
+    });
+  });
+
+  it("pays the fine when it has no card but can afford $50", () => {
+    const state = withTurn({ phase: "jail-decision" });
+    expect(botIntent(state, "p1")).toEqual({
+      kind: "pay-to-leave-jail",
+      playerId: "p1",
+    });
+  });
+
+  it("rolls (returns null) when it has neither a card nor the fine", () => {
+    const broke: GameState = {
+      ...withTurn({ phase: "jail-decision" }),
+      players: base.players.map((p) =>
+        p.id === "p1" ? { ...p, cash: 40 } : p,
+      ),
+    };
+    expect(botIntent(broke, "p1")).toBeNull();
+  });
+
+  it("returns null when it isn't that player's jail turn", () => {
+    expect(botIntent(withTurn({ phase: "jail-decision" }), "p2")).toBeNull();
+  });
+});
+
 describe("botIntent — no decision to make", () => {
   it("returns null for a mechanical phase", () => {
     expect(botIntent(withTurn({ phase: "pre-roll" }), "p1")).toBeNull();
