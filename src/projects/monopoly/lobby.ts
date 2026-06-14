@@ -1,6 +1,6 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
-import { createRng } from "./engine";
+import { createRng, initialDecks } from "./engine";
 import type {
   GameState,
   Player,
@@ -116,6 +116,9 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
     isBot: false,
   });
   const players = [player];
+  // Seed the decks from the game's RNG stream, then advance past the shuffle.
+  const rng = createRng(rngSeed);
+  const decks = initialDecks(rng);
   return {
     status: "lobby",
     players,
@@ -123,12 +126,13 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
     mortgaged: {},
     houses: {},
     jailFreeCards: {},
+    decks,
     turns: [{ turn: 1, playerId: player.id, events: [] }],
     turn: { playerId: player.id, phase: "pre-roll", doublesStreak: 0 },
     preferences: densePreferences(players),
     boundaryQueue: [],
     rngSeed,
-    rngState: createRng(rngSeed).getState(),
+    rngState: rng.getState(),
   };
 }
 

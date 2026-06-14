@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
 import { apply, autoStep, createRng, firstNegativePlayer } from "./engine";
 import { freshGame } from "./mocks";
-import type { GameState, Player } from "./types";
+import type { CardSource, GameState, Player } from "./types";
 
 // Resume the seeded RNG and pull the same two dice autoStep would, without
 // mutating the state. Lets a test place the active player so the roll lands
@@ -183,7 +184,7 @@ describe("autoStep", () => {
 
 describe("apply", () => {
   it("advances to the next player and opens a new TurnGroup on end-turn", () => {
-    const start = freshGame("test-end-turn");
+    const start = freshGame("test-end-turn-0");
     // Position the active player so the deterministic first roll lands on
     // Income Tax (pos 4) — a non-ownable square, so autoStep charges the tax
     // and settles at post-roll instead of branching into buy-decision.
@@ -656,7 +657,7 @@ describe("tax", () => {
 
 describe("autoStep doubles", () => {
   it("grants the active player another roll on doubles, keeping the streak", () => {
-    const start = freshGame("test-doubles-roll"); // rolls [4,4]
+    const start = freshGame("test-doubles-roll-10"); // rolls [4,4]
     const { total } = predictRoll(start.rngState);
     // Land on Income Tax (4): non-ownable, so the roll resolves past landing.
     const placed = placeActivePlayerAt(start, (4 - total + 40) % 40);
@@ -674,7 +675,7 @@ describe("autoStep doubles", () => {
   });
 
   it("sends the player to jail on the third consecutive double", () => {
-    const start = freshGame("test-doubles-roll"); // rolls [4,4]
+    const start = freshGame("test-doubles-roll-10"); // rolls [4,4]
     const placed: GameState = {
       ...placeActivePlayerAt(start, 20),
       turn: { ...start.turn, doublesStreak: 2 },
@@ -701,7 +702,7 @@ describe("autoStep doubles", () => {
   });
 
   it("settles into post-roll and resets the streak on a non-double", () => {
-    const start = freshGame("test-rent-basic"); // rolls [4,6]
+    const start = freshGame("test-rent-basic-34"); // rolls [4,6]
     const { total } = predictRoll(start.rngState);
     const placed = placeActivePlayerAt(start, (4 - total + 40) % 40);
     const { state: next, newEvents } = autoStep(placed);
@@ -807,7 +808,7 @@ describe("apply decline-buy", () => {
 
 describe("autoStep rent", () => {
   it("transfers cash from lander to owner and emits a rent event", () => {
-    const start = freshGame("test-rent-basic");
+    const start = freshGame("test-rent-basic-34");
     const { state: placed } = setupLandingOn(start, 13); // States Avenue
     // p2 owns States Avenue only — no monopoly, no houses → base rent $10.
     const state = withOwnership(placed, { 13: "p2" });
@@ -891,7 +892,7 @@ describe("autoStep rent", () => {
   });
 
   it("collects no rent when the property is mortgaged", () => {
-    const start = freshGame("test-rent-mortgaged");
+    const start = freshGame("test-rent-mortgaged-0");
     const { state: placed } = setupLandingOn(start, 13);
     const state: GameState = {
       ...withOwnership(placed, { 13: "p2" }),
@@ -1504,7 +1505,7 @@ function inJailDecision(state: GameState, jailTurns: number): GameState {
 
 describe("jail entry", () => {
   it("jails the player who lands on the Go to Jail tile", () => {
-    const start = freshGame("test-rent-basic"); // rolls [4,6] = 10
+    const start = freshGame("test-rent-basic-34"); // rolls [4,6] = 10
     const { total } = predictRoll(start.rngState);
     const placed = placeActivePlayerAt(start, (30 - total + 40) % 40);
     const { state: next, newEvents } = autoStep(placed);
@@ -1560,7 +1561,7 @@ describe("jail entry", () => {
 
 describe("jail roll", () => {
   it("escapes on a double and moves out by the roll, no bonus roll", () => {
-    const start = inJailDecision(freshGame("test-doubles-roll"), 1); // [4,4]
+    const start = inJailDecision(freshGame("test-doubles-roll-10"), 1); // [4,4]
     const { state: next, newEvents } = autoStep(start);
 
     expect(newEvents).toContainEqual({
@@ -1580,7 +1581,7 @@ describe("jail roll", () => {
   });
 
   it("serves another turn on a failed roll before the third", () => {
-    const start = inJailDecision(freshGame("test-rent-basic"), 1); // [4,6]
+    const start = inJailDecision(freshGame("test-rent-basic-34"), 1); // [4,6]
     const { state: next, newEvents } = autoStep(start);
 
     expect(newEvents).toContainEqual({
@@ -1599,7 +1600,7 @@ describe("jail roll", () => {
   });
 
   it("forces the $50 fine and moves out after a failed third roll", () => {
-    const start = inJailDecision(freshGame("test-rent-basic"), 3); // [4,6]
+    const start = inJailDecision(freshGame("test-rent-basic-34"), 3); // [4,6]
     const { state: next, newEvents } = autoStep(start);
 
     const kinds = newEvents.map((e) => e.kind);
@@ -1618,7 +1619,7 @@ describe("jail roll", () => {
 
   it("bankrupts to the bank when the forced fine is unaffordable", () => {
     // p1 on jail turn 3 with $0 and nothing to liquidate can't cover the $50.
-    let start = inJailDecision(freshGame("test-rent-basic"), 3);
+    let start = inJailDecision(freshGame("test-rent-basic-34"), 3);
     start = setCash(start, "p1", 0);
     const { state: next, newEvents } = autoStep(start);
 
@@ -1685,5 +1686,260 @@ describe("apply use-jail-card", () => {
     const start = inJailDecision(freshGame("test-jail-card-none"), 1);
     const result = apply(start, { kind: "use-jail-card", playerId: "p1" });
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chance / Community Chest cards. A draw is triggered by landing on a card
+// tile during a roll; `cardFront` forces a chosen card to the top of its pile
+// so the effect under test is the one drawn. Chance tile 22 and CC tile 17 are
+// used as targets: with any 2d6 roll the placement never wraps GO, so the
+// setup roll itself never pollutes cash with a $200 salary.
+// ---------------------------------------------------------------------------
+
+const CHANCE_TILE = 22;
+const CC_TILE = 17;
+
+/** Put `cardId` at the top of its deck pile so the next draw yields it. */
+function cardFront(
+  state: GameState,
+  source: CardSource,
+  cardId: string,
+): GameState {
+  const index = deckFor(source).findIndex((c) => c.id === cardId);
+  const rest = state.decks[source].filter((i) => i !== index);
+  return { ...state, decks: { ...state.decks, [source]: [index, ...rest] } };
+}
+
+/** Place the active player to land on `tile` via the seeded roll, then force
+ *  `cardId` to the top of the matching pile. Returns the ready state. */
+function drawSetup(
+  seed: string,
+  tile: number,
+  source: CardSource,
+  cardId: string,
+): GameState {
+  const { state } = setupLandingOn(freshGame(seed), tile);
+  return cardFront(state, source, cardId);
+}
+
+describe("cards — deck seeding", () => {
+  it("shuffles a full, deterministic pile of all card indices per seed", () => {
+    const a = freshGame("deck-seed");
+    const b = freshGame("deck-seed");
+    expect(a.decks).toEqual(b.decks);
+    const sorted = (xs: readonly number[]) => [...xs].sort((m, n) => m - n);
+    expect(sorted(a.decks.chance)).toEqual(CHANCE.map((_, i) => i));
+    expect(sorted(a.decks.communityChest)).toEqual(
+      COMMUNITY_CHEST.map((_, i) => i),
+    );
+  });
+
+  it("rotates the drawn card to the bottom of its pile", () => {
+    const state = drawSetup("card-rotate", CHANCE_TILE, "chance", "chance-dividend");
+    const topIndex = state.decks.chance[0];
+    const { state: next } = autoStep(state);
+    // The drawn (front) card is now last; the rest shifted up by one.
+    expect(next.decks.chance[next.decks.chance.length - 1]).toBe(topIndex);
+    expect(next.decks.chance).toHaveLength(state.decks.chance.length);
+  });
+});
+
+describe("cards — money", () => {
+  it("collect: credits the drawer from the bank", () => {
+    const state = drawSetup("card-collect", CHANCE_TILE, "chance", "chance-dividend");
+    const before = state.players[0].cash;
+    const { state: next, newEvents } = autoStep(state);
+    expect(newEvents).toContainEqual({
+      kind: "card-drawn",
+      source: "chance",
+      cardId: "chance-dividend",
+      cash: 50,
+    });
+    expect(next.players[0].cash).toBe(before + 50);
+  });
+
+  it("pay: charges the drawer to the bank", () => {
+    const state = drawSetup("card-pay", CHANCE_TILE, "chance", "chance-speeding");
+    const before = state.players[0].cash;
+    const { state: next, newEvents } = autoStep(state);
+    expect(newEvents).toContainEqual({
+      kind: "card-drawn",
+      source: "chance",
+      cardId: "chance-speeding",
+      cash: -15,
+    });
+    expect(next.players[0].cash).toBe(before - 15);
+  });
+
+  it("pay: drops into must-raise-cash when the drawer can't cover from cash", () => {
+    let state = drawSetup("card-pay-debt", CC_TILE, "communityChest", "cc-hospital");
+    state = setCash(state, "p1", 80); // owes $100, holds $80
+    // p1 can recover: a railroad ($100 mortgage value) covers the shortfall, so
+    // they go negative and raise cash rather than busting outright.
+    state = withOwnership(state, { 5: "p1" }); // Reading Railroad
+    const { state: next } = autoStep(state);
+    expect(next.turn.phase).toBe("must-raise-cash");
+    expect(firstNegativePlayer(next)).toBe("p1");
+    expect(next.players[0].cash).toBe(80 - 100);
+  });
+
+  it("repairs: charges per house and per hotel owned", () => {
+    let state = drawSetup("card-repairs", CHANCE_TILE, "chance", "chance-repairs");
+    // p1 owns the browns: 3 houses on Mediterranean, a hotel on Baltic.
+    state = withOwnership(state, { 1: "p1", 3: "p1" });
+    state = { ...state, houses: { 1: 3, 3: 5 } };
+    const before = state.players[0].cash;
+    const { state: next } = autoStep(state);
+    // 3 houses × $25 + 1 hotel × $100 = $175.
+    expect(next.players[0].cash).toBe(before - 175);
+  });
+});
+
+describe("cards — per-player transfers", () => {
+  it("pay-each: drawer pays every opponent, one transfer line each", () => {
+    const state = drawSetup("card-chairman", CHANCE_TILE, "chance", "chance-chairman");
+    const before = state.players.map((p) => p.cash);
+    const { state: next, newEvents } = autoStep(state);
+    const transfers = newEvents.filter((e) => e.kind === "card-transfer");
+    expect(transfers).toHaveLength(3); // 4-player game → 3 opponents
+    expect(next.players[0].cash).toBe(before[0] - 150);
+    for (let i = 1; i < 4; i++) expect(next.players[i].cash).toBe(before[i] + 50);
+  });
+
+  it("collect-each: every opponent pays the drawer", () => {
+    const state = drawSetup("card-birthday", CC_TILE, "communityChest", "cc-birthday");
+    const before = state.players.map((p) => p.cash);
+    const { state: next } = autoStep(state);
+    expect(next.players[0].cash).toBe(before[0] + 30); // 3 × $10
+    for (let i = 1; i < 4; i++) expect(next.players[i].cash).toBe(before[i] - 10);
+  });
+
+  it("collect-each: an opponent who can't pay goes bankrupt to the drawer", () => {
+    let state = drawSetup("card-birthday-bust", CC_TILE, "communityChest", "cc-birthday");
+    state = setCash(state, "p2", 0); // can't cover even $10, nothing to liquidate
+    const { state: next, newEvents } = autoStep(state);
+    const bust = newEvents.find((e) => e.kind === "bankrupt");
+    if (!bust) throw new Error("expected a bankrupt event");
+    expect(bust.creditorId).toBe("p1");
+    expect(next.players.find((p) => p.id === "p2")?.bankrupt).toBe(true);
+  });
+});
+
+describe("cards — movement", () => {
+  it("advance-to GO credits the $200 salary via a pass-go event", () => {
+    const state = drawSetup("card-go", CHANCE_TILE, "chance", "chance-go");
+    const before = state.players[0].cash;
+    const { state: next, newEvents } = autoStep(state);
+    expect(newEvents).toContainEqual({ kind: "pass-go" });
+    expect(next.players[0].position).toBe(0);
+    expect(next.players[0].cash).toBe(before + 200);
+  });
+
+  it("advance-to a property resolves the landing normally (rent to owner)", () => {
+    let state = drawSetup("card-boardwalk", CHANCE_TILE, "chance", "chance-boardwalk");
+    state = withOwnership(state, { 39: "p2" }); // p2 owns Boardwalk, base rent $50
+    const before = state.players.map((p) => p.cash);
+    const { state: next, newEvents } = autoStep(state);
+    expect(next.players[0].position).toBe(39);
+    const rent = newEvents.find((e) => e.kind === "rent");
+    expect(rent).toMatchObject({ ownerId: "p2", position: 39, amount: 50 });
+    expect(next.players[0].cash).toBe(before[0] - 50);
+    expect(next.players[1].cash).toBe(before[1] + 50);
+  });
+
+  it("advance to nearest railroad charges double the normal rent", () => {
+    let state = drawSetup("card-nrr", CHANCE_TILE, "chance", "chance-nearest-rr-a");
+    // p2 owns one railroad (normal rent $25) → card charges 2× = $50. Nearest
+    // railroad ahead of tile 22 is Pennsylvania (25).
+    state = withOwnership(state, { 25: "p2" });
+    const before = state.players.map((p) => p.cash);
+    const { state: next, newEvents } = autoStep(state);
+    expect(next.players[0].position).toBe(25);
+    const rent = newEvents.find((e) => e.kind === "rent");
+    expect(rent).toMatchObject({ ownerId: "p2", position: 25, amount: 50 });
+    expect(next.players[0].cash).toBe(before[0] - 50);
+  });
+
+  it("advance to nearest utility charges 10× the dice throw", () => {
+    let state = drawSetup("card-nutil", CHANCE_TILE, "chance", "chance-nearest-util");
+    // Nearest utility ahead of 22 is Water Works (28); p2 owns it.
+    state = withOwnership(state, { 28: "p2" });
+    const { state: next, newEvents } = autoStep(state);
+    expect(next.players[0].position).toBe(28);
+    const rent = newEvents.find((e) => e.kind === "rent");
+    if (!rent) throw new Error("expected rent");
+    // 10× a 2d6 throw → between 20 and 120, and a multiple of 10.
+    expect(rent.amount % 10).toBe(0);
+    expect(rent.amount).toBeGreaterThanOrEqual(20);
+    expect(rent.amount).toBeLessThanOrEqual(120);
+  });
+
+  it("advance to nearest railroad offers a buy when unowned", () => {
+    const state = drawSetup("card-nrr-buy", CHANCE_TILE, "chance", "chance-nearest-rr-a");
+    const { state: next } = autoStep(state);
+    expect(next.turn.phase).toBe("buy-decision");
+    expect(next.turn.pendingBuy).toBe(25);
+  });
+
+  it("go back three resolves the tile landed on (income tax from tile 7)", () => {
+    // Place the player to land on the Chance at tile 7, then draw Back 3 → 4
+    // (Income Tax, $200 to the bank). The tax event proves the landed tile was
+    // resolved; the cash delta is left unasserted because the setup roll to
+    // tile 7 may itself pass GO (+$200), which would net against the tax.
+    const { state } = setupLandingOn(freshGame("card-back3"), 7);
+    const ready = cardFront(state, "chance", "chance-back-3");
+    const { state: next, newEvents } = autoStep(ready);
+    expect(next.players[0].position).toBe(4);
+    expect(newEvents.find((e) => e.kind === "tax")).toMatchObject({ amount: 200 });
+  });
+
+  it("go back three from tile 36 chains into a Community Chest draw", () => {
+    const { state } = setupLandingOn(freshGame("card-back3-chain"), 36);
+    let ready = cardFront(state, "chance", "chance-back-3");
+    // Back 3 from 36 lands on 33 (Community Chest); force a collect there.
+    ready = cardFront(ready, "communityChest", "cc-bank-error"); // +$200
+    const before = ready.players[0].cash;
+    const { state: next, newEvents } = autoStep(ready);
+    expect(next.players[0].position).toBe(33);
+    const drawn = newEvents.filter((e) => e.kind === "card-drawn");
+    expect(drawn.map((e) => e.cardId)).toEqual([
+      "chance-back-3",
+      "cc-bank-error",
+    ]);
+    expect(next.players[0].cash).toBe(before + 200);
+  });
+});
+
+describe("cards — jail", () => {
+  it("go-to-jail card sends the drawer to jail and ends the turn", () => {
+    const state = drawSetup("card-gtj", CHANCE_TILE, "chance", "chance-jail");
+    const { state: next, newEvents } = autoStep(state);
+    expect(newEvents).toContainEqual({ kind: "go-to-jail", reason: "card" });
+    const p1 = next.players.find((p) => p.id === "p1");
+    expect(p1?.inJail).toBe(true);
+    expect(p1?.position).toBe(10);
+    expect(next.turn.playerId).toBe("p2"); // turn ended
+  });
+
+  it("jail-free card is acquired, then returns to the bottom of its deck on use", () => {
+    const state = drawSetup("card-gojf", CHANCE_TILE, "chance", "chance-gojf");
+    const gojfIdx = CHANCE.findIndex((c) => c.effect.kind === "jail-free");
+    const { state: held } = autoStep(state);
+    expect(held.jailFreeCards.chance).toBe("p1");
+    expect(held.decks.chance).not.toContain(gojfIdx); // left the pile while held
+
+    // Use it from jail: it should reappear at the bottom of the pile.
+    const jailed: GameState = {
+      ...held,
+      players: held.players.map((p, i): Player =>
+        i === 0 ? { ...p, position: 10, inJail: true, jailTurns: 1 } : p,
+      ),
+      turn: { ...held.turn, playerId: "p1", phase: "jail-decision", doublesStreak: 0 },
+    };
+    const used = apply(jailed, { kind: "use-jail-card", playerId: "p1" });
+    if (!used.ok) throw new Error(`expected ok, got ${used.reason}`);
+    expect(used.state.jailFreeCards.chance).toBeUndefined();
+    expect(used.state.decks.chance[used.state.decks.chance.length - 1]).toBe(gojfIdx);
   });
 });

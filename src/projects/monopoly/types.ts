@@ -87,6 +87,45 @@ export interface Player {
 
 export type CardSource = "chance" | "communityChest";
 
+/** What a Chance / Community Chest card does when drawn. The 32 official cards
+ *  collapse to these effects; the engine resolves each into mechanics it
+ *  already performs (move + resolve the landed tile, charge the bank, transfer
+ *  between players, go to jail, hold a GOJF), so a card never needs its own
+ *  decision phase. Amounts/positions carry the exact official values. */
+export type CardEffect =
+  /** Bank pays the drawer (dividend, loan, refund, inheritance, …). */
+  | { kind: "collect"; amount: number }
+  /** Drawer pays the bank (speeding fine, doctor, hospital, …). */
+  | { kind: "pay"; amount: number }
+  /** Every other player pays the drawer (Birthday). */
+  | { kind: "collect-each"; amount: number }
+  /** Drawer pays every other player (Chairman of the Board). */
+  | { kind: "pay-each"; amount: number }
+  /** Advance to an absolute board position, crediting GO if the move wraps
+   *  (GO, Boardwalk, Illinois, St. Charles, Reading Railroad). */
+  | { kind: "advance-to"; position: number }
+  /** Advance to the nearest railroad / utility ahead, then pay special rent:
+   *  2× the owner's normal railroad rent, or 10× a fresh dice throw for a
+   *  utility (regardless of how many the owner holds). */
+  | { kind: "advance-nearest"; target: "railroad" | "utility" }
+  /** Move back three squares and resolve the tile landed on. */
+  | { kind: "back-three" }
+  | { kind: "go-to-jail" }
+  /** Acquire a Get-Out-of-Jail-Free card (held until used). */
+  | { kind: "jail-free" }
+  /** Pay the bank per building owned (general / street repairs). */
+  | { kind: "repairs"; perHouse: number; perHotel: number };
+
+/** One card in a deck. `name` is the pro shorthand shown in the log — the
+ *  nickname players already know the card by ("Boardwalk", "Chairman",
+ *  "Nearest RR"), deliberately not the printed flavor text. `id` is a stable
+ *  identifier the log and replay reference; the engine resolves `effect`. */
+export interface Card {
+  id: string;
+  name: string;
+  effect: CardEffect;
+}
+
 /** The asset reassignments + cash movements that define a trade. Properties
  *  and GOJF cards list ONLY the entries that change hands (a property mapped
  *  to its current owner would be a no-op and is never stored); `cashDelta` is
@@ -176,9 +215,21 @@ export type GameEvent =
   | {
       kind: "card-drawn";
       source: CardSource;
-      /** Card flavor text exactly as printed on the card. */
-      text: string;
+      /** Stable id of the drawn card (see `Card.id`); the log maps it to the
+       *  pro shorthand name. */
+      cardId: string;
+      /** Net bank cash this card moved for the drawer, signed (+ for a collect,
+       *  − for a pay / repairs). Absent for movement / jail / GOJF cards, whose
+       *  effect surfaces as its own follow-on events. */
+      cash?: number;
     }
+  /** A card moving cash between two players (Chairman pays each, Birthday
+   *  collects from each) — one line per opponent. Direction is `fromId → toId`. */
+  | { kind: "card-transfer"; fromId: string; toId: string; amount: number }
+  /** GO salary credited by a card-driven move that wrapped the board. The
+   *  roll path encodes this inline on the `roll` event instead; cards have no
+   *  roll, so they emit it standalone. */
+  | { kind: "pass-go" }
   | {
       kind: "auction";
       position: number;
@@ -397,8 +448,14 @@ export interface GameState {
   /** position -> developed structures. 1-4 are houses, 5 is a hotel. */
   houses: Readonly<Record<number, number>>;
   /** Holder of each Get Out of Jail Free card, keyed by deck source. Absent
-   *  means the card sits at the bottom of its deck. */
+   *  means the card sits in its deck (and so appears in `decks`). */
   jailFreeCards: Readonly<{ chance?: string; communityChest?: string }>;
+  /** Draw order for each deck as indices into the static CHANCE /
+   *  COMMUNITY_CHEST card arrays (front = next to draw). Drawing a card pops
+   *  the front and pushes it to the back; a Get-Out-of-Jail-Free card leaves
+   *  the pile while held (tracked in `jailFreeCards`) and returns to the back
+   *  when used. Seeded-shuffled once at game start for deterministic replay. */
+  decks: Readonly<{ chance: readonly number[]; communityChest: readonly number[] }>;
   /** Chronological play log, grouped by turn. Newest turn last. */
   turns: readonly TurnGroup[];
   /** Whose turn it is and what we're waiting on. */

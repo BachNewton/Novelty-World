@@ -1,4 +1,5 @@
-import { SPACES } from "./data";
+import { shuffleArray } from "@/shared/lib/utils";
+import { CHANCE, COMMUNITY_CHEST, deckFor, SPACES } from "./data";
 import {
   developmentLevel,
   maxBuildingSaleValue,
@@ -9,11 +10,13 @@ import {
   mortgageInterestAt,
   mortgageValueAt,
   ownablePrice,
+  rentAt,
   rentDue,
   unmortgageCostAt,
 } from "./logic";
 import type {
   ApplyResult,
+  Card,
   CardSource,
   GameEvent,
   GameState,
@@ -88,6 +91,22 @@ export function createRng(seedOrState: string | number): Rng {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     },
     getState: () => state >>> 0,
+  };
+}
+
+/** Freshly shuffled draw piles for both decks, advancing `rng`. Called once
+ *  when a game is seeded so each game gets a deterministic, seed-dependent
+ *  order. The piles are index lists into the static decks; the shared
+ *  Fisher–Yates shuffle is fed the injected RNG so it stays reproducible.
+ *  Exported for the seeds (`freshGame`, `createLobby`). */
+export function initialDecks(rng: Rng): {
+  chance: number[];
+  communityChest: number[];
+} {
+  const next = () => rng.next();
+  return {
+    chance: shuffleArray(CHANCE.map((_, i) => i), next),
+    communityChest: shuffleArray(COMMUNITY_CHEST.map((_, i) => i), next),
   };
 }
 
@@ -399,14 +418,21 @@ function goBankrupt(
     }
   }
 
+  // A held GOJF flows to a player creditor, or returns to its deck bottom when
+  // the estate reverts to the bank.
   const jailFreeCards = { ...state.jailFreeCards };
-  if (jailFreeCards.chance === debtorId) {
-    if (creditorId !== null) jailFreeCards.chance = creditorId;
-    else delete jailFreeCards.chance;
-  }
-  if (jailFreeCards.communityChest === debtorId) {
-    if (creditorId !== null) jailFreeCards.communityChest = creditorId;
-    else delete jailFreeCards.communityChest;
+  const decks = {
+    chance: [...state.decks.chance],
+    communityChest: [...state.decks.communityChest],
+  };
+  for (const src of ["chance", "communityChest"] as const) {
+    if (jailFreeCards[src] !== debtorId) continue;
+    if (creditorId !== null) {
+      jailFreeCards[src] = creditorId;
+    } else {
+      delete jailFreeCards[src];
+      decks[src] = [...decks[src], gojfIndex(src)];
+    }
   }
 
   const bankruptEvent: GameEvent = { kind: "bankrupt", creditorId };
@@ -419,6 +445,7 @@ function goBankrupt(
     houses,
     mortgaged,
     jailFreeCards,
+    decks,
     turns,
   };
 
@@ -1193,6 +1220,8 @@ function resolveTile(
   const toPos = state.players[idx].position;
   const space = SPACES[toPos];
   if (space.kind === "go-to-jail") return sendToJail(state, "tile");
+  if (space.kind === "chance") return drawCard(state, "chance");
+  if (space.kind === "community-chest") return drawCard(state, "communityChest");
 
   // Tax (Income / Luxury): a fixed fee to the bank, routed through the unified
   // debt path so it can bust or drop into must-raise-cash like any other charge.
@@ -1225,14 +1254,14 @@ function resolveTile(
   return { state: afterLanding(state), newEvents: [] };
 }
 
-/** Send the active player to jail — landing on the "Go to Jail" tile or rolling
- *  a third consecutive double. Relocate them to the Jail cell, lock them in on
- *  jail turn 1, log `go-to-jail`, and end the turn: going to jail forfeits the
- *  rest of the turn even if the move was a double. No GO salary (you're sent,
- *  not advanced past GO). */
+/** Send the active player to jail — landing on the "Go to Jail" tile, rolling
+ *  a third consecutive double, or drawing a "Go to Jail" card. Relocate them to
+ *  the Jail cell, lock them in on jail turn 1, log `go-to-jail`, and end the
+ *  turn: going to jail forfeits the rest of the turn even if the move was a
+ *  double. No GO salary (you're sent, not advanced past GO). */
 function sendToJail(
   state: GameState,
-  reason: "tile" | "three-doubles",
+  reason: "tile" | "three-doubles" | "card",
 ): { state: GameState; newEvents: readonly GameEvent[] } {
   const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
   const players = state.players.map((p, i) =>
@@ -1242,6 +1271,389 @@ function sendToJail(
   const turns = appendEventToActiveTurn(state.turns, event);
   const next = advanceToNextPlayer({ ...state, players, turns }, state.turn.playerId);
   return { state: next, newEvents: [event] };
+}
+
+// ---------------------------------------------------------------------------
+// Chance / Community Chest. A card draw is mechanical (it runs inside
+// `autoStep` via `resolveTile`, never as an intent). Every card resolves into
+// machinery the engine already has: move + resolve the landed tile, a bank or
+// per-player charge, jail, or holding a GOJF. The pile lives in `state.decks`
+// as an index list; a draw rotates the card to the bottom (a GOJF instead
+// leaves the pile while held). See `monopoly/CLAUDE.md` "Chance / Community
+// Chest decks".
+// ---------------------------------------------------------------------------
+
+/** Index of the Get-Out-of-Jail-Free card within a source's static deck. */
+function gojfIndex(source: CardSource): number {
+  return deckFor(source).findIndex((c) => c.effect.kind === "jail-free");
+}
+
+/** Draw the top card of `source`'s pile, then resolve its effect. The card
+ *  rotates to the bottom of the pile, except a GOJF which leaves the pile (it's
+ *  recorded as held in `jailFreeCards` and re-appended when used). The pile is
+ *  never empty: only the lone GOJF can be absent, so a front card always
+ *  exists. */
+function drawCard(
+  state: GameState,
+  source: CardSource,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const pile = state.decks[source];
+  const cardIndex = pile[0];
+  const card = deckFor(source)[cardIndex];
+  const newPile =
+    card.effect.kind === "jail-free"
+      ? pile.slice(1) // held card leaves the pile
+      : [...pile.slice(1), cardIndex]; // rotate to the bottom
+  const next: GameState = {
+    ...state,
+    decks: { ...state.decks, [source]: newPile },
+  };
+  return resolveCardEffect(next, source, card);
+}
+
+/** Resolve a drawn card's effect, emitting a headline `card-drawn` event plus
+ *  whatever follow-on events the effect produces (rent, charge, jail, …). */
+function resolveCardEffect(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const playerId = state.turn.playerId;
+  const effect = card.effect;
+  switch (effect.kind) {
+    case "collect": {
+      const event: GameEvent = {
+        kind: "card-drawn",
+        source,
+        cardId: card.id,
+        cash: effect.amount,
+      };
+      const idx = state.players.findIndex((p) => p.id === playerId);
+      const players = state.players.map((p, i) =>
+        i === idx ? { ...p, cash: p.cash + effect.amount } : p,
+      );
+      const turns = appendEventToActiveTurn(state.turns, event);
+      return {
+        state: afterLanding({ ...state, players, turns }),
+        newEvents: [event],
+      };
+    }
+    case "pay":
+      return payBank(state, source, card, effect.amount);
+    case "repairs": {
+      const amount = repairCost(state, playerId, effect.perHouse, effect.perHotel);
+      if (amount === 0) {
+        // No buildings: a no-op charge — log just the headline (no cash).
+        const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+        const turns = appendEventToActiveTurn(state.turns, event);
+        return { state: afterLanding({ ...state, turns }), newEvents: [event] };
+      }
+      return payBank(state, source, card, amount);
+    }
+    case "pay-each":
+      return payEach(state, source, card, effect.amount);
+    case "collect-each":
+      return collectEach(state, source, card, effect.amount);
+    case "advance-to":
+      return advanceToCard(state, source, card, effect.position);
+    case "advance-nearest":
+      return advanceNearestCard(state, source, card, effect.target);
+    case "back-three":
+      return backThreeCard(state, source, card);
+    case "go-to-jail": {
+      const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+      const turns = appendEventToActiveTurn(state.turns, event);
+      const jailed = sendToJail({ ...state, turns }, "card");
+      return { state: jailed.state, newEvents: [event, ...jailed.newEvents] };
+    }
+    case "jail-free": {
+      const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+      const jailFreeCards = { ...state.jailFreeCards, [source]: playerId };
+      const turns = appendEventToActiveTurn(state.turns, event);
+      return {
+        state: afterLanding({ ...state, jailFreeCards, turns }),
+        newEvents: [event],
+      };
+    }
+  }
+}
+
+/** Charge the drawer a bank fee for a `pay` / `repairs` card. This is the
+ *  card's terminal step (no movement follows), so it reuses `chargeToCreditor`
+ *  exactly like the tax tile does — the headline `card-drawn` (carrying the
+ *  signed amount) IS the charge event, so debt routes through must-raise-cash /
+ *  bankruptcy and the log reads as one line. */
+function payBank(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+  amount: number,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const event: GameEvent = {
+    kind: "card-drawn",
+    source,
+    cardId: card.id,
+    cash: -amount,
+  };
+  return chargeToCreditor(state, state.turn.playerId, null, amount, event);
+}
+
+/** Total a "repairs" card costs `ownerId`: per-house and per-hotel rates over
+ *  their developed properties (a level-5 lot is a hotel, 1–4 are houses). */
+function repairCost(
+  state: GameState,
+  ownerId: string,
+  perHouse: number,
+  perHotel: number,
+): number {
+  let houses = 0;
+  let hotels = 0;
+  for (const [posStr, oid] of Object.entries(state.ownership)) {
+    if (oid !== ownerId) continue;
+    const level = state.houses[Number(posStr)] ?? 0;
+    if (level === 5) hotels++;
+    else houses += level;
+  }
+  return houses * perHouse + hotels * perHotel;
+}
+
+/** Chairman of the Board: the drawer pays every other player `amount`, logged
+ *  as one transfer line per opponent. The drawer's net (−amount × opponents)
+ *  routes through the debt model — they may go negative and raise cash. v1
+ *  simplification (flagged in CLAUDE.md): a drawer who can't cover the whole
+ *  payout even after liquidating busts to the bank rather than paying each as
+ *  far as their cash stretches — vanishingly rare at $50/head. */
+function payEach(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+  amount: number,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const drawerId = state.turn.playerId;
+  const opponents = state.players.filter((p) => !p.bankrupt && p.id !== drawerId);
+  const total = amount * opponents.length;
+  const drawer = state.players.find((p) => p.id === drawerId);
+  const drawnEvent: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+  const turns0 = appendEventToActiveTurn(state.turns, drawnEvent);
+
+  if (total === 0 || !drawer) {
+    return { state: afterLanding({ ...state, turns: turns0 }), newEvents: [drawnEvent] };
+  }
+
+  if (drawer.cash + maxRaisableCash(state, drawerId) < total) {
+    const bust = goBankrupt({ ...state, turns: turns0 }, drawerId, null);
+    const resolved =
+      bust.state.turn.phase === "game-over"
+        ? bust.state
+        : advanceToNextPlayer(bust.state, drawerId);
+    return { state: resolved, newEvents: [drawnEvent, ...bust.newEvents] };
+  }
+
+  const transfers: GameEvent[] = opponents.map((o) => ({
+    kind: "card-transfer",
+    fromId: drawerId,
+    toId: o.id,
+    amount,
+  }));
+  const opponentIds = new Set(opponents.map((o) => o.id));
+  const players = state.players.map((p) => {
+    if (p.id === drawerId) return { ...p, cash: p.cash - total };
+    if (opponentIds.has(p.id)) return { ...p, cash: p.cash + amount };
+    return p;
+  });
+  let turns = turns0;
+  for (const t of transfers) turns = appendEventToActiveTurn(turns, t);
+  const after: GameState = { ...state, players, turns };
+  return {
+    state: settleOrRaise(after, "after-landing"),
+    newEvents: [drawnEvent, ...transfers],
+  };
+}
+
+/** Birthday: every other player pays the drawer `amount`, one transfer line
+ *  each. Each leg is independent — an opponent who can't cover even after
+ *  liquidating goes bankrupt to the drawer (official rule); one who can but
+ *  must mortgage goes negative and settles via must-raise-cash at the end. */
+function collectEach(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+  amount: number,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const drawerId = state.turn.playerId;
+  const drawnEvent: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+  const opponentIds = state.players
+    .filter((p) => !p.bankrupt && p.id !== drawerId)
+    .map((p) => p.id);
+
+  let cur: GameState = {
+    ...state,
+    turns: appendEventToActiveTurn(state.turns, drawnEvent),
+  };
+  const newEvents: GameEvent[] = [drawnEvent];
+
+  for (const oppId of opponentIds) {
+    if (cur.turn.phase === "game-over") break;
+    const opp = cur.players.find((p) => p.id === oppId);
+    if (!opp || opp.bankrupt) continue;
+    const transfer: GameEvent = {
+      kind: "card-transfer",
+      fromId: oppId,
+      toId: drawerId,
+      amount,
+    };
+    const oppIdx = cur.players.findIndex((p) => p.id === oppId);
+    const drawerIdx = cur.players.findIndex((p) => p.id === drawerId);
+
+    if (opp.cash + maxRaisableCash(cur, oppId) < amount) {
+      // Can't cover even by liquidating → hand over remaining cash, then bust
+      // to the drawer (their estate transfers; may end the game).
+      const players = cur.players.map((p, i) => {
+        if (i === oppIdx) return { ...p, cash: 0 };
+        if (i === drawerIdx) return { ...p, cash: p.cash + opp.cash };
+        return p;
+      });
+      const turns = appendEventToActiveTurn(cur.turns, transfer);
+      const bust = goBankrupt({ ...cur, players, turns }, oppId, drawerId);
+      cur = bust.state;
+      newEvents.push(transfer, ...bust.newEvents);
+    } else {
+      const players = cur.players.map((p, i) => {
+        if (i === oppIdx) return { ...p, cash: p.cash - amount };
+        if (i === drawerIdx) return { ...p, cash: p.cash + amount };
+        return p;
+      });
+      const turns = appendEventToActiveTurn(cur.turns, transfer);
+      cur = { ...cur, players, turns };
+      newEvents.push(transfer);
+    }
+  }
+
+  if (cur.turn.phase === "game-over") return { state: cur, newEvents };
+  // Any opponent left negative (mortgageable) settles in seat order; once
+  // everyone is back to ≥ 0 the drawer's landing resolves.
+  return { state: settleOrRaise(cur, "after-landing"), newEvents };
+}
+
+/** Move the active player to an absolute board position, crediting GO salary
+ *  (and emitting `pass-go`) when the forward move wraps the board. Returns the
+ *  new state and any GO event. */
+function moveToPosition(
+  state: GameState,
+  target: number,
+): { state: GameState; events: readonly GameEvent[] } {
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const from = state.players[idx].position;
+  // A forward move to a lower-or-equal index wrapped past GO. Card targets are
+  // never the player's own square, so `target < from` ⇔ wrapped.
+  const passedGo = target < from;
+  const players = state.players.map((p, i) =>
+    i === idx
+      ? { ...p, position: target, cash: passedGo ? p.cash + PASS_GO_SALARY : p.cash }
+      : p,
+  );
+  if (passedGo) {
+    const event: GameEvent = { kind: "pass-go" };
+    const turns = appendEventToActiveTurn(state.turns, event);
+    return { state: { ...state, players, turns }, events: [event] };
+  }
+  return { state: { ...state, players }, events: [] };
+}
+
+/** Position of the nearest tile of `kind` strictly ahead of `from`, wrapping
+ *  the board. Used by the "advance to nearest railroad / utility" cards. */
+function nearestForward(from: number, kind: "railroad" | "utility"): number {
+  for (let step = 1; step <= SPACES.length; step++) {
+    const pos = (from + step) % SPACES.length;
+    if (SPACES[pos].kind === kind) return pos;
+  }
+  return from; // unreachable — the board always has both kinds
+}
+
+/** "Advance to" a named square, then resolve it normally (so Boardwalk charges
+ *  its normal rent, GO pays nothing, Reading uses normal railroad rent). Dice
+ *  total is 0: none of these targets is a utility, so no dice-based rent. */
+function advanceToCard(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+  position: number,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+  const turns = appendEventToActiveTurn(state.turns, event);
+  const moved = moveToPosition({ ...state, turns }, position);
+  const resolved = resolveTile(moved.state, 0);
+  return {
+    state: resolved.state,
+    newEvents: [event, ...moved.events, ...resolved.newEvents],
+  };
+}
+
+/** "Go back three squares", then resolve the tile landed on. Going back never
+ *  passes GO. Dice total is 0: no Chance square sits exactly three ahead of a
+ *  utility, so back-3 never lands on a dice-rent utility — but it CAN land on
+ *  Community Chest (from position 36), which chains another draw via
+ *  `resolveTile`. */
+function backThreeCard(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+  const turns = appendEventToActiveTurn(state.turns, event);
+  const idx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const to = (state.players[idx].position - 3 + SPACES.length) % SPACES.length;
+  const players = state.players.map((p, i) =>
+    i === idx ? { ...p, position: to } : p,
+  );
+  const resolved = resolveTile({ ...state, players, turns }, 0);
+  return { state: resolved.state, newEvents: [event, ...resolved.newEvents] };
+}
+
+/** "Advance to the nearest railroad / utility" with the cards' special rent:
+ *  a railroad pays 2× the owner's normal rent; a utility pays 10× a fresh dice
+ *  throw, regardless of how many utilities the owner holds. Unowned → buy
+ *  decision; owned by the drawer or mortgaged → no charge. */
+function advanceNearestCard(
+  state: GameState,
+  source: CardSource,
+  card: Card,
+  target: "railroad" | "utility",
+): { state: GameState; newEvents: readonly GameEvent[] } {
+  const event: GameEvent = { kind: "card-drawn", source, cardId: card.id };
+  const turns = appendEventToActiveTurn(state.turns, event);
+  const from = state.players.find((p) => p.id === state.turn.playerId)?.position ?? 0;
+  const pos = nearestForward(from, target);
+  const moved = moveToPosition({ ...state, turns }, pos);
+  const before = [event, ...moved.events];
+  let cur = moved.state;
+  const landerId = cur.turn.playerId;
+  const ownerId = cur.ownership[pos];
+
+  if (!ownerId) {
+    // Unowned: offer to buy at face price (existing buy-decision flow).
+    const turn: TurnState = { ...cur.turn, phase: "buy-decision", pendingBuy: pos };
+    return { state: { ...cur, turn }, newEvents: before };
+  }
+  if (ownerId === landerId || cur.mortgaged[pos]) {
+    return { state: afterLanding(cur), newEvents: before };
+  }
+
+  let rentAmount: number;
+  if (target === "railroad") {
+    const display = rentAt(cur, pos);
+    const normal = display !== null && display.kind === "dollars" ? display.amount : 0;
+    rentAmount = normal * 2;
+  } else {
+    // Throw the dice for the utility (the card's own roll, not the move roll).
+    const rng = createRng(cur.rngState);
+    const d1 = rollDie(rng);
+    const d2 = rollDie(rng);
+    rentAmount = (d1 + d2) * 10;
+    cur = { ...cur, rngState: rng.getState() };
+  }
+  const charged = chargeRent(cur, landerId, ownerId, pos, rentAmount);
+  return { state: charged.state, newEvents: [...before, ...charged.newEvents] };
 }
 
 /** Resolve one jail turn for the active (jailed) player by rolling for doubles:
@@ -1375,9 +1787,14 @@ function applyUseJailCard(
   const source = heldJailCard(state, intent.playerId);
   if (source === null) return { ok: false, reason: "no jail card held" };
 
-  // Return the card to the bottom of its deck (holder cleared).
+  // Return the card to the bottom of its deck: clear the holder and re-append
+  // its index to the pile (it left the pile when acquired).
   const jailFreeCards = { ...state.jailFreeCards };
   delete jailFreeCards[source];
+  const decks = {
+    ...state.decks,
+    [source]: [...state.decks[source], gojfIndex(source)],
+  };
   const players = state.players.map((p, i) =>
     i === idx ? { ...p, inJail: false, jailTurns: 0 } : p,
   );
@@ -1389,6 +1806,7 @@ function applyUseJailCard(
       ...state,
       players,
       jailFreeCards,
+      decks,
       turns,
       turn: enterPreRoll(intent.playerId),
     },

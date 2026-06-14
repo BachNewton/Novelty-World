@@ -15,7 +15,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { SPACES } from "../data";
+import { deckFor, SPACES } from "../data";
 import { PLAYER_COLOR_VAR, PROPERTY_COLOR_VAR } from "../theme";
 import type {
   CardSource,
@@ -265,6 +265,10 @@ function verbFor(event: GameEvent): string {
       return "GOJF";
     case "card-drawn":
       return "CARD";
+    case "card-transfer":
+      return "PAY";
+    case "pass-go":
+      return "PASS";
     case "auction":
       return "AUCT";
     case "bankrupt":
@@ -272,6 +276,11 @@ function verbFor(event: GameEvent): string {
     case "winner":
       return "WIN";
   }
+}
+
+/** Pro shorthand for a drawn card (the nickname, not the flavor text). */
+function cardName(source: CardSource, cardId: string): string {
+  return deckFor(source).find((c) => c.id === cardId)?.name ?? cardId;
 }
 
 function EventBody({
@@ -387,7 +396,31 @@ function EventBody({
         </>
       );
     case "card-drawn":
-      return <span className="italic">&ldquo;{event.text}&rdquo;</span>;
+      return (
+        <>
+          <span style={{ opacity: 0.6 }}>
+            {event.source === "chance" ? "Chance" : "Chest"}
+          </span>
+          <span style={{ opacity: 0.4 }}>·</span>
+          <span className="font-medium">
+            {cardName(event.source, event.cardId)}
+          </span>
+        </>
+      );
+    case "card-transfer": {
+      const from = playersById.get(event.fromId);
+      const to = playersById.get(event.toId);
+      if (!from || !to) return null;
+      return (
+        <>
+          <PlayerChip player={from} />
+          <Arrow />
+          <PlayerChip player={to} />
+        </>
+      );
+    }
+    case "pass-go":
+      return <span className="font-medium">GO</span>;
     case "auction": {
       const winner = event.winnerId
         ? (playersById.get(event.winnerId) ?? null)
@@ -449,12 +482,21 @@ function EventNumeric({ event }: { event: GameEvent }) {
       return event.winnerId ? (
         <Money amount={event.price} sign="-" />
       ) : null;
+    case "card-drawn":
+      // Movement / jail / GOJF cards carry no bank cash; collect / pay show it.
+      return event.cash === undefined ? null : (
+        <Money amount={Math.abs(event.cash)} sign={event.cash > 0 ? "+" : "-"} />
+      );
+    case "card-transfer":
+      // Neutral amount — the from → to chips already show the direction.
+      return <Money amount={event.amount} />;
+    case "pass-go":
+      return <Money amount={200} sign="+" />;
     case "roll":
     case "jail-roll":
     case "trade":
     case "go-to-jail":
     case "jail-card":
-    case "card-drawn":
     case "bankrupt":
     case "winner":
       return null;

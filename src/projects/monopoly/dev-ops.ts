@@ -1,4 +1,4 @@
-import { SPACES } from "./data";
+import { CHANCE, COMMUNITY_CHEST, SPACES } from "./data";
 import { createRng } from "./engine";
 import { freshGame } from "./mocks";
 import type { DevCommand } from "./protocol";
@@ -16,6 +16,18 @@ const OWNABLE_POSITIONS = SPACES.flatMap((space, i) =>
     : [],
 );
 
+/** Both decks with every Get-Out-of-Jail-Free card pulled — used when an
+ *  ownership override hands both GOJF cards to players, so the held-card
+ *  invariant (a held GOJF is absent from its pile) is preserved. */
+function decksWithoutGojf(state: GameState): GameState["decks"] {
+  return {
+    chance: state.decks.chance.filter((i) => CHANCE[i].effect.kind !== "jail-free"),
+    communityChest: state.decks.communityChest.filter(
+      (i) => COMMUNITY_CHEST[i].effect.kind !== "jail-free",
+    ),
+  };
+}
+
 /** Give every ownable square (and both Get Out of Jail Free cards) to the
  *  first player — a quick way to populate an owner-heavy board for UI work. */
 export function ownAllByFirst(state: GameState): GameState {
@@ -27,6 +39,7 @@ export function ownAllByFirst(state: GameState): GameState {
     ...state,
     ownership,
     jailFreeCards: { chance: firstId, communityChest: firstId },
+    decks: decksWithoutGojf(state),
   };
 }
 
@@ -41,7 +54,13 @@ export function randomOwnership(state: GameState): GameState {
   const ownership: Record<number, string> = {};
   for (const pos of OWNABLE_POSITIONS) ownership[pos] = pickId();
   const jailFreeCards = { chance: pickId(), communityChest: pickId() };
-  return { ...state, ownership, jailFreeCards, rngState: rng.getState() };
+  return {
+    ...state,
+    ownership,
+    jailFreeCards,
+    decks: decksWithoutGojf(state),
+    rngState: rng.getState(),
+  };
 }
 
 /** Apply a dev command, returning the new state. `rngSeed` is injected (the

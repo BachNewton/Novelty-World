@@ -1,4 +1,4 @@
-import type { PlayerColor, PlayerIcon, Space } from "./types";
+import type { Card, CardSource, PlayerColor, PlayerIcon, Space } from "./types";
 
 /** Canonical assignment order for player seats. The lobby hands out the first
  *  free color / icon in these orders, so seat N defaults to the Nth entry —
@@ -203,3 +203,50 @@ export const SPACES: readonly Space[] = [
     rent: { base: 50, houses: [200, 600, 1400, 1700], hotel: 2000 },
   },
 ];
+
+/** The 16 Chance cards (classic US standard deck). `name` is the pro shorthand
+ *  the log shows; `effect` is what the engine runs. The two "advance to nearest
+ *  railroad" cards are distinct entries with their own ids. */
+export const CHANCE: readonly Card[] = [
+  { id: "chance-go", name: "GO", effect: { kind: "advance-to", position: 0 } },
+  { id: "chance-illinois", name: "Illinois", effect: { kind: "advance-to", position: 24 } },
+  { id: "chance-st-charles", name: "St. Charles", effect: { kind: "advance-to", position: 11 } },
+  { id: "chance-boardwalk", name: "Boardwalk", effect: { kind: "advance-to", position: 39 } },
+  { id: "chance-reading", name: "Reading", effect: { kind: "advance-to", position: 5 } },
+  { id: "chance-nearest-rr-a", name: "Nearest RR", effect: { kind: "advance-nearest", target: "railroad" } },
+  { id: "chance-nearest-rr-b", name: "Nearest RR", effect: { kind: "advance-nearest", target: "railroad" } },
+  { id: "chance-nearest-util", name: "Nearest Util", effect: { kind: "advance-nearest", target: "utility" } },
+  { id: "chance-back-3", name: "Back 3", effect: { kind: "back-three" } },
+  { id: "chance-jail", name: "Go to Jail", effect: { kind: "go-to-jail" } },
+  { id: "chance-gojf", name: "GOJF", effect: { kind: "jail-free" } },
+  { id: "chance-dividend", name: "Dividend", effect: { kind: "collect", amount: 50 } },
+  { id: "chance-loan", name: "Loan", effect: { kind: "collect", amount: 150 } },
+  { id: "chance-speeding", name: "Speeding", effect: { kind: "pay", amount: 15 } },
+  { id: "chance-chairman", name: "Chairman", effect: { kind: "pay-each", amount: 50 } },
+  { id: "chance-repairs", name: "Repairs", effect: { kind: "repairs", perHouse: 25, perHotel: 100 } },
+];
+
+/** The 16 Community Chest cards (classic US standard deck). */
+export const COMMUNITY_CHEST: readonly Card[] = [
+  { id: "cc-go", name: "GO", effect: { kind: "advance-to", position: 0 } },
+  { id: "cc-bank-error", name: "Bank Error", effect: { kind: "collect", amount: 200 } },
+  { id: "cc-doctor", name: "Doctor", effect: { kind: "pay", amount: 50 } },
+  { id: "cc-stock", name: "Stock", effect: { kind: "collect", amount: 50 } },
+  { id: "cc-gojf", name: "GOJF", effect: { kind: "jail-free" } },
+  { id: "cc-jail", name: "Go to Jail", effect: { kind: "go-to-jail" } },
+  { id: "cc-holiday", name: "Holiday Fund", effect: { kind: "collect", amount: 100 } },
+  { id: "cc-tax-refund", name: "Tax Refund", effect: { kind: "collect", amount: 20 } },
+  { id: "cc-birthday", name: "Birthday", effect: { kind: "collect-each", amount: 10 } },
+  { id: "cc-life-insurance", name: "Life Insurance", effect: { kind: "collect", amount: 100 } },
+  { id: "cc-hospital", name: "Hospital", effect: { kind: "pay", amount: 100 } },
+  { id: "cc-school", name: "School", effect: { kind: "pay", amount: 50 } },
+  { id: "cc-consultancy", name: "Consultancy", effect: { kind: "collect", amount: 25 } },
+  { id: "cc-beauty", name: "Beauty", effect: { kind: "collect", amount: 10 } },
+  { id: "cc-inheritance", name: "Inheritance", effect: { kind: "collect", amount: 100 } },
+  { id: "cc-street-repairs", name: "Street Repairs", effect: { kind: "repairs", perHouse: 40, perHotel: 115 } },
+];
+
+/** The static deck for a card source, in canonical (unshuffled) order. */
+export function deckFor(source: CardSource): readonly Card[] {
+  return source === "chance" ? CHANCE : COMMUNITY_CHEST;
+}

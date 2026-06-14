@@ -1,5 +1,6 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
-import { createRng } from "./engine";
+import { CHANCE, COMMUNITY_CHEST } from "./data";
+import { createRng, initialDecks } from "./engine";
 import { DEFAULT_PREFERENCES, STARTING_CASH } from "./lobby";
 import type { GameState, Player, PlayerCount, TurnGroup } from "./types";
 
@@ -48,6 +49,10 @@ export function freshGame(
     return base;
   });
   const firstPlayer = players[0];
+  // One RNG stream seeds the decks and then drives play; advancing it past the
+  // shuffle keeps the deck order and the first roll independent.
+  const rng = createRng(rngSeed);
+  const decks = initialDecks(rng);
   return {
     // Immediate-play seed (local `dev` sandbox and the current online seed):
     // skips the lobby entirely, so it starts already `active`.
@@ -57,6 +62,7 @@ export function freshGame(
     mortgaged: {},
     houses: {},
     jailFreeCards: {},
+    decks,
     turns: [{ turn: 1, playerId: firstPlayer.id, events: [] }],
     turn: {
       playerId: firstPlayer.id,
@@ -68,7 +74,7 @@ export function freshGame(
     ),
     boundaryQueue: [],
     rngSeed,
-    rngState: createRng(rngSeed).getState(),
+    rngState: rng.getState(),
   };
 }
 
@@ -127,6 +133,12 @@ export const MOCK_STATE: GameState = {
     // Kyle holds the Chance GOJF; the CC card stays in the deck.
     chance: "p1",
   },
+  // Visual-dev fixture (never simulated): canonical card order, minus the
+  // Chance GOJF that Kyle is holding so the held-card invariant holds.
+  decks: {
+    chance: CHANCE.map((_, i) => i).filter((i) => CHANCE[i].id !== "chance-gojf"),
+    communityChest: COMMUNITY_CHEST.map((_, i) => i),
+  },
   houses: {
     // Pinks — hotels
     11: 5, // St. Charles Place
@@ -170,11 +182,7 @@ function MOCK_TURNS(): readonly TurnGroup[] {
       playerId: "p1",
       events: [
         { kind: "roll", dice: [3, 4], doublesStreak: 0, toPosition: 7, passedGo: false },
-        {
-          kind: "card-drawn",
-          source: "chance",
-          text: "Advance to Illinois Avenue. If you pass GO, collect $200.",
-        },
+        { kind: "card-drawn", source: "chance", cardId: "chance-illinois" },
         { kind: "rent", ownerId: "p4", position: 24, amount: 1100 },
       ],
     },
@@ -217,11 +225,8 @@ function MOCK_TURNS(): readonly TurnGroup[] {
       playerId: "p2",
       events: [
         { kind: "roll", dice: [5, 3], doublesStreak: 0, toPosition: 37, passedGo: false },
-        {
-          kind: "card-drawn",
-          source: "chance",
-          text: "Advance to GO. Collect $200.",
-        },
+        { kind: "card-drawn", source: "chance", cardId: "chance-go" },
+        { kind: "pass-go" },
       ],
     },
     {
