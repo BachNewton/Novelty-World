@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { SPACES } from "../data";
+import { glideAnimMs, slideAnimMs } from "../pacing";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { useTokenAnim } from "../token-anim-store";
@@ -33,22 +34,14 @@ const LANE_X = 72 + 8 + 150;
 // Slides up to a die roll's reach (incl. passing GO) animate; longer jumps
 // (teleports, "advance to" cards, going to jail) cut instantly so the token
 // never zips the wrong way around the board.
+//
+// All sub-timings (glide ms, slide ms) now derive from the store's per-client
+// `TURN_MS` via `glideAnimMs` / `slideAnimMs` — the board no longer owns
+// pacing. Each playback-head change is one atomic transition (a glide to a new
+// active player, or a token slide); the store budgets the dwell that holds
+// after each, so this component just animates the motion and lets the hold
+// fall out of the next snapshot's arrival.
 const MAX_SLIDE_ROWS = 12;
-const ANIM_BASE_MS = 140;
-const ANIM_PER_ROW_MS = 40;
-const ANIM_MAX_MS = 600;
-
-// Smooth camera glide that re-anchors the active player at the top — used in
-// follow mode between turns and between doubles rolls. Scaled by distance so a
-// short hop is quick and a board-spanning jump still finishes promptly.
-const ANCHOR_SCROLL_BASE_MS = 180;
-const ANCHOR_SCROLL_PER_PX = 0.35;
-const ANCHOR_SCROLL_MAX_MS = 600;
-
-// Beat between the camera settling on the player and the move playing, so each
-// auto-step turn reads as: glide to player → pause → roll/slide → pause → next.
-// The trailing pause is just the idle time left before the next step fires.
-const CONTEXT_PAUSE_MS = 350;
 
 interface ActivePlayer {
   id: string;
@@ -70,9 +63,9 @@ interface MovingToken {
   // resize mid-slide, so this equals what the slide effect would read live —
   // capturing it here keeps the off-screen check reading from a single source.
   viewportHeight: number;
-  // Scroll offset to glide the start square to the top before sliding, or null
-  // to slide in place (free view).
-  anchorTarget: number | null;
+  // Whether the camera should follow this slide off the bottom edge. Captured
+  // at move time so a mid-slide follow toggle doesn't change an in-flight hop.
+  follow: boolean;
 }
 
 const clampCopy = (n: number) => Math.max(0, Math.min(2, n));
@@ -157,18 +150,16 @@ export function Squares() {
     [],
   );
 
-  // Smoothly scroll a board square to the top anchor, distance-scaled so a
-  // short hop is quick and a board-spanning handoff still finishes promptly.
-  // No-op when already there (avoids a zero-length animation).
+  // Smoothly scroll a board square to the top anchor — the `glide` transition
+  // when a turn hands off to a new active player. Distance-scaled within the
+  // glide phase's budget (see `glideAnimMs`), leaving the rest of the dwell as
+  // an orient hold. No-op when already there (avoids a zero-length animation).
   const glideToAnchor = useCallback(
     (el: HTMLDivElement, target: number) => {
       const distance = Math.abs(target - el.scrollTop);
       if (distance < 1) return;
-      const ms = Math.min(
-        ANCHOR_SCROLL_MAX_MS,
-        ANCHOR_SCROLL_BASE_MS + distance * ANCHOR_SCROLL_PER_PX,
-      );
-      animateScroll(el, target, ms);
+      const { turnMs } = useMonopolyStore.getState();
+      animateScroll(el, target, glideAnimMs(turnMs, distance));
     },
     [animateScroll],
   );
@@ -243,14 +234,13 @@ export function Squares() {
     const forward =
       from === undefined ? 0 : (active.position - from + 40) % 40;
     const signed = forward <= 20 ? forward : forward - 40;
-    // Not a move (first time we see this player, they didn't move, or a
+    // Not a slide (first time we see this player, they didn't move, or a
     // teleport like jail / "advance to" cards): re-anchor, no slide.
     if (from === undefined || signed === 0 || Math.abs(signed) > MAX_SLIDE_ROWS) {
       if (following) {
-        // A turn handoff lands its own commit before the new player rolls —
-        // glide the camera to them so the next turn doesn't snap into view.
-        // (The roll that follows starts from this same anchor, so it won't
-        // re-glide.) Same-player non-moves (teleports) still snap.
+        // A handoff is its own `glide` transition — glide the camera to the new
+        // active player so the next turn doesn't snap into view. Same-player
+        // non-moves (teleports) still snap.
         if (isHandoff) glideToAnchor(el, bandedAnchor(active.position));
         else anchorActiveTop();
       }
@@ -262,26 +252,18 @@ export function Squares() {
       .state.players.find((p) => p.id === active.id);
     if (!player) return;
 
-    // Geometry of the hop in scroll-content coordinates. When following, the
-    // start square will sit at the top anchor, so derive it from that target;
-    // in free view, place it on whichever board copy is nearest what's shown.
-    let startCenter: number;
-    let anchorTarget: number | null = null;
-    if (following) {
-      anchorTarget = bandedAnchor(from);
-      startCenter = anchorTarget + ANCHOR_TOP_PX + ROW_PX / 2;
-    } else {
-      const viewCenter = el.scrollTop + el.clientHeight / 2;
-      const copy = clampCopy(
-        Math.round((viewCenter - (from * ROW_PX + ROW_PX / 2)) / CYCLE_PX),
-      );
-      startCenter = (copy * SPACES.length + from) * ROW_PX + ROW_PX / 2;
-    }
-    const endCenter = startCenter + signed * ROW_PX;
-    const durationMs = Math.min(
-      ANIM_BASE_MS + Math.abs(signed) * ANIM_PER_ROW_MS,
-      ANIM_MAX_MS,
+    // Geometry of the hop, starting from wherever the token currently sits on
+    // screen. A fresh turn's handoff glide already parked the start square near
+    // the top; a doubles re-roll just continues from where the last slide left
+    // off (no re-anchor). The copy math finds the nearest board copy in both
+    // cases, so one path serves follow and free view.
+    const viewCenter = el.scrollTop + el.clientHeight / 2;
+    const copy = clampCopy(
+      Math.round((viewCenter - (from * ROW_PX + ROW_PX / 2)) / CYCLE_PX),
     );
+    const startCenter = (copy * SPACES.length + from) * ROW_PX + ROW_PX / 2;
+    const endCenter = startCenter + signed * ROW_PX;
+    const durationMs = slideAnimMs(useMonopolyStore.getState().turnMs, signed);
 
     // Package the hop; the slide effect below plays it.
     setMoving({
@@ -293,73 +275,55 @@ export function Squares() {
       durationMs,
       endCenter,
       viewportHeight: el.clientHeight,
-      anchorTarget,
+      follow: following,
     });
     // Hide the static copy of the token at its destination row so it isn't
     // drawn twice while the overlay slides; the slide effect reveals it again.
     useTokenAnim.getState().hide(active.id, active.position);
   }, [active, following, anchorActiveTop, glideToAnchor]);
 
-  // Play each move's beat: glide the start square to the top (follow mode),
-  // pause so the player reads where they are, then slide the token to the
-  // landing — scrolling further only if it would fall off the bottom. The
-  // token is parked at fromTop until the slide, so the deferral causes no
-  // flash. setMoving runs only via the slide's onfinish (endAnim), never
-  // directly, so this effect stays cascade-free too.
+  // Play a slide transition: move the token to its landing, following the
+  // camera only if the hop would carry it past the bottom margin. The orient
+  // hold and landing hold are not timers here — they're the dwell the store
+  // budgets before the next snapshot arrives, so this effect just animates the
+  // motion. setMoving(null) runs only via the slide's onfinish (endAnim),
+  // never directly, so this effect stays cascade-free.
+  //
+  // Driven imperatively (Web Animations API) rather than a re-render-timed CSS
+  // transition: the move commit also re-renders the hidden destination row, and
+  // competing renders were swallowing a transition flip. A new move cancels the
+  // in-flight animation.
   useEffect(() => {
     if (!moving) return;
     const tokenEl = tokenRef.current;
     const scrollEl = ref.current;
     if (!tokenEl || !scrollEl) return;
-    const { fromTop, toTop, durationMs, endCenter, viewportHeight, anchorTarget } =
+    const { fromTop, toTop, durationMs, endCenter, viewportHeight, follow } =
       moving;
-    let cancelled = false;
-    let pauseTimer = 0;
 
-    const runSlide = () => {
-      if (cancelled) return;
-      const slide = tokenEl.animate(
-        [
-          { transform: "translateY(0px)" },
-          { transform: `translateY(${toTop - fromTop}px)` },
-        ],
-        { duration: durationMs, easing: "ease-in-out", fill: "forwards" },
-      );
-      slide.onfinish = endAnim;
-      if (anchorTarget !== null) {
-        const overflow =
-          endCenter - scrollEl.scrollTop - (viewportHeight - FOLLOW_BOTTOM_GAP);
-        if (overflow > 0) {
-          animateScroll(scrollEl, scrollEl.scrollTop + overflow, durationMs);
-        }
+    const slide = tokenEl.animate(
+      [
+        { transform: "translateY(0px)" },
+        { transform: `translateY(${toTop - fromTop}px)` },
+      ],
+      { duration: durationMs, easing: "ease-in-out", fill: "forwards" },
+    );
+    slide.onfinish = endAnim;
+    // Follow only if the landing would fall past the bottom margin; otherwise
+    // hold the camera still and let the token slide down into view.
+    if (follow) {
+      const overflow =
+        endCenter - scrollEl.scrollTop - (viewportHeight - FOLLOW_BOTTOM_GAP);
+      if (overflow > 0) {
+        animateScroll(scrollEl, scrollEl.scrollTop + overflow, durationMs);
       }
-    };
-    const pauseThenSlide = () => {
-      if (!cancelled) pauseTimer = window.setTimeout(runSlide, CONTEXT_PAUSE_MS);
-    };
-
-    if (anchorTarget !== null && Math.abs(anchorTarget - scrollEl.scrollTop) >= 1) {
-      const distance = Math.abs(anchorTarget - scrollEl.scrollTop);
-      const anchorMs = Math.min(
-        ANCHOR_SCROLL_MAX_MS,
-        ANCHOR_SCROLL_BASE_MS + distance * ANCHOR_SCROLL_PER_PX,
-      );
-      animateScroll(scrollEl, anchorTarget, anchorMs, pauseThenSlide);
-    } else {
-      pauseThenSlide();
     }
 
     return () => {
-      cancelled = true;
-      clearTimeout(pauseTimer);
+      slide.cancel();
     };
   }, [moving, endAnim, animateScroll]);
 
-  // Drive the slide imperatively (Web Animations API) rather than via a
-  // re-render-timed CSS transition: the move commit also re-renders the hidden
-  // destination row, and competing renders were swallowing a transition flip.
-  // The token rests at toTop; we animate it up from the source offset. A new
-  // move cancels the in-flight animation.
   // When the user crosses into the prev/next copy, silently snap back into
   // the middle copy. The jump is invisible because all three copies render
   // identical content at identical offsets (mod CYCLE_PX).

@@ -2,9 +2,15 @@
 
 import { create } from "zustand";
 import type { PlayerProfile } from "@/shared/lib/profile";
-import { botIntent } from "./bots/policy";
-import { driverRole } from "./driver";
+import { getProjectStorage } from "@/shared/lib/storage/project-storage";
 import { freshGame } from "./mocks";
+import {
+  DEFAULT_TURN_MS,
+  driveOp,
+  ingestSnapshot,
+  paceTransition,
+  type Snapshot,
+} from "./pacing";
 import type { DevCommand, MonopolyAction, MonopolyResult } from "./protocol";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
 import type {
@@ -23,10 +29,11 @@ import type {
  *  the commit step. Per-client UI state — never synced. */
 export type MortgageStaged = Readonly<Record<number, boolean>>;
 
-// Visible pause between mechanical steps so the user can read each roll land
-// in the log and watch the camera glide + token slide settle before the next
-// one. Slow enough to follow; fast enough that a no-op loop isn't sluggish.
-const STEP_DELAY_MS = 2000;
+// Per-client playback pacing (buffer + playback head) lives at the bottom of
+// this file; the turn budget it spends, and the persistence of that local
+// preference, are in `pacing.ts` and `turnMsStorage` below.
+const turnMsStorage = getProjectStorage("monopoly");
+const TURN_MS_KEY = "turnMs";
 
 interface MonopolyActions {
   /** Set this client's player id (assigned during lobby join). */
@@ -129,6 +136,11 @@ interface MonopolyActions {
    *  for the reserved `dev` game; any other game ignores it. */
   devCommand: (command: DevCommand) => void;
 
+  /** Set this client's per-turn playback budget (ms) and persist it locally.
+   *  Drives how long each turn's glide + slide + holds take to play out — a
+   *  purely local preference, never synced. Clamped to a sane range. */
+  setTurnMs: (turnMs: number) => void;
+
   /** Replace local state with authoritative state (from the subscription or
    *  a route response) at the given version. Re-derives membership from the
    *  incoming roster — a reseated game may change who the local user is. */
@@ -149,20 +161,33 @@ interface MonopolyActions {
 
 export type MonopolyStore = {
   myPlayerId: string | null;
-  /** Authoritative game state. The parked default (no game selected) is a
-   *  throwaway `freshGame()` that is never shown; `connect()` replaces it from
-   *  Supabase and postgres-changes keep it current. */
+  /** The **playback-head** state — what this client is currently rendering,
+   *  which trails the authoritative head by the snapshots still queued in
+   *  `buffer`. The parked default (no game selected) is a throwaway
+   *  `freshGame()` that is never shown; `connect()` snaps the head to the live
+   *  row and the playback loop advances it through `buffer` at the local pace. */
   state: GameState;
+  /** FIFO of authoritative snapshots received but not yet animated — the
+   *  stretch between the playback head (`state`/`version`) and the
+   *  authoritative head (the last entry, or the head itself when empty). The
+   *  playback loop drains it one snapshot per derived dwell; an empty buffer
+   *  means this client has caught up and may drive the backend. Ephemeral
+   *  local UI state: never persisted, never synced, cleared on disconnect. */
+  buffer: readonly Snapshot[];
+  /** This client's per-turn playback budget (ms). Local preference, hydrated
+   *  from storage in the browser; the playback loop and the board animation
+   *  both derive their sub-timings from it. */
+  turnMs: number;
   /** Which game this client is in:
    *  - `null` — no game selected (the lobby browser); the pacer is idle.
    *  - `"dev"` — the backend dev sandbox (also accepts the debug hotkeys).
    *  - any other string — an online row in `monopoly_games`.
    *  Every game runs through `/api/monopoly`; there is no local-only mode. */
   gameId: string | null;
-  /** Optimistic-concurrency version of the connected row — the value the
-   *  next route write must match. Tracked from every authoritative update so
-   *  `submit` / `step` can advance from the version this client last saw. 0
-   *  when parked. */
+  /** Optimistic-concurrency version of the **playback head** (the snapshot in
+   *  `state`). The authoritative head — what a route write must CAS against —
+   *  is the last `buffer` entry's version, or this when the buffer is empty;
+   *  see `authVersion`. 0 when parked. */
   version: number;
   /** The local user's profile. Determines which seat (if any) this client
    *  owns — see `myPlayerId`. */
@@ -201,6 +226,14 @@ function isMember(state: GameState, profile: PlayerProfile): boolean {
   return state.players.some((p) => p.id === profile.id);
 }
 
+// The authoritative-head version: the latest row version this client knows of,
+// which a route write must CAS against. That's the last buffered snapshot when
+// the playback head is lagging, else the head's own version. Driving off the
+// playback-head version instead would CAS against a stale version and conflict.
+function authVersion(buffer: readonly Snapshot[], headVersion: number): number {
+  return buffer.length > 0 ? buffer[buffer.length - 1].version : headVersion;
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -222,21 +255,21 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
   // `make` receives the version this client last saw so the route can reject a
   // stale write as a conflict. No-op when parked (no connected game id).
   function versionedOp(make: (fromVersion: number) => MonopolyAction): void {
-    const { gameId, version } = get();
+    const { gameId, buffer, version } = get();
     if (!gameId) return;
-    void submitAction(gameId, make(version)).then(handleResult);
+    void submitAction(gameId, make(authVersion(buffer, version))).then(handleResult);
   }
 
   // Run a batch of intents: POST to the authoritative route as one atomic,
   // single-version write and let the result arrive async. The synchronous
   // return is an unread optimistic stub.
   function runIntents(intents: readonly Intent[]): ApplyResult {
-    const { state, gameId, version } = get();
+    const { state, gameId, buffer, version } = get();
     if (!gameId) return { ok: false, reason: "not connected" };
     void submitAction(gameId, {
       type: "submit",
       intents,
-      fromVersion: version,
+      fromVersion: authVersion(buffer, version),
     }).then(handleResult);
     return { ok: true, state, newEvents: [] };
   }
@@ -244,6 +277,8 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
   return {
     myPlayerId: null,
     state: freshGame(),
+    buffer: [],
+    turnMs: DEFAULT_TURN_MS,
     gameId: null,
     version: 0,
     profile: null,
@@ -285,6 +320,14 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
 
     devCommand: (command) => {
       versionedOp((fromVersion) => ({ type: "dev", command, fromVersion }));
+    },
+
+    setTurnMs: (turnMs) => {
+      // Keep the pace watchable: floor so a turn never blinks past, cap so a
+      // slow setting can't strand a viewer indefinitely behind the buffer.
+      const clamped = Math.max(400, Math.min(8000, Math.round(turnMs)));
+      set({ turnMs: clamped });
+      turnMsStorage.set(TURN_MS_KEY, clamped);
     },
 
     openMortgagePanel: () => {
@@ -434,15 +477,30 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     },
 
     applyStateUpdate: (next, version) => {
-      const { profile } = get();
-      const seated = profile ? isMember(next, profile) : false;
-      set({
-        state: next,
-        version,
-        myPlayerId: seated && profile ? profile.id : null,
-        // First authoritative state has landed — drop the connecting gate.
-        connecting: false,
-      });
+      const { profile, connecting, version: headVersion, buffer } = get();
+
+      // First authoritative state after connect: snap the playback head
+      // straight to it with an empty buffer — no animating across the connect
+      // gap. This is also the rejoin path: jump to the live authoritative head
+      // and start fresh, exactly as the design intends. Re-derives the seat.
+      if (connecting) {
+        const seated = profile ? isMember(next, profile) : false;
+        set({
+          state: next,
+          version,
+          buffer: [],
+          myPlayerId: seated && profile ? profile.id : null,
+          connecting: false,
+        });
+        return;
+      }
+
+      // In play: queue the snapshot behind whatever is still animating. The
+      // playback loop (below) drains the buffer at this client's pace and
+      // re-derives the seat as the head advances. Stale / duplicate versions
+      // (a write's own route response plus its Realtime echo) are dropped.
+      const nextBuffer = ingestSnapshot(buffer, headVersion, { version, state: next });
+      if (nextBuffer !== buffer) set({ buffer: nextBuffer });
     },
 
     connect: async ({ gameId, profile }) => {
@@ -455,6 +513,9 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         // can't claim "self" against the stale default state during the load
         // gap, so it stays idle until applyStateUpdate fills the seat.
         myPlayerId: null,
+        // Drop any leftover playback buffer from a previous game; the first
+        // authoritative state snaps the head clean (connecting branch above).
+        buffer: [],
         syncError: null,
         // Gate the UI on a "Connecting…" placeholder until the first
         // authoritative state lands, so the stale default game never flashes.
@@ -511,6 +572,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         version: 0,
         profile: null,
         state: freshGame(),
+        buffer: [],
         myPlayerId: null,
         syncError: null,
         connecting: false,
@@ -520,89 +582,101 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
   };
 });
 
-// Auto-pacing lives in the store, not the component. Each state change is
-// observed once: if pacing is currently enabled, schedule the next
-// mechanical step on a delay; otherwise leave the game at rest until an
-// intent, connect/disconnect, or role change wakes it back up. Guarded on
-// `window` so importing this module under SSR or test runners (no DOM, no
-// timers wanted) is a no-op.
-/** One unit of automated progress this client should make, or null to wait.
- *  Mechanical beats (`pre-roll` step, `post-roll` end-turn) run for whoever
- *  drives the active seat — "self" or "proxy". Real decisions are only ever
- *  proxied for BOT seats here (a human's own buy / raise-cash / trade-approval
- *  is left to their UI), so the loop iterates bot seats and submits the first
- *  intent their policy returns. Trade-building is human-only (no bot proposer)
- *  so it has no op. */
-type PacerOp = { kind: "step" } | { kind: "intent"; intent: Intent };
-
-function pacerOp(state: GameState, myPlayerId: string | null): PacerOp | null {
-  if (state.status !== "active") return null;
-  if (state.turn.paused) return null;
-  const { phase, playerId } = state.turn;
-
-  if (phase === "pre-roll") {
-    return driverRole(state, myPlayerId) === "none" ? null : { kind: "step" };
-  }
-  if (phase === "post-roll") {
-    return driverRole(state, myPlayerId) === "none"
-      ? null
-      : { kind: "intent", intent: { kind: "end-turn", playerId } };
-  }
-  if (
-    phase === "buy-decision" ||
-    phase === "must-raise-cash" ||
-    phase === "trade-pending"
-  ) {
-    for (const p of state.players) {
-      if (!p.isBot) continue;
-      const intent = botIntent(state, p.id);
-      if (intent) return { kind: "intent", intent };
-    }
-  }
-  return null;
-}
-
+// Playback loop + pacing live in the store, not the component (the board just
+// renders the playback head and animates each transition). The model is a
+// playback head over the FIFO `buffer`:
+//
+//   1. While snapshots are queued, advance the head one per derived dwell —
+//      the time `paceTransition` budgets for that turn's glide / slide / hold.
+//   2. When the buffer is empty (head caught up to the authoritative head),
+//      drive the backend for one more unit — but only if `driveOp` says this
+//      client may (its own / a bot's turn). Another connected human's turn
+//      returns nothing, so the row can't advance past them until their client
+//      drives it: every human turn is a hard sync barrier.
+//
+// Guarded on `window` so importing this module under SSR or test runners (no
+// DOM, no timers wanted) is a no-op.
 if (typeof window !== "undefined") {
-  let pacingTimer: ReturnType<typeof setTimeout> | null = null;
+  // Hydrate the local pace preference before the first frame so the very first
+  // turn already plays at the chosen speed.
+  const storedTurnMs = turnMsStorage.get<number>(TURN_MS_KEY);
+  if (storedTurnMs !== null) useMonopolyStore.getState().setTurnMs(storedTurnMs);
 
-  const tick = (): void => {
-    pacingTimer = null;
-    const store = useMonopolyStore.getState();
-    if (!store.gameId) return;
-    const op = pacerOp(store.state, store.myPlayerId);
-    if (!op) return;
-    if (op.kind === "step") store.step();
-    else store.submit(op.intent);
+  let dwellTimer: ReturnType<typeof setTimeout> | null = null;
+  // The head version this client last drove from, so a redundant pump (the
+  // store fires subscribers synchronously on its own writes) can't double-fire
+  // the same step. Reset whenever the head advances or the game changes.
+  let drivenFrom: number | null = null;
+  // Re-entrancy guard: committing a snapshot calls setState, which runs this
+  // subscriber synchronously — `pumping` makes that re-entry a no-op.
+  let pumping = false;
+  let lastGameId: string | null = null;
+
+  const onDwellEnd = (): void => {
+    dwellTimer = null;
+    pump();
   };
 
-  const schedule = (): void => {
-    if (pacingTimer !== null) return;
-    const store = useMonopolyStore.getState();
-    if (!store.gameId || !pacerOp(store.state, store.myPlayerId)) return;
-    pacingTimer = setTimeout(tick, STEP_DELAY_MS);
-  };
+  const pump = (): void => {
+    if (pumping || dwellTimer !== null) return; // busy or mid-dwell
+    pumping = true;
+    try {
+      const store = useMonopolyStore.getState();
+      if (!store.gameId) return;
 
-  const cancel = (): void => {
-    if (pacingTimer === null) return;
-    clearTimeout(pacingTimer);
-    pacingTimer = null;
+      if (store.buffer.length > 0) {
+        // Advance the playback head one snapshot, animating the transition over
+        // its budgeted dwell. Re-derive the seat from the new roster (a reseat
+        // can change who this client is) just like a snap does.
+        const [next, ...rest] = store.buffer;
+        const dwell = paceTransition(store.state, next.state, store.turnMs).durationMs;
+        const { profile } = store;
+        const seated = profile ? isMember(next.state, profile) : false;
+        drivenFrom = null;
+        useMonopolyStore.setState({
+          state: next.state,
+          version: next.version,
+          buffer: rest,
+          myPlayerId: seated && profile ? profile.id : null,
+        });
+        dwellTimer = setTimeout(onDwellEnd, dwell);
+        return;
+      }
+
+      // Caught up: drive one more unit, at most once per head.
+      if (drivenFrom === store.version) return;
+      const op = driveOp(store.state, true, store.myPlayerId);
+      if (!op) return;
+      drivenFrom = store.version;
+      if (op.kind === "step") store.step();
+      else store.submit(op.intent);
+    } finally {
+      pumping = false;
+    }
   };
 
   useMonopolyStore.subscribe((next, prev) => {
+    if (next.gameId !== lastGameId) {
+      // Game context changed (connect / disconnect): abandon any in-flight
+      // dwell and reset the drive guard so the new game starts clean.
+      if (dwellTimer !== null) {
+        clearTimeout(dwellTimer);
+        dwellTimer = null;
+      }
+      drivenFrom = null;
+      lastGameId = next.gameId;
+    }
     if (
       next.state === prev.state &&
+      next.buffer === prev.buffer &&
       next.gameId === prev.gameId &&
-      next.myPlayerId === prev.myPlayerId
+      next.myPlayerId === prev.myPlayerId &&
+      next.turnMs === prev.turnMs
     ) {
       return;
     }
-    // State, game id, or seat changed — drop any pending tick scheduled
-    // against the old context, then re-evaluate from scratch. All feed
-    // `driverRole`/`pacerEnabled`, so any of them changing can wake or sleep
-    // the pacer.
-    cancel();
-    schedule();
+    pump();
   });
 
-  schedule();
+  pump();
 }
