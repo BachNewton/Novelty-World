@@ -228,48 +228,71 @@ interface SolveResult {
   notes: DevelopmentNote[];
 }
 
-/** Find a legal order to resolve every affected color group to its target,
- *  threading the bank through so a group that returns buildings can run before
- *  one that needs them — regardless of board order. Backtracks over group order
- *  (and whether a group takes the liquidation escape), trying pure schedules
- *  first so the costlier escape is only used when genuinely forced. Returns null
- *  when no legal schedule exists. Groups process whole, one at a time: a
- *  group's transient house demand (breaking hotels, or building up to them)
- *  resolves by the time it finishes, so no cross-group interleaving is ever
- *  required. Group count is tiny (≤ 8, usually 1-3), so the search is cheap. */
+/** Find the CHEAPEST legal order to resolve every affected color group to its
+ *  target, threading the bank through so a group that returns buildings can run
+ *  before one that needs them — regardless of board order. Explores every group
+ *  ordering (and, per group, whether to take the liquidation escape) and keeps
+ *  the schedule with the best net cash, so a needless liquidation is never
+ *  chosen when reordering yields a clean breakdown. Returns null when no legal
+ *  schedule exists.
+ *
+ *  Groups process whole, one at a time: a group's transient house demand
+ *  (breaking hotels, or building up to them) resolves by the time it finishes,
+ *  so no cross-group interleaving is ever required. The search is memoized on
+ *  (remaining groups, bank) — the only things that determine a subproblem,
+ *  since unprocessed groups always sit at their original levels — so it stays
+ *  cheap even when a player develops many sets at once. */
 function solveGroups(
-  remaining: readonly PropertyColor[],
+  affected: readonly PropertyColor[],
   levels: Levels,
   targets: Levels,
-  bank: { houses: number; hotels: number },
+  startBank: { houses: number; hotels: number },
 ): SolveResult | null {
-  if (remaining.length === 0) return { steps: [], notes: [] };
+  interface Scored {
+    steps: DevStep[];
+    notes: DevelopmentNote[];
+    netCash: number;
+  }
+  const memo = new Map<string, Scored | null>();
 
-  // Round 1 resolves a group on its pure (cheapest) path; round 2 only fires
-  // when no pure-first schedule completes, letting one group liquidate. A
-  // pure-feasible group never benefits from escaping early (a clean breakdown
-  // frees the same hotels), so trying pure first loses no solutions.
-  for (const allowEscape of [false, true]) {
+  const best = (
+    remaining: readonly PropertyColor[],
+    bank: { houses: number; hotels: number },
+  ): Scored | null => {
+    if (remaining.length === 0) return { steps: [], notes: [], netCash: 0 };
+    const key = `${[...remaining].sort().join(",")}|${bank.houses}|${bank.hotels}`;
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+
+    let winner: Scored | null = null;
     for (const color of remaining) {
-      const sim = simulateGroup(groupPositions(color), levels, targets, bank, allowEscape);
-      if (!sim.ok) continue;
-      // In the escape round, skip groups that resolved without escaping — those
-      // were already explored (and exhausted) in round 1 at this same bank.
-      if (allowEscape && !sim.usedEscape) continue;
-
-      const rest = remaining.filter((c) => c !== color);
-      const nextLevels = new Map(levels);
-      for (const [pos, level] of sim.endLevels) nextLevels.set(pos, level);
-      const sub = solveGroups(rest, nextLevels, targets, sim.endBank);
-      if (sub) {
-        const notes = sim.usedEscape
-          ? [{ color, kind: "shortage-liquidation" as const }, ...sub.notes]
-          : sub.notes;
-        return { steps: [...sim.steps, ...sub.steps], notes };
+      for (const allowEscape of [false, true]) {
+        const sim = simulateGroup(groupPositions(color), levels, targets, bank, allowEscape);
+        if (!sim.ok) continue;
+        // The escape pass is only interesting when it actually escapes — a pure
+        // resolution is already covered by the allowEscape=false pass.
+        if (allowEscape && !sim.usedEscape) continue;
+        const sub = best(remaining.filter((c) => c !== color), sim.endBank);
+        if (!sub) continue;
+        const simCash = sim.steps.reduce(
+          (s, st) => (st.kind === "build" ? s - st.cost : s + st.refund),
+          0,
+        );
+        const netCash = simCash + sub.netCash;
+        if (winner === null || netCash > winner.netCash) {
+          const notes = sim.usedEscape
+            ? [{ color, kind: "shortage-liquidation" as const }, ...sub.notes]
+            : sub.notes;
+          winner = { steps: [...sim.steps, ...sub.steps], notes, netCash };
+        }
       }
     }
-  }
-  return null;
+    memo.set(key, winner);
+    return winner;
+  };
+
+  const result = best(affected, startBank);
+  return result && { steps: result.steps, notes: result.notes };
 }
 
 type SimResult =

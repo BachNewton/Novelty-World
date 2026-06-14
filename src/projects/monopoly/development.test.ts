@@ -354,6 +354,44 @@ describe("planDevelopment — cross-set fixpoint scheduling", () => {
     // Yellow 5->1 = 4 tiers * $75 refund * 3 = +$900 sell. Net +$300.
     expect(plan.netCash).toBe(300);
   });
+
+  // Regression for the cost-optimality bug the re-validation fuzz found: the
+  // backtracking solver must not settle for the first feasible schedule if a
+  // reordering avoids a needless liquidation. Here building green first (it is
+  // listed first in the target) strands the dark-blue hotels into a
+  // liquidation, but breaking dark-blue down FIRST is clean and cheaper.
+  it("breaks hotels down before building elsewhere to avoid a needless liquidation", () => {
+    const DARK_BLUE = [37, 39];
+    const GREEN = [31, 32, 34];
+    const state = makeState({
+      ownership: { ...own(DARK_BLUE, "p1"), ...own(GREEN, "p1"), ...own([6, 8, 9, 11, 13, 14], "p2") },
+      houses: {
+        37: 5,
+        39: 5,
+        // Filler: 24 houses -> bank 8 free (just enough for the clean schedule).
+        6: 4,
+        8: 4,
+        9: 4,
+        11: 4,
+        13: 4,
+        14: 4,
+      },
+    });
+    const plan = planDevelopment(state, "p1", {
+      37: 1,
+      39: 1,
+      31: 2,
+      32: 2,
+      34: 2,
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.steps.some((s) => s.kind === "liquidate")).toBe(false);
+    expect(plan.notes).toEqual([]);
+    // dark-blue 5->1 = 8 tiers * $100 refund = +$800; green 0->2 = 6 tiers *
+    // $200 = -$1200. Net -$400 (vs -$600 if dark-blue were liquidated).
+    expect(plan.netCash).toBe(-400);
+  });
 });
 
 /** Assert no build step ever pushes a property more than one tier above the
