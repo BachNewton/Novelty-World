@@ -33,6 +33,8 @@ export interface GameSummary {
   status: GameState["status"];
   /** Seated players, in play order, for the roster preview. */
   players: readonly Player[];
+  /** Row `updated_at` (ISO 8601) — when the game was last touched/played. */
+  updatedAt: string;
 }
 
 /** List joinable / watchable games for the lobby: every row that is still a
@@ -43,10 +45,10 @@ export async function listGames(): Promise<GameSummary[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from(TABLE)
-    .select("id, state")
+    .select("id, state, updated_at")
     .order("updated_at", { ascending: false });
   if (error) throw error;
-  const rows = data as { id: string; state: GameState }[];
+  const rows = data as { id: string; state: GameState; updated_at: string }[];
   return rows
     .filter(
       (r) =>
@@ -57,6 +59,7 @@ export async function listGames(): Promise<GameSummary[]> {
       id: r.id,
       status: r.state.status,
       players: r.state.players,
+      updatedAt: r.updated_at,
     }));
 }
 

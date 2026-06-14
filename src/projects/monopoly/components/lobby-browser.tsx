@@ -128,6 +128,17 @@ export function LobbyBrowser({ onOpen }: Props) {
   );
 }
 
+/** Human-readable "last played" stamp from the row's ISO `updated_at`, in the
+ *  viewer's locale and timezone (e.g. "Jun 14, 3:42 PM"). */
+function formatLastPlayed(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function GameRow({
   game,
   onOpen,
@@ -150,22 +161,21 @@ function GameRow({
         className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors hover:brightness-125"
         style={{ backgroundColor: "var(--mono-card)" }}
       >
-        <span
-          className="rounded px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider"
-          style={{
-            backgroundColor: isLobby ? "var(--mono-green)" : "var(--mono-orange)",
-            color: "var(--mono-frame)",
-          }}
-        >
-          {isLobby ? "Lobby" : "Live"}
-        </span>
-        <span className="flex flex-1 items-center -space-x-1.5">
+        <span className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1">
           {game.players.map((p) => (
-            <PlayerToken key={p.id} player={p} className="h-6 w-6" />
+            <span key={p.id} className="flex items-center gap-1.5">
+              <PlayerToken player={p} className="h-6 w-6" />
+              <span className="text-sm font-medium">{p.name}</span>
+            </span>
           ))}
         </span>
-        <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
-          {cta}
+        <span className="flex flex-col items-end gap-0.5">
+          <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
+            {cta}
+          </span>
+          <span className="whitespace-nowrap text-[0.7rem]" style={{ color: "var(--mono-rail)" }}>
+            {formatLastPlayed(game.updatedAt)}
+          </span>
         </span>
       </button>
     </li>
