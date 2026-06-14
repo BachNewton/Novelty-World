@@ -1,0 +1,5 @@
+# Normalize all text files to LF in the repository, regardless of the editor
+# or OS that wrote them. Keeps `git diff`/`git commit` free of whole-file
+# line-ending churn when something writes CRLF on Windows. Binary files are
+# auto-detected and left untouched.
+* text=auto eol=lf
