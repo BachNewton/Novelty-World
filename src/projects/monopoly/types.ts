@@ -290,18 +290,44 @@ export type TurnPhase =
  *  enters this phase — they go straight to bankrupt at charge time. */
 export type RaiseCashResume = "after-landing" | "pre-roll";
 
-/** Auction in progress after a player declined to buy a property they
- *  landed on. */
+/** What play resumes into once an auction resolves — the auction sub-game is
+ *  shared by both triggers, and only the continuation differs:
+ *  - `landing`: a landed-on property the active player declined. Resume their
+ *    turn through `afterLanding` (or `settleOrRaise` if the winner went into the
+ *    red paying the bid — a net-worth-capped bid always recovers).
+ *  - `bank-estate`: liquidating a player who went bankrupt to the bank. Auction
+ *    each estate lot in turn (`remaining`); when the list empties, finish the
+ *    deferred bankruptcy (winner check + hand-off). `debtorId` is the bankrupt. */
+export type AuctionResume =
+  | { kind: "landing" }
+  | {
+      kind: "bank-estate";
+      debtorId: string;
+      remaining: readonly number[];
+    };
+
+/** Auction in progress — a landed-on property the active player declined, or a
+ *  lot from a bank-bankruptcy estate. Open-outcry: any still-in player may bid
+ *  at any time (a `bid` raises `highBid` by one fixed +$10 increment), or drop
+ *  out. There is no turn order — even the current `leaderId` may bid again to
+ *  jam the price up. The auction resolves once every non-leader has dropped (the
+ *  leader wins), or everyone drops without a bid (the lot reverts to the bank).
+ *  See `monopoly/CLAUDE.md` "Auctions". */
 export interface AuctionState {
   position: number;
-  /** Players still in the auction, in bidding order. */
+  /** Players still in the auction (haven't dropped). Seat-ordered for display;
+   *  membership is what matters — there is no rotation. */
   active: readonly string[];
-  /** Whose turn to bid or pass. */
-  currentBidderId: string;
   /** Highest bid so far. 0 before anyone has bid. */
   highBid: number;
-  /** Null until someone bids. */
+  /** The current high bidder, or null until someone bids. They can't drop (no
+   *  retracting a winning bid) but may bid again to raise their own price. */
   leaderId: string | null;
+  /** Each participant's latest bid, for the panel display. Absent = hasn't bid
+   *  yet. */
+  bids: Readonly<Record<string, number>>;
+  /** Where play resumes when this auction resolves. */
+  resume: AuctionResume;
 }
 
 /** A finalized trade proposal awaiting approval. Every NAMED participant
@@ -364,7 +390,11 @@ export interface PlayerPreferences {
 export type Intent =
   | { kind: "buy"; playerId: string }
   | { kind: "decline-buy"; playerId: string }
-  | { kind: "bid"; playerId: string; amount: number }
+  /** Raise the open auction's high bid by one +$10 increment (computed at apply
+   *  time, so a tap is always coherent against the current high). Any still-in
+   *  player may bid, including the standing leader. */
+  | { kind: "bid"; playerId: string }
+  /** Drop out of the auction. Permanent; the standing leader can't drop. */
   | { kind: "pass-bid"; playerId: string }
   /** Atomic "manage my properties" commit — the unified output of the manage
    *  intermission. Carries the player's full staged target development levels

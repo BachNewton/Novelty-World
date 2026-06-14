@@ -7,6 +7,7 @@ import { heldJailCard, ownablePrice } from "../logic";
 import { useMonopolyStore } from "../store";
 import { PROPERTY_COLOR_VAR } from "../theme";
 import type { GameState } from "../types";
+import { AuctionPanel } from "./auction-panel";
 import { ManagePanel } from "./manage-panel";
 import { TradePanel } from "./trade-panel";
 
@@ -40,6 +41,13 @@ export function PromptSection({ state }: Props) {
   // by role (proposer edits, named parties vote, everyone else watches).
   if (phase === "trade-building" || phase === "trade-pending") {
     return <TradePanel state={state} />;
+  }
+
+  // The auction is synced state shown to EVERYONE (including spectators): the
+  // panel renders the standings live and gates the bid/drop buttons on whether
+  // this client is the current bidder.
+  if (phase === "auction") {
+    return <AuctionPanel state={state} />;
   }
 
   if (!myPlayerId) return null;
@@ -164,7 +172,7 @@ function BuyPrompt({
           </span>
         </span>
       </div>
-      <PromptButton label="Pass" onClick={onPass} />
+      <PromptButton label="Auction" onClick={onPass} />
       <PromptButton
         label="Buy"
         onClick={onBuy}

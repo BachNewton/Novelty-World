@@ -16,6 +16,8 @@ import {
 } from "./logic";
 import type {
   ApplyResult,
+  AuctionResume,
+  AuctionState,
   Card,
   CardSource,
   GameEvent,
@@ -113,16 +115,17 @@ export function initialDecks(rng: Rng): {
 /** Apply a single external intent. On success the caller should then run
  *  `autoStep` to drain mechanics until the next decision point.
  *
- *  Wired so far: `buy`, `decline-buy`, `manage`, `mortgage`, the trade
- *  sub-game, `toggle-queue`, `cancel-manage`, the jail decisions
- *  (`pay-to-leave-jail`, `use-jail-card`), `end-turn`. Richer intents (auction,
- *  …) are rejected until they're implemented. The surface deliberately stays
- *  small per `monopoly/CLAUDE.md`. No RNG argument — these are deterministic;
- *  engine functions that need randomness read it out of `state.rngState`
- *  themselves. */
+ *  Wired so far: `buy`, `decline-buy`, the `bid` / `pass-bid` auction sub-game,
+ *  `manage`, `mortgage`, the trade sub-game, `toggle-queue`, `cancel-manage`,
+ *  the jail decisions (`pay-to-leave-jail`, `use-jail-card`), `end-turn`. The
+ *  surface deliberately stays small per `monopoly/CLAUDE.md`. No RNG argument —
+ *  these are deterministic; engine functions that need randomness read it out of
+ *  `state.rngState` themselves. */
 export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "buy") return applyBuy(state, intent);
   if (intent.kind === "decline-buy") return applyDeclineBuy(state, intent);
+  if (intent.kind === "bid") return applyBid(state, intent);
+  if (intent.kind === "pass-bid") return applyPassBid(state, intent);
   if (intent.kind === "manage") return applyManage(state, intent);
   if (intent.kind === "mortgage") return applyMortgage(state, intent);
   if (intent.kind === "toggle-queue") return applyToggleQueue(state, intent);
@@ -138,8 +141,9 @@ export function apply(state: GameState, intent: Intent): ApplyResult {
     return applyPayToLeaveJail(state, intent);
   }
   if (intent.kind === "use-jail-card") return applyUseJailCard(state, intent);
-  if (intent.kind === "end-turn") return applyEndTurn(state, intent);
-  return { ok: false, reason: `intent ${intent.kind} not yet implemented` };
+  // `end-turn` is the only kind left; an unconditional return keeps the dispatch
+  // exhaustive — a new Intent kind makes this `applyEndTurn` call fail to type.
+  return applyEndTurn(state, intent);
 }
 
 /** The next turn block when control passes to `nextPlayerId` at a fresh
@@ -333,11 +337,13 @@ function chargeToCreditor(
     });
     const turns = appendEventToActiveTurn(state.turns, event);
     const bust = goBankrupt({ ...state, players, turns }, payerId, creditorId);
-    // Hand control onward unless the bust already ended the game.
-    const resolved =
-      bust.state.turn.phase === "game-over"
-        ? bust.state
-        : advanceToNextPlayer(bust.state, payerId);
+    // Hand control onward unless the bust already sequenced what's next (the
+    // game ended, or a bank estate auction is now under way). The debtor's turn
+    // is over, so advance — then settle, since inheriting a mortgaged lot can
+    // leave the (off-turn) creditor owing 10% interest they must raise.
+    const resolved = bustSequenced(bust.state)
+      ? bust.state
+      : settleOrRaise(advanceToNextPlayer(bust.state, payerId), "pre-roll");
     return { state: resolved, newEvents: [event, ...bust.newEvents] };
   }
 
@@ -376,31 +382,62 @@ function chargeRent(
 
 /** Settle a player's estate when they go bankrupt. Two creditors:
  *
- *  - A **player** creditor (`creditorId` set, the usual rent / fee bust): their
- *    properties (with houses and mortgage status) and Get-Out-of-Jail-Free cards
- *    flow to that creditor.
- *  - The **bank** (`creditorId === null`, e.g. an unpayable jail fine, later
- *    tax): the estate reverts — properties become unowned (buildings and
- *    mortgage flags cleared), held GOJF cards return to their decks.
+ *  - A **player** creditor (`creditorId` set, the usual rent / fee bust): the
+ *    debtor's bare lots and Get-Out-of-Jail-Free cards flow to that creditor.
+ *    Per official rules, buildings are first sold back to the bank at half price
+ *    and that cash goes to the creditor, and the creditor owes the bank 10%
+ *    interest on each still-mortgaged lot they inherit (same as a trade) — which
+ *    can, rarely, push the creditor into the red, so the caller settles.
+ *  - The **bank** (`creditorId === null`, e.g. an unpayable tax / jail fine):
+ *    buildings go back to the bank and each bare lot is auctioned to the highest
+ *    bidder (official rule). Held GOJF cards return to their decks.
  *
- *  Cash already moved in the charge path, so this just zeroes whatever remains.
- *  Emits a `bankrupt` event, and a `winner` event + game-over phase transition
- *  if exactly one non-bankrupt player remains.
+ *  The debtor's remaining cash already moved in the charge path, so this just
+ *  zeroes whatever remains. Emits a `bankrupt` event, and a `winner` event +
+ *  game-over phase transition if exactly one non-bankrupt player remains (in
+ *  which case the estate is moot and simply freed — no auction).
  *
- *  Simplifications flagged in CLAUDE.md (deferred): real Monopoly forces houses
- *  to be sold back to the bank at half price when an estate transfers (here they
- *  ride along to a player creditor), and a bank estate is auctioned off rather
- *  than simply freed (auction isn't built). Both keep the engine lean and most
- *  house games play them this way. */
+ *  When a bank estate IS auctioned, this returns a state already in the
+ *  `auction` phase: the caller must NOT advance the turn over it (see
+ *  `bustSequenced`). The per-lot auctions resolve through `resumeEstate`, which
+ *  hands control onward once the estate is exhausted. */
 function goBankrupt(
   state: GameState,
   debtorId: string,
   creditorId: string | null,
 ): { state: GameState; newEvents: readonly GameEvent[] } {
   const debtorIdx = state.players.findIndex((p) => p.id === debtorId);
-  const players = state.players.map((p, i) =>
-    i === debtorIdx ? { ...p, cash: 0, bankrupt: true } : p,
-  );
+  const debtorLots = Object.entries(state.ownership)
+    .filter(([, ownerId]) => ownerId === debtorId)
+    .map(([posStr]) => Number(posStr));
+
+  // A player creditor inherits bare lots: every building is sold back to the
+  // bank at half price with that cash going to the creditor, and the creditor
+  // owes the bank 10% interest on each still-mortgaged lot (official rule, same
+  // as a trade). The debtor's remaining cash already moved in the charge path.
+  const buildingRefund =
+    creditorId !== null ? maxBuildingSaleValue(state, debtorId) : 0;
+  const inheritedInterest =
+    creditorId !== null
+      ? debtorLots.reduce(
+          (sum, pos) =>
+            sum + (state.mortgaged[pos] ? (mortgageInterestAt(pos) ?? 0) : 0),
+          0,
+        )
+      : 0;
+  const creditorNet = buildingRefund - inheritedInterest;
+  const players = state.players.map((p, i) => {
+    if (i === debtorIdx) return { ...p, cash: 0, bankrupt: true };
+    if (creditorId !== null && p.id === creditorId && creditorNet !== 0) {
+      return { ...p, cash: p.cash + creditorNet };
+    }
+    return p;
+  });
+
+  const gameOver = players.filter((p) => !p.bankrupt).length === 1;
+  // Auction the estate only when it's a bank bust, the game continues, and
+  // there's actually something to sell. Otherwise the estate is freed clean.
+  const willAuction = creditorId === null && !gameOver && debtorLots.length > 0;
 
   const ownership: Record<number, string> = {};
   const houses = { ...state.houses };
@@ -410,11 +447,16 @@ function goBankrupt(
     if (ownerId !== debtorId) {
       ownership[pos] = ownerId;
     } else if (creditorId !== null) {
+      // To a player creditor: the bare lot transfers (buildings sold back above)
+      // keeping its mortgage status; the 10% interest was charged above.
       ownership[pos] = creditorId;
-    } else {
-      // To the bank: the lot reverts to unowned, buildings and mortgage gone.
       delete houses[pos];
-      delete mortgaged[pos];
+    } else {
+      // To the bank: buildings always go back. A lot bound for auction stays
+      // unowned for now (the auction assigns it) and keeps its mortgage flag so
+      // the winner owes the 10% interest; an un-auctioned lot reverts clean.
+      delete houses[pos];
+      if (!willAuction) delete mortgaged[pos];
     }
   }
 
@@ -450,20 +492,36 @@ function goBankrupt(
   };
 
   // Winner check: exactly one survivor means the game is over.
-  const alive = players.filter((p) => !p.bankrupt);
-  if (alive.length === 1) {
-    const winnerEvent: GameEvent = { kind: "winner", winnerId: alive[0].id };
-    turns = appendEventToActiveTurn(next.turns, winnerEvent);
-    newEvents.push(winnerEvent);
-    next = {
-      ...next,
-      status: "finished",
-      turns,
-      turn: { ...next.turn, phase: "game-over" },
-    };
+  if (gameOver) {
+    const winnerId = players.find((p) => !p.bankrupt)?.id;
+    if (winnerId !== undefined) {
+      const winnerEvent: GameEvent = { kind: "winner", winnerId };
+      turns = appendEventToActiveTurn(next.turns, winnerEvent);
+      newEvents.push(winnerEvent);
+      next = {
+        ...next,
+        status: "finished",
+        turns,
+        turn: { ...next.turn, phase: "game-over" },
+      };
+    }
+  } else if (willAuction) {
+    const [first, ...rest] = debtorLots.sort((a, b) => a - b);
+    next = enterAuction(next, first, {
+      kind: "bank-estate",
+      debtorId,
+      remaining: rest,
+    });
   }
 
   return { state: next, newEvents };
+}
+
+/** True once a bust has already sequenced what comes next on its own — the game
+ *  ended, or a bank-estate auction is now in progress — so the caller must not
+ *  advance the turn over the top of it. */
+function bustSequenced(state: GameState): boolean {
+  return state.turn.phase === "game-over" || state.turn.phase === "auction";
 }
 
 function applyBuy(
@@ -523,11 +581,254 @@ function applyDeclineBuy(
       reason: `cannot decline-buy in phase ${state.turn.phase}`,
     };
   }
-  // CLAUDE.md says decline-buy sends the property to auction, but the
-  // auction sub-game isn't built yet. Until it lands, declining just leaves
-  // the property unowned and resolves the landing (post-roll, or another
-  // roll when the move was doubles).
-  return { ok: true, state: afterLanding(state), newEvents: [] };
+  const position = state.turn.pendingBuy;
+  if (position === undefined) {
+    return { ok: false, reason: "no pending buy" };
+  }
+  // Declining sends the property to auction (official rule). The decliner is
+  // still eligible to bid. The auction resumes the active player's landing when
+  // it resolves (`landing`).
+  return {
+    ok: true,
+    state: enterAuction(state, position, { kind: "landing" }),
+    newEvents: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Auctions. One shared sub-game, entered from two triggers: a landed-on
+// property the active player declined (`applyDeclineBuy`), and each lot of a
+// player's estate when they go bankrupt to the bank (`goBankrupt`). Open-outcry,
+// no turn order: any still-in player may `bid` (raise the high by one +$10
+// increment, computed at apply time) at any moment — including the standing
+// leader, to jam the price up — or `pass-bid` to drop out for good. The leader
+// can't drop (no retracting a winning bid). The auction resolves once every
+// non-leader has dropped (the leader wins), or everyone drops without a bid (the
+// lot reverts to the bank). The `AuctionResume` continuation says where play
+// picks up. See `monopoly/CLAUDE.md` "Auctions".
+// ---------------------------------------------------------------------------
+
+/** The fixed step every bid raises the high by. A bid carries no amount — the
+ *  engine adds this to the current `highBid` at apply time, so a tap is always
+ *  coherent against the latest authoritative high. */
+export const BID_INCREMENT = 10;
+
+/** Non-bankrupt players in seat order from the active player — the seating for
+ *  the auction's `active` list (display only; there's no rotation). A bankrupt
+ *  estate debtor is naturally excluded. */
+function biddingOrder(state: GameState): string[] {
+  const startIdx = state.players.findIndex((p) => p.id === state.turn.playerId);
+  const order: string[] = [];
+  for (let i = 0; i < state.players.length; i++) {
+    const p = state.players[(startIdx + i) % state.players.length];
+    if (!p.bankrupt) order.push(p.id);
+  }
+  return order;
+}
+
+/** Open an auction over `position`, resuming via `resume` once it resolves.
+ *  Seats every non-bankrupt player as a bidder, with no bid yet. */
+function enterAuction(
+  state: GameState,
+  position: number,
+  resume: AuctionResume,
+): GameState {
+  const auction: AuctionState = {
+    position,
+    active: biddingOrder(state),
+    highBid: 0,
+    leaderId: null,
+    bids: {},
+    resume,
+  };
+  return {
+    ...state,
+    turn: { ...state.turn, phase: "auction", pendingBuy: undefined, auction },
+  };
+}
+
+/** The most a bidder may offer. Decline-buy bids are capped at **net worth**
+ *  (cash + everything they could liquidate) — the binding-bid rule, with the
+ *  winner settling any shortfall through `must-raise-cash`. Estate-liquidation
+ *  bids are capped at **cash on hand** less the 10% interest owed if the lot is
+ *  mortgaged, so the winner pays immediately and never goes negative (a v1
+ *  simplification that keeps the multi-lot loop free of nested settlement —
+ *  see `monopoly/CLAUDE.md`). */
+function maxBid(
+  state: GameState,
+  auction: AuctionState,
+  playerId: string,
+): number {
+  const player = state.players.find((p) => p.id === playerId);
+  if (!player) return 0;
+  if (auction.resume.kind === "landing") {
+    return player.cash + maxRaisableCash(state, playerId);
+  }
+  const interest = state.mortgaged[auction.position]
+    ? (mortgageInterestAt(auction.position) ?? 0)
+    : 0;
+  return player.cash - interest;
+}
+
+/** The most `playerId` may bid in the current auction, or 0 if none is open.
+ *  Exposed so the auction panel can offer and disable the next +$10 bid against
+ *  the same cap the engine enforces (net worth for a declined lot, cash on hand
+ *  for an estate lot). */
+export function auctionBidCap(state: GameState, playerId: string): number {
+  const auction = state.turn.auction;
+  return auction ? maxBid(state, auction, playerId) : 0;
+}
+
+/** Whether the auction is decided and should resolve now: the leader has won
+ *  once no non-leader is still in, or — with no bid at all — everyone has
+ *  dropped (unsold). */
+function auctionDecided(auction: AuctionState): boolean {
+  if (auction.leaderId === null) return auction.active.length === 0;
+  return auction.active.every((id) => id === auction.leaderId);
+}
+
+function applyBid(
+  state: GameState,
+  intent: Extract<Intent, { kind: "bid" }>,
+): ApplyResult {
+  const auction = state.turn.auction;
+  if (state.turn.phase !== "auction" || !auction) {
+    return { ok: false, reason: `cannot bid in phase ${state.turn.phase}` };
+  }
+  if (!auction.active.includes(intent.playerId)) {
+    return { ok: false, reason: "not in the auction" };
+  }
+  // The high climbs by one fixed increment per bid, computed here so a tap is
+  // coherent against the latest high regardless of what the client last saw.
+  const newHigh = auction.highBid + BID_INCREMENT;
+  if (newHigh > maxBid(state, auction, intent.playerId)) {
+    return { ok: false, reason: "bid exceeds what you can pay" };
+  }
+
+  const bidAuction: AuctionState = {
+    ...auction,
+    highBid: newHigh,
+    leaderId: intent.playerId,
+    bids: { ...auction.bids, [intent.playerId]: newHigh },
+  };
+  const bidState = withAuction(state, bidAuction);
+  // The bidder is the sole survivor (everyone else already dropped): they win.
+  if (auctionDecided(bidAuction)) return finalize(resolveAuction(bidState));
+  return { ok: true, state: bidState, newEvents: [] };
+}
+
+function applyPassBid(
+  state: GameState,
+  intent: Extract<Intent, { kind: "pass-bid" }>,
+): ApplyResult {
+  const auction = state.turn.auction;
+  if (state.turn.phase !== "auction" || !auction) {
+    return { ok: false, reason: `cannot pass-bid in phase ${state.turn.phase}` };
+  }
+  if (!auction.active.includes(intent.playerId)) {
+    return { ok: false, reason: "not in the auction" };
+  }
+  if (intent.playerId === auction.leaderId) {
+    return { ok: false, reason: "the leader can't drop their winning bid" };
+  }
+
+  const dropped: AuctionState = {
+    ...auction,
+    active: auction.active.filter((id) => id !== intent.playerId),
+  };
+  const droppedState = withAuction(state, dropped);
+  // Last non-leader out → the leader wins; everyone out with no bid → unsold.
+  if (auctionDecided(dropped)) return finalize(resolveAuction(droppedState));
+  return { ok: true, state: droppedState, newEvents: [] };
+}
+
+/** Replace the in-flight auction on the turn block. */
+function withAuction(state: GameState, auction: AuctionState): GameState {
+  return { ...state, turn: { ...state.turn, auction } };
+}
+
+/** Wrap a `{ state, newEvents }` step (the shape `resolveAuction` and the
+ *  charge helpers return) as a successful `ApplyResult`. */
+function finalize(step: {
+  state: GameState;
+  newEvents: readonly GameEvent[];
+}): ApplyResult {
+  return { ok: true, state: step.state, newEvents: step.newEvents };
+}
+
+/** Settle a decided auction: log it, hand the lot to the leader (paid to the
+ *  bank), and continue per the `resume` continuation. An unsold lot (no bid)
+ *  logs with a null winner and transfers nothing. */
+function resolveAuction(state: GameState): {
+  state: GameState;
+  newEvents: readonly GameEvent[];
+} {
+  const auction = state.turn.auction;
+  if (!auction) return { state, newEvents: [] };
+  const { position, leaderId, highBid, resume } = auction;
+
+  const event: GameEvent = {
+    kind: "auction",
+    position,
+    winnerId: leaderId,
+    price: leaderId !== null ? highBid : 0,
+  };
+  const turns = appendEventToActiveTurn(state.turns, event);
+
+  // Hand the lot over and take the winner's payment. A still-mortgaged estate
+  // lot also charges the receiver the official 10% interest, exactly as a trade
+  // does. Unsold: nothing moves — and an unsold estate lot reverts to the bank
+  // clean, so any lingering mortgage flag is cleared.
+  let players = state.players;
+  let ownership = state.ownership;
+  let mortgaged = state.mortgaged;
+  if (leaderId !== null) {
+    const isMortgaged = resume.kind === "bank-estate" && state.mortgaged[position];
+    const interest = isMortgaged ? (mortgageInterestAt(position) ?? 0) : 0;
+    players = state.players.map((p) =>
+      p.id === leaderId ? { ...p, cash: p.cash - highBid - interest } : p,
+    );
+    ownership = { ...state.ownership, [position]: leaderId };
+  } else if (resume.kind === "bank-estate" && state.mortgaged[position]) {
+    const cleared = { ...state.mortgaged };
+    delete cleared[position];
+    mortgaged = cleared;
+  }
+
+  const settled: GameState = {
+    ...state,
+    players,
+    ownership,
+    mortgaged,
+    turns,
+    turn: { ...state.turn, auction: undefined },
+  };
+
+  if (resume.kind === "landing") {
+    // The decliner's landing resumes; a winner who went negative (bid above
+    // cash, within net worth) settles first via must-raise-cash.
+    return { state: settleOrRaise(settled, "after-landing"), newEvents: [event] };
+  }
+  return { state: resumeEstate(settled, resume), newEvents: [event] };
+}
+
+/** Continue liquidating a bank-bankruptcy estate: auction the next lot, or —
+ *  when the estate is exhausted — finish the bust by handing control to the
+ *  next player (the bust already confirmed ≥2 survivors, so there's no winner
+ *  to crown here). */
+function resumeEstate(
+  state: GameState,
+  resume: Extract<AuctionResume, { kind: "bank-estate" }>,
+): GameState {
+  if (resume.remaining.length > 0) {
+    const [next, ...rest] = resume.remaining;
+    return enterAuction(state, next, {
+      kind: "bank-estate",
+      debtorId: resume.debtorId,
+      remaining: rest,
+    });
+  }
+  return advanceToNextPlayer(state, resume.debtorId);
 }
 
 /** Apply a "manage my properties" commit — the atomic unified output of the
@@ -1443,7 +1744,7 @@ function payEach(
   if (drawer.cash + maxRaisableCash(state, drawerId) < total) {
     const bust = goBankrupt({ ...state, turns: turns0 }, drawerId, null);
     const resolved =
-      bust.state.turn.phase === "game-over"
+      bustSequenced(bust.state)
         ? bust.state
         : advanceToNextPlayer(bust.state, drawerId);
     return { state: resolved, newEvents: [drawnEvent, ...bust.newEvents] };
@@ -1724,7 +2025,7 @@ function jailRoll(
   if (freedPlayer.cash + maxRaisableCash(paid, freedPlayer.id) < 0) {
     const bust = goBankrupt(paid, freedPlayer.id, null);
     const resolved =
-      bust.state.turn.phase === "game-over"
+      bustSequenced(bust.state)
         ? bust.state
         : advanceToNextPlayer(bust.state, freedPlayer.id);
     return { state: resolved, newEvents: [...events, ...bust.newEvents] };

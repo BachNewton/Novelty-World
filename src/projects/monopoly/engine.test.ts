@@ -2,7 +2,28 @@ import { describe, expect, it } from "vitest";
 import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
 import { apply, autoStep, createRng, firstNegativePlayer } from "./engine";
 import { freshGame } from "./mocks";
-import type { CardSource, GameState, Player } from "./types";
+import type { CardSource, GameState, Intent, Player } from "./types";
+
+/** Apply an intent, throwing on rejection — keeps the auction sequences below
+ *  readable as a straight-line script of bids and passes. */
+function applyOk(state: GameState, intent: Intent): GameState {
+  const result = apply(state, intent);
+  if (!result.ok) throw new Error(`${intent.kind} rejected: ${result.reason}`);
+  return result.state;
+}
+
+/** Drop the active player straight into a buy-decision on `position`, the entry
+ *  point a decline-buy auction starts from. */
+function buyDecision(state: GameState, position: number): GameState {
+  return {
+    ...state,
+    turn: { ...state.turn, phase: "buy-decision", pendingBuy: position },
+  };
+}
+
+function cashOf(state: GameState, id: string): number {
+  return state.players.find((p) => p.id === id)?.cash ?? 0;
+}
 
 // Resume the seeded RNG and pull the same two dice autoStep would, without
 // mutating the state. Lets a test place the active player so the roll lands
@@ -222,9 +243,9 @@ describe("apply", () => {
     expect(rejected.ok).toBe(false);
   });
 
-  it("rejects intents that aren't implemented yet", () => {
+  it("rejects a bid when no auction is open", () => {
     const state = freshGame("test-unimpl");
-    const result = apply(state, { kind: "bid", playerId: "p1", amount: 50 });
+    const result = apply(state, { kind: "bid", playerId: "p1" });
     expect(result.ok).toBe(false);
   });
 });
@@ -777,7 +798,7 @@ describe("apply buy", () => {
 });
 
 describe("apply decline-buy", () => {
-  it("clears pendingBuy and advances to post-roll without emitting events", () => {
+  it("sends the property to auction, clearing pendingBuy without emitting events", () => {
     const state = freshGame("test-decline");
     const playerId = state.turn.playerId;
     const ready: GameState = {
@@ -786,9 +807,11 @@ describe("apply decline-buy", () => {
     };
     const result = apply(ready, { kind: "decline-buy", playerId });
     if (!result.ok) throw new Error(`expected ok, got ${result.reason}`);
-    expect(result.state.turn.phase).toBe("post-roll");
+    expect(result.state.turn.phase).toBe("auction");
     expect(result.state.turn.pendingBuy).toBeUndefined();
+    expect(result.state.turn.auction?.position).toBe(1);
     expect(result.state.ownership[1]).toBeUndefined();
+    // The auction event is logged only once the auction resolves, not on entry.
     expect(result.newEvents).toEqual([]);
   });
 
@@ -962,6 +985,70 @@ describe("bankruptcy", () => {
     const rentEvent = newEvents.find((e) => e.kind === "rent");
     if (!rentEvent) throw new Error("expected a rent event");
     expect(rentEvent.amount).toBe(2000);
+  });
+
+  it("sells the debtor's buildings back at half price to the creditor and transfers bare lots", () => {
+    const start = freshGame("test-bust-buildings");
+    const { state: placed } = setupLandingOn(start, 39); // Boardwalk
+    // p1 owns the oranges with a house each and busts to p2's hotel rent. The
+    // houses can't transfer — they're sold to the bank at half ($50 each) and
+    // that $150 goes to p2, who receives the lots bare.
+    let state: GameState = {
+      ...withOwnership(placed, { 39: "p2", 16: "p1", 18: "p1", 19: "p1" }),
+      houses: { 39: 5, 16: 1, 18: 1, 19: 1 },
+    };
+    state = setCash(setCash(state, "p1", 0), "p2", 1500);
+
+    const { state: next } = autoStep(state);
+
+    expect(next.players.find((p) => p.id === "p1")?.bankrupt).toBe(true);
+    for (const pos of [16, 18, 19]) {
+      expect(next.ownership[pos]).toBe("p2");
+      expect(next.houses[pos]).toBeUndefined();
+    }
+    // 3 houses × $50 refund = $150 (p1 had no cash to add).
+    expect(next.players.find((p) => p.id === "p2")?.cash).toBe(1500 + 150);
+  });
+
+  it("charges the creditor 10% interest on each still-mortgaged lot inherited", () => {
+    const start = freshGame("test-bust-mort-interest");
+    const { state: placed } = setupLandingOn(start, 39); // Boardwalk
+    let state: GameState = {
+      ...withOwnership(placed, { 39: "p2", 16: "p1", 18: "p1", 19: "p1" }),
+      houses: { 39: 5 },
+      mortgaged: { 16: true, 18: true, 19: true },
+    };
+    state = setCash(setCash(state, "p1", 0), "p2", 1500);
+
+    const { state: next } = autoStep(state);
+
+    for (const pos of [16, 18, 19]) {
+      expect(next.ownership[pos]).toBe("p2");
+      expect(next.mortgaged[pos]).toBe(true);
+    }
+    // 10% interest on mortgage values $90 + $90 + $100 = $9 + $9 + $10 = $28.
+    expect(next.players.find((p) => p.id === "p2")?.cash).toBe(1500 - 28);
+  });
+
+  it("drops the creditor into must-raise-cash when inherited interest exceeds their cash", () => {
+    const start = freshGame("test-bust-creditor-raise");
+    const { state: placed } = setupLandingOn(start, 39); // Boardwalk
+    let state: GameState = {
+      ...withOwnership(placed, { 39: "p2", 16: "p1", 18: "p1", 19: "p1" }),
+      houses: { 39: 5 },
+      mortgaged: { 16: true, 18: true, 19: true },
+    };
+    // p2 holds only $10 but owes $28 interest; they can recover by selling the
+    // Boardwalk hotel, so they settle rather than bust.
+    state = setCash(setCash(state, "p1", 0), "p2", 10);
+
+    const { state: next } = autoStep(state);
+
+    expect(next.players.find((p) => p.id === "p1")?.bankrupt).toBe(true);
+    expect(next.turn.phase).toBe("must-raise-cash");
+    expect(next.turn.raiseCash).toBe("pre-roll");
+    expect(firstNegativePlayer(next)).toBe("p2");
+    expect(next.players.find((p) => p.id === "p2")?.cash).toBe(10 - 28);
   });
 
   it("advances control to the next non-bankrupt player when the active player busts", () => {
@@ -1941,5 +2028,268 @@ describe("cards — jail", () => {
     if (!used.ok) throw new Error(`expected ok, got ${used.reason}`);
     expect(used.state.jailFreeCards.chance).toBeUndefined();
     expect(used.state.decks.chance[used.state.decks.chance.length - 1]).toBe(gojfIdx);
+  });
+});
+
+describe("auction (decline-buy)", () => {
+  it("opens an auction over the declined property with every non-bankrupt player in", () => {
+    const state = applyOk(buyDecision(freshGame("auc-open"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    expect(state.turn.phase).toBe("auction");
+    const a = state.turn.auction;
+    expect(a?.position).toBe(1);
+    expect(a?.active).toEqual(["p1", "p2", "p3", "p4"]);
+    expect(a?.highBid).toBe(0);
+    expect(a?.leaderId).toBeNull();
+    expect(a?.resume).toEqual({ kind: "landing" });
+  });
+
+  it("raises the high by $10 per bid and records the leader", () => {
+    let s = applyOk(buyDecision(freshGame("auc-bid"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    const a = s.turn.auction;
+    expect(a?.highBid).toBe(10);
+    expect(a?.leaderId).toBe("p1");
+    expect(a?.bids).toEqual({ p1: 10 });
+  });
+
+  it("lets any still-in player bid in any order, and the leader bid again to jam the price", () => {
+    let s = applyOk(buyDecision(freshGame("auc-order"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "bid", playerId: "p2" }); // $10, p2 leads
+    s = applyOk(s, { kind: "bid", playerId: "p4" }); // $20, p4 leads
+    s = applyOk(s, { kind: "bid", playerId: "p4" }); // $30, p4 jams its own lead
+    const a = s.turn.auction;
+    expect(a?.highBid).toBe(30);
+    expect(a?.leaderId).toBe("p4");
+    expect(a?.bids).toEqual({ p2: 10, p4: 30 });
+  });
+
+  it("rejects a drop from the leader and a bid from a player who dropped", () => {
+    let s = applyOk(buyDecision(freshGame("auc-reject"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "bid", playerId: "p1" }); // p1 leads
+    expect(apply(s, { kind: "pass-bid", playerId: "p1" }).ok).toBe(false);
+    s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
+    expect(apply(s, { kind: "bid", playerId: "p2" }).ok).toBe(false);
+  });
+
+  it("caps each bid at the bidder's net worth (cash + liquidation)", () => {
+    // $5 net worth can't even open at $10.
+    const broke = applyOk(buyDecision(setCash(freshGame("auc-cap0"), "p1", 5), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    expect(apply(broke, { kind: "bid", playerId: "p1" }).ok).toBe(false);
+    // $15 net worth opens at $10 but can't reach $20.
+    let s = applyOk(buyDecision(setCash(freshGame("auc-cap1"), "p1", 15), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    expect(s.turn.auction?.highBid).toBe(10);
+    expect(apply(s, { kind: "bid", playerId: "p1" }).ok).toBe(false);
+  });
+
+  it("hands the lot to the last bidder standing, paid to the bank, and resumes the landing", () => {
+    let s = applyOk(buyDecision(freshGame("auc-win"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    const before = cashOf(s, "p1");
+    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    const final = apply(s, { kind: "pass-bid", playerId: "p4" });
+    if (!final.ok) throw new Error(final.reason);
+    expect(final.state.ownership[1]).toBe("p1");
+    expect(cashOf(final.state, "p1")).toBe(before - 10);
+    expect(final.state.turn.phase).toBe("post-roll");
+    expect(final.state.turn.auction).toBeUndefined();
+    expect(
+      final.newEvents.some(
+        (e) => e.kind === "auction" && e.winnerId === "p1" && e.price === 10,
+      ),
+    ).toBe(true);
+  });
+
+  it("lets the last remaining player win by bidding once everyone else has dropped", () => {
+    let s = applyOk(buyDecision(freshGame("auc-last"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
+    // p1 alone but no bid yet — not decided; p1 claims it with a single bid.
+    expect(s.turn.phase).toBe("auction");
+    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    expect(s.ownership[1]).toBe("p1");
+    expect(s.turn.phase).toBe("post-roll");
+  });
+
+  it("reverts the lot to the bank when everyone drops without a bid", () => {
+    let s = applyOk(buyDecision(freshGame("auc-unsold"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p1" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    const final = apply(s, { kind: "pass-bid", playerId: "p4" });
+    if (!final.ok) throw new Error(final.reason);
+    expect(final.state.ownership[1]).toBeUndefined();
+    expect(final.state.turn.phase).toBe("post-roll");
+    expect(
+      final.newEvents.some((e) => e.kind === "auction" && e.winnerId === null),
+    ).toBe(true);
+  });
+
+  it("lets a player other than the decliner win while the active player's turn resumes", () => {
+    let s = applyOk(buyDecision(freshGame("auc-other"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p1" });
+    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
+    expect(s.ownership[1]).toBe("p2");
+    expect(s.turn.playerId).toBe("p1");
+    expect(s.turn.phase).toBe("post-roll");
+  });
+
+  it("drops a winner who outbid their cash into must-raise-cash, resuming the landing after", () => {
+    // p1 leads at $100 with $5 cash but owns Reading Railroad (mortgage value
+    // $100), so net worth is $105 — winning pushes them into the red. Hand-built
+    // mid-auction so it needn't climb there one $10 tap at a time.
+    const base = withOwnership(setCash(freshGame("auc-raise"), "p1", 5), { 5: "p1" });
+    const mid: GameState = {
+      ...base,
+      turn: {
+        ...base.turn,
+        phase: "auction",
+        auction: {
+          position: 1,
+          active: ["p1", "p2"],
+          highBid: 100,
+          leaderId: "p1",
+          bids: { p1: 100 },
+          resume: { kind: "landing" },
+        },
+      },
+    };
+    const s = applyOk(mid, { kind: "pass-bid", playerId: "p2" });
+    expect(s.ownership[1]).toBe("p1");
+    expect(cashOf(s, "p1")).toBe(-95);
+    expect(s.turn.phase).toBe("must-raise-cash");
+    expect(s.turn.raiseCash).toBe("after-landing");
+    expect(firstNegativePlayer(s)).toBe("p1");
+  });
+});
+
+describe("auction (bank-estate bankruptcy)", () => {
+  // p1 lands on Luxury Tax ($100) with $0 and a single lot — they can't cover
+  // it even after liquidating, so they bust to the bank and the lot is auctioned.
+  function bustToBankOwning(
+    seed: string,
+    lots: Record<number, string>,
+    opts: { mortgaged?: Record<number, boolean>; count?: 2 | 4 } = {},
+  ): { state: GameState; newEvents: ReturnType<typeof autoStep>["newEvents"] } {
+    let start = withOwnership(
+      setCash(freshGame(seed, undefined, opts.count ?? 4), "p1", 0),
+      lots,
+    );
+    if (opts.mortgaged) start = { ...start, mortgaged: opts.mortgaged };
+    const { state: placed } = setupLandingOn(start, 38); // Luxury Tax
+    return autoStep(placed);
+  }
+
+  it("auctions the estate lot among the survivors when a player busts to the bank", () => {
+    const { state, newEvents } = bustToBankOwning("auc-estate", { 1: "p1" });
+    expect(newEvents.some((e) => e.kind === "bankrupt" && e.creditorId === null)).toBe(true);
+    expect(state.turn.phase).toBe("auction");
+    expect(state.players.find((p) => p.id === "p1")?.bankrupt).toBe(true);
+    const a = state.turn.auction;
+    expect(a?.position).toBe(1);
+    expect(a?.resume).toEqual({ kind: "bank-estate", debtorId: "p1", remaining: [] });
+    // The bankrupt debtor is excluded from the bidders.
+    expect(a?.active).toEqual(["p2", "p3", "p4"]);
+    expect(state.ownership[1]).toBeUndefined();
+  });
+
+  it("transfers the won lot and resumes play after the debtor", () => {
+    let s = bustToBankOwning("auc-estate-win", { 1: "p1" }).state;
+    const before = cashOf(s, "p2");
+    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
+    expect(s.ownership[1]).toBe("p2");
+    expect(cashOf(s, "p2")).toBe(before - 10);
+    expect(s.turn.phase).toBe("pre-roll");
+    expect(s.turn.playerId).toBe("p2");
+  });
+
+  it("caps an estate bid at cash on hand", () => {
+    let s = bustToBankOwning("auc-estate-cap", { 1: "p1" }).state;
+    s = { ...s, players: s.players.map((p) => (p.id === "p2" ? { ...p, cash: 15 } : p)) };
+    s = applyOk(s, { kind: "bid", playerId: "p2" }); // $10 ok
+    expect(s.turn.auction?.highBid).toBe(10);
+    // $20 would exceed p2's $15 cash.
+    expect(apply(s, { kind: "bid", playerId: "p2" }).ok).toBe(false);
+  });
+
+  it("charges the 10% interest on a still-mortgaged estate lot and keeps it mortgaged", () => {
+    let s = bustToBankOwning("auc-estate-mort", { 1: "p1" }, {
+      mortgaged: { 1: true },
+    }).state;
+    const before = cashOf(s, "p2");
+    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
+    expect(s.ownership[1]).toBe("p2");
+    expect(s.mortgaged[1]).toBe(true);
+    // Mediterranean mortgage value $30 → 10% interest = $3, on top of the bid.
+    expect(cashOf(s, "p2")).toBe(before - 10 - 3);
+  });
+
+  it("auctions a multi-lot estate one lot at a time", () => {
+    const { state } = bustToBankOwning("auc-estate-multi", { 1: "p1", 3: "p1" });
+    expect(state.turn.auction?.position).toBe(1);
+    expect(state.turn.auction?.resume).toEqual({
+      kind: "bank-estate",
+      debtorId: "p1",
+      remaining: [3],
+    });
+    // Win the first lot; the second opens immediately.
+    let s = applyOk(state, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
+    s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
+    expect(s.ownership[1]).toBe("p2");
+    expect(s.turn.phase).toBe("auction");
+    expect(s.turn.auction?.position).toBe(3);
+    expect(s.turn.auction?.resume).toEqual({
+      kind: "bank-estate",
+      debtorId: "p1",
+      remaining: [],
+    });
+  });
+
+  it("skips the estate auction when the bust ends the game", () => {
+    const { state, newEvents } = bustToBankOwning("auc-estate-end", { 1: "p1" }, {
+      count: 2,
+    });
+    expect(state.turn.phase).toBe("game-over");
+    expect(newEvents.some((e) => e.kind === "winner" && e.winnerId === "p2")).toBe(true);
+    expect(state.turn.auction).toBeUndefined();
   });
 });

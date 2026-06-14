@@ -177,6 +177,58 @@ describe("botIntent — jail-decision", () => {
   });
 });
 
+describe("botIntent — auction", () => {
+  function auctionTurn(
+    overrides: Partial<NonNullable<GameState["turn"]["auction"]>> = {},
+  ): GameState {
+    return withTurn({
+      phase: "auction",
+      auction: {
+        position: 1, // Mediterranean Avenue, printed price $60
+        active: ["p1", "p2", "p3", "p4"],
+        highBid: 0,
+        leaderId: null,
+        bids: {},
+        resume: { kind: "landing" },
+        ...overrides,
+      },
+    });
+  }
+
+  it("raises by the increment when the next bid is affordable and below the price", () => {
+    expect(botIntent(auctionTurn({ highBid: 40 }), "p1")).toEqual({
+      kind: "bid",
+      playerId: "p1",
+    });
+  });
+
+  it("drops once the next bid would exceed the printed price", () => {
+    expect(botIntent(auctionTurn({ highBid: 60 }), "p1")).toEqual({
+      kind: "pass-bid",
+      playerId: "p1",
+    });
+  });
+
+  it("drops when the next bid would exceed cash (estate cap incl. mortgage interest)", () => {
+    // p1 has $5 cash; the lot is a still-mortgaged estate lot, so the $3
+    // interest leaves only $2 — below the $10 opening bid.
+    const poor: GameState = {
+      ...auctionTurn({ resume: { kind: "bank-estate", debtorId: "p2", remaining: [] } }),
+      players: base.players.map((p) => (p.id === "p1" ? { ...p, cash: 5 } : p)),
+      mortgaged: { 1: true },
+    };
+    expect(botIntent(poor, "p1")).toEqual({ kind: "pass-bid", playerId: "p1" });
+  });
+
+  it("never jams its own standing lead", () => {
+    expect(botIntent(auctionTurn({ highBid: 20, leaderId: "p1" }), "p1")).toBeNull();
+  });
+
+  it("returns null for a bot that has already dropped", () => {
+    expect(botIntent(auctionTurn({ active: ["p2", "p3"] }), "p1")).toBeNull();
+  });
+});
+
 describe("botIntent — no decision to make", () => {
   it("returns null for a mechanical phase", () => {
     expect(botIntent(withTurn({ phase: "pre-roll" }), "p1")).toBeNull();

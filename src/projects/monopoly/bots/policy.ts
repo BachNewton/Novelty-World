@@ -4,8 +4,13 @@ import {
   groupPositions,
   houseCostAt,
 } from "../development";
-import { firstNegativePlayer, JAIL_FEE } from "../engine";
-import { heldJailCard, mortgageValueAt, ownablePrice } from "../logic";
+import { BID_INCREMENT, firstNegativePlayer, JAIL_FEE } from "../engine";
+import {
+  heldJailCard,
+  mortgageInterestAt,
+  mortgageValueAt,
+  ownablePrice,
+} from "../logic";
 import type { GameState, Intent, PropertyColor } from "../types";
 
 /** Baseline bot policy: the decision a bot `playerId` should submit right now,
@@ -18,6 +23,10 @@ import type { GameState, Intent, PropertyColor } from "../types";
  *  a smarter rule-based or learned policy can drop in later. Covers the
  *  proxy-driven decision phases:
  *  - `buy-decision`: buy whenever affordable, otherwise decline.
+ *  - `auction`: while still in and not the standing leader, raise by
+ *    `BID_INCREMENT` if the next bid stays within both the printed price and what
+ *    cash covers, else drop. Bots never jam their own lead. v1 placeholder —
+ *    TODO: net-worth bidding + real valuation.
  *  - `must-raise-cash`: if this bot is the current debtor (whoever is in the
  *    red, possibly out of turn after a trade), mortgage the cheapest
  *    un-mortgaged, building-free property — one per call until back to ≥ 0 —
@@ -55,6 +64,29 @@ export function botIntent(state: GameState, playerId: string): Intent | null {
     return player.cash >= price
       ? { kind: "buy", playerId }
       : { kind: "decline-buy", playerId };
+  }
+
+  if (phase === "auction" && state.turn.auction) {
+    const auction = state.turn.auction;
+    // Only act if still in, and never bid against our own standing lead — a bot
+    // has no reason to jam its own price up (that stays a human move).
+    if (!auction.active.includes(playerId)) return null;
+    if (auction.leaderId === playerId) return null;
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return null;
+    const next = auction.highBid + BID_INCREMENT;
+    // v1 valuation: never bid above the printed price, and only what cash
+    // covers — an estate lot that's still mortgaged also costs the 10% interest
+    // up front. (TODO: net-worth bidding + a real valuation that weighs sets,
+    // railroads, and denying opponents.)
+    const interest =
+      auction.resume.kind === "bank-estate" && state.mortgaged[auction.position]
+        ? (mortgageInterestAt(auction.position) ?? 0)
+        : 0;
+    const cap = Math.min(ownablePrice(auction.position) ?? 0, player.cash - interest);
+    return next <= cap
+      ? { kind: "bid", playerId }
+      : { kind: "pass-bid", playerId };
   }
 
   if (phase === "must-raise-cash") {
