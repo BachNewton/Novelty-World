@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/shared/lib/supabase/client";
+import { isLocalhost } from "@/shared/lib/utils";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import type { MonopolyAction, MonopolyResult } from "./protocol";
 import type { GameState, Player } from "./types";
@@ -40,7 +41,8 @@ export interface GameSummary {
 /** List joinable / watchable games for the lobby: every row that is still a
  *  `lobby` or in play (`active`), newest first. Finished games are kept in
  *  the table for history but excluded here. The reserved `dev` sandbox is
- *  hidden too — it's reachable only via the direct `?game=dev` link. */
+ *  hidden in production — reachable only via the direct `?game=dev` link — but
+ *  surfaced in the list on localhost so it's one tap away while developing. */
 export async function listGames(): Promise<GameSummary[]> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -49,10 +51,11 @@ export async function listGames(): Promise<GameSummary[]> {
     .order("updated_at", { ascending: false });
   if (error) throw error;
   const rows = data as { id: string; state: GameState; updated_at: string }[];
+  const showDev = isLocalhost();
   return rows
     .filter(
       (r) =>
-        r.id !== "dev" &&
+        (r.id !== "dev" || showDev) &&
         (r.state.status === "lobby" || r.state.status === "active"),
     )
     .map((r) => ({
