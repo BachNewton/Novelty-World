@@ -86,7 +86,7 @@ function decrossInPlace(
 }
 
 const REMOTE_SOLVE_URL =
-  "https://solver-kyle.eastus.cloudapp.azure.com/solve";
+  "https://solver-api.ashyriver-f19e5092.eastus.azurecontainerapps.io/solve";
 
 interface RemoteSolveResponse {
   status: string;
