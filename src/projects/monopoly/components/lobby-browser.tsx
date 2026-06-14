@@ -48,6 +48,15 @@ export function LobbyBrowser({ onOpen }: Props) {
       });
   }, []);
 
+  // Manual refresh: clear to null first so the list swaps back to the centered
+  // loading spinner, making the action visible even when the result is
+  // unchanged. (Kept out of `refresh` itself, which the effect calls — a
+  // synchronous setState in an effect body would cascade renders.)
+  const manualRefresh = useCallback(() => {
+    setGames(null);
+    refresh();
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -84,7 +93,7 @@ export function LobbyBrowser({ onOpen }: Props) {
             </h2>
             <button
               type="button"
-              onClick={refresh}
+              onClick={manualRefresh}
               aria-label="Refresh games"
               className="rounded-md p-1.5 transition-colors hover:bg-white/10"
               style={{ color: "var(--mono-rail)" }}
