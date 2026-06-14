@@ -8,6 +8,7 @@ import {
   developmentLevel,
   groupPositions,
 } from "./development";
+import { apply } from "./engine";
 import { hasMonopoly } from "./logic";
 import { manageActorId, type ManageStaged } from "./manage";
 import { freshGame } from "./mocks";
@@ -127,12 +128,18 @@ interface MonopolyActions {
   acceptTrade: () => void;
   declineTrade: () => void;
 
-  /** Submit an intent to the authoritative route; the real state arrives via
-   *  the route response / subscription, so the synchronous return is an
-   *  optimistic stub (callers don't read it). Needs a connected game id; the
-   *  route-side engine enforces turn ownership, so the store doesn't gate on
-   *  seat — a misdirected intent is simply rejected by `apply`. */
+  /** Submit a local UI intent **optimistically**: apply it to the display head
+   *  at once for instant feedback, then POST it to the route. The authoritative
+   *  result reconciles through the playback pipeline; a conflict or rejection
+   *  silently rolls the prediction back to the confirmed head (the DB is the
+   *  source of truth). Needs a connected game id; the route-side engine still
+   *  enforces turn ownership, so a misdirected intent is simply rejected. */
   submit: (intent: Intent) => ApplyResult;
+
+  /** Submit a pacer-driven intent (an `end-turn` beat, a proxied bot decision)
+   *  WITHOUT prediction. These advance authoritative mechanics off the
+   *  confirmed head and must never be speculatively applied to the display. */
+  driveIntent: (intent: Intent) => void;
 
   /** Advance mechanics by one unit without an intent — the paced loop's
    *  heartbeat. POSTs a `step` to the route. No-op without a connected game
@@ -168,12 +175,16 @@ interface MonopolyActions {
 
 export type MonopolyStore = {
   myPlayerId: string | null;
-  /** The **playback-head** state — what this client is currently rendering,
-   *  which trails the authoritative head by the snapshots still queued in
-   *  `buffer`. The parked default (no game selected) is a throwaway
-   *  `freshGame()` that is never shown; `connect()` snaps the head to the live
-   *  row and the playback loop advances it through `buffer` at the local pace. */
+  /** The **display** state — exactly what this client renders, and the only
+   *  state components read. It's the optimistic `optimistic` overlay while a
+   *  local prediction is outstanding, otherwise the confirmed playback head
+   *  (`headState`). The parked default is a throwaway `freshGame()`. */
   state: GameState;
+  /** The confirmed **playback head** — the authoritative state this client has
+   *  animated up to, which trails the authoritative head by the snapshots still
+   *  queued in `buffer`. The pacer drives off THIS, never the optimistic
+   *  overlay, so a wrong prediction can never feed the engine forward. */
+  headState: GameState;
   /** FIFO of authoritative snapshots received but not yet animated — the
    *  stretch between the playback head (`state`/`version`) and the
    *  authoritative head (the last entry, or the head itself when empty). The
@@ -191,8 +202,8 @@ export type MonopolyStore = {
    *  - any other string — an online row in `monopoly_games`.
    *  Every game runs through `/api/monopoly`; there is no local-only mode. */
   gameId: string | null;
-  /** Optimistic-concurrency version of the **playback head** (the snapshot in
-   *  `state`). The authoritative head — what a route write must CAS against —
+  /** Optimistic-concurrency version of the **playback head** (`headState`).
+   *  The authoritative head — what a route write must CAS against —
    *  is the last `buffer` entry's version, or this when the buffer is empty;
    *  see `authVersion`. 0 when parked. */
   version: number;
@@ -213,6 +224,15 @@ export type MonopolyStore = {
    *  empty staging so the panel is implicitly open. Per-client UI state, never
    *  synced; cleared on disconnect and on entering / leaving the phase. */
   manageStaged: ManageStaged | null;
+  /** The optimistic overlay: the confirmed head with the still-unconfirmed
+   *  local intents (`outbox`) folded on top. Non-null only while a prediction
+   *  is outstanding, and `state` mirrors it. Cleared once the confirmed head
+   *  catches up, or rolled back to the head on a conflict / rejection. */
+  optimistic: GameState | null;
+  /** Local intents predicted but not yet confirmed by the route, oldest first.
+   *  Flushed as one version-guarded batch and drained as confirmations land;
+   *  emptied on a rollback. */
+  outbox: readonly Intent[];
 } & MonopolyActions;
 
 // Module-scoped because Realtime channels aren't serializable into zustand
@@ -221,6 +241,11 @@ export type MonopolyStore = {
 // detect a newer connect that took over mid-await.
 let activeUnsub: (() => void) | null = null;
 let activeGameId: string | null = null;
+
+// True while a predicted-intent batch is in flight to the route. Serializes the
+// optimistic outbox: only one batch is on the wire at a time, so each flush
+// CASes against a known version (the prior batch's confirmation).
+let predictionInFlight = false;
 
 function teardownSubscription(): void {
   if (activeUnsub) {
@@ -284,9 +309,62 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     return { ok: true, state, newEvents: [] };
   }
 
+  // Optimistically apply a local UI intent: fold it onto the display head right
+  // away, queue it for a version-guarded flush, and let the authoritative result
+  // reconcile through the playback pipeline. Falls back to a plain POST while
+  // this client is mid-animation (buffer non-empty), so the overlay never builds
+  // on a stale playback head. A locally-illegal intent is sent un-predicted —
+  // the route stays the source of truth and rejects it the same as before.
+  function predict(intent: Intent): ApplyResult {
+    const { gameId, headState, optimistic, outbox, buffer } = get();
+    if (!gameId) return { ok: false, reason: "not connected" };
+    if (buffer.length > 0) return runIntents([intent]);
+    const base = optimistic ?? headState;
+    const res = apply(base, intent);
+    if (!res.ok) return runIntents([intent]);
+    set({ optimistic: res.state, state: res.state, outbox: [...outbox, intent] });
+    flushOutbox();
+    return { ok: true, state: res.state, newEvents: res.newEvents };
+  }
+
+  // POST the outstanding outbox as one atomic batch, oldest first. Serialized by
+  // `predictionInFlight` so the CAS base is always the previous confirmation.
+  function flushOutbox(): void {
+    if (predictionInFlight) return;
+    const { gameId, outbox, buffer, version } = get();
+    if (!gameId || outbox.length === 0) return;
+    const sent = outbox.length;
+    predictionInFlight = true;
+    void submitAction(gameId, {
+      type: "submit",
+      intents: outbox,
+      fromVersion: authVersion(buffer, version),
+    }).then((res) => {
+      predictionInFlight = false;
+      handlePrediction(res, sent);
+    });
+  }
+
+  // Reconcile a flushed batch. Success folds the authoritative state into the
+  // playback pipeline (the pump animates the head up to it and drops the overlay
+  // once caught up) and flushes anything queued meanwhile. A conflict or
+  // rejection silently rolls the overlay back to the confirmed head.
+  function handlePrediction(res: MonopolyResult, sent: number): void {
+    if (res.ok) {
+      if ("state" in res) get().applyStateUpdate(res.state, res.version);
+      const remaining = get().outbox.slice(sent);
+      set({ outbox: remaining });
+      if (remaining.length > 0) flushOutbox();
+      return;
+    }
+    set({ optimistic: null, outbox: [], state: get().headState });
+    if (!res.conflict && res.reason !== undefined) set({ syncError: res.reason });
+  }
+
   return {
     myPlayerId: null,
     state: freshGame(),
+    headState: freshGame(),
     buffer: [],
     turnMs: DEFAULT_TURN_MS,
     gameId: null,
@@ -295,6 +373,8 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     syncError: null,
     connecting: false,
     manageStaged: null,
+    optimistic: null,
+    outbox: [],
 
     setMyPlayer: (playerId) => { set({ myPlayerId: playerId }); },
 
@@ -431,14 +511,14 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         const pos = Number(posStr);
         if (flag !== (state.mortgaged[pos] === true)) mortgage[pos] = flag;
       }
-      runIntents([{ kind: "manage", playerId: myPlayerId, build, mortgage }]);
+      predict({ kind: "manage", playerId: myPlayerId, build, mortgage });
       set({ manageStaged: null });
     },
 
     toggleQueue: (queue) => {
       const { myPlayerId } = get();
       if (!myPlayerId) return;
-      runIntents([{ kind: "toggle-queue", playerId: myPlayerId, queue }]);
+      predict({ kind: "toggle-queue", playerId: myPlayerId, queue });
     },
 
     cancelManage: () => {
@@ -448,7 +528,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       // state on the next render.
       set({ manageStaged: null });
       if (!myPlayerId) return;
-      runIntents([{ kind: "cancel-manage", playerId: myPlayerId }]);
+      predict({ kind: "cancel-manage", playerId: myPlayerId });
     },
 
     cycleTradeProperty: (position) => {
@@ -463,13 +543,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const propertyTo = { ...draft.propertyTo };
       if (next === base) delete propertyTo[position];
       else propertyTo[position] = next;
-      runIntents([
-        {
-          kind: "update-trade-draft",
-          playerId: myPlayerId,
-          terms: { propertyTo, gojfTo: draft.gojfTo, cashDelta: draft.cashDelta },
-        },
-      ]);
+      predict({
+        kind: "update-trade-draft",
+        playerId: myPlayerId,
+        terms: { propertyTo, gojfTo: draft.gojfTo, cashDelta: draft.cashDelta },
+      });
     },
 
     cycleTradeGojf: (source) => {
@@ -484,13 +562,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const gojfTo = { ...draft.gojfTo };
       if (next === base) delete gojfTo[source];
       else gojfTo[source] = next;
-      runIntents([
-        {
-          kind: "update-trade-draft",
-          playerId: myPlayerId,
-          terms: { propertyTo: draft.propertyTo, gojfTo, cashDelta: draft.cashDelta },
-        },
-      ]);
+      predict({
+        kind: "update-trade-draft",
+        playerId: myPlayerId,
+        terms: { propertyTo: draft.propertyTo, gojfTo, cashDelta: draft.cashDelta },
+      });
     },
 
     bumpTradeCash: (playerId, step) => {
@@ -501,42 +577,44 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const cashDelta = { ...draft.cashDelta };
       if (nextAmount === 0) delete cashDelta[playerId];
       else cashDelta[playerId] = nextAmount;
-      runIntents([
-        {
-          kind: "update-trade-draft",
-          playerId: myPlayerId,
-          terms: { propertyTo: draft.propertyTo, gojfTo: draft.gojfTo, cashDelta },
-        },
-      ]);
+      predict({
+        kind: "update-trade-draft",
+        playerId: myPlayerId,
+        terms: { propertyTo: draft.propertyTo, gojfTo: draft.gojfTo, cashDelta },
+      });
     },
 
     proposeTrade: () => {
       const { myPlayerId } = get();
       if (!myPlayerId) return;
-      runIntents([{ kind: "propose-trade", playerId: myPlayerId }]);
+      predict({ kind: "propose-trade", playerId: myPlayerId });
     },
 
     cancelTrade: () => {
       const { myPlayerId } = get();
       if (!myPlayerId) return;
-      runIntents([{ kind: "cancel-trade", playerId: myPlayerId }]);
+      predict({ kind: "cancel-trade", playerId: myPlayerId });
     },
 
     acceptTrade: () => {
       const { state, myPlayerId } = get();
       const pending = state.turn.pendingTrade;
       if (!myPlayerId || !pending) return;
-      runIntents([{ kind: "accept-trade", playerId: myPlayerId, tradeId: pending.id }]);
+      predict({ kind: "accept-trade", playerId: myPlayerId, tradeId: pending.id });
     },
 
     declineTrade: () => {
       const { state, myPlayerId } = get();
       const pending = state.turn.pendingTrade;
       if (!myPlayerId || !pending) return;
-      runIntents([{ kind: "decline-trade", playerId: myPlayerId, tradeId: pending.id }]);
+      predict({ kind: "decline-trade", playerId: myPlayerId, tradeId: pending.id });
     },
 
-    submit: (intent) => runIntents([intent]),
+    submit: (intent) => predict(intent),
+
+    driveIntent: (intent) => {
+      runIntents([intent]);
+    },
 
     step: () => {
       versionedOp((fromVersion) => ({ type: "step", fromVersion }));
@@ -553,8 +631,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         const seated = profile ? isMember(next, profile) : false;
         set({
           state: next,
+          headState: next,
           version,
           buffer: [],
+          optimistic: null,
+          outbox: [],
           myPlayerId: seated && profile ? profile.id : null,
           connecting: false,
         });
@@ -582,6 +663,9 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         // Drop any leftover playback buffer from a previous game; the first
         // authoritative state snaps the head clean (connecting branch above).
         buffer: [],
+        // Abandon any prediction from a previous game.
+        optimistic: null,
+        outbox: [],
         syncError: null,
         // Gate the UI on a "Connecting…" placeholder until the first
         // authoritative state lands, so the stale default game never flashes.
@@ -639,7 +723,10 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         version: 0,
         profile: null,
         state: freshGame(),
+        headState: freshGame(),
         buffer: [],
+        optimistic: null,
+        outbox: [],
         myPlayerId: null,
         syncError: null,
         connecting: false,
@@ -696,7 +783,7 @@ if (typeof window !== "undefined") {
         // its budgeted dwell. Re-derive the seat from the new roster (a reseat
         // can change who this client is) just like a snap does.
         const [next, ...rest] = store.buffer;
-        const dwell = paceTransition(store.state, next.state, store.turnMs).durationMs;
+        const dwell = paceTransition(store.headState, next.state, store.turnMs).durationMs;
         const { profile } = store;
         const seated = profile ? isMember(next.state, profile) : false;
         const myId = seated && profile ? profile.id : null;
@@ -706,23 +793,40 @@ if (typeof window !== "undefined") {
         const stillActor = myId !== null && manageActorId(next.state) === myId;
         drivenFrom = null;
         useMonopolyStore.setState({
-          state: next.state,
+          headState: next.state,
           version: next.version,
           buffer: rest,
           myPlayerId: myId,
+          // An outstanding overlay stays ahead of the just-confirmed head; the
+          // display tracks it until the head catches up and it's cleared below.
+          state: store.optimistic ?? next.state,
           ...(stillActor ? {} : { manageStaged: null }),
         });
         dwellTimer = setTimeout(onDwellEnd, dwell);
         return;
       }
 
-      // Caught up: drive one more unit, at most once per head.
+      // Caught up to the authoritative head. If an overlay is still up but every
+      // local intent has been confirmed (outbox empty, nothing in flight), drop
+      // it — the confirmed head is now the truth and the two are equal, so this
+      // is invisible. A wrong prediction's head simply differs, and the display
+      // snaps to it.
+      if (
+        store.optimistic !== null &&
+        store.outbox.length === 0 &&
+        !predictionInFlight
+      ) {
+        useMonopolyStore.setState({ optimistic: null, state: store.headState });
+      }
+
+      // Drive one more unit off the CONFIRMED head (never the overlay), at most
+      // once per head.
       if (drivenFrom === store.version) return;
-      const op = driveOp(store.state, true, store.myPlayerId);
+      const op = driveOp(store.headState, true, store.myPlayerId);
       if (!op) return;
       drivenFrom = store.version;
       if (op.kind === "step") store.step();
-      else store.submit(op.intent);
+      else store.driveIntent(op.intent);
     } finally {
       pumping = false;
     }
