@@ -917,7 +917,12 @@ function applyManage(
       if (value === null) return { ok: false, reason: "not an ownable space" };
       finalMortgaged[pos] = true;
       mortgageNet += value;
-      mortgageEvents.push({ kind: "mortgage", position: pos, received: value });
+      mortgageEvents.push({
+        kind: "mortgage",
+        playerId: intent.playerId,
+        position: pos,
+        received: value,
+      });
     } else {
       // Un-mortgaging spends cash — not allowed while settling a debt.
       if (inRaiseCash) {
@@ -927,7 +932,12 @@ function applyManage(
       if (cost === null) return { ok: false, reason: "not an ownable space" };
       delete finalMortgaged[pos];
       mortgageNet -= cost;
-      mortgageEvents.push({ kind: "unmortgage", position: pos, cost });
+      mortgageEvents.push({
+        kind: "unmortgage",
+        playerId: intent.playerId,
+        position: pos,
+        cost,
+      });
     }
   }
 
@@ -964,6 +974,7 @@ function applyManage(
       houses[step.position] = step.toLevel;
       buildEvents.push({
         kind: "build",
+        playerId: intent.playerId,
         position: step.position,
         toLevel: step.toLevel,
         cost: step.cost,
@@ -976,6 +987,7 @@ function applyManage(
       else houses[step.position] = toLevel;
       sellEvents.push({
         kind: "sell-building",
+        playerId: intent.playerId,
         position: step.position,
         toLevel,
         refund: step.refund,
@@ -1054,6 +1066,7 @@ function applyMortgage(
   const mortgaged = { ...state.mortgaged, [intent.position]: true };
   const mortgageEvent: GameEvent = {
     kind: "mortgage",
+    playerId: intent.playerId,
     position: intent.position,
     received: value,
   };

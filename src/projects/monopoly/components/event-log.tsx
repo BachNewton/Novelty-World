@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { deckFor, SPACES } from "../data";
+import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { SetContextChips } from "./holdings-grid";
 import type {
@@ -34,6 +35,10 @@ interface Props {
 const GRID_COLUMNS = "3.5rem minmax(0, 1fr) auto";
 
 export function EventLog({ state }: Props) {
+  // Money in the log is colored from the VIEWER's vantage: green for cash that
+  // came to me, red for cash that left me, plain white for money that moved but
+  // never touched my balance. A spectator (no id) sees everything white.
+  const myId = useMonopolyStore((s) => s.myPlayerId);
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Auto-scroll only when the user is parked at the bottom — chat-style
@@ -87,6 +92,7 @@ export function EventLog({ state }: Props) {
               key={turn.turn}
               turn={turn}
               playersById={playersById}
+              myId={myId}
             />
           ))}
         </div>
@@ -117,9 +123,11 @@ export function EventLog({ state }: Props) {
 function TurnFragment({
   turn,
   playersById,
+  myId,
 }: {
   turn: TurnGroup;
   playersById: ReadonlyMap<string, Player>;
+  myId: string | null;
 }) {
   const actor = playersById.get(turn.playerId);
   if (!actor) return null;
@@ -131,13 +139,22 @@ function TurnFragment({
       {turn.events.flatMap((event, i) => {
         const key = `${turn.turn}-${i}`;
         const cells: ReactNode[] = [
-          <EventCells key={key} event={event} playersById={playersById} />,
+          <EventCells
+            key={key}
+            event={event}
+            playersById={playersById}
+            myId={myId}
+            turnPlayerId={turn.playerId}
+          />,
         ];
         // Passing GO is conceptually a side-effect of movement, but pro
         // players want it as its own line so it doesn't fight for space
-        // with the roll outcome.
+        // with the roll outcome. It credits the active player, so it's "mine"
+        // only when I'm the one whose turn it is.
         if (event.kind === "roll" && event.passedGo) {
-          cells.push(<PassedGoCells key={`${key}-pass`} />);
+          cells.push(
+            <PassedGoCells key={`${key}-pass`} mine={myId === turn.playerId} />,
+          );
         }
         return cells;
       })}
@@ -171,24 +188,28 @@ function TurnDivider({ turn, actor }: { turn: number; actor: Player }) {
 function EventCells({
   event,
   playersById,
+  myId,
+  turnPlayerId,
 }: {
   event: GameEvent;
   playersById: ReadonlyMap<string, Player>;
+  myId: string | null;
+  turnPlayerId: string;
 }) {
   return (
     <Fragment>
       <VerbCell verb={verbFor(event)} />
       <BodyCell>
-        <EventBody event={event} playersById={playersById} />
+        <EventBody event={event} playersById={playersById} myId={myId} />
       </BodyCell>
       <NumericCell>
-        <EventNumeric event={event} />
+        <EventNumeric event={event} myId={myId} turnPlayerId={turnPlayerId} />
       </NumericCell>
     </Fragment>
   );
 }
 
-function PassedGoCells() {
+function PassedGoCells({ mine }: { mine: boolean }) {
   return (
     <Fragment>
       <VerbCell verb="PASS" />
@@ -196,7 +217,7 @@ function PassedGoCells() {
         <span className="font-medium">GO</span>
       </BodyCell>
       <NumericCell>
-        <Money amount={200} sign="+" />
+        <Money amount={200} sign="+" mine={mine} />
       </NumericCell>
     </Fragment>
   );
@@ -280,9 +301,11 @@ function cardName(source: CardSource, cardId: string): string {
 function EventBody({
   event,
   playersById,
+  myId,
 }: {
   event: GameEvent;
   playersById: ReadonlyMap<string, Player>;
+  myId: string | null;
 }) {
   switch (event.kind) {
     case "roll":
@@ -341,7 +364,7 @@ function EventBody({
               <PlayerChip player={proposer} />
             </>
           )}
-          <TradeMoves event={event} playersById={playersById} />
+          <TradeMoves event={event} playersById={playersById} myId={myId} />
         </>
       );
     }
@@ -454,38 +477,84 @@ function EventBody({
   }
 }
 
-function EventNumeric({ event }: { event: GameEvent }) {
+function EventNumeric({
+  event,
+  myId,
+  turnPlayerId,
+}: {
+  event: GameEvent;
+  myId: string | null;
+  turnPlayerId: string;
+}) {
+  const cash = cashFor(event, myId, turnPlayerId);
+  if (!cash) return null;
+  return <Money amount={cash.amount} sign={cash.sign} mine={cash.mine} />;
+}
+
+/** How a money event reads in the log for the current viewer. `sign` is the
+ *  flow direction (`+` in / `−` out); `mine` is whether it moved the viewer's
+ *  own balance — true ⇒ colored green/red, false ⇒ plain white. When it's mine,
+ *  the sign is from MY side (a landlord sees rent as `+`); when it isn't, the
+ *  sign keeps the acting player's side (an opponent's purchase reads `−`). */
+interface CashFlow {
+  amount: number;
+  sign: "+" | "-";
+  mine: boolean;
+}
+
+function cashFor(
+  event: GameEvent,
+  myId: string | null,
+  turnPlayerId: string,
+): CashFlow | null {
+  const isMine = (id: string | null | undefined): boolean =>
+    myId !== null && id === myId;
   switch (event.kind) {
     case "buy":
-      return <Money amount={event.price} sign="-" />;
+      return { amount: event.price, sign: "-", mine: isMine(turnPlayerId) };
     case "rent":
-      return <Money amount={event.amount} sign="-" />;
+      // The landlord receives (+); the active player paid (−). Either party may
+      // be the viewer; everyone else sees the payer's side.
+      return isMine(event.ownerId)
+        ? { amount: event.amount, sign: "+", mine: true }
+        : { amount: event.amount, sign: "-", mine: isMine(turnPlayerId) };
     case "tax":
-      return <Money amount={event.amount} sign="-" />;
+      return { amount: event.amount, sign: "-", mine: isMine(turnPlayerId) };
     case "build":
-      return <Money amount={event.cost} sign="-" />;
+      return { amount: event.cost, sign: "-", mine: isMine(event.playerId) };
     case "sell-building":
-      return <Money amount={event.refund} sign="+" />;
+      return { amount: event.refund, sign: "+", mine: isMine(event.playerId) };
     case "mortgage":
-      return <Money amount={event.received} sign="+" />;
+      return { amount: event.received, sign: "+", mine: isMine(event.playerId) };
     case "unmortgage":
-      return <Money amount={event.cost} sign="-" />;
+      return { amount: event.cost, sign: "-", mine: isMine(event.playerId) };
     case "jail-pay":
-      return <Money amount={50} sign="-" />;
+      return { amount: 50, sign: "-", mine: isMine(turnPlayerId) };
     case "auction":
-      return event.winnerId ? (
-        <Money amount={event.price} sign="-" />
-      ) : null;
+      return event.winnerId === null
+        ? null
+        : { amount: event.price, sign: "-", mine: isMine(event.winnerId) };
     case "card-drawn":
       // Movement / jail / GOJF cards carry no bank cash; collect / pay show it.
-      return event.cash === undefined ? null : (
-        <Money amount={Math.abs(event.cash)} sign={event.cash > 0 ? "+" : "-"} />
-      );
+      return event.cash === undefined
+        ? null
+        : {
+            amount: Math.abs(event.cash),
+            sign: event.cash > 0 ? "+" : "-",
+            mine: isMine(turnPlayerId),
+          };
     case "card-transfer":
-      // Neutral amount — the from → to chips already show the direction.
-      return <Money amount={event.amount} />;
+      // Between two players. The viewer's side when they're a party; otherwise
+      // the drawer's side (the drawer is the active player).
+      if (isMine(event.toId)) return { amount: event.amount, sign: "+", mine: true };
+      if (isMine(event.fromId)) return { amount: event.amount, sign: "-", mine: true };
+      return {
+        amount: event.amount,
+        sign: turnPlayerId === event.toId ? "+" : "-",
+        mine: false,
+      };
     case "pass-go":
-      return <Money amount={200} sign="+" />;
+      return { amount: 200, sign: "+", mine: isMine(turnPlayerId) };
     case "roll":
     case "jail-roll":
     case "trade":
@@ -525,9 +594,11 @@ function RollTotal({ value }: { value: number }) {
 function TradeMoves({
   event,
   playersById,
+  myId,
 }: {
   event: Extract<GameEvent, { kind: "trade" }>;
   playersById: ReadonlyMap<string, Player>;
+  myId: string | null;
 }) {
   const parts: ReactNode[] = [];
   for (const [posStr, ownerId] of Object.entries(event.propertyTo)) {
@@ -559,7 +630,11 @@ function TradeMoves({
     parts.push(
       <span key={`c-${pid}`} className="inline-flex items-center gap-0.5">
         <PlayerChip player={p} />
-        <Money amount={Math.abs(delta)} sign={delta > 0 ? "+" : "-"} />
+        <Money
+          amount={Math.abs(delta)}
+          sign={delta > 0 ? "+" : "-"}
+          mine={myId !== null && pid === myId}
+        />
       </span>,
     );
   }
@@ -629,16 +704,19 @@ function PlayerChip({ player }: { player: Player }) {
 function Money({
   amount,
   sign,
+  mine,
 }: {
   amount: number;
   sign?: "+" | "-";
+  /** Did this money move the viewer's own balance? Green/red when it did, plain
+   *  white when it's someone else's money (the sign still shows the flow). */
+  mine: boolean;
 }) {
-  const color =
-    sign === "+"
+  const color = !mine
+    ? "var(--mono-ink)"
+    : sign === "+"
       ? "var(--mono-green)"
-      : sign === "-"
-        ? "var(--mono-red)"
-        : "var(--mono-ink)";
+      : "var(--mono-red)";
   const prefix = sign === "+" ? "+" : sign === "-" ? "−" : "";
   return (
     <span

@@ -217,7 +217,7 @@ function MOCK_TURNS(): readonly TurnGroup[] {
         { kind: "jail-card", source: "chance" },
         { kind: "roll", dice: [4, 3], doublesStreak: 0, toPosition: 14, passedGo: false },
         { kind: "rent", ownerId: "p2", position: 14, amount: 900 },
-        { kind: "mortgage", position: 5, received: 100 },
+        { kind: "mortgage", playerId: "p1", position: 5, received: 100 },
       ],
     },
     {
@@ -235,8 +235,8 @@ function MOCK_TURNS(): readonly TurnGroup[] {
       events: [
         { kind: "jail-card", source: "communityChest" },
         { kind: "roll", dice: [3, 4], doublesStreak: 0, toPosition: 17, passedGo: false },
-        { kind: "build", position: 16, toLevel: 4, cost: 100 },
-        { kind: "build", position: 18, toLevel: 3, cost: 100 },
+        { kind: "build", playerId: "p3", position: 16, toLevel: 4, cost: 100 },
+        { kind: "build", playerId: "p3", position: 18, toLevel: 3, cost: 100 },
       ],
     },
     {
@@ -254,7 +254,7 @@ function MOCK_TURNS(): readonly TurnGroup[] {
         { kind: "roll", dice: [2, 2], doublesStreak: 1, toPosition: 4, passedGo: false },
         { kind: "tax", taxName: "Income Tax", amount: 200 },
         { kind: "roll", dice: [5, 3], doublesStreak: 0, toPosition: 12, passedGo: false },
-        { kind: "unmortgage", position: 1, cost: 33 },
+        { kind: "unmortgage", playerId: "p1", position: 1, cost: 33 },
       ],
     },
     {
@@ -272,7 +272,7 @@ function MOCK_TURNS(): readonly TurnGroup[] {
           gojfTo: {},
           cashDelta: { p2: -200, p4: 200 },
         },
-        { kind: "sell-building", position: 11, toLevel: 4, refund: 50 },
+        { kind: "sell-building", playerId: "p2", position: 11, toLevel: 4, refund: 50 },
       ],
     },
     {
@@ -300,7 +300,7 @@ function MOCK_TURNS(): readonly TurnGroup[] {
       events: [
         { kind: "roll", dice: [3, 5], doublesStreak: 0, toPosition: 39, passedGo: false },
         { kind: "rent", ownerId: "p4", position: 39, amount: 2000 },
-        { kind: "mortgage", position: 12, received: 75 },
+        { kind: "mortgage", playerId: "p1", position: 12, received: 75 },
         { kind: "bankrupt", creditorId: "p4" },
         { kind: "winner", winnerId: "p4" },
       ],

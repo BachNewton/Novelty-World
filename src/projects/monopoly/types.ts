@@ -192,6 +192,11 @@ export type GameEvent =
   | { kind: "tax"; taxName: string; amount: number }
   | {
       kind: "build";
+      /** The actor who built. Carried explicitly because a manage intermission
+       *  (or a forced must-raise-cash settle) can be driven by an OFF-TURN
+       *  player, so the active turn's `playerId` is not necessarily who acted —
+       *  the log keys its viewer-relative cash coloring off this. */
+      playerId: string;
       position: number;
       /** New development level after the build: 1-4 houses, 5 hotel. */
       toLevel: number;
@@ -199,14 +204,16 @@ export type GameEvent =
     }
   | {
       kind: "sell-building";
+      /** The actor who sold (may be off-turn — see `build.playerId`). */
+      playerId: string;
       position: number;
       /** New development level after selling: 0-4 houses, 5 means "still a
        *  hotel" (a hotel sale yields toLevel 4). */
       toLevel: number;
       refund: number;
     }
-  | { kind: "mortgage"; position: number; received: number }
-  | { kind: "unmortgage"; position: number; cost: number }
+  | { kind: "mortgage"; playerId: string; position: number; received: number }
+  | { kind: "unmortgage"; playerId: string; position: number; cost: number }
   | {
       kind: "trade";
       /** Who assembled and proposed the trade (may not be a participant). */
