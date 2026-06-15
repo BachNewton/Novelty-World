@@ -217,7 +217,7 @@ function JailPrompt({
       </div>
       {hasCard && <PromptButton label="Card" onClick={onCard} />}
       <PromptButton label={`Pay $${JAIL_FEE.toString()}`} onClick={onPay} disabled={!canPay} />
-      <PromptButton label="Roll" onClick={onRoll} variant="primary" />
+      <PromptButton label="Roll" onClick={onRoll} />
     </div>
   );
 }

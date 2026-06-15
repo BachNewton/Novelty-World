@@ -29,7 +29,7 @@ const EMPTY_STAGED: ManageStaged = { build: {}, mortgage: {} };
  *
  *  Two entry paths share it:
  *
- *  - Voluntary `managing`: the queued manager builds / sells / mortgages. Done
+ *  - Voluntary `managing`: the queued manager builds / sells / mortgages. Cancel
  *    abandons the intermission (`cancel-manage`); Commit fires the `manage`
  *    intent when something legal is staged and affordable.
  *  - Forced `must-raise-cash`: the current debtor raises cash by selling
@@ -104,7 +104,7 @@ export function ManagePanel({ state, playerId }: Props) {
       </div>
       {isActor && !isForced && (
         <PanelButton
-          label="Done"
+          label="Cancel"
           onClick={() => {
             cancelManage();
           }}
