@@ -1,4 +1,5 @@
 import {
+  buildingsBlockingMortgage,
   colorAt,
   developmentLevel,
   groupPositions,
@@ -125,7 +126,11 @@ function cheapestMortgageable(
     if (ownerId !== playerId) continue;
     const pos = Number(posStr);
     if (state.mortgaged[pos]) continue;
-    if (state.houses[pos]) continue;
+    // Can't mortgage while any property in this lot's color set is built
+    // (official rule) — the bot sells those buildings via `manage` instead.
+    if (buildingsBlockingMortgage(pos, (p) => developmentLevel(state, p)).length > 0) {
+      continue;
+    }
     const value = mortgageValueAt(pos);
     if (value === null) continue;
     if (!best || value < best.value) best = { pos, value };

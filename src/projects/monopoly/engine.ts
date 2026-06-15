@@ -1,6 +1,7 @@
 import { shuffleArray } from "@/shared/lib/utils";
 import { CHANCE, COMMUNITY_CHEST, deckFor, SPACES } from "./data";
 import {
+  buildingsBlockingMortgage,
   developmentLevel,
   maxBuildingSaleValue,
   planDevelopment,
@@ -905,10 +906,12 @@ function applyManage(
       return { ok: false, reason: "you don't own that property" };
     }
     if (want) {
-      // Mortgaging raises cash; the lot must be building-free once the build
-      // side runs (so "sell its houses then mortgage it" works in one commit).
-      if (finalLevel(pos) !== 0) {
-        return { ok: false, reason: "sell buildings before mortgaging" };
+      // Mortgaging raises cash; the lot's whole color set must be building-free
+      // once the build side runs (official rule — so "sell the set's houses then
+      // mortgage one of them" works in one commit). Checked against the build's
+      // final levels, not just this lot.
+      if (buildingsBlockingMortgage(pos, finalLevel).length > 0) {
+        return { ok: false, reason: "sell the set's buildings before mortgaging" };
       }
       const value = mortgageValueAt(pos);
       if (value === null) return { ok: false, reason: "not an ownable space" };
@@ -1033,8 +1036,11 @@ function applyMortgage(
   if (state.mortgaged[intent.position]) {
     return { ok: false, reason: "already mortgaged" };
   }
-  if (state.houses[intent.position]) {
-    return { ok: false, reason: "must sell buildings first" };
+  // Official rule: the whole color set must be building-free to mortgage any
+  // member, not just this lot.
+  const levelAt = (pos: number): number => developmentLevel(state, pos);
+  if (buildingsBlockingMortgage(intent.position, levelAt).length > 0) {
+    return { ok: false, reason: "must sell the set's buildings first" };
   }
   const value = mortgageValueAt(intent.position);
   if (value === null) {

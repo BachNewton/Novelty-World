@@ -1,5 +1,6 @@
 import {
   bankSupply,
+  buildingsBlockingMortgage,
   developmentLevel,
   planDevelopment,
 } from "./development";
@@ -85,6 +86,18 @@ export function manageSummary(
   const previewState = withStagedMortgage(state, staged.mortgage);
   const plan = planDevelopment(previewState, playerId, staged.build);
   if (!plan.ok) return { ok: false, reason: plan.reason };
+  // A staged mortgage is illegal while any property in its color set still has
+  // a building once the build side runs (official rule). Checked against the
+  // build's final levels, so "sell the set's houses then mortgage a lot" passes.
+  const finalLevel = (pos: number): number =>
+    staged.build[pos] ?? developmentLevel(state, pos);
+  for (const [posStr, flag] of Object.entries(staged.mortgage)) {
+    const pos = Number(posStr);
+    if (!flag || state.mortgaged[pos] === true) continue;
+    if (buildingsBlockingMortgage(pos, finalLevel).length > 0) {
+      return { ok: false, reason: "sell the set's buildings before mortgaging" };
+    }
+  }
   const netCash = plan.netCash + mortgageNetCash(state, staged.mortgage);
   return { ok: true, netCash, notes: plan.notes };
 }

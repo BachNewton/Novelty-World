@@ -415,6 +415,38 @@ describe("apply manage", () => {
       });
       expect(result.ok).toBe(false);
     });
+
+    it("refuses to mortgage a bare lot while a SET-MATE still has a building", () => {
+      // Official rule: every property in the color group must be building-free
+      // before any one of them can be mortgaged. 16 is bare, but 18 has a house.
+      let state = managing(withOwnership(freshGame("mg-setmate"), ORANGES));
+      state = { ...state, houses: { 18: 1 } };
+      const result = apply(state, {
+        kind: "manage",
+        playerId: "p1",
+        build: {},
+        mortgage: { 16: true },
+      });
+      expect(result.ok).toBe(false);
+    });
+
+    it("allows mortgaging once the set's buildings are sold in the same commit", () => {
+      // Selling 18's house to a bare lot clears the whole set, so mortgaging 16
+      // in the same commit is now legal.
+      let state = managing(withOwnership(freshGame("mg-sell-then-mort"), ORANGES));
+      state = { ...state, houses: { 18: 1 } };
+      state = setCash(state, "p1", 1000);
+      const result = apply(state, {
+        kind: "manage",
+        playerId: "p1",
+        build: { 18: 0 },
+        mortgage: { 16: true },
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.state.houses).toEqual({});
+      expect(result.state.mortgaged[16]).toBe(true);
+    });
   });
 
   describe("combined build + mortgage in one commit", () => {
@@ -1332,6 +1364,24 @@ describe("apply mortgage (forced raise-cash only)", () => {
       turn: { ...start.turn, phase: "managing", managerId: "p1" },
     };
     const result = apply(managing, { kind: "mortgage", playerId: "p1", position: 1 });
+    expect(result.ok).toBe(false);
+  });
+
+  it("rejects mortgaging a bare lot while a set-mate is built", () => {
+    // Forced raise-cash, p1 owns the oranges with a house on 18; mortgaging the
+    // bare lot 16 is illegal until the set is sold down (official rule).
+    let state = withOwnership(freshGame("mort-setmate"), {
+      16: "p1",
+      18: "p1",
+      19: "p1",
+    });
+    state = { ...state, houses: { 18: 1 } };
+    state = setCash(state, "p1", -50);
+    const raising: GameState = {
+      ...state,
+      turn: { ...state.turn, phase: "must-raise-cash", raiseCash: "after-landing" },
+    };
+    const result = apply(raising, { kind: "mortgage", playerId: "p1", position: 16 });
     expect(result.ok).toBe(false);
   });
 });

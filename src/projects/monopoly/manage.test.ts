@@ -98,6 +98,23 @@ describe("manageSummary — combined net cash", () => {
     const summary = manageSummary(state, "p1", { build: { 16: 2 }, mortgage: {} });
     expect(summary.ok).toBe(false);
   });
+
+  it("rejects mortgaging a bare lot while a set-mate is built", () => {
+    // 16 is bare but its orange set-mate 18 has a house — official rule blocks
+    // mortgaging any member until the whole set is sold down.
+    const state = baseState({ houses: { 18: 1 } });
+    const summary = manageSummary(state, "p1", { build: {}, mortgage: { 16: true } });
+    expect(summary.ok).toBe(false);
+  });
+
+  it("allows mortgaging once the set's buildings are sold in the same commit", () => {
+    const state = baseState({ houses: { 18: 1 } });
+    const summary = manageSummary(state, "p1", {
+      build: { 18: 0 },
+      mortgage: { 16: true },
+    });
+    expect(summary.ok).toBe(true);
+  });
 });
 
 describe("hasStagedChanges", () => {
