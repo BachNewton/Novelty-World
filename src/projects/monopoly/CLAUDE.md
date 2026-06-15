@@ -51,7 +51,7 @@ The authoritative route applies **one unit per call**: an `apply` for an externa
 - `bid`, `pass-bid` (during auction)
 - `manage` (one atomic build/sell + mortgage/un-mortgage commit; see "Managing properties")
 - `mortgage` (forced raise-cash only — the bot / `must-raise-cash` path; voluntary mortgaging goes through `manage`)
-- `toggle-queue` (arm/disarm this player's `boundaryQueue` slot for `"trade"` or `"manage"`), `update-trade-draft` (proposer edits the live draft), `update-manage-staging` (actor edits the live manage staging), `cancel-trade`, `propose-trade`, `accept-trade`, `decline-trade`, `cancel-manage` (manager abandons their intermission) (`counter-trade` is a documented TODO, not wired)
+- `set-queue` (arm/disarm this player's `boundaryQueue` slot for `"trade"` or `"manage"` — carries the desired `armed` boolean so it replays idempotently through the optimistic overlay, not a relative toggle), `update-trade-draft` (proposer edits the live draft), `update-manage-staging` (actor edits the live manage staging), `cancel-trade`, `propose-trade`, `accept-trade`, `decline-trade`, `cancel-manage` (manager abandons their intermission) (`counter-trade` is a documented TODO, not wired)
 - `pay-to-leave-jail`, `use-jail-card`
 - `end-turn`
 
@@ -141,9 +141,9 @@ One **shared sub-game** (`engine.ts`: `enterAuction` / `applyBid` / `applyPassBi
 - **Decline-buy** (`resume: { kind: "landing" }`): the active player declines a landed-on property (`applyDeclineBuy`). The auction resumes their landing through `afterLanding` / `settleOrRaise` when it ends.
 - **Bank bankruptcy** (`resume: { kind: "bank-estate", debtorId, remaining }`): a player busts to the bank, and `goBankrupt` returns their buildings to the bank then auctions each bare lot. The lots resolve through `resumeEstate`, which auctions the next `remaining` lot, and when the estate is empty hands control onward. Skipped when the bust leaves a single survivor (game over) or the debtor owns nothing.
 
-**Bidding is open-outcry — no turn order.** Any still-in player may `bid` at any time, which raises `highBid` by one fixed **+$10** increment *computed at apply time* (the `bid` intent carries no amount, so a tap is always coherent against the latest authoritative high). The standing `leaderId` **may bid again** to jam the price up; only thing they can't do is `pass-bid` (no retracting a winning bid). `AuctionState` holds `active` (still-in players, seat-ordered for display — membership is what matters, there's no rotation), `highBid`, `leaderId`, per-player `bids` (for the panel), and `resume`. The auction resolves (`auctionDecided`) once every non-leader has dropped — the **leader wins** — or everyone drops with no bid → **unsold, lot stays with the bank** (`auction` event with `winnerId: null`). Because drops are permanent the active set only shrinks, so it always terminates (the lone AFK-never-acts case is the same as any other phase — out of scope).
+**Bidding is open-outcry — no turn order.** Any still-in player may `bid` at any time. A `bid` carries an **absolute `amount`** (the client sends what the bidder saw + one **+$10** increment). `applyBid` **always records** `bids[playerId] = amount` (capped at what they can pay), and the bid takes the lead only when `amount` tops the current `highBid` — an already-out-high bid still **counts** on that player's bar but leaves `leaderId` / `highBid` untouched. The standing `leaderId` **may bid again** to jam the price up; only thing they can't do is `pass-bid` (no retracting a winning bid). `AuctionState` holds `active` (still-in players, seat-ordered for display — membership is what matters, there's no rotation), `highBid`, `leaderId`, per-player `bids` (for the panel), and `resume`. The auction resolves (`auctionDecided`) once every non-leader has dropped — the **leader wins** — or everyone drops with no bid → **unsold, lot stays with the bank** (`auction` event with `winnerId: null`). Because drops are permanent the active set only shrinks, so it always terminates (the lone AFK-never-acts case is the same as any other phase — out of scope).
 
-**Races are handled by the existing version-guarded CAS, no new machinery.** Concurrent bids/drops are ordinary intents on the single authoritative row: one write wins, the other is a `conflict` no-op and resyncs from the realtime subscription. Bids/drops are fully **optimistic** (same `submit`→`predict`→pure-`apply` path as buy/trade), so a tap updates the panel instantly; apply-time +$10 means the local prediction matches the confirmed result exactly when there's no conflict.
+**Races are handled by the version-guarded CAS plus client-side REBASE — see "Optimistic reconcile" below.** Concurrent bids/drops are ordinary intents on the single authoritative row: one write wins; a stale write is a `conflict` that hands back the winning state, and the loser **rebases** its optimistic prediction onto it rather than dropping it. Bids/drops are fully **optimistic** (same `submit`→`predict`→pure-`apply` path as buy/trade), so a tap updates the panel instantly. The **absolute amount is what makes a bid safely rebaseable**: re-applying it onto the winning head just re-records the same number (idempotent), so a lost race never snaps the bar to zero and never auto-escalates the price — the bidder simply sees the new high and that their $X still stands on their bar.
 
 **Bid caps = what you can pay** (`auctionBidCap`, enforced in `applyBid`):
 - Decline-buy → **net worth** (`cash + maxRaisableCash`), the binding-bid rule. A winner who bids above cash drops into `must-raise-cash` (resume `after-landing`) and settles, possibly **off-turn** (the winner need not be the active player — exactly like the trade debtor path).
@@ -242,9 +242,28 @@ it is otherwise a normal backend game.
   version-guarded write path (`mutate`) across every lobby and play op; only
   `create` (insert-only) and `reset` (upsert) seed without a version.
 - **Writes are version-guarded** (optimistic CAS: `update … where version =
-  fromVersion`). A stale write is rejected as a `conflict` no-op and the client
-  resyncs from the subscription. This is what makes it safe for more than one
-  client to drive the same game at once: duplicate requests collapse to no-ops.
+  fromVersion`). A stale write is rejected as a `conflict`; the route hands back
+  the **winning state + version** so the client can rebase immediately (see
+  "Optimistic reconcile" below) instead of waiting for the realtime echo. This is
+  what makes it safe for more than one client to drive the same game at once:
+  duplicate requests collapse to no-ops.
+
+**Optimistic reconcile (client) — rebase, never drop.** A local UI intent is
+applied to the display head instantly (`predict`) and queued in an `outbox`,
+then flushed version-guarded. The invariant: **a local action is never silently
+erased on conflict.** The optimistic overlay is a *replay* of the outbox on top
+of the latest authoritative head (`reconcile.ts` `rebuildOverlay`), recomputed
+whenever the head advances. On a conflict the client folds the winning state the
+route returned and **replays the outbox onto it**, dropping only intents that no
+longer apply: an armed `set-queue` re-arms onto the next boundary (the
+Manage-flicker fix), an absolute `bid` re-records on the bidder's bar (the
+auction snap-to-zero fix), a now-moot intent is pruned. There is **no per-intent
+policy** — legality on the current head is the single arbiter, which is why
+absolute bids matter (a relative bid would re-succeed on every replay and
+auto-escalate). The pacer also won't drive a mechanical `step`/`end-turn` while a
+local prediction is outstanding, so the auto-roll can't race the user's own arm.
+A genuine rejection (illegal intent) still drops the overlay and surfaces a
+`syncError`.
 - **No server timer; the backend is delay-agnostic.** The route applies exactly
   **one unit of progress per call** — an intent `apply` (no auto-drain) or one
   `autoStep` per `step`. Pacing and animation are entirely client-side; the
@@ -293,6 +312,7 @@ src/projects/monopoly/
   driver.ts            ← driverRole(state, myId): self | proxy | none
   driver.test.ts       ← unit tests for driver role
   store.ts             ← Zustand store, "use client", route client + auto-pacer for the UI
+  reconcile.ts         ← pure rebuildOverlay: replay/rebase the optimistic outbox on the head (+ reconcile.test.ts)
   mocks.ts             ← MOCK_STATE (test fixture) + freshGame (immediate-play seed)
   dev-ops.ts           ← pure dev state transforms (own-all, random-own, restart) (+ dev-ops.test.ts)
   dev.ts               ← debug-only hotkeys that submit dev commands to the route

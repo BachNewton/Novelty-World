@@ -19,6 +19,7 @@ import {
   type Snapshot,
 } from "./pacing";
 import type { DevCommand, MonopolyAction, MonopolyResult } from "./protocol";
+import { rebuildOverlay } from "./reconcile";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
 import type {
   ApplyResult,
@@ -332,20 +333,70 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     });
   }
 
+  // The latest authoritative state this client knows of: the last buffered
+  // snapshot when the playback head is still catching up, else the head itself.
+  // A conflict's optimistic intents rebase onto THIS so the overlay reflects the
+  // freshest truth (the route hands the winner straight into the buffer).
+  function latestAuth(): GameState {
+    const { buffer, headState } = get();
+    return buffer.length > 0 ? buffer[buffer.length - 1].state : headState;
+  }
+
+  // Replay the outstanding outbox onto the latest authoritative head, pruning any
+  // intent that no longer applies, and update the display overlay. Optionally
+  // re-flush the survivors — only when the head has actually advanced (a conflict
+  // that handed back a newer version), so we never re-flush against the same
+  // stale version in a tight loop. When the outbox empties, the overlay clears
+  // and the display falls back to the head (the pump finishes the handoff).
+  function rebaseOverlay(reflush: boolean): void {
+    const rebuilt = rebuildOverlay(latestAuth(), get().outbox);
+    const hasPending = rebuilt.outbox.length > 0;
+    set({
+      outbox: rebuilt.outbox,
+      optimistic: hasPending ? rebuilt.state : null,
+      state: hasPending ? rebuilt.state : get().headState,
+    });
+    if (reflush && hasPending) flushOutbox();
+  }
+
   // Reconcile a flushed batch. Success folds the authoritative state into the
   // playback pipeline (the pump animates the head up to it and drops the overlay
-  // once caught up) and flushes anything queued meanwhile. A conflict or
-  // rejection silently rolls the overlay back to the confirmed head.
+  // once caught up) and flushes anything queued meanwhile.
   function handlePrediction(res: MonopolyResult, sent: number): void {
     if (res.ok) {
-      if ("state" in res) get().applyStateUpdate(res.state, res.version);
+      // Drop the confirmed batch from the front BEFORE folding the new head —
+      // applyStateUpdate's head-advance re-flush must not re-send an intent we
+      // just confirmed (which, even idempotent, would be a wasted write).
       const remaining = get().outbox.slice(sent);
       set({ outbox: remaining });
+      if ("state" in res) get().applyStateUpdate(res.state, res.version);
       if (remaining.length > 0) flushOutbox();
       return;
     }
+    if (res.conflict) {
+      // The optimistic batch lost the version race. Rather than DROP it — which
+      // erased the user's action (a vanished Manage arm, an auction bar snapping
+      // to zero) — REBASE: replay the outbox onto the fresh truth so the arm
+      // re-arms onto the next boundary, an absolute bid re-records on the bidder's
+      // bar, and a now-moot intent is pruned.
+      if (res.state !== undefined && res.version !== undefined) {
+        // Stale-version conflict: the route handed back the winner. Fold it and
+        // re-flush against the new version (guaranteed progress).
+        get().applyStateUpdate(res.state, res.version);
+        rebaseOverlay(true);
+      } else {
+        // Bare read/write-race conflict — no winner returned. Keep the outbox and
+        // rebuild the overlay on what we have; the realtime echo will advance the
+        // head and the pump re-flushes the batch against the new version then.
+        // Re-flushing now would just re-conflict on the same stale version.
+        rebaseOverlay(false);
+      }
+      return;
+    }
+    // Genuine rejection (illegal intent, write failure): drop the overlay and
+    // surface the error.
     set({ optimistic: null, outbox: [], state: get().headState });
-    if (!res.conflict && res.reason !== undefined) set({ syncError: res.reason });
+    if (res.reason !== undefined) set({ syncError: res.reason });
   }
 
   return {
@@ -505,9 +556,15 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     },
 
     toggleQueue: (queue) => {
-      const { myPlayerId } = get();
+      const { state, myPlayerId } = get();
       if (!myPlayerId) return;
-      predict({ kind: "toggle-queue", playerId: myPlayerId, queue });
+      // The checkbox toggles, but the INTENT carries the resulting absolute state
+      // so it replays idempotently through the optimistic reconcile (a relative
+      // toggle would flip itself back off when replayed on an already-armed head).
+      const armed = !state.boundaryQueue.some(
+        (e) => e.playerId === myPlayerId && e.kind === queue,
+      );
+      predict({ kind: "set-queue", playerId: myPlayerId, queue, armed });
     },
 
     cancelManage: () => {
@@ -634,7 +691,14 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       // re-derives the seat as the head advances. Stale / duplicate versions
       // (a write's own route response plus its Realtime echo) are dropped.
       const nextBuffer = ingestSnapshot(buffer, headVersion, { version, state: next });
-      if (nextBuffer !== buffer) set({ buffer: nextBuffer });
+      if (nextBuffer !== buffer) {
+        set({ buffer: nextBuffer });
+        // A pending optimistic batch left unsent by a bare write-race conflict
+        // gets re-flushed once a fresh authoritative version actually lands —
+        // CAS'd against the new head, so it makes progress instead of looping on
+        // the stale version. No-op if already in flight or empty.
+        if (get().outbox.length > 0) flushOutbox();
+      }
     },
 
     connect: async ({ gameId, profile }) => {
@@ -769,14 +833,21 @@ if (typeof window !== "undefined") {
         const seated = profile ? isMember(next.state, profile) : false;
         const myId = seated && profile ? profile.id : null;
         drivenFrom = null;
+        // Rebase any pending optimistic intents onto the just-advanced head so the
+        // overlay tracks the freshest truth + the user's own edits (a bid bar
+        // re-records against the latest high, an arm stays armed as others' turns
+        // animate past) instead of freezing on a stale prediction.
+        const overlay =
+          store.outbox.length > 0
+            ? rebuildOverlay(next.state, store.outbox).state
+            : next.state;
         useMonopolyStore.setState({
           headState: next.state,
           version: next.version,
           buffer: rest,
           myPlayerId: myId,
-          // An outstanding overlay stays ahead of the just-confirmed head; the
-          // display tracks it until the head catches up and it's cleared below.
-          state: store.optimistic ?? next.state,
+          optimistic: store.outbox.length > 0 ? overlay : null,
+          state: overlay,
         });
         dwellTimer = setTimeout(onDwellEnd, dwell);
         return;
@@ -794,6 +865,12 @@ if (typeof window !== "undefined") {
       ) {
         useMonopolyStore.setState({ optimistic: null, state: store.headState });
       }
+
+      // A local prediction is outstanding — the user's own action takes priority
+      // and must settle first, so the pacer's auto-roll / auto-end can't race it
+      // (and force it to re-conflict and rebase). Releases the moment the outbox
+      // drains; the action confirms in a round trip, so this never stalls play.
+      if (store.outbox.length > 0 || predictionInFlight) return;
 
       // Drive one more unit off the CONFIRMED head (never the overlay), at most
       // once per head.

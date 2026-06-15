@@ -96,7 +96,7 @@ export function AuctionPanel({ state }: Props) {
         <AuctionButton
           label={`Bid $${nextBid.toLocaleString("en-US")}`}
           onClick={() => {
-            if (myPlayerId) submit({ kind: "bid", playerId: myPlayerId });
+            if (myPlayerId) submit({ kind: "bid", playerId: myPlayerId, amount: nextBid });
           }}
           disabled={!canBid}
           variant="primary"

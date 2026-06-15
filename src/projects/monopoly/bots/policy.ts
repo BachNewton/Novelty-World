@@ -85,7 +85,7 @@ export function botIntent(state: GameState, playerId: string): Intent | null {
         : 0;
     const cap = Math.min(ownablePrice(auction.position) ?? 0, player.cash - interest);
     return next <= cap
-      ? { kind: "bid", playerId }
+      ? { kind: "bid", playerId, amount: next }
       : { kind: "pass-bid", playerId };
   }
 

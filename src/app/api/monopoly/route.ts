@@ -282,10 +282,11 @@ async function mutate(
   if (!data) return json({ ok: false, reason: "game not found" }, 404);
 
   // The caller advances from the version it last saw. If the DB has moved on,
-  // its view is stale — reject so it resyncs from the subscription rather than
-  // computing against an old snapshot.
+  // its view is stale — reject so it rebases rather than computing against an old
+  // snapshot. Hand back the winning row so the client can rebase its optimistic
+  // overlay immediately instead of waiting for the realtime echo.
   if (data.version !== action.fromVersion) {
-    return json({ ok: false, conflict: true });
+    return json({ ok: false, conflict: true, state: data.state, version: data.version });
   }
 
   const result = compute(data.state, action, `${gameId}-${Date.now().toString()}`);

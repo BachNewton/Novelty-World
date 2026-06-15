@@ -324,8 +324,9 @@ export type AuctionResume =
 
 /** Auction in progress — a landed-on property the active player declined, or a
  *  lot from a bank-bankruptcy estate. Open-outcry: any still-in player may bid
- *  at any time (a `bid` raises `highBid` by one fixed +$10 increment), or drop
- *  out. There is no turn order — even the current `leaderId` may bid again to
+ *  at any time (a `bid` records an absolute amount and takes the lead if it tops
+ *  the high), or drop out. There is no turn order — even the current `leaderId`
+ *  may bid again to
  *  jam the price up. The auction resolves once every non-leader has dropped (the
  *  leader wins), or everyone drops without a bid (the lot reverts to the bank).
  *  See `monopoly/CLAUDE.md` "Auctions". */
@@ -411,10 +412,15 @@ export interface PlayerPreferences {
 export type Intent =
   | { kind: "buy"; playerId: string }
   | { kind: "decline-buy"; playerId: string }
-  /** Raise the open auction's high bid by one +$10 increment (computed at apply
-   *  time, so a tap is always coherent against the current high). Any still-in
+  /** Place a bid of `amount` — an absolute total; the client sends what the
+   *  bidder saw plus one increment. The amount is always RECORDED as that
+   *  player's standing bid (so a tap is never lost), and takes the lead only
+   *  when it tops the current high; an already-out-high bid still counts on the
+   *  chart. This absolute form is what makes a bid safely rebaseable on the
+   *  client — re-recording the same amount is idempotent, so a lost version race
+   *  neither snaps the bar back nor auto-escalates the price. Any still-in
    *  player may bid, including the standing leader. */
-  | { kind: "bid"; playerId: string }
+  | { kind: "bid"; playerId: string; amount: number }
   /** Drop out of the auction. Permanent; the standing leader can't drop. */
   | { kind: "pass-bid"; playerId: string }
   /** Atomic "manage my properties" commit — the unified output of the manage
@@ -438,11 +444,14 @@ export type Intent =
   /** Mortgage a single property to raise cash. Only valid in `must-raise-cash`
    *  (the forced debtor / bot path); voluntary mortgaging goes through `manage`. */
   | { kind: "mortgage"; playerId: string; position: number }
-  /** Toggle membership in the FIFO boundary queue for a kind — "I want to
-   *  trade" or "I want to manage". Anyone may arm it for themselves at any
-   *  time; the next unpaused pre-roll opens the head entry's intermission
-   *  (`trade-building` or `managing`). */
-  | { kind: "toggle-queue"; playerId: string; queue: "trade" | "manage" }
+  /** Set membership in the FIFO boundary queue for a kind — "I want to trade" or
+   *  "I want to manage". Carries the DESIRED state (`armed`), not a flip, so the
+   *  optimistic overlay can replay it idempotently on a head that already
+   *  reflects the arm (a confirmation echo, a rebase) without toggling it back
+   *  off. Anyone may arm it for themselves at any time; the next unpaused
+   *  pre-roll opens the head entry's intermission (`trade-building` /
+   *  `managing`). */
+  | { kind: "set-queue"; playerId: string; queue: "trade" | "manage"; armed: boolean }
   /** The manager abandons their open manage intermission with nothing
    *  committed, returning to pre-roll (the next autoStep re-checks the queue). */
   | { kind: "cancel-manage"; playerId: string }

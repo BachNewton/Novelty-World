@@ -199,6 +199,7 @@ describe("botIntent — auction", () => {
     expect(botIntent(auctionTurn({ highBid: 40 }), "p1")).toEqual({
       kind: "bid",
       playerId: "p1",
+      amount: 50,
     });
   });
 

@@ -245,7 +245,7 @@ describe("apply", () => {
 
   it("rejects a bid when no auction is open", () => {
     const state = freshGame("test-unimpl");
-    const result = apply(state, { kind: "bid", playerId: "p1" });
+    const result = apply(state, { kind: "bid", playerId: "p1", amount: 10 });
     expect(result.ok).toBe(false);
   });
 });
@@ -1473,13 +1473,13 @@ function inTradeBuilding(state: GameState, proposerId: string): GameState {
 }
 
 describe("boundary queue", () => {
-  it("toggles the queue per player+kind, preserving request order", () => {
+  it("sets queue membership per player+kind, preserving request order", () => {
     const start = freshGame("queue-toggle");
-    const a = apply(start, { kind: "toggle-queue", playerId: "p3", queue: "trade" });
+    const a = apply(start, { kind: "set-queue", playerId: "p3", queue: "trade", armed: true });
     if (!a.ok) throw new Error(a.reason);
     expect(a.state.boundaryQueue).toEqual([{ playerId: "p3", kind: "trade" }]);
 
-    const b = apply(a.state, { kind: "toggle-queue", playerId: "p2", queue: "manage" });
+    const b = apply(a.state, { kind: "set-queue", playerId: "p2", queue: "manage", armed: true });
     if (!b.ok) throw new Error(b.reason);
     expect(b.state.boundaryQueue).toEqual([
       { playerId: "p3", kind: "trade" },
@@ -1487,7 +1487,7 @@ describe("boundary queue", () => {
     ]);
 
     // A player can be queued for both kinds at once — they're distinct entries.
-    const c = apply(b.state, { kind: "toggle-queue", playerId: "p3", queue: "manage" });
+    const c = apply(b.state, { kind: "set-queue", playerId: "p3", queue: "manage", armed: true });
     if (!c.ok) throw new Error(c.reason);
     expect(c.state.boundaryQueue).toEqual([
       { playerId: "p3", kind: "trade" },
@@ -1495,13 +1495,28 @@ describe("boundary queue", () => {
       { playerId: "p3", kind: "manage" },
     ]);
 
-    // Toggling p3's trade entry off leaves the other two untouched.
-    const d = apply(c.state, { kind: "toggle-queue", playerId: "p3", queue: "trade" });
+    // Disarming p3's trade entry leaves the other two untouched.
+    const d = apply(c.state, { kind: "set-queue", playerId: "p3", queue: "trade", armed: false });
     if (!d.ok) throw new Error(d.reason);
     expect(d.state.boundaryQueue).toEqual([
       { playerId: "p2", kind: "manage" },
       { playerId: "p3", kind: "manage" },
     ]);
+  });
+
+  it("is idempotent — re-arming an already-armed slot is a no-op", () => {
+    // This is what makes the optimistic overlay safe to replay: setting `armed`
+    // to the state it's already in must not flip it back off.
+    const start = freshGame("queue-idempotent");
+    const a = apply(start, { kind: "set-queue", playerId: "p1", queue: "manage", armed: true });
+    if (!a.ok) throw new Error(a.reason);
+    const b = apply(a.state, { kind: "set-queue", playerId: "p1", queue: "manage", armed: true });
+    if (!b.ok) throw new Error(b.reason);
+    expect(b.state.boundaryQueue).toEqual([{ playerId: "p1", kind: "manage" }]);
+    // Disarming an already-absent slot is likewise a no-op.
+    const c = apply(start, { kind: "set-queue", playerId: "p1", queue: "trade", armed: false });
+    if (!c.ok) throw new Error(c.reason);
+    expect(c.state.boundaryQueue).toEqual([]);
   });
 
   it("opens a queued trade build at the next pre-roll instead of rolling", () => {
@@ -2248,16 +2263,39 @@ describe("auction (decline-buy)", () => {
     expect(a?.resume).toEqual({ kind: "landing" });
   });
 
-  it("raises the high by $10 per bid and records the leader", () => {
+  it("records the bid amount and sets the leader", () => {
     let s = applyOk(buyDecision(freshGame("auc-bid"), 1), {
       kind: "decline-buy",
       playerId: "p1",
     });
-    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    s = applyOk(s, { kind: "bid", playerId: "p1", amount: 10 });
     const a = s.turn.auction;
     expect(a?.highBid).toBe(10);
     expect(a?.leaderId).toBe("p1");
     expect(a?.bids).toEqual({ p1: 10 });
+  });
+
+  it("records an out-high bid on the bidder's bar without taking the lead", () => {
+    // The whole reason for absolute bids: a bid that arrives already out-high (a
+    // human who tapped $110 against a stale $100 while a bot reached $200) is
+    // still COUNTED on that player's bar, leaving the leader and high untouched —
+    // so the client never has to snap the bar back to zero.
+    let s = applyOk(buyDecision(freshGame("auc-counted"), 1), {
+      kind: "decline-buy",
+      playerId: "p1",
+    });
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 200 }); // p2 leads at 200
+    s = applyOk(s, { kind: "bid", playerId: "p3", amount: 110 }); // p3 out-high
+    let a = s.turn.auction;
+    expect(a?.highBid).toBe(200);
+    expect(a?.leaderId).toBe("p2");
+    expect(a?.bids).toEqual({ p2: 200, p3: 110 });
+    // Re-bidding above the high retakes the lead.
+    s = applyOk(s, { kind: "bid", playerId: "p3", amount: 210 });
+    a = s.turn.auction;
+    expect(a?.highBid).toBe(210);
+    expect(a?.leaderId).toBe("p3");
+    expect(a?.bids).toEqual({ p2: 200, p3: 210 });
   });
 
   it("lets any still-in player bid in any order, and the leader bid again to jam the price", () => {
@@ -2265,9 +2303,9 @@ describe("auction (decline-buy)", () => {
       kind: "decline-buy",
       playerId: "p1",
     });
-    s = applyOk(s, { kind: "bid", playerId: "p2" }); // $10, p2 leads
-    s = applyOk(s, { kind: "bid", playerId: "p4" }); // $20, p4 leads
-    s = applyOk(s, { kind: "bid", playerId: "p4" }); // $30, p4 jams its own lead
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 10 }); // p2 leads
+    s = applyOk(s, { kind: "bid", playerId: "p4", amount: 20 }); // p4 leads
+    s = applyOk(s, { kind: "bid", playerId: "p4", amount: 30 }); // p4 jams its lead
     const a = s.turn.auction;
     expect(a?.highBid).toBe(30);
     expect(a?.leaderId).toBe("p4");
@@ -2279,10 +2317,10 @@ describe("auction (decline-buy)", () => {
       kind: "decline-buy",
       playerId: "p1",
     });
-    s = applyOk(s, { kind: "bid", playerId: "p1" }); // p1 leads
+    s = applyOk(s, { kind: "bid", playerId: "p1", amount: 10 }); // p1 leads
     expect(apply(s, { kind: "pass-bid", playerId: "p1" }).ok).toBe(false);
     s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
-    expect(apply(s, { kind: "bid", playerId: "p2" }).ok).toBe(false);
+    expect(apply(s, { kind: "bid", playerId: "p2", amount: 20 }).ok).toBe(false);
   });
 
   it("caps each bid at the bidder's net worth (cash + liquidation)", () => {
@@ -2291,15 +2329,15 @@ describe("auction (decline-buy)", () => {
       kind: "decline-buy",
       playerId: "p1",
     });
-    expect(apply(broke, { kind: "bid", playerId: "p1" }).ok).toBe(false);
+    expect(apply(broke, { kind: "bid", playerId: "p1", amount: 10 }).ok).toBe(false);
     // $15 net worth opens at $10 but can't reach $20.
     let s = applyOk(buyDecision(setCash(freshGame("auc-cap1"), "p1", 15), 1), {
       kind: "decline-buy",
       playerId: "p1",
     });
-    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    s = applyOk(s, { kind: "bid", playerId: "p1", amount: 10 });
     expect(s.turn.auction?.highBid).toBe(10);
-    expect(apply(s, { kind: "bid", playerId: "p1" }).ok).toBe(false);
+    expect(apply(s, { kind: "bid", playerId: "p1", amount: 20 }).ok).toBe(false);
   });
 
   it("hands the lot to the last bidder standing, paid to the bank, and resumes the landing", () => {
@@ -2308,7 +2346,7 @@ describe("auction (decline-buy)", () => {
       playerId: "p1",
     });
     const before = cashOf(s, "p1");
-    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    s = applyOk(s, { kind: "bid", playerId: "p1", amount: 10 });
     s = applyOk(s, { kind: "pass-bid", playerId: "p2" });
     s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
     const final = apply(s, { kind: "pass-bid", playerId: "p4" });
@@ -2334,7 +2372,7 @@ describe("auction (decline-buy)", () => {
     s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
     // p1 alone but no bid yet — not decided; p1 claims it with a single bid.
     expect(s.turn.phase).toBe("auction");
-    s = applyOk(s, { kind: "bid", playerId: "p1" });
+    s = applyOk(s, { kind: "bid", playerId: "p1", amount: 10 });
     expect(s.ownership[1]).toBe("p1");
     expect(s.turn.phase).toBe("post-roll");
   });
@@ -2362,7 +2400,7 @@ describe("auction (decline-buy)", () => {
       playerId: "p1",
     });
     s = applyOk(s, { kind: "pass-bid", playerId: "p1" });
-    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 10 });
     s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
     s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
     expect(s.ownership[1]).toBe("p2");
@@ -2432,7 +2470,7 @@ describe("auction (bank-estate bankruptcy)", () => {
   it("transfers the won lot and resumes play after the debtor", () => {
     let s = bustToBankOwning("auc-estate-win", { 1: "p1" }).state;
     const before = cashOf(s, "p2");
-    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 10 });
     s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
     s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
     expect(s.ownership[1]).toBe("p2");
@@ -2444,10 +2482,10 @@ describe("auction (bank-estate bankruptcy)", () => {
   it("caps an estate bid at cash on hand", () => {
     let s = bustToBankOwning("auc-estate-cap", { 1: "p1" }).state;
     s = { ...s, players: s.players.map((p) => (p.id === "p2" ? { ...p, cash: 15 } : p)) };
-    s = applyOk(s, { kind: "bid", playerId: "p2" }); // $10 ok
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 10 }); // $10 ok
     expect(s.turn.auction?.highBid).toBe(10);
     // $20 would exceed p2's $15 cash.
-    expect(apply(s, { kind: "bid", playerId: "p2" }).ok).toBe(false);
+    expect(apply(s, { kind: "bid", playerId: "p2", amount: 20 }).ok).toBe(false);
   });
 
   it("charges the 10% interest on a still-mortgaged estate lot and keeps it mortgaged", () => {
@@ -2455,7 +2493,7 @@ describe("auction (bank-estate bankruptcy)", () => {
       mortgaged: { 1: true },
     }).state;
     const before = cashOf(s, "p2");
-    s = applyOk(s, { kind: "bid", playerId: "p2" });
+    s = applyOk(s, { kind: "bid", playerId: "p2", amount: 10 });
     s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
     s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
     expect(s.ownership[1]).toBe("p2");
@@ -2473,7 +2511,7 @@ describe("auction (bank-estate bankruptcy)", () => {
       remaining: [3],
     });
     // Win the first lot; the second opens immediately.
-    let s = applyOk(state, { kind: "bid", playerId: "p2" });
+    let s = applyOk(state, { kind: "bid", playerId: "p2", amount: 10 });
     s = applyOk(s, { kind: "pass-bid", playerId: "p3" });
     s = applyOk(s, { kind: "pass-bid", playerId: "p4" });
     expect(s.ownership[1]).toBe("p2");

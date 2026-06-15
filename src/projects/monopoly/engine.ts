@@ -116,7 +116,7 @@ export function initialDecks(rng: Rng): {
  *  `autoStep` to drain mechanics until the next decision point.
  *
  *  Wired so far: `buy`, `decline-buy`, the `bid` / `pass-bid` auction sub-game,
- *  `manage`, `mortgage`, the trade sub-game, `toggle-queue`, `cancel-manage`,
+ *  `manage`, `mortgage`, the trade sub-game, `set-queue`, `cancel-manage`,
  *  the jail decisions (`pay-to-leave-jail`, `use-jail-card`), `end-turn`. The
  *  surface deliberately stays small per `monopoly/CLAUDE.md`. No RNG argument —
  *  these are deterministic; engine functions that need randomness read it out of
@@ -128,7 +128,7 @@ export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "pass-bid") return applyPassBid(state, intent);
   if (intent.kind === "manage") return applyManage(state, intent);
   if (intent.kind === "mortgage") return applyMortgage(state, intent);
-  if (intent.kind === "toggle-queue") return applyToggleQueue(state, intent);
+  if (intent.kind === "set-queue") return applySetQueue(state, intent);
   if (intent.kind === "cancel-manage") return applyCancelManage(state, intent);
   if (intent.kind === "update-manage-staging") {
     return applyUpdateManageStaging(state, intent);
@@ -704,18 +704,27 @@ function applyBid(
   if (!auction.active.includes(intent.playerId)) {
     return { ok: false, reason: "not in the auction" };
   }
-  // The high climbs by one fixed increment per bid, computed here so a tap is
-  // coherent against the latest high regardless of what the client last saw.
-  const newHigh = auction.highBid + BID_INCREMENT;
-  if (newHigh > maxBid(state, auction, intent.playerId)) {
+  // Bids carry an absolute amount (what the bidder saw + one increment). The
+  // amount is always RECORDED on the bidder's bar, so a tap is never lost — even
+  // one that arrives already out-high counts as that player's standing bid. It
+  // only takes the lead when it strictly tops the current high; an out-high bid
+  // is kept for the chart but leaves the leader untouched. Recording is therefore
+  // idempotent, which is what lets the client safely rebase a bid across a lost
+  // version race without snapping the bar back or auto-escalating the price.
+  const amount = intent.amount;
+  if (amount < BID_INCREMENT) {
+    return { ok: false, reason: "bid below the minimum" };
+  }
+  if (amount > maxBid(state, auction, intent.playerId)) {
     return { ok: false, reason: "bid exceeds what you can pay" };
   }
 
+  const leads = amount > auction.highBid;
   const bidAuction: AuctionState = {
     ...auction,
-    highBid: newHigh,
-    leaderId: intent.playerId,
-    bids: { ...auction.bids, [intent.playerId]: newHigh },
+    highBid: leads ? amount : auction.highBid,
+    leaderId: leads ? intent.playerId : auction.leaderId,
+    bids: { ...auction.bids, [intent.playerId]: amount },
   };
   const bidState = withAuction(state, bidAuction);
   // The bidder is the sole survivor (everyone else already dropped): they win.
@@ -1307,21 +1316,26 @@ function tryEnterBoundary(state: GameState): GameState | null {
   };
 }
 
-function applyToggleQueue(
+function applySetQueue(
   state: GameState,
-  intent: Extract<Intent, { kind: "toggle-queue" }>,
+  intent: Extract<Intent, { kind: "set-queue" }>,
 ): ApplyResult {
   if (!isActivePlayer(state, intent.playerId)) {
     return { ok: false, reason: "unknown player" };
   }
-  const inQueue = state.boundaryQueue.some(
+  const present = state.boundaryQueue.some(
     (e) => e.playerId === intent.playerId && e.kind === intent.queue,
   );
-  const boundaryQueue = inQueue
-    ? state.boundaryQueue.filter(
+  // Idempotent: setting the arm to the state it's already in is a no-op. This is
+  // what lets the optimistic overlay replay this intent on a head that already
+  // reflects the arm (a confirmation echo, a conflict rebase) without flipping it
+  // back off — the bug a relative toggle caused.
+  if (intent.armed === present) return { ok: true, state, newEvents: [] };
+  const boundaryQueue = intent.armed
+    ? [...state.boundaryQueue, { playerId: intent.playerId, kind: intent.queue }]
+    : state.boundaryQueue.filter(
         (e) => !(e.playerId === intent.playerId && e.kind === intent.queue),
-      )
-    : [...state.boundaryQueue, { playerId: intent.playerId, kind: intent.queue }];
+      );
   return { ok: true, state: { ...state, boundaryQueue }, newEvents: [] };
 }
 

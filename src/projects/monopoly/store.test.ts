@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { freshGame } from "./mocks";
 import type { MonopolyAction, MonopolyResult } from "./protocol";
-import type { GameState, ManageStaged } from "./types";
+import type { AuctionState, GameState, ManageStaged } from "./types";
 
 // Capture route actions instead of hitting Supabase. Manage staging now lives in
 // synced state, so every staging tap (`cycleBuild` / `toggleMortgage`) POSTs an
 // `update-manage-staging` intent through `predict`, alongside the `manage` /
-// `cancel-manage` commits. The mock resolves to a conflict (a no-op), so the
-// optimistic overlay we assert on is never disturbed within a synchronous test.
+// `cancel-manage` commits. By default the mock resolves to a BARE conflict (a
+// no-op that carries no winner), so the optimistic overlay we assert on is never
+// disturbed within a synchronous test. Tests that exercise reconcile push
+// specific responses onto `responses` (e.g. a conflict carrying a winning state)
+// and await the async reconcile.
 const submitted: { id: string; action: MonopolyAction }[] = [];
+const responses: MonopolyResult[] = [];
 vi.mock("./sync", () => ({
   submitAction: (id: string, action: MonopolyAction): Promise<MonopolyResult> => {
     submitted.push({ id, action });
-    return Promise.resolve({ ok: false, conflict: true });
+    return Promise.resolve(responses.shift() ?? { ok: false, conflict: true });
   },
   loadGame: () => Promise.resolve(null),
   listGames: () => Promise.resolve([]),
@@ -64,6 +68,10 @@ function setup(state: GameState): void {
     version: 1,
     gameId: "dev",
     myPlayerId: "p1",
+    // A connected client always has a profile; without it the pump re-derives
+    // myPlayerId as null on every head advance (not a member), which silently
+    // stops the pacer from driving — and would make the drive-guard test vacuous.
+    profile: { id: "p1", name: "P1" },
     optimistic: null,
     outbox: [],
     buffer: [],
@@ -80,6 +88,7 @@ function stage(staged: ManageStaged): void {
 
 beforeEach(() => {
   submitted.length = 0;
+  responses.length = 0;
 });
 
 describe("cycleBuild", () => {
@@ -222,5 +231,150 @@ describe("cancelManage", () => {
     expect(action.intents[0].kind).toBe("cancel-manage");
     // cancel-manage returns to pre-roll, which drops the synced staging.
     expect(stagedNow()).toBeUndefined();
+  });
+});
+
+describe("optimistic reconcile", () => {
+  // setTimeout(0) flushes the resolved-promise microtasks (the flush `.then`)
+  // plus the pump's zero-dwell timers, so the async reconcile fully settles.
+  const tick = (): Promise<void> =>
+    new Promise((resolve) => setTimeout(resolve, 0));
+
+  const armed = (kind: "trade" | "manage"): boolean =>
+    useMonopolyStore
+      .getState()
+      .state.boundaryQueue.some((e) => e.playerId === "p1" && e.kind === kind);
+
+  function auctionHead(seed: string, highBid: number, leaderId: string): GameState {
+    const base = freshGame(seed);
+    const auction: AuctionState = {
+      position: 1,
+      active: ["p1", "p2", "p3", "p4"],
+      highBid,
+      leaderId,
+      bids: { [leaderId]: highBid },
+      resume: { kind: "landing" },
+    };
+    return { ...base, turn: { ...base.turn, phase: "auction", auction } };
+  }
+
+  it("keeps a Manage arm when a competing write wins the version race", async () => {
+    // p1 arms Manage; before it lands, the auto-roll wins the CAS and the route
+    // hands back a post-roll winner WITHOUT the arm. Dropping the prediction (the
+    // old behavior) unchecked the box — the flicker. Rebase re-arms it onto the
+    // new head so the checkbox stays lit, queued for the next boundary.
+    const head = freshGame("rebase-arm");
+    setup(head);
+    const winner: GameState = {
+      ...head,
+      turn: { ...head.turn, phase: "post-roll" },
+    };
+    responses.push({ ok: false, conflict: true, state: winner, version: 2 });
+
+    useMonopolyStore.getState().toggleQueue("manage");
+    expect(armed("manage")).toBe(true); // optimistically armed at once
+
+    await tick();
+    await tick();
+    expect(armed("manage")).toBe(true); // still armed after losing the race
+  });
+
+  it("keeps the arm when an armed snapshot echoes back while it's still pending", async () => {
+    // The "removed every time" regression: once the row reflects the arm, the
+    // overlay replays the pending intent on it. A relative toggle flipped it back
+    // off; the absolute (idempotent) set-queue keeps it armed.
+    const head = freshGame("echo-arm");
+    setup(head);
+
+    useMonopolyStore.getState().toggleQueue("manage");
+    expect(armed("manage")).toBe(true); // optimistically armed, flush in flight
+
+    // An authoritative snapshot that ALREADY reflects the arm lands while the
+    // flush is still pending — the overlay replays the set-queue onto it.
+    const armedSnap: GameState = {
+      ...head,
+      boundaryQueue: [{ playerId: "p1", kind: "manage" }],
+    };
+    useMonopolyStore.getState().applyStateUpdate(armedSnap, 2);
+    expect(armed("manage")).toBe(true);
+
+    await tick();
+    await tick();
+    expect(armed("manage")).toBe(true);
+  });
+
+  it("counts a bid that loses the version race, never zeroing the bar", async () => {
+    // p1 bids $110 against a stale $100; by the time it lands a bot has reached
+    // $200. The bid is still COUNTED on p1's bar ($110) while the high/leader
+    // reflect the winner — no snap-to-zero, no auto-escalation.
+    const head = auctionHead("rebase-bid", 100, "p2");
+    setup(head);
+    const winnerAuction: AuctionState = {
+      position: 1,
+      active: ["p1", "p2", "p3", "p4"],
+      highBid: 200,
+      leaderId: "p3",
+      bids: { p2: 100, p3: 200 },
+      resume: { kind: "landing" },
+    };
+    const winner: GameState = {
+      ...head,
+      turn: { ...head.turn, phase: "auction", auction: winnerAuction },
+    };
+    responses.push({ ok: false, conflict: true, state: winner, version: 2 });
+
+    useMonopolyStore.getState().submit({ kind: "bid", playerId: "p1", amount: 110 });
+    // Optimistically leading at $110 right away.
+    expect(useMonopolyStore.getState().state.turn.auction?.bids.p1).toBe(110);
+
+    await tick();
+    await tick();
+    const auction = useMonopolyStore.getState().state.turn.auction;
+    expect(auction?.bids).toEqual({ p2: 100, p3: 200, p1: 110 }); // counted
+    expect(auction?.highBid).toBe(200);
+    expect(auction?.leaderId).toBe("p3");
+  });
+
+  // NOTE: the pacer drive-guard ("don't drive a mechanical step while a local
+  // prediction is outstanding") lives in the playback pump, which is gated on
+  // `typeof window !== "undefined"` and so never runs under the node test
+  // environment. A store-level unit test of it is therefore vacuous (verified:
+  // it passes even with the guard removed). The guard is exercised by the e2e
+  // suite instead; unit-testing it here would require jsdom + fake-timer
+  // orchestration of the pump, which isn't worth the flakiness for one branch.
+
+  it("preserves a second action queued while the first is in flight", async () => {
+    // Outbox bookkeeping: act twice rapidly; confirming the first batch must keep
+    // the second (sliced from the front), re-flush ONLY it, and never re-send the
+    // first. A broken slice would drop or duplicate an action.
+    const head = freshGame("interleave");
+    setup(head);
+    await tick(); // settle the initial auto-roll
+
+    // The first flush confirms with the manage arm landed on the row.
+    const winner: GameState = {
+      ...head,
+      boundaryQueue: [{ playerId: "p1", kind: "manage" }],
+    };
+    responses.push({ ok: true, state: winner, version: 2 });
+
+    useMonopolyStore.getState().toggleQueue("manage"); // A — in flight
+    useMonopolyStore.getState().toggleQueue("trade"); // B — queued behind A
+    submitted.length = 0;
+
+    await tick();
+    await tick();
+
+    // A confirmed (in the head), B still pending (in the overlay).
+    expect(armed("manage")).toBe(true);
+    expect(armed("trade")).toBe(true);
+    // The re-flush after confirming A carries ONLY B.
+    const submits = submitted.filter((s) => s.action.type === "submit");
+    expect(submits).toHaveLength(1);
+    const action = submits[0].action;
+    if (action.type !== "submit") throw new Error("expected submit");
+    expect(action.intents).toEqual([
+      { kind: "set-queue", playerId: "p1", queue: "trade", armed: true },
+    ]);
   });
 });

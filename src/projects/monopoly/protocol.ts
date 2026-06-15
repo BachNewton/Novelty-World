@@ -69,12 +69,13 @@ export interface MonopolyRequest {
 }
 
 /** Result of an action. `conflict` means the caller's `fromVersion` was
- *  stale (someone else advanced first) — not an error: the client should
- *  drop the attempt and let the realtime subscription deliver the winning
- *  state. `reason` carries a genuine rejection (illegal intent, write
- *  failure). */
+ *  stale (someone else advanced first) — not an error. A stale-version conflict
+ *  carries the winning `state`/`version` so the client can rebase its optimistic
+ *  overlay immediately rather than waiting for the realtime echo; the rarer
+ *  write-race conflict omits them and the client resyncs from the subscription.
+ *  `reason` carries a genuine rejection (illegal intent, write failure). */
 export type MonopolyResult =
   | { ok: true; state: GameState; version: number }
   /** A `delete` succeeded — the row is gone, so there's no state to fold in. */
   | { ok: true; deleted: true }
-  | { ok: false; conflict?: boolean; reason?: string };
+  | { ok: false; conflict?: boolean; state?: GameState; version?: number; reason?: string };
