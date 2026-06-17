@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
-import { apply, autoStep, createRng, firstNegativePlayer } from "./engine";
+import {
+  apply,
+  autoStep,
+  createRng,
+  firstNegativePlayer,
+  projectTrade,
+  tradeMortgageFees,
+} from "./engine";
 import { freshGame } from "./mocks";
-import type { CardSource, GameState, Intent, Player } from "./types";
+import type {
+  CardSource,
+  GameState,
+  Intent,
+  Player,
+  TradeTerms,
+} from "./types";
 
 /** Apply an intent, throwing on rejection — keeps the auction sequences below
  *  readable as a straight-line script of bids and passes. */
@@ -2712,5 +2725,52 @@ describe("auction (bank-estate bankruptcy)", () => {
     expect(state.turn.phase).toBe("game-over");
     expect(newEvents.some((e) => e.kind === "winner" && e.winnerId === "p2")).toBe(true);
     expect(state.turn.auction).toBeUndefined();
+  });
+});
+
+describe("tradeMortgageFees", () => {
+  // Receiving a mortgaged property in a trade costs the bank 10% interest, per
+  // property (official rule). Monopoly money has no coins, so the interest is
+  // rounded up to the whole dollar — which matters for the $75 utility/odd
+  // mortgages where 10% is $7.50.
+  it("charges the receiver per-property 10% interest, rounded up", () => {
+    // St. James Place (16, $90 mortgage -> $9), Electric Company (12) and Water
+    // Works (28) (each a $75 mortgage -> $7.50, rounded up to $8). The receiver
+    // owes $9 + $8 + $8 = $25 — NOT $24, because the two half-dollar interests
+    // each round up before they're summed.
+    const base = freshGame(2);
+    const state: GameState = {
+      ...base,
+      ownership: { 16: "p1", 12: "p1", 28: "p1" },
+      mortgaged: { 16: true, 12: true, 28: true },
+    };
+    const terms: TradeTerms = {
+      propertyTo: { 16: "p2", 12: "p2", 28: "p2" },
+      gojfTo: {},
+      cashDelta: {},
+    };
+    expect(tradeMortgageFees(state, terms)).toEqual({ p2: 25 });
+  });
+
+  // Executing the trade pays that fee to the bank, not to the other player:
+  // the receiver's cash drops by exactly $25 while the giver's is untouched
+  // (the fee is a bank charge, separate from the players' zero-sum cashDelta).
+  it("debits the receiver and never credits the giver", () => {
+    const base = freshGame(2);
+    const giver = base.players[0];
+    const receiver = base.players[1];
+    const state: GameState = {
+      ...base,
+      ownership: { 16: giver.id, 12: giver.id, 28: giver.id },
+      mortgaged: { 16: true, 12: true, 28: true },
+    };
+    const terms: TradeTerms = {
+      propertyTo: { 16: receiver.id, 12: receiver.id, 28: receiver.id },
+      gojfTo: {},
+      cashDelta: {},
+    };
+    const { cashById } = projectTrade(state, terms);
+    expect(cashById[receiver.id]).toBe(receiver.cash - 25);
+    expect(cashById[giver.id]).toBe(giver.cash);
   });
 });
