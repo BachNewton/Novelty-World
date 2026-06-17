@@ -31,9 +31,13 @@ interface Props {
    *  the token's size in their layout context (e.g. `h-6 w-6` or
    *  `h-[70%] aspect-square`). */
   className?: string;
+  /** When this is the player whose turn is active, the token pulses its frame
+   *  (reusing the chip-emphasis keyframe) so the eye lands on whose turn it is,
+   *  on both the board and the header. */
+  active?: boolean;
 }
 
-export function PlayerToken({ player, className = "" }: Props) {
+export function PlayerToken({ player, className = "", active = false }: Props) {
   const Icon = PLAYER_ICON_COMPONENTS[player.icon];
   return (
     <div
@@ -41,7 +45,15 @@ export function PlayerToken({ player, className = "" }: Props) {
       style={{
         backgroundColor: PLAYER_COLOR_VAR[player.color],
         color: "white",
-        boxShadow: "0 0 0 1px var(--mono-frame)",
+        // Active player's token pulses its frame (reusing the chip-emphasis
+        // keyframe) so whose turn it is reads at a glance; otherwise a static
+        // frame ring.
+        boxShadow: active
+          ? "inset 0 0 0 1.5px var(--mono-ink)"
+          : "0 0 0 1px var(--mono-frame)",
+        ...(active && {
+          animation: "mono-chip-pulse 1.1s ease-in-out infinite",
+        }),
       }}
     >
       <Icon strokeWidth={2.5} style={{ width: "60%", height: "60%" }} />

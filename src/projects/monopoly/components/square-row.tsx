@@ -52,6 +52,7 @@ export function SquareRow({ position }: Props) {
   const order = useMonopolyStore(
     useShallow((s) => s.state.players.map((p) => p.id)),
   );
+  const activePlayerId = useMonopolyStore((s) => s.state.turn.playerId);
   const pitch = useTokenAnim((s) => s.lanePitch);
   // While a token is sliding to this square on the overlay, drop it here so it
   // isn't drawn twice. The position-keyed selector keeps every other row's
@@ -190,7 +191,12 @@ export function SquareRow({ position }: Props) {
   const body = (
     <>
       <NameCell space={space} mortgaged={displayMortgaged} />
-      <TokenStrip tokens={visibleTokens} order={order} pitch={pitch} />
+      <TokenStrip
+        tokens={visibleTokens}
+        order={order}
+        pitch={pitch}
+        activePlayerId={activePlayerId}
+      />
       <CostCell space={space} mortgaged={displayMortgaged} rent={rent} />
     </>
   );
@@ -503,10 +509,12 @@ function TokenStrip({
   tokens,
   order,
   pitch,
+  activePlayerId,
 }: {
   tokens: readonly Player[];
   order: readonly string[];
   pitch: number;
+  activePlayerId: string;
 }) {
   // Every player owns a fixed lane (their seat index), so a token sits at the
   // same x on every square — whether alone or sharing — and lines up with its
@@ -528,9 +536,13 @@ function TokenStrip({
             style={{ left: laneOffset(seat, pitch), zIndex: order.length - seat }}
           >
             {p.inJail ? (
-              <JailedToken player={p} />
+              <JailedToken player={p} active={p.id === activePlayerId} />
             ) : (
-              <PlayerToken player={p} className="aspect-square h-[70%]" />
+              <PlayerToken
+                player={p}
+                className="aspect-square h-[70%]"
+                active={p.id === activePlayerId}
+              />
             )}
           </div>
         );
@@ -539,10 +551,16 @@ function TokenStrip({
   );
 }
 
-function JailedToken({ player }: { player: Player }) {
+function JailedToken({
+  player,
+  active,
+}: {
+  player: Player;
+  active: boolean;
+}) {
   return (
     <div className="relative aspect-square h-[70%]">
-      <PlayerToken player={player} className="h-full w-full" />
+      <PlayerToken player={player} className="h-full w-full" active={active} />
       {/* Four prison bars clipped to the token's circular outline. */}
       <div className="pointer-events-none absolute inset-0 flex justify-evenly overflow-hidden rounded-full">
         {Array.from({ length: 4 }).map((_, i) => (

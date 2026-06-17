@@ -29,6 +29,7 @@ export function Header({ state }: Props) {
         ownership={state.ownership}
         mortgaged={state.mortgaged}
         jailFreeCards={state.jailFreeCards}
+        activePlayerId={state.turn.playerId}
         renderMeta={(player) => (
           <>
             <span className="truncate text-sm font-semibold">{player.name}</span>

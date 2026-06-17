@@ -124,6 +124,9 @@ interface HoldingsGridProps extends OwnershipView {
   /** Width reserved for the meta column. Wider in the trade panel to fit the
    *  resulting balance + mortgage-interest note. */
   metaMinWidth?: string;
+  /** Whose turn it is — that player's row token pulses. The header passes it;
+   *  the trade panel's after-view leaves it unset (no active emphasis there). */
+  activePlayerId?: string;
 }
 
 /** The set-grouped ownership grid shared by the persistent header (every
@@ -140,6 +143,7 @@ export function HoldingsGrid({
   renderMeta,
   changed,
   metaMinWidth,
+  activePlayerId,
 }: HoldingsGridProps) {
   return (
     // Rows are flush — no gap between them — with the inset bottom border as the
@@ -152,7 +156,11 @@ export function HoldingsGrid({
           className="flex min-h-11 shrink-0 items-center gap-2 px-1.5 py-1"
           style={ROW_STYLE}
         >
-          <PlayerToken player={player} className="h-7 w-7" />
+          <PlayerToken
+            player={player}
+            className="h-7 w-7"
+            active={player.id === activePlayerId}
+          />
           <div
             className="flex shrink-0 flex-col leading-tight"
             style={{ minWidth: metaMinWidth ?? "3.5rem" }}

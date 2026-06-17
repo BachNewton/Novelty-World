@@ -51,9 +51,10 @@
   --color-poke-fairy: #e18ce1;
 }
 
-/* Monopoly: pulse a traded chip's frame between white and its normal border so
-   the "what changed in this trade" emphasis stands out against the dense
-   ownership grid. The --mono-* vars resolve on the board root the chip sits in. */
+/* Monopoly: pulse a frame between white and its normal border to draw the eye —
+   used for a traded chip ("what changed in this trade", against the dense
+   ownership grid) and for the active player's token. The --mono-* vars resolve
+   on the board root the element sits in. */
 @keyframes mono-chip-pulse {
   0%,
   100% {

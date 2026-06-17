@@ -393,7 +393,11 @@ export function Squares() {
                 zIndex: 10,
               }}
             >
-              <PlayerToken player={moving.player} className="h-full w-full" />
+              <PlayerToken
+                player={moving.player}
+                className="h-full w-full"
+                active={moving.player.id === active?.id}
+              />
             </div>
           </>
         )}
