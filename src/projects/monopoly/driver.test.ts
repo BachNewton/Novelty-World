@@ -20,7 +20,7 @@ describe("driverRole", () => {
     const withHuman: GameState = {
       ...activePlayer("p2"),
       players: base.players.map((p) =>
-        p.id === "p2" ? { ...p, isBot: false } : p,
+        p.id === "p2" ? { ...p, botStrategy: null } : p,
       ),
     };
     expect(driverRole(withHuman, "p1")).toBe("none");

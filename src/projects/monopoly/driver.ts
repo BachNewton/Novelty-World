@@ -33,6 +33,6 @@ export function driverRole(
 
   // A bot seat may be proxied by anyone; a human seat is owned by exactly one
   // client (or, if they're offline, nobody — the turn waits).
-  if (active.isBot) return "proxy";
+  if (active.botStrategy !== null) return "proxy";
   return activeId === myPlayerId ? "self" : "none";
 }

@@ -38,7 +38,7 @@ describe("createLobby", () => {
       name: "Kyle",
       color: PLAYER_COLORS[0],
       icon: PLAYER_ICONS[0],
-      isBot: false,
+      botStrategy: null,
       cash: 1500,
       position: 0,
     });
@@ -54,7 +54,7 @@ describe("joinLobby", () => {
       id: "p2",
       color: PLAYER_COLORS[1],
       icon: PLAYER_ICONS[1],
-      isBot: false,
+      botStrategy: null,
     });
   });
 
@@ -95,7 +95,7 @@ describe("addBot", () => {
   it("seats a bot with a synthetic id, a name, and a free color + icon", () => {
     const state = ok(addBot(lobby()));
     const bot = state.players[1];
-    expect(bot.isBot).toBe(true);
+    expect(bot.botStrategy).toBe("dumb");
     expect(bot.id).toBe("bot-1");
     expect(bot.name).toBe("Alex");
     expect(bot.color).toBe(PLAYER_COLORS[1]);
@@ -219,7 +219,7 @@ describe("lobbyReduce", () => {
   it("dispatches each op to its matching helper", () => {
     expect(ok(lobbyReduce(lobby(), { type: "join", profile: { id: "p2", name: "Alex" } })).players)
       .toHaveLength(2);
-    expect(ok(lobbyReduce(lobby(), { type: "addBot" })).players[1].isBot).toBe(true);
+    expect(ok(lobbyReduce(lobby(), { type: "addBot" })).players[1].botStrategy).toBe("dumb");
     expect(ok(lobbyReduce(ok(addBot(lobby())), { type: "removePlayer", playerId: "bot-1" })).players)
       .toHaveLength(1);
     expect(ok(lobbyReduce(lobby(), { type: "setColor", playerId: "host", color: "emerald" })).players[0].color)

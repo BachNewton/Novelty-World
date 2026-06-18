@@ -7,14 +7,14 @@ import type { GameState, Player, PlayerCount, TurnGroup } from "./types";
 // Slot 0 (Kyle) is the human seat; the rest are bots. Mirrors freshGame, where
 // the seeding client takes slot 0 and the fillers are bot-driven.
 const PLAYERS: readonly Player[] = [
-  { id: "p1", name: "Kyle",   color: "crimson", icon: "dog",    cash: 1240, position: 10, inJail: true,  jailTurns: 1, bankrupt: false, isBot: false },
-  { id: "p2", name: "Alex",   color: "violet",  icon: "car",    cash: 850,  position: 10, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
-  { id: "p3", name: "Sam",    color: "teal",    icon: "ship",   cash: 1450, position: 10, inJail: true,  jailTurns: 3, bankrupt: false, isBot: true },
-  { id: "p4", name: "Jordan", color: "amber",   icon: "crown",  cash: 2890, position: 10, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
-  { id: "p5", name: "Riley",  color: "emerald", icon: "cat",    cash: 670,  position: 11, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
-  { id: "p6", name: "Casey",  color: "indigo",  icon: "plane",  cash: 1820, position: 11, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
-  { id: "p7", name: "Morgan", color: "magenta", icon: "rocket", cash: 410,  position: 11, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
-  { id: "p8", name: "Drew",   color: "slate",   icon: "bird",   cash: 3210, position: 12, inJail: false, jailTurns: 0, bankrupt: false, isBot: true },
+  { id: "p1", name: "Kyle",   color: "crimson", icon: "dog",    cash: 1240, position: 10, inJail: true,  jailTurns: 1, bankrupt: false, botStrategy: null },
+  { id: "p2", name: "Alex",   color: "violet",  icon: "car",    cash: 850,  position: 10, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
+  { id: "p3", name: "Sam",    color: "teal",    icon: "ship",   cash: 1450, position: 10, inJail: true,  jailTurns: 3, bankrupt: false, botStrategy: "dumb" },
+  { id: "p4", name: "Jordan", color: "amber",   icon: "crown",  cash: 2890, position: 10, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
+  { id: "p5", name: "Riley",  color: "emerald", icon: "cat",    cash: 670,  position: 11, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
+  { id: "p6", name: "Casey",  color: "indigo",  icon: "plane",  cash: 1820, position: 11, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
+  { id: "p7", name: "Morgan", color: "magenta", icon: "rocket", cash: 410,  position: 11, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
+  { id: "p8", name: "Drew",   color: "slate",   icon: "bird",   cash: 3210, position: 12, inJail: false, jailTurns: 0, bankrupt: false, botStrategy: "dumb" },
 ];
 
 /** Fresh immediate-play game: all tokens on GO, no ownership, empty log with
@@ -39,9 +39,9 @@ export function freshGame(
       inJail: false,
       jailTurns: 0,
       bankrupt: false,
-      // Slot 0 is the seeding human; fillers are bots until the lobby seats
+      // Slot 0 is the seeding human; fillers are dumb bots until the lobby seats
       // real players. Set explicitly so it never rides on PLAYERS' ordering.
-      isBot: i !== 0,
+      botStrategy: i !== 0 ? "dumb" : null,
     };
     if (i === 0 && seat) {
       return { ...base, id: seat.id, name: seat.name };

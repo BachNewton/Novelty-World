@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../mocks";
 import type { GameState } from "../types";
-import { botIntent } from "./policy";
+import { dumbBot } from "./dumb";
 
 // freshGame seats p1..p4 with p1 active and $1500 each, no ownership.
 const base = freshGame();
@@ -10,11 +10,11 @@ function withTurn(turn: Partial<GameState["turn"]>): GameState {
   return { ...base, turn: { ...base.turn, ...turn } };
 }
 
-describe("botIntent — buy-decision", () => {
+describe("dumbBot — buy-decision", () => {
   it("buys an affordable property", () => {
     // Position 1 (Mediterranean Avenue) costs $60; p1 holds $1500.
     const state = withTurn({ phase: "buy-decision", pendingBuy: 1 });
-    expect(botIntent(state, "p1")).toEqual({ kind: "buy", playerId: "p1" });
+    expect(dumbBot(state, "p1")).toEqual({ kind: "buy", playerId: "p1" });
   });
 
   it("declines when it can't afford the property", () => {
@@ -24,7 +24,7 @@ describe("botIntent — buy-decision", () => {
         p.id === "p1" ? { ...p, cash: 10 } : p,
       ),
     };
-    expect(botIntent(broke, "p1")).toEqual({ kind: "decline-buy", playerId: "p1" });
+    expect(dumbBot(broke, "p1")).toEqual({ kind: "decline-buy", playerId: "p1" });
   });
 });
 
@@ -35,7 +35,7 @@ function inTheRed(state: GameState, playerId: string, cash: number): GameState {
   };
 }
 
-describe("botIntent — must-raise-cash", () => {
+describe("dumbBot — must-raise-cash", () => {
   it("mortgages the cheapest building-free, un-mortgaged property of the debtor", () => {
     // p1 is in the red and owns Mediterranean (1, mortgaged), Baltic (3, has a
     // house) and Reading Railroad (5, free). Only the railroad is mortgageable.
@@ -49,7 +49,7 @@ describe("botIntent — must-raise-cash", () => {
       mortgaged: { 1: true },
       houses: { 3: 1 },
     };
-    expect(botIntent(state, "p1")).toEqual({
+    expect(dumbBot(state, "p1")).toEqual({
       kind: "mortgage",
       playerId: "p1",
       position: 5,
@@ -63,7 +63,7 @@ describe("botIntent — must-raise-cash", () => {
       "p1",
       -200,
     );
-    expect(botIntent(state, "p2")).toBeNull();
+    expect(dumbBot(state, "p2")).toBeNull();
   });
 
   it("sells a built set's buildings once nothing is left to mortgage", () => {
@@ -79,7 +79,7 @@ describe("botIntent — must-raise-cash", () => {
       ownership: { 16: "p1", 18: "p1", 19: "p1", 31: "p1", 32: "p1", 34: "p1" },
       houses: { 16: 1, 18: 1, 19: 1, 31: 1, 32: 1, 34: 1 },
     };
-    expect(botIntent(state, "p1")).toEqual({
+    expect(dumbBot(state, "p1")).toEqual({
       kind: "manage",
       playerId: "p1",
       build: { 16: 0, 18: 0, 19: 0 },
@@ -93,11 +93,11 @@ describe("botIntent — must-raise-cash", () => {
       "p1",
       -200,
     );
-    expect(botIntent(state, "p1")).toBeNull();
+    expect(dumbBot(state, "p1")).toBeNull();
   });
 });
 
-describe("botIntent — trade-pending", () => {
+describe("dumbBot — trade-pending", () => {
   const pending = {
     id: "t1",
     proposerId: "p1",
@@ -109,7 +109,7 @@ describe("botIntent — trade-pending", () => {
 
   it("accepts when the bot is a named party that hasn't voted", () => {
     const state = withTurn({ phase: "trade-pending", pendingTrade: pending });
-    expect(botIntent(state, "p2")).toEqual({
+    expect(dumbBot(state, "p2")).toEqual({
       kind: "accept-trade",
       playerId: "p2",
       tradeId: "t1",
@@ -121,22 +121,22 @@ describe("botIntent — trade-pending", () => {
       phase: "trade-pending",
       pendingTrade: { ...pending, approvals: { p1: true, p2: true } },
     });
-    expect(botIntent(state, "p2")).toBeNull();
+    expect(dumbBot(state, "p2")).toBeNull();
   });
 
   it("returns null for a player who isn't a party", () => {
     const state = withTurn({ phase: "trade-pending", pendingTrade: pending });
-    expect(botIntent(state, "p3")).toBeNull();
+    expect(dumbBot(state, "p3")).toBeNull();
   });
 });
 
-describe("botIntent — jail-decision", () => {
+describe("dumbBot — jail-decision", () => {
   it("uses a held Get-Out-of-Jail-Free card first (it's free)", () => {
     const state: GameState = {
       ...withTurn({ phase: "jail-decision" }),
       jailFreeCards: { chance: "p1" },
     };
-    expect(botIntent(state, "p1")).toEqual({
+    expect(dumbBot(state, "p1")).toEqual({
       kind: "use-jail-card",
       playerId: "p1",
     });
@@ -148,7 +148,7 @@ describe("botIntent — jail-decision", () => {
       ...withTurn({ phase: "jail-decision" }),
       jailFreeCards: { communityChest: "p1" },
     };
-    expect(botIntent(state, "p1")).toEqual({
+    expect(dumbBot(state, "p1")).toEqual({
       kind: "use-jail-card",
       playerId: "p1",
     });
@@ -156,7 +156,7 @@ describe("botIntent — jail-decision", () => {
 
   it("pays the fine when it has no card but can afford $50", () => {
     const state = withTurn({ phase: "jail-decision" });
-    expect(botIntent(state, "p1")).toEqual({
+    expect(dumbBot(state, "p1")).toEqual({
       kind: "pay-to-leave-jail",
       playerId: "p1",
     });
@@ -169,15 +169,15 @@ describe("botIntent — jail-decision", () => {
         p.id === "p1" ? { ...p, cash: 40 } : p,
       ),
     };
-    expect(botIntent(broke, "p1")).toBeNull();
+    expect(dumbBot(broke, "p1")).toBeNull();
   });
 
   it("returns null when it isn't that player's jail turn", () => {
-    expect(botIntent(withTurn({ phase: "jail-decision" }), "p2")).toBeNull();
+    expect(dumbBot(withTurn({ phase: "jail-decision" }), "p2")).toBeNull();
   });
 });
 
-describe("botIntent — auction", () => {
+describe("dumbBot — auction", () => {
   function auctionTurn(
     overrides: Partial<NonNullable<GameState["turn"]["auction"]>> = {},
   ): GameState {
@@ -196,7 +196,7 @@ describe("botIntent — auction", () => {
   }
 
   it("raises by the increment when the next bid is affordable and below the price", () => {
-    expect(botIntent(auctionTurn({ highBid: 40 }), "p1")).toEqual({
+    expect(dumbBot(auctionTurn({ highBid: 40 }), "p1")).toEqual({
       kind: "bid",
       playerId: "p1",
       amount: 50,
@@ -204,7 +204,7 @@ describe("botIntent — auction", () => {
   });
 
   it("drops once the next bid would exceed the printed price", () => {
-    expect(botIntent(auctionTurn({ highBid: 60 }), "p1")).toEqual({
+    expect(dumbBot(auctionTurn({ highBid: 60 }), "p1")).toEqual({
       kind: "pass-bid",
       playerId: "p1",
     });
@@ -218,26 +218,26 @@ describe("botIntent — auction", () => {
       players: base.players.map((p) => (p.id === "p1" ? { ...p, cash: 5 } : p)),
       mortgaged: { 1: true },
     };
-    expect(botIntent(poor, "p1")).toEqual({ kind: "pass-bid", playerId: "p1" });
+    expect(dumbBot(poor, "p1")).toEqual({ kind: "pass-bid", playerId: "p1" });
   });
 
   it("never jams its own standing lead", () => {
-    expect(botIntent(auctionTurn({ highBid: 20, leaderId: "p1" }), "p1")).toBeNull();
+    expect(dumbBot(auctionTurn({ highBid: 20, leaderId: "p1" }), "p1")).toBeNull();
   });
 
   it("returns null for a bot that has already dropped", () => {
-    expect(botIntent(auctionTurn({ active: ["p2", "p3"] }), "p1")).toBeNull();
+    expect(dumbBot(auctionTurn({ active: ["p2", "p3"] }), "p1")).toBeNull();
   });
 });
 
-describe("botIntent — no decision to make", () => {
-  it("returns null for a mechanical phase", () => {
-    expect(botIntent(withTurn({ phase: "pre-roll" }), "p1")).toBeNull();
-    expect(botIntent(withTurn({ phase: "post-roll" }), "p1")).toBeNull();
+describe("dumbBot — no decision to make", () => {
+  it("returns null for a mechanical phase (no proactive arming)", () => {
+    expect(dumbBot(withTurn({ phase: "pre-roll" }), "p1")).toBeNull();
+    expect(dumbBot(withTurn({ phase: "post-roll" }), "p1")).toBeNull();
   });
 
   it("returns null when it isn't that player's turn", () => {
     const state = withTurn({ phase: "buy-decision", pendingBuy: 1 });
-    expect(botIntent(state, "p2")).toBeNull();
+    expect(dumbBot(state, "p2")).toBeNull();
   });
 });

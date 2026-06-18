@@ -35,7 +35,7 @@ export function SeatRoom({ gameId, onExit }: Props) {
 
   const seated = myPlayerId !== null;
   const full = players.length >= MAX_PLAYERS;
-  const humans = players.filter((p) => !p.isBot).length;
+  const humans = players.filter((p) => p.botStrategy === null).length;
   const canStart = players.length >= MIN_PLAYERS && humans >= 1;
 
   // Keep the local player's seat name in sync with their profile. The seat
@@ -74,7 +74,7 @@ export function SeatRoom({ gameId, onExit }: Props) {
               key={player.id}
               player={player}
               isMine={player.id === myPlayerId}
-              onKick={player.isBot ? () => { removePlayer(player.id); } : undefined}
+              onKick={player.botStrategy !== null ? () => { removePlayer(player.id); } : undefined}
             />
           ))}
         </ul>
@@ -170,7 +170,7 @@ function SeatRow({
           <Icon strokeWidth={2.5} className="h-5 w-5" aria-hidden="true" />
         </span>
         <span className="flex-1 truncate font-semibold">{player.name}</span>
-        {player.isBot ? (
+        {player.botStrategy !== null ? (
           <span className="flex items-center gap-1 text-xs" style={{ color: "var(--mono-rail)" }}>
             <Bot className="h-3.5 w-3.5" aria-hidden="true" /> Bot
           </span>

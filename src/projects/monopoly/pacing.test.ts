@@ -9,7 +9,8 @@ import {
   slideAnimMs,
   type Snapshot,
 } from "./pacing";
-import type { GameState, Player } from "./types";
+import type { Bot } from "./bots/registry";
+import type { GameState, Intent, Player } from "./types";
 
 // freshGame seats p1 as the human and p2..p4 as bots, p1 active at pre-roll.
 const base = freshGame();
@@ -56,7 +57,7 @@ describe("driveOp — drive gating", () => {
 
 describe("driveOp — human-turn sync barrier", () => {
   // Model a second connected human (p2) and view from p1's client.
-  const otherHumanActive = withTurn(mapPlayer(base, "p2", { isBot: false }), {
+  const otherHumanActive = withTurn(mapPlayer(base, "p2", { botStrategy: null }), {
     playerId: "p2",
   });
 
@@ -71,10 +72,12 @@ describe("driveOp — human-turn sync barrier", () => {
     expect(driveOp(otherHumanActive, false, "p1")).toBeNull();
   });
 
-  it("is idle for a finished game and a non-driveable intermission phase", () => {
+  it("is idle for a finished game and a human's own intermission", () => {
     expect(driveOp({ ...base, status: "finished" }, true, "p1")).toBeNull();
-    // A managing intermission isn't a mechanical beat — nobody drives it.
-    expect(driveOp(withTurn(base, { phase: "managing", managerId: "p2" }), true, "p1")).toBeNull();
+    // A human's manage intermission is driven by their own UI, never the pacer
+    // (p1 is the human seat in freshGame). A BOT manager's intermission IS
+    // driven — see the proactive-infra suite below.
+    expect(driveOp(withTurn(base, { phase: "managing", managerId: "p1" }), true, "p1")).toBeNull();
   });
 });
 
@@ -102,11 +105,114 @@ describe("driveOp — jail decision", () => {
   });
 
   it("does not drive another connected human's jail decision", () => {
-    const otherJail = withTurn(mapPlayer(base, "p2", { isBot: false }), {
+    const otherJail = withTurn(mapPlayer(base, "p2", { botStrategy: null }), {
       playerId: "p2",
       phase: "jail-decision",
     });
     expect(driveOp(otherJail, true, "p1")).toBeNull();
+  });
+});
+
+// The proactive path lets a bot INITIATE — arm a boundary action at its own
+// pre-roll, then drive the intermission to a commit. No shipped strategy does
+// this yet (dumb/claude are reactive), so it's verified here with mock policies
+// injected through `driveOp`'s resolver. freshGame seats p2 as a bot; we view
+// from the human p1's client (any client may proxy a bot).
+describe("driveOp — proactive bot infrastructure", () => {
+  // A resolver that hands `bot` to the p2 seat only, mirroring the real
+  // registry resolver (a bot policy for a bot seat, null for everyone else).
+  const onlyP2 = (bot: Bot) => (_s: GameState, id: string): Bot | null =>
+    id === "p2" ? bot : null;
+
+  const botTurn = (turn: Partial<GameState["turn"]>): GameState =>
+    withTurn(base, { playerId: "p2", ...turn });
+
+  it("submits a bot's pre-roll arm before rolling", () => {
+    const armManage: Bot = () => ({
+      kind: "set-queue", playerId: "p2", queue: "manage", armed: true,
+    });
+    expect(driveOp(botTurn({}), true, "p1", onlyP2(armManage))).toEqual({
+      kind: "intent",
+      intent: { kind: "set-queue", playerId: "p2", queue: "manage", armed: true },
+    });
+  });
+
+  it("skips a redundant arm the queue already reflects and rolls instead", () => {
+    // Once armed, re-submitting the same arm is an idempotent no-op that would
+    // spin (each write bumps the version, re-triggering the drive). The pacer
+    // falls through to `step`, which is what drains the queue into managing.
+    const armManage: Bot = () => ({
+      kind: "set-queue", playerId: "p2", queue: "manage", armed: true,
+    });
+    const alreadyArmed: GameState = {
+      ...botTurn({}),
+      boundaryQueue: [{ playerId: "p2", kind: "manage" }],
+    };
+    expect(driveOp(alreadyArmed, true, "p1", onlyP2(armManage))).toEqual({
+      kind: "step",
+    });
+  });
+
+  it("ignores a non-arm intent at pre-roll and rolls (only set-queue is legal there)", () => {
+    const wrong: Bot = () => ({ kind: "manage", playerId: "p2", build: {}, mortgage: {} });
+    expect(driveOp(botTurn({}), true, "p1", onlyP2(wrong))).toEqual({ kind: "step" });
+  });
+
+  it("rolls when the bot wants no proactive action (returns null)", () => {
+    const idle: Bot = () => null;
+    expect(driveOp(botTurn({}), true, "p1", onlyP2(idle))).toEqual({ kind: "step" });
+  });
+
+  it("drives a bot manager's managing intermission to its commit", () => {
+    const buildBot: Bot = () => ({
+      kind: "manage", playerId: "p2", build: { 16: 1 }, mortgage: {},
+    });
+    const state = botTurn({ phase: "managing", managerId: "p2" });
+    expect(driveOp(state, true, "p1", onlyP2(buildBot))).toEqual({
+      kind: "intent",
+      intent: { kind: "manage", playerId: "p2", build: { 16: 1 }, mortgage: {} },
+    });
+  });
+
+  it("cancels a bot's managing intermission if its policy stalls (returns null)", () => {
+    const idle: Bot = () => null;
+    const state = botTurn({ phase: "managing", managerId: "p2" });
+    expect(driveOp(state, true, "p1", onlyP2(idle))).toEqual({
+      kind: "intent",
+      intent: { kind: "cancel-manage", playerId: "p2" },
+    });
+  });
+
+  it("drives a bot proposer's trade-building to its draft/propose intents", () => {
+    const proposeBot: Bot = () => ({ kind: "propose-trade", playerId: "p2" });
+    const state = botTurn({
+      phase: "trade-building",
+      tradeDraft: { proposerId: "p2", propertyTo: { 1: "p3" }, gojfTo: {}, cashDelta: {} },
+    });
+    expect(driveOp(state, true, "p1", onlyP2(proposeBot))).toEqual({
+      kind: "intent",
+      intent: { kind: "propose-trade", playerId: "p2" },
+    });
+  });
+
+  it("cancels a bot's trade-building if its policy stalls (returns null)", () => {
+    const idle: Bot = () => null;
+    const state = botTurn({
+      phase: "trade-building",
+      tradeDraft: { proposerId: "p2", propertyTo: {}, gojfTo: {}, cashDelta: {} },
+    });
+    expect(driveOp(state, true, "p1", onlyP2(idle))).toEqual({
+      kind: "intent",
+      intent: { kind: "cancel-trade", playerId: "p2" },
+    });
+  });
+
+  it("never drives a human's intermission, even with a proactive resolver", () => {
+    // managerId p1 is the human seat; the resolver returns null for non-p2, so
+    // the pacer leaves it to the human's UI.
+    const anyBot: Bot = (): Intent => ({ kind: "cancel-manage", playerId: "p1" });
+    const state = withTurn(base, { phase: "managing", managerId: "p1" });
+    expect(driveOp(state, true, "p1", onlyP2(anyBot))).toBeNull();
   });
 });
 

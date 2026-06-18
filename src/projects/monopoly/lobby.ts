@@ -3,6 +3,7 @@ import { shuffleArray } from "@/shared/lib/utils";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
 import { createRng, initialDecks } from "./engine";
 import type {
+  BotStrategy,
   GameState,
   Player,
   PlayerColor,
@@ -50,7 +51,7 @@ export function freshPlayer(args: {
   name: string;
   color: PlayerColor;
   icon: PlayerIcon;
-  isBot: boolean;
+  botStrategy: BotStrategy | null;
 }): Player {
   return {
     ...args,
@@ -114,7 +115,7 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
     name: host.name,
     color: PLAYER_COLORS[0],
     icon: PLAYER_ICONS[0],
-    isBot: false,
+    botStrategy: null,
   });
   const players = [player];
   // Seed the decks from the game's RNG stream, then advance past the shuffle.
@@ -168,7 +169,7 @@ export function joinLobby(state: GameState, profile: PlayerProfile): LobbyResult
     ok: true,
     state: seat(
       state,
-      freshPlayer({ id: profile.id, name: profile.name, color, icon, isBot: false }),
+      freshPlayer({ id: profile.id, name: profile.name, color, icon, botStrategy: null }),
     ),
   };
 }
@@ -193,7 +194,9 @@ export function addBot(state: GameState): LobbyResult {
         name: nextBotName(state),
         color,
         icon,
-        isBot: true,
+        // Picking a strategy in the lobby is deferred until the Claude bot is
+        // real; until then every added bot is the dumb baseline.
+        botStrategy: "dumb",
       }),
     ),
   };
@@ -334,7 +337,7 @@ export function startGame(state: GameState): LobbyResult {
   if (state.players.length < MIN_PLAYERS) {
     return { ok: false, reason: "need at least 2 players" };
   }
-  if (!state.players.some((p) => !p.isBot)) {
+  if (!state.players.some((p) => p.botStrategy === null)) {
     return { ok: false, reason: "need at least one human" };
   }
   const rng = createRng(state.rngState);

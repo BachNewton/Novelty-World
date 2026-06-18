@@ -58,6 +58,13 @@ export type PlayerIcon =
   | "rocket"
   | "bird";
 
+/** Which bot policy controls a computer seat. `dumb` is the baseline reactive
+ *  policy (`bots/dumb.ts`); `claude` is the strong, proactive policy
+ *  (`bots/claude.ts`). Selected per seat and resolved through the bot registry
+ *  (`bots/registry.ts`), so adding a strategy is a registry entry plus a union
+ *  member here. A human seat has no strategy (`Player.botStrategy === null`). */
+export type BotStrategy = "dumb" | "claude";
+
 export interface Player {
   id: string;
   name: string;
@@ -78,11 +85,13 @@ export interface Player {
    *  former assets have been transferred to the creditor (or, eventually,
    *  the bank) at the moment the flag flipped. */
   bankrupt: boolean;
-  /** True for a computer-controlled seat. Drives the networking model: a
-   *  bot's turn (like a disconnected human's) may be driven by any connected
-   *  client, whereas a human's turn is driven only by that human's own
-   *  client. See `driver.ts` and `monopoly/CLAUDE.md` "Multiplayer". */
-  isBot: boolean;
+  /** The bot strategy controlling this seat, or `null` for a human. Non-null
+   *  marks a computer-controlled seat and selects its policy from the bot
+   *  registry (`bots/registry.ts`). It also drives the networking model: a bot's
+   *  turn (like a disconnected human's) may be driven by any connected client,
+   *  whereas a human's turn is driven only by that human's own client. See
+   *  `driver.ts`, `bots/`, and `monopoly/CLAUDE.md`. */
+  botStrategy: BotStrategy | null;
 }
 
 export type CardSource = "chance" | "communityChest";

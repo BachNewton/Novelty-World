@@ -43,7 +43,7 @@ describe("applyDevCommand", () => {
     expect(next.status).toBe("active");
     // The human seat (slot 0) carries over.
     expect(next.players[0].id).toBe("me");
-    expect(next.players[0].isBot).toBe(false);
+    expect(next.players[0].botStrategy).toBeNull();
     expect(Object.keys(next.ownership)).toHaveLength(0);
   });
 

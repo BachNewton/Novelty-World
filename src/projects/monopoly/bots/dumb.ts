@@ -14,33 +14,35 @@ import {
 } from "../logic";
 import type { GameState, Intent, PropertyColor } from "../types";
 
-/** Baseline bot policy: the decision a bot `playerId` should submit right now,
- *  or null if it isn't this bot's move. The store's auto-pacer iterates the bot
- *  seats and submits the first non-null intent; any connected client may proxy
- *  a bot (the route's version guard dedupes the redundant writes). A live
- *  human's own decisions are left to their UI — never to this policy.
+/** The "dumb" bot policy: the decision a bot `playerId` should submit right now,
+ *  or null if it isn't this bot's move. Purely REACTIVE — it answers the decision
+ *  phases the engine pauses on and never initiates (it doesn't build, mortgage
+ *  voluntarily, or propose trades). The pacer iterates the bot seats and submits
+ *  the first non-null intent; any connected client may proxy a bot (the route's
+ *  version guard dedupes the redundant writes). A live human's own decisions are
+ *  left to their UI — never to this policy.
  *
- *  Pure, same shape as the `Bot` interface sketched in `monopoly/CLAUDE.md`, so
- *  a smarter rule-based or learned policy can drop in later. Covers the
- *  proxy-driven decision phases:
+ *  Resolved per seat through `bots/registry.ts`. The contrast strategy is the
+ *  proactive `claudeBot` (`bots/claude.ts`). Covers the proxy-driven decision
+ *  phases:
  *  - `buy-decision`: buy whenever affordable, otherwise decline.
  *  - `auction`: while still in and not the standing leader, raise by
  *    `BID_INCREMENT` if the next bid stays within both the printed price and what
- *    cash covers, else drop. Bots never jam their own lead. v1 placeholder —
- *    TODO: net-worth bidding + real valuation.
+ *    cash covers, else drop. Bots never jam their own lead.
  *  - `must-raise-cash`: if this bot is the current debtor (whoever is in the
  *    red, possibly out of turn after a trade), mortgage the cheapest
  *    un-mortgaged, building-free property — one per call until back to ≥ 0 —
  *    then, once nothing's left to mortgage, sell off a built set's buildings.
- *  - `trade-pending`: if this bot is an un-voted party, accept. v1 placeholder
- *    — permissive, no valuation. TODO: weigh the trade before accepting.
+ *  - `trade-pending`: if this bot is an un-voted party, accept (permissive — no
+ *    valuation).
  *  - `jail-decision`: leave ASAP — a held Get-Out-of-Jail-Free card first (it's
  *    free), else pay the $50 fine when affordable, else `null` so the pacer
  *    issues the jail roll (gamble on doubles).
  *
- *  Mechanical phases (`pre-roll` → step, `post-roll` → end-turn) are handled by
- *  the pacer itself, not here. */
-export function botIntent(state: GameState, playerId: string): Intent | null {
+ *  At `pre-roll` it returns null (no proactive arming), so the pacer simply
+ *  rolls. Mechanical phases (`pre-roll` → step, `post-roll` → end-turn) are
+ *  handled by the pacer itself, not here. */
+export function dumbBot(state: GameState, playerId: string): Intent | null {
   const { phase, pendingBuy, pendingTrade } = state.turn;
 
   if (phase === "jail-decision") {
@@ -78,8 +80,7 @@ export function botIntent(state: GameState, playerId: string): Intent | null {
     const next = auction.highBid + BID_INCREMENT;
     // v1 valuation: never bid above the printed price, and only what cash
     // covers — an estate lot that's still mortgaged also costs the 10% interest
-    // up front. (TODO: net-worth bidding + a real valuation that weighs sets,
-    // railroads, and denying opponents.)
+    // up front.
     const interest =
       auction.resume.kind === "bank-estate" && state.mortgaged[auction.position]
         ? (mortgageInterestAt(auction.position) ?? 0)

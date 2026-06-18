@@ -162,14 +162,39 @@ flavor text.
 ### Bots
 
 ```ts
-type Bot = (state: GameState, playerId: string) => Intent;
+type Bot = (state: GameState, playerId: string) => Intent | null;
 ```
 
-Baseline in `bots/policy.ts` (`botIntent`): pure, returns the intent this bot
-should submit now or `null` if it isn't its move. Covers the proxy-driven
-decision phases (buy, must-raise-cash settling, trade-pending accept). **Bots
-never initiate trades.** Swap in a smarter policy here without touching the
-pacer.
+A bot is one pure function: the intent its seat should submit now, or `null`
+when it has nothing to do. Each seat's strategy is `Player.botStrategy`
+(`BotStrategy | null` — `null` is a human) and is resolved to a policy through
+**`bots/registry.ts`** (`BOTS`). Adding a strategy is a new `BotStrategy` union
+member plus a registry entry. Current strategies:
+
+- **`dumb`** (`bots/dumb.ts`) — the reactive baseline. Answers the proxy-driven
+  decision phases (buy, auction, must-raise-cash settling, trade-pending accept,
+  jail) and never initiates. Returns `null` at `pre-roll`.
+- **`claude`** (`bots/claude.ts`) — intended as a strong, proactive opponent.
+  **Currently a stub that delegates to `dumb`**; the real policy + its planned
+  heuristics live as a TODO in that file.
+
+The pacer (`pacing.ts`) consults a bot policy in three roles: the reactive
+decision phases (some, like an auction bid or a trade vote, can wait on an
+OFF-turn bot); the bot's own `pre-roll`, where the policy may return a
+`set-queue` intent to **proactively arm** a build / trade intermission before
+rolling; and a `managing` / `trade-building` intermission whose actor is a bot,
+which the policy drives to a `manage` / `propose-trade` commit (the pacer
+cancels as a fallback if the policy stalls). The engine is unchanged by all
+this — proactive bot play reuses the same boundary-queue + intermission
+machinery a human uses; only the pacer learned to drive it for a bot.
+
+**Proactive scope + invariants:** a bot acts proactively only on its **own**
+turn (off-turn bot-initiated trades are deferred — they'd need a cross-client
+arming window). A policy must (1) arm at `pre-roll` only when the commit will
+change state — the pacer skips a redundant arm, but a policy that keeps wanting
+a no-op would still spin; and (2) resolve any intermission it armed. The
+proactive path is verified in `pacing.test.ts` against mock policies injected
+through `driveOp`'s resolver (no shipped strategy exercises it yet).
 
 ## Lobby
 
@@ -207,7 +232,7 @@ The model — **server-authoritative, one row per game:**
 - **No host.** The active player's client drives its own turn; **bot or
   disconnected-player turns are driven by any connected client** (the CAS dedupes
   redundant writes). A disconnected human's turn simply waits. Bot-ness is read
-  from `Player.isBot` — no presence tracking.
+  from `Player.botStrategy` (non-null = a bot) — no presence tracking.
 
 **Optimistic reconcile (client) — rebase, never drop.** A local intent is applied
 to the display head instantly (`predict`) and queued in an `outbox`, then flushed
@@ -268,7 +293,9 @@ reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox
 store.ts      Zustand store, "use client", route client + playback pump
 mocks.ts      MOCK_STATE fixture + freshGame seed
 dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
-bots/policy.ts        botIntent baseline policy
+bots/registry.ts      Bot type + BOTS strategy map (botStrategy -> policy)
+bots/dumb.ts          dumb (reactive baseline) policy
+bots/claude.ts        claude policy (stub -> dumb; TODO real strategy)
 components/           React board + lobby/seat UI
 ```
 

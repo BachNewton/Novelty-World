@@ -1,4 +1,4 @@
-import { botIntent } from "./bots/policy";
+import { BOTS, type Bot } from "./bots/registry";
 import { driverRole } from "./driver";
 import type { GameState, Intent } from "./types";
 
@@ -54,17 +54,69 @@ export interface Snapshot {
  *  decision `intent` proxied for a bot seat. */
 export type DriveOp = { kind: "step" } | { kind: "intent"; intent: Intent };
 
+/** Resolve the bot policy for a seat, or null if the seat isn't a bot. Injected
+ *  into `turnOp` / `driveOp` (defaulting to the strategy registry) so a test can
+ *  supply a policy that exercises the proactive path without standing up a real
+ *  bot strategy. */
+export type BotResolver = (state: GameState, playerId: string) => Bot | null;
+
+const registryBot: BotResolver = (state, playerId) => {
+  const p = state.players.find((pl) => pl.id === playerId);
+  return p && p.botStrategy !== null ? BOTS[p.botStrategy] : null;
+};
+
+/** Whether a `set-queue` arm would be a no-op against the current queue (the
+ *  bot is already armed / already not armed for that kind). The engine treats
+ *  the redundant arm as an idempotent no-op, but submitting it still bumps the
+ *  version and re-triggers the drive — so an already-armed bot would spin.
+ *  Skipping it lets the pacer fall through to `step`, which is what drains the
+ *  armed queue into its intermission. */
+function isNoOpArm(
+  state: GameState,
+  intent: Extract<Intent, { kind: "set-queue" }>,
+): boolean {
+  const present = state.boundaryQueue.some(
+    (e) => e.playerId === intent.playerId && e.kind === intent.queue,
+  );
+  return intent.armed === present;
+}
+
 /** The bare turn op for a state, ignoring playback position: the mechanical
  *  beat for the active seat (`pre-roll` → step, `post-roll` → end-turn) when
- *  this client drives it, or the first bot decision a proxied seat owes. A
- *  human's own decisions (buy, raise-cash, trade) are left to their UI, so
- *  this returns null for them. Mirrors the old in-store `pacerOp`. */
-function turnOp(state: GameState, myPlayerId: string | null): DriveOp | null {
+ *  this client drives it, or the intent a proxied BOT seat owes. A bot policy is
+ *  consulted in three roles:
+ *  - its reactive decision phases (`buy-decision`, `auction`, `must-raise-cash`,
+ *    `trade-pending`, `jail-decision`), some of which can wait on an OFF-turn
+ *    bot (a bidder, a trade debtor, a vote);
+ *  - its own `pre-roll`, where the policy may PROACTIVELY arm a boundary action
+ *    (build / propose-trade) via a `set-queue` intent before rolling;
+ *  - a `managing` / `trade-building` intermission whose actor is a bot, which
+ *    the policy drives to a commit (cancelling as a fallback).
+ *  A human's own decisions (buy, raise-cash, manage, trade) are left to their
+ *  UI, so this returns null for them. */
+function turnOp(
+  state: GameState,
+  myPlayerId: string | null,
+  botFor: BotResolver,
+): DriveOp | null {
   if (state.status !== "active") return null;
   const { phase, playerId } = state.turn;
 
   if (phase === "pre-roll") {
-    return driverRole(state, myPlayerId) === "none" ? null : { kind: "step" };
+    const role = driverRole(state, myPlayerId);
+    if (role === "none") return null;
+    // A bot's own pre-roll: let its policy arm a boundary action before rolling.
+    // Only a `set-queue` arm is honored here (the one proactive move legal at
+    // pre-roll), and only when it actually changes the queue. Off-turn
+    // bot-initiated actions are out of scope — only the active bot is consulted.
+    if (role === "proxy") {
+      const bot = botFor(state, playerId);
+      const arm = bot ? bot(state, playerId) : null;
+      if (arm && arm.kind === "set-queue" && !isNoOpArm(state, arm)) {
+        return { kind: "intent", intent: arm };
+      }
+    }
+    return { kind: "step" };
   }
   if (phase === "post-roll") {
     return driverRole(state, myPlayerId) === "none"
@@ -76,7 +128,8 @@ function turnOp(state: GameState, myPlayerId: string | null): DriveOp | null {
     // proxied (bot / disconnected) seat is driven here: pay or use a card per
     // the policy, else step the jail roll (the policy returns null for "roll").
     if (driverRole(state, myPlayerId) !== "proxy") return null;
-    const intent = botIntent(state, playerId);
+    const bot = botFor(state, playerId);
+    const intent = bot ? bot(state, playerId) : null;
     return intent ? { kind: "intent", intent } : { kind: "step" };
   }
   if (
@@ -87,12 +140,35 @@ function turnOp(state: GameState, myPlayerId: string | null): DriveOp | null {
   ) {
     // These phases can wait on an OFF-turn seat (the current bidder, a debtor
     // after a trade, a vote), so iterate every bot rather than only the active
-    // one. `botIntent` returns null unless this bot is the one being waited on.
+    // one. A bot policy returns null unless this bot is the one being waited on.
     for (const p of state.players) {
-      if (!p.isBot) continue;
-      const intent = botIntent(state, p.id);
+      const bot = botFor(state, p.id);
+      if (!bot) continue;
+      const intent = bot(state, p.id);
       if (intent) return { kind: "intent", intent };
     }
+    return null;
+  }
+  // A boundary intermission whose ACTOR is a bot — drive it to a commit. A
+  // human's own intermission (actor not a bot) is driven by their UI, so this
+  // returns null for it. A bot that armed an intermission must resolve it; if
+  // its policy returns null (a not-yet-implemented or misbehaving policy),
+  // cancel rather than wedge the game by stalling the phase forever.
+  if (phase === "managing") {
+    const actor = state.turn.managerId;
+    if (actor === undefined) return null;
+    const bot = botFor(state, actor);
+    if (!bot) return null;
+    const intent = bot(state, actor) ?? { kind: "cancel-manage", playerId: actor };
+    return { kind: "intent", intent };
+  }
+  if (phase === "trade-building") {
+    const actor = state.turn.tradeDraft?.proposerId;
+    if (actor === undefined) return null;
+    const bot = botFor(state, actor);
+    if (!bot) return null;
+    const intent = bot(state, actor) ?? { kind: "cancel-trade", playerId: actor };
+    return { kind: "intent", intent };
   }
   return null;
 }
@@ -115,9 +191,10 @@ export function driveOp(
   playHead: GameState,
   caughtUp: boolean,
   myPlayerId: string | null,
+  botFor: BotResolver = registryBot,
 ): DriveOp | null {
   if (!caughtUp) return null;
-  return turnOp(playHead, myPlayerId);
+  return turnOp(playHead, myPlayerId, botFor);
 }
 
 /** Which animation a snapshot-to-snapshot transition reads as on screen. */
