@@ -520,6 +520,13 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const { profile } = get();
       if (!profile) return;
       predictLobby({ type: "join", profile });
+      // Claim our seat id optimistically so the color/token pickers (gated on
+      // myPlayerId) appear with the seat instead of after the round-trip. Only
+      // when the seat actually took — a locally-illegal join isn't predicted, and
+      // applyStateUpdate re-derives (or clears) myPlayerId once the row confirms.
+      if (get().state.players.some((p) => p.id === profile.id)) {
+        set({ myPlayerId: profile.id });
+      }
     },
 
     addBot: () => {
