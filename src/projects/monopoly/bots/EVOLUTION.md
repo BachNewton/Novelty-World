@@ -304,26 +304,43 @@ The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
 and benefits every version and human play.
 
-**Next — continue the loop to v4 (no greenlight required):**
+**Next — TWO sessions, in order (decided 2026-06-19 with Kyle):**
 
-- **Base + lead.** Per the strict win-share bar the champion is **v2**. But the
-  gauntlet now clears v3 as a *safe* base: it **ties v2 and beats v1 by v2's own
-  ~70% margin** (no regression against the field), while strictly removing the cap
-  defect the methodology wants gone — and decisive games are a *cleaner
-  measurement substrate* (v2's ~17% draws are no-results that dilute every A/B and
-  make SPRT/Elo unusable). **Recommendation: branch v4 from v3.** The remaining
-  argument for v2 is purely "hold the literal bar"; the substance favors v3. (Kyle
-  leaning toward v3 as the base as of this writing.)
-- **Hypothesis (a lead, judge it):** chase **asymmetry / tempo**, since pure
-  decisiveness proved win-neutral. Strongest candidates: **mortgage-to-fund a
-  build/sweetener** (roadmap #2 in `bots/CLAUDE.md` — hotel your prize set a turn
-  *sooner* than rivals can answer; a clean tempo edge, orthogonal to trading), or
-  **trade-to-deny** (extend v3's N-way search to *block* a rival's completion, not
-  only complete your own — denial is already a `positionValue` lever via
-  `DENY_FACTOR`, but only fires on landing/auction today, never in construction).
-- Still to size when the loop goes automated (per "Measurement"): the SPRT bounds
-  (Elo0/Elo1, α/β) and a wider gauntlet — the current eval is a fixed-N
-  proportion test on a held-out pool, not yet SPRT/Elo.
+**Session A — build the measurement system FIRST, before any v4 bot change.** The
+loop has reached the point where the *ruler*, not the bot, is the bottleneck: the
+v3≈v2 tie is unresolvable at fixed-N (120 seeds only sees effects >~6%), the next
+hypotheses are marginal (±2–3%), and the v3-vs-v1 run was painfully slow on **one
+core of a 16-core machine**. Fix the ruler before cutting more wood. Scope:
+
+- **CPU parallelism (`worker_threads`).** Games are pure, deterministic functions
+  of (seed, seating), so distribute them across a pool of ~14–15 workers (16
+  logical cores; leave 1–2 for the main thread/OS). Reproducible regardless of
+  worker assignment. This is the listed "parallelize across workers" TODO; it
+  turns the ~30-min run into ~2 min and is what makes SPRT's game volume practical.
+- **Gauntlet runner.** A candidate plays the whole **field** (v1 … latest), not
+  just its predecessor; require *"improves vs base, regresses against none."*
+  **Floor is v1. NEVER gauntlet `dumb`** — null bot, measures nothing.
+- **SPRT** (sequential test) in Elo terms: H0 = Elo0, H1 = Elo1, error rates α/β;
+  stop the instant the log-likelihood ratio crosses accept/reject. Decide how a
+  **draw** (capped, no-result) enters the test — with v3's ~0% cap among real
+  bots, discarding draws is defensible; document the choice.
+- **Elo rating** vs the field, so "champion" = highest Elo (robust to
+  non-transitivity), not "beat the last guy".
+- Still to **size** (per "Measurement" / "Decisions"): SPRT bounds (Elo0/Elo1,
+  α/β) and the practice-vs-held-out seed split. Validate the new tooling by
+  reproducing the known results (v2 ≫ v1, v3 ≈ v2, v3 > v1) before trusting it.
+  This session ships *infrastructure* — it creates no new `vX`, so the version log
+  is untouched; update "Measurement"/"Decisions" here instead.
+
+**Session B — then build v4 from v3**, measured with the new system. v3 is the
+gauntlet-cleared base (ties v2, beats v1 by v2's margin, decisive games = cleaner
+substrate). **Lead (judge it):** chase **asymmetry / tempo**, since pure
+decisiveness proved win-neutral — strongest is **mortgage-to-fund a
+build/sweetener** (roadmap #2 in `bots/CLAUDE.md`: hotel your prize set a turn
+*sooner* than rivals can answer — a clean tempo edge, orthogonal to trading), or
+**trade-to-deny** (extend v3's N-way search to *block* a rival's completion, not
+only complete your own — denial is a `positionValue` lever via `DENY_FACTOR` that
+today fires only on landing/auction, never in construction).
 
 **Independently, whenever a human greenlights shipping `vX` to the live bot:**
 archive the outgoing live policy as its own snapshot first (e.g. `versions/v1/`
