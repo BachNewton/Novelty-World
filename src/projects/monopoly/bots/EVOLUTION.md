@@ -169,9 +169,11 @@ objective.)
 
 This is a solved problem in a neighboring field: **computer-chess engine testing**
 (e.g. Stockfish's "fishtest"), and we borrow it wholesale. Each version carries an
-**Elo rating** earned against a **gauntlet** — the field of past champions plus
-`dumb` as a floor — not just its immediate predecessor, which is what makes the
-rating robust to non-transitivity. To decide whether a candidate is actually
+**Elo rating** earned against a **gauntlet** — the field of past champions, with
+**v1 as the floor** — not just its immediate predecessor, which is what makes the
+rating robust to non-transitivity. (**Never gauntlet against `dumb`:** it is a
+null/reactive stub, not a strategy — it initiates nothing, so "beating dumb"
+measures nothing about strategic strength. v1 is the real floor of the field.) To decide whether a candidate is actually
 stronger, use a **sequential test (SPRT)**: keep playing until the evidence
 crosses an accept-or-reject boundary at controlled error rates, instead of fixing
 a game count up front. SPRT answers "how many games?" on its own — strong changes
@@ -194,8 +196,9 @@ On top of that, the guardrails:
   chance. Require a real margin, and re-validate winners.
 - **Evaluate against a field, not just the predecessor.** Strategy strength is
   **non-transitive** (v3 can beat v2, v2 beat v1, yet v3 lose to v1). Score a
-  candidate against a *gauntlet* of past champions (plus `dumb` as a floor), so
-  "champion" means generally strong, not just "exploits the last guy".
+  candidate against a *gauntlet* of past champions, **floored at v1** (not `dumb`,
+  which is a null bot and measures nothing), so "champion" means generally strong,
+  not just "exploits the last guy".
 - **Mind the sample geometry.** Deterministic bots mean a given (seed, seating)
   is one fixed game; with 2+2 identical seats there are only 6 distinct seatings
   per seed, so variety comes mostly from **many seeds**.
@@ -288,6 +291,14 @@ and **rejected** (win-neutral). The live bot is unchanged (v1).
    wins. Symmetric set-completion (both sides can now do it) is a wash. **To gain
    win share, a change must create ASYMMETRY** — out-develop, deny, or out-tempo
    the opponent — not merely make more deals happen.
+4. **Gauntlet check — v3 does NOT regress against the field.** `v3 vs v1` = **70.2%**
+   win share (33–14, z≈2.8) on fresh seeds — the *same ~70% margin v2 holds over
+   v1*. So v3 ties v2 and beats v1 by v2's margin: no non-transitivity trap, v3 is
+   at least as strong as v2 against the whole field. Note v3-vs-v1 still caps ~22%
+   — but that's **v1 *refusing* to trade** (its hard veto: 536 declined offers vs
+   115 executed), not v3 going passive; when v3's opponents can deal (v2), caps go
+   to 0%. (Floor is v1; **`dumb` is a null bot and is never gauntleted** — see
+   "Measurement".)
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
@@ -295,12 +306,14 @@ and benefits every version and human play.
 
 **Next — continue the loop to v4 (no greenlight required):**
 
-- **Base + lead.** Per the strict bar the champion is **v2**, so the canonical
-  branch is **v4 from v2**. But v3's N-way+apportionment is a *proven, win-safe,
-  cap-killing* building block — strongly consider **branching v4 from v3** so the
-  next change is tested on *decisive* games (v2's ~17% draws otherwise dilute every
-  A/B). Flagging this as a judgement call for Kyle: promote v3 as the working base
-  on decisiveness grounds, or hold the win-share bar and branch from v2.
+- **Base + lead.** Per the strict win-share bar the champion is **v2**. But the
+  gauntlet now clears v3 as a *safe* base: it **ties v2 and beats v1 by v2's own
+  ~70% margin** (no regression against the field), while strictly removing the cap
+  defect the methodology wants gone — and decisive games are a *cleaner
+  measurement substrate* (v2's ~17% draws are no-results that dilute every A/B and
+  make SPRT/Elo unusable). **Recommendation: branch v4 from v3.** The remaining
+  argument for v2 is purely "hold the literal bar"; the substance favors v3. (Kyle
+  leaning toward v3 as the base as of this writing.)
 - **Hypothesis (a lead, judge it):** chase **asymmetry / tempo**, since pure
   decisiveness proved win-neutral. Strongest candidates: **mortgage-to-fund a
   build/sweetener** (roadmap #2 in `bots/CLAUDE.md` — hotel your prize set a turn
