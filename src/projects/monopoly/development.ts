@@ -374,21 +374,37 @@ function simulateGroup(
       continue;
     }
 
-    // Stuck: the only remaining progress is a hotel breakdown the bank can't
-    // fund. Escape — but only if the group hasn't already started breaking
-    // down (otherwise liquidating the survivors would leave it uneven).
-    const hotelsToDrop = positions.filter(
+    // Stuck: a hotel breakdown the bank can't fund blocks all further selling.
+    // The official shortage rule lets a player always sell buildings back for
+    // cash, so escape by liquidating every member that still needs to come down
+    // straight to a bare lot — hotels return to the bank, houses return as
+    // houses — then let the rebuild phase climb back to any non-zero target.
+    //
+    // This must also rescue a set that PARTIALLY broke down before stranding:
+    // selling a three-hotel set with only enough bank houses to break two of
+    // them leaves [4,4,5] with an empty bank, where the all-still-hotel form of
+    // the escape no longer fits. Liquidating the already-broken house members to
+    // bare alongside the surviving hotel reaches the (pre-validated even) target.
+    // Without it a heavily-developed forced settler would be frozen into a false
+    // bankruptcy while still holding sellable buildings.
+    const hotelBlocking = positions.some(
       (pos) => levels.get(pos) === 5 && targets.get(pos)! < 5,
     );
-    const everyDownTargetStillHotel = positions.every(
-      (pos) => targets.get(pos)! >= levels.get(pos)! || levels.get(pos) === 5,
-    );
-    if (allowEscape && hotelsToDrop.length > 0 && everyDownTargetStillHotel) {
-      for (const pos of hotelsToDrop) {
-        const refund = (buildingRefundAt(pos) ?? 0) * 5;
-        steps.push({ kind: "liquidate", position: pos, refund });
+    const toLiquidate = positions.filter((pos) => levels.get(pos)! > targets.get(pos)!);
+    if (allowEscape && hotelBlocking && toLiquidate.length > 0) {
+      for (const pos of toLiquidate) {
+        const level = levels.get(pos)!;
+        const refundUnit = buildingRefundAt(pos) ?? 0;
+        if (level === 5) {
+          // A hotel sells back as five tiers and returns the hotel to the bank.
+          steps.push({ kind: "liquidate", position: pos, refund: refundUnit * 5 });
+          bank.hotels += 1;
+        } else {
+          // Already-broken houses sell back in one shot, returning to the bank.
+          steps.push({ kind: "sell", position: pos, toLevel: 0, refund: refundUnit * level });
+          bank.houses += level;
+        }
         levels.set(pos, 0);
-        bank.hotels += 1;
       }
       usedEscape = true;
       continue;

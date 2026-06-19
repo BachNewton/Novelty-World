@@ -346,8 +346,19 @@ bots/dumb.ts          dumb (reactive baseline) policy
 bots/claude.ts        claude policy: phase dispatcher + reasoning notes
 bots/valuation.ts     claude scoring: positionValue, buy / build / jail / liquidation
 bots/trades.ts        claude trade construction + evaluation
+bots/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
+bots/simulate-cli.ts  `npm run sim` — watch one game (roster, seed, --log)
+bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
+bots/versus-cli.ts    `npm run sim:versus -- v2 v1` — run the A/B over many seeds
+bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots
+bots/versions/index.ts  VERSIONS map (v1 = live champion, v2, dumb) + versionBot()
+bots/versions/v2/     v2 candidate snapshot (claude/valuation/trades + its tests)
 components/           React board + lobby/seat UI
 ```
+
+The Claude-bot **evolution** process (how versions are proposed, isolated, and
+A/B-tested to a locked-in champion) lives in `bots/EVOLUTION.md`; read it before
+adding a version or touching the simulator/tournament.
 
 ## Testing
 

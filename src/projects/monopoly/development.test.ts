@@ -274,6 +274,32 @@ describe("planDevelopment — hotel shortage escape", () => {
     expect(plan.notes).toEqual([{ color: "orange", kind: "shortage-liquidation" }]);
   });
 
+  it("liquidates a three-hotel set to bare even when partial breakdown strands it", () => {
+    // Regression: selling a three-hotel set to vacant with only 8 free houses.
+    // The bank can fund breaking the first TWO hotels into houses (4 each = 8),
+    // which strands the third — and once two members have broken down to 4 the
+    // all-still-hotel escape no longer applies. A heavily-developed forced
+    // settler must still be able to sell its hotels for cash, never frozen into
+    // a false bankruptcy while holding sellable buildings.
+    const state = makeState({
+      ownership: own(ORANGES, "p1"),
+      houses: { ...drainHousesTo(8), 16: 5, 18: 5, 19: 5 },
+    });
+    const plan = planDevelopment(state, "p1", { 16: 0, 18: 0, 19: 0 });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    // Whatever the path, all 15 tiers sell back at half: 15 * $50 = $750.
+    expect(plan.netCash).toBe(750);
+    expect(plan.notes).toContainEqual({ color: "orange", kind: "shortage-liquidation" });
+    // Every orange ends bare (a sell/liquidate step to level 0 on each).
+    for (const pos of ORANGES) {
+      const last = [...plan.steps].reverse().find((s) => s.position === pos);
+      expect(last).toBeDefined();
+      const endLevel = last?.kind === "liquidate" ? 0 : last?.toLevel;
+      expect(endLevel).toBe(0);
+    }
+  });
+
   it("liquidates then rebuilds to an intermediate target under shortage", () => {
     const state = makeState({
       ownership: own(ORANGES, "p1"),

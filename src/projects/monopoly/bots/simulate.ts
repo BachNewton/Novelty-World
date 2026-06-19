@@ -1,6 +1,6 @@
 import { apply, autoStep } from "../engine";
 import { freshGame } from "../mocks";
-import { driveOp } from "../pacing";
+import { driveOp, type BotResolver } from "../pacing";
 import type {
   BotStrategy,
   GameEvent,
@@ -8,6 +8,7 @@ import type {
   Intent,
   PlayerCount,
 } from "../types";
+import { BOTS, type Bot } from "./registry";
 import { positionValue } from "./valuation";
 
 /** A headless game driver: it plays a full Monopoly game in-process with no UI,
@@ -20,7 +21,16 @@ import { positionValue } from "./valuation";
  *  This is the engine behind the `npm run sim` script (`simulate-cli.ts`): watch
  *  the bots actually play, and see how the policy behaves over a real game. Pure
  *  and deterministic — a seed fully determines the game — so it's reproducible
- *  and reusable (e.g. a future win-rate tournament across many seeds). */
+ *  and reusable (e.g. the win-rate tournament across many seeds in `tournament.ts`).
+ *
+ *  Two ways to seat the table:
+ *  - `strategies` — a roster of registry `BotStrategy` names (`claude` / `dumb`),
+ *    the original API the CLI uses;
+ *  - `seats` — explicit per-seat `Contender`s, each a labelled `Bot`. This is the
+ *    head-to-head path: it lets two *specific versions* (e.g. the v1 champion and
+ *    a v2 candidate) share one table. The bots are injected per seat via the
+ *    pacer's `botFor` resolver; every seat still carries a non-null `botStrategy`
+ *    marker so `driverRole` proxies it exactly as a registry bot. */
 
 const DEFAULT_STRATEGIES: readonly BotStrategy[] = [
   "claude",
@@ -29,11 +39,44 @@ const DEFAULT_STRATEGIES: readonly BotStrategy[] = [
   "claude",
 ];
 
+/** One seat in a head-to-head table: a `Bot` policy plus a `label` used for
+ *  reporting (e.g. "v1", "v2"). The label need not be a registry strategy — it's
+ *  just how this seat's wins are tallied. */
+export interface Contender {
+  label: string;
+  bot: Bot;
+}
+
+/** A seat resolved to everything the sim needs: its reporting `label`, the
+ *  `marker` stored in `Player.botStrategy` (any non-null value makes the engine
+ *  proxy the seat), and the `bot` the injected resolver actually consults. */
+interface ResolvedSeat {
+  label: string;
+  marker: BotStrategy;
+  bot: Bot;
+}
+
+/** Resolve `seats` (explicit contenders) or `strategies` (registry roster) into
+ *  the uniform per-seat shape the sim drives. `seats` wins when both are given.
+ *  A contender seat takes the `claude` marker purely so the engine proxies it;
+ *  the marker never selects the policy — the injected `botFor` does. */
+function resolveSeats(opts: SimOptions): ResolvedSeat[] {
+  if (opts.seats && opts.seats.length > 0) {
+    return opts.seats.map((c) => ({ label: c.label, marker: "claude", bot: c.bot }));
+  }
+  const strategies = opts.strategies ?? DEFAULT_STRATEGIES;
+  return strategies.map((s) => ({ label: s, marker: s, bot: BOTS[s] }));
+}
+
 /** A seat's final position in a finished (or capped) game. */
 export interface Standing {
   id: string;
   name: string;
   strategy: BotStrategy | null;
+  /** Reporting label for the policy this seat played — the `Contender.label`
+   *  for an explicit seat, or the strategy name for a registry roster. This is
+   *  what win-share is tallied by; `strategy` is only the engine proxy marker. */
+  label: string;
   bankrupt: boolean;
   cash: number;
   /** `positionValue` at the final state — the bot's own yardstick for worth. */
@@ -87,9 +130,14 @@ export interface SimResult {
 export interface SimOptions {
   /** RNG seed — fully determines the game. Defaults to "sim-1". */
   seed?: string;
-  /** Per-seat bot strategies; its length (2, 4, or 8) sets the player count.
-   *  Defaults to four Claude bots. */
+  /** Per-seat bot strategies (registry roster); its length (2, 4, or 8) sets the
+   *  player count. Defaults to four Claude bots. Ignored when `seats` is set. */
   strategies?: readonly BotStrategy[];
+  /** Explicit per-seat contenders for a head-to-head table — supersedes
+   *  `strategies`. Length (2, 4, or 8) sets the player count. Each seat's `bot`
+   *  is injected via the pacer's `botFor`, so two specific versions can share a
+   *  table while every seat is still proxied like a registry bot. */
+  seats?: readonly Contender[];
   /** Hard safety cap on driver ops, so a policy regression that fails to
    *  terminate aborts loudly instead of hanging. */
   maxSteps?: number;
@@ -122,16 +170,25 @@ function toPlayerCount(n: number): PlayerCount {
   throw new Error(`unsupported player count ${n} (use 2, 4, or 8)`);
 }
 
-/** A fresh game with every seat assigned a bot strategy (overriding freshGame's
- *  human slot 0), so the whole table is proxy-driven. */
-function seatAllBots(seed: string, strategies: readonly BotStrategy[]): GameState {
-  const count = toPlayerCount(strategies.length);
+/** Stand up a fresh game seated entirely with bots (overriding freshGame's human
+ *  slot 0), plus the `botFor` resolver that maps each seat to its `Bot` and a
+ *  label lookup for reporting. Every seat carries a non-null `botStrategy` marker
+ *  so `driverRole` proxies it; which policy actually runs is decided by `botFor`,
+ *  not the marker — that's what lets two specific versions share the table. */
+function setupGame(
+  seed: string,
+  seats: readonly ResolvedSeat[],
+): { state: GameState; botFor: BotResolver; labelById: Map<string, string> } {
+  const count = toPlayerCount(seats.length);
   const base = freshGame(seed, undefined, count);
   const players = base.players.map((p, i) => ({
     ...p,
-    botStrategy: strategies[i],
+    botStrategy: seats[i].marker,
   }));
-  return { ...base, players };
+  const botById = new Map(players.map((p, i) => [p.id, seats[i].bot]));
+  const labelById = new Map(players.map((p, i) => [p.id, seats[i].label]));
+  const botFor: BotResolver = (_state, playerId) => botById.get(playerId) ?? null;
+  return { state: { ...base, players }, botFor, labelById };
 }
 
 function applyOrThrow(state: GameState, intent: Intent): GameState {
@@ -169,6 +226,7 @@ function allEvents(state: GameState): readonly GameEvent[] {
 function buildStandings(
   state: GameState,
   eliminations: readonly Elimination[],
+  labelById: Map<string, string>,
 ): Standing[] {
   const elimOrder = new Map<string, number>();
   eliminations.forEach((e, i) => elimOrder.set(e.debtor, i));
@@ -177,6 +235,7 @@ function buildStandings(
       id: p.id,
       name: p.name,
       strategy: p.botStrategy,
+      label: labelById.get(p.id) ?? p.botStrategy ?? "human",
       bankrupt: p.bankrupt,
       cash: p.cash,
       netWorth: positionValue(state, p.id),
@@ -193,11 +252,11 @@ function buildStandings(
 /** Play one game to completion (or a safety cap) and report the outcome. */
 export function simulateGame(opts: SimOptions = {}): SimResult {
   const seed = opts.seed ?? "sim-1";
-  const strategies = opts.strategies ?? DEFAULT_STRATEGIES;
   const maxSteps = opts.maxSteps ?? 200_000;
   const maxTurns = opts.maxTurns ?? 5_000;
 
-  let state = seatAllBots(seed, strategies);
+  const { state: initial, botFor, labelById } = setupGame(seed, resolveSeats(opts));
+  let state = initial;
   let steps = 0;
   let reason = "game-over";
 
@@ -211,7 +270,7 @@ export function simulateGame(opts: SimOptions = {}): SimResult {
       reason = `step cap (${maxSteps}) exceeded`;
       break;
     }
-    const op = driveOp(state, true, null);
+    const op = driveOp(state, true, null, botFor);
     if (op === null) {
       reason = `stalled: no drive op at phase "${state.turn.phase}"`;
       break;
@@ -259,7 +318,7 @@ export function simulateGame(opts: SimOptions = {}): SimResult {
     steps,
     winnerId,
     winnerName: winner?.name ?? null,
-    standings: buildStandings(state, eliminations),
+    standings: buildStandings(state, eliminations, labelById),
     eliminations,
     eventCounts,
     highlights,
@@ -278,7 +337,7 @@ export function formatResult(r: SimResult): string {
   r.standings.forEach((s, i) => {
     const tag = s.bankrupt ? "bankrupt" : `$${s.cash} cash`;
     lines.push(
-      `  ${i + 1}. ${s.name} [${s.strategy ?? "human"}] — ` +
+      `  ${i + 1}. ${s.name} [${s.label}] — ` +
         `net worth $${s.netWorth}, ${tag}`,
     );
   });

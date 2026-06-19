@@ -205,24 +205,40 @@ filled in as versions are locked; v1 = the bot as of this doc.)
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
+| v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | candidate — **awaiting human green-light** |
 
 ## Status & next step
 
-**As of 2026-06-19:** plan locked and written down; the headless sim
-(`npm run sim`) is in. v1 is the champion. Nothing is wired for A/B yet.
+**As of 2026-06-19:** the v2 candidate is built, isolated, and evaluated; it is
+**not promoted** — production `claude` (= v1) is untouched, pending a human green
+light. What landed:
 
-**Next — implement the v2 candidate:**
+1. **v2 isolated** in `bots/versions/v2/` (self-contained snapshot of
+   `claude.ts` / `valuation.ts` / `trades.ts`; the `Bot` contract stays shared).
+   `versions/index.ts` is the version archive (`v1` references the live champion
+   directly, `v2`, `dumb`); `v2/trades.test.ts` pins the hypothesis.
+2. **Sim generalized for head-to-head** — `simulateGame` takes per-seat
+   `Contender`s and injects a per-seat `botFor`; `tournament.ts` /
+   `npm run sim:versus -- v2 v1` runs the A/B (cycled seatings, win share vs the
+   50% null, cap rate as a health metric). Self-play (`v1 v1`) sanity-checks ~50%.
+3. **Hypothesis applied and validated** — the pricing change fires the
+   cash-for-completer deal; games close out in bankruptcy (cap rate down sharply)
+   and v2 wins ~70% of decisive games on held-out seeds. Pricing **alone** was
+   enough — the 2-short / N-way extension was **not needed** and stays on the
+   roadmap (`bots/CLAUDE.md`).
 
-1. Isolate it in `bots/versions/v2/` as a self-contained copy, so production
-   `claude` stays untouched and undeployed until a human green-lights a promotion.
-2. Generalize the sim to pit specific versions head-to-head (inject a per-seat
-   `botFor`; seats stay `botStrategy`-non-null so `driverRole` proxies them).
-3. Apply **one** hypothesis: *price the rival-monopoly threat instead of vetoing
-   it* (`trades.ts` — the `RIVAL_TOLERANCE` veto and the `proposeBestTrade`
-   counterparty model), so "cash for the completer" becomes a live deal.
-4. Practice on a *fixed* seed (confirm the trades fire and 4 bots reach a
-   bankruptcy, not the cap), then eval on *fresh* held-out seeds.
+Surfaced and fixed along the way: a latent **engine** bug (shared
+`development.ts`, not a policy) where a heavily-developed forced settler could be
+frozen into a false bankruptcy — the hotel-shortage liquidation escape didn't
+fire once a set had *partially* broken down. v2's frequent monopolies exposed it;
+generalized the escape (regression test in `development.test.ts`). This is shared
+rules infrastructure, so it benefits v1 and human play too.
 
-If pricing alone doesn't fire enough trades — nobody may be exactly one lot short
-in 4-handed play — extend toward trading for 2-short sets / N-way, driven by what
-the sim shows, not assumption.
+**Next — the green-light decision, then the next cycle:**
+
+- If promoting v2: copy `versions/v2/` over the production `claude` policy
+  (`claude.ts` / `valuation.ts` / `trades.ts`), keep the v2 snapshot archived,
+  and mark v2 champion in the log above.
+- Then start v3 vs v2. Still to size when the loop goes automated (per
+  "Measurement"): the SPRT bounds (Elo0/Elo1, α/β) and a wider gauntlet — the
+  current eval is a fixed-N proportion test on a held-out pool, not yet SPRT/Elo.
