@@ -205,13 +205,24 @@ filled in as versions are locked; v1 = the bot as of this doc.)
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
-| v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | candidate — **awaiting human green-light** |
+| v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | **loop champion** (current best; not yet the live bot) |
 
 ## Status & next step
 
-**As of 2026-06-19:** the v2 candidate is built, isolated, and evaluated; it is
-**not promoted** — production `claude` (= v1) is untouched, pending a human green
-light. What landed:
+**Two independent tracks — don't conflate them:**
+
+- **The loop champion** — the latest validated `vX` (currently **v2**). The
+  improvement loop advances this on its own: v2 → v3 → v4 …, each branching from
+  the prior best. **No human greenlight is needed to bump versions** — that's
+  just Claude Code continuing to make the bot stronger.
+- **The live/official bot** — `bots/claude.ts` in `registry.ts`, the one shipped
+  in the game, picked by the UI, played by humans. It changes **only** on a human
+  **greenlight** ("ship vX into the game"), which is a separate, deliberate, rare
+  decision — *not* a precondition for continuing the loop. Today the live bot is
+  still v1.
+
+**As of 2026-06-19:** the loop has reached **v2** (the new loop champion); the
+live bot is unchanged (v1). What landed:
 
 1. **v2 isolated** in `bots/versions/v2/` (self-contained snapshot of
    `claude.ts` / `valuation.ts` / `trades.ts`; the `Bot` contract stays shared).
@@ -234,11 +245,22 @@ fire once a set had *partially* broken down. v2's frequent monopolies exposed it
 generalized the escape (regression test in `development.test.ts`). This is shared
 rules infrastructure, so it benefits v1 and human play too.
 
-**Next — the green-light decision, then the next cycle:**
+**Next — continue the loop to v3 (no greenlight required):**
 
-- If promoting v2: copy `versions/v2/` over the production `claude` policy
-  (`claude.ts` / `valuation.ts` / `trades.ts`), keep the v2 snapshot archived,
-  and mark v2 champion in the log above.
-- Then start v3 vs v2. Still to size when the loop goes automated (per
-  "Measurement"): the SPRT bounds (Elo0/Elo1, α/β) and a wider gauntlet — the
-  current eval is a fixed-N proportion test on a held-out pool, not yet SPRT/Elo.
+- Branch **v3 from v2** (the loop champion): snapshot `versions/v3/` from
+  `versions/v2/`, apply one new hypothesis, A/B `v3` vs `v2` on fresh held-out
+  seeds via `npm run sim:versus -- v3 v2`. Leading candidates from the roadmap in
+  `bots/CLAUDE.md`: **N-way / 2-short trade construction** (v2 still only trades
+  when someone is *exactly* one lot short) and **mortgage-to-fund** a build or
+  sweetener. The eval's high *declined*-trade count (v2 offering the still-vetoing
+  v1 deals it won't take) is another signal worth mining.
+- Still to size when the loop goes automated (per "Measurement"): the SPRT bounds
+  (Elo0/Elo1, α/β) and a wider gauntlet — the current eval is a fixed-N
+  proportion test on a held-out pool, not yet SPRT/Elo.
+
+**Independently, whenever a human greenlights shipping `vX` to the live bot:**
+archive the outgoing live policy as its own snapshot first (e.g. `versions/v1/`
+from the current `claude.ts` / `valuation.ts` / `trades.ts`) so it stays runnable,
+then copy `versions/vX/` over the production `claude` policy and repoint
+`versions/index.ts` (today its `v1` entry aliases the live `../claude`; decouple
+it at that moment so `v1` keeps meaning *v1*, not "whatever now ships").
