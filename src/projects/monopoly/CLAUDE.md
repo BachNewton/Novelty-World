@@ -178,14 +178,14 @@ plus a registry entry. Current strategies:
 
 - **`dumb`** (`bots/dumb.ts`) — the reactive baseline; answers the proxy-driven
   decision phases and never initiates. Returns note-less decisions.
-- **`claude`** (`bots/claude.ts`) — the strong, proactive, pro-level opponent
-  and the **default** for added bots (`addBot`) and the `freshGame` seed. A pure
-  dispatcher over `bots/valuation.ts` (scoring, build planning, value-preserving
-  liquidation, jail-haven) and `bots/trades.ts` (counterparty-aware proposals +
-  evaluation). Everything keys off `positionValue` — a move is good iff it raises
-  a seat's position worth. It buys/raises-to-buy, bids auctions to value,
-  develops with a state-aware 3-vs-4-hold-vs-hotel judgment, trades to complete
-  monopolies, and **notes its reasoning on every decision** (see "BOT notes").
+- **`claude`** (`bots/claude.ts`) — the strong, proactive, pro-level opponent and
+  the **default** for added bots (`addBot`) and the `freshGame` seed. A pure
+  dispatcher over `bots/valuation.ts` (scoring, build planning, liquidation, jail)
+  and `bots/trades.ts` (counterparty-aware proposals + evaluation), everything
+  keyed off `positionValue`, **noting its reasoning on every decision**. Its
+  purpose, strategic model, tuning rationale, and refinement roadmap have their
+  own deep guide: **`bots/CLAUDE.md`** — read that before touching `claude.ts`,
+  `valuation.ts`, or `trades.ts`.
 
 **BOT notes.** A `bot-note` GameEvent (verb **BOT** in the log) records a bot's
 reasoning. It is the lone log event with **no board change** — pure annotation —
@@ -214,14 +214,11 @@ play reuses the boundary-queue + intermission machinery a human uses.
 - A policy must (1) arm at `pre-roll` only when the commit will change state —
   the pacer skips a redundant arm, but a policy that keeps wanting a no-op spins;
   and (2) resolve any intermission it armed.
-- **Termination of trades:** a *declined* trade leaves state unchanged, so the
-  `claude` policy guards against loops with (a) **one proposal per turn group**
-  (it reads the turn's own `trade`/`trade-declined` events) and (b) a
-  **decline-memory** (don't re-pitch an identical declined offer unless sweetened
-  for the decliner). Builds are naturally idempotent via board state.
-- Trade proposals are validated to be strictly proposable (`isProposable` mirrors
-  the engine's checks) so a built draft is never route-rejected — a rejected
-  drive would latch the once-per-version guard and stall the phase.
+- **A *declined* trade leaves state unchanged**, so a proposing policy must guard
+  against re-pitch loops, and its built drafts must be strictly proposable so the
+  route never rejects a drive (a rejection would latch the once-per-version guard
+  and stall the phase). How the `claude` policy satisfies both is in
+  `bots/CLAUDE.md`.
 
 The pacer's drive paths are covered in `pacing.test.ts` (with both injected mock
 policies and the real default resolver); the `claude` decision logic in
@@ -229,10 +226,9 @@ policies and the real default resolver); the `claude` decision logic in
 verify the end-to-end proactive flow (off-turn trades, raise-to-buy) by running
 the app.
 
-**Known v1 limits (flagged for follow-up):** trade *construction* searches 2-way
-deals (mutual-completion swaps + cash) — the engine + the valuation model are
-N-way-ready, but the search isn't; and builds / trade sweeteners are cash-funded
-(no mortgage-to-fund-a-build yet, though raise-to-*buy* is wired).
+The `claude` strategy's own known limits and refinement roadmap (the
+unmortgage-and-redeploy gap, N-way trades, mortgage-to-fund-a-build) live in
+`bots/CLAUDE.md`.
 
 ## Lobby
 
