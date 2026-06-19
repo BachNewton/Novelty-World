@@ -172,7 +172,13 @@ Ordered by impact. Each is a place the *current* policy leaves value on the tabl
 2. **Mortgage-to-fund a build / sweetener.** Raise-to-*buy* is wired, and
    redeploy mortgages-then-builds an idle set, but a *fresh* build/sweetener is
    still cash-funded only. A pro will mortgage a back-burner lot to hotel a prime
-   set a turn sooner.
+   set a turn sooner. **The BUILD half was tried in v4 (`versions/v4/valuation.ts`,
+   see EVOLUTION.md) and found WIN-NEUTRAL:** `planBuild` now mortgages idle
+   non-monopoly lots to develop a prize set a level sooner, but the one-level tempo
+   nudge bought no win share even against opponents that lacked it (leverage cost ≈
+   tempo gain). Like v3's N-way, it's a win-safe, archived building block — the win
+   only comes paired with an *asymmetry* lever (denial). The **sweetener** half
+   (mortgage to fund a *trade's* cash) is still open and untried.
 
 When you close one of these, move it out of this list and fold the resulting
 behavior into the relevant section above.

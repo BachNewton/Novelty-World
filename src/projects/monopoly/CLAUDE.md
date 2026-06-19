@@ -363,7 +363,7 @@ bots/versions/index.ts  VERSIONS map (v1=floor, v2, v3, v4 …) + versionBot()
 bots/versions/v1/     v1 snapshot: the original champion, frozen — the gauntlet FLOOR
 bots/versions/v2/     v2 snapshot (rival-threat pricing) + its tests
 bots/versions/v3/     v3 snapshot (N-way trades) — the current LIVE bot (LIVE_VERSION)
-bots/versions/v4/     v4 candidate snapshot (in progress)
+bots/versions/v4/     v4 snapshot (mortgage-funded build tempo) — rejected, win-neutral; archived
 components/           React board + lobby/seat UI
 ```
 

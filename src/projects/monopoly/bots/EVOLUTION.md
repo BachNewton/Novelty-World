@@ -353,7 +353,8 @@ bot as of this doc.
 |---------|------|---------------------|------------------|--------|
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
 | v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | **loop champion** (current best; not yet the live bot) |
-| v3 | 2026-06-19 | **N-way / multi-short trade construction** (`versions/v3/trades.ts`): generalize the search from "exactly one lot short, 2-way" to "any number short, N-way" — buy EVERY missing lot of a near-monopoly in one N-party deal — **plus the coupled fix that makes it viable:** price a new monopoly as ONE rival-threat premium *apportioned* across its contributors (`rivalThreatCost`), so a buyer assembling from two holdouts isn't charged the denial premium twice for one set (reduces to v2's full premium for a single seller). | **Eliminates the cap entirely: 0.0% draws in both held-out families** (v2 still caps ~17–26%); trades executed ~93→~800/run. **But win-neutral vs v2: 49.2% win share** over 240 fresh seeds (v3eval 46.7% [56–64], v3eval2 51.7% [62–58]), z≈−0.26 — does **not** clear the >50% bar. The residual deadlock was costing *draws, not losses*, so breaking it splits former draws ~50/50 instead of winning them. | **rejected** as champion (win-neutral); champion stays **v2**. N-way+apportionment archived in `versions/v3/` as a proven, reusable building block (see next step). |
+| v3 | 2026-06-19 | **N-way / multi-short trade construction** (`versions/v3/trades.ts`): generalize the search from "exactly one lot short, 2-way" to "any number short, N-way" — buy EVERY missing lot of a near-monopoly in one N-party deal — **plus the coupled fix that makes it viable:** price a new monopoly as ONE rival-threat premium *apportioned* across its contributors (`rivalThreatCost`), so a buyer assembling from two holdouts isn't charged the denial premium twice for one set (reduces to v2's full premium for a single seller). | **Eliminates the cap entirely: 0.0% draws in both held-out families** (v2 still caps ~17–26%); trades executed ~93→~800/run. **But win-neutral vs v2: 49.2% win share** over 240 fresh seeds (v3eval 46.7% [56–64], v3eval2 51.7% [62–58]), z≈−0.26 — does **not** clear the >50% bar. The residual deadlock was costing *draws, not losses*, so breaking it splits former draws ~50/50 instead of winning them. | **rejected** as champion (win-neutral); champion stays **v2**. N-way+apportionment archived in `versions/v3/` as a proven, reusable building block. **Later shipped LIVE** (`LIVE_VERSION = v3`) as the more engaging substrate, and used as the **base** for v4 — a win-safe branch point even though it didn't beat v2. |
+| v4 | 2026-06-20 | **Tempo via mortgage-funded development** (`versions/v4/valuation.ts`, `planBuild`): when cash above the liquidity floor can't reach a prize set's desired level, mortgage idle, **non-monopoly** back-burner lots to fund the build a level *sooner* — turning idle equity into rent pressure ahead of rivals. Gated to real sets (`TEMPO_PRIZE_BONUS`, excludes brown) and real builds (`TEMPO_MIN_LEVEL = 3`); never cannibalizes a monopoly; the funded commit still clears the **same** liquidity floor (it redeploys idle capital, it does *not* lower the reserve). First version measured on the Session-A gauntlet. | **Win-neutral vs v3: 50.1% (1006–1000), confident EVEN over 2006 decisive (train).** No regressions: beats **v2 53.6%** (638–552) and **v1 67.9%** (106–50); Elo **v4 +149.3 ≈ v3 +147.4** (within noise), v2 +127.7, v1 0. Does **not** clear the improve-vs-base bar. | **rejected** as champion (win-neutral); base/substrate stays **v3**. Snapshot kept in `versions/v4/` as a win-safe building block (a tempo knob to pair with an asymmetry lever later); `v4/build.test.ts` pins the mechanism. |
 
 ## Status & next step
 
@@ -372,13 +373,14 @@ bot as of this doc.
   gauntlet floor**.
 
 **As of 2026-06-20:** the loop champion is still **v2** (v3 measured win-neutral
-vs v2). **The live bot is now `v3`** — greenlit by Kyle as the more *engaging*
+vs v2). **The live bot is `v3`** — greenlit by Kyle as the more *engaging*
 opponent for humans (decisive games, real trading, no deadlock), an explicit
 **product call, not a strength claim** over v2, which it ties. The floor stays
-**v1**, now a materialized frozen snapshot (`versions/v1/`). **Session A is done**
-— the measurement system (parallelism + gauntlet + SPRT + Elo) is built and
-validated (see "What's built" under Measurement). **Session B (build v4) is the
-next step.**
+**v1**, now a materialized frozen snapshot (`versions/v1/`). **Sessions A and B are
+done.** Session A built the measurement system; **Session B built `v4` (tempo via
+mortgage-funded development) and the gauntlet REJECTED it as win-neutral vs v3** —
+a second logged negative result, below. The base/substrate stays **v3**; the next
+attempt (Session C) is **v5 from v3**.
 
 **v3 — what was tried and what we learned (a logged negative result):**
 
@@ -409,6 +411,41 @@ next step.**
    to 0%. (Floor is v1; **`dumb` is a null bot and is never gauntleted** — see
    "Measurement".)
 
+**v4 — what was tried and what we learned (a second logged negative result):**
+
+1. **v4 isolated** in `bots/versions/v4/` (self-contained snapshot from v3; trade
+   engine carried over verbatim; registered in `versions/index.ts`;
+   `v4/build.test.ts` pins the new build behavior — mortgages idle lots to reach a
+   higher level, refuses to touch a monopoly lot, and doesn't leverage when cash
+   already suffices).
+2. **The change** is the **tempo / mortgage-to-fund-a-build** lead (roadmap #2).
+   `planBuild` now, when cash above the floor can't reach a prize set's desired
+   level, mortgages idle **non-monopoly** back-burner lots (`fundShortfall`,
+   least-essential first) to fund the build a level sooner — so a bot that just
+   spent its cash *completing* a set can still *develop* it immediately instead of
+   waiting to re-accumulate. Crucially it keeps the **same** reserve floor (it
+   redeploys idle equity, doesn't dip the buffer) and never cannibalizes a
+   monopoly. Gated to real sets and builds (`TEMPO_PRIZE_BONUS` / `TEMPO_MIN_LEVEL`).
+3. **The result is the lesson — and it sharpens v3's.** v4 is **win-neutral vs v3**
+   (50.1%, confident EVEN over 2006 decisive), with **no regressions** (beats v2
+   53.6%, v1 67.9%; Elo tied with v3). What's striking: in the v4-vs-v3 pairing
+   **only the v4 seats can mortgage-to-fund** — an *asymmetric capability* — yet it
+   bought **zero** win share. So the rule isn't just "symmetric capabilities wash"
+   (v3); it's broader: **a change that improves your own engine — completing sets
+   sooner (v3), developing them sooner (v4) — washes out even when the opponent
+   lacks it**, because over many seats/seeds both sides reach comparable developed
+   positions and the one-level/one-turn nudge is too small to convert (and its
+   leverage cost — lost back-burner rent, 10% interest, a thinner liquidity buffer
+   for the next hit — roughly cancels the tempo gain). **The untested lever is
+   targeted DENIAL:** an action whose entire value is *setting back a specific
+   rival* (negative-sum against them), which a rival can't neutralize by doing the
+   same to someone else. That is the lead for Session C — see below.
+4. **Caveat for whoever revisits tempo.** This rejects *mortgage-funded* tempo as a
+   standalone win lever; it does **not** prove development speed is irrelevant. The
+   v4 snapshot is win-safe and kept as a building block — tempo may yet pay off
+   *coupled* with denial (deny a rival their set, then out-develop the field with
+   the freed leverage), which is the synergy a future version could test.
+
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
 and benefits every version and human play.
@@ -423,15 +460,27 @@ v2≫v1 / v3≈v2 / v3>v1. Full detail, the locked parameters, and the validatio
 table are under **"What's built (Session A)"** in Measurement and decisions 5–8.
 No new `vX` was created.
 
-**Session B — build v4 from v3**, measured with the new system. v3 is the
-gauntlet-cleared base (ties v2, beats v1 by v2's margin, decisive games = cleaner
-substrate). **Lead (judge it):** chase **asymmetry / tempo**, since pure
-decisiveness proved win-neutral — strongest is **mortgage-to-fund a
-build/sweetener** (roadmap #2 in `bots/CLAUDE.md`: hotel your prize set a turn
-*sooner* than rivals can answer — a clean tempo edge, orthogonal to trading), or
-**trade-to-deny** (extend v3's N-way search to *block* a rival's completion, not
-only complete your own — denial is a `positionValue` lever via `DENY_FACTOR` that
-today fires only on landing/auction, never in construction).
+**Session B — build v4 from v3 — ✅ DONE (2026-06-20), REJECTED.** Built the tempo /
+mortgage-funded-development lead; the gauntlet returned a confident win-neutral vs
+v3 (above). A clean negative result, archived in `versions/v4/`. No champion bump.
+
+**Session C — build `v5` from `v3`**, measured with the gauntlet. **Lead (judge
+it — and the evidence now strongly favors it):** chase **trade-to-deny**, the one
+asymmetry lever left untested. Two changes in a row that improved a bot's *own*
+engine (v3 complete-sooner, v4 develop-sooner) came back win-neutral, even when
+only one side had the capability — so the win has to come from a **negative-sum**
+move against a *specific* rival, not a positive-sum one for yourself. Concretely:
+extend v3's N-way trade **construction** to *block* a rival who is one lot short of
+a strong set — buy that last lot from a third-party holdout (or swap for it) purely
+to **deny** the completion, pricing the block off the existing `DENY_FACTOR`
+lever, which today fires only on landing/auction (`acquisitionValue`) and never in
+construction. State it as an explicit hypothesis ("denying a rival's prize set
+before they complete it transfers win share"), and watch a `--log` game first to
+confirm the deadlock-era trade machinery surfaces the blockable positions. If
+trade-to-deny *also* proves win-neutral, the next lead is **denial coupled with
+tempo** (deny, then out-develop with v4's freed leverage) — the v3+v4 building
+blocks exist for exactly that. Base = **v3** (`versions/v3/`); branch a fresh
+`versions/v5/`. NEVER gauntlet `dumb`; keep v1 in the field (Decision 8).
 
 **Shipping `vX` to the live bot (whenever a human greenlights it):** change
 `LIVE_VERSION` in `bots/live.ts` to `"vX"`. That is the **whole** procedure — the
