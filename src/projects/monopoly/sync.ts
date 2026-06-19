@@ -38,9 +38,10 @@ export interface GameSummary {
   updatedAt: string;
 }
 
-/** List joinable / watchable games for the lobby: every row that is still a
- *  `lobby` or in play (`active`), newest first. Finished games are kept in
- *  the table for history but excluded here. The reserved `dev` sandbox is
+/** List games for the lobby browser: every row, newest first — joinable
+ *  (`lobby`), in play (`active`), and `finished` alike. Finished games stay in
+ *  the list so players can reopen the final board and review the log (or delete
+ *  it); the row renders with an "ended" badge. The reserved `dev` sandbox is
  *  hidden in production — reachable only via the direct `?game=dev` link — but
  *  surfaced in the list on localhost so it's one tap away while developing. */
 export async function listGames(): Promise<GameSummary[]> {
@@ -53,11 +54,7 @@ export async function listGames(): Promise<GameSummary[]> {
   const rows = data as { id: string; state: GameState; updated_at: string }[];
   const showDev = isLocalhost();
   return rows
-    .filter(
-      (r) =>
-        (r.id !== "dev" || showDev) &&
-        (r.state.status === "lobby" || r.state.status === "active"),
-    )
+    .filter((r) => r.id !== "dev" || showDev)
     .map((r) => ({
       id: r.id,
       status: r.state.status,

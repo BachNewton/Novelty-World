@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Trophy } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { useHoldToActivate } from "@/shared/lib/use-hold-to-activate";
 import { ProfileEditor } from "@/shared/components/profile-editor";
@@ -271,9 +271,21 @@ function GameRow({
   const myId = useProfile((s) => s.id);
   const inGame = game.players.some((p) => p.id === myId);
   const isLobby = game.status === "lobby";
-  // Wording tracks what opening the row does for this user: rejoin a seat,
-  // sit down in a lobby, or spectate a game already in play.
-  const cta = inGame ? "Rejoin" : isLobby ? "Join" : "Watch";
+  const isFinished = game.status === "finished";
+  // The winner of a finished game is the lone survivor (matches the engine's
+  // own winner check — the only non-bankrupt seat).
+  const winner = isFinished
+    ? game.players.find((p) => !p.bankrupt) ?? null
+    : null;
+  // Wording tracks what opening the row does for this user: review a finished
+  // game, rejoin a seat, sit down in a lobby, or spectate a game in play.
+  const cta = isFinished
+    ? "Review"
+    : inGame
+      ? "Rejoin"
+      : isLobby
+        ? "Join"
+        : "Watch";
 
   // Tap opens the game; pressing and holding requests deletion (which opens the
   // confirm dialog). A hold has no horizontal motion, so it never collides with
@@ -312,7 +324,20 @@ function GameRow({
             </span>
           ))}
         </span>
-        <span className="relative flex flex-col items-end gap-0.5">
+        <span className="relative flex flex-col items-end gap-1">
+          {isFinished && (
+            <span
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider"
+              style={
+                winner
+                  ? { backgroundColor: "var(--mono-green)", color: "var(--mono-frame)" }
+                  : { backgroundColor: "var(--mono-neutral)", color: "var(--mono-ink)" }
+              }
+            >
+              <Trophy className="h-3 w-3" aria-hidden="true" />
+              {winner ? `${winner.name} won` : "Ended"}
+            </span>
+          )}
           <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
             {cta}
           </span>
