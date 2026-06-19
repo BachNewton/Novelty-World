@@ -79,8 +79,9 @@ So two things must hold before the automated loop is meaningful:
 
 1. The bot must reliably *break the deadlock* — assemble monopolies and develop
    (the trading work).
-2. Every game must yield a **decisive result** even if it hits the turn cap — see
-   "Decisive outcome" below.
+2. Games should **end in a bankruptcy**, not time out — the turn cap is a safety
+   net, and hitting it is a tracked failure, not a win. See "Winning is
+   bankruptcy" below.
 
 ### Why the deadlock (for whoever fixes it)
 
@@ -99,20 +100,29 @@ resolve cleanly, which is why 2-Claude and Claude-vs-dumb already produce
 winners. The fix lives in trade construction: N-way deals, and/or pricing the
 rival-monopoly threat (a big enough cash premium) instead of vetoing it.
 
-### Decisive outcome (the tiebreak)
+### Winning is bankruptcy — the turn cap is only a timeout
 
-Official Monopoly tournaments don't cap *turns* — they cap *time* (typically 90
-minutes), and when the clock runs out the **richest player wins**: net worth =
-cash + printed price of unmortgaged property + half-price for mortgaged property +
-buildings at purchase cost. There's no forced-trade or anti-stalemate rule; the
-clock is the resolver.
+A win means **bankrupting opponents until one player is left.** That is the only
+outcome that counts as a win. We deliberately do **not** declare a winner by net
+worth when a game runs long, even though official tournaments do (they cap at ~90
+minutes and award the richest player). The tournament rule is wrong for *us*:
 
-We mirror that: a **turn cap** is our clock, and at the cap the winner is decided
-by that same **official net-worth** formula — a stable, version-independent
-calculation, *not* a bot's strategic `positionValue` (which is tuned for decisions,
-not for fair scoring). So every game yields a winner, and a deadlock-prone version
-simply tends to win "on net worth at the bell" rather than by bankrupting
-opponents — a weak signal we can still measure while we drive caps toward rare.
+- **It would reward exactly the behavior we're trying to kill.** The trade deadlock
+  that kicked off this whole initiative — bots buying out the board and sitting on
+  cash — *is* a net-worth-at-the-clock strategy. If a net-worth tiebreak counted as
+  a win, evolution would keep the deadlock and we'd never have pressure to fix
+  trading. The metric would launder the bug into a "win".
+- **Bankrupting is also what beats humans.** A bot that knows how to eliminate
+  opponents crushes them; one that only stalls to a clock doesn't. The net-worth
+  rule is a logistics concession to the fact that humans tire — not a statement of
+  skill. Our bot should embody the skill.
+
+So the **turn cap is a safety timeout, not a finish line.** A game that reaches it
+is a **draw / no-result** — nobody wins. The cap rate is a **health metric**: a high
+one means the bot is too passive (the deadlock signal), a problem to fix, not a way
+to score. (If we ever expose a *timed* mode to human players, net-worth play becomes
+an explicit, optional behavior for that mode — separate from the training
+objective.)
 
 ## Measurement — making "v2 is better" trustworthy
 
@@ -132,6 +142,10 @@ On top of that, the guardrails:
   is a **50% win share** for "any v2 seat wins". Test the observed share against
   50% with a binomial/proportion test; report the confidence interval, not just
   the point estimate.
+- **Capped games are draws, and a high draw rate is a red flag** — not a neutral
+  outcome. Until the bot reliably *closes out* games by bankruptcy, A/B results
+  stay inconclusive — which is the methodology correctly refusing to crown a
+  version that can't win decisively.
 - **Hold out a validation seed set.** Tweak and explore on a training pool of
   seeds, but confirm an improvement on **fresh, unseen seeds** before locking it
   in — otherwise we overfit to the specific games we looked at.
@@ -171,9 +185,9 @@ different* logics can coexist.
    champion stays archived so we can always run and branch from it.
 2. **Evaluation target — gauntlet + Elo, decided by SPRT** (see Measurement), not
    head-to-head-with-predecessor only.
-3. **Decisive-outcome rule — official net-worth tiebreak at a turn cap** (see
-   "Decisive outcome"). We also keep driving the bot so natural bankruptcies
-   happen well before the cap.
+3. **Winning = bankruptcy; the turn cap is only a timeout** (see "Winning is
+   bankruptcy"). A capped game is a draw/no-result, tracked as a health metric —
+   *not* a net-worth win, which would reward the very stalling we're eliminating.
 4. **Controlled randomness is in scope.** A version may use randomness to break
    symmetric deadlocks or mix strategies — drawn from the seeded `rngState`, never
    `Math.random`, so replay stays intact. This needs a small `Bot`-contract change
