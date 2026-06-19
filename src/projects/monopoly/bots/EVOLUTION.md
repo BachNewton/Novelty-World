@@ -51,6 +51,44 @@ regresses.
 `bots/CLAUDE.md`). See "Prerequisite" below — this is also what unblocks the
 tournament.
 
+### The session handoff (one session = one version: vN → vN+1)
+
+The loop runs **one Claude Code session per version step**. A session's job is to
+produce a `v(N+1)` that **beats `vN`, proven by measurement** — not by a
+convincing story. The session structure that keeps this honest and resumable:
+
+1. **Pick up cold from the repo, not from a pasted blob.** A new session reads
+   this doc, the **version log** below, and `bots/CLAUDE.md`, then *watches games*
+   (`npm run sim --log`, `npm run sim:versus -- vN v(N-1)`) to see how the current
+   champion actually plays. The durable state lives in the repo; the handoff
+   prompt is a **pointer into it, never a payload** (a fat blob goes stale against
+   the code — a pointer can't).
+2. **The incoming hypothesis is a lead, not an order.** The *previous* session,
+   having watched real games, carries forward **one** suggested hypothesis **with
+   its evidence** (e.g. "cap rate still ~17%, concentrated on boards where nobody
+   is exactly one lot short → N-way trades"), so the new session can *judge* it.
+   The new session may run with that lead **or override it** with a better idea it
+   sees in the sim — but if it overrides, it **records why in a sentence**, so the
+   dropped lead isn't silently lost (it may still be worth a later version).
+3. **One coherent change per version** (the locked granularity rule above), stated
+   as an explicit hypothesis so the A/B grades a claim.
+4. **Acceptance is measurement.** `v(N+1)` becomes the new **loop champion** only
+   if `sim:versus v(N+1) vN` clears the bar on **fresh held-out seeds** (and,
+   eventually, the gauntlet/SPRT in "Measurement"). A hypothesis that **fails to
+   beat `vN` is a result, not a waste**: log it as **rejected** in the version log
+   (a negative result others shouldn't re-walk) and carry a *different* lead
+   forward. Never ratchet in a regression because the narrative was good.
+5. **End by emitting the next handoff.** The session closes by printing a short,
+   copy-pasteable **handoff prompt** for the next one — "continue the loop, build
+   `v(N+1)` from `vN`, suggested hypothesis = … because …". A human pastes it into
+   a fresh session. (A session can't write the clipboard itself; it prints the
+   block. It can pipe to `Set-Clipboard` on request.)
+
+This is the genetic loop with Claude as the mutation operator: **reasoning
+proposes, measurement selects.** Bumping the loop champion needs **no human
+greenlight** — see "Coexistence & promotion" for the separate, rare decision to
+ship a chosen version to the live game bot.
+
 ### Long-term (automated A/B tournament)
 
 Pit two logic versions against each other at scale:
@@ -199,8 +237,10 @@ and the practice vs. held-out seed split.
 
 ## Version log
 
-The running record of bot versions and how each fared against the field. (To be
-filled in as versions are locked; v1 = the bot as of this doc.)
+The running record of bot versions and how each fared against the field — **both
+the accepted champions and the rejected attempts** (a hypothesis that didn't beat
+its predecessor is logged with status `rejected` so it isn't re-walked). v1 = the
+bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
