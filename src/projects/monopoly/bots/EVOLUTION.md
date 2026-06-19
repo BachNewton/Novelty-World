@@ -204,3 +204,24 @@ filled in as versions are locked; v1 = the bot as of this doc.)
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
+
+## Status & next step
+
+**As of 2026-06-19:** plan locked and written down; the headless sim
+(`npm run sim`) is in. v1 is the champion. Nothing is wired for A/B yet.
+
+**Next — implement the v2 candidate:**
+
+1. Isolate it in `bots/versions/v2/` as a self-contained copy, so production
+   `claude` stays untouched and undeployed until a human green-lights a promotion.
+2. Generalize the sim to pit specific versions head-to-head (inject a per-seat
+   `botFor`; seats stay `botStrategy`-non-null so `driverRole` proxies them).
+3. Apply **one** hypothesis: *price the rival-monopoly threat instead of vetoing
+   it* (`trades.ts` — the `RIVAL_TOLERANCE` veto and the `proposeBestTrade`
+   counterparty model), so "cash for the completer" becomes a live deal.
+4. Practice on a *fixed* seed (confirm the trades fire and 4 bots reach a
+   bankruptcy, not the cap), then eval on *fresh* held-out seeds.
+
+If pricing alone doesn't fire enough trades — nobody may be exactly one lot short
+in 4-handed play — extend toward trading for 2-short sets / N-way, driven by what
+the sim shows, not assumption.
