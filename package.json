@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:slow": "vitest run --config vitest.slow.config.ts",
+    "sim": "tsx src/projects/monopoly/bots/simulate-cli.ts",
     "bench": "vitest bench --run",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test"
@@ -43,6 +44,7 @@
     "highs": "^1.8.0",
     "postcss": "^8",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.22.4",
     "typescript": "^5.8.3",
     "vitest": "^4.1.2",
     "ws": "^8.20.0"
