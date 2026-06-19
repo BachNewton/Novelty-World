@@ -257,6 +257,12 @@ export function liquidityFloor(state: GameState, pid: string): number {
 export interface BuildPlan {
   /** position -> target level, only entries that differ from the live board. */
   build: Record<number, number>;
+  /** position -> false, for each mortgaged monopoly member this plan lifts before
+   *  developing it. A monopoly with a mortgaged lot can't be built and earns
+   *  nothing until unmortgaged, so reclaiming idle capital this way is part of
+   *  the same commit as the build (the engine applies it raise-first, against the
+   *  post-unmortgage state — `applyManageCommit`). Empty for a clean build. */
+  mortgage: Record<number, boolean>;
   reason: string;
 }
 
@@ -312,46 +318,86 @@ function levelPhrase(level: number): string {
 
 /** Plan this turn's development: walk my monopolies best-set-first and raise each
  *  evenly toward its desired level, as far as cash-above-floor and the house bank
- *  allow, accumulating into one atomic commit. Returns null when nothing is worth
- *  (or can be afforded) building now — which makes the pre-roll arm decision and
- *  the commit identical and keeps the bot from spinning. */
+ *  allow, accumulating into one atomic commit. A monopoly with mortgaged members
+ *  is dead weight — it can't be built and earns nothing — so when flush this also
+ *  lifts those mortgages and develops the set in the SAME commit (the engine plans
+ *  the build against the post-unmortgage state). Unmortgaging is gated on being
+ *  comfortably above the rent reserve because it pays 10% interest and undoes a
+ *  past raise; a thin bot leaves the set mortgaged. Returns null when nothing is
+ *  worth (or can be afforded) now — which makes the pre-roll arm decision and the
+ *  commit identical and keeps the bot from spinning. */
 export function planBuild(state: GameState, pid: string): BuildPlan | null {
   const player = state.players.find((p) => p.id === pid);
   if (!player) return null;
   const floor = liquidityFloor(state, pid);
+  const flush = player.cash > floor + HOTEL_CUSHION;
+  const { level: want, why } = desiredLevel(state, pid);
   const build: Record<number, number> = {};
+  const mortgage: Record<number, boolean> = {};
   const reasons: string[] = [];
 
   for (const color of COLORS_BY_WEIGHT) {
     if (!hasMonopoly(state, color, pid)) continue;
     const positions = groupPositions(color);
-    if (positions.some((pos) => state.mortgaged[pos])) continue; // unmortgage first
-    const { level: want, why } = desiredLevel(state, pid);
+    const mortgagedMembers = positions.filter((pos) => state.mortgaged[pos]);
+    const locked = mortgagedMembers.length > 0;
+    if (locked && !flush) continue; // don't reclaim a mortgaged set while thin
     const floorOf = maxLevelInSet(state, color);
-    if (want <= floorOf) continue; // already developed to/above target
-    // Try the highest affordable even level from `want` down to one above the
-    // current max, validating the WHOLE accumulated commit each step.
-    for (let level = want; level > floorOf; level--) {
-      const candidate = { ...build };
-      for (const pos of positions) candidate[pos] = level;
-      const summary = manageSummary(state, pid, { build: candidate, mortgage: {} });
+    // A locked set is worth unmortgaging even with no houses (level 0): it
+    // restores the set's monopoly double-rent and unfreezes it for later
+    // building. A clean set must climb strictly above its current max.
+    const stop = locked ? 0 : floorOf + 1;
+    if (want < stop) continue;
+    // Try the highest affordable even level from `want` down to `stop`,
+    // validating the WHOLE accumulated commit (build + unmortgages) each step.
+    for (let level = want; level >= stop; level--) {
+      const candidateBuild = { ...build };
+      if (level > 0) for (const pos of positions) candidateBuild[pos] = level;
+      const candidateMortgage = { ...mortgage };
+      for (const pos of mortgagedMembers) candidateMortgage[pos] = false;
+      const summary = manageSummary(state, pid, {
+        build: candidateBuild,
+        mortgage: candidateMortgage,
+      });
       if (summary.ok && player.cash + summary.netCash >= floor) {
-        for (const pos of positions) build[pos] = level;
-        const rationale = level === want ? why : "as far as cash allows";
-        reasons.push(`${colorName(color)} to ${levelPhrase(level)} (${rationale})`);
+        if (level > 0) for (const pos of positions) build[pos] = level;
+        for (const pos of mortgagedMembers) mortgage[pos] = false;
+        reasons.push(redeployReason(color, level, locked, why, level === want));
         break;
       }
     }
   }
 
-  // Prune entries already at their live level, then confirm something changed.
-  const final: Record<number, number> = {};
+  // Prune build entries already at their live level, then confirm the commit
+  // changes something (a build tier, or a mortgage lift).
+  const finalBuild: Record<number, number> = {};
   for (const [posStr, level] of Object.entries(build)) {
     const pos = Number(posStr);
-    if (level !== developmentLevel(state, pos)) final[pos] = level;
+    if (level !== developmentLevel(state, pos)) finalBuild[pos] = level;
   }
-  if (Object.keys(final).length === 0) return null;
-  return { build: final, reason: `Developing: ${reasons.join("; ")}.` };
+  if (Object.keys(finalBuild).length === 0 && Object.keys(mortgage).length === 0) {
+    return null;
+  }
+  return { build: finalBuild, mortgage, reason: `Developing: ${reasons.join("; ")}.` };
+}
+
+/** Phrase one set's contribution to the development reason, distinguishing a
+ *  clean build-up from reclaiming a mortgaged set (with or without houses). */
+function redeployReason(
+  color: PropertyColor,
+  level: number,
+  locked: boolean,
+  why: string,
+  atTarget: boolean,
+): string {
+  const name = colorName(color);
+  if (locked) {
+    return level === 0
+      ? `unmortgaging ${name} to restore its monopoly rent`
+      : `unmortgaging ${name} and building to ${levelPhrase(level)}`;
+  }
+  const rationale = atTarget ? why : "as far as cash allows";
+  return `${name} to ${levelPhrase(level)} (${rationale})`;
 }
 
 // ---------------------------------------------------------------------------

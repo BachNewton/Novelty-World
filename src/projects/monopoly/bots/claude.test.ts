@@ -252,6 +252,69 @@ describe("claudeBot — proactive arming at pre-roll", () => {
   });
 });
 
+describe("claudeBot — unmortgage and redeploy", () => {
+  // p1 holds the whole red set (21, 23, 24) but Kentucky (21) is mortgaged, so
+  // the set is dead weight — it can't be built and earns nothing. A flush bot
+  // should lift the mortgage and develop in one commit. This is the gap the
+  // 491-turn dev game exposed: a bot that wins monopolies (often inheriting
+  // mortgaged lots) and then sits on cash without ever switching them on.
+  const reds = { 21: "p1", 23: "p1", 24: "p1" };
+
+  it("commits a manage that unmortgages the set and builds, when flush", () => {
+    const state = setCash(
+      withTurn(
+        { phase: "managing", managerId: "p1" },
+        { ownership: reds, mortgaged: { 21: true } },
+      ),
+      "p1",
+      1000,
+    );
+    expect(claudeBot(state, "p1")?.intent).toEqual({
+      kind: "manage",
+      playerId: "p1",
+      build: { 21: 1, 23: 1, 24: 1 },
+      mortgage: { 21: false },
+    });
+  });
+
+  it("arms a manage at pre-roll for the mortgaged set, and says it will unmortgage", () => {
+    const state = setCash(
+      withTurn({ phase: "pre-roll" }, { ownership: reds, mortgaged: { 21: true } }),
+      "p1",
+      1000,
+    );
+    const d = claudeBot(state, "p1");
+    expect(d?.intent).toEqual({
+      kind: "set-queue",
+      playerId: "p1",
+      queue: "manage",
+      armed: true,
+    });
+    expect(d?.note?.toLowerCase()).toContain("unmortgag");
+  });
+
+  it("does NOT unmortgage when it isn't comfortably above its rent reserve", () => {
+    // Same mortgaged monopoly, but cash near the floor — unmortgaging pays 10%
+    // interest and undoes a past raise, so a thin bot leaves it alone.
+    const preRoll = setCash(
+      withTurn({ phase: "pre-roll" }, { ownership: reds, mortgaged: { 21: true } }),
+      "p1",
+      500,
+    );
+    expect(claudeBot(preRoll, "p1")).toBeNull();
+
+    const managing = setCash(
+      withTurn(
+        { phase: "managing", managerId: "p1" },
+        { ownership: reds, mortgaged: { 21: true } },
+      ),
+      "p1",
+      500,
+    );
+    expect(claudeBot(managing, "p1")).toBeNull();
+  });
+});
+
 describe("claudeBot — trade-building drive", () => {
   it("populates an empty draft, then proposes once it matches the plan", () => {
     const ownership = { 16: "p1", 18: "p1", 24: "p1", 19: "p3", 21: "p3", 23: "p3" };

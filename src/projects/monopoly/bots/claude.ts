@@ -230,15 +230,17 @@ function mustRaiseCash(state: GameState, pid: string): BotDecision | null {
 }
 
 // ---------------------------------------------------------------------------
-// Managing intermission (armed at pre-roll): commit the build plan. Note-less —
-// the arm already explained it; the BUILD log rows show the result.
+// Managing intermission (armed at pre-roll): commit the build plan — including
+// any mortgage lifts the plan stages to reclaim a dead (mortgaged) monopoly,
+// applied raise-first with the build in one atomic commit. Note-less — the arm
+// already explained it; the BUILD / UNMORTGAGE log rows show the result.
 // ---------------------------------------------------------------------------
 function managing(state: GameState, pid: string): BotDecision | null {
   if (state.turn.managerId !== pid) return null;
   const plan = planBuild(state, pid);
   if (plan === null) return null; // pacer cancels the now-empty intermission
   return {
-    intent: { kind: "manage", playerId: pid, build: plan.build, mortgage: {} },
+    intent: { kind: "manage", playerId: pid, build: plan.build, mortgage: plan.mortgage },
   };
 }
 
