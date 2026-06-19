@@ -7,6 +7,7 @@ import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import type { CardSource, GameState, Player, TradeTerms } from "../types";
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
+import { Money } from "./money";
 
 interface Props {
   state: GameState;
@@ -83,7 +84,7 @@ export function TradePanel({ state }: Props) {
           proposerName={proposer?.name ?? "Someone"}
         />
 
-        <TradeHoldings state={state} terms={terms} />
+        <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
 
         {/* The cash steppers and card-cycle rows are the proposer's *input*
             surface; everyone else reads the outcome from TradeHoldings above. */}
@@ -208,9 +209,20 @@ function Heading({
  *  (post-trade) ownership. The persistent header above is the "before"; this is
  *  the "after", so players read the outcome — who completes a set, who breaks
  *  one — by diffing the two in a layout they already know. Each party's meta
- *  cell shows their resulting balance when their cash changes, and breaks out
- *  the 10% bank interest a receiver owes on a still-mortgaged property. */
-function TradeHoldings({ state, terms }: { state: GameState; terms: TradeTerms }) {
+ *  cell leads with the signed cash the trade moves for them — the log's money
+ *  grammar (green in / red out for me, white for others), so the cash on the
+ *  table is as legible to a voter as it is to the proposer at the steppers — then
+ *  the resulting balance and the 10% bank interest a receiver owes on a
+ *  still-mortgaged property. */
+function TradeHoldings({
+  state,
+  terms,
+  myPlayerId,
+}: {
+  state: GameState;
+  terms: TradeTerms;
+  myPlayerId: string | null;
+}) {
   const projection = projectTrade(state, terms);
   const movedPositions = new Set(
     Object.keys(terms.propertyTo).map((pos) => Number(pos)),
@@ -243,21 +255,19 @@ function TradeHoldings({ state, terms }: { state: GameState; terms: TradeTerms }
       changed={movedPositions}
       metaMinWidth="5rem"
       renderMeta={(player) => {
+        const delta = terms.cashDelta[player.id] ?? 0;
         const after = projection.cashById[player.id] ?? player.cash;
         const fee = projection.feesById[player.id] ?? 0;
-        const cashChanged = (terms.cashDelta[player.id] ?? 0) !== 0 || fee > 0;
+        const cashChanged = delta !== 0 || fee > 0;
         return (
           <>
             <span className="truncate text-sm font-semibold">{player.name}</span>
-            {cashChanged && (
-              <span
-                className="font-mono text-xs"
-                style={{
-                  color: after < 0 ? "var(--mono-red)" : "var(--mono-ink)",
-                }}
-              >
-                ${after.toLocaleString("en-US")}
-              </span>
+            {delta !== 0 && (
+              <Money
+                amount={Math.abs(delta)}
+                sign={delta > 0 ? "+" : "-"}
+                mine={myPlayerId === player.id}
+              />
             )}
             {fee > 0 && (
               <span
@@ -265,6 +275,17 @@ function TradeHoldings({ state, terms }: { state: GameState; terms: TradeTerms }
                 style={{ color: "var(--mono-red)" }}
               >
                 −${fee.toLocaleString("en-US")} interest
+              </span>
+            )}
+            {cashChanged && (
+              <span
+                className="font-mono text-[0.65rem]"
+                style={{
+                  opacity: 0.7,
+                  color: after < 0 ? "var(--mono-red)" : "var(--mono-ink)",
+                }}
+              >
+                → ${after.toLocaleString("en-US")}
               </span>
             )}
           </>

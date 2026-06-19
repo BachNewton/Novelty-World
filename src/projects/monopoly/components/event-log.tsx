@@ -12,6 +12,7 @@ import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { SetContextChips } from "./holdings-grid";
+import { Money } from "./money";
 import type {
   CardSource,
   GameEvent,
@@ -962,36 +963,6 @@ function PlayerChip({ player }: { player: Player }) {
         }}
       />
       <span className="font-semibold">{player.name}</span>
-    </span>
-  );
-}
-
-function Money({
-  amount,
-  sign,
-  mine,
-}: {
-  amount: number;
-  sign?: "+" | "-";
-  /** Did this money move the viewer's own balance? Green/red when it did, plain
-   *  white when it's someone else's money (the sign still shows the flow). */
-  mine: boolean;
-}) {
-  const color = !mine
-    ? "var(--mono-ink)"
-    : sign === "+"
-      ? "var(--mono-green)"
-      : "var(--mono-red)";
-  const prefix = sign === "+" ? "+" : sign === "-" ? "−" : "";
-  return (
-    <span
-      style={{
-        color,
-        fontVariantNumeric: "tabular-nums",
-        fontWeight: 600,
-      }}
-    >
-      {prefix}${amount.toLocaleString("en-US")}
     </span>
   );
 }
