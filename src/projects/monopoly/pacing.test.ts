@@ -500,6 +500,70 @@ describe("paceTransition — redirect dwell", () => {
       redirectPauseMs(DEFAULT_TURN_MS) * 2,
     );
   });
+
+  it("budgets enough dwell to cover the animation sequence the board plays", () => {
+    // The store budgets a redirect's dwell here (redirectDwell, via
+    // paceTransition); the board's `advanceFrom` (components/squares.tsx)
+    // independently sequences the motion from the same per-phase anim helpers.
+    // They live far apart and must stay in sync — if the played sequence ever
+    // outran the budgeted dwell, the next snapshot would arrive mid-animation
+    // and snap. The worst case binds at a huge distance, where every slide and
+    // glide hits its phase-budget cap; if that fits, every real board distance
+    // fits too (the anim helpers are monotonic up to their caps).
+    const turnMs = DEFAULT_TURN_MS;
+    const BIG = 100_000;
+
+    // Card redirect → leg-1 slide, the pause, leg-2 slide.
+    const cardTo: GameState = {
+      ...mapPlayer(base, "p1", { position: 24 }),
+      turns: [
+        {
+          turn: 1,
+          playerId: "p1",
+          events: [
+            roll(22),
+            { kind: "card-drawn", source: "chance", cardId: "chance-illinois" },
+          ],
+        },
+      ],
+    };
+    const cardBudget = paceTransition(
+      mapPlayer(base, "p1", { position: 18 }),
+      cardTo,
+      turnMs,
+    ).durationMs;
+    const cardSequence =
+      slideAnimMs(turnMs, BIG) +
+      redirectPauseMs(turnMs) +
+      slideAnimMs(turnMs, BIG);
+    expect(cardSequence).toBeLessThanOrEqual(cardBudget);
+
+    // Go-to-Jail redirect → leg-1 slide, the pause, the reveal glide, the jail
+    // hold, the hand-off glide.
+    const jailTo: GameState = {
+      ...withTurn(mapPlayer(base, "p1", { position: 10 }), { playerId: "p2" }),
+      turns: [
+        {
+          turn: 1,
+          playerId: "p1",
+          events: [roll(30), { kind: "go-to-jail", reason: "tile" }],
+        },
+        { turn: 2, playerId: "p2", events: [] },
+      ],
+    };
+    const jailBudget = paceTransition(
+      mapPlayer(base, "p1", { position: 27 }),
+      jailTo,
+      turnMs,
+    ).durationMs;
+    const jailSequence =
+      slideAnimMs(turnMs, BIG) +
+      redirectPauseMs(turnMs) +
+      glideAnimMs(turnMs, BIG) +
+      redirectPauseMs(turnMs) +
+      glideAnimMs(turnMs, BIG);
+    expect(jailSequence).toBeLessThanOrEqual(jailBudget);
+  });
 });
 
 describe("in-phase animation scaling", () => {

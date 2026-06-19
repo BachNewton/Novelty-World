@@ -422,7 +422,14 @@ export function paceTransition(
  *  pause, the camera glide that reveals the snapped token in the Jail cell with
  *  its own hold, then the hand-off glide to the next player (the snap itself
  *  claims no slide). Both scale with the viewer's `turnMs`, the same as every
- *  other transition's budget. */
+ *  other transition's budget.
+ *
+ *  The board's `advanceFrom` (components/squares.tsx) independently sequences
+ *  the motion from the same per-phase anim helpers (`slideAnimMs`, `glideAnimMs`,
+ *  `redirectPauseMs`), so this budget MUST cover that sequence or the next
+ *  snapshot would arrive mid-animation and snap. The two live far apart; the
+ *  "budgets enough dwell to cover the animation sequence" test in
+ *  `pacing.test.ts` asserts the played sequence never outruns this dwell. */
 function redirectDwell(turnMs: number, redirect: RedirectMove): number {
   const fraction = redirect.handoff
     ? SLIDE_FRACTION + GLIDE_FRACTION * 2 + REDIRECT_PAUSE_FRACTION * 2

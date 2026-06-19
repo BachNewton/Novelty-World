@@ -332,8 +332,12 @@ export function Squares() {
   // Called when a slide finishes. A plain move just ends; a redirect holds on the
   // rolled square for the pause, then plays its second beat — the redirecting
   // slide, or (for a Go-to-Jail) the snap into the cell plus a glide to the next
-  // player. The pause length is the same `redirectPauseMs` the store budgets the
-  // dwell around, so the motion always finishes inside the held snapshot.
+  // player. This sequence (slide + pause + slide, or slide + pause + glide +
+  // pause + glide) must fit inside the dwell `redirectDwell` budgets in
+  // `pacing.ts`, or the next snapshot would arrive mid-animation and snap. Both
+  // are built from the same anim helpers (`slideAnimMs` / `glideAnimMs` /
+  // `redirectPauseMs`); the "budgets enough dwell to cover the animation
+  // sequence" test in `pacing.test.ts` guards that the budget always wins.
   const advanceFrom = useCallback(
     (current: MovingToken) => {
       const next = current.next;
