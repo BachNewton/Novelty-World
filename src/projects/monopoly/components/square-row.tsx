@@ -70,7 +70,16 @@ export function SquareRow({ position }: Props) {
   const visibleTokens = hiddenId
     ? tokens.filter((p) => p.id !== hiddenId)
     : tokens;
-  const rent = useMonopolyStore(useShallow((s) => rentAt(s.state, position)));
+  // Rent reflects any STAGED build at this square, so a manage preview shows the
+  // would-be rent after building/selling before it's committed — matching how
+  // displayHouses/displayMortgaged preview the rest of the row. The cost cell
+  // greys this out when the square is (or would be) mortgaged, signalling that
+  // no rent is actually collected.
+  const rent = useMonopolyStore(
+    useShallow((s) =>
+      rentAt(s.state, position, s.state.turn.manageStaged?.build[position]),
+    ),
+  );
 
   // The board doubles as the interaction surface for three staging modes:
   //  - Manage (the queued manager's intermission, or the forced debtor in

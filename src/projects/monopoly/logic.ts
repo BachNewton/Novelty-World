@@ -138,14 +138,22 @@ export function rentDue(
 
 /** Rent owed if a player landed on this square right now. Returns null when
  *  the space is unowned or unownable — callers can show the buy price or
- *  nothing as appropriate. */
-export function rentAt(state: GameState, position: number): RentDisplay | null {
+ *  nothing as appropriate.
+ *
+ *  `housesOverride` lets the UI preview rent at a hypothetical build level (a
+ *  staged manage build/sell) without fabricating a whole state — it only feeds
+ *  the property branch, which is the only rent that depends on house count. */
+export function rentAt(
+  state: GameState,
+  position: number,
+  housesOverride?: number,
+): RentDisplay | null {
   const space = SPACES[position];
   const ownerId = state.ownership[position];
   if (!ownerId) return null;
 
   if (space.kind === "property") {
-    const houses = state.houses[position] ?? 0;
+    const houses = housesOverride ?? (state.houses[position] ?? 0);
     if (houses === 5) return { kind: "dollars", amount: space.rent.hotel };
     if (houses === 4) return { kind: "dollars", amount: space.rent.houses[3] };
     if (houses === 3) return { kind: "dollars", amount: space.rent.houses[2] };
