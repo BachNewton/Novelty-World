@@ -2,6 +2,7 @@ import type { Bot } from "../decision";
 import { claudeBot as v1Bot } from "../claude";
 import { dumbBot } from "../dumb";
 import { v2Bot } from "./v2";
+import { v3Bot } from "./v3";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -14,6 +15,7 @@ import { v2Bot } from "./v2";
 export const VERSIONS: Readonly<Record<string, Bot>> = {
   v1: v1Bot,
   v2: v2Bot,
+  v3: v3Bot,
   dumb: dumbBot,
 };
 

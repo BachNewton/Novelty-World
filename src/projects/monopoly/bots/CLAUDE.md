@@ -158,7 +158,13 @@ Ordered by impact. Each is a place the *current* policy leaves value on the tabl
 
 1. **N-way trade construction.** Construction searches only 2-way deals
    (mutual-completion swaps + cash). The engine and `positionValue` model are both
-   N-way-ready; the *search* isn't.
+   N-way-ready; the *search* isn't. **Tried in v3 (`versions/v3/`, see EVOLUTION.md)
+   and found WIN-NEUTRAL:** it *eliminates the turn-cap deadlock* (0% draws) but
+   does not beat v2 head-to-head, because the residual deadlock cost *draws, not
+   losses* — completing sets symmetrically is a wash. The v3 work (N-way search +
+   the apportioned rival-threat premium that makes it clear) is a proven, win-safe
+   building block; the win only comes when it's paired with an *asymmetry* lever
+   (tempo / denial). Fold it into the live bot when promoting such a version.
 2. **Mortgage-to-fund a build / sweetener.** Raise-to-*buy* is wired, and
    redeploy mortgages-then-builds an idle set, but a *fresh* build/sweetener is
    still cash-funded only. A pro will mortgage a back-burner lot to hotel a prime

@@ -248,54 +248,66 @@ bot as of this doc.
 |---------|------|---------------------|------------------|--------|
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
 | v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | **loop champion** (current best; not yet the live bot) |
+| v3 | 2026-06-19 | **N-way / multi-short trade construction** (`versions/v3/trades.ts`): generalize the search from "exactly one lot short, 2-way" to "any number short, N-way" — buy EVERY missing lot of a near-monopoly in one N-party deal — **plus the coupled fix that makes it viable:** price a new monopoly as ONE rival-threat premium *apportioned* across its contributors (`rivalThreatCost`), so a buyer assembling from two holdouts isn't charged the denial premium twice for one set (reduces to v2's full premium for a single seller). | **Eliminates the cap entirely: 0.0% draws in both held-out families** (v2 still caps ~17–26%); trades executed ~93→~800/run. **But win-neutral vs v2: 49.2% win share** over 240 fresh seeds (v3eval 46.7% [56–64], v3eval2 51.7% [62–58]), z≈−0.26 — does **not** clear the >50% bar. The residual deadlock was costing *draws, not losses*, so breaking it splits former draws ~50/50 instead of winning them. | **rejected** as champion (win-neutral); champion stays **v2**. N-way+apportionment archived in `versions/v3/` as a proven, reusable building block (see next step). |
 
 ## Status & next step
 
 **Two independent tracks — don't conflate them:**
 
-- **The loop champion** — the latest validated `vX` (currently **v2**). The
-  improvement loop advances this on its own: v2 → v3 → v4 …, each branching from
-  the prior best. **No human greenlight is needed to bump versions** — that's
-  just Claude Code continuing to make the bot stronger.
+- **The loop champion** — the latest validated `vX` (currently **v2**; v3 was
+  attempted and **rejected** as win-neutral — see below). The improvement loop
+  advances this on its own: v2 → v3 → v4 …, each branching from the prior best.
+  **No human greenlight is needed to bump versions** — that's just Claude Code
+  continuing to make the bot stronger.
 - **The live/official bot** — `bots/claude.ts` in `registry.ts`, the one shipped
   in the game, picked by the UI, played by humans. It changes **only** on a human
   **greenlight** ("ship vX into the game"), which is a separate, deliberate, rare
   decision — *not* a precondition for continuing the loop. Today the live bot is
   still v1.
 
-**As of 2026-06-19:** the loop has reached **v2** (the new loop champion); the
-live bot is unchanged (v1). What landed:
+**As of 2026-06-19:** the loop champion is still **v2**; v3 was built, measured,
+and **rejected** (win-neutral). The live bot is unchanged (v1).
 
-1. **v2 isolated** in `bots/versions/v2/` (self-contained snapshot of
-   `claude.ts` / `valuation.ts` / `trades.ts`; the `Bot` contract stays shared).
-   `versions/index.ts` is the version archive (`v1` references the live champion
-   directly, `v2`, `dumb`); `v2/trades.test.ts` pins the hypothesis.
-2. **Sim generalized for head-to-head** — `simulateGame` takes per-seat
-   `Contender`s and injects a per-seat `botFor`; `tournament.ts` /
-   `npm run sim:versus -- v2 v1` runs the A/B (cycled seatings, win share vs the
-   50% null, cap rate as a health metric). Self-play (`v1 v1`) sanity-checks ~50%.
-3. **Hypothesis applied and validated** — the pricing change fires the
-   cash-for-completer deal; games close out in bankruptcy (cap rate down sharply)
-   and v2 wins ~70% of decisive games on held-out seeds. Pricing **alone** was
-   enough — the 2-short / N-way extension was **not needed** and stays on the
-   roadmap (`bots/CLAUDE.md`).
+**v3 — what was tried and what we learned (a logged negative result):**
 
-Surfaced and fixed along the way: a latent **engine** bug (shared
-`development.ts`, not a policy) where a heavily-developed forced settler could be
-frozen into a false bankruptcy — the hotel-shortage liquidation escape didn't
-fire once a set had *partially* broken down. v2's frequent monopolies exposed it;
-generalized the escape (regression test in `development.test.ts`). This is shared
-rules infrastructure, so it benefits v1 and human play too.
+1. **v3 isolated** in `bots/versions/v3/` (self-contained snapshot from v2;
+   registered in `versions/index.ts`; `v3/trades.test.ts` pins the new shapes —
+   a 1-1-1 split and a two-short single-owner set v2 proposes nothing on).
+2. **The change** generalized trade construction to N-way (buy *every* missing lot
+   of a near-monopoly in one N-party deal) and — the coupled fix without which it
+   can't clear — apportioned the rival-threat premium across a set's contributors
+   (`rivalThreatCost`), so a buyer assembling from two holdouts pays the denial
+   premium *once*, not once per seller. It reduces exactly to v2 for any
+   single-seller deal, so v2's validated 2-way behavior is untouched.
+3. **The result is the lesson.** v3 **eliminates the cap entirely** (0.0% draws in
+   both held-out families vs v2's ~17–26%) — the no-trade deadlock is fully gone —
+   yet it is **win-neutral vs v2** (49.2% over 240 fresh seeds, z≈−0.26). The
+   reason is sharp and worth internalizing: **the residual deadlock was costing
+   *draws*, not *losses*.** A capped game is a no-result for *both* sides, so
+   converting it to a decisive one just splits it ~50/50 — it doesn't transfer
+   wins. Symmetric set-completion (both sides can now do it) is a wash. **To gain
+   win share, a change must create ASYMMETRY** — out-develop, deny, or out-tempo
+   the opponent — not merely make more deals happen.
 
-**Next — continue the loop to v3 (no greenlight required):**
+The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
+shared `development.ts`, regression-tested in `development.test.ts`) still stands
+and benefits every version and human play.
 
-- Branch **v3 from v2** (the loop champion): snapshot `versions/v3/` from
-  `versions/v2/`, apply one new hypothesis, A/B `v3` vs `v2` on fresh held-out
-  seeds via `npm run sim:versus -- v3 v2`. Leading candidates from the roadmap in
-  `bots/CLAUDE.md`: **N-way / 2-short trade construction** (v2 still only trades
-  when someone is *exactly* one lot short) and **mortgage-to-fund** a build or
-  sweetener. The eval's high *declined*-trade count (v2 offering the still-vetoing
-  v1 deals it won't take) is another signal worth mining.
+**Next — continue the loop to v4 (no greenlight required):**
+
+- **Base + lead.** Per the strict bar the champion is **v2**, so the canonical
+  branch is **v4 from v2**. But v3's N-way+apportionment is a *proven, win-safe,
+  cap-killing* building block — strongly consider **branching v4 from v3** so the
+  next change is tested on *decisive* games (v2's ~17% draws otherwise dilute every
+  A/B). Flagging this as a judgement call for Kyle: promote v3 as the working base
+  on decisiveness grounds, or hold the win-share bar and branch from v2.
+- **Hypothesis (a lead, judge it):** chase **asymmetry / tempo**, since pure
+  decisiveness proved win-neutral. Strongest candidates: **mortgage-to-fund a
+  build/sweetener** (roadmap #2 in `bots/CLAUDE.md` — hotel your prize set a turn
+  *sooner* than rivals can answer; a clean tempo edge, orthogonal to trading), or
+  **trade-to-deny** (extend v3's N-way search to *block* a rival's completion, not
+  only complete your own — denial is already a `positionValue` lever via
+  `DENY_FACTOR`, but only fires on landing/auction today, never in construction).
 - Still to size when the loop goes automated (per "Measurement"): the SPRT bounds
   (Elo0/Elo1, α/β) and a wider gauntlet — the current eval is a fixed-N
   proportion test on a held-out pool, not yet SPRT/Elo.
