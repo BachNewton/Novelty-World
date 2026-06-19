@@ -117,7 +117,11 @@ returns an intent + note. The shape to preserve:
 
 **Note discipline:** reactive phases note on the decision; the
 arm→intermission→commit flows note on the **arm** (it explains the plan) and commit
-silently, so the log reads the reasoning once.
+silently, so the log reads the reasoning once. **And the note must track the
+logic:** when you change what a decision does, update its note to match — a note
+that explains the *old* behavior is a defect, not cosmetic (it's the bot
+misrepresenting its own head). The mismatch surfaces the moment you read
+`npm run sim --log`.
 
 ## Trades (`trades.ts`)
 

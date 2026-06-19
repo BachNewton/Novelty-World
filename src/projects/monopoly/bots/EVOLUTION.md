@@ -42,7 +42,8 @@ regresses.
 1. Claude refines the bot's logic toward a specific hypothesis.
 2. Run `npm run sim` (the headless self-play harness — `simulate.ts` /
    `simulate-cli.ts`) to watch behavior and check the change does what was
-   intended.
+   intended — including that the BOT reasoning notes (`--log`) still accurately
+   describe the new behavior, not the old.
 3. Review together; keep the change if it's clearly better, revert if not.
 4. Repeat until the bot feels strong.
 
