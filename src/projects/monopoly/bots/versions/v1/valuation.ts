@@ -1,14 +1,19 @@
-import { SPACES } from "../data";
+// ===========================================================================
+// v1 SNAPSHOT — frozen copy of the original champion's strategic model (see
+// EVOLUTION.md). Self-contained so `v1` is a stable gauntlet floor; only the
+// policy is copied, shared board/engine infrastructure stays canonical.
+// ===========================================================================
+import { SPACES } from "../../../data";
 import {
   bankSupply,
   builtLotsInGroup,
   colorAt,
   developmentLevel,
   groupPositions,
-} from "../development";
-import { hasMonopoly, mortgageValueAt, ownablePrice, rentAt } from "../logic";
-import { manageSummary } from "../manage";
-import type { GameState, Intent, Player, PropertyColor } from "../types";
+} from "../../../development";
+import { hasMonopoly, mortgageValueAt, ownablePrice, rentAt } from "../../../logic";
+import { manageSummary } from "../../../manage";
+import type { GameState, Intent, Player, PropertyColor } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // The Claude bot's strategic model — pure scoring + planning, no React, no RNG.

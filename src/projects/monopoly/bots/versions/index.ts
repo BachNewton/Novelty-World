@@ -1,16 +1,18 @@
 import type { Bot } from "../decision";
-import { claudeBot as v1Bot } from "../claude";
 import { dumbBot } from "../dumb";
+import { v1Bot } from "./v1";
 import { v2Bot } from "./v2";
 import { v3Bot } from "./v3";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
-// head-to-head A/B (see EVOLUTION.md "Coexistence & promotion"). `v1` is the
-// LIVE production champion (`bots/claude.ts`) referenced directly — never a
-// copy — so "v2 vs v1" pits the candidate against exactly what ships. Future
-// champions append here; the previous champion's snapshot stays so we can
-// always reconstruct and branch from it. `dumb` is the floor of the gauntlet.
+// head-to-head A/B (see EVOLUTION.md "Coexistence & promotion"). Every entry is
+// a self-contained frozen SNAPSHOT — including `v1`, the original champion and
+// the gauntlet's FLOOR — so a label always means that exact version. This is
+// deliberately DECOUPLED from what currently ships: the live bot is a pointer
+// into this archive (`bots/live.ts` → `LIVE_VERSION`), so promoting a version
+// to production never silently redefines the floor. `dumb` is a null reactive
+// stub — never gauntleted; v1 is the real floor of the field.
 // ---------------------------------------------------------------------------
 export const VERSIONS: Readonly<Record<string, Bot>> = {
   v1: v1Bot,

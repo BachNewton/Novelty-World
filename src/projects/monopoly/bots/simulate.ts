@@ -9,7 +9,11 @@ import type {
   PlayerCount,
 } from "../types";
 import { BOTS, type Bot } from "./registry";
-import { positionValue } from "./valuation";
+// The headless sim's standings scoreboard uses v1's `positionValue` as a fixed,
+// neutral reporting yardstick (it only orders the final standings; the winner is
+// the engine's). v1 is the frozen archive floor, so this is stable across
+// promotions and identical across versions (valuation is unchanged since v1).
+import { positionValue } from "./versions/v1/valuation";
 
 /** A headless game driver: it plays a full Monopoly game in-process with no UI,
  *  driving every seat through the SAME pacer the browser uses (`driveOp`) and

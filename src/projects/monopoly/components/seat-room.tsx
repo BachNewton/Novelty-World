@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Bot, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
+import { LIVE_VERSION } from "../bots/live";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
 import { useMonopolyStore } from "../store";
@@ -195,7 +196,9 @@ function SeatRow({
 
 /** Per-bot strategy selector: `Claude` (the strong, proactive opponent — the
  *  default for a real game) vs `dumb` (the reactive baseline, handy for an easy
- *  game or testing). Anyone in the lobby can switch it, like kicking a bot. */
+ *  game or testing). Anyone in the lobby can switch it, like kicking a bot. The
+ *  Claude option carries a subtle `LIVE_VERSION` tag so the lobby shows which
+ *  archived bot version actually ships (e.g. v3). */
 function BotStrategyToggle({ player }: { player: Player }) {
   const setStrategy = useMonopolyStore((s) => s.setStrategy);
   return (
@@ -221,6 +224,11 @@ function BotStrategyToggle({ player }: { player: Player }) {
             }}
           >
             {strat}
+            {strat === "claude" && (
+              <span className="ml-0.5 align-super text-[8px] font-bold normal-case opacity-70">
+                {LIVE_VERSION}
+              </span>
+            )}
           </button>
         );
       })}

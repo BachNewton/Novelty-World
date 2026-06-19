@@ -1,8 +1,16 @@
-import { colorAt, groupPositions } from "../development";
-import { auctionBidCap, BID_INCREMENT, firstNegativePlayer } from "../engine";
-import { heldJailCard, ownablePrice } from "../logic";
-import type { GameState, ManageStaged, TradeTerms } from "../types";
-import type { BotDecision } from "./decision";
+// ===========================================================================
+// v1 SNAPSHOT — the original champion, frozen (see EVOLUTION.md). This is the
+// gauntlet's floor: a self-contained copy so `v1` always means *v1*, never
+// "whatever currently ships". The live bot is a pointer into this archive
+// (`bots/live.ts` → `LIVE_VERSION`), not this file. Exposed as `v1Bot` via
+// `./index.ts`. Shared infrastructure (engine, board geometry, the Bot
+// contract) is imported from the canonical modules; only the policy is copied.
+// ===========================================================================
+import { colorAt, groupPositions } from "../../../development";
+import { auctionBidCap, BID_INCREMENT, firstNegativePlayer } from "../../../engine";
+import { heldJailCard, ownablePrice } from "../../../logic";
+import type { GameState, ManageStaged, TradeTerms } from "../../../types";
+import type { BotDecision } from "../../decision";
 import {
   acquisitionValue,
   activeOpponents,

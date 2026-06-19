@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { freshGame } from "../mocks";
-import type { GameState } from "../types";
+import { freshGame } from "../../../mocks";
+import type { GameState } from "../../../types";
 import { claudeBot } from "./claude";
 
 // freshGame seats p1..p4, p1 active, $1500 each, no ownership. claudeBot reads

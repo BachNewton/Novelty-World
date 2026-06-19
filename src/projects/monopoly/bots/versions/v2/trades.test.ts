@@ -4,7 +4,7 @@ import type { GameState, TradeTerms } from "../../../types";
 import {
   evaluateTrade as v1Evaluate,
   proposeBestTrade as v1Propose,
-} from "../../trades";
+} from "../v1/trades";
 import {
   evaluateTrade as v2Evaluate,
   proposeBestTrade as v2Propose,

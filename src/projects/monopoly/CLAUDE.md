@@ -190,14 +190,17 @@ plus a registry entry. Current strategies:
 
 - **`dumb`** (`bots/dumb.ts`) — the reactive baseline; answers the proxy-driven
   decision phases and never initiates. Returns note-less decisions.
-- **`claude`** (`bots/claude.ts`) — the strong, proactive, pro-level opponent and
-  the **default** for added bots (`addBot`) and the `freshGame` seed. A pure
-  dispatcher over `bots/valuation.ts` (scoring, build planning, liquidation, jail)
-  and `bots/trades.ts` (counterparty-aware proposals + evaluation), everything
-  keyed off `positionValue`, **noting its reasoning on every decision**. Its
-  purpose, strategic model, tuning rationale, and refinement roadmap have their
-  own deep guide: **`bots/CLAUDE.md`** — read that before touching `claude.ts`,
-  `valuation.ts`, or `trades.ts`.
+- **`claude`** — the strong, proactive, pro-level opponent and the **default**
+  for added bots (`addBot`) and the `freshGame` seed. It is **not a fixed file**:
+  the `claude` strategy is a **pointer** into the version archive (`bots/live.ts`
+  → `LIVE_VERSION`, today **v3**), so the policy code lives in
+  `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
+  is a pure dispatcher over its `valuation.ts` (scoring, build planning,
+  liquidation, jail) and `trades.ts` (counterparty-aware proposals + evaluation),
+  everything keyed off `positionValue`, **noting its reasoning on every decision**.
+  Its purpose, strategic model, tuning rationale, and refinement roadmap have
+  their own deep guide: **`bots/CLAUDE.md`** — read that before touching a
+  version's `claude.ts`, `valuation.ts`, or `trades.ts`.
 
 **BOT notes.** A `bot-note` GameEvent (verb **BOT** in the log) records a bot's
 reasoning. It is the lone log event with **no board change** — pure annotation —
@@ -343,9 +346,7 @@ dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
 bots/registry.ts      BOTS strategy map (botStrategy -> policy); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/claude.ts        claude policy: phase dispatcher + reasoning notes
-bots/valuation.ts     claude scoring: positionValue, buy / build / jail / liquidation
-bots/trades.ts        claude trade construction + evaluation
+bots/live.ts          LIVE_VERSION — which archived version ships as `claude` (promotion = this line)
 bots/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
 bots/simulate-cli.ts  `npm run sim` — watch one game (roster, seed, --log)
 bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
@@ -357,10 +358,12 @@ bots/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
 bots/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
 bots/gauntlet-cli.ts  `npm run sim:gauntlet -- v3` — run the gauntlet on the pool
 bots/verify-cli.ts    `npm run sim:verify -- v2 v1` — prove parallel == single
-bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots
-bots/versions/index.ts  VERSIONS map (v1 = live champion, v2, v3, dumb) + versionBot()
-bots/versions/v2/     v2 candidate snapshot (claude/valuation/trades + its tests)
-bots/versions/v3/     v3 candidate snapshot (N-way trades — rejected, archived)
+bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code, decoupled from what ships live
+bots/versions/index.ts  VERSIONS map (v1=floor, v2, v3, v4 …) + versionBot()
+bots/versions/v1/     v1 snapshot: the original champion, frozen — the gauntlet FLOOR
+bots/versions/v2/     v2 snapshot (rival-threat pricing) + its tests
+bots/versions/v3/     v3 snapshot (N-way trades) — the current LIVE bot (LIVE_VERSION)
+bots/versions/v4/     v4 candidate snapshot (in progress)
 components/           React board + lobby/seat UI
 ```
 

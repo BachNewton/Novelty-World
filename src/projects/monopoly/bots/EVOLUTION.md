@@ -255,16 +255,25 @@ while v3-vs-v1 capped ~22% — see the draw decision below.
 ## Coexistence & promotion
 
 The production `claude` strategy (`registry.ts`) drives real online and dev
-games. So:
+games — but it owns **no** policy code. It is a **pointer into the version
+archive**: `bots/live.ts` exports `LIVE_VERSION`, and `registry.ts` resolves
+`claude` to that snapshot (`VERSIONS[LIVE_VERSION]`). So:
 
-- experimental versions must be able to **run side-by-side** with the champion in
-  one process (the tournament needs both loaded at once);
-- a candidate is only **promoted** to the production `claude` once it's validated;
-- the version archive must let us reconstruct and run any past version.
+- experimental versions **run side-by-side** with the live bot in one process —
+  they're all just entries in `VERSIONS`, fielded by label by the tournament;
+- **promotion is a one-line change** — repoint `LIVE_VERSION` (today `"v3"`); no
+  code copy, no test churn (each version owns its tests under `versions/`);
+- **the live bot and the gauntlet floor are orthogonal.** Shipping a version
+  live is a product call; the floor (`v1`) and the measurement field are
+  unaffected — the gauntlet fields versions by label and anchors Elo at `v1`, so
+  `LIVE_VERSION` can never move a result. You can ship a version live **without**
+  making it the floor;
+- the archive reconstructs and runs any past version — `v1` included, now a real
+  frozen snapshot (`versions/v1/`), no longer an alias to the live file.
 
-How versions are represented (separate snapshot modules, a parameterized config,
-or a hybrid) is an open decision — it determines how cleanly two *structurally
-different* logics can coexist.
+This inverts the old coupling where `v1` *aliased* the live policy file: the
+archive is now the single source of truth, and "live" and "floor" are two
+independent selectors over it.
 
 ## Decisions (locked 2026-06-19)
 
@@ -273,9 +282,12 @@ different* logics can coexist.
    change *anything*. We do **not** pre-extract shared "bot libraries" — that would
    trap future versions into logic we may want to drop. Only genuinely stable,
    non-strategic facts (board geometry, space names, the official net-worth
-   calculation) live in shared infrastructure. The live champion in `registry.ts`
-   is promoted from a snapshot **only on a human green light**; the previous
-   champion stays archived so we can always run and branch from it.
+   calculation) live in shared infrastructure. **The live bot is a pointer, not a
+   copy:** `bots/live.ts`'s `LIVE_VERSION` names which archived snapshot
+   `registry.ts` ships, so promotion is a one-line repoint **only on a human
+   green light** and never redefines the gauntlet floor (`v1`). Every version —
+   `v1` included — is a self-contained snapshot under `versions/`, so we can
+   always run and branch from any of them.
 2. **Evaluation target — gauntlet + Elo, decided by SPRT** (see Measurement), not
    head-to-head-with-predecessor only.
 3. **Winning = bankruptcy; the turn cap is only a timeout** (see "Winning is
@@ -352,17 +364,21 @@ bot as of this doc.
   advances this on its own: v2 → v3 → v4 …, each branching from the prior best.
   **No human greenlight is needed to bump versions** — that's just Claude Code
   continuing to make the bot stronger.
-- **The live/official bot** — `bots/claude.ts` in `registry.ts`, the one shipped
-  in the game, picked by the UI, played by humans. It changes **only** on a human
-  **greenlight** ("ship vX into the game"), which is a separate, deliberate, rare
-  decision — *not* a precondition for continuing the loop. Today the live bot is
-  still v1.
+- **The live/official bot** — the `claude` strategy in `registry.ts`, the one
+  shipped in the game, picked by the UI, played by humans. It is a **pointer**
+  (`bots/live.ts` → `LIVE_VERSION`) into the archive, changed **only** on a human
+  **greenlight** ("ship vX into the game") — a separate, deliberate, rare
+  decision, *not* a precondition for continuing the loop, and **orthogonal to the
+  gauntlet floor**.
 
-**As of 2026-06-20:** the loop champion is still **v2**; v3 was built, measured,
-and **rejected** (win-neutral). The live bot is unchanged (v1). **Session A is
-done** — the measurement system (parallelism + gauntlet + SPRT + Elo) is built
-and validated (see "What's built" under Measurement); no new `vX` was created, so
-the version log below is untouched. **Session B (build v4) is the next step.**
+**As of 2026-06-20:** the loop champion is still **v2** (v3 measured win-neutral
+vs v2). **The live bot is now `v3`** — greenlit by Kyle as the more *engaging*
+opponent for humans (decisive games, real trading, no deadlock), an explicit
+**product call, not a strength claim** over v2, which it ties. The floor stays
+**v1**, now a materialized frozen snapshot (`versions/v1/`). **Session A is done**
+— the measurement system (parallelism + gauntlet + SPRT + Elo) is built and
+validated (see "What's built" under Measurement). **Session B (build v4) is the
+next step.**
 
 **v3 — what was tried and what we learned (a logged negative result):**
 
@@ -417,9 +433,11 @@ build/sweetener** (roadmap #2 in `bots/CLAUDE.md`: hotel your prize set a turn
 only complete your own — denial is a `positionValue` lever via `DENY_FACTOR` that
 today fires only on landing/auction, never in construction).
 
-**Independently, whenever a human greenlights shipping `vX` to the live bot:**
-archive the outgoing live policy as its own snapshot first (e.g. `versions/v1/`
-from the current `claude.ts` / `valuation.ts` / `trades.ts`) so it stays runnable,
-then copy `versions/vX/` over the production `claude` policy and repoint
-`versions/index.ts` (today its `v1` entry aliases the live `../claude`; decouple
-it at that moment so `v1` keeps meaning *v1*, not "whatever now ships").
+**Shipping `vX` to the live bot (whenever a human greenlights it):** change
+`LIVE_VERSION` in `bots/live.ts` to `"vX"`. That is the **whole** procedure — the
+`claude` strategy resolves through it, so no code is copied and no tests change.
+The old copy-over dance is gone: as of 2026-06-20 the live bot is a pointer and
+`v1` is a real frozen snapshot (`versions/v1/`), so the gauntlet floor is
+permanently decoupled from what ships. (Promotion is still a deliberate, rare,
+human call — it's just now a one-liner.) **Done once on 2026-06-20:** the live
+bot was repointed from v1 to **v3** by this mechanism.

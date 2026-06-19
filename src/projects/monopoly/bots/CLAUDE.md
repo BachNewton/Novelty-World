@@ -1,6 +1,10 @@
 # Claude Bot — Deep Guide
 
-Read this before touching `claude.ts`, `valuation.ts`, or `trades.ts`. The main
+Read this before touching any version's `claude.ts`, `valuation.ts`, or
+`trades.ts`. The policy code lives in the version archive
+(`bots/versions/<label>/`), not at the top level — there is no `bots/claude.ts`;
+the live bot is a pointer (`bots/live.ts` → `LIVE_VERSION`, today **v3**) into
+that archive (see EVOLUTION.md "Coexistence & promotion"). The main
 `monopoly/CLAUDE.md` "Bots" section owns the shared **infrastructure** (the `Bot`
 contract, the registry, BOT-note mechanics, and how the pacer drives proactive
 play). This file owns the **`claude` strategy itself** — its purpose, its
@@ -217,8 +221,10 @@ liquidity guard, not a discount on what a monopoly is worth.
 
 ## Testing
 
-`claude` decision logic is unit-tested in `claude.test.ts` (pure, seeded). The
-pacer's drive paths live in `pacing.test.ts`. The browser-only playback pump is
+`claude` decision logic is unit-tested per version in
+`versions/<label>/claude.test.ts` (pure, seeded) — each snapshot owns its own
+tests, so promotion never churns a test. The pacer's drive paths live in
+`pacing.test.ts`. The browser-only playback pump is
 **not** unit-tested — verify end-to-end proactive behavior (off-turn trades,
 raise-to-buy, and any new redeploy logic) by running the app. When you fix a
 strategic bug, add a failing `claude.test.ts` case first and run it red.

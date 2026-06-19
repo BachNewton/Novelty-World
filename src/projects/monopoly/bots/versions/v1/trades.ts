@@ -1,7 +1,12 @@
-import { builtLotsInGroup, developmentLevel, groupPositions } from "../development";
-import { projectTrade, tradeParticipants } from "../engine";
-import { hasMonopoly } from "../logic";
-import type { GameState, TradeTerms } from "../types";
+// ===========================================================================
+// v1 SNAPSHOT — frozen copy of the original champion's trade logic (see
+// EVOLUTION.md). 2-way mutual-completion construction with the hard
+// rival-monopoly veto — the baseline v2 later replaced with threat pricing.
+// ===========================================================================
+import { builtLotsInGroup, developmentLevel, groupPositions } from "../../../development";
+import { projectTrade, tradeParticipants } from "../../../engine";
+import { hasMonopoly } from "../../../logic";
+import type { GameState, TradeTerms } from "../../../types";
 import {
   activeOpponents,
   colorName,
