@@ -366,6 +366,7 @@ bot as of this doc.
 | v10 | 2026-06-20 | **Auction denial aggression** (`versions/v10/valuation.ts` `auctionValue`, `claude.ts` auction handler): a fresh CHANNEL for the proven denial lever. v5's 0.6 `DENY_FACTOR` is calibrated for trade-to-deny, where the denied rival isn't a party and can't bid; an AUCTION is the opposite — the rival is a competing bidder valuing its own completer at the FULL bonus, so a 0.6 ceiling always drops out and the rival completes. v10 bids a rival's pinpointed completer up to `AUCTION_DENY_FACTOR=1.0`×bonus (the full swing) — either denying the set or forcing the rival to overpay near its max. `acquisitionValue` (buy/landing) and trade construction UNTOUCHED; scoped to the auction channel only. `auction.test.ts` pins it. | **WORSE vs v5 (base): 46.4% (549–635, 1184 decisive, confident REGRESSION, triage).** Beats v2 62.9%, v3 54.4%; Elo (v5=0) **v10 −19.1** < v5 0. No holdout — triage rejects. | **rejected** (regresses the champion); base stays **v5**. Paying up toward the full bonus to deny **overpays**: the cash sunk winning (or chasing) a rival's completer weakens my own position more than the block helps. Echoes v7 — pushing the denial lever *harder* (scope in v7, **price** here) destroys win share. v5's 0.6, one-short, cash-funded denial is tuned on every axis tried; the **magnitude** of the denial premium is right where it is. `v10/auction.test.ts` pins the aggressive ceiling. |
 | v9 | 2026-06-20 | **Graduated survival / liquidity guard** (`versions/v9/valuation.ts`, `liquidityFloor`): a NEW axis after the denial/tempo machinery tapped out. On top of v5's moderate reserve (half worst rent, capped $500), when a DEVELOPED rival board threatens, reserve a graduated 0.8× of the worst DEVELOPED rent, bounded by `SURVIVAL_CAP=$900` (below a full hotel hit, so never fully passive). Hypothesis: since tempo is proven worthless, trading a little development speed for a survival buffer is ~free on offense and converts variance into win share — outlast the hotel hit that busts a rival without fire-selling my own monopolies. A DEFENSIVE hardening, NOT a monopoly-value discount (`positionValue`/`acquisitionValue` untouched). `floor.test.ts` pins it; trade engine carried verbatim from v5. | **WORSE vs v5 (base): 45.2% (352–426, 778 decisive, confident REGRESSION, triage).** Beats v2 55.2%, EVEN vs v3 50.4%; Elo (v5=0) **v9 −31.4** < v5 0. No holdout run — triage already rejects. | **rejected** (regresses the champion); base stays **v5**. The buffer isn't ~free: a permanently higher reserve makes the bot **systematically under-develop** (unlike v4, which only re-ordered a build sooner), so it loses the rent race and the survival cash sits idle. Over-conservatism actively costs win share. `v9/floor.test.ts` pins the guard. |
 | v5 | 2026-06-20 | **Trade-to-deny** (`versions/v5/trades.ts`): extend v3's N-way trade CONSTRUCTION with a NEGATIVE-SUM move — when a rival is one lot short of a set and the completer sits with a third-party **holdout** (not me, not the rival, building-free), buy that lot to ME purely to **block** the completion, even though it doesn't complete my own set. Priced off the existing `DENY_FACTOR` lever (which `acquisitionValue` already applies on a landing/auction denial but construction never did): a new `denyBonus` candidate type with its own go/no-go gate `plainDelta + DENY_FACTOR×bonus > ACCEPT_MIN`. `evaluateTrade` is **unchanged** (completion + counterparty model + incoming vote all intact); the holdout judges by plain `evaluateTrade`; **the denied rival is NOT a party, so it can't veto its own denial — the asymmetry.** Weak sets self-gate (a small bonus rarely clears the holdout's sweetener). | **BETTER vs v3 (base): 54.0% (537–457, 994 decisive, train), confident.** No regressions — sweeps the whole field both streams: **train** v2 64.0%, v4 54.6%, v1 71.7%; **holdout** v3 54.2%, v2 65.1%, v4 61.8%, v1 80.0%. Elo (holdout) **v5 +216.3** > v3 +175.3 > v4 +149.3 > v2 +141.4 > v1 0 — clear top of the field. | **ACCEPTED — new loop champion.** The first non-neutral structural win since v2: a negative-sum, rival-specific move transfers win share where two positive-sum self-improvements (v3, v4) did not. Base for v6. `v5/trades.test.ts` pins the denial construction. |
+| v12 | 2026-06-20 | **Mixed equal-value trade selection — the RNG seam, first use** (`versions/v12/mix.ts`, `trades.ts`): the marquee untested axis (information / unpredictability). Wire a replay-safe seeded draw by HASHING `state.rngState` (xmur3-style, + a per-decision salt; **no `Bot`-contract change needed** — `rngState` is already in the `GameState` the bot receives, and reading it never advances the engine's stream, so games stay byte-identical and the draw is stable across the pacer's re-consults; never `Math.random`). First use: MIX which trade to propose among candidates within `MIX_TOLERANCE=50` of the best effective delta, instead of v5's fixed color-order argmax. Hypothesis: an unpredictable proposer denies a modelling opponent a clean read. Isolated to selection — `evaluateTrade`, v5's trade-to-deny construction, and the go/no-go gates are VERBATIM. | **WORSE vs v5 (base): 47.0% (778–877, 1655 decisive, confident REGRESSION, LLR impr −8.44).** Beats v2 59.9%, v3 55.8%; Elo (v5=0) **v12 −16.7** < v5 0. No holdout — triage rejects. | **rejected** (regresses the champion); base stays **v5**. The field is deterministic value-maximizers with **no predictive opponent-model**, so unpredictability has no read to deny — and mixing off the greedy argmax (even by ≤$50) is then a **pure value leak** that compounds over thousands of trades. Information/bluff is neutral-or-worse against this field; the RNG seam is built, replay-safe, and reusable, but **the information axis is closed**. `v12/mix.test.ts` pins the seam + the mixed tie-break. |
 
 ## Status & next step
 
@@ -401,22 +402,27 @@ on every axis tried — funding (v6), scope (v7), price (v10), coupling (v8), ta
 (v11) — and the non-denial axes tried are neutral-or-worse (tempo v4/v8; liquidity v9,
 which actively regresses because under-development loses).
 
-**Lead for the next session (from v5).** The valuation / trades / liquidity / jail
-surfaces are looking exhausted — every parameter on the proven denial premium is
-tuned, defensive hardening backfires (v9), and positive-sum self-improvement washes
-(v3/v4/v8). Two genuinely different directions remain, neither yet touched: **(a)
-information / bluff via the RNG seam** — the bot is fully deterministic and legible,
-so a pro reads it perfectly; a mixed strategy (drawn from `rngState`, per the
-`Bot`-contract RNG seam in `bots/CLAUDE.md`) — e.g. occasionally varying jail-stay,
-auction drop-out, or which equal-value trade to propose — could deny opponents a clean
-read (this needs the small `Bot`-contract change to thread the rng); **(b) coordinated
-multi-rival pressure** — the denial work all targets ONE rival's ONE set; a structural
-lever that shapes the *whole* board (e.g. choosing trades that leave TWO rivals each
-one-short and bidding them against each other, or refusing to be the kingmaker who
-hands the runner-up a set against the leader) is a different decision than
-single-block denial. Prefer the negative-sum / asymmetry shape; expect mostly rejects.
+**Lead for the next session (from v5).** Two genuinely different directions were
+flagged off v5; **(a) is now CLOSED and (b) is the active lead:**
+
+- **(a) information / bluff via the RNG seam — CLOSED by v12 (regression).** The bot is
+  deterministic and legible, so the idea was a mixed strategy to deny a "read." The seam
+  is now built and replay-safe (hash `state.rngState`, no `Bot`-contract change — see the
+  v12 note), but mixing **regresses**: the field models the candidate's VALUE, not its
+  BEHAVIOR, so there is no read to deny, and any deviation from the greedy argmax is a
+  pure value leak. Do NOT re-walk mixed/bluff strategies against this (non-predictive)
+  field — the seam waits for an adaptive-opponent field that doesn't exist yet.
+- **(b) coordinated multi-rival / board-shape pressure — the active lead.** All denial so
+  far targets ONE rival's ONE set, and all of it is **proposer-side**. The untouched
+  surface is **standings-keyed acceptance** (the seller/approver vote in `evaluateTrade`):
+  an *anti-kingmaker* rule — be more loath to hand a monopoly to whoever is closest to
+  winning (the leader / a close pursuer), more willing to feed a harmless trailer — or
+  trades that leave TWO rivals each one-short and bid them against each other. Prefer the
+  negative-sum / asymmetry shape; expect mostly rejects.
+
 **Do NOT re-walk any denial parameter** (funding v6, scope v7, price v10, coupling v8,
-target v11) or **defensive liquidity/tempo** (v4, v8, v9) — all logged dead ends.
+target v11), **defensive liquidity/tempo** (v4, v8, v9), or **information/bluff** (v12) —
+all logged dead ends.
 
 **v3 — what was tried and what we learned (a logged negative result):**
 
@@ -697,6 +703,47 @@ target v11) or **defensive liquidity/tempo** (v4, v8, v9) — all logged dead en
    trades / liquidity / jail-channel tuning; a future session should look at a
    different decision surface entirely (e.g. *information/​bluff* via the RNG seam, or
    coordinated multi-rival pressure) rather than another knob on the proven denial.
+
+**v12 — what was tried and what we learned (a logged negative result — a regression):**
+
+1. **v12 isolated** in `bots/versions/v12/` (snapshot from the champion v5; valuation
+   + dispatcher carried verbatim except the selection step; `v12/mix.ts` is the new
+   RNG-seam helper; `v12/mix.test.ts` pins the seeded draw + the mixed tie-break, and
+   `v12/trades.test.ts` re-pins that the carried v5 denial engine is identical on
+   single-candidate boards).
+2. **The change** is the first use of the **RNG seam** — the marquee untested axis
+   (information / bluff). Key design call: the seam needs **no `Bot`-contract change**.
+   The bot is already a pure function of `GameState`, and `GameState.rngState` (the live
+   mulberry32 state) is right there in it — so the bot draws replay-safe randomness by
+   *hashing* `rngState` (+ a decision salt), never `Math.random`. This is strictly
+   better than threading a live `Rng` into the contract (the alternative the docs
+   floated): reading `rngState` never advances the engine's stream (games stay
+   byte-identical where the bot doesn't diverge) and the draw is **stable across the
+   pacer's re-consults** within one decision window (a live `Rng` would hand back a
+   different value each consult and spin the arm/commit handshake). The behavioral use:
+   among trade candidates within `MIX_TOLERANCE=50` of the best effective delta, MIX
+   which to propose instead of v5's fixed color-order argmax.
+3. **The result closes the information axis.** v12 **regresses vs v5** (47.0%, confident
+   WORSE over 1655 decisive). The reading is sharp and matches the a-priori: **the field
+   models the candidate's VALUE, not its BEHAVIOR.** `evaluateTrade` answers "would the
+   counterparty accept *this* trade," but no opponent tracks the candidate's history or
+   predicts its future moves — so there is no *read* for unpredictability to deny. With
+   the information benefit at zero, the only remaining effect of mixing is the value you
+   give up by not always taking the greedy argmax: deviating even ≤$50 per trade, over
+   thousands of trades a game, is a **pure leak** that costs ~3% win share. So mixing is
+   neutral-at-best (a $0 / exact-tie band) and negative once it deviates at all.
+   **Information / bluff is a dead axis against a non-predictive field** — it would only
+   pay against an opponent that exploits a behavioral read, which this field doesn't do.
+   The RNG seam itself is built, replay-safe, unit-tested, and reusable (a future
+   adaptive-opponent field could revive it), but it buys no win share here.
+4. **Methodology note.** This is a *regression*, not merely win-neutral — stronger than
+   the expected wash, and decisive enough to retire the axis without a second variant:
+   if a tiny ($50) deviation-from-optimal already regresses, no larger mixing band can
+   recover, and a pure exact-tie band (zero deviation) can at best tie. The pivot is to
+   the other named lead — **coordinated multi-rival / board-shape pressure** keyed off
+   STANDINGS (anti-kingmaker / leader-aware acceptance), a genuinely different decision
+   surface (the seller/approver side of trades, which every prior denial version left
+   untouched — they are all proposer-side).
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
