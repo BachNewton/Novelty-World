@@ -16,7 +16,7 @@ import { versionBot } from "./versions";
 // version live without making it the floor. See EVOLUTION.md "Coexistence &
 // promotion".
 // ---------------------------------------------------------------------------
-export const LIVE_VERSION = "v5";
+export const LIVE_VERSION = "v17";
 
 /** The live policy, resolved from the version archive at `LIVE_VERSION`. */
 export const liveBot: Bot = versionBot(LIVE_VERSION);
