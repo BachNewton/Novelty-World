@@ -631,6 +631,50 @@ gate could also account for seller distress (a distressed holder is more likely 
 sell to the rival, making denial more urgent). But v28 is a strong champion — expect
 rejects on marginal tuning.
 
+**The v29–v33 run (2026-06-20), building from champion v28 — ALL FIVE REJECTED, v28 holds:**
+
+- **v29** push SURVIVAL_FACTOR higher (0.4→0.6 — each dollar worth up to $1.60 to a
+  distressed seller) — **REJECTED (win-neutral, 50.8%, +0.5 Elo)**. The higher discount
+  helps on some boards but overpays on others (seller declines because the too-low cash
+  offer doesn't clear even the discounted break-even), netting to even.
+- **v30** push SURVIVAL_FACTOR lower (0.4→0.2 — each dollar worth up to $1.20 to a
+  distressed seller) — **REJECTED (regression, 43.2%, −48 Elo)**. Too conservative a
+  discount means the bot over-sweetens relative to v28, losing the cost edge.
+  **Brackets the SURVIVAL_FACTOR optimum at v28's 0.4** — exactly like v18 bracketed
+  v17's reserve at ~0.3.
+- **v31** distress-weighted denial (scale the DENY_FACTOR by opponent distress —
+  denying a distressed rival is worth more) — **REJECTED (win-neutral, 50.5%, +0.3 Elo)**.
+  The deny premium is already captured correctly by v5/v14's flat DENY_FACTOR;
+  scaling it by distress adds no net win share because distressed opponents rarely
+  complete monopolies anyway (they can't afford the houses).
+- **v32** auction vulture (bid ABOVE normal acquisitionValue when a distressed opponent
+  is bidding, to starve them of assets) — **REJECTED (regression, 46.7%, −13 Elo)**.
+  Overpaying at auction costs more cash than the denial gains — the bot is buying
+  properties at above-value prices to hurt a rival who may already be too weak to
+  recover. Symmetric to v19's forced-hotels regression: aggression that costs the
+  aggressor more than it hurts the target.
+- **v33** position-aware development (reorder the build walk so monopolies opponents
+  are most likely to land on next get developed first) — **REJECTED (win-neutral,
+  51.3%, +3 Elo)**. The bot develops all monopolies in one commit, so reordering
+  only matters when cash-constrained — and in that case the cheapest set gets built
+  anyway regardless of order, making the proximity-weighting wash.
+
+**Net for v29–v33:** five rejects, no champion bump — **v28 is a strong, sharp optimum**.
+The desperation-pricing axis is now fully tapped: the parameter is bracketed (v29/v30),
+denial extensions wash (v31), auction aggression regresses (v32), and build-order
+tuning is neutral (v33). The meta-lesson holds: **AGGRESSION beats DEFENCE**, but only
+when asymmetric and underpriced (v28) — not when symmetric (v33), over-pushed (v30/v32),
+or reciprocable (v22).
+
+**Lead for the next session (from v28, after the v29–v33 sweep):** The desperation-pricing
+axis is exhausted. A genuinely new edge is needed. Possible directions: (a) **position-aware
+ACQUISITION** — prefer buying properties that block multiple opponents' routes (not just
+set completion/denial); (b) **endgame tempo** — when only 2 players remain, the optimal
+strategy shifts (the loser of a trade is eliminated, not just weakened); (c) **fresh
+competitive-strategy research** — a specific published heuristic not yet modeled. But
+v28 + v5 + v14 is a validated optimum — expect mostly rejects.
+
+
 
 **v3 — what was tried and what we learned (a logged negative result):**
 
