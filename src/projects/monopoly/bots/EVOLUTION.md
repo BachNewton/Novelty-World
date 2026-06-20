@@ -435,8 +435,8 @@ bot as of this doc.
   decision, *not* a precondition for continuing the loop, and **orthogonal to the
   gauntlet floor**.
 
-**As of 2026-06-21 (after the v28 → v29 run):** the loop champion is now **v29**
-(desperation acquisition with the MAXIMAL distress discount), branched from **v28**
+**As of 2026-06-21 (after the v28 → v29 crowns, then v30/v31 rejects):** the loop champion is
+**v29** (desperation acquisition with the MAXIMAL distress discount), branched from **v28**
 (the desperation-acquisition breakthrough) ← **v17** ← **v14** ← v5. After NINE straight
 rejects (v19–v27), lead (b) broke through: **v28** introduced desperation-pricing
 acquisition (buy a distressed rival's set-completer BELOW fair price to finish your own
@@ -470,6 +470,49 @@ a product call not yet greenlit).
   acquisition transfers win share iff ASYMMETRIC AND UNDERPRICED.** v24's fair-price grab
   washed because the price captured the value; v28 wins because the distressed seller
   rationally sells CHEAP, so the discount is a real proposer-side transfer.
+
+**The v31 run (2026-06-21), lead (b) corner (A) — from-scratch DISTRESS grab — REJECTED, v29 holds; and the surrounding-corner audit:**
+
+This batch set out to extend the proven distress/underpriced shape into its untapped
+non-relocating corners (A whole-set grab, B multi-lot completion, C dip-below-reserve,
+D distressed-denial). The audit found the distress lever's PRODUCTIVE SURFACE is already
+fully captured by v29's Offer B, and the remaining corners are structurally inert:
+
+- **(A) whole-set from-scratch grab off a distressed owner — v31, REJECTED (EVEN vs v29,
+  49.4%, −4.2 Elo).** -EV by construction, self-rejects, never fires positively (so v31 ≡
+  v29). The distress discount erases only the rival-THREAT premium, not the set's own
+  `monopolyBonus`; on a whole-set buy the bonus transfers ~1:1, so the buyer's gain exactly
+  cancels the seller's discounted break-even (measured +1120 gain vs −1120 discounted loss →
+  −30 after margin). The Offer-B asymmetry (buy the LAST lot, bank the WHOLE bonus for one
+  lot's price) has NO analogue for a whole set. v24's intact-monopoly wash, unchanged by
+  distress. **Closed dead end.**
+- **(B) multi-lot / two-short completion off a distressed seller — ALREADY IN v29, no new
+  version.** Offer B's `sweetenForAll` already applies the distress discount across ALL
+  missing lots in one N-way deal, so a two-short distress completion already clears whenever
+  it's +EV. Confirmed in `--log` self-play: the "missing <colors>" (plural) distress
+  completions fire regularly (the mechanism fires in 14/15 sampled seeds, often multi-lot),
+  with no hot-potato churn (completions develop and hold).
+- **(C) dip below the rent reserve to fund a distress buy — NON-APPLICABLE.** The TRADE path
+  has NO reserve gate — `sweetenForAll` already funds a profitable trade in cash down to $0
+  (only cash-NEGATIVE is blocked). The reserve only gates landed-property BUYS (`DIP_WORTH_MULT`),
+  not trade construction. There is nothing to loosen for free.
+- **(D) distress discount on a DENIAL buy off a distressed holdout — STRUCTURALLY INERT.** A
+  denial buy moves the lot to the BOT (defensively), not to a rival, so the holder prices NO
+  rival-threat premium — and distress only discounts the threat premium. Measured: a distressed
+  holder's break-even for parting with a denial lot is IDENTICAL to a comfortable one's (−200
+  either way). The distress lever cannot bite on a denial. (Also relocating — v14/v25 risk — and
+  edges into v6's closed funding-reach lesson.) **Inert.**
+
+The one genuinely-open corner the audit surfaced: **mortgage-to-fund a distress completion.** v29
+returns NULL on a +EV distress completion it can't fund in CASH but COULD fund by mortgaging a
+back-burner lot (measured: p1 cash $60, wants a distress-discounted orange completer, holds
+mortgageable railroads → v29 proposes nothing). This is the proven asymmetric+underpriced shape
+(a COMPLETION, not a denial), distinct from v6 (denial funding-reach) and from v4 (plain
+mortgage-tempo, washed) IF gated to the fleeting distress discount. NOT built this batch: the
+trade flow can't bundle a self-mortgage (no raise-cash-then-propose trade phase like the buy
+path's raise-to-buy), so it needs cross-turn orchestration (pre-mortgage, then complete) that
+risks the v4 washed-tempo failure mode (interest bled every misfire). Handed to Batch 4 as a
+sharply-scoped lead.
 
 **The v26–v27 run (2026-06-20), lead (c) — re-tune the set VALUE table, dark-blue — BOTH REJECTED, v17 holds:**
 
