@@ -369,6 +369,8 @@ bot as of this doc.
 | v13 | 2026-06-20 | **Anti-kingmaker — standings-weighted acceptance** (`versions/v13/trades.ts`, `claude.ts`): the first board-shape / standings lever, and the first on the SELLER/APPROVER side (all prior denial is proposer-side). v5 prices handing ANY rival a new monopoly at a flat `RIVAL_THREAT_FACTOR×bonus`, blind to who; v13 scales that threat in the bot's own incoming-trade VOTE by the recipient's standing — `kingmakerWeight` maps the strongest opponent to `KM_HI=1.4` (extra loath to feed the real threat), the weakest to `KM_LO=0.6` (a harmless trailer is cheaper to feed). Scoped to the vote only: construction + the counterparty model keep the flat threat (exactly v5), so the bot doesn't mis-model the non-anti-kingmaker field. `kingmaker.test.ts` pins the weighting + accept-flips. | **WORSE vs v5 (base): 40.1% (121–181, 302 decisive, confident REGRESSION).** Also regresses v3 46.8%; beats v2 56.5%. Elo (v5=0) **v13 −54.1** < v5 0. No holdout — triage rejects. | **rejected** (regresses the champion, hard); base stays **v5**. The acceptance threshold is not a free lever: declining good cash to avoid feeding the leader is v9's over-caution (passivity under-resources the bot), and the `KM_LO` discount hands trailers extra monopolies too cheaply — both directions of the symmetric weight cost. Echoes v11 (proposer-side threat-weighting, neutral) but worse, because forgoing the sweetener on the acceptance side directly weakens the bot. `v13/kingmaker.test.ts` pins the lever. |
 | v12 | 2026-06-20 | **Mixed equal-value trade selection — the RNG seam, first use** (`versions/v12/mix.ts`, `trades.ts`): the marquee untested axis (information / unpredictability). Wire a replay-safe seeded draw by HASHING `state.rngState` (xmur3-style, + a per-decision salt; **no `Bot`-contract change needed** — `rngState` is already in the `GameState` the bot receives, and reading it never advances the engine's stream, so games stay byte-identical and the draw is stable across the pacer's re-consults; never `Math.random`). First use: MIX which trade to propose among candidates within `MIX_TOLERANCE=50` of the best effective delta, instead of v5's fixed color-order argmax. Hypothesis: an unpredictable proposer denies a modelling opponent a clean read. Isolated to selection — `evaluateTrade`, v5's trade-to-deny construction, and the go/no-go gates are VERBATIM. | **WORSE vs v5 (base): 47.0% (778–877, 1655 decisive, confident REGRESSION, LLR impr −8.44).** Beats v2 59.9%, v3 55.8%; Elo (v5=0) **v12 −16.7** < v5 0. No holdout — triage rejects. | **rejected** (regresses the champion); base stays **v5**. The field is deterministic value-maximizers with **no predictive opponent-model**, so unpredictability has no read to deny — and mixing off the greedy argmax (even by ≤$50) is then a **pure value leak** that compounds over thousands of trades. Information/bluff is neutral-or-worse against this field; the RNG seam is built, replay-safe, and reusable, but **the information axis is closed**. `v12/mix.test.ts` pins the seam + the mixed tie-break. |
 
+| v14 | 2026-06-20 | **Phantom-denial fix — gate Offer C on rival acquirability** (`versions/v14/trades.ts` `rivalCanAcquire`): a CORRECTNESS fix for a live-game bug (Finding 1). v5's Offer C books the `DENY_FACTOR×bonus` denial premium gated only on the rival owning N-1 of a set — never on whether the rival can actually ACQUIRE the completer. When the completer already sits with a non-rival holdout (every claude bot prices `RIVAL_THREAT_FACTOR` and won't hand a rival a monopoly), the rival is already blocked → marginal denial ~0, yet each bot re-books the premium, so a weak lot (brown $50, above the ~$30 hop cost) HOT-POTATOES forever (observed: Baltic traded 29× in a bot→bot ring, net-zero cash). v14 gates Offer C on the rival being able to realistically acquire the completer — afford the holder's threat-adjusted break-even AND have completing be comfortably worth it — restoring v5's stated "weak sets self-gate" intent. | **EVEN vs v5 (base) on BOTH streams, NO regressions:** train 49.5% (1373–1401, 2774 decisive, confident), holdout 50.0% (918–919, 1837 decisive, confident); BETTER vs v2 (55.7% / 58.3%), v3 (56.1% / 57.3%). Elo (v5=0) v14 −3.6 (train) / −1.1 (hold) ≈ v5 0. | **WIN-SAFE CORRECTNESS BASE** (not champion — EVEN, so v5 keeps top Elo; like v3→v4, a win-safe branch point). Removing the phantom denials costs ZERO win share → v5's denial edge was the REAL strong-set denials, never the brown churn. Also cuts trade churn (faster games + headless training) and stops the live bot's hot-potato. **Base for v15+; ready to ship LIVE** (a product call — fixes the observed real-game bug). `v14/phantom-denial.test.ts` reproduces the ring + pins the gate. |
+
 ## Status & next step
 
 **Two independent tracks — don't conflate them:**
@@ -771,6 +773,40 @@ all logged dead ends.
    possessiveness on the trade-vote is neutral-or-worse; v5's threat-blind flat
    acceptance is right.** The board-shape lead is not dead in general (proposer-side
    coordination is still untried), but the *acceptance* axis is now a logged dead end.
+
+**v14 — what was tried and what we learned (a win-safe CORRECTNESS base, from live play):**
+
+1. **v14 isolated** in `bots/versions/v14/` (snapshot from v5; the only change is one
+   gate in Offer C; `v14/phantom-denial.test.ts` reproduces the brown hot-potato ring
+   and asserts no denial buy is built, plus that strong-set denials still fire and a
+   cash-poor rival's denial is skipped).
+2. **The change** fixes **Finding 1** — a phantom-denial bug found in two real DB games.
+   v5's trade-to-deny (Offer C) credits the denial premium for buying a rival's
+   completer from a holdout, gated only on the rival owning N-1 of the set. It never
+   checks whether the rival could ACTUALLY acquire the last lot. When the completer is
+   already held by a non-rival who would block the rival (every claude bot prices
+   `RIVAL_THREAT_FACTOR`), the rival is already blocked — moving the lot holdout→me is
+   zero marginal denial, but each bot re-books the full premium, so a weak lot cycles
+   among bots forever (Baltic 29× in a perfect ring). `rivalCanAcquire` gates the buy on
+   the rival's realistic ability to get the completer (afford the holder's
+   threat-adjusted break-even AND have completing be comfortably worth the cost). Weak
+   sets self-gate by valuation; strong-set denials still fire.
+3. **The result is a clean methodology point.** v14 is **EVEN vs v5 on BOTH seed streams
+   (train and holdout), with no regressions.** Removing the phantom denials costs **zero
+   win share** — which proves v5's measured denial edge came entirely from the **real**
+   (strong-set, reachable) denials, NOT the brown hot-potato churn the bug also produced.
+   So this is a **win-safe correctness fix**: it is not crowned champion (a tie doesn't
+   beat v5 on Elo), but — exactly like v3 became the win-safe base for v4 — **v14 is
+   adopted as the BASE for the ongoing run**, because it is strictly better engineering
+   (a real bug fixed, fewer wasted trade slots, faster headless training and live games)
+   at no competitive cost. It is also **ready to promote LIVE** to fix the observed
+   real-game churn — a product call left to a human green-light (live pointer untouched).
+4. **Why a bug fix can be a base without being champion.** The champion is the
+   highest-Elo version (still v5). The *base* is the win-safe branch point the loop
+   builds from. A correctness fix that measures EVEN with no regression is exactly such a
+   point: it changes nothing about who wins, removes a defect, and is safe to build on.
+   Conflating the two would either (a) refuse a free correctness fix, or (b) crown noise
+   — both wrong. v15+ branch from v14.
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
