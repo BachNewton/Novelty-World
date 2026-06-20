@@ -382,6 +382,7 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| v31 | 2026-06-21 | **From-scratch DISTRESS grab — corner (A)** (`versions/v31/trades.ts` `proposeBestTrade` Offer E): extend the proven distress-discount lever to a whole-set buy. v29 buys a distressed rival's COMPLETER for a set the bot is one short of; v31 opens a from-scratch grab — when a GENUINELY DISTRESSED opponent owns a WHOLE, building-free monopoly of a color the bot holds NONE of, buy the entire set at the distress-discounted price and take it off the board. v24 proved a FAIR-PRICE from-scratch grab washes (positive-sum); the new `isDistressed` gate was meant to make it UNDERPRICED (the winning condition). Held + developed, never relocated (a complete monopoly has no third party to bounce to). Gated by `worthAcquiring` (real prize ≥ 100, stays above the rent reserve). Branched from champion v29; isolated to Offer E. `v31/acquire.test.ts` pins the structural finding (below). | **REJECTED on triage — EVEN vs v29 (base): 49.4% win share (1540–1578, 3118 decisive, 27 draws, confident EVEN, LLR impr −7.35 / regr −2.98).** Elo (v29=0) **v31 −4.2 ≈ v29 0**; no regression. No holdout (triage rejects on no-improvement). | **rejected** (win-neutral); champion stays **v29**. **Offer E is -EV by CONSTRUCTION and self-rejects — it never fires positively, so v31 plays identically to v29.** The proof (pinned in `acquire.test.ts`): the distress discount only erases the seller's rival-THREAT premium (the cost of arming the buyer); it does NOT discount the set's own `monopolyBonus`. When the buyer takes a WHOLE monopoly that bonus transfers ~1:1 — the seller loses exactly what the buyer gains — so the buyer's gain never clears the seller's discounted break-even plus the accept margin (measured: buyer gain +1120 vs seller discounted loss −1120 → net −30 after the $30 margin). **The asymmetry that made v29's Offer B win has no analogue here:** Offer B buys the LAST lot and banks the WHOLE bonus for one lot's price; a whole-set buy carries the bonus proportionally in every lot, so it is a fair (washing) transfer even at maximal distress — exactly v24's "intact-monopoly buy is -EV and self-rejects" lesson, and distress doesn't change it because the only thing it discounts (the threat premium) is precisely what cancels the buyer's gain. The ONLY way to make it clear would be to discount the bare set's own `monopolyBonus` by the owner's cash — the **cash-scaled-monopoly-value** idea that `bots/CLAUDE.md` explicitly considered and rejected. **Corner (A) is a closed dead end.** `v31/acquire.test.ts` pins the -EV self-reject. |
 | v1 | 2026-06-19 | Baseline (current `claude`) | — | champion |
 | v2 | 2026-06-19 | **Price the rival-monopoly threat instead of vetoing it** (`versions/v2/trades.ts`): handing a rival a new monopoly costs the seller `DENY_FACTOR`×bonus, folded into their valuation, so "cash for the completer" clears when the cash outweighs it. | **v2 win share 69.8%** of decisive games (139–60) over 240 fresh held-out seeds, two independent families (74.0% / 66.0%), z≈5.6 vs the 50% null. Cap rate 40%→~17%; 4×v2 resolves 16/16 previously-deadlocked seeds. | **loop champion** (current best; not yet the live bot) |
 | v3 | 2026-06-19 | **N-way / multi-short trade construction** (`versions/v3/trades.ts`): generalize the search from "exactly one lot short, 2-way" to "any number short, N-way" — buy EVERY missing lot of a near-monopoly in one N-party deal — **plus the coupled fix that makes it viable:** price a new monopoly as ONE rival-threat premium *apportioned* across its contributors (`rivalThreatCost`), so a buyer assembling from two holdouts isn't charged the denial premium twice for one set (reduces to v2's full premium for a single seller). | **Eliminates the cap entirely: 0.0% draws in both held-out families** (v2 still caps ~17–26%); trades executed ~93→~800/run. **But win-neutral vs v2: 49.2% win share** over 240 fresh seeds (v3eval 46.7% [56–64], v3eval2 51.7% [62–58]), z≈−0.26 — does **not** clear the >50% bar. The residual deadlock was costing *draws, not losses*, so breaking it splits former draws ~50/50 instead of winning them. | **rejected** as champion (win-neutral); champion stays **v2**. N-way+apportionment archived in `versions/v3/` as a proven, reusable building block. **Later shipped LIVE** (`LIVE_VERSION = v3`) as the more engaging substrate, and used as the **base** for v4 — a win-safe branch point even though it didn't beat v2. |
@@ -602,10 +603,18 @@ that convert). The surviving lead:
   capital deployment (v17). BOTH of its knobs are now TAPPED: the DISCOUNT MAGNITUDE is CLOSED
   (v29 maxed it at 1.0; the threat floors at 0) and the GATE is CLOSED (v30 widened it 1.0→1.3×
   and washed — v29's strict "one hit from bankrupt" gate already captures the value; looser fires
-  on seats that recover, a leak). **The ONE open follow-up on lead (b):** extend the distress
-  discount to DENIAL buys off a distressed holdout (Offer C becomes cheaper when the holdout is
-  distressed), watching the hot-potato gate (v14/v25) — the completion channel is done. Expect a
-  sharp optimum (the mechanism's two tuning knobs both were).
+  on seats that recover, a leak). **Corner (A) — a WHOLE-SET from-scratch grab off a distressed
+  owner (v31) — is now CLOSED: -EV by construction.** The distress discount only erases the
+  rival-THREAT premium, not the set's own `monopolyBonus`; on a whole-set buy that bonus transfers
+  1:1, so the buyer's gain exactly cancels the seller's discounted break-even (v24's intact-monopoly
+  wash, unchanged by distress). The asymmetry that won in Offer B — buy the LAST lot, bank the WHOLE
+  bonus for one lot's price — has no analogue for a whole set; only discounting the bare set's bonus
+  by the owner's cash (the rejected cash-scaled-monopoly-value idea) could make it clear. **The
+  remaining open follow-ups on lead (b):** (i) a TWO-SHORT distress completion (does the discount
+  make a normally-too-expensive two-short buy clear off a distressed seller? — note Offer B already
+  reaches multi-lot completions, so this may already be captured); (ii) the distressed-DENIAL
+  extension (Offer C cheaper off a distressed holdout), watching the hot-potato gate (v14/v25).
+  Expect a sharp optimum (the mechanism's tuning knobs all were).
 
 - **A fresh web-researched specific edge** — the obvious published discrepancy (dark-blue) is
   spent, so any new edge needs genuinely new grounding (a specific opening-buy or trade-timing
@@ -632,7 +641,10 @@ v13, v15), **information/bluff** (v12), **jail** (v16), **pushing the reserve be
 (v18), the **whole liquid-deployment axis** (buy-dip v20, coupling v21, unmortgage-reclaim
 v23), **elimination pressure on the DEVELOPMENT channel** (forced hotels v19, regresses),
 **symmetric/reciprocable denial** (house-famine v22, washes), **FAIR-PRICE acquisition /
-buying a prize set at full value** (from-scratch grab v24, washes — positive-sum), and
+buying a prize set at full value** (from-scratch grab v24, washes — positive-sum), **buying a
+WHOLE bare monopoly off a DISTRESSED owner** (from-scratch distress grab v31 — -EV by
+construction, self-rejects: the discount erases only the threat premium, not the bonus, which
+transfers 1:1 on a whole-set buy; no Offer-B-style asymmetry), and
 **WIDENING the distress GATE** (v30 `DISTRESS_MARGIN` 1.0→1.3 — washes; v29's strict "one hit
 from bankrupt" gate already captures it, looser fires on recoverable seats), **pushing the
 distress DISCOUNT past 1.0** (v29 maxed it; the threat floors at 0), and
