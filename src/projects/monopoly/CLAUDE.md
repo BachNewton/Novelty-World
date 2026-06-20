@@ -364,11 +364,16 @@ bots/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdi
 bots/gauntlet-cli.ts  `npm run sim:gauntlet -- v3` — run the gauntlet on the pool
 bots/verify-cli.ts    `npm run sim:verify -- v2 v1` — prove parallel == single
 bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code, decoupled from what ships live
-bots/versions/index.ts  VERSIONS map (v1=floor, v2, v3, v4 …) + versionBot()
+bots/versions/index.ts  VERSIONS map (v1=floor, v2, v3, …) + versionBot()
 bots/versions/v1/     v1 snapshot: the original champion, frozen — the gauntlet FLOOR
 bots/versions/v2/     v2 snapshot (rival-threat pricing) + its tests
-bots/versions/v3/     v3 snapshot (N-way trades) — the current LIVE bot (LIVE_VERSION)
+bots/versions/v3/     v3 snapshot (N-way trades) — accepted as substrate (win-neutral vs v2)
 bots/versions/v4/     v4 snapshot (mortgage-funded build tempo) — rejected, win-neutral; archived
+bots/versions/v5/     v5 snapshot (trade-to-deny) — loop CHAMPION
+bots/versions/v6/     v6 snapshot (deny-via-swap) — rejected, win-neutral; archived
+bots/versions/v7/     v7 snapshot (two-short denial) — rejected, regression; archived
+bots/versions/v8/     v8 snapshot (denial + tempo) — rejected, overfit (even on holdout); archived
+(which version is LIVE is whatever bots/live.ts → LIVE_VERSION points to — a product call, see EVOLUTION.md)
 components/           React board + lobby/seat UI
 ```
 

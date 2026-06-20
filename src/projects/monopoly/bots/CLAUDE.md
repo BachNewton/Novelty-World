@@ -3,8 +3,9 @@
 Read this before touching any version's `claude.ts`, `valuation.ts`, or
 `trades.ts`. The policy code lives in the version archive
 (`bots/versions/<label>/`), not at the top level — there is no `bots/claude.ts`;
-the live bot is a pointer (`bots/live.ts` → `LIVE_VERSION`, today **v3**) into
-that archive (see EVOLUTION.md "Coexistence & promotion"). The main
+the live bot is a pointer (`bots/live.ts` → `LIVE_VERSION` — read that file for
+the version currently shipped) into that archive (see EVOLUTION.md "Coexistence &
+promotion"). The main
 `monopoly/CLAUDE.md` "Bots" section owns the shared **infrastructure** (the `Bot`
 contract, the registry, BOT-note mechanics, and how the pacer drives proactive
 play). This file owns the **`claude` strategy itself** — its purpose, its

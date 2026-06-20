@@ -261,8 +261,9 @@ archive**: `bots/live.ts` exports `LIVE_VERSION`, and `registry.ts` resolves
 
 - experimental versions **run side-by-side** with the live bot in one process —
   they're all just entries in `VERSIONS`, fielded by label by the tournament;
-- **promotion is a one-line change** — repoint `LIVE_VERSION` (today `"v3"`); no
-  code copy, no test churn (each version owns its tests under `versions/`);
+- **promotion is a one-line change** — repoint `LIVE_VERSION` in `bots/live.ts`
+  (that file is the source of truth for what currently ships); no code copy, no
+  test churn (each version owns its tests under `versions/`);
 - **the live bot and the gauntlet floor are orthogonal.** Shipping a version
   live is a product call; the floor (`v1`) and the measurement field are
   unaffected — the gauntlet fields versions by label and anchors Elo at `v1`, so
@@ -381,11 +382,12 @@ bot as of this doc.
 
 **As of 2026-06-20:** the loop champion is now **v5** (trade-to-deny) — the first
 change to beat its base since v2, validated on both seed streams against the whole
-field (see the v5 row and note). **The live bot is `v3`** — greenlit by Kyle as the
-more *engaging* opponent for humans (decisive games, real trading, no deadlock), an
-explicit **product call, not a strength claim**; promoting v5 live is a separate
-human call (v5 is strictly stronger, so it's a reasonable future greenlight). The
-floor stays **v1**, a materialized frozen snapshot (`versions/v1/`). **Sessions A–C
+field (see the v5 row and note). **The live bot is whatever `bots/live.ts` →
+`LIVE_VERSION` points to** (a product call, separate from the loop champion and the
+gauntlet floor — read that file for the current value; v5 was promoted live once it
+proved strictly stronger, replacing v3, which had been shipped earlier as the more
+*engaging* opponent for humans). The floor stays **v1**, a materialized frozen
+snapshot (`versions/v1/`). **Sessions A–C
 are done.** Session A built the measurement system; Session B built `v4` (tempo) and
 the gauntlet REJECTED it; **the overnight run (an extended Session C) built three
 versions from the negative-sum family: `v5` (one-short trade-to-deny) ACCEPTED as
@@ -625,16 +627,21 @@ untested after v3/v4's positive-sum self-improvements both washed out. Result:
   short). Earlier denial *destroys* win share — premature blocks overpay for sets the
   rival might never complete; v5's one-short timing is near-optimal (v7 row + note).
 
-**The denial lever is tuned at v5.** Do NOT re-walk denial funding (v6) or scope
-(v7). The next session is **v8 from v5** — see the lead under "Status & next step"
-(denial+tempo synergy / survival-liquidity guard / jail-as-haven). NEVER gauntlet
-`dumb`; keep v1 in the field (Decision 8).
+**The denial lever is tuned at v5, and the denial+development machinery is tapped
+out.** Do NOT re-walk denial funding (v6), denial scope (v7), or tempo (v4, v8) —
+all logged dead ends. The next lever must be a **different axis**: the leads are a
+graduated **survival / liquidity guard** (outlast variance — recommended), then
+jail-as-haven timing or auction aggression — see "Status & next step". Next version
+is **v9 from v5**. NEVER gauntlet `dumb`. v1 is now **out of the default field**
+(Decision 8, taken) — re-add with `--with-v1` only for an occasional floor audit.
 
 **Shipping `vX` to the live bot (whenever a human greenlights it):** change
 `LIVE_VERSION` in `bots/live.ts` to `"vX"`. That is the **whole** procedure — the
 `claude` strategy resolves through it, so no code is copied and no tests change.
-The old copy-over dance is gone: as of 2026-06-20 the live bot is a pointer and
-`v1` is a real frozen snapshot (`versions/v1/`), so the gauntlet floor is
-permanently decoupled from what ships. (Promotion is still a deliberate, rare,
-human call — it's just now a one-liner.) **Done once on 2026-06-20:** the live
-bot was repointed from v1 to **v3** by this mechanism.
+`bots/live.ts` is the single source of truth for what currently ships; this doc
+deliberately does **not** restate the current live version (it would only go
+stale). The old copy-over dance is gone: the live bot is a pointer and `v1` is a
+real frozen snapshot (`versions/v1/`), so the gauntlet floor is permanently
+decoupled from what ships. (Promotion is still a deliberate, rare, human call —
+it's just now a one-liner.) The mechanism has been exercised on real promotions
+(v1→v3, then v3→v5); see the version log for which were strength vs engagement calls.
