@@ -16,6 +16,8 @@ import { v13Bot } from "./v13";
 import { v14Bot } from "./v14";
 import { v15Bot } from "./v15";
 import { v16Bot } from "./v16";
+import { v17Bot } from "./v17";
+import { v18Bot } from "./v18";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -44,6 +46,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   v14: v14Bot,
   v15: v15Bot,
   v16: v16Bot,
+  v17: v17Bot,
+  v18: v18Bot,
   dumb: dumbBot,
 };
 

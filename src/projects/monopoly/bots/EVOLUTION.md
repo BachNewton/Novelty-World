@@ -375,6 +375,8 @@ bot as of this doc.
 
 | v16 | 2026-06-20 | **Jail-as-haven sharpening** (`versions/v16/valuation.ts` `jailChoice`): lead 3. v5/v14 stay in jail whenever ANY rival board is developed — a defensive cower, blind to the bot's own position. v16 reframes jail as a HAVEN keyed off the bot's OWN board: sit to collect rent risk-free only when *I* hold a developed board (own property, dev rent ≥ `JAIL_DANGER_RENT`) rivals must traverse; otherwise get out and keep moving (develop, pass GO, acquire). Branched from v14; only `jailChoice` changes. | **WIN-NEUTRAL vs v14 (base): INCONCLUSIVE 48.8% (1952–2048, 4000 decisive, ran to cap, improve-LLR −12.15 firmly NOT improving, no regression).** EVEN vs v5 49.8%; BETTER vs v2 54.8%, v3 52.9%. Elo (v14=0) v16 −7.2 ≈ v14 0. No holdout — triage rejects on no-improvement (like v6/v11). | **rejected** (win-neutral); base stays **v14**. The best of this run's rejects (neutral, not a regression — unlike v13/v15). Jail decisions are too infrequent and low-leverage to transfer win share; the own-board-haven vs rival-cower reframing is sound but washes. The last handoff lead (jail) joins the others as a logged dead end. `v16/jail.test.ts` pins the haven flip. |
 
+| v17 | 2026-06-20 | **Lower liquidity reserve — aggression on the liquidity axis** (`versions/v17/valuation.ts`): the INVERSE of v9. v9 RAISED the voluntary-spend reserve and regressed (under-development lost the rent race); v17 asks whether v5's 0.5×worst-rent / $500 cap was itself too cautious and LOWERS it (`FLOOR_RENT_FRACTION` 0.5→0.3, `FLOOR_CAP` 500→300) — freeing cash to buy and develop sooner (reaches "flush"/hotels earlier), leaning on must-raise-cash for the rare big hit. Branched from v14; only the reserve changes. | **BETTER vs v14 (base) on BOTH streams, NO regressions:** triage 52.5% (1313–1189, 2502 decisive); full-field **train** BETTER vs v14 52.5% (only EVEN vs v6); full-field **holdout** BETTER vs v14 52.7% **AND BETTER vs the WHOLE archive v2–v16** (only INCONCLUSIVE vs v8 — not a regression). Elo (holdout, v14=0) **v17 +13.2 — top of the field**. | **ACCEPTED — new loop champion.** The first win since v5, and the first NON-denial structural win. Confirms the meta-lesson from the OTHER direction: not only does defensive over-caution lose (v9 raised the reserve → regressed), v5's *moderate* reserve was itself too conservative — a thinner buffer wins the development/rent race. **Aggression beats defense, on the liquidity axis too.** Inherits v14's phantom-denial fix. Base for v18. `v17/floor.test.ts` pins the lower reserve. |
+
 ## Status & next step
 
 **Two independent tracks — don't conflate them:**
@@ -838,6 +840,36 @@ all logged dead ends.
    costs win share against the field, so it is **not** adopted; if a future "human-facing
    robustness" mode is ever wanted, it would be an explicit opt-in, separate from the
    training objective, like the timed-net-worth mode.)
+
+**v17 — what was tried and what we learned (the first ACCEPTED win since v5):**
+
+1. **v17 isolated** in `bots/versions/v17/` (snapshot from v14, the win-safe base; only
+   the three floor constants change; `v17/floor.test.ts` pins that the reserve is
+   strictly lower than v14's on a developed board and equal on a quiet one).
+2. **The change** is a single-knob LOWERING of the voluntary-spend liquidity reserve
+   (`FLOOR_RENT_FRACTION` 0.5→0.3, `FLOOR_CAP` 500→300). It was chosen as the *inverse*
+   of v9: v9 raised the reserve and regressed, which proved the reserve is a live knob
+   AND that over-caution costs — so the obvious untried question was whether v5's
+   moderate reserve was *itself* still too cautious. A thinner buffer leaves more cash
+   above the floor, so the bot buys, completes, and develops sooner (and reaches the
+   "flush → hotels" threshold earlier), leaning on the forced `must-raise-cash` path for
+   the rare big rent it can't pre-fund.
+3. **The result is the run's headline.** v17 is **BETTER vs v14 on BOTH seed streams and
+   BETTER vs the entire archive on the holdout**, with no regressions — Elo top of the
+   field. The lesson completes the arc the whole run has been tracing: **aggression beats
+   defense, and v5's caution was leaving win share on the table.** v9 showed raising the
+   reserve loses; v17 shows v5's reserve was already too high. The bot was over-insuring
+   against rent it rarely pays in full, at the cost of the development tempo that wins
+   the rent race. This is *also* why v4/v8 tempo washed but v17 wins: v4 bought tempo by
+   *mortgaging* (paying 10% interest + losing back-burner rent — the leverage cost
+   cancelled the gain), whereas v17 buys the SAME tempo for FREE by simply holding less
+   idle cash. Same goal (develop sooner), but v17's funding is costless, so it converts.
+4. **Why this isn't v9 in reverse risk.** A thinner reserve could in principle bust the
+   bot on a hotel hit before it can liquidate — but the engine's `must-raise-cash` path
+   already liquidates value-preservingly for any forced charge regardless of the
+   voluntary floor, so the floor only governs *voluntary* spend. Lowering it trades a
+   little fire-sale risk for a lot of tempo, and the measurement says that trade wins
+   clearly. The next question (v18): how far does lowering the reserve keep paying?
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
