@@ -194,12 +194,18 @@ import the `move()` wrapper without an import cycle). Each seat's strategy is
 plus a registry entry. Current strategies:
 
 - **`dumb`** (`bots/dumb.ts`) — the reactive baseline; answers the proxy-driven
-  decision phases and never initiates. Returns note-less decisions.
-- **`claude`** — the strong, proactive, pro-level opponent and the **default**
-  for added bots (`addBot`) and the `freshGame` seed. It is **not a fixed file**:
-  the `claude` strategy is a **pointer** into the version archive (`bots/live.ts`
-  → `LIVE_VERSION` — read that file for the version currently shipped), so the
-  policy code lives in `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
+  decision phases and never initiates. Returns note-less decisions. **Simulator/
+  gauntlet only — no longer offered in the lobby UI.**
+- **`claude` / `champion` / `latest`** — three **pointers** into the version
+  archive, declared as data in `bots/roles.ts` (`BOT_ROLES`) and the bots the
+  lobby actually offers. `claude` is the hand-picked live bot (`bots/live.ts` →
+  `LIVE_VERSION`) and the **default** for added bots (`addBot`) and the
+  `freshGame` seed; `champion` is the best by measurement (`CHAMPION_VERSION`);
+  `latest` is the newest snapshot (derived `LATEST_VERSION`). They're **live
+  pointers** — a seat stores its role, not a frozen version, so it follows
+  whatever the pointer names in the deployed code (see EVOLUTION.md "The three
+  lobby pointers"). The policy code for whichever version each resolves to lives
+  in `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
   is a pure dispatcher over its `valuation.ts` (scoring, build planning,
   liquidation, jail) and `trades.ts` (counterparty-aware proposals + evaluation),
   everything keyed off `positionValue`, **noting its reasoning on every decision**.
@@ -352,6 +358,7 @@ bots/registry.ts      BOTS strategy map (botStrategy -> policy); re-exports the 
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
 bots/live.ts          LIVE_VERSION — which archived version ships as `claude` (promotion = this line)
+bots/roles.ts         BOT_ROLES — the lobby pointers (Claude/Champion/Latest) as data; CHAMPION_VERSION + derived LATEST_VERSION
 bots/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
 bots/simulate-cli.ts  `npm run sim` — watch one game (roster, seed, --log)
 bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null

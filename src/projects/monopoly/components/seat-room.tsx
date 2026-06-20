@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Bot, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
-import { LIVE_VERSION } from "../bots/live";
+import { BOT_ROLES } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
 import { useMonopolyStore } from "../store";
@@ -155,6 +155,7 @@ function SeatRow({
   onKick?: () => void;
 }) {
   const Icon = PLAYER_ICON_COMPONENTS[player.icon];
+  const isBot = player.botStrategy !== null;
   return (
     <li
       className="flex flex-col gap-3 rounded-lg px-3 py-3"
@@ -171,11 +172,9 @@ function SeatRow({
           <Icon strokeWidth={2.5} className="h-5 w-5" aria-hidden="true" />
         </span>
         <span className="flex-1 truncate font-semibold">{player.name}</span>
-        {player.botStrategy !== null ? (
-          <BotStrategyToggle player={player} />
-        ) : isMine ? (
+        {isMine && (
           <span className="text-xs font-semibold" style={{ color: "var(--mono-orange)" }}>You</span>
-        ) : null}
+        )}
         {onKick && (
           <button
             type="button"
@@ -189,50 +188,52 @@ function SeatRow({
         )}
       </div>
 
+      {isBot && <BotRoleSelector player={player} />}
       {isMine && <SeatPickers player={player} />}
     </li>
   );
 }
 
-/** Per-bot strategy selector: `Claude` (the strong, proactive opponent — the
- *  default for a real game) vs `dumb` (the reactive baseline, handy for an easy
- *  game or testing). Anyone in the lobby can switch it, like kicking a bot. The
- *  Claude option carries a subtle `LIVE_VERSION` tag so the lobby shows which
- *  archived bot version actually ships (e.g. v3). */
-function BotStrategyToggle({ player }: { player: Player }) {
+/** Per-bot role selector: the three Claude pointers the lobby can field —
+ *  `Claude` (the hand-picked live bot), `Champion` (best by measurement), and
+ *  `Latest` (newest snapshot) — rendered from `BOT_ROLES`, so retargeting a
+ *  pointer or adding a role needs no change here. Each option tags the version
+ *  it currently resolves to, which also makes it visible when two roles point at
+ *  the same version. Anyone in the lobby can switch it, like kicking a bot. */
+function BotRoleSelector({ player }: { player: Player }) {
   const setStrategy = useMonopolyStore((s) => s.setStrategy);
   return (
-    <span className="flex items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1.5 pl-12">
       <Bot
-        className="h-3.5 w-3.5"
+        className="h-3.5 w-3.5 shrink-0"
         aria-hidden="true"
         style={{ color: "var(--mono-rail)" }}
       />
-      {(["claude", "dumb"] as const).map((strat) => {
-        const active = player.botStrategy === strat;
+      {BOT_ROLES.map((role) => {
+        const active = player.botStrategy === role.id;
         return (
           <button
-            key={strat}
+            key={role.id}
             type="button"
-            onClick={() => { setStrategy(player.id, strat); }}
+            onClick={() => { setStrategy(player.id, role.id); }}
             aria-pressed={active}
-            className="rounded px-1.5 py-0.5 text-[11px] font-semibold capitalize transition-colors"
+            aria-label={`${role.label} (${role.version})`}
+            title={role.hint}
+            className="rounded px-2 py-0.5 text-[11px] font-semibold transition-colors"
             style={{
               backgroundColor: active ? "var(--mono-orange)" : "transparent",
               color: active ? "var(--mono-card)" : "var(--mono-rail)",
               boxShadow: active ? undefined : "inset 0 0 0 1px var(--mono-frame)",
             }}
           >
-            {strat}
-            {strat === "claude" && (
-              <span className="ml-0.5 align-super text-[8px] font-bold normal-case opacity-70">
-                {LIVE_VERSION}
-              </span>
-            )}
+            {role.short}
+            <span className="ml-0.5 align-super text-[8px] font-bold normal-case opacity-70">
+              {role.version}
+            </span>
           </button>
         );
       })}
-    </span>
+    </div>
   );
 }
 

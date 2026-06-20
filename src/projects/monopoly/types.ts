@@ -58,12 +58,13 @@ export type PlayerIcon =
   | "rocket"
   | "bird";
 
-/** Which bot policy controls a computer seat. `dumb` is the baseline reactive
- *  policy (`bots/dumb.ts`); `claude` is the strong, proactive policy
- *  (`bots/claude.ts`). Selected per seat and resolved through the bot registry
- *  (`bots/registry.ts`), so adding a strategy is a registry entry plus a union
- *  member here. A human seat has no strategy (`Player.botStrategy === null`). */
-export type BotStrategy = "dumb" | "claude";
+/** Which bot policy controls a computer seat, resolved through the bot registry
+ *  (`bots/registry.ts`). `dumb` is the baseline reactive policy (`bots/dumb.ts`).
+ *  The other three are version POINTERS into the archive (`bots/roles.ts`), so a
+ *  seat follows whatever each names: `claude` = the hand-picked live bot
+ *  (`bots/live.ts`), `champion` = the best by measurement, `latest` = the newest
+ *  snapshot. Selected per seat; a human seat has none (`botStrategy === null`). */
+export type BotStrategy = "dumb" | "claude" | "champion" | "latest";
 
 export interface Player {
   id: string;

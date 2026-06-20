@@ -77,7 +77,9 @@ convincing story. The session structure that keeps this honest and resumable:
    eventually, the gauntlet/SPRT in "Measurement"). A hypothesis that **fails to
    beat `vN` is a result, not a waste**: log it as **rejected** in the version log
    (a negative result others shouldn't re-walk) and carry a *different* lead
-   forward. Never ratchet in a regression because the narrative was good.
+   forward. Never ratchet in a regression because the narrative was good. When a
+   version *is* crowned, **also bump `CHAMPION_VERSION` in `bots/roles.ts`** — the
+   lobby's "Champion" pointer — in the same change (see "Coexistence & promotion").
 5. **End by handing off via the clipboard.** The session closes by writing a
    short **handoff prompt** for the next one — "continue the loop, build
    `v(N+1)` from `vN`, suggested hypothesis = … because …" — **straight onto the
@@ -276,6 +278,31 @@ This inverts the old coupling where `v1` *aliased* the live policy file: the
 archive is now the single source of truth, and "live" and "floor" are two
 independent selectors over it.
 
+### The three lobby pointers (Claude / Champion / Latest)
+
+The lobby lets a player field a bot under **three named pointers**, declared as
+data in `bots/roles.ts` (`BOT_ROLES`) and resolved through `registry.ts`. They
+are **live pointers**: a seat stores its *role* (`claude` / `champion` /
+`latest`), not a frozen version, so it always plays whatever the pointer names
+in the deployed code — retargeting one moves every seat using it on the next
+deploy. Each is moved by a different hand:
+
+- **Claude** → `LIVE_VERSION` (`bots/live.ts`) — the hand-picked shipped bot. A
+  product call on a **human green light**, as above.
+- **Champion** → `CHAMPION_VERSION` (`bots/roles.ts`) — the best by measurement.
+  **Re-pointing this is the code half of the acceptance ritual:** when a `vN`
+  clears the bar and the version log below crowns it the new champion, bump
+  `CHAMPION_VERSION` to that label in the same change. (The loop advancing the
+  champion needs no human green light — only the *Live* pointer does.)
+- **Latest** → `LATEST_VERSION` (`bots/roles.ts`) — the newest snapshot,
+  **derived** from `VERSIONS`. Nobody edits it; registering a version in
+  `versions/index.ts` makes it the latest automatically.
+
+So Champion, Live, and Latest are three independent selectors over the same
+archive, and can all name different versions (today: Live = Champion = `v17`,
+Latest = `v18`). `dumb` remains a resolvable strategy for the simulator/gauntlet
+but is no longer offered in the lobby.
+
 ## Decisions (locked 2026-06-19)
 
 1. **Version representation — self-contained snapshots.** Each version is a
@@ -378,6 +405,7 @@ bot as of this doc.
 | v17 | 2026-06-20 | **Lower liquidity reserve — aggression on the liquidity axis** (`versions/v17/valuation.ts`): the INVERSE of v9. v9 RAISED the voluntary-spend reserve and regressed (under-development lost the rent race); v17 asks whether v5's 0.5×worst-rent / $500 cap was itself too cautious and LOWERS it (`FLOOR_RENT_FRACTION` 0.5→0.3, `FLOOR_CAP` 500→300) — freeing cash to buy and develop sooner (reaches "flush"/hotels earlier), leaning on must-raise-cash for the rare big hit. Branched from v14; only the reserve changes. | **BETTER vs v14 (base) on BOTH streams, NO regressions:** triage 52.5% (1313–1189, 2502 decisive); full-field **train** BETTER vs v14 52.5% (only EVEN vs v6); full-field **holdout** BETTER vs v14 52.7% **AND BETTER vs the WHOLE archive v2–v16** (only INCONCLUSIVE vs v8 — not a regression). Elo (holdout, v14=0) **v17 +13.2 — top of the field**. | **ACCEPTED — new loop champion.** The first win since v5, and the first NON-denial structural win. Confirms the meta-lesson from the OTHER direction: not only does defensive over-caution lose (v9 raised the reserve → regressed), v5's *moderate* reserve was itself too conservative — a thinner buffer wins the development/rent race. **Aggression beats defense, on the liquidity axis too.** Inherits v14's phantom-denial fix. Base for v18. `v17/floor.test.ts` pins the lower reserve. |
 
 | v18 | 2026-06-20 | **Push the liquidity reduction further** (`versions/v18/valuation.ts`): v17's lower reserve WON, so per the loop push the winning lever — `FLOOR_RENT_FRACTION` 0.3→0.15, `FLOOR_CAP` 300→200, `BASE_FLOOR` 120→80 (an even thinner buffer) — to find where the aggression stops paying. Branched from the champion v17. | **WIN-NEUTRAL vs v17 (base): INCONCLUSIVE 51.9% (2075–1925, 4000 decisive, ran to cap, improve-LLR +2.01 short of the +2.94 accept boundary, no regression).** BETTER vs v14 55.7%, v5 57.3%, v3 58.7%, v2 58.4%; Elo (v17=0) **v18 +13.1** (leans positive but below the E=20 promotion bar). | **rejected** as champion (does not confirm BETTER vs base); base stays **v17**. Brackets the optimum: v9 (raise) regressed, v17 (0.5→0.3) won, v18 (0.3→0.15) adds no CONFIRMED win share — diminishing returns past v17. The true optimum may sit a hair below 0.3 (v18 leans +13 Elo) but within E=20 noise, so not worth crowning (Decision 5 — don't chase 1–2%). **v17's 0.3 / $300 reserve is the validated setting.** `v18/floor.test.ts` pins the thinner reserve. |
+| v19 | 2026-06-20 | **Endgame elimination pressure** (`versions/v19/valuation.ts` `desiredLevel`): the marquee untried lead — proactive, proposer-side, negative-sum. Key development off a RIVAL'S DISTRESS: when an active rival is on the ropes (their raisable cash `cash + mortgageableTotal` can't cover my deadliest developed rent — one landing on my board ends them), enter ELIMINATION MODE and push my monopolies to MAX rent (hotels, or 4-and-hold under a house shortage) **even when not flush**, deploying my cushion into the rent that finishes the kill before variance lets them recover. Branched from the champion v17; isolated to `desiredLevel`. `v19/elimination.test.ts` pins the level-5 flip on a rival on the ropes and the no-op when none is. | **WORSE vs v17 (base): 46.5% (574–661, 1235 decisive, confident REGRESSION, improve-LLR −7.05).** Yet BETTER vs the whole OLDER field — v2 56.8%, v3 57.3%, v5 52.4%, v14 55.2%; Elo (v17=0) **v19 −17.0** < v17 0 (but > v5 −32.5, v14 −41.7). No holdout — triage rejects on the regression. | **rejected** (regresses the champion); base stays **v17**. A clean non-transitivity trap caught by the SPRT: v19 sits BETWEEN v5/v14 and v17 — stronger than the older field, weaker than v17. The mechanism: forcing HOTELS below the flush threshold spends the cushion v17 deliberately keeps, and **houses are illiquid** (sell back at half), so it's a *worse* form of aggression than v18's thinner cash reserve (which stays liquid and only went win-NEUTRAL). A distressed rival busts from normal developed rents anyway — over-developing to "finish" them faster transfers no net win share and just thins/illiquefies my own position, losing to the disciplined v17. **Fourth "deploy more aggressively than v17" lever to fail to beat it** (v18 lower reserve neutral, v19 forced hotels regress): v17 sits at the aggression frontier on the deployment axis. `v19/elimination.test.ts` pins the elimination flip. |
 
 ## Status & next step
 
@@ -414,6 +442,19 @@ session):**
 - **v17** lower liquidity reserve (0.5→0.3, cap 500→300) — **ACCEPTED, new champion.**
 - **v18** push the reserve lower still (→0.15) — REJECTED (win-neutral; brackets the
   optimum at ~v17's 0.3).
+
+**The v19–v23 run (in progress, 2026-06-20), building from champion v17:**
+
+- **v19** endgame elimination pressure (max-rent development keyed off a rival on the
+  ropes) — **REJECTED (regresses v17, 46.5%)**, though it BEATS the older field (v2–v14).
+  A non-transitivity trap the SPRT caught. Forcing hotels below the flush threshold
+  spends v17's deliberately-kept cushion into *illiquid* houses (sell back at half) — a
+  worse aggression than v18's still-liquid thin reserve. A distressed rival busts from
+  normal rents anyway; over-developing to finish them transfers no net win share. **The
+  preferred "elimination pressure" lead, on the DEVELOPMENT channel, is a dead end** —
+  v17 is at the deployment-aggression frontier (v18 neutral, v19 regress). Whether
+  elimination pressure pays on the DENIAL/ACQUISITION channel (target a weakened rival's
+  sets specifically) is still untried — but the development channel is closed.
 
 **The meta-lesson is now sharp and two-sided. AGGRESSION beats DEFENCE/POSSESSIVENESS.**
 Every lever that makes the bot HOLD MORE / refuse / cower regresses — v9 (raise reserve),
