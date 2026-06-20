@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
 import { proposeBestTrade as v5Propose } from "../v5/trades";
-import { proposeBestTrade as v14Propose } from "./trades";
+import { proposeBestTrade as v15Propose } from "./trades";
 
 // v14 fixes Finding 1 — the PHANTOM-DENIAL hot-potato. v5's Offer C books a denial
 // premium for buying a rival's completer from a holdout, gated only on the rival
@@ -23,7 +23,7 @@ function board(ownership: Record<number, string>, cash: Record<string, number>):
   };
 }
 
-describe("v14 — phantom-denial gate (Finding 1)", () => {
+describe("v15 — inherits v14 phantom-denial gate (Finding 1)", () => {
   it("does NOT build the brown hot-potato denial that v5 builds", () => {
     // The observed ring: a rival (p2) one brown short holds Mediterranean (1); the
     // last brown (Baltic, 3) sits with a non-rival holdout (p4). Both are flush, so
@@ -38,7 +38,7 @@ describe("v14 — phantom-denial gate (Finding 1)", () => {
     const v5Deal = v5Propose(ring, "p1");
     expect(v5Deal).not.toBeNull();
     expect(v5Deal?.reason).toContain("deny"); // v5: phantom denial
-    expect(v14Propose(ring, "p1")).toBeNull(); // v14: no phantom buy
+    expect(v15Propose(ring, "p1")).toBeNull(); // v14: no phantom buy
   });
 
   it("STILL builds a real denial of a strong set (orange) — identical to v5", () => {
@@ -49,7 +49,7 @@ describe("v14 — phantom-denial gate (Finding 1)", () => {
       { 16: "p2", 18: "p2", 19: "p3" },
       { p1: 3000, p2: 1000, p3: 1000, p4: 1000 },
     );
-    const deal = v14Propose(strong, "p1");
+    const deal = v15Propose(strong, "p1");
     expect(deal).toEqual(v5Propose(strong, "p1"));
     expect(deal).not.toBeNull();
     expect(deal?.terms.propertyTo[19]).toBe("p1");
@@ -65,7 +65,7 @@ describe("v14 — phantom-denial gate (Finding 1)", () => {
       { p1: 3000, p2: 100, p3: 1000, p4: 1000 },
     );
     expect(v5Propose(poorRival, "p1")?.reason).toContain("deny");
-    expect(v14Propose(poorRival, "p1")).toBeNull();
+    expect(v15Propose(poorRival, "p1")).toBeNull();
   });
 
   it("leaves completion construction untouched (matches v5)", () => {
@@ -75,6 +75,6 @@ describe("v14 — phantom-denial gate (Finding 1)", () => {
       { 16: "p1", 18: "p1", 19: "p3" },
       { p1: 3000, p2: 1000, p3: 1000, p4: 1000 },
     );
-    expect(v14Propose(completion, "p1")).toEqual(v5Propose(completion, "p1"));
+    expect(v15Propose(completion, "p1")).toEqual(v5Propose(completion, "p1"));
   });
 });

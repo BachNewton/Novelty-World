@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
 import { proposeBestTrade as v5Propose } from "../v5/trades";
-import { proposeBestTrade as v14Propose } from "./trades";
+import { proposeBestTrade as v15Propose } from "./trades";
 
 // v14 changes ONLY Offer C's phantom-denial gate (pinned in `phantom-denial.test.ts`).
 // On boards where the denial is REAL (the rival could realistically acquire the
@@ -15,7 +15,7 @@ function setCash(state: GameState, id: string, cash: number): GameState {
   return { ...state, players: state.players.map((p) => (p.id === id ? { ...p, cash } : p)) };
 }
 
-describe("v14 proposeBestTrade — matches v5 where the denial is real / absent", () => {
+describe("v15 proposeBestTrade — construction unchanged from v14 (matches v5 where real)", () => {
   it("builds the same strong-set denial v5 does (rival can acquire it)", () => {
     // p2 one orange short with the completer (19) at holdout p3; default cash leaves
     // p2 able to extract it, so the denial is real — v14 == v5.
@@ -24,7 +24,7 @@ describe("v14 proposeBestTrade — matches v5 where the denial is real / absent"
       "p1",
       3000,
     );
-    const proposal = v14Propose(state, "p1");
+    const proposal = v15Propose(state, "p1");
     expect(proposal).toEqual(v5Propose(state, "p1"));
     expect(proposal?.terms.propertyTo[19]).toBe("p1");
     expect(proposal?.reason).toContain("deny");
@@ -36,7 +36,7 @@ describe("v14 proposeBestTrade — matches v5 where the denial is real / absent"
       "p1",
       3000,
     );
-    expect(v14Propose(state, "p1")).toEqual(v5Propose(state, "p1"));
+    expect(v15Propose(state, "p1")).toEqual(v5Propose(state, "p1"));
   });
 
   it("prefers completing my own strong set over denying a rival's — as v5", () => {
@@ -51,15 +51,15 @@ describe("v14 proposeBestTrade — matches v5 where the denial is real / absent"
       "p1",
       3000,
     );
-    const proposal = v14Propose(state, "p1");
+    const proposal = v15Propose(state, "p1");
     expect(proposal).toEqual(v5Propose(state, "p1"));
     expect(proposal?.terms.propertyTo[19]).toBe("p1");
   });
 
   it("proposes nothing where v5 proposes nothing (unowned completer / unfundable)", () => {
     const unowned = setCash({ ...base, ownership: { 16: "p2", 18: "p2" } }, "p1", 3000);
-    expect(v14Propose(unowned, "p1")).toEqual(v5Propose(unowned, "p1"));
+    expect(v15Propose(unowned, "p1")).toEqual(v5Propose(unowned, "p1"));
     const broke = setCash({ ...base, ownership: { 16: "p2", 18: "p2", 19: "p3" } }, "p1", 10);
-    expect(v14Propose(broke, "p1")).toEqual(v5Propose(broke, "p1"));
+    expect(v15Propose(broke, "p1")).toEqual(v5Propose(broke, "p1"));
   });
 });

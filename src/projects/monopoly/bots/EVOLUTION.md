@@ -371,6 +371,8 @@ bot as of this doc.
 
 | v14 | 2026-06-20 | **Phantom-denial fix — gate Offer C on rival acquirability** (`versions/v14/trades.ts` `rivalCanAcquire`): a CORRECTNESS fix for a live-game bug (Finding 1). v5's Offer C books the `DENY_FACTOR×bonus` denial premium gated only on the rival owning N-1 of a set — never on whether the rival can actually ACQUIRE the completer. When the completer already sits with a non-rival holdout (every claude bot prices `RIVAL_THREAT_FACTOR` and won't hand a rival a monopoly), the rival is already blocked → marginal denial ~0, yet each bot re-books the premium, so a weak lot (brown $50, above the ~$30 hop cost) HOT-POTATOES forever (observed: Baltic traded 29× in a bot→bot ring, net-zero cash). v14 gates Offer C on the rival being able to realistically acquire the completer — afford the holder's threat-adjusted break-even AND have completing be comfortably worth it — restoring v5's stated "weak sets self-gate" intent. | **EVEN vs v5 (base) on BOTH streams, NO regressions:** train 49.5% (1373–1401, 2774 decisive, confident), holdout 50.0% (918–919, 1837 decisive, confident); BETTER vs v2 (55.7% / 58.3%), v3 (56.1% / 57.3%). Elo (v5=0) v14 −3.6 (train) / −1.1 (hold) ≈ v5 0. | **WIN-SAFE CORRECTNESS BASE** (not champion — EVEN, so v5 keeps top Elo; like v3→v4, a win-safe branch point). Removing the phantom denials costs ZERO win share → v5's denial edge was the REAL strong-set denials, never the brown churn. Also cuts trade churn (faster games + headless training) and stops the live bot's hot-potato. **Base for v15+; ready to ship LIVE** (a product call — fixes the observed real-game bug). `v14/phantom-denial.test.ts` reproduces the ring + pins the gate. |
 
+| v15 | 2026-06-20 | **Near-monopoly option value** (`versions/v15/trades.ts`, `claude.ts`): Finding 2 — `positionValue` credits only COMPLETED sets, so a lone lot in a color the bot is one-short of reads as `assetBase` only; in a mutual-blocker standoff the bot sells its half for cash, foreclosing its OWN set for $0 on the books (a human exploits this by always being the buyer). v15 charges the bot's own incoming-trade VOTE an option penalty `OPTION_FACTOR=0.6 × monopolyBonus` when a trade drops it from one-short (N-1) to further short — so it holds the blocker unless the cash is a clear overpay. Scoped to the vote (construction + counterparty model keep plain valuation). Branched from v14. | **WORSE vs v14 (base): 41.7% (156–218, 374 decisive, confident REGRESSION).** Also WORSE vs v5 40.4%, v3 44.8%; beats v2 53.0%. Elo (v14=0) v15 −47.6 < v14 0. No holdout — triage rejects. | **rejected** (regresses the base, hard); base stays **v14**. Holding contested near-monopolies you can't develop is the LOSING line — exactly the Finding-2 twist (the human who hoarded both sets still went bankrupt). The bot SELLING its half of a standoff for cash is correct EV; the option penalty makes it cower and under-resource. **Third acceptance-side possessiveness lever to regress** (after v9 liquidity, v13 anti-kingmaker): the bot's value-maximizing acceptance is right — making it hold/refuse more is −EV. `v15/option.test.ts` pins the lever. |
+
 ## Status & next step
 
 **Two independent tracks — don't conflate them:**
@@ -807,6 +809,33 @@ all logged dead ends.
    point: it changes nothing about who wins, removes a defect, and is safe to build on.
    Conflating the two would either (a) refuse a free correctness fix, or (b) crown noise
    — both wrong. v15+ branch from v14.
+
+**v15 — what was tried and what we learned (a logged negative result — a regression):**
+
+1. **v15 isolated** in `bots/versions/v15/` (snapshot from **v14**, the win-safe base;
+   construction + counterparty model verbatim; `v15/option.test.ts` pins the option
+   charge — declines selling a standoff half v14/v5 would sell, still sells for a clear
+   overpay, and is a no-op when the bot isn't one-short of the sold color).
+2. **The change** addresses **Finding 2**: `positionValue` credits only completed sets,
+   so the bot sells its half of a mutual-blocker standoff for cash, foreclosing its own
+   one-short shot for $0 on the books. v15 charges its own incoming vote a near-monopoly
+   OPTION VALUE (`OPTION_FACTOR × bonus`) for that foreclosure, so it holds the blocker
+   unless the cash clearly overpays.
+3. **The result confirms the user's own twist — and the meta-lesson.** v15 **regresses
+   vs v14** (41.7%, confident WORSE) and vs v5/v3. So Finding 2's "exploit" is not a bug
+   in the bot: **selling a contested completer to a cash-strapped rival is correct EV**;
+   the human's instinct to overpay for sets it can't defend is the losing line (the
+   human in the evidence won BOTH sets this way and still went bankrupt). Charging the
+   option value makes the bot **cower and under-resource** — it holds dead near-monopoly
+   lots instead of taking cash. This is the **third acceptance-side possessiveness lever
+   to regress** (v9 graduated liquidity, v13 anti-kingmaker weight, v15 option value):
+   the firm pattern is that the bot's **plain value-maximizing acceptance is right** —
+   any rule that makes it hold/refuse MORE (out of caution, standings, or option value)
+   under-resources it and loses. Aggression and liquidity win; possessiveness loses.
+   (Finding 2's *secondary* value — being less exploitable by a human — is real, but it
+   costs win share against the field, so it is **not** adopted; if a future "human-facing
+   robustness" mode is ever wanted, it would be an explicit opt-in, separate from the
+   training objective, like the timed-net-worth mode.)
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
