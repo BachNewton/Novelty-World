@@ -9,6 +9,7 @@ import {
   type LobbyResult,
 } from "@/projects/monopoly/lobby";
 import { freshGame } from "@/projects/monopoly/mocks";
+import { BOT_STRATEGIES } from "@/projects/monopoly/types";
 import type {
   BotStrategy,
   GameState,
@@ -70,7 +71,7 @@ function isPlayerIcon(v: unknown): v is PlayerIcon {
 }
 
 function isBotStrategy(v: unknown): v is BotStrategy {
-  return v === "dumb" || v === "claude";
+  return typeof v === "string" && (BOT_STRATEGIES as readonly string[]).includes(v);
 }
 
 function parseDevCommand(v: unknown): DevCommand | null {

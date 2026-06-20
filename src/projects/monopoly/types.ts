@@ -58,13 +58,19 @@ export type PlayerIcon =
   | "rocket"
   | "bird";
 
+/** Every bot strategy value, as runtime data so a validator can't drift from the
+ *  type — the route parses untrusted `setStrategy` input against this list
+ *  (`route.ts:isBotStrategy`), and `BotStrategy` is derived from it, so adding a
+ *  strategy in one place keeps both in lockstep. */
+export const BOT_STRATEGIES = ["dumb", "claude", "champion", "latest"] as const;
+
 /** Which bot policy controls a computer seat, resolved through the bot registry
  *  (`bots/registry.ts`). `dumb` is the baseline reactive policy (`bots/dumb.ts`).
  *  The other three are version POINTERS into the archive (`bots/roles.ts`), so a
  *  seat follows whatever each names: `claude` = the hand-picked live bot
  *  (`bots/live.ts`), `champion` = the best by measurement, `latest` = the newest
  *  snapshot. Selected per seat; a human seat has none (`botStrategy === null`). */
-export type BotStrategy = "dumb" | "claude" | "champion" | "latest";
+export type BotStrategy = (typeof BOT_STRATEGIES)[number];
 
 export interface Player {
   id: string;
