@@ -5,8 +5,11 @@ import { walkGauntletSprt, type GauntletSprtConfig, type GauntletVerdict } from 
 // ---------------------------------------------------------------------------
 // The gauntlet — the selection half of the evolution loop (see EVOLUTION.md
 // "Measurement"). A candidate doesn't just face its predecessor; it plays the
-// whole FIELD (v1 … latest, floored at v1 — NEVER `dumb`, a null stub that
-// measures nothing). Each candidate-vs-opponent pairing is decided by SPRT, so
+// whole FIELD (the past champions — NEVER `dumb`, a null stub that measures
+// nothing). v1 is the published floor but is excluded from the DEFAULT field as a
+// dominated, slow pairing (EVOLUTION.md Decision 8); the CLI re-adds it with
+// `--with-v1`. When v1 is absent the Elo fit anchors at the base instead of v1=0.
+// Each candidate-vs-opponent pairing is decided by SPRT, so
 // strong edges resolve in dozens of games and marginal ones play long or are
 // rejected. The bar to accept a candidate as the new champion:
 //
@@ -72,6 +75,33 @@ export interface GauntletOptions {
    *  past the crossing. Defaults to a few per worker. */
   batchGames?: number;
   pool: WorkerPool;
+  /** Optional live-progress hook, fired after every SPRT batch and when each
+   *  pairing resolves — purely cosmetic (a CLI progress line), never affects the
+   *  deterministic game stream or verdict. */
+  onProgress?: (p: GauntletProgress) => void;
+}
+
+/** A live snapshot of one pairing mid-run, for a progress indicator. */
+export interface GauntletProgress {
+  /** `candidate` = a promotion pairing (SPRT, capped at `maxDecisive`); `field` =
+   *  an Elo-anchoring field-internal pairing (fixed `maxDecisive` = its game count). */
+  kind: "candidate" | "field";
+  /** The opponent (candidate pairing) or "a-vs-b" (field pairing). */
+  opponent: string;
+  /** 1-based position and count WITHIN this phase (candidate pairings, or field). */
+  pairIndex: number;
+  pairTotal: number;
+  decisive: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Decisive-game cap for this pairing (the denominator for a progress bar). */
+  maxDecisive: number;
+  llrImprove: number;
+  llrRegress: number;
+  /** True on the final emit for a pairing; `verdict` is then set. */
+  done: boolean;
+  verdict?: PairVerdict;
 }
 
 export interface GauntletReport {
@@ -79,8 +109,12 @@ export interface GauntletReport {
   base: string;
   field: readonly string[];
   pairings: readonly PairingRun[];
-  /** Elo across [candidate, ...field], anchored so v1 = 0. */
+  /** Elo across [candidate, ...field], anchored so `anchor` = 0. */
   elo: Record<string, number>;
+  /** The label pinned to 0 Elo: `v1` (the published floor) when it's in the field,
+   *  else the base — so a v1-less field stays interpretable (ratings are relative
+   *  to the base). See EVOLUTION.md Decision 8. */
+  anchor: string;
   /** Highest-Elo label — the field's champion. */
   champion: string;
   improvesVsBase: boolean;
@@ -103,6 +137,7 @@ async function sprtPairing(
   maxDecisive: number,
   maxTurns: number,
   batchGames: number,
+  progress?: { emit: (p: GauntletProgress) => void; pairIndex: number; pairTotal: number },
 ): Promise<PairingRun> {
   const seedPrefix = `${prefix}:${candidate}-vs-${opponent}`;
   const aWon: boolean[] = [];
@@ -125,10 +160,26 @@ async function sprtPairing(
       else draws++;
     }
     walk = walkGauntletSprt(aWon, cfg, maxDecisive);
+    if (progress) {
+      progress.emit({
+        kind: "candidate",
+        opponent,
+        pairIndex: progress.pairIndex,
+        pairTotal: progress.pairTotal,
+        decisive: walk.decisive,
+        wins: walk.wins,
+        losses: walk.losses,
+        draws,
+        maxDecisive,
+        llrImprove: walk.llrImprove,
+        llrRegress: walk.llrRegress,
+        done: false,
+      });
+    }
     if (walk.verdict === "need-more" && generated >= hardCap) break;
   }
 
-  return {
+  const run: PairingRun = {
     opponent,
     verdict: classify(walk.verdict),
     wins: walk.wins,
@@ -140,6 +191,24 @@ async function sprtPairing(
     llrImprove: walk.llrImprove,
     llrRegress: walk.llrRegress,
   };
+  if (progress) {
+    progress.emit({
+      kind: "candidate",
+      opponent,
+      pairIndex: progress.pairIndex,
+      pairTotal: progress.pairTotal,
+      decisive: run.decisive,
+      wins: run.wins,
+      losses: run.losses,
+      draws,
+      maxDecisive,
+      llrImprove: run.llrImprove,
+      llrRegress: run.llrRegress,
+      done: true,
+      verdict: run.verdict,
+    });
+  }
+  return run;
 }
 
 /** Play a fixed number of games for a field-internal pairing — not under test,
@@ -174,17 +243,20 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
 
   // 1. Candidate vs every field member — the tests that decide promotion.
   const pairings: PairingRun[] = [];
-  for (const opponent of opts.field) {
+  for (let i = 0; i < opts.field.length; i++) {
     pairings.push(
       await sprtPairing(
         opts.pool,
         opts.candidate,
-        opponent,
+        opts.field[i],
         cfg,
         opts.prefix,
         opts.maxDecisive,
         opts.maxTurns,
         batchGames,
+        opts.onProgress
+          ? { emit: opts.onProgress, pairIndex: i + 1, pairTotal: opts.field.length }
+          : undefined,
       ),
     );
   }
@@ -192,18 +264,34 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
   // 2. Field-internal pairings, only to anchor the Elo fit (a star graph centred
   //    on the candidate would leave field members' relative ratings ill-pinned).
   const fieldResults: PairResult[] = [];
+  const fieldTotal = (opts.field.length * (opts.field.length - 1)) / 2;
+  let fieldIndex = 0;
   for (let i = 0; i < opts.field.length; i++) {
     for (let j = i + 1; j < opts.field.length; j++) {
-      fieldResults.push(
-        await fixedPairing(
-          opts.pool,
-          opts.field[i],
-          opts.field[j],
-          opts.prefix,
-          opts.fieldGames,
-          opts.maxTurns,
-        ),
+      const res = await fixedPairing(
+        opts.pool,
+        opts.field[i],
+        opts.field[j],
+        opts.prefix,
+        opts.fieldGames,
+        opts.maxTurns,
       );
+      fieldResults.push(res);
+      fieldIndex++;
+      opts.onProgress?.({
+        kind: "field",
+        opponent: `${opts.field[i]}-vs-${opts.field[j]}`,
+        pairIndex: fieldIndex,
+        pairTotal: fieldTotal,
+        decisive: res.aWins + res.bWins,
+        wins: res.aWins,
+        losses: res.bWins,
+        draws: 0,
+        maxDecisive: opts.fieldGames,
+        llrImprove: 0,
+        llrRegress: 0,
+        done: true,
+      });
     }
   }
 
@@ -234,6 +322,7 @@ export async function runGauntlet(opts: GauntletOptions): Promise<GauntletReport
     field: opts.field,
     pairings,
     elo,
+    anchor,
     champion,
     improvesVsBase,
     regressions,
@@ -267,7 +356,7 @@ export function formatGauntlet(r: GauntletReport): string {
     .sort((a, b) => b[1] - a[1])
     .map(([l, e]) => `${l} ${e >= 0 ? "+" : ""}${e.toFixed(1)}`)
     .join("   ");
-  lines.push(`  Elo (v1 = 0):  ${eloLine}`);
+  lines.push(`  Elo (${r.anchor} = 0):  ${eloLine}`);
   lines.push(`  Champion (highest Elo): ${r.champion}`);
   lines.push("");
   lines.push(

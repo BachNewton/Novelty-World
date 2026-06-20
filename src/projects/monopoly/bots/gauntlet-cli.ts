@@ -1,7 +1,51 @@
 import process from "node:process";
-import { formatGauntlet, runGauntlet } from "./gauntlet";
+import { formatGauntlet, type GauntletProgress, runGauntlet } from "./gauntlet";
 import { defaultWorkerCount, WorkerPool } from "./parallel";
 import { VERSIONS } from "./versions";
+
+/** A live progress line for a gauntlet run (so a long run isn't a black box). On a
+ *  TTY it rewrites one line in place (`\r`); when captured to a file/pipe it prints
+ *  a throttled newline every few seconds so the log shows forward motion. Written to
+ *  STDERR so it never pollutes the stdout report. The per-pairing games/cap bar is
+ *  the key signal: an SPRT that fills toward the cap is drifting to inconclusive. */
+function makeProgressReporter(): (p: GauntletProgress) => void {
+  const isTty = process.stderr.isTTY === true;
+  let lastPrint = 0;
+  let lastLen = 0;
+  const bar = (frac: number, width = 16): string => {
+    const filled = Math.max(0, Math.min(width, Math.round(frac * width)));
+    return "#".repeat(filled) + "-".repeat(width - filled);
+  };
+  return (p) => {
+    const now = Date.now();
+    const minGap = isTty ? 150 : 3000;
+    if (!p.done && now - lastPrint < minGap) return;
+    lastPrint = now;
+
+    const phase = p.kind === "candidate" ? "pairing" : "field  ";
+    const winPct = p.decisive > 0 ? `${((100 * p.wins) / p.decisive).toFixed(1)}%` : "—";
+    const frac = p.maxDecisive > 0 ? p.decisive / p.maxDecisive : 0;
+    let line =
+      `  ${phase} ${p.pairIndex}/${p.pairTotal} vs ${p.opponent.padEnd(11)} ` +
+      `[${bar(frac)}] ${String(p.decisive).padStart(4)}/${p.maxDecisive}  win ${winPct.padStart(6)}`;
+    if (p.kind === "candidate") {
+      // LLR toward each SPRT boundary (~±2.94); whichever reaches it first decides.
+      line += `  LLR impr ${p.llrImprove.toFixed(1)} regr ${p.llrRegress.toFixed(1)}`;
+    }
+    if (p.verdict !== undefined) line += `  -> ${p.verdict.toUpperCase()}`;
+
+    if (isTty) {
+      process.stderr.write(`\r${line.padEnd(lastLen)}`);
+      lastLen = line.length;
+      if (p.done) {
+        process.stderr.write("\n");
+        lastLen = 0;
+      }
+    } else {
+      process.stderr.write(`${line}\n`);
+    }
+  };
+}
 
 /** `npm run sim:gauntlet` — play a candidate against the whole FIELD on the
  *  parallel worker pool, decide each pairing by SPRT, fit Elo across the field,
@@ -12,12 +56,14 @@ import { VERSIONS } from "./versions";
  *    npm run sim:gauntlet -- v3                       # candidate v3 vs the field
  *    npm run sim:gauntlet -- v3 --base v2             # must beat v2 specifically
  *    npm run sim:gauntlet -- v3 --field v1,v2         # explicit field
+ *    npm run sim:gauntlet -- v8 --with-v1             # add the v1 floor audit back
  *    npm run sim:gauntlet -- v3 --prefix holdout      # held-out seed stream
  *    npm run sim:gauntlet -- v3 --margin 20 --alpha 0.05 --beta 0.05
  *    npm run sim:gauntlet -- v3 --max 4000 --workers 14
  *
  *  The field defaults to every known version except `dumb` (a null stub — never
- *  gauntleted) and the candidate; the base defaults to the latest field member. */
+ *  gauntleted), `v1` (the floor — dominated and slow; opt back in with `--with-v1`,
+ *  see EVOLUTION.md Decision 8), and the candidate; base defaults to the latest. */
 
 interface Args {
   candidate: string;
@@ -32,6 +78,7 @@ interface Args {
   maxTurns: number;
   workers: number;
   batch?: number;
+  withV1: boolean;
 }
 
 function num(argv: readonly string[], i: number, fallback: number): number {
@@ -51,6 +98,7 @@ function parseArgs(argv: readonly string[]): Args {
     fieldGames: 200,
     maxTurns: 2000,
     workers: defaultWorkerCount(),
+    withV1: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -65,6 +113,7 @@ function parseArgs(argv: readonly string[]): Args {
     else if (arg === "--turns") a.maxTurns = num(argv, ++i, a.maxTurns);
     else if (arg === "--workers") a.workers = num(argv, ++i, a.workers);
     else if (arg === "--batch") a.batch = num(argv, ++i, 0);
+    else if (arg === "--with-v1") a.withV1 = true;
     else if (arg.startsWith("--")) throw new Error(`unknown flag "${arg}"`);
     else positional.push(arg);
   }
@@ -85,9 +134,16 @@ async function main(): Promise<void> {
   if (!known.includes(args.candidate)) {
     throw new Error(`unknown candidate "${args.candidate}" (known: ${known.join(", ")})`);
   }
-  // Floor is v1; `dumb` is a null stub and is NEVER gauntleted (see EVOLUTION.md).
+  // `dumb` is a null stub and is NEVER gauntleted. v1 is the published FLOOR but is
+  // dropped from the DEFAULT field (Decision 8, now taken): every vN≥2 dominates it
+  // by ~160 Elo, while v1's trade-veto deadlock caps ~a quarter of its games to the
+  // full turn limit — the slowest, least-informative pairing there is. Re-include it
+  // for an occasional archived floor audit with `--with-v1` (or an explicit --field).
   const field =
-    args.field ?? known.filter((v) => v !== "dumb" && v !== args.candidate);
+    args.field ??
+    known.filter(
+      (v) => v !== "dumb" && v !== args.candidate && (args.withV1 || v !== "v1"),
+    );
   if (field.length === 0) throw new Error("empty field — nothing to test the candidate against");
   for (const v of field) {
     if (!known.includes(v)) throw new Error(`unknown field version "${v}"`);
@@ -120,6 +176,7 @@ async function main(): Promise<void> {
       maxTurns: args.maxTurns,
       batchGames: args.batch,
       pool,
+      onProgress: makeProgressReporter(),
     });
     const secs = Number(process.hrtime.bigint() - start) / 1e9;
     console.log(formatGauntlet(report));
