@@ -377,6 +377,8 @@ bot as of this doc.
 
 | v17 | 2026-06-20 | **Lower liquidity reserve — aggression on the liquidity axis** (`versions/v17/valuation.ts`): the INVERSE of v9. v9 RAISED the voluntary-spend reserve and regressed (under-development lost the rent race); v17 asks whether v5's 0.5×worst-rent / $500 cap was itself too cautious and LOWERS it (`FLOOR_RENT_FRACTION` 0.5→0.3, `FLOOR_CAP` 500→300) — freeing cash to buy and develop sooner (reaches "flush"/hotels earlier), leaning on must-raise-cash for the rare big hit. Branched from v14; only the reserve changes. | **BETTER vs v14 (base) on BOTH streams, NO regressions:** triage 52.5% (1313–1189, 2502 decisive); full-field **train** BETTER vs v14 52.5% (only EVEN vs v6); full-field **holdout** BETTER vs v14 52.7% **AND BETTER vs the WHOLE archive v2–v16** (only INCONCLUSIVE vs v8 — not a regression). Elo (holdout, v14=0) **v17 +13.2 — top of the field**. | **ACCEPTED — new loop champion.** The first win since v5, and the first NON-denial structural win. Confirms the meta-lesson from the OTHER direction: not only does defensive over-caution lose (v9 raised the reserve → regressed), v5's *moderate* reserve was itself too conservative — a thinner buffer wins the development/rent race. **Aggression beats defense, on the liquidity axis too.** Inherits v14's phantom-denial fix. Base for v18. `v17/floor.test.ts` pins the lower reserve. |
 
+| v18 | 2026-06-20 | **Push the liquidity reduction further** (`versions/v18/valuation.ts`): v17's lower reserve WON, so per the loop push the winning lever — `FLOOR_RENT_FRACTION` 0.3→0.15, `FLOOR_CAP` 300→200, `BASE_FLOOR` 120→80 (an even thinner buffer) — to find where the aggression stops paying. Branched from the champion v17. | **WIN-NEUTRAL vs v17 (base): INCONCLUSIVE 51.9% (2075–1925, 4000 decisive, ran to cap, improve-LLR +2.01 short of the +2.94 accept boundary, no regression).** BETTER vs v14 55.7%, v5 57.3%, v3 58.7%, v2 58.4%; Elo (v17=0) **v18 +13.1** (leans positive but below the E=20 promotion bar). | **rejected** as champion (does not confirm BETTER vs base); base stays **v17**. Brackets the optimum: v9 (raise) regressed, v17 (0.5→0.3) won, v18 (0.3→0.15) adds no CONFIRMED win share — diminishing returns past v17. The true optimum may sit a hair below 0.3 (v18 leans +13 Elo) but within E=20 noise, so not worth crowning (Decision 5 — don't chase 1–2%). **v17's 0.3 / $300 reserve is the validated setting.** `v18/floor.test.ts` pins the thinner reserve. |
+
 ## Status & next step
 
 **Two independent tracks — don't conflate them:**
@@ -393,44 +395,57 @@ bot as of this doc.
   decision, *not* a precondition for continuing the loop, and **orthogonal to the
   gauntlet floor**.
 
-**As of 2026-06-20:** the loop champion is still **v5** (trade-to-deny) — the only
-change to beat its base since v2, validated on both seed streams against the whole
-field (see the v5 row and note). **The live bot is whatever `bots/live.ts` →
-`LIVE_VERSION` points to** (a product call, separate from the loop champion and the
-gauntlet floor — read that file for the current value; v5 was promoted live once it
-proved strictly stronger, replacing v3, which had been shipped earlier as the more
-*engaging* opponent for humans). The floor stays **v1**, a materialized frozen
-snapshot (`versions/v1/`). **Sessions A–D are done.** Session A built the measurement
-system; Session B built `v4` (tempo, REJECTED); Session C built `v5` (ACCEPTED), `v6`
-(REJECTED win-neutral) and `v7` (REJECTED regression); **Session D built three more
-off v5 — `v8` (denial+tempo, REJECTED overfit/even-on-holdout), `v9` (survival /
-liquidity guard, REJECTED regression), `v10` (auction denial aggression, REJECTED
-regression), and `v11` (threat-weighted denial, REJECTED win-neutral).** The base is
-still **v5** and is now confirmed a **sharp local optimum**: the denial lever is tuned
-on every axis tried — funding (v6), scope (v7), price (v10), coupling (v8), target
-(v11) — and the non-denial axes tried are neutral-or-worse (tempo v4/v8; liquidity v9,
-which actively regresses because under-development loses).
+**As of 2026-06-20 (after the v12–v18 run):** the loop champion is now **v17**
+(lower liquidity reserve), branched from **v14** (the phantom-denial correctness fix),
+itself branched from v5. v17 is the first win since v5 and the first NON-denial win —
+holdout-confirmed BETTER vs the whole archive (see the v17 row + note). The floor stays
+**v1**; the **live bot is whatever `bots/live.ts` → `LIVE_VERSION` points to** (a product
+call — untouched this run; see "promotion candidates" below). **The v12–v18 run (this
+session):**
 
-**Lead for the next session (from v5).** Two genuinely different directions were
-flagged off v5; **(a) is now CLOSED and (b) is the active lead:**
+- **v12** RNG-seam / mixed-strategy (information) — REJECTED (regression). The field
+  models VALUE, not behaviour, so unpredictability has no read to deny; deviating from
+  the greedy argmax is a pure value leak. **Information/bluff axis CLOSED.**
+- **v13** anti-kingmaker (standings-weighted acceptance) — REJECTED (regression).
+- **v14** phantom-denial fix (gate Offer C on rival acquirability) — **EVEN, win-safe
+  CORRECTNESS base** (adopted; fixes the live hot-potato bug, cuts churn; ready to ship).
+- **v15** near-monopoly option value — REJECTED (regression).
+- **v16** jail-as-haven sharpening — REJECTED (win-neutral).
+- **v17** lower liquidity reserve (0.5→0.3, cap 500→300) — **ACCEPTED, new champion.**
+- **v18** push the reserve lower still (→0.15) — REJECTED (win-neutral; brackets the
+  optimum at ~v17's 0.3).
 
-- **(a) information / bluff via the RNG seam — CLOSED by v12 (regression).** The bot is
-  deterministic and legible, so the idea was a mixed strategy to deny a "read." The seam
-  is now built and replay-safe (hash `state.rngState`, no `Bot`-contract change — see the
-  v12 note), but mixing **regresses**: the field models the candidate's VALUE, not its
-  BEHAVIOR, so there is no read to deny, and any deviation from the greedy argmax is a
-  pure value leak. Do NOT re-walk mixed/bluff strategies against this (non-predictive)
-  field — the seam waits for an adaptive-opponent field that doesn't exist yet.
-- **(b) coordinated multi-rival / board-shape pressure — the active lead.** All denial so
-  far targets ONE rival's ONE set, and all of it is **proposer-side**. The untouched
-  surface is **standings-keyed acceptance** (the seller/approver vote in `evaluateTrade`):
-  an *anti-kingmaker* rule — be more loath to hand a monopoly to whoever is closest to
-  winning (the leader / a close pursuer), more willing to feed a harmless trailer — or
-  trades that leave TWO rivals each one-short and bid them against each other. Prefer the
-  negative-sum / asymmetry shape; expect mostly rejects.
+**The meta-lesson is now sharp and two-sided. AGGRESSION beats DEFENCE/POSSESSIVENESS.**
+Every lever that makes the bot HOLD MORE / refuse / cower regresses — v9 (raise reserve),
+v13 (anti-kingmaker refuse), v15 (hold near-monopolies), all acceptance-side. The bot's
+plain value-maximising acceptance and a THIN reserve are right; v5's caution left win
+share on the table (v17). The winning shapes are exactly two: **negative-sum proposer-side
+denial** (v2, v5) and **deploying capital faster** (v17 — and note v4/v8 tempo washed only
+because they *mortgaged* for tempo; v17 gets the same tempo for free by holding less idle
+cash). Positive-sum self-improvement (v3, v4) and information (v12) wash; defence
+(v9/v13/v15) and over-pushing a denial parameter (v7/v10) regress.
 
-**Do NOT re-walk any denial parameter** (funding v6, scope v7, price v10, coupling v8,
-target v11), **defensive liquidity/tempo** (v4, v8, v9), or **information/bluff** (v12) —
+**Promotion candidates (product calls — `bots/live.ts` untouched, awaiting a human
+green-light):** (1) **v14** — the phantom-denial fix, fixes a real live-game bug (Baltic
+29× hot-potato) and speeds games; safe to ship regardless of strength. (2) **v17** — the
+current champion (strictly stronger than the v5 that's likely live). Shipping v17 also
+carries v14's fix. Repoint `LIVE_VERSION` to `"v17"` to ship.
+
+**Lead for the next session (from v17).** The liquidity axis is now tuned (v17 = the
+sweet spot; v18 saturated). The two PROVEN winning shapes — proposer-side denial and
+faster capital deployment — are both near their local optima. **Genuinely untried,
+aggression-aligned leads** (prefer these; the defensive/acceptance/information axes are
+all logged dead ends — do NOT re-walk): **(a) endgame ELIMINATION pressure** — keyed off a
+rival's distress (near-bankruptcy), push development/denial to CLOSE OUT a weakened rival
+faster (negative-sum, proactive, proposer-side — the winning shape, untried); **(b)
+other free-tempo deployments** like v17 — e.g. unmortgage/redeploy more eagerly, or
+buy-aggression thresholds (`DIP_WORTH_MULT`/`RAISE_WORTH_MULT`) loosened now that the
+thinner reserve proved capital-deployment wins. Expect mostly rejects — v5+v14+v17 is a
+strong, sharp optimum.
+
+**Do NOT re-walk:** any denial PARAMETER (funding v6, scope v7, price v10, coupling v8,
+target v11), **defensive liquidity/tempo/possessiveness** (v4, v8, v9, v13, v15),
+**information/bluff** (v12), **jail** (v16), or **pushing the reserve below ~0.3** (v18) —
 all logged dead ends.
 
 **v3 — what was tried and what we learned (a logged negative result):**
@@ -870,6 +885,23 @@ all logged dead ends.
    voluntary floor, so the floor only governs *voluntary* spend. Lowering it trades a
    little fire-sale risk for a lot of tempo, and the measurement says that trade wins
    clearly. The next question (v18): how far does lowering the reserve keep paying?
+
+**v18 — what was tried and what we learned (a logged negative result — brackets the optimum):**
+
+1. **v18 isolated** in `bots/versions/v18/` (snapshot from the champion v17; only the
+   three floor constants pushed further; `v18/floor.test.ts` pins the thinner reserve).
+2. **The change** follows the loop's "push a winning lever" rule: v17 lowered the reserve
+   and won, so v18 lowers it more (0.3→0.15, cap 300→200, base 120→80).
+3. **The result brackets the liquidity optimum.** v18 is **win-neutral vs v17** (51.9%,
+   ran to the 4000 cap, the improvement test leaning positive at LLR +2.01 but NOT
+   crossing the +2.94 boundary, no regression). So the gain from cutting the reserve is
+   real but SATURATES around v17's 0.3/$300 — pushing past it adds no confirmed win share.
+   Combined with v9 (raised the reserve → regressed) and v17 (0.5→0.3 → won), the reserve
+   axis is now bracketed: **too high loses, v5's moderate was too high, ~0.3 is the
+   sweet spot, and lower than that is flat.** v18 *leans* a hair better (+13 Elo, beats
+   the older field by more than v17 did), so the true optimum may be marginally below
+   0.3 — but it's within the E=20 indifference band, exactly the 1–2% noise Decision 5
+   refuses to chase. v17 stays champion.
 
 The v2-era engine fix (false-bankruptcy / hotel-shortage liquidation escape in
 shared `development.ts`, regression-tested in `development.test.ts`) still stands
