@@ -383,6 +383,8 @@ bots/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
 bots/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
 bots/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gauntlet on the pool
 bots/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
+bots/ratings-cli.ts   `npm run sim:ratings` — round-robin Elo over lobby-fieldable versions → writes ratings.ts
+bots/ratings.ts       GENERATED lobby strength ladder (BOT_RATINGS, claude-v2=0); see bots/CLAUDE.md "Lobby strength ratings"
 bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code, decoupled from what ships live. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN
 bots/versions/index.ts  VERSIONS map (claude-v1 archived/excluded, claude-v2=floor, claude-v3, …) + versionBot()
 bots/versions/claude-v1/     claude-v1 snapshot: original champion, frozen — archived, EXCLUDED from the default field (stalls games); claude-v2 is the floor

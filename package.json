@@ -16,6 +16,7 @@
     "sim:versus": "tsx src/projects/monopoly/bots/versus-cli.ts",
     "sim:gauntlet": "tsx src/projects/monopoly/bots/gauntlet-cli.ts",
     "sim:verify": "tsx src/projects/monopoly/bots/verify-cli.ts",
+    "sim:ratings": "tsx src/projects/monopoly/bots/ratings-cli.ts",
     "bot-brief": "node src/projects/monopoly/bots/bot-brief-cli.mjs",
     "bench": "vitest bench --run",
     "test:e2e": "playwright test",

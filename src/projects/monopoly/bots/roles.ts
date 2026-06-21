@@ -1,5 +1,6 @@
 import type { BotStrategy } from "../types";
 import { LIVE_VERSION } from "./live";
+import { BOT_RATINGS } from "./ratings";
 import { VERSIONS } from "./versions";
 
 // ---------------------------------------------------------------------------
@@ -145,8 +146,26 @@ export interface BotRole {
   /** The version this role currently resolves to — shown as a tag, and the
    *  reason two roles reading the same version is visible at a glance. */
   version: string;
+  /** The lobby-facing strength number for this role's version (see `ratingFor`),
+   *  or null if that version hasn't been rated yet. Lets a player compare bots at
+   *  a glance — a bigger number is a stronger bot, and the gap is real. */
+  rating: number | null;
   /** One-line description of what the role means. */
   hint: string;
+}
+
+/** Display offset so the anchor (`claude-v2`, raw Elo 0) reads as a friendly,
+ *  chess-like baseline rather than a discouraging "0" — only RELATIVE gaps between
+ *  bots carry meaning, so any constant shift is purely cosmetic. */
+export const RATING_DISPLAY_BASE = 1000;
+
+/** The lobby strength number to show for a version: its measured Elo (from the
+ *  generated `BOT_RATINGS`, anchored `claude-v2 = 0`) shifted by the display base
+ *  and rounded. `null` when the version isn't in the ladder yet (e.g. a freshly
+ *  added lineage before the next `npm run sim:ratings`). */
+export function ratingFor(version: string): number | null {
+  const raw = BOT_RATINGS[version];
+  return raw === undefined ? null : Math.round(RATING_DISPLAY_BASE + raw);
 }
 
 /** A display SECTION in the lobby selector: the standalone Champion (no heading)
@@ -164,6 +183,7 @@ const CHAMPION_ROLE: BotRole = {
   label: "Champion Bot",
   short: "Champion",
   version: CHAMPION_VERSION,
+  rating: ratingFor(CHAMPION_VERSION),
   hint: "The strongest bot found so far across all families (highest gauntlet Elo).",
 };
 
@@ -182,6 +202,7 @@ export const BOT_ROLE_GROUPS: readonly BotRoleGroup[] = [
         label: `${lin.displayName} Bot`,
         short: lin.displayName,
         version: lin.featured,
+        rating: ratingFor(lin.featured),
         hint: `The hand-picked ${lin.displayName} bot.`,
       },
       {
@@ -189,6 +210,7 @@ export const BOT_ROLE_GROUPS: readonly BotRoleGroup[] = [
         label: `${lin.displayName} Latest`,
         short: `${lin.displayName} Latest`,
         version: lin.latest,
+        rating: ratingFor(lin.latest),
         hint: `The newest ${lin.displayName} version — bleeding edge, not yet proven best.`,
       },
     ],

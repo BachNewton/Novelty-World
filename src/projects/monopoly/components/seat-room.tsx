@@ -245,6 +245,16 @@ function BotRoleSelector({ player }: { player: Player }) {
       >
         <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--mono-rail)" }} />
         <span className="flex-1 truncate">{current.label}</span>
+        {current.rating !== null && (
+          <span
+            className="flex shrink-0 items-baseline gap-0.5 font-mono font-bold tabular-nums"
+            style={{ color: "var(--mono-rail)" }}
+            title="Strength rating — higher is a stronger bot"
+          >
+            <span className="text-[11px]">{current.rating}</span>
+            <span className="text-[8px] opacity-70">ELO</span>
+          </span>
+        )}
         <span className="font-mono text-[10px] font-bold" style={{ color: "var(--mono-orange)" }}>
           {current.version}
         </span>
@@ -288,6 +298,15 @@ function BotRoleSelector({ player }: { player: Player }) {
                     }}
                   >
                     <span className="flex-1 truncate font-semibold">{role.label}</span>
+                    {role.rating !== null && (
+                      <span
+                        className="flex shrink-0 items-baseline gap-0.5 font-mono font-bold tabular-nums"
+                        style={{ color: active ? "var(--mono-card)" : "var(--mono-rail)" }}
+                      >
+                        <span className="text-[11px]">{role.rating}</span>
+                        <span className="text-[8px] opacity-70">ELO</span>
+                      </span>
+                    )}
                     <span
                       className="font-mono text-[10px] font-bold"
                       style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}

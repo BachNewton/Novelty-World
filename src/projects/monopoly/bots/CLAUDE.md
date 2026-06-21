@@ -265,6 +265,35 @@ transformative. A graduated version (don't trade below the rent reserve for a
 marginal gain) is a reasonable future *defensive* hardening — but it is a
 liquidity guard, not a discount on what a monopoly is worth.
 
+## Lobby strength ratings
+
+The lobby shows an **Elo number** beside each bot it offers, so a player can size
+up a bot at a glance ("Champion 1104 vs Gemini 837 — the Champion's clearly
+stronger"). It's the same Bradley–Terry Elo the gauntlet uses, just packaged for
+display. Mechanics:
+
+- **Generated, never hand-typed.** `npm run sim:ratings` (`ratings-cli.ts`) plays a
+  round-robin over the anchor + every version a lobby pointer resolves to, fits one
+  Elo across them, and writes `bots/ratings.ts` (`BOT_RATINGS`, raw Elo). Treat that
+  file as build output — a hand-edited rating would quietly lie to players.
+- **Fixed anchor (`claude-v2 = 0`), permanently.** Elo is only defined up to a
+  global offset, so one version is pinned to 0. We pin the field floor and **never
+  move it** — that keeps a saved number comparable across regenerations and over
+  time. The anchor need not stay in the *competitive* field; it just defines the
+  scale. (Raising the real field floor later doesn't require moving the anchor.)
+- **Only relative gaps mean anything.** The friendly display offset
+  (`RATING_DISPLAY_BASE`, +1000) lives in `roles.ts` (`ratingFor`), so the floor
+  reads ~1000 instead of a discouraging 0; `BOT_RATINGS` stays the raw measurement.
+- **Regenerate when the lobby set changes** — a pointer moves (new champion/live/
+  featured) or a new rated lineage is added. It's the ratings analog of bumping
+  `CHAMPION_VERSION` / adding an EVOLUTION row. An unrated version surfaces as `null`
+  from `ratingFor` (the lobby simply omits the number) until the next run.
+- **Enforced by `ratings.test.ts`.** A pure compile-time check can't cover this —
+  the `-latest` pointer resolves to a runtime value — so a test asserts every
+  version the lobby pointers *resolve to* has a rating. Add or retarget a lobby bot
+  without regenerating and `npm run test` fails with a "run `npm run sim:ratings`"
+  message. That's the guardrail; the `null` handling above is just defense in depth.
+
 ## Testing
 
 `claude` decision logic is unit-tested per version in
