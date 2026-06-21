@@ -40,6 +40,7 @@ import { janeV3Bot } from "./jane-v3";
 import { janeV4Bot } from "./jane-v4";
 import { janeV5Bot } from "./jane-v5";
 import { janeV6Bot } from "./jane-v6";
+import { janeV7Bot } from "./jane-v7";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -90,6 +91,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v4": janeV4Bot,
   "jane-v5": janeV5Bot,
   "jane-v6": janeV6Bot,
+  "jane-v7": janeV7Bot,
   dumb: dumbBot,
 };
 
