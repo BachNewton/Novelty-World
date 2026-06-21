@@ -41,6 +41,7 @@ import { claudeV36Bot } from "./claude-v36";
 // `jane-vN`, `gemini-vN`.
 import { janeV1Bot } from "./jane-v1";
 import { janeV2Bot } from "./jane-v2";
+import { janeV3Bot } from "./jane-v3";
 import { janeV4Bot } from "./jane-v4";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
@@ -99,6 +100,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v36": claudeV36Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
+  "jane-v3": janeV3Bot,
   "jane-v4": janeV4Bot,
   "gemini-v1": geminiV1Bot,
   dumb: dumbBot,
