@@ -62,14 +62,24 @@ export type PlayerIcon =
  *  type — the route parses untrusted `setStrategy` input against this list
  *  (`route.ts:isBotStrategy`), and `BotStrategy` is derived from it, so adding a
  *  strategy in one place keeps both in lockstep. */
-export const BOT_STRATEGIES = ["dumb", "claude", "champion", "latest"] as const;
+export const BOT_STRATEGIES = [
+  "dumb",
+  "champion",
+  "claude",
+  "claude-latest",
+  "jane",
+  "jane-latest",
+] as const;
 
 /** Which bot policy controls a computer seat, resolved through the bot registry
  *  (`bots/registry.ts`). `dumb` is the baseline reactive policy (`bots/dumb.ts`).
- *  The other three are version POINTERS into the archive (`bots/roles.ts`), so a
- *  seat follows whatever each names: `claude` = the hand-picked live bot
- *  (`bots/live.ts`), `champion` = the best by measurement, `latest` = the newest
- *  snapshot. Selected per seat; a human seat has none (`botStrategy === null`). */
+ *  The rest are version POINTERS into the archive (`bots/roles.ts`), grouped into
+ *  LINEAGES (bot families): `champion` is the single best by measurement ACROSS
+ *  all lineages; each lineage then exposes a hand-picked pointer (`claude`,
+ *  `jane`) and a newest-snapshot pointer (`claude-latest`, `jane-latest`). A seat
+ *  follows whatever its pointer names. Selected per seat; a human seat has none
+ *  (`botStrategy === null`). Adding a lineage adds its two ids here and a row in
+ *  `bots/roles.ts` `LINEAGES`. */
 export type BotStrategy = (typeof BOT_STRATEGIES)[number];
 
 export interface Player {

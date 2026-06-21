@@ -196,16 +196,25 @@ plus a registry entry. Current strategies:
 - **`dumb`** (`bots/dumb.ts`) — the reactive baseline; answers the proxy-driven
   decision phases and never initiates. Returns note-less decisions. **Simulator/
   gauntlet only — no longer offered in the lobby UI.**
-- **`claude` / `champion` / `latest`** — three **pointers** into the version
-  archive, declared as data in `bots/roles.ts` (`BOT_ROLES`) and the bots the
-  lobby actually offers. `claude` is the hand-picked live bot (`bots/live.ts` →
-  `LIVE_VERSION`) and the **default** for added bots (`addBot`) and the
-  `freshGame` seed; `champion` is the best by measurement (`CHAMPION_VERSION`);
-  `latest` is the newest snapshot (derived `LATEST_VERSION`). They're **live
-  pointers** — a seat stores its role, not a frozen version, so it follows
-  whatever the pointer names in the deployed code (see EVOLUTION.md "The three
-  lobby pointers"). The policy code for whichever version each resolves to lives
-  in `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
+- **`champion` + per-lineage pointers** (`claude` / `claude-latest` / `jane` /
+  `jane-latest` / …) — **pointers** into the version archive, declared as data in
+  `bots/roles.ts` and the bots the lobby actually offers. The version archive is
+  organized into **LINEAGES** (bot families authored independently — Claude, Jane,
+  and any future Gemini/ChatGPT), namespaced by label prefix (`vN` for Claude,
+  `jane-vN` for Jane). `champion` is the single best by measurement **across all
+  lineages** (`CHAMPION_VERSION`); each lineage then exposes a **featured** pointer
+  (`claude` = the hand-picked live bot, `bots/live.ts` → `LIVE_VERSION`, also the
+  **default** for `addBot`/`freshGame`; `jane` = `JANE_FEATURED_VERSION`) and a
+  **`-latest`** pointer (its newest snapshot, derived by prefix). They're **live
+  pointers** — a seat stores its role, not a frozen version, so it follows whatever
+  the pointer names in the deployed code (see EVOLUTION.md "The lobby pointers").
+  **Adding a lineage** is purely data — two ids in `BOT_STRATEGIES`, one `LINEAGES`
+  row, two `BOTS` entries — and needs **no UI or gauntlet change** (the lobby
+  renders from `BOT_ROLES`; the gauntlet fields versions by opaque label, so
+  cross-lineage matches like `sim:gauntlet -- jane-v1 --base v29` already work). A
+  worked TODO for the next family lives in `bots/roles.ts`. The policy code for
+  whichever version each resolves to lives in
+  `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
   is a pure dispatcher over its `valuation.ts` (scoring, build planning,
   liquidation, jail) and `trades.ts` (counterparty-aware proposals + evaluation),
   everything keyed off `positionValue`, **noting its reasoning on every decision**.

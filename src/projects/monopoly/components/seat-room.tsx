@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
-import { Bot, LogOut, Play, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bot, ChevronDown, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
-import { BOT_ROLES } from "../bots/roles";
+import { BOT_ROLES, BOT_ROLE_GROUPS } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
 import { useMonopolyStore } from "../store";
@@ -194,45 +194,113 @@ function SeatRow({
   );
 }
 
-/** Per-bot role selector: the three Claude pointers the lobby can field —
- *  `Claude` (the hand-picked live bot), `Champion` (best by measurement), and
- *  `Latest` (newest snapshot) — rendered from `BOT_ROLES`, so retargeting a
- *  pointer or adding a role needs no change here. Each option tags the version
- *  it currently resolves to, which also makes it visible when two roles point at
- *  the same version. Anyone in the lobby can switch it, like kicking a bot. */
+/** Per-bot role selector: a compact DROPDOWN so each bot seat stays one line no
+ *  matter how many bot families exist. The trigger shows the current pick; the
+ *  menu groups options by LINEAGE (the global `Champion`, then each family's
+ *  featured + latest — `Claude` / `Claude Latest` / `Jane` / `Jane Latest` / …)
+ *  from `BOT_ROLE_GROUPS`, so adding a family or retargeting a pointer needs no
+ *  change here and the menu just scrolls. Each option tags the version it
+ *  resolves to. Anyone in the lobby can switch it, like kicking a bot. */
 function BotRoleSelector({ player }: { player: Player }) {
   const setStrategy = useMonopolyStore((s) => s.setStrategy);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // A lobby bot always carries a lobby role; fall back to the first (Champion)
+  // for the impossible `dumb`/unknown case so the trigger never renders blank.
+  const current =
+    BOT_ROLES.find((r) => r.id === player.botStrategy) ?? BOT_ROLES[0];
+
+  // Close on an outside click or Escape — only while open, so we don't keep
+  // document listeners around for every collapsed selector in the roster.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pl-12">
-      <Bot
-        className="h-3.5 w-3.5 shrink-0"
-        aria-hidden="true"
-        style={{ color: "var(--mono-rail)" }}
-      />
-      {BOT_ROLES.map((role) => {
-        const active = player.botStrategy === role.id;
-        return (
-          <button
-            key={role.id}
-            type="button"
-            onClick={() => { setStrategy(player.id, role.id); }}
-            aria-pressed={active}
-            aria-label={`${role.label} (${role.version})`}
-            title={role.hint}
-            className="rounded px-2 py-0.5 text-[11px] font-semibold transition-colors"
-            style={{
-              backgroundColor: active ? "var(--mono-orange)" : "transparent",
-              color: active ? "var(--mono-card)" : "var(--mono-rail)",
-              boxShadow: active ? undefined : "inset 0 0 0 1px var(--mono-frame)",
-            }}
-          >
-            {role.short}
-            <span className="ml-0.5 align-super text-[8px] font-bold normal-case opacity-70">
-              {role.version}
-            </span>
-          </button>
-        );
-      })}
+    <div ref={ref} className="relative pl-12">
+      <button
+        type="button"
+        onClick={() => { setOpen((o) => !o); }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold transition-colors"
+        style={{
+          backgroundColor: "var(--mono-board)",
+          color: "var(--mono-ink)",
+          boxShadow: "inset 0 0 0 1px var(--mono-frame)",
+        }}
+      >
+        <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--mono-rail)" }} />
+        <span className="flex-1 truncate">{current.label}</span>
+        <span className="font-mono text-[10px] font-bold" style={{ color: "var(--mono-orange)" }}>
+          {current.version}
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+          style={{ color: "var(--mono-rail)" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-12 right-0 z-10 mt-1 max-h-64 overflow-y-auto rounded-md py-1"
+          style={{ backgroundColor: "var(--mono-card)", boxShadow: "0 0 0 1px var(--mono-frame)" }}
+        >
+          {BOT_ROLE_GROUPS.map((group) => (
+            <div key={group.heading ?? "champion"}>
+              {group.heading !== null && (
+                <div
+                  className="px-3 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-wider"
+                  style={{ color: "var(--mono-rail)" }}
+                >
+                  {group.heading}
+                </div>
+              )}
+              {group.roles.map((role) => {
+                const active = player.botStrategy === role.id;
+                return (
+                  <button
+                    key={role.id}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    title={role.hint}
+                    onClick={() => { setStrategy(player.id, role.id); setOpen(false); }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:brightness-125"
+                    style={{
+                      backgroundColor: active ? "var(--mono-orange)" : "transparent",
+                      color: active ? "var(--mono-card)" : "var(--mono-ink)",
+                    }}
+                  >
+                    <span className="flex-1 truncate font-semibold">{role.label}</span>
+                    <span
+                      className="font-mono text-[10px] font-bold"
+                      style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}
+                    >
+                      {role.version}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
