@@ -8,7 +8,8 @@ import type {
   Intent,
   PlayerCount,
 } from "../types";
-import { BOTS, type Bot } from "./registry";
+import { botFor, type Bot } from "./registry";
+import { DEFAULT_BOT_VERSION } from "./roles";
 // The standings scoreboard orders players by the engine's OBJECTIVE `netWorth`
 // (cash + full liquidation value) — a bot-independent yardstick. It only orders
 // the final standings; the winner is the engine's. Deliberately NOT a bot's
@@ -37,10 +38,10 @@ import { BOTS, type Bot } from "./registry";
  *    marker so `driverRole` proxies it exactly as a registry bot. */
 
 const DEFAULT_STRATEGIES: readonly BotStrategy[] = [
-  "claude",
-  "claude",
-  "claude",
-  "claude",
+  DEFAULT_BOT_VERSION,
+  DEFAULT_BOT_VERSION,
+  DEFAULT_BOT_VERSION,
+  DEFAULT_BOT_VERSION,
 ];
 
 /** One seat in a head-to-head table: a `Bot` policy plus a `label` used for
@@ -62,14 +63,19 @@ interface ResolvedSeat {
 
 /** Resolve `seats` (explicit contenders) or `strategies` (registry roster) into
  *  the uniform per-seat shape the sim drives. `seats` wins when both are given.
- *  A contender seat takes the `claude` marker purely so the engine proxies it;
- *  the marker never selects the policy — the injected `botFor` does. */
+ *  A contender seat takes any valid version label as its marker purely so the
+ *  engine proxies it; the marker never selects the policy — the injected `botFor`
+ *  does. */
 function resolveSeats(opts: SimOptions): ResolvedSeat[] {
   if (opts.seats && opts.seats.length > 0) {
-    return opts.seats.map((c) => ({ label: c.label, marker: "claude", bot: c.bot }));
+    return opts.seats.map((c) => ({
+      label: c.label,
+      marker: DEFAULT_BOT_VERSION,
+      bot: c.bot,
+    }));
   }
   const strategies = opts.strategies ?? DEFAULT_STRATEGIES;
-  return strategies.map((s) => ({ label: s, marker: s, bot: BOTS[s] }));
+  return strategies.map((s) => ({ label: s, marker: s, bot: botFor(s) }));
 }
 
 /** A seat's final position in a finished (or capped) game. */

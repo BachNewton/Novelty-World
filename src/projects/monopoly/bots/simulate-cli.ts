@@ -1,12 +1,9 @@
 import process from "node:process";
-import type { BotStrategy, GameEvent } from "../types";
-import {
-  formatResult,
-  simulateGame,
-  type Highlight,
-  type SimOptions,
-} from "./simulate";
-import { spaceName } from "../logic";
+import type { BotStrategy } from "../types";
+import { formatResult, simulateGame, type SimOptions } from "./simulate";
+import { DEFAULT_BOT_VERSION } from "./roles";
+import { VERSIONS } from "./versions";
+import { renderHighlight } from "./render-log";
 
 /** `npm run sim` — an on-demand script that plays a full, headless Monopoly game
  *  between bots and prints the outcome. No UI, pure CPU, deterministic by seed.
@@ -15,11 +12,14 @@ import { spaceName } from "../logic";
  *  here as a script, not in the test suite.
  *
  *  Usage:
- *    npm run sim                              # 4 Claude bots, default seed
- *    npm run sim -- claude claude dumb dumb   # custom roster (2, 4, or 8 seats)
- *    npm run sim -- --seed my-seed            # pick the RNG seed
- *    npm run sim -- --turns 4000              # raise the safety cap
- *    npm run sim -- --log                     # stream the per-decision play-by-play
+ *    npm run sim                                  # 4 overall-best bots, default seed
+ *    npm run sim -- claude-v35 jane-v2 dumb dumb  # custom roster (2, 4, or 8 seats)
+ *    npm run sim -- --seed my-seed                # pick the RNG seed
+ *    npm run sim -- --turns 4000                  # raise the safety cap
+ *    npm run sim -- --log                         # stream the per-decision play-by-play
+ *
+ *  A seat is `dumb` (the reactive baseline) or any version label in the archive
+ *  (`bots/versions/index.ts`, e.g. `claude-v35`, `jane-v2`).
  */
 
 interface Args {
@@ -50,11 +50,12 @@ function parseArgs(argv: readonly string[]): Args {
       }
     } else if (arg === "--log") {
       log = true;
-    } else if (arg === "claude" || arg === "dumb") {
+    } else if (arg === "dumb" || arg in VERSIONS) {
       strategies.push(arg);
     } else {
       throw new Error(
-        `unknown argument "${arg}" (expected claude | dumb | --seed | --turns | --log)`,
+        `unknown argument "${arg}" (expected dumb, a version label like ` +
+          `claude-v35, or --seed | --turns | --log)`,
       );
     }
   }
@@ -64,55 +65,15 @@ function parseArgs(argv: readonly string[]): Args {
     strategies:
       strategies.length > 0
         ? strategies
-        : ["claude", "claude", "claude", "claude"],
+        : [
+            DEFAULT_BOT_VERSION,
+            DEFAULT_BOT_VERSION,
+            DEFAULT_BOT_VERSION,
+            DEFAULT_BOT_VERSION,
+          ],
     maxTurns,
     log,
   };
-}
-
-/** Render one play-by-play moment as a single console line. */
-function renderHighlight(h: Highlight, nameOf: (id: string | null) => string): string {
-  const e = h.event;
-  const t = `T${h.turn}`.padEnd(6);
-  switch (e.kind) {
-    case "bot-note":
-      return `${t}💭 ${nameOf(e.playerId)}: ${e.text}`;
-    case "buy":
-      return `${t}🛒 ${nameOf(h.actorId)} buys ${spaceName(e.position)} ($${e.price})`;
-    case "auction":
-      return `${t}🔨 ${spaceName(e.position)} auctioned → ${e.winnerId === null ? "no sale" : nameOf(e.winnerId)} ($${e.price})`;
-    case "build":
-      return `${t}🏠 ${nameOf(e.playerId)} builds ${spaceName(e.position)} → level ${e.toLevel} ($${e.cost})`;
-    case "sell-building":
-      return `${t}🏚️ ${nameOf(e.playerId)} sells a building on ${spaceName(e.position)} → level ${e.toLevel} (+$${e.refund})`;
-    case "mortgage":
-      return `${t}🏦 ${nameOf(e.playerId)} mortgages ${spaceName(e.position)} (+$${e.received})`;
-    case "unmortgage":
-      return `${t}💵 ${nameOf(e.playerId)} unmortgages ${spaceName(e.position)} (−$${e.cost})`;
-    case "trade":
-      return `${t}🤝 ${nameOf(e.proposerId)} trade — ${tradeSummary(e, nameOf)}`;
-    case "trade-declined":
-      return `${t}🚫 ${nameOf(e.proposerId)}'s offer declined by ${nameOf(e.declinedBy)}`;
-    case "bankrupt":
-      return `${t}💥 ${nameOf(e.debtorId)} goes bankrupt → ${nameOf(e.creditorId)}`;
-    case "winner":
-      return `${t}🏆 ${nameOf(e.winnerId)} WINS`;
-    default:
-      return `${t}${e.kind}`;
-  }
-}
-
-function tradeSummary(
-  e: Extract<GameEvent, { kind: "trade" }>,
-  nameOf: (id: string | null) => string,
-): string {
-  const props = Object.entries(e.propertyTo).map(
-    ([pos, to]) => `${spaceName(Number(pos))}→${nameOf(to)}`,
-  );
-  const cash = Object.entries(e.cashDelta)
-    .filter(([, d]) => d !== 0)
-    .map(([id, d]) => `${nameOf(id)} ${d > 0 ? "+" : "−"}$${Math.abs(d)}`);
-  return [...props, ...cash].join(", ");
 }
 
 function main(): void {

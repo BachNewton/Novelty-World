@@ -200,31 +200,35 @@ plus a registry entry. Current strategies:
   (the field floor is `claude-v2`; see EVOLUTION.md "Never gauntlet against dumb"). It
   exists only as a wiring/pacing baseline (e.g. `pacing.test.ts`) and for `sim`
   playback.
-- **`champion` + per-lineage pointers** (`claude` / `claude-latest` / `jane` /
-  `jane-latest` / …) — **pointers** into the version archive, declared as data in
-  `bots/roles.ts` and the bots the lobby actually offers. The version archive is
+- **Version policies (the archive)** — every other bot a seat can field is a
+  concrete **version label** in the archive (`bots/versions/index.ts` `VERSIONS`),
   organized into **LINEAGES** (bot families authored independently — Claude, Jane,
-  and any future Gemini/ChatGPT), namespaced by label prefix (`vN` for Claude,
-  `jane-vN` for Jane). `champion` is the single best by measurement **across all
-  lineages** (`CHAMPION_VERSION`); each lineage then exposes a **featured** pointer
-  (`claude` = the hand-picked live bot, `bots/live.ts` → `LIVE_VERSION`, also the
-  **default** for `addBot`/`freshGame`; `jane` = `JANE_FEATURED_VERSION`) and a
-  **`-latest`** pointer (its newest snapshot, derived by prefix). They're **live
-  pointers** — a seat stores its role, not a frozen version, so it follows whatever
-  the pointer names in the deployed code (see EVOLUTION.md "The lobby pointers").
-  **Adding a lineage** is purely data — two ids in `BOT_STRATEGIES`, one `LINEAGES`
-  row, two `BOTS` entries — and needs **no UI or gauntlet change** (the lobby
-  renders from `BOT_ROLES`; the gauntlet fields versions by opaque label, so
-  cross-lineage matches like `sim:gauntlet -- jane-v1 --base claude-v29` already work). A
-  worked TODO for the next family lives in `bots/roles.ts`. The policy code for
-  whichever version each resolves to lives in
-  `bots/versions/<label>/{policy,valuation,trades}.ts`. Whatever version ships, it
-  is a pure dispatcher over its `valuation.ts` (scoring, build planning,
-  liquidation, jail) and `trades.ts` (counterparty-aware proposals + evaluation),
-  everything keyed off `positionValue`, **noting its reasoning on every decision**.
-  Its purpose, strategic model, tuning rationale, and refinement roadmap have
-  their own deep guide: **`bots/CLAUDE.md`** — read that before touching a
-  version's `policy.ts`, `valuation.ts`, or `trades.ts`.
+  Gemini, any future ChatGPT), namespaced by label prefix (`claude-vN`, `jane-vN`,
+  `gemini-vN`). `Player.botStrategy` stores the **exact label** it plays (or
+  `dumb`); `registry.ts` `botFor` resolves it straight through `versionBot`. There
+  are **no curated pointers** (champion / featured / live / latest) any more — a
+  bot's measured **Elo is its rank**, so the lobby DERIVES its whole offering from
+  the generated Elo ladder (`bots/ratings.ts`) in `bots/roles.ts` (`LOBBY_BOTS`):
+  the **overall best** (highest Elo across families — also the `addBot`/`freshGame`
+  default, `DEFAULT_BOT_VERSION`), each **family's best** (highest Elo within it),
+  and every family's **full version list**. A version with **no Elo** (excluded or
+  not-yet-rated — `RATING_EXCLUDED`, e.g. `claude-v1`) renders **deprecated**
+  (struck-through, disabled). The lobby is **Elo-only** — it shows the *strongest*
+  bot, never a "champion": crowning a champion and picking an evolution *substrate*
+  are separate, confidence-gated decisions that live in `bots/EVOLUTION.md`, not the
+  player UI (see "Two bests"). **Adding a lineage** is one row in `FAMILY_SPECS`
+  (`bots/roles.ts`) plus its snapshots under `versions/<prefix>N/`; **adding a
+  version** is just registering it in `versions/index.ts` — both need **no UI
+  change** (the lobby re-derives) and **no pointer bump** (run `npm run sim:ratings`
+  and the strongest/default follows the ladder; the gauntlet fields versions by
+  opaque label, so `sim:gauntlet -- jane-v1 --base claude-v29` already works). The policy
+  code for each version lives in `bots/versions/<label>/{policy,valuation,trades}.ts`:
+  a pure dispatcher over its `valuation.ts` (scoring, build planning, liquidation,
+  jail) and `trades.ts` (counterparty-aware proposals + evaluation), everything
+  keyed off `positionValue`, **noting its reasoning on every decision**. Its
+  purpose, strategic model, tuning rationale, and refinement roadmap have their own
+  deep guide: **`bots/CLAUDE.md`** — read that before touching a version's
+  `policy.ts`, `valuation.ts`, or `trades.ts`.
 
 **BOT notes.** A `bot-note` GameEvent (verb **BOT** in the log) records a bot's
 reasoning. It is the lone log event with **no board change** — pure annotation —
@@ -367,13 +371,14 @@ reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox
 store.ts      Zustand store, "use client", route client + playback pump
 mocks.ts      MOCK_STATE fixture + freshGame seed
 dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
-bots/registry.ts      BOTS strategy map (botStrategy -> policy); re-exports the contract
+bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/live.ts          LIVE_VERSION — which archived version ships as `claude` (promotion = this line)
-bots/roles.ts         BOT_ROLES — the lobby pointers (Claude/Champion/Latest) as data; CHAMPION_VERSION + derived LATEST_VERSION
+bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation) + DEFAULT_BOT_VERSION; only hand-maintained data is FAMILY_SPECS
 bots/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
-bots/simulate-cli.ts  `npm run sim` — watch one game (roster, seed, --log)
+bots/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
+bots/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review
+bots/review-cli.ts    `npm run game:review` — pull a REAL (human+bot) game from the DB and print its play-by-play / standings / holdings / money-flow for analysis (read-only, anon key). See the `/monopoly-game-review` command
 bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
 bots/versus-cli.ts    `npm run sim:versus -- claude-v2 claude-v1` — run the A/B over many seeds
 bots/parallel.ts      worker_threads pool: pure games distributed across cores
@@ -383,10 +388,11 @@ bots/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
 bots/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
 bots/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gauntlet on the pool
 bots/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
-bots/ratings-cli.ts   `npm run sim:ratings` — round-robin Elo over lobby-fieldable versions → writes ratings.ts
-bots/ratings.ts       GENERATED lobby strength ladder (BOT_RATINGS, claude-v2=0); see bots/CLAUDE.md "Lobby strength ratings"
-bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code, decoupled from what ships live. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN
-bots/versions/index.ts  VERSIONS map (claude-v1 archived/excluded, claude-v2=floor, claude-v3, …) + versionBot()
+bots/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
+bots/ratings.ts       GENERATED strength ladder (BOT_RATINGS, claude-v2=0); the lobby derives from this; see bots/CLAUDE.md "Lobby strength ratings"
+bots/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
+bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN
+bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (versions left unrated → deprecated, e.g. claude-v1)
 bots/versions/claude-v1/     claude-v1 snapshot: original champion, frozen — archived, EXCLUDED from the default field (stalls games); claude-v2 is the floor
 bots/versions/claude-v2/     claude-v2 snapshot (rival-threat pricing) + its tests
 bots/versions/claude-v3/     claude-v3 snapshot (N-way trades) — accepted as substrate (win-neutral vs claude-v2)
@@ -395,7 +401,7 @@ bots/versions/claude-v5/     claude-v5 snapshot (trade-to-deny) — loop CHAMPIO
 bots/versions/claude-v6/     claude-v6 snapshot (deny-via-swap) — rejected, win-neutral; archived
 bots/versions/claude-v7/     claude-v7 snapshot (two-short denial) — rejected, regression; archived
 bots/versions/claude-v8/     claude-v8 snapshot (denial + tempo) — rejected, overfit (even on holdout); archived
-(which version is LIVE is whatever bots/live.ts → LIVE_VERSION points to — a product call, see EVOLUTION.md)
+(which version is "best" is whatever tops the Elo ladder in bots/ratings.ts — measured, not a product call; see EVOLUTION.md)
 components/           React board + lobby/seat UI
 ```
 

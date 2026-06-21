@@ -1,8 +1,6 @@
 import type { BotStrategy } from "../types";
 import type { Bot } from "./decision";
 import { dumbBot } from "./dumb";
-import { liveBot } from "./live";
-import { CHAMPION_VERSION, lineageFor } from "./roles";
 import { versionBot } from "./versions";
 
 // The bot-decision contract lives in `decision.ts` (so policies can import it
@@ -11,22 +9,13 @@ import { versionBot } from "./versions";
 export type { Bot, BotDecision } from "./decision";
 export { move } from "./decision";
 
-/** Every selectable bot policy, keyed by the seat's `botStrategy`. The pacer
- *  resolves a bot seat's policy through this map. Every key except `dumb` is a
- *  POINTER into the version archive (`bots/roles.ts`): `champion` is the global
- *  best by measurement, and each lineage (Claude, Jane, …) contributes a
- *  featured pointer + a derived `-latest` pointer. Crowning a champion,
- *  retargeting a featured pointer, or registering a version only moves the
- *  pointer — this file is unchanged. Keep the keys in lockstep with
- *  `BOT_STRATEGIES`/`LINEAGES` (the exhaustive `Record<BotStrategy, …>` check
- *  catches a missing one; `lineageFor` throws on an unknown id). */
-export const BOTS: Record<BotStrategy, Bot> = {
-  dumb: dumbBot,
-  champion: versionBot(CHAMPION_VERSION), // global best by measurement (bots/roles.ts)
-  claude: liveBot, // Claude featured = the shipped live pointer (bots/live.ts → LIVE_VERSION)
-  "claude-latest": versionBot(lineageFor("claude-latest").latest),
-  jane: versionBot(lineageFor("jane").featured),
-  "jane-latest": versionBot(lineageFor("jane-latest").latest),
-  gemini: versionBot(lineageFor("gemini").featured),
-  "gemini-latest": versionBot(lineageFor("gemini-latest").latest),
-};
+/** Resolve a seat's `botStrategy` to its policy. The strategy is a CONCRETE
+ *  archive identifier (see `types.ts` `BotStrategy`): the literal `"dumb"` maps to
+ *  the reactive baseline, and everything else is a version label resolved straight
+ *  out of the archive (`versionBot`, which throws loud on an unknown label). The
+ *  lobby's overall-best / per-family-best highlights are just the highest-Elo
+ *  labels (`bots/roles.ts`) — they resolve through the very same path, so there
+ *  are no pointer indirections left to keep in lockstep. */
+export function botFor(strategy: BotStrategy): Bot {
+  return strategy === "dumb" ? dumbBot : versionBot(strategy);
+}

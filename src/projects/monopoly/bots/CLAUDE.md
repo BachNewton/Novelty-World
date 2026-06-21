@@ -2,10 +2,12 @@
 
 Read this before touching any version's `policy.ts`, `valuation.ts`, or
 `trades.ts`. The policy code lives in the version archive
-(`bots/versions/<label>/`), not at the top level — there is no `bots/policy.ts`;
-the live bot is a pointer (`bots/live.ts` → `LIVE_VERSION` — read that file for
-the version currently shipped) into that archive (see EVOLUTION.md "Coexistence &
-promotion"). The main
+(`bots/versions/<label>/`), not at the top level — there is no `bots/policy.ts`.
+A seat fields a **concrete version label** (`Player.botStrategy`); the lobby's
+"best" picks are simply the **highest-Elo** labels, derived from the measured
+ladder (`bots/ratings.ts` → `bots/roles.ts`), not hand-picked pointers (see
+"Lobby strength ratings" below and EVOLUTION.md "Coexistence & promotion"). The
+main
 `monopoly/CLAUDE.md` "Bots" section owns the shared **infrastructure** (the `Bot`
 contract, the registry, BOT-note mechanics, and how the pacer drives proactive
 play). This file owns the **`claude` strategy itself** — its purpose, its
@@ -29,6 +31,12 @@ this bot should be the best work we can produce.
   the only loyalty. The opponents it's built to beat are themselves ruthless pros:
   fast, optimal, merciless, and willing to exploit the fact that a seat is a bot.
   Claude Bot must out-play exactly that.
+- **Lineages are provenance, not loyalty.** `claude` / `jane` / `gemini` label the
+  machine a version was *discovered on*, not a walled-off codebase. Borrowing or
+  stealing a rival lineage's idea wholesale to make a version stronger is encouraged
+  — "winning is the only loyalty" applies to the code as much as to in-game play.
+  When you evolve, look across ALL families and branch from whatever base you can
+  most improve (see EVOLUTION.md "Two bests").
 - **Proactive across the full surface.** It buys, trades, mortgages *and*
   unmortgages at the strategic moment — it does not sit on a winning position.
 - **Transparency serves insight, never at the cost of winning.** Every decision
@@ -265,34 +273,56 @@ transformative. A graduated version (don't trade below the rent reserve for a
 marginal gain) is a reasonable future *defensive* hardening — but it is a
 liquidity guard, not a discount on what a monopoly is worth.
 
-## Lobby strength ratings
+## Lobby strength ratings — the player-facing strength axis
 
-The lobby shows an **Elo number** beside each bot it offers, so a player can size
-up a bot at a glance ("Champion 1104 vs Gemini 837 — the Champion's clearly
-stronger"). It's the same Bradley–Terry Elo the gauntlet uses, just packaged for
-display. Mechanics:
+**A bot's Elo IS its strength.** The lobby is a SINGLE-axis, player-facing view —
+"which bot challenges me most right now?" — derived entirely from the measured Elo
+ladder. It has **no** notion of "champion"/"crown": that is a separate *evolution*
+concept with a different audience and a stricter (confidence-gated) bar — see
+**"Two bests: strongest vs crown vs substrate"** in `EVOLUTION.md`. Keep them
+apart; conflating them is the trap this model exists to avoid. Read this before
+touching `roles.ts`, `ratings-cli.ts`, or `ratings.ts`.
 
+What the ladder drives (all in `roles.ts` `LOBBY_BOTS`, recomputed from the
+generated `BOT_RATINGS`):
+- **Strongest** — highest Elo across all families. The lobby default and the
+  `addBot`/`freshGame` seat (`DEFAULT_BOT_VERSION`). **No confidence gate** — it
+  just follows the top of the ladder, so a within-noise tie may flip the label
+  (fine: two bots within noise are genuinely ~equally hard).
+- **Each family's best** — highest Elo within that family.
+- **Deprecated** — any version with **no Elo** (struck through, "???", disabled).
+
+Mechanics:
 - **Generated, never hand-typed.** `npm run sim:ratings` (`ratings-cli.ts`) plays a
-  round-robin over the anchor + every version a lobby pointer resolves to, fits one
-  Elo across them, and writes `bots/ratings.ts` (`BOT_RATINGS`, raw Elo). Treat that
-  file as build output — a hand-edited rating would quietly lie to players.
+  round-robin over the **whole archive** (every version except `dumb` and
+  `RATING_EXCLUDED`), fits one Elo across them, and writes `bots/ratings.ts`
+  (`BOT_RATINGS`, raw Elo). Treat it as build output — a hand-edited rating would
+  quietly lie to players about how hard each bot is.
+- **Cached, so re-runs are cheap.** Games are deterministic in (versions, seed,
+  count) and versions are frozen, so each pairing's tally is persisted to
+  `ratings-cache.json`. The first full run pays the whole cost once; afterward a new
+  version only **plays its own column** vs the field (every other pairing is a cache
+  hit) and the ladder re-fits over the full result set — the mathematically-correct
+  joint Elo, with no replay.
 - **Fixed anchor (`claude-v2 = 0`), permanently.** Elo is only defined up to a
   global offset, so one version is pinned to 0. We pin the field floor and **never
-  move it** — that keeps a saved number comparable across regenerations and over
-  time. The anchor need not stay in the *competitive* field; it just defines the
-  scale. (Raising the real field floor later doesn't require moving the anchor.)
+  move it** — keeping a saved number comparable across regenerations. The anchor
+  need not be competitive; it just defines the scale.
 - **Only relative gaps mean anything.** The friendly display offset
   (`RATING_DISPLAY_BASE`, +1000) lives in `roles.ts` (`ratingFor`), so the floor
   reads ~1000 instead of a discouraging 0; `BOT_RATINGS` stays the raw measurement.
-- **Regenerate when the lobby set changes** — a pointer moves (new champion/live/
-  featured) or a new rated lineage is added. It's the ratings analog of bumping
-  `CHAMPION_VERSION` / adding an EVOLUTION row. An unrated version surfaces as `null`
-  from `ratingFor` (the lobby simply omits the number) until the next run.
-- **Enforced by `ratings.test.ts`.** A pure compile-time check can't cover this —
-  the `-latest` pointer resolves to a runtime value — so a test asserts every
-  version the lobby pointers *resolve to* has a rating. Add or retarget a lobby bot
-  without regenerating and `npm run test` fails with a "run `npm run sim:ratings`"
-  message. That's the guardrail; the `null` handling above is just defense in depth.
+- **`RATING_EXCLUDED` is the only hand-maintained rating knob** (`versions/index.ts`)
+  — versions deliberately left unrated because they'd poison/stall the field (today
+  just `claude-v1`). They render deprecated. Keep it tiny.
+- **Regenerate after adding any version** (and any time you want to refresh the
+  whole ladder). This sets the player-facing **Strongest/default** automatically —
+  no pointer to bump. It does **not** by itself crown a champion or pick a
+  substrate: those need SPRT confirmation (see EVOLUTION.md). A ladder-topper that
+  isn't a confident win is the Strongest the lobby offers, yet still uncrowned.
+- **Enforced by `ratings.test.ts`.** A test asserts every rateable version (all but
+  `dumb` + `RATING_EXCLUDED`) has a rating, and that the excluded set has none. Add a
+  version without regenerating and `npm run test` fails with a "run
+  `npm run sim:ratings`" message. That's the guardrail.
 
 ## Testing
 

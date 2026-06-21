@@ -1,5 +1,6 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { shuffleArray } from "@/shared/lib/utils";
+import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import { BOT_NAMES } from "./bot-names";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
 import { createRng, initialDecks } from "./engine";
@@ -180,8 +181,9 @@ export function joinLobby(state: GameState, profile: PlayerProfile): LobbyResult
 }
 
 /** Add a bot seat with a synthetic id/name and the first free color + icon.
- *  Seats the strong `claude` policy by default — the opponent a human picks for
- *  a real game; downgrade it to `dumb` per seat via `setPlayerStrategy`.
+ *  Seats the current overall-best bot (`DEFAULT_BOT_VERSION`, the highest-Elo
+ *  version across all families) by default — the strongest opponent, what a human
+ *  picks for a real game; switch it to another version per seat via the selector.
  *
  *  `botId` pins the seat's id (the client supplies one from `nextBotId` at click
  *  time). With it the op is ABSOLUTE and so idempotent: re-applying an add whose
@@ -192,7 +194,7 @@ export function joinLobby(state: GameState, profile: PlayerProfile): LobbyResult
  *  when omitted, for direct (non-networked) callers like tests. */
 export function addBot(
   state: GameState,
-  strategy: BotStrategy = "claude",
+  strategy: BotStrategy = DEFAULT_BOT_VERSION,
   botId?: string,
 ): LobbyResult {
   if (state.status !== "lobby") {
@@ -221,8 +223,8 @@ export function addBot(
   };
 }
 
-/** Switch a bot seat's strategy (`claude` ⇄ `dumb`). Rejected for a human seat
- *  (a human has no strategy) or once the game has started. */
+/** Switch a bot seat's strategy to another version label (or `dumb`). Rejected
+ *  for a human seat (a human has no strategy) or once the game has started. */
 export function setPlayerStrategy(
   state: GameState,
   playerId: string,
@@ -347,7 +349,7 @@ export function lobbyReduce(state: GameState, op: LobbyOp): LobbyResult {
     case "join":
       return joinLobby(state, op.profile);
     case "addBot":
-      return addBot(state, "claude", op.botId);
+      return addBot(state, DEFAULT_BOT_VERSION, op.botId);
     case "removePlayer":
       return removePlayer(state, op.playerId);
     case "setColor":

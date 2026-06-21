@@ -1,11 +1,13 @@
 // ===========================================================================
-// v1 SNAPSHOT — the original champion, frozen (see EVOLUTION.md). This is the
-// gauntlet's floor: a self-contained copy so `v1` always means *v1*, never
-// "whatever currently ships". What the lobby fields is derived from the archive +
-// the Elo ladder, not this file; `claude-v1` is deliberately unrated. Exposed as
-// `claudeV1Bot` via `./index.ts`. Shared infrastructure (engine, board geometry,
-// the Bot contract) is imported from the canonical modules; only the policy is
-// copied.
+// jane-v4 — JANE lineage champion. The single dispatcher over all bot phases.
+//
+// Reads the shared strategic model in valuation.ts / trades.ts (everything keys
+// off positionValue — a move is good iff it raises my position's worth) and
+// returns a BotDecision: the intent plus the reasoning to surface.
+//
+// jane-v4's structural innovation lives in trades.ts (trade memory anti-churn)
+// and the valuation improvements (RAIL_SYNERGY boost + distressThreatScale).
+// See versions/jane-v4/index.ts for the full strategy and lineage history.
 // ===========================================================================
 import { colorAt, groupPositions } from "../../../development";
 import { auctionBidCap, BID_INCREMENT, firstNegativePlayer } from "../../../engine";
@@ -42,11 +44,12 @@ import { evaluateTrade, proposeBestTrade } from "./trades";
  *
  *  See `bots/valuation.ts`, `bots/trades.ts`, and `monopoly/CLAUDE.md` "Bots".
  *
- *  Known v1 limits (deliberate, flagged for follow-up): trade construction
- *  searches 2-way deals (mutual-completion swaps + cash) — the engine supports
- *  N-way, and the model is N-way-ready, but the search isn't yet; and builds /
- *  trade sweeteners are funded from cash, not by mortgaging to fund them. */
-export function policy(state: GameState, playerId: string): BotDecision | null {
+ *  v28 change (vs the v17 base): `./trades.ts` adds DESPERATION-PRICING — when
+ *  a seller is financially distressed, they value incoming cash above face
+ *  value (survival bonus), so construction sweetens less and the buyer
+ *  acquires set-completers at a DISCOUNT. The dispatcher and valuation are
+ *  carried verbatim from v17. */
+export function claudeBot(state: GameState, playerId: string): BotDecision | null {
   switch (state.turn.phase) {
     case "pre-roll":
       return preRoll(state, playerId);

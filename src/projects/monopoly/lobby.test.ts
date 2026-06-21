@@ -14,6 +14,7 @@ import {
   startGame,
   type LobbyResult,
 } from "./lobby";
+import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import type { GameState } from "./types";
 
 const HOST = { id: "host", name: "Kyle" };
@@ -96,8 +97,8 @@ describe("addBot", () => {
   it("seats a bot with a synthetic id, a name, and a free color + icon", () => {
     const state = ok(addBot(lobby()));
     const bot = state.players[1];
-    // Defaults to the strong Claude policy — the opponent for a real game.
-    expect(bot.botStrategy).toBe("claude");
+    // Defaults to the overall-best bot (highest Elo) — the opponent for a real game.
+    expect(bot.botStrategy).toBe(DEFAULT_BOT_VERSION);
     expect(bot.id).toBe("bot-1");
     // Name is drawn from the 100-name pool (seed-deterministic).
     expect(BOT_NAMES).toContain(bot.name);
@@ -260,7 +261,7 @@ describe("lobbyReduce", () => {
   it("dispatches each op to its matching helper", () => {
     expect(ok(lobbyReduce(lobby(), { type: "join", profile: { id: "p2", name: "Alex" } })).players)
       .toHaveLength(2);
-    expect(ok(lobbyReduce(lobby(), { type: "addBot", botId: "bot-1" })).players[1].botStrategy).toBe("claude");
+    expect(ok(lobbyReduce(lobby(), { type: "addBot", botId: "bot-1" })).players[1].botStrategy).toBe(DEFAULT_BOT_VERSION);
     expect(ok(lobbyReduce(ok(addBot(lobby())), { type: "removePlayer", playerId: "bot-1" })).players)
       .toHaveLength(1);
     expect(ok(lobbyReduce(lobby(), { type: "setColor", playerId: "host", color: "emerald" })).players[0].color)

@@ -86,9 +86,14 @@ convincing story. The session structure that keeps this honest and resumable:
    eventually, the gauntlet/SPRT in "Measurement"). A hypothesis that **fails to
    beat `vN` is a result, not a waste**: log it as **rejected** in the version log
    (a negative result others shouldn't re-walk) and carry a *different* lead
-   forward. Never ratchet in a regression because the narrative was good. When a
-   version *is* crowned, **also bump `CHAMPION_VERSION` in `bots/roles.ts`** — the
-   lobby's "Champion" pointer — in the same change (see "Coexistence & promotion").
+   forward. Never ratchet in a regression because the narrative was good. Two
+   distinct outcomes, never collapsed (see "Two bests"): running `npm run
+   sim:ratings` re-ranks the Elo ladder and may make `v(N+1)` the lobby's
+   **Strongest/default** automatically (ungated) — but it becomes the **crown** (and
+   the **default substrate** the next version branches from) **only on a confident
+   SPRT win** (gauntlet `BETTER` on both streams). A ladder-topper that's only EVEN
+   under SPRT is recorded and may be the player default, yet is **not** crowned and
+   **not** the default substrate.
 5. **End by handing off via the clipboard.** The session closes by writing a
    short **handoff prompt** for the next one — "continue the loop, build
    `v(N+1)` from `vN`, suggested hypothesis = … because …" — **straight onto the
@@ -263,54 +268,117 @@ Elo from the v3 run: **v3 +161.7, v2 +160.2, v1 0** — v3≈v2 (within noise), 
 v3-vs-v2 pairing (1500 decisive) ran almost cap-free (**5 draws / 1500, 0.3%**),
 while v3-vs-v1 capped ~22% — see the draw decision below.
 
+## Two bests: strongest vs crown vs substrate
+
+There are **two audiences** asking two different questions, and conflating them is
+the single biggest trap in this whole model. Keep them apart:
+
+| | **Strongest / default** | **Champion / crown** | **Substrate** |
+|---|---|---|---|
+| Audience | the player clicking Play | us (the authoring loop) | us (the authoring loop) |
+| Question | "which bot challenges me most?" | "which gain is REAL?" | "what do we evolve FROM next?" |
+| Metric | **Elo rank** (best estimate) | **SPRT-confirmed** improvement | **judgment** — champion is the default prior |
+| Gate | none — follows the ladder | confidence (both seed streams) | none hard — survey ALL families; default to the champion, free to branch elsewhere or start fresh |
+| Lives in | the lobby UI (`roles.ts`) | EVOLUTION.md + dev tooling | EVOLUTION.md + dev tooling |
+
+**Three INDEPENDENT decisions per version** — don't collapse them:
+
+1. **Record** — archive the snapshot? **Legal ⇒ always** (it's cheap, and the
+   archive is the source of truth). Registering it in `versions/index.ts` also makes
+   it appear in the lobby and earn an Elo on the next `sim:ratings`.
+2. **Crown** — is it the *measured best*? **Elo proposes, SPRT confirms.** Topping
+   the Elo ladder is necessary but **not sufficient** — a point-estimate lead inside
+   the noise is not a crown. The candidate must be a confident win (gauntlet/SPRT
+   `BETTER` on **both** seed streams) over the current champion.
+3. **Substrate** — what do we EVOLVE the next bot FROM? **A judgment, not a rule.**
+   Survey ALL versions across ALL families and pick the base you can most improve —
+   usually the current champion, so that's the default prior, but nothing confines
+   it. Lineages are just *provenance* (the machine a version was discovered on), and
+   **borrowing/stealing across them is free** — winning is the only loyalty, and that
+   applies to the code as much as to in-game play. If a line of attack stalls (a run
+   of EVEN/rejected results = a local maximum), backing out to a different base — or
+   starting from scratch for fresh ideas — is the smart move. The one guard: *default*
+   to the confirmed champion, never an automatic jump to a within-noise ladder-topper
+   (see the ratchet, below); deviating is fine when it's a deliberate call.
+
+### Why substrate (and crown) are SPRT-gated: the complexity ratchet
+
+New bots branch FROM a prior bot. If the acceptance bar were "Elo not worse" (or a
+merely-higher point estimate), every change that doesn't visibly hurt would get to
+stay — **including a whole subsystem added for a within-noise wobble.** Over a
+lineage this compounds: each generation inherits the last's complexity plus its
+own, drifting toward a baroque bot barely better than a far simpler ancestor
+(classic evolutionary **bloat / neutral drift**). The fix is to treat added
+complexity as a **cost the gain must outweigh**: the *default* base is the
+SPRT-confirmed champion, never the nominal ladder-topper, so you never *silently*
+build on a within-noise gain. Choosing a different base is fine when it's a
+*deliberate* call (a building block to cash in, escaping a local maximum) — what the
+guard forbids is noise auto-promoting itself into the build line, not a considered
+branch elsewhere.
+
+**But flat-but-more-complex is still worth keeping as an ARCHIVED building block** —
+scaffolding a *future* lever can exploit (claude-v3's N-way trades, claude-v4's
+mortgage-tempo, jane-v4's trade-memory). The discipline: **park it in the archive,
+don't ratchet it into the substrate** until a later lever cashes it in.
+"**Recorded but not substrate**" is a real, valid, common state.
+
+### Elo vs SPRT — same currency, different jobs
+
+- **Bradley–Terry Elo** (the round-robin in `ratings.ts`) is the **effect size**: a
+  magnitude, one scalar per bot, fit across the whole field (handles
+  non-transitivity). It estimates "how good is each bot" but a point estimate alone
+  can't say "is this gap real."
+- **SPRT** (the gauntlet) is the **decision/significance test**: a `BETTER`/`EVEN`/
+  `WORSE` verdict about a *specific Elo gap* (its hypotheses are written in Elo, e.g.
+  H0 = −20, H1 = +20), with controlled false-accept/reject rates, spending games
+  adaptively. It answers "is A confidently better than B" cheaply.
+
+You want both: an effect size with no significance is "might be noise"; a verdict
+with no magnitude is "real, but how much?" Don't try to buy confidence by cranking
+ratings games — Elo SE shrinks only ~as 1/√N (≈17 Elo at 400 games/pairing), so
+trusting a ~+14 Elo gap would cost ~6–8× the rating compute *every* regeneration.
+SPRT with tight bands is the right tool for the crown/substrate question.
+
 ## Coexistence & promotion
 
-The production `claude` strategy (`registry.ts`) drives real online and dev
-games — but it owns **no** policy code. It is a **pointer into the version
-archive**: `bots/live.ts` exports `LIVE_VERSION`, and `registry.ts` resolves
-`claude` to that snapshot (`VERSIONS[LIVE_VERSION]`). So:
+A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
+`registry.ts` `botFor` straight through `VERSIONS`. There is **no** curated
+production pointer any more — no `live.ts`, no `LIVE_VERSION`, no
+`CHAMPION_VERSION`. So:
 
-- experimental versions **run side-by-side** with the live bot in one process —
-  they're all just entries in `VERSIONS`, fielded by label by the tournament;
-- **promotion is a one-line change** — repoint `LIVE_VERSION` in `bots/live.ts`
-  (that file is the source of truth for what currently ships); no code copy, no
-  test churn (each version owns its tests under `versions/`);
-- **the live bot and the gauntlet floor are orthogonal.** Shipping a version
-  live is a product call; the floor (`v1`) and the measurement field are
-  unaffected — the gauntlet fields versions by label and anchors Elo at `v1`, so
-  `LIVE_VERSION` can never move a result. You can ship a version live **without**
-  making it the floor;
-- the archive reconstructs and runs any past version — `v1` included, now a real
-  frozen snapshot (`versions/v1/`), no longer an alias to the live file.
+- experimental versions **run side-by-side** in one process — they're all just
+  entries in `VERSIONS`, fielded by label by the tournament and the lobby alike;
+- **the player default is automatic and ungated.** Register a version + run
+  `npm run sim:ratings`; the regenerated Elo ladder (`bots/ratings.ts`) re-ranks
+  the field, and whoever tops it becomes the lobby's **Strongest/default**. No code
+  copy, no pointer to bump, no test churn (each version owns its tests under
+  `versions/`). **This is NOT the crown** — crowning needs SPRT (above);
+- **measurement and the anchor are orthogonal.** The Elo anchor (`claude-v2 = 0`)
+  only fixes the scale; it never has to be the best or the floor. Adding a version
+  can't move the anchor, so saved numbers stay comparable across regenerations;
+- the archive reconstructs and runs any past version — `claude-v1` included, a real
+  frozen snapshot (`versions/claude-v1/`).
 
-This inverts the old coupling where `v1` *aliased* the live policy file: the
-archive is now the single source of truth, and "live" and "floor" are two
-independent selectors over it.
+The archive is the single source of truth; the Elo ladder is the single source of
+**player-facing rank**; the SPRT verdict is the single source of **crown/substrate**.
 
-### The three lobby pointers (Claude / Champion / Latest)
+### The lobby is derived, not curated
 
-The lobby lets a player field a bot under **three named pointers**, declared as
-data in `bots/roles.ts` (`BOT_ROLES`) and resolved through `registry.ts`. They
-are **live pointers**: a seat stores its *role* (`claude` / `champion` /
-`latest`), not a frozen version, so it always plays whatever the pointer names
-in the deployed code — retargeting one moves every seat using it on the next
-deploy. Each is moved by a different hand:
+The lobby offering (`bots/roles.ts` `LOBBY_BOTS`) is computed entirely from the
+archive + the generated Elo ladder, **Elo-only, no hand-edited pointers**, and
+**never surfaces the crown** to players:
 
-- **Claude** → `LIVE_VERSION` (`bots/live.ts`) — the hand-picked shipped bot. A
-  product call on a **human green light**, as above.
-- **Champion** → `CHAMPION_VERSION` (`bots/roles.ts`) — the best by measurement.
-  **Re-pointing this is the code half of the acceptance ritual:** when a `vN`
-  clears the bar and the version log below crowns it the new champion, bump
-  `CHAMPION_VERSION` to that label in the same change. (The loop advancing the
-  champion needs no human green light — only the *Live* pointer does.)
-- **Latest** → `LATEST_VERSION` (`bots/roles.ts`) — the newest snapshot,
-  **derived** from `VERSIONS`. Nobody edits it; registering a version in
-  `versions/index.ts` makes it the latest automatically.
+- **Strongest** — highest Elo across all families. The lobby default and the
+  `addBot`/`freshGame` seat (`DEFAULT_BOT_VERSION`). No confidence gate.
+- **Best of each family** — highest Elo within that family.
+- **Full version list per family** — every registered label, oldest → newest.
+- **Deprecated** — any version with no Elo (excluded via `RATING_EXCLUDED`, or
+  not-yet-rated): rendered struck-through and unselectable.
 
-So Champion, Live, and Latest are three independent selectors over the same
-archive, and can all name different versions (today: Live = Champion = `v17`,
-Latest = `v18`). `dumb` remains a resolvable strategy for the simulator/gauntlet
-but is no longer offered in the lobby.
+A seat stores the **exact version label** it plays. Adding a family is one row in
+`FAMILY_SPECS` (`roles.ts`); adding a version is one entry in `versions/index.ts`.
+`dumb` remains a resolvable strategy for the simulator/gauntlet but is not offered
+in the lobby.
 
 ## Decisions (locked 2026-06-19)
 
@@ -319,11 +387,12 @@ but is no longer offered in the lobby.
    change *anything*. We do **not** pre-extract shared "bot libraries" — that would
    trap future versions into logic we may want to drop. Only genuinely stable,
    non-strategic facts (board geometry, space names, the official net-worth
-   calculation) live in shared infrastructure. **The live bot is a pointer, not a
-   copy:** `bots/live.ts`'s `LIVE_VERSION` names which archived snapshot
-   `registry.ts` ships, so promotion is a one-line repoint **only on a human
-   green light** and never redefines the gauntlet floor (`v1`). Every version —
-   `v1` included — is a self-contained snapshot under `versions/`, so we can
+   calculation) live in shared infrastructure. **What the lobby fields is derived,
+   not copied:** a seat stores a concrete version label and `registry.ts` `botFor`
+   resolves it through `VERSIONS`; the "best" picks are the highest-Elo labels from
+   the generated ladder (`ratings.ts`), so promotion is just the next
+   `sim:ratings` — no pointer, no green light. Every version — `claude-v1`
+   included — is a self-contained snapshot under `versions/`, so we can
    always run and branch from any of them.
 2. **Evaluation target — gauntlet + Elo, decided by SPRT** (see Measurement), not
    head-to-head-with-predecessor only.
@@ -437,29 +506,32 @@ bot as of this doc.
 
 **Two independent tracks — don't conflate them:**
 
-- **The loop champion** — the latest validated `vX` (currently **v29**). The
-  improvement loop advances this on its own, each version branching from the prior
-  best. **No human greenlight is needed to bump versions** — that's just Claude Code
-  continuing to make the bot stronger. (The code half of crowning a champion is the
-  `CHAMPION_VERSION` pointer in `bots/roles.ts`; the doc half is the version-log row.)
-- **The live/official bot** — the `claude` strategy in `registry.ts`, the one
-  shipped in the game, picked by the UI, played by humans. It is a **pointer**
-  (`bots/live.ts` → `LIVE_VERSION`) into the archive, changed **only** on a human
-  **greenlight** ("ship vX into the game") — a separate, deliberate, rare
-  decision, *not* a precondition for continuing the loop, and **orthogonal to the
-  gauntlet floor**.
+- **The loop champion (crown + substrate)** — the latest *confidently-validated*
+  `vX`, the version the next one branches from. The improvement loop advances this
+  on its own — **no human greenlight needed** — but only on a **SPRT-confirmed** win
+  (gauntlet `BETTER` on both streams), never a bare Elo point lead. The doc half is
+  the version-log row.
+- **What the lobby/game fields (strongest/default)** — there is no "live" pointer.
+  Humans pick a concrete version, and the Add-Bot / new-game default is whatever
+  currently **tops the Elo ladder** (`DEFAULT_BOT_VERSION`), ungated. So the player
+  default tracks the *measured* strongest, which may briefly be a version that isn't
+  (yet) the SPRT-confirmed crown — that's fine and expected (see "Two bests").
 
-**As of 2026-06-21 (after the v28 → v29 crowns, then v30/v31/v32 rejects):** the loop champion is
-**v29** (desperation acquisition with the MAXIMAL distress discount), branched from **v28**
-(the desperation-acquisition breakthrough) ← **v17** ← **v14** ← v5. After NINE straight
+**As of 2026-06-21:** the cross-lineage champion (crown + default substrate) is **`jane-v2`**
+(see the Champion-status note above — that note is authoritative). Within the Claude machine the
+line reached **v35** (← v29 ← v28 ← v17 ← v14 ← v5); the v28→v29 desperation-acquisition wins are
+the live lead this section tracks. (The "loop champion" framing below was written at v29, before
+the v33/v34 rejects and the v35 crown.) After NINE straight
 rejects (v19–v27), lead (b) broke through: **v28** introduced desperation-pricing
 acquisition (buy a distressed rival's set-completer BELOW fair price to finish your own
 monopoly — asymmetric + underpriced, the two conditions every prior win shared; BETTER vs
 v17 train 55.8% / holdout 53.2% / +22.3 Elo), and **v29** then pushed its `DISTRESS_DISCOUNT`
 0.75→1.0 for another ~+18 Elo (BETTER vs v28 train 52.7% / holdout 52.6%, near-identical
-streams). TWO acquisition wins in a row on the same lead. The floor stays **v1**; the **live
-bot is whatever `bots/live.ts` → `LIVE_VERSION` points to** (now **v35** — the win-safe
-hot-potato fix, shipped over v17 on a product greenlight; champion stays v29 by Elo).
+streams). TWO acquisition wins in a row on the same lead. The Elo **anchor** stays **claude-v2**;
+the lobby's player-facing **Strongest/default** is whoever tops `bots/ratings.ts`, while the
+**crown/substrate** is the SPRT-confirmed best (the two can differ — see "Two bests").
+(Historical note: this lineage's prior "live/champion" pointers were retired when the lobby
+moved to deriving the player default from the Elo ladder.)
 
 **Lead landscape for the next session (after Batch 4 closed the mortgage-to-fund lead):**
 
@@ -700,17 +772,45 @@ cash). Positive-sum self-improvement (v3, v4, **and v24's fair-price acquisition
 information (v12) wash; defence (v9/v13/v15) and over-pushing a denial parameter (v7/v10)
 regress.
 
-**Promotion status:** **`LIVE_VERSION = v35`** (the shipped Claude bot) AND
-**`CHAMPION_VERSION = jane-v2`** (cross-lineage). v35 was crowned champion 2026-06-21 (a
-quality tiebreak at parity with v29 — the win-safe strong-set hot-potato fix, carrying the
-whole v29 mechanism + v14's phantom-denial fix). The cross-lineage crown then moved to the
-**Jane-lineage `jane-v2`** (2026-06-21, PR #5) — the FIRST non-Claude champion — which is
-STRICTLY BETTER than v35 on BOTH seed streams (train 54.5% / +31.6 Elo, holdout 53.3% / +22.8
-Elo, zero regressions; gauntlet `jane-v2 --base v35 --field v35`). A clean strictly-better
-crown, full rationale at `roles.ts` `CHAMPION_VERSION`; Jane's own evolution is documented in
-`versions/jane-v2/index.ts`, not this Claude log. `LIVE_VERSION` stays v35 (shipping is a
-Claude product call). **The next CLAUDE version still branches from v35** — the best Claude
-version, independent of the cross-lineage crown.
+**Champion (crown + substrate) status:** the SPRT-confirmed best is the
+**Jane-lineage `jane-v2`** — the FIRST non-Claude champion (2026-06-21, PR #5),
+STRICTLY BETTER than the best Claude version `claude-v35` on BOTH seed streams
+(train 54.5% / +31.6 Elo, holdout 53.3% / +22.8 Elo, zero regressions; gauntlet
+`jane-v2 --base claude-v35 --field claude-v35`). `claude-v35` itself was the best
+Claude version (a quality tiebreak at parity with v29 — the win-safe strong-set
+hot-potato fix, carrying the whole v29 mechanism + v14's phantom-denial fix).
+**The next version we evolve branches from the current champion `jane-v2` by default**
+— improve the measured best directly. Lineages are just provenance (the machine a
+version was discovered on) and borrowing across them is free, so the substrate is the
+best base regardless of family, NOT the nominal ladder-topper (`jane-v4` tops the Elo
+ladder but failed the SPRT crown gate — see its row below). Branch from a different
+base only as a deliberate call — an archived building block to exploit, or to escape a
+local maximum. Note the split this creates: the
+lobby's player-facing **Strongest/default** is `jane-v4` (top of `ratings.ts`),
+while the **crown/substrate** stays `jane-v2`. That divergence is correct and
+expected (see "Two bests"). Jane's own evolution is in `versions/jane-v2/index.ts`,
+not this Claude log.
+
+**`jane-v4`** (2026-06-21, PR #6) — **RECORDED + player default, NOT crowned, NOT substrate.**
+A textbook case of the three decisions diverging (see "Two bests"):
+- **Record:** YES — legal (deterministic, self-contained, typecheck/lint clean), registered in
+  `versions/index.ts`.
+- **Strongest / player default:** YES — on the regenerated ladder it **tops the field** (jane-v4
+  +114.8 > jane-v2 +100.8 > jane-v1 +69.8 > claude-v35 +65.2 > claude-v2 0 > gemini-v1 −154.1),
+  so `DEFAULT_BOT_VERSION` follows it. Ungated — that's the point.
+- **Crown / substrate:** NO — the SPRT gate is not met. Gauntlet vs the champion `jane-v2` (both
+  seed streams, bit-reproducible across 3 reruns each): **train EVEN** (50.4%, +3.0 Elo,
+  1283–1261), **holdout BETTER** (52.3%, +16.0 Elo, 1560–1423). The streams aren't statistically
+  distinguishable (~1.4 SE apart) — its true edge is a thin ~+1% / ≈+7 Elo straddling the SPRT
+  EVEN/BETTER line, so it wins holdout but not train. A one-stream win fails the both-streams gate,
+  so **the next evolution still branches from the champion `jane-v2`**, not jane-v4.
+
+So a higher ladder Elo did NOT crown it — exactly the noise-vs-confidence distinction the gate
+exists for. (The PR's self-reported +47.8 Elo was vs `claude-v35`, a baseline `jane-v2` already
+dominates, so it didn't survive a champion re-measure.) Its **trade-memory subsystem** is a
+candidate **archived building block** — scaffolding a later lever might exploit — to be judged on
+its own, never inherited by branching. Jane's own evolution is documented in
+`versions/jane-v4/index.ts`, not this Claude log.
 
 **Lead for the next session (from v17, after the v19–v27 sweep).** Both proven winning
 shapes are at sharp local optima: capital deployment is tapped on EVERY gate (reserve
@@ -1280,13 +1380,22 @@ jail-as-haven timing or auction aggression — see "Status & next step". Next ve
 is **v9 from v5**. NEVER gauntlet `dumb`. v1 is now **out of the default field**
 (Decision 8, taken) — re-add with `--with-v1` only for an occasional floor audit.
 
-**Shipping `vX` to the live bot (whenever a human greenlights it):** change
-`LIVE_VERSION` in `bots/live.ts` to `"vX"`. That is the **whole** procedure — the
-`claude` strategy resolves through it, so no code is copied and no tests change.
-`bots/live.ts` is the single source of truth for what currently ships; this doc
-deliberately does **not** restate the current live version (it would only go
-stale). The old copy-over dance is gone: the live bot is a pointer and `v1` is a
-real frozen snapshot (`versions/v1/`), so the gauntlet floor is permanently
-decoupled from what ships. (Promotion is still a deliberate, rare, human call —
-it's just now a one-liner.) The mechanism has been exercised on real promotions
-(v1→v3, then v3→v5); see the version log for which were strength vs engagement calls.
+**Promoting `vX` — two separate acts (see "Two bests"):**
+
+1. **Make it the player default (strongest):** register it in `versions/index.ts`
+   and run `npm run sim:ratings`. The cached round-robin rates the new version, the
+   regenerated `ratings.ts` re-ranks the field, and the lobby derives
+   Strongest / per-family-best straight from it (`roles.ts`). No code copied, no
+   tests change, no pointer to bump — the default just follows the ladder.
+2. **Crown it / make it the default substrate:** only on a **confident SPRT win** —
+   gauntlet `BETTER` on both seed streams over the current champion. Record the crown
+   as the version-log row below; by default the next version branches from it (though
+   substrate is ultimately a judgment — you may branch elsewhere or start fresh to
+   escape a local maximum; see "Two bests"). A ladder-topper that's only EVEN under
+   SPRT is the player default but **stays uncrowned** and is **not** the default
+   substrate (this is the complexity-ratchet guard).
+
+This doc deliberately does **not** restate the current best (it would only go stale;
+read `ratings.ts` for the ladder, the version log below for the crown). `claude-v1`
+is a real frozen snapshot (`versions/claude-v1/`) deliberately left unrated
+(`RATING_EXCLUDED`), so it stays decoupled from the competitive field.

@@ -58,31 +58,18 @@ export type PlayerIcon =
   | "rocket"
   | "bird";
 
-/** Every bot strategy value, as runtime data so a validator can't drift from the
- *  type — the route parses untrusted `setStrategy` input against this list
- *  (`route.ts:isBotStrategy`), and `BotStrategy` is derived from it, so adding a
- *  strategy in one place keeps both in lockstep. */
-export const BOT_STRATEGIES = [
-  "dumb",
-  "champion",
-  "claude",
-  "claude-latest",
-  "jane",
-  "jane-latest",
-  "gemini",
-  "gemini-latest",
-] as const;
-
 /** Which bot policy controls a computer seat, resolved through the bot registry
- *  (`bots/registry.ts`). `dumb` is the baseline reactive policy (`bots/dumb.ts`).
- *  The rest are version POINTERS into the archive (`bots/roles.ts`), grouped into
- *  LINEAGES (bot families): `champion` is the single best by measurement ACROSS
- *  all lineages; each lineage then exposes a hand-picked pointer (`claude`,
- *  `jane`) and a newest-snapshot pointer (`claude-latest`, `jane-latest`). A seat
- *  follows whatever its pointer names. Selected per seat; a human seat has none
- *  (`botStrategy === null`). Adding a lineage adds its two ids here and a row in
- *  `bots/roles.ts` `LINEAGES`. */
-export type BotStrategy = (typeof BOT_STRATEGIES)[number];
+ *  (`bots/registry.ts` → `botFor`). It is a CONCRETE archive identifier, not a
+ *  curated pointer: either the literal `"dumb"` (the baseline reactive policy,
+ *  `bots/dumb.ts`, never offered in the lobby) or a version label in the archive
+ *  (`bots/versions/index.ts` `VERSIONS` — e.g. `"claude-v35"`, `"jane-v2"`). The
+ *  lobby no longer ships hand-picked role pointers (champion/featured/latest); it
+ *  derives its whole offering — overall best, per-family best, full lists — from
+ *  the measured Elo ladder (`bots/roles.ts`), so a seat just stores the exact
+ *  version it plays. Selected per seat; a human seat has none (`botStrategy ===
+ *  null`). The route validates untrusted input against the live archive
+ *  (`route.ts:isBotStrategy`). */
+export type BotStrategy = string;
 
 export interface Player {
   id: string;

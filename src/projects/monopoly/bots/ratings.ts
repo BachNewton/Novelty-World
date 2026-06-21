@@ -7,9 +7,10 @@
 export const RATING_ANCHOR = "claude-v2";
 
 export const BOT_RATINGS: Readonly<Partial<Record<string, number>>> = {
-  "jane-v2": 104.0,
-  "jane-v1": 70.2,
-  "claude-v35": 55.1,
+  "jane-v4": 114.8,
+  "jane-v2": 100.8,
+  "jane-v1": 69.8,
+  "claude-v35": 65.2,
   "claude-v2": 0.0,
-  "gemini-v1": -163.0,
+  "gemini-v1": -154.1,
 };

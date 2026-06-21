@@ -1,6 +1,7 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { CHANCE, COMMUNITY_CHEST } from "./data";
 import { createRng, initialDecks } from "./engine";
+import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import { DEFAULT_PREFERENCES, STARTING_CASH } from "./lobby";
 import type { GameState, Player, PlayerCount, TurnGroup } from "./types";
 
@@ -39,9 +40,9 @@ export function freshGame(
       inJail: false,
       jailTurns: 0,
       bankrupt: false,
-      // Slot 0 is the seeding human; fillers are the strong Claude bots (the
-      // real opponent). Set explicitly so it never rides on PLAYERS' ordering.
-      botStrategy: i !== 0 ? "claude" : null,
+      // Slot 0 is the seeding human; fillers are the overall-best bot (the
+      // strongest opponent). Set explicitly so it never rides on PLAYERS' ordering.
+      botStrategy: i !== 0 ? DEFAULT_BOT_VERSION : null,
     };
     if (i === 0 && seat) {
       return { ...base, id: seat.id, name: seat.name };

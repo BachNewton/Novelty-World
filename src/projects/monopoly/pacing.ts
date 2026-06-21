@@ -1,5 +1,5 @@
 import { forcedRaiseStep } from "./bots/fallback";
-import { BOTS, type Bot, type BotDecision } from "./bots/registry";
+import { botFor, type Bot, type BotDecision } from "./bots/registry";
 import { deckFor } from "./data";
 import { driverRole } from "./driver";
 import { firstNegativePlayer, hasPendingBoundary, isLegal } from "./engine";
@@ -85,7 +85,7 @@ export type BotResolver = (state: GameState, playerId: string) => Bot | null;
 
 const registryBot: BotResolver = (state, playerId) => {
   const p = state.players.find((pl) => pl.id === playerId);
-  return p && p.botStrategy !== null ? BOTS[p.botStrategy] : null;
+  return p && p.botStrategy !== null ? botFor(p.botStrategy) : null;
 };
 
 /** Whether a `set-queue` arm would be a no-op against the current queue (the

@@ -40,6 +40,7 @@ import { claudeV35Bot } from "./claude-v35";
 // `jane-vN`, `gemini-vN`.
 import { janeV1Bot } from "./jane-v1";
 import { janeV2Bot } from "./jane-v2";
+import { janeV4Bot } from "./jane-v4";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -48,14 +49,15 @@ import { geminiV1Bot } from "./gemini-v1";
 // The version archive. Every bot snapshot the simulator can field by name, for
 // head-to-head A/B (see EVOLUTION.md "Coexistence & promotion"). Every entry is
 // a self-contained frozen SNAPSHOT — so a label always means that exact version.
-// This is deliberately DECOUPLED from what currently ships: the live bot is a
-// pointer into this archive (`bots/live.ts` → `LIVE_VERSION`), so promoting a
-// version to production never silently redefines the field. `dumb` is a null
-// reactive stub — never gauntleted. The FLOOR of the default gauntlet field is
-// `claude-v2`. `claude-v1` (the original champion) is archived/frozen but
-// EXCLUDED by default: its bad logic stalls/caps too many games (slow and
-// least-informative — see EVOLUTION.md Decision 8); it returns only for an
-// explicit `--with-v1` audit.
+// What the lobby fields is DERIVED from this archive + the Elo ladder
+// (`ratings.ts` → `roles.ts`), not a curated pointer, so registering a version is
+// all it takes for it to appear. `dumb` is a null reactive stub — never
+// gauntleted. The FLOOR of the default gauntlet field is `claude-v2`.
+// `claude-v1` (the original champion) is archived/frozen but EXCLUDED: its bad
+// logic stalls/caps too many games (slow and least-informative — see EVOLUTION.md
+// Decision 8). It's in `RATING_EXCLUDED` below (so it has no Elo and renders
+// DEPRECATED in the lobby) and out of the default gauntlet field (`--with-v1`
+// re-adds it for an occasional floor audit).
 // ---------------------------------------------------------------------------
 export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v1": claudeV1Bot,
@@ -95,9 +97,20 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v35": claudeV35Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
+  "jane-v4": janeV4Bot,
   "gemini-v1": geminiV1Bot,
   dumb: dumbBot,
 };
+
+/** Versions deliberately LEFT OUT of the Elo ladder — the rater skips them, so
+ *  they never earn a rating. Today only `claude-v1`: the original champion's logic
+ *  stalls/caps too many games (slow and least-informative — see EVOLUTION.md
+ *  Decision 8), which would both poison the field and waste enormous compute. A
+ *  version with no rating renders DEPRECATED in the lobby (struck through, "??? "
+ *  Elo, disabled) — see `bots/roles.ts`. This is the lone hand-maintained
+ *  rating-policy knob, and it stays tiny. `dumb` is excluded separately (it's a
+ *  null stub, not a real bot). */
+export const RATING_EXCLUDED: ReadonlySet<string> = new Set(["claude-v1"]);
 
 /** Resolve a version label to its policy, or throw with the known set listed —
  *  a typo on the CLI should fail loud, not silently field the wrong bot. */

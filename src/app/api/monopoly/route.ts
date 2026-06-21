@@ -9,7 +9,7 @@ import {
   type LobbyResult,
 } from "@/projects/monopoly/lobby";
 import { freshGame } from "@/projects/monopoly/mocks";
-import { BOT_STRATEGIES } from "@/projects/monopoly/types";
+import { VERSIONS } from "@/projects/monopoly/bots/versions";
 import type {
   BotStrategy,
   GameState,
@@ -70,8 +70,12 @@ function isPlayerIcon(v: unknown): v is PlayerIcon {
   return typeof v === "string" && (PLAYER_ICONS as readonly string[]).includes(v);
 }
 
+// A seat's strategy is a concrete archive identifier: the literal `dumb` or any
+// label in the version archive. Validating against the live `VERSIONS` map (the
+// same source `botFor` resolves through) means a newly registered version is
+// instantly selectable with no list to keep in sync.
 function isBotStrategy(v: unknown): v is BotStrategy {
-  return typeof v === "string" && (BOT_STRATEGIES as readonly string[]).includes(v);
+  return typeof v === "string" && (v === "dumb" || v in VERSIONS);
 }
 
 function parseDevCommand(v: unknown): DevCommand | null {

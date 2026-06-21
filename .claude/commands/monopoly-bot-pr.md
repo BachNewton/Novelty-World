@@ -1,5 +1,5 @@
 ---
-description: Evaluate a Monopoly bot-submission PR — legality, delete tests, gauntlet vs the current champion
+description: Evaluate a Monopoly bot-submission PR — legality, delete tests, rate on the Elo ladder (player default) + SPRT gauntlet crown gate
 argument-hint: <pr-number>
 allowed-tools: Bash, Read, Edit, Grep, Glob
 ---
@@ -9,10 +9,12 @@ current champion, decide whether it's a new champion, and prepare it for merge.
 
 These PRs come from external bot lineages (Jane, Gemini, …). They almost always
 **branch from a stale `main`**, so their self-reported number is measured against
-an *outdated* champion and their edits to shared files (`versions/index.ts`,
-`roles.ts`) are based on old state. The version *folder* is self-contained and
-grafts cleanly; everything else must be redone on current `main`. Re-measuring on
-current `main` is the whole point — never trust the PR's own win-rate claim.
+an *outdated* field and their edit to the shared `versions/index.ts` is based on
+old state. The version *folder* is self-contained and grafts cleanly; everything
+else must be redone on current `main`. Re-measuring on current `main` is the whole
+point — never trust the PR's own win-rate claim. (Note: `roles.ts` is no longer
+edited by submissions — the lobby's "best" picks are DERIVED from the Elo ladder,
+so crowning is automatic once the new version is rated; see step 6.)
 
 Work on a **clean, committed `main`**. If the tree is dirty, stop and tell the
 user. Run every command from the repo root.
@@ -57,38 +59,59 @@ user. Run every command from the repo root.
 
    - **Register** it in `versions/index.ts`: add one import and one map entry
      (`"<label>": <camelExport>`). Edit *current* `main`'s file — do not take the
-     PR's. The `-latest` lineage pointer in `roles.ts` derives automatically from
-     the highest label, so registering is all that's needed to record the version.
+     PR's. That's all that's needed to record the version: the lobby's family list
+     derives from the archive, so the new version appears automatically (and gets
+     its Elo + rank once `sim:ratings` runs in step 6). Do **not** add it to
+     `RATING_EXCLUDED` — a normal submission must be rated.
    - `npm run typecheck` — must be clean.
    - `npm run lint` — must be zero errors/warnings. Fix trivial mechanical issues
      (e.g. an unused var) per the project's "fix the cause, don't suppress" rule;
      if a fix is non-trivial or substantive, stop and surface it to the user
      rather than editing the submitted logic yourself.
 
-5. **Champion gate.** Read `CHAMPION_VERSION` from
-   `src/projects/monopoly/bots/roles.ts`. Run the gauntlet vs that champion on
-   **both** seed streams (overfit guard — a one-stream win isn't enough):
+   **Keep three decisions separate — record / strongest-default / crown — they are
+   independent (see EVOLUTION.md "Two bests"). Steps 5–7 measure each.**
+
+5. **Rate it on the ladder → the player-facing Strongest/default (NOT the crown).**
+   Run:
+
+       npm run sim:ratings
+
+   This is **cached**, so only the new version's column vs the field actually plays;
+   it rewrites `bots/ratings.ts` (and `ratings-cache.json`). Read the new ladder: the
+   version's Elo and its rank within its family and overall. If it tops the ladder,
+   it auto-becomes the lobby's Strongest/default (`DEFAULT_BOT_VERSION`) — **no
+   pointer to bump.** Topping the ladder is **not** a crown.
+
+6. **Crown gate — SPRT, the confidence test.** Read the current confirmed champion
+   from `EVOLUTION.md` (the "Champion (crown + substrate) status" note — call it
+   `<CHAMPION>`; it is NOT necessarily the ladder-topper). Run the gauntlet on
+   **both** seed streams:
 
        npm run sim:gauntlet -- <label> --base <CHAMPION> --field <CHAMPION>
        npm run sim:gauntlet -- <label> --base <CHAMPION> --field <CHAMPION> --prefix holdout
 
-   **New champion only if `BETTER` on BOTH streams with no regressions.** Report
-   win share / Elo / SPRT verdict for each, and compare to the PR's own claim.
+   **New crown ONLY if `BETTER` on BOTH streams** (a one-stream or EVEN result is not
+   a crown — that's the complexity-ratchet guard). Report win share / Elo / SPRT for
+   each, and note where it disagrees with the ladder (a ladder-topper that's only
+   EVEN under SPRT is the player default but stays uncrowned).
 
-6. **Verdict + recommendation.** Summarize:
-   - Legality: pass/fail (with the determinism + self-contained results).
-   - Champion: BETTER/EVEN/WORSE on each stream, the measured Elo, and whether it
-     beats the PR's stale claim.
-   - Recommended action, keeping the three concerns separate:
-     - **Record** (always, if legal): registering it makes `<lineage> Latest`
-       resolve to it — the lineage archive grows even if it's not a champion.
-     - **Crown** (only if BETTER on both): bump `CHAMPION_VERSION` to `<label>`.
-     - **Feature/ship** (`JANE_FEATURED_VERSION` etc.): a separate human product
-       call — never automatic.
+7. **Verdict + recommendation.** Summarize the three decisions explicitly:
+   - **Legality:** pass/fail (determinism + self-contained results).
+   - **Record** (always, if legal): the register + regenerated `ratings.ts` /
+     `ratings-cache.json`. It joins its family list with its Elo regardless.
+   - **Strongest / player default:** does it top the ladder? (auto, ungated.)
+   - **Crown:** only if SPRT `BETTER` on both streams. If crowned, record an
+     `EVOLUTION.md` champion update + version-log row; it becomes the new default
+     substrate (the next evolution branches from the champion regardless of lineage —
+     lineages are provenance, not silos; see EVOLUTION.md "Two bests"). If NOT crowned,
+     say so plainly and note any subsystem worth keeping as an **archived building
+     block** (recorded, available to borrow later, but not the substrate).
+   - Compare against the PR's own (stale) claim.
 
-7. **Do NOT commit, crown, or bump any pointer without explicit confirmation.**
-   Present the verdict and the exact diffs you'd make (register, optional
-   `CHAMPION_VERSION` bump, and a proposed `EVOLUTION.md` log row — the other half
-   of the acceptance ritual), then ask the user how to proceed. If they confirm,
-   make the changes and commit on `main`. If legality fails, restore the tree
-   (`git restore`/remove the grafted folder) and report what's blocking.
+8. **Do NOT commit without explicit confirmation.** Present the verdict and the
+   exact diffs you'd make (register in `versions/index.ts`, the regenerated
+   `ratings.ts` + `ratings-cache.json`, and — only on a confirmed crown — the
+   `EVOLUTION.md` champion-status + version-log edits), then ask the user how to
+   proceed. If they confirm, commit on `main`. If legality fails, restore the tree
+   (`git restore` / remove the grafted folder) and report what's blocking.

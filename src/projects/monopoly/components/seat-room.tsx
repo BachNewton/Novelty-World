@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, ChevronDown, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
-import { BOT_ROLES, BOT_ROLE_GROUPS } from "../bots/roles";
+import { LOBBY_BOTS, type BotOption } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
 import { useMonopolyStore } from "../store";
@@ -194,22 +194,33 @@ function SeatRow({
   );
 }
 
-/** Per-bot role selector: a compact DROPDOWN so each bot seat stays one line no
- *  matter how many bot families exist. The trigger shows the current pick; the
- *  menu groups options by LINEAGE (the global `Champion`, then each family's
- *  featured + latest — `Claude` / `Claude Latest` / `Jane` / `Jane Latest` / …)
- *  from `BOT_ROLE_GROUPS`, so adding a family or retargeting a pointer needs no
- *  change here and the menu just scrolls. Each option tags the version it
- *  resolves to. Anyone in the lobby can switch it, like kicking a bot. */
+/** Per-bot version selector: a compact DROPDOWN so each bot seat stays one line.
+ *  The whole menu is DERIVED from the measured Elo ladder (`LOBBY_BOTS`) — a single
+ *  axis, Elo = strength. There is deliberately NO "champion"/"crown" notion here:
+ *  that's an evolution concept (it needs a confidence gate; see EVOLUTION.md) and
+ *  must never leak into the player UI. The menu shows:
+ *    - the STRONGEST bot (highest Elo across families) — the headline + default,
+ *    - the best of each family (highest Elo in the family), and
+ *    - every family's full version list, behind a collapsible header.
+ *  Deprecated versions (no Elo, e.g. `claude-v1`) render struck-through with "???"
+ *  and can't be picked. Anyone in the lobby can switch a seat, like kicking a bot.
+ *  Adding a version needs no change here — the ladder re-ranks and the menu follows. */
 function BotRoleSelector({ player }: { player: Player }) {
   const setStrategy = useMonopolyStore((s) => s.setStrategy);
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
 
-  // A lobby bot always carries a lobby role; fall back to the first (Champion)
-  // for the impossible `dumb`/unknown case so the trigger never renders blank.
-  const current =
-    BOT_ROLES.find((r) => r.id === player.botStrategy) ?? BOT_ROLES[0];
+  // Resolve the seat's stored version to its ladder option for the trigger. A
+  // lobby bot is always a real version; fall back to the raw label for an
+  // unexpected value (e.g. a legacy `dumb` seat) so the trigger never blanks.
+  const current = useMemo<BotOption | null>(() => {
+    for (const fam of LOBBY_BOTS.families) {
+      const found = fam.versions.find((o) => o.version === player.botStrategy);
+      if (found) return found;
+    }
+    return null;
+  }, [player.botStrategy]);
 
   // Close on an outside click or Escape — only while open, so we don't keep
   // document listeners around for every collapsed selector in the roster.
@@ -229,6 +240,22 @@ function BotRoleSelector({ player }: { player: Player }) {
     };
   }, [open]);
 
+  function select(version: string) {
+    setStrategy(player.id, version);
+    setOpen(false);
+  }
+
+  function toggleFamily(name: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  const triggerLabel = current?.version ?? player.botStrategy ?? "Bot";
+
   return (
     <div ref={ref} className="relative pl-12">
       <button
@@ -244,20 +271,8 @@ function BotRoleSelector({ player }: { player: Player }) {
         }}
       >
         <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--mono-rail)" }} />
-        <span className="flex-1 truncate">{current.label}</span>
-        {current.rating !== null && (
-          <span
-            className="flex shrink-0 items-baseline gap-0.5 font-mono font-bold tabular-nums"
-            style={{ color: "var(--mono-rail)" }}
-            title="Strength rating — higher is a stronger bot"
-          >
-            <span className="text-[11px]">{current.rating}</span>
-            <span className="text-[8px] opacity-70">ELO</span>
-          </span>
-        )}
-        <span className="font-mono text-[10px] font-bold" style={{ color: "var(--mono-orange)" }}>
-          {current.version}
-        </span>
+        <span className="flex-1 truncate font-mono">{triggerLabel}</span>
+        <EloTag rating={current?.rating ?? null} />
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
@@ -268,59 +283,148 @@ function BotRoleSelector({ player }: { player: Player }) {
       {open && (
         <div
           role="listbox"
-          className="absolute left-12 right-0 z-10 mt-1 max-h-64 overflow-y-auto rounded-md py-1"
+          className="absolute left-12 right-0 z-10 mt-1 max-h-72 overflow-y-auto rounded-md py-1"
           style={{ backgroundColor: "var(--mono-card)", boxShadow: "0 0 0 1px var(--mono-frame)" }}
         >
-          {BOT_ROLE_GROUPS.map((group) => (
-            <div key={group.heading ?? "champion"}>
-              {group.heading !== null && (
-                <div
-                  className="px-3 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-wider"
+          {LOBBY_BOTS.overallBest && (
+            <>
+              <SectionHeading>Strongest</SectionHeading>
+              <BotOptionRow
+                option={LOBBY_BOTS.overallBest}
+                title="Strongest"
+                active={player.botStrategy === LOBBY_BOTS.overallBest.version}
+                onSelect={select}
+              />
+            </>
+          )}
+
+          <SectionHeading>Best of each family</SectionHeading>
+          {LOBBY_BOTS.families.map((fam) =>
+            fam.best ? (
+              <BotOptionRow
+                key={fam.name}
+                option={fam.best}
+                title={fam.name}
+                active={player.botStrategy === fam.best.version}
+                onSelect={select}
+              />
+            ) : null,
+          )}
+
+          {LOBBY_BOTS.families.map((fam) => {
+            const isOpen = expanded.has(fam.name);
+            return (
+              <div key={fam.name}>
+                <button
+                  type="button"
+                  onClick={() => { toggleFamily(fam.name); }}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-center gap-2 px-3 pb-0.5 pt-2 text-left text-[9px] font-bold uppercase tracking-wider transition-colors hover:brightness-125"
                   style={{ color: "var(--mono-rail)" }}
                 >
-                  {group.heading}
-                </div>
-              )}
-              {group.roles.map((role) => {
-                const active = player.botStrategy === role.id;
-                return (
-                  <button
-                    key={role.id}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    title={role.hint}
-                    onClick={() => { setStrategy(player.id, role.id); setOpen(false); }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:brightness-125"
-                    style={{
-                      backgroundColor: active ? "var(--mono-orange)" : "transparent",
-                      color: active ? "var(--mono-card)" : "var(--mono-ink)",
-                    }}
-                  >
-                    <span className="flex-1 truncate font-semibold">{role.label}</span>
-                    {role.rating !== null && (
-                      <span
-                        className="flex shrink-0 items-baseline gap-0.5 font-mono font-bold tabular-nums"
-                        style={{ color: active ? "var(--mono-card)" : "var(--mono-rail)" }}
-                      >
-                        <span className="text-[11px]">{role.rating}</span>
-                        <span className="text-[8px] opacity-70">ELO</span>
-                      </span>
-                    )}
-                    <span
-                      className="font-mono text-[10px] font-bold"
-                      style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}
-                    >
-                      {role.version}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+                  <ChevronDown
+                    className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : "-rotate-90"}`}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1">{fam.name} — all versions</span>
+                  <span className="tabular-nums opacity-70">{fam.versions.length}</span>
+                </button>
+                {isOpen &&
+                  fam.versions.map((option) => (
+                    <BotOptionRow
+                      key={option.version}
+                      option={option}
+                      title={option.version}
+                      active={player.botStrategy === option.version}
+                      onSelect={select}
+                    />
+                  ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
+  );
+}
+
+/** Small uppercase section label inside the selector menu. */
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="px-3 pb-0.5 pt-2 text-[9px] font-bold uppercase tracking-wider"
+      style={{ color: "var(--mono-rail)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** The strength badge shown beside a bot — its Elo, or "???" when deprecated
+ *  (no rating). Higher is stronger; only relative gaps carry meaning. */
+function EloTag({ rating, active }: { rating: number | null; active?: boolean }) {
+  const color = active ? "var(--mono-card)" : "var(--mono-rail)";
+  return (
+    <span
+      className="flex shrink-0 items-baseline gap-0.5 font-mono font-bold tabular-nums"
+      style={{ color }}
+      title="Strength rating — higher is a stronger bot"
+    >
+      <span className="text-[11px]">{rating ?? "???"}</span>
+      <span className="text-[8px] opacity-70">ELO</span>
+    </span>
+  );
+}
+
+/** One selectable row in the menu. A deprecated option (no Elo) is struck through
+ *  and disabled — present so the archive is visible, but never pickable. */
+function BotOptionRow({
+  option,
+  title,
+  active,
+  onSelect,
+}: {
+  option: BotOption;
+  title: string;
+  active: boolean;
+  onSelect: (version: string) => void;
+}) {
+  const showVersionTag = title !== option.version;
+  if (option.deprecated) {
+    return (
+      <div
+        className="flex w-full cursor-not-allowed items-center gap-2 px-3 py-1.5 text-xs opacity-45"
+        style={{ color: "var(--mono-ink)" }}
+        title="Deprecated — no strength rating, can't be selected"
+      >
+        <span className="flex-1 truncate font-mono line-through">{option.version}</span>
+        <EloTag rating={null} />
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={() => { onSelect(option.version); }}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:brightness-125"
+      style={{
+        backgroundColor: active ? "var(--mono-orange)" : "transparent",
+        color: active ? "var(--mono-card)" : "var(--mono-ink)",
+      }}
+    >
+      <span className="flex-1 truncate font-semibold">{title}</span>
+      <EloTag rating={option.rating} active={active} />
+      {showVersionTag && (
+        <span
+          className="font-mono text-[10px] font-bold"
+          style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}
+        >
+          {option.version}
+        </span>
+      )}
+    </button>
   );
 }
 
