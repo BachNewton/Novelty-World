@@ -25,7 +25,7 @@ import {
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { useTokenAnim } from "../token-anim-store";
-import type { Player } from "../types";
+import type { Player, TurnPhase } from "../types";
 import { PlayerToken } from "./player-token";
 import { SquareRow } from "./square-row";
 
@@ -114,6 +114,21 @@ interface PendingLeg {
 
 const easeInOut = (t: number) =>
   t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+// Phases where a viewer scrolls the board to work or to read a live change:
+// the actor stages a manage/raise/settle or taps squares to build a trade, and
+// everyone else moves the board to understand the change taking shape. A scroll
+// during one of these is "incidental" — we resume follow when the window closes
+// (see the capture/resume effect). `trade-pending` is in the set so the window
+// spans the whole trade: propose (build → pending) is an internal step that
+// keeps you in the same window, and follow resumes only once the trade resolves.
+const INTERACTION_PHASES = new Set<TurnPhase>([
+  "managing",
+  "raising-cash",
+  "must-raise-cash",
+  "trade-building",
+  "trade-pending",
+]);
 
 // SquareRow subscribes to the store per-instance, so Squares doesn't take
 // or thread state — it lays out three copies of the board, handles the
@@ -247,6 +262,47 @@ export function Squares() {
       el.removeEventListener("wheel", exit);
       el.removeEventListener("touchmove", exit);
     };
+  }, []);
+
+  // Resume follow after a board-interaction window. We remember whether the
+  // viewer was following when the window opened, then restore it once the phase
+  // returns to ordinary play (trade resolved, manage committed or cancelled) —
+  // never on an internal step like proposing. We only ever flip follow back
+  // *on*: a viewer who chose free view beforehand keeps it, and one who flipped
+  // follow on mid-window keeps that too.
+  //
+  // The phase lives in the store, so — like the wheel/touch exit above — we
+  // drive this off a store subscription and set state in the callback, not from
+  // an effect reacting to a selector. The baseline is read through a ref so a
+  // follow toggle doesn't disturb the subscription.
+  const followingRef = useRef(following);
+  useEffect(() => {
+    followingRef.current = following;
+  }, [following]);
+  useEffect(() => {
+    const phaseOf = () => {
+      const phase = useMonopolyStore.getState().state.turn.phase;
+      return INTERACTION_PHASES.has(phase) ? phase : null;
+    };
+    let prev = phaseOf();
+    let baseline = false;
+    return useMonopolyStore.subscribe(() => {
+      const next = phaseOf();
+      if (next === prev) return;
+      if (prev === null) {
+        // Opening a window: capture whether we were following going in.
+        baseline = followingRef.current;
+      } else if (next === null) {
+        // Window fully closed (trade resolved, manage committed/cancelled):
+        // resume if follow was on at open. Transitions *between* interaction
+        // phases — propose (build → pending), or a trade that drops a party
+        // into must-raise-cash — stay one window and don't snap back; the
+        // baseline just carries until we're back in ordinary play.
+        if (baseline) setFollowing(true);
+        baseline = false;
+      }
+      prev = next;
+    });
   }, []);
 
   // --- Moving-token animation -------------------------------------------
