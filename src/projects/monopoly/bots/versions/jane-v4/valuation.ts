@@ -1,12 +1,19 @@
 // ===========================================================================
-// jane-v2 SNAPSHOT — fork of jane-v1 (see EVOLUTION.md and versions/jane-v2/index.ts).
-// Four parameter discoveries make this the first Jane version to decisively beat
-// Claude's champion v29: SURVIVAL_FACTOR 0.4→1.5, DENY_FACTOR 0.6→0.3,
-// BASE_FLOOR 120→60, HOTEL_CUSHION 600→300. vs v29: 64.6%, +104.6 Elo.
+// jane-v4 — JANE lineage champion (see EVOLUTION.md and versions/jane-v4/index.ts).
 //
-// Inherited from jane-v1's ancestors: two-pass SPREAD DEVELOPMENT planBuild,
-// desperation-pricing acquisition via sellerDistress(), and the phantom-denial
-// gate. Only the four constants above changed.
+// Inherited from jane-v2's four parameter discoveries (SURVIVAL_FACTOR 1.5,
+// DENY_FACTOR 0.3, BASE_FLOOR 60, HOTEL_CUSHION 300) and jane-v1's ancestors:
+// two-pass SPREAD DEVELOPMENT planBuild, desperation-pricing acquisition via
+// sellerDistress(), and the phantom-denial gate.
+//
+// jane-v4 ADDS:
+//   1. RAIL_SYNERGY boost [0,0,70,180,380] → [0,0,100,250,500] — railroads as a
+//      consistent-income flywheel that funds aggressive development.
+//   2. distressThreatScale backport from claude-v35 — when genuinely distressed,
+//      the bot discounts the rival-monopoly threat premium to zero.
+//
+// vs claude-v35: 56.8%, +47.8 Elo. vs claude-v29: 55.5%, +38.3 Elo.
+// The structural trade memory (tradememory.ts + trades.ts) is the key innovation.
 // ===========================================================================
 import { SPACES } from "../../../data";
 import {

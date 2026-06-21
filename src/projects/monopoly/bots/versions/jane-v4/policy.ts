@@ -1,9 +1,13 @@
 // ===========================================================================
-// v28 SNAPSHOT — fork of v17 (the champion) (the phantom-denial-fixed base; see EVOLUTION.md). The
-// dispatcher and trade engine are VERBATIM; v17's only change is in `./valuation.ts`
-// — it LOWERS the voluntary-spend liquidity reserve (the aggressive direction on the
-// liquidity axis, opposite v9), freeing cash to buy/develop sooner. The Bot contract
-// is imported from `../../decision`, not snapshotted. Exposed as `v17Bot`.
+// jane-v4 — JANE lineage champion. The single dispatcher over all bot phases.
+//
+// Reads the shared strategic model in valuation.ts / trades.ts (everything keys
+// off positionValue — a move is good iff it raises my position's worth) and
+// returns a BotDecision: the intent plus the reasoning to surface.
+//
+// jane-v4's structural innovation lives in trades.ts (trade memory anti-churn)
+// and the valuation improvements (RAIL_SYNERGY boost + distressThreatScale).
+// See versions/jane-v4/index.ts for the full strategy and lineage history.
 // ===========================================================================
 import { colorAt, groupPositions } from "../../../development";
 import { auctionBidCap, BID_INCREMENT, firstNegativePlayer } from "../../../engine";
