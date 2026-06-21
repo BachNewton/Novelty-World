@@ -9,6 +9,10 @@ interface Props {
   state: GameState;
 }
 
+/** The bar's fixed height. Shared so the event log can absorb exactly this much
+ *  extra height when the bar is hidden (a bankrupt or spectating viewer). */
+export const ACTION_BAR_HEIGHT = "56px";
+
 /** Bottom row of the footer. Two persistent toggles the local player uses to
  *  arm a between-turns intermission. Each column is the same width and
  *  represents its intent with an icon so the bar stays legible on a 360px
@@ -80,7 +84,7 @@ function ActionCell(props: CellProps) {
   const style: CSSProperties = {
     backgroundColor: checked ? "var(--mono-card)" : "var(--mono-board)",
     color: accent,
-    minHeight: "56px",
+    minHeight: ACTION_BAR_HEIGHT,
   };
   const className =
     "flex flex-1 flex-col items-center justify-center gap-1 px-2 py-2 disabled:opacity-40";

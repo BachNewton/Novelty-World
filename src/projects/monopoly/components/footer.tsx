@@ -3,7 +3,7 @@
 import { manageActorId } from "../manage";
 import { useMonopolyStore } from "../store";
 import type { GameState } from "../types";
-import { ActionBar } from "./action-bar";
+import { ACTION_BAR_HEIGHT, ActionBar } from "./action-bar";
 import { EventLog } from "./event-log";
 import { PromptSection } from "./prompt-section";
 
@@ -34,6 +34,15 @@ export function Footer({ state }: Props) {
       phase === "must-raise-cash") &&
     manageActorId(state) === myPlayerId;
   const hideLog = tableWide || actorStaging;
+
+  // The action bar's two toggles only do something for a player who can still
+  // act. A spectator (no seat) or a bankrupt player can't arm a trade/manage,
+  // so the bar is dead weight — hide it and let the log absorb its height.
+  const me =
+    myPlayerId === null
+      ? undefined
+      : state.players.find((p) => p.id === myPlayerId);
+  const canAct = me !== undefined && !me.bankrupt;
   return (
     <div
       className="relative z-10 flex shrink-0 flex-col"
@@ -45,8 +54,13 @@ export function Footer({ state }: Props) {
       }}
     >
       <PromptSection state={state} />
-      {!hideLog && <EventLog state={state} />}
-      <ActionBar state={state} />
+      {!hideLog && (
+        <EventLog
+          state={state}
+          extraHeight={canAct ? undefined : ACTION_BAR_HEIGHT}
+        />
+      )}
+      {canAct && <ActionBar state={state} />}
     </div>
   );
 }

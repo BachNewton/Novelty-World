@@ -23,6 +23,9 @@ import type {
 
 interface Props {
   state: GameState;
+  /** Extra height to absorb when the action bar is hidden (a bankrupt or
+   *  spectating viewer), so the log fills the space the bar would have used. */
+  extraHeight?: string;
 }
 
 // Single 3-column grid for the whole log so vertical alignment is shared
@@ -35,7 +38,7 @@ interface Props {
 //      amounts.
 const GRID_COLUMNS = "3.5rem minmax(0, 1fr) auto";
 
-export function EventLog({ state }: Props) {
+export function EventLog({ state, extraHeight = "0px" }: Props) {
   // Money in the log is colored from the VIEWER's vantage: green for cash that
   // came to me, red for cash that left me, plain white for money that moved but
   // never touched my balance. A spectator (no id) sees everything white.
@@ -75,7 +78,9 @@ export function EventLog({ state }: Props) {
     <div
       className="relative shrink-0"
       style={{
-        height: expanded ? "60vh" : "12rem",
+        height: expanded
+          ? `calc(60vh + ${extraHeight})`
+          : `calc(12rem + ${extraHeight})`,
         backgroundColor: "var(--mono-card)",
         boxShadow: "inset 0 1px 0 var(--mono-frame)",
         color: "var(--mono-ink)",
