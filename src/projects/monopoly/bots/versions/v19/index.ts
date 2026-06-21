@@ -6,4 +6,4 @@
 // "flush", deploying my cushion into finishing the kill faster and cutting the variance
 // that lets luck swing an already-won game. The trade engine is verbatim v17/v14.
 // Exposed as `v19Bot`.
-export { claudeBot as v19Bot } from "./claude";
+export { policy as v19Bot } from "./policy";

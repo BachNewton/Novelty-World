@@ -4,4 +4,4 @@
 // distress shape). v29 returns NULL on a +EV distress-discounted completion it
 // can't fund in CASH but COULD fund by mortgaging an idle back-burner lot. v32
 // pre-mortgages (cross-turn) to seize that completion. Exposed as `v32Bot`.
-export { claudeBot as v32Bot } from "./claude";
+export { policy as v32Bot } from "./policy";

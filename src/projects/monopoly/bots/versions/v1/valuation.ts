@@ -17,7 +17,7 @@ import type { GameState, Intent, Player, PropertyColor } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // The Claude bot's strategic model — pure scoring + planning, no React, no RNG.
-// Everything the policy (`claude.ts`) decides flows from a single yardstick,
+// Everything the policy (`policy.ts`) decides flows from a single yardstick,
 // `positionValue`: the dollar-equivalent worth of a seat's whole position. A
 // move is good iff it raises my position value; a property is worth its
 // position-value contribution; a trade is good iff both sides gain. Reasoning

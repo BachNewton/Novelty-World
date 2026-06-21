@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
-import { claudeBot } from "./claude";
+import { policy } from "./policy";
 import { distressCompletionNeedingCash, proposeBestTrade } from "./trades";
 import { isDistressed } from "./valuation";
 
@@ -98,7 +98,7 @@ describe("v32 cross-turn arm — pre-mortgage at pre-roll", () => {
       ...distressBoard(200, 5),
       turn: { ...base.turn, phase: "pre-roll", playerId: "p1" },
     };
-    const decision = claudeBot(state, "p1");
+    const decision = policy(state, "p1");
     expect(decision).not.toBeNull();
     expect(decision?.intent.kind).toBe("set-queue");
     if (decision?.intent.kind === "set-queue") {
@@ -112,7 +112,7 @@ describe("v32 cross-turn arm — pre-mortgage at pre-roll", () => {
       ...distressBoard(200, 5),
       turn: { ...base.turn, phase: "managing", managerId: "p1", playerId: "p1" },
     };
-    const decision = claudeBot(state, "p1");
+    const decision = policy(state, "p1");
     expect(decision?.intent.kind).toBe("manage");
     if (decision?.intent.kind === "manage") {
       // Mortgage-only: no builds, at least one idle lot mortgaged.
@@ -126,7 +126,7 @@ describe("v32 cross-turn arm — pre-mortgage at pre-roll", () => {
       ...distressBoard(200, 3000),
       turn: { ...base.turn, phase: "pre-roll", playerId: "p1" },
     };
-    const decision = claudeBot(state, "p1");
+    const decision = policy(state, "p1");
     // Either nothing to do, or a normal build/trade arm — never the distress raise.
     expect(decision?.note?.toLowerCase() ?? "").not.toContain("cash-strapped");
   });

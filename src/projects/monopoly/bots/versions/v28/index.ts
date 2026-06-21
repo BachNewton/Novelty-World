@@ -9,4 +9,4 @@
 // The bought lot completes the buyer's set (held + developed, never relocated), so it
 // cannot hot-potato. Isolated to trade pricing/construction; dispatcher verbatim v17.
 // Exposed as `v28Bot`.
-export { claudeBot as v28Bot } from "./claude";
+export { policy as v28Bot } from "./policy";

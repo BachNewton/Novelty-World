@@ -14,7 +14,7 @@ import { forcedRaiseStep } from "./fallback";
  *  to this policy.
  *
  *  Resolved per seat through `bots/registry.ts`. The contrast strategy is the
- *  proactive `claudeBot` (`bots/claude.ts`). Covers the proxy-driven decision
+ *  proactive `policy` (`bots/policy.ts`). Covers the proxy-driven decision
  *  phases:
  *  - `buy-decision`: buy whenever affordable, otherwise decline.
  *  - `auction`: while still in and not the standing leader, raise by

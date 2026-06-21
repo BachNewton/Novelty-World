@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, Player } from "../../../types";
-import { claudeBot as v17Bot } from "../v17/claude";
-import { claudeBot as v20Bot } from "./claude";
+import { policy as v17Bot } from "../v17/policy";
+import { policy as v20Bot } from "./policy";
 
 // v20's one change: a LOOSER buy-aggression gate (DIP_WORTH_MULT 1.4→1.15). When the
 // bot can afford a lot but paying would dip below its rent reserve, it buys if the lot

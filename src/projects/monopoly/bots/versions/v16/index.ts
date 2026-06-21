@@ -3,4 +3,4 @@
 // (stay whenever any rival board is developed) into a HAVEN keyed off the bot's OWN
 // board — sit to collect rent risk-free only when it holds the developed board rivals
 // must traverse, otherwise get out and keep moving. Exposed as `v16Bot`.
-export { claudeBot as v16Bot } from "./claude";
+export { policy as v16Bot } from "./policy";

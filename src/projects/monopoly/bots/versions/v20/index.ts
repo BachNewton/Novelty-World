@@ -4,4 +4,4 @@
 // acquire land of clear value more readily — the ACQUISITION analog of v17's winning
 // "hold less idle cash", and free (cash on hand, no mortgage interest). The trade engine
 // and valuation are verbatim v17/v14. Exposed as `v20Bot`.
-export { claudeBot as v20Bot } from "./claude";
+export { policy as v20Bot } from "./policy";

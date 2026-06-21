@@ -1,7 +1,7 @@
 // ===========================================================================
 // v9 SNAPSHOT — a self-contained copy of the bot's policy (see EVOLUTION.md).
 // Branched from v5. The trade-to-deny engine (`./trades.ts`) and dispatcher
-// (`./claude.ts`) are carried VERBATIM from v5; v9's ONE change lives in this
+// (`./policy.ts`) are carried VERBATIM from v5; v9's ONE change lives in this
 // file's `liquidityFloor`: a graduated SURVIVAL guard. On top of v5's moderate
 // rent-fraction reserve, when a DEVELOPED rival board (houses/hotel) threatens,
 // the bot holds a larger reserve scaled to that worst developed hit — bounded by
@@ -29,7 +29,7 @@ import type { GameState, Intent, Player, PropertyColor } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // The Claude bot's strategic model — pure scoring + planning, no React, no RNG.
-// Everything the policy (`claude.ts`) decides flows from a single yardstick,
+// Everything the policy (`policy.ts`) decides flows from a single yardstick,
 // `positionValue`: the dollar-equivalent worth of a seat's whole position. A
 // move is good iff it raises my position value; a property is worth its
 // position-value contribution; a trade is good iff both sides gain. Reasoning

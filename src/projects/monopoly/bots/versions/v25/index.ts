@@ -6,4 +6,4 @@
 // reproduces Finding 1's phantom-denial hot-potato (static rail splits bounce bot→bot), so
 // Offer C stays color-only. Isolated to the trade channel; valuation (bar two new exported
 // helpers) and the dispatcher are verbatim v17. Exposed as `v25Bot`.
-export { claudeBot as v25Bot } from "./claude";
+export { policy as v25Bot } from "./policy";

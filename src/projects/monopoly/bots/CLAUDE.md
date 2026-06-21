@@ -1,8 +1,8 @@
 # Claude Bot — Deep Guide
 
-Read this before touching any version's `claude.ts`, `valuation.ts`, or
+Read this before touching any version's `policy.ts`, `valuation.ts`, or
 `trades.ts`. The policy code lives in the version archive
-(`bots/versions/<label>/`), not at the top level — there is no `bots/claude.ts`;
+(`bots/versions/<label>/`), not at the top level — there is no `bots/policy.ts`;
 the live bot is a pointer (`bots/live.ts` → `LIVE_VERSION` — read that file for
 the version currently shipped) into that archive (see EVOLUTION.md "Coexistence &
 promotion"). The main
@@ -94,9 +94,9 @@ record the reason.
   hands a rival is *substantially* stronger than the one I get. A balanced
   mutual-completion swap is good for both and must pass.
 
-## Per-phase policy (`claude.ts` dispatcher)
+## Per-phase policy (`policy.ts` dispatcher)
 
-`claudeBot` is one `switch (state.turn.phase)`. Each handler reads the model and
+`policy` is one `switch (state.turn.phase)`. Each handler reads the model and
 returns an intent + note. The shape to preserve:
 
 - **buy / raise-to-buy** — buy almost everything affordable above the floor; dip
@@ -268,9 +268,9 @@ liquidity guard, not a discount on what a monopoly is worth.
 ## Testing
 
 `claude` decision logic is unit-tested per version in
-`versions/<label>/claude.test.ts` (pure, seeded) — each snapshot owns its own
+`versions/<label>/policy.test.ts` (pure, seeded) — each snapshot owns its own
 tests, so promotion never churns a test. The pacer's drive paths live in
 `pacing.test.ts`. The browser-only playback pump is
 **not** unit-tested — verify end-to-end proactive behavior (off-turn trades,
 raise-to-buy, and any new redeploy logic) by running the app. When you fix a
-strategic bug, add a failing `claude.test.ts` case first and run it red.
+strategic bug, add a failing `policy.test.ts` case first and run it red.

@@ -5,4 +5,4 @@
 // proven asymmetric+underpriced acquisition shape: v24's fair-price from-scratch
 // grab washed (positive-sum); the `isDistressed` gate makes it UNDERPRICED, the
 // winning condition. Exposed as `v31Bot`.
-export { claudeBot as v31Bot } from "./claude";
+export { policy as v31Bot } from "./policy";

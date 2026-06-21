@@ -2,7 +2,7 @@
 // v21 SNAPSHOT — fork of the CHAMPION v17 (see EVOLUTION.md). v21 COUPLES the two
 // leaning-positive liquid-deployment near-misses. The reserve half lives HERE (v18's
 // thinner floor: `FLOOR_RENT_FRACTION` 0.3→0.15, `FLOOR_CAP` 300→200, `BASE_FLOOR`
-// 120→80); the buy-dip half lives in `./claude.ts` (v20's `DIP_WORTH_MULT` 1.4→1.15).
+// 120→80); the buy-dip half lives in `./policy.ts` (v20's `DIP_WORTH_MULT` 1.4→1.15).
 // One coherent hypothesis: v17's small per-gate liquid-deployment edge crosses E=20
 // only when both are loosened together. The trade engine (v14's phantom-denial gate)
 // is carried verbatim. Shared infrastructure is imported from the canonical modules.
@@ -21,7 +21,7 @@ import type { GameState, Intent, Player, PropertyColor } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // The Claude bot's strategic model — pure scoring + planning, no React, no RNG.
-// Everything the policy (`claude.ts`) decides flows from a single yardstick,
+// Everything the policy (`policy.ts`) decides flows from a single yardstick,
 // `positionValue`: the dollar-equivalent worth of a seat's whole position. A
 // move is good iff it raises my position value; a property is worth its
 // position-value contribution; a trade is good iff both sides gain. Reasoning

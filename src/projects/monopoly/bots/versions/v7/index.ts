@@ -2,4 +2,4 @@
 // as `v7Bot`, a drop-in `Bot` the simulator injects per seat for head-to-head
 // A/B against the v5 base. Nothing here is wired into production `registry.ts`;
 // promotion to the live `claude` strategy is a human green-light.
-export { claudeBot as v7Bot } from "./claude";
+export { policy as v7Bot } from "./policy";

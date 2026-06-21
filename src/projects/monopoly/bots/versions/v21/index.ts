@@ -5,4 +5,4 @@
 // coherent hypothesis: v17 leaves a small liquid-capital-deployment edge on BOTH gates,
 // and loosening them together crosses the E=20 promotion bar. The trade engine is
 // verbatim v17/v14. Exposed as `v21Bot`.
-export { claudeBot as v21Bot } from "./claude";
+export { policy as v21Bot } from "./policy";

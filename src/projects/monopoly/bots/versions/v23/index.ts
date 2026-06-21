@@ -6,4 +6,4 @@
 // for building) is an unusually high-value-per-dollar redeploy — the "deploy idle capital
 // faster" direction v17 proved wins, on a distinct gate. Isolated to planBuild; the trade
 // engine and everything else are verbatim v17/v14. Exposed as `v23Bot`.
-export { claudeBot as v23Bot } from "./claude";
+export { policy as v23Bot } from "./policy";

@@ -5,4 +5,4 @@
 // position cheap to another denier — killing the hot-potato ring at its economic
 // root (symmetric pricing) while still collecting the rival's eventual premium.
 // Dispatcher + valuation are v29 verbatim. Exposed as `v35Bot`.
-export { claudeBot as v35Bot } from "./claude";
+export { policy as v35Bot } from "./policy";

@@ -2,7 +2,7 @@
 // v10 SNAPSHOT — a self-contained copy of the bot's policy (see EVOLUTION.md).
 // Branched from v5. The trade-to-deny engine (`./trades.ts`) is carried VERBATIM
 // from v5; v10's ONE change is AUCTION DENIAL AGGRESSION, added here as
-// `auctionValue` (and consumed by `./claude.ts`'s auction handler): the bid
+// `auctionValue` (and consumed by `./policy.ts`'s auction handler): the bid
 // ceiling for a rival's pinpointed completer uses a higher `AUCTION_DENY_FACTOR`
 // than the 0.6 trade `DENY_FACTOR`. Rationale: a trade-to-deny works at 0.6
 // because the denied rival isn't a party and can't bid; an AUCTION is the
@@ -28,7 +28,7 @@ import type { GameState, Intent, Player, PropertyColor } from "../../../types";
 
 // ---------------------------------------------------------------------------
 // The Claude bot's strategic model — pure scoring + planning, no React, no RNG.
-// Everything the policy (`claude.ts`) decides flows from a single yardstick,
+// Everything the policy (`policy.ts`) decides flows from a single yardstick,
 // `positionValue`: the dollar-equivalent worth of a seat's whole position. A
 // move is good iff it raises my position value; a property is worth its
 // position-value contribution; a trade is good iff both sides gain. Reasoning

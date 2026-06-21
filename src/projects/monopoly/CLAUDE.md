@@ -214,13 +214,13 @@ plus a registry entry. Current strategies:
   cross-lineage matches like `sim:gauntlet -- jane-v1 --base v29` already work). A
   worked TODO for the next family lives in `bots/roles.ts`. The policy code for
   whichever version each resolves to lives in
-  `bots/versions/<label>/{claude,valuation,trades}.ts`. Whatever version ships, it
+  `bots/versions/<label>/{policy,valuation,trades}.ts`. Whatever version ships, it
   is a pure dispatcher over its `valuation.ts` (scoring, build planning,
   liquidation, jail) and `trades.ts` (counterparty-aware proposals + evaluation),
   everything keyed off `positionValue`, **noting its reasoning on every decision**.
   Its purpose, strategic model, tuning rationale, and refinement roadmap have
   their own deep guide: **`bots/CLAUDE.md`** — read that before touching a
-  version's `claude.ts`, `valuation.ts`, or `trades.ts`.
+  version's `policy.ts`, `valuation.ts`, or `trades.ts`.
 
 **BOT notes.** A `bot-note` GameEvent (verb **BOT** in the log) records a bot's
 reasoning. It is the lone log event with **no board change** — pure annotation —
@@ -257,7 +257,7 @@ play reuses the boundary-queue + intermission machinery a human uses.
 
 The pacer's drive paths are covered in `pacing.test.ts` (with both injected mock
 policies and the real default resolver); the `claude` decision logic in
-`bots/claude.test.ts`. The browser-only playback pump is **not** unit-tested —
+`bots/policy.test.ts`. The browser-only playback pump is **not** unit-tested —
 verify the end-to-end proactive flow (off-turn trades, raise-to-buy) by running
 the app.
 

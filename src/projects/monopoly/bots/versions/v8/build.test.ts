@@ -5,7 +5,7 @@ import { planBuild as v3PlanBuild } from "../v3/valuation";
 import { planBuild as v8PlanBuild } from "./valuation";
 
 // v8 carries v8's TEMPO `planBuild` verbatim (the coupling with v5 denial lives in
-// trades.ts / claude.ts). These tests pin the tempo MECHANISM is intact in v8: when
+// trades.ts / policy.ts). These tests pin the tempo MECHANISM is intact in v8: when
 // cash above the liquidity floor can't reach a prize set's desired level, it
 // mortgages idle, NON-monopoly back-burner lots to develop the set a level sooner —
 // never dipping the reserve, never cannibalizing a monopoly. v3 (cash-funded only)

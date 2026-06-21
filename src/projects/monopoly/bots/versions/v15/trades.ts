@@ -188,7 +188,7 @@ export function evaluateTrade(
   terms: TradeTerms,
   // v15: charge the NEAR-MONOPOLY option value for foreclosing my own one-short
   // shot. Default false, so construction and the counterparty model are exactly
-  // v14/v5; the bot's own incoming vote passes true (see `claude.ts` tradePending).
+  // v14/v5; the bot's own incoming vote passes true (see `policy.ts` tradePending).
   chargeOptionValue = false,
 ): TradeVerdict {
   const after = postTradeState(state, terms);

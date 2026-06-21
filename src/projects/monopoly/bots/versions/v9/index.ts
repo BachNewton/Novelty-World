@@ -4,6 +4,6 @@
 // guard in `./valuation.ts` (`liquidityFloor`): hold a larger cash reserve when a
 // DEVELOPED rival board threatens, so the bot outlasts the variance — surviving
 // the hotel hit that busts a rival without fire-selling its own monopolies. The
-// trade-to-deny engine (`./trades.ts`) and dispatcher (`./claude.ts`) are carried
+// trade-to-deny engine (`./trades.ts`) and dispatcher (`./policy.ts`) are carried
 // VERBATIM from v5. Nothing here is wired into production `registry.ts`.
-export { claudeBot as v9Bot } from "./claude";
+export { policy as v9Bot } from "./policy";

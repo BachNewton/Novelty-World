@@ -4,4 +4,4 @@
 // one to propose (drawn deterministically from `state.rngState`, never
 // Math.random), instead of v5's fixed-color-order tie-break — testing whether
 // unpredictability denies the field a clean read. Exposed as `v12Bot`.
-export { claudeBot as v12Bot } from "./claude";
+export { policy as v12Bot } from "./policy";

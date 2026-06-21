@@ -6,4 +6,4 @@
 // distressed seat that would feed it cheap), never as a futile bot→bot relocation a
 // cash-rich rival just re-buys. Dispatcher + valuation are v29 verbatim. Exposed as
 // `v33Bot`.
-export { claudeBot as v33Bot } from "./claude";
+export { policy as v33Bot } from "./policy";

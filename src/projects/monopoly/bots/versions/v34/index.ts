@@ -5,4 +5,4 @@
 // win-carrying denial intact. Targets only the repetition v33 wrongly cured by
 // deleting the whole mechanism. Dispatcher + valuation are v29 verbatim. Exposed as
 // `v34Bot`.
-export { claudeBot as v34Bot } from "./claude";
+export { policy as v34Bot } from "./policy";

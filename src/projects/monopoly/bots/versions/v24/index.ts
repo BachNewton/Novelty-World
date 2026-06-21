@@ -6,4 +6,4 @@
 // prizes that keep the bot above its rent reserve, so it never buys a bare set it can't
 // develop. Isolated to trade construction; valuation, dispatcher, and the rest of the
 // trade engine are verbatim v17. Exposed as `v24Bot`.
-export { claudeBot as v24Bot } from "./claude";
+export { policy as v24Bot } from "./policy";

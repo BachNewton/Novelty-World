@@ -5,6 +5,6 @@
 // relative to the strongest opponent, so denial focuses on the genuine threat
 // (the leader) and prunes wasteful blocks of trailing rivals. The weight is capped
 // at 1.0 (never exceeds v5's premium — respecting v10's overpay lesson) and
-// floored so real blocks still fire. `./valuation.ts` and `./claude.ts` are
+// floored so real blocks still fire. `./valuation.ts` and `./policy.ts` are
 // carried VERBATIM from v5. Nothing here is wired into production `registry.ts`.
-export { claudeBot as v11Bot } from "./claude";
+export { policy as v11Bot } from "./policy";

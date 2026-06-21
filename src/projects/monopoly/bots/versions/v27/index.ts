@@ -5,4 +5,4 @@
 // with the other big sets (just above green 460, below yellow 480) — rather than
 // leaping to the published #2 (which v26 did and leaned −11 Elo). Liquidity reserve,
 // trade engine, and dispatcher are v17 verbatim. Exposed as `v27Bot`.
-export { claudeBot as v27Bot } from "./claude";
+export { policy as v27Bot } from "./policy";

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState, Player } from "../../../types";
-import { claudeBot as v17Bot } from "../v17/claude";
+import { policy as v17Bot } from "../v17/policy";
 import { liquidityFloor as v17Floor } from "../v17/valuation";
-import { claudeBot as v21Bot } from "./claude";
+import { policy as v21Bot } from "./policy";
 import { liquidityFloor as v21Floor } from "./valuation";
 
 // v21 COUPLES two liquid-deployment loosenings, each pinned here against v17:

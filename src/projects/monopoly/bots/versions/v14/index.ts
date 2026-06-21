@@ -3,4 +3,4 @@
 // gates the denial premium on the rival's ability to REALISTICALLY acquire the
 // completer, so an already-blocked weak lot no longer hot-potatoes between bots.
 // Construction is otherwise verbatim v5. Exposed as `v14Bot`.
-export { claudeBot as v14Bot } from "./claude";
+export { policy as v14Bot } from "./policy";

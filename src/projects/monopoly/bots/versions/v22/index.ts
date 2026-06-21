@@ -6,4 +6,4 @@
 // proactively winning the race to starve rivals of development, sacrificing my own hotel
 // rent for the denial. Isolated to `desiredLevel`; the trade engine is verbatim v17/v14.
 // Exposed as `v22Bot`.
-export { claudeBot as v22Bot } from "./claude";
+export { policy as v22Bot } from "./policy";

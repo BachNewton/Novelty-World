@@ -3,4 +3,4 @@
 // — pushing v28's winning desperation-acquisition lever to its maximum, so a
 // distressed seller prices NO rival-monopoly threat and the buyer banks the whole
 // premium. Brackets the discount optimum. Exposed as `v29Bot`.
-export { claudeBot as v29Bot } from "./claude";
+export { policy as v29Bot } from "./policy";

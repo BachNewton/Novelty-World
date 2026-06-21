@@ -14,4 +14,4 @@
 // seed streams (~+32 Elo, holdout-confirmed), and EVEN vs Claude's champion v29
 // (50.1% over 1942 decisive) — two independent mechanisms landing on the same
 // optimum. A strong lineage anchor; not the global champion (it ties v29).
-export { claudeBot as janeV1Bot } from "./claude";
+export { policy as janeV1Bot } from "./policy";
