@@ -376,6 +376,36 @@ answer to a cycle: a pure strategy is always counterable, a mixed one isn't); (2
 player-facing ladder was right all along** — Bradley–Terry handles non-transitivity, so
 "rank 4" was the honest read; only the crown *rule* needed the field.
 
+### trade-v1 (PR #8) — recorded, not crowned; the first paradigm-named lineage (2026-06-22)
+
+`trade-v1` ("asymmetric valuation trade engine") forks jane-v3's non-trade logic and
+replaces only the trade decision points with an **eval-based opponent-modeling** engine:
+an `OpponentModel` (`opponent-model.ts`) calibrated from trade accept/reject history
+(`calibration.ts`), feeding five exploit angles (buy-side completion, min-payment fix,
+mutual swaps, denial buys, sell-side surplus) that all target the same gap — jane-v3
+charges only 6.25% of the monopoly bonus as the threat cost of completing a rival's set,
+so trade-v1 tries to extract that surplus. **The PR self-reported ~66–78% (4 SPRT passes)
+vs a stale jane-v3.** Re-measured on current `main`, that evaporated: trade-v1 is the
+**single weakest version in the 40-bot archive at −33.5 Elo**, *below the anchor floor
+claude-v2 (0.0)*, and the `--panel` crown gauntlet **REJECTs on both streams** — WORSE
+than base claude-v36 (train 39.0% / holdout 37.3%) and regressing against **every** panel
+member (jane-v2 24–30%, claude-v35 27–29%). Forking jane-v3 (+108 Elo) and rewriting its
+trades cost ~**140 Elo**: the asymmetric-extraction engine, as built, loses far more than
+it gains against the real field — the classic head-to-head-vs-one-stale-opponent trap, and
+here it doesn't even win that exchange now.
+
+**Verdict:** legal (pure + self-contained), so **recorded** in the archive and rated; it is
+neither the Strongest (dead last) nor crowned. **Building block to keep:** the
+**opponent-modeling calibration** (reconstruct per-player accept thresholds from trade
+history) is the genuinely novel piece and is exactly the *opponent-adaptive* direction the
+jane-v3 cycle points to — archived, available to borrow into a stronger base later; the
+trade engine wrapped around it here is not.
+
+**Lineage note:** trade-v1 is the first **paradigm-named** family — `trade-v` namespaces the
+*system it explores* (asymmetric-valuation trading), not its authoring machine (it was
+written on Jane). See "Bot lineages" above: a prefix can carve a family by provenance *or*
+by paradigm.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
@@ -416,6 +446,17 @@ A seat stores the **exact version label** it plays. Adding a family is one row i
 `FAMILY_SPECS` (`roles.ts`); adding a version is one entry in `versions/index.ts`.
 `dumb` remains a resolvable strategy for the simulator/gauntlet but is not offered
 in the lobby.
+
+**Lineage prefixes name a machine OR a paradigm (2026-06-22).** Originally a prefix
+meant the **authoring machine** (`claude-v`/`jane-v`/`gemini-v` — provenance). The
+`trade-v` lineage (PR #8) generalizes that: a prefix can instead namespace a
+**system/paradigm a line of versions explores** — here an asymmetric-valuation trade
+engine — independent of who authored it (`trade-v1` was written on Jane). The rule a
+prefix self-documents what the lineage IS still holds; for a paradigm family that's
+the *idea*, not the author. Provenance and paradigm are both legitimate ways to carve
+a family — pick whichever the lineage is actually *about*. (This doesn't change the
+substrate rule: lineages remain non-silos, and a paradigm family's good subsystems are
+free to borrow into any base — see "Two bests".)
 
 ## Decisions (locked 2026-06-19)
 

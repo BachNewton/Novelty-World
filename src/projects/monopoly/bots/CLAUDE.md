@@ -31,8 +31,11 @@ this bot should be the best work we can produce.
   the only loyalty. The opponents it's built to beat are themselves ruthless pros:
   fast, optimal, merciless, and willing to exploit the fact that a seat is a bot.
   Claude Bot must out-play exactly that.
-- **Lineages are provenance, not loyalty.** `claude` / `jane` / `gemini` label the
-  machine a version was *discovered on*, not a walled-off codebase. Borrowing or
+- **Lineages are provenance OR paradigm — never loyalty.** A prefix labels what a
+  family *is about*: usually the machine a version was *discovered on* (`claude` /
+  `jane` / `gemini`), but it can also name a **system/paradigm** a line explores
+  (`trade-v` — an asymmetric-valuation trade engine, authored on Jane but filed under
+  the idea). Either way the family is **not** a walled-off codebase. Borrowing or
   stealing a rival lineage's idea wholesale to make a version stronger is encouraged
   — "winning is the only loyalty" applies to the code as much as to in-game play.
   When you evolve, look across ALL families and branch from whatever base you can

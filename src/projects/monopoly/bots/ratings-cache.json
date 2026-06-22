@@ -1104,6 +1104,10 @@
       "loWins": 171,
       "hiWins": 228
     },
+    "ratings|400|2000|claude-v17|trade-v1": {
+      "loWins": 228,
+      "hiWins": 167
+    },
     "ratings|400|2000|claude-v18|claude-v19": {
       "loWins": 191,
       "hiWins": 208
@@ -2356,6 +2360,10 @@
       "loWins": 129,
       "hiWins": 271
     },
+    "ratings|400|2000|claude-v2|trade-v1": {
+      "loWins": 243,
+      "hiWins": 156
+    },
     "ratings|400|2000|claude-v30|claude-v31": {
       "loWins": 186,
       "hiWins": 211
@@ -2680,6 +2688,10 @@
       "loWins": 190,
       "hiWins": 207
     },
+    "ratings|400|2000|claude-v35|trade-v1": {
+      "loWins": 284,
+      "hiWins": 110
+    },
     "ratings|400|2000|claude-v36|claude-v4": {
       "loWins": 243,
       "hiWins": 156
@@ -2723,6 +2735,10 @@
     "ratings|400|2000|claude-v36|jane-v4": {
       "loWins": 232,
       "hiWins": 168
+    },
+    "ratings|400|2000|claude-v36|trade-v1": {
+      "loWins": 229,
+      "hiWins": 148
     },
     "ratings|400|2000|claude-v3|claude-v30": {
       "loWins": 178,
@@ -2872,6 +2888,10 @@
       "loWins": 174,
       "hiWins": 224
     },
+    "ratings|400|2000|claude-v5|trade-v1": {
+      "loWins": 230,
+      "hiWins": 167
+    },
     "ratings|400|2000|claude-v6|claude-v7": {
       "loWins": 202,
       "hiWins": 192
@@ -2983,6 +3003,10 @@
     "ratings|400|2000|jane-v2|jane-v4": {
       "loWins": 177,
       "hiWins": 223
+    },
+    "ratings|400|2000|jane-v2|trade-v1": {
+      "loWins": 315,
+      "hiWins": 85
     },
     "ratings|400|2000|jane-v3|jane-v4": {
       "loWins": 161,

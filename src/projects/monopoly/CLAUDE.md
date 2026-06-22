@@ -202,9 +202,12 @@ plus a registry entry. Current strategies:
   playback.
 - **Version policies (the archive)** — every other bot a seat can field is a
   concrete **version label** in the archive (`bots/versions/index.ts` `VERSIONS`),
-  organized into **LINEAGES** (bot families authored independently — Claude, Jane,
-  Gemini, any future ChatGPT), namespaced by label prefix (`claude-vN`, `jane-vN`,
-  `gemini-vN`). `Player.botStrategy` stores the **exact label** it plays (or
+  organized into **LINEAGES** (bot families, namespaced by label prefix —
+  `claude-vN`, `jane-vN`, `gemini-vN`, `trade-vN`). A prefix names **either an
+  authoring machine** (Claude, Jane, Gemini, any future ChatGPT) **or a PARADIGM** a
+  line of versions explores (`trade-v` — an asymmetric-valuation trade engine,
+  authored on Jane but filed under the idea it's about).
+  `Player.botStrategy` stores the **exact label** it plays (or
   `dumb`); `registry.ts` `botFor` resolves it straight through `versionBot`. There
   are **no curated pointers** (champion / featured / live / latest) any more — a
   bot's measured **Elo is its rank**, so the lobby DERIVES its whole offering from

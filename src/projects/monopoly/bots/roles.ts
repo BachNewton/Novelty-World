@@ -30,7 +30,11 @@ import { VERSIONS } from "./versions";
 // ---------------------------------------------------------------------------
 
 /** A bot FAMILY's display identity. Adding a family (ChatGPT, …) is one row here
- *  plus its snapshots under `versions/<prefix>N/` — nothing else. */
+ *  plus its snapshots under `versions/<prefix>N/` — nothing else. A prefix can
+ *  namespace EITHER an authoring machine (`claude-v`, `jane-v`, `gemini-v`) OR a
+ *  PARADIGM/system a line of versions explores (`trade-v` — an asymmetric-valuation
+ *  trade engine), independent of who authored it. The label still self-documents
+ *  what the lineage IS; for a paradigm family that's the idea, not the author. */
 interface FamilySpec {
   /** Family name shown as the section heading. */
   name: string;
@@ -43,6 +47,7 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
   { name: "Claude", prefix: "claude-v" },
   { name: "Jane", prefix: "jane-v" },
   { name: "Gemini", prefix: "gemini-v" },
+  { name: "Trade", prefix: "trade-v" },
 ];
 
 /** Display offset so the anchor (`claude-v2`, raw Elo 0) reads as a friendly,
