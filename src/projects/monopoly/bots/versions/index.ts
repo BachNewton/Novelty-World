@@ -53,6 +53,7 @@ import { geminiV1Bot } from "./gemini-v1";
 // idea under exploration; see EVOLUTION.md "Bot lineages". (trade-v1 was authored
 // on Jane but lives under `trade-v` because the trade paradigm is what it's about.)
 import { tradeV1Bot } from "./trade-v1";
+import { tradeV2Bot } from "./trade-v2";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -112,6 +113,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v4": janeV4Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
+  "trade-v2": tradeV2Bot,
   dumb: dumbBot,
 };
 
