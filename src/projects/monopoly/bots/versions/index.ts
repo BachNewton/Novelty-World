@@ -58,6 +58,13 @@ import { tradeV1Bot } from "./trade-v1";
 // non-greedy bot in the archive) — not by the authoring machine. Authored by
 // Claude Code, filed under the paradigm. See EVOLUTION.md "Bot lineages".
 import { searchV1Bot } from "./search-v1";
+// Opt lineage — a PARADIGM-named family (like trade-v / search-v): namespaced by
+// the METHOD that produced it, not an authoring machine. opt-v1 is claude-v38's
+// policy VERBATIM with its full 15-constant tuning vector JOINTLY optimized by an
+// Evolutionary Strategy (SNES) — the breakout the hand-tuned archive never did
+// (every prior version moved one or two constants at a time, SPRT-gated). The
+// winning vector is baked back in as plain static numbers. See `versions/opt-v1/`.
+import { optV1Bot } from "./opt-v1";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -118,6 +125,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v1": searchV1Bot,
+  "opt-v1": optV1Bot,
   dumb: dumbBot,
 };
 
