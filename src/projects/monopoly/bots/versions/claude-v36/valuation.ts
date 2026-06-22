@@ -179,18 +179,6 @@ function ownedInColor(state: GameState, pid: string, color: PropertyColor): numb
   return n;
 }
 
-function ownedOfKind(
-  state: GameState,
-  pid: string,
-  kind: "railroad" | "utility",
-): number {
-  let n = 0;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner === pid && SPACES[Number(posStr)].kind === kind) n += 1;
-  }
-  return n;
-}
-
 /** Raw, cash-like worth of a single ownable to whoever holds it: its printed
  *  price, halved if mortgaged. The strategic premiums (monopolies, synergy,
  *  denial) live in `positionValue` / `acquisitionValue`, not here. */
@@ -207,15 +195,24 @@ export function positionValue(state: GameState, pid: string): number {
   const player = state.players.find((p) => p.id === pid);
   if (!player) return 0;
   let value = player.cash;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner === pid) value += assetBase(state, Number(posStr));
+  // Single allocation-free pass over ownership: sum asset bases and tally
+  // railroads/utilities at once, instead of three separate Object.entries scans
+  // (this loop plus two `ownedOfKind` calls). Hottest function in the policy.
+  let rails = 0;
+  let utils = 0;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] !== pid) continue;
+    const pos = Number(posStr);
+    value += assetBase(state, pos);
+    const kind = SPACES[pos].kind;
+    if (kind === "railroad") rails += 1;
+    else if (kind === "utility") utils += 1;
   }
   for (const color of COLORS_BY_WEIGHT) {
     if (hasMonopoly(state, color, pid)) value += monopolyBonus(color);
   }
-  const rails = ownedOfKind(state, pid, "railroad");
   value += RAIL_SYNERGY[Math.min(rails, 4)];
-  if (ownedOfKind(state, pid, "utility") === 2) value += UTIL_PAIR_BONUS;
+  if (utils === 2) value += UTIL_PAIR_BONUS;
   return value;
 }
 
@@ -265,8 +262,8 @@ function rentEstimateAt(state: GameState, pos: number): number {
  *  (rent, tax) ignore this — they route through must-raise-cash regardless. */
 export function liquidityFloor(state: GameState, pid: string): number {
   let worst = 0;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner === pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] === pid) continue;
     worst = Math.max(worst, rentEstimateAt(state, Number(posStr)));
   }
   return Math.min(FLOOR_CAP, Math.max(BASE_FLOOR, Math.round(worst * FLOOR_RENT_FRACTION)));
@@ -282,8 +279,8 @@ export function sellerDistress(state: GameState, pid: string): number {
   if (!player) return 0;
   const liquid = player.cash + mortgageableTotal(state, pid);
   let worstRent = 0;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner === pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] === pid) continue;
     worstRent = Math.max(worstRent, rentEstimateAt(state, Number(posStr)));
   }
   if (worstRent === 0) return 0;
@@ -506,8 +503,8 @@ export interface RaiseStep {
 export function raiseCashStep(state: GameState, pid: string): RaiseStep | null {
   // 1. Mortgage the least-essential building-free, un-mortgaged lot.
   let pick: { pos: number; score: number } | null = null;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner !== pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] !== pid) continue;
     const pos = Number(posStr);
     if (state.mortgaged[pos]) continue;
     if (builtLotsInGroup(pos, (p) => developmentLevel(state, p)).length > 0) continue;
@@ -555,8 +552,8 @@ export function raiseCashStep(state: GameState, pid: string): RaiseStep | null {
  *  (half printed price each) — the ceiling for a mortgage-funded purchase. */
 export function mortgageableTotal(state: GameState, pid: string): number {
   let total = 0;
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner !== pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] !== pid) continue;
     const pos = Number(posStr);
     if (state.mortgaged[pos]) continue;
     if (builtLotsInGroup(pos, (p) => developmentLevel(state, p)).length > 0) continue;
@@ -574,8 +571,8 @@ export function planRaiseByMortgage(
   need: number,
 ): Record<number, boolean> | null {
   const lots: { pos: number; value: number; ess: number }[] = [];
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner !== pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] !== pid) continue;
     const pos = Number(posStr);
     if (state.mortgaged[pos]) continue;
     if (builtLotsInGroup(pos, (p) => developmentLevel(state, p)).length > 0) continue;
@@ -608,8 +605,8 @@ export interface JailChoice {
 
 /** Is the board developed enough that staying in jail beats walking out? */
 function boardIsDangerous(state: GameState, pid: string): boolean {
-  for (const [posStr, owner] of Object.entries(state.ownership)) {
-    if (owner === pid) continue;
+  for (const posStr in state.ownership) {
+    if (state.ownership[posStr] === pid) continue;
     const pos = Number(posStr);
     if (developmentLevel(state, pos) > 0 && rentEstimateAt(state, pos) >= JAIL_DANGER_RENT) {
       return true;
