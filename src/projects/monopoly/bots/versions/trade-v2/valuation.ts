@@ -75,7 +75,7 @@ const COLORS_BY_WEIGHT: readonly PropertyColor[] = [
 /** Extra position value for HOLDING k railroads, beyond their raw asset base —
  *  railroad rent ($25/$50/$100/$200) jumps with each one owned, so the synergy
  *  of a second/third/fourth is real. Indexed by count (0–4). */
-const RAIL_SYNERGY: readonly number[] = [0, 0, 70, 180, 380];
+const RAIL_SYNERGY: readonly number[] = [0, 0, 120, 280, 500];
 
 /** Both utilities together are marginally better than one (10× vs 4× dice), but
  *  utilities are near-worthless for income — a small pair bonus only. */
@@ -86,7 +86,7 @@ const UTIL_PAIR_BONUS = 40;
  *  even at jane-v2's halved 0.3 (see the file header). The bot still books a real
  *  premium for taking a rival's last open lot, just a thinner one, redirecting
  *  cash toward its own development. */
-const DENY_FACTOR = 0.125;
+const DENY_FACTOR = 0.15;
 
 /** A bare reserve every floor calculation clamps up to — never voluntarily spend
  *  to truly zero, even on a quiet board. */
@@ -117,7 +117,7 @@ const HOTEL_CUSHION = 300;
 
 /** Opponent rent (single landing) that marks the board "dangerous" enough that
  *  jail is a safer place to sit than to walk out onto. ~a 3-house mid-set rent. */
-const JAIL_DANGER_RENT = 200;
+const JAIL_DANGER_RENT = 350;
 
 const JAIL_FEE = 50;
 
