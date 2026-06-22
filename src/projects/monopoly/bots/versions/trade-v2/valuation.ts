@@ -86,7 +86,7 @@ const UTIL_PAIR_BONUS = 40;
  *  even at jane-v2's halved 0.3 (see the file header). The bot still books a real
  *  premium for taking a rival's last open lot, just a thinner one, redirecting
  *  cash toward its own development. */
-const DENY_FACTOR = 0.15;
+const DENY_FACTOR = 0.075;
 
 /** A bare reserve every floor calculation clamps up to — never voluntarily spend
  *  to truly zero, even on a quiet board. */
@@ -104,7 +104,7 @@ const BASE_FLOOR = 60;
  *  cautious. A lower floor frees cash to buy and develop sooner (reaches "flush" /
  *  hotels earlier), leaning harder on must-raise-cash for the rare big hit. Probes
  *  the run's meta-lesson — aggression beats defense — directly on the reserve. */
-const FLOOR_RENT_FRACTION = 0.2;
+const FLOOR_RENT_FRACTION = 0.3;
 const FLOOR_CAP = 300;
 
 /** Below this many houses left in the 32-house bank, houses are a scarce
