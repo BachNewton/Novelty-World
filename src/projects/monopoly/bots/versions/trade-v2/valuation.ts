@@ -86,7 +86,7 @@ const UTIL_PAIR_BONUS = 40;
  *  even at jane-v2's halved 0.3 (see the file header). The bot still books a real
  *  premium for taking a rival's last open lot, just a thinner one, redirecting
  *  cash toward its own development. */
-const DENY_FACTOR = 0.075;
+const DENY_FACTOR = 0.1;
 
 /** A bare reserve every floor calculation clamps up to — never voluntarily spend
  *  to truly zero, even on a quiet board. */
