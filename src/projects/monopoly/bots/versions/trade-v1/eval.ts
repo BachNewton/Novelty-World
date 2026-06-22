@@ -74,7 +74,7 @@ export const DEFAULT_WEIGHTS: EvalWeights = {
   developmentWeight: 1.0,
   threatWeight: 1.0,
   distressBias: 1.0,
-  acceptThreshold: 30,
+  acceptThreshold: 10,
 };
 
 // ---------------------------------------------------------------------------/
