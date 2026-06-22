@@ -312,18 +312,23 @@ function BotRoleSelector({ player }: { player: Player }) {
           )}
 
           {LOBBY_BOTS.families.map((fam) => {
-            const isOpen = expanded.has(fam.name);
+            // A family with no registered versions yet (its `FAMILY_SPECS` row is
+            // kept for future snapshots) still renders — as a DISABLED header, so
+            // it reads as "exists, nothing here yet" rather than vanishing.
+            const empty = fam.versions.length === 0;
+            const isOpen = expanded.has(fam.name) && !empty;
             return (
               <div key={fam.name}>
                 <button
                   type="button"
-                  onClick={() => { toggleFamily(fam.name); }}
+                  onClick={() => { if (!empty) toggleFamily(fam.name); }}
+                  disabled={empty}
                   aria-expanded={isOpen}
-                  className="flex w-full items-center gap-2 px-3 pb-0.5 pt-2 text-left text-[9px] font-bold uppercase tracking-wider transition-colors hover:brightness-125"
+                  className="flex w-full items-center gap-2 px-3 pb-0.5 pt-2 text-left text-[9px] font-bold uppercase tracking-wider transition-colors hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:brightness-100"
                   style={{ color: "var(--mono-rail)" }}
                 >
                   <ChevronDown
-                    className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : "-rotate-90"}`}
+                    className={`h-3 w-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : "-rotate-90"} ${empty ? "invisible" : ""}`}
                     aria-hidden="true"
                   />
                   <span className="flex-1">{fam.name} — all versions</span>
