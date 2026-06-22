@@ -36,6 +36,7 @@ import { planBuild } from "../jane-v3/valuation";
 
 // New trade-v1 imports.
 import { TradeEngine } from "./trades";
+import { reconstructModel } from "./calibration";
 
 
 export function tradeV1Bot(state: GameState, playerId: string): BotDecision | null {
@@ -74,7 +75,7 @@ const DIP_WORTH_MULT = 1.4;
 // ---------------------------------------------------------------------------/
 function preRoll(state: GameState, pid: string): BotDecision | null {
   // New trade engine for proposal.
-  const engine = new TradeEngine();
+  const engine = new TradeEngine(reconstructModel(state));
   const proposal = engine.proposeBestTrade(state, pid);
   if (proposal !== null) {
     return {
@@ -233,7 +234,7 @@ function managing(state: GameState, pid: string): BotDecision | null {
 function tradeBuilding(state: GameState, pid: string): BotDecision | null {
   const draft = state.turn.tradeDraft;
   if (!draft || draft.proposerId !== pid) return null;
-  const engine = new TradeEngine();
+  const engine = new TradeEngine(reconstructModel(state));
   const proposal = engine.proposeBestTrade(state, pid);
   if (proposal === null) return null;
   if (sameTerms(draft, proposal.terms)) {
@@ -248,7 +249,7 @@ function tradeBuilding(state: GameState, pid: string): BotDecision | null {
 function tradePending(state: GameState, pid: string): BotDecision | null {
   const pending = state.turn.pendingTrade;
   if (!pending || !(pid in pending.approvals) || pending.approvals[pid]) return null;
-  const engine = new TradeEngine();
+  const engine = new TradeEngine(reconstructModel(state));
   const verdict = engine.evaluateIncoming(state, pid, pending);
   return verdict.accept
     ? {

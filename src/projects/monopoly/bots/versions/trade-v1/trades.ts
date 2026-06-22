@@ -106,8 +106,8 @@ interface TradeCandidate {
 export class TradeEngine {
   private model: OpponentModel;
 
-  constructor() {
-    this.model = new OpponentModel();
+  constructor(model?: OpponentModel) {
+    this.model = model ?? new OpponentModel();
   }
 
   /** Evaluate an incoming trade offer from `pid`'s seat. Uses OUR default
