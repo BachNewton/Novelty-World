@@ -109,7 +109,7 @@ const FLOOR_CAP = 300;
 
 /** Below this many houses left in the 32-house bank, houses are a scarce
  *  resource worth hoarding to starve opponents (the housing-shortage lever). */
-const HOUSE_SCARCE = 3;
+const HOUSE_SCARCE = 6;
 
 /** Spare cash (above the liquidity floor) that signals "flush" — enough to push
  *  a set to hotels for max rent when houses aren't a weapon. */
@@ -117,7 +117,7 @@ const HOTEL_CUSHION = 300;
 
 /** Opponent rent (single landing) that marks the board "dangerous" enough that
  *  jail is a safer place to sit than to walk out onto. ~a 3-house mid-set rent. */
-const JAIL_DANGER_RENT = 350;
+const JAIL_DANGER_RENT = 200;
 
 const JAIL_FEE = 50;
 
