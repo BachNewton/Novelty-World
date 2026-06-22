@@ -21,7 +21,7 @@ import { hasMonopoly, mortgageValueAt, ownablePrice, rentAt } from "../../../log
 import type { GameState, Player, PropertyColor } from "../../../types";
 
 // Re-export color helpers for the trade engine.
-export { colorName, spaceName } from "../jane-v3/valuation";
+export { colorName, spaceName } from "./base-valuation";
 
 // ---------------------------------------------------------------------------/
 // Color set strategic weights — same as v3's but exposed for the eval function.

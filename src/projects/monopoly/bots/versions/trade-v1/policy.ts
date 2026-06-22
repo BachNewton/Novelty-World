@@ -19,7 +19,7 @@ import { heldJailCard, ownablePrice } from "../../../logic";
 import type { GameState, ManageStaged, TradeTerms } from "../../../types";
 import type { BotDecision } from "../../decision";
 
-// Reuse ALL of jane-v3's non-trade valuation logic.
+// Standalone copy of jane-v3's non-trade valuation logic.
 import {
   acquisitionValue,
   activeOpponents,
@@ -31,8 +31,8 @@ import {
   raiseCashStep,
   spaceName,
   ownedInColor,
-} from "../jane-v3/valuation";
-import { planBuild } from "../jane-v3/valuation";
+  planBuild,
+} from "./base-valuation";
 
 // New trade-v1 imports.
 import { TradeEngine } from "./trades";

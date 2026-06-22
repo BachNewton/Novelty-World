@@ -40,9 +40,8 @@ import { OpponentModel } from "./opponent-model";
 // decide. By predicting acceptance with THEIR function instead of our own,
 // we see the asymmetric surplus: they undervalue the threat of our monopoly
 // completion (only 6.25% charge vs our full strategic valuation).
-import { evaluateTrade as v3EvaluateTrade } from "../jane-v3/trades";
-import { sellerDistress, acquisitionValue } from "../jane-v3/valuation";
-import { DENY_FACTOR } from "../jane-v3/valuation";
+import { evaluateTrade as v3EvaluateTrade } from "./base-trades";
+import { sellerDistress, acquisitionValue, DENY_FACTOR } from "./base-valuation";
 
 /** The post-trade state projection (ownership + cash deltas). */
 function postTradeState(state: GameState, terms: TradeTerms): GameState {
