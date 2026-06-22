@@ -41,7 +41,8 @@ import { OpponentModel } from "./opponent-model";
 // we see the asymmetric surplus: they undervalue the threat of our monopoly
 // completion (only 6.25% charge vs our full strategic valuation).
 import { evaluateTrade as v3EvaluateTrade } from "../jane-v3/trades";
-import { sellerDistress } from "../jane-v3/valuation";
+import { sellerDistress, acquisitionValue } from "../jane-v3/valuation";
+import { DENY_FACTOR } from "../jane-v3/valuation";
 
 /** The post-trade state projection (ownership + cash deltas). */
 function postTradeState(state: GameState, terms: TradeTerms): GameState {
@@ -106,6 +107,7 @@ interface TradeCandidate {
   myDelta: number;
   opponentId: string;
   opponentDelta: number; // what we PREDICT they value it at
+  denyBonus?: number; // value of blocking a rival monopoly
   reason: string;
 }
 
@@ -328,10 +330,74 @@ export class TradeEngine {
       }
     }
 
+
+    // --- Offer Type 3: Denial Buy (block rival monopoly) ---
+    // When a rival is one lot from completing a set, and that lot sits with a
+    // THIRD-PARTY holder, we can buy it to block them. The asymmetric surplus:
+    // jane-v3's evaluateTrade from the holder's perspective doesn't charge for
+    // the rival threat (property goes to US, not the rival), so the holder
+    // underprices it. We gain the full DENY_FACTOR value of blocking.
+    for (const opp of activeOpponents(state, pid)) {
+      for (const color of COLORS_BY_WEIGHT) {
+        const positions = groupPositions(color);
+        if (ownedInColor(state, opp.id, color) !== positions.length - 1) continue;
+        const missing = positions.filter((pos) => state.ownership[pos] !== opp.id);
+        if (missing.length !== 1) continue;
+        const denyPos = missing[0];
+        const holder = state.ownership[denyPos];
+        if (!holder || holder === pid || holder === opp.id) continue;
+        if (builtLotsInGroup(denyPos, (p) => developmentLevel(state, p)).length > 0) continue;
+
+        // Phantom-denial gate: only deny if the rival could realistically acquire
+        // this lot from the holder. Otherwise the rival is already blocked.
+        const giveToRival: TradeTerms = { propertyTo: { [denyPos]: opp.id }, gojfTo: {}, cashDelta: {} };
+        const holderV3Delta = v3EvaluateTrade(state, holder, giveToRival).delta;
+        const rivalNeed = Math.max(0, Math.ceil(31 - holderV3Delta));
+        const rival = state.players.find((p) => p.id === opp.id);
+        if ((rival?.cash ?? 0) < rivalNeed) continue; // rival can't afford it
+        if (acquisitionValue(state, opp.id, denyPos) - rivalNeed < 1) continue; // not worth it to rival
+
+        // We buy the lot from the holder. Use jane-v3's evaluateTrade to predict
+        // what the holder will accept.
+        const giveToMe: TradeTerms = { propertyTo: { [denyPos]: pid }, gojfTo: {}, cashDelta: {} };
+        const holderAcceptMe = v3EvaluateTrade(state, holder, giveToMe);
+        if (holderAcceptMe.accept) {
+          // Holder would give it for free — pure surplus!
+          if (declinedWithoutImprovement(state, pid, giveToMe)) continue;
+          candidates.push({
+            terms: giveToMe, myDelta: 0, opponentId: holder, opponentDelta: 0,
+            denyBonus: Math.round(monopolyBonus(color) * DENY_FACTOR),
+            reason: `Buying ${spaceName(denyPos)} to deny ${opp.name ?? "rival"} the ${colorName(color)} monopoly.`,
+          });
+          continue;
+        }
+        // Sweeten with cash — holder needs (ACCEPT_MIN + ACCEPT_MARGIN - delta) / relief
+        const distress = sellerDistress(state, holder);
+        const relief = 1 + distress * 2.0;
+        const gap = 31 - holderAcceptMe.delta; // ACCEPT_MIN + ACCEPT_MARGIN
+        const cashNeeded = Math.max(0, Math.ceil(gap / relief));
+        if (myCash - cashNeeded < 0) continue;
+        const denyTerms: TradeTerms = {
+          propertyTo: { [denyPos]: pid },
+          gojfTo: {},
+          cashDelta: { [pid]: -cashNeeded, [holder]: cashNeeded },
+        };
+        if (declinedWithoutImprovement(state, pid, denyTerms)) continue;
+
+        // Score from our perspective — the denyBonus is the value of blocking.
+        const denyMyDelta = evalDelta(state, postTradeState(state, denyTerms), pid, DEFAULT_WEIGHTS);
+        candidates.push({
+          terms: denyTerms, myDelta: denyMyDelta, opponentId: holder, opponentDelta: 0,
+          denyBonus: Math.round(monopolyBonus(color) * DENY_FACTOR),
+          reason: `Buying ${spaceName(denyPos)} from holder to deny ${opp.name ?? "rival"} the ${colorName(color)} monopoly.`,
+        });
+      }
+    }
+
     if (candidates.length === 0) return null;
 
-    // Pick the trade that maximizes OUR surplus (myDelta).
-    candidates.sort((a, b) => b.myDelta - a.myDelta);
+    // Pick the trade that maximizes OUR effective surplus (myDelta + denyBonus).
+    candidates.sort((a, b) => (b.myDelta + (b.denyBonus ?? 0)) - (a.myDelta + (a.denyBonus ?? 0)));
     const best = candidates[0];
     return { terms: best.terms, reason: best.reason };
   }
