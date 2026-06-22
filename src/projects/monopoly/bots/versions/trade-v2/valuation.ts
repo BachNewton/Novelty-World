@@ -52,8 +52,8 @@ const GROUP_WEIGHT: Readonly<Record<PropertyColor, number>> = {
   green: 0.5,
   "dark-blue": 0.55,
   pink: 0.85,
-  "light-blue": 1.0,
-  brown: 0.7,
+  "light-blue": 1.3,
+  brown: 1.0,
 };
 
 /** Fixed color order so every scan is deterministic (no `Object.keys` ordering
@@ -354,7 +354,7 @@ function desiredLevel(
   if (flush && !scarce) {
     return { level: 5, why: "hotels for max rent" };
   }
-  return { level: 2, why: "faster development, more sets covered" };
+  return { level: 3, why: "the best rent-per-dollar jump" };
 }
 
 /** Phrase an achieved development level for a reasoning note. */
@@ -418,7 +418,7 @@ export function planBuild(state: GameState, pid: string): BuildPlan | null {
   }
 
   // PASS 1: Get ALL monopolies to at least 3 houses first.
-  const SPREAD_FLOOR = 2;
+  const SPREAD_FLOOR = 3;
   for (const m of myMonopolies) {
     const stop = m.locked ? 0 : m.floorOf + 1;
     const target = Math.max(stop, Math.min(SPREAD_FLOOR, want));
