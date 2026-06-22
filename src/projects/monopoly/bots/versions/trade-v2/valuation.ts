@@ -86,7 +86,7 @@ const UTIL_PAIR_BONUS = 40;
  *  even at jane-v2's halved 0.3 (see the file header). The bot still books a real
  *  premium for taking a rival's last open lot, just a thinner one, redirecting
  *  cash toward its own development. */
-const DENY_FACTOR = 0.075;
+const DENY_FACTOR = 0.15;
 
 /** A bare reserve every floor calculation clamps up to — never voluntarily spend
  *  to truly zero, even on a quiet board. */
@@ -354,7 +354,7 @@ function desiredLevel(
   if (flush && !scarce) {
     return { level: 5, why: "hotels for max rent" };
   }
-  return { level: 3, why: "the best rent-per-dollar jump" };
+  return { level: 2, why: "faster development, more sets covered" };
 }
 
 /** Phrase an achieved development level for a reasoning note. */
@@ -418,7 +418,7 @@ export function planBuild(state: GameState, pid: string): BuildPlan | null {
   }
 
   // PASS 1: Get ALL monopolies to at least 3 houses first.
-  const SPREAD_FLOOR = 3;
+  const SPREAD_FLOOR = 2;
   for (const m of myMonopolies) {
     const stop = m.locked ? 0 : m.floorOf + 1;
     const target = Math.max(stop, Math.min(SPREAD_FLOOR, want));
