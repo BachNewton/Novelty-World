@@ -1,15 +1,21 @@
 // ===========================================================================
 // OFFLINE OPTIMIZATION TOOLING — a claude-v38-shaped bot whose tuning constants
-// are READ FROM A ParamVector instead of being hardcoded module constants.
+// are READ FROM A ParamVector instead of being hardcoded module constants, PLUS
+// claude-v41's seller-side trade pricing exposed as three ES-tunable params.
 //
 // This is a faithful, parameterized copy of claude-v38's
-// valuation.ts + trades.ts + policy.ts. Every piece of LOGIC is verbatim; the
-// ONLY change is that the constants the ES tunes are looked up from `p` rather
-// than from `const`s. With `DEFAULT_PARAMS` it is byte-identical to claude-v38
-// (pinned by param-fidelity.test.ts).
+// valuation.ts + trades.ts + policy.ts, with claude-v41's trade mechanisms
+// (decoupled `rivalThreatFactor`, holder-side `denialPositionCost`, and the
+// `deployabilityDiscount`) added. Every piece of LOGIC is verbatim; the ONLY
+// change is that the tuned constants are looked up from `p`. With `DEFAULT_PARAMS`
+// it is byte-identical to claude-v38 (pinned by param-fidelity.test.ts) — the v41
+// levers default to a NO-OP (rivalThreatFactor = denyFactor; holder price = 0;
+// discount = 0). The ES CO-tunes the base vector and these trade levers jointly,
+// which claude-v42/v43 showed is necessary: a fixed-param base swap regresses
+// because the trade pricing and the vector are coupled (see EVOLUTION.md).
 //
 // NOT a registry bot. The ES fields it via the Contender API; the winning vector
-// is frozen back into a static `versions/opt-v1/` with the numbers hardcoded.
+// is frozen back into a static `versions/<label>/` with the numbers hardcoded.
 // ===========================================================================
 import { HOUSE_COST, SPACES } from "../../data";
 import {
@@ -494,8 +500,8 @@ export function makeParamBot(p: ParamVector): Bot {
     return { intent: null, reason: "No card and can't spare the fine — rolling for doubles." };
   }
 
-  // --- trades (claude-v38 verbatim, constants from `p`) ---
-  const RIVAL_THREAT_FACTOR = p.denyFactor; // kept in lockstep with denial (bots/CLAUDE.md)
+  // --- trades (claude-v38 base + claude-v41 seller-side pricing, constants from `p`) ---
+  const RIVAL_THREAT_FACTOR = p.rivalThreatFactor; // v41: DECOUPLED from denyFactor (#3b); default 0.15 = denyFactor = v38
 
   function postTradeState(state: GameState, terms: TradeTerms): GameState {
     const proj = projectTrade(state, terms);
@@ -544,6 +550,60 @@ export function makeParamBot(p: ParamVector): Bot {
     return Math.round(worst);
   }
 
+  /** claude-v41 / claude-v35 HOLDER-SIDE denial price — the seller-side mirror of
+   *  the buyer's `denyFactor × bonus` premium. A completer `pid` holds against a
+   *  one-short rival is a premium-extraction option; handing it to anyone BUT that
+   *  rival forfeits the premium, so charge `denyFactor × bonus × holderDenialFrac`.
+   *  holderDenialFrac=1 is the exact buyer/holder lockstep (bots/CLAUDE.md); =0 (the
+   *  v38/v36 default) turns it off and the hot-potato ring returns. Selling TO the
+   *  rival is the cash-out (priced by rivalThreatCost; recipient is the rival xor
+   *  not, so no double-count). */
+  function denialPositionCost(state: GameState, pid: string, terms: TradeTerms): number {
+    if (p.holderDenialFrac <= 0) return 0;
+    let cost = 0;
+    for (const [posStr, to] of Object.entries(terms.propertyTo)) {
+      const pos = Number(posStr);
+      if (state.ownership[pos] !== pid) continue; // only a lot I currently hold
+      const color = colorAt(pos);
+      if (color === null) continue;
+      const others = groupPositions(color).filter((q) => q !== pos);
+      if (others.length === 0) continue;
+      // A one-short rival owns ALL the other lots, isn't me, and isn't the recipient.
+      const rival = state.ownership[others[0]];
+      if (!rival || rival === pid || rival === to) continue;
+      if (!others.every((q) => state.ownership[q] === rival)) continue;
+      if (developmentLevel(state, pos) > 0 || others.some((q) => developmentLevel(state, q) > 0)) {
+        continue;
+      }
+      const rivalPlayer = state.players.find((q) => q.id === rival);
+      if (rivalPlayer === undefined || rivalPlayer.bankrupt) continue;
+      cost += monopolyBonus(color) * p.denyFactor * p.holderDenialFrac;
+    }
+    return Math.round(cost);
+  }
+
+  /** claude-v41 (#3c) — does `pid` have a productive outlet for cash? (a near-
+   *  monopoly to complete, a buildable monopoly, or a mortgage to redeem). If not,
+   *  incoming cash in a set-handover is worth less than face. */
+  function hasProductiveOutlet(state: GameState, pid: string): boolean {
+    for (const color of COLORS_BY_WEIGHT) {
+      const positions = groupPositions(color);
+      const owned = positions.filter((q) => state.ownership[q] === pid).length;
+      if (owned >= positions.length - 1) return true;
+    }
+    for (const color of COLORS_BY_WEIGHT) {
+      if (hasMonopoly(state, color, pid)) {
+        const positions = groupPositions(color);
+        const maxDev = Math.max(...positions.map((q) => developmentLevel(state, q)));
+        if (maxDev < 5) return true;
+      }
+    }
+    for (const posStr in state.ownership) {
+      if (state.ownership[posStr] === pid && state.mortgaged[Number(posStr)]) return true;
+    }
+    return false;
+  }
+
   interface TradeVerdict {
     accept: boolean;
     delta: number;
@@ -557,11 +617,21 @@ export function makeParamBot(p: ParamVector): Bot {
 
     const myMono = monopolyGain(state, after, pid);
     const threatCost = rivalThreatCost(state, after, pid, terms);
-    const delta = rawDelta - threatCost;
+    // v41: forfeiting a held completer to a NON-rival gives up the denial premium —
+    // priced symmetrically with the buyer side, scaled by holderDenialFrac (0 at
+    // default → this term vanishes and we are back to v38).
+    const positionCost = denialPositionCost(state, pid, terms);
+    const delta = rawDelta - threatCost - positionCost;
 
     const cashIn = (terms.cashDelta[pid] ?? 0) > 0 ? (terms.cashDelta[pid] ?? 0) : 0;
+    // v41 (#3c): discount idle cash when handing a rival a set with no outlet for it
+    // (0 discount at default → no penalty → v38).
+    const deployabilityPenalty =
+      p.deployabilityDiscount > 0 && cashIn > 0 && threatCost > 0 && !hasProductiveOutlet(after, pid)
+        ? Math.round(cashIn * p.deployabilityDiscount)
+        : 0;
     const effectiveDelta = cashIn > 0
-      ? delta + Math.round(cashIn * sellerDistress(state, pid) * p.survivalFactor)
+      ? delta + Math.round(cashIn * sellerDistress(state, pid) * p.survivalFactor) - deployabilityPenalty
       : delta;
 
     if (effectiveDelta <= ACCEPT_MIN) {
@@ -571,7 +641,9 @@ export function makeParamBot(p: ParamVector): Bot {
         reason:
           threatCost > 0
             ? "the rival monopoly it creates outweighs what I get"
-            : "it doesn't improve my position",
+            : positionCost > 0
+              ? "I'd be giving up my hold on a rival's completer for too little"
+              : "it doesn't improve my position",
       };
     }
     if (postCash < 0 && effectiveDelta < p.liquidityRiskGain) {
@@ -582,7 +654,9 @@ export function makeParamBot(p: ParamVector): Bot {
         ? "it completes a monopoly for me"
         : threatCost > 0
           ? "the cash outweighs the monopoly I'm handing over"
-          : "it nets me real value";
+          : positionCost > 0
+            ? "the cash outweighs the denial position I'm giving up"
+            : "it nets me real value";
     return { accept: true, delta: effectiveDelta, reason };
   }
 
