@@ -50,8 +50,9 @@ import type { GameState, PropertyColor, TurnPhase } from "../types";
 const MONEY_SCALE = 1000;
 
 /** Seat slots the vector always reserves — the 8-hue player cap. A 2- or
- *  4-player game leaves the trailing slots zeroed (`present` = 0). */
-const MAX_SEATS = 8;
+ *  4-player game leaves the trailing slots zeroed (`present` = 0). Exported so the
+ *  value net's per-seat win-probability head is the same fixed length. */
+export const MAX_SEATS = 8;
 
 /** All turn phases, in a fixed order, for the phase one-hot. Mirrors the
  *  `TurnPhase` union; a phase added there must be added here (the
