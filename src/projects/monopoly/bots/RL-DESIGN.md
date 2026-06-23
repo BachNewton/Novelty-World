@@ -1,10 +1,15 @@
 # Learned Monopoly Bot — Design & Handoff
 
-Read this before touching the `value-*`, `features`, `candidates`, or `trade-search`
-modules, or starting any ML/training work. It is the **single source of truth for
-the learned-bot effort** and is written so a fresh session with no prior context
-can pick up the work. It captures the *why*, the architecture decision, what's
-already built, and the exact next steps.
+Read this before touching the `value-*`, `features`, `candidates`, `actions`,
+`net`, `mcts`, `selfplay`, or `trade-search` modules, or starting any ML/training
+work. It is the **single source of truth for the learned-bot effort** and is
+written so a fresh session with no prior context can pick up the work. It captures
+the *why*, the architecture decision, what's built, and what's next.
+
+> **⚡ THE LEARNER IS BUILT (all 7 phases). If you're picking this up fresh, read
+> §8 FIRST** — it's the current state, how to run/resume the trainer, and the
+> prioritized next work. §§1–7 below are the original design (still accurate as the
+> *why*); §5's "next steps" are now DONE.
 
 Companion docs: `monopoly/CLAUDE.md` ("Bots" — the `Bot` contract, registry,
 pacer, engine entry points) and `bots/CLAUDE.md` (the rule-based `claude` policy
@@ -244,6 +249,9 @@ define what it can do. Either way, these gaps must close:
 
 ## 5. START HERE — next concrete steps, in order
 
+> **✅ DONE.** Every step below was built — see §8 for the modules and status. Kept
+> here as the rationale for the build order.
+
 The foundation both the net and MCTS build on is the **atomic action layer**. Do
 this before any ML.
 
@@ -339,7 +347,7 @@ tested (vitest), typecheck-clean, and lint-clean. The pieces:
 | 6 | `selfplay.ts`, `train-cli.ts` | Self-play recorder (visit-distribution policy targets, seat-relative outcome value targets) + value bootstrap on rule-bot games + the **`npm run train:rl`** loop: self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. |
 | 7 | `simulate-cli.ts` | Field a checkpoint via the `rl-net:<dir>` sim token (lazy tfjs load). `train:rl` also self-evaluates vs a rule bot each cycle. |
 
-**Stack / how to run.** All-TS on tfjs-node (CPU). The worktree pins **Node 22**
+**Stack / how to run.** All-TS on tfjs-node (CPU). This branch pins **Node 22**
 (`.node-version`) because tfjs-node 4.22 calls `util.isNullOrUndefined`, removed in
 Node 23+. `scripts/fix-tfjs-windows.mjs` (postinstall) + `tfjs-setup.ts` place the
 Windows `tensorflow.dll` next to the native binding and shield `process.argv` from
@@ -363,3 +371,42 @@ re-running the same `--dir`. The eGPU (RTX 4070) is an OPTIONAL later accelerato
 - **Capability ≠ a win.** Beating the SPRT-tuned archive via self-play is the
   genuinely uncertain part; the wiring is complete and fully capable, the rest is
   training reality (and throughput).
+
+### Fresh session: where the work is + run mechanics
+
+- **It lives on branch `monopoly-rl-bot`** (built in a now-removed git worktree —
+  the branch and all commits remain in the repo). From the main checkout:
+  `git checkout monopoly-rl-bot` (or `git log monopoly-rl-bot`). Not yet merged to
+  `main`, no PR. The `.node-version` (Node 22) rides with the branch.
+- **Node 22 is mandatory here** (see above). On this machine Node is managed by
+  **fnm**, default 24. Two gotchas, learned the hard way:
+  - Run things under 22 with `fnm exec --using=22 <cmd>`. But **`fnm exec` can't
+    spawn `.cmd` shims** (`npx`, the `npm`/`vitest` wrappers) — call the JS entry
+    through `node` instead, e.g.
+    `fnm exec --using=22 node node_modules/vitest/vitest.mjs run <file>`,
+    `fnm exec --using=22 node node_modules/typescript/bin/tsc --noEmit`,
+    `fnm exec --using=22 node node_modules/eslint/bin/eslint.js <files>`.
+  - `npm run train:rl` / `npm run sim` go through npm, which resolves Node via the
+    `.node-version` + the fnm shell hook, so those Just Work in the branch dir.
+- **Verify green:** the RL tests are `features|actions|token-bot|net|mcts|selfplay`
+  `.test.ts` (24 tests). `tsc --noEmit` and `eslint` must stay zero-warning.
+- **Watch it play / measure:** `npm run sim -- rl-net:rl-checkpoints/run1 claude-v2 claude-v2 claude-v2 --log`.
+
+### Prioritized next work (highest leverage first)
+
+1. **THROUGHPUT — the gate on everything.** Self-play is slow, so a long run barely
+   moves. Two concrete wins: (a) **memoize `legalActions`** per node (it currently
+   reruns ~hundreds of `apply`s every visit), and (b) **batch leaf net evals** across
+   the tree / across parallel self-play games (one forward pass for many positions —
+   the §3.3 "batched inference" requirement, only half-done). Also parallelize
+   self-play across cores via `parallel.ts`. Until this lands, "give it enough time"
+   isn't realistic.
+2. **Policy bootstrap** (not just value): map rule-bot moves onto atomic tokens so
+   gen-0 has a sensible policy prior, not just a warm value head.
+3. **Tune the search/training knobs** once throughput allows real runs: simulations
+   per move, `c_puct`, replay-buffer size, learning rate, exploration schedule.
+4. **Frozen-Contender judge:** snapshot a trained net as a fieldable version so the
+   real Elo/SPRT gauntlet (`sim:gauntlet`, `sim:ratings`) can rate it against the
+   archive — the rigorous bar, vs. the current quick win-rate eval.
+5. **Off-turn trade arming in self-play** (the capability exists; the self-play
+   driver only explores on-turn decisions today).
