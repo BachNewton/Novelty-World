@@ -82,6 +82,10 @@ import { optV3Bot } from "./opt-v3";
 // opt-v4: maximin ES vs the COMPLETED 8-panel (adds jane-v4, the bot opt-v3
 // counter-overfit against) — pressured to beat opt-v2 AND jane-v4. See `versions/opt-v4/`.
 import { optV4Bot } from "./opt-v4";
+// Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
+// / gemini and the paradigm lines (trade / search / opt). Labels namespaced
+// `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
+import { kyleV1Bot } from "./kyle-v1";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -151,6 +155,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v2": optV2Bot,
   "opt-v3": optV3Bot,
   "opt-v4": optV4Bot,
+  "kyle-v1": kyleV1Bot,
   dumb: dumbBot,
 };
 

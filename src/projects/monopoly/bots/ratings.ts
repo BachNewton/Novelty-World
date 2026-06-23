@@ -57,4 +57,5 @@ export const BOT_RATINGS: Readonly<Partial<Record<string, number>>> = {
   "claude-v2": 0.0,
   "claude-v15": -2.2,
   "trade-v1": -44.0,
+  "kyle-v1": -3604.1,
 };

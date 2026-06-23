@@ -50,6 +50,7 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
   { name: "Trade", prefix: "trade-v" },
   { name: "Search", prefix: "search-v" },
   { name: "Opt", prefix: "opt-v" },
+  { name: "Kyle", prefix: "kyle-v" },
 ];
 
 /** Display offset so the anchor (`claude-v2`, raw Elo 0) reads as a friendly,
