@@ -57,8 +57,9 @@ export interface MctsOptions {
 }
 
 /** The player who owns the decision at `state`, by phase — cheap (no
- *  `legalActions` scan). Returns null at a non-decision / finished state. */
-function decisionOwner(state: GameState): string | null {
+ *  `legalActions` scan). Returns null at a non-decision / finished state.
+ *  Exported for the self-play / bootstrap drivers. */
+export function decisionOwner(state: GameState): string | null {
   const t = state.turn;
   switch (t.phase) {
     case "must-raise-cash":
@@ -250,6 +251,26 @@ function simulate(node: Node, net: MonoNet, cPuct: number): Float32Array {
   return v;
 }
 
+/** Build the root, run `sims` simulations, and return the expanded root — or null
+ *  when `me` owes no decision. Pure in (state, net): every seed derives from
+ *  `state.rngState`. The root is expanded against ME's own action set (not
+ *  `decisionOwner`), so the bot searches its own move — including an off-turn arm. */
+function runSearch(
+  state: GameState,
+  me: string,
+  net: MonoNet,
+  opts: MctsOptions,
+): { root: Node; sims: number } | null {
+  if (legalActions(state, me).length === 0) return null;
+  const sims = opts.simulations ?? DEFAULT_SIMULATIONS;
+  const cPuct = opts.cPuct ?? DEFAULT_C_PUCT;
+  const moverIdx = state.players.findIndex((p) => p.id === me);
+  const root = new Node(state, moverIdx < 0 ? 0 : moverIdx, state.rngState >>> 0);
+  expand(root, net);
+  for (let i = 0; i < sims; i++) simulate(root, net, cPuct);
+  return { root, sims };
+}
+
 /** The chosen root action plus its search stats (for the reasoning note). */
 export interface MctsResult {
   action: Action;
@@ -258,28 +279,17 @@ export interface MctsResult {
   q: number;
 }
 
-/** Run MCTS for `me` at `state` and return the most-visited root action (or null
- *  when `me` owes no decision). Pure in (state, net): all randomness derives from
- *  `state.rngState`, and the choice is greedy over visits. */
+/** Run MCTS for `me` and return the most-visited root action (greedy), or null
+ *  when `me` owes no decision. */
 export function mctsSearch(
   state: GameState,
   me: string,
   net: MonoNet,
   opts: MctsOptions = {},
 ): MctsResult | null {
-  const meActions = legalActions(state, me);
-  if (meActions.length === 0) return null;
-  const sims = opts.simulations ?? DEFAULT_SIMULATIONS;
-  const cPuct = opts.cPuct ?? DEFAULT_C_PUCT;
-
-  const moverIdx = state.players.findIndex((p) => p.id === me);
-  const root = new Node(state, moverIdx < 0 ? 0 : moverIdx, state.rngState >>> 0);
-  // Root is expanded against ME's own action set (not decisionOwner), so the bot
-  // searches its own move — including an off-turn trade arm.
-  expand(root, net);
-  // expand() set root.actions from me's legalActions; keep it.
-  for (let i = 0; i < sims; i++) simulate(root, net, cPuct);
-
+  const searched = runSearch(state, me, net, opts);
+  if (searched === null) return null;
+  const { root, sims } = searched;
   let best = 0;
   for (let i = 1; i < root.actions.length; i++) {
     if (root.N[i] > root.N[best]) best = i;
@@ -287,6 +297,39 @@ export function mctsSearch(
   const visits = root.N[best];
   const q = visits > 0 ? root.W[best] / visits : 0;
   return { action: root.actions[best], visits, simulations: sims, q };
+}
+
+/** Full root statistics — the legal actions, their visit counts (parallel array),
+ *  and the most-visited index. The visit distribution is the POLICY TRAINING
+ *  TARGET for self-play; `valueAbs` is the root's net value (absolute frame). */
+export interface MctsFull {
+  actions: Action[];
+  visits: number[];
+  best: number;
+  valueAbs: Float32Array;
+}
+
+/** Like `mctsSearch` but exposes the whole root visit distribution, for the
+ *  self-play recorder. */
+export function mctsSearchFull(
+  state: GameState,
+  me: string,
+  net: MonoNet,
+  opts: MctsOptions = {},
+): MctsFull | null {
+  const searched = runSearch(state, me, net, opts);
+  if (searched === null) return null;
+  const { root } = searched;
+  let best = 0;
+  for (let i = 1; i < root.actions.length; i++) {
+    if (root.N[i] > root.N[best]) best = i;
+  }
+  return {
+    actions: root.actions,
+    visits: Array.from(root.N),
+    best,
+    valueAbs: root.valueAbs,
+  };
 }
 
 /** A `Bot` driven by MCTS over the net. Returns null when the search chooses the

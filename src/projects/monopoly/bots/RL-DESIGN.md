@@ -320,3 +320,46 @@ in step 2 rather than extending the whole-action generators separately.
 - **tfjs-node-gpu vs Python training.** All-TS is the default; revisit only if GPU
   training maturity becomes a real blocker (TS rollouts + Python training is the
   hybrid).
+
+---
+
+## 8. STATUS — the learner was BUILT (branch `monopoly-rl-bot`)
+
+The §5 roadmap was executed end-to-end as an all-TypeScript, CPU-trained learner
+(Kyle's call: full capability, "turn it on and walk away"). Each phase is runnable,
+tested (vitest), typecheck-clean, and lint-clean. The pieces:
+
+| Phase | Module(s) | What it is |
+|---|---|---|
+| 1 | `features.ts` | Per-opponent ownership: a seat-relative owner one-hot per square (replaces the pooled mine/opp bit). |
+| 2 | `actions.ts` | The **atomic action vocabulary** + `legalActions`/`legalMask`: a fixed token set (ROLL/BUY/bid buckets/jail/votes/arm, build-to-level, per-lot mortgage/unmortgage, per-lot/seat trade ASSIGN, cash buckets, propose). Mask sound by construction (`isLegal === apply().ok`). Full capability — proven by a complete atomic trade assembly in `actions.test.ts`. |
+| 3 | `token-bot.ts` | Greedy-over-`heuristicValue` bot on the atomic layer (sim token `token-stub`) — the wiring proof. |
+| 4 | `net.ts` | `MonoNet`: tfjs-node MLP → softmax policy head (vocabulary) + softmax value head (`MAX_SEATS` seat-relative win-probs). Batched `predict`, `train`, disk save/load, `maskPolicy`. |
+| 5 | `mcts.ts` | PUCT MCTS over `applyCandidate`; deterministic intent edges (cached) + chance ROLL edges that reseed dice per visit; N-player backup in an absolute frame. Pure in (state, net) → replay-safe `mctsBot`. |
+| 6 | `selfplay.ts`, `train-cli.ts` | Self-play recorder (visit-distribution policy targets, seat-relative outcome value targets) + value bootstrap on rule-bot games + the **`npm run train:rl`** loop: self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. |
+| 7 | `simulate-cli.ts` | Field a checkpoint via the `rl-net:<dir>` sim token (lazy tfjs load). `train:rl` also self-evaluates vs a rule bot each cycle. |
+
+**Stack / how to run.** All-TS on tfjs-node (CPU). The worktree pins **Node 22**
+(`.node-version`) because tfjs-node 4.22 calls `util.isNullOrUndefined`, removed in
+Node 23+. `scripts/fix-tfjs-windows.mjs` (postinstall) + `tfjs-setup.ts` place the
+Windows `tensorflow.dll` next to the native binding and shield `process.argv` from
+node-pre-gyp's nopt. Run: `npm run train:rl -- --dir rl-checkpoints/run1`. Resume by
+re-running the same `--dir`. The eGPU (RTX 4070) is an OPTIONAL later accelerator
+(`tfjs-node-gpu`) — CPU self-play is the bottleneck, not the net.
+
+**What remains / known limits (honest):**
+- **Throughput is the lever.** Correctness-first MCTS: one net eval per expansion
+  (not batched across the tree) and `legalActions` recomputed per node (~hundreds
+  of `apply`s). Batching leaf evals + memoizing the mask is the biggest speedup, and
+  self-play speed is what gates "enough time to beat the bots."
+- **Bootstrap is VALUE-only.** Rule-bot outcomes warm-start the value head; policy
+  starts uniform-legal (rule-bot whole-actions don't map 1:1 to atomic tokens).
+  Policy imitation is a future add.
+- **Self-play models on-turn decisions only** (off-turn trade arming isn't explored
+  in self-play, though the bot CAN arm on its own turn and the capability exists).
+- **Gauntlet/ratings fielding** (a frozen `Contender`) isn't wired — the net is a
+  live checkpoint, not a frozen version. `rl-net:<dir>` in `npm run sim` +
+  `train:rl`'s built-in win-rate eval are the judges for now.
+- **Capability ≠ a win.** Beating the SPRT-tuned archive via self-play is the
+  genuinely uncertain part; the wiring is complete and fully capable, the rest is
+  training reality (and throughput).

@@ -18,6 +18,8 @@
     "sim:verify": "tsx src/projects/monopoly/bots/verify-cli.ts",
     "sim:ratings": "tsx src/projects/monopoly/bots/ratings-cli.ts",
     "sim:optimize": "tsx src/projects/monopoly/bots/optimize-cli.ts",
+    "train:rl": "node scripts/fix-tfjs-windows.mjs && tsx src/projects/monopoly/bots/train-cli.ts",
+    "postinstall": "node scripts/fix-tfjs-windows.mjs",
     "game:review": "tsx src/projects/monopoly/bots/review-cli.ts",
     "bot-brief": "node src/projects/monopoly/bots/bot-brief-cli.mjs",
     "bench": "vitest bench --run",

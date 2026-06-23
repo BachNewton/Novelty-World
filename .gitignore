@@ -50,3 +50,6 @@ finland-catalogue-audiobook*.mp3
 src/projects/monopoly/bots/optimize/best-vector.json
 # ES / gauntlet / ratings run logs (regenerable artifacts, not source)
 src/projects/monopoly/bots/optimize/*.log
+
+# learned-bot (RL) training checkpoints — generated net weights + meta
+rl-checkpoints/
