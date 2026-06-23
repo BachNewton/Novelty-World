@@ -476,23 +476,59 @@ vector (fidelity by construction, not hand-transcription).
   *aggregate* win-share spent the ES's pressure on members it already beat, not on the hard
   matchup the crown actually requires. (commit `dd51935`; fidelity via factory reuse.)
 
-### `opt-v2` (in progress) — crown-aligned **maximin** fitness.
+### `opt-v2` — crown-aligned **maximin** ES. **NEW CROWNED CHAMPION (crown + substrate).**
 
 The direct fix for opt-v1's misalignment: optimize the **minimum per-member win-share**
-(`--fitness maximin`, added in commit `a616616`), measured in the **same 2v2 pairing shape
-as the crown gauntlet**, so the ES maximizes its *worst* matchup — forced to fight v36/jane-v2
-instead of padding against v2/v5. **The clean test:** if the worst matchup crosses 50%+margin,
-a *single rule vector* beats the entire frontier → a real crown. If it plateaus at ~even, that
-is strong evidence the rule-based top is a **genuine non-transitive cap** — which would make
-the case that the breakthrough *must* come from a different paradigm (search with a learned
-leaf, or opponent-adaptive mixing) rather than any static parameter set.
+(`--fitness maximin`, commit `a616616`), measured in the **same 2v2 pairing shape as the
+crown gauntlet**, so the ES maximizes its *worst* matchup — forced to fight v36/jane-v2
+instead of padding against the weak members. It worked, decisively.
 
-**Meta-read so far:** search genuinely *beats greedy* (search-v1 over claude-v36 is a real,
-first-of-its-kind signal) and ES genuinely *matches* the champion from a wildly different
-vector — but the **non-transitive cluster at the top is real and hard to beat with a pure
-strategy.** The two most promising routes past it both point the same way the jane-v3 cycle
-did: **a better leaf (learned value) inside search**, and/or **opponent-adaptive / mixed**
-play. Ratings regeneration for these versions is pending.
+- **Crown gate (`--base claude-v36 --panel`), BOTH streams: ✅ ACCEPT.** opt-v2 is SPRT
+  **BETTER vs every panel member on both streams, with NO regressions** — including the base
+  claude-v36 (**65.6% train / 59.6% holdout**) and jane-v2 (**68.2% / 66.7%**), the exact bot
+  that capped search-v1 and that opt-v1 could only tie. Panel Elo (claude-v36 = 0):
+  **opt-v2 +103 train / +89 holdout** — far clear of the field.
+- **Out-of-panel generalization (50 seeds each, opponents NOT in the optimization panel):**
+  opt-v2 BEATS all of them — claude-v38 54%, jane-v4 54%, jane-v3 64%, claude-v30 80%,
+  claude-v21 74%, claude-v29 80%. **Zero losses anywhere in the archive.** This is the
+  signature of *general* strength, NOT a non-transitive counter (which would win some / lose
+  others, like jane-v3). It is a real, defensible champion.
+- **Honest margin caveat:** opt-v2 was optimized vs the panel and the panel-graph Elo
+  (+89–103) **overstates** its edge over the strongest few — vs the toughest non-panel bots
+  (claude-v38, jane-v4) the true edge is ~**54% ≈ +28 Elo**, real but modest. It dominates the
+  mid-field and *beats* the top; the +100 is panel-inflated. The rigorous verdict is the
+  two-stream SPRT crown gate, which is clean.
+- **What it discovered — joint optimization found what one-axis tuning structurally couldn't:
+  a coherent HYPER-AGGRESSIVE profile across many axes at once.** denial UP (0.15→0.408),
+  voluntary reserve very thin (floorRentFraction 0.3→0.126), trades accepted on a tiny cushion
+  (acceptMargin 30→5), never hoard houses — always hotel (houseScarce 6→0), distressed-cash
+  weighted heavily (survivalFactor 1.5→2.556), cash deployed hard (raise/dip mults up). The
+  archive's entire arc was *"aggression beats defense"* (v17's thinner reserve, etc.); opt-v2
+  pushes aggression **further than any hand-tuned version dared, on five-plus axes
+  simultaneously** — precisely the combinatorial region a one-or-two-constant SPRT walk cannot
+  reach. **This is the headline result of the branch: the ES-as-mutation-operator, given a
+  crown-aligned (maximin) fitness, broke the heuristic frontier the hand-tuned loop had
+  declared converged.** (commit `d285df4`; faithful factory reuse like opt-v1.)
+
+### Meta-read and the open frontier
+
+Three things this branch established. (1) **Search genuinely beats greedy** — search-v1 over
+claude-v36 (52.5%) is a real, first-of-its-kind signal; its ceiling is leaf-evaluation quality
+(the horizon finding), pointing at a learned value. (2) **The hand-tuned frontier was NOT a hard
+cap** — it only looked converged because the search method (manual one-axis SPRT) couldn't see
+multi-axis combinations; a crown-aligned ES walked straight past it. (3) **Fitness alignment is
+everything** — opt-v1 (aggregate) only tied the champion; opt-v2 (maximin, = the crown metric)
+crushed it. The same vector space, a better objective.
+
+Open leads from here (the loop continues — a crown is not the end):
+- **`opt-v3`:** the maximin ES clearly had headroom; re-run with opt-v2 ADDED to the panel/base
+  (so it must beat the new champion), different seeds, or more generations.
+- **search-on-opt-v2:** put search-v1's rollout improvement on top of the opt-v2 base — combine
+  lookahead's edge with opt-v2's dominance. (Measurement is slow; rollout bot.)
+- **Out-of-distribution robustness:** opt-v2 is optimized vs THIS panel; a future check is its
+  strength vs a held-out *opponent* set and vs humans, to confirm the hyper-aggressive profile
+  isn't exploiting a shared bot blind spot. (It generalized across the archive, which is
+  encouraging, but the whole archive shares lineage.)
 
 ## Coexistence & promotion
 
