@@ -184,6 +184,11 @@ export const RATING_PANEL: readonly string[] = [
   "claude-v35",
   "jane-v2",
   "claude-v36",
+  // opt-v2 — the NEW champion (and crown base going forward): the ES-optimized
+  // hyper-aggressive multi-axis regime, the current ceiling (~206 on the panel
+  // graph). Added per "when you crown a champion, add it here" so future versions
+  // are measured against it and the optimizer's maximin fitness must beat it.
+  "opt-v2",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —

@@ -152,6 +152,10 @@
       "loWins": 159,
       "hiWins": 240
     },
+    "ratings|400|2000|claude-v10|opt-v2": {
+      "loWins": 94,
+      "hiWins": 306
+    },
     "ratings|400|2000|claude-v11|claude-v12": {
       "loWins": 201,
       "hiWins": 197
@@ -299,6 +303,10 @@
     "ratings|400|2000|claude-v11|jane-v4": {
       "loWins": 171,
       "hiWins": 229
+    },
+    "ratings|400|2000|claude-v11|opt-v2": {
+      "loWins": 91,
+      "hiWins": 307
     },
     "ratings|400|2000|claude-v12|claude-v13": {
       "loWins": 233,
@@ -2884,6 +2892,10 @@
       "loWins": 134,
       "hiWins": 265
     },
+    "ratings|400|2000|claude-v3|opt-v2": {
+      "loWins": 118,
+      "hiWins": 282
+    },
     "ratings|400|2000|claude-v4|claude-v5": {
       "loWins": 191,
       "hiWins": 208
@@ -2923,6 +2935,10 @@
     "ratings|400|2000|claude-v4|jane-v4": {
       "loWins": 159,
       "hiWins": 238
+    },
+    "ratings|400|2000|claude-v4|opt-v2": {
+      "loWins": 112,
+      "hiWins": 286
     },
     "ratings|400|2000|claude-v5|claude-v6": {
       "loWins": 202,
@@ -3008,6 +3024,10 @@
       "loWins": 167,
       "hiWins": 231
     },
+    "ratings|400|2000|claude-v6|opt-v2": {
+      "loWins": 96,
+      "hiWins": 304
+    },
     "ratings|400|2000|claude-v7|claude-v8": {
       "loWins": 193,
       "hiWins": 206
@@ -3032,6 +3052,10 @@
       "loWins": 183,
       "hiWins": 212
     },
+    "ratings|400|2000|claude-v7|opt-v2": {
+      "loWins": 110,
+      "hiWins": 289
+    },
     "ratings|400|2000|claude-v8|claude-v9": {
       "loWins": 217,
       "hiWins": 181
@@ -3052,6 +3076,10 @@
       "loWins": 188,
       "hiWins": 210
     },
+    "ratings|400|2000|claude-v8|opt-v2": {
+      "loWins": 103,
+      "hiWins": 297
+    },
     "ratings|400|2000|claude-v9|jane-v1": {
       "loWins": 172,
       "hiWins": 225
@@ -3067,6 +3095,10 @@
     "ratings|400|2000|claude-v9|jane-v4": {
       "loWins": 167,
       "hiWins": 232
+    },
+    "ratings|400|2000|claude-v9|opt-v2": {
+      "loWins": 94,
+      "hiWins": 306
     },
     "ratings|400|2000|jane-v1|jane-v2": {
       "loWins": 145,
