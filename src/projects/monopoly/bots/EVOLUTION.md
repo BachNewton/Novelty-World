@@ -406,6 +406,94 @@ trade engine wrapped around it here is not.
 written on Jane). See "Bot lineages" above: a prefix can carve a family by provenance *or*
 by paradigm.
 
+## Paradigm experiments (2026-06-23): search lookahead + ES parameter optimization
+
+By v38 the heuristic-tuning loop was, by its own honest assessment, **near-converged**:
+38 Claude versions + jane/gemini/trade-v1 had swept every single-axis lever, and the
+top of the ladder (claude-v36 / claude-v38 / jane-v2) sat in a tight **~10-Elo
+non-transitive cluster** that no parameter nudge could confidently break. So this branch
+(`monopoly-search-paradigm`) deliberately left tuning behind and tried the **two
+paradigms the entire archive had never used** — a different *decision procedure* (search)
+and a different *search method over the strategy space* (machine optimization of the
+rule bot). Both are recorded; neither has crowned (yet); both produced sharp, durable
+lessons and reusable infrastructure.
+
+### `search-v1` — rollout policy improvement (the first non-greedy bot). RECORDED, not crowned.
+
+Every prior bot is a **greedy 1-ply** value-maximizer. `search-v1` (lineage `search-v`,
+paradigm-named) plays claude-v38 verbatim *except* at two high-leverage discrete decisions
+(buy-decision, incoming trade votes), where it runs a **truncated-rollout search** —
+Tesauro's TD-Gammon rollout policy improvement: enumerate ≤4 legal candidates (the base
+policy's own move **always included**, so search can only match-or-beat it — the trade-v1
+trap avoidance), score each by rolling the game forward with all seats on the base policy
+(R=12 seeded samples × horizon=30), leaf = my `positionValue` **share** among active
+players. All rollout RNG derives from `state.rngState` → determinism/replay intact.
+
+- **Result (sim:versus):** BEATS base claude-v38 **55% train / 60% holdout**; BEATS
+  champion claude-v36 **52.5%**; BEATS anchor claude-v2 **62.5%** — but **REGRESSES vs
+  jane-v2 (45%)**. By the crown rule (no panel regression — the jane-v3 RPS-cycle guard)
+  → **NOT crowned**: it is a **non-transitive counter**, beating the line it forked from
+  while losing to a different strong strategy.
+- **The load-bearing finding — horizon, i.e. leaf quality, is everything.** At horizon
+  10/20 the position-share leaf is **myopic**: buying lowers my share *now* (cash out,
+  opponents keep earning) while the rent payoff lands a board-lap later, so short rollouts
+  systematically flip buys into declines (27/29 overrides at horizon 10) — the exact passive
+  cash-hoarding the project fights. The win only appears at ~30 turns, when the payoff
+  registers inside the horizon. **Diagnosis: the ceiling is leaf-evaluation quality, not
+  search depth** — short rollouts of a hand-tuned base mostly re-derive that base's own
+  preferences. This is the strongest argument yet for a **learned value** at the leaf
+  (the `RL-DESIGN.md` direction): it would remove the myopia without paying for 30-turn
+  rollouts.
+- **Building block:** `versions/search-v1/search.ts` — a pure, deterministic, self-contained
+  truncated-rollout engine (`rolloutOnce` / `scoreState` / `searchBest` / `sampleRngState`),
+  composing with the existing `candidates.ts`/`applyCandidate` primitives. Reusable for any
+  rollout/MCTS bot. (commit `a16a8a0`.)
+
+### `opt-v1` — ES-optimized parameter vector (ML tooling boosting the rule bot). RECORDED, not crowned.
+
+The whole archive was hand-tuned **one or two constants at a time**, SPRT-gating each
+step — manual hill-climbing that structurally cannot explore *combinatorial* parameter
+interactions. `opt-v1` (lineage `opt-v`, paradigm-named for the **method**) applied a
+**Separable Natural Evolution Strategy (SNES)** to claude-v38's **full 15-parameter
+vector jointly** (`optimize/` harness: `params.ts`/`snes.ts`/`fitness.ts`/`worker.ts`/
+`bot.ts`; a `param-fidelity.test.ts` pins that the default vector reproduces claude-v38
+byte-for-byte, so the ES optimizes the *real* bot). Fitness = win-share vs the anchor
+panel. The frozen `opt-v1` reuses the *exact* parameterized factory bound to the winning
+vector (fidelity by construction, not hand-transcription).
+
+- **The winning vector is genuinely non-obvious** — it moved against the hand-tuned grain:
+  **denyFactor 0.15→0.39** (the whole recent trend was to *lower* denial!), bonusScale
+  16489→20956, railSynergyScale 1.0→1.41, jailDangerRent 350→150, raiseWorthMult 1.25→1.99,
+  survivalFactor 1.5→0.81, houseScarce 6→3 — a coordinated combination no one-axis sweep
+  would reach. **75.3% aggregate train win-share vs the panel** (baseline 58%).
+- **Crown gate (both streams): REJECT — but instructively.** opt-v1 is **EVEN vs the base
+  claude-v36** (49.7% train / 49.6% holdout) → fails "improve vs base." YET it has the
+  **highest panel Elo on both streams (Champion)** and — unlike search-v1 — **regresses
+  against NO panel member**, tying-or-beating *every* one including jane-v2 (52.5% train /
+  51.1% holdout). It crushes the weak members (v2 72–77%, v5 68–80%, v17 72–75%, v35 62–66%).
+- **The lesson — fitness must be crown-aligned.** The 75% aggregate was **inflated by the
+  easy wins**; the marginal battle vs the two strongest (v36, jane-v2) is a wash. Optimizing
+  *aggregate* win-share spent the ES's pressure on members it already beat, not on the hard
+  matchup the crown actually requires. (commit `dd51935`; fidelity via factory reuse.)
+
+### `opt-v2` (in progress) — crown-aligned **maximin** fitness.
+
+The direct fix for opt-v1's misalignment: optimize the **minimum per-member win-share**
+(`--fitness maximin`, added in commit `a616616`), measured in the **same 2v2 pairing shape
+as the crown gauntlet**, so the ES maximizes its *worst* matchup — forced to fight v36/jane-v2
+instead of padding against v2/v5. **The clean test:** if the worst matchup crosses 50%+margin,
+a *single rule vector* beats the entire frontier → a real crown. If it plateaus at ~even, that
+is strong evidence the rule-based top is a **genuine non-transitive cap** — which would make
+the case that the breakthrough *must* come from a different paradigm (search with a learned
+leaf, or opponent-adaptive mixing) rather than any static parameter set.
+
+**Meta-read so far:** search genuinely *beats greedy* (search-v1 over claude-v36 is a real,
+first-of-its-kind signal) and ES genuinely *matches* the champion from a wildly different
+vector — but the **non-transitive cluster at the top is real and hard to beat with a pure
+strategy.** The two most promising routes past it both point the same way the jane-v3 cycle
+did: **a better leaf (learned value) inside search**, and/or **opponent-adaptive / mixed**
+play. Ratings regeneration for these versions is pending.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
