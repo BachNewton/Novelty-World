@@ -71,6 +71,9 @@ import { optV2Bot } from "./opt-v2";
 // opt-v3: the maximin ES re-run with opt-v2 ITSELF in the 7-member panel, so the
 // search had to beat the champion. A distinct aggressive vector. See `versions/opt-v3/`.
 import { optV3Bot } from "./opt-v3";
+// opt-v4: maximin ES vs the COMPLETED 8-panel (adds jane-v4, the bot opt-v3
+// counter-overfit against) — pressured to beat opt-v2 AND jane-v4. See `versions/opt-v4/`.
+import { optV4Bot } from "./opt-v4";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -134,6 +137,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v1": optV1Bot,
   "opt-v2": optV2Bot,
   "opt-v3": optV3Bot,
+  "opt-v4": optV4Bot,
   dumb: dumbBot,
 };
 
