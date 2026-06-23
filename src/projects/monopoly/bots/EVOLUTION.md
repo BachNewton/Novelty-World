@@ -520,11 +520,23 @@ multi-axis combinations; a crown-aligned ES walked straight past it. (3) **Fitne
 everything** — opt-v1 (aggregate) only tied the champion; opt-v2 (maximin, = the crown metric)
 crushed it. The same vector space, a better objective.
 
-Open leads from here (the loop continues — a crown is not the end):
-- **`opt-v3`:** the maximin ES clearly had headroom; re-run with opt-v2 ADDED to the panel/base
-  (so it must beat the new champion), different seeds, or more generations.
-- **search-on-opt-v2:** put search-v1's rollout improvement on top of the opt-v2 base — combine
-  lookahead's edge with opt-v2's dominance. (Measurement is slow; rollout bot.)
+**How the maximin loop actually ran (2026-06-23):** opt-v2 (robust crown) → opt-v3 (re-run with
+opt-v2 in the panel: SPRT-beat opt-v2 but **counter-overfit**, losing to the omitted jane-v4 →
+recorded, not crowned) → **add jane-v4 to the panel** → **opt-v4** (beats opt-v2 AND jane-v4,
+NO out-of-panel regressions → ROBUST crown, supersedes opt-v2). Lesson proven: **panel-completion
++ the out-of-panel check converts the overfit-counter trap into a robust gain.** BUT the top is now
+a **non-transitive CLUSTER** (opt-v2/opt-v3/opt-v4 + jane-v4, all within ~12 Elo, cycling): the Elo
+ladder nominally ranks the latest *counter* (opt-v3) #1, while the *crown* (no-regression) correctly
+holds opt-v4. Further maximin rounds will likely keep cycling inside this cluster rather than
+dominate it, so **the next real gain is STRUCTURAL, not another parameter round.**
+
+Open structural leads from here:
+- **search-on-opt-v4:** put search-v1's rollout improvement on top of the opt-v4 base — combine
+  lookahead's edge with opt-v4's robustness. (Measurement is slow; rollout bot.) The most promising
+  way *out* of the parameter cluster.
+- **Expanded parameter space:** the ES only optimized claude-v38's 15 existing constants. Exposing
+  MORE (per-color set weights, the rail-synergy table values, the distress gate) opens dimensions the
+  cluster never explored — a richer basin the maximin loop could climb.
 - **Out-of-distribution robustness:** opt-v2 is optimized vs THIS panel; a future check is its
   strength vs a held-out *opponent* set and vs humans, to confirm the hyper-aggressive profile
   isn't exploiting a shared bot blind spot. (It generalized across the archive, which is
