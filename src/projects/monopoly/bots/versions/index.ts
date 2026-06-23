@@ -40,6 +40,11 @@ import { claudeV38Bot } from "./claude-v38";
 import { claudeV39Bot } from "./claude-v39";
 import { claudeV40Bot } from "./claude-v40";
 import { claudeV41Bot } from "./claude-v41";
+// claude-v42 / claude-v43 — substrate-swap candidates: claude-v41's seller-side
+// trade logic bound to the opt-v3 (ladder leader) and opt-v2 (robust ex-crown)
+// base vectors respectively, chasing "champion AND top Elo." See each `index.ts`.
+import { claudeV42Bot } from "./claude-v42";
+import { claudeV43Bot } from "./claude-v43";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
@@ -133,6 +138,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v39": claudeV39Bot,
   "claude-v40": claudeV40Bot,
   "claude-v41": claudeV41Bot,
+  "claude-v42": claudeV42Bot,
+  "claude-v43": claudeV43Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
   "jane-v3": janeV3Bot,
@@ -157,11 +164,26 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
  *      AND the capped-game bottleneck, so its pairings are ~6-min slogs that swamp
  *      any ratings/gauntlet run for near-zero signal. It is the sole Gemini version,
  *      so excluding it deprecates the whole Gemini family in the lobby (intended).
+ *    - `search-v1` — NOT weak (mid-ladder, ~119 Elo when last rated — a real,
+ *      legal rollout/lookahead paradigm). Excluded purely for COST: it is the only
+ *      non-greedy bot, so a single 400-game panel pairing runs truncated rollouts
+ *      (R×horizon per decision) and takes MINUTES while every greedy pairing takes
+ *      seconds — it dominated a ratings run's wall-clock (one `search-v1 × claude-v41`
+ *      pairing alone ran >6 min). It is the sole `search` version, so excluding it
+ *      deprecates the whole `search` family in the lobby (intended). REVERSAL
+ *      CONDITION: re-include `search-v` if a future version posts a competitive Elo —
+ *      then the lookahead paradigm earns its rating cost. (Like the two above, it
+ *      stays in `VERSIONS`, fully runnable; only its rating/default-field
+ *      participation is dropped — field it explicitly via `--field` if ever needed.)
  *  A version with no rating renders DEPRECATED in the lobby (struck through, "??? "
  *  Elo, disabled) — see `bots/roles.ts`. This is the lone hand-maintained
  *  rating-policy knob, and it stays tiny. `dumb` is excluded separately (it's a
  *  null stub, not a real bot). */
-export const RATING_EXCLUDED: ReadonlySet<string> = new Set(["claude-v1", "gemini-v1"]);
+export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
+  "claude-v1",
+  "gemini-v1",
+  "search-v1",
+]);
 
 /** The ANCHOR PANEL — the small fixed set of opponents that BOTH the rater and the
  *  crown gauntlet measure a new version against (see `bots/CLAUDE.md` "The ANCHOR

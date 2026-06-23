@@ -579,6 +579,47 @@ so **run them one at a time** (or in separate worktrees).
   isn't exploiting a shared bot blind spot. (It generalized across the archive, which is
   encouraging, but the whole archive shares lineage.)
 
+### claude-v41 crowned; claude-v42/v43 substrate-swap REJECTED — trade pricing and the base vector are COUPLED (2026-06-23)
+
+**claude-v41 (CROWNED).** Kyle's seller-side trade thesis (bots/CLAUDE.md Refinement #3),
+on the v39 substrate (opt-v4 vector + restored `denialPositionCost`): decouple
+`rivalThreatFactor` from `denyFactor` → **0.4**, and add a **0.5 `deployabilityDiscount`** on
+incoming set-handover cash. Crown gate `--base opt-v4 --panel`, both streams: SPRT **BETTER vs
+opt-v4 (55.7% train / 62.4% holdout) and every panel member, zero regressions** → crowned and
+added to `RATING_PANEL`. NOTE it sits ~4 Elo **below** opt-v4 on the panel-graph ladder (197.2 vs
+201.4) yet beats it head-to-head — the panel-graph Elo systematically ranks the trade-priced
+(robust, less raw-aggressive) bots **below** their bare opt bases. **"Champion ≠ top Elo" is
+structural here**, not an accident.
+
+**claude-v42 / claude-v43 (RECORDED, REJECTED).** The goal was a version that is BOTH crown AND
+top Elo (v41 is crown but #3-ish on the ladder, under the opt cluster). Since v41's trade logic is
+*parameterized over the opt factory*, the cheap shot was to keep the trade logic and **swap the
+base vector** to a higher-Elo opt vector: `claude-v42` = **opt-v3** (the ladder leader) + v41's
+trade params; `claude-v43` = **opt-v2** (the robust ex-crown) + v41's trade params (trade logic
+byte-identical to v41, so the only delta is the base vector). **Both REGRESSED vs their own base:**
+v42 opt-v3 201.7 → **187.0 (−15)**; v43 opt-v2 195.6 → **146.2 (−49)**. Neither beats champion v41.
+
+**The lesson — the trade pricing and the base vector are COUPLED, not independent.** The trade
+params (`rivalThreatFactor 0.4`, `deployabilityDiscount 0.5`) were tuned *on the opt-v4 vector*, and
+`denialPositionCost ∝ denyFactor`. So a different base shifts the balance: opt-v2's high
+`denyFactor` (0.408) makes its holder-side denial price large; stacking `rivalThreatFactor 0.4` on
+top drives **severe over-refusal** (the trade-deadlock failure mode the games-must-be-decisive rule
+guards) → the −49 crash. **You cannot hand-swap the base under fixed trade params — they must be
+CO-tuned.** This kills the "swap within the opt cluster" shortcut and points squarely at a
+**combined-space maximin ES**: co-optimize the opt vector AND the two trade params jointly, with
+maximin fitness (= the crown metric) and jane-v4 + claude-v41 in the panel — the only path likely
+to land champion + top Elo *together*. (v42/v43 archived + rated per the record-everything-legal
+rule; not crowned.)
+
+**search-v1 → `RATING_EXCLUDED` (cost, NOT strength).** Rating the new versions surfaced that
+search-v1 (the lone rollout/lookahead bot) dominated the run's wall-clock: a single
+`search-v1 × claude-v41` panel pairing ran **>6 min** (truncated rollouts, R×horizon per decision)
+while every greedy pairing is seconds. It is **not weak** (~119 Elo, mid-ladder — a real, legal
+paradigm); excluded purely for cost, exactly like `claude-v1`/`gemini-v1` (Decisions 8–9). Sole
+`search` version, so the `search` family deprecates in the lobby. **Reversal condition:** re-include
+`search-v` the moment a future version posts a competitive Elo — then the lookahead paradigm earns
+its rating cost.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
