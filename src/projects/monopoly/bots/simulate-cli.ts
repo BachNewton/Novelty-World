@@ -9,6 +9,7 @@ import {
 import { DEFAULT_BOT_VERSION } from "./roles";
 import { valueNetStubBot } from "./value-net-stub";
 import { valuePolicyStubBot } from "./value-policy";
+import { tokenStubBot } from "./token-bot";
 import { VERSIONS } from "./versions";
 import { renderHighlight } from "./render-log";
 
@@ -19,6 +20,9 @@ import { renderHighlight } from "./render-log";
  *  - `value-policy`: the full-capability agent (`value-policy.ts`). */
 const VALUE_STUB_TOKEN = "value-stub";
 const VALUE_POLICY_TOKEN = "value-policy";
+/** `token-stub`: the atomic-vocabulary greedy bot (`token-bot.ts`) — the Phase-3
+ *  wiring proof that the fixed action vocabulary drives a full legal game. */
+const TOKEN_STUB_TOKEN = "token-stub";
 
 /** `npm run sim` — an on-demand script that plays a full, headless Monopoly game
  *  between bots and prints the outcome. No UI, pure CPU, deterministic by seed.
@@ -73,14 +77,15 @@ function parseArgs(argv: readonly string[]): Args {
       arg === "dumb" ||
       arg === VALUE_STUB_TOKEN ||
       arg === VALUE_POLICY_TOKEN ||
+      arg === TOKEN_STUB_TOKEN ||
       arg in VERSIONS
     ) {
       seats.push(arg);
     } else {
       throw new Error(
         `unknown argument "${arg}" (expected dumb, ${VALUE_STUB_TOKEN}, ` +
-          `${VALUE_POLICY_TOKEN}, a version label like claude-v35, or ` +
-          `--seed | --turns | --log)`,
+          `${VALUE_POLICY_TOKEN}, ${TOKEN_STUB_TOKEN}, a version label like ` +
+          `claude-v35, or --seed | --turns | --log)`,
       );
     }
   }
@@ -109,6 +114,7 @@ function toContender(token: string): Contender {
   if (token === VALUE_POLICY_TOKEN) {
     return { label: VALUE_POLICY_TOKEN, bot: valuePolicyStubBot };
   }
+  if (token === TOKEN_STUB_TOKEN) return { label: TOKEN_STUB_TOKEN, bot: tokenStubBot };
   return { label: token, bot: botFor(token) };
 }
 
