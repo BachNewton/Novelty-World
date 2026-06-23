@@ -89,6 +89,9 @@ import { kyleV1Bot } from "./kyle-v1";
 // kyle-v2 — first KYLE version with real logic (buy / raise-cash / forced
 // liquidation; see kyle-v2/PHILOSOPHY.md). Branched from the kyle-v1 baseline.
 import { kyleV2Bot } from "./kyle-v2";
+// kyle-v3 — kyle-v2 + a MATCH_VALUE-driven TRADE engine (accept any N-way,
+// propose best-first mutual-completion cycles; see kyle-v3/PHILOSOPHY.md).
+import { kyleV3Bot } from "./kyle-v3";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -160,6 +163,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v4": optV4Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
+  "kyle-v3": kyleV3Bot,
   dumb: dumbBot,
 };
 
@@ -202,6 +206,10 @@ export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
   "gemini-v1",
   "search-v1",
   "kyle-v2",
+  // kyle-v3 — same COST exclusion as kyle-v2: it adds trading but still never
+  // builds houses, so its games stalemate to the turn cap. Re-include the
+  // kyle-v lineage once a version develops property and its games resolve.
+  "kyle-v3",
 ]);
 
 /** The ANCHOR PANEL — the small fixed set of opponents that BOTH the rater and the
