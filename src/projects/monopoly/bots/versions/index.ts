@@ -86,6 +86,9 @@ import { optV4Bot } from "./opt-v4";
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
 import { kyleV1Bot } from "./kyle-v1";
+// kyle-v2 — first KYLE version with real logic (buy / raise-cash / forced
+// liquidation; see kyle-v2/PHILOSOPHY.md). Branched from the kyle-v1 baseline.
+import { kyleV2Bot } from "./kyle-v2";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -156,12 +159,13 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v3": optV3Bot,
   "opt-v4": optV4Bot,
   "kyle-v1": kyleV1Bot,
+  "kyle-v2": kyleV2Bot,
   dumb: dumbBot,
 };
 
 /** Versions deliberately LEFT OUT of the Elo ladder — the rater skips them, so
  *  they never earn a rating, and the gauntlet drops them from its default field.
- *  Both members are real, runnable snapshots kept for the archive; they're excluded
+ *  Every member is a real, runnable snapshot kept for the archive; they're excluded
  *  purely as a COST optimization (see EVOLUTION.md Decision 8 + the gemini-v1 note):
  *    - `claude-v1` — the original champion; its trade-veto deadlock caps too many
  *      games to the turn limit (slow + least-informative).
@@ -180,6 +184,15 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
  *      then the lookahead paradigm earns its rating cost. (Like the two above, it
  *      stays in `VERSIONS`, fully runnable; only its rating/default-field
  *      participation is dropped — field it explicitly via `--field` if ever needed.)
+ *    - `kyle-v2` — NOT (yet) a strong bot, but excluded for COST, not weakness: it
+ *      buys aggressively and completes monopolies but never BUILDS houses, so it can't
+ *      close games out — ~40% of its pairings stalemate to the 2000-turn cap (e.g.
+ *      claude-v2 237–1 kyle-v2, 162/400 capped), turning every panel pairing into a
+ *      multi-minute slog that swamps a ratings run for near-zero signal (it's plainly
+ *      near the bottom). REVERSAL CONDITION: re-include `kyle-v` once a version adds
+ *      build/develop logic so its games resolve before the cap. (kyle-v1, the rated
+ *      all-defaults baseline, keeps the Kyle family present in the lobby; kyle-v2
+ *      renders DEPRECATED alongside it until then.)
  *  A version with no rating renders DEPRECATED in the lobby (struck through, "??? "
  *  Elo, disabled) — see `bots/roles.ts`. This is the lone hand-maintained
  *  rating-policy knob, and it stays tiny. `dumb` is excluded separately (it's a
@@ -188,6 +201,7 @@ export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
   "claude-v1",
   "gemini-v1",
   "search-v1",
+  "kyle-v2",
 ]);
 
 /** The ANCHOR PANEL — the small fixed set of opponents that BOTH the rater and the
