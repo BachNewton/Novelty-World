@@ -27,6 +27,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "clsx": "^2.1.1",
     "d3-dag": "^1.2.1",
     "lucide-react": "^1.7.0",
