@@ -620,6 +620,41 @@ paradigm); excluded purely for cost, exactly like `claude-v1`/`gemini-v1` (Decis
 `search-v` the moment a future version posts a competitive Elo — then the lookahead paradigm earns
 its rating cost.
 
+### claude-v44 CROWNED — the combined-space ES delivers champion AND top-Elo together (2026-06-24)
+
+**The split it closes.** claude-v41 was the crown but sat ~4 Elo *below* opt-v4 on the panel-graph
+ladder — "champion ≠ top Elo," which the v41 section above called *structural*: the panel-graph Elo
+systematically ranks the trade-priced (robust, less raw-aggressive) bots below their bare opt bases.
+The v42/v43 rejection proved you can't fix this by hand-swapping a higher-Elo base under fixed trade
+params — **the trade pricing and the base vector are COUPLED** (`denialPositionCost ∝ denyFactor`; the
+v41 levers were tuned on opt-v4), so they crashed. That pointed squarely at a **combined-space maximin
+ES**: co-optimize the base vector AND the trade levers *jointly*.
+
+**The run.** A 31-dim SNES — claude-v38's 28-param base PLUS the three v41 seller-side trade levers
+(`rivalThreatFactor`, `holderDenialFrac`, `deployabilityDiscount`) — by **maximin** win-share (= the
+crown metric) vs the 10-member `RATING_PANEL`. `--pop 36 --gens 30 --games 990 --fitness maximin
+--seed 1`, ~7h local. Baseline claude-v38 (default vector) maximin **35.35%** (worst matchup opt-v2);
+the winner lifted the **worst** panel matchup to **69.70%** — every panel member ≥69.7%, the two
+former weak spots (opt-v2, claude-v41) now its floor. The ES turned the trade levers **ON**
+(`holderDenialFrac` 0→0.46, `deployabilityDiscount` 0→0.60, `rivalThreatFactor` decoupled to 0.34)
+and re-shaped the set-value ranking (light-blue/orange multipliers up to ~2.6/2.2, red/yellow/
+dark-blue/green floored to 0.3), with a higher `survivalFactor` (1.5→2.92) and `raiseWorthMult`
+(1.25→1.88). This is the joint solution the coupled space only the ES could reach.
+
+**Crown gate — both streams, clean sweep.** `--base claude-v41 --panel`: SPRT **BETTER vs claude-v41
+(73.1% train / 67.7% holdout) AND every one of the 10 panel members, ZERO regressions** on both seed
+streams → ✅ ACCEPT. **Out-of-panel anti-overfit** (the guard that caught opt-v3): beats every strong
+non-panel bot — **opt-v3 76.0%, claude-v39 74.0%, claude-v38 74.0%, jane-v3 68.0%**, no regression.
+
+**Champion AND top Elo — split resolved.** Unlike v41, claude-v44 also **tops the panel-graph ladder:
+249.3 Elo, +51 over the field** (opt-v4 198.2, claude-v41 194.5, opt-v2 192.2, opt-v3 190.1) — it is
+both the SPRT crown and the lobby's Strongest/default. It is *not* a turn-cap staller: across its 51
+ratings pairings (20,400 games) only 15 cap-draws total (0.07%). Crowned and added to `RATING_PANEL`
+(claude-v41 kept as a strong distinct vector and the crown base v44 was measured against). Snapshot
+`versions/claude-v44/` binds the 31-param factory (a verbatim copy of `optimize/bot.ts`) to the
+winning vector; the factory's no-op-default fidelity to claude-v38 stays pinned by
+`optimize/param-fidelity.test.ts`, so no per-version test was added (new vector, not new behavior).
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by

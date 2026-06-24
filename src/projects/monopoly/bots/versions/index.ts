@@ -45,6 +45,11 @@ import { claudeV41Bot } from "./claude-v41";
 // base vectors respectively, chasing "champion AND top Elo." See each `index.ts`.
 import { claudeV42Bot } from "./claude-v42";
 import { claudeV43Bot } from "./claude-v43";
+// claude-v44 — the COMBINED-SPACE maximin ES champion candidate: the 31-param
+// factory (claude-v38 base + claude-v41's three seller-side trade levers) with
+// EVERY dim co-tuned jointly (the coupling claude-v42/v43's hand swaps couldn't
+// respect). Lifted the worst panel matchup 35.4% → 69.7%. See its `index.ts`.
+import { claudeV44Bot } from "./claude-v44";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
@@ -150,6 +155,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v41": claudeV41Bot,
   "claude-v42": claudeV42Bot,
   "claude-v43": claudeV43Bot,
+  "claude-v44": claudeV44Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
   "jane-v3": janeV3Bot,
@@ -265,16 +271,24 @@ export const RATING_PANEL: readonly string[] = [
   // panel OR out-of-panel regressions — the robust improvement opt-v3 wasn't. Kept as
   // the crown base claude-v41 was measured against and a strong distinct opt vector.
   "opt-v4",
-  // claude-v41 — the CURRENT crowned champion (crown base). claude-v39 substrate
-  // (opt-v4 vector + restored denialPositionCost) + Kyle's seller-side trade pricing
-  // (Refinement #3): rivalThreatFactor decoupled from denyFactor to 0.4 + a 0.5
-  // deployability discount on incoming set-handover cash. CROWN GATE `--base opt-v4
-  // --panel`, BOTH streams: SPRT BETTER vs opt-v4 (55.7% train / 62.4% holdout) AND
-  // every panel member, ZERO regressions. Added per "crown a champion → add it here."
-  // (NOTE: it sits #4 on the panel-graph Elo ladder behind opt-v3/v4/v2 despite
-  // BEATING opt-v4/opt-v2 head-to-head — panel-fit non-transitivity; the crown is the
-  // head-to-head SPRT result, not the global Elo rank. See EVOLUTION.md.)
+  // claude-v41 — the PRIOR crowned champion (the base claude-v44 was measured
+  // against). claude-v39 substrate (opt-v4 vector + restored denialPositionCost) +
+  // Kyle's seller-side trade pricing (Refinement #3): rivalThreatFactor decoupled from
+  // denyFactor to 0.4 + a 0.5 deployability discount on incoming set-handover cash.
+  // CROWN GATE `--base opt-v4 --panel`, BOTH streams: SPRT BETTER vs opt-v4 (55.7%
+  // train / 62.4% holdout) AND every panel member, ZERO regressions. Kept as a strong
+  // distinct vector and the crown base of the current champion.
   "claude-v41",
+  // claude-v44 — the CURRENT crowned champion (crown base for the next round). The
+  // COMBINED-SPACE maximin ES winner: the 31-param factory (claude-v38 base + v41's
+  // three seller-side trade levers) with EVERY dim co-tuned JOINTLY — the coupling the
+  // hand-built substrate swaps (claude-v42/v43) couldn't respect. It resolves the
+  // "champion AND top Elo" split claude-v41 left open: #1 on the ladder (+74 over the
+  // prior leader) AND CROWN GATE `--base claude-v41 --panel`, BOTH streams — SPRT
+  // BETTER vs claude-v41 (73.1% train / 67.7% holdout) AND every panel member, ZERO
+  // regressions; plus no out-of-panel regression (68–76% vs opt-v3/claude-v39/v38/
+  // jane-v3). Added per "crown a champion → add it here."
+  "claude-v44",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
