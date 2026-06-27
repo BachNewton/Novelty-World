@@ -449,6 +449,37 @@ players. All rollout RNG derives from `state.rngState` → determinism/replay in
   composing with the existing `candidates.ts`/`applyCandidate` primitives. Reusable for any
   rollout/MCTS bot. (commit `a16a8a0`.)
 
+### `search-v2` / `search-v3` — rollout search on the TUNED champion (claude-v45). RECORDED, washed.
+
+search-v1 proved truncated-rollout policy improvement sound but wrapped the **untuned** claude-v38
+(~119 Elo). This answers the "search-on-opt-v4" open lead by putting the **same** machinery on the
+ES-tuned champion **claude-v45** as both the rollout policy and the `positionValue` leaf (self-
+contained: a verbatim copy of v45's factory + a `makeParamValue` export for the tuned leaf). The
+base policy's greedy move is always a candidate (`searchBest` tie-break), so it can only match-or-beat.
+
+- **`search-v2`** (search buy + trade-vote, like search-v1): **≈ EVEN — 50.2% @ 448 decisive**, but
+  the SPRT was **stopped early** (a wash drifts toward the 4000 cap, so it was cut for CPU, not run
+  to a boundary). The champion's ES-tuned reactive decisions are already near-optimal; policy-
+  improvement search just reproduces them.
+- **`search-v3`** (+ auction + jail, i.e. the full monte-carlo-v1 decision set — the *deferred-payoff*
+  decisions a 1-ply eval is structurally blind to): a **600-capped** SPRT *completed*
+  **INCONCLUSIVE — 51.8% (+12.7 Elo, 311–289)**; the uncapped SPRT was **not** taken to a ±20 boundary.
+  A faint nudge from auction/jail, well within noise — not a confident win.
+- **Caveat (honesty):** neither result is a boundary-definitive SPRT — both are partial/capped
+  samples (the v3 600-game run finished, v2's was cut early). The wash conclusion is well-supported by
+  both point estimates but a clean uncapped SPRT was never run; given the point estimates it's low
+  priority to confirm.
+- **The finding:** rollout *policy improvement* diminishes as the base approaches optimality — it
+  beat the untuned v38/jane-v3 precisely because they were improvable; on the tuned champion there is
+  little left for shallow search to fix. Breaking the plateau needs *deeper* search (learned value at
+  the leaf — the `RL-DESIGN.md` direction) or a *different* lever, not search over the same decisions.
+- **Both `RATING_EXCLUDED`** (cost: full v3 SPRT was ~48 min / 600 games on 14 workers). Determinism
+  intact (rollouts seed from `state.rngState`); 10 determinism/legality tests each.
+- **Iteration affordance** (`search-v3/search.ts`): `MONO_ROLLOUT_SAMPLES` / `MONO_ROLLOUT_HORIZON`
+  env knobs (default to the production 12/30) for fast screening — cutting *samples* is unbiased
+  variance reduction (~14× faster reproduced the verdict); cutting *horizon* biases the leaf (myopia),
+  so keep it near 30. (commit `98610b2`.)
+
 ### `opt-v1` — ES-optimized parameter vector (ML tooling boosting the rule bot). RECORDED, not crowned.
 
 The whole archive was hand-tuned **one or two constants at a time**, SPRT-gating each
@@ -532,8 +563,8 @@ dominate it, so **the next real gain is STRUCTURAL, not another parameter round.
 
 Open structural leads from here:
 - **search-on-opt-v4:** put search-v1's rollout improvement on top of the opt-v4 base — combine
-  lookahead's edge with opt-v4's robustness. (Measurement is slow; rollout bot.) The most promising
-  way *out* of the parameter cluster.
+  lookahead's edge with opt-v4's robustness. (Measurement is slow; rollout bot.) **ANSWERED — WASHED
+  (search-v2/v3, see below): search on the tuned champion does not beat it.** Not the way out.
 - **Expanded parameter space:** the ES only optimized claude-v38's 15 existing constants. The
   optimizer has since been **widened to 28 dimensions** (commit `70b4888`: 8 per-color
   `MONOPOLY_BONUS` multipliers + 3 rail-synergy values + `distressSafeRatio` + `spreadFloor`,
