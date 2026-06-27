@@ -201,13 +201,37 @@ export function makeParamBot(p: ParamVector): Bot {
     return display.kind === "dollars" ? display.amount : display.multiplier * 7;
   }
 
+  /** Standing ratio s = my positionValue / mean active-opponent positionValue.
+   *  >1 leading, <1 trailing, 1 even. Used only by the risk-aware standing levers
+   *  (default off), so it is never computed on the claude-v38 no-op path. */
+  function standingRatio(state: GameState, pid: string): number {
+    const opps = activeOpponents(state, pid);
+    if (opps.length === 0) return 1;
+    let sum = 0;
+    for (const o of opps) sum += positionValue(state, o.id);
+    const mean = sum / opps.length;
+    if (mean <= 0) return 1;
+    return positionValue(state, pid) / mean;
+  }
+
+  /** A standing-scaled multiplier `clamp(1 + gain·(s−1), 0.4, 2.5)`. `gain === 0`
+   *  short-circuits to exactly 1 (no standingRatio call), so a no-op lever is
+   *  byte-identical to claude-v38 — what `param-fidelity.test.ts` pins. */
+  function standingFactor(state: GameState, pid: string, gain: number): number {
+    if (gain === 0) return 1;
+    const s = standingRatio(state, pid);
+    return Math.min(2.5, Math.max(0.4, 1 + gain * (s - 1)));
+  }
+
   function liquidityFloor(state: GameState, pid: string): number {
     let worst = 0;
     for (const posStr in state.ownership) {
       if (state.ownership[posStr] === pid) continue;
       worst = Math.max(worst, rentEstimateAt(state, Number(posStr)));
     }
-    return Math.min(p.floorCap, Math.max(p.baseFloor, Math.round(worst * p.floorRentFraction)));
+    const base = Math.min(p.floorCap, Math.max(p.baseFloor, Math.round(worst * p.floorRentFraction)));
+    if (p.standingFloorGain === 0) return base;
+    return Math.round(base * standingFactor(state, pid, p.standingFloorGain));
   }
 
   function mortgageableTotal(state: GameState, pid: string): number {
@@ -1000,7 +1024,14 @@ export function makeParamBot(p: ParamVector): Bot {
     const a = state.turn.auction;
     if (!a || !a.active.includes(pid) || a.leaderId === pid) return null;
     const next = a.highBid + BID_INCREMENT;
-    const cap = Math.min(acquisitionValue(state, pid, a.position), auctionBidCap(state, pid));
+    const worth =
+      p.standingAuctionGain === 0
+        ? acquisitionValue(state, pid, a.position)
+        : Math.round(
+            acquisitionValue(state, pid, a.position) *
+              standingFactor(state, pid, p.standingAuctionGain),
+          );
+    const cap = Math.min(worth, auctionBidCap(state, pid));
     if (next <= cap) {
       return { intent: { kind: "bid", playerId: pid, amount: next } };
     }

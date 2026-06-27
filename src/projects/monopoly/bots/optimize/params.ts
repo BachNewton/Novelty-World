@@ -126,6 +126,26 @@ export interface ParamVector {
    *  cash received in a rival-enabling handover (gated on the rival-threat term), so
    *  own-set acquisition is untouched. Default 0 = v38. */
   deployabilityDiscount: number;
+
+  // --- RISK-AWARE / PLAY-TO-STANDING (a genuinely different lever — positionValue
+  //     is risk-NEUTRAL, but a pro modulates VARIANCE by rank: a leader banks/de-
+  //     risks, a laggard takes +EV gambles). Each scales a lever by a STANDING RATIO
+  //     s = myPositionValue / mean(active-opponent positionValue) — s>1 leading, s<1
+  //     trailing — via a factor clamped to [0.4, 2.5]. Both default 0 = NO-OP (factor
+  //     ≡ 1), preserving claude-v38 fidelity; the ES turns them on and picks the sign.
+  //     CAUTION (bots/CLAUDE.md "Considered and rejected"): this is NOT cash-scaled
+  //     monopoly value — it scales liquidity/auction POSTURE, never a set's worth — and
+  //     may wash vs the risk-neutral monoculture (a recorded finding either way). ---
+
+  /** Standing-scaled voluntary RESERVE: liquidityFloor is multiplied by
+   *  clamp(1 + g*(s-1), 0.4, 2.5). Positive g => a leader keeps a fatter cash buffer
+   *  (de-risk) while a laggard thins it to deploy hard. 0 = flat reserve (v38). */
+  standingFloorGain: number;
+  /** Standing-scaled AUCTION aggression: the acquisition-value cap is multiplied by
+   *  clamp(1 + g*(s-1), 0.4, 2.5) before the net-worth cap. NEGATIVE g => a laggard
+   *  (s<1) bids past book value to gamble back into contention while a leader bids
+   *  tight; the ES is free to pick the sign. 0 = v38 (bid to acquisitionValue). */
+  standingAuctionGain: number;
 }
 
 /** The DEFAULT vector — claude-v38 verbatim. The parameterized bot built from
@@ -164,6 +184,9 @@ export const DEFAULT_PARAMS: ParamVector = {
   rivalThreatFactor: 0.15,
   holderDenialFrac: 0,
   deployabilityDiscount: 0,
+  // risk-aware standing levers OFF (no-op — reproduce claude-v38):
+  standingFloorGain: 0,
+  standingAuctionGain: 0,
 };
 
 /** Inclusive [min, max] bounds for each parameter — SANE ranges the ES respects.
@@ -208,6 +231,11 @@ export const PARAM_BOUNDS: Readonly<Record<keyof ParamVector, readonly [number, 
   rivalThreatFactor: [0.0, 0.8],
   holderDenialFrac: [0.0, 1.5],
   deployabilityDiscount: [0.0, 1.0],
+  // Standing gains span both signs so the ES can pick the risk DIRECTION (leader
+  // banks vs laggard gambles); the per-lever factor is clamped to [0.4, 2.5] in
+  // bot.ts regardless, so a wide gain just saturates rather than going wild.
+  standingFloorGain: [-1.5, 2.0],
+  standingAuctionGain: [-1.5, 2.0],
 };
 
 /** The parameter names in a FIXED order — the canonical vector layout the ES
@@ -245,6 +273,8 @@ export const PARAM_KEYS: readonly (keyof ParamVector)[] = [
   "rivalThreatFactor",
   "holderDenialFrac",
   "deployabilityDiscount",
+  "standingFloorGain",
+  "standingAuctionGain",
 ];
 
 /** Pack a vector into the fixed-order number array the ES operates on. */
