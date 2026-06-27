@@ -76,6 +76,12 @@ import { tradeV1Bot } from "./trade-v1";
 // non-greedy bot in the archive) — not by the authoring machine. Authored by
 // Claude Code, filed under the paradigm. See EVOLUTION.md "Bot lineages".
 import { searchV1Bot } from "./search-v1";
+// search-v2 — the same rollout-search machinery on the TUNED champion (claude-v45)
+// instead of search-v1's untuned claude-v38 base. See search-v2/index.ts.
+import { searchV2Bot } from "./search-v2";
+// search-v3 — search-v2 + AUCTION & JAIL search (the deferred-payoff decisions a
+// 1-ply tuned eval is blind to). See search-v3/index.ts.
+import { searchV3Bot } from "./search-v3";
 // Opt lineage — a PARADIGM-named family (like trade-v / search-v): namespaced by
 // the METHOD that produced it, not an authoring machine. opt-v1 is claude-v38's
 // policy VERBATIM with its full 15-constant tuning vector JOINTLY optimized by an
@@ -169,6 +175,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v1": searchV1Bot,
+  "search-v2": searchV2Bot,
+  "search-v3": searchV3Bot,
   "opt-v1": optV1Bot,
   "opt-v2": optV2Bot,
   "opt-v3": optV3Bot,
@@ -226,6 +234,12 @@ export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
   "claude-v1",
   "gemini-v1",
   "search-v1",
+  // search-v2 / search-v3 — same COST exclusion as search-v1: truncated-rollout
+  // search makes each game ~hundreds of times slower, dominating a ratings run's
+  // wall-clock. Measured by direct SPRT vs their claude-v45 base instead. REVERSAL:
+  // re-include search-v if a version posts a competitive Elo worth the rating cost.
+  "search-v2",
+  "search-v3",
   "kyle-v2",
   // kyle-v3 — same COST exclusion as kyle-v2: it adds trading but still never
   // builds houses, so its games stalemate to the turn cap. Re-include the
