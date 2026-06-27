@@ -50,6 +50,11 @@ import { claudeV43Bot } from "./claude-v43";
 // EVERY dim co-tuned jointly (the coupling claude-v42/v43's hand swaps couldn't
 // respect). Lifted the worst panel matchup 35.4% → 69.7%. See its `index.ts`.
 import { claudeV44Bot } from "./claude-v44";
+// claude-v45 — claude-v44's combined-space ES vector with the ONE broken lever
+// corrected: `holderDenialFrac` pinned 0.461 → 1.0 (buyer/holder denial-pricing
+// lockstep). Kills the held-completer hot-potato the ES re-opened (live in
+// game:review 2b6y55). Smallest coherent change; every other dim verbatim v44.
+import { claudeV45Bot } from "./claude-v45";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
@@ -156,6 +161,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v42": claudeV42Bot,
   "claude-v43": claudeV43Bot,
   "claude-v44": claudeV44Bot,
+  "claude-v45": claudeV45Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
   "jane-v3": janeV3Bot,
@@ -208,6 +214,15 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
  *  rating-policy knob, and it stays tiny. `dumb` is excluded separately (it's a
  *  null stub, not a real bot). */
 export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
+  // claude-v44 — excluded for SUPERSESSION, not cost (the one non-cost member). It is
+  // strictly dominated by its clean twin claude-v45: identical vector but for
+  // `holderDenialFrac` (0.461 → 1.0), statistically EVEN in strength, but v44 carries
+  // the held-completer hot-potato (game:review 2b6y55) that v45 fixes. Rating it would
+  // keep it ~tied at the ladder top (it was +245.6 vs v45's +242.1) and thus the lobby
+  // DEFAULT — shipping the defect. Deprecated so v45 is the player-facing Strongest; the
+  // snapshot stays in VERSIONS, fully runnable, and is fielded explicitly via `--field`.
+  // REVERSAL: drop this line (and restore it to RATING_PANEL) to re-rate it.
+  "claude-v44",
   "claude-v1",
   "gemini-v1",
   "search-v1",
@@ -279,16 +294,15 @@ export const RATING_PANEL: readonly string[] = [
   // train / 62.4% holdout) AND every panel member, ZERO regressions. Kept as a strong
   // distinct vector and the crown base of the current champion.
   "claude-v41",
-  // claude-v44 — the CURRENT crowned champion (crown base for the next round). The
-  // COMBINED-SPACE maximin ES winner: the 31-param factory (claude-v38 base + v41's
-  // three seller-side trade levers) with EVERY dim co-tuned JOINTLY — the coupling the
-  // hand-built substrate swaps (claude-v42/v43) couldn't respect. It resolves the
-  // "champion AND top Elo" split claude-v41 left open: #1 on the ladder (+74 over the
-  // prior leader) AND CROWN GATE `--base claude-v41 --panel`, BOTH streams — SPRT
-  // BETTER vs claude-v41 (73.1% train / 67.7% holdout) AND every panel member, ZERO
-  // regressions; plus no out-of-panel regression (68–76% vs opt-v3/claude-v39/v38/
-  // jane-v3). Added per "crown a champion → add it here."
-  "claude-v44",
+  // claude-v41 is the current panel CEILING (the strongest panel member after
+  // claude-v44 was deprecated below). claude-v44 (the prior crowned champion) was
+  // REMOVED from the panel and moved to RATING_EXCLUDED: it is strictly superseded by
+  // its clean twin claude-v45 (one constant — `holderDenialFrac` 0.461 → 1.0 — same
+  // strength, minus the held-completer hot-potato), so fielding it as a rated default
+  // would just ship the defect. Removing a panel member is CACHE-FREE (the 10-member
+  // round-robin + every vs-panel column are subsets of what's already cached); ADDING
+  // claude-v45 here instead would force ~30 new vs-v45 pairings, so the new champion
+  // joins the panel at the next `--full` recalibration, not now. See EVOLUTION.md.
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —

@@ -1208,6 +1208,10 @@
       "loWins": 92,
       "hiWins": 308
     },
+    "ratings|400|2000|claude-v17|claude-v45": {
+      "loWins": 115,
+      "hiWins": 282
+    },
     "ratings|400|2000|claude-v17|claude-v5": {
       "loWins": 206,
       "hiWins": 193
@@ -2704,6 +2708,10 @@
       "loWins": 105,
       "hiWins": 295
     },
+    "ratings|400|2000|claude-v2|claude-v45": {
+      "loWins": 162,
+      "hiWins": 234
+    },
     "ratings|400|2000|claude-v2|claude-v5": {
       "loWins": 158,
       "hiWins": 241
@@ -3168,6 +3176,10 @@
       "loWins": 118,
       "hiWins": 282
     },
+    "ratings|400|2000|claude-v35|claude-v45": {
+      "loWins": 109,
+      "hiWins": 291
+    },
     "ratings|400|2000|claude-v35|claude-v5": {
       "loWins": 232,
       "hiWins": 164
@@ -3263,6 +3275,10 @@
     "ratings|400|2000|claude-v36|claude-v44": {
       "loWins": 116,
       "hiWins": 284
+    },
+    "ratings|400|2000|claude-v36|claude-v45": {
+      "loWins": 133,
+      "hiWins": 267
     },
     "ratings|400|2000|claude-v36|claude-v5": {
       "loWins": 253,
@@ -3556,6 +3572,10 @@
       "loWins": 134,
       "hiWins": 266
     },
+    "ratings|400|2000|claude-v41|claude-v45": {
+      "loWins": 124,
+      "hiWins": 276
+    },
     "ratings|400|2000|claude-v41|claude-v5": {
       "loWins": 304,
       "hiWins": 95
@@ -3668,6 +3688,10 @@
       "loWins": 174,
       "hiWins": 226
     },
+    "ratings|400|2000|claude-v44|claude-v45": {
+      "loWins": 188,
+      "hiWins": 212
+    },
     "ratings|400|2000|claude-v44|claude-v5": {
       "loWins": 296,
       "hiWins": 103
@@ -3727,6 +3751,26 @@
     "ratings|400|2000|claude-v44|trade-v1": {
       "loWins": 302,
       "hiWins": 95
+    },
+    "ratings|400|2000|claude-v45|claude-v5": {
+      "loWins": 284,
+      "hiWins": 112
+    },
+    "ratings|400|2000|claude-v45|jane-v2": {
+      "loWins": 281,
+      "hiWins": 119
+    },
+    "ratings|400|2000|claude-v45|jane-v4": {
+      "loWins": 271,
+      "hiWins": 128
+    },
+    "ratings|400|2000|claude-v45|opt-v2": {
+      "loWins": 265,
+      "hiWins": 135
+    },
+    "ratings|400|2000|claude-v45|opt-v4": {
+      "loWins": 266,
+      "hiWins": 134
     },
     "ratings|400|2000|claude-v4|claude-v41": {
       "loWins": 106,

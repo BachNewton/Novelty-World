@@ -184,6 +184,24 @@ bust. **Invariant: keep buyer-side and holder-side denial pricing in lockstep** 
 you ever change `DENY_FACTOR` or `acquisitionValue`'s deny premium, `denialPositionCost`
 must move with it, or the ring returns.
 
+**The lockstep is an INVARIANT, not a free parameter — pin it OUT of any optimizer
+search (claude-v45).** In the parameterized factory the lockstep is the lever
+`holderDenialFrac` (holder cost = `denyFactor × bonus × holderDenialFrac`); **1.0 is
+the only correct value** (holder charges the full premium a buyer books, so no
+non-rival hop clears). The combined-space ES that produced claude-v44 was allowed to
+move it and settled it at **0.461** — re-opening a clearing band of width
+`(1 − 0.461) × premium` on every held-completer hop, i.e. the exact hot-potato the v35
+work killed. The ES never felt it: the churn is **net-zero cash on the weakest set**,
+so it costs **~0 win share** — invisible to the win-share fitness, but a ~65% inflation
+of self-play trade volume (3839→1324 trades / 200 mirror games) and a game-stalling
+defect in front of a human (caught live, `game:review 2b6y55`). **claude-v45** = v44's
+vector with `holderDenialFrac` pinned back to 1.0 (every other dim verbatim): ring
+provably dead (`claude-v45/policy.test.ts`), BETTER than v44 vs every panel member on
+both streams, EVEN vs v44 itself (a net-zero exchange) → promoted on the
+equal-strength + defect-removal call, not a confident crown. **Lesson: a win-share
+optimizer is blind to net-zero degenerate behavior; constrain the levers that govern it
+rather than hoping fitness will.**
+
 **`denialPositionCost` was LOST, then restored on the opt base (claude-v39).** When
 claude-v36 branched off jane-v2 (a stronger base that had the v14 phantom-denial gate
 and a low `denyFactor` but **never** carried v35's holder-side price), it dropped

@@ -655,6 +655,59 @@ ratings pairings (20,400 games) only 15 cap-draws total (0.07%). Crowned and add
 winning vector; the factory's no-op-default fidelity to claude-v38 stays pinned by
 `optimize/param-fidelity.test.ts`, so no per-version test was added (new vector, not new behavior).
 
+### claude-v45 — lockstep restored; the win-share ES is blind to net-zero churn (2026-06-27)
+
+**The find.** A real human-vs-bot game (`npm run game:review 2b6y55`, four seats, three on
+claude-v44) stalled at the turn cap on an **infinite trade loop**: the browns were split — the
+one-short rival held Baltic, a NON-rival held Mediterranean — and two non-rivals swapped Mediterranean
+back and forth every turn T60–T72 at a "fair" ~$73, net zero, forever. This is the **held-completer
+hot-potato** the v35 `denialPositionCost` work eliminated, recurring in the *crowned champion*.
+
+**Root cause — the ES broke an invariant.** The fix prices a held completer at its **option value**
+(the premium the one-short rival pays when it caves, ~$254 median; `bots/CLAUDE.md` "Denial is a premium
+game"). In the factory that is `holderDenialFrac`, and the only correct value is **1.0** (holder charges
+the full premium a buyer books → no non-rival hop clears). The combined-space ES that produced
+claude-v44 was free to move it and settled it at **0.461** — re-opening a clearing band of width
+`(1 − 0.461) × premium` on every hop. **Why the ES did it and the gauntlet missed it:** the churn is
+**net-zero cash on the weakest set**, so it costs **~0 win share** — invisible to a win-share fitness,
+yet it inflates self-play **trade volume ~65%** (3839→1324 trades / 200 mirror games — every spurious
+trade is a draft build + double `positionValue` eval the simulator pays for) and stalls real games in
+front of a human. The win-share optimizer and the product goal **diverged**, and the optimizer
+optimized the metric.
+
+**claude-v45 = claude-v44's vector with `holderDenialFrac` pinned back to 1.0, every other dim
+verbatim** (the smallest coherent change — one constant, zero added code). Ring provably dead:
+`versions/claude-v45/policy.test.ts` reproduces the 2b6y55 brown geometry and asserts the 0.461 vector
+ARMS the deny-buy while the 1.0 vector REFUSES it.
+
+**Crown gate — `--base claude-v44 --panel`, both streams:** BETTER vs **every** panel member on
+**both** streams (train 58–74%, holdout 63–78%), **zero regressions**. Vs claude-v44 itself: SPRT
+**BETTER on train (52.8%)** but **EVEN on holdout (49.7%, 2338 decisive)** — exactly as theory predicts
+for a *net-zero exchange between near-identical bots*. So it is **NOT a confident SPRT crown** (needs
+BETTER on both streams). **Promoted anyway**, as a deliberate **equal-strength + defect-removal** call:
+identical strength, identical complexity, minus a degenerate behavior — the bloat/ratchet guard (which
+exists to stop *added complexity* riding a within-noise gain) does not apply when nothing is added.
+
+**Panel + ladder — and why claude-v44 is now DEPRECATED.** First regen (cache-minimized: only v45's ~11
+panel columns simulate, 11 played / 506 cached) put the ladder at **claude-v44 +245.6, claude-v45
++242.1** — a 3.5-Elo noise tie (SE ~17), but the lobby default takes the *strict* top, so v44 (the
+defective twin) would stay the player-facing bot and the fix would never ship. Since v45 strictly
+supersedes v44 (same strength, minus the hot-potato), claude-v44 was **moved to `RATING_EXCLUDED` and
+removed from `RATING_PANEL`** → unrated, renders deprecated, and **claude-v45 is now the Strongest /
+`DEFAULT_BOT_VERSION`**. This was **cache-free**: *removing* a panel member only ever uses cached
+pairings (the 10-member round-robin + every vs-panel column are subsets of what's already computed).
+v45 was deliberately **NOT added** to the panel — that would force ~30 new vs-v45 pairings for ~zero new
+signal (it's a v44 twin); it joins the panel at the next `--full` recalibration. The panel ceiling is
+now claude-v41 (~190). claude-v44 stays in `VERSIONS`, fully runnable, fielded explicitly via `--field`
+(reversal: drop it from `RATING_EXCLUDED` and restore it to `RATING_PANEL`).
+
+**Two durable lessons.** (1) **A win-share optimizer is blind to net-zero degenerate behavior** —
+constrain the levers that govern it (pin `holderDenialFrac` out of the search) rather than hoping
+fitness penalizes the ring; it can't. (2) **Real human games are the canary the gauntlet structurally
+lacks** — this is the third hot-potato regression (`514j43`, `16043u`, now `2b6y55`) that passed SPRT
+but showed in live play. A ring/termination check (trade-hops-per-lot, or the 65% trade-volume signal)
+belongs in the crown gate alongside SPRT.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
