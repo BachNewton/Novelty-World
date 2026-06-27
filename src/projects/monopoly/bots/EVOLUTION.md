@@ -739,6 +739,73 @@ lacks** — this is the third hot-potato regression (`514j43`, `16043u`, now `2b
 but showed in live play. A ring/termination check (trade-hops-per-lot, or the 65% trade-volume signal)
 belongs in the crown gate alongside SPRT.
 
+## Post-v45 overnight campaign (2026-06-28)
+
+An autonomous session to push past claude-v45. The proven win lever is **parameter
+optimization** (maximin ES), so the headline experiment re-optimizes the factory under
+the *corrected* `holderDenialFrac=1.0` constraint; alongside it, two cheap leads were
+explored and the optimizer + factory were extended. Results recorded below as they land.
+
+### Optimizer + factory infrastructure (committed)
+
+- **Warm-start / pin / extra-panel** (`optimize-cli.ts`): `--init <file.json>` seeds the
+  SNES mean from a saved champion vector (refine around a known-good point instead of
+  re-discovering it cold); `--pin key=value` FREEZES a parameter out of the search;
+  `--extra-panel a,b` appends opponents to the *fitness* panel (not `RATING_PANEL`).
+  Also a SIGINT/SIGTERM handler that terminates the worker pool, so an interrupted
+  optimize run no longer orphans a core-pegging node process.
+- **Why `--pin holderDenialFrac=1.0` matters.** claude-v45 is claude-v44's vector with
+  ONE lever force-corrected (`holderDenialFrac` 0.461 → 1.0) — but v44's *other 30 dims*
+  were ES-tuned with `holderDenialFrac` FREE. So v45's vector is **not ES-optimal under
+  the lockstep invariant**. Pinning `holderDenialFrac=1.0` and re-optimizing operationalizes
+  the v45 lesson ("constrain the levers that govern the ring rather than hoping fitness
+  will") and asks whether a genuinely better, ring-free vector exists near the champion.
+- **Risk-aware / play-to-standing dims** (`optimize/params.ts` + `bot.ts`, 31 → 33 dims,
+  NO-OP default so claude-v38 fidelity holds — `param-fidelity.test.ts` green). Two levers
+  scale a posture knob by a STANDING RATIO `s = myPV / mean(opponent PV)`:
+  `standingFloorGain` (a leader banks a fatter reserve, a laggard deploys) and
+  `standingAuctionGain` (a laggard gambles past book in auctions). This is the
+  risk-NEUTRAL→risk-aware lever (positionValue ignores variance; a pro modulates it by
+  rank). NOT the rejected cash-scaled monopoly value (it scales posture, never a set's
+  worth). Ready for a combined-space campaign; may wash vs the risk-neutral monoculture.
+
+### Search-as-oracle (idea #4) — WASHED / negative finding
+
+Ran 8 `search-v3 ×4` self-play games (`MONO_ROLLOUT_SAMPLES=8`) and categorized every
+"Rollout search overrides greedy" line (41 overrides), looking for a SYSTEMATIC place
+v45's greedy is wrong that could be baked into a cheap rule. There isn't one:
+
+- **Jail (10 overrides): "leave more" (9 leave vs 1 stay)** — search keeps overriding
+  v45's *stay* with pay-$50/card. But this points **opposite** to what the crown-winning
+  ES deliberately chose: `jailDangerRent` sits at its bound FLOOR (150) in the v44/v45
+  vector, i.e. *maximal* jail-staying. The ES (measured by real win-share vs the field)
+  and the rollout (position-share over a 30-turn horizon) disagree, and the rollout is
+  the one that produced search-v3's INCONCLUSIVE wash. The "leave" signal is the
+  documented position-share **horizon myopia** (short rollouts undervalue avoided rent),
+  not a real correction. (Note `jailDangerRent` is a tunable the running ES is free to
+  raise — so even the scalar version is already inside the ES's reach.)
+- **Trades (4 overrides): "decline more" (4/4)** — same myopia: a 30-turn position-share
+  leaf undervalues giving cash/assets now for a delayed monopoly payoff (the exact effect
+  search-v1 documented for buys). v45's trade acceptance was heavily tuned (v41/v44/v45);
+  4 myopic declines are not evidence against it.
+- **Auctions / buys (~27 overrides): MIXED noise** — both "pass" AND "bid", "decline" AND
+  "raise to buy", no direction. Consistent with search-v3's faint +12.7 Elo wash.
+
+**Verdict:** the oracle surfaces no trustworthy cheap rule; its only directional signals
+contradict deliberate, measured-stronger choices and are explained by position-share
+myopia. This corroborates the search-v2/v3 wash from a *per-decision* angle (not just
+aggregate win-share). No version built. Lesson: a myopic-leaf rollout is a poor oracle
+for correcting an already-tuned greedy policy — exactly where its leaf is weakest.
+
+### Campaign A — warm-start maximin ES, `holderDenialFrac` pinned (in progress)
+
+`--init claude-v45 --pin holderDenialFrac=1.0 --extra-panel claude-v45 --fitness maximin
+--pop 24 --gens 14 --games 1100 --seed 7`. The fitness panel is `RATING_PANEL` + the
+champion claude-v45, so the **maximin floor is the v45 matchup the crown actually
+requires** (the baseline warm-start vector's worst matchup is exactly the v45 mirror at
+52%). The ES must lift that floor above the mirror — i.e. genuinely beat v45 while
+regressing against no panel member, which is the crown condition. _Result: TBD._
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
