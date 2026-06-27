@@ -797,14 +797,81 @@ myopia. This corroborates the search-v2/v3 wash from a *per-decision* angle (not
 aggregate win-share). No version built. Lesson: a myopic-leaf rollout is a poor oracle
 for correcting an already-tuned greedy policy — exactly where its leaf is weakest.
 
-### Campaign A — warm-start maximin ES, `holderDenialFrac` pinned (in progress)
+### claude-v46 — warm-start maximin ES, `holderDenialFrac` pinned. A measured NEAR-EQUAL of v45; v45 STAYS Strongest/crown. Recorded, rank 2.
 
 `--init claude-v45 --pin holderDenialFrac=1.0 --extra-panel claude-v45 --fitness maximin
 --pop 24 --gens 14 --games 1100 --seed 7`. The fitness panel is `RATING_PANEL` + the
 champion claude-v45, so the **maximin floor is the v45 matchup the crown actually
-requires** (the baseline warm-start vector's worst matchup is exactly the v45 mirror at
-52%). The ES must lift that floor above the mirror — i.e. genuinely beat v45 while
-regressing against no panel member, which is the crown condition. _Result: TBD._
+requires** (the warm-start vector's worst matchup is exactly the v45 mirror at 52%). The
+ES had to lift that floor above the mirror — beat v45 while regressing against no panel
+member. `holderDenialFrac` stayed pinned at 1.0 throughout, so the ring is dead by
+construction (`claude-v46/policy.test.ts` reproduces the 2b6y55 geometry: the 0.461 lever
+arms the deny-buy, the pinned vector refuses it).
+
+**What the ES found.** allTimeBest maximin **57%** (from gen 4, stable to gen 14;
+warm-start baseline 52%, final μ 54%). The mean rose steadily 36.7% → ~45% — the whole
+population shifted up, not a lone spike. The winning vector moves coherently off v45:
+denial UP (`denyFactor` 0.10→0.24, `rivalThreatFactor` 0.34→0.51), ALWAYS-hotel
+(`houseScarce` & `hotelCushion` → 0), several mid sets lifted off the floor (pink
+1.39→2.42, brown 0.94→1.79, yellow/green off 0.3), `bonusScale` down 12.3k→10.4k. A
+distinct, more-aggressive profile than v45 — reachable because v45's other 30 dims were
+tuned with `holderDenialFrac` FREE (=0.461), so v45 was never ES-optimal under the 1.0
+invariant.
+
+**Crown gate — `--base claude-v45 --panel`, BOTH streams (claude-v45 added to the field
+transiently; the panel itself stays at the v41 ceiling):**
+
+| | vs the 10 OTHER field members | vs base claude-v45 | panel-graph Elo |
+|---|---|---|---|
+| **train** | **BETTER all 10** (61.2–76.7%) | INCONCLUSIVE **52.2%** (783–717/1500) | **+8.8** (top) |
+| **holdout** | **BETTER all 10** (59.0–83.8%) | INCONCLUSIVE **51.5%** (773–727/1500) | **+10.0** (top) |
+
+Verdict **REJECT** by the strict crown rule on both streams — "improves vs base: no":
+v46 vs its twin v45 is a *real but sub-threshold* edge (~51.5–52.2%, ≈ +8–10 Elo, inside
+the ±20 SPRT band → INCONCLUSIVE, exactly like v45-vs-v44). You cannot be +20 Elo over a
+slightly-retuned copy of yourself. **Zero regressions on either stream.**
+
+**Out-of-panel anti-overfit (the opt-v3 guard), 150 seeds each — ALL POSITIVE:**
+claude-v38 54.0%, claude-v39 60.7%, opt-v3 57.3%, jane-v3 52.7%, claude-v30 71.1%. v46
+beats **every bot in the archive** — 10 panel members on both streams AND 5 non-panel
+bots — with **no regression anywhere**. This is the signature of GENERAL strength, the
+opposite of a non-transitive counter (which loses to *something*). v46's only
+non-confident matchup in the entire archive is its own near-twin.
+
+**The ratings regen flips the order — it's a NOISE TIE, and v45 stays on top.** The
+gauntlet (which fields v45, so its Elo fit uses the DIRECT v46-vs-v45 head-to-head) put
+v46 +8.8/+10 over v45. But the regenerated `ratings.ts` — panel-graph fit, v45/v46 BOTH
+non-panel so they're ranked TRANSITIVELY through the shared panel, on the independent
+`ratings:*` stream, never playing each other — puts **claude-v45 239.3 > claude-v46
+221.9** (a 17-Elo gap, *within* the ~17-Elo ratings SE). So the two pieces of direct
+head-to-head evidence (train 52.2%, holdout 51.5%) lean v46; the transitive panel fit
+leans v45; **both are inside the noise.** This is the v44/v45 "≈3.5-Elo noise tie" shape
+again: v45 and v46 are statistically indistinguishable.
+
+**The call — by "Two bests":**
+- **Record** — yes (legal, archived, registered, rated rank 2 at 221.9).
+- **Crown (SPRT-confirmed +20 vs base)** — **NO.** Inconclusive vs base on both streams.
+- **Strongest/default (Elo, ungated)** — **stays claude-v45.** The lobby default takes the
+  *strict* ladder top, and the regenerated ladder keeps v45 above v46. v46 does NOT
+  supersede it; nothing changes for the player (no risk of shipping a within-noise
+  re-tune as the default). `claude-v45` is NOT deprecated and v46 is NOT promoted.
+- **Substrate** — stays claude-v45 (the SPRT-confirmed champion), per the ratchet guard:
+  never auto-jump the build line to a within-noise alternative. v46 is a recorded
+  building block — a distinct, equally-strong vector — available to branch from later.
+
+**Durable lessons.** (1) **Re-optimizing under a freshly-corrected invariant validated the
+champion rather than beating it.** v45's vector was tuned with `holderDenialFrac` free, so
+a pinned re-tune *could* have found slack — but the best it found is a vector
+statistically EQUAL to v45 (different profile: more denial, always-hotel, mid-sets
+revalued). That's a real result: it shows v45 is near-optimal under the lockstep pin, and
+the warm-start + pin + extra-panel tooling works as intended. (2) **A near-twin's rank is
+stream/method-dependent noise** — the gauntlet (with head-to-head) and the ratings
+(transitive, no head-to-head) ordered the twins oppositely, both within SE. Trust the
+DIRECT head-to-head over a transitive inference for a pairwise call, but when even that is
+sub-threshold on two streams, the honest verdict is TIE — don't promote. (3) The crown
+gate's **field-wide BETTER + clean out-of-panel** (v46 beat all 10 panel members on both
+streams AND all 5 non-panel bots) is what confirms v46 is genuinely championship-tier and
+not a fluke — even though it can't separate from its own twin.
 
 ## Coexistence & promotion
 

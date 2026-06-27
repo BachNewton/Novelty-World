@@ -1212,6 +1212,10 @@
       "loWins": 115,
       "hiWins": 282
     },
+    "ratings|400|2000|claude-v17|claude-v46": {
+      "loWins": 96,
+      "hiWins": 304
+    },
     "ratings|400|2000|claude-v17|claude-v5": {
       "loWins": 206,
       "hiWins": 193
@@ -2712,6 +2716,10 @@
       "loWins": 162,
       "hiWins": 234
     },
+    "ratings|400|2000|claude-v2|claude-v46": {
+      "loWins": 126,
+      "hiWins": 274
+    },
     "ratings|400|2000|claude-v2|claude-v5": {
       "loWins": 158,
       "hiWins": 241
@@ -3180,6 +3188,10 @@
       "loWins": 109,
       "hiWins": 291
     },
+    "ratings|400|2000|claude-v35|claude-v46": {
+      "loWins": 118,
+      "hiWins": 281
+    },
     "ratings|400|2000|claude-v35|claude-v5": {
       "loWins": 232,
       "hiWins": 164
@@ -3279,6 +3291,10 @@
     "ratings|400|2000|claude-v36|claude-v45": {
       "loWins": 133,
       "hiWins": 267
+    },
+    "ratings|400|2000|claude-v36|claude-v46": {
+      "loWins": 178,
+      "hiWins": 222
     },
     "ratings|400|2000|claude-v36|claude-v5": {
       "loWins": 253,
@@ -3576,6 +3592,10 @@
       "loWins": 124,
       "hiWins": 276
     },
+    "ratings|400|2000|claude-v41|claude-v46": {
+      "loWins": 149,
+      "hiWins": 251
+    },
     "ratings|400|2000|claude-v41|claude-v5": {
       "loWins": 304,
       "hiWins": 95
@@ -3771,6 +3791,26 @@
     "ratings|400|2000|claude-v45|opt-v4": {
       "loWins": 266,
       "hiWins": 134
+    },
+    "ratings|400|2000|claude-v46|claude-v5": {
+      "loWins": 305,
+      "hiWins": 94
+    },
+    "ratings|400|2000|claude-v46|jane-v2": {
+      "loWins": 253,
+      "hiWins": 147
+    },
+    "ratings|400|2000|claude-v46|jane-v4": {
+      "loWins": 245,
+      "hiWins": 155
+    },
+    "ratings|400|2000|claude-v46|opt-v2": {
+      "loWins": 247,
+      "hiWins": 153
+    },
+    "ratings|400|2000|claude-v46|opt-v4": {
+      "loWins": 257,
+      "hiWins": 143
     },
     "ratings|400|2000|claude-v4|claude-v41": {
       "loWins": 106,

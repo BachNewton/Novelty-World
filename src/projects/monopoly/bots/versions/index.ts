@@ -55,6 +55,14 @@ import { claudeV44Bot } from "./claude-v44";
 // lockstep). Kills the held-completer hot-potato the ES re-opened (live in
 // game:review 2b6y55). Smallest coherent change; every other dim verbatim v44.
 import { claudeV45Bot } from "./claude-v45";
+// claude-v46 — a WARM-START maximin ES re-optimization of claude-v45's vector with
+// `holderDenialFrac` PINNED at the 1.0 lockstep (out of the search). A measured
+// NEAR-EQUAL of v45: crown gate BETTER vs all 10 panel members + all 5 out-of-panel
+// bots on both streams, but INCONCLUSIVE vs base v45 (51.5–52.2% head-to-head), and
+// the ratings panel-graph ranks v45 just above it — a within-SE noise tie. NOT
+// crowned, NOT the default; v45 stays Strongest. Recorded as a distinct equally-strong
+// vector (ring dead by construction). See its `index.ts` + EVOLUTION.md.
+import { claudeV46Bot } from "./claude-v46";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
@@ -168,6 +176,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v43": claudeV43Bot,
   "claude-v44": claudeV44Bot,
   "claude-v45": claudeV45Bot,
+  "claude-v46": claudeV46Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
   "jane-v3": janeV3Bot,
@@ -308,15 +317,14 @@ export const RATING_PANEL: readonly string[] = [
   // train / 62.4% holdout) AND every panel member, ZERO regressions. Kept as a strong
   // distinct vector and the crown base of the current champion.
   "claude-v41",
-  // claude-v41 is the current panel CEILING (the strongest panel member after
-  // claude-v44 was deprecated below). claude-v44 (the prior crowned champion) was
-  // REMOVED from the panel and moved to RATING_EXCLUDED: it is strictly superseded by
-  // its clean twin claude-v45 (one constant — `holderDenialFrac` 0.461 → 1.0 — same
-  // strength, minus the held-completer hot-potato), so fielding it as a rated default
-  // would just ship the defect. Removing a panel member is CACHE-FREE (the 10-member
-  // round-robin + every vs-panel column are subsets of what's already cached); ADDING
-  // claude-v45 here instead would force ~30 new vs-v45 pairings, so the new champion
-  // joins the panel at the next `--full` recalibration, not now. See EVOLUTION.md.
+  // claude-v41 is the panel CEILING. The top of the ladder — claude-v45 and now its
+  // better-tuned twin claude-v46 — are deliberately NOT in the panel: they are
+  // near-identical 31-param vectors (v46 is v45 re-optimized under the same pinned
+  // lockstep), so each would add ~30 new vs-twin pairings for ~zero new ranking
+  // signal. They join the panel at the next `--full` recalibration. For the v46 crown
+  // gate, claude-v45 was added to the field TRANSIENTLY (the gauntlet needs the base
+  // in the field) and the gauntlet logs hold that measurement; the panel itself stays
+  // at the v41 ceiling here so a default `sim:ratings` regen is cheap.
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
