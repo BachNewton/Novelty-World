@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { RATING_PANEL } from "./versions";
@@ -46,6 +46,22 @@ import {
 //   --spike            time ONE fitness eval and exit (feasibility check first).
 //   (default)          run the ES for `--gens` generations.
 // Flags: --pop, --gens, --games, --turns, --seed, --workers, --prefix, --fitness.
+//
+// WARM-START + CONSTRAINED search (added for the post-v45 campaign):
+//   --init <file.json> seed the ES MEAN from a saved ParamVector (e.g. claude-v45's
+//                      vector) instead of claude-v38's defaults, so the search
+//                      refines AROUND a known-good champion. The baseline the run
+//                      reports against also becomes this vector (the bar to beat).
+//   --pin key=value    FREEZE a parameter at `value` — it is overridden in every
+//                      candidate and so excluded from the effective search. This
+//                      operationalizes the claude-v45 lesson: `holderDenialFrac` is
+//                      an INVARIANT (1.0, the buyer/holder lockstep), not a free
+//                      lever — pinning it keeps the win-share ES from re-opening the
+//                      net-zero hot-potato ring it is structurally blind to.
+//                      Repeatable.
+//   --extra-panel a,b  append opponents to the fitness panel (NOT RATING_PANEL).
+//                      Use to put the current champion (claude-v45) in the panel so
+//                      the maximin floor is the matchup the crown actually requires.
 // ---------------------------------------------------------------------------
 
 type FitnessMode = "aggregate" | "maximin";
@@ -60,6 +76,9 @@ interface Args {
   workers?: number;
   prefix: string;
   fitness: FitnessMode;
+  init?: string;
+  pins: Partial<Record<keyof ParamVector, number>>;
+  extraPanel: string[];
 }
 
 function num(argv: readonly string[], i: number, fallback: number): number {
@@ -77,6 +96,8 @@ function parseArgs(argv: readonly string[]): Args {
     seed: 1,
     prefix: "opt-train",
     fitness: "aggregate",
+    pins: {},
+    extraPanel: [],
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -89,9 +110,54 @@ function parseArgs(argv: readonly string[]): Args {
     else if (arg === "--workers") a.workers = num(argv, ++i, a.workers ?? 0);
     else if (arg === "--prefix") a.prefix = argv[++i];
     else if (arg === "--fitness") a.fitness = parseFitness(argv[++i]);
+    else if (arg === "--init") a.init = argv[++i];
+    else if (arg === "--pin") addPin(a.pins, argv[++i]);
+    else if (arg === "--extra-panel") a.extraPanel.push(...argv[++i].split(","));
     else throw new Error(`unknown flag "${arg}"`);
   }
   return a;
+}
+
+/** Parse and validate a `key=value` pin onto the pin map. The key must be a real
+ *  parameter and the value a finite number, so a typo fails loud rather than
+ *  silently leaving the param free. */
+function addPin(pins: Partial<Record<keyof ParamVector, number>>, spec: string | undefined): void {
+  const [key, raw] = (spec ?? "").split("=");
+  if (!PARAM_KEYS.includes(key as keyof ParamVector)) {
+    throw new Error(`--pin: unknown param "${key}" (known: ${PARAM_KEYS.join(", ")})`);
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`--pin ${key}: value "${raw}" is not a number`);
+  pins[key as keyof ParamVector] = value;
+}
+
+/** Read a saved ParamVector JSON (e.g. a champion version's vector dumped to
+ *  disk) for warm-starting the ES mean. Every PARAM_KEYS field must be present so
+ *  the init vector is unambiguous. */
+function readInitVector(path: string): ParamVector {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- `path` is an operator-supplied warm-start vector for an offline dev tool, not a server input.
+  const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<Record<string, number>>;
+  const out = {} as ParamVector;
+  for (const k of PARAM_KEYS) {
+    const v = parsed[k];
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      throw new Error(`--init ${path}: missing/invalid param "${k}"`);
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Override the pinned fields of a vector with their fixed values. Applied to both
+ *  the init mean and every sampled candidate, so a pinned dim is inert in the
+ *  search (its ES coordinate is sampled but never reaches a game). */
+function applyPins(p: ParamVector, pins: Partial<Record<keyof ParamVector, number>>): ParamVector {
+  const out = { ...p };
+  for (const k of PARAM_KEYS) {
+    const v = pins[k];
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
 }
 
 function parseFitness(v: string | undefined): FitnessMode {
@@ -126,8 +192,24 @@ function round(n: number): number {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const panel = RATING_PANEL;
+  const panel = [...RATING_PANEL, ...args.extraPanel];
   const pool = new FitnessPool(args.workers && args.workers > 0 ? args.workers : undefined);
+  // Terminate worker threads on Ctrl-C / kill so an interrupted run does not orphan
+  // a node process pegging all cores (the documented overnight gotcha).
+  const onSignal = (sig: NodeJS.Signals): void => {
+    void pool.close().finally(() => process.exit(sig === "SIGINT" ? 130 : 143));
+  };
+  process.once("SIGINT", () => onSignal("SIGINT"));
+  process.once("SIGTERM", () => onSignal("SIGTERM"));
+
+  // The bar the ES must clear and the center it searches AROUND. With --init we
+  // warm-start from a saved champion vector (e.g. claude-v45) instead of the
+  // claude-v38 defaults; pins (e.g. holderDenialFrac=1.0) are folded into both the
+  // baseline and every candidate.
+  const initVector = applyPins(
+    args.init !== undefined ? readInitVector(args.init) : DEFAULT_PARAMS,
+    args.pins,
+  );
 
   // Both modes share one ES loop; they differ only in `evalFitness` (the scalar the
   // ES ranks on). Aggregate scores a mixed two-member field; maximin scores the
@@ -145,6 +227,16 @@ async function main(): Promise<void> {
       ? (await pool.evaluateMaximin(params, perMemberSpecs)).fitness
       : (await pool.evaluate(params, aggSpecs)).winShare;
 
+  // Map a sampled normalized vector to real params WITH pins applied — the single
+  // place a candidate becomes a playable vector, so every pinned dim is enforced.
+  const toParams = (x: readonly number[]): ParamVector => applyPins(normToReal(x), args.pins);
+
+  const pinList = Object.entries(args.pins)
+    .map(([k, v]) => k + "=" + String(round(v)))
+    .join(", ");
+  const pinNote = pinList.length > 0 ? "Pinned: [" + pinList + "]\n" : "";
+  const initNote = args.init !== undefined ? `Warm-start: ${args.init}\n` : "";
+
   const gamesNote =
     args.fitness === "maximin"
       ? `${gamesPerMember} × ${panel.length} members = ${gamesPerMember * panel.length}`
@@ -155,30 +247,34 @@ async function main(): Promise<void> {
       (args.fitness === "maximin" ? " (MIN per-member win-share — crown-aligned)" : "") +
       `\n` +
       `Panel field: [${panel.join(", ")}]\n` +
+      initNote +
+      pinNote +
       `Params (${PARAM_KEYS.length}): [${PARAM_KEYS.join(", ")}]\n` +
       `Games/eval: ${gamesNote}   Turn cap: ${args.maxTurns}   Workers: ${pool.size}\n`,
   );
 
+  const baseLabel = args.init !== undefined ? "warm-start vector" : "claude-v38 (default vector)";
   try {
-    // Always baseline the default vector (claude-v38) on the same stream first —
-    // the bar the ES must clear, measured under identical CRN. In maximin mode we
-    // print the per-member breakdown so the binding (worst) matchup is visible.
+    // Baseline the INIT vector (claude-v38 by default, or the --init champion) on
+    // the same stream first — the bar the ES must clear, measured under identical
+    // CRN. In maximin mode we print the per-member breakdown so the binding (worst)
+    // matchup is visible.
     const baseStart = process.hrtime.bigint();
     let baseFitness: number;
     if (args.fitness === "maximin") {
-      const mm = await pool.evaluateMaximin(DEFAULT_PARAMS, perMemberSpecs);
+      const mm = await pool.evaluateMaximin(initVector, perMemberSpecs);
       baseFitness = mm.fitness;
       console.log(
-        `Baseline claude-v38 (default vector): maximin win-share ${(100 * mm.fitness).toFixed(2)}% ` +
+        `Baseline ${baseLabel}: maximin win-share ${(100 * mm.fitness).toFixed(2)}% ` +
           `(worst vs ${mm.worstMember})`,
       );
       console.log(`  ${formatMembers(mm)}`);
     } else {
-      const baseline = await pool.evaluate(DEFAULT_PARAMS, aggSpecs);
+      const baseline = await pool.evaluate(initVector, aggSpecs);
       baseFitness = baseline.winShare;
       const se = standardError(baseline.winShare, baseline.decisive);
       console.log(
-        `Baseline claude-v38 (default vector): win-share ${(100 * baseline.winShare).toFixed(2)}% ` +
+        `Baseline ${baseLabel}: win-share ${(100 * baseline.winShare).toFixed(2)}% ` +
           `(${baseline.wins}/${baseline.decisive} decisive, ${baseline.draws} draws, ` +
           `binomial SE ±${(100 * se).toFixed(2)}%)`,
       );
@@ -200,10 +296,10 @@ async function main(): Promise<void> {
     const popSize = args.pop;
     const snes = new Snes(
       { dim, popSize, initSigma: 0.18, seed: args.seed },
-      realToNorm(DEFAULT_PARAMS),
+      realToNorm(initVector),
     );
 
-    let bestParams = DEFAULT_PARAMS;
+    let bestParams = initVector;
     let bestFitness = baseFitness;
     const trajectory: { gen: number; best: number; mean: number; genBest: number }[] = [];
 
@@ -231,7 +327,7 @@ async function main(): Promise<void> {
       let genBestIdx = -1;
       let sum = 0;
       for (let i = 0; i < popSize; i++) {
-        const params = normToReal(samples[i].x);
+        const params = toParams(samples[i].x);
         const f = await evalFitness(params);
         fitness[i] = f;
         sum += f;
@@ -244,7 +340,7 @@ async function main(): Promise<void> {
 
       // Track the all-time best CANDIDATE (re-eval the gen's incumbent mean too,
       // so the reported best is a real evaluated vector, not an untested μ).
-      const genBestParams = normToReal(samples[genBestIdx].x);
+      const genBestParams = toParams(samples[genBestIdx].x);
       if (genBest > bestFitness) {
         bestFitness = genBest;
         bestParams = genBestParams;
@@ -262,7 +358,7 @@ async function main(): Promise<void> {
 
     // Re-evaluate the final μ (the ES's converged center) — often the steadiest
     // estimate of the optimum and a candidate for the frozen vector.
-    const finalMu = normToReal(snes.mu);
+    const finalMu = toParams(snes.mu);
     const muFit = await evalFitness(finalMu);
     const fitLabel = args.fitness === "maximin" ? "maximin win-share" : "win-share";
     console.log(`\nFinal μ (ES center): ${fitLabel} ${(100 * muFit).toFixed(2)}%`);
@@ -279,18 +375,18 @@ async function main(): Promise<void> {
     }
 
     console.log(`\n=== RESULT ===`);
-    console.log(`Baseline (claude-v38): ${(100 * baseFitness).toFixed(2)}%`);
+    console.log(`Baseline (${baseLabel}): ${(100 * baseFitness).toFixed(2)}%`);
     console.log(
       `Best vector:           ${(100 * bestFitness).toFixed(2)}% ` +
         `(train ${fitLabel} vs panel)`,
     );
     console.log(`\nBest param vector:\n  ${fmtVector(bestParams)}`);
-    console.log(`\nDelta from claude-v38 defaults:`);
+    console.log(`\nDelta from ${baseLabel}:`);
     for (const k of PARAM_KEYS) {
-      const d = bestParams[k] - DEFAULT_PARAMS[k];
+      const d = bestParams[k] - initVector[k];
       if (Math.abs(d) > 1e-9) {
         console.log(
-          `  ${k.padEnd(20)} ${round(DEFAULT_PARAMS[k])} → ${round(bestParams[k])}  ` +
+          `  ${k.padEnd(20)} ${round(initVector[k])} → ${round(bestParams[k])}  ` +
             `(${d > 0 ? "+" : ""}${round(d)})`,
         );
       }
