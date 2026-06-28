@@ -114,6 +114,16 @@ export function playSelfPlayGame(
   let state = freshGame(seed, undefined, players);
   const recs: Record[] = [];
   let plies = 0;
+  // TURN-STALL GUARD. `maxTurns` only fires when the TURN COUNTER advances — but a
+  // weak (early-training) net can pick a cycle of decisions that never advances the
+  // turn (e.g. arm-trade → cancel → arm-trade…), so the turn cap never triggers and
+  // the game loops forever (it hung a 10-worker run for 10 min). If too many
+  // decisions pass without the turn number rising, the game is stuck — abandon it
+  // (its records are still valid training data up to the stall). A real turn resolves
+  // in a handful of decisions, so this never truncates a legitimate game.
+  let lastTurn = state.turns[state.turns.length - 1].turn;
+  let stallPlies = 0;
+  const MAX_STALL_PLIES = 400;
 
   while (state.status === "active") {
     if (state.turns[state.turns.length - 1].turn > maxTurns) break;
@@ -139,8 +149,18 @@ export function playSelfPlayGame(
     recs.push({ encoding: encode(state, owner), policyTarget, moverIdx });
 
     const choice = plies < explorationMoves ? sampleByVisits(full.visits, rng) : full.best;
-    state = applyCandidate(state, full.actions[choice].op);
+    const next = applyCandidate(state, full.actions[choice].op);
+    if (next === state) break; // the chosen move made no progress — abandon the game
+    state = next;
     plies += 1;
+
+    const curTurn = state.turns[state.turns.length - 1].turn;
+    if (curTurn > lastTurn) {
+      lastTurn = curTurn;
+      stallPlies = 0;
+    } else if (++stallPlies > MAX_STALL_PLIES) {
+      break; // many decisions, no turn advance ⇒ a non-progressing cycle
+    }
   }
 
   const winner = winnerIndex(state);
