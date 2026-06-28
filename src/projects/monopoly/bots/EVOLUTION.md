@@ -909,6 +909,37 @@ block (rated, well below v45/v46); the standing-dim machinery stays in `optimize
 future field where variance matters (vs humans, or a timed mode), but it is not a lever
 for the current objective.
 
+### Cold-start ES under budget — warm-start ≫ cold-start for champion refinement (no version)
+
+To ask whether v45's tier is a LOCAL or GLOBAL optimum under the pin (both campaigns above
+were warm-started = local), a COLD-start maximin ES from the claude-v38 defaults, risk dims
++ `holderDenialFrac` pinned, vs the 12-member panel + v45 + v46 (`--pop 20 --gens 14
+--games 720 --seed 3`). Baseline v38 maximin **40%**; in 14 gens it climbed only to **43.3%**
+(final μ 41.7%) — it was *just* beginning to accelerate (gens 12–14: 41.7→41.7→43.3, mean
+rising) when the budget ran out. Compare the warm-start, which reached **57%** in the same
+14 gens by starting AT 52%. So this **does NOT settle local-vs-global** — it shows 14 gens is
+far too few to converge from v38 (the v44 cold run needed ~30). The usable finding is
+methodological: **warm-start from the champion is the efficient path** (a cold start needs
+~2× the gen budget to traverse v38→optimum); the binding v45/v46 matchups keep the cold
+maximin floor pinned low until the vector reaches their basin. No new vector (43% ≪ the v45
+tier), so nothing baked — the checkpoint best is the v38 default. A genuine global-optimum
+probe would need a ~30-gen cold run (a future overnight job), but given two warm-starts
+already show the basin is flat at the top, that is low-priority vs the STRUCTURAL leads.
+
+### Overnight meta-conclusion (2026-06-28)
+
+Three maximin-ES campaigns this session — a warm-start re-tune (claude-v46), a risk-aware
+expansion (claude-v47), and a cold-start probe — plus a search-as-oracle analysis, all
+point the same way: **the v45 tier (~240 Elo) is a robust ceiling for the PARAMETER lever.**
+Re-tuning under the corrected lockstep pin produced a statistical TWIN (v46, beats the whole
+field but ties v45); risk-awareness REGRESSED (v47, −24 Elo); the search oracle found no
+trustworthy cheap rule; cold-start under-budget couldn't even reach the tier. This
+empirically reconfirms the standing meta-read: **the next real gain is STRUCTURAL — a learned
+value at the search leaf (the `RL-DESIGN.md` direction) — not another parameter round.** The
+durable assets left for that work: the `--init`/`--pin`/`--extra-panel` optimizer affordances,
+the risk-aware standing dims (parked, for a variance-rich field like humans), and three
+rigorously-measured near-champion vectors (v45 crown, v46 twin, v47 risk-rejected).
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
