@@ -101,6 +101,13 @@ export class MonoNet {
     await this.model.save(`file://${dir}`);
   }
 
+  /** Free the underlying tfjs model + its weight tensors. Needed when a long-lived
+   *  worker RELOADS the net each training iteration (the weights change on disk) —
+   *  without this the old model's tensors leak across reloads. */
+  dispose(): void {
+    this.model.dispose();
+  }
+
   /** Run ONE batched forward pass over `encodings`. Returns one `Prediction` per
    *  input, in order. All tensors are freed via `tf.tidy`. */
   predict(encodings: readonly Float32Array[]): Prediction[] {

@@ -8,7 +8,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PlayerCount } from "../types";
 import { MonoNet, type TrainSample } from "./net";
-import { collectRuleGame, playSelfPlayGame } from "./selfplay";
+import { collectRuleGame } from "./selfplay";
+import { SelfPlayPool } from "./selfplay-parallel";
 import { mctsBot } from "./mcts";
 import { simulateGame } from "./simulate";
 import { botFor } from "./registry"; // safe after tfjs-setup: registry pulls no tfjs.
@@ -49,6 +50,7 @@ interface Args {
   evalGames: number;
   bufferCap: number;
   seed: string;
+  workers: number;
 }
 
 interface Meta {
@@ -70,6 +72,7 @@ function parseArgs(argv: readonly string[]): Args {
     evalGames: 12,
     bufferCap: 60_000,
     seed: "rl",
+    workers: 0, // 0 ⇒ pool default (cores − 2)
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -92,6 +95,7 @@ function parseArgs(argv: readonly string[]): Args {
       case "--eval-games": a.evalGames = Number(next()); break;
       case "--buffer": a.bufferCap = Number(next()); break;
       case "--seed": a.seed = next(); break;
+      case "--workers": a.workers = Number(next()); break;
       default:
         throw new Error(`unknown argument "${arg}"`);
     }
@@ -182,39 +186,55 @@ async function main(): Promise<void> {
     stopping = true;
   });
 
+  // Parallel self-play pool (RL-DESIGN.md §8 #1 — the throughput gate). Workers
+  // each reload the latest net from `netDir` (saved at the end of every iteration)
+  // and play their share of the games concurrently. Spawned once and reused so tfjs
+  // loads per worker only on first task.
+  const pool = new SelfPlayPool(a.workers > 0 ? a.workers : undefined);
+  console.log(`Self-play pool: ${pool.size} workers.`);
+
   const buffer: TrainSample[] = [];
-  while (iteration < a.iterations && !stopRequested()) {
-    iteration += 1;
-    const t0 = now();
+  try {
+    while (iteration < a.iterations && !stopRequested()) {
+      iteration += 1;
+      const t0 = now();
 
-    for (let g = 0; g < a.games; g++) {
-      buffer.push(
-        ...playSelfPlayGame(net, `${a.seed}-${iteration}-${g}`, {
-          players: a.players,
-          maxTurns: a.maxTurns,
-          mcts: { simulations: a.sims },
-        }),
-      );
-      totalGames += 1;
-    }
-    if (buffer.length > a.bufferCap) buffer.splice(0, buffer.length - a.bufferCap);
+      // netDir holds the net from the previous iteration's training (or the
+      // bootstrap), so the pool self-plays the current weights — identical to the
+      // old sequential loop, just spread across cores.
+      const seeds = Array.from({ length: a.games }, (_, g) => `${a.seed}-${iteration}-${g}`);
+      const tGen = now();
+      const samples = await pool.generate({
+        netDir,
+        seeds,
+        players: a.players,
+        maxTurns: a.maxTurns,
+        sims: a.sims,
+      });
+      const genMs = now() - tGen;
+      buffer.push(...samples);
+      totalGames += a.games;
+      if (buffer.length > a.bufferCap) buffer.splice(0, buffer.length - a.bufferCap);
 
-    const loss = await net.train(buffer);
-    await net.save(netDir);
-    writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames });
+      const loss = await net.train(buffer);
+      await net.save(netDir);
+      writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames });
 
-    console.log(
-      `iter ${iteration} — ${a.games} games (${totalGames} total), ` +
-        `buffer ${buffer.length}, loss ${loss.toFixed(4)}, ${secs(now() - t0)}`,
-    );
-
-    if (a.evalEvery > 0 && iteration % a.evalEvery === 0) {
-      const t1 = now();
-      const winRate = evaluate(net, a);
       console.log(
-        `  eval — net vs ${a.rule}: ${(winRate * 100).toFixed(1)}% over ${a.evalGames} games (${secs(now() - t1)})`,
+        `iter ${iteration} — ${a.games} games (${totalGames} total) in ${secs(genMs)} self-play, ` +
+          `buffer ${buffer.length}, loss ${loss.toFixed(4)}, ${secs(now() - t0)}`,
       );
+
+      if (a.evalEvery > 0 && iteration % a.evalEvery === 0) {
+        const t1 = now();
+        const winRate = evaluate(net, a);
+        console.log(
+          `  eval — net vs ${a.rule}: ${(winRate * 100).toFixed(1)}% over ${a.evalGames} games (${secs(now() - t1)})`,
+        );
+      }
     }
+  } finally {
+    await pool.close();
   }
 
   await net.save(netDir);
