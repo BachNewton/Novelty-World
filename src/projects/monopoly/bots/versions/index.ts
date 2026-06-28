@@ -63,6 +63,13 @@ import { claudeV45Bot } from "./claude-v45";
 // crowned, NOT the default; v45 stays Strongest. Recorded as a distinct equally-strong
 // vector (ring dead by construction). See its `index.ts` + EVOLUTION.md.
 import { claudeV46Bot } from "./claude-v46";
+// claude-v47 — a COMBINED-SPACE maximin ES on the 33-param factory: v45's 31 dims +
+// two RISK-AWARE standing levers (`standingFloorGain`/`standingAuctionGain`), warm-
+// started from v45, holderDenialFrac pinned. The ES turned the levers ON with a
+// "press your lead" posture (floor gain -0.78, auction gain +0.38) but in-sample
+// maximin (55%) did NOT beat the risk-NEUTRAL re-tune claude-v46 (57%) — risk-
+// awareness WASHED. Recorded as the idea-#2 result. See its `index.ts` + EVOLUTION.md.
+import { claudeV47Bot } from "./claude-v47";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
@@ -177,6 +184,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v44": claudeV44Bot,
   "claude-v45": claudeV45Bot,
   "claude-v46": claudeV46Bot,
+  "claude-v47": claudeV47Bot,
   "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
   "jane-v3": janeV3Bot,

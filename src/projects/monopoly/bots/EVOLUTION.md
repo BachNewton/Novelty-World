@@ -873,6 +873,42 @@ gate's **field-wide BETTER + clean out-of-panel** (v46 beat all 10 panel members
 streams AND all 5 non-panel bots) is what confirms v46 is genuinely championship-tier and
 not a fluke — even though it can't separate from its own twin.
 
+### claude-v47 — risk-aware "play-to-standing" combined-space ES (idea #2). WASHED (mild regression); recorded.
+
+The risk-NEUTRAL→risk-aware experiment. `positionValue` ignores variance, but expert
+play modulates it by rank — a leader banks, a laggard gambles. Two no-op-default factory
+dims (`standingFloorGain`, `standingAuctionGain`) scale the voluntary reserve and the
+auction cap by a STANDING RATIO `s = my positionValue / mean opponent positionValue`,
+clamped to [0.4, 2.5]. Combined-space maximin ES, warm-started from claude-v45,
+`holderDenialFrac` pinned 1.0, the two standing gains FREE
+(`--pop 24 --gens 12 --games 1100 --seed 11`).
+
+**The ES DID engage the levers — with a counter-intuitive profile.** It drove
+`standingFloorGain` to **−0.783** and `standingAuctionGain` to **+0.379**: a coherent
+**"press your lead"** posture that is the OPPOSITE of textbook "leader de-risks" — a
+LEADER thins its cash buffer and bids HARDER (deploy the advantage), a laggard fattens
+the buffer and pulls back to survive. So the lever is expressive and the optimizer found
+a real, non-trivial setting for it.
+
+**But it did not pay off.** In-sample maximin **55%** — BELOW the risk-neutral re-tune
+claude-v46's **57%** at the same warm-start. Gauntlet (`--base claude-v45`, field = panel
++ v45 + v46), train: BETTER vs all 10 older field members (54.3–80.7%) but **WORSE vs
+claude-v46 (46.3%, SPRT-confirmed)** and below v45 (46.8%, inconclusive). Panel-graph Elo
+**v47 −24.5** vs v45/v46 at ≈0 — about **24 Elo below the risk-neutral twins.** REJECT
+(no improvement vs base; regresses vs v46).
+
+**Verdict — risk-awareness, as parameterized here, WASHED (and this run mildly
+regressed).** The honest confound: v47 carries seed 11 + 2 extra search dims at the same
+gen budget, so part of the 24-Elo gap is slower convergence, not the levers per se. But
+the bottom line is unambiguous and matches the caution in `bots/CLAUDE.md` ("Considered
+and rejected"): scaling liquidity/auction POSTURE by standing buys no win share against
+the risk-neutral bot monoculture — the optimizer that was *handed* the lever still could
+not beat the bot that lacks it. A risk-neutral `positionValue` maximizer in a field of
+risk-neutral maximizers has little variance to exploit. Recorded as a rejected building
+block (rated, well below v45/v46); the standing-dim machinery stays in `optimize/` for a
+future field where variance matters (vs humans, or a timed mode), but it is not a lever
+for the current objective.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
