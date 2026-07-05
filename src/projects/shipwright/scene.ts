@@ -28,29 +28,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   renderer.toneMappingExposure = 0.5;
   camera.position.set(5, 3, 8);
 
-  // --- TEMP DIAGNOSTIC: GPU shader-precision readout -------------------------
-  // Surfaces the float precision three.js actually negotiated for THIS device
-  // (plus WebGL2 + the fragment highp/mediump ranges) as an on-screen overlay,
-  // so we can read it on the phone without USB remote-debugging. It tells us
-  // whether the sky/env-map "goes black above ~19° sun" break is a mediump
-  // shader overflow (device on mediump) or the half-float env-map ceiling
-  // (device on highp — both ceilings are 65504). Remove once diagnosed.
-  const gl = renderer.getContext();
-  const fmtPrec = (p: WebGLShaderPrecisionFormat | null) =>
-    p ? `±2^${p.rangeMax}, ${p.precision}-bit` : "unsupported";
-  const readout = document.createElement("div");
-  readout.style.cssText =
-    "position:absolute;bottom:8px;left:8px;z-index:10;max-width:92vw;padding:8px 10px;" +
-    "font:12px/1.5 monospace;color:#e6f7ff;background:rgba(6,20,30,0.85);" +
-    "border-radius:6px;white-space:pre;pointer-events:none;";
-  readout.textContent = [
-    `three negotiated: ${renderer.capabilities.precision}`,
-    `WebGL2: ${gl instanceof WebGL2RenderingContext}`,
-    `frag highp:   ${fmtPrec(gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT))}`,
-    `frag mediump: ${fmtPrec(gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT))}`,
-  ].join("\n");
-  ctx.container.appendChild(readout);
-
   // Lighting is intentionally minimal — just enough to complement the water and
   // give the sun a specular glint. The env map (below) does most of the work.
   const hemiLight = new THREE.HemisphereLight(0x9fc5e8, 0x0a1a24, 0.5);
@@ -132,6 +109,20 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // Procedural sky; baked to an env map (PMREM) so the water reflects a real
   // horizon. Regenerated whenever the sun or clouds change.
   const sky = new Sky();
+  // Mobile render fix: the Preetham sun-disc term reaches ~1e6 radiance, far past
+  // the 65504 ceiling of the HalfFloat env-map target PMREM bakes into. Desktop
+  // GPU drivers clamp an over-range half-float write to a finite max, but many
+  // mobile drivers (observed on a Pixel 10 Pro XL, WebGL2 highp) emit +Inf, which
+  // PMREM's roughness blur then smears into NaN across the whole env map — so every
+  // PBR surface reading scene.environment (ocean + cube) renders black once the sun
+  // rises past ~19° and the disc crosses the ceiling. Clamp the sky's output below
+  // 65504 so the baked value is finite everywhere, matching what desktop already
+  // does. Injected before <tonemapping_fragment> (present in both stock and our
+  // clouded Sky, after gl_FragColor is assigned) so it's agnostic to the color var.
+  sky.material.fragmentShader = sky.material.fragmentShader.replace(
+    "#include <tonemapping_fragment>",
+    "gl_FragColor.rgb = min( gl_FragColor.rgb, vec3( 60000.0 ) );\n\t#include <tonemapping_fragment>",
+  );
   sky.scale.setScalar(10000);
   scene.add(sky);
   const skyUniforms = sky.material.uniforms;
@@ -276,7 +267,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.setViewParams(camera, db.x, db.y);
     },
     dispose: () => {
-      readout.remove();
       gui.destroy();
       controls.dispose();
       envRenderTarget?.dispose();
