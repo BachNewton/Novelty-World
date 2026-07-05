@@ -97,6 +97,13 @@ export const PROJECTS: Project[] = [
     icon: "Box",
   },
   {
+    name: "Shipwright",
+    slug: "shipwright",
+    description: "Build voxel ships and explore an open-sea archipelago",
+    categorySlug: "3d-games",
+    icon: "Sailboat",
+  },
+  {
     name: "Network Test",
     slug: "network-test",
     description: "Multiplayer network diagnostics and benchmarking",

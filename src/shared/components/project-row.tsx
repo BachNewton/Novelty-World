@@ -21,6 +21,7 @@ import {
   Sparkles,
   Map,
   Users,
+  Sailboat,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -43,6 +44,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Sparkles,
   Map,
   Users,
+  Sailboat,
 };
 
 const BRAND_COLORS = [

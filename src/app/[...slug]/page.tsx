@@ -37,6 +37,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   monopoly: dynamic(() =>
     import("@/projects/monopoly").then((m) => ({ default: m.Monopoly })),
   ),
+  shipwright: dynamic(() =>
+    import("@/projects/shipwright").then((m) => ({ default: m.Shipwright })),
+  ),
 };
 
 interface Props {
