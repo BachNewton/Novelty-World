@@ -36,9 +36,10 @@ Rough, non-binding direction of travel (order and scope will flex):
 4. Camera/movement — fly or sail a placeholder camera around the sea.
 5. Voxel core — place/remove cubes on a grid; render a chunk efficiently
    (`InstancedMesh` / greedy meshing).
-6. Buoyancy — float a voxel assembly by sampling the wave field at points under
-   the hull (force-based, no fluid sim). Bring in **Rapier** here for rigid-body
-   ships + collisions.
+6. Buoyancy / physics — decorative floaters already ride kinematically
+   (`sampleParticle`); at this step bring in **Rapier** for the player's ship as a
+   collidable dynamic body with force-based buoyancy (`sampleSurface`) + player
+   movement. See the HYBRID decision under "Water architecture".
 7. Procedural islands — an archipelago of terrain to sail between.
 8. Resources & gathering — harvest from islands into an inventory.
 9. Multiplayer co-op — shared world + ship via the platform's multiplayer libs
@@ -88,15 +89,30 @@ code that floats the ship agree on where the surface is.
   is cheap to evaluate on the CPU, gives a real silhouette + moving horizon, and
   — decisive for our host-authoritative co-op — is **free to synchronise**: every
   client recomputes the identical sea from the shared clock, zero state to send.
-- **Buoyancy is "faked" (force-based), not a fluid sim.** Float bodies by
-  sampling the surface at points under the hull and applying up-forces + drag.
-  The water doesn't back-react to the ship, but the ship rises/rolls/pitches
-  correctly. Real fluid sim is too costly / hard to sync — rejected. Cosmetic
-  interaction (wakes, splashes, local ripples) is later polish.
-- **Physics engine: deferred, then Rapier.** No engine yet — buoyancy is
-  hand-applied forces. Add **Rapier** (`@dimforge/rapier3d`; deterministic WASM,
-  character controllers) at the rigid-ship + collisions step (roadmap #6). It's
-  deterministic, which matters for syncing host-authoritative physics.
+- **Floating is HYBRID — locked decision.** Two mechanisms, chosen per object:
+  - **Kinematic particle-ride** (`ocean.sampleParticle`, *forward* Gerstner). We
+    place the object directly on the water particle at its rest (x, z), so it
+    rides the orbital motion (surges forward on crests, back in troughs, bobs, and
+    tilts to the surface normal). Dirt-cheap and looks genuinely great — no physics
+    engine. This is the **permanent** approach for **decorative / non-simulated
+    floaters**: foam, spray, debris, distant ambient boats, the debug probes.
+    Trade-off: no momentum (can't get airtime, be pushed under, or capsize) and no
+    collision — which is fine, and arguably desirable, for a deck you build on.
+  - **Force-based buoyancy on a Rapier body** (later). For things that must
+    collide and carry momentum — the player's ship, players standing on decks,
+    ship-vs-island — a kinematic ride won't do (a teleported body ignores
+    collisions). Those become **Rapier dynamic bodies**: sample water depth at hull
+    points via `ocean.sampleSurface` (the *inverse*) for buoyancy up-forces, plus
+    drag toward the water velocity (derivative of the particle displacement) so the
+    body rides the orbit *emergently*. The kinematic ride is the visual benchmark
+    to tune this against.
+- **Physics engine: deferred, then Rapier.** Not needed for the water look — the
+  kinematic ride already nails it. Add **Rapier** (`@dimforge/rapier3d`;
+  deterministic WASM, character controllers) when we build ships + islands +
+  player movement (roadmap #6), scoped to **collision / players / momentum**, NOT
+  the water. Deterministic, which matters for host-authoritative sync.
+- Real fluid sim is rejected (too costly / hard to sync). Cosmetic interaction
+  (wakes, splashes) is later polish.
 - **The ocean is a patched `MeshStandardMaterial`, not a from-scratch
   `ShaderMaterial`.** We inject Gerstner displacement + analytic normals via
   `onBeforeCompile`, keeping three's PBR sky-env reflection, Fresnel, and sun
@@ -177,12 +193,23 @@ code that floats the ship agree on where the surface is.
   `sampleSurface` heights) to eyeball CPU-vs-GPU agreement. Reflection and bloom
   are parked. Debug GUI toggles: wireframe, probes, tessellation (rebuilds the
   mesh), invert sampling (Newton on/off).
-- **Known remaining limitation (render, not physics):** at high wave height +
-  choppiness the coarse ~19.5 m tessellation undercuts the smooth crests (worst
-  for the near-Nyquist 48 m / 70 m waves), so the cube can appear to hover above
-  the *rendered* facets while sitting correctly on the true surface. Fix later
-  with camera-following LOD tessellation (or lengthen the shortest geometry waves
-  and push that detail to the normal map).
-- **Next:** un-debug (restore shaded water), then either LOD tessellation or move
-  on to real buoyancy (force-based, then Rapier — see roadmap #6). Reflection +
-  the wind/sea-state master come back after. No gameplay yet.
+- **Tessellation is uniform 2048×2048** (`PLANE_SEGMENTS`), ~4.9 m quads. This
+  renders the short 48/70 m waves without crest faceting, so the cube/probes sit
+  on the waterline in all conditions. It's ~4 M vertices — deliberately *not*
+  optimized, because it runs 60-100 FPS on desktop and premature LOD is complexity
+  we don't need yet.
+- **FUTURE IMPROVEMENT — camera-following LOD ocean.** The uniform-2048 grid
+  spends detail on far water that doesn't need it. When we build the roaming /
+  sailing camera (or if a weaker device needs it), replace it with a
+  camera-following high-density patch + a coarse far plane for the horizon, so the
+  fine triangles travel with the viewer. Do NOT do this pre-emptively. Tried and
+  rejected: dropping the short waves and faking them with the normal map — looked
+  worse (a repeating "river" of smooth swells).
+- **Kinematic float works and looks great.** The test cube (and the debug probes)
+  ride the water via `ocean.sampleParticle` (forward Gerstner) — real orbital
+  motion + tilt, no physics engine. Confirmed the right approach for decorative
+  floaters (see the HYBRID decision above). `sampleSurface` (inverse) is retained
+  for the future Rapier buoyancy.
+- **Next:** un-debug (restore shaded water, drop the probe overlay), then head
+  toward the voxel core / ships. Reflection + the wind/sea-state master come back
+  later; Rapier (collision/players/momentum) at roadmap #6. No gameplay yet.

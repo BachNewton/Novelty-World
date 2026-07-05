@@ -58,15 +58,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     PROBE_SIDE * PROBE_SIDE,
   );
   scene.add(probes);
+  probes.visible = false; // debug overlay — off by default, toggle in the Debug folder
   const probeDummy = new THREE.Object3D();
   const updateProbes = (time: number) => {
     const half = (PROBE_SIDE - 1) / 2;
     let i = 0;
     for (let gx = 0; gx < PROBE_SIDE; gx++) {
       for (let gz = 0; gz < PROBE_SIDE; gz++) {
+        // Each probe rides the water particle at its rest (x, z) — orbital motion,
+        // like a cork or the surface itself, not pinned to a fixed world point.
         const x = (gx - half) * PROBE_SPACING;
         const z = (gz - half) * PROBE_SPACING;
-        probeDummy.position.set(x, ocean.sampleSurface(x, z, time).height, z);
+        probeDummy.position.copy(ocean.sampleParticle(x, z, time).position);
         probeDummy.updateMatrix();
         probes.setMatrixAt(i, probeDummy.matrix);
         i++;
@@ -74,8 +77,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     }
     probes.instanceMatrix.needsUpdate = true;
   };
-
-  ocean.setDebug(true);
 
   // Procedural sky; baked to an env map (PMREM) so the water reflects a real
   // horizon. Regenerated whenever the sun or clouds change.
@@ -127,7 +128,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
-  const debug = { wireframe: true, probes: true, segments: 512, invert: true };
+  const debug = { wireframe: false, probes: false, segments: 2048, invert: true };
   const debugFolder = gui.addFolder("Debug");
   debugFolder.add(debug, "wireframe").onChange((on: boolean) => ocean.setDebug(on));
   debugFolder.add(debug, "probes").onChange((on: boolean) => {
@@ -177,9 +178,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     onFrame: (delta) => {
       elapsed += delta;
       ocean.update(elapsed);
-      const sample = ocean.sampleSurface(buoy.position.x, buoy.position.z, elapsed);
-      buoy.position.y = sample.height;
-      buoy.quaternion.setFromUnitVectors(UP, sample.normal);
+      // The cube rides the water particle at rest (0,0) — it orbits (forward at
+      // crests, back in troughs, up and down) with the surface, like a real float.
+      const ride = ocean.sampleParticle(0, 0, elapsed);
+      buoy.position.copy(ride.position);
+      buoy.quaternion.setFromUnitVectors(UP, ride.normal);
       updateProbes(elapsed);
       controls.update();
     },

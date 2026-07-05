@@ -24,7 +24,11 @@ import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 // (ω = √(gk)) only looks right at real scale, so keep everything metric.
 const MAX_WAVES = 8; // must match the array sizes in OCEAN_PARS
 const PLANE_SIZE = 10000; // 10 km of sea — the far edge sits at the horizon
-const PLANE_SEGMENTS = 512; // ~20 m quads: enough for the swell geometry below
+// ~4.9 m quads — fine enough to render the short (48/70 m) waves without crest
+// faceting. Uniform over the whole plane, which is a bit wasteful far away; a
+// camera-following LOD grid is the future optimization (see CLAUDE.md) if a
+// weaker device ever needs it. Runs 60-100 FPS on desktop, so not now.
+const PLANE_SEGMENTS = 2048;
 const GRAVITY = 9.81;
 const TWO_PI = Math.PI * 2;
 const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
@@ -55,12 +59,21 @@ export interface SurfaceSample {
   normal: THREE.Vector3;
 }
 
+export interface ParticleSample {
+  /** Where the water particle at a given rest (x, z) rides to — world position. */
+  position: THREE.Vector3;
+  normal: THREE.Vector3;
+}
+
 export interface Ocean {
   mesh: THREE.Mesh;
   /** Advance the surface to `time` seconds. Call once per frame. */
   update: (time: number) => void;
   /** Water height + normal at world (x, z) and `time` — mirrors the shader. */
   sampleSurface: (x: number, z: number, time: number) => SurfaceSample;
+  /** Forward Gerstner: where the particle at REST (x, z) rides to (orbital motion)
+   *  + its normal. This is how a floating object rides the waves. */
+  sampleParticle: (restX: number, restZ: number, time: number) => ParticleSample;
   /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
   buildGui: (basic: GUI, advanced: GUI) => void;
   /** Strip the water to a bare wireframe (no ripple map) for debugging. */
@@ -74,7 +87,8 @@ export interface Ocean {
 
 // A natural sea is a few big swells crossed by shorter chop at varied headings.
 // Metres: a ~1.7 m primary swell 180 m long down to ~0.3 m chop — a moderate
-// open sea. Smaller ripples are the normal map's job, not geometry's.
+// open sea. The short (48/70 m) waves rely on the high PLANE_SEGMENTS above to
+// render without crest faceting.
 const BASE_WAVES: WaveDef[] = [
   { angle: 0, wavelength: 180, amplitude: 1.7, steepness: 0.9 },
   { angle: 34, wavelength: 110, amplitude: 0.95, steepness: 0.85 },
@@ -131,10 +145,8 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
 export function createOcean(): Ocean {
   const globals = {
     amplitude: 1,
-    steepness: 1,
+    steepness: 0.2,
     wavelength: 1,
-    speed: 1,
-    windDeg: 0,
   };
 
   // Shared uniform storage — the same objects are handed to the shader and
@@ -165,7 +177,7 @@ export function createOcean(): Ocean {
 
   const rebuild = () => {
     waves = BASE_WAVES.map((base) => {
-      const angle = THREE.MathUtils.degToRad(base.angle + globals.windDeg);
+      const angle = THREE.MathUtils.degToRad(base.angle);
       return {
         dir: new THREE.Vector2(Math.cos(angle), Math.sin(angle)),
         wavelength: base.wavelength * globals.wavelength,
@@ -188,7 +200,8 @@ export function createOcean(): Ocean {
       uSteepnessValue[i] = 0;
     }
     uniforms.uNumWaves.value = waves.length;
-    uniforms.uSpeed.value = globals.speed;
+    // uSpeed stays at its init value of 1 — waves animate at their natural
+    // physical phase speed. (No "wind speed" control; that was just a time scale.)
   };
   rebuild();
 
@@ -312,17 +325,23 @@ export function createOcean(): Ocean {
       detailNormals.offset.set(time * 0.03, time * 0.015);
     },
     sampleSurface,
+    sampleParticle: (restX, restZ, time) => {
+      const { ox, oz, height, nx, ny, nz } = evalGrid(restX, restZ, time);
+      return {
+        position: new THREE.Vector3(restX + ox, height, restZ + oz),
+        normal: new THREE.Vector3(nx, ny, nz).normalize(),
+      };
+    },
     buildGui: (basic, advanced) => {
       const seaFolder = basic.addFolder("Sea");
       seaFolder.add(globals, "amplitude", 0, 5, 0.01).name("wave height").onChange(rebuild);
       seaFolder
-        .add(globals, "steepness", 0, 1.5, 0.01)
-        .name("choppiness")
+        .add(globals, "wavelength", 0.25, 3, 0.01)
+        .name("wavelength")
         .onChange(rebuild);
-      seaFolder.add(globals, "speed", 0, 3, 0.01).name("wind speed").onChange(rebuild);
       seaFolder
-        .add(globals, "windDeg", -180, 180, 1)
-        .name("wind dir")
+        .add(globals, "steepness", 0, 1.5, 0.01)
+        .name("steepness")
         .onChange(rebuild);
 
       const detail = { strength: material.normalScale.x, tiling: DETAIL_TILING };
@@ -338,7 +357,6 @@ export function createOcean(): Ocean {
         .add(detail, "tiling", 100, 3000, 10)
         .name("ripple scale")
         .onChange(() => detailNormals.repeat.set(detail.tiling, detail.tiling));
-      waterFolder.add(globals, "wavelength", 0.25, 3, 0.01).onChange(rebuild);
     },
     setDebug: (on) => {
       material.wireframe = on;
