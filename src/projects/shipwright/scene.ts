@@ -7,6 +7,7 @@ import type {
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean } from "./ocean";
+import { createPhysics } from "./physics";
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -18,9 +19,9 @@ const PROBE_SPACING = 6; // metres between probes
 
 /**
  * Builds the Shipwright ocean scene: a Gerstner wave surface (see `ocean.ts`),
- * simple lighting, a procedural sky, a buoy that rides the waves, and a
+ * simple lighting, a procedural sky, marker buoys that ride the waves, and a
  * stripped-down debug overlay (wireframe water + CPU probe dots + grid/axes) for
- * diagnosing how the cube sits relative to the water.
+ * diagnosing how floaters sit relative to the water.
  */
 export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
@@ -48,16 +49,64 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setViewParams(camera, db.x, db.y);
   }
 
-  // A 1 m³ test cube that rides the wave surface by sampling the same wave field
-  // the shader displaces. Its center is pinned to the water height (so it should
-  // sit half-submerged) — the debug overlay checks whether that's really true.
-  const buoyGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const buoyMaterial = new THREE.MeshStandardMaterial({
-    color: 0xcc5533,
+  // Navigational-marker buoys: capsule floats that ride the water kinematically
+  // via `ocean.sampleParticle` (forward Gerstner) at their OWN rest (x, z), so they
+  // bob out of phase. This is the PERMANENT approach for decorative / non-simulated
+  // floaters per the HYBRID decision in CLAUDE.md — no physics engine, just place the
+  // object on the water particle and tilt it to the surface normal each frame. (Later
+  // the player's ship becomes a Rapier buoyancy body; markers like these stay
+  // kinematic.) The red/green lateral marks share one capsule geometry.
+  const buoyGeometry = new THREE.CapsuleGeometry(0.4, 1.2, 8, 16);
+  const redBuoyMaterial = new THREE.MeshStandardMaterial({
+    color: 0xcc3333, // port lateral mark
     roughness: 0.4,
   });
-  const buoy = new THREE.Mesh(buoyGeometry, buoyMaterial);
-  scene.add(buoy);
+  const greenBuoyMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2fa84f, // starboard lateral mark
+    roughness: 0.4,
+  });
+
+  // Cardinal / danger mark: horizontal black & yellow bands, painted in-code onto a
+  // CanvasTexture (no image asset) and mapped along the capsule's length (its UV v
+  // runs top-to-bottom, so canvas rows become horizontal stripes on the buoy).
+  const stripeCanvas = document.createElement("canvas");
+  stripeCanvas.width = 16;
+  stripeCanvas.height = 64;
+  const stripeCtx = stripeCanvas.getContext("2d");
+  if (!stripeCtx) {
+    throw new Error("2D canvas context unavailable for buoy stripe texture");
+  }
+  const stripeBands = ["#1a1a1a", "#f2c200", "#1a1a1a", "#f2c200"];
+  const bandHeight = stripeCanvas.height / stripeBands.length;
+  stripeBands.forEach((color, i) => {
+    stripeCtx.fillStyle = color;
+    stripeCtx.fillRect(0, i * bandHeight, stripeCanvas.width, bandHeight);
+  });
+  const stripeTexture = new THREE.CanvasTexture(stripeCanvas);
+  const stripedBuoyMaterial = new THREE.MeshStandardMaterial({
+    map: stripeTexture,
+    roughness: 0.4,
+  });
+
+  // Distinct rest (x, z) a few metres apart so the three markers bob at different
+  // phases of the swell.
+  const buoys = [
+    { mesh: new THREE.Mesh(buoyGeometry, redBuoyMaterial), restX: -4, restZ: 2 },
+    { mesh: new THREE.Mesh(buoyGeometry, greenBuoyMaterial), restX: 4, restZ: -1 },
+    { mesh: new THREE.Mesh(buoyGeometry, stripedBuoyMaterial), restX: 0, restZ: -5 },
+  ];
+  for (const { mesh } of buoys) scene.add(mesh);
+
+  // Rapier physics: the force-based half of the HYBRID floating model. A few
+  // Tetris tetrominoes (built from the game's 0.5 m³ voxel) drop in as dynamic
+  // bodies and float by per-voxel buoyancy sampled from `ocean.sampleSurface` —
+  // the buoyancy testbed before the real voxel ships (see physics.ts / CLAUDE.md).
+  // Rapier loads async; the meshes render at their spawn pose until it's ready.
+  const physics = createPhysics(ocean);
+  scene.add(physics.object);
+  physics.init().catch((err: unknown) => {
+    console.error("Shipwright: Rapier physics failed to initialise", err);
+  });
 
   // Debug seabed: a sandy plane tilted into a beach slope that rises from deep
   // water up through the surface. It's the only way to see depth absorption (the
@@ -234,6 +283,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .onChange(updateSun);
 
   ocean.buildGui(gui, advanced);
+  physics.buildGui(gui);
 
   let elapsed = 0;
 
@@ -241,11 +291,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     onFrame: (delta) => {
       elapsed += delta;
       ocean.update(elapsed);
-      // The cube rides the water particle at rest (0,0) — it orbits (forward at
-      // crests, back in troughs, up and down) with the surface, like a real float.
-      const ride = ocean.sampleParticle(0, 0, elapsed);
-      buoy.position.copy(ride.position);
-      buoy.quaternion.setFromUnitVectors(UP, ride.normal);
+      // Each buoy rides the water particle at its own rest (x, z) — it orbits
+      // (forward at crests, back in troughs, up and down) with the surface, like a
+      // real float, tilting to the surface normal. Same ride the debug probes use;
+      // a regression check that `sampleParticle` still floats things cleanly.
+      for (const { mesh, restX, restZ } of buoys) {
+        const ride = ocean.sampleParticle(restX, restZ, elapsed);
+        mesh.position.copy(ride.position);
+        mesh.quaternion.setFromUnitVectors(UP, ride.normal);
+      }
+      // Step the Rapier buoyancy sim (fixed-timestep internally) and pose its
+      // tetrominoes — before the capture below, so they refract like the buoys.
+      physics.update(delta);
       updateProbes(elapsed);
       controls.update();
       // Capture the scene (minus the water) into the shared colour+depth target so
@@ -274,8 +331,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       sky.geometry.dispose();
       sky.material.dispose();
       ocean.dispose();
-      buoyGeometry.dispose();
-      buoyMaterial.dispose();
+      physics.dispose();
+      buoyGeometry.dispose(); // shared by the red + green lateral marks
+      redBuoyMaterial.dispose();
+      greenBuoyMaterial.dispose();
+      stripedBuoyMaterial.dispose();
+      stripeTexture.dispose();
       seabedGeometry.dispose();
       seabedMaterial.dispose();
       probes.dispose();

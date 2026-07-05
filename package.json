@@ -25,6 +25,7 @@
     "test:all": "vitest run && playwright test"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",
     "@types/three": "^0.185.0",
