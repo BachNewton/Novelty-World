@@ -27,6 +27,7 @@ const PLANE_SIZE = 10000; // 10 km of sea — the far edge sits at the horizon
 const PLANE_SEGMENTS = 512; // ~20 m quads: enough for the swell geometry below
 const GRAVITY = 9.81;
 const TWO_PI = Math.PI * 2;
+const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
 
 // A scrolling normal map adds the fine ripples the geometry waves can't — it's
 // what reads as "water" rather than smooth glass. Division of labour: geometry
@@ -62,6 +63,12 @@ export interface Ocean {
   sampleSurface: (x: number, z: number, time: number) => SurfaceSample;
   /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
   buildGui: (basic: GUI, advanced: GUI) => void;
+  /** Strip the water to a bare wireframe (no ripple map) for debugging. */
+  setDebug: (on: boolean) => void;
+  /** Rebuild the surface mesh at a new tessellation (debug: check facet gap). */
+  setSegments: (segments: number) => void;
+  /** Toggle the horizontal-displacement inversion in `sampleSurface` (debug). */
+  setInversion: (on: boolean) => void;
   dispose: () => void;
 }
 
@@ -92,8 +99,8 @@ void gerstner(vec2 p, out vec3 displaced, out vec3 gnormal) {
     float A = uAmplitude[i];
     if (A <= 0.0) continue;
     vec2 d = uDir[i];
-    float k = ${TWO_PI.toFixed(9)} / uWavelength[i];
-    float w = sqrt(${GRAVITY.toFixed(2)} * k);
+    float k = ${TWO_PI} / uWavelength[i];
+    float w = sqrt(${GRAVITY} * k);
     float q = uSteepness[i] / (k * A * float(uNumWaves));
     float phase = k * dot(d, p) - w * uTime * uSpeed;
     float c = cos(phase);
@@ -151,6 +158,10 @@ export function createOcean(): Ocean {
 
   // The effective waves the CPU sampler reads — kept identical to the uniforms.
   let waves: Wave[] = [];
+
+  // Debug: when false, `sampleSurface` skips the horizontal-displacement
+  // inversion (naive grid = world), to isolate whether it's actually needed.
+  let useInversion = true;
 
   const rebuild = () => {
     waves = BASE_WAVES.map((base) => {
@@ -216,26 +227,80 @@ export function createOcean(): Ocean {
 
   const mesh = new THREE.Mesh(geometry, material);
 
-  const sampleSurface = (x: number, z: number, time: number): SurfaceSample => {
+  // Evaluate the Gerstner sum for a grid point: its horizontal displacement
+  // (ox, oz), height, and normal. This is the forward function the GPU renders.
+  const evalGrid = (gx: number, gz: number, time: number) => {
+    const speed = uniforms.uSpeed.value;
+    let ox = 0;
+    let oz = 0;
     let height = 0;
     let nx = 0;
     let ny = 1;
     let nz = 0;
-    const speed = uniforms.uSpeed.value;
     for (const wave of waves) {
       if (wave.amplitude <= 0) continue;
       const k = TWO_PI / wave.wavelength;
       const w = Math.sqrt(GRAVITY * k);
       const q = wave.steepness / (k * wave.amplitude * waves.length);
-      const phase = k * (wave.dir.x * x + wave.dir.y * z) - w * time * speed;
+      const phase = k * (wave.dir.x * gx + wave.dir.y * gz) - w * time * speed;
       const c = Math.cos(phase);
       const s = Math.sin(phase);
+      ox += q * wave.amplitude * wave.dir.x * c;
+      oz += q * wave.amplitude * wave.dir.y * c;
       height += wave.amplitude * s;
       const wa = k * wave.amplitude;
       nx -= wave.dir.x * wa * c;
       nz -= wave.dir.y * wa * c;
       ny -= q * wa * s;
     }
+    return { ox, oz, height, nx, ny, nz };
+  };
+
+  // Height + normal at a WORLD (x, z). Gerstner also displaces horizontally, so
+  // the surface point above (x, z) came from a *different* grid point — we invert
+  // that with a few fixed-point steps (grid = world − horizontalOffset(grid)).
+  const sampleSurface = (x: number, z: number, time: number): SurfaceSample => {
+    const speed = uniforms.uSpeed.value;
+    // Invert the horizontal displacement with Newton's method: find grid point g
+    // such that g + horizontalOffset(g) = (x, z), using the offset's Jacobian for
+    // quadratic convergence (a few steps nail it even at high steepness).
+    let gx = x;
+    let gz = z;
+    if (useInversion) {
+      for (let iter = 0; iter < SAMPLE_ITERATIONS; iter++) {
+        let ox = 0;
+        let oz = 0;
+        let jxx = 0;
+        let jxz = 0;
+        let jzz = 0;
+        for (const wave of waves) {
+          if (wave.amplitude <= 0) continue;
+          const k = TWO_PI / wave.wavelength;
+          const w = Math.sqrt(GRAVITY * k);
+          const q = wave.steepness / (k * wave.amplitude * waves.length);
+          const phase = k * (wave.dir.x * gx + wave.dir.y * gz) - w * time * speed;
+          const qa = q * wave.amplitude;
+          const c = Math.cos(phase);
+          const s = Math.sin(phase);
+          ox += qa * wave.dir.x * c;
+          oz += qa * wave.dir.y * c;
+          const qaks = qa * k * s;
+          jxx -= qaks * wave.dir.x * wave.dir.x;
+          jxz -= qaks * wave.dir.x * wave.dir.y;
+          jzz -= qaks * wave.dir.y * wave.dir.y;
+        }
+        // Solve (I + J)·delta = (g + o − target), then step g by −delta.
+        const fx = gx + ox - x;
+        const fz = gz + oz - z;
+        const a = 1 + jxx;
+        const d = 1 + jzz;
+        const det = a * d - jxz * jxz;
+        if (Math.abs(det) < 1e-6) break;
+        gx -= (d * fx - jxz * fz) / det;
+        gz -= (a * fz - jxz * fx) / det;
+      }
+    }
+    const { height, nx, ny, nz } = evalGrid(gx, gz, time);
     return { height, normal: new THREE.Vector3(nx, ny, nz).normalize() };
   };
 
@@ -249,7 +314,7 @@ export function createOcean(): Ocean {
     sampleSurface,
     buildGui: (basic, advanced) => {
       const seaFolder = basic.addFolder("Sea");
-      seaFolder.add(globals, "amplitude", 0, 3, 0.01).name("wave height").onChange(rebuild);
+      seaFolder.add(globals, "amplitude", 0, 5, 0.01).name("wave height").onChange(rebuild);
       seaFolder
         .add(globals, "steepness", 0, 1.5, 0.01)
         .name("choppiness")
@@ -275,8 +340,22 @@ export function createOcean(): Ocean {
         .onChange(() => detailNormals.repeat.set(detail.tiling, detail.tiling));
       waterFolder.add(globals, "wavelength", 0.25, 3, 0.01).onChange(rebuild);
     },
+    setDebug: (on) => {
+      material.wireframe = on;
+      material.normalMap = on ? null : detailNormals;
+      material.needsUpdate = true;
+    },
+    setSegments: (segments) => {
+      const next = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, segments, segments);
+      next.rotateX(-Math.PI / 2);
+      mesh.geometry.dispose();
+      mesh.geometry = next;
+    },
+    setInversion: (on) => {
+      useInversion = on;
+    },
     dispose: () => {
-      geometry.dispose();
+      mesh.geometry.dispose();
       material.dispose();
       detailNormals.dispose();
     },

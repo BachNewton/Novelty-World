@@ -103,9 +103,19 @@ code that floats the ship agree on where the surface is.
   lighting for free. The built-in `Water` addon was **removed** — it's a flat
   planar mirror that assumes an undisplaced plane, which is incompatible with
   real wave displacement.
+- **Reflections are currently PARKED.** `reflection.ts` (`createPlanarReflection`,
+  a mirror-camera + oblique-clip planar reflection ported from three's
+  `Water`/`Reflector`) still exists but is **not wired into the scene** — it was
+  removed while debugging the waterline so nothing fancy could mislead us. On a
+  displaced surface a planar reflection is only an approximation, and it's meant
+  to come back later **coupled to sea state** (calm = crisp mirror → storm =
+  almost none). Re-adding means importing it in `scene.ts`, driving it each frame,
+  and sampling it in the ocean shader (see git history for the shader injection).
 - **Lighting is intentionally simple** right now (a hemisphere fill + a
   directional sun aligned with the sky) so it complements the water without being
-  a thing to troubleshoot. Beautify later.
+  a thing to troubleshoot. Beautify later. NB the water still gets a sky specular
+  from the env map *and* the planar reflection — if the horizon reads
+  double-bright, drop `material.envMapIntensity` in `ocean.ts`.
 - **Bloom is parked.** The shared hook still supports `{ bloom: true }` (HDR
   `EffectComposer`: HalfFloat+MSAA → `RenderPass` → `UnrealBloomPass` →
   `OutputPass`, exposing the pass on the scene context), but Shipwright currently
@@ -141,24 +151,38 @@ code that floats the ship agree on where the surface is.
 - `index.tsx` — re-exports `Shipwright` (registered in `PROJECT_COMPONENTS`).
 - `components/shipwright.tsx` — root component; full-bleed canvas + HUD overlay.
 - `scene.ts` — `setupOceanScene`, the imperative three.js scene builder (sky,
-  lights, camera, GUI, the buoy). New non-water systems (voxels, islands) grow
-  here or in sibling modules, kept free of React.
+  lights, camera, GUI, the buoy + the debug probe overlay). New non-water systems
+  (voxels, islands) grow here or in sibling modules, kept free of React.
 - `ocean.ts` — `createOcean`, the analytic Gerstner ocean: the patched
   `MeshStandardMaterial` (GPU) **and** `sampleSurface` (CPU), which must stay in
-  lock-step. Water/wave GUI lives here too. This is the single source of truth
-  for the surface — buoyancy will read `sampleSurface`.
+  lock-step. `sampleSurface` inverts the horizontal displacement (Newton-Raphson)
+  so it returns the height at a WORLD point, not a grid point. Water/wave GUI and
+  debug toggles (wireframe / tessellation / invert sampling) live here. Single
+  source of truth for the surface — buoyancy will read `sampleSurface`.
+- `reflection.ts` — `createPlanarReflection`, a mirror-camera planar reflection
+  pass. Currently **parked** (not imported by the scene); generic enough to move
+  to `shared/` if reused.
 
 ## Status
 
-- **Gerstner wave ocean (step 2).** The built-in `Water` addon is gone; the sea
-  is a metric tessellated plane displaced by 4 summed Gerstner waves in a patched
-  `MeshStandardMaterial`, with a scrolling normal map for fine ripples/glitter, lit
-  by a simple sun + hemisphere and reflecting the PMREM sky env map. The **same**
-  wave field is mirrored on the CPU (`ocean.sampleSurface`); a 1 m³ test cube rides
-  the real crests off it — a live GPU/CPU sync check and the seed of buoyancy.
-  Default look is a bright clear day (sun ~30° up) to avoid the sunset washout.
-  The lil-gui panel is decluttered: everyday dials up top (exposure; Sun
-  elevation/azimuth; Sea wave height/choppiness/wind speed/wind dir) with a
-  collapsed **Advanced** folder for the tuned-and-forgotten params (atmosphere,
-  clouds, water material). Stats FPS panel top-left. Bloom is parked. No gameplay
-  yet.
+- **Gerstner wave ocean + verified CPU/GPU sync (step 2).** The sea is a metric
+  tessellated plane displaced by 4 summed Gerstner waves in a patched
+  `MeshStandardMaterial`. The **same** wave field is mirrored on the CPU
+  (`ocean.sampleSurface`), and `sampleSurface` inverts the horizontal displacement
+  (Newton-Raphson) so it's correct at any world point — a fresh-eyes audit
+  confirmed the GPU GLSL and CPU math are term-for-term identical and the
+  inversion is correct. A 1 m³ test cube rides the surface off `sampleSurface`.
+- **Currently in DEBUG mode.** The scene runs stripped-down for diagnosing the
+  waterline: wireframe water + a magenta CPU-probe grid (spheres at
+  `sampleSurface` heights) to eyeball CPU-vs-GPU agreement. Reflection and bloom
+  are parked. Debug GUI toggles: wireframe, probes, tessellation (rebuilds the
+  mesh), invert sampling (Newton on/off).
+- **Known remaining limitation (render, not physics):** at high wave height +
+  choppiness the coarse ~19.5 m tessellation undercuts the smooth crests (worst
+  for the near-Nyquist 48 m / 70 m waves), so the cube can appear to hover above
+  the *rendered* facets while sitting correctly on the true surface. Fix later
+  with camera-following LOD tessellation (or lengthen the shortest geometry waves
+  and push that detail to the normal map).
+- **Next:** un-debug (restore shaded water), then either LOD tessellation or move
+  on to real buoyancy (force-based, then Rapier — see roadmap #6). Reflection +
+  the wind/sea-state master come back after. No gameplay yet.

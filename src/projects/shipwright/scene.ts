@@ -10,17 +10,21 @@ import { createOcean } from "./ocean";
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+// Debug probe grid: bright dots placed at the CPU-sampled surface height, the
+// same way the buoy is sampled. Overlaid on the wireframe ocean, they reveal
+// whether the CPU wave field matches the GPU-rendered surface.
+const PROBE_SIDE = 15;
+const PROBE_SPACING = 6; // metres between probes
+
 /**
  * Builds the Shipwright ocean scene: a Gerstner wave surface (see `ocean.ts`),
- * deliberately simple lighting, a procedural sky baked to an env map for the
- * water's reflection, and a buoy that rides the real waves. This is the blank
- * sea the archipelago and voxel ships will be built on.
+ * simple lighting, a procedural sky, a buoy that rides the waves, and a
+ * stripped-down debug overlay (wireframe water + CPU probe dots + grid/axes) for
+ * diagnosing how the cube sits relative to the water.
  */
 export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
 
-  // World units are metres (see ocean.ts). Camera sits ~3 m above the water,
-  // ~9 m back — close enough to read the 1 m test cube against 1-2 m waves.
   renderer.toneMappingExposure = 0.5;
   camera.position.set(5, 3, 8);
 
@@ -34,11 +38,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const ocean = createOcean();
   scene.add(ocean.mesh);
 
-  // A buoy that rides the *real* wave surface by sampling the same wave field
-  // the shader displaces — a preview of ship buoyancy and a live check that the
-  // CPU and GPU wave fields agree (if it floats on the crests, they're in sync).
-  // A 1 m³ test cube (the actual building voxel will be 0.5 m³); also a handy
-  // on-screen scale reference for judging wave size.
+  // A 1 m³ test cube that rides the wave surface by sampling the same wave field
+  // the shader displaces. Its center is pinned to the water height (so it should
+  // sit half-submerged) — the debug overlay checks whether that's really true.
   const buoyGeometry = new THREE.BoxGeometry(1, 1, 1);
   const buoyMaterial = new THREE.MeshStandardMaterial({
     color: 0xcc5533,
@@ -47,14 +49,40 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const buoy = new THREE.Mesh(buoyGeometry, buoyMaterial);
   scene.add(buoy);
 
+  // --- Debug overlay ---------------------------------------------------------
+  const probeGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+  const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xff2ec4 });
+  const probes = new THREE.InstancedMesh(
+    probeGeometry,
+    probeMaterial,
+    PROBE_SIDE * PROBE_SIDE,
+  );
+  scene.add(probes);
+  const probeDummy = new THREE.Object3D();
+  const updateProbes = (time: number) => {
+    const half = (PROBE_SIDE - 1) / 2;
+    let i = 0;
+    for (let gx = 0; gx < PROBE_SIDE; gx++) {
+      for (let gz = 0; gz < PROBE_SIDE; gz++) {
+        const x = (gx - half) * PROBE_SPACING;
+        const z = (gz - half) * PROBE_SPACING;
+        probeDummy.position.set(x, ocean.sampleSurface(x, z, time).height, z);
+        probeDummy.updateMatrix();
+        probes.setMatrixAt(i, probeDummy.matrix);
+        i++;
+      }
+    }
+    probes.instanceMatrix.needsUpdate = true;
+  };
+
+  ocean.setDebug(true);
+
   // Procedural sky; baked to an env map (PMREM) so the water reflects a real
   // horizon. Regenerated whenever the sun or clouds change.
   const sky = new Sky();
   sky.scale.setScalar(10000);
   scene.add(sky);
   const skyUniforms = sky.material.uniforms;
-  // Clear bright day: sun well up (see params below), clear-ish air, deep-blue
-  // scatter. Sun ~30° up keeps it from clipping to a white horizon blob.
   skyUniforms.turbidity.value = 4;
   skyUniforms.rayleigh.value = 2;
   skyUniforms.mieCoefficient.value = 0.004;
@@ -93,14 +121,26 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.target.set(0, 0.5, 0);
   controls.update();
 
-  // Panel is split: a few semantic everyday dials up top, and an "Advanced"
-  // folder (collapsed) holding the coupled physics params that already have
-  // good defaults — so the common case isn't buried in knobs.
   const gui = new GUI({ title: "Scene" });
   gui.add(renderer, "toneMappingExposure", 0, 1, 0.01).name("exposure");
   const sunFolder = gui.addFolder("Sun");
   sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
+
+  const debug = { wireframe: true, probes: true, segments: 512, invert: true };
+  const debugFolder = gui.addFolder("Debug");
+  debugFolder.add(debug, "wireframe").onChange((on: boolean) => ocean.setDebug(on));
+  debugFolder.add(debug, "probes").onChange((on: boolean) => {
+    probes.visible = on;
+  });
+  debugFolder
+    .add(debug, "segments", 64, 2048, 64)
+    .name("tessellation")
+    .onFinishChange((n: number) => ocean.setSegments(n));
+  debugFolder
+    .add(debug, "invert")
+    .name("invert sampling")
+    .onChange((on: boolean) => ocean.setInversion(on));
 
   const advanced = gui.addFolder("Advanced");
   advanced.close();
@@ -140,6 +180,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       const sample = ocean.sampleSurface(buoy.position.x, buoy.position.z, elapsed);
       buoy.position.y = sample.height;
       buoy.quaternion.setFromUnitVectors(UP, sample.normal);
+      updateProbes(elapsed);
       controls.update();
     },
     dispose: () => {
@@ -152,6 +193,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.dispose();
       buoyGeometry.dispose();
       buoyMaterial.dispose();
+      probes.dispose();
+      probeGeometry.dispose();
+      probeMaterial.dispose();
     },
   };
 }
