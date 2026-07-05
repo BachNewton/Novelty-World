@@ -24,11 +24,14 @@ import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 // (ω = √(gk)) only looks right at real scale, so keep everything metric.
 const MAX_WAVES = 8; // must match the array sizes in OCEAN_PARS
 const PLANE_SIZE = 10000; // 10 km of sea — the far edge sits at the horizon
-// ~4.9 m quads — fine enough to render the short (48/70 m) waves without crest
-// faceting. Uniform over the whole plane, which is a bit wasteful far away; a
-// camera-following LOD grid is the future optimization (see CLAUDE.md) if a
-// weaker device ever needs it. Runs 60-100 FPS on desktop, so not now.
-const PLANE_SEGMENTS = 2048;
+// ~9.8 m quads at 1024². Coarser than the shortest (48/70 m) waves, so their
+// crests facet slightly: the rendered GPU surface dips below the analytic crest,
+// which can make the CPU-placed cube read as floating a touch high. Accepted for
+// now to ease the vertex load — ~1 M vertices vs. ~4 M at 2048² — and the cube's
+// placement becomes a Rapier buoyancy concern (roadmap #6) rather than a pure
+// render-alignment one. 2048² removes the faceting; a camera-following LOD grid
+// (see CLAUDE.md) is the real fix when far water shouldn't cost full detail.
+const PLANE_SEGMENTS = 1024;
 const GRAVITY = 9.81;
 const TWO_PI = Math.PI * 2;
 const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
@@ -74,14 +77,19 @@ export interface Ocean {
   /** Forward Gerstner: where the particle at REST (x, z) rides to (orbital motion)
    *  + its normal. This is how a floating object rides the waves. */
   sampleParticle: (restX: number, restZ: number, time: number) => ParticleSample;
+  /** Bind the scene colour + depth capture the water refracts/absorbs (call once). */
+  setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => void;
+  /** Debug: gate the whole refraction/depth/SSR composite (isolate its cost). */
+  setWaterFx: (on: boolean) => void;
+  /** Camera (near/far/projection) + drawing-buffer size for depth reconstruction,
+   *  screen UVs, and the SSR ray-march projection. Call on setup + resize. */
+  setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => void;
   /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
   buildGui: (basic: GUI, advanced: GUI) => void;
   /** Strip the water to a bare wireframe (no ripple map) for debugging. */
   setDebug: (on: boolean) => void;
   /** Rebuild the surface mesh at a new tessellation (debug: check facet gap). */
   setSegments: (segments: number) => void;
-  /** Toggle the horizontal-displacement inversion in `sampleSurface` (debug). */
-  setInversion: (on: boolean) => void;
   dispose: () => void;
 }
 
@@ -104,6 +112,8 @@ uniform vec2 uDir[${MAX_WAVES}];
 uniform float uWavelength[${MAX_WAVES}];
 uniform float uAmplitude[${MAX_WAVES}];
 uniform float uSteepness[${MAX_WAVES}];
+
+varying vec3 vWorldNormal;
 
 void gerstner(vec2 p, out vec3 displaced, out vec3 gnormal) {
   vec3 pos = vec3(p.x, 0.0, p.y);
@@ -140,6 +150,136 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
   #ifdef USE_TANGENT
   vec3 objectTangent = vec3(tangent.xyz);
   #endif
+  // The mesh is world-aligned and untransformed, so the Gerstner object normal is
+  // the world normal — handed to the fragment shader to wobble the refraction with
+  // (its xz is 0 on flat water → no distortion, and grows with the waves).
+  vWorldNormal = gNormal;
+`;
+
+// Fragment-side declarations + helpers for the refraction / depth / SSR composite.
+const SSR_STEPS = 48; // linear march samples
+const SSR_REFINE = 5; // binary-search refinement steps after a hit
+const OCEAN_FRAG_PARS = /* glsl */ `
+uniform bool uWaterFx;
+uniform sampler2D uSceneColor;
+uniform sampler2D uSceneDepth;
+uniform vec2 uResolution;
+uniform float uNear;
+uniform float uFar;
+uniform mat4 uProjection;
+uniform float uRefractionStrength;
+uniform vec3 uAbsorption;
+uniform vec3 uScatterColor;
+uniform bool uSsrEnabled;
+uniform float uReflectionStrength;
+uniform float uReflectMin;
+uniform float uSsrMaxDistance;
+uniform float uSsrThickness;
+uniform float uSsrMinFresnel;
+varying vec3 vWorldNormal;
+
+// Perspective depth [0,1] → positive eye-space distance (metres).
+float oceanEyeDist(float depth) {
+  float zndc = depth * 2.0 - 1.0;
+  return (2.0 * uNear * uFar) / (uFar + uNear - zndc * (uFar - uNear));
+}
+
+// Screen-space reflection. March the reflected ray in VIEW space, projecting each
+// step to screen to read the scene depth; a hit is where the ray passes just behind
+// the stored surface. Returns reflected scene colour in .rgb and a confidence in .a
+// (0 = miss → caller falls back to the env-map sky reflection). This reflects
+// dynamic geometry (the cube, later ships/islands) correctly on the displaced
+// surface, because it rides the real per-pixel normal.
+vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
+  vec3 incident = normalize(viewPos);
+  vec3 dir = reflect(incident, viewNormal);
+  float stepSize = uSsrMaxDistance / float(${SSR_STEPS});
+  vec3 rayPos = viewPos;
+  vec2 hitUv = vec2(0.0);
+  bool hit = false;
+  for (int i = 0; i < ${SSR_STEPS}; i++) {
+    rayPos += dir * stepSize;
+    vec4 clip = uProjection * vec4(rayPos, 1.0);
+    if (clip.w <= 0.0) break;
+    vec2 uv = (clip.xy / clip.w) * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
+    float sceneEye = oceanEyeDist(texture2D(uSceneDepth, uv).x);
+    float diff = (-rayPos.z) - sceneEye; // >0: ray is behind the scene surface
+    if (diff > 0.0 && diff < uSsrThickness) {
+      // Binary-refine between the last empty step and this hit for a tight uv.
+      vec3 lo = rayPos - dir * stepSize;
+      vec3 hi = rayPos;
+      for (int j = 0; j < ${SSR_REFINE}; j++) {
+        vec3 mid = (lo + hi) * 0.5;
+        vec4 mclip = uProjection * vec4(mid, 1.0);
+        vec2 muv = (mclip.xy / mclip.w) * 0.5 + 0.5;
+        float mEye = oceanEyeDist(texture2D(uSceneDepth, muv).x);
+        if ((-mid.z) - mEye > 0.0) { hi = mid; hitUv = muv; } else { lo = mid; }
+      }
+      hit = true;
+      break;
+    }
+  }
+  if (!hit) return vec4(0.0);
+  // Fade at screen edges (out-of-bounds has no data) and for rays angled back
+  // toward the camera (SSR can't see behind the viewer).
+  vec2 e = smoothstep(0.0, 0.12, hitUv) * (1.0 - smoothstep(0.88, 1.0, hitUv));
+  float mask = e.x * e.y * clamp(1.0 - max(dot(-incident, dir), 0.0), 0.0, 1.0);
+  return vec4(texture2D(uSceneColor, hitUv).rgb, mask);
+}
+`;
+
+// Injected AFTER <tonemapping_fragment>: the captured scene colour is tone-mapped
+// (three applies tone mapping in the material regardless of render target), so we
+// composite in that same tone-mapped space to avoid a double tone-map.
+//
+// Refraction: sample the scene behind the water at this fragment's screen UV, nudged
+// by the world wave normal (0 on flat water → straight-through). Guard against
+// grabbing an ABOVE-water pixel (would bleed the cube/islands into the water).
+// Absorption: Beer–Lambert over the water column (red dies first → turquoise → navy).
+// Fresnel blend: look down → see into the water; grazing → keep the reflective/lit
+// surface gl_FragColor already holds (sun specular + env sky reflection).
+const OCEAN_FRAG_WATER = /* glsl */ `
+  if (uWaterFx) {
+    vec2 screenUv = gl_FragCoord.xy / uResolution;
+    float waterDist = vViewPosition.z;
+
+    vec2 refractUv = screenUv + vWorldNormal.xz * uRefractionStrength;
+    float behindDist = oceanEyeDist(texture2D(uSceneDepth, refractUv).x);
+    if (behindDist < waterDist) {
+      refractUv = screenUv;
+      behindDist = oceanEyeDist(texture2D(uSceneDepth, screenUv).x);
+    }
+    vec3 refracted = texture2D(uSceneColor, refractUv).rgb;
+
+    float thickness = max(behindDist - waterDist, 0.0);
+    vec3 transmit = exp(-uAbsorption * thickness);
+    vec3 body = refracted * transmit + uScatterColor * (1.0 - transmit);
+
+    // Geometric Fresnel (0 head-on → 1 grazing). uReflectMin lifts the head-on
+    // reflectivity above water's physical ~2% to make the sea read as more
+    // reflective (a sky sheen that also veils shallow see-through). The SSR gate
+    // uses the RAW geometric term so raising uReflectMin doesn't force the march
+    // onto every pixel (which would wreck the perf win).
+    float fresnelGeo = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0);
+    float fresnel = clamp(mix(uReflectMin, 1.0, fresnelGeo), 0.0, 1.0);
+
+    // Reflective half: gl_FragColor already holds the env-map sky reflection + sun
+    // specular. Only pay for the SSR march where the reflection is actually visible
+    // (grazing angles / wave faces) — below the cutoff the reflection is near-invisible,
+    // so skip the march and keep the env sky. This is the big perf lever: most of a
+    // top-down sea is below the cutoff. Where SSR hits real geometry (the cube, later
+    // ships/islands) it overrides the env; a miss keeps the sky.
+    vec3 reflective = gl_FragColor.rgb;
+    // uSsrEnabled gates the whole march (a true on/off + perf A/B, not a zeroed blend
+    // of a march we still paid for); the Fresnel cutoff then skips it per-pixel where
+    // the reflection would be invisible anyway.
+    if (uSsrEnabled && fresnelGeo > uSsrMinFresnel) {
+      vec4 ssr = oceanSsr(-vViewPosition, normalize(normal));
+      reflective = mix(reflective, ssr.rgb, ssr.a * uReflectionStrength);
+    }
+    gl_FragColor.rgb = mix(body, reflective, fresnel);
+  }
 `;
 
 export function createOcean(): Ocean {
@@ -166,14 +306,37 @@ export function createOcean(): Ocean {
     uWavelength: { value: uWavelengthValue },
     uAmplitude: { value: uAmplitudeValue },
     uSteepness: { value: uSteepnessValue },
+    // Screen-space refraction + depth absorption. The scene colour + depth textures
+    // (everything but the water) are bound by scene.ts from the shared capture; the
+    // shader reads them to see into/behind the water. Beer–Lambert absorption tints
+    // the water column and fades the submerged part of objects with depth.
+    uWaterFx: { value: true }, // debug: gate the whole refraction/depth/SSR composite
+    uSceneColor: { value: null as THREE.Texture | null },
+    uSceneDepth: { value: null as THREE.Texture | null },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uNear: { value: 1 },
+    uFar: { value: 20000 },
+    uRefractionStrength: { value: 0.04 },
+    // Beer–Lambert extinction per metre — red dies fastest, blue persists, so the
+    // column deepens turquoise → navy the way clear seawater does (fully tunable).
+    uAbsorption: { value: new THREE.Vector3(0.35, 0.18, 0.12) },
+    uScatterColor: { value: new THREE.Color(0x0a2f38) },
+    // Screen-space reflection: ray-marches the captured depth to reflect dynamic
+    // geometry; misses fall back to the env-map sky. uProjection is bound with the
+    // view params (it changes on resize). uSsrMinFresnel gates the march — below it
+    // the reflection is invisible, so we skip the whole march (the main perf lever).
+    uProjection: { value: new THREE.Matrix4() },
+    uSsrEnabled: { value: true },
+    uReflectionStrength: { value: 1 },
+    // Water's real head-on reflectance (~2%); Fresnel lifts it toward 1 at grazing.
+    uReflectMin: { value: 0.02 },
+    uSsrMaxDistance: { value: 40 },
+    uSsrThickness: { value: 1.5 },
+    uSsrMinFresnel: { value: 0.05 },
   };
 
   // The effective waves the CPU sampler reads — kept identical to the uniforms.
   let waves: Wave[] = [];
-
-  // Debug: when false, `sampleSurface` skips the horizontal-displacement
-  // inversion (naive grid = world), to isolate whether it's actually needed.
-  let useInversion = true;
 
   const rebuild = () => {
     waves = BASE_WAVES.map((base) => {
@@ -228,12 +391,22 @@ export function createOcean(): Ocean {
     normalMap: detailNormals,
   });
   material.normalScale.set(0.35, 0.35);
+  // The env map is the sky reflection (correct on the displaced surface, since it
+  // reflects per-pixel by the real normal). It's the reflective half of the water
+  // until SSR lands; the refraction composite blends it in by Fresnel.
+  material.envMapIntensity = 1.0;
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\n${OCEAN_PARS}`)
       .replace("#include <beginnormal_vertex>", OCEAN_BEGINNORMAL)
       .replace("#include <begin_vertex>", "vec3 transformed = gDisplaced;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\n${OCEAN_FRAG_PARS}`)
+      .replace(
+        "#include <tonemapping_fragment>",
+        `#include <tonemapping_fragment>\n${OCEAN_FRAG_WATER}`,
+      );
   };
   // Keep this material's patched program from being shared with a stock one.
   material.customProgramCacheKey = () => "shipwright-gerstner-ocean";
@@ -279,39 +452,37 @@ export function createOcean(): Ocean {
     // quadratic convergence (a few steps nail it even at high steepness).
     let gx = x;
     let gz = z;
-    if (useInversion) {
-      for (let iter = 0; iter < SAMPLE_ITERATIONS; iter++) {
-        let ox = 0;
-        let oz = 0;
-        let jxx = 0;
-        let jxz = 0;
-        let jzz = 0;
-        for (const wave of waves) {
-          if (wave.amplitude <= 0) continue;
-          const k = TWO_PI / wave.wavelength;
-          const w = Math.sqrt(GRAVITY * k);
-          const q = wave.steepness / (k * wave.amplitude * waves.length);
-          const phase = k * (wave.dir.x * gx + wave.dir.y * gz) - w * time * speed;
-          const qa = q * wave.amplitude;
-          const c = Math.cos(phase);
-          const s = Math.sin(phase);
-          ox += qa * wave.dir.x * c;
-          oz += qa * wave.dir.y * c;
-          const qaks = qa * k * s;
-          jxx -= qaks * wave.dir.x * wave.dir.x;
-          jxz -= qaks * wave.dir.x * wave.dir.y;
-          jzz -= qaks * wave.dir.y * wave.dir.y;
-        }
-        // Solve (I + J)·delta = (g + o − target), then step g by −delta.
-        const fx = gx + ox - x;
-        const fz = gz + oz - z;
-        const a = 1 + jxx;
-        const d = 1 + jzz;
-        const det = a * d - jxz * jxz;
-        if (Math.abs(det) < 1e-6) break;
-        gx -= (d * fx - jxz * fz) / det;
-        gz -= (a * fz - jxz * fx) / det;
+    for (let iter = 0; iter < SAMPLE_ITERATIONS; iter++) {
+      let ox = 0;
+      let oz = 0;
+      let jxx = 0;
+      let jxz = 0;
+      let jzz = 0;
+      for (const wave of waves) {
+        if (wave.amplitude <= 0) continue;
+        const k = TWO_PI / wave.wavelength;
+        const w = Math.sqrt(GRAVITY * k);
+        const q = wave.steepness / (k * wave.amplitude * waves.length);
+        const phase = k * (wave.dir.x * gx + wave.dir.y * gz) - w * time * speed;
+        const qa = q * wave.amplitude;
+        const c = Math.cos(phase);
+        const s = Math.sin(phase);
+        ox += qa * wave.dir.x * c;
+        oz += qa * wave.dir.y * c;
+        const qaks = qa * k * s;
+        jxx -= qaks * wave.dir.x * wave.dir.x;
+        jxz -= qaks * wave.dir.x * wave.dir.y;
+        jzz -= qaks * wave.dir.y * wave.dir.y;
       }
+      // Solve (I + J)·delta = (g + o − target), then step g by −delta.
+      const fx = gx + ox - x;
+      const fz = gz + oz - z;
+      const a = 1 + jxx;
+      const d = 1 + jzz;
+      const det = a * d - jxz * jxz;
+      if (Math.abs(det) < 1e-6) break;
+      gx -= (d * fx - jxz * fz) / det;
+      gz -= (a * fz - jxz * fx) / det;
     }
     const { height, nx, ny, nz } = evalGrid(gx, gz, time);
     return { height, normal: new THREE.Vector3(nx, ny, nz).normalize() };
@@ -332,6 +503,19 @@ export function createOcean(): Ocean {
         normal: new THREE.Vector3(nx, ny, nz).normalize(),
       };
     },
+    setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => {
+      uniforms.uSceneColor.value = color;
+      uniforms.uSceneDepth.value = depth;
+    },
+    setWaterFx: (on: boolean) => {
+      uniforms.uWaterFx.value = on;
+    },
+    setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => {
+      uniforms.uNear.value = camera.near;
+      uniforms.uFar.value = camera.far;
+      uniforms.uResolution.value.set(width, height);
+      uniforms.uProjection.value.copy(camera.projectionMatrix);
+    },
     buildGui: (basic, advanced) => {
       const seaFolder = basic.addFolder("Sea");
       seaFolder.add(globals, "amplitude", 0, 5, 0.01).name("wave height").onChange(rebuild);
@@ -349,6 +533,7 @@ export function createOcean(): Ocean {
       waterFolder.addColor(material, "color");
       waterFolder.add(material, "roughness", 0, 1, 0.01);
       waterFolder.add(material, "metalness", 0, 1, 0.01);
+      waterFolder.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
       waterFolder
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")
@@ -357,6 +542,25 @@ export function createOcean(): Ocean {
         .add(detail, "tiling", 100, 3000, 10)
         .name("ripple scale")
         .onChange(() => detailNormals.repeat.set(detail.tiling, detail.tiling));
+
+      const bodyFolder = advanced.addFolder("Water body");
+      bodyFolder
+        .add(uniforms.uRefractionStrength, "value", 0, 0.2, 0.002)
+        .name("refraction");
+      bodyFolder.addColor(uniforms.uScatterColor, "value").name("deep colour");
+      bodyFolder.add(uniforms.uAbsorption.value, "x", 0, 1, 0.005).name("absorb R");
+      bodyFolder.add(uniforms.uAbsorption.value, "y", 0, 1, 0.005).name("absorb G");
+      bodyFolder.add(uniforms.uAbsorption.value, "z", 0, 1, 0.005).name("absorb B");
+
+      const reflFolder = advanced.addFolder("Reflection (SSR)");
+      reflFolder.add(uniforms.uSsrEnabled, "value").name("enabled");
+      reflFolder.add(uniforms.uReflectionStrength, "value", 0, 1, 0.01).name("strength");
+      reflFolder.add(uniforms.uReflectMin, "value", 0.02, 0.4, 0.01).name("reflectivity");
+      reflFolder.add(uniforms.uSsrMaxDistance, "value", 5, 120, 1).name("max distance");
+      reflFolder.add(uniforms.uSsrThickness, "value", 0.1, 6, 0.1).name("thickness");
+      reflFolder
+        .add(uniforms.uSsrMinFresnel, "value", 0.02, 0.5, 0.01)
+        .name("cutoff (perf)");
     },
     setDebug: (on) => {
       material.wireframe = on;
@@ -368,9 +572,6 @@ export function createOcean(): Ocean {
       next.rotateX(-Math.PI / 2);
       mesh.geometry.dispose();
       mesh.geometry = next;
-    },
-    setInversion: (on) => {
-      useInversion = on;
     },
     dispose: () => {
       mesh.geometry.dispose();

@@ -38,6 +38,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const ocean = createOcean();
   scene.add(ocean.mesh);
 
+  // Screen-space refraction / depth: the water reads a colour+depth capture of the
+  // scene behind it (the shared hook's opt-in `sceneCapture`, populated each frame
+  // below with the water hidden). Bind the textures once + the view params.
+  const { sceneCapture } = ctx;
+  if (sceneCapture) {
+    ocean.setSceneCapture(sceneCapture.target.texture, sceneCapture.depthTexture);
+    const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+    ocean.setViewParams(camera, db.x, db.y);
+  }
+
   // A 1 m³ test cube that rides the wave surface by sampling the same wave field
   // the shader displaces. Its center is pinned to the water height (so it should
   // sit half-submerged) — the debug overlay checks whether that's really true.
@@ -48,6 +58,24 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   });
   const buoy = new THREE.Mesh(buoyGeometry, buoyMaterial);
   scene.add(buoy);
+
+  // Debug seabed: a sandy plane tilted into a beach slope that rises from deep
+  // water up through the surface. It's the only way to see depth absorption (the
+  // cube's ~0.5 m is too shallow to fade) — it shows the full shallow→deep colour
+  // gradient and the soft waterline edge, and previews island shallows. Off by
+  // default; toggle in the Debug folder.
+  const seabedGeometry = new THREE.PlaneGeometry(240, 240);
+  seabedGeometry.rotateX(-Math.PI / 2); // lay flat (world-aligned), then tilt below
+  const seabedMaterial = new THREE.MeshStandardMaterial({
+    color: 0xc2b280,
+    roughness: 0.95,
+    side: THREE.DoubleSide,
+  });
+  const seabed = new THREE.Mesh(seabedGeometry, seabedMaterial);
+  seabed.rotation.x = 0.14; // ~±17 m depth swing across the plane → a clear gradient
+  seabed.position.y = -9;
+  seabed.visible = false;
+  scene.add(seabed);
 
   // --- Debug overlay ---------------------------------------------------------
   const probeGeometry = new THREE.SphereGeometry(0.25, 8, 8);
@@ -124,24 +152,45 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   const gui = new GUI({ title: "Scene" });
   gui.add(renderer, "toneMappingExposure", 0, 1, 0.01).name("exposure");
+  // Render scale: default to the display's device pixel ratio (what the browser
+  // picks). At that resolution the supersampling antialiases the water's shader
+  // detail — the SSR/specular/ripple shimmer MSAA can't touch — so it reads smoother
+  // than 1.0. Drop below 1 for more perf on a weak GPU. The hook keeps the drawing
+  // buffer + capture target sized to match.
+  const perf = { renderScale: renderer.getPixelRatio() };
+  gui
+    .add(perf, "renderScale", 0.5, 2, 0.05)
+    .name("render scale")
+    .onChange((r: number) => ctx.setPixelRatio(r));
   const sunFolder = gui.addFolder("Sun");
   sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
-  const debug = { wireframe: false, probes: false, segments: 2048, invert: true };
+  const debug = {
+    wireframe: false,
+    probes: false,
+    seabed: false,
+    waterFx: true,
+    capture: true,
+    segments: 1024,
+  };
   const debugFolder = gui.addFolder("Debug");
   debugFolder.add(debug, "wireframe").onChange((on: boolean) => ocean.setDebug(on));
   debugFolder.add(debug, "probes").onChange((on: boolean) => {
     probes.visible = on;
   });
+  debugFolder.add(debug, "seabed").name("sea floor").onChange((on: boolean) => {
+    seabed.visible = on;
+  });
+  // Perf isolation: turn each added subsystem off to see its frametime cost.
+  debugFolder.add(debug, "waterFx").name("water FX").onChange((on: boolean) => {
+    ocean.setWaterFx(on);
+  });
+  debugFolder.add(debug, "capture").name("scene capture");
   debugFolder
     .add(debug, "segments", 64, 2048, 64)
     .name("tessellation")
     .onFinishChange((n: number) => ocean.setSegments(n));
-  debugFolder
-    .add(debug, "invert")
-    .name("invert sampling")
-    .onChange((on: boolean) => ocean.setInversion(on));
 
   const advanced = gui.addFolder("Advanced");
   advanced.close();
@@ -185,6 +234,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       buoy.quaternion.setFromUnitVectors(UP, ride.normal);
       updateProbes(elapsed);
       controls.update();
+      // Capture the scene (minus the water) into the shared colour+depth target so
+      // the water shader can refract/absorb what's behind it. Runs after everything
+      // is posed for this frame, before the hook's main render (which runs after
+      // onFrame and draws the water sampling this capture).
+      if (sceneCapture && debug.capture) {
+        ocean.mesh.visible = false;
+        renderer.setRenderTarget(sceneCapture.target);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        ocean.mesh.visible = true;
+      }
+    },
+    onResize: () => {
+      // The hook resizes the capture target itself; just refresh the shader's copy
+      // of the drawing-buffer size + projection used for screen-space UVs and SSR.
+      const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+      ocean.setViewParams(camera, db.x, db.y);
     },
     dispose: () => {
       gui.destroy();
@@ -196,6 +262,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.dispose();
       buoyGeometry.dispose();
       buoyMaterial.dispose();
+      seabedGeometry.dispose();
+      seabedMaterial.dispose();
       probes.dispose();
       probeGeometry.dispose();
       probeMaterial.dispose();
