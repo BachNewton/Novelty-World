@@ -303,6 +303,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   ocean.buildGui(gui, advanced);
   physics.buildGui(gui);
 
+  // The debug GUI eats scarce screen space on phones — start it collapsed there
+  // (tap the title bar to expand). Desktop keeps it open.
+  if (window.innerWidth < 768) gui.close();
+
   let elapsed = 0;
 
   return {
