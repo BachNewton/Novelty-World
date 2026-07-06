@@ -5,7 +5,7 @@ import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
  * The analytic Gerstner ocean — the single source of truth for the water
  * surface. The exact same sum-of-Gerstner-waves is evaluated in two places:
  *
- *  - the GPU (injected into a MeshPhongMaterial's vertex shader) to displace
+ *  - the GPU (injected into a MeshStandardMaterial's vertex shader) to displace
  *    and light the visible surface, and
  *  - the CPU (`sampleSurface`) so gameplay — buoyancy, later — can ask "how high
  *    is the water at (x, z) right now?" and get an answer that matches the pixels.
@@ -101,10 +101,6 @@ export interface Ocean {
   /** Debug: actually remove the ripple normal map (fetch + per-pixel tangent-space
    *  perturbation), not just zero its strength — isolates normal-mapping cost. */
   setNormalMap: (on: boolean) => void;
-  /** Bind the sky cube env map the water reflects (captured + refreshed by scene.ts). */
-  setSkyEnv: (cube: THREE.CubeTexture) => void;
-  /** Debug: toggle the sky env-map reflection on the water (isolate its cost/look). */
-  setEnvReflection: (on: boolean) => void;
   /** Bind the low-res SSR pass output texture the water shader samples (call once). */
   setSsrSource: (texture: THREE.Texture) => void;
   /** Render the low-res SSR reflection pass (water only) into `target`. Call each frame
@@ -515,10 +511,9 @@ export function createOcean(): Ocean {
   };
   applyRipple();
 
-  // Inject the Gerstner vertex displacement + analytic normal into any lit material's
-  // program. Shared by the real PBR surface and the debug lambert/phong materials so
-  // the lighting-model comparison keeps identical wave geometry — only the fragment
-  // lighting model differs between them.
+  // Inject the Gerstner vertex displacement + analytic normal into a lit material's
+  // program. Used by the production PBR surface; keeps the vertex/geometry logic in one
+  // place so any material rendered on the mesh shares the identical wave surface.
   const patchGerstnerVertex = (shader: {
     uniforms: Record<string, THREE.IUniform>;
     vertexShader: string;
@@ -530,25 +525,21 @@ export function createOcean(): Ocean {
       .replace("#include <begin_vertex>", "vec3 transformed = gDisplaced;");
   };
 
-  // The water surface is a patched MeshPhongMaterial — NOT MeshStandardMaterial.
-  // Measured on a weak iGPU, Standard's metallic-roughness BRDF cost ~2x Phong's per
-  // pixel (roughly halving the framerate), and water doesn't need physically-based
-  // GGX — Blinn-Phong diffuse + specular + a cube sky reflection reads just as well and
-  // hits the refresh cap. The Gerstner displacement and the screen-space FX composite
-  // (refraction/depth/SSR) are lighting-model-agnostic and carry over unchanged.
-  const material = new THREE.MeshPhongMaterial({
+  // The water surface is a patched MeshStandardMaterial. Standard's metallic-roughness
+  // BRDF measured ~2x Phong's per-pixel cost on a weak iGPU, BUT that gap only bites when
+  // water fills the screen in an otherwise-empty scene; in real, populated frames it's a
+  // rounding error, and Standard's IBL from scene.environment (the warm-sunset ambient +
+  // PMREM sky reflection) reads better. So PBR it is. The Gerstner displacement + the
+  // screen-space FX composite are lighting-model-agnostic and carry over regardless.
+  // (A Phong variant was explored for perf; git history has the code if a tier's needed.)
+  const material = new THREE.MeshStandardMaterial({
     color: 0x1f4a5a,
-    specular: 0x2a3a44, // subtle sun glint; the strong reflections come from SSR/env
-    shininess: 60,
+    roughness: 0.25,
+    metalness: 0,
     normalMap: detailNormals,
   });
   material.normalScale.set(0.35, 0.35);
-  // The sky reflection is a cube env map captured from the Sky (bound by scene.ts via
-  // setSkyEnv). Phong reflects it per-pixel by the shaded wave normal — the reflective
-  // half of the water until SSR hits, blended in by the composite's Fresnel. Added on
-  // top (AddOperation) like the old additive IBL; `reflectivity` tunes its strength.
-  material.combine = THREE.AddOperation;
-  material.reflectivity = 0.6;
+  material.envMapIntensity = 1.0; // IBL (ambient + reflection) from scene.environment (PMREM sky)
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
@@ -606,12 +597,6 @@ export function createOcean(): Ocean {
   // Also draw the surface on the SSR layer so the reflection pass can render it alone.
   mesh.layers.enable(SSR_LAYER);
   let normalMapOn = true; // debug toggle (setNormalMap); wireframe strips it regardless
-  let skyEnv: THREE.CubeTexture | null = null; // sky reflection cube (bound by scene.ts)
-  let envOn = true; // debug toggle (setEnvReflection)
-  const applyEnv = () => {
-    material.envMap = envOn ? skyEnv : null;
-    material.needsUpdate = true;
-  };
 
   // Evaluate the Gerstner sum for a grid point: its horizontal displacement
   // (ox, oz), height, and normal. This is the forward function the GPU renders.
@@ -732,9 +717,9 @@ export function createOcean(): Ocean {
       const detail = { strength: material.normalScale.x, ripple: rippleMeters };
       const waterFolder = advanced.addFolder("Water");
       waterFolder.addColor(material, "color");
-      waterFolder.addColor(material, "specular");
-      waterFolder.add(material, "shininess", 1, 200, 1);
-      waterFolder.add(material, "reflectivity", 0, 1, 0.01).name("reflectivity");
+      waterFolder.add(material, "roughness", 0, 1, 0.01);
+      waterFolder.add(material, "metalness", 0, 1, 0.01);
+      waterFolder.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
       waterFolder
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")
@@ -786,14 +771,6 @@ export function createOcean(): Ocean {
         material.normalMap = on ? detailNormals : null;
         material.needsUpdate = true;
       }
-    },
-    setSkyEnv: (cube) => {
-      skyEnv = cube;
-      applyEnv();
-    },
-    setEnvReflection: (on) => {
-      envOn = on;
-      applyEnv();
     },
     setSsrSource: (texture) => {
       uniforms.uSsrReflection.value = texture;

@@ -127,10 +127,13 @@ code that floats the ship agree on where the surface is.
   ocean fragment shader reads it to (a) **refract** — sample the scene behind the
   water, nudged by the world wave normal; (b) **absorb** — Beer–Lambert over the
   water column from the depth texture (red dies first → turquoise → navy) with soft
-  edges where geometry meets the surface; and (c) **reflect** — screen-space
-  reflection ray-marches the reflected ray against that same depth buffer, sampling
-  the colour on a hit, falling back to the **env-map sky** on a miss. All three ride
-  the real per-pixel normal, so they track the displaced waves with no mismatch.
+  edges where geometry meets the surface; and (c) **reflect** — SSR (screen-space
+  reflection) ray-marches that same depth buffer, falling back to the **env-map sky**
+  on a miss. The SSR march runs in a **dedicated low-res pass** (`ocean.ts` `renderSsr`
+  renders the water alone, layer-isolated, into a fraction-res target the water shader
+  then samples) — NOT inline in the water fragment; the low-res reflection is
+  re-distorted at full res by the ripple normal map at sample time. Refraction +
+  absorption ride the per-pixel wave normal, so they track the displaced waves.
   Composited **after `<tonemapping_fragment>`** because the captured colour is
   tone-mapped (three tone-maps in-material regardless of render target) — matching
   spaces avoids a double tone-map.
@@ -174,23 +177,9 @@ code that floats the ship agree on where the surface is.
   `onFrame` / `onResize` / `dispose` handlers. This hook is deliberately
   game-agnostic and shared — extend it rather than re-implementing the lifecycle
   per project. Options added for the water: **`sceneCapture`** (opt-in colour+depth
-  target on the context; `{ resolutionScale }` renders it below screen res — SSR/
-  refraction hide the softening and it saves bandwidth+VRAM), **`antialias`**
-  (default true; false drops MSAA — redundant when the device-ratio render scale
-  already supersamples), and **`maxPixelRatio`** + live **`ctx.setPixelRatio`** for a
-  render-scale control.
-- **Performance is fill/bandwidth-bound, and on a small-VRAM iGPU it's memory-bound.**
-  The water shades the whole screen with PBR + the screen-space composite, so cost
-  scales with pixel count. Findings from tuning on an AMD 780M iGPU (512 MB dedicated
-  UMA pool): "high FPS but laggy input" was **VRAM spill to shared system memory** —
-  the desktop already fills most of a 512 MB pool, so the water's working set
-  overflowed to the slow shared path. Not a compute bottleneck. Levers, in order of
-  impact: **render scale** (fill scales with pixels²; biggest lever), **MSAA off**
-  (frees the 4× framebuffer), **half-res `sceneCapture`** (~4× less capture VRAM +
-  bandwidth), lower **tessellation**. The SSR march is **Fresnel-gated** — skipped on
-  pixels where the reflection would be invisible (most of a top-down sea), the main
-  reason SSR isn't the dominant cost. The real fix for a small-VRAM iGPU is raising
-  the BIOS UMA buffer (or a dGPU); our job is just to stay frugal.
+  target on the context; `{ resolutionScale }` renders it below screen res),
+  **`antialias`** (default true; false drops MSAA), and **`maxPixelRatio`** + live
+  **`ctx.setPixelRatio`** for a render-scale control.
 - **Sky** comes from three.js's `Sky` addon (`three/examples/jsm/objects/Sky.js`)
   with clouds, baked to an env map via `PMREMGenerator`. The env map is the water's
   sky reflection (per-pixel, correct on the displaced surface) and the SSR fallback.
@@ -218,10 +207,9 @@ code that floats the ship agree on where the surface is.
   `MeshStandardMaterial` (GPU) **and** `sampleSurface` (CPU), which must stay in
   lock-step. `sampleSurface` inverts the horizontal displacement (Newton-Raphson)
   so it returns the height at a WORLD point, not a grid point. Also holds the
-  fragment-side **refraction / depth absorption / SSR** composite and its uniforms,
-  plus the Water/wave/reflection GUI and debug toggles (wireframe / tessellation /
-  water FX). Single source of truth for the surface — buoyancy will read
-  `sampleSurface`.
+  fragment-side **refraction / depth absorption / reflection** composite, the dedicated
+  **low-res SSR pass** (`renderSsr`), their uniforms, and the Water/wave/reflection GUI +
+  debug toggles. Single source of truth for the surface — buoyancy reads `sampleSurface`.
 
 ## Status
 
@@ -233,25 +221,17 @@ code that floats the ship agree on where the surface is.
   confirmed the GPU GLSL and CPU math are term-for-term identical and the
   inversion is correct. A 1 m³ test cube rides the surface off `sampleSurface`.
 - **Screen-space water shipped (step 3).** Refraction + Beer–Lambert depth
-  absorption (turquoise→navy) + soft edges + SSR reflection, all off one shared
-  colour+depth `sceneCapture` (rendered at half res). The env map is the sky
-  reflection + SSR fallback. Runs shaded and clean by default. Bloom still parked.
-  Debug GUI: wireframe, probes, **sea floor** (a sloped seabed to exercise the
-  depth gradient + shallows), tessellation, and perf-isolation toggles **water FX**
-  (the whole refraction/SSR composite) + **scene capture**; **render scale** slider
-  and an **Advanced ▸ Reflection (SSR)** folder (enabled / strength / reflectivity /
-  distance / thickness / cutoff). (The `sampleSurface` inversion is confirmed
-  necessary, always on; its debug toggle was removed.)
-- **Tessellation is uniform 1024×1024** (`PLANE_SEGMENTS`), ~9.8 m quads, ~1 M
-  vertices — dropped from 2048² to ease the GPU vertex load (the ocean is
-  vertex-bound: every vertex runs the 8-wave Gerstner loop). Trade-off: ~9.8 m
-  quads are coarser than the shortest (48/70 m) waves, so their crests facet
-  slightly and the rendered GPU surface can dip below the analytic crest — which
-  is why the CPU-placed cube sometimes reads as floating a touch high. Accepted:
-  it's a visual artifact of kinematic placement, and once the ship is a Rapier
-  buoyancy body (roadmap #6) alignment is a physics concern, not a mesh-density
-  one. 2048² removes the faceting at ~4× the vertices if a crisp waterline is
-  ever needed for a demo.
+  absorption (turquoise→navy) + soft edges + SSR reflection, off one shared colour+depth
+  `sceneCapture` — with SSR now in a dedicated **low-res reflection pass** (see Water
+  architecture). Patched `MeshStandardMaterial` (PBR), lit by the PMREM sky env map.
+  Runs shaded and clean by default. Bloom still parked. (The `sampleSurface` inversion is
+  confirmed necessary, always on; its debug toggle was removed.)
+- **Tessellation is density-based.** The debug GUI holds a constant **quad size**
+  (~4.9 m default) and derives the segment count from the plane size, so the grid keeps
+  the same fineness as the plane grows or shrinks (`setGrid`); both quad size and plane
+  size are debug sliders. The short (48/70 m) waves need this fineness to render without
+  their crests faceting — a coarse grid dips the rendered surface below the analytic
+  crest, which can read as the CPU-placed cube floating a touch high.
 - **FUTURE IMPROVEMENT — camera-following LOD ocean.** The uniform grid
   spends detail on far water that doesn't need it. When we build the roaming /
   sailing camera (or if a weaker device needs it), replace it with a

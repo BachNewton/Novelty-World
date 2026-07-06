@@ -26,7 +26,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
 
   renderer.toneMappingExposure = 0.5;
-  camera.position.set(5, 3, 8);
+  camera.position.set(-8, 2.5, 8); // low, aimed across the water toward the low sun
 
   // Lighting is intentionally minimal — just enough to complement the water and
   // give the sun a specular glint. The env map (below) does most of the work.
@@ -163,18 +163,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const sceneEnv = new THREE.Scene();
   let envRenderTarget: THREE.WebGLRenderTarget | undefined;
-  // Sky reflection for the water: a cube capture of the Sky. The water is a patched
-  // MeshPhongMaterial (see ocean.ts) which reflects a cube env map — not the PMREM
-  // `scene.environment` that image-based-lights the PBR objects — so we refresh both on
-  // sun change. HalfFloat holds the sky's HDR range (already clamped below the ceiling).
-  const skyCubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
-  const skyCubeCamera = new THREE.CubeCamera(1, 20000, skyCubeRT);
 
-  const params = { elevation: 30, azimuth: 135 };
-  // Debug: toggle the water's sky reflection (its cube env map) to isolate its cost and
-  // look. Bound to ocean.setEnvReflection; scene.environment (which lights the PBR
-  // objects) is separate and stays on.
-  const envMap = { enabled: true };
+  const params = { elevation: 4, azimuth: 135 };
 
   const updateSun = () => {
     const phi = THREE.MathUtils.degToRad(90 - params.elevation);
@@ -185,11 +175,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
     sceneEnv.add(sky);
     envRenderTarget?.dispose();
-    envRenderTarget = pmremGenerator.fromScene(sceneEnv); // IBL for the PBR objects
-    skyCubeCamera.update(renderer, sceneEnv); // the water's cube sky reflection
+    // Bake the sky to a PMREM env map — image-based lighting (ambient + reflection) for
+    // the water and the other PBR surfaces via scene.environment.
+    envRenderTarget = pmremGenerator.fromScene(sceneEnv);
     scene.add(sky);
     scene.environment = envRenderTarget.texture;
-    ocean.setSkyEnv(skyCubeRT.texture);
   };
   updateSun();
 
@@ -198,7 +188,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.maxPolarAngle = Math.PI * 0.495; // keep the camera above the water
   controls.minDistance = 2;
   controls.maxDistance = 400;
-  controls.target.set(0, 0.5, 0);
+  controls.target.set(4, 1.5, -4); // toward the sun (azimuth 135°) so the sunset + its reflection frame up
   controls.update();
 
   const gui = new GUI({ title: "Scene" });
@@ -224,8 +214,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     seabed: false,
     waterFx: true,
     capture: true,
-    planeSize: 300, // synced to the mesh at startup via applyGrid (below)
-    quadSize: 10000 / 1024, // ~9.77 m quad edge = tessellation density (held constant)
+    planeSize: 1000, // synced to the mesh at startup via applyGrid (below)
+    quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
   };
   const debugFolder = gui.addFolder("Debug");
   debugFolder
@@ -247,10 +237,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   debugFolder.add(debug, "capture").name("scene capture");
-  debugFolder
-    .add(envMap, "enabled")
-    .name("sky reflection")
-    .onChange((on: boolean) => ocean.setEnvReflection(on));
   debugFolder
     .add(ssrScale, "value", 0.1, 1, 0.05)
     .name("reflection res")
@@ -348,7 +334,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       gui.destroy();
       controls.dispose();
       envRenderTarget?.dispose();
-      skyCubeRT.dispose();
       ssrTarget.dispose();
       pmremGenerator.dispose();
       sky.geometry.dispose();

@@ -2,7 +2,6 @@ import * as THREE from "three";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 import type { Ocean } from "./ocean";
-import { createFerry } from "./ferry";
 
 /**
  * Rapier physics for Shipwright — the OTHER half of the HYBRID floating decision
@@ -347,11 +346,6 @@ export function createPhysics(ocean: Ocean): Physics {
     return arrow;
   });
 
-  // The to-scale ferry shares this world + fixed-timestep loop, but floats off a
-  // sparse probe grid instead of per-voxel buoyancy (see ferry.ts).
-  const ferry = createFerry(ocean);
-  group.add(ferry.object);
-
   // Rapier is loaded async (init); until then there's no world and update no-ops.
   // `bodies` is index-parallel to `visuals` once init resolves.
   let world: RAPIER.World | null = null;
@@ -468,7 +462,6 @@ export function createPhysics(ocean: Ocean): Physics {
       body.resetForces(true);
       body.resetTorques(true);
     }
-    ferry.respawn();
   };
 
   return {
@@ -495,7 +488,6 @@ export function createPhysics(ocean: Ocean): Physics {
         }
         bodies.push(body);
       }
-      ferry.initBody(w);
       world = w;
     },
     update: (delta, time) => {
@@ -508,14 +500,12 @@ export function createPhysics(ocean: Ocean): Physics {
       // offset sea.) Fixed dt is only the integration step, not the sampling clock.
       while (accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
         applyBuoyancy(time);
-        ferry.applyBuoyancy(time);
         world.step();
         accumulator -= FIXED_DT;
         steps++;
       }
       if (steps === MAX_SUBSTEPS) accumulator = 0; // drop backlog past the cap
       syncMeshes();
-      ferry.sync();
       if (arrowGroup.visible) updateArrows();
     },
     buildGui: (gui) => {
@@ -530,13 +520,6 @@ export function createPhysics(ocean: Ocean): Physics {
           arrowGroup.visible = on;
           if (!on) for (const arrow of arrows) arrow.visible = false;
         });
-      const view = { ferry: true };
-      folder
-        .add(view, "ferry")
-        .name("ferry (heavy)")
-        .onChange((on: boolean) => {
-          ferry.object.visible = on;
-        });
     },
     dispose: () => {
       world?.free();
@@ -544,7 +527,6 @@ export function createPhysics(ocean: Ocean): Physics {
       for (const material of materials) material.dispose();
       for (const v of visuals) v.mesh.dispose();
       for (const arrow of arrows) arrow.dispose();
-      ferry.dispose();
     },
   };
 }
