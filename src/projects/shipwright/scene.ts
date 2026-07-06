@@ -9,6 +9,7 @@ import type {
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics } from "./physics";
 import { createNavBuoys } from "./buoys";
+import { createMeasuringPole } from "./measuring-pole";
 
 // Debug probe grid: bright dots placed at the CPU-sampled surface height, the
 // same way the buoys are sampled. Overlaid on the wireframe ocean, they reveal
@@ -25,6 +26,11 @@ const PROBE_SPACING = 6; // metres between probes
 export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
 
+  // KNOWN ISSUE: fixed exposure. At high sun elevation the scene lighting (bright noon-sky
+  // IBL via scene.environment + the directional sun below + hemi fill) far outshines this
+  // fixed 0.5, so PBR objects (buoys, physics bodies) blow out to washed-white. Confirmed
+  // pre-existing and independent of the water optics. Fix: auto-exposure — lower exposure as
+  // the sun rises (stop down at noon), e.g. drive toneMappingExposure from sun elevation.
   renderer.toneMappingExposure = 0.5;
   camera.position.set(-8, 2.5, 8); // low, aimed across the water toward the low sun
 
@@ -102,6 +108,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   seabed.visible = false;
   scene.add(seabed);
 
+  // Secchi measuring staff: a metre-numbered board through the surface whose submerged
+  // part fades by the real depth-absorption — read the visibility straight off it. A
+  // calibration instrument (see measuring-pole.ts); on by default while we tune clarity.
+  const measuringPole = createMeasuringPole();
+  scene.add(measuringPole.object);
+
   // --- Debug overlay ---------------------------------------------------------
   const probeGeometry = new THREE.SphereGeometry(0.25, 8, 8);
   const probeMaterial = new THREE.MeshBasicMaterial({ color: 0xff2ec4 });
@@ -164,7 +176,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const sceneEnv = new THREE.Scene();
   let envRenderTarget: THREE.WebGLRenderTarget | undefined;
 
-  const params = { elevation: 4, azimuth: 135 };
+  const params = { elevation: 14, azimuth: 135 };
 
   const updateSun = () => {
     const phi = THREE.MathUtils.degToRad(90 - params.elevation);
@@ -212,6 +224,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     normalMap: true,
     probes: false,
     seabed: false,
+    pole: true,
     waterFx: true,
     capture: true,
     planeSize: 1000, // synced to the mesh at startup via applyGrid (below)
@@ -231,6 +244,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   });
   debugFolder.add(debug, "seabed").name("sea floor").onChange((on: boolean) => {
     seabed.visible = on;
+  });
+  debugFolder.add(debug, "pole").name("measuring pole").onChange((on: boolean) => {
+    measuringPole.object.visible = on;
   });
   // Perf isolation: turn each added subsystem off to see its frametime cost.
   debugFolder.add(debug, "waterFx").name("water FX").onChange((on: boolean) => {
@@ -341,6 +357,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.dispose();
       physics.dispose();
       navBuoys.dispose();
+      measuringPole.dispose();
       seabedGeometry.dispose();
       seabedMaterial.dispose();
       probes.dispose();

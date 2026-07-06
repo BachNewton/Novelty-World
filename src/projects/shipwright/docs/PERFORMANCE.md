@@ -23,8 +23,11 @@ separate reflection pass. Everything below is about that.
    `max distance`, `cutoff (perf)`. The march is a per-pixel loop of dependent
    depth-buffer fetches — the most expensive single thing on a weak iGPU.
 4. **Scene-capture resolution** (`sceneCapture.resolutionScale` in `shipwright.tsx`,
-   currently 0.5). The colour+depth texture refraction/SSR *read from*. Mostly a
-   VRAM/bandwidth + underwater-clarity dial; does **not** reduce the SSR march count.
+   now **1 / full res**). The colour+depth texture refraction/SSR *read from*. Purely a
+   VRAM/bandwidth + underwater-clarity/edge-crispness dial; does **not** reduce the SSR
+   march count — half-res was measured to save little compute, so it's back at full res
+   for sharper refraction/depth and no silhouette edge-bleed. Drop it only to reclaim
+   VRAM/bandwidth on a memory-starved GPU.
 5. **Tessellation** (Debug → quad size / plane size). Vertex load. **Least impactful** —
    the ocean is not vertex-bound. Changing it barely moves FPS.
 6. **Lighting model** (PBR vs the removed Phong). Coverage-dependent and small in real
@@ -57,7 +60,7 @@ separate reflection pass. Everything below is about that.
   displacement + the fragment composite, on top of stock PBR.
 - **Screen-space composite** (after `<tonemapping_fragment>`): refraction + Beer–Lambert
   depth absorption + reflection, all off one shared **scene capture** (colour+depth of
-  everything-but-water, rendered each frame at half res).
+  everything-but-water, rendered each frame at full res).
 - **SSR is a DEDICATED LOW-RES PASS, not inline.** A `ShaderMaterial` (`OCEAN_SSR_*`)
   renders the water *alone* (via a render layer, `SSR_LAYER`) into a fraction-res target
   (`ssrTarget`); the main water shader just samples that texture. This (a) reclaims the

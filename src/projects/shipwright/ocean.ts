@@ -129,6 +129,58 @@ const BASE_WAVES: WaveDef[] = [
   { angle: 58, wavelength: 48, amplitude: 0.28, steepness: 0.72 },
 ];
 
+// --- Water optics ----------------------------------------------------------
+// What the water looks like is NOT a painted colour — it DERIVES from two per-channel
+// inherent optical properties measured for real water: absorption `a` (photons removed,
+// red first) and scattering `b` (photons redirected back out, blue-weighted in clean
+// water). From those the whole look falls out:
+//   extinction  c = a + b           → how fast a submerged image fades (beam attenuation)
+//   deep colour = (b / c) · light   → the single-scattering albedo of a bottomless column
+// So clear ocean (little, blue-weighted scattering + red-heavy absorption) self-selects a
+// dark navy, while turbid coastal water (heavy pale scattering) goes bright turquoise —
+// same equation, different coefficients. Crucially the SAME maths renders any BOTTOM for
+// free: a seabed/beach/rock is just geometry behind the water, tinted by `transmit` and
+// filled toward `deep` with depth — no optics change needed to add one later.
+// The water's look DERIVES from three inherent optical properties (per metre), not a painted
+// colour. Two set how far you see; the third sets the water's own colour:
+//   absorption a — photons removed. Pure water absorbs red heavily, blue least (→ blue ocean).
+//     Coastal water adds CDOM ("yellow substance") that absorbs BLUE, so a_B climbs above a_G
+//     and GREEN becomes the clear window (→ the Baltic green). Note a_B > a_G for coastal.
+//   scattering b — photons redirected. Particulate (coastal) scattering is large and roughly
+//     spectrally FLAT (grey), and it DOMINATES real coastal beam attenuation. Under-setting
+//     this was why the old model was too clear.
+//   backscatter fraction B — the SMALL slice of scattering (~0.5–3%) that returns toward the
+//     eye. Only this lights the water body; counting all of b overstates it 10–50×.
+// From these:  extinction c = a + b (how fast a submerged image fades along the SLANT path);
+//   deep colour = b_b/(a + b_b) · light,  b_b = B·b  (Gordon's semi-infinite reflectance).
+// So clear ocean = low grey b + tiny B → dark blue, see ~40 m; turbid coastal = high grey b +
+// CDOM blue-absorption + larger B → bright green veil, see a couple of metres. Same equations,
+// and any seabed behind the water is tinted by the same terms for free. Magnitudes are
+// physically shaped, then dialled against the measuring pole (measuring-pole.ts).
+interface WaterType {
+  name: string;
+  absorption: [number, number, number]; // a per channel (R, G, B), 1/m — pure-water red tail + CDOM in blue
+  scattering: [number, number, number]; // b per channel (R, G, B), 1/m — ~grey (flat) for particles
+  backscatter: number; // fraction of b that returns to the eye (b_b = B·b); ~0.005 clear → ~0.035 turbid
+}
+
+const WATER_TYPES: WaterType[] = [
+  // Jerlov's real water types — oceanic I–III and coastal 1/3/5/7/9 (his classification skips
+  // the even coastal numbers). Approx straight-down (Secchi) visibility noted; scattering is
+  // grey, absorption is pure-water (oceanic) shading to CDOM blue-absorption (coastal).
+  { name: "Oceanic I", absorption: [0.4, 0.06, 0.015], scattering: [0.06, 0.06, 0.06], backscatter: 0.005 }, // ~40 m, clearest tropical blue
+  { name: "Oceanic II", absorption: [0.42, 0.07, 0.03], scattering: [0.12, 0.12, 0.12], backscatter: 0.007 }, // ~20 m
+  { name: "Oceanic III", absorption: [0.45, 0.09, 0.06], scattering: [0.24, 0.24, 0.24], backscatter: 0.01 }, // ~10 m, temperate
+  { name: "Coastal 1", absorption: [0.45, 0.12, 0.16], scattering: [0.4, 0.4, 0.4], backscatter: 0.014 }, // ~6 m — CDOM begins (a_B > a_G)
+  { name: "Coastal 3", absorption: [0.45, 0.18, 0.3], scattering: [0.57, 0.57, 0.57], backscatter: 0.018 }, // ~4 m
+  { name: "Coastal 5", absorption: [0.45, 0.25, 0.55], scattering: [0.75, 0.75, 0.75], backscatter: 0.024 }, // ~3 m green — Baltic / Gulf of Finland
+  { name: "Coastal 7", absorption: [0.5, 0.4, 0.85], scattering: [1.6, 1.6, 1.6], backscatter: 0.03 }, // ~1.5 m
+  { name: "Coastal 9", absorption: [0.6, 0.65, 1.3], scattering: [3.1, 3.1, 3.1], backscatter: 0.035 }, // <1 m, harbour / river mouth
+];
+// Default is Coastal 5 — the turbid green of the Baltic off Helsinki, the "regular day out
+// at sea" this archipelago game evokes; the clear Oceanic types are for tropical spots.
+const DEFAULT_WATER_TYPE = "Coastal 5";
+
 const OCEAN_PARS = /* glsl */ `
 uniform float uTime;
 uniform float uSpeed;
@@ -273,8 +325,12 @@ uniform float uNear;
 uniform float uFar;
 uniform mat4 uProjection;
 uniform float uRefractionStrength;
+uniform float uRefractionDepthScale;
 uniform vec3 uAbsorption;
-uniform vec3 uScatterColor;
+uniform vec3 uScattering;
+uniform vec3 uBackscatter;
+uniform vec3 uWaterLight;
+uniform float uWaterLightIntensity;
 uniform bool uSsrEnabled;
 uniform float uReflectionStrength;
 uniform float uReflectMin;
@@ -339,7 +395,8 @@ void main() {
 // Refraction: sample the scene behind the water at this fragment's screen UV, nudged
 // by the world wave normal (0 on flat water → straight-through). Guard against
 // grabbing an ABOVE-water pixel (would bleed the cube/islands into the water).
-// Absorption: Beer–Lambert over the water column (red dies first → turquoise → navy).
+// Body: Beer–Lambert with in-scattering — both the clarity (extinction a+b) and the deep
+// colour (albedo b/c) DERIVE from the water type's absorption + scattering (WaterType table).
 // Fresnel blend: look down → see into the water; grazing → keep the reflective/lit
 // surface gl_FragColor already holds (sun specular + env sky reflection).
 const OCEAN_FRAG_WATER = /* glsl */ `
@@ -347,17 +404,35 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     vec2 screenUv = gl_FragCoord.xy / uResolution;
     float waterDist = vViewPosition.z;
 
-    vec2 refractUv = screenUv + vWorldNormal.xz * uRefractionStrength;
+    // Water-column depth straight down (unrefracted) at this fragment. It GATES the refraction
+    // so the offset is ∝ the submerged depth, like real (Snell) refraction: → 0 at the waterline
+    // (a straddling object's underwater part meets its above-water part with no tear — the fix
+    // for the "split") and grows with depth. It also BOUNDS the offset on steep waves, where the
+    // surface tilt would otherwise yank the see-through image by a near-maximal, depth-blind amount.
+    float straightDist = oceanEyeDist(texture2D(uSceneDepth, screenUv).x);
+    float column = max(straightDist - waterDist, 0.0);
+    float depthGate = clamp(column * uRefractionDepthScale, 0.0, 1.0);
+
+    vec2 refractUv = screenUv + vWorldNormal.xz * uRefractionStrength * depthGate;
     float behindDist = oceanEyeDist(texture2D(uSceneDepth, refractUv).x);
     if (behindDist < waterDist) {
+      // Offset grabbed a nearer (foreground/above-water) pixel — go straight through, reusing
+      // the depth already sampled at screenUv (no extra fetch).
       refractUv = screenUv;
-      behindDist = oceanEyeDist(texture2D(uSceneDepth, screenUv).x);
+      behindDist = straightDist;
     }
     vec3 refracted = texture2D(uSceneColor, refractUv).rgb;
 
     float thickness = max(behindDist - waterDist, 0.0);
-    vec3 transmit = exp(-uAbsorption * thickness);
-    vec3 body = refracted * transmit + uScatterColor * (1.0 - transmit);
+    // Extinction c = a + b (absorption + TOTAL scattering) fades the see-through image over
+    // the slant path. The veil the column fills toward uses BACKSCATTER only — most scatter
+    // is forward, so b_b = B·b is a small slice — via Gordon's semi-infinite reflectance
+    // R∞ = b_b/(a + b_b). Dark for clean water (tiny B), bright green for turbid. Any seabed
+    // behind the water is tinted by these same terms for free.
+    vec3 extinction = uAbsorption + uScattering;
+    vec3 transmit = exp(-extinction * thickness);
+    vec3 deep = uBackscatter / (uAbsorption + uBackscatter) * uWaterLight * uWaterLightIntensity;
+    vec3 body = refracted * transmit + deep * (1.0 - transmit);
 
     // Geometric Fresnel (0 head-on → 1 grazing). uReflectMin lifts the head-on
     // reflectivity above water's physical ~2% to make the sea read as more
@@ -421,10 +496,25 @@ export function createOcean(): Ocean {
     uNear: { value: 1 },
     uFar: { value: 20000 },
     uRefractionStrength: { value: 0.04 },
-    // Beer–Lambert extinction per metre — red dies fastest, blue persists, so the
-    // column deepens turquoise → navy the way clear seawater does (fully tunable).
-    uAbsorption: { value: new THREE.Vector3(0.35, 0.18, 0.12) },
-    uScatterColor: { value: new THREE.Color(0x0a2f38) },
+    // Per-metre ramp of the refraction depth-gate (saturating at 1): the offset reaches full
+    // strength ~1/this metres down, and is ~0 at the waterline. 0.6 → full by ~1.7 m.
+    uRefractionDepthScale: { value: 0.6 },
+    // Per-channel inherent optical properties (1/m), loaded from the selected WaterType by
+    // applyWaterType (see the WaterType block for the physics). uAbsorption + uScattering set
+    // clarity (extinction); uBackscatter (= B·b, the returning slice of scattering) sets the
+    // veil colour via R∞ = b_b/(a+b_b). Defaults = Coastal 5 (Baltic off Helsinki).
+    uAbsorption: { value: new THREE.Vector3(0.45, 0.25, 0.55) },
+    uScattering: { value: new THREE.Vector3(0.75, 0.75, 0.75) },
+    uBackscatter: { value: new THREE.Vector3(0.018, 0.018, 0.018) },
+    // Downwelling light tint the veil is lit by. (Later: sample sky/sun.)
+    uWaterLight: { value: new THREE.Color(0.85, 0.95, 1.0) },
+    // Downwelling irradiance scale — how much light actually reaches (and lights) the water
+    // body. LOW here because the default scene is DUSK (sun elevation ~14°): little light
+    // penetrates, so the body stays dim and the sea reads by its SKY REFLECTION (the dark-
+    // blue look) rather than a lit green body. This should track the real sun/sky brightness
+    // later (bright noon → a brighter, greener body; dim dusk → this). Note: visibility/clarity
+    // is unaffected by this — that's the extinction term, not the veil.
+    uWaterLightIntensity: { value: 0.12 },
     // Screen-space reflection: ray-marches the captured depth to reflect dynamic
     // geometry; misses fall back to the env-map sky. uProjection is bound with the
     // view params (it changes on resize). uSsrMinFresnel gates the march — below it
@@ -449,6 +539,19 @@ export function createOcean(): Ocean {
     uRippleMeters: { value: DETAIL_RIPPLE_METERS },
     uRippleOffset: { value: new THREE.Vector2(0, 0) },
   };
+
+  // Load a water type's optical coefficients into the uniforms. Colour + clarity derive
+  // in the shader — this sets no colour directly. Mutates the Vector3s in place so the
+  // shader and any bound GUI controllers see the change without a recompile.
+  const applyWaterType = (type: WaterType) => {
+    uniforms.uAbsorption.value.set(...type.absorption);
+    uniforms.uScattering.value.set(...type.scattering);
+    // Backscatter = the returning fraction B of total scattering (b_b = B·b), per channel.
+    const [br, bg, bb] = type.scattering;
+    uniforms.uBackscatter.value.set(br, bg, bb).multiplyScalar(type.backscatter);
+  };
+  const initialWaterType = WATER_TYPES.find((t) => t.name === DEFAULT_WATER_TYPE);
+  if (initialWaterType) applyWaterType(initialWaterType);
 
   // The effective waves the CPU sampler reads — kept identical to the uniforms.
   let waves: Wave[] = [];
@@ -733,13 +836,44 @@ export function createOcean(): Ocean {
         });
 
       const bodyFolder = advanced.addFolder("Water body");
+      // Pick a Jerlov water type — colour + clarity derive from its optics. The a/b
+      // sliders below expose the raw coefficients; the dropdown loads a real-world set.
+      const tune: ReturnType<GUI["add"]>[] = [];
+      const waterType = { type: DEFAULT_WATER_TYPE };
+      bodyFolder
+        .add(waterType, "type", WATER_TYPES.map((t) => t.name))
+        .name("water type")
+        .onChange((name: string) => {
+          const type = WATER_TYPES.find((t) => t.name === name);
+          if (type) applyWaterType(type);
+          tune.forEach((c) => c.updateDisplay());
+        });
+      // Veil brightness = the downwelling light that lights the water body. Conceptually a
+      // camera/lighting property (chosen, not derived — it's post-tone-map perceived brightness),
+      // fixed at the dusk default. Could later track sun elevation — see FIDELITY.md.
+      bodyFolder
+        .add(uniforms.uWaterLightIntensity, "value", 0, 1.5, 0.01)
+        .name("veil brightness");
       bodyFolder
         .add(uniforms.uRefractionStrength, "value", 0, 0.2, 0.002)
         .name("refraction");
-      bodyFolder.addColor(uniforms.uScatterColor, "value").name("deep colour");
-      bodyFolder.add(uniforms.uAbsorption.value, "x", 0, 1, 0.005).name("absorb R");
-      bodyFolder.add(uniforms.uAbsorption.value, "y", 0, 1, 0.005).name("absorb G");
-      bodyFolder.add(uniforms.uAbsorption.value, "z", 0, 1, 0.005).name("absorb B");
+      bodyFolder
+        .add(uniforms.uRefractionDepthScale, "value", 0, 2, 0.01)
+        .name("refraction depth");
+      const absorb = uniforms.uAbsorption.value;
+      const scatter = uniforms.uScattering.value;
+      const backscatter = uniforms.uBackscatter.value;
+      tune.push(
+        bodyFolder.add(absorb, "x", 0, 2, 0.005).name("absorb R"),
+        bodyFolder.add(absorb, "y", 0, 2, 0.005).name("absorb G"),
+        bodyFolder.add(absorb, "z", 0, 2, 0.005).name("absorb B"),
+        bodyFolder.add(scatter, "x", 0, 6, 0.01).name("scatter R"),
+        bodyFolder.add(scatter, "y", 0, 6, 0.01).name("scatter G"),
+        bodyFolder.add(scatter, "z", 0, 6, 0.01).name("scatter B"),
+        bodyFolder.add(backscatter, "x", 0, 0.2, 0.001).name("backscatter R"),
+        bodyFolder.add(backscatter, "y", 0, 0.2, 0.001).name("backscatter G"),
+        bodyFolder.add(backscatter, "z", 0, 0.2, 0.001).name("backscatter B"),
+      );
 
       const reflFolder = advanced.addFolder("Reflection (SSR)");
       reflFolder.add(uniforms.uSsrEnabled, "value").name("enabled");

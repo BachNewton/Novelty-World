@@ -8,9 +8,11 @@ import { setupOceanScene } from "../scene";
 export function Shipwright() {
   const containerRef = useThreeScene(setupOceanScene, {
     stats: true,
-    // Half-res scene capture: reflection/refraction through moving water hide the
-    // softening, and it saves bandwidth + VRAM (helps weak/iGPU targets).
-    sceneCapture: { resolutionScale: 0.5 },
+    // Full-res scene capture. Half-res was measured to save little compute (the SSR
+    // march runs per output pixel in its own low-res pass regardless — see
+    // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
+    // edge-bleed, for only a VRAM/bandwidth cost.
+    sceneCapture: { resolutionScale: 1 },
     // The device-ratio render scale supersamples, so MSAA is redundant here — skip
     // it to save framebuffer bandwidth (helps weak/iGPU targets).
     antialias: false,

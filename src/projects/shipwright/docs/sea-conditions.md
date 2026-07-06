@@ -96,6 +96,14 @@ the boat actually feels. This distinction governs almost everything below.
     so the **hull feels nothing from it.**
   - *ripple **size*** = `rippleMeters` / `applyRipple` — world size of one ripple
     tile, held constant as the plane resizes.
+- **Water clarity & colour — a separate visual axis** (see `FIDELITY.md`). Colour and how
+  far you see underwater derive from per-channel absorption + scattering + backscatter
+  (Jerlov water types: oceanic I–III, coastal 1/3/5/7/9; default **Coastal 5** ≈ the
+  turbid green Baltic off Helsinki). This is **orthogonal** to sea state — a rough clear
+  sea and a calm murky harbour are both valid — but the two *couple* physically: rougher
+  seas churn sediment + entrain bubbles, so a future step is a sea condition **scaling the
+  water type's scattering** (rougher → murkier). Read the water types off the pole
+  (`measuring-pole.ts`), a Secchi staff, against real visibility depths.
 
 ### Two behaviors are already emergent (important, and easy to miss)
 
