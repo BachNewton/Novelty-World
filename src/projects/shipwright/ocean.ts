@@ -5,7 +5,7 @@ import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
  * The analytic Gerstner ocean — the single source of truth for the water
  * surface. The exact same sum-of-Gerstner-waves is evaluated in two places:
  *
- *  - the GPU (injected into a MeshStandardMaterial's vertex shader) to displace
+ *  - the GPU (injected into a MeshPhongMaterial's vertex shader) to displace
  *    and light the visible surface, and
  *  - the CPU (`sampleSurface`) so gameplay — buoyancy, later — can ask "how high
  *    is the water at (x, z) right now?" and get an answer that matches the pixels.
@@ -61,10 +61,9 @@ interface Wave {
   steepness: number;
 }
 
-/** Debug water shading, richest → barest: full metallic-roughness PBR, Blinn-Phong,
- *  Lambert (diffuse only), an unlit flat fill (isolates fill vs. shading), or wireframe
- *  (isolates fill itself). The lit tiers map how much the lighting model costs. */
-export type ShadingMode = "pbr" | "phong" | "lambert" | "flat" | "wireframe";
+/** Debug water shading: the full production surface, an unlit flat fill (isolates raw
+ *  fill from the shading math), or wireframe (isolates fill itself). */
+export type ShadingMode = "full" | "flat" | "wireframe";
 
 export interface SurfaceSample {
   height: number;
@@ -95,13 +94,27 @@ export interface Ocean {
   setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => void;
   /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
   buildGui: (basic: GUI, advanced: GUI) => void;
-  /** Debug: swap water shading to isolate GPU cost — full PBR, an unlit flat fill
-   *  (same wave geometry, trivial fragment → separates fill from shading math), or
-   *  wireframe (no fill). */
+  /** Debug: swap water shading to isolate GPU cost — the full production surface, an
+   *  unlit flat fill (same wave geometry, trivial fragment → separates fill from the
+   *  shading math), or wireframe (no fill). */
   setShading: (mode: ShadingMode) => void;
   /** Debug: actually remove the ripple normal map (fetch + per-pixel tangent-space
    *  perturbation), not just zero its strength — isolates normal-mapping cost. */
   setNormalMap: (on: boolean) => void;
+  /** Bind the sky cube env map the water reflects (captured + refreshed by scene.ts). */
+  setSkyEnv: (cube: THREE.CubeTexture) => void;
+  /** Debug: toggle the sky env-map reflection on the water (isolate its cost/look). */
+  setEnvReflection: (on: boolean) => void;
+  /** Bind the low-res SSR pass output texture the water shader samples (call once). */
+  setSsrSource: (texture: THREE.Texture) => void;
+  /** Render the low-res SSR reflection pass (water only) into `target`. Call each frame
+   *  after the scene capture and before the main render. */
+  renderSsr: (
+    renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    camera: THREE.PerspectiveCamera,
+    target: THREE.WebGLRenderTarget,
+  ) => void;
   /** Rebuild the surface mesh at a new plane size (m) + tessellation (segments/side).
    *  Debug: the GUI holds quad size (density) constant, so plane size and vertex
    *  count scale together rather than the grid getting finer as the sea shrinks. */
@@ -130,6 +143,12 @@ uniform float uAmplitude[${MAX_WAVES}];
 uniform float uSteepness[${MAX_WAVES}];
 
 varying vec3 vWorldNormal;
+// Ripple-map UV (world-space tiling + scroll) for the fragment's reflection distortion.
+// Written only by the main surface (OCEAN_BEGINNORMAL); the SSR/flat debug materials
+// include OCEAN_PARS too but leave it unwritten (harmless — their fragments don't read it).
+uniform float uRippleMeters;
+uniform vec2 uRippleOffset;
+varying vec2 vRippleUv;
 
 void gerstner(vec2 p, out vec3 displaced, out vec3 gnormal) {
   vec3 pos = vec3(p.x, 0.0, p.y);
@@ -170,6 +189,9 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
   // the world normal — handed to the fragment shader to wobble the refraction with
   // (its xz is 0 on flat water → no distortion, and grows with the waves).
   vWorldNormal = gNormal;
+  // World-space ripple UV (matches the detail normal map's tiling + scroll) so the
+  // fragment can distort the sampled reflection by the same ripples the surface shows.
+  vRippleUv = position.xz / uRippleMeters + uRippleOffset;
 `;
 
 // Vertex displacement ONLY (no normal), for the debug unlit MeshBasicMaterial. Same
@@ -182,28 +204,19 @@ const OCEAN_BEGIN_FLAT = /* glsl */ `
   vec3 transformed = gDisplaced;
 `;
 
+// The render layer the ocean surface is ALSO drawn on (besides layer 0, the main
+// render), so the dedicated SSR pass can point the camera at this layer alone and
+// render the water by itself into the low-res reflection target. See `renderSsr`.
+const SSR_LAYER = 1;
+
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
 const SSR_STEPS = 48; // linear march samples
 const SSR_REFINE = 5; // binary-search refinement steps after a hit
-const OCEAN_FRAG_PARS = /* glsl */ `
-uniform bool uWaterFx;
-uniform sampler2D uSceneColor;
-uniform sampler2D uSceneDepth;
-uniform vec2 uResolution;
-uniform float uNear;
-uniform float uFar;
-uniform mat4 uProjection;
-uniform float uRefractionStrength;
-uniform vec3 uAbsorption;
-uniform vec3 uScatterColor;
-uniform bool uSsrEnabled;
-uniform float uReflectionStrength;
-uniform float uReflectMin;
-uniform float uSsrMaxDistance;
-uniform float uSsrThickness;
-uniform float uSsrMinFresnel;
-varying vec3 vWorldNormal;
-
+// The depth→distance + ray-march helpers, shared by TWO shaders: the water fragment
+// (its refraction reads oceanEyeDist) and the dedicated SSR pass material (which calls
+// oceanSsr). The including shader must declare the uniforms these reference — uNear,
+// uFar, uProjection, uSceneColor, uSceneDepth, uSsrMaxDistance, uSsrThickness.
+const OCEAN_SSR_FUNCS = /* glsl */ `
 // Perspective depth [0,1] → positive eye-space distance (metres).
 float oceanEyeDist(float depth) {
   float zndc = depth * 2.0 - 1.0;
@@ -219,7 +232,7 @@ float oceanEyeDist(float depth) {
 vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
   vec3 incident = normalize(viewPos);
   vec3 dir = reflect(incident, viewNormal);
-  float stepSize = uSsrMaxDistance / float(${SSR_STEPS});
+  float stepSize = uSsrMaxDistance / float(${Math.max(SSR_STEPS, 1)}); // guard 0 (dead loop)
   vec3 rayPos = viewPos;
   vec2 hitUv = vec2(0.0);
   bool hit = false;
@@ -252,6 +265,74 @@ vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
   vec2 e = smoothstep(0.0, 0.12, hitUv) * (1.0 - smoothstep(0.88, 1.0, hitUv));
   float mask = e.x * e.y * clamp(1.0 - max(dot(-incident, dir), 0.0), 0.0, 1.0);
   return vec4(texture2D(uSceneColor, hitUv).rgb, mask);
+}
+`;
+
+const OCEAN_FRAG_PARS = /* glsl */ `
+uniform bool uWaterFx;
+uniform sampler2D uSceneColor;
+uniform sampler2D uSceneDepth;
+uniform vec2 uResolution;
+uniform float uNear;
+uniform float uFar;
+uniform mat4 uProjection;
+uniform float uRefractionStrength;
+uniform vec3 uAbsorption;
+uniform vec3 uScatterColor;
+uniform bool uSsrEnabled;
+uniform float uReflectionStrength;
+uniform float uReflectMin;
+uniform float uSsrMaxDistance;
+uniform float uSsrThickness;
+uniform float uSsrMinFresnel;
+uniform sampler2D uSsrReflection; // the low-res SSR pass output this shader samples
+uniform sampler2D uReflectRipple; // detail normal map, reused to distort the reflection
+uniform float uReflectDistort;
+varying vec3 vWorldNormal;
+varying vec2 vRippleUv;
+${OCEAN_SSR_FUNCS}
+`;
+
+// --- Dedicated SSR reflection pass -----------------------------------------
+// A ShaderMaterial that renders ONLY the water surface and outputs the SSR march result
+// (reflected colour + confidence mask), nothing else. Rendered at low resolution into
+// its own target (see scene.ts + `renderSsr`), it lifts the expensive ray-march off the
+// full-res water shader and lets its cost scale with the reflection resolution instead
+// of the screen. The vertex reuses the Gerstner displacement so the surface — hence the
+// reflected rays — matches the visible water exactly.
+const OCEAN_SSR_VERT = /* glsl */ `
+${OCEAN_PARS}
+varying vec3 vSsrViewPos;
+varying vec3 vSsrViewNormal;
+void main() {
+  vec3 gDisplaced;
+  vec3 gNormal;
+  gerstner(position.xz, gDisplaced, gNormal);
+  vec4 mvPosition = modelViewMatrix * vec4(gDisplaced, 1.0);
+  vSsrViewPos = mvPosition.xyz;
+  vSsrViewNormal = normalMatrix * gNormal;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const OCEAN_SSR_FRAG = /* glsl */ `
+uniform sampler2D uSceneColor;
+uniform sampler2D uSceneDepth;
+uniform float uNear;
+uniform float uFar;
+uniform mat4 uProjection;
+uniform float uSsrMaxDistance;
+uniform float uSsrThickness;
+uniform float uSsrMinFresnel;
+varying vec3 vSsrViewPos;
+varying vec3 vSsrViewNormal;
+${OCEAN_SSR_FUNCS}
+void main() {
+  vec3 n = normalize(vSsrViewNormal);
+  // Same Fresnel cutoff the inline march used — skip where the reflection is invisible.
+  float fresnelGeo = pow(1.0 - clamp(dot(normalize(-vSsrViewPos), n), 0.0, 1.0), 5.0);
+  if (fresnelGeo <= uSsrMinFresnel) { gl_FragColor = vec4(0.0); return; }
+  gl_FragColor = oceanSsr(vSsrViewPos, n);
 }
 `;
 
@@ -291,17 +372,18 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     float fresnel = clamp(mix(uReflectMin, 1.0, fresnelGeo), 0.0, 1.0);
 
     // Reflective half: gl_FragColor already holds the env-map sky reflection + sun
-    // specular. Only pay for the SSR march where the reflection is actually visible
-    // (grazing angles / wave faces) — below the cutoff the reflection is near-invisible,
-    // so skip the march and keep the env sky. This is the big perf lever: most of a
-    // top-down sea is below the cutoff. Where SSR hits real geometry (the cube, later
-    // ships/islands) it overrides the env; a miss keeps the sky.
+    // specular. SSR (dynamic object reflections) now comes from a dedicated LOW-RES pass
+    // (ocean.ts renderSsr) — sampled here rather than marched inline, so this full-res
+    // shader carries none of the march cost and its Fresnel cutoff lives in the pass.
+    // Where SSR hit real geometry it overrides the env sky; a miss (mask 0) keeps the sky.
     vec3 reflective = gl_FragColor.rgb;
-    // uSsrEnabled gates the whole march (a true on/off + perf A/B, not a zeroed blend
-    // of a march we still paid for); the Fresnel cutoff then skips it per-pixel where
-    // the reflection would be invisible anyway.
-    if (uSsrEnabled && fresnelGeo > uSsrMinFresnel) {
-      vec4 ssr = oceanSsr(-vViewPosition, normalize(normal));
+    if (uSsrEnabled) {
+      // Distort the sample by the FULL-RES ripple normal (+ the analytic swell) so the
+      // smooth low-res reflection gets the fine normal-map blur back — restoring the
+      // ripple look AND masking the pass's low-res blockiness.
+      vec2 ripple = texture2D(uReflectRipple, vRippleUv).xy * 2.0 - 1.0;
+      vec2 ssrUv = screenUv + vWorldNormal.xz * uRefractionStrength + ripple * uReflectDistort;
+      vec4 ssr = texture2D(uSsrReflection, ssrUv);
       reflective = mix(reflective, ssr.rgb, ssr.a * uReflectionStrength);
     }
     gl_FragColor.rgb = mix(body, reflective, fresnel);
@@ -359,6 +441,17 @@ export function createOcean(): Ocean {
     uSsrMaxDistance: { value: 40 },
     uSsrThickness: { value: 1.5 },
     uSsrMinFresnel: { value: 0.05 },
+    // Output of the low-res SSR pass (bound by scene.ts via setSsrSource); the water
+    // shader samples this instead of marching inline.
+    uSsrReflection: { value: null as THREE.Texture | null },
+    // Ripple distortion of the reflection, applied at FULL res when sampling the low-res
+    // SSR texture — restores the fine normal-map blur the smooth pass lacks AND masks its
+    // low-res blockiness. Reuses the detail normal map (bound below); uRippleMeters +
+    // uRippleOffset reproduce its world-space tiling + scroll (see OCEAN_BEGINNORMAL).
+    uReflectRipple: { value: null as THREE.Texture | null },
+    uReflectDistort: { value: 0.03 },
+    uRippleMeters: { value: DETAIL_RIPPLE_METERS },
+    uRippleOffset: { value: new THREE.Vector2(0, 0) },
   };
 
   // The effective waves the CPU sampler reads — kept identical to the uniforms.
@@ -413,10 +506,12 @@ export function createOcean(): Ocean {
   detailNormals.anisotropy = 4; // keep distant ripple tiling from smearing
   // Ripple tiling is derived from the plane size so the ripple world-scale is fixed
   // regardless of plane size (kept in lock-step by setGrid + the GUI ripple control).
+  uniforms.uReflectRipple.value = detailNormals; // reuse the ripple map for reflection distortion
   let rippleMeters = DETAIL_RIPPLE_METERS;
   const applyRipple = () => {
     const tiles = planeSize / rippleMeters;
     detailNormals.repeat.set(tiles, tiles);
+    uniforms.uRippleMeters.value = rippleMeters;
   };
   applyRipple();
 
@@ -435,17 +530,25 @@ export function createOcean(): Ocean {
       .replace("#include <begin_vertex>", "vec3 transformed = gDisplaced;");
   };
 
-  const material = new THREE.MeshStandardMaterial({
+  // The water surface is a patched MeshPhongMaterial — NOT MeshStandardMaterial.
+  // Measured on a weak iGPU, Standard's metallic-roughness BRDF cost ~2x Phong's per
+  // pixel (roughly halving the framerate), and water doesn't need physically-based
+  // GGX — Blinn-Phong diffuse + specular + a cube sky reflection reads just as well and
+  // hits the refresh cap. The Gerstner displacement and the screen-space FX composite
+  // (refraction/depth/SSR) are lighting-model-agnostic and carry over unchanged.
+  const material = new THREE.MeshPhongMaterial({
     color: 0x1f4a5a,
-    roughness: 0.25,
-    metalness: 0,
+    specular: 0x2a3a44, // subtle sun glint; the strong reflections come from SSR/env
+    shininess: 60,
     normalMap: detailNormals,
   });
   material.normalScale.set(0.35, 0.35);
-  // The env map is the sky reflection (correct on the displaced surface, since it
-  // reflects per-pixel by the real normal). It's the reflective half of the water
-  // until SSR lands; the refraction composite blends it in by Fresnel.
-  material.envMapIntensity = 1.0;
+  // The sky reflection is a cube env map captured from the Sky (bound by scene.ts via
+  // setSkyEnv). Phong reflects it per-pixel by the shaded wave normal — the reflective
+  // half of the water until SSR hits, blended in by the composite's Fresnel. Added on
+  // top (AddOperation) like the old additive IBL; `reflectivity` tunes its strength.
+  material.combine = THREE.AddOperation;
+  material.reflectivity = 0.6;
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
@@ -460,8 +563,8 @@ export function createOcean(): Ocean {
 
   // Debug shading: an unlit, wave-displaced material. Same Gerstner geometry as the
   // real surface but a trivial fragment (flat colour — no PBR lighting, normal map,
-  // or env sampling). Comparing "flat" vs "pbr" FPS separates raw fill/bandwidth cost
-  // (pixel writes, identical in both) from the PBR shading math (present only in pbr).
+  // or env sampling). Comparing "flat" vs "full" FPS separates raw fill/bandwidth cost
+  // (pixel writes, identical in both) from the lit shading math (present only in full).
   const basicMaterial = new THREE.MeshBasicMaterial({ color: 0x1f4a5a });
   basicMaterial.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
@@ -471,22 +574,44 @@ export function createOcean(): Ocean {
   };
   basicMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-flat";
 
-  // Debug shading: cheaper lit models on the same wave geometry (no normal map, no env)
-  // to isolate the cost of the LIGHTING model itself. Lambert = diffuse only (the cheap
-  // floor); Phong = Blinn-Phong diffuse + specular (a realistic cheaper-than-PBR target,
-  // since real water still wants a highlight). Comparing pbr → phong → lambert → flat
-  // maps how much the metallic-roughness BRDF costs vs. simpler lighting.
-  const lambertMaterial = new THREE.MeshLambertMaterial({ color: 0x1f4a5a });
-  lambertMaterial.onBeforeCompile = patchGerstnerVertex;
-  lambertMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-lambert";
-  const phongMaterial = new THREE.MeshPhongMaterial({ color: 0x1f4a5a, shininess: 60 });
-  phongMaterial.onBeforeCompile = patchGerstnerVertex;
-  phongMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-phong";
+  // The dedicated SSR-pass material (OCEAN_SSR_VERT/FRAG). Shares the wave + SSR uniforms
+  // (same objects) so it stays in lock-step with the surface and the scene capture; it
+  // renders the water alone into the low-res reflection target that the main shader samples.
+  const ssrMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: uniforms.uTime,
+      uSpeed: uniforms.uSpeed,
+      uNumWaves: uniforms.uNumWaves,
+      uDir: uniforms.uDir,
+      uWavelength: uniforms.uWavelength,
+      uAmplitude: uniforms.uAmplitude,
+      uSteepness: uniforms.uSteepness,
+      uSceneColor: uniforms.uSceneColor,
+      uSceneDepth: uniforms.uSceneDepth,
+      uNear: uniforms.uNear,
+      uFar: uniforms.uFar,
+      uProjection: uniforms.uProjection,
+      uSsrMaxDistance: uniforms.uSsrMaxDistance,
+      uSsrThickness: uniforms.uSsrThickness,
+      uSsrMinFresnel: uniforms.uSsrMinFresnel,
+    },
+    vertexShader: OCEAN_SSR_VERT,
+    fragmentShader: OCEAN_SSR_FRAG,
+    blending: THREE.NoBlending, // write the reflected colour + mask raw into the target
+  });
 
   // Typed as the base Mesh so mesh.material can swap between the PBR and debug-flat
   // materials (setShading); the concrete `material` var is still used for tuning.
   const mesh: THREE.Mesh = new THREE.Mesh(geometry, material);
+  // Also draw the surface on the SSR layer so the reflection pass can render it alone.
+  mesh.layers.enable(SSR_LAYER);
   let normalMapOn = true; // debug toggle (setNormalMap); wireframe strips it regardless
+  let skyEnv: THREE.CubeTexture | null = null; // sky reflection cube (bound by scene.ts)
+  let envOn = true; // debug toggle (setEnvReflection)
+  const applyEnv = () => {
+    material.envMap = envOn ? skyEnv : null;
+    material.needsUpdate = true;
+  };
 
   // Evaluate the Gerstner sum for a grid point: its horizontal displacement
   // (ox, oz), height, and normal. This is the forward function the GPU renders.
@@ -569,6 +694,7 @@ export function createOcean(): Ocean {
       uniforms.uTime.value = time;
       // Scroll the ripple layers diagonally so the surface never looks static.
       detailNormals.offset.set(time * 0.03, time * 0.015);
+      uniforms.uRippleOffset.value.copy(detailNormals.offset); // keep reflection distortion in sync
     },
     sampleSurface,
     sampleParticle: (restX, restZ, time) => {
@@ -606,9 +732,9 @@ export function createOcean(): Ocean {
       const detail = { strength: material.normalScale.x, ripple: rippleMeters };
       const waterFolder = advanced.addFolder("Water");
       waterFolder.addColor(material, "color");
-      waterFolder.add(material, "roughness", 0, 1, 0.01);
-      waterFolder.add(material, "metalness", 0, 1, 0.01);
-      waterFolder.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
+      waterFolder.addColor(material, "specular");
+      waterFolder.add(material, "shininess", 1, 200, 1);
+      waterFolder.add(material, "reflectivity", 0, 1, 0.01).name("reflectivity");
       waterFolder
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")
@@ -639,18 +765,13 @@ export function createOcean(): Ocean {
       reflFolder
         .add(uniforms.uSsrMinFresnel, "value", 0.02, 0.5, 0.01)
         .name("cutoff (perf)");
+      reflFolder
+        .add(uniforms.uReflectDistort, "value", 0, 0.15, 0.005)
+        .name("ripple blur");
     },
     setShading: (mode) => {
       if (mode === "flat") {
         mesh.material = basicMaterial;
-        return;
-      }
-      if (mode === "lambert") {
-        mesh.material = lambertMaterial;
-        return;
-      }
-      if (mode === "phong") {
-        mesh.material = phongMaterial;
         return;
       }
       mesh.material = material;
@@ -666,6 +787,32 @@ export function createOcean(): Ocean {
         material.needsUpdate = true;
       }
     },
+    setSkyEnv: (cube) => {
+      skyEnv = cube;
+      applyEnv();
+    },
+    setEnvReflection: (on) => {
+      envOn = on;
+      applyEnv();
+    },
+    setSsrSource: (texture) => {
+      uniforms.uSsrReflection.value = texture;
+    },
+    renderSsr: (renderer, scene, camera, target) => {
+      // Render the water alone (SSR layer) with the SSR-only material into the low-res
+      // target, then restore. Reads the scene capture; the water shader samples the
+      // result. Must run after the capture and before the main render.
+      const prevMat = mesh.material;
+      const prevLayerMask = camera.layers.mask;
+      const prevTarget = renderer.getRenderTarget();
+      mesh.material = ssrMaterial;
+      camera.layers.set(SSR_LAYER);
+      renderer.setRenderTarget(target);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(prevTarget);
+      camera.layers.mask = prevLayerMask;
+      mesh.material = prevMat;
+    },
     setGrid: (size, segments) => {
       planeSize = size;
       planeSegments = segments;
@@ -677,8 +824,7 @@ export function createOcean(): Ocean {
       mesh.geometry.dispose();
       material.dispose();
       basicMaterial.dispose();
-      lambertMaterial.dispose();
-      phongMaterial.dispose();
+      ssrMaterial.dispose();
       detailNormals.dispose();
     },
   };

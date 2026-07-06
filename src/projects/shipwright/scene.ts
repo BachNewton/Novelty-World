@@ -48,6 +48,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setViewParams(camera, db.x, db.y);
   }
 
+  // Low-res SSR reflection target: the water renders ONLY its screen-space reflections
+  // into this (ocean.renderSsr) at a fraction of the render resolution, then the full-res
+  // water shader samples it. This is the "reflection resolution" dial — it decouples the
+  // expensive ray-march from the screen resolution. Half res: the ripple-normal distortion
+  // (see ocean.ts) hides the softening, so it reads ~the same as full res for much less cost.
+  const ssrScale = { value: 0.5 };
+  const ssrTarget = new THREE.WebGLRenderTarget(1, 1);
+  const sizeSsrTarget = () => {
+    const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+    ssrTarget.setSize(
+      Math.max(1, Math.round(db.x * ssrScale.value)),
+      Math.max(1, Math.round(db.y * ssrScale.value)),
+    );
+  };
+  sizeSsrTarget();
+  ocean.setSsrSource(ssrTarget.texture);
+
   // Navigational-marker buoys (lateral + cardinal): the kinematic half of the
   // HYBRID floating model — capsule/spar floats that ride the water via
   // `ocean.sampleParticle` and tilt to the surface normal, no physics engine. The
@@ -146,12 +163,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   const sceneEnv = new THREE.Scene();
   let envRenderTarget: THREE.WebGLRenderTarget | undefined;
+  // Sky reflection for the water: a cube capture of the Sky. The water is a patched
+  // MeshPhongMaterial (see ocean.ts) which reflects a cube env map — not the PMREM
+  // `scene.environment` that image-based-lights the PBR objects — so we refresh both on
+  // sun change. HalfFloat holds the sky's HDR range (already clamped below the ceiling).
+  const skyCubeRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+  const skyCubeCamera = new THREE.CubeCamera(1, 20000, skyCubeRT);
 
   const params = { elevation: 30, azimuth: 135 };
-  // Debug: drop the baked sky env map entirely (scene.environment = null) to see —
-  // and measure — what image-based reflection/ambient costs. Unlike the envMapIntensity
-  // slider (which zeroes the result but still samples the cubemap), nulling it makes
-  // the PBR shader stop sampling, so it's a real fill-cost lever, not just visual.
+  // Debug: toggle the water's sky reflection (its cube env map) to isolate its cost and
+  // look. Bound to ocean.setEnvReflection; scene.environment (which lights the PBR
+  // objects) is separate and stays on.
   const envMap = { enabled: true };
 
   const updateSun = () => {
@@ -161,11 +183,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     sky.material.uniforms.sunPosition.value.copy(sun);
     sunLight.position.copy(sun).multiplyScalar(1000);
 
-    envRenderTarget?.dispose();
     sceneEnv.add(sky);
-    envRenderTarget = pmremGenerator.fromScene(sceneEnv);
+    envRenderTarget?.dispose();
+    envRenderTarget = pmremGenerator.fromScene(sceneEnv); // IBL for the PBR objects
+    skyCubeCamera.update(renderer, sceneEnv); // the water's cube sky reflection
     scene.add(sky);
-    scene.environment = envMap.enabled ? envRenderTarget.texture : null;
+    scene.environment = envRenderTarget.texture;
+    ocean.setSkyEnv(skyCubeRT.texture);
   };
   updateSun();
 
@@ -194,7 +218,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
   const debug = {
-    shading: "pbr" as ShadingMode,
+    shading: "full" as ShadingMode,
     normalMap: true,
     probes: false,
     seabed: false,
@@ -205,7 +229,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   };
   const debugFolder = gui.addFolder("Debug");
   debugFolder
-    .add(debug, "shading", ["pbr", "phong", "lambert", "flat", "wireframe"])
+    .add(debug, "shading", ["full", "flat", "wireframe"])
     .name("shading")
     .onChange((mode: ShadingMode) => ocean.setShading(mode));
   debugFolder
@@ -225,10 +249,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   debugFolder.add(debug, "capture").name("scene capture");
   debugFolder
     .add(envMap, "enabled")
-    .name("env map (sky reflect)")
-    .onChange((on: boolean) => {
-      scene.environment = on ? (envRenderTarget?.texture ?? null) : null;
-    });
+    .name("sky reflection")
+    .onChange((on: boolean) => ocean.setEnvReflection(on));
+  debugFolder
+    .add(ssrScale, "value", 0.1, 1, 0.05)
+    .name("reflection res")
+    .onFinishChange(sizeSsrTarget);
   // Tessellation is a density (quad edge length in metres), so changing plane size
   // holds quad size constant and scales the segment count — the grid gets no finer
   // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
@@ -302,6 +328,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
         ocean.mesh.visible = true;
+        // Then render the low-res SSR reflections (water only, reading that capture) so
+        // the main render below can sample them. Needs the capture, hence gated with it.
+        ocean.renderSsr(renderer, scene, camera, ssrTarget);
       }
     },
     onResize: () => {
@@ -309,11 +338,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // of the drawing-buffer size + projection used for screen-space UVs and SSR.
       const db = renderer.getDrawingBufferSize(new THREE.Vector2());
       ocean.setViewParams(camera, db.x, db.y);
+      sizeSsrTarget();
     },
     dispose: () => {
       gui.destroy();
       controls.dispose();
       envRenderTarget?.dispose();
+      skyCubeRT.dispose();
+      ssrTarget.dispose();
       pmremGenerator.dispose();
       sky.geometry.dispose();
       sky.material.dispose();
