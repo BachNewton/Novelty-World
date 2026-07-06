@@ -93,16 +93,104 @@ export interface Ocean {
   dispose: () => void;
 }
 
-// A natural sea is a few big swells crossed by shorter chop at varied headings.
-// Metres: a ~1.7 m primary swell 180 m long down to ~0.3 m chop — a moderate
-// open sea. The short (48/70 m) waves rely on the high PLANE_SEGMENTS above to
-// render without crest faceting.
-const BASE_WAVES: WaveDef[] = [
-  { angle: 0, wavelength: 180, amplitude: 1.7, steepness: 0.9 },
-  { angle: 34, wavelength: 110, amplitude: 0.95, steepness: 0.85 },
-  { angle: -26, wavelength: 70, amplitude: 0.5, steepness: 0.8 },
-  { angle: 58, wavelength: 48, amplitude: 0.28, steepness: 0.72 },
+// --- Sea conditions --------------------------------------------------------
+// A named-condition preset drives the whole wave SPECTRUM, not just one height
+// knob, because a real sea is wind-sea (short, steep, local) layered over swell
+// (long, smooth, from a distant storm) — two seas at the same height can look
+// completely different. Each condition lists its wave components (heading,
+// wavelength, relative amplitude weight, steepness) plus a target SIGNIFICANT wave
+// height Hs — the empirical WMO Sea State measure (mean height of the highest third
+// of waves). `applyCondition` scales the component amplitudes to hit that Hs: for a
+// sum of sinusoids Hs = 2√2·√(Σ aᵢ²), so aᵢ = wᵢ · Hs / (2√2·√(Σ wⱼ²)).
+interface WaveComponent {
+  angle: number; // heading, degrees
+  wavelength: number; // metres
+  weight: number; // relative amplitude
+  steepness: number;
+}
+
+interface Condition {
+  name: string;
+  hs: number; // target significant wave height, metres (WMO Sea State)
+  detail: number; // fine ripple-normal strength
+  waves: WaveComponent[];
+}
+
+// The WMO Sea State ladder (codes 0–8, by Hs band), then three "character" presets
+// that hold a modest height but reshape the spectrum: a long clean groundswell, a
+// short steep wind-sea, and two trains crossing (the confused, pyramidal look).
+const CONDITIONS: Condition[] = [
+  { name: "0 · Glassy calm", hs: 0.02, detail: 0.12, waves: [
+    { angle: 0, wavelength: 60, weight: 1, steepness: 0.1 },
+  ] },
+  { name: "1 · Rippled", hs: 0.1, detail: 0.5, waves: [
+    { angle: 8, wavelength: 14, weight: 1, steepness: 0.25 },
+    { angle: -22, wavelength: 9, weight: 0.7, steepness: 0.25 },
+  ] },
+  { name: "2 · Smooth", hs: 0.35, detail: 0.5, waves: [
+    { angle: 6, wavelength: 28, weight: 1, steepness: 0.3 },
+    { angle: -20, wavelength: 18, weight: 0.7, steepness: 0.35 },
+    { angle: 34, wavelength: 11, weight: 0.5, steepness: 0.3 },
+  ] },
+  { name: "3 · Slight", hs: 0.9, detail: 0.45, waves: [
+    { angle: 4, wavelength: 55, weight: 1, steepness: 0.35 },
+    { angle: -24, wavelength: 34, weight: 0.7, steepness: 0.4 },
+    { angle: 32, wavelength: 20, weight: 0.5, steepness: 0.4 },
+    { angle: -52, wavelength: 13, weight: 0.35, steepness: 0.35 },
+  ] },
+  { name: "4 · Moderate", hs: 1.9, detail: 0.4, waves: [
+    { angle: 0, wavelength: 95, weight: 1, steepness: 0.42 },
+    { angle: 28, wavelength: 62, weight: 0.62, steepness: 0.5 },
+    { angle: -24, wavelength: 42, weight: 0.42, steepness: 0.5 },
+    { angle: 52, wavelength: 26, weight: 0.28, steepness: 0.45 },
+  ] },
+  { name: "5 · Rough", hs: 3.2, detail: 0.38, waves: [
+    { angle: 0, wavelength: 135, weight: 1, steepness: 0.5 },
+    { angle: 30, wavelength: 92, weight: 0.66, steepness: 0.58 },
+    { angle: -26, wavelength: 60, weight: 0.46, steepness: 0.6 },
+    { angle: 54, wavelength: 38, weight: 0.3, steepness: 0.55 },
+    { angle: -14, wavelength: 24, weight: 0.22, steepness: 0.5 },
+  ] },
+  { name: "6 · Very rough", hs: 5.0, detail: 0.34, waves: [
+    { angle: 0, wavelength: 185, weight: 1, steepness: 0.55 },
+    { angle: 32, wavelength: 125, weight: 0.7, steepness: 0.62 },
+    { angle: -28, wavelength: 82, weight: 0.5, steepness: 0.64 },
+    { angle: 56, wavelength: 50, weight: 0.35, steepness: 0.6 },
+    { angle: -16, wavelength: 32, weight: 0.25, steepness: 0.58 },
+  ] },
+  { name: "7 · High", hs: 7.5, detail: 0.3, waves: [
+    { angle: 0, wavelength: 245, weight: 1, steepness: 0.6 },
+    { angle: 34, wavelength: 168, weight: 0.74, steepness: 0.68 },
+    { angle: -30, wavelength: 110, weight: 0.54, steepness: 0.7 },
+    { angle: 58, wavelength: 68, weight: 0.4, steepness: 0.66 },
+    { angle: -18, wavelength: 44, weight: 0.3, steepness: 0.64 },
+  ] },
+  { name: "8 · Very high (storm)", hs: 11.0, detail: 0.28, waves: [
+    { angle: 0, wavelength: 300, weight: 1, steepness: 0.65 },
+    { angle: 34, wavelength: 210, weight: 0.78, steepness: 0.72 },
+    { angle: -30, wavelength: 140, weight: 0.58, steepness: 0.74 },
+    { angle: 60, wavelength: 88, weight: 0.44, steepness: 0.7 },
+    { angle: -20, wavelength: 55, weight: 0.32, steepness: 0.68 },
+  ] },
+  { name: "Long groundswell", hs: 1.4, detail: 0.5, waves: [
+    { angle: 0, wavelength: 320, weight: 1, steepness: 0.32 },
+    { angle: 7, wavelength: 260, weight: 0.5, steepness: 0.32 },
+  ] },
+  { name: "Wind chop", hs: 1.0, detail: 0.6, waves: [
+    { angle: 0, wavelength: 42, weight: 1, steepness: 0.55 },
+    { angle: 35, wavelength: 31, weight: 0.85, steepness: 0.6 },
+    { angle: -30, wavelength: 23, weight: 0.7, steepness: 0.6 },
+    { angle: 64, wavelength: 17, weight: 0.55, steepness: 0.55 },
+    { angle: -58, wavelength: 12, weight: 0.4, steepness: 0.5 },
+  ] },
+  { name: "Cross sea (confused)", hs: 2.8, detail: 0.44, waves: [
+    { angle: 20, wavelength: 115, weight: 1, steepness: 0.5 },
+    { angle: -68, wavelength: 98, weight: 0.92, steepness: 0.55 },
+    { angle: 48, wavelength: 58, weight: 0.52, steepness: 0.6 },
+    { angle: -98, wavelength: 46, weight: 0.5, steepness: 0.6 },
+  ] },
 ];
+const DEFAULT_CONDITION = "4 · Moderate";
 
 const OCEAN_PARS = /* glsl */ `
 uniform float uTime;
@@ -283,9 +371,11 @@ const OCEAN_FRAG_WATER = /* glsl */ `
 `;
 
 export function createOcean(): Ocean {
+  // Multipliers applied on top of the selected condition (all default to 1× — the
+  // condition itself carries the real per-component steepness).
   const globals = {
     amplitude: 1,
-    steepness: 0.2,
+    steepness: 1,
     wavelength: 1,
   };
 
@@ -337,9 +427,11 @@ export function createOcean(): Ocean {
 
   // The effective waves the CPU sampler reads — kept identical to the uniforms.
   let waves: Wave[] = [];
+  // The current condition's components (absolute amplitudes); set by applyCondition.
+  let baseWaves: WaveDef[] = [];
 
   const rebuild = () => {
-    waves = BASE_WAVES.map((base) => {
+    waves = baseWaves.map((base) => {
       const angle = THREE.MathUtils.degToRad(base.angle);
       return {
         dir: new THREE.Vector2(Math.cos(angle), Math.sin(angle)),
@@ -366,7 +458,6 @@ export function createOcean(): Ocean {
     // uSpeed stays at its init value of 1 — waves animate at their natural
     // physical phase speed. (No "wind speed" control; that was just a time scale.)
   };
-  rebuild();
 
   const geometry = new THREE.PlaneGeometry(
     PLANE_SIZE,
@@ -410,6 +501,26 @@ export function createOcean(): Ocean {
   };
   // Keep this material's patched program from being shared with a stock one.
   material.customProgramCacheKey = () => "shipwright-gerstner-ocean";
+
+  // Apply a named sea condition: scale its components to the target Hs, load them as
+  // the base waves, reset the manual multipliers to 1×, and set the ripple detail.
+  const applyCondition = (cond: Condition) => {
+    const sumW2 = cond.waves.reduce((sum, w) => sum + w.weight * w.weight, 0);
+    const scale = sumW2 > 0 ? cond.hs / (2 * Math.SQRT2 * Math.sqrt(sumW2)) : 0;
+    baseWaves = cond.waves.map((w) => ({
+      angle: w.angle,
+      wavelength: w.wavelength,
+      amplitude: w.weight * scale,
+      steepness: w.steepness,
+    }));
+    globals.amplitude = 1;
+    globals.wavelength = 1;
+    globals.steepness = 1;
+    material.normalScale.set(cond.detail, cond.detail);
+    rebuild();
+  };
+  const initialCondition = CONDITIONS.find((c) => c.name === DEFAULT_CONDITION);
+  if (initialCondition) applyCondition(initialCondition);
 
   const mesh = new THREE.Mesh(geometry, material);
 
@@ -518,15 +629,32 @@ export function createOcean(): Ocean {
     },
     buildGui: (basic, advanced) => {
       const seaFolder = basic.addFolder("Sea");
-      seaFolder.add(globals, "amplitude", 0, 5, 0.01).name("wave height").onChange(rebuild);
-      seaFolder
+      // Manual multipliers fine-tune whatever condition is selected below.
+      const ampCtrl = seaFolder
+        .add(globals, "amplitude", 0, 5, 0.01)
+        .name("wave height ×")
+        .onChange(rebuild);
+      const wlCtrl = seaFolder
         .add(globals, "wavelength", 0.25, 3, 0.01)
-        .name("wavelength")
+        .name("wavelength ×")
         .onChange(rebuild);
-      seaFolder
+      const steepCtrl = seaFolder
         .add(globals, "steepness", 0, 1.5, 0.01)
-        .name("steepness")
+        .name("steepness ×")
         .onChange(rebuild);
+      // Named sea-state presets (WMO codes + character seas). Selecting one loads its
+      // spectrum and resets the multipliers above to 1×.
+      const preset = { condition: DEFAULT_CONDITION };
+      seaFolder
+        .add(preset, "condition", CONDITIONS.map((c) => c.name))
+        .name("conditions")
+        .onChange((name: string) => {
+          const cond = CONDITIONS.find((c) => c.name === name);
+          if (cond) applyCondition(cond);
+          ampCtrl.updateDisplay();
+          wlCtrl.updateDisplay();
+          steepCtrl.updateDisplay();
+        });
 
       const detail = { strength: material.normalScale.x, tiling: DETAIL_TILING };
       const waterFolder = advanced.addFolder("Water");
