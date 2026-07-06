@@ -6,7 +6,7 @@ import type {
   ThreeSceneContext,
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
-import { createOcean } from "./ocean";
+import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics } from "./physics";
 import { createNavBuoys } from "./buoys";
 
@@ -148,6 +148,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   let envRenderTarget: THREE.WebGLRenderTarget | undefined;
 
   const params = { elevation: 30, azimuth: 135 };
+  // Debug: drop the baked sky env map entirely (scene.environment = null) to see —
+  // and measure — what image-based reflection/ambient costs. Unlike the envMapIntensity
+  // slider (which zeroes the result but still samples the cubemap), nulling it makes
+  // the PBR shader stop sampling, so it's a real fill-cost lever, not just visual.
+  const envMap = { enabled: true };
 
   const updateSun = () => {
     const phi = THREE.MathUtils.degToRad(90 - params.elevation);
@@ -160,7 +165,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     sceneEnv.add(sky);
     envRenderTarget = pmremGenerator.fromScene(sceneEnv);
     scene.add(sky);
-    scene.environment = envRenderTarget.texture;
+    scene.environment = envMap.enabled ? envRenderTarget.texture : null;
   };
   updateSun();
 
@@ -189,7 +194,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
   const debug = {
-    wireframe: false,
+    shading: "pbr" as ShadingMode,
+    normalMap: true,
     probes: false,
     seabed: false,
     waterFx: true,
@@ -198,7 +204,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     quadSize: 10000 / 1024, // ~9.77 m quad edge = tessellation density (held constant)
   };
   const debugFolder = gui.addFolder("Debug");
-  debugFolder.add(debug, "wireframe").onChange((on: boolean) => ocean.setDebug(on));
+  debugFolder
+    .add(debug, "shading", ["pbr", "phong", "lambert", "flat", "wireframe"])
+    .name("shading")
+    .onChange((mode: ShadingMode) => ocean.setShading(mode));
+  debugFolder
+    .add(debug, "normalMap")
+    .name("normal map")
+    .onChange((on: boolean) => ocean.setNormalMap(on));
   debugFolder.add(debug, "probes").onChange((on: boolean) => {
     probes.visible = on;
   });
@@ -210,6 +223,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   debugFolder.add(debug, "capture").name("scene capture");
+  debugFolder
+    .add(envMap, "enabled")
+    .name("env map (sky reflect)")
+    .onChange((on: boolean) => {
+      scene.environment = on ? (envRenderTarget?.texture ?? null) : null;
+    });
   // Tessellation is a density (quad edge length in metres), so changing plane size
   // holds quad size constant and scales the segment count — the grid gets no finer
   // as the sea shrinks. Segments are clamped so an extreme combo can't blow the

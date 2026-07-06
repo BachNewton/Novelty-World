@@ -61,6 +61,11 @@ interface Wave {
   steepness: number;
 }
 
+/** Debug water shading, richest → barest: full metallic-roughness PBR, Blinn-Phong,
+ *  Lambert (diffuse only), an unlit flat fill (isolates fill vs. shading), or wireframe
+ *  (isolates fill itself). The lit tiers map how much the lighting model costs. */
+export type ShadingMode = "pbr" | "phong" | "lambert" | "flat" | "wireframe";
+
 export interface SurfaceSample {
   height: number;
   normal: THREE.Vector3;
@@ -90,8 +95,13 @@ export interface Ocean {
   setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => void;
   /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
   buildGui: (basic: GUI, advanced: GUI) => void;
-  /** Strip the water to a bare wireframe (no ripple map) for debugging. */
-  setDebug: (on: boolean) => void;
+  /** Debug: swap water shading to isolate GPU cost — full PBR, an unlit flat fill
+   *  (same wave geometry, trivial fragment → separates fill from shading math), or
+   *  wireframe (no fill). */
+  setShading: (mode: ShadingMode) => void;
+  /** Debug: actually remove the ripple normal map (fetch + per-pixel tangent-space
+   *  perturbation), not just zero its strength — isolates normal-mapping cost. */
+  setNormalMap: (on: boolean) => void;
   /** Rebuild the surface mesh at a new plane size (m) + tessellation (segments/side).
    *  Debug: the GUI holds quad size (density) constant, so plane size and vertex
    *  count scale together rather than the grid getting finer as the sea shrinks. */
@@ -160,6 +170,16 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
   // the world normal — handed to the fragment shader to wobble the refraction with
   // (its xz is 0 on flat water → no distortion, and grows with the waves).
   vWorldNormal = gNormal;
+`;
+
+// Vertex displacement ONLY (no normal), for the debug unlit MeshBasicMaterial. Same
+// Gerstner wave geometry as the real surface, so a flat-vs-PBR FPS comparison changes
+// only the fragment work (shading), not the silhouette or how much screen is covered.
+const OCEAN_BEGIN_FLAT = /* glsl */ `
+  vec3 gDisplaced;
+  vec3 gFlatNormal;
+  gerstner(position.xz, gDisplaced, gFlatNormal);
+  vec3 transformed = gDisplaced;
 `;
 
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
@@ -400,6 +420,21 @@ export function createOcean(): Ocean {
   };
   applyRipple();
 
+  // Inject the Gerstner vertex displacement + analytic normal into any lit material's
+  // program. Shared by the real PBR surface and the debug lambert/phong materials so
+  // the lighting-model comparison keeps identical wave geometry — only the fragment
+  // lighting model differs between them.
+  const patchGerstnerVertex = (shader: {
+    uniforms: Record<string, THREE.IUniform>;
+    vertexShader: string;
+  }) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${OCEAN_PARS}`)
+      .replace("#include <beginnormal_vertex>", OCEAN_BEGINNORMAL)
+      .replace("#include <begin_vertex>", "vec3 transformed = gDisplaced;");
+  };
+
   const material = new THREE.MeshStandardMaterial({
     color: 0x1f4a5a,
     roughness: 0.25,
@@ -412,11 +447,7 @@ export function createOcean(): Ocean {
   // until SSR lands; the refraction composite blends it in by Fresnel.
   material.envMapIntensity = 1.0;
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${OCEAN_PARS}`)
-      .replace("#include <beginnormal_vertex>", OCEAN_BEGINNORMAL)
-      .replace("#include <begin_vertex>", "vec3 transformed = gDisplaced;");
+    patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${OCEAN_FRAG_PARS}`)
       .replace(
@@ -427,7 +458,35 @@ export function createOcean(): Ocean {
   // Keep this material's patched program from being shared with a stock one.
   material.customProgramCacheKey = () => "shipwright-gerstner-ocean";
 
-  const mesh = new THREE.Mesh(geometry, material);
+  // Debug shading: an unlit, wave-displaced material. Same Gerstner geometry as the
+  // real surface but a trivial fragment (flat colour — no PBR lighting, normal map,
+  // or env sampling). Comparing "flat" vs "pbr" FPS separates raw fill/bandwidth cost
+  // (pixel writes, identical in both) from the PBR shading math (present only in pbr).
+  const basicMaterial = new THREE.MeshBasicMaterial({ color: 0x1f4a5a });
+  basicMaterial.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${OCEAN_PARS}`)
+      .replace("#include <begin_vertex>", OCEAN_BEGIN_FLAT);
+  };
+  basicMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-flat";
+
+  // Debug shading: cheaper lit models on the same wave geometry (no normal map, no env)
+  // to isolate the cost of the LIGHTING model itself. Lambert = diffuse only (the cheap
+  // floor); Phong = Blinn-Phong diffuse + specular (a realistic cheaper-than-PBR target,
+  // since real water still wants a highlight). Comparing pbr → phong → lambert → flat
+  // maps how much the metallic-roughness BRDF costs vs. simpler lighting.
+  const lambertMaterial = new THREE.MeshLambertMaterial({ color: 0x1f4a5a });
+  lambertMaterial.onBeforeCompile = patchGerstnerVertex;
+  lambertMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-lambert";
+  const phongMaterial = new THREE.MeshPhongMaterial({ color: 0x1f4a5a, shininess: 60 });
+  phongMaterial.onBeforeCompile = patchGerstnerVertex;
+  phongMaterial.customProgramCacheKey = () => "shipwright-gerstner-ocean-phong";
+
+  // Typed as the base Mesh so mesh.material can swap between the PBR and debug-flat
+  // materials (setShading); the concrete `material` var is still used for tuning.
+  const mesh: THREE.Mesh = new THREE.Mesh(geometry, material);
+  let normalMapOn = true; // debug toggle (setNormalMap); wireframe strips it regardless
 
   // Evaluate the Gerstner sum for a grid point: its horizontal displacement
   // (ox, oz), height, and normal. This is the forward function the GPU renders.
@@ -581,10 +640,31 @@ export function createOcean(): Ocean {
         .add(uniforms.uSsrMinFresnel, "value", 0.02, 0.5, 0.01)
         .name("cutoff (perf)");
     },
-    setDebug: (on) => {
-      material.wireframe = on;
-      material.normalMap = on ? null : detailNormals;
+    setShading: (mode) => {
+      if (mode === "flat") {
+        mesh.material = basicMaterial;
+        return;
+      }
+      if (mode === "lambert") {
+        mesh.material = lambertMaterial;
+        return;
+      }
+      if (mode === "phong") {
+        mesh.material = phongMaterial;
+        return;
+      }
+      mesh.material = material;
+      material.wireframe = mode === "wireframe";
+      // Wireframe always strips the map; otherwise honour the normal-map debug toggle.
+      material.normalMap = mode === "wireframe" || !normalMapOn ? null : detailNormals;
       material.needsUpdate = true;
+    },
+    setNormalMap: (on) => {
+      normalMapOn = on;
+      if (!material.wireframe) {
+        material.normalMap = on ? detailNormals : null;
+        material.needsUpdate = true;
+      }
     },
     setGrid: (size, segments) => {
       planeSize = size;
@@ -596,6 +676,9 @@ export function createOcean(): Ocean {
     dispose: () => {
       mesh.geometry.dispose();
       material.dispose();
+      basicMaterial.dispose();
+      lambertMaterial.dispose();
+      phongMaterial.dispose();
       detailNormals.dispose();
     },
   };
