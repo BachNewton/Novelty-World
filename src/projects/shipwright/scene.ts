@@ -194,7 +194,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     seabed: false,
     waterFx: true,
     capture: true,
-    segments: 1024,
+    planeSize: 300, // synced to the mesh at startup via applyGrid (below)
+    quadSize: 10000 / 1024, // ~9.77 m quad edge = tessellation density (held constant)
   };
   const debugFolder = gui.addFolder("Debug");
   debugFolder.add(debug, "wireframe").onChange((on: boolean) => ocean.setDebug(on));
@@ -209,10 +210,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   debugFolder.add(debug, "capture").name("scene capture");
+  // Tessellation is a density (quad edge length in metres), so changing plane size
+  // holds quad size constant and scales the segment count — the grid gets no finer
+  // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
+  // vertex budget (density gives at the limit).
+  const applyGrid = () => {
+    const segments = Math.min(2048, Math.max(8, Math.round(debug.planeSize / debug.quadSize)));
+    ocean.setGrid(debug.planeSize, segments);
+  };
   debugFolder
-    .add(debug, "segments", 64, 2048, 64)
-    .name("tessellation")
-    .onFinishChange((n: number) => ocean.setSegments(n));
+    .add(debug, "quadSize", 2, 40, 0.5)
+    .name("quad size (m)")
+    .onFinishChange(applyGrid);
+  debugFolder
+    .add(debug, "planeSize", 100, 10000, 100)
+    .name("plane size (m)")
+    .onFinishChange(applyGrid);
+  applyGrid(); // sync the mesh to the slider defaults (default plane < PLANE_SIZE)
 
   const advanced = gui.addFolder("Advanced");
   advanced.close();

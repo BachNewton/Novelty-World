@@ -40,7 +40,11 @@ const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
 // what reads as "water" rather than smooth glass. Division of labour: geometry
 // = swells/silhouette (tens of metres), this normal map = everything smaller.
 const DETAIL_NORMALS_URL = "/shipwright/waternormals.jpg";
-const DETAIL_TILING = 1000; // texture repeats across the plane → ~10 m ripples
+// World size of one ripple-map tile. The texture's `repeat` is DERIVED from this
+// (planeSize / DETAIL_RIPPLE_METERS) rather than being a fixed tile count, so the
+// ripple scale — and the water's look — stays constant as the plane grows or
+// shrinks. See `applyRipple`. (A fixed count made ripples finer as the plane shrank.)
+const DETAIL_RIPPLE_METERS = 10;
 
 interface WaveDef {
   /** Heading in degrees; wind direction rotates all of them together. */
@@ -88,8 +92,10 @@ export interface Ocean {
   buildGui: (basic: GUI, advanced: GUI) => void;
   /** Strip the water to a bare wireframe (no ripple map) for debugging. */
   setDebug: (on: boolean) => void;
-  /** Rebuild the surface mesh at a new tessellation (debug: check facet gap). */
-  setSegments: (segments: number) => void;
+  /** Rebuild the surface mesh at a new plane size (m) + tessellation (segments/side).
+   *  Debug: the GUI holds quad size (density) constant, so plane size and vertex
+   *  count scale together rather than the grid getting finer as the sea shrinks. */
+  setGrid: (size: number, segments: number) => void;
   dispose: () => void;
 }
 
@@ -368,21 +374,31 @@ export function createOcean(): Ocean {
   };
   rebuild();
 
-  const geometry = new THREE.PlaneGeometry(
-    PLANE_SIZE,
-    PLANE_SIZE,
-    PLANE_SEGMENTS,
-    PLANE_SEGMENTS,
-  );
-  // Bake the flat orientation into the vertices so object space is world-aligned
-  // (x, z horizontal, y up) — the Gerstner shader displaces along y directly.
-  geometry.rotateX(-Math.PI / 2);
+  // Live geometry parameters — mutated by the debug setSize/setSegments controls,
+  // both of which rebuild the plane through buildGeometry.
+  let planeSize = PLANE_SIZE;
+  let planeSegments = PLANE_SEGMENTS;
+  const buildGeometry = () => {
+    const geo = new THREE.PlaneGeometry(planeSize, planeSize, planeSegments, planeSegments);
+    // Bake the flat orientation into the vertices so object space is world-aligned
+    // (x, z horizontal, y up) — the Gerstner shader displaces along y directly.
+    geo.rotateX(-Math.PI / 2);
+    return geo;
+  };
+  const geometry = buildGeometry();
 
   const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL);
   detailNormals.wrapS = THREE.RepeatWrapping;
   detailNormals.wrapT = THREE.RepeatWrapping;
   detailNormals.anisotropy = 4; // keep distant ripple tiling from smearing
-  detailNormals.repeat.set(DETAIL_TILING, DETAIL_TILING);
+  // Ripple tiling is derived from the plane size so the ripple world-scale is fixed
+  // regardless of plane size (kept in lock-step by setGrid + the GUI ripple control).
+  let rippleMeters = DETAIL_RIPPLE_METERS;
+  const applyRipple = () => {
+    const tiles = planeSize / rippleMeters;
+    detailNormals.repeat.set(tiles, tiles);
+  };
+  applyRipple();
 
   const material = new THREE.MeshStandardMaterial({
     color: 0x1f4a5a,
@@ -528,7 +544,7 @@ export function createOcean(): Ocean {
         .name("steepness")
         .onChange(rebuild);
 
-      const detail = { strength: material.normalScale.x, tiling: DETAIL_TILING };
+      const detail = { strength: material.normalScale.x, ripple: rippleMeters };
       const waterFolder = advanced.addFolder("Water");
       waterFolder.addColor(material, "color");
       waterFolder.add(material, "roughness", 0, 1, 0.01);
@@ -539,9 +555,12 @@ export function createOcean(): Ocean {
         .name("ripples")
         .onChange(() => material.normalScale.set(detail.strength, detail.strength));
       waterFolder
-        .add(detail, "tiling", 100, 3000, 10)
-        .name("ripple scale")
-        .onChange(() => detailNormals.repeat.set(detail.tiling, detail.tiling));
+        .add(detail, "ripple", 2, 40, 0.5)
+        .name("ripple size (m)")
+        .onChange(() => {
+          rippleMeters = detail.ripple;
+          applyRipple();
+        });
 
       const bodyFolder = advanced.addFolder("Water body");
       bodyFolder
@@ -567,11 +586,12 @@ export function createOcean(): Ocean {
       material.normalMap = on ? null : detailNormals;
       material.needsUpdate = true;
     },
-    setSegments: (segments) => {
-      const next = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, segments, segments);
-      next.rotateX(-Math.PI / 2);
+    setGrid: (size, segments) => {
+      planeSize = size;
+      planeSegments = segments;
       mesh.geometry.dispose();
-      mesh.geometry = next;
+      mesh.geometry = buildGeometry();
+      applyRipple(); // hold the ripple world-scale constant across plane-size changes
     },
     dispose: () => {
       mesh.geometry.dispose();
