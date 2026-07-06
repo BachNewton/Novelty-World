@@ -81,7 +81,10 @@ export function createNavBuoys(): NavBuoys {
   const root = new THREE.Group();
   const buoys: Buoy[] = [];
 
-  // --- Lateral marks: two capsule floats, half-submerged (centre on the surface).
+  // --- Lateral marks: two capsule floats. Like the cardinal spars, the body is
+  // built ABOVE the group origin so it rides high above the waterline (with just
+  // its base dipping under) rather than sitting half-submerged with its centre on
+  // the surface — matching how the real buoys show most of their body above water.
   const capsuleGeometry = new THREE.CapsuleGeometry(0.4, 1.2, 8, 16);
   const redMaterial = new THREE.MeshStandardMaterial({ color: 0xcc3333, roughness: 0.4 });
   const greenMaterial = new THREE.MeshStandardMaterial({ color: 0x2fa84f, roughness: 0.4 });
@@ -90,9 +93,14 @@ export function createNavBuoys(): NavBuoys {
     { material: greenMaterial, restX: 3, restZ: 4 },
   ];
   for (const spec of lateralSpecs) {
+    const group = new THREE.Group();
     const mesh = new THREE.Mesh(capsuleGeometry, spec.material);
-    root.add(mesh);
-    buoys.push({ object: mesh, restX: spec.restX, restZ: spec.restZ });
+    // Capsule half-height is ~1.0 (0.6 cylinder half + 0.4 cap); lift it so the
+    // base sits ~0.4 m below the origin and the rest stands proud of the surface.
+    mesh.position.y = 0.6;
+    group.add(mesh);
+    root.add(group);
+    buoys.push({ object: group, restX: spec.restX, restZ: spec.restZ });
   }
 
   // --- Cardinal marks: a spar (patterned body) + a two-cone topmark, both built
