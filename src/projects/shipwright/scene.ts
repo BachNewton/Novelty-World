@@ -40,6 +40,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const ocean = createOcean();
   scene.add(ocean.mesh);
 
+  // Gentle-swell sea for the raft/player test. The default sea (~1.7 m primary amplitude) is a
+  // rough open-water state; dial it down to a low, long swell the small raft RIDES like a cork
+  // (heaving/tilting with the wave) rather than getting swamped — good motion for the player
+  // test without washing the deck. Rougher seas return for the balance-loss tests (see the
+  // player/raft plan). Set before the GUI is built so its wave sliders reflect these values.
+  ocean.setSea({ amplitude: 0.5, steepness: 0.1 });
+
   // Screen-space refraction / depth: the water reads a colour+depth capture of the
   // scene behind it (the shared hook's opt-in `sceneCapture`, populated each frame
   // below with the water hidden). Bind the textures once + the view params.

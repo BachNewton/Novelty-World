@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import RAPIER from "@dimforge/rapier3d-compat";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 import type { Ocean } from "./ocean";
@@ -36,6 +37,16 @@ const GRAVITY = 9.81;
 // ~60% submerged (equilibrium submerged fraction = VOXEL_DENSITY / water).
 const WATER_DENSITY = 1000;
 const VOXEL_DENSITY = 600;
+// Raft build: a real light boat softwood (cedar / dry pine ≈ 400 kg/m³), chosen so the deck
+// floats HONESTLY proud of a calm sea rather than by fudging buoyancy. Freeboard of a solid
+// slab = thickness·(1 − ρ/ρ_water); at 400 a single 0.5 m course clears ~0.22 m of dry deck
+// once the perimeter wall's weight is counted, and an 85 kg sailor spread over the ~20 m²
+// deck adds only ~4 mm of draft — one person barely sinks it. See the player/raft plan.
+const RAFT_DENSITY = 400;
+// Metres of raft surface per wood-texture tile. Merged builds (see `merged`) get CONTINUOUS
+// body-local UVs, so planks flow seamlessly across voxels at this scale instead of the texture
+// restarting on every 0.5 m face (which read as thin stripes). Fine-tune live via "tile repeat".
+const WOOD_TILE = 2;
 // NB: added mass is deliberately NOT faked via density + gravityScale — gravityScale
 // scales gravity everywhere (mid-air included), which made launched shapes fall slow
 // and hang. Real mass, real gravity; a proper (submersion-gated) added-mass force is
@@ -99,6 +110,13 @@ interface Shape {
   upright?: boolean;
   /** Spawn at this world position instead of the default drop row. */
   spawnOverride?: [number, number, number];
+  /** kg/m³ for this build's voxels (sets mass + waterline). Defaults to VOXEL_DENSITY. */
+  density?: number;
+  /** Render with the shared wood-plank PBR material instead of a flat colour. */
+  textured?: boolean;
+  /** Render as ONE merged mesh with continuous body-local UVs (planks flow across voxels)
+   *  instead of per-voxel instances that re-tile the texture on every 0.5 m face. */
+  merged?: boolean;
 }
 
 // A hollow boat hull sized like a real 7-adult speedboat: 12×5 voxels (6.0 × 2.5 m)
@@ -138,12 +156,13 @@ const buildBoatCells = (): [number, number, number][] => {
   return cells;
 };
 
-// A spread of 0.5 m³-voxel builds to watch interact with the sea. The five flat
-// tetromino plates (Z-thin) topple and self-right to a waterline; the upright 3-D
-// shapes are stability tests — from rock-stable (pyramid, catamaran) to marginal
-// (tower) to doomed (pillar). Buoyancy is per-voxel, so how each one floats, tips,
-// or rights itself falls out of its geometry alone.
-const SHAPES: Shape[] = [
+// The retired buoyancy testbed — a spread of 0.5 m³-voxel builds that validated the
+// per-voxel float (plates topple + self-right; upright shapes range from rock-stable
+// pyramid/catamaran to doomed pillar; a hollow boat hull as a scale reference). Kept
+// behind an opt-in: the gameplay scene spawns the raft, but pass TEST_SHAPES to
+// createPhysics to drop these again. Buoyancy is per-voxel, so each one's behaviour
+// falls out of its geometry alone.
+export const TEST_SHAPES: Shape[] = [
   { name: "I", color: 0x28c6d6, cells: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]] },
   { name: "O", color: 0xf2c94c, cells: [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]] },
   { name: "T", color: 0xa06cd5, cells: [[0, 0, 0], [1, 0, 0], [2, 0, 0], [1, 1, 0]] },
@@ -206,14 +225,49 @@ const SHAPES: Shape[] = [
   },
 ];
 
+// The raft — the gameplay platform. A 9×9 course of the 0.5 m voxel (4.5 × 4.5 m deck)
+// with a 1-voxel (0.5 m) retaining wall around the perimeter to bound the player. Built
+// in light boat softwood (RAFT_DENSITY) so it floats a sailor with a real dry deck — the
+// player stands and walks on it (next step). One solid course; thicken it (add a y=−1
+// course) if we want more freeboard for rougher water.
+const buildRaft = (): [number, number, number][] => {
+  const SIDE = 9;
+  const cells: [number, number, number][] = [];
+  for (let x = 0; x < SIDE; x++) {
+    for (let z = 0; z < SIDE; z++) {
+      cells.push([x, 0, z]); // deck course
+      const onPerimeter = x === 0 || x === SIDE - 1 || z === 0 || z === SIDE - 1;
+      if (onPerimeter) cells.push([x, 1, z]); // low retaining wall
+    }
+  }
+  return cells;
+};
+
+const RAFT: Shape = {
+  name: "Raft",
+  color: 0x6b4f3a, // wood-brown fallback shown until the plank texture loads
+  upright: true, // drops level, no self-right tilt
+  density: RAFT_DENSITY,
+  textured: true,
+  merged: true,
+  spawnOverride: [0, 0.3, 0], // just above its waterline — settles with a gentle bob
+  cells: buildRaft(),
+};
+
 interface Visual {
-  mesh: THREE.InstancedMesh;
+  /** InstancedMesh (one instance per voxel) OR, when `single`, one merged Mesh posed by the
+   *  body transform. Buoyancy always uses `offsets` regardless of how it renders. */
+  mesh: THREE.InstancedMesh | THREE.Mesh;
+  /** True when `mesh` is a single merged Mesh (posed whole) rather than per-voxel instances. */
+  single: boolean;
   /** Local voxel-centre offsets (metres), centred on the shape's centroid. */
   offsets: THREE.Vector3[];
   spawnPos: THREE.Vector3;
   spawnQuat: THREE.Quaternion;
   /** Start index of this piece's voxels in the flat debug-arrow arrays. */
   arrowBase: number;
+  /** Voxel density (kg/m³) — sets the body's mass via the colliders. */
+  density: number;
 }
 
 export interface Physics {
@@ -233,7 +287,46 @@ export interface Physics {
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 
-export function createPhysics(ocean: Ocean): Physics {
+// Merge a shape's voxel boxes into ONE geometry with continuous, body-local, per-face planar
+// UVs (project each face onto its in-plane axes, scaled by WOOD_TILE). Because the UVs come from
+// the voxel's body-local position rather than the box's own 0..1 face coords, the plank texture
+// flows unbroken across the whole build — no per-voxel re-tiling — and the "tile repeat" slider
+// stays seamless at any scale. Used for the raft (see the `merged` shape flag).
+const buildMergedVoxelGeometry = (offsets: THREE.Vector3[]): THREE.BufferGeometry => {
+  const geoms = offsets.map((o) => {
+    const g = new THREE.BoxGeometry(VOXEL, VOXEL, VOXEL);
+    g.translate(o.x, o.y, o.z);
+    const pos = g.attributes.position;
+    const nor = g.attributes.normal;
+    const uv = g.attributes.uv;
+    for (let k = 0; k < pos.count; k++) {
+      const ax = Math.abs(nor.getX(k));
+      const ay = Math.abs(nor.getY(k));
+      const az = Math.abs(nor.getZ(k));
+      let u: number;
+      let w: number;
+      if (ay >= ax && ay >= az) {
+        u = pos.getX(k); // up/down face → XZ plane
+        w = pos.getZ(k);
+      } else if (ax >= az) {
+        u = pos.getZ(k); // left/right face → ZY plane
+        w = pos.getY(k);
+      } else {
+        u = pos.getX(k); // front/back face → XY plane
+        w = pos.getY(k);
+      }
+      uv.setXY(k, u / WOOD_TILE, w / WOOD_TILE);
+    }
+    return g;
+  });
+  const merged = mergeGeometries(geoms);
+  for (const g of geoms) g.dispose();
+  // aoMap samples the second UV set; our planar UVs work for it too, so mirror uv → uv2.
+  merged.setAttribute("uv2", merged.attributes.uv.clone());
+  return merged;
+};
+
+export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   const params = { drag: DRAG_MULTIPLIER_DEFAULT };
 
   const group = new THREE.Group();
@@ -241,7 +334,55 @@ export function createPhysics(ocean: Ocean): Physics {
   const materials: THREE.MeshStandardMaterial[] = [];
   const visuals: Visual[] = [];
 
-  const totalVoxels = SHAPES.reduce((sum, s) => sum + s.cells.length, 0);
+  // Shared wood-plank PBR material for the raft (and future wood builds). The maps live in
+  // public/shipwright/; load them async and attach on success, so a missing or slow file
+  // just leaves the wood-brown base colour rather than rendering the raft black.
+  const texLoader = new THREE.TextureLoader();
+  const woodMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x6b4f3a, // wood-brown FALLBACK; reset to white once the diffuse map loads (below),
+    // so the map shows its true colour instead of being tinted darker by this multiplier.
+    roughness: 0.85, // matte deck timber
+    metalness: 0,
+    // DRY weathered wood is ~non-reflective: the default dielectric specular (F0 ≈ 0.04)
+    // Fresnel-boosts at grazing angles into a bright sky/sun sheen the flat deck shows across
+    // its whole face → ACES desaturates the clipped highlight to white (the "metal deck" bug).
+    // Zero it out for a fully matte deck with no sun hotspot; raise the "specular" slider later
+    // when the deck is WET (spray/waves) for that case's sheen.
+    specularIntensity: 0,
+    envMapIntensity: 0.3, // ambient fill only
+    // Strong normal + an AO map are what stop the deck reading as a flat brown decal: normal
+    // relief needs a raking sun to show (a flat deck lit from overhead shows little), so lean on
+    // it hard; AO darkens the plank seams/crevices in AMBIENT light, giving depth at ANY sun angle.
+    normalScale: new THREE.Vector2(2.5, 2.5),
+  });
+  const woodTextures: THREE.Texture[] = [];
+  const loadWood = (
+    file: string,
+    apply: (t: THREE.Texture) => void,
+    srgb: boolean,
+  ) => {
+    texLoader.load(`/shipwright/${file}`, (t) => {
+      t.wrapS = THREE.RepeatWrapping;
+      t.wrapT = THREE.RepeatWrapping;
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      woodTextures.push(t);
+      apply(t);
+      woodMaterial.needsUpdate = true;
+    });
+  };
+  loadWood(
+    "wood_planks_diff.jpg",
+    (t) => {
+      woodMaterial.map = t;
+      woodMaterial.color.setHex(0xffffff); // drop the brown fallback tint now the real map is here
+    },
+    true,
+  );
+  loadWood("wood_planks_nor.jpg", (t) => (woodMaterial.normalMap = t), false);
+  loadWood("wood_planks_rough.jpg", (t) => (woodMaterial.roughnessMap = t), false);
+  loadWood("wood_planks_ao.jpg", (t) => (woodMaterial.aoMap = t), false);
+
+  const totalVoxels = shapes.reduce((sum, s) => sum + s.cells.length, 0);
   const forceArr = Array.from({ length: totalVoxels }, () => new THREE.Vector3());
   const posArr = Array.from({ length: totalVoxels }, () => new THREE.Vector3());
 
@@ -252,28 +393,34 @@ export function createPhysics(ocean: Ocean): Physics {
   const wvOut = new THREE.Vector3();
   const dummy = new THREE.Object3D();
 
-  // Write the instance matrices for one piece at a given world pose (each voxel =
-  // pose applied to its local offset). Used for the pre-physics spawn pose and,
-  // per frame, from the body's live transform.
+  // Pose one piece at a given world transform. A merged (single) mesh already bakes the voxel
+  // layout into its geometry, so it just takes the body pose whole; an instanced mesh writes one
+  // matrix per voxel (pose applied to each local offset). Used for the spawn pose and per frame.
   const placeInstances = (
     v: Visual,
     pos: THREE.Vector3,
     quat: THREE.Quaternion,
   ) => {
+    if (v.single) {
+      v.mesh.position.copy(pos);
+      v.mesh.quaternion.copy(quat);
+      return;
+    }
+    const im = v.mesh as THREE.InstancedMesh;
     for (let j = 0; j < v.offsets.length; j++) {
       tmpVec.copy(v.offsets[j]).applyQuaternion(quat).add(pos);
       dummy.position.copy(tmpVec);
       dummy.quaternion.copy(quat);
       dummy.updateMatrix();
-      v.mesh.setMatrixAt(j, dummy.matrix);
+      im.setMatrixAt(j, dummy.matrix);
     }
-    v.mesh.instanceMatrix.needsUpdate = true;
+    im.instanceMatrix.needsUpdate = true;
   };
 
-  const rowCount = SHAPES.reduce((n, s) => n + (s.spawnOverride ? 0 : 1), 0);
+  const rowCount = shapes.reduce((n, s) => n + (s.spawnOverride ? 0 : 1), 0);
   let rowIndex = 0;
   let arrowCursor = 0;
-  SHAPES.forEach((shape, i) => {
+  shapes.forEach((shape, i) => {
     const n = shape.cells.length;
     // Centre the cells on their centroid so the body origin sits at the middle of
     // the shape and instance offsets are symmetric about it.
@@ -297,16 +444,27 @@ export function createPhysics(ocean: Ocean): Physics {
         ),
     );
 
-    const material = new THREE.MeshStandardMaterial({
-      color: shape.color,
-      roughness: 0.6,
-      metalness: 0.05,
-    });
-    materials.push(material);
-    const mesh = new THREE.InstancedMesh(boxGeometry, material, n);
-    // Instances are translated metres from the mesh origin and drift as they
-    // float, so the origin-centred bounding sphere would wrongly cull the whole
-    // mesh at some angles. These are tiny — just always draw them.
+    // Textured builds share the wood material; the rest get a flat colour we own + dispose.
+    let material: THREE.MeshStandardMaterial;
+    if (shape.textured === true) {
+      material = woodMaterial;
+    } else {
+      material = new THREE.MeshStandardMaterial({
+        color: shape.color,
+        roughness: 0.6,
+        metalness: 0.05,
+      });
+      materials.push(material);
+    }
+    // A `merged` build renders as one Mesh (continuous-UV geometry, posed whole); the rest
+    // render as per-voxel instances of the shared box.
+    const single = shape.merged === true;
+    const mesh: THREE.InstancedMesh | THREE.Mesh = single
+      ? new THREE.Mesh(buildMergedVoxelGeometry(offsets), material)
+      : new THREE.InstancedMesh(boxGeometry, material, n);
+    // Instances/merged meshes are translated metres from the origin and drift as they float, so
+    // the origin-centred bounding sphere would wrongly cull the whole mesh at some angles. These
+    // are tiny — just always draw them.
     mesh.frustumCulled = false;
     group.add(mesh);
 
@@ -328,7 +486,15 @@ export function createPhysics(ocean: Ocean): Physics {
     const angle = shape.upright === true ? 0 : 0.4 + i * 0.15;
     const spawnQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
 
-    const v: Visual = { mesh, offsets, spawnPos, spawnQuat, arrowBase: arrowCursor };
+    const v: Visual = {
+      mesh,
+      single,
+      offsets,
+      spawnPos,
+      spawnQuat,
+      arrowBase: arrowCursor,
+      density: shape.density ?? VOXEL_DENSITY,
+    };
     visuals.push(v);
     placeInstances(v, spawnPos, spawnQuat);
     arrowCursor += n;
@@ -481,7 +647,7 @@ export function createPhysics(ocean: Ocean): Physics {
         for (const offset of v.offsets) {
           const collider = RAPIER.ColliderDesc.cuboid(HALF, HALF, HALF)
             .setTranslation(offset.x, offset.y, offset.z)
-            .setDensity(VOXEL_DENSITY)
+            .setDensity(v.density)
             .setFriction(0.5)
             .setRestitution(0);
           w.createCollider(collider, body);
@@ -520,12 +686,42 @@ export function createPhysics(ocean: Ocean): Physics {
           arrowGroup.visible = on;
           if (!on) for (const arrow of arrows) arrow.visible = false;
         });
+
+      // Live wood-material tuning (best judged at full framerate on a real GPU). `roughness`
+      // trades gloss vs. how much the normal-map relief reads; `tile` is the texture repeats
+      // per 0.5 m voxel face — integer values stay seamless across the deck (the map is
+      // tileable), lower values enlarge the planks but reveal a per-voxel seam.
+      const wood = gui.addFolder("Raft wood");
+      wood.add(woodMaterial, "roughness", 0, 1, 0.01);
+      // Specular reflectance. The default (1 → F0 ≈ 0.04) Fresnel-boosts at grazing angles into a
+      // bright sky/sun sheen that blows the flat deck white; keep it low for matte weathered wood.
+      wood.add(woodMaterial, "specularIntensity", 0, 1, 0.01).name("specular");
+      wood.add(woodMaterial, "aoMapIntensity", 0, 2, 0.05).name("ao"); // crevice depth, any sun angle
+      wood.add(woodMaterial, "envMapIntensity", 0, 1.5, 0.05).name("env reflect");
+      const woodProxy = { normalDepth: woodMaterial.normalScale.x, tile: 1 };
+      wood
+        .add(woodProxy, "normalDepth", 0, 3, 0.05)
+        .name("normal depth")
+        .onChange((v: number) => woodMaterial.normalScale.set(v, v));
+      wood
+        .add(woodProxy, "tile", 0.25, 4, 0.25)
+        .name("tile repeat")
+        .onChange((v: number) => {
+          for (const t of woodTextures) t.repeat.set(v, v);
+        });
     },
     dispose: () => {
       world?.free();
       boxGeometry.dispose();
+      woodMaterial.dispose();
+      for (const t of woodTextures) t.dispose();
       for (const material of materials) material.dispose();
-      for (const v of visuals) v.mesh.dispose();
+      for (const v of visuals) {
+        // Merged builds own a unique geometry to free; instanced builds share `boxGeometry`
+        // (freed above) and just release their instance buffers via InstancedMesh.dispose().
+        if (v.single) v.mesh.geometry.dispose();
+        else (v.mesh as THREE.InstancedMesh).dispose();
+      }
       for (const arrow of arrows) arrow.dispose();
     },
   };
