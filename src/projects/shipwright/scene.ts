@@ -97,7 +97,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // cube's ~0.5 m is too shallow to fade) — it shows the full shallow→deep colour
   // gradient and the soft waterline edge, and previews island shallows. Off by
   // default; toggle in the Debug folder.
-  const seabedGeometry = new THREE.PlaneGeometry(240, 240);
+  const seabedGeometry = new THREE.PlaneGeometry(300, 300);
   seabedGeometry.rotateX(-Math.PI / 2); // lay flat (world-aligned), then tilt below
   const seabedMaterial = new THREE.MeshStandardMaterial({
     color: 0xc2b280,
@@ -105,8 +105,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     side: THREE.DoubleSide,
   });
   const seabed = new THREE.Mesh(seabedGeometry, seabedMaterial);
-  seabed.rotation.x = 0.14; // ~±17 m depth swing across the plane → a clear gradient
-  seabed.position.y = -9;
+  // Steeper + deeper than before (~±33 m about −16, so the slope spans the waterline down to
+  // ~−48 m in frame). The SLOPE is the real Secchi gauge — the depth where the sand fades into
+  // the water colour IS the visibility — so it must reach past the clearest type's ~40 m, or the
+  // clear end can't be read (I vs II indistinguishable). The deep tail also gives a genuine
+  // deep-water region, so clear water shows its true deep-blue body away from the sunlit sandbar.
+  seabed.rotation.x = 0.22;
+  seabed.position.y = -16;
   seabed.visible = false;
   scene.add(seabed);
 

@@ -161,11 +161,19 @@ Added by the 2026-07-07 re-review (second opinion):
 - **Trochoidal peaking has headroom** — `5-rough`/`6-very-rough` are steeper but not sharply pinched;
   ties to the unbuilt foam/whitecap + steepness work (`sea-conditions.md` §6).
 
-### Rig limitation (not a render bug)
+### Rig limitation (not a render bug) — ✅ RESOLVED (2026-07-07)
 
-The **Secchi pole is too short** to bracket the clear end — Oceanic I's ~40 m visibility is
-unverifiable (pole/seabed never fully extinguish, so I vs II can't be told apart absolutely). A
-**longer pole** or a **deeper/steeper seabed** would let future runs validate the clear end.
+~~The **Secchi pole is too short** to bracket the clear end — Oceanic I's ~40 m visibility is
+unverifiable (pole/seabed never fully extinguish, so I vs II can't be told apart absolutely).~~
+Fixed the calibration rig: the Secchi pole now reads to **44 m** (`BELOW_M`, `measuring-pole.ts`)
+and the debug seabed is **steeper + deeper** (~±33 m about −16, slope spanning the waterline to
+~−48 m; `scene.ts`). The **slope is the real gauge** — the depth where the sand fades into the
+water colour IS the visibility — so it now brackets past the clearest type's ~40 m. Result
+(`.shots/rig/02-clarity/`): the clear types finally **differentiate** — Oceanic I keeps sand + pole
+visible deep, Oceanic III's bottom is gone by ~10 m — and, decisively, **Oceanic I `e90` now shows
+a true depth gradient (deep blue in deep water → turquoise over the shallow sandbar)**, confirming
+the earlier "intense cyan" was the sunlit sandbar, not an over-saturated water body. (The seabed +
+pole are debug-only props, `visible:false` by default — no gameplay impact.)
 
 ### Refraction (issue 1) — RESOLVED: lateral offset dropped
 

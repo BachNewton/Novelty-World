@@ -19,7 +19,11 @@ import * as THREE from "three";
 
 const PX_PER_M = 64;
 const ABOVE_M = 2; // board extends this far above the waterline (a dry reference)
-const BELOW_M = 12; // ...and this far below — the readable depth range
+// Deep enough to BRACKET the clearest water: Oceanic I sees ~40 m, so a 12 m staff never
+// extinguished at the clear end (I vs II indistinguishable). 44 m lets the clear types'
+// bands actually fade out on-scale — needs the deep seabed section below it (see scene.ts)
+// so the deep bands read against deep water, not the sandbar.
+const BELOW_M = 44; // ...this far below — the readable depth range
 
 const makeScaleTexture = (): THREE.CanvasTexture => {
   const totalM = ABOVE_M + BELOW_M;
