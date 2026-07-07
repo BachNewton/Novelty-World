@@ -3,6 +3,20 @@
 Guidance for Claude Code when working in `src/projects/shipwright/`. Read the
 repo-root `CLAUDE.md` first — this file only adds project-specific context.
 
+## Aesthetic: photorealism, NOT the brand palette
+
+The root `CLAUDE.md` "colorful, bold, fun, quirky" visual identity (and the
+"never use raw Tailwind colors, use semantic tokens" rule) governs the **Novelty
+World web-app UI** — menus, the project directory, tools, HTML/CSS chrome. It does
+**NOT** govern Shipwright's **3D render**, which is a game going for a
+**photorealistic sea, sky, and waves**. Judge the render against **physical
+realism** (real ocean optics, real light), not the brand palette — never push
+saturation/vividness in the water, sky, or objects to "match the brand." Correct
+means physically plausible (e.g. at noon colours are bright but naturally less
+punchy, and blacks stay dark — an unphysical washed/grey-black look is a *bug*, not
+a style choice). See `docs/FIDELITY.md`. (The token rule still applies to any
+Shipwright React/HTML **HUD** chrome, which is web UI.)
+
 ## The big picture (the end goal)
 
 Shipwright is an **online co-op building and exploration game**. Players:

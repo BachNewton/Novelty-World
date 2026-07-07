@@ -220,13 +220,29 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // adds no extra veil to clip against — the reverse of the old ramp-to-noon.
   const veilForSun = (elevation: number) =>
     THREE.MathUtils.lerp(VEIL_DUSK, VEIL_DAY, THREE.MathUtils.smoothstep(elevation, 0, 18));
-  // When auto, exposure + veil derive from the sun. The GUI dials use .listen() so their
-  // displays follow along automatically — no explicit controller refresh needed here.
+  // IBL sheen roll-off at high sun. The noon sky env map is so bright that its broad SPECULAR
+  // reflection (a near-white sheen every surface picks up, dielectric F0≈0.04 × a huge env) washes
+  // objects: it adds white on top, so black paint lifts to grey and saturated hues dilute toward
+  // white. Exposure can't fix it — dropping exposure scales the colour AND the white sheen together,
+  // so saturation (their ratio) is unchanged. The fix is to cut the sheen itself: ease
+  // scene.environmentIntensity DOWN as the sun climbs, so noon keeps hue + dark blacks while low sun
+  // keeps its full glossy env (dusk/golden-hour reflections read great and must not change).
+  const ENV_INTENSITY_LOW = 1.0; // low/mid sun — full env reflection
+  const ENV_INTENSITY_HIGH = 0.45; // noon — tame the bright-sky sheen washing objects
+  const envIntensityForSun = (elevation: number) =>
+    THREE.MathUtils.lerp(
+      ENV_INTENSITY_LOW,
+      ENV_INTENSITY_HIGH,
+      THREE.MathUtils.smoothstep(elevation, 30, 90),
+    );
+  // When auto, exposure + veil + env intensity derive from the sun. The GUI dials use .listen() so
+  // their displays follow along automatically — no explicit controller refresh needed here.
   const applyLighting = () => {
     if (!lighting.auto) return;
     renderer.toneMappingExposure = exposureForSun(params.elevation);
     veilState.value = veilForSun(params.elevation);
     ocean.setVeilBrightness(veilState.value);
+    scene.environmentIntensity = envIntensityForSun(params.elevation);
   };
 
   const updateSun = () => {
