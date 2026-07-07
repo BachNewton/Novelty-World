@@ -7,6 +7,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { GpuTimer } from "./gpu-timer";
 
 export interface BloomOptions {
   strength?: number;
@@ -17,6 +18,14 @@ export interface BloomOptions {
 export interface ThreeSceneOptions {
   /** Overlay a three.js FPS/ms stats panel in the top-left corner. */
   stats?: boolean;
+  /**
+   * Overlay a per-pass **GPU-time** panel (`EXT_disjoint_timer_query_webgl2`). Unlike
+   * the `stats` panel — which measures CPU submit time and frame cadence — this reports
+   * how long the GPU actually spent executing each pass. The hook times its own `main`
+   * render; a scene brackets its extra passes via `ctx.gpuTimer.span(name, fn)`. Dev
+   * affordance; degrades to an "n/a" panel where the extension is unavailable.
+   */
+  gpuStats?: boolean;
   /**
    * MSAA on the main framebuffer (default `true`). Smooths geometry edges but costs
    * a 4× framebuffer + a per-frame resolve. Set `false` when the scene supersamples
@@ -74,6 +83,12 @@ export interface ThreeSceneContext {
   /** Present when the `sceneCapture` option is enabled — a colour+depth scene target. */
   sceneCapture?: SceneCapture;
   /**
+   * Present when `gpuStats` is enabled. Bracket a scene's own passes with
+   * `gpuTimer.span(name, fn)` to break out their GPU cost alongside the hook's `main`
+   * render in the panel. Spans must not overlap.
+   */
+  gpuTimer?: GpuTimer;
+  /**
    * Set the live device-pixel-ratio (clamped to the `maxPixelRatio` option), then
    * resize the drawing buffer + capture target to match. Lets a scene expose a
    * render-scale control for weak GPUs.
@@ -114,6 +129,7 @@ export function useThreeScene(
   // hold it so the mount effect can stay dependency-free without going stale.
   const setupRef = useRef(setup);
   const showStatsRef = useRef(options.stats ?? false);
+  const gpuStatsRef = useRef(options.gpuStats ?? false);
   const antialiasRef = useRef(options.antialias ?? true);
   const bloomRef = useRef(options.bloom ?? false);
   const sceneCaptureRef = useRef(options.sceneCapture ?? false);
@@ -199,6 +215,9 @@ export function useThreeScene(
       applyResize();
     };
 
+    // Built before setup so a scene can grab it from the context and add its own spans.
+    const gpuTimer = gpuStatsRef.current ? new GpuTimer(renderer) : undefined;
+
     const handlers = setupRef.current({
       scene,
       camera,
@@ -206,6 +225,7 @@ export function useThreeScene(
       container,
       bloomPass,
       sceneCapture,
+      gpuTimer,
       setPixelRatio,
     });
 
@@ -214,19 +234,22 @@ export function useThreeScene(
       stats.showPanel(0);
       container.appendChild(stats.dom);
     }
+    if (gpuTimer) container.appendChild(gpuTimer.dom);
 
     const timer = new THREE.Timer();
     // Uses the Page Visibility API to avoid a huge delta when the tab regains focus.
     timer.connect(document);
+    const renderMain = (d: number) => {
+      if (composer) composer.render(d);
+      else renderer.render(scene, camera);
+    };
     renderer.setAnimationLoop(() => {
       timer.update();
       const delta = timer.getDelta();
       handlers.onFrame?.(delta);
-      if (composer) {
-        composer.render(delta);
-      } else {
-        renderer.render(scene, camera);
-      }
+      if (gpuTimer) gpuTimer.span("main", () => renderMain(delta));
+      else renderMain(delta);
+      gpuTimer?.poll();
       stats?.update();
     });
 
@@ -259,6 +282,7 @@ export function useThreeScene(
       timer.disconnect();
       timer.dispose();
       stats?.dom.remove();
+      gpuTimer?.dispose();
       handlers.dispose?.();
       composer?.dispose();
       sceneCapture?.target.dispose();

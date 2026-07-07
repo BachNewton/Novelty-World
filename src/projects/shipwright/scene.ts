@@ -47,12 +47,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // Screen-space refraction / depth: the water reads a colour+depth capture of the
   // scene behind it (the shared hook's opt-in `sceneCapture`, populated each frame
   // below with the water hidden). Bind the textures once + the view params.
-  const { sceneCapture } = ctx;
+  const { sceneCapture, gpuTimer } = ctx;
   if (sceneCapture) {
     ocean.setSceneCapture(sceneCapture.target.texture, sceneCapture.depthTexture);
     const db = renderer.getDrawingBufferSize(new THREE.Vector2());
     ocean.setViewParams(camera, db.x, db.y);
   }
+
+  // Break out this scene's pre-passes in the GPU-time panel (the hook times `main`).
+  const timeSpan = (name: string, fn: () => void) => {
+    if (gpuTimer) gpuTimer.span(name, fn);
+    else fn();
+  };
 
   // Low-res SSR reflection target: the water renders ONLY its screen-space reflections
   // into this (ocean.renderSsr) at a fraction of the render resolution, then the full-res
@@ -330,14 +336,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // is posed for this frame, before the hook's main render (which runs after
       // onFrame and draws the water sampling this capture).
       if (sceneCapture && debug.capture) {
-        ocean.mesh.visible = false;
-        renderer.setRenderTarget(sceneCapture.target);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(null);
-        ocean.mesh.visible = true;
+        timeSpan("capture", () => {
+          ocean.mesh.visible = false;
+          renderer.setRenderTarget(sceneCapture.target);
+          renderer.render(scene, camera);
+          renderer.setRenderTarget(null);
+          ocean.mesh.visible = true;
+        });
         // Then render the low-res SSR reflections (water only, reading that capture) so
         // the main render below can sample them. Needs the capture, hence gated with it.
-        ocean.renderSsr(renderer, scene, camera, ssrTarget);
+        timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
       }
     },
     onResize: () => {

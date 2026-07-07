@@ -8,6 +8,9 @@ import { setupOceanScene } from "../scene";
 export function Shipwright() {
   const containerRef = useThreeScene(setupOceanScene, {
     stats: true,
+    // Per-pass GPU timing (capture / ssr / main) so the SSR res·steps·refine knobs can
+    // be dialled by watching real GPU cost, not CPU-side fps — see docs/PERFORMANCE.md.
+    gpuStats: true,
     // Full-res scene capture. Half-res was measured to save little compute (the SSR
     // march runs per output pixel in its own low-res pass regardless — see
     // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
