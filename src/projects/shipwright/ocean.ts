@@ -87,7 +87,7 @@ export interface Ocean {
   sampleParticle: (restX: number, restZ: number, time: number) => ParticleSample;
   /** Bind the scene colour + depth capture the water refracts/absorbs (call once). */
   setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => void;
-  /** Debug: gate the whole refraction/depth/SSR composite (isolate its cost). */
+  /** Debug: gate the whole see-through/depth/SSR composite (isolate its cost). */
   setWaterFx: (on: boolean) => void;
   /** Set the water body's downwelling brightness (the veil), driven by sun elevation. */
   setVeilBrightness: (value: number) => void;
@@ -324,8 +324,7 @@ uniform sampler2D uSceneDepth;
 uniform vec2 uResolution;
 uniform float uNear;
 uniform float uFar;
-uniform float uRefractionStrength;
-uniform float uRefractionDepthScale;
+uniform float uReflectWaveStrength; // wave-slope smear of the reflection (see the SSR composite)
 uniform vec3 uAbsorption;
 uniform vec3 uScattering;
 uniform vec3 uBackscatter;
@@ -339,6 +338,7 @@ uniform sampler2D uSsrReflection; // the low-res SSR pass output this shader sam
 uniform sampler2D uReflectRipple; // detail normal map, reused to distort the reflection
 uniform float uReflectDistort;
 varying vec3 vWorldNormal;
+varying vec3 vWorldPos;
 varying vec2 vRippleUv;
 ${OCEAN_DEPTH_FUNC}
 `;
@@ -391,9 +391,16 @@ void main() {
 // (three applies tone mapping in the material regardless of render target), so we
 // composite in that same tone-mapped space to avoid a double tone-map.
 //
-// Refraction: sample the scene behind the water at this fragment's screen UV, nudged
-// by the world wave normal (0 on flat water → straight-through). Guard against
-// grabbing an ABOVE-water pixel (would bleed the cube/islands into the water).
+// See-through: sample the scene behind the water STRAIGHT through, at this fragment's screen UV.
+// We deliberately do NOT apply a lateral screen-space refraction offset. A UV offset (by the
+// wave normal, or even a Snell-correct refracted-ray direction) shears the submerged silhouette
+// of a discrete object that straddles the waterline: its above-water half samples straight, its
+// underwater half samples an offset UV, so the two halves detach — the buoy's submerged part
+// visibly slides/tears on a wave face (confirmed via A/B). Screen-space refraction of discrete
+// straddling objects is fundamentally approximate — there is no cheap correct offset — and the
+// default turbid water (~3 m visibility) hides refraction anyway, with no continuous see-through
+// background (seabed/shallows) shipped yet to benefit. So we drop it. Revisit a seabed-aware
+// offset if/when shallow water over a seabed lands (see docs/FIDELITY.md).
 // Body: Beer–Lambert with in-scattering — both the clarity (extinction a+b) and the deep
 // colour (albedo b/c) DERIVE from the water type's absorption + scattering (WaterType table).
 // Fresnel blend: look down → see into the water; grazing → keep the reflective/lit
@@ -403,24 +410,8 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     vec2 screenUv = gl_FragCoord.xy / uResolution;
     float waterDist = vViewPosition.z;
 
-    // Water-column depth straight down (unrefracted) at this fragment. It GATES the refraction
-    // so the offset is ∝ the submerged depth, like real (Snell) refraction: → 0 at the waterline
-    // (a straddling object's underwater part meets its above-water part with no tear — the fix
-    // for the "split") and grows with depth. It also BOUNDS the offset on steep waves, where the
-    // surface tilt would otherwise yank the see-through image by a near-maximal, depth-blind amount.
-    float straightDist = oceanEyeDist(texture2D(uSceneDepth, screenUv).x);
-    float column = max(straightDist - waterDist, 0.0);
-    float depthGate = clamp(column * uRefractionDepthScale, 0.0, 1.0);
-
-    vec2 refractUv = screenUv + vWorldNormal.xz * uRefractionStrength * depthGate;
-    float behindDist = oceanEyeDist(texture2D(uSceneDepth, refractUv).x);
-    if (behindDist < waterDist) {
-      // Offset grabbed a nearer (foreground/above-water) pixel — go straight through, reusing
-      // the depth already sampled at screenUv (no extra fetch).
-      refractUv = screenUv;
-      behindDist = straightDist;
-    }
-    vec3 refracted = texture2D(uSceneColor, refractUv).rgb;
+    float behindDist = oceanEyeDist(texture2D(uSceneDepth, screenUv).x);
+    vec3 refracted = texture2D(uSceneColor, screenUv).rgb;
 
     float thickness = max(behindDist - waterDist, 0.0);
     // Extinction c = a + b (absorption + TOTAL scattering) fades the see-through image over
@@ -453,7 +444,7 @@ const OCEAN_FRAG_WATER = /* glsl */ `
       // smooth low-res reflection gets the fine normal-map blur back — restoring the
       // ripple look AND masking the pass's low-res blockiness.
       vec2 ripple = texture2D(uReflectRipple, vRippleUv).xy * 2.0 - 1.0;
-      vec2 ssrUv = screenUv + vWorldNormal.xz * uRefractionStrength + ripple * uReflectDistort;
+      vec2 ssrUv = screenUv + vWorldNormal.xz * uReflectWaveStrength + ripple * uReflectDistort;
       vec4 ssr = texture2D(uSsrReflection, ssrUv);
       // SSR degenerates in two places, both false-hitting the dark below-horizon sky (a black seam
       // at the horizon AND black edges on grazing wave-crest faces at a low camera; confirmed — SSR
@@ -494,20 +485,17 @@ export function createOcean(): Ocean {
     uWavelength: { value: uWavelengthValue },
     uAmplitude: { value: uAmplitudeValue },
     uSteepness: { value: uSteepnessValue },
-    // Screen-space refraction + depth absorption. The scene colour + depth textures
-    // (everything but the water) are bound by scene.ts from the shared capture; the
-    // shader reads them to see into/behind the water. Beer–Lambert absorption tints
-    // the water column and fades the submerged part of objects with depth.
-    uWaterFx: { value: true }, // debug: gate the whole refraction/depth/SSR composite
+    // See-through + depth absorption. The scene colour + depth textures (everything but the
+    // water) are bound by scene.ts from the shared capture; the shader reads them straight-
+    // through (no lateral refraction offset — see OCEAN_FRAG_WATER) to see behind the water.
+    // Beer–Lambert absorption tints the water column and fades submerged objects with depth.
+    uWaterFx: { value: true }, // debug: gate the whole see-through/depth/SSR composite
     uSceneColor: { value: null as THREE.Texture | null },
     uSceneDepth: { value: null as THREE.Texture | null },
     uResolution: { value: new THREE.Vector2(1, 1) },
     uNear: { value: 1 },
     uFar: { value: 20000 },
-    uRefractionStrength: { value: 0.04 },
-    // Per-metre ramp of the refraction depth-gate (saturating at 1): the offset reaches full
-    // strength ~1/this metres down, and is ~0 at the waterline. 0.6 → full by ~1.7 m.
-    uRefractionDepthScale: { value: 0.6 },
+
     // Per-channel inherent optical properties (1/m), loaded from the selected WaterType by
     // applyWaterType (see the WaterType block for the physics). uAbsorption + uScattering set
     // clarity (extinction); uBackscatter (= B·b, the returning slice of scattering) sets the
@@ -544,6 +532,9 @@ export function createOcean(): Ocean {
     // low-res blockiness. Reuses the detail normal map (bound below); uRippleMeters +
     // uRippleOffset reproduce its world-space tiling + scroll (see OCEAN_BEGINNORMAL).
     uReflectRipple: { value: null as THREE.Texture | null },
+    // Smear the sampled reflection by the analytic wave slope (world normal xz) — the coarse-swell
+    // companion to uReflectDistort's fine ripple smear, so the reflection scatters with the waves.
+    uReflectWaveStrength: { value: 0.04 },
     uReflectDistort: { value: 0.03 },
     uRippleMeters: { value: DETAIL_RIPPLE_METERS },
     uRippleOffset: { value: new THREE.Vector2(0, 0) },
@@ -874,12 +865,6 @@ export function createOcean(): Ocean {
       // with) is now a LIGHTING control: it lives in scene.ts's "Lighting" folder and auto-
       // derives from sun elevation (see setVeilBrightness). Kept out of here to avoid two
       // controls writing the same uniform.
-      bodyFolder
-        .add(uniforms.uRefractionStrength, "value", 0, 0.2, 0.002)
-        .name("refraction");
-      bodyFolder
-        .add(uniforms.uRefractionDepthScale, "value", 0, 2, 0.01)
-        .name("refraction depth");
       const absorb = uniforms.uAbsorption.value;
       const scatter = uniforms.uScattering.value;
       const backscatter = uniforms.uBackscatter.value;
@@ -907,6 +892,9 @@ export function createOcean(): Ocean {
       reflFolder
         .add(uniforms.uReflectDistort, "value", 0, 0.15, 0.005)
         .name("ripple blur");
+      reflFolder
+        .add(uniforms.uReflectWaveStrength, "value", 0, 0.2, 0.002)
+        .name("wave smear");
     },
     setShading: (mode) => {
       if (mode === "flat") {

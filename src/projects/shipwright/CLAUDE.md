@@ -124,16 +124,21 @@ code that floats the ship agree on where the surface is.
 - **Water is screen-space: refraction + depth + SSR reflection, off ONE shared
   capture.** Each frame `scene.ts` renders the scene *with the water hidden* into a
   colour+depth render target (the shared hook's opt-in `sceneCapture`), then the
-  ocean fragment shader reads it to (a) **refract** — sample the scene behind the
-  water, nudged by the world wave normal; (b) **absorb** — Beer–Lambert over the
+  ocean fragment shader reads it to (a) **see through** — sample the scene behind the
+  water **straight through** (NO lateral refraction offset: a UV nudge shears the submerged
+  silhouette of an object straddling the waterline — its above-water half samples straight, its
+  underwater half offset, so they detach and the submerged part slides/tears on a wave face.
+  Screen-space refraction of discrete straddling objects is fundamentally approximate, and the
+  default turbid water hides refraction anyway; see `docs/FIDELITY.md`); (b) **absorb** —
+  Beer–Lambert over the
   water column from the depth texture (red dies first → turquoise → navy) with soft
   edges where geometry meets the surface; and (c) **reflect** — SSR (screen-space
   reflection) ray-marches that same depth buffer, falling back to the **env-map sky**
   on a miss. The SSR march runs in a **dedicated low-res pass** (`ocean.ts` `renderSsr`
   renders the water alone, layer-isolated, into a fraction-res target the water shader
   then samples) — NOT inline in the water fragment; the low-res reflection is
-  re-distorted at full res by the ripple normal map at sample time. Refraction +
-  absorption ride the per-pixel wave normal, so they track the displaced waves.
+  re-distorted at full res by the ripple normal map (+ the analytic wave slope) at sample time.
+  The depth absorption rides the per-pixel wave normal, so it tracks the displaced waves.
   Composited **after `<tonemapping_fragment>`** because the captured colour is
   tone-mapped (three tone-maps in-material regardless of render target) — matching
   spaces avoids a double tone-map.

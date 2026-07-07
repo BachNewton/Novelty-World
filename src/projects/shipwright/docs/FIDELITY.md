@@ -23,8 +23,14 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
   - Water types are Jerlov's real classes: **oceanic I–III**, **coastal 1/3/5/7/9**.
 - **Veil brightness** (downwelling) is a fixed dusk value (~0.12). It's a *camera/
   perceptual* quantity (post-tone-map brightness), so it's chosen, not derived.
-- **Refraction is depth-gated** — the screen-space offset is ∝ submerged depth (→ 0 at the
-  waterline), which is what makes straddling objects and steep waves read correctly.
+- **No lateral refraction offset — the see-through is sampled straight through.** We removed the
+  screen-space UV offset (previously the depth-gated wave normal). Any lateral offset *shears* the
+  submerged silhouette of a discrete object straddling the waterline: its above-water half samples
+  straight, its underwater half samples an offset UV, so the two detach and the submerged part
+  slides/tears on a wave face (confirmed by A/B — see below). Screen-space refraction of discrete
+  straddling objects is fundamentally approximate, the default turbid water hides refraction anyway,
+  and there's no continuous see-through background (seabed) shipped to benefit — so it was dropped.
+  Depth-absorption (Beer–Lambert), the veil, soft edges, and SSR reflection are unaffected.
 - **Calibration tool:** the **measuring pole** (`measuring-pole.ts`) is a Secchi staff —
   the depth its bands vanish at is the rendered visibility. Use it to dial water-type
   coefficients to real Secchi depths (validate physics, don't fit a curve).
@@ -33,20 +39,17 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
 
 ## Tweaks & enhancements (backlog — none are blockers)
 
-### Underwater shimmer *(dropped — revisit)*
-Drive the refraction offset by the **full perturbed normal** (geometric wave normal **+**
-the fine ripple normal map), so the see-through image shimmers with the small ripples the
-way real water does. Today refraction uses only the geometric wave normal
-(`vWorldNormal.xz`), so ripples shimmer the *reflection* (`uReflectRipple`) but **not** the
-refraction. This was part of the refraction rework and got **parked/deferred** when we
-re-scoped — not rejected. To add: perturb `refractUv` by the ripple normal (world-space,
-zero-mean on flat water) on top of the existing depth-gate.
-
-### Snell-correct refraction direction
-The offset *direction* is currently the geometric `vWorldNormal.xz` (depth-gated). More
-correct is `refract(viewDir, normal, 1.0/1.33)` — folds in view angle + IOR and is nonzero
-on flat water at grazing angles. The depth-gate (the important fix) is done; this is a
-direction refinement.
+### Refraction offset — dropped; revisit only *with a seabed*
+The lateral see-through offset was **removed** (see "The look today"). Both prior backlog ideas
+here — driving the offset by the **full perturbed normal** for underwater shimmer, and a
+**Snell-correct direction** (`refract(viewDir, normal, 1.0/1.33)`, folding in view angle + IOR) —
+change the offset's *magnitude/direction* but do **not** fix the core problem: any nonzero offset
+shears a discrete object straddling the waterline (A/B confirmed the Snell direction still tore the
+buoy). Screen-space refraction only reads well on a **continuous** see-through background. So the
+whole family is parked until shallow water over a **seabed** lands (roadmap: shoreline/islands). At
+that point revisit a **seabed-aware** offset — e.g. apply the offset only where the fragment behind
+the water is far/continuous (large water column), and suppress it near discrete occluders — rather
+than a blanket UV nudge. Until then, straight-through is the honest, artifact-free choice.
 
 ### Foam / whitewater
 Shoreline foam + open-water whitecaps — the single strongest "it's breaking" signal to the

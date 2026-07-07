@@ -99,12 +99,18 @@ The **Secchi pole is too short** to bracket the clear end — Oceanic I's ~40 m 
 unverifiable (pole/seabed never fully extinguish, so I vs II can't be told apart absolutely). A
 **longer pole** or a **deeper/steeper seabed** would let future runs validate the clear end.
 
-### Refraction (issue 1) — *pending*
+### Refraction (issue 1) — RESOLVED: lateral offset dropped
 
-A separate agent is diagnosing the refraction artifact (buoy on a wave face, ~30° camera). Its
-verdict — a Snell-direction fix, a strength reduction, or a reasoned drop — will be recorded here
-once it lands. Relates to the P3 "blocky refracted edges" note (low-res capture) and the
-`FIDELITY.md` "Snell-correct refraction direction" backlog item.
+Verdict: **dropped the lateral refraction offset** (sample the see-through straight through). Any
+nonzero screen-space offset *shears* a discrete object straddling the waterline — its above-water
+half is composited straight, its underwater half samples an offset UV, so the two detach and the
+submerged part tears on a wave face (worst on steep faces, large wave normal). A/B (clear water,
+large waves, ~30° down) confirmed the **Snell-correct direction still tore the buoy** — the shear is
+structural to any offset, not a direction bug. Refraction's beneficial see-through wobble needs a
+*continuous* background (a seabed); none is shipped, and turbid default water hides it — so the
+offset was net-harmful with no upside. **Parked, not killed:** revisit a **seabed-aware** offset
+(gated near discrete floaters) when shallow water / islands land. See `FIDELITY.md` "Refraction offset
+— dropped" + `CLAUDE.md`; before/after evidence in `.shots/refraction/90-refraction/`.
 
 ---
 
