@@ -33,17 +33,19 @@ interface CardinalSpec {
   cones: [ConeDir, ConeDir];
 }
 
-// The four cardinal marks, placed at their compass bearings around the origin.
-// Body pattern + topmark follow the IALA "System A/B" convention:
+// The four cardinal marks. Positions are a DEMO composition (not true IALA bearings): they're
+// spread into mid- and background depth along the channel that leads toward the sun (az135),
+// with the two laterals as the foreground pair — so the scene reads with fore/mid/background
+// depth and an open centre. Body pattern + topmark still follow the IALA "System A/B" convention:
 //   N  black/yellow,  cones ▲▲ (points up)
 //   S  yellow/black,  cones ▼▼ (points down)
 //   E  black/yellow/black, cones ◆ (bases together, points away)
 //   W  yellow/black/yellow, cones ✕ (points together)
 const CARDINALS: CardinalSpec[] = [
-  { name: "N", restX: 0, restZ: -12, bands: [BLACK, YELLOW], cones: ["up", "up"] },
-  { name: "S", restX: 0, restZ: 12, bands: [YELLOW, BLACK], cones: ["down", "down"] },
-  { name: "E", restX: 12, restZ: 0, bands: [BLACK, YELLOW, BLACK], cones: ["down", "up"] },
-  { name: "W", restX: -12, restZ: 0, bands: [YELLOW, BLACK, YELLOW], cones: ["up", "down"] },
+  { name: "N", restX: 2, restZ: -14, bands: [BLACK, YELLOW], cones: ["up", "up"] }, // midground
+  { name: "E", restX: 14, restZ: -6, bands: [BLACK, YELLOW, BLACK], cones: ["down", "up"] }, // midground
+  { name: "S", restX: 16, restZ: -26, bands: [YELLOW, BLACK], cones: ["down", "down"] }, // background
+  { name: "W", restX: -2, restZ: -22, bands: [YELLOW, BLACK, YELLOW], cones: ["up", "down"] }, // background
 ];
 
 interface Buoy {
@@ -88,9 +90,12 @@ export function createNavBuoys(): NavBuoys {
   const capsuleGeometry = new THREE.CapsuleGeometry(0.4, 1.2, 8, 16);
   const redMaterial = new THREE.MeshStandardMaterial({ color: 0xcc3333, roughness: 0.4 });
   const greenMaterial = new THREE.MeshStandardMaterial({ color: 0x2fa84f, roughness: 0.4 });
+  // Port (red) + starboard (green) are the FOREGROUND pair, set off to either side of the view
+  // centre (not dead-centre, and clear of the low camera paths) so the channel between them —
+  // and the sun on the horizon beyond — stays open. See the CARDINALS note on the composition.
   const lateralSpecs: { material: THREE.MeshStandardMaterial; restX: number; restZ: number }[] = [
-    { material: redMaterial, restX: -3, restZ: 4 },
-    { material: greenMaterial, restX: 3, restZ: 4 },
+    { material: redMaterial, restX: -3, restZ: -4 },
+    { material: greenMaterial, restX: 7, restZ: 2 },
   ];
   for (const spec of lateralSpecs) {
     const group = new THREE.Group();

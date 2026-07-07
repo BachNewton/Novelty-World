@@ -89,6 +89,12 @@ export interface Ocean {
   setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => void;
   /** Debug: gate the whole refraction/depth/SSR composite (isolate its cost). */
   setWaterFx: (on: boolean) => void;
+  /** Set the water body's downwelling brightness (the veil), driven by sun elevation. */
+  setVeilBrightness: (value: number) => void;
+  /** Load a Jerlov water type by name (colour + clarity derive from its optics). */
+  setWaterType: (name: string) => void;
+  /** Set sea-state multipliers (wave height / steepness / wavelength); rebuilds the wave set. */
+  setSea: (opts: { amplitude?: number; steepness?: number; wavelength?: number }) => void;
   /** Camera (near/far/projection) + drawing-buffer size for depth reconstruction,
    *  screen UVs, and the SSR ray-march projection. Call on setup + resize. */
   setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => void;
@@ -328,6 +334,7 @@ uniform float uWaterLightIntensity;
 uniform bool uSsrEnabled;
 uniform float uReflectionStrength;
 uniform float uReflectMin;
+uniform float uSsrMaxDistance; // for the distance fade that kills the SSR horizon seam
 uniform sampler2D uSsrReflection; // the low-res SSR pass output this shader samples
 uniform sampler2D uReflectRipple; // detail normal map, reused to distort the reflection
 uniform float uReflectDistort;
@@ -431,7 +438,8 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     // reflective (a sky sheen that also veils shallow see-through). The SSR gate
     // uses the RAW geometric term so raising uReflectMin doesn't force the march
     // onto every pixel (which would wreck the perf win).
-    float fresnelGeo = pow(1.0 - clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0), 5.0);
+    float vdotn = clamp(dot(normalize(vViewPosition), normal), 0.0, 1.0);
+    float fresnelGeo = pow(1.0 - vdotn, 5.0);
     float fresnel = clamp(mix(uReflectMin, 1.0, fresnelGeo), 0.0, 1.0);
 
     // Reflective half: gl_FragColor already holds the env-map sky reflection + sun
@@ -447,7 +455,16 @@ const OCEAN_FRAG_WATER = /* glsl */ `
       vec2 ripple = texture2D(uReflectRipple, vRippleUv).xy * 2.0 - 1.0;
       vec2 ssrUv = screenUv + vWorldNormal.xz * uRefractionStrength + ripple * uReflectDistort;
       vec4 ssr = texture2D(uSsrReflection, ssrUv);
-      reflective = mix(reflective, ssr.rgb, ssr.a * uReflectionStrength);
+      // SSR degenerates in two places, both false-hitting the dark below-horizon sky (a black seam
+      // at the horizon AND black edges on grazing wave-crest faces at a low camera; confirmed — SSR
+      // off removes it, and the env-map sky reflection is correct there). Fade it out by BOTH this
+      // fragment's distance (far / horizon water) and its grazing angle (near crest faces viewed
+      // edge-on), so those defer to the env sky while near, front-facing water (buoys) keeps SSR.
+      // Gated here, not in the SSR pass, because the ripple/normal offset above resamples a nearer,
+      // un-faded texel and defeats a pass-side fade.
+      float ssrFade = (1.0 - smoothstep(uSsrMaxDistance * 2.0, uSsrMaxDistance * 4.0, waterDist))
+                    * smoothstep(0.05, 0.2, vdotn);
+      reflective = mix(reflective, ssr.rgb, ssr.a * uReflectionStrength * ssrFade);
     }
     gl_FragColor.rgb = mix(body, reflective, fresnel);
   }
@@ -791,6 +808,19 @@ export function createOcean(): Ocean {
     setWaterFx: (on: boolean) => {
       uniforms.uWaterFx.value = on;
     },
+    setVeilBrightness: (value: number) => {
+      uniforms.uWaterLightIntensity.value = value;
+    },
+    setWaterType: (name: string) => {
+      const type = WATER_TYPES.find((t) => t.name === name);
+      if (type) applyWaterType(type);
+    },
+    setSea: (opts) => {
+      if (opts.amplitude !== undefined) globals.amplitude = opts.amplitude;
+      if (opts.steepness !== undefined) globals.steepness = opts.steepness;
+      if (opts.wavelength !== undefined) globals.wavelength = opts.wavelength;
+      rebuild();
+    },
     setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => {
       uniforms.uNear.value = camera.near;
       uniforms.uFar.value = camera.far;
@@ -840,12 +870,10 @@ export function createOcean(): Ocean {
           if (type) applyWaterType(type);
           tune.forEach((c) => c.updateDisplay());
         });
-      // Veil brightness = the downwelling light that lights the water body. Conceptually a
-      // camera/lighting property (chosen, not derived — it's post-tone-map perceived brightness),
-      // fixed at the dusk default. Could later track sun elevation — see FIDELITY.md.
-      bodyFolder
-        .add(uniforms.uWaterLightIntensity, "value", 0, 1.5, 0.01)
-        .name("veil brightness");
+      // Veil brightness (uWaterLightIntensity — the downwelling light the water body glows
+      // with) is now a LIGHTING control: it lives in scene.ts's "Lighting" folder and auto-
+      // derives from sun elevation (see setVeilBrightness). Kept out of here to avoid two
+      // controls writing the same uniform.
       bodyFolder
         .add(uniforms.uRefractionStrength, "value", 0, 0.2, 0.002)
         .name("refraction");

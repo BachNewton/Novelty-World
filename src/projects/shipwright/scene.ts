@@ -26,12 +26,8 @@ const PROBE_SPACING = 6; // metres between probes
 export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
 
-  // KNOWN ISSUE: fixed exposure. At high sun elevation the scene lighting (bright noon-sky
-  // IBL via scene.environment + the directional sun below + hemi fill) far outshines this
-  // fixed 0.5, so PBR objects (buoys, physics bodies) blow out to washed-white. Confirmed
-  // pre-existing and independent of the water optics. Fix: auto-exposure — lower exposure as
-  // the sun rises (stop down at noon), e.g. drive toneMappingExposure from sun elevation.
-  renderer.toneMappingExposure = 0.5;
+  // Exposure is sun-driven (auto-exposure, see the Lighting block below) — it stops down as
+  // the sun climbs instead of blowing the frame to washed-white at noon off a fixed value.
   camera.position.set(-8, 2.5, 8); // low, aimed across the water toward the low sun
 
   // Lighting is intentionally minimal — just enough to complement the water and
@@ -184,6 +180,37 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   const params = { elevation: 14, azimuth: 135 };
 
+  // --- Lighting: sun-driven auto-exposure + veil brightness ------------------
+  // The sky IBL + sun brighten enormously from dusk to noon, so a fixed exposure that suits
+  // dusk blows the frame to washed-white at noon (a real camera/eye stops down as the sun
+  // climbs). Derive exposure from sun elevation: scene brightness rises ~with sin(elevation)
+  // over an ambient-skylight floor, and exposure = key / brightness holds the frame roughly
+  // constant so only the specular sun-glitter clips. ACESFilmic tone mapping (set in the
+  // shared hook) gives the highlight roll-off. Veil brightness (uWaterLightIntensity — the
+  // downwelling light the water body glows with) is the SAME quantity (how much sun is in the
+  // scene), so it tracks elevation too: dim dusk body → brighter, greener noon body. It
+  // composites AFTER tone mapping, so it must roll off (smoothstep) or it clips white. Both
+  // are perceptual choices (not derived), hence the tunable `key` and the auto/manual toggle.
+  const lighting = { auto: true, key: 0.22 };
+  const AMBIENT_FLOOR = 0.2; // skylight present even at the horizon, so exposure can't run away
+  const VEIL_DUSK = 0.12;
+  const VEIL_NOON = 0.26;
+  const veilState = { value: VEIL_DUSK };
+  const exposureForSun = (elevation: number) => {
+    const brightness = AMBIENT_FLOOR + Math.sin(THREE.MathUtils.degToRad(Math.max(elevation, 0)));
+    return THREE.MathUtils.clamp(lighting.key / brightness, 0.05, 1.2);
+  };
+  const veilForSun = (elevation: number) =>
+    THREE.MathUtils.lerp(VEIL_DUSK, VEIL_NOON, THREE.MathUtils.smoothstep(elevation, 0, 70));
+  // When auto, exposure + veil derive from the sun. The GUI dials use .listen() so their
+  // displays follow along automatically — no explicit controller refresh needed here.
+  const applyLighting = () => {
+    if (!lighting.auto) return;
+    renderer.toneMappingExposure = exposureForSun(params.elevation);
+    veilState.value = veilForSun(params.elevation);
+    ocean.setVeilBrightness(veilState.value);
+  };
+
   const updateSun = () => {
     const phi = THREE.MathUtils.degToRad(90 - params.elevation);
     const theta = THREE.MathUtils.degToRad(params.azimuth);
@@ -198,6 +225,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     envRenderTarget = pmremGenerator.fromScene(sceneEnv);
     scene.add(sky);
     scene.environment = envRenderTarget.texture;
+    applyLighting(); // re-derive exposure + veil for the new sun elevation
   };
   updateSun();
 
@@ -210,7 +238,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.update();
 
   const gui = new GUI({ title: "Scene" });
-  gui.add(renderer, "toneMappingExposure", 0, 1, 0.01).name("exposure");
   // Render scale: default to the display's device pixel ratio (what the browser
   // picks). At that resolution the supersampling antialiases the water's shader
   // detail — the SSR/specular/ripple shimmer MSAA can't touch — so it reads smoother
@@ -225,6 +252,28 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
+  // Lighting: exposure + veil brightness. Both auto-derive from sun elevation by default
+  // (see the Lighting block above); dragging either dial drops to manual. `brightness` (key)
+  // scales the whole auto-exposure curve — the one master knob for overall scene brightness.
+  const lightFolder = gui.addFolder("Lighting");
+  lightFolder.add(lighting, "auto").name("auto (sun-driven)").listen().onChange(applyLighting);
+  lightFolder.add(lighting, "key", 0.05, 0.6, 0.005).name("brightness").onChange(applyLighting);
+  lightFolder
+    .add(renderer, "toneMappingExposure", 0, 1.2, 0.01)
+    .name("exposure")
+    .listen()
+    .onChange(() => {
+      lighting.auto = false;
+    });
+  lightFolder
+    .add(veilState, "value", 0, 1.5, 0.01)
+    .name("veil brightness")
+    .listen()
+    .onChange(() => {
+      lighting.auto = false;
+      ocean.setVeilBrightness(veilState.value);
+    });
+
   const debug = {
     shading: "full" as ShadingMode,
     normalMap: true,
@@ -233,7 +282,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     pole: true,
     waterFx: true,
     capture: true,
-    planeSize: 1000, // synced to the mesh at startup via applyGrid (below)
+    planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
     quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
   };
   const debugFolder = gui.addFolder("Debug");
@@ -316,18 +365,96 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   if (window.innerWidth < 768) gui.close();
 
   let elapsed = 0;
+  let paused = false;
+
+  // Debug control surface for reproducible screenshots + static A/B (driven by
+  // scripts/shipwright-shots.mjs). An automated capture sets the scene deterministically —
+  // sun, camera, a frozen wave field, water type, lighting mode — so a change is compared
+  // frame-for-frame instead of by eye on rolling waves. Dev-only; removed on dispose.
+  const syncGui = () => {
+    gui.controllersRecursive().forEach((c) => c.updateDisplay());
+  };
+  const debugApi = {
+    setSun: (elevation: number, azimuth: number) => {
+      params.elevation = elevation;
+      params.azimuth = azimuth;
+      updateSun();
+      syncGui();
+    },
+    setCamera: (pos: [number, number, number], target: [number, number, number]) => {
+      camera.position.set(...pos);
+      controls.target.set(...target);
+      controls.update();
+    },
+    freeze: (t?: number) => {
+      if (t !== undefined) elapsed = t;
+      paused = true;
+    },
+    resume: () => {
+      paused = false;
+    },
+    setWaterType: (name: string) => {
+      ocean.setWaterType(name);
+      syncGui();
+    },
+    setSea: (opts: { amplitude?: number; steepness?: number; wavelength?: number }) => {
+      ocean.setSea(opts);
+      syncGui();
+    },
+    setPlaneSize: (size: number) => {
+      debug.planeSize = size;
+      applyGrid();
+      syncGui();
+    },
+    setShading: (mode: ShadingMode) => {
+      ocean.setShading(mode);
+    },
+    setWaterFx: (on: boolean) => {
+      ocean.setWaterFx(on);
+    },
+    // Toggle scene objects for clean/deterministic captures. The Rapier bodies settle
+    // nondeterministically (step count depends on wall-clock), so hide them for A/B;
+    // the pole + seabed are framing choices.
+    setVisibility: (opts: { physics?: boolean; pole?: boolean; seabed?: boolean }) => {
+      if (opts.physics !== undefined) physics.object.visible = opts.physics;
+      if (opts.pole !== undefined) measuringPole.object.visible = opts.pole;
+      if (opts.seabed !== undefined) seabed.visible = opts.seabed;
+    },
+    setAutoExposure: (on: boolean) => {
+      lighting.auto = on;
+      applyLighting();
+      syncGui();
+    },
+    setExposure: (value: number) => {
+      lighting.auto = false;
+      renderer.toneMappingExposure = value;
+      syncGui();
+    },
+    setVeil: (value: number) => {
+      lighting.auto = false;
+      veilState.value = value;
+      ocean.setVeilBrightness(value);
+      syncGui();
+    },
+  };
+  if (process.env.NODE_ENV !== "production") {
+    (window as unknown as { __shipwright?: typeof debugApi }).__shipwright = debugApi;
+  }
 
   return {
     onFrame: (delta) => {
-      elapsed += delta;
+      // `paused` (debug freeze) holds the wave field + physics on one frame so an automated
+      // capture gets a reproducible static image; the scene still renders each frame.
+      if (!paused) {
+        elapsed += delta;
+        // Step the Rapier buoyancy sim (fixed-timestep internally) and pose its shapes —
+        // before the capture below, so they refract like the buoys. Pass `elapsed` (the same
+        // clock the ocean is rendered at) so buoyancy samples the exact on-screen water.
+        physics.update(delta, elapsed);
+      }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
       navBuoys.update(ocean, elapsed);
-      // Step the Rapier buoyancy sim (fixed-timestep internally) and pose its
-      // shapes — before the capture below, so they refract like the buoys. Pass
-      // `elapsed` (the same clock the ocean is rendered at) so buoyancy samples the
-      // exact on-screen water, not a drifting internal clock.
-      physics.update(delta, elapsed);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
       controls.update();
@@ -356,6 +483,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       sizeSsrTarget();
     },
     dispose: () => {
+      if (process.env.NODE_ENV !== "production") {
+        delete (window as unknown as { __shipwright?: typeof debugApi }).__shipwright;
+      }
       gui.destroy();
       controls.dispose();
       envRenderTarget?.dispose();

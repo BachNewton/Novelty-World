@@ -73,6 +73,17 @@ from reduced illumination. Minor gap noted in the optics diagnosis.
 Finer + coarser ripple-normal layers and a sun-glitter/sparkle term (from the root
 `CLAUDE.md` future rungs).
 
+### Underwater camera mode *(future)*
+Today the camera dipping below the surface is an **artifact** — you see through the water's
+back-face-culled underside to the background (a pale void the buoys float over). But a *deliberate*
+underwater render is a real future feature: the camera visually beneath the waterline, showing the
+surface from below lit by the sky through **Snell's window** (the ~97°-wide circle of compressed sky
+overhead, ringed by total internal reflection going mirror-dark), light **shafts / god-rays**, a
+suspended-particle haze scaled by the same scattering `b`, and the veil + absorption applied to the
+*whole* view rather than just the see-through column. It needs its own "inside the medium" shading
+branch, not the above-water composite. When there's something to show, add an `05-beauty/underwater`
+scenario to the capture suite (`tools/shots.mjs`) so it becomes a tracked shot test.
+
 ---
 
 ## Where clarity meets sea state
