@@ -171,6 +171,10 @@ not the average. Two distinct culprits on the target **AMD 780M APU**:
     a proxy, since the APU budget is shared.
   - **Cool-down test:** choppy after a while → close, let it cool ~5 min, reopen → smooth
     again then degrades → thermal, confirmed.
+  - **Strongly suspected on this dev machine (2026-07-07):** FPS tracks how *hot* things have
+    got, which tracks how long the demo's been under test — the classic thermal signature. Not
+    yet pinned to the GPU-clock readout, but consistent with it. The FPS cap (below) is partly a
+    mitigation for exactly this: less sustained load → cooler → clocks stay up.
   - **Mitigations:** cap FPS (below), drop render scale, physically improve cooling.
 
 - **Frame pacing vs the refresh.** At a 100 Hz cap each frame has a 10 ms budget; a spike that
@@ -180,8 +184,15 @@ not the average. Two distinct culprits on the target **AMD 780M APU**:
   - **Cap to a DIVISOR of the refresh.** On a 100 Hz display use **50** (every frame shown for
     exactly 2 refreshes → even cadence, 20 ms budget) — **NOT 60**, which doesn't divide 100
     and causes pulldown judder. Tradeoff: ~20 ms latency vs 10 ms.
-  - **Not implemented yet** — would throttle the rAF render loop in
-    `src/shared/lib/three/use-three-scene.ts` to a target frame time (a small, clean addition).
+  - **IMPLEMENTED as a vsync STRIDE, not a target FPS.** `ctx.setFrameStride(n)` in
+    `src/shared/lib/three/use-three-scene.ts` renders 1 of every `n` rAF callbacks (a frame
+    counter, even cadence); the Shipwright "fps cap" GUI exposes it as `Off / ½ / ⅓ / ¼ rate`.
+    Why stride and not an FPS number: `setAnimationLoop` is vsync-locked by the browser, so the
+    only achievable rates are **refresh ÷ n** anyway — a stride guarantees a clean divisor, where
+    a raw ms/target-FPS cap lands on an ugly non-divisor (asking for 60 on a 100 Hz panel gave a
+    ragged 45–50). And there's **no reliable way to read the true refresh** (a measured rAF
+    cadence just reports the current *perf-limited* framerate, not the panel's Hz), so we can't
+    honestly label the options in FPS — read the resulting number off the Stats panel instead.
 
 ## Tried and rejected / parked
 

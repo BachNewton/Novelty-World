@@ -399,19 +399,22 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // detail — the SSR/specular/ripple shimmer MSAA can't touch — so it reads smoother
   // than 1.0. Drop below 1 for more perf on a weak GPU. The hook keeps the drawing
   // buffer + capture target sized to match.
-  const perf = { renderScale: renderer.getPixelRatio(), fpsCap: 0 };
+  const perf = { renderScale: renderer.getPixelRatio(), fpsStride: 1 };
   performance
     .add(perf, "renderScale", 0.5, 2, 0.05)
     .name("render scale")
     .onChange((r: number) => ctx.setPixelRatio(r));
-  // Frame-rate cap (0 = uncapped). A rock-solid lower rate feels smoother than a jittery
-  // near-refresh one and keeps the APU cooler (less throttling — see docs/PERFORMANCE.md).
-  // Pick a DIVISOR of your refresh: 50 on a 100 Hz panel shows each frame for exactly two
-  // refreshes; a non-divisor like 60-on-100 judders. Options cover common refresh rates.
+  // Frame-rate cap. The loop is vsync-locked (the browser paces rAF to the refresh), so the only
+  // achievable rates are refresh ÷ N — the control is that N (render 1 of every N frames), which
+  // guarantees an even cadence. It's labelled by the fraction of refresh rather than an FPS number
+  // because there's no reliable way to read the true refresh rate (a measured rAF cadence just
+  // reports the current, perf-limited framerate) — read the resulting FPS off the Stats panel. A
+  // solid lower rate feels smoother than a jittery near-refresh one and keeps the APU cooler (less
+  // throttling — see docs/PERFORMANCE.md).
   performance
-    .add(perf, "fpsCap", { Off: 0, "30": 30, "45": 45, "50": 50, "60": 60 })
+    .add(perf, "fpsStride", { Off: 1, "½ rate": 2, "⅓ rate": 3, "¼ rate": 4 })
     .name("fps cap")
-    .onChange((f: number) => ctx.setFpsCap(f));
+    .onChange((stride: number) => ctx.setFrameStride(stride));
   performance
     .add(ssrScale, "value", 0.1, 1, 0.05)
     .name("reflection res")

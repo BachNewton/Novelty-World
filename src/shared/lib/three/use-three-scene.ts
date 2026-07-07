@@ -55,16 +55,6 @@ export interface ThreeSceneOptions {
    * with pixel count. Adjustable live via `ctx.setPixelRatio`.
    */
   maxPixelRatio?: number;
-  /**
-   * Cap the render/update loop to this many frames per second (default 0 = uncapped,
-   * i.e. render every vsync). Capping trades latency for **smoothness + cooler clocks**:
-   * a rock-solid lower rate feels better than a jittery near-refresh one, and less
-   * sustained GPU load keeps an APU from thermal/power-throttling (see
-   * shipwright/docs/PERFORMANCE.md). **Pick a DIVISOR of the display refresh** — 50 on a
-   * 100 Hz panel shows each frame for exactly two refreshes (even cadence); a non-divisor
-   * like 60-on-100 causes pulldown judder. Adjustable live via `ctx.setFpsCap`.
-   */
-  fpsCap?: number;
 }
 
 /**
@@ -105,10 +95,14 @@ export interface ThreeSceneContext {
    */
   setPixelRatio: (ratio: number) => void;
   /**
-   * Set the live frame-rate cap (see the `fpsCap` option); 0 = uncapped. Lets a scene
-   * expose an FPS-cap control for smoothness / thermal headroom.
+   * Frame-rate cap by vsync stride: render 1 of every `stride` animation-frame callbacks
+   * (1 = uncapped/every frame, 2 = every other, …). Since `setAnimationLoop` is vsync-locked
+   * by the browser, the only achievable rates are refresh ÷ stride — so a stride guarantees a
+   * clean divisor (even cadence), unlike a raw ms cap which lands unpredictably. Trades latency
+   * for smoothness + cooler clocks (a solid lower rate beats a jittery near-refresh one, and less
+   * load keeps an APU off its thermal/power limit — see shipwright/docs/PERFORMANCE.md).
    */
-  setFpsCap: (fps: number) => void;
+  setFrameStride: (stride: number) => void;
 }
 
 export interface ThreeSceneHandlers {
@@ -149,7 +143,6 @@ export function useThreeScene(
   const bloomRef = useRef(options.bloom ?? false);
   const sceneCaptureRef = useRef(options.sceneCapture ?? false);
   const maxPixelRatioRef = useRef(options.maxPixelRatio ?? 2);
-  const fpsCapRef = useRef(options.fpsCap ?? 0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -231,11 +224,10 @@ export function useThreeScene(
       applyResize();
     };
 
-    // Frame-rate cap (0 = uncapped). The animation loop still fires every vsync, but we
-    // skip the render/update work until a capped frame's worth of time has elapsed.
-    let fpsCap = fpsCapRef.current;
-    const setFpsCap = (fps: number) => {
-      fpsCap = Math.max(0, fps);
+    // Frame-rate cap: render 1 of every `frameStride` vsync callbacks (1 = uncapped).
+    let frameStride = 1;
+    const setFrameStride = (stride: number) => {
+      frameStride = Math.max(1, Math.floor(stride));
     };
 
     // Built before setup so a scene can grab it from the context and add its own spans.
@@ -250,7 +242,7 @@ export function useThreeScene(
       sceneCapture,
       gpuTimer,
       setPixelRatio,
-      setFpsCap,
+      setFrameStride,
     });
 
     const stats = showStatsRef.current ? new Stats() : undefined;
@@ -267,17 +259,11 @@ export function useThreeScene(
       if (composer) composer.render(d);
       else renderer.render(scene, camera);
     };
-    let lastFrameMs = 0;
-    renderer.setAnimationLoop((timeMs) => {
-      // Frame-rate cap: skip this vsync until a capped frame's budget has elapsed. The 0.9
-      // tolerance locks cleanly onto a refresh divisor — with the budget at exactly 1/cap,
-      // vsync jitter would occasionally push a frame to the next divisor (e.g. 50→33 on a
-      // 100 Hz panel); backing off 10% keeps the intended cadence. `timeMs` is the rAF
-      // timestamp (monotonic ms).
-      if (fpsCap > 0) {
-        if (timeMs - lastFrameMs < (1000 / fpsCap) * 0.9) return;
-        lastFrameMs = timeMs;
-      }
+    // Frame-rate cap: render 1 of every `frameStride` vsync callbacks (even cadence).
+    let frameCount = 0;
+    renderer.setAnimationLoop(() => {
+      frameCount++;
+      if (frameStride > 1 && frameCount % frameStride !== 0) return;
       timer.update();
       const delta = timer.getDelta();
       handlers.onFrame?.(delta);
