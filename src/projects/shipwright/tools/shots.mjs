@@ -142,6 +142,16 @@ scenarios.push({ group: "04-beauty", name: "low-grazing-chop", camera: "flatcam"
 
 // ---------------------------------------------------------------------------
 
+// SwiftShader (CPU rasteriser) is the default here because it's deterministic and needs no GPU —
+// ideal for the frozen-frame A/B captures this suite is for (identical pixels every run, on any CI
+// box). BUT it does NOT faithfully reproduce Shipwright's PBR lighting/tone-mapping — it renders the
+// scene darker/greener and misses the highlight washout — so it is UNRELIABLE for judging LIGHTING or
+// MATERIAL look. To verify those against what a real display shows, launch on the REAL GPU instead:
+//   headless: true (or "--headless=new"),
+//   args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"]
+// (confirmed rendering on an AMD Radeon 780M via D3D11). Then drive the same window.__shipwright API,
+// freeze, and screenshot. Run from the PROJECT ROOT so `playwright` resolves. (Faster still: iterate
+// live on the dev server — Kyle keeps it on :3001 — since lighting/feel is best judged in motion.)
 const browser = await chromium.launch({
   headless: true,
   args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],

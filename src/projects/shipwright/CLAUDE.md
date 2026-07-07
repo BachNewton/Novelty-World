@@ -263,6 +263,17 @@ code that floats the ship agree on where the surface is.
   motion + tilt, no physics engine. Confirmed the right approach for decorative
   floaters (see the HYBRID decision above). `sampleSurface` (inverse) is retained
   for the future Rapier buoyancy.
-- **Next:** shoreline **foam** (we have soft edges, not a foam line), then the
-  voxel core / ships. Rapier (collision/players/momentum) at roadmap #6. No gameplay
-  yet.
+- **First-person sailor on a floating raft (Rapier, step 6).** A dynamic-body sailor
+  walks, rides, edge-tips, and jumps on a buoyant voxel raft (`player.ts` + `physics.ts`);
+  the sea is dialled calm for it. Corner-push (momentum-conserving foot reaction +
+  all-contact wall projection), fixed-timestep render interpolation (raft + camera), and a
+  vsync-stride FPS cap are all in. *Optional future improvement (deferred):* a rough-sea
+  **balance-loss** state machine (footed↔thrown) so storms can actually throw the sailor —
+  it adds stakes + rewards stable hull design, and the dynamic body already supports it; it
+  was parked because the current glued-on feel is good and it's gameplay polish, not a bug.
+- **Next physics effort — the buoyancy / displacement overhaul.** See
+  **`docs/buoyancy.md`** for the staged plan: dense hulls floating on enclosed air, a
+  below-deck, water only entering over the gunwale, and fixing the global ocean surface
+  poking *inside* a hard-slammed hull. Not started.
+- **Also open:** shoreline **foam** (we have soft edges, not a foam line), then the
+  voxel core / ships.
