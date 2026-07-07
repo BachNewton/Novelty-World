@@ -21,8 +21,13 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
   - **backscatter fraction `B`** — the small slice that returns to the eye (`b_b = B·b`);
     sets the veil colour via Gordon's `R∞ = b_b/(a + b_b)`.
   - Water types are Jerlov's real classes: **oceanic I–III**, **coastal 1/3/5/7/9**.
-- **Veil brightness** (downwelling) is a fixed dusk value (~0.12). It's a *camera/
-  perceptual* quantity (post-tone-map brightness), so it's chosen, not derived.
+- **Veil brightness** (downwelling) is **sun-driven** (`veilForSun` in `scene.ts`): it lights
+  the water BODY (displayed body = the type's `R∞` reflectance × this veil), so it sits in the
+  same exposed/tone-mapped space as the scene. Because auto-exposure already holds the mid-level
+  roughly constant through the day, the veil is a **plateaued bright daytime value** (~0.6) that
+  rolls *down* toward true dusk (~0.15) — NOT a ramp up to noon. This is what lets turbid coastal
+  water read its green→olive body by day (a dim veil crushed it to near-black), while clear water
+  stays deep blue (its `R∞` is tiny regardless). Still a *perceptual* quantity (chosen magnitudes).
 - **No lateral refraction offset — the see-through is sampled straight through.** We removed the
   screen-space UV offset (previously the depth-gated wave normal). Any lateral offset *shears* the
   submerged silhouette of a discrete object straddling the waterline: its above-water half samples
@@ -56,12 +61,12 @@ Shoreline foam + open-water whitecaps — the single strongest "it's breaking" s
 eye (see `sea-conditions.md` §6). Needs a *breaking scalar* and, for the shoreline, a
 seabed. **Biggest visual payoff** on this list.
 
-### Sun-driven veil brightness
-Veil brightness is fixed at the dusk value; it could track **sun elevation** (dim dusk →
-brighter noon). We prototyped and reverted this. Caveat: the veil is composited **after
-tone mapping**, so a linear ramp clips to washed-white at high sun — it must **roll off**
-(sublinear/capped). Best done *with* the auto-exposure fix (see the `KNOWN ISSUE` in
-`scene.ts`) so the whole frame adapts to the sun together.
+### Sun-driven veil brightness — DONE
+Veil brightness now tracks **sun elevation** (`veilForSun`, `scene.ts`). The key realisation:
+because auto-exposure holds the exposed mid-level roughly constant, the veil should be a
+**plateaued bright daytime value that rolls DOWN toward dusk** — not the intuitive ramp-up to
+noon (which both crushed turbid water to near-black by day and clipped clear water toward cyan
+at noon). Front-loaded rise (dusk→~18°), then flat. See `FIDELITY-REVIEW.md` P1.
 
 ### Downwelling colour
 The veil's light tint (`uWaterLight`) is a fixed cool-neutral; could track the sun/sky

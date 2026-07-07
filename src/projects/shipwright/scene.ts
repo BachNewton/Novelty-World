@@ -165,8 +165,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   sky.scale.setScalar(10000);
   scene.add(sky);
   const skyUniforms = sky.material.uniforms;
-  skyUniforms.turbidity.value = 4;
-  skyUniforms.rayleigh.value = 2;
+  // Rayleigh sets how much the atmosphere reddens the low sun (blue scattered out of the long
+  // horizon path → warm/orange disc); turbidity is haze, which washes that colour toward white.
+  // Raised rayleigh + lowered turbidity so deep golden hour (~4°) stays distinctly warm instead
+  // of fading to pale pastel a step early, while the zenith just reads a touch deeper blue.
+  skyUniforms.turbidity.value = 3;
+  skyUniforms.rayleigh.value = 3;
   skyUniforms.mieCoefficient.value = 0.004;
   skyUniforms.mieDirectionalG.value = 0.8;
   skyUniforms.cloudCoverage.value = 0.4;
@@ -186,22 +190,31 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // climbs). Derive exposure from sun elevation: scene brightness rises ~with sin(elevation)
   // over an ambient-skylight floor, and exposure = key / brightness holds the frame roughly
   // constant so only the specular sun-glitter clips. ACESFilmic tone mapping (set in the
-  // shared hook) gives the highlight roll-off. Veil brightness (uWaterLightIntensity — the
-  // downwelling light the water body glows with) is the SAME quantity (how much sun is in the
-  // scene), so it tracks elevation too: dim dusk body → brighter, greener noon body. It
-  // composites AFTER tone mapping, so it must roll off (smoothstep) or it clips white. Both
-  // are perceptual choices (not derived), hence the tunable `key` and the auto/manual toggle.
+  // shared hook) gives the highlight roll-off.
+  //
+  // Veil brightness (uWaterLightIntensity) is the downwelling irradiance the water BODY is lit
+  // by — Gordon's R∞ (the type's body colour) is a reflectance, so the displayed body = R∞ ×
+  // this veil. It must sit in the SAME exposed/tone-mapped space as everything else: because
+  // auto-exposure already holds the scene's mid-level roughly constant from dusk to noon, the
+  // veil should be roughly CONSTANT through the day too — NOT ramp up toward noon. (The old
+  // model ramped it up with elevation, which both crushed turbid water to near-black by day —
+  // 0.26 × a dark R∞ — and, composited after tone mapping, pushed clear water toward a clipped
+  // cyan at noon.) So: a bright, plateaued daytime value that lets turbid water express its
+  // green→olive body, rolling DOWN only toward true dusk (front-loaded, matching the air-mass
+  // dimming) where the light genuinely fails. Perceptual choices (not derived), hence tunable.
   const lighting = { auto: true, key: 0.22 };
   const AMBIENT_FLOOR = 0.2; // skylight present even at the horizon, so exposure can't run away
-  const VEIL_DUSK = 0.12;
-  const VEIL_NOON = 0.26;
+  const VEIL_DUSK = 0.15; // dim, warm dusk body (sun on the horizon; little light penetrates)
+  const VEIL_DAY = 0.6; // bright daytime body — turbid coastal water reads its true olive/green
   const veilState = { value: VEIL_DUSK };
   const exposureForSun = (elevation: number) => {
     const brightness = AMBIENT_FLOOR + Math.sin(THREE.MathUtils.degToRad(Math.max(elevation, 0)));
     return THREE.MathUtils.clamp(lighting.key / brightness, 0.05, 1.2);
   };
+  // Front-loaded rise from dusk to full daylight, plateaued by ~18° (established day) so noon
+  // adds no extra veil to clip against — the reverse of the old ramp-to-noon.
   const veilForSun = (elevation: number) =>
-    THREE.MathUtils.lerp(VEIL_DUSK, VEIL_NOON, THREE.MathUtils.smoothstep(elevation, 0, 70));
+    THREE.MathUtils.lerp(VEIL_DUSK, VEIL_DAY, THREE.MathUtils.smoothstep(elevation, 0, 18));
   // When auto, exposure + veil derive from the sun. The GUI dials use .listen() so their
   // displays follow along automatically — no explicit controller refresh needed here.
   const applyLighting = () => {

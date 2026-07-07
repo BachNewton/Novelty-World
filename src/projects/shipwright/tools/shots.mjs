@@ -106,13 +106,17 @@ WATER_TYPES.forEach((water, i) => {
 // scale by scaling the base spectrum's amplitude/steepness — the proper per-Hs spectra live on
 // the sea-conditions branch (see docs/sea-conditions.md §4). Shot from the "sea" camera (mid
 // height, across-and-down) so the roughness reads against the horizon without swamping the eye.
+// Steepness climbs faster than height up the ladder: the top rungs are meant to read as
+// PEAKED (trochoidal, near-breaking crests), not just taller rounded swell — so 5/6 push
+// steepness hard. (Only the visual ladder; the physics testbed bodies are hidden for capture,
+// so this doesn't fight the gentle-sea buoyancy constraint — see docs/sea-conditions.md §3.)
 const SEA_STATES = [
   { name: "1-glassy", amplitude: 0.08, steepness: 0.04 },
   { name: "2-calm", amplitude: 0.3, steepness: 0.08 },
-  { name: "3-slight", amplitude: 0.6, steepness: 0.16 },
-  { name: "4-moderate", amplitude: 1.0, steepness: 0.2 },
-  { name: "5-rough", amplitude: 1.5, steepness: 0.38 },
-  { name: "6-very-rough", amplitude: 2.0, steepness: 0.5 },
+  { name: "3-slight", amplitude: 0.6, steepness: 0.18 },
+  { name: "4-moderate", amplitude: 1.0, steepness: 0.3 },
+  { name: "5-rough", amplitude: 1.5, steepness: 0.6 },
+  { name: "6-very-rough", amplitude: 2.0, steepness: 0.85 },
 ];
 for (const st of SEA_STATES) {
   scenarios.push({

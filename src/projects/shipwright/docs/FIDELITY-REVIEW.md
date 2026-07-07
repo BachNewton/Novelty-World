@@ -16,6 +16,33 @@
 
 ---
 
+## ✅ Fix pass — 2026-07-07 (branch `worktree-shipwright-fidelity-fixes`)
+
+A/B evidence: `.shots/baseline/` (before) vs `.shots/after/` (this pass), pixel-comparable
+frame-for-frame. Summary of what landed — details struck through in the backlog below:
+
+- **P1(a) turbid differentiation — RESOLVED.** Reworked the veil (`veilForSun`, `scene.ts`) from a
+  ramp-UP-to-noon (0.12→0.26) into a **plateaued bright daytime value rolling DOWN to dusk**
+  (~0.6 day, ~0.15 dusk, front-loaded). A dim veil × a dark `R∞` was crushing every turbid body to
+  near-black; now Coastal 3→9 read a clear monotonic **green-teal → olive → grey-khaki** ladder
+  (was all one dark blue-teal). See `after/02-clarity/{5,6,7,8}-coastal-*/e25`.
+- **P1(b) clear-water noon — CLARIFIED, not a veil bug.** Oceanic I's `R∞` is near-zero, so the veil
+  never drove its noon cyan; that cyan is the **sunlit debug seabed seen through clear water**
+  (physically turquoise-over-sand). In real *deep* water clear = deep blue already (thickness→∞ →
+  body→`deep`, tiny blue). The plateaued veil no longer *adds* to any noon over-brightness. The
+  residual highlight clip is the seabed calibration prop at noon; left as-is (see the rig note).
+- **P2 glassy mirror — RESOLVED.** Fine-ripple strength now scales with sea state
+  (`applyRippleStrength`, `ocean.ts`): glassy eases to a near-mirror with a clean specular road;
+  rough keeps full chop. `after/03-sea-state/1-glassy`.
+- **P2 sea-state steepness — RESOLVED.** Pushed steepness at the top rungs (`shots.mjs`): 5-rough /
+  6-very-rough now read as peaked/choppy, not rounded swell. `after/03-sea-state/{5,6}-*`.
+- **P2 e04 reddening — RESOLVED.** Raised sky Rayleigh (2→3) + lowered turbidity (4→3): `e04` stays
+  distinctly warm/golden; `e00` deepened (improved), `e25`/`e90` stay clean. `after/01-sun-heading/*`.
+- **Standing checks held:** SSR grazing/horizon seam still clean (`after/04-beauty/low-grazing-chop`);
+  low-sun mood + glitter geometry preserved; clear-water ordering intact.
+
+---
+
 ## What's SOLID — the baseline, don't regress
 
 - **Lighting mood + glitter geometry** (`01-sun-heading`): warm/dim/glittery at low sun → neutral
@@ -34,7 +61,7 @@
 
 ## Fix backlog (prioritised)
 
-### P1 — Veil model rework (the throughline)
+### P1 — Veil model rework (the throughline) — ✅ RESOLVED (see fix-pass banner above)
 
 Two reviewers independently converged on the downwelling **veil** (`uWaterLightIntensity` /
 `veilForSun` in `scene.ts`, and the `deep = uBackscatter/(a+uBackscatter)·light·veil` term in
@@ -65,7 +92,7 @@ Two reviewers independently converged on the downwelling **veil** (`uWaterLightI
 depth; Coastal 9 is near-opaque within ~1 m; Oceanic I `e90` reads deep blue with no blown-white
 clip; the low-sun sweep stays correct.
 
-### P2 — real, smaller
+### P2 — real, smaller  (all three ✅ RESOLVED this pass — see banner)
 
 - **Reddening fades one elevation-step early** (`01-sun-heading` strongly; clarity concurs): `e04`
   reads like a ~12–15° sky (pale pastel) when 4° should still be distinctly warm/moody. Investigate
