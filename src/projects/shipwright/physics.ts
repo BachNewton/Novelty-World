@@ -264,6 +264,11 @@ interface Visual {
   offsets: THREE.Vector3[];
   spawnPos: THREE.Vector3;
   spawnQuat: THREE.Quaternion;
+  /** Post-step transforms of the last two fixed steps, interpolated at render time (see syncMeshes). */
+  prevPos: THREE.Vector3;
+  prevQuat: THREE.Quaternion;
+  currPos: THREE.Vector3;
+  currQuat: THREE.Quaternion;
   /** Start index of this piece's voxels in the flat debug-arrow arrays. */
   arrowBase: number;
   /** Voxel density (kg/m³) — sets the body's mass via the colliders. */
@@ -286,6 +291,14 @@ export interface Physics {
   /** Register a callback run inside the fixed-step loop, just before each world.step(), with the
    *  fixed dt + sim time. Character movement steps here so it's deterministic and in-phase. */
   onFixedStep: (cb: (dt: number, time: number) => void) => void;
+  /** Register a callback run inside the fixed-step loop, just AFTER each world.step(). A rider
+   *  (the player) snapshots its post-step transform here, in lock-step with the raft's snapshot,
+   *  so both interpolate off the same pair of steps. */
+  onAfterStep: (cb: () => void) => void;
+  /** Render-interpolation factor in [0, 1]: how far the leftover accumulator sits between the last
+   *  two fixed steps. Interpolate any body riding the sim (the player) by this so it moves smoothly
+   *  at the render rate, matching the interpolated raft. Valid after `update`. */
+  alpha: () => number;
   /** Fill the "Objects" folder (physics + raft material) and append the force-arrow
    *  diagnostic to the "Debug" folder. */
   buildGui: (folders: { objects: GUI; debug: GUI }) => void;
@@ -499,6 +512,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       offsets,
       spawnPos,
       spawnQuat,
+      prevPos: spawnPos.clone(),
+      prevQuat: spawnQuat.clone(),
+      currPos: spawnPos.clone(),
+      currQuat: spawnQuat.clone(),
       arrowBase: arrowCursor,
       density: shape.density ?? VOXEL_DENSITY,
     };
@@ -524,7 +541,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   let world: RAPIER.World | null = null;
   const bodies: RAPIER.RigidBody[] = [];
   const fixedStepCallbacks: ((dt: number, time: number) => void)[] = [];
+  const afterStepCallbacks: (() => void)[] = [];
   let accumulator = 0;
+  let interpAlpha = 0; // leftover-accumulator fraction in [0,1] for render interpolation (see update)
 
   // Local water velocity = analytic time-derivative of the Gerstner particle ride
   // at this (x, z), by central finite difference. This is what the drag nudges the
@@ -597,14 +616,19 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     }
   };
 
-  const syncMeshes = () => {
+  // Pose each mesh at the state interpolated between the last two fixed steps by `alpha` (the
+  // leftover-accumulator fraction), so the raft moves smoothly at the RENDER rate rather than
+  // snapping at the 60 Hz step rate. Without this, in first person the smoothly-drawn ocean
+  // shudders against a camera glued to the discretely-stepped raft (worst in heavy seas, where
+  // each step moves the raft a lot). The player is interpolated the same way with the same alpha
+  // (player.ts), so the two stay locked to each other; both simply render ~one step behind, which
+  // is an imperceptible constant lag against the ocean, not jitter.
+  const syncMeshes = (alpha: number) => {
     for (let i = 0; i < visuals.length; i++) {
-      const body = bodies[i];
-      const t = body.translation();
-      const rot = body.rotation();
-      tmpQuat.set(rot.x, rot.y, rot.z, rot.w);
-      tmpPos.set(t.x, t.y, t.z);
-      placeInstances(visuals[i], tmpPos, tmpQuat);
+      const v = visuals[i];
+      tmpPos.lerpVectors(v.prevPos, v.currPos, alpha);
+      tmpQuat.slerpQuaternions(v.prevQuat, v.currQuat, alpha);
+      placeInstances(v, tmpPos, tmpQuat);
     }
   };
 
@@ -635,6 +659,12 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       body.setAngvel(ZERO, true);
       body.resetForces(true);
       body.resetTorques(true);
+      // Re-seed the interpolation pair to the spawn pose, else the next frame lerps the mesh
+      // across from wherever it was floating to the spawn.
+      v.prevPos.copy(v.spawnPos);
+      v.currPos.copy(v.spawnPos);
+      v.prevQuat.copy(v.spawnQuat);
+      v.currQuat.copy(v.spawnQuat);
     }
   };
 
@@ -676,17 +706,34 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         applyBuoyancy(time);
         for (const cb of fixedStepCallbacks) cb(FIXED_DT, time);
         world.step();
+        // Snapshot each body's post-step transform (shifting the last into `prev`) for render
+        // interpolation, then let anything else riding the sim (the player) snapshot in lock-step.
+        for (let i = 0; i < visuals.length; i++) {
+          const v = visuals[i];
+          const tr = bodies[i].translation();
+          const rot = bodies[i].rotation();
+          v.prevPos.copy(v.currPos);
+          v.prevQuat.copy(v.currQuat);
+          v.currPos.set(tr.x, tr.y, tr.z);
+          v.currQuat.set(rot.x, rot.y, rot.z, rot.w);
+        }
+        for (const cb of afterStepCallbacks) cb();
         accumulator -= FIXED_DT;
         steps++;
       }
       if (steps === MAX_SUBSTEPS) accumulator = 0; // drop backlog past the cap
-      syncMeshes();
+      interpAlpha = clamp(accumulator / FIXED_DT, 0, 1);
+      syncMeshes(interpAlpha);
       if (arrowGroup.visible) updateArrows();
     },
     world: () => world,
     onFixedStep: (cb) => {
       fixedStepCallbacks.push(cb);
     },
+    onAfterStep: (cb) => {
+      afterStepCallbacks.push(cb);
+    },
+    alpha: () => interpAlpha,
     buildGui: ({ objects, debug }) => {
       const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");

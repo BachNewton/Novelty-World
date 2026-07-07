@@ -53,8 +53,13 @@ export interface Player {
   attach: (world: RAPIER.World) => void;
   /** Steer movement inside the sim's fixed loop (dt = the fixed timestep). No-op until attached. */
   fixedStep: (dt: number) => void;
-  /** Place the camera at eye level + apply mouse-look. Call per render frame while active. */
-  syncCamera: () => void;
+  /** Snapshot the sailor's post-step position for render interpolation. Call just after each
+   *  world.step() (via physics.onAfterStep), in lock-step with the raft's snapshot. */
+  recordStep: () => void;
+  /** Pose the sailor at the render-interpolated position (see physics `alpha`): moves the visual
+   *  capsule always, and drives the eye camera + mouse-look while in first person. Call per render
+   *  frame with the sim's interpolation factor. */
+  syncCamera: (alpha: number) => void;
   /** Whether first-person control is engaged (pointer locked). */
   isActive: () => boolean;
   dispose: () => void;
@@ -122,6 +127,12 @@ export function createPlayer(
 
   const dir = new THREE.Vector3(); // reused world-space unit move direction from WASD + yaw
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
+  // Render interpolation: the sailor's body position at the last two fixed steps, lerped by the
+  // sim's `alpha` each render frame so the eye moves smoothly at the render rate (rotation is
+  // locked upright, so position is all we need). `interpPos` is the reused per-frame result.
+  const prevBodyPos = SPAWN.clone();
+  const currBodyPos = SPAWN.clone();
+  const interpPos = new THREE.Vector3();
   // Reused downward ray to find the (dynamic) body underfoot — for grounding + its velocity.
   const downRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
 
@@ -276,13 +287,21 @@ export function createPlayer(
           body.setLinvel({ x: lin.x + dir.x * add, y: lin.y, z: lin.z + dir.z * add }, true);
         }
       }
-
-      mesh.position.set(t.x, t.y, t.z); // body rotation is locked, so the mesh stays upright
+      // The mesh/eye are posed in syncCamera from the interpolated position, not here — posing at
+      // the raw step rate is exactly the jitter we're avoiding.
     },
-    syncCamera: () => {
+    recordStep: () => {
       if (!body) return;
       const t = body.translation();
-      camera.position.set(t.x, t.y + EYE_FROM_CENTER, t.z);
+      prevBodyPos.copy(currBodyPos);
+      currBodyPos.set(t.x, t.y, t.z);
+    },
+    syncCamera: (alpha) => {
+      if (!body) return;
+      interpPos.lerpVectors(prevBodyPos, currBodyPos, alpha);
+      mesh.position.copy(interpPos); // debug capsule (hidden in first person; smooth in orbit view)
+      if (!active) return; // orbit controls own the camera; the sailor mesh is already interpolated
+      camera.position.set(interpPos.x, interpPos.y + EYE_FROM_CENTER, interpPos.z);
       euler.set(pitch, yaw, 0);
       camera.quaternion.setFromEuler(euler);
     },

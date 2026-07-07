@@ -293,8 +293,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     },
   });
   scene.add(player.object);
-  // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy).
+  // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy), and
+  // snapshot his post-step position right after each step so he interpolates in lock-step with
+  // the raft (smooth eye at the render rate — see physics `alpha` / player.syncCamera).
   physics.onFixedStep((dt) => player.fixedStep(dt));
+  physics.onAfterStep(() => player.recordStep());
   // Now boot Rapier, then attach the player to the same world so it collides with the raft.
   physics
     .init()
@@ -562,9 +565,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       navBuoys.update(ocean, elapsed);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
-      // First-person drives the camera from the sailor's eye; otherwise the orbit debug camera.
-      if (player.isActive()) player.syncCamera();
-      else controls.update();
+      // Pose the sailor at the interpolated physics state (smooth at the render rate, matching the
+      // interpolated raft); in first person that also drives the eye camera, otherwise the orbit
+      // debug camera runs.
+      player.syncCamera(physics.alpha());
+      if (!player.isActive()) controls.update();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
