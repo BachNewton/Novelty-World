@@ -8,6 +8,7 @@ import type {
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics } from "./physics";
+import { createPlayer } from "./player";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
 
@@ -66,9 +67,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // Low-res SSR reflection target: the water renders ONLY its screen-space reflections
   // into this (ocean.renderSsr) at a fraction of the render resolution, then the full-res
   // water shader samples it. This is the "reflection resolution" dial — it decouples the
-  // expensive ray-march from the screen resolution. Half res: the ripple-normal distortion
-  // (see ocean.ts) hides the softening, so it reads ~the same as full res for much less cost.
-  const ssrScale = { value: 0.5 };
+  // expensive ray-march from the screen resolution. Default ¼ res: SSR is the frame's dominant
+  // cost (see docs/PERFORMANCE.md) and it SPIKES at the grazing, eye-level first-person view, which
+  // is where framerate stutter shows most; the ripple-normal distortion (ocean.ts) hides the
+  // softening so ¼ reads ~the same as full for ~4× fewer marched pixels. Raise it via the GUI for
+  // beauty shots on a strong GPU.
+  const ssrScale = { value: 0.25 };
   const ssrTarget = new THREE.WebGLRenderTarget(1, 1);
   const sizeSsrTarget = () => {
     const db = renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -88,16 +92,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const navBuoys = createNavBuoys();
   scene.add(navBuoys.object);
 
-  // Rapier physics: the force-based half of the HYBRID floating model. An
-  // assortment of voxel builds (tetromino plates + upright 3-D shapes) drop in as
-  // dynamic bodies and float by per-voxel buoyancy sampled from `ocean.sampleSurface`
-  // — the buoyancy testbed before the real voxel ships (see physics.ts / CLAUDE.md).
-  // Rapier loads async; the meshes render at their spawn pose until it's ready.
+  // Rapier physics: the force-based half of the HYBRID floating model. The raft drops in as a
+  // dynamic body floated by per-voxel buoyancy sampled from `ocean.sampleSurface`, and owns the
+  // shared physics world the player lives in too. Rapier loads async; `init()` is called below
+  // once the player exists, so it can be attached to the world in the same step.
   const physics = createPhysics(ocean);
   scene.add(physics.object);
-  physics.init().catch((err: unknown) => {
-    console.error("Shipwright: Rapier physics failed to initialise", err);
-  });
 
   // Debug seabed: a sandy plane tilted into a beach slope that rises from deep
   // water up through the surface. It's the only way to see depth absorption (the
@@ -277,6 +277,34 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.maxDistance = 400;
   controls.target.set(4, 1.5, -4); // toward the sun (azimuth 135°) so the sunset + its reflection frame up
   controls.update();
+
+  // First-person sailor. Press F to take control (pointer-lock FPS); Esc returns to the orbit
+  // debug camera. While in first-person the player drives the camera and OrbitControls is off.
+  const player = createPlayer(camera, renderer.domElement, {
+    onActiveChange: (fp) => {
+      controls.enabled = !fp;
+      if (!fp) {
+        // Returning to orbit: aim the target a few metres ahead of where the sailor was looking
+        // so the debug camera doesn't snap to a stale target.
+        const fwd = camera.getWorldDirection(new THREE.Vector3());
+        controls.target.copy(camera.position).addScaledVector(fwd, 5);
+        controls.update();
+      }
+    },
+  });
+  scene.add(player.object);
+  // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy).
+  physics.onFixedStep((dt) => player.fixedStep(dt));
+  // Now boot Rapier, then attach the player to the same world so it collides with the raft.
+  physics
+    .init()
+    .then(() => {
+      const w = physics.world();
+      if (w) player.attach(w);
+    })
+    .catch((err: unknown) => {
+      console.error("Shipwright: Rapier physics failed to initialise", err);
+    });
 
   const gui = new GUI({ title: "Scene" });
   // Render scale: default to the display's device pixel ratio (what the browser
@@ -498,7 +526,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       navBuoys.update(ocean, elapsed);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
-      controls.update();
+      // First-person drives the camera from the sailor's eye; otherwise the orbit debug camera.
+      if (player.isActive()) player.syncCamera();
+      else controls.update();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
@@ -528,6 +558,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         delete (window as unknown as { __shipwright?: typeof debugApi }).__shipwright;
       }
       gui.destroy();
+      player.dispose();
       controls.dispose();
       envRenderTarget?.dispose();
       ssrTarget.dispose();

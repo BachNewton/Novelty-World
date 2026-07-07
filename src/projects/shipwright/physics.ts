@@ -280,6 +280,12 @@ export interface Physics {
    *  `time` is the SAME clock the ocean is rendered at (scene's `elapsed`), so the
    *  buoyancy samples the exact water surface that's on screen. */
   update: (delta: number, time: number) => void;
+  /** The Rapier world once init() resolves (null before). Lets other systems — the player
+   *  character controller — add bodies/colliders to the SAME world so they collide. */
+  world: () => RAPIER.World | null;
+  /** Register a callback run inside the fixed-step loop, just before each world.step(), with the
+   *  fixed dt + sim time. Character movement steps here so it's deterministic and in-phase. */
+  onFixedStep: (cb: (dt: number, time: number) => void) => void;
   /** Add the "Physics" controls (respawn / drag / force arrows) to the GUI. */
   buildGui: (gui: GUI) => void;
   dispose: () => void;
@@ -516,6 +522,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // `bodies` is index-parallel to `visuals` once init resolves.
   let world: RAPIER.World | null = null;
   const bodies: RAPIER.RigidBody[] = [];
+  const fixedStepCallbacks: ((dt: number, time: number) => void)[] = [];
   let accumulator = 0;
 
   // Local water velocity = analytic time-derivative of the Gerstner particle ride
@@ -666,6 +673,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // offset sea.) Fixed dt is only the integration step, not the sampling clock.
       while (accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
         applyBuoyancy(time);
+        for (const cb of fixedStepCallbacks) cb(FIXED_DT, time);
         world.step();
         accumulator -= FIXED_DT;
         steps++;
@@ -673,6 +681,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       if (steps === MAX_SUBSTEPS) accumulator = 0; // drop backlog past the cap
       syncMeshes();
       if (arrowGroup.visible) updateArrows();
+    },
+    world: () => world,
+    onFixedStep: (cb) => {
+      fixedStepCallbacks.push(cb);
     },
     buildGui: (gui) => {
       const folder = gui.addFolder("Physics");

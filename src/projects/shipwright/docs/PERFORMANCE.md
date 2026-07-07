@@ -152,6 +152,37 @@ separate reflection pass. Everything below is about that.
 
 ---
 
+## Thermal / power throttling + frame pacing (the "80 FPS but choppy" trap)
+
+A plenty-high average FPS (~80) can still feel laggy — the cause is frame-time **variance**,
+not the average. Two distinct culprits on the target **AMD 780M APU**:
+
+- **APU throttling (thermal OR power).** The 780M shares one die, one power budget, and one
+  cooler with the CPU. Under sustained load (physics + rendering) it heats up and clocks
+  **down**, or the CPU (physics) eats the shared power budget (PPT) and starves the GPU's
+  clocks. Either way FPS degrades over minutes.
+  - **Confirm it — watch the GPU clock (MHz) during a dip:** clock **drops** on the dip →
+    throttling; clock **pinned** but FPS still dips → a workload spike (grazing SSR), not
+    throttle; clock **ramps up from cold** in the first seconds → just warm-up (harmless).
+  - **Tools:** AMD **Adrenalin overlay** (`Alt+R` → Performance) shows GPU clock + temp + FPS,
+    zero install. **GPU-Z** sensors → **"PerfCap Reason"** labels it `Thermal` / `Pwr` /
+    `VRel`. **HWiNFO64** has explicit Thermal / PPT-limit flags. **Task Manager can't** show
+    GPU clock (and usually not iGPU temp) — but its **CPU "Speed" (GHz)** sagging below base is
+    a proxy, since the APU budget is shared.
+  - **Cool-down test:** choppy after a while → close, let it cool ~5 min, reopen → smooth
+    again then degrades → thermal, confirmed.
+  - **Mitigations:** cap FPS (below), drop render scale, physically improve cooling.
+
+- **Frame pacing vs the refresh.** At a 100 Hz cap each frame has a 10 ms budget; a spike that
+  overruns it misses the refresh and is delivered late — felt as a mouse hitch. A rock-solid
+  **lower** framerate feels *smoother* than a jittery 80–100. Capping helps twice: more
+  per-frame budget to absorb spikes, AND less sustained load → cooler → clocks stay up.
+  - **Cap to a DIVISOR of the refresh.** On a 100 Hz display use **50** (every frame shown for
+    exactly 2 refreshes → even cadence, 20 ms budget) — **NOT 60**, which doesn't divide 100
+    and causes pulldown judder. Tradeoff: ~20 ms latency vs 10 ms.
+  - **Not implemented yet** — would throttle the rAF render loop in
+    `src/shared/lib/three/use-three-scene.ts` to a target frame time (a small, clean addition).
+
 ## Tried and rejected / parked
 
 - **Phong lighting** — cheaper BRDF, but negligible gain in real scenes and worse look.

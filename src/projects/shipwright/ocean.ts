@@ -253,7 +253,10 @@ const OCEAN_BEGIN_FLAT = /* glsl */ `
 const SSR_LAYER = 1;
 
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
-const SSR_STEPS = 48; // linear march samples
+const SSR_STEPS = 20; // linear march samples — trimmed from 48 to shave the camera-rotation cost
+// spikes at the eye-level grazing view (open-water rays run the full count on a sky-miss) so we can
+// focus on gameplay. Baked (not a uniform) so the loop compiles tight; open-water reflections just
+// read slightly coarser. See docs/PERFORMANCE.md. Bump back up here if reflection quality matters.
 const SSR_REFINE = 5; // binary-search refinement steps after a hit
 // Two GLSL helpers, split so each shader pulls in only what it uses. The water fragment
 // includes OCEAN_DEPTH_FUNC alone (its refraction reads oceanEyeDist); the dedicated SSR
