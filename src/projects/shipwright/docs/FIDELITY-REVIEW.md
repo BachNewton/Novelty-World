@@ -58,6 +58,22 @@ redden it); Oceanic I/II **e90 pool-adjacent cyan** persists (the P1(b) seabed e
 not blown); Oceanic II→III **e90 saturation step**; sunset **green belt** a touch saturated (Rayleigh
 bump); Coastal 9 could read "a hair more opaque" in the sunlit mid-field (the parked extinction tweak).
 
+**Follow-up work (after the panel):** P3 extinction (C7/9) + rig upgrade (44 m pole + deep seabed)
++ the **noon colour wash** fix (IBL sheen roll-off, `scene.environmentIntensity` down at high sun)
+all landed; shot suite expanded to the full sun-heading grid (e85 top rung for real high-sun angles).
+
+**Final holistic review** (1 fresh unbiased agent, full `final/` suite): **"photorealism is high and
+physically honest… no hard artifacts"** (no seam, no crest-edge black, no banding, no waterline shear).
+The make-or-break **high-sun object test PASSES** — at e85/e25 the buoys stay saturated with DARK
+blacks, no bleaching/haloing (independent confirmation the noon fix landed). Clarity called "the
+strongest, most physically honest group" — monotonic Jerlov ladder in both colour + Secchi, correct
+deep-blue↔turquoise depth gradient. Remaining gaps are all **known/deferred**, ranked:
+1. **Sun-glitter is a milky smear at mid/high sun**, not a granular sparkle field (correct at low
+   grazing sun). The documented, unbuilt **sun-glitter/microfacet** term — highest photoreal payoff.
+2. **No foam/whitecaps** at any sea state (the documented foam roadmap — biggest missing "breaking" cue).
+3. Sunset **zenith green band** a touch strong. 4. Clearest-water **shallows rim** glows hot-cyan at
+   noon (the sandbar fringe). Both minor tone tweaks. Nothing here is a regression.
+
 ---
 
 ## What's SOLID — the baseline, don't regress
