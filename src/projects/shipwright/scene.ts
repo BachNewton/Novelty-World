@@ -322,7 +322,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // `elapsed` (the same clock the ocean is rendered at) so buoyancy samples the
       // exact on-screen water, not a drifting internal clock.
       physics.update(delta, elapsed);
-      updateProbes(elapsed);
+      // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
+      if (probes.visible) updateProbes(elapsed);
       controls.update();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything

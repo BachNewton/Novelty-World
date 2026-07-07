@@ -130,17 +130,6 @@ const BASE_WAVES: WaveDef[] = [
 ];
 
 // --- Water optics ----------------------------------------------------------
-// What the water looks like is NOT a painted colour — it DERIVES from two per-channel
-// inherent optical properties measured for real water: absorption `a` (photons removed,
-// red first) and scattering `b` (photons redirected back out, blue-weighted in clean
-// water). From those the whole look falls out:
-//   extinction  c = a + b           → how fast a submerged image fades (beam attenuation)
-//   deep colour = (b / c) · light   → the single-scattering albedo of a bottomless column
-// So clear ocean (little, blue-weighted scattering + red-heavy absorption) self-selects a
-// dark navy, while turbid coastal water (heavy pale scattering) goes bright turquoise —
-// same equation, different coefficients. Crucially the SAME maths renders any BOTTOM for
-// free: a seabed/beach/rock is just geometry behind the water, tinted by `transmit` and
-// filled toward `deep` with depth — no optics change needed to add one later.
 // The water's look DERIVES from three inherent optical properties (per metre), not a painted
 // colour. Two set how far you see; the third sets the water's own colour:
 //   absorption a — photons removed. Pure water absorbs red heavily, blue least (→ blue ocean).
@@ -260,17 +249,23 @@ const SSR_LAYER = 1;
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
 const SSR_STEPS = 48; // linear march samples
 const SSR_REFINE = 5; // binary-search refinement steps after a hit
-// The depth→distance + ray-march helpers, shared by TWO shaders: the water fragment
-// (its refraction reads oceanEyeDist) and the dedicated SSR pass material (which calls
-// oceanSsr). The including shader must declare the uniforms these reference — uNear,
-// uFar, uProjection, uSceneColor, uSceneDepth, uSsrMaxDistance, uSsrThickness.
-const OCEAN_SSR_FUNCS = /* glsl */ `
+// Two GLSL helpers, split so each shader pulls in only what it uses. The water fragment
+// includes OCEAN_DEPTH_FUNC alone (its refraction reads oceanEyeDist); the dedicated SSR
+// pass includes both (oceanSsr calls oceanEyeDist). The including shader must declare the
+// uniforms these reference — uNear, uFar for the depth helper; plus uProjection,
+// uSceneColor, uSceneDepth, uSsrMaxDistance, uSsrThickness for the SSR march.
+const OCEAN_DEPTH_FUNC = /* glsl */ `
 // Perspective depth [0,1] → positive eye-space distance (metres).
 float oceanEyeDist(float depth) {
   float zndc = depth * 2.0 - 1.0;
   return (2.0 * uNear * uFar) / (uFar + uNear - zndc * (uFar - uNear));
 }
+`;
 
+// Screen-space reflection — used ONLY by the dedicated low-res SSR pass, not the water
+// fragment (which just samples that pass's output). Calls oceanEyeDist, so any shader
+// including this must also include OCEAN_DEPTH_FUNC.
+const OCEAN_SSR_FUNC = /* glsl */ `
 // Screen-space reflection. March the reflected ray in VIEW space, projecting each
 // step to screen to read the scene depth; a hit is where the ray passes just behind
 // the stored surface. Returns reflected scene colour in .rgb and a confidence in .a
@@ -280,7 +275,7 @@ float oceanEyeDist(float depth) {
 vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
   vec3 incident = normalize(viewPos);
   vec3 dir = reflect(incident, viewNormal);
-  float stepSize = uSsrMaxDistance / float(${Math.max(SSR_STEPS, 1)}); // guard 0 (dead loop)
+  float stepSize = uSsrMaxDistance / float(${SSR_STEPS});
   vec3 rayPos = viewPos;
   vec2 hitUv = vec2(0.0);
   bool hit = false;
@@ -323,7 +318,6 @@ uniform sampler2D uSceneDepth;
 uniform vec2 uResolution;
 uniform float uNear;
 uniform float uFar;
-uniform mat4 uProjection;
 uniform float uRefractionStrength;
 uniform float uRefractionDepthScale;
 uniform vec3 uAbsorption;
@@ -334,15 +328,12 @@ uniform float uWaterLightIntensity;
 uniform bool uSsrEnabled;
 uniform float uReflectionStrength;
 uniform float uReflectMin;
-uniform float uSsrMaxDistance;
-uniform float uSsrThickness;
-uniform float uSsrMinFresnel;
 uniform sampler2D uSsrReflection; // the low-res SSR pass output this shader samples
 uniform sampler2D uReflectRipple; // detail normal map, reused to distort the reflection
 uniform float uReflectDistort;
 varying vec3 vWorldNormal;
 varying vec2 vRippleUv;
-${OCEAN_SSR_FUNCS}
+${OCEAN_DEPTH_FUNC}
 `;
 
 // --- Dedicated SSR reflection pass -----------------------------------------
@@ -378,7 +369,8 @@ uniform float uSsrThickness;
 uniform float uSsrMinFresnel;
 varying vec3 vSsrViewPos;
 varying vec3 vSsrViewNormal;
-${OCEAN_SSR_FUNCS}
+${OCEAN_DEPTH_FUNC}
+${OCEAN_SSR_FUNC}
 void main() {
   vec3 n = normalize(vSsrViewNormal);
   // Same Fresnel cutoff the inline march used — skip where the reflection is invisible.
@@ -431,7 +423,7 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     // behind the water is tinted by these same terms for free.
     vec3 extinction = uAbsorption + uScattering;
     vec3 transmit = exp(-extinction * thickness);
-    vec3 deep = uBackscatter / (uAbsorption + uBackscatter) * uWaterLight * uWaterLightIntensity;
+    vec3 deep = uBackscatter / max(uAbsorption + uBackscatter, vec3(1e-4)) * uWaterLight * uWaterLightIntensity;
     vec3 body = refracted * transmit + deep * (1.0 - transmit);
 
     // Geometric Fresnel (0 head-on → 1 grazing). uReflectMin lifts the head-on
