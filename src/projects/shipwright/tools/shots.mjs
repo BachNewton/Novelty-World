@@ -61,7 +61,12 @@ const scenarios = [];
 // Group 1 — sun elevation × heading. Fixed mid camera; rotate the SUN azimuth around it:
 // front (into sun, glitter ahead), side (90°), behind (sun at the camera's back).
 const HEADINGS = { front: 135, side: 225, behind: 315 };
-for (const el of [0, 4, 25]) {
+// Full grid: every elevation × every heading, so the lighting reads across the whole day at each
+// heading. The top rung is e85, NOT e90: at the true zenith the sun's azimuth is undefined, so
+// front/side/behind would render pixel-identical. Backing off 5° is effectively peak intensity
+// (sin85 ≈ 0.996) but with a real sun DIRECTION, so the buoys get three distinct lighting angles
+// under the harshest light — the whole point of this group at the top of the sweep.
+for (const el of [0, 4, 12, 25, 85]) {
   for (const [h, az] of Object.entries(HEADINGS)) {
     scenarios.push({
       group: "01-sun-heading",
@@ -70,8 +75,6 @@ for (const el of [0, 4, 25]) {
     });
   }
 }
-// At the zenith, azimuth is irrelevant — one noon shot.
-scenarios.push({ group: "01-sun-heading", name: "e90-noon", sun: [90, 135] });
 
 // Group 02 — water clarity × sun elevation. EVERY Jerlov type (clearest oceanic → murkiest
 // coastal) crossed with a low/mid/high sun, because sun elevation drives the downwelling that
