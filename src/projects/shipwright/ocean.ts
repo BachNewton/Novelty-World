@@ -169,8 +169,8 @@ const WATER_TYPES: WaterType[] = [
   { name: "Coastal 1", absorption: [0.45, 0.12, 0.16], scattering: [0.4, 0.4, 0.4], backscatter: 0.014 }, // ~6 m — CDOM begins (a_B > a_G)
   { name: "Coastal 3", absorption: [0.45, 0.18, 0.3], scattering: [0.57, 0.57, 0.57], backscatter: 0.018 }, // ~4 m
   { name: "Coastal 5", absorption: [0.45, 0.25, 0.55], scattering: [0.75, 0.75, 0.75], backscatter: 0.024 }, // ~3 m green — Baltic / Gulf of Finland
-  { name: "Coastal 7", absorption: [0.5, 0.4, 0.85], scattering: [1.6, 1.6, 1.6], backscatter: 0.03 }, // ~1.5 m
-  { name: "Coastal 9", absorption: [0.6, 0.65, 1.3], scattering: [3.1, 3.1, 3.1], backscatter: 0.035 }, // <1 m, harbour / river mouth
+  { name: "Coastal 7", absorption: [0.5, 0.4, 0.85], scattering: [2.1, 2.1, 2.1], backscatter: 0.03 }, // ~1.5 m
+  { name: "Coastal 9", absorption: [0.6, 0.65, 1.3], scattering: [4.6, 4.6, 4.6], backscatter: 0.035 }, // <1 m, harbour / river mouth
 ];
 // Default is Coastal 5 — the turbid green of the Baltic off Helsinki, the "regular day out
 // at sea" this archipelago game evokes; the clear Oceanic types are for tropical spots.
@@ -602,7 +602,11 @@ export function createOcean(): Ocean {
   const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL);
   detailNormals.wrapS = THREE.RepeatWrapping;
   detailNormals.wrapT = THREE.RepeatWrapping;
-  detailNormals.anisotropy = 4; // keep distant ripple tiling from smearing
+  // Max anisotropy: the ripple normal map is sampled at a hard grazing angle across the far
+  // water, where low anisotropy minifies it into faint diagonal streaks (the scroll direction
+  // aliasing). 16× (clamped to the GPU's max) resolves the grazing minification. The real fix
+  // for the far field is the camera-following LOD grid (see CLAUDE.md); this is the cheap win.
+  detailNormals.anisotropy = 16;
   // Ripple tiling is derived from the plane size so the ripple world-scale is fixed
   // regardless of plane size (kept in lock-step by setGrid + the GUI ripple control).
   uniforms.uReflectRipple.value = detailNormals; // reuse the ripple map for reflection distortion

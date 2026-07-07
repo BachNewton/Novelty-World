@@ -126,8 +126,13 @@ clip; the low-sun sweep stays correct.
 
 ### P3 — minor / watch
 
-- **Faint diagonal streaks** in mid-far water at `01-sun-heading/e25`,`e90` — likely the low-res SSR
-  pass or a tessellation/LOD seam. Confirm source; may resolve with the LOD far-plane.
+- ~~**Faint diagonal streaks** in mid-far water at `01-sun-heading/e25`,`e90`~~ — **DIAGNOSED**
+  (2026-07-07): the ripple normal map minified at a hard grazing angle with **no anisotropic
+  filtering**. It's largely a **capture-tool artifact** — the shot suite renders on SwiftShader,
+  whose `getMaxAnisotropy()` ≈ 1, so it can't filter the grazing minification. Mitigated for real
+  GPUs by raising `detailNormals.anisotropy` 4→16 (`ocean.ts`); this **cannot be verified through
+  the SwiftShader captures** (they're unchanged by it) — confirm on a real GPU. The proper far-field
+  fix remains the camera-following LOD grid (see `CLAUDE.md`).
 - **Bright white steep-crest highlight** at high sun (`02-clarity` turbid `e25`/`e90`) — likely a
   near-clipped sky-env reflection on a steep Gerstner face (**not** foam, which is unbuilt). Confirm
   it isn't clipping to 1.0.
@@ -138,16 +143,21 @@ clip; the low-sun sweep stays correct.
 - **Low-sun glitter reads neutral-silver** — could carry more of the warm sky tint at ~4° sun.
 
 Added by the 2026-07-07 re-review (second opinion):
-- **Sun DISC stays white at e00/e04** — the surrounding sky reddens correctly, but at very low
-  elevation heavy air-mass should tint the Mie sun-disc itself orange-red. Needs a warm-band tint on
-  the disc term, not just the sky.
+- **Sun DISC stays white at e00/e04** — **INVESTIGATED → DEFERRED** (2026-07-07). The disc term
+  (`vSunE·19000·Fex` in the `Sky` shader) is so far above the tone-map clip that any warm tint still
+  clips all channels to white unless the disc is dimmed to ~0.1% of its intensity — which turns the
+  bright sun into a weak coloured dot. The honest fix is an **HDR bloom + physically-tinted disc**,
+  and bloom is deliberately **parked** (project `CLAUDE.md`). Left white until bloom lands; the
+  surrounding sky reddening already carries the sunset mood (reviewers rated e00/e04 PLAUSIBLE/BETTER).
 - **Oceanic I/II `e90` pool-adjacent cyan persists** — QUESTIONABLE (not blown/uniform; legit over
   the sunlit sandbar). This is the P1(b) seabed effect; a real fix is scene-side (dimmer/deeper debug
   seabed) or gameplay uses deep water (already deep-blue). Watch, don't chase.
 - **Oceanic II→III `e90` saturation step** — a visible discontinuity where III's higher scattering
   starts veiling the seabed and the body colour wins; physically defensible, not perfectly smooth.
-- **Coastal 9 could read "a hair more opaque" in the sunlit mid-field** — the parked **extinction**
-  tweak (bump Coastal 7/9 scattering `b`); the veil fix handled colour, not the last of the falloff.
+- ~~**Coastal 9 could read "a hair more opaque" in the sunlit mid-field**~~ — **DONE** (2026-07-07):
+  bumped Coastal 7 scattering `b` 1.6→2.1 and Coastal 9 3.1→4.6 (`WATER_TYPES`, `ocean.ts`). C9's
+  mid-far seabed mottling is now noticeably more extinguished (near-opaque olive), C7 stays clearly
+  distinct/clearer than C9, and the C5→C7→C9 spacing widened cleanly. See `after3/02-clarity/{7,8}`.
 - **Trochoidal peaking has headroom** — `5-rough`/`6-very-rough` are steeper but not sharply pinched;
   ties to the unbuilt foam/whitecap + steepness work (`sea-conditions.md` §6).
 
