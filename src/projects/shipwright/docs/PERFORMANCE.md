@@ -140,6 +140,15 @@ separate reflection pass. Everything below is about that.
   planned benchmark harness below.
 - **Compile-time knobs:** `SSR_STEPS`, `SSR_REFINE` in `ocean.ts` (baked into the GLSL
   loop; changing them recompiles the shader).
+  - **Could be live sliders (deferred — tools + approach in place).** To tune them at
+    runtime against the `ssr` GpuTimer number — the way `reflection res` already is,
+    which is especially useful at the grazing worst case — keep the loop bound at a
+    compile-time *max* and `break` on a uniform (`if (i >= uSsrSteps) break;`) instead
+    of baking the count. GLSL forbids a uniform loop *bound*, but a uniform `break` is
+    fine, and because it's warp-coherent it's a faithful perf proxy: the cost *trend*
+    matches a baked constant to within sub-%, with only a tiny fixed offset on the
+    absolute ms (bake the chosen value to confirm the final number). Not built; pick it
+    up if we want to dial these in by eye later.
 
 ---
 
