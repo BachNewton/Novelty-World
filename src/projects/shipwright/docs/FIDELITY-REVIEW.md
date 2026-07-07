@@ -41,6 +41,23 @@ frame-for-frame. Summary of what landed — details struck through in the backlo
 - **Standing checks held:** SSR grazing/horizon seam still clean (`after/04-beauty/low-grazing-chop`);
   low-sun mood + glitter geometry preserved; clear-water ordering intact.
 
+**Second-opinion re-review** (5 fresh unbiased agents, blind to the diff, `after/` vs `baseline/`):
+**net BETTER in every group, zero regressions, zero WRONG/ARTIFACT verdicts.** Highlights:
+- *Turbid clarity:* "the four turbid types now differentiate — in BOTH axes"; Coastal 9 "passes the
+  key test — near-opaque murky olive at every elevation including noon, no longer lifeless navy."
+- *Sea-state:* glassy near-mirror "PASS" (called the single biggest correction); ladder monotonic;
+  rough/very-rough steeper — trochoidal peaking a **PARTIAL PASS** (believable, but headroom, ties
+  to unbuilt foam/whitecaps).
+- *Sun-heading:* e04 golden-hour "the strongest, clearest improvement in the group"; no noon white-out.
+- *Beauty:* SSR seam confirmed free; two low-sun frames better, grazing same.
+- *Clear clarity:* ordering holds; essentially SAME (expected — clear water's veil has little leverage);
+  Oceanic III/Coastal-1 noon marginally greener/better.
+
+New watch-items surfaced (folded into P3 below): sun **disc** stays white at e00/e04 (air-mass would
+redden it); Oceanic I/II **e90 pool-adjacent cyan** persists (the P1(b) seabed effect — QUESTIONABLE,
+not blown); Oceanic II→III **e90 saturation step**; sunset **green belt** a touch saturated (Rayleigh
+bump); Coastal 9 could read "a hair more opaque" in the sunlit mid-field (the parked extinction tweak).
+
 ---
 
 ## What's SOLID — the baseline, don't regress
@@ -119,6 +136,20 @@ clip; the low-sun sweep stays correct.
 - **Sunset sky's green band** (`04-beauty/sunset-backlit`) is a touch stylized — check `Sky`
   turbidity/Rayleigh at 0° if a classic deep-blue crown is wanted.
 - **Low-sun glitter reads neutral-silver** — could carry more of the warm sky tint at ~4° sun.
+
+Added by the 2026-07-07 re-review (second opinion):
+- **Sun DISC stays white at e00/e04** — the surrounding sky reddens correctly, but at very low
+  elevation heavy air-mass should tint the Mie sun-disc itself orange-red. Needs a warm-band tint on
+  the disc term, not just the sky.
+- **Oceanic I/II `e90` pool-adjacent cyan persists** — QUESTIONABLE (not blown/uniform; legit over
+  the sunlit sandbar). This is the P1(b) seabed effect; a real fix is scene-side (dimmer/deeper debug
+  seabed) or gameplay uses deep water (already deep-blue). Watch, don't chase.
+- **Oceanic II→III `e90` saturation step** — a visible discontinuity where III's higher scattering
+  starts veiling the seabed and the body colour wins; physically defensible, not perfectly smooth.
+- **Coastal 9 could read "a hair more opaque" in the sunlit mid-field** — the parked **extinction**
+  tweak (bump Coastal 7/9 scattering `b`); the veil fix handled colour, not the last of the falloff.
+- **Trochoidal peaking has headroom** — `5-rough`/`6-very-rough` are steeper but not sharply pinched;
+  ties to the unbuilt foam/whitecap + steepness work (`sea-conditions.md` §6).
 
 ### Rig limitation (not a render bug)
 
