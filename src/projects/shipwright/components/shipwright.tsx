@@ -16,9 +16,12 @@ export function Shipwright() {
     // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
     // edge-bleed, for only a VRAM/bandwidth cost.
     sceneCapture: { resolutionScale: 1 },
-    // The device-ratio render scale supersamples, so MSAA is redundant here — skip
-    // it to save framebuffer bandwidth (helps weak/iGPU targets).
-    antialias: false,
+    // MSAA on: even though the device-ratio render scale supersamples, MSAA still
+    // visibly cleans up geometry edges (the horizon, object silhouettes) that
+    // supersampling alone leaves faintly aliased. It only samples coverage/depth, not
+    // the fragment shader, so it doesn't touch the SSR/water bottleneck — the cost is
+    // framebuffer bandwidth + a per-frame resolve (watch it on weak/iGPU targets).
+    antialias: true,
   });
 
   return <div ref={containerRef} className="h-[100dvh] w-full overflow-hidden" />;
