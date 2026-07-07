@@ -169,8 +169,8 @@ const WATER_TYPES: WaterType[] = [
   { name: "Coastal 1", absorption: [0.45, 0.12, 0.16], scattering: [0.4, 0.4, 0.4], backscatter: 0.014 }, // ~6 m — CDOM begins (a_B > a_G)
   { name: "Coastal 3", absorption: [0.45, 0.18, 0.3], scattering: [0.57, 0.57, 0.57], backscatter: 0.018 }, // ~4 m
   { name: "Coastal 5", absorption: [0.45, 0.25, 0.55], scattering: [0.75, 0.75, 0.75], backscatter: 0.024 }, // ~3 m green — Baltic / Gulf of Finland
-  { name: "Coastal 7", absorption: [0.5, 0.4, 0.85], scattering: [1.6, 1.6, 1.6], backscatter: 0.03 }, // ~1.5 m
-  { name: "Coastal 9", absorption: [0.6, 0.65, 1.3], scattering: [3.1, 3.1, 3.1], backscatter: 0.035 }, // <1 m, harbour / river mouth
+  { name: "Coastal 7", absorption: [0.5, 0.4, 0.85], scattering: [2.1, 2.1, 2.1], backscatter: 0.03 }, // ~1.5 m
+  { name: "Coastal 9", absorption: [0.6, 0.65, 1.3], scattering: [4.6, 4.6, 4.6], backscatter: 0.035 }, // <1 m, harbour / river mouth
 ];
 // Default is Coastal 5 — the turbid green of the Baltic off Helsinki, the "regular day out
 // at sea" this archipelago game evokes; the clear Oceanic types are for tropical spots.
@@ -602,7 +602,11 @@ export function createOcean(): Ocean {
   const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL);
   detailNormals.wrapS = THREE.RepeatWrapping;
   detailNormals.wrapT = THREE.RepeatWrapping;
-  detailNormals.anisotropy = 4; // keep distant ripple tiling from smearing
+  // Max anisotropy: the ripple normal map is sampled at a hard grazing angle across the far
+  // water, where low anisotropy minifies it into faint diagonal streaks (the scroll direction
+  // aliasing). 16× (clamped to the GPU's max) resolves the grazing minification. The real fix
+  // for the far field is the camera-following LOD grid (see CLAUDE.md); this is the cheap win.
+  detailNormals.anisotropy = 16;
   // Ripple tiling is derived from the plane size so the ripple world-scale is fixed
   // regardless of plane size (kept in lock-step by setGrid + the GUI ripple control).
   uniforms.uReflectRipple.value = detailNormals; // reuse the ripple map for reflection distortion
@@ -641,7 +645,17 @@ export function createOcean(): Ocean {
     metalness: 0,
     normalMap: detailNormals,
   });
-  material.normalScale.set(0.35, 0.35);
+  // Fine-ripple (capillary chop) strength scales with the sea state: a glassy calm is a
+  // near-mirror (WMO-0), while a building wind sea grows fine texture. `baseRippleStrength`
+  // is the user-tunable base (the "ripples" GUI slider); `applyRippleStrength` multiplies it
+  // by a factor derived from the wave-height multiplier so calm eases toward flat. Driven
+  // from `setSea` and the GUI so both stay in lock-step on one uniform (no two-writer clash).
+  let baseRippleStrength = 0.35;
+  const applyRippleStrength = () => {
+    const seaFactor = THREE.MathUtils.clamp(globals.amplitude, 0.08, 1.5);
+    material.normalScale.set(baseRippleStrength * seaFactor, baseRippleStrength * seaFactor);
+  };
+  applyRippleStrength();
   material.envMapIntensity = 1.0; // IBL (ambient + reflection) from scene.environment (PMREM sky)
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
@@ -811,6 +825,7 @@ export function createOcean(): Ocean {
       if (opts.steepness !== undefined) globals.steepness = opts.steepness;
       if (opts.wavelength !== undefined) globals.wavelength = opts.wavelength;
       rebuild();
+      applyRippleStrength(); // ease fine ripple toward flat as the sea calms (glassy → mirror)
     },
     setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => {
       uniforms.uNear.value = camera.near;
@@ -820,7 +835,13 @@ export function createOcean(): Ocean {
     },
     buildGui: (basic, advanced) => {
       const seaFolder = basic.addFolder("Sea");
-      seaFolder.add(globals, "amplitude", 0, 5, 0.01).name("wave height").onChange(rebuild);
+      seaFolder
+        .add(globals, "amplitude", 0, 5, 0.01)
+        .name("wave height")
+        .onChange(() => {
+          rebuild();
+          applyRippleStrength(); // wave height also drives fine-ripple strength (calm → mirror)
+        });
       seaFolder
         .add(globals, "wavelength", 0.25, 3, 0.01)
         .name("wavelength")
@@ -830,7 +851,7 @@ export function createOcean(): Ocean {
         .name("steepness")
         .onChange(rebuild);
 
-      const detail = { strength: material.normalScale.x, ripple: rippleMeters };
+      const detail = { strength: baseRippleStrength, ripple: rippleMeters };
       const waterFolder = advanced.addFolder("Water");
       waterFolder.addColor(material, "color");
       waterFolder.add(material, "roughness", 0, 1, 0.01);
@@ -839,7 +860,10 @@ export function createOcean(): Ocean {
       waterFolder
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")
-        .onChange(() => material.normalScale.set(detail.strength, detail.strength));
+        .onChange(() => {
+          baseRippleStrength = detail.strength;
+          applyRippleStrength(); // re-apply through the current sea-state factor
+        });
       waterFolder
         .add(detail, "ripple", 2, 40, 0.5)
         .name("ripple size (m)")
