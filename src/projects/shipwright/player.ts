@@ -15,7 +15,11 @@ import RAPIER from "@dimforge/rapier3d-compat";
  *  - HORIZONTAL axis is velocity-steered for crisp FPS control: each fixed step we set his horizontal
  *    velocity to the raft's velocity at his feet PLUS his WASD input. So idle → he's locked to the
  *    deck's frame and rides the swell; input → he moves relative to the deck. Diagonals normalised,
- *    frame-rate independent (velocity, stepped in the sim's fixed loop).
+ *    frame-rate independent (velocity, stepped in the sim's fixed loop). Because we impose that
+ *    velocity, we also apply its equal-and-opposite impulse back into the raft at the feet — a
+ *    momentum-conserving foot reaction, so a sailor walking/wiggling can't inject momentum from
+ *    nowhere and creep the whole raft. Deck friction is therefore ZERO: the horizontal coupling is
+ *    entirely this explicit reaction, not the solver's friction (which would double-count and creep).
  *  - Rotation is LOCKED (upright); mouse-look lives on the camera. CCD stops the spawn-drop punching
  *    through the thin deck.
  *
@@ -120,9 +124,6 @@ export function createPlayer(
   const euler = new THREE.Euler(0, 0, 0, "YXZ");
   // Reused downward ray to find the (dynamic) body underfoot — for grounding + its velocity.
   const downRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
-  // Reused horizontal ray to detect a wall in the move direction, so we don't steer INTO it (which
-  // would push the raft — an internal force that shouldn't move the whole boat).
-  const wallRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
 
   return {
     object: mesh,
@@ -138,7 +139,12 @@ export function createPlayer(
       collider = w.createCollider(
         RAPIER.ColliderDesc.capsule(CYLINDER_HALF, RADIUS)
           .setMass(MASS) // real weight the raft feels — the capsule volume alone would be too light
-          .setFriction(1) // grip the deck (rides it; the future rough-sea slip loosens this)
+          // ZERO friction on purpose: horizontal grip/ride is the explicit velocity-lock +
+          // momentum-conserving reaction in fixedStep, not the solver. Non-zero friction would add
+          // a SECOND, uncontrolled coupling — it drags the light raft toward the sailor's slide each
+          // step (which we then erase on the sailor by re-setting his velocity), so the raft creeps.
+          // Vertical weight transfer / tipping is normal-force, independent of friction, so it stays.
+          .setFriction(0)
           .setRestitution(0),
         body,
       );
@@ -170,14 +176,17 @@ export function createPlayer(
       const footY = t.y - CYLINDER_HALF - RADIUS;
 
       if (grounded) {
+        // The body underfoot, if it's a dynamic one we can ride + react against (null for static
+        // ground). Narrowed here so the ?. optional-chain result is a plain non-null reference.
+        const dynamicSupport = support?.isDynamic() === true ? support : null;
         // Velocity of the deck at the sailor's feet (rigid-body point velocity: v + ω × r), so idle
         // he moves WITH the raft. Zero for a static ground.
         let px = 0;
         let pz = 0;
-        if (support?.isDynamic() === true) {
-          const pv = support.linvel();
-          const av = support.angvel();
-          const com = support.worldCom();
+        if (dynamicSupport) {
+          const pv = dynamicSupport.linvel();
+          const av = dynamicSupport.angvel();
+          const com = dynamicSupport.worldCom();
           const rx = t.x - com.x;
           const ry = footY - com.y;
           const rz = t.z - com.z;
@@ -185,44 +194,73 @@ export function createPlayer(
           pz = pv.z + (av.x * ry - av.y * rx);
         }
 
-        // Input velocity relative to the deck. If it drives into a wall, project it along the wall
-        // instead of pushing through — otherwise steering into the raft's own wall shoves the boat.
+        // Input velocity relative to the deck.
         let ivx = dir.x * SPEED;
         let ivz = dir.z * SPEED;
+        // Slide along walls rather than pushing through them. A single forward ray misses a CORNER
+        // (it shoots the gap between the two perpendicular walls), so instead query EVERY contact on
+        // the capsule and project the input out of each near-horizontal (wall) contact normal. At a
+        // corner that's two normals → the diagonal input is projected to ~zero and he simply stops,
+        // without the solver having to resolve a wall penetration by shoving the light raft. Vertical
+        // (deck/ground) contacts are skipped — those hold him up, they're not walls to slide on.
         if (hasInput) {
-          wallRay.origin.x = t.x;
-          wallRay.origin.y = footY + 0.25; // ~mid-height of the 0.5 m wall
-          wallRay.origin.z = t.z;
-          wallRay.dir.x = dir.x;
-          wallRay.dir.y = 0;
-          wallRay.dir.z = dir.z;
-          const wall = world.castRayAndGetNormal(
-            wallRay,
-            RADIUS + 0.15,
-            true,
-            undefined,
-            undefined,
-            collider,
-          );
-          if (wall) {
-            const n = wall.normal;
-            const into = ivx * n.x + ivz * n.z; // <0 ⇒ heading into the wall
-            if (into < 0) {
-              ivx -= into * n.x;
-              ivz -= into * n.z;
-            }
-          }
+          // Stable non-null aliases: the closures below capture these, and TS widens the
+          // outer mutable `world`/`collider` back to nullable inside a deferred callback.
+          const w = world;
+          const col = collider;
+          const center = support ? support.translation() : null; // raft origin ≈ centroid
+          w.contactPairsWith(col, (other) => {
+            w.contactPair(col, other, (manifold) => {
+              if (manifold.numContacts() === 0) return;
+              const n = manifold.normal();
+              const horiz = Math.hypot(n.x, n.z);
+              if (Math.abs(n.y) > 0.5 || horiz < 1e-4) return; // deck/ground, not a wall
+              let nx = n.x / horiz;
+              let nz = n.z / horiz;
+              // The contact normal's sign is ambiguous; orient it to point from the wall toward the
+              // sailor (inward, toward the raft centre) so "into the wall" (dot < 0) is unambiguous.
+              if (center) {
+                if ((center.x - t.x) * nx + (center.z - t.z) * nz < 0) {
+                  nx = -nx;
+                  nz = -nz;
+                }
+              }
+              const into = ivx * nx + ivz * nz; // < 0 ⇒ heading into the wall
+              if (into < 0) {
+                ivx -= into * nx;
+                ivz -= into * nz;
+              }
+            });
+          });
         }
 
         // Steer only the horizontal velocity; leave the vertical to the solver (weight/heave/land).
-        body.setLinvel({ x: px + ivx, y: lin.y, z: pz + ivz }, true);
+        const vx = px + ivx;
+        const vz = pz + ivz;
+        body.setLinvel({ x: vx, y: lin.y, z: vz }, true);
+
+        // Momentum-conserving foot reaction. Imposing that horizontal velocity is really the sailor's
+        // feet pushing on the deck — walking forward pushes the deck back, a heaving deck carrying him
+        // loads it, etc. — so apply the opposite of the horizontal impulse we just gave him back into
+        // the raft at the foot point. Without this the steering injects momentum from nowhere and a
+        // sailor jittering on a corner slowly rotates/creeps the whole raft; with it, the (sailor +
+        // raft) horizontal momentum is conserved, so walk-and-return leaves the raft where it was.
+        if (dynamicSupport) {
+          const jx = -MASS * (vx - lin.x);
+          const jz = -MASS * (vz - lin.z);
+          dynamicSupport.applyImpulseAtPoint(
+            { x: jx, y: 0, z: jz },
+            { x: t.x, y: footY, z: t.z },
+            true,
+          );
+        }
 
         // Jump = launch impulse up on the sailor + its Newton's-3rd-law reaction down into the deck.
         if (jumpQueued) {
           jumpQueued = false;
           body.applyImpulse({ x: 0, y: MASS * JUMP_SPEED, z: 0 }, true);
-          if (support?.isDynamic() === true) {
-            support.applyImpulseAtPoint(
+          if (dynamicSupport) {
+            dynamicSupport.applyImpulseAtPoint(
               { x: 0, y: -MASS * JUMP_SPEED, z: 0 },
               { x: t.x, y: footY, z: t.z },
               true,
