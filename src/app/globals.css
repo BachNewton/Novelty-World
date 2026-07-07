@@ -65,6 +65,16 @@
   }
 }
 
+/* Tell the browser the UI is dark so it themes NATIVE controls to match —
+   <select> popups, date/color pickers, form fields. Must live on the ROOT
+   element: Chromium resolves the color scheme for OS-drawn popups from the
+   document root, not from the inherited value at the control — so setting this
+   on `body` leaves an open native dropdown rendering light-theme dark-grey text
+   on our dark background (near-invisible option labels). */
+html {
+  color-scheme: dark;
+}
+
 body {
   background-color: var(--color-surface-primary);
   color: var(--color-text-primary);
@@ -93,4 +103,18 @@ body {
 
 *::-webkit-scrollbar-button {
   display: none;
+}
+
+/* lil-gui debug panel (Shipwright): its <select> is an invisible native control,
+   so the OS-drawn option popup inherits our dark-theme text color (--color-text-
+   primary) and renders as low-contrast dim text. Pin the popup to lil-gui's own
+   dark palette (its --background-color / --text-color tokens) so option labels
+   stay readable, instead of depending on native popup theming. */
+.lil-gui .controller.option select {
+  color-scheme: dark;
+}
+
+.lil-gui .controller.option select option {
+  background-color: var(--background-color);
+  color: var(--text-color);
 }

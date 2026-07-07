@@ -307,24 +307,39 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     });
 
   const gui = new GUI({ title: "Scene" });
-  // Render scale: default to the display's device pixel ratio (what the browser
-  // picks). At that resolution the supersampling antialiases the water's shader
-  // detail — the SSR/specular/ripple shimmer MSAA can't touch — so it reads smoother
-  // than 1.0. Drop below 1 for more perf on a weak GPU. The hook keeps the drawing
-  // buffer + capture target sized to match.
-  const perf = { renderScale: renderer.getPixelRatio() };
-  gui
-    .add(perf, "renderScale", 0.5, 2, 0.05)
-    .name("render scale")
-    .onChange((r: number) => ctx.setPixelRatio(r));
-  const sunFolder = gui.addFolder("Sun");
+
+  // The panel is organised by PURPOSE, not by which module owns the state: Environment
+  // (the shot — sun + sky), Sea (the water look), Objects (floaters), Performance (every
+  // cost dial), Debug (diagnostics / overlays). scene.ts owns this folder skeleton and
+  // hands each module the folder it should fill (ocean.buildGui / physics.buildGui), so
+  // placement is decided in ONE place instead of emerging from module call order.
+  const environment = gui.addFolder("Environment");
+  const seaFolder = gui.addFolder("Sea");
+  const objects = gui.addFolder("Objects");
+  const performance = gui.addFolder("Performance");
+  const debugFolder = gui.addFolder("Debug");
+
+  const debug = {
+    shading: "full" as ShadingMode,
+    normalMap: true,
+    probes: false,
+    seabed: false,
+    pole: true,
+    waterFx: true,
+    capture: true,
+    planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
+    quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
+  };
+
+  // --- Environment: sun + sky -------------------------------------------------
+  const sunFolder = environment.addFolder("Sun");
   sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
   sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
 
   // Lighting: exposure + veil brightness. Both auto-derive from sun elevation by default
   // (see the Lighting block above); dragging either dial drops to manual. `brightness` (key)
   // scales the whole auto-exposure curve — the one master knob for overall scene brightness.
-  const lightFolder = gui.addFolder("Lighting");
+  const lightFolder = environment.addFolder("Lighting");
   lightFolder.add(lighting, "auto").name("auto (sun-driven)").listen().onChange(applyLighting);
   lightFolder.add(lighting, "key", 0.05, 0.6, 0.005).name("brightness").onChange(applyLighting);
   lightFolder
@@ -342,19 +357,78 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       lighting.auto = false;
       ocean.setVeilBrightness(veilState.value);
     });
+  lightFolder.close();
 
-  const debug = {
-    shading: "full" as ShadingMode,
-    normalMap: true,
-    probes: false,
-    seabed: false,
-    pole: true,
-    waterFx: true,
-    capture: true,
-    planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
-    quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
+  // Atmosphere + clouds are rarely touched once dialled — collapsed by default.
+  const atmoFolder = environment.addFolder("Atmosphere");
+  atmoFolder.add(skyUniforms.turbidity, "value", 0, 20, 0.1).name("turbidity").onChange(updateSun);
+  atmoFolder.add(skyUniforms.rayleigh, "value", 0, 4, 0.01).name("rayleigh").onChange(updateSun);
+  atmoFolder
+    .add(skyUniforms.mieCoefficient, "value", 0, 0.1, 0.001)
+    .name("haze")
+    .onChange(updateSun);
+  atmoFolder
+    .add(skyUniforms.mieDirectionalG, "value", 0, 1, 0.01)
+    .name("sun glow")
+    .onChange(updateSun);
+  atmoFolder.close();
+  const cloudFolder = environment.addFolder("Clouds");
+  cloudFolder
+    .add(skyUniforms.cloudCoverage, "value", 0, 1, 0.01)
+    .name("coverage")
+    .onChange(updateSun);
+  cloudFolder
+    .add(skyUniforms.cloudDensity, "value", 0, 1, 0.01)
+    .name("density")
+    .onChange(updateSun);
+  cloudFolder
+    .add(skyUniforms.cloudElevation, "value", 0, 1, 0.01)
+    .name("elevation")
+    .onChange(updateSun);
+  cloudFolder.close();
+
+  // --- Sea: wave shape + water optics (ocean.ts fills its own sub-folders) -----
+  ocean.buildGui({ sea: seaFolder });
+
+  // --- Performance: every cost dial in one place ------------------------------
+  // Render scale: default to the display's device pixel ratio (what the browser
+  // picks). At that resolution the supersampling antialiases the water's shader
+  // detail — the SSR/specular/ripple shimmer MSAA can't touch — so it reads smoother
+  // than 1.0. Drop below 1 for more perf on a weak GPU. The hook keeps the drawing
+  // buffer + capture target sized to match.
+  const perf = { renderScale: renderer.getPixelRatio() };
+  performance
+    .add(perf, "renderScale", 0.5, 2, 0.05)
+    .name("render scale")
+    .onChange((r: number) => ctx.setPixelRatio(r));
+  performance
+    .add(ssrScale, "value", 0.1, 1, 0.05)
+    .name("reflection res")
+    .onFinishChange(sizeSsrTarget);
+  // Tessellation is a density (quad edge length in metres), so changing plane size
+  // holds quad size constant and scales the segment count — the grid gets no finer
+  // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
+  // vertex budget (density gives at the limit).
+  const applyGrid = () => {
+    const segments = Math.min(2048, Math.max(8, Math.round(debug.planeSize / debug.quadSize)));
+    ocean.setGrid(debug.planeSize, segments);
   };
-  const debugFolder = gui.addFolder("Debug");
+  performance
+    .add(debug, "quadSize", 2, 40, 0.5)
+    .name("quad size (m)")
+    .onFinishChange(applyGrid);
+  performance
+    .add(debug, "planeSize", 100, 10000, 100)
+    .name("plane size (m)")
+    .onFinishChange(applyGrid);
+  applyGrid(); // sync the mesh to the slider defaults (default plane < PLANE_SIZE)
+  // Perf isolation: turn each pass off to read its frametime cost.
+  performance.add(debug, "waterFx").name("water FX").onChange((on: boolean) => {
+    ocean.setWaterFx(on);
+  });
+  performance.add(debug, "capture").name("scene capture");
+
+  // --- Debug: diagnostics + overlays only -------------------------------------
   debugFolder
     .add(debug, "shading", ["full", "flat", "wireframe"])
     .name("shading")
@@ -372,62 +446,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   debugFolder.add(debug, "pole").name("measuring pole").onChange((on: boolean) => {
     measuringPole.object.visible = on;
   });
-  // Perf isolation: turn each added subsystem off to see its frametime cost.
-  debugFolder.add(debug, "waterFx").name("water FX").onChange((on: boolean) => {
-    ocean.setWaterFx(on);
-  });
-  debugFolder.add(debug, "capture").name("scene capture");
-  debugFolder
-    .add(ssrScale, "value", 0.1, 1, 0.05)
-    .name("reflection res")
-    .onFinishChange(sizeSsrTarget);
-  // Tessellation is a density (quad edge length in metres), so changing plane size
-  // holds quad size constant and scales the segment count — the grid gets no finer
-  // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
-  // vertex budget (density gives at the limit).
-  const applyGrid = () => {
-    const segments = Math.min(2048, Math.max(8, Math.round(debug.planeSize / debug.quadSize)));
-    ocean.setGrid(debug.planeSize, segments);
-  };
-  debugFolder
-    .add(debug, "quadSize", 2, 40, 0.5)
-    .name("quad size (m)")
-    .onFinishChange(applyGrid);
-  debugFolder
-    .add(debug, "planeSize", 100, 10000, 100)
-    .name("plane size (m)")
-    .onFinishChange(applyGrid);
-  applyGrid(); // sync the mesh to the slider defaults (default plane < PLANE_SIZE)
 
-  const advanced = gui.addFolder("Advanced");
-  advanced.close();
-  const atmoFolder = advanced.addFolder("Atmosphere");
-  atmoFolder.add(skyUniforms.turbidity, "value", 0, 20, 0.1).name("turbidity").onChange(updateSun);
-  atmoFolder.add(skyUniforms.rayleigh, "value", 0, 4, 0.01).name("rayleigh").onChange(updateSun);
-  atmoFolder
-    .add(skyUniforms.mieCoefficient, "value", 0, 0.1, 0.001)
-    .name("haze")
-    .onChange(updateSun);
-  atmoFolder
-    .add(skyUniforms.mieDirectionalG, "value", 0, 1, 0.01)
-    .name("sun glow")
-    .onChange(updateSun);
-  const cloudFolder = advanced.addFolder("Clouds");
-  cloudFolder
-    .add(skyUniforms.cloudCoverage, "value", 0, 1, 0.01)
-    .name("coverage")
-    .onChange(updateSun);
-  cloudFolder
-    .add(skyUniforms.cloudDensity, "value", 0, 1, 0.01)
-    .name("density")
-    .onChange(updateSun);
-  cloudFolder
-    .add(skyUniforms.cloudElevation, "value", 0, 1, 0.01)
-    .name("elevation")
-    .onChange(updateSun);
+  // --- Objects: floaters. physics.ts fills the Objects folder and appends its
+  // force-arrow diagnostic to Debug. Built last so that toggle lands below the
+  // overlay toggles above.
+  physics.buildGui({ objects, debug: debugFolder });
 
-  ocean.buildGui(gui, advanced);
-  physics.buildGui(gui);
+  // Everyday tuning lives in Environment + Sea, so leave those open; collapse the rest.
+  objects.close();
+  performance.close();
+  debugFolder.close();
 
   // The debug GUI eats scarce screen space on phones — start it collapsed there
   // (tap the title bar to expand). Desktop keeps it open.

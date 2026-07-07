@@ -98,8 +98,9 @@ export interface Ocean {
   /** Camera (near/far/projection) + drawing-buffer size for depth reconstruction,
    *  screen UVs, and the SSR ray-march projection. Call on setup + resize. */
   setViewParams: (camera: THREE.PerspectiveCamera, width: number, height: number) => void;
-  /** Add the everyday "Sea" controls to `basic` and fine material tuning to `advanced`. */
-  buildGui: (basic: GUI, advanced: GUI) => void;
+  /** Fill the passed "Sea" folder with wave-shape + water-optics sub-folders
+   *  (Waves / Water body / Surface / Reflection). */
+  buildGui: (folders: { sea: GUI }) => void;
   /** Debug: swap water shading to isolate GPU cost — the full production surface, an
    *  unlit flat fill (same wave geometry, trivial fragment → separates fill from the
    *  shading math), or wireframe (no fill). */
@@ -836,51 +837,31 @@ export function createOcean(): Ocean {
       uniforms.uResolution.value.set(width, height);
       uniforms.uProjection.value.copy(camera.projectionMatrix);
     },
-    buildGui: (basic, advanced) => {
-      const seaFolder = basic.addFolder("Sea");
-      seaFolder
+    buildGui: ({ sea }) => {
+      const waves = sea.addFolder("Waves");
+      waves
         .add(globals, "amplitude", 0, 5, 0.01)
         .name("wave height")
         .onChange(() => {
           rebuild();
           applyRippleStrength(); // wave height also drives fine-ripple strength (calm → mirror)
         });
-      seaFolder
+      waves
         .add(globals, "wavelength", 0.25, 3, 0.01)
         .name("wavelength")
         .onChange(rebuild);
-      seaFolder
+      waves
         .add(globals, "steepness", 0, 1.5, 0.01)
         .name("steepness")
         .onChange(rebuild);
 
-      const detail = { strength: baseRippleStrength, ripple: rippleMeters };
-      const waterFolder = advanced.addFolder("Water");
-      waterFolder.addColor(material, "color");
-      waterFolder.add(material, "roughness", 0, 1, 0.01);
-      waterFolder.add(material, "metalness", 0, 1, 0.01);
-      waterFolder.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
-      waterFolder
-        .add(detail, "strength", 0, 1, 0.01)
-        .name("ripples")
-        .onChange(() => {
-          baseRippleStrength = detail.strength;
-          applyRippleStrength(); // re-apply through the current sea-state factor
-        });
-      waterFolder
-        .add(detail, "ripple", 2, 40, 0.5)
-        .name("ripple size (m)")
-        .onChange(() => {
-          rippleMeters = detail.ripple;
-          applyRipple();
-        });
-
-      const bodyFolder = advanced.addFolder("Water body");
-      // Pick a Jerlov water type — colour + clarity derive from its optics. The a/b
-      // sliders below expose the raw coefficients; the dropdown loads a real-world set.
+      // Water type is the primary colour/clarity control — a Jerlov type whose optics set
+      // the colour — so it sits at the Sea level, always visible. The raw absorption/
+      // scattering coefficients it loads live in a collapsed "Water body" folder below for
+      // fine tuning.
       const tune: ReturnType<GUI["add"]>[] = [];
       const waterType = { type: DEFAULT_WATER_TYPE };
-      bodyFolder
+      sea
         .add(waterType, "type", WATER_TYPES.map((t) => t.name))
         .name("water type")
         .onChange((name: string) => {
@@ -888,6 +869,8 @@ export function createOcean(): Ocean {
           if (type) applyWaterType(type);
           tune.forEach((c) => c.updateDisplay());
         });
+
+      const bodyFolder = sea.addFolder("Water body");
       // Veil brightness (uWaterLightIntensity — the downwelling light the water body glows
       // with) is now a LIGHTING control: it lives in scene.ts's "Lighting" folder and auto-
       // derives from sun elevation (see setVeilBrightness). Kept out of here to avoid two
@@ -906,8 +889,32 @@ export function createOcean(): Ocean {
         bodyFolder.add(backscatter, "y", 0, 0.2, 0.001).name("backscatter G"),
         bodyFolder.add(backscatter, "z", 0, 0.2, 0.001).name("backscatter B"),
       );
+      bodyFolder.close();
 
-      const reflFolder = advanced.addFolder("Reflection (SSR)");
+      // Surface material + fine ripple detail — rarely touched once dialled, so collapsed.
+      const detail = { strength: baseRippleStrength, ripple: rippleMeters };
+      const surface = sea.addFolder("Surface");
+      surface.addColor(material, "color");
+      surface.add(material, "roughness", 0, 1, 0.01);
+      surface.add(material, "metalness", 0, 1, 0.01);
+      surface.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
+      surface
+        .add(detail, "strength", 0, 1, 0.01)
+        .name("ripples")
+        .onChange(() => {
+          baseRippleStrength = detail.strength;
+          applyRippleStrength(); // re-apply through the current sea-state factor
+        });
+      surface
+        .add(detail, "ripple", 2, 40, 0.5)
+        .name("ripple size (m)")
+        .onChange(() => {
+          rippleMeters = detail.ripple;
+          applyRipple();
+        });
+      surface.close();
+
+      const reflFolder = sea.addFolder("Reflection");
       reflFolder.add(uniforms.uSsrEnabled, "value").name("enabled");
       reflFolder.add(uniforms.uReflectionStrength, "value", 0, 1, 0.01).name("strength");
       reflFolder.add(uniforms.uReflectMin, "value", 0.02, 0.4, 0.01).name("reflectivity");
@@ -922,6 +929,7 @@ export function createOcean(): Ocean {
       reflFolder
         .add(uniforms.uReflectWaveStrength, "value", 0, 0.2, 0.002)
         .name("wave smear");
+      reflFolder.close();
     },
     setShading: (mode) => {
       if (mode === "flat") {

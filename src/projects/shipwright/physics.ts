@@ -286,8 +286,9 @@ export interface Physics {
   /** Register a callback run inside the fixed-step loop, just before each world.step(), with the
    *  fixed dt + sim time. Character movement steps here so it's deterministic and in-phase. */
   onFixedStep: (cb: (dt: number, time: number) => void) => void;
-  /** Add the "Physics" controls (respawn / drag / force arrows) to the GUI. */
-  buildGui: (gui: GUI) => void;
+  /** Fill the "Objects" folder (physics + raft material) and append the force-arrow
+   *  diagnostic to the "Debug" folder. */
+  buildGui: (folders: { objects: GUI; debug: GUI }) => void;
   dispose: () => void;
 }
 
@@ -686,24 +687,16 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     onFixedStep: (cb) => {
       fixedStepCallbacks.push(cb);
     },
-    buildGui: (gui) => {
-      const folder = gui.addFolder("Physics");
+    buildGui: ({ objects, debug }) => {
+      const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");
       folder.add(params, "drag", 0, 3, 0.05).name("water drag");
-      const toggles = { arrows: false };
-      folder
-        .add(toggles, "arrows")
-        .name("force arrows")
-        .onChange((on: boolean) => {
-          arrowGroup.visible = on;
-          if (!on) for (const arrow of arrows) arrow.visible = false;
-        });
 
       // Live wood-material tuning (best judged at full framerate on a real GPU). `roughness`
       // trades gloss vs. how much the normal-map relief reads; `tile` is the texture repeats
       // per 0.5 m voxel face — integer values stay seamless across the deck (the map is
       // tileable), lower values enlarge the planks but reveal a per-voxel seam.
-      const wood = gui.addFolder("Raft wood");
+      const wood = objects.addFolder("Raft wood");
       wood.add(woodMaterial, "roughness", 0, 1, 0.01);
       // Specular reflectance. The default (1 → F0 ≈ 0.04) Fresnel-boosts at grazing angles into a
       // bright sky/sun sheen that blows the flat deck white; keep it low for matte weathered wood.
@@ -720,6 +713,16 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         .name("tile repeat")
         .onChange((v: number) => {
           for (const t of woodTextures) t.repeat.set(v, v);
+        });
+
+      // Force-vector arrows are a diagnostic overlay, not a look control — Debug folder.
+      const toggles = { arrows: false };
+      debug
+        .add(toggles, "arrows")
+        .name("force arrows")
+        .onChange((on: boolean) => {
+          arrowGroup.visible = on;
+          if (!on) for (const arrow of arrows) arrow.visible = false;
         });
     },
     dispose: () => {
