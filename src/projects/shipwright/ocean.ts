@@ -82,6 +82,9 @@ export interface Ocean {
   update: (time: number) => void;
   /** Water height + normal at world (x, z) and `time` — mirrors the shader. */
   sampleSurface: (x: number, z: number, time: number) => SurfaceSample;
+  /** Water height ONLY at world (x, z) — identical to `sampleSurface().height`, but allocation-free
+   *  (no normal Vector3). For hot per-voxel buoyancy sampling that needs only submersion depth. */
+  sampleHeight: (x: number, z: number, time: number) => number;
   /** Forward Gerstner: where the particle at REST (x, z) rides to (orbital motion)
    *  + its normal. This is how a floating object rides the waves. */
   sampleParticle: (restX: number, restZ: number, time: number) => ParticleSample;
@@ -753,14 +756,13 @@ export function createOcean(): Ocean {
     return { ox, oz, height, nx, ny, nz };
   };
 
-  // Height + normal at a WORLD (x, z). Gerstner also displaces horizontally, so
-  // the surface point above (x, z) came from a *different* grid point — we invert
-  // that with a few fixed-point steps (grid = world − horizontalOffset(grid)).
-  const sampleSurface = (x: number, z: number, time: number): SurfaceSample => {
+  // Invert the horizontal displacement with Newton's method: find grid point g such that
+  // g + horizontalOffset(g) = the world (x, z), using the offset's Jacobian for quadratic
+  // convergence (a few steps nail it even at high steepness). Writes the result into the
+  // module-scope `invGrid` scratch (consumed immediately by the caller — no allocation).
+  const invGrid = { x: 0, z: 0 };
+  const invertToGrid = (x: number, z: number, time: number): void => {
     const speed = uniforms.uSpeed.value;
-    // Invert the horizontal displacement with Newton's method: find grid point g
-    // such that g + horizontalOffset(g) = (x, z), using the offset's Jacobian for
-    // quadratic convergence (a few steps nail it even at high steepness).
     let gx = x;
     let gz = z;
     for (let iter = 0; iter < SAMPLE_ITERATIONS; iter++) {
@@ -795,8 +797,24 @@ export function createOcean(): Ocean {
       gx -= (d * fx - jxz * fz) / det;
       gz -= (a * fz - jxz * fx) / det;
     }
-    const { height, nx, ny, nz } = evalGrid(gx, gz, time);
+    invGrid.x = gx;
+    invGrid.z = gz;
+  };
+
+  // Height + normal at a WORLD (x, z). Gerstner also displaces horizontally, so the surface point
+  // above (x, z) came from a *different* grid point — invert that (invertToGrid) then evaluate there.
+  const sampleSurface = (x: number, z: number, time: number): SurfaceSample => {
+    invertToGrid(x, z, time);
+    const { height, nx, ny, nz } = evalGrid(invGrid.x, invGrid.z, time);
     return { height, normal: new THREE.Vector3(nx, ny, nz).normalize() };
+  };
+
+  // Height ONLY at a WORLD (x, z) — the same value as sampleSurface().height but without allocating
+  // the surface-normal Vector3. The buoyancy hot loop (physics.ts) needs only submersion depth and
+  // calls this per voxel per substep, so skipping the discarded normal cuts real per-frame GC churn.
+  const sampleHeight = (x: number, z: number, time: number): number => {
+    invertToGrid(x, z, time);
+    return evalGrid(invGrid.x, invGrid.z, time).height;
   };
 
   return {
@@ -808,6 +826,7 @@ export function createOcean(): Ocean {
       uniforms.uRippleOffset.value.copy(detailNormals.offset); // keep reflection distortion in sync
     },
     sampleSurface,
+    sampleHeight,
     sampleParticle: (restX, restZ, time) => {
       const { ox, oz, height, nx, ny, nz } = evalGrid(restX, restZ, time);
       return {

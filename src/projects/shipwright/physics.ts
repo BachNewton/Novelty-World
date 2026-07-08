@@ -944,9 +944,11 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         const wz = tmpVec.z + t.z;
         posArr[gi].set(wx, wy, wz);
 
-        // How much of this voxel's height is under the water surface right now.
-        const surface = ocean.sampleSurface(wx, wz, time);
-        const submerged = clamp((surface.height - (wy - HALF)) / VOXEL, 0, 1);
+        // How much of this voxel's height is under the water surface right now. sampleHeight (not
+        // sampleSurface) — buoyancy needs only the height, and this per-voxel-per-substep call skips
+        // the surface-normal Vector3 allocation sampleSurface would make (and discard here).
+        const surfaceHeight = ocean.sampleHeight(wx, wz, time);
+        const submerged = clamp((surfaceHeight - (wy - HALF)) / VOXEL, 0, 1);
         if (submerged <= 0) {
           forceArr[gi].set(0, 0, 0);
           continue; // fully clear of the water — free flight under gravity alone
