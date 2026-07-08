@@ -33,7 +33,69 @@ node src/projects/shipwright/tools/bench.mjs --label baseline --url http://local
 
 ---
 
-## Tier 1 — runnable TODAY (no code changes)
+## Two lenses: systems and levers (both clocks have both)
+
+To trace a cost, spike, or regression you need two lenses, and they cut across both clocks:
+
+- **Systems** = the cost centres, the code that runs each frame (render passes, buoyancy, Rapier,
+  ocean field…). This is the *what*.
+- **Levers** = the knobs that flex a system's cost (render scale, reflection res, `--bodies`…). This
+  is the *how much*.
+
+Both the GPU and the CPU have systems **and** levers — but they lean opposite ways, which is why it's
+tempting (wrongly) to equate GPU↔levers and CPU↔systems:
+
+- The **GPU** is a *small, fixed set of systems* (three render passes) whose cost is dominated by
+  **settings** → **lever-driven**. GPU tuning is mostly "which knob" (Tiers 1–2).
+- The **CPU** is a *growing pile of systems* (buoyancy, Rapier, ocean field, buoys, player, and every
+  future one) each adding load, with fewer knobs → **system-driven**. CPU tuning is mostly "which
+  system" (Tier 0 census + Tier 4), though it still has levers — `--bodies` is a CPU load lever.
+
+A frame runs both clocks overlapping, and **frame time ≈ max(CPU total, GPU total)** because they
+pipeline. The map below is the *systems* lens (with each system's *levers* alongside); the census
+(Tier 0) reads the systems, and Tiers 1–4 are the levers that flex them.
+
+| System | Clock | Cost driver | Isolate | Flex with (levers) | Status |
+|---|---|---|---|---|---|
+| **Ocean render** (capture + SSR + main passes) | GPU | pixel count, SSR march, grazing angle | `--mode visuals` | render-scale (E1), reflection-res (E2), ssr-steps (E4), ssr-cutoff (E5), capture-scale (E7), tess (E8), MSAA (E9) | **measured** per-pass (`ssr`/`capture`/`main`) |
+| **Buoyancy** (per-voxel flood-fill + trapped-air) | CPU | voxels, void/cavity cells, body count | `--mode physics` | `--bodies` (P3); future: voxel density, flood knobs | in `phys`; own column = P4 (deferred) |
+| **Rapier solver** (`world.step`) | CPU | bodies, contacts | `--mode physics` | `--bodies` (P3) | in `phys`; own column = P4 (deferred) |
+| **Ocean CPU field** (`sampleSurface`, Gerstner sum + Newton inversion) | CPU | sample count, wave count, iters | seam timer around `ocean.update` | wave count, sample density / tess (future knobs) | **deferred** (needs the seam span) |
+| **Nav buoys** (kinematic particle-ride) | CPU | buoy count | seam timer around `navBuoys.update` | buoy count (future knob) | **deferred** |
+| **Player controller** (dynamic-body sailor) | CPU | one body + its contacts | seam timer around the fixed-step callback | — (single body) | **deferred** (absent in the bench world) |
+| **Frame / smoothness** | mixed | `max(CPU, GPU)` | any run | all of the above | **measured** (`avgFPS`/`1%low`/`spikes`) |
+
+The deferred CPU rows all wait on the same thing: a per-system CPU span measured **at the seam** (the
+loop times what it calls) or by a module **self-reporting** its own breakdown — never by a system
+importing the bench (see `PERFORMANCE.md` → "measure from the seams"). Until then their cost hides
+inside the frame CPU total; the census still bounds it (CPU total − physics = everything else).
+
+---
+
+## Tier 0 — the system census (run this first)
+
+Three headless runs that snapshot **what each measurable system costs right now**, on this SHA +
+hardware. This is the anchor every other tier refines; re-run it after any perf-relevant change.
+
+```
+node .../bench.mjs --mode visuals --label census-gpu    # ocean render, GPU per-pass (physics frozen)
+node .../bench.mjs --mode physics --label census-cpu    # physics CPU cost (`phys`, ocean hidden → GPU ~0)
+node .../bench.mjs --mode both    --label census-both    # the real combined frame
+```
+
+- **Read GPU vs CPU:** `census-gpu` gives the render's per-pass GPU ms; `census-cpu` gives the
+  physics `phys` ms. `census-both`'s `tot50`/`avgFPS` shows which clock the real frame is bound by —
+  if `both ≈ visuals` the frame is GPU-bound (physics is *free*, hiding under the render); if
+  `both` rises over `visuals` by ~the physics cost, it's CPU-bound.
+- **Bound the unmeasured systems:** in `census-cpu`, `phys` is buoyancy + Rapier; the rest of the CPU
+  total (ocean field, buoys, render prep) is `cpu − phys`. That difference is the ceiling on the
+  still-unattributed systems until the seam spans land.
+- **Pick a realistic load:** re-run `census-cpu`/`census-both` with `--bodies N` set to a target
+  build/fleet size (P3) so the census reflects real gameplay, not just the demo scene.
+
+---
+
+## Tier 1 — GPU render levers, runnable TODAY (no code changes)
 
 ### E1 — Render scale (the headline fill lever)
 - **Hypothesis:** total cost ∝ pixel count (≈ scale²); it's fill-bound so every pass scales, `capture`
@@ -61,7 +123,7 @@ node src/projects/shipwright/tools/bench.mjs --label baseline --url http://local
 
 ---
 
-## Tier 2 — need a small knob exposure first
+## Tier 2 — GPU render levers (need a small knob exposure first)
 
 Each needs a one-line `window.__shipwright` setter + a `bench.mjs --flag` (mirror `setReflectionRes`
 / `--reflection-res`). Cheap; noted per item.
@@ -128,10 +190,59 @@ answers "does it stay smooth for 10 minutes", which fixed-dt can't.
 
 ---
 
+## Tier 4 — physics / CPU (`--mode`)
+
+The CPU-clock deep-dive behind the census (Tier 0). The benchmark steps its OWN Rapier world
+(`BENCH_SHAPES`, seeded from `TEST_SHAPES`), separate from the live raft + sailor and reset to a known
+spawn → deterministic. The `phys` column (CPU physics-step ms) is the metric here — today it sums the
+**buoyancy** and **Rapier** systems (P4 splits them).
+
+### P1 — Physics floor (physics-only)
+- **Hypothesis:** `physics-only` (ocean hidden, passes skipped) reports the raw CPU cost of stepping
+  the current buoyant/colliding body set — roughly flat across segments (physics cost barely depends
+  on camera/sea).
+- **Run:** `node .../bench.mjs --mode physics --label phys-floor`.
+- **Learn:** the CPU floor the physics eats every frame today — the anchor for "how much headroom is
+  left for rendering".
+
+### P2 — The physics tax (visuals vs both)
+- **Hypothesis:** `both` = `visuals` GPU cost + the physics CPU cost, and since they pipeline, the
+  frame cost is ~`max(gpu, cpu+physics)` — so on a GPU-bound frame the physics may be *free*, and on a
+  CPU-bound one it dominates. The delta tells you which.
+- **Run:** `--mode visuals --label tax-v` then `--mode both --label tax-b`; diff `tot50`/avgFPS.
+- **Learn:** whether the new stability-matrix bodies actually cost frame time, or hide under the GPU.
+
+### P3 — Object-count scaling (`--bodies N`)
+- **Hypothesis:** `phys` p50 grows with body/voxel count (buoyancy is per-voxel; collisions super-linear
+  in contacts) — the curve that answers "how many objects before physics blows the frame budget".
+- **Run:** `--mode physics --bodies N --label scale-N` for each N. The knob swaps the curated demo set
+  for a fresh non-overlapping grid of N **buoyant hulls** (cycled from the air-enclosing demo shapes —
+  boat/hulls/buckets/crown), so every added body genuinely exercises the flood-fill buoyancy rather
+  than padding the count with solid plates. Body count is recorded in the JSON (`meta.bodies`).
+- **Sweep:** N = 4 / 8 / 16 / 32 / 64.
+- **Learn:** the shape of the curve (linear vs super-linear) and the N at which `phys` p50 crosses the
+  frame budget — the object budget for a build/fleet before physics needs optimising.
+
+### P4 — Buoyancy vs Rapier split (DEFERRED — needs the in-loop timers)
+- **Idea:** the `phys` number is two systems in one — our per-voxel **buoyancy** (`applyBuoyancy`) and
+  **Rapier**'s solver (`world.step`), back-to-back in the fixed-step loop. Timing each separately says
+  which one to optimise (and how each scales with `--bodies N`).
+- **Blocked on:** instrumenting inside `physics.ts`' step loop — deferred until the in-progress
+  buoyancy work lands, then done as physics **self-reporting** its internal breakdown (a getter the
+  bench reads at the seam), so no system couples to the benchmark. See PERFORMANCE.md known-gaps.
+
 ## Results template (fill in per experiment)
 
-Per setting, from the headless JSON (`.bench/<label>/<host>-<sha>-<slug>.json`), keyed by git SHA +
-hardware (GPU) + resolution:
+**System census** (Tier 0) — the per-system snapshot, keyed by git SHA + hardware + `--bodies`:
+
+| run (`--mode`) | bodies | GPU tot50 | phys50 | frame tot50 | avgFPS | 1%low | bound by |
+|---|---|---|---|---|---|---|---|
+| visuals | 0 | | — | | | | GPU |
+| physics | N | — | | | | | CPU |
+| both | N | | | | | | ? |
+
+**Per-setting sweep** — from the headless JSON (`.bench/<label>/<host>-<sha>-<slug>.json`), keyed by
+git SHA + hardware (GPU) + resolution:
 
 | setting | overall tot50 | ssr50 | capture50 | main50 | max-stress tot50 | overall avgFPS | Δ vs baseline |
 |---|---|---|---|---|---|---|---|

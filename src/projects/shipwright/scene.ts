@@ -7,7 +7,8 @@ import type {
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean, type ShadingMode } from "./ocean";
-import { createPhysics, RAFT, TEST_SHAPES } from "./physics";
+import { createPhysics, RAFT, TEST_SHAPES, type Physics } from "./physics";
+import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
 import { createPlayer } from "./player";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
@@ -37,17 +38,32 @@ interface BenchmarkConfig {
   realtime?: boolean;
   /** Seconds to hold the final frame before closing (real-time only), so the end reads as "done". */
   endHoldSeconds?: number;
+  /** Which cost centre to exercise: "visuals" (render only, physics frozen — the default, GPU cost),
+   *  "physics" (step the bench physics with the ocean hidden — isolate CPU physics cost), or "both"
+   *  (render AND step — the true combined gameplay frame). See tools/bench.mjs --mode. */
+  mode?: BenchmarkMode;
+  /** Scale the physics load to this many buoyant hulls (physics/both modes) for the object-count
+   *  scaling sweep — a fresh grid of `benchShapesForCount` bodies instead of the demo BENCH_SHAPES.
+   *  Undefined = the default demo load. See tools/bench.mjs --bodies. */
+  bodies?: number;
 }
-/** One recorded frame: CPU prep ms + the raw per-pass GPU ms from the timer. */
+type BenchmarkMode = "visuals" | "physics" | "both";
+/** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
 interface BenchmarkSample {
   seg: string;
   cpuMs: number;
+  physicsMs: number;
   capture: number;
   ssr: number;
   main: number;
 }
 interface BenchmarkResult {
   fixedDt: number;
+  /** Which cost centre this run exercised (visuals / physics / both). */
+  mode: BenchmarkMode;
+  /** Number of physics bodies actually under load (0 in visuals mode) — the x-axis of a scaling
+   *  sweep, so it must travel with the numbers. */
+  bodies: number;
   /** True when this was a real-time (headed) run — numbers are felt-smoothness, not deterministic. */
   realtime: boolean;
   /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
@@ -62,8 +78,8 @@ interface BenchmarkResult {
   samples: BenchmarkSample[];
 }
 /** Default real-time end-hold (seconds) when the tool doesn't override it — long enough that the
- *  ending clearly reads as "done" when watching live. */
-const DEFAULT_END_HOLD_SECONDS = 4;
+ *  ending clearly reads as "done" when watching live, without dragging out the close. */
+const DEFAULT_END_HOLD_SECONDS = 2;
 
 interface BenchmarkRun {
   timeline: Timeline;
@@ -77,6 +93,12 @@ interface BenchmarkRun {
   lastSunEl: number;
   lastSunAz: number;
   realtime: boolean;
+  mode: BenchmarkMode;
+  /** The benchmark-owned physics world (BENCH_SHAPES) stepped each frame in physics/both mode; null
+   *  in visuals mode. Separate from the gameplay physics + sailor, so respawn() → deterministic. */
+  benchPhysics: Physics | null;
+  /** How many bodies that world holds (0 when benchPhysics is null) — recorded in the result. */
+  benchBodies: number;
   /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
   prevIndex: number;
   /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
@@ -603,10 +625,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     updateSun(); // one PMREM re-bake, in the segment's (discarded) warmup
     run.lastSunEl = NaN; // force the first sweep frame to push (NaN !== any real angle)
     run.lastSunAz = NaN;
-    // Raft: shown as a deterministic reflective object (reset to spawn, NOT stepped — see
-    // benchmark.ts on why live physics is deferred). `update(0)` poses the mesh at spawn.
-    physics.object.visible = seg.raft === true;
-    if (seg.raft === true) {
+    // Raft (VISUALS mode only): show the gameplay bodies statically as a reflective object (reset to
+    // spawn, NOT stepped). In physics/both mode the benchmark's OWN bench physics bodies are the
+    // physics content, so the gameplay set stays hidden.
+    const showStaticRaft = seg.raft === true && run.mode === "visuals";
+    physics.object.visible = showStaticRaft;
+    if (showStaticRaft) {
       physics.respawn();
       physics.update(0, run.elapsed);
     }
@@ -628,6 +652,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         return;
       }
       benchmark = null;
+      // Tear down the benchmark-owned physics world (if any).
+      if (run.benchPhysics) {
+        scene.remove(run.benchPhysics.object);
+        run.benchPhysics.dispose();
+      }
       const db = renderer.getDrawingBufferSize(new THREE.Vector2());
       // The real GPU behind ANGLE, via the debug-renderer-info extension (some browsers strip it as
       // a fingerprinting mitigation → fall back to the generic vendor/renderer strings).
@@ -639,6 +668,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       };
       run.resolve({
         fixedDt: FIXED_DT,
+        mode: run.mode,
+        bodies: run.benchBodies,
         realtime: run.realtime,
         gpuAvailable: gpuTimer !== undefined && gpuTimer.available,
         gpu,
@@ -685,17 +716,29 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     }
     ocean.update(run.elapsed);
     navBuoys.update(ocean, run.elapsed);
+    // Step the benchmark's OWN physics world (physics/both modes). One deterministic FIXED_DT step
+    // per frame headless (byte-identical); real delta headed (natural-speed). Timed on its own so the
+    // report can isolate CPU physics cost. Stepped BEFORE the passes so "both" mode reflects the posed
+    // bodies. In physics-only mode the ocean is hidden and the passes are skipped, so the frame's GPU
+    // cost is ~0 and this physics time is the whole signal.
+    let physicsMs = 0;
+    if (run.benchPhysics) {
+      const p0 = globalThis.performance.now();
+      run.benchPhysics.update(run.realtime ? Math.min(delta, 0.1) : FIXED_DT, run.elapsed);
+      physicsMs = globalThis.performance.now() - p0;
+    }
     const pose = seg.camera(s.u);
     camera.position.set(pose.pos[0], pose.pos[1], pose.pos[2]);
     benchTarget.set(pose.target[0], pose.target[1], pose.target[2]);
     camera.lookAt(benchTarget);
-    if (debug.capture) renderPrePasses();
+    if (debug.capture && run.mode !== "physics") renderPrePasses();
     const cpuMs = globalThis.performance.now() - cpuStart;
     if (s.measured && gpuTimer) {
       const g = gpuTimer.values();
       run.samples.push({
         seg: seg.name,
         cpuMs,
+        physicsMs,
         capture: g.get("capture") ?? 0,
         ssr: g.get("ssr") ?? 0,
         main: g.get("main") ?? 0,
@@ -788,26 +831,46 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
     // Applies the run's global cost settings, forces stride 1 (never skip a flight frame), and
     // hides non-flight objects for a clean, consistent scene. See tools/bench.mjs.
-    runBenchmark: (config: BenchmarkConfig) =>
-      new Promise<BenchmarkResult>((resolve) => {
-        if (config.renderScale !== undefined) {
-          perf.renderScale = config.renderScale;
-          ctx.setPixelRatio(config.renderScale);
-        }
-        if (config.reflectionRes !== undefined) {
-          ssrScale.value = config.reflectionRes;
-          sizeSsrTarget();
-        }
-        if (config.water !== undefined) ocean.setWaterType(config.water);
-        ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
+    runBenchmark: async (config: BenchmarkConfig): Promise<BenchmarkResult> => {
+      if (config.renderScale !== undefined) {
+        perf.renderScale = config.renderScale;
+        ctx.setPixelRatio(config.renderScale);
+      }
+      if (config.reflectionRes !== undefined) {
+        ssrScale.value = config.reflectionRes;
+        sizeSsrTarget();
+      }
+      if (config.water !== undefined) ocean.setWaterType(config.water);
+      ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
+      const mode = config.mode ?? "visuals";
 
-        measuringPole.object.visible = false;
-        seabed.visible = false;
-        probes.visible = false;
-        player.object.visible = false;
-        physics.object.visible = false;
-        paused = false;
-        syncGui();
+      measuringPole.object.visible = false;
+      seabed.visible = false;
+      probes.visible = false;
+      player.object.visible = false;
+      physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
+      // Physics-only: hide the ocean so the frame's GPU cost is ~0 and the physics-step time is the
+      // whole signal. Visuals/both keep it.
+      ocean.mesh.visible = mode !== "physics";
+      paused = false;
+      syncGui();
+
+      // Physics load = a benchmark-OWNED Rapier world, separate from the gameplay physics + sailor and
+      // reset to a known spawn → deterministic. Its bodies render only in "both". `--bodies N` swaps
+      // the curated demo set for a fresh grid of N buoyant hulls (the object-count scaling sweep).
+      const shapes =
+        config.bodies !== undefined ? benchShapesForCount(config.bodies) : BENCH_SHAPES;
+      let benchPhysics: Physics | null = null;
+      if (mode === "physics" || mode === "both") {
+        benchPhysics = createPhysics(ocean, shapes);
+        benchPhysics.object.visible = mode === "both";
+        scene.add(benchPhysics.object);
+        await benchPhysics.init(); // load Rapier + build the world/bodies before the flight starts
+        benchPhysics.respawn();
+      }
+      const benchBodies = benchPhysics ? shapes.length : 0;
+
+      return new Promise<BenchmarkResult>((resolve) => {
         benchmark = {
           // Warm-up lap kept in both modes; headed just plays it at real-time (a few seconds).
           timeline: buildTimeline(FLIGHT, true),
@@ -817,13 +880,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           lastSunEl: NaN,
           lastSunAz: NaN,
           realtime: config.realtime === true,
+          mode,
+          benchPhysics,
+          benchBodies,
           prevIndex: -1,
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",
           samples: [],
           resolve,
         };
-      }),
+      });
+    },
   };
   if (process.env.NODE_ENV !== "production") {
     (window as unknown as { __shipwright?: typeof debugApi }).__shipwright = debugApi;
