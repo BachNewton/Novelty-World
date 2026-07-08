@@ -295,8 +295,8 @@ code that floats the ship agree on where the surface is.
   merlons add no air). Debug: a **"trapped-air cells" x-ray** (updates live as shapes roll), an
   **"air-cavity buoyancy" A/B switch**, and a **"flood rate"** slider. A **runaway guard** (`MAX_LINVEL`/
   `MAX_ANGVEL` velocity clamp + a try/catch around the step loop) keeps heavy-sea instability from
-  NaN-ing the Rapier WASM solver and hard-freezing the app. **Still to do** (see `docs/buoyancy.md`):
-  Stage 2 — stop the global ocean surface drawing *inside* a slammed hull; Stage 3c — render interior
-  water in flooded compartments at level `L`.
+  NaN-ing the Rapier WASM solver and hard-freezing the app. The buoyancy **simulation** is now complete;
+  the remaining work is **rendering** (see `docs/FIDELITY.md` "Hull interiors"): mask the global ocean
+  surface out of dry hull interiors, and draw flooded interior water at each compartment's fill level.
 - **Also open:** shoreline **foam** (we have soft edges, not a foam line), then the
   voxel core / ships (which will drive live re-classification of the trapped air).

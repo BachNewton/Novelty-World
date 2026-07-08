@@ -21,7 +21,7 @@ import type { Ocean } from "./ocean";
  * by geometry. It's scoped to collision / momentum / buoyancy ONLY — never water
  * rendering (that's ocean.ts).
  *
- * AIR-CAVITY BUOYANCY + COMPARTMENT FLOODING (see docs/buoyancy.md). Hulls float on the air they
+ * AIR-CAVITY BUOYANCY + COMPARTMENT FLOODING. Hulls float on the air they
  * enclose, not just on light voxels. `analyzeBuildVoids` pre-builds ONCE (pure, cheap, re-runnable
  * per place/break by the coming voxel builder) a build's empty interior cells: their adjacency
  * graph, a static ENCLOSED mask (cells air-CAPABLE — the sea can't reach them by rising + moving
@@ -42,7 +42,8 @@ import type { Ocean } from "./ocean";
  * SEALED compartment (no openings) never floods, so it keeps its air at any depth — seal a hull and
  * it survives underwater. We deliberately DON'T model a trapped-air (diving-bell) seal at a lone
  * submerged hole — at 0.5 m voxels that edge case isn't worth simulating; a hole below the waterline
- * just floods. Interior water rendering is Stage 3c (docs/buoyancy.md).
+ * just floods. Rendering flooded interior water (and masking the sea out of dry interiors) is a
+ * separate RENDERING follow-up that reads this sim state but adds no physics — see docs/FIDELITY.md.
  *
  * Rapier is deterministic and we keep it that way for future host-authoritative
  * multiplayer: a FIXED physics timestep, and no wall-clock or Math.random in the
@@ -625,7 +626,7 @@ export interface BuildVoids {
  *
  * This is the STATIC half of the trapped-air model; the dynamic half runs each step in the buoyancy
  * loop, advancing a per-compartment water level against the live sea surface, so which cells are air
- * vs flooded is orientation- and waterline-correct as the hull rolls and bobs — see docs/buoyancy.md.
+ * vs flooded is orientation- and waterline-correct as the hull rolls and bobs.
  */
 export const analyzeBuildVoids = (
   cells: [number, number, number][],

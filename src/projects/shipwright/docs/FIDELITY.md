@@ -141,6 +141,31 @@ on a real GPU. The proper far-field fix is the camera-following **LOD grid** (ro
 Finer + coarser ripple-normal layers (feeds the sparkle term above; also breaks up the current
 single-scale normal map, which reads faintly repetitive/"scratchy" up close at the rough end).
 
+### Hull interiors — mask the sea out, and render flooded water in
+The buoyancy/flooding **simulation** is complete (`physics.ts`: dense hulls float on enclosed air,
+breached hulls flood through their holes and founder). What's left is the **visual** half — two
+coupled rendering jobs, neither of which touches the physics:
+
+- **The known glitch:** the ocean is one global Gerstner height field drawn **everywhere**, including
+  inside a hull's footprint. On a hard slam/heave the rendered sea pokes up **through the deck** into a
+  dry interior. Purely rendering — it happens even with perfect buoyancy, because the shader doesn't
+  know that volume is enclosed air.
+- **Mask the sea out of enclosed interiors.** A sealed / un-flooded compartment should show **no**
+  interior sea. Two ways: a **stencil / depth mask** (render the hull interior to a mask, discard ocean
+  fragments inside it) — but it has to play with the screen-space water composite (refraction/depth/SSR
+  off one shared capture; see `PERFORMANCE.md` "Architecture"), the trickiest integration point in the
+  ocean, not a clip; **or** drive it off the sim — a compartment simply has no interior surface unless
+  it's flooded.
+- **Render flooded interior water.** Where a compartment **is** flooded, draw a water surface at its
+  fill level. The sim already computes it: the pose-invariant fill fraction realizes to a world flood
+  height per compartment (`physics.ts` `compartmentWater` → `compartmentFloodLevel`, ≈ `dryFloor +
+  fraction·span`). So this is rendering that **reads** physics state and adds none.
+
+**Payoff:** completes the storm-swamping stakes *visually* (you watch water climb inside a breached
+hull → a reward for good, well-sealed hull design) and the **below-deck** feature (a sealed compartment
+reads as dry, walkable air). Both are real shader/compositing work because the water is screen-space —
+budget against the fill/SSR cost in `PERFORMANCE.md`.
+
 ### Underwater camera mode *(future)*
 Today the camera dipping below the surface is an **artifact** — you see through the water's
 back-face-culled underside to the background (a pale void the buoys float over). But a *deliberate*
