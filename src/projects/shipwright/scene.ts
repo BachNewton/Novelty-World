@@ -729,10 +729,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // bodies. In physics-only mode the ocean is hidden and the passes are skipped, so the frame's GPU
     // cost is ~0 and this physics time is the whole signal.
     let physicsMs = 0;
+    let buoyancyMs = 0;
+    let solverMs = 0;
     if (run.benchPhysics) {
       const p0 = globalThis.performance.now();
       run.benchPhysics.update(run.realtime ? Math.min(delta, 0.1) : FIXED_DT, run.elapsed);
       physicsMs = globalThis.performance.now() - p0;
+      // Split the step into buoyancy vs Rapier solver (thread 5); the rest of physicsMs is
+      // clamp/snapshot/interp + any substep overhead.
+      const t = run.benchPhysics.stepTiming();
+      buoyancyMs = t.buoyancy;
+      solverMs = t.solver;
     }
     const pose = seg.camera(s.u);
     camera.position.set(pose.pos[0], pose.pos[1], pose.pos[2]);
@@ -773,6 +780,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         ssrCpuMs: prepassCpu.ssr,
         mainCpuMs: mainRenderMs(),
         bareMs,
+        buoyancyMs,
+        solverMs,
       });
     }
   };

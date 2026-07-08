@@ -95,6 +95,11 @@ export interface BenchmarkSample {
   /** Diagnostic (--bare-probe only, else 0): CPU ms to render an EMPTY scene to the default
    *  framebuffer — the irreducible per-call renderer.render() overhead (no draws, no target switch). */
   bareMs: number;
+  /** Physics-step split (physics/both modes; 0 in visuals), summed across the frame's substeps:
+   *  `buoyancyMs` = the per-voxel flood-fill + trapped-air force loop; `solverMs` = Rapier world.step().
+   *  Their sum is ≤ physicsMs (the remainder is velocity-clamp + snapshot + interpolation). */
+  buoyancyMs: number;
+  solverMs: number;
 }
 
 export interface BenchmarkResult {

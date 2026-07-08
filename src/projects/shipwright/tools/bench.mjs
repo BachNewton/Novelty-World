@@ -170,6 +170,8 @@ const summarise = (frames) => {
       main: passStats(frames, (f) => f.main),
       cpu: passStats(frames, (f) => f.cpuMs),
       physics: passStats(frames, (f) => f.physicsMs), // CPU physics-step ms (0 in visuals mode)
+      buoyancy: passStats(frames, (f) => f.buoyancyMs ?? 0), // per-voxel buoyancy share of the step (thread 5)
+      solver: passStats(frames, (f) => f.solverMs ?? 0), // Rapier world.step() share of the step
       // CPU seam-timer split of the render-prep (thread 1). All CPU *submission* ms (wall-clock),
       // NOT GPU execution. `cpuMs` (above) = onFrame only, so it EXCLUDES mainCpu (the 2nd full draw);
       // cpuTotal = cpuMs + mainCpu is the true per-frame CPU serial time. `??`-guarded for old JSON.
@@ -390,6 +392,21 @@ if (report.overall.ms.bare.p50 > 0) {
     `bare renderer.render() floor (empty scene, --bare-probe): p50 ${report.overall.ms.bare.p50} ms ` +
       `— the IRREDUCIBLE per-call cost (no draws, no target switch). 3 real calls/frame => ~${round(report.overall.ms.bare.p50 * 3, 1)} ms floor.`,
   );
+}
+// Physics-step split (thread 5) — only when a physics world ran (phys > 0).
+if (report.overall.ms.physics.p50 > 0) {
+  console.log(
+    "\nPhysics step split (p50 ms, summed over substeps):\n" +
+      pad("segment", 16) + padL("buoyancy", 10) + padL("solver", 10) + padL("phys", 10) + padL("other", 10),
+  );
+  const physRow = (name, st) => {
+    const other = round(Math.max(0, st.ms.physics.p50 - st.ms.buoyancy.p50 - st.ms.solver.p50), 2);
+    return pad(name, 16) + padL(st.ms.buoyancy.p50, 10) + padL(st.ms.solver.p50, 10) + padL(st.ms.physics.p50, 10) + padL(other, 10);
+  };
+  for (const seg of report.segments) console.log(physRow(seg.name, seg));
+  console.log("-".repeat(72));
+  console.log(physRow("OVERALL", report.overall));
+  console.log("(buoyancy=per-voxel flood-fill+trapped-air force loop · solver=Rapier world.step · other=clamp+snapshot+interp)");
 }
 // The per-pass `ssr50` is the DEDICATED march pass ONLY — it does NOT include the cost SSR adds inside
 // the `main` pass (sampling the reflection texture + occupancy), so it UNDER-reports SSR's true weight.

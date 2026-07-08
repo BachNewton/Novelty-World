@@ -289,6 +289,11 @@ export interface Physics {
    *  solver contact cost from everything else. Used by the benchmark's `--collision off` (Option A to
    *  measure the collision-resolution share of the step). Default is enabled. */
   setCollisionEnabled: (on: boolean) => void;
+  /** Wall-clock ms of the LAST update()'s two hot phases, SUMMED across substeps: `buoyancy` = the
+   *  per-voxel flood-fill + trapped-air force loop (applyBuoyancy), `solver` = Rapier's world.step().
+   *  Lets the benchmark split the physics step into its two systems (thread 5). Both 0 before the
+   *  first update, and when the sim is paused/failed (the loop is skipped). */
+  stepTiming: () => { buoyancy: number; solver: number };
   /** Fill the "Objects" folder (physics + raft material) and append the force-arrow
    *  diagnostic to the "Debug" folder. */
   buildGui: (folders: { objects: GUI; debug: GUI }) => void;
@@ -771,6 +776,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   let forceArr: THREE.Vector3[] = [];
   let posArr: THREE.Vector3[] = [];
   let arrows: THREE.ArrowHelper[] = [];
+  // Physics-step seam timers (thread 5), summed across a frame's substeps; read via stepTiming().
+  let lastBuoyancyMs = 0;
+  let lastSolverMs = 0;
   let airOverlay = new THREE.InstancedMesh(airBoxGeometry, airOverlayMaterial, 1);
   airOverlay.count = 0;
   airOverlay.frustumCulled = false;
@@ -1461,6 +1469,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       if (!world || simFailed || paused) return;
       accumulator += delta;
       let steps = 0;
+      // Seam timers for the physics-step split (thread 5): buoyancy (applyBuoyancy) vs Rapier
+      // (world.step), SUMMED over this frame's substeps. Reset here; read via stepTiming().
+      lastBuoyancyMs = 0;
+      lastSolverMs = 0;
       // Sample buoyancy at `time` — the SAME clock the ocean is drawn at — so bodies
       // float on the on-screen water. (A separate sim clock drifts out of phase, since
       // it seeds at 0 on Rapier's async load, and the bodies then ride an invisible,
@@ -1473,7 +1485,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           // it: a finite, bounded input can't diverge to Inf inside world.step(). (Post-step clamping
           // is always one step too late — the blow-up happens within the step it feeds.)
           for (const v of visuals) if (v.body) clampVelocity(v.body);
+          const buoyancyStart = globalThis.performance.now();
           applyBuoyancy(time);
+          lastBuoyancyMs += globalThis.performance.now() - buoyancyStart;
           for (const cb of fixedStepCallbacks) cb(FIXED_DT, time); // riders (player) cast HERE, pre-edit
           // Apply queued voxel edits now — after the riders' casts, before the step that refreshes the
           // query BVH — so no cast ever sees a collider set the BVH doesn't match (see editQueue). Each
@@ -1484,7 +1498,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
             editQueue.length = 0;
             rebuildDiagnostics();
           }
+          const solverStart = globalThis.performance.now();
           world.step();
+          lastSolverMs += globalThis.performance.now() - solverStart;
           hasStepped = true;
           // Snapshot each body's post-step transform (shifting the last into `prev`) for render
           // interpolation, then let anything else riding the sim (the player) snapshot in lock-step.
@@ -1533,6 +1549,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     },
     alpha: () => interpAlpha,
     respawn,
+    stepTiming: () => ({ buoyancy: lastBuoyancyMs, solver: lastSolverMs }),
     setCollisionEnabled: (on: boolean) => {
       if (!world) return;
       // Toggle contact generation on every collider WITHOUT removing them, so mass/inertia/buoyancy
