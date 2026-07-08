@@ -39,6 +39,10 @@ export interface BenchmarkConfig {
   /** Turn SSR off (env-map-only reflection) to measure its share of the frame — E6. Skips the whole
    *  low-res march pass, so the `ssr` GPU-ms drops to ~0. Default (undefined) leaves it on. */
   ssrEnabled?: boolean;
+  /** SSR Fresnel cutoff (E5): `uSsrMinFresnel` (default 0.05). The march discards pixels whose raw
+   *  geometric Fresnel is below this BEFORE marching, so raising it culls near-head-on pixels — the
+   *  lever for the grazing worst case + SSR spikes. Sweep 0.02/0.05/0.1/0.2. */
+  ssrMinFresnel?: number;
   /** Jerlov water type to pin for the whole run (optics cost). */
   water?: string;
   /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback

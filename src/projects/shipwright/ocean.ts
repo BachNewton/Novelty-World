@@ -118,6 +118,11 @@ export interface Ocean {
    *  turning SSR off actually reclaims its cost rather than just hiding the (still-computed) result. */
   setSsrEnabled: (on: boolean) => void;
   isSsrEnabled: () => boolean;
+  /** SSR Fresnel cutoff (`uSsrMinFresnel`, default 0.05): the raw geometric Fresnel below which the
+   *  low-res march discards a pixel (returns transparent) BEFORE marching — so raising it culls the
+   *  near-head-on pixels the march is cheapest to skip and hardest to see, trading grazing SSR for
+   *  cost. The lever for the worst-case (grazing) frame + the SSR spikes (E5). */
+  setSsrMinFresnel: (value: number) => void;
   /** Render the low-res SSR reflection pass (water only) into `target`. Call each frame
    *  after the scene capture and before the main render. */
   renderSsr: (
@@ -980,6 +985,9 @@ export function createOcean(): Ocean {
       uniforms.uSsrEnabled.value = on;
     },
     isSsrEnabled: () => uniforms.uSsrEnabled.value === true,
+    setSsrMinFresnel: (value) => {
+      uniforms.uSsrMinFresnel.value = value;
+    },
     renderSsr: (renderer, scene, camera, target) => {
       // Render the water alone (SSR layer) with the SSR-only material into the low-res
       // target, then restore. Reads the scene capture; the water shader samples the

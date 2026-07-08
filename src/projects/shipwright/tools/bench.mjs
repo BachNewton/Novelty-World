@@ -100,6 +100,9 @@ if (args["reflection-res"] !== undefined) config.reflectionRes = Number(args["re
 // --ssr off (or false) disables SSR entirely (env-map fallback + the march pass is skipped) — E6, to
 // measure SSR's share of the frame. Any other value (or omitting the flag) leaves SSR on.
 if (args.ssr !== undefined) config.ssrEnabled = !(args.ssr === "off" || args.ssr === "false");
+// --ssr-cutoff C sets the SSR Fresnel cutoff (E5, uSsrMinFresnel, default 0.05): raising it discards
+// more near-head-on pixels before the march. Sweep 0.02/0.05/0.1/0.2 to trace the grazing SSR cost.
+if (args["ssr-cutoff"] !== undefined) config.ssrMinFresnel = Number(args["ssr-cutoff"]);
 // --collision off (or false) disables Rapier contact generation on the bench bodies (collision groups)
 // — mass/inertia/buoyancy + the broad-phase AABBs stay, only narrow-phase + solver contacts drop — to
 // measure collision-resolution's share of the physics step (physics/both modes). Any other value keeps
@@ -307,6 +310,7 @@ const slug =
     config.reflectionRes !== undefined ? `rr${config.reflectionRes}` : null,
     config.water !== undefined ? config.water.toLowerCase().replace(/\s+/g, "-") : null,
     config.ssrEnabled === false ? "ssr-off" : null,
+    config.ssrMinFresnel !== undefined ? `cut${config.ssrMinFresnel}` : null,
     config.collisionEnabled === false ? "collision-off" : null,
     config.quadSize !== undefined ? `q${config.quadSize}` : null,
   ]
