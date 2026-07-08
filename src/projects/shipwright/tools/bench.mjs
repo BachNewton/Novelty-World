@@ -86,7 +86,7 @@ const TIMEOUT = Number(args.timeout ?? 120000); // headed real-time flight (~35 
 // End-hold: SECONDS to hold the final frame before the window closes (real-time watch only). Passed
 // into the run, so page.evaluate keeps awaiting (window stays open) during the hold — no separate
 // post-run wait. Longer is nice when watching live; irrelevant headless.
-const HOLD_SECONDS = Number(args.hold ?? (HEADED ? 4 : 0));
+const HOLD_SECONDS = Number(args.hold ?? (HEADED ? 2 : 0));
 // Default viewport 1600×900 — standard 16:9, shorter than a 1080p display so the browser chrome
 // (the VERTICAL space, which is what actually overflowed) fits and a headed window shows the whole
 // scene. Override with --width / --height.
@@ -163,7 +163,13 @@ const summarise = (frames) => {
 // Real GPU via ANGLE/D3D11 (NOT SwiftShader — GpuTimer needs a real GPU). Confirmed on AMD 780M.
 const browser = await chromium.launch({
   headless: !HEADED,
-  args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"],
+  args: [
+    "--use-angle=d3d11",
+    "--ignore-gpu-blocklist",
+    "--enable-gpu",
+    // Headed watch: pin the window top-left so it can't open off-screen / get lost behind others.
+    ...(HEADED ? ["--window-position=0,0"] : []),
+  ],
 });
 const page = await browser.newPage({ viewport: VIEWPORT });
 const errors = [];
@@ -172,6 +178,9 @@ page.on("pageerror", (e) => errors.push(e.message));
 let result;
 try {
   await page.goto(URL, { waitUntil: "networkidle" });
+  // Headed watch: raise + focus the window so the run is visible immediately (Windows can otherwise
+  // open it behind the active window). CDP Page.bringToFront activates the tab and raises the OS window.
+  if (HEADED) await page.bringToFront();
   await page.waitForFunction(() => "__shipwright" in window, { timeout: 20000 });
   // Let the ripple texture load, Rapier init, physics settle, and the sky env-map bake.
   await page.waitForTimeout(3500);
@@ -187,6 +196,9 @@ try {
     process.exit(1);
   }
 
+  // Headed watch: raise the window once more right before the flight, in case focus drifted during
+  // the settle wait, so the run is on-screen and focused the moment it starts.
+  if (HEADED) await page.bringToFront();
   // The flight runs inside the page's animation loop; runBenchmark resolves when it finishes.
   // A remount (hot reload) stops that loop → the promise never resolves → this timeout fires.
   result = await Promise.race([

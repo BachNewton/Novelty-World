@@ -78,8 +78,8 @@ interface BenchmarkResult {
   samples: BenchmarkSample[];
 }
 /** Default real-time end-hold (seconds) when the tool doesn't override it — long enough that the
- *  ending clearly reads as "done" when watching live. */
-const DEFAULT_END_HOLD_SECONDS = 4;
+ *  ending clearly reads as "done" when watching live, without dragging out the close. */
+const DEFAULT_END_HOLD_SECONDS = 2;
 
 interface BenchmarkRun {
   timeline: Timeline;
