@@ -149,12 +149,24 @@ spawn → deterministic. The `phys` column (CPU physics-step ms) is the metric h
 - **Run:** `--mode visuals --label tax-v` then `--mode both --label tax-b`; diff `tot50`/avgFPS.
 - **Learn:** whether the new stability-matrix bodies actually cost frame time, or hide under the GPU.
 
-### P3 — Object-count scaling (needs a small knob)
-- **Needs:** a `--bodies N` knob (subset/replicate `BENCH_SHAPES`) — today it's the fixed `TEST_SHAPES`
-  set. Add it like the other bench knobs.
+### P3 — Object-count scaling (`--bodies N`)
 - **Hypothesis:** `phys` p50 grows with body/voxel count (buoyancy is per-voxel; collisions super-linear
   in contacts) — the curve that answers "how many objects before physics blows the frame budget".
+- **Run:** `--mode physics --bodies N --label scale-N` for each N. The knob swaps the curated demo set
+  for a fresh non-overlapping grid of N **buoyant hulls** (cycled from the air-enclosing demo shapes —
+  boat/hulls/buckets/crown), so every added body genuinely exercises the flood-fill buoyancy rather
+  than padding the count with solid plates. Body count is recorded in the JSON (`meta.bodies`).
 - **Sweep:** N = 4 / 8 / 16 / 32 / 64.
+- **Learn:** the shape of the curve (linear vs super-linear) and the N at which `phys` p50 crosses the
+  frame budget — the object budget for a build/fleet before physics needs optimising.
+
+### P4 — Buoyancy vs Rapier split (DEFERRED — needs the in-loop timers)
+- **Idea:** the `phys` number is two systems in one — our per-voxel **buoyancy** (`applyBuoyancy`) and
+  **Rapier**'s solver (`world.step`), back-to-back in the fixed-step loop. Timing each separately says
+  which one to optimise (and how each scales with `--bodies N`).
+- **Blocked on:** instrumenting inside `physics.ts`' step loop — deferred until the in-progress
+  buoyancy work lands, then done as physics **self-reporting** its internal breakdown (a getter the
+  bench reads at the seam), so no system couples to the benchmark. See PERFORMANCE.md known-gaps.
 
 ## Results template (fill in per experiment)
 

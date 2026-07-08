@@ -8,7 +8,7 @@ import type {
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics, RAFT, TEST_SHAPES, type Physics } from "./physics";
-import { BENCH_SHAPES } from "./bench-shapes";
+import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
 import { createPlayer } from "./player";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
@@ -42,6 +42,10 @@ interface BenchmarkConfig {
    *  "physics" (step the bench physics with the ocean hidden — isolate CPU physics cost), or "both"
    *  (render AND step — the true combined gameplay frame). See tools/bench.mjs --mode. */
   mode?: BenchmarkMode;
+  /** Scale the physics load to this many buoyant hulls (physics/both modes) for the object-count
+   *  scaling sweep — a fresh grid of `benchShapesForCount` bodies instead of the demo BENCH_SHAPES.
+   *  Undefined = the default demo load. See tools/bench.mjs --bodies. */
+  bodies?: number;
 }
 type BenchmarkMode = "visuals" | "physics" | "both";
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
@@ -57,6 +61,9 @@ interface BenchmarkResult {
   fixedDt: number;
   /** Which cost centre this run exercised (visuals / physics / both). */
   mode: BenchmarkMode;
+  /** Number of physics bodies actually under load (0 in visuals mode) — the x-axis of a scaling
+   *  sweep, so it must travel with the numbers. */
+  bodies: number;
   /** True when this was a real-time (headed) run — numbers are felt-smoothness, not deterministic. */
   realtime: boolean;
   /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
@@ -90,6 +97,8 @@ interface BenchmarkRun {
   /** The benchmark-owned physics world (BENCH_SHAPES) stepped each frame in physics/both mode; null
    *  in visuals mode. Separate from the gameplay physics + sailor, so respawn() → deterministic. */
   benchPhysics: Physics | null;
+  /** How many bodies that world holds (0 when benchPhysics is null) — recorded in the result. */
+  benchBodies: number;
   /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
   prevIndex: number;
   /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
@@ -660,6 +669,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       run.resolve({
         fixedDt: FIXED_DT,
         mode: run.mode,
+        bodies: run.benchBodies,
         realtime: run.realtime,
         gpuAvailable: gpuTimer !== undefined && gpuTimer.available,
         gpu,
@@ -845,16 +855,20 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       paused = false;
       syncGui();
 
-      // Physics load = a benchmark-OWNED Rapier world (BENCH_SHAPES), separate from the gameplay
-      // physics + sailor and reset to a known spawn → deterministic. Its bodies render only in "both".
+      // Physics load = a benchmark-OWNED Rapier world, separate from the gameplay physics + sailor and
+      // reset to a known spawn → deterministic. Its bodies render only in "both". `--bodies N` swaps
+      // the curated demo set for a fresh grid of N buoyant hulls (the object-count scaling sweep).
+      const shapes =
+        config.bodies !== undefined ? benchShapesForCount(config.bodies) : BENCH_SHAPES;
       let benchPhysics: Physics | null = null;
       if (mode === "physics" || mode === "both") {
-        benchPhysics = createPhysics(ocean, BENCH_SHAPES);
+        benchPhysics = createPhysics(ocean, shapes);
         benchPhysics.object.visible = mode === "both";
         scene.add(benchPhysics.object);
         await benchPhysics.init(); // load Rapier + build the world/bodies before the flight starts
         benchPhysics.respawn();
       }
+      const benchBodies = benchPhysics ? shapes.length : 0;
 
       return new Promise<BenchmarkResult>((resolve) => {
         benchmark = {
@@ -868,6 +882,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           realtime: config.realtime === true,
           mode,
           benchPhysics,
+          benchBodies,
           prevIndex: -1,
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",

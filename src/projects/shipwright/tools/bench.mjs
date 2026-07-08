@@ -33,10 +33,15 @@
 // The physics world is separate from the live scene's raft + sailor and reset to a known spawn, so
 // physics/both stay deterministic in headless mode.
 //
+// PHYSICS LOAD (--bodies N, physics/both only): swap the curated demo set for a fresh grid of N
+// buoyant hulls (cycled from the air-enclosing demo shapes — boat/hulls/buckets/crown, the builds
+// that actually exercise our per-voxel flood-fill buoyancy). Sweep N = 4/8/16/32/64 to trace the
+// object-count scaling curve (the `phys` column vs N). Omit for the default demo scene.
+//
 // Prereq: a server serving this build + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--mode visuals|physics|both]
-//           [--render-scale R] [--reflection-res R] [--water NAME] [--label L] [--width 1600]
-//           [--height 900] [--headed] [--hold SEC] [--timeout MS]
+//           [--bodies N] [--render-scale R] [--reflection-res R] [--water NAME] [--label L]
+//           [--width 1600] [--height 900] [--headed] [--hold SEC] [--timeout MS]
 // Writes  <label>/<sha>-<slug>.json under ../.bench (gitignored, **/.bench/) and prints a summary.
 
 import { chromium } from "playwright";
@@ -93,6 +98,7 @@ if (args["render-scale"] !== undefined) config.renderScale = Number(args["render
 if (args["reflection-res"] !== undefined) config.reflectionRes = Number(args["reflection-res"]);
 if (args.water !== undefined) config.water = args.water;
 if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
+if (args.bodies !== undefined) config.bodies = Number(args.bodies); // physics-load body count (scaling sweep)
 if (HEADED) config.realtime = true; // headed = real-time (natural-speed) watch mode
 if (HOLD_SECONDS > 0) config.endHoldSeconds = HOLD_SECONDS;
 
@@ -232,6 +238,7 @@ const report = {
     generatedAt: new Date().toISOString(),
     clock: result.realtime ? "real-time (headed)" : "fixed-dt (headless)",
     testMode: result.mode, // visuals | physics | both — which cost centre was exercised
+    bodies: result.bodies, // physics bodies under load (0 in visuals mode)
     hardware,
     fixedDt: result.fixedDt,
     gpuAvailable: result.gpuAvailable,
@@ -275,7 +282,8 @@ const r = report.meta.render;
 console.log(`\nShipwright render-cost benchmark  (${SHA} on ${BRANCH})`);
 console.log(`hardware: ${hardware.gpu}`);
 console.log(`          ${hardware.cpu} (${hardware.cores} cores) · ${hardware.ramGB} GB · ${hardware.os} · ${hardware.host}`);
-console.log(`clock: ${report.meta.clock}   test: ${report.meta.testMode}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
+const testLabel = report.meta.bodies > 0 ? `${report.meta.testMode} (${report.meta.bodies} bodies)` : report.meta.testMode;
+console.log(`clock: ${report.meta.clock}   test: ${testLabel}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
 console.log(`config: ${Object.keys(config).length ? JSON.stringify(config) : "scene defaults"}   url: ${URL}`);
 console.log(
   "\n" +

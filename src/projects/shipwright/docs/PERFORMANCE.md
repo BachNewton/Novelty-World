@@ -311,10 +311,28 @@ benchmark-OWNED Rapier world with the ocean hidden — isolate CPU physics via t
 reset, so physics/both stay deterministic in headless mode (no sailor → no reset gap). See the Tier-4
 experiments in `perf-experiments.md`.
 
+**Scaling the load — `--bodies N`.** `physics`/`both` accept `--bodies N` to swap the demo set for a
+fresh non-overlapping grid of N **buoyant hulls** (`benchShapesForCount`, cycled from the air-enclosing
+demo shapes so every body exercises the flood-fill buoyancy, not just Rapier). Sweep it for the
+object-count scaling curve (perf-experiments P3); `meta.bodies` records the count.
+
+### The measurement principle — measure from the seams, systems stay ignorant
+
+The benchmark must **not** become something every game system has to know about. Two mechanisms keep
+it decoupled: (1) **coarse totals** (frame CPU total, GPU per-pass totals) are captured at the
+harness/seam level with zero code in any system — this already catches CPU-vs-GPU and total
+regressions for *any* future system; (2) **fine per-system attribution** is done by the *loop* that
+already calls a system by name (or by a module self-reporting its own internal breakdown via a
+getter) — never by a system reaching into the bench. Unattributed cost falls into an `other` bucket.
+The eventual clean form is a tiny tick-registry at the orchestration layer that times what it ticks.
+
 ### Known gaps (fast-follows)
 
-- **Physics object-count knob.** `BENCH_SHAPES` is a fixed set today; a `--bodies N` knob would let
-  the physics mode sweep the object-count scaling curve (perf-experiments P3).
+- **Buoyancy vs Rapier split (`phys` is two systems).** The `phys` number sums our per-voxel buoyancy
+  (`applyBuoyancy`) and Rapier's `world.step` back-to-back in the fixed-step loop. Splitting them needs
+  timers *inside* that loop — **deferred** until the in-progress buoyancy work lands (don't churn that
+  loop now), then done as physics **self-reporting** its breakdown (a getter the bench reads at the
+  seam, per the principle above). See perf-experiments P4.
 - **`SSR_STEPS`/`SSR_REFINE` aren't runtime-swept** (still compile-time). Pair the benchmark with
   the uniform-`break` refactor (see the compile-time-knobs note above) to sweep them per run.
 - **No regression gate yet.** JSON is keyed by git SHA; a gate (fail if p95 `total` rises >X% vs a
