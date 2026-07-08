@@ -4,11 +4,22 @@ Read this before any rendering-cost / FPS work on the ocean, and **keep it updat
 as you learn more — it's the one place that drifts if perf work doesn't maintain it.
 The blow-by-blow is in git history; this is the distilled, actionable version.
 
-The ocean is the perf-dominant part of Shipwright: it shades most of the screen with a
+The ocean is the perf-dominant part of Shipwright's **GPU** cost: it shades most of the screen with a
 screen-space composite (refraction + depth + reflection) plus a PBR lighting pass and a
 separate reflection pass. Most of this doc is about that (GPU / fill). The separate
 **CPU-side** cost — Rapier physics + JS buoyancy sampling — has its own section,
 "**Physics & buoyancy (CPU)**", below.
+
+> **⚠ 2026-07-09 reconciliation — read this first; it recontextualizes the doc below.**
+> A CPU seam-timer + render-census session (see `perf-handoff.md` / `perf-experiments.md`) found the
+> *real combined frame* was **CPU-bound, and the CPU cost was NOT the ocean** — it was scene-graph
+> **traversal** over ~12,800 hidden force-arrow debug `Object3D`s (`updateMatrixWorld` walks invisible
+> nodes ×3 passes/frame). Building that overlay lazily cut render CPU ~11× (both/32: 20→1.4 ms;
+> interactive scene 20–30 → 60 fps vsync cap). **The frame is now physics-bound**, and within physics
+> the **per-voxel buoyancy loop is ~67 %** (Rapier solver ~27 %) — so the GPU levers below (render
+> scale / SSR / tessellation) are for the *GPU ceiling* (now co-equal, ~9.5 ms), NOT the thing that was
+> actually limiting the frame. The lesson: **measure scene-graph node count and CPU seams, not just
+> draw calls and GPU-ms.** The physics section near the end is now MEASURED (was "not measured yet").
 
 ---
 
@@ -157,8 +168,11 @@ separate reflection pass. Most of this doc is about that (GPU / fill). The separ
 ## Physics & buoyancy (CPU) — the other cost center
 
 Distinct from the GPU/ocean cost above: this is the **CPU** side (Rapier + JS buoyancy in
-`physics.ts`). It's **not measured yet** (see the benchmark's "Live physics load" gap below) — the
-model here is reasoned, flagged where it's assumption. Correct it once instrumented.
+`physics.ts`). **MEASURED 2026-07-09** (physics-step seam split, `physics.stepTiming()` → bench
+`buoyancy`/`solver` columns): at 32 bodies **buoyancy = 6.1 ms (67 %), Rapier `world.step` = 2.5 ms
+(27 %)**, the rest clamp/snapshot/interp; at 64 bodies 11.6 / 4.6 ms — both **linear in body count**.
+So the old "reasoned, flagged" model below is now confirmed on the key point: **buoyancy dominates**,
+~2.4× the solver. (This is also now the whole frame's bottleneck — see the top reconciliation note.)
 
 ### Where it runs — all on the MAIN thread
 
@@ -180,9 +194,13 @@ model here is reasoned, flagged where it's assumption. Correct it once instrumen
    material voxel and once per void cell**, plus `waterVelocity` (2× `sampleParticle`) per material
    voxel, plus one `sampleSurface` per compartment.
 
-**Do NOT assume Rapier dominates.** The per-voxel Gerstner inversion is trig-heavy and scales with the
-same voxel count as the colliders, so buoyancy sampling is plausibly **comparable** to the Rapier step,
-not negligible. Which wins is unmeasured — instrument before optimizing.
+**Buoyancy dominates — CONFIRMED (2026-07-09), not just plausible.** The per-voxel Gerstner inversion is
+trig-heavy and, measured, is **~2.4× the Rapier step** (67 % vs 27 %). It is the lever: greedy-meshing
+colliders (below) only targets the 27 % solver half. The buoyancy cost is the Newton inversion + wave
+math (trig), NOT allocation — a `sampleHeight` that dropped the discarded normal `Vector3` per voxel left
+the 6.1 ms unchanged. To cut buoyancy: fewer sample points (per-N-voxels / per-face), or a cheaper height
+sample (the full Newton inversion may be overkill when only submersion depth is needed) — both
+gameplay-affecting, so measure the visual/float trade before committing.
 
 **Stage 3b flooding is ~free on top.** The compartment fill model is per-**compartment** (a handful per
 hull): one extra `sampleSurface` + small loops each. The per-voxel work is unchanged from before it.
@@ -224,12 +242,12 @@ touching ships) would surface a real collision cost — not yet measured. See `p
    `crossOriginIsolated` (COOP/COEP headers on Vercel). Speeds only the *solver* (not our JS buoyancy), only
    at high contact counts. **Marginal for us** — do 1 and 2 first.
 
-### How to measure (do this before optimizing)
+### How to measure — DONE (2026-07-09)
 
-Wrap `performance.now()` around `applyBuoyancy(time)` vs `world.step()` in the fixed loop and log per-frame
-ms for each — that resolves "which dominates" directly. It also closes the benchmark's **"Live physics load
-is not measured"** gap (below): the harness shows the raft at a static reset pose precisely because stepping
-physics deterministically there needs a sailor reset + fixed-step driving that isn't built yet.
+Implemented exactly as planned: `physics.ts` wraps `performance.now()` around `applyBuoyancy(time)` vs
+`world.step()` in the fixed loop (summed over substeps), exposes it via `stepTiming()`, and the bench reads
+it at the seam into `buoyancy`/`solver` columns (`--mode physics`/`both`). Result above: buoyancy 67 %,
+solver 27 %. Run `node .../bench.mjs --mode physics --bodies 32` for the split table.
 
 ---
 
@@ -335,11 +353,16 @@ node .../bench.mjs --headed --hold 3000
 ```
 
 Config knobs (each applied once for the whole run; the flight sweeps sea/sun/camera itself):
-`--render-scale`, `--reflection-res`, `--water`, plus `--url`, `--label`, `--timeout`, `--headed`,
-`--hold`. Results land in `.bench/<label>/<sha>-<slug>.json` (gitignored) with a stdout summary
-table; per **segment** and **overall** it reports min/max/avg + 1%-low **FPS**, per-pass
-(`capture`/`ssr`/`main`/`total`) + frame **p50/p95/p99 ms**, and a **spike count** (frames >2× the
-median). FPS = `1000 / max(cpuMs, gpuTotal)`.
+`--render-scale`, `--reflection-res`, `--ssr off`, `--ssr-cutoff` (E5), `--water`, `--mode`
+(visuals/physics/both), `--bodies N`, `--collision off`, `--quad-size` (E8), plus the diagnostics
+`--gpu-timer off` and `--bare-probe`, and `--url`, `--label`, `--timeout`, `--headed`, `--hold`.
+Results land in `.bench/<label>/<host>-<sha>-<slug>.json` (gitignored) with a stdout summary; per
+**segment** and **overall** it reports min/max/avg + 1%-low **FPS**, per-pass GPU (`capture`/`ssr`/
+`main`/`total`) + frame **p50/p95/p99 ms**, a **spike count**, a **CPU seam split** (`ocean`/`capt`/
+`ssr`/`main`/`phys`/`onFrm`/`total`), a **physics split** (`buoyancy`/`solver`) in physics/both modes,
+and a **render census** header (draw calls + triangles + **scene-graph node count**). FPS =
+`1000 / max(cpuMs, gpuTotal)` — note this still excludes the main-render CPU submit; `cpuTotal` in the
+JSON adds it.
 
 ### Traps it defends against (read before trusting a number)
 
@@ -409,11 +432,9 @@ The eventual clean form is a tiny tick-registry at the orchestration layer that 
 
 ### Known gaps (fast-follows)
 
-- **Buoyancy vs Rapier split (`phys` is two systems).** The `phys` number sums our per-voxel buoyancy
-  (`applyBuoyancy`) and Rapier's `world.step` back-to-back in the fixed-step loop. Splitting them needs
-  timers *inside* that loop — **deferred** until the in-progress buoyancy work lands (don't churn that
-  loop now), then done as physics **self-reporting** its breakdown (a getter the bench reads at the
-  seam, per the principle above). See perf-experiments P4.
+- **Buoyancy vs Rapier split — DONE (2026-07-09).** `physics.ts` self-reports `stepTiming()` (buoyancy
+  vs `world.step`, summed over substeps); the bench reads it at the seam into `buoyancy`/`solver` columns.
+  Measured: buoyancy 67 %, solver 27 %. (Done exactly as the principle prescribes — self-reporting getter.)
 - **`SSR_STEPS`/`SSR_REFINE` aren't runtime-swept** (still compile-time). Pair the benchmark with
   the uniform-`break` refactor (see the compile-time-knobs note above) to sweep them per run.
 - **No regression gate yet.** JSON is keyed by git SHA; a gate (fail if p95 `total` rises >X% vs a
