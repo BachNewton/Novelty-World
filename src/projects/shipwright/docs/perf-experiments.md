@@ -33,23 +33,37 @@ node src/projects/shipwright/tools/bench.mjs --label baseline --url http://local
 
 ---
 
-## The systems — what each frame runs, and on which clock
+## Two lenses: systems and levers (both clocks have both)
 
-The goal isn't just an overall FPS number; it's to know **the cost of each game system independently**
-— which processor it lands on, what drives it, and how to isolate it — so a spike or a regression can
-be traced to a *system*, not just "the frame got slower". A frame runs two overlapping clocks (CPU on
-the JS main thread, GPU via ANGLE), and **frame time ≈ max(CPU total, GPU total)** because they
-pipeline. Each system below lands on one clock; the census (Tier 0) reads them.
+To trace a cost, spike, or regression you need two lenses, and they cut across both clocks:
 
-| System | Clock | Cost driver | Isolate with | Status |
-|---|---|---|---|---|
-| **Ocean render** (capture + SSR + main passes) | GPU | pixel count, SSR march, grazing angle | `--mode visuals`; E1–E9 | **measured** per-pass (`ssr`/`capture`/`main`) |
-| **Buoyancy** (our per-voxel flood-fill + trapped-air) | CPU | voxels, void/cavity cells, body count | `--mode physics` + `--bodies`; P1/P3 | measured **inside** `phys`; own column = P4 (deferred) |
-| **Rapier solver** (`world.step`) | CPU | bodies, contacts | `--mode physics` + `--bodies`; P1/P3 | measured **inside** `phys`; own column = P4 (deferred) |
-| **Ocean CPU field** (`sampleSurface`, Gerstner sum + Newton inversion) | CPU | sample count, wave count, iters | seam timer around `ocean.update` | **deferred** (needs the seam span) |
-| **Nav buoys** (kinematic particle-ride) | CPU | buoy count | seam timer around `navBuoys.update` | **deferred** |
-| **Player controller** (dynamic-body sailor) | CPU | one body + its contacts | seam timer around the fixed-step callback | **deferred** (absent in the bench world) |
-| **Frame / smoothness** | mixed | `max(CPU, GPU)` | any run: `avgFPS`, `1%low`, `spikes` | **measured** |
+- **Systems** = the cost centres, the code that runs each frame (render passes, buoyancy, Rapier,
+  ocean field…). This is the *what*.
+- **Levers** = the knobs that flex a system's cost (render scale, reflection res, `--bodies`…). This
+  is the *how much*.
+
+Both the GPU and the CPU have systems **and** levers — but they lean opposite ways, which is why it's
+tempting (wrongly) to equate GPU↔levers and CPU↔systems:
+
+- The **GPU** is a *small, fixed set of systems* (three render passes) whose cost is dominated by
+  **settings** → **lever-driven**. GPU tuning is mostly "which knob" (Tiers 1–2).
+- The **CPU** is a *growing pile of systems* (buoyancy, Rapier, ocean field, buoys, player, and every
+  future one) each adding load, with fewer knobs → **system-driven**. CPU tuning is mostly "which
+  system" (Tier 0 census + Tier 4), though it still has levers — `--bodies` is a CPU load lever.
+
+A frame runs both clocks overlapping, and **frame time ≈ max(CPU total, GPU total)** because they
+pipeline. The map below is the *systems* lens (with each system's *levers* alongside); the census
+(Tier 0) reads the systems, and Tiers 1–4 are the levers that flex them.
+
+| System | Clock | Cost driver | Isolate | Flex with (levers) | Status |
+|---|---|---|---|---|---|
+| **Ocean render** (capture + SSR + main passes) | GPU | pixel count, SSR march, grazing angle | `--mode visuals` | render-scale (E1), reflection-res (E2), ssr-steps (E4), ssr-cutoff (E5), capture-scale (E7), tess (E8), MSAA (E9) | **measured** per-pass (`ssr`/`capture`/`main`) |
+| **Buoyancy** (per-voxel flood-fill + trapped-air) | CPU | voxels, void/cavity cells, body count | `--mode physics` | `--bodies` (P3); future: voxel density, flood knobs | in `phys`; own column = P4 (deferred) |
+| **Rapier solver** (`world.step`) | CPU | bodies, contacts | `--mode physics` | `--bodies` (P3) | in `phys`; own column = P4 (deferred) |
+| **Ocean CPU field** (`sampleSurface`, Gerstner sum + Newton inversion) | CPU | sample count, wave count, iters | seam timer around `ocean.update` | wave count, sample density / tess (future knobs) | **deferred** (needs the seam span) |
+| **Nav buoys** (kinematic particle-ride) | CPU | buoy count | seam timer around `navBuoys.update` | buoy count (future knob) | **deferred** |
+| **Player controller** (dynamic-body sailor) | CPU | one body + its contacts | seam timer around the fixed-step callback | — (single body) | **deferred** (absent in the bench world) |
+| **Frame / smoothness** | mixed | `max(CPU, GPU)` | any run | all of the above | **measured** (`avgFPS`/`1%low`/`spikes`) |
 
 The deferred CPU rows all wait on the same thing: a per-system CPU span measured **at the seam** (the
 loop times what it calls) or by a module **self-reporting** its own breakdown — never by a system
@@ -81,7 +95,7 @@ node .../bench.mjs --mode both    --label census-both    # the real combined fra
 
 ---
 
-## Tier 1 — runnable TODAY (no code changes)
+## Tier 1 — GPU render levers, runnable TODAY (no code changes)
 
 ### E1 — Render scale (the headline fill lever)
 - **Hypothesis:** total cost ∝ pixel count (≈ scale²); it's fill-bound so every pass scales, `capture`
@@ -109,7 +123,7 @@ node .../bench.mjs --mode both    --label census-both    # the real combined fra
 
 ---
 
-## Tier 2 — need a small knob exposure first
+## Tier 2 — GPU render levers (need a small knob exposure first)
 
 Each needs a one-line `window.__shipwright` setter + a `bench.mjs --flag` (mirror `setReflectionRes`
 / `--reflection-res`). Cheap; noted per item.
