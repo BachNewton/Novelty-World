@@ -46,20 +46,17 @@ gains water mass, so it sits lower / sinks.
 
 ### Stage 1 — Air-cavity buoyancy (foundational, moderate) — ✅ DONE
 
-**Shipped.** `physics.ts` `findTrappedAirCells` flood-fills each build (exported + unit-tested
-in `physics.test.ts`), and `applyBuoyancy` gives the trapped-air cells buoyancy at zero mass +
-zero drag. **The flood models the sea rising up + sideways but never falling *down* over a rim**,
-so it recognises not just fully-sealed boxes but **open-top hulls** — the raft's interior air
-layer and the boat hull below its gunwale both count (an intact upright hull floats on the air it
-holds). Side/bottom breaches flood; dynamic rim-overtopping (a storm swamping a boat) stays
-Stage 3, so this assumes rims sit above the waterline. A `TEST_SHAPES` "Sealed hull" (a dense box,
-ρ = 1400 > water, that floats on its cavity) demonstrates the extreme case; a **"trapped-air cells"
-Debug toggle** x-rays the classified air through the hull, and a **Physics "air-cavity buoyancy"
-A/B switch** turns it off to watch a dense hull sink without it. The classifier is a **pure
-function of the cell list** (not baked into the colliders or merged mesh), so the coming voxel
-builder can re-run it per place/break to keep cavities correct in real time — the one runtime piece
-still to add there is reallocating the buoyancy-point / air-overlay arrays when a build's cell
-count changes (they're sized once today).
+**Shipped, then superseded by the Stage 3a dynamic model below.** The first cut classified trapped
+air ONCE at build time in the body's local frame (a "sea rises + sideways, never down over a rim"
+flood). It floated open-top hulls (raft, boat) as well as sealed boxes, but only near the upright
+pose. That static classifier has since been **replaced** by the per-step world-space flood (Stage 3a)
+— `analyzeBuildVoids` (build-time graph) + `floodSea` (per-step) — which is orientation- and
+waterline-correct. What remains from Stage 1: buoyancy at zero mass + zero drag applied at each
+air cell's point, the `TEST_SHAPES` "Sealed hull" (ρ = 1400 > water) + edge-case demos, the
+**"trapped-air cells"** Debug x-ray, and the **"air-cavity buoyancy" A/B switch**. The build-time
+graph is still a **pure function of the cell list**, ready for the voxel builder to re-run per
+place/break — the one runtime piece still to add there is reallocating the buoyancy-point /
+air-overlay arrays when a build's cell count changes (they're sized once today).
 
 Original spec, for reference:
 
@@ -92,23 +89,62 @@ surface visually intruding into a slammed hull.
 
 ### Stage 3 — Compartment flooding + interior water (the gameplay layer, largest)
 
-- **Orientation-correct trapped air (subsumes the Stage 1 static classifier).** Stage 1 classifies
-  trapped air ONCE at build time, in the body's local frame with local +Y as "up" — only correct
-  near the upright design pose. As a hull rolls/capsizes, its down-face changes: a `Bucket`'s open
-  top swings under and its air should glug out, but the static set keeps floating it on phantom air.
-  Stage 3 fixes this by recomputing the trapped-air/flooded split **each step against the actual
-  world-space water surface and world-down** — flood the sea in from wherever it can reach at the
-  hull's current orientation + draft; whatever enclosed pocket is left above the waterline is the
-  buoyant air. (Fully-SEALED cavities are pose-independent, so they need no per-step recompute — an
-  optimisation: only builds with openings need the dynamic pass.) A cheap interim stopgap is to gate
-  open-pocket air off once a hull tilts past a threshold, but the world-space flood-fill is the real
-  fix and is roughly the same work as the per-compartment tracking below.
-- Track water **per sealed compartment**. When the ocean height at an **opening** (a gap in
-  the shell, or the gunwale rim) exceeds that rim, water flows in: convert that compartment's
-  sealed-air cells to **flooded** → buoyancy lost, water mass gained → the boat sits lower and
-  can sink.
-- Render interior water in flooded compartments at the flooded level (builds on Stage 2's
-  interior-water path).
+- **Stage 3a — orientation-correct trapped air. ✅ DONE.** `analyzeBuildVoids` pre-builds two things
+  per build ONCE: the void graph, and a static **`enclosed` mask** (air-*capable* cells — those the
+  sea can't reach by rising + moving sideways, i.e. below a rim; orientation-free shape geometry).
+  Then each step `floodSea` floods the outside sea through the voids whose centre is under the live
+  ocean surface, seeded from the ones exposed on the bounding-box faces. **Trapped air = enclosed AND
+  not flooded**, buoyant by submerged fraction. The two masks split the labour: `enclosed` rules out
+  *open* volume so decorative geometry (a `Crown raft`'s merlons) never counts as air, while the
+  per-step flood makes flooding orientation- + waterline-correct: capsize a `Bucket` → its mouth goes
+  under → floods (phantom air gone); swamp a rim → floods; a sealed pontoon → air in any pose. Visible
+  live in the "trapped-air cells" x-ray as shapes roll. Same per-cell cost as the static version, so
+  no perf change. Deterministic (pure of body pose + sim clock). Unit-tested in `physics.test.ts`.
+  Test shapes for it: five **stability buckets** (open-top, dense, wall heights h3→h10 → a spectrum
+  from "swamps on the splash-down" to "takes the plunge and bobs back up") and the **crown raft**
+  (decorative merlons that add no air). A shallow bucket sinking on a hard drop is EXPECTED — the
+  entry force drives its low rim fully under and it ships water.
+- **Rate-limited flooding. ✅ DONE.** Flooding is NOT instantaneous — that made merely dipping a hull
+  under the surface (e.g. a bucket's splash-down) drain its air in one frame, when almost no water had
+  actually poured in. Now each enclosed cell carries a persistent water level (`voidWater` 0..1) that
+  rises toward the flood at `FILL_RATE` while the sea reaches it and falls at `DRAIN_RATE` when it
+  doesn't; air buoyancy scales by `(1 − voidWater)`. So a brief dunk barely ships water and the hull
+  bobs back up, while sustained inflow over a rim founders it — and a **sealed** below-deck, never
+  sea-reachable, keeps its air and buoyancy however deep it sits (the essential gameplay). The water
+  level is deterministic sim state (integrated at `FIXED_DT`). *Limitation:* draining is gated only on
+  "the sea no longer reaches the cell", so water shipped into a compartment can drain back out once its
+  rim clears the surface — proper trapped-water persistence wants the per-compartment water column below.
+- **Runaway guard (robustness).** The water model is tuned for gentle seas; cranking the wave sliders
+  hard launches bodies and can pump energy until Rapier's WASM solver hits a non-finite value and
+  traps (`"unreachable"`), which used to hard-freeze the app. Now each step clamps any body's speed
+  back under a cap (`MAX_LINVEL`/`MAX_ANGVEL`) so the solver's inputs stay finite, and the whole
+  stepping loop is wrapped so a trap (if one ever slips through) stops the sim and freezes the bodies
+  instead of crashing the scene.
+- **Stage 3b — compartment water level with air-trapping (NEXT — the big one, model confirmed with
+  Kyle).** The current flood fills *every* submerged sea-reachable cell. The real model fills a
+  compartment only up to its **opening level, trapping air above** — Kyle's "a cannon hole below the
+  waterline fills up to the height of the hole, air stays above." Plan:
+  - **Group** the enclosed voids into **compartments** (connected components of the enclosed void
+    graph — the bulkhead already makes two). Precompute a compartment id per void, alongside
+    `analyzeBuildVoids` (static; re-run on build edits).
+  - Track a **water level `L` per compartment** (persistent sim state, integrated at `FIXED_DT`).
+    Each step: find the compartment's openings (its exposed cells) and their world heights; if any is
+    **below the external waterline** (submerged → an inflow path), raise `L` toward
+    **`min(external waterline, highest opening height)`** at a finite rate; else drain. A cell is
+    flooded iff its centre is below `L`. (This subsumes today's per-cell `voidWater`.)
+  - **Water mass / weight.** A *submerged* flooded cell is already neutral — losing its air buoyancy
+    equals the water's weight, which is why dense hulls sink and light ones swamp awash today. What's
+    still missing is water carried **above** the external waterline (a heeled/pitched boat, or water
+    perched above sea level inside the hull): add its **downward weight** `ρ·g·V` at that cell so a
+    tilted, part-flooded boat is pulled down realistically. This is the "extra water lowers the boat →
+    submerges more openings → cascade" feedback in full.
+  - **Wave/waterline caveat to handle:** the external surface varies per (x,z) with the waves; pick a
+    representative level per compartment (surface at its centroid, or per-opening) — don't assume a
+    flat sea. Also note the coarse ocean-mesh tessellation can render the surface a touch below the
+    analytic CPU height on sharp crests (see root `CLAUDE.md`), so "rendered water looks over the rim
+    but CPU says not quite" is a known cosmetic mismatch, not a physics bug.
+- **Render interior water** in flooded compartments at level `L` (builds on Stage 2's interior-water
+  path).
 - This is the "water only enters over the edge" behaviour and the storm-stakes gameplay.
   It also completes below-deck: a sealed, un-flooded compartment is dry walkable air.
 
@@ -139,6 +175,6 @@ glitch and is needed no matter what; Stage 3 is the rich gameplay and depends on
 
 **Interaction with the voxel builder (roadmap #5, likely next).** Players placing/breaking
 voxels will change the sealed-air classification live. Stage 1 was built for this: the classifier
-is pure and standalone, so the edit path is just — on a cell change, re-run `findTrappedAirCells`,
+is pure and standalone, so the edit path is just — on a cell change, re-run `analyzeBuildVoids`,
 swap the per-body air-cell list, and reallocate the buoyancy-point + air-overlay arrays for the new
 count (those are sized once at spawn today). No entanglement with the collider/mesh rebuild.

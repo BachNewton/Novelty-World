@@ -271,17 +271,27 @@ code that floats the ship agree on where the surface is.
   **balance-loss** state machine (footed↔thrown) so storms can actually throw the sailor —
   it adds stakes + rewards stable hull design, and the dynamic body already supports it; it
   was parked because the current glued-on feel is good and it's gameplay polish, not a bug.
-- **Buoyancy / displacement overhaul — Stage 1 (air-cavity buoyancy) shipped.** `physics.ts`
-  `findTrappedAirCells` flood-fills a build to classify the air pockets a hull encloses (exported,
-  unit-tested in `physics.test.ts`); `applyBuoyancy` gives those cells buoyancy at **zero mass /
-  zero drag**, so a hull floats on its trapped air. The flood models the sea rising up + sideways
-  but **never falling down over a rim**, so it recognises **open-top hulls** (the raft's interior
-  layer, a boat below its gunwale) not just sealed boxes — side/bottom breaches still flood; dynamic
-  rim-overtopping is Stage 3 (assumes rims above the waterline). A `TEST_SHAPES` "Sealed hull"
-  (ρ = 1400 > water) demos the extreme case; a **"trapped-air cells" Debug toggle** x-rays the air
-  through the hull, and a **Physics "air-cavity buoyancy" A/B switch** turns it off to watch a dense
-  hull sink. The classifier is a **pure function of the cell list**, ready for the voxel builder to
-  re-run per place/break. **Still to do** (see `docs/buoyancy.md`): Stage 2 — stop the global ocean
-  surface drawing *inside* a slammed hull; Stage 3 — per-compartment flooding over the gunwale.
+- **Buoyancy / displacement overhaul — air-cavity buoyancy shipped (Stage 1 + Stage 3a).** Hulls
+  float on the air they enclose. Model in `physics.ts` (`analyzeBuildVoids` + `floodSea`, both
+  exported + unit-tested in `physics.test.ts`): `analyzeBuildVoids` pre-builds ONCE (pure function of
+  the cell list, ready for the voxel builder to re-run per place/break) a build's void graph + a
+  static **`enclosed` mask** (air-*capable* cells, below a rim); each step `floodSea` floods the
+  outside sea through the voids under the live ocean surface. **Trapped air = enclosed AND not
+  flooded**, buoyant by submerged fraction at **zero mass / zero drag**. `enclosed` (shape geometry)
+  keeps *open* volume — a decorative crown — from counting as air; the per-step flood makes flooding
+  **orientation- + waterline-correct** (capsize → mouth floods; swamp a rim → floods; sealed pontoon
+  → air in any pose). Flooding is **rate-limited** (persistent per-cell `voidWater`, `FILL_RATE`/
+  `DRAIN_RATE`): merely dipping under the surface for a moment barely ships water and the hull bobs
+  back up — only sustained inflow over a rim founders it, and a sealed below-deck keeps its air at any
+  depth. Demos in `TEST_SHAPES`: Sealed hull (ρ = 1400), breached / bulkhead /
+  open-bottom edge cases, five **stability buckets** (wall heights h3→h10 → a swamp-vs-bob-back
+  spectrum), a
+  **crown raft** (decorative merlons add no air). Debug: a **"trapped-air cells" x-ray** (updates live
+  as shapes roll) + an **"air-cavity buoyancy" A/B switch**. A **runaway guard** (`MAX_LINVEL`/
+  `MAX_ANGVEL` velocity clamp + a try/catch around the step loop) keeps heavy-sea instability from
+  NaN-ing the Rapier WASM solver and hard-freezing the app. **Still to do** (see `docs/buoyancy.md`):
+  Stage 3b — flooded cells add water MASS so a swamped hull actively sinks (today it only loses lift);
+  Stage 2 — stop the global ocean surface drawing *inside* a slammed hull; Stage 3c — render interior
+  water in flooded compartments.
 - **Also open:** shoreline **foam** (we have soft edges, not a foam line), then the
   voxel core / ships (which will drive live re-classification of the trapped air).

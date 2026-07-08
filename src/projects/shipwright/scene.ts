@@ -337,6 +337,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     capture: true,
     planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
     quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
+    simSpeed: 0.5, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
   };
 
   // --- Environment: sun + sky -------------------------------------------------
@@ -465,6 +466,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   debugFolder.add(debug, "pole").name("measuring pole").onChange((on: boolean) => {
     measuringPole.object.visible = on;
   });
+  // Slow-mo / pause the whole sim (waves + physics stay in lock-step) to study a fast event like a
+  // bucket dropping in and shipping water. 0 pauses; 0.1–0.3 is a good crawl for watching the entry.
+  debugFolder.add(debug, "simSpeed", 0, 1.5, 0.05).name("sim speed");
 
   // --- Objects: floaters. physics.ts fills the Objects folder and appends its
   // force-arrow diagnostic to Debug. Built last so that toggle lands below the
@@ -560,13 +564,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   return {
     onFrame: (delta) => {
       // `paused` (debug freeze) holds the wave field + physics on one frame so an automated
-      // capture gets a reproducible static image; the scene still renders each frame.
+      // capture gets a reproducible static image; the scene still renders each frame. `simSpeed`
+      // scales the clock for slow-mo/pause inspection — both the wave time and the physics get the
+      // same scaled delta, so they never drift out of lock-step.
       if (!paused) {
-        elapsed += delta;
+        const dt = delta * debug.simSpeed;
+        elapsed += dt;
         // Step the Rapier buoyancy sim (fixed-timestep internally) and pose its shapes —
         // before the capture below, so they refract like the buoys. Pass `elapsed` (the same
         // clock the ocean is rendered at) so buoyancy samples the exact on-screen water.
-        physics.update(delta, elapsed);
+        physics.update(dt, elapsed);
       }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
