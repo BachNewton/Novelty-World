@@ -128,6 +128,34 @@ answers "does it stay smooth for 10 minutes", which fixed-dt can't.
 
 ---
 
+## Tier 4 — physics / CPU (`--mode`)
+
+A frame has two cost centres; `--mode` isolates the CPU one. The benchmark steps its OWN Rapier world
+(`BENCH_SHAPES`, seeded from `TEST_SHAPES`), separate from the live raft + sailor and reset to a known
+spawn → deterministic. The `phys` column (CPU physics-step ms) is the metric here.
+
+### P1 — Physics floor (physics-only)
+- **Hypothesis:** `physics-only` (ocean hidden, passes skipped) reports the raw CPU cost of stepping
+  the current buoyant/colliding body set — roughly flat across segments (physics cost barely depends
+  on camera/sea).
+- **Run:** `node .../bench.mjs --mode physics --label phys-floor`.
+- **Learn:** the CPU floor the physics eats every frame today — the anchor for "how much headroom is
+  left for rendering".
+
+### P2 — The physics tax (visuals vs both)
+- **Hypothesis:** `both` = `visuals` GPU cost + the physics CPU cost, and since they pipeline, the
+  frame cost is ~`max(gpu, cpu+physics)` — so on a GPU-bound frame the physics may be *free*, and on a
+  CPU-bound one it dominates. The delta tells you which.
+- **Run:** `--mode visuals --label tax-v` then `--mode both --label tax-b`; diff `tot50`/avgFPS.
+- **Learn:** whether the new stability-matrix bodies actually cost frame time, or hide under the GPU.
+
+### P3 — Object-count scaling (needs a small knob)
+- **Needs:** a `--bodies N` knob (subset/replicate `BENCH_SHAPES`) — today it's the fixed `TEST_SHAPES`
+  set. Add it like the other bench knobs.
+- **Hypothesis:** `phys` p50 grows with body/voxel count (buoyancy is per-voxel; collisions super-linear
+  in contacts) — the curve that answers "how many objects before physics blows the frame budget".
+- **Sweep:** N = 4 / 8 / 16 / 32 / 64.
+
 ## Results template (fill in per experiment)
 
 Per setting, from the headless JSON (`.bench/<label>/<host>-<sha>-<slug>.json`), keyed by git SHA +

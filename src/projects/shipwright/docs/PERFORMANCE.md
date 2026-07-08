@@ -301,13 +301,20 @@ steps/cutoff, SSR on/off, capture res, tessellation, MSAA, quality tiers) that t
 asserted cost model into measured numbers*. Tier 1 runs today; the rest need a one-line knob
 exposure each. Run the suite when there's time and fold the results back here.
 
+### Cost-centre modes (`--mode`) — physics IS now measured
+
+A frame has two cost centres — GPU (render) and CPU (physics). `--mode` isolates them:
+**`visuals`** (default, render only, physics frozen — GPU cost), **`physics`** (step a
+benchmark-OWNED Rapier world with the ocean hidden — isolate CPU physics via the `phys` column),
+**`both`** (render AND step — the true combined frame). The bench physics world runs `BENCH_SHAPES`
+(`bench-shapes.ts`, seeded from `TEST_SHAPES`) — separate from the live raft + sailor and `respawn()`
+reset, so physics/both stay deterministic in headless mode (no sailor → no reset gap). See the Tier-4
+experiments in `perf-experiments.md`.
+
 ### Known gaps (fast-follows)
 
-- **Live physics load is not measured.** The raft is shown at its **reset spawn pose** (a
-  deterministic reflective object for SSR/fill), because the Rapier bodies (raft + sailor) settle
-  in real time before a run and only the raft can be reset today. Stepping physics deterministically
-  needs a sailor reset too + fixed-step driving from the benchmark. Until then the CPU number is
-  render-prep only, not a Rapier-cost measurement.
+- **Physics object-count knob.** `BENCH_SHAPES` is a fixed set today; a `--bodies N` knob would let
+  the physics mode sweep the object-count scaling curve (perf-experiments P3).
 - **`SSR_STEPS`/`SSR_REFINE` aren't runtime-swept** (still compile-time). Pair the benchmark with
   the uniform-`break` refactor (see the compile-time-knobs note above) to sweep them per run.
 - **No regression gate yet.** JSON is keyed by git SHA; a gate (fail if p95 `total` rises >X% vs a

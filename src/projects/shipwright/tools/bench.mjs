@@ -24,9 +24,19 @@
 // a "final" number, point --url at a production build (next build && next start). NOTE: the benchmark
 // must hit a server running THIS checkout's code, not an unrelated dev server.
 //
+// COST-CENTRE MODES (--mode, orthogonal to the clock above): a frame has two cost centres — GPU
+// (render passes) and CPU (physics step). --mode picks which to exercise:
+//   visuals (default) → render only, physics frozen — isolate GPU render cost (what most runs want).
+//   physics           → step a benchmark-owned Rapier world (BENCH_SHAPES) with the ocean HIDDEN —
+//                       isolate CPU physics cost (the `phys` column is the whole signal, GPU ~0).
+//   both              → render AND step — the true combined gameplay frame.
+// The physics world is separate from the live scene's raft + sailor and reset to a known spawn, so
+// physics/both stay deterministic in headless mode.
+//
 // Prereq: a server serving this build + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--render-scale R] [--reflection-res R]
-//           [--water NAME] [--label L] [--width 1720] [--height 1080] [--headed] [--hold SEC] [--timeout MS]
+// Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--mode visuals|physics|both]
+//           [--render-scale R] [--reflection-res R] [--water NAME] [--label L] [--width 1600]
+//           [--height 900] [--headed] [--hold SEC] [--timeout MS]
 // Writes  <label>/<sha>-<slug>.json under ../.bench (gitignored, **/.bench/) and prints a summary.
 
 import { chromium } from "playwright";
@@ -82,6 +92,7 @@ const config = {};
 if (args["render-scale"] !== undefined) config.renderScale = Number(args["render-scale"]);
 if (args["reflection-res"] !== undefined) config.reflectionRes = Number(args["reflection-res"]);
 if (args.water !== undefined) config.water = args.water;
+if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
 if (HEADED) config.realtime = true; // headed = real-time (natural-speed) watch mode
 if (HOLD_SECONDS > 0) config.endHoldSeconds = HOLD_SECONDS;
 
@@ -132,6 +143,7 @@ const summarise = (frames) => {
       ssr: passStats(frames, (f) => f.ssr),
       main: passStats(frames, (f) => f.main),
       cpu: passStats(frames, (f) => f.cpuMs),
+      physics: passStats(frames, (f) => f.physicsMs), // CPU physics-step ms (0 in visuals mode)
     },
     spikes: {
       count: spikes.length,
@@ -218,7 +230,8 @@ const report = {
     branch: BRANCH,
     url: URL,
     generatedAt: new Date().toISOString(),
-    mode: result.realtime ? "real-time (headed)" : "fixed-dt (headless)",
+    clock: result.realtime ? "real-time (headed)" : "fixed-dt (headless)",
+    testMode: result.mode, // visuals | physics | both — which cost centre was exercised
     hardware,
     fixedDt: result.fixedDt,
     gpuAvailable: result.gpuAvailable,
@@ -262,7 +275,7 @@ const r = report.meta.render;
 console.log(`\nShipwright render-cost benchmark  (${SHA} on ${BRANCH})`);
 console.log(`hardware: ${hardware.gpu}`);
 console.log(`          ${hardware.cpu} (${hardware.cores} cores) · ${hardware.ramGB} GB · ${hardware.os} · ${hardware.host}`);
-console.log(`mode: ${report.meta.mode}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
+console.log(`clock: ${report.meta.clock}   test: ${report.meta.testMode}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
 console.log(`config: ${Object.keys(config).length ? JSON.stringify(config) : "scene defaults"}   url: ${URL}`);
 console.log(
   "\n" +
@@ -270,8 +283,8 @@ console.log(
     padL("avgFPS", 8) +
     padL("1%low", 8) +
     padL("ssr50", 8) +
-    padL("ssr95", 8) +
     padL("tot50", 8) +
+    padL("phys50", 8) +
     padL("tot95", 8) +
     padL("spikes", 8),
 );
@@ -280,13 +293,13 @@ const row = (name, st) =>
   padL(st.fps.avg, 8) +
   padL(st.fps.onePctLow, 8) +
   padL(st.ms.ssr.p50, 8) +
-  padL(st.ms.ssr.p95, 8) +
   padL(st.ms.total.p50, 8) +
+  padL(st.ms.physics.p50, 8) +
   padL(st.ms.total.p95, 8) +
   padL(st.spikes.count, 8);
 for (const seg of report.segments) console.log(row(seg.name, seg));
 console.log("-".repeat(72));
 console.log(row("OVERALL", report.overall));
-console.log("\n(FPS from max(cpu, gpu-total); ms = GPU per pass. 1%low = 99th-pct frame time.)");
+console.log("\n(FPS from max(cpu incl. physics, gpu-total). ms = GPU per pass; phys = CPU physics step. 1%low = 99th-pct frame.)");
 console.log(`wrote ${outPath}`);
 if (errors.length) console.log("page errors:\n" + errors.slice(0, 8).join("\n"));
