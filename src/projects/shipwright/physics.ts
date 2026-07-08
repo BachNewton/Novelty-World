@@ -1020,8 +1020,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         v.voidWorld[j * 3] = wx;
         v.voidWorld[j * 3 + 1] = wy;
         v.voidWorld[j * 3 + 2] = wz;
-        const surface = ocean.sampleSurface(wx, wz, time);
-        v.voidSubmerged[j] = clamp((surface.height - (wy - HALF)) / VOXEL, 0, 1);
+        const surfaceHeight = ocean.sampleHeight(wx, wz, time); // height only — per void cell, hot
+        v.voidSubmerged[j] = clamp((surfaceHeight - (wy - HALF)) / VOXEL, 0, 1);
       }
 
       // Advance each compartment's fill FRACTION (0..1) — the pose-invariant flooding state, so it
@@ -1048,7 +1048,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         const span = Math.max(wetCeil - dryFloor, 1e-6);
 
         tmpVec.copy(v.compartmentCentroidLocal[c]).applyQuaternion(tmpQuat);
-        const ext = ocean.sampleSurface(tmpVec.x + t.x, tmpVec.z + t.z, time).height;
+        const ext = ocean.sampleHeight(tmpVec.x + t.x, tmpVec.z + t.z, time);
 
         const openingIdxs = v.compartmentOpenings[c];
         const openingHeights = openingIdxs.map((idx) => v.voidWorld[idx * 3 + 1]);
