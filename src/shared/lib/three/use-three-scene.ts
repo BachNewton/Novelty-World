@@ -103,6 +103,14 @@ export interface ThreeSceneContext {
    * load keeps an APU off its thermal/power limit — see shipwright/docs/PERFORMANCE.md).
    */
   setFrameStride: (stride: number) => void;
+  /**
+   * Wall-clock CPU cost (ms) of the LAST main render — i.e. how long `renderer.render` (or the
+   * bloom composer) took on the CPU to submit the scene's draw calls, the ANGLE→D3D11 submission
+   * cost. Measured every frame and reported for the frame just rendered, so a perf harness reads it
+   * on the NEXT frame. The hook's `gpuTimer` already breaks out the main render's GPU *execution*
+   * time; this is its CPU *submission* counterpart. Generic perf primitive, not game-specific.
+   */
+  mainRenderMs: () => number;
 }
 
 export interface ThreeSceneHandlers {
@@ -233,6 +241,11 @@ export function useThreeScene(
     // Built before setup so a scene can grab it from the context and add its own spans.
     const gpuTimer = gpuStatsRef.current ? new GpuTimer(renderer) : undefined;
 
+    // CPU submission cost (ms) of the last main render — the ANGLE→D3D11 draw-submission counterpart
+    // to the gpuTimer's `main` GPU-execution span. Measured every frame below; a perf harness reads
+    // the prior frame's value via the context getter.
+    let lastMainRenderMs = 0;
+
     const handlers = setupRef.current({
       scene,
       camera,
@@ -243,6 +256,7 @@ export function useThreeScene(
       gpuTimer,
       setPixelRatio,
       setFrameStride,
+      mainRenderMs: () => lastMainRenderMs,
     });
 
     const stats = showStatsRef.current ? new Stats() : undefined;
@@ -267,8 +281,10 @@ export function useThreeScene(
       timer.update();
       const delta = timer.getDelta();
       handlers.onFrame?.(delta);
+      const mainStart = performance.now();
       if (gpuTimer) gpuTimer.span("main", () => renderMain(delta));
       else renderMain(delta);
+      lastMainRenderMs = performance.now() - mainStart;
       gpuTimer?.poll();
       stats?.update();
     });

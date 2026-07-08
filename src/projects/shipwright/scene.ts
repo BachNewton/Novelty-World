@@ -98,7 +98,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // Screen-space refraction / depth: the water reads a colour+depth capture of the
   // scene behind it (the shared hook's opt-in `sceneCapture`, populated each frame
   // below with the water hidden). Bind the textures once + the view params.
-  const { sceneCapture, gpuTimer } = ctx;
+  const { sceneCapture, gpuTimer, mainRenderMs } = ctx;
   if (sceneCapture) {
     ocean.setSceneCapture(sceneCapture.target.texture, sceneCapture.depthTexture);
     const db = renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -110,6 +110,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     if (gpuTimer) gpuTimer.span(name, fn);
     else fn();
   };
+
+  // CPU seam timers for the benchmark render-prep split (docs/perf-handoff.md thread 1): the
+  // wall-clock SUBMISSION cost of each pre-pass, as opposed to `gpuTimer`'s GPU-execution time.
+  // `renderPrePasses` writes these; `stepBenchmark` resets them per frame and reads them into the sample.
+  const prepassCpu = { capture: 0, ssr: 0 };
 
   // Low-res SSR reflection target: the water renders ONLY its screen-space reflections
   // into this (ocean.renderSsr) at a fraction of the render resolution, then the full-res
@@ -138,6 +143,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // capture target wasn't allocated.
   const renderPrePasses = () => {
     if (!sceneCapture) return;
+    const captureStart = globalThis.performance.now();
     timeSpan("capture", () => {
       ocean.mesh.visible = false;
       renderer.setRenderTarget(sceneCapture.target);
@@ -145,10 +151,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       renderer.setRenderTarget(null);
       ocean.mesh.visible = true;
     });
+    prepassCpu.capture = globalThis.performance.now() - captureStart;
     // Skip the whole low-res march when SSR is off (env-map fallback) — so disabling it reclaims the
     // pass cost (the `ssr` GPU-ms then reads ~0), not just the sampling. The uniform is the source of truth.
     if (ocean.isSsrEnabled()) {
+      const ssrStart = globalThis.performance.now();
       timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
+      prepassCpu.ssr = globalThis.performance.now() - ssrStart;
     }
   };
 
@@ -686,8 +695,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         run.lastSunAz = az;
       }
     }
+    // Gerstner CPU field: the ocean uniform update + nav-buoy surface sampling (the CPU wave eval).
+    const oceanStart = globalThis.performance.now();
     ocean.update(run.elapsed);
     navBuoys.update(ocean, run.elapsed);
+    const oceanMs = globalThis.performance.now() - oceanStart;
     // Step the benchmark's OWN physics world (physics/both modes). One deterministic FIXED_DT step
     // per frame headless (byte-identical); real delta headed (natural-speed). Timed on its own so the
     // report can isolate CPU physics cost. Stepped BEFORE the passes so "both" mode reflects the posed
@@ -703,6 +715,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     camera.position.set(pose.pos[0], pose.pos[1], pose.pos[2]);
     benchTarget.set(pose.target[0], pose.target[1], pose.target[2]);
     camera.lookAt(benchTarget);
+    // Reset the CPU seam timers so a mode/frame that skips the pre-passes (physics mode) reports 0,
+    // never a stale reading; renderPrePasses overwrites them when it runs.
+    prepassCpu.capture = 0;
+    prepassCpu.ssr = 0;
     if (debug.capture && run.mode !== "physics") renderPrePasses();
     const cpuMs = globalThis.performance.now() - cpuStart;
     if (s.measured && gpuTimer) {
@@ -717,6 +733,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         // run. Force 0 so the SSR-off cost is real (E6), not the leftover of the interactive frames.
         ssr: ocean.isSsrEnabled() ? (g.get("ssr") ?? 0) : 0,
         main: g.get("main") ?? 0,
+        // CPU seam-timer split (thread 1). mainRenderMs() is the shared hook's main-render submit cost
+        // from the PRIOR frame (this frame's main render runs after stepBenchmark returns) — same
+        // one-frame-stale convention as the GPU timer readback above.
+        oceanMs,
+        captureCpuMs: prepassCpu.capture,
+        ssrCpuMs: prepassCpu.ssr,
+        mainCpuMs: mainRenderMs(),
       });
     }
   };

@@ -69,6 +69,17 @@ export interface BenchmarkSample {
   capture: number;
   ssr: number;
   main: number;
+  /** CPU seam-timer split of the ~16 ms render-prep (see docs/perf-handoff.md thread 1). All
+   *  wall-clock `performance.now()` spans, so they measure CPU *submission* time, not GPU execution.
+   *  `oceanMs` = the Gerstner uniform update + nav-buoy sampling; `captureCpuMs` = the capture-pass
+   *  draw submission (whole scene, water hidden); `ssrCpuMs` = the low-res SSR pass submission (0 when
+   *  SSR is off — the pass is skipped); `mainCpuMs` = the MAIN scene-render submission (the second full
+   *  draw of the scene, timed in the shared hook — previously counted nowhere). `cpuMs` above spans
+   *  onFrame only (ocean + prepass + physics + misc), so it EXCLUDES `mainCpuMs`. */
+  oceanMs: number;
+  captureCpuMs: number;
+  ssrCpuMs: number;
+  mainCpuMs: number;
 }
 
 export interface BenchmarkResult {

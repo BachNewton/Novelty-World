@@ -160,6 +160,14 @@ const summarise = (frames) => {
       main: passStats(frames, (f) => f.main),
       cpu: passStats(frames, (f) => f.cpuMs),
       physics: passStats(frames, (f) => f.physicsMs), // CPU physics-step ms (0 in visuals mode)
+      // CPU seam-timer split of the render-prep (thread 1). All CPU *submission* ms (wall-clock),
+      // NOT GPU execution. `cpuMs` (above) = onFrame only, so it EXCLUDES mainCpu (the 2nd full draw);
+      // cpuTotal = cpuMs + mainCpu is the true per-frame CPU serial time. `??`-guarded for old JSON.
+      ocean: passStats(frames, (f) => f.oceanMs ?? 0),
+      captureCpu: passStats(frames, (f) => f.captureCpuMs ?? 0),
+      ssrCpu: passStats(frames, (f) => f.ssrCpuMs ?? 0),
+      mainCpu: passStats(frames, (f) => f.mainCpuMs ?? 0),
+      cpuTotal: passStats(frames, (f) => f.cpuMs + (f.mainCpuMs ?? 0)),
     },
     spikes: {
       count: spikes.length,
@@ -333,6 +341,35 @@ for (const seg of report.segments) console.log(row(seg.name, seg));
 console.log("-".repeat(72));
 console.log(row("OVERALL", report.overall));
 console.log("\n(FPS from max(cpu incl. physics, gpu-total). ms = GPU per pass; phys = CPU physics step. 1%low = 99th-pct frame.)");
+
+// --- CPU seam-timer split (thread 1) ---------------------------------------
+// The render-prep breakdown: where the CPU frame time actually goes. All p50 CPU SUBMISSION ms.
+// onFrm = cpuMs (ocean+capt+ssr+phys+misc, EXCLUDING the main render); main = the 2nd full-scene
+// draw's submit (previously uncounted); total = onFrm + main (true per-frame CPU serial time).
+console.log(
+  "\nCPU seam split (p50 ms):\n" +
+    pad("segment", 16) +
+    padL("ocean", 8) +
+    padL("capt", 8) +
+    padL("ssr", 8) +
+    padL("main", 8) +
+    padL("phys", 8) +
+    padL("onFrm", 8) +
+    padL("total", 8),
+);
+const cpuRow = (name, st) =>
+  pad(name, 16) +
+  padL(st.ms.ocean.p50, 8) +
+  padL(st.ms.captureCpu.p50, 8) +
+  padL(st.ms.ssrCpu.p50, 8) +
+  padL(st.ms.mainCpu.p50, 8) +
+  padL(st.ms.physics.p50, 8) +
+  padL(st.ms.cpu.p50, 8) +
+  padL(st.ms.cpuTotal.p50, 8);
+for (const seg of report.segments) console.log(cpuRow(seg.name, seg));
+console.log("-".repeat(72));
+console.log(cpuRow("OVERALL", report.overall));
+console.log("(ocean=Gerstner uniform+buoy sampling · capt=capture-pass submit · main=main-render submit · onFrm excludes main · total=onFrm+main)");
 // The per-pass `ssr50` is the DEDICATED march pass ONLY — it does NOT include the cost SSR adds inside
 // the `main` pass (sampling the reflection texture + occupancy), so it UNDER-reports SSR's true weight.
 // For SSR's real frame share, diff a `--ssr off` run against the default (E6 measured ~37%, vs the ~25%
