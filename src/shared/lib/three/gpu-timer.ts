@@ -62,6 +62,7 @@ export class GpuTimer {
   private readonly order: string[] = [];
   private readonly dpr = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio)));
   private active = false;
+  private enabled = true;
 
   constructor(renderer: THREE.WebGLRenderer) {
     this.gl = renderer.getContext() as WebGL2RenderingContext;
@@ -72,10 +73,21 @@ export class GpuTimer {
     this.dom = this.buildPanel();
   }
 
+  /**
+   * Turn the timer's GPU queries on/off at runtime WITHOUT tearing down the panel. When off,
+   * `span()` runs `fn` un-timed — no `beginQuery`/`endQuery`, so ANGLE need not fence/flush the
+   * command buffer around each span. Lets a benchmark measure the pure CPU submit cost of a render
+   * with the timer's own overhead removed (the `EXT_disjoint_timer_query` fences are not free), to
+   * check whether this dev overlay is itself inflating the frame.
+   */
+  setEnabled(on: boolean): void {
+    this.enabled = on;
+  }
+
   /** Time the GPU cost of the draw commands `fn` submits, under `name`. */
   span(name: string, fn: () => void): void {
-    if (this.ext === null || this.active) {
-      // No timer, or a span is already open (can't nest TIME_ELAPSED) — run un-timed.
+    if (this.ext === null || this.active || !this.enabled) {
+      // No timer, disabled, or a span is already open (can't nest TIME_ELAPSED) — run un-timed.
       fn();
       return;
     }

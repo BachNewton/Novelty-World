@@ -59,6 +59,15 @@ export interface BenchmarkConfig {
    *  collision-resolution share of the physics step — mass/inertia/buoyancy/broad-phase stay put, only
    *  narrow-phase + solver contacts drop. physics/both only. Default (undefined) = collision on. */
   collisionEnabled?: boolean;
+  /** Ocean tessellation quad edge in metres (E8): larger = a coarser plane (fewer segments/vertices).
+   *  The segment count is `planeSize / quadSize`, clamped to [8, 2048]. The scene default is ~4.9 m
+   *  (~1024² segments ≈ 1 M verts). Raise it (e.g. 625 → 8 segments, a near-flat plane) to isolate the
+   *  ocean plane's VERTEX cost from the fixed per-render-call submission overhead. See tools/bench.mjs. */
+  quadSize?: number;
+  /** Disable the GpuTimer's TIME_ELAPSED queries for the run (still measures wall-clock CPU). The
+   *  per-span queries force ANGLE to fence/flush the command buffer, which may inflate the CPU submit
+   *  time; turning them off isolates that overhead. GPU-ms columns read 0. Default (undefined) = on. */
+  gpuTimer?: boolean;
 }
 
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */

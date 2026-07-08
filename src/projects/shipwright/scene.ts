@@ -843,6 +843,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         sizeSsrTarget();
       }
       if (config.ssrEnabled !== undefined) ocean.setSsrEnabled(config.ssrEnabled);
+      // Diagnostic: run with the GpuTimer's queries off to isolate whether the timer's own
+      // command-buffer fences inflate the CPU submit time. hasGpuTimer() stays true (the timer still
+      // exists), so the tool doesn't abort; the GPU-ms columns just read 0 for the run.
+      gpuTimer?.setEnabled(config.gpuTimer !== false);
+      if (config.quadSize !== undefined) {
+        debug.quadSize = config.quadSize;
+        applyGrid(); // rebuild the ocean plane at the coarser tessellation (E8 vertex-cost isolation)
+      }
       if (config.water !== undefined) ocean.setWaterType(config.water);
       ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
       const mode = config.mode ?? "visuals";

@@ -107,6 +107,13 @@ if (args.ssr !== undefined) config.ssrEnabled = !(args.ssr === "off" || args.ssr
 // isolation logic in docs/perf-experiments (collision cost here is broad-phase, which this doesn't cut).
 if (args.collision !== undefined) config.collisionEnabled = !(args.collision === "off" || args.collision === "false");
 if (args.water !== undefined) config.water = args.water;
+// --quad-size M sets the ocean tessellation quad edge in metres (E8): larger = coarser plane (fewer
+// vertices). segments = planeSize / quadSize, clamped [8, 2048]. Isolates the plane's VERTEX cost from
+// the fixed per-render-call submission overhead — e.g. --quad-size 625 collapses ~1 M verts to ~8²·2.
+if (args["quad-size"] !== undefined) config.quadSize = Number(args["quad-size"]);
+// --gpu-timer off disables the GpuTimer's TIME_ELAPSED queries (still measures wall-clock CPU) — to
+// check whether the timer's own command-buffer fences inflate the per-render CPU submit. GPU-ms → 0.
+if (args["gpu-timer"] !== undefined) config.gpuTimer = !(args["gpu-timer"] === "off" || args["gpu-timer"] === "false");
 if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
 if (args.bodies !== undefined) config.bodies = Number(args.bodies); // physics-load body count (scaling sweep)
 if (HEADED) config.realtime = true; // headed = real-time (natural-speed) watch mode
@@ -294,6 +301,7 @@ const slug =
     config.water !== undefined ? config.water.toLowerCase().replace(/\s+/g, "-") : null,
     config.ssrEnabled === false ? "ssr-off" : null,
     config.collisionEnabled === false ? "collision-off" : null,
+    config.quadSize !== undefined ? `q${config.quadSize}` : null,
   ]
     .filter(Boolean)
     .join("-") || "default";
