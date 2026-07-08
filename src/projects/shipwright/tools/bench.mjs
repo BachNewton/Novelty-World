@@ -40,7 +40,7 @@
 //
 // Prereq: a server serving this build + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--mode visuals|physics|both]
-//           [--bodies N] [--render-scale R] [--reflection-res R] [--water NAME] [--label L]
+//           [--bodies N] [--render-scale R] [--reflection-res R] [--ssr off] [--water NAME] [--label L]
 //           [--width 1600] [--height 900] [--headed] [--hold SEC] [--timeout MS]
 // Writes  <label>/<sha>-<slug>.json under ../.bench (gitignored, **/.bench/) and prints a summary.
 
@@ -96,6 +96,9 @@ const VIEWPORT = { width: Number(args.width ?? 1600), height: Number(args.height
 const config = {};
 if (args["render-scale"] !== undefined) config.renderScale = Number(args["render-scale"]);
 if (args["reflection-res"] !== undefined) config.reflectionRes = Number(args["reflection-res"]);
+// --ssr off (or false) disables SSR entirely (env-map fallback + the march pass is skipped) — E6, to
+// measure SSR's share of the frame. Any other value (or omitting the flag) leaves SSR on.
+if (args.ssr !== undefined) config.ssrEnabled = !(args.ssr === "off" || args.ssr === "false");
 if (args.water !== undefined) config.water = args.water;
 if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
 if (args.bodies !== undefined) config.bodies = Number(args.bodies); // physics-load body count (scaling sweep)
@@ -274,6 +277,7 @@ const slug =
     config.renderScale !== undefined ? `rs${config.renderScale}` : null,
     config.reflectionRes !== undefined ? `rr${config.reflectionRes}` : null,
     config.water !== undefined ? config.water.toLowerCase().replace(/\s+/g, "-") : null,
+    config.ssrEnabled === false ? "ssr-off" : null,
   ]
     .filter(Boolean)
     .join("-") || "default";
@@ -321,5 +325,10 @@ for (const seg of report.segments) console.log(row(seg.name, seg));
 console.log("-".repeat(72));
 console.log(row("OVERALL", report.overall));
 console.log("\n(FPS from max(cpu incl. physics, gpu-total). ms = GPU per pass; phys = CPU physics step. 1%low = 99th-pct frame.)");
+// The per-pass `ssr50` is the DEDICATED march pass ONLY — it does NOT include the cost SSR adds inside
+// the `main` pass (sampling the reflection texture + occupancy), so it UNDER-reports SSR's true weight.
+// For SSR's real frame share, diff a `--ssr off` run against the default (E6 measured ~37%, vs the ~25%
+// this column implies). Don't read the isolated ssr50 as "SSR's total cost".
+console.log("(ssr50 = the isolated SSR PASS; SSR's TRUE frame share is larger — use `--ssr off` to measure it. See docs/perf-experiments.md E6.)");
 console.log(`wrote ${outPath}`);
 if (errors.length) console.log("page errors:\n" + errors.slice(0, 8).join("\n"));

@@ -30,6 +30,9 @@ interface BenchmarkConfig {
   renderScale?: number;
   /** Fraction of render res the SSR march runs at (the reflection-resolution dial). */
   reflectionRes?: number;
+  /** Turn SSR off (env-map-only reflection) to measure its share of the frame — E6. Skips the whole
+   *  low-res march pass, so the `ssr` GPU-ms drops to ~0. Default (undefined) leaves it on. */
+  ssrEnabled?: boolean;
   /** Jerlov water type to pin for the whole run (optics cost). */
   water?: string;
   /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
@@ -193,7 +196,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       renderer.setRenderTarget(null);
       ocean.mesh.visible = true;
     });
-    timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
+    // Skip the whole low-res march when SSR is off (env-map fallback) — so disabling it reclaims the
+    // pass cost (the `ssr` GPU-ms then reads ~0), not just the sampling. The uniform is the source of truth.
+    if (ocean.isSsrEnabled()) {
+      timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
+    }
   };
 
   // Navigational-marker buoys (lateral + cardinal): the kinematic half of the
@@ -740,7 +747,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         cpuMs,
         physicsMs,
         capture: g.get("capture") ?? 0,
-        ssr: g.get("ssr") ?? 0,
+        // When SSR is off its pass is skipped, so no fresh reading lands — but GpuTimer carries the
+        // last value forward (for its panel), which would record a stale "ssr" cost from before the
+        // run. Force 0 so the SSR-off cost is real (E6), not the leftover of the interactive frames.
+        ssr: ocean.isSsrEnabled() ? (g.get("ssr") ?? 0) : 0,
         main: g.get("main") ?? 0,
       });
     }
@@ -826,6 +836,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       sizeSsrTarget();
       syncGui();
     },
+    setSsrEnabled: (on: boolean) => {
+      ocean.setSsrEnabled(on);
+      syncGui();
+    },
     // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
     hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
     // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
@@ -840,6 +854,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         ssrScale.value = config.reflectionRes;
         sizeSsrTarget();
       }
+      if (config.ssrEnabled !== undefined) ocean.setSsrEnabled(config.ssrEnabled);
       if (config.water !== undefined) ocean.setWaterType(config.water);
       ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
       const mode = config.mode ?? "visuals";
@@ -892,6 +907,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       });
     },
   };
+  // The debug/benchmark control surface (dev only). A dev server is sufficient for the perf suite —
+  // dev-vs-prod agrees within the noise floor (see docs/perf-experiments.md), and GPU-ms is
+  // build-independent (identical GLSL) — so there's no need to leak this into a production build.
   if (process.env.NODE_ENV !== "production") {
     (window as unknown as { __shipwright?: typeof debugApi }).__shipwright = debugApi;
   }

@@ -110,6 +110,11 @@ export interface Ocean {
   setNormalMap: (on: boolean) => void;
   /** Bind the low-res SSR pass output texture the water shader samples (call once). */
   setSsrSource: (texture: THREE.Texture) => void;
+  /** Enable/disable SSR (the main shader falls back to the env-map sky when off). The uniform is the
+   *  single source of truth: scene.ts reads `isSsrEnabled` to SKIP the low-res march pass entirely, so
+   *  turning SSR off actually reclaims its cost rather than just hiding the (still-computed) result. */
+  setSsrEnabled: (on: boolean) => void;
+  isSsrEnabled: () => boolean;
   /** Render the low-res SSR reflection pass (water only) into `target`. Call each frame
    *  after the scene capture and before the main render. */
   renderSsr: (
@@ -952,6 +957,10 @@ export function createOcean(): Ocean {
     setSsrSource: (texture) => {
       uniforms.uSsrReflection.value = texture;
     },
+    setSsrEnabled: (on) => {
+      uniforms.uSsrEnabled.value = on;
+    },
+    isSsrEnabled: () => uniforms.uSsrEnabled.value === true,
     renderSsr: (renderer, scene, camera, target) => {
       // Render the water alone (SSR layer) with the SSR-only material into the low-res
       // target, then restore. Reads the scene capture; the water shader samples the

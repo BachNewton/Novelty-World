@@ -231,23 +231,248 @@ spawn → deterministic. The `phys` column (CPU physics-step ms) is the metric h
   buoyancy work lands, then done as physics **self-reporting** its internal breakdown (a getter the
   bench reads at the seam), so no system couples to the benchmark. See PERFORMANCE.md known-gaps.
 
-## Results template (fill in per experiment)
+## Results — measured baseline (2026-07-08)
 
-**System census** (Tier 0) — the per-system snapshot, keyed by git SHA + hardware + `--bodies`:
+First full run of the runnable-today suite (Tiers 0, 1, 4). Every number below is the **median (p50)
+of two interleaved passes** (~90 min apart); the two passes agreed to within ~1–2% everywhere, so
+there is **no thermal drift** over the run and the p50s are highly reproducible.
 
-| run (`--mode`) | bodies | GPU tot50 | phys50 | frame tot50 | avgFPS | 1%low | bound by |
-|---|---|---|---|---|---|---|---|
-| visuals | 0 | | — | | | | GPU |
-| physics | N | — | | | | | CPU |
-| both | N | | | | | | ? |
+- **Hardware:** AMD Radeon **780M** iGPU (ANGLE / D3D11) · Ryzen 7 **7840U** (16 threads) · Win11 ·
+  the `desktop` host. *(This is the worst-case target — a small-VRAM immediate-mode iGPU. Re-run any
+  Tier-1 experiment on another GPU to see the model shift; the JSON stamps the hardware.)*
+- **SHA:** `3ad3cea` · **render:** 1600×900, pixelRatio 1, SSR 0.25× (bench defaults) · **water:**
+  Coastal 5 · **clock:** fixed-dt headless.
+- **Run against the dev server** (`npm run dev`, port 3001) — verified sufficient: dev vs prod agrees
+  within the noise floor (finding #3), and GPU-ms is build-independent (identical GLSL). No production
+  build is needed for the perf suite. *(This baseline was captured against a prod build during that
+  verification, but the numbers are equivalent — use dev going forward.)*
+- **A/B'ing an engine code change** (measuring the perf impact of an edit) is the one case that wants
+  two *stable* servers side-by-side. A dev server hot-reloads as you edit, so it can't hold a fixed "A"
+  baseline while you change code for "B". Cleanest: **two git worktrees, each running its own dev
+  server** on a different port — leave worktree A untouched (old code) as the baseline, edit worktree B,
+  and `--url` the bench at each. (See the worktree note in the repo memory; don't junction node_modules.)
 
-**Per-setting sweep** — from the headless JSON (`.bench/<label>/<host>-<sha>-<slug>.json`), keyed by
-git SHA + hardware (GPU) + resolution:
+### Methodology findings (read these first — they reframe the numbers)
 
-| setting | overall tot50 | ssr50 | capture50 | main50 | max-stress tot50 | overall avgFPS | Δ vs baseline |
-|---|---|---|---|---|---|---|---|
-| baseline | | | | | | | — |
-| … | | | | | | | |
+1. **The 780M's GPU cost is strongly SUBLINEAR in resolution — a DVFS clock-boost signature, not
+   `∝ pixels²`.** E1 (below): 4× the pixels (rs1.0→rs2.0, 1.44→5.76 MP) costs only **1.2×** more GPU
+   time; per-megapixel cost drops ~8× from the lowest to the highest scale. This holds **per-segment**,
+   even for a purely fill-bound down-look (overhead-storm main50: 3.0→3.9→6.9 ms for 16× the pixels).
+   At a *constant* clock a fill pass must scale ~linearly with pixels; it doesn't → the GPU is raising
+   its clock under load. **Consequence:** at the bench's 1600×900 the GPU sits in an *under-loaded*
+   regime (high per-pixel cost, likely underclocked). This is the measured, reproducible part. The
+   *link* to the eyeballed "~10% headless vs ~90% real game" Task-Manager reading is an **observation,
+   not a proven fact** — that reading was noted informally and may have been taken partly during
+   CPU-bound `--mode physics` runs (ocean hidden → GPU genuinely near-idle), so treat the exact
+   percentages as illustrative. What the E1 numbers *do* prove: the **absolute** 1600×900 ms is valid
+   and fast (~100 fps visuals), but a per-pixel A/B *delta* measured here can under-represent the
+   boosted native-res game. For a settings knob whose
+   value you'll ship, also spot-check it at native res (`--width 2752 --height 1152` or `--render-scale
+   1.75+`), which sits in the boosted regime.
+2. **p50 is trustworthy from run 1; warm-up lives in the TAIL.** The 4 s warm-up lap holds the median
+   steady across back-to-back runs (0.4% spread). The *first* run's p95/spikes are worse (max-stress
+   tot95 74→20→17 ms over runs 1→2→3) then settle. Compare p50; treat a cold run's spikes with
+   suspicion.
+3. **dev vs prod CPU is within the ~3% noise floor** (phys50 6.7 prod / 6.8 dev over 3 runs each). The
+   physics hot loop is Rapier WASM + buoyancy JS, which V8 runs identically regardless of Next's
+   dev/prod bundling; dev only inflates React/HMR/bundle overhead, not the measured fixed-step loop.
+   GPU-ms is build-independent (identical GLSL). **→ the prod-build requirement can be dropped for
+   iteration; a dev server is a valid target for the whole suite.**
 
-Once filled, this table IS the measured cost model — replace the asserted numbers in `PERFORMANCE.md`
-with it.
+### Tier 0 — system census
+
+| run (`--mode`) | bodies | GPU tot50 | cpu50 | phys50 | frame tot50 | avgFPS | 1%low | bound by |
+|---|---|---|---|---|---|---|---|---|
+| visuals | 0 | 9.43 | 7.65 | — | 9.48 | 101 | 50 | **GPU** (frame ≈ gpu > cpu) |
+| physics | 31 | 4.80 | 6.95 | 6.95 | 6.95 | 144 | 112 | **CPU / physics** (gpu hides under phys) |
+| both | 31 | 10.19 | 18.25 | 6.15 | 18.45 | 49 | 21 | **CPU** (cpu ≫ gpu) |
+
+- **The real combined frame (`both`) is CPU-bound at ~18 ms / ~49 fps**, and cpu50 (18.25) is *triple*
+  phys50 (6.15) — so the CPU bottleneck is **render preparation**, not physics. Most of it is
+  **ANGLE→D3D11 draw-call submission** for the capture pass (rendering the scene + 31 bodies), plus the
+  Gerstner CPU field; physics is the smaller share. The GPU (10 ms) hides underneath. The real game
+  runs the same ANGLE/D3D11 path in Chrome, so this is representative *at this resolution* — at native
+  res the GPU rises (sublinearly, per finding #1) and the two clocks converge.
+- `both` ≈ `visuals` + `physics` (near-additive, **not** `max()`): the CPU/GPU pipeline poorly here
+  because physics + render-submit are serial on the JS main thread. `both` is also the spikiest run
+  (53–84 spikes, tot95 ≈ 30 ms).
+- `physics`-mode GPU is **not** 0 (4.8 ms): the 31 bench hulls still render even with the ocean hidden.
+
+**Native-resolution anchor** (`--width 2752 --height 1152` = 3.17 MP, the primary display — the number
+that actually matters for shipping):
+
+| run | 1600×900 tot50 | 1600×900 avgFPS | native tot50 | native avgFPS | native max-stress fps |
+|---|---|---|---|---|---|
+| visuals | 9.43 | 101 | 10.33 | 90 | 65 |
+| both (31 bodies) | 10.19 | 49 | 16.67 | 41 | 34 |
+
+Confirms finding #1 at real resolution: 2.2× the pixels moves the *visuals* GPU frame only 9.4→10.3 ms
+(the GPU boosts). But the *combined* frame stays **CPU-bound** (GPU 16.7 ms < CPU ~24 ms) at **~41 fps
+overall / ~34 fps at max-stress** — the render-submit + physics main-thread cost, not the water shader,
+caps the real game. GPU only overtakes CPU at still-higher resolutions. (Matches E1 rs1.5 @ 3.24 MP =
+10.20 ms — a native viewport and pixelRatio supersampling cost the same per pixel, as expected.)
+
+### Smoothness & spikes (the felt-quality signal — read alongside every avgFPS)
+
+**avgFPS is only half the story: a high average full of spikes feels worse than a lower steady rate,
+and every spike is a per-frame perf bug an average hides.** The bench captures the tail — `1%low` (the
+99th-pct frame), frame p95/p99, and a **spike count** (frames > 2× the median). Foregrounding it:
+
+- **The 1% low is ~45–51% of the average in EVERY mode** (visuals *and* both). At the visuals baseline,
+  avg 101 fps but 1%low **51** (frame p50 9.5 ms → p99 **19.5 ms**). At native `both` b8, avg 76 but
+  1%low **36**. Felt smoothness is roughly **half** the headline FPS — budget for the 1% low, not the avg.
+- **A ~2–3% background frame-hitch rate, roughly UNIFORM across all 9 segments** (spike counts scale
+  with each segment's frame count, not its load). A load-independent, reproducible (fixed-dt!) hitch
+  rate points at a **periodic global cause — per-frame allocation / GC**, not any one shader. **This is
+  the highest-value thing to chase:** hunt per-frame allocations in the frame loop (`onFrame`,
+  `ocean.update`, physics step, the capture submit) and the spikes should drop across the board.
+- **Camera rotation spikes:** `player-turn` (the 180°/360° turn segment) carries an elevated spike rate
+  in every mode (8–9 spikes in its short 5.7 s window) — SSR temporal-coherence hitches on fast heading
+  changes, a rendering-side cause on top of the background rate. `--ssr-cutoff` (E5, Tier 2) is the
+  intended lever for it.
+- **`both` roughly DOUBLES the spike count** vs visuals (53 vs 23 at 1600×900; 37→62 as native bodies
+  go 8→32) — main-thread physics ↔ render-submit contention. The real gameplay frame is both slower
+  *and* spikier than either clock alone.
+- **Rare monster frames (100–118 ms)** show up ~once per run (worst-frame column) — likely one-off
+  shader-compile / major-GC events; caught by `worstMs`, not the median.
+
+Native-res `both` budget, tail-first (the numbers that decide how big a ship *feels* good to sail):
+
+| bodies | avgFPS | **1%low** | 1%low ÷ avg | spikes | worst frame |
+|---|---|---|---|---|---|
+| 8 | 76 | **36** | 47% | 37 | 31 ms |
+| 16 | 65 | **27** | 42% | 54 | — |
+| 32 | 39 | **17** | 43% | 62 | 119 ms |
+| 48 | 29 | **14** | 49% | 33 | — |
+
+**Caveat + next step:** these are *headless fixed-dt* spikes — reproducible and directional, but they
+mix true engine hitches with GpuTimer-readback / rAF-pacing artifacts (the doc's determinism note). The
+**definitive felt-smoothness instrument is the `--headed` real-time run** (real frame pacing; its FPS
+*is* the felt signal) and the deferred **`--soak`** mode (E11) for spike *onset* over minutes. Run
+`--headed` on the worst cases above (native `both`, high bodies, `player-turn`) to confirm which spikes
+a player would actually feel before optimising — but the per-frame-allocation hunt is worth starting on
+the headless signal alone.
+
+### Tier 1 — E1 render-scale (visuals)
+
+| setting | MP | overall tot50 | ssr50 | capture50 | main50 | max-stress tot50 | avgFPS | Δ vs baseline |
+|---|---|---|---|---|---|---|---|---|
+| rs0.5 | 0.36 | 5.80 | 1.82 | 0.24 | 3.71 | 11.03 | 125 | −38% |
+| rs0.75 | 0.81 | 7.18 | 1.92 | 0.47 | 4.73 | 10.84 | 125 | −24% |
+| **rs1.0 (baseline)** | 1.44 | **9.41** | 2.41 | 0.79 | 6.10 | 10.86 | 104 | — |
+| rs1.25 | 2.25 | 10.27 | 2.40 | 1.11 | 6.67 | 11.93 | 96 | +9% |
+| rs1.5 | 3.24 | 10.20 | 2.22 | 1.31 | 6.49 | 13.71 | 89 | +8% |
+| rs2.0 | 5.76 | 11.26 | 2.23 | 1.47 | 7.44 | 17.84 | 79 | +20% |
+
+- **Not `∝ scale²` — strongly sublinear** (finding #1). The fill passes (capture+main) plateau: main
+  barely grows 6.1→7.4 ms for 4× the pixels. **SSR is flat** across render-scale (~2.2–2.4) because it
+  runs in its own reflection-res-pinned low-res pass — render-scale doesn't touch it (as designed).
+- **max-stress is the exception that proves fill isn't the worst case:** its tot50 is ~flat 10.8–11 ms
+  from rs0.5→rs1.0 then climbs (→17.8 at rs2.0). The worst-case segment is dominated by *scale-invariant*
+  cost (grazing SSR march on the wide 10 km plane), not fill.
+- **The render-scale lever caps at 2× (maxPixelRatio).** `--render-scale 2.5` and `3.0` both render at
+  3200×1800 (pixelRatio 2), identical to rs2.0 — the shared hook clamps supersampling at 2×. To push
+  past 5.76 MP for a GPU-saturation point, use a larger `--width`/`--height` viewport, not render-scale.
+
+### Tier 1 — E2 reflection-res (SSR pass, visuals)
+
+| setting | overall tot50 | ssr50 | capture50 | main50 | max-stress ssr50 | avgFPS | Δ vs baseline |
+|---|---|---|---|---|---|---|---|---|
+| rr0.1 | 8.71 | 1.80 | 0.78 | 6.08 | 2.98 | 112 | −7% |
+| **rr0.25 (baseline)** | 9.38 | 2.40 | 0.79 | 6.06 | 3.26 | 104 | — |
+| rr0.5 | 10.19 | 3.22 | 0.79 | 5.99 | 4.31 | 95 | +9% |
+| rr0.75 | 10.58 | 4.35 | 0.77 | 5.35 | 5.52 | 93 | +13% |
+| rr1.0 | 10.66 | 5.20 | 0.74 | 4.58 | 6.65 | 92 | +14% |
+
+- `ssr50` rises with reflection-res but **sublinearly** (0.1→1.0 res = 100× marched pixels, only ~2.9×
+  cost) — same DVFS effect: the low-res SSR pass under-loads the GPU. There's a hard SSR floor (~1.8 ms
+  at rr0.1). The default **0.25 is a good knee** — dropping to 0.1 saves only ~0.7 ms overall.
+- **CAUTION — the isolated `ssr` pass timer UNDERSTATES SSR (see E6).** By this timer, SSR reads ~2.4 ms
+  (≈ 25% of the frame) and the `main` pass is 2–3× larger. But that only counts the dedicated march
+  pass — it misses the cost SSR imposes *inside* the main pass (sampling the reflection texture +
+  occupancy). **E6 (full on/off) shows SSR's true frame share is ~37% (3.55 ms)** — comparable to the
+  ~5 ms "pure" main pass, not a quarter of it. So the `main`-vs-`ssr` per-pass columns are a *lower
+  bound* on SSR's real weight; trust E6's on/off delta for SSR's actual cost. (The main pass is still
+  the single largest *isolated* pass, but "SSR is minor" would be wrong — it's ~⅓ of the frame and, for
+  the felt cost, the biggest single lever after render-scale.)
+
+### Tier 1 — E3 water type (visuals)
+
+| water | overall tot50 | ssr50 | main50 | avgFPS |
+|---|---|---|---|---|
+| Oceanic I (clearest) | 9.40 | 2.41 | 6.08 | 104 |
+| **Coastal 5 (default)** | 9.42 | 2.40 | 6.10 | 101 |
+| Coastal 9 (most turbid) | 9.42 | 2.41 | 6.09 | 102 |
+
+- **Perf-neutral, confirmed** — all within 0.02 ms. Same shader, different absorption/scattering
+  uniforms; clarity/optics is free (as hypothesised). Matters only once underwater effects land.
+
+### Tier 4 — P3 object-count scaling (`--mode physics --bodies N`)
+
+| N | phys50 | GPU tot50 | avgFPS | 1%low | bound by |
+|---|---|---|---|---|---|
+| 4 | 1.9 | 4.35 | 233 | 227 | GPU |
+| 8 | 2.5 | 4.2* | 188* | 183 | GPU |
+| 16 | 4.65 | 4.28 | 205 | 147 | GPU |
+| 32 | 9.7 | 4.5* | 103 | 81 | **physics** |
+| 64 | 19.6 | 4.30 | 51 | 42 | **physics** |
+
+- **Physics is ~linear at ≈0.3 ms/body** (grid of non-overlapping buoyant hulls → few contacts, so no
+  super-linear collision blow-up in this range). phys50 crosses the **16.7 ms (60 fps) budget at ≈54
+  bodies**; on its own, physics stays under ~10 ms up to ~32 hulls.
+- `--bodies` is **not a pure physics lever** — the N hulls also *render*, so GPU tot rises with N too
+  (and the extra draw-call submission is CPU). P1/P2 (physics floor + tax) fall out of the census
+  above: physics-only frame = 6.95 ms (CPU/physics-bound); the physics tax on the real frame is the
+  `both` − `visuals` gap.
+- *\*The GPU tot50 for N=8 and N=32 is averaged with a one-off capture-pass spike in a single pass
+  (transient render hitch, not load-dependent); `phys50` is rock-steady across both passes and is the
+  reliable metric here.*
+
+### Tier 2 — E6 SSR on/off (done)
+
+Exposed `--ssr off` (a runtime `ocean.setSsrEnabled`; the uniform is now the single source of truth and
+scene.ts skips the whole `renderSsr` march when off). **Gotcha fixed along the way:** `GpuTimer` carries
+the last per-span value forward for its panel, so a *skipped* span reported a stale `ssr` reading from
+the interactive pre-run frames — the benchmark now records `ssr = 0` when SSR is off, so the saving is
+real. *(Side effect: the GUI "Reflection → enabled" toggle now actually reclaims the pass cost too, not
+just the sampling — it was a latent no-op-for-perf before.)*
+
+Visuals, same build, SSR on vs off:
+
+| view | ON tot50 | OFF tot50 | Δ | ON main | OFF main |
+|---|---|---|---|---|---|
+| **overall** | 9.46 | **5.91** | **−3.55 (−37%)** | 6.15 | 5.11 |
+| grazing-storm | 10.16 | 6.13 | −4.03 | 6.72 | 5.38 |
+| raft-clear | 11.74 | 6.91 | −4.83 | 6.84 | 5.83 |
+| calm/moderate (down-calm…short-chop) | 6–10 | 4.4–6 | −1.7 to −4.0 | — | — |
+| **max-stress (grazing worst case)** | 10.90 | **10.37** | **−0.53** | 6.51 | **9.53** |
+
+overall avgFPS **106 → 164**, 1%low 64 → 92. So SSR ≈ **37% of the average frame** — its *total* cost
+(the march pass **plus** the main-shader sampling/occupancy it drives) is larger than the isolated
+`ssr` pass timer (2.4 ms) because disabling it also cheapens the main pass. This restores the doc's old
+"SSR ≈ half / 37→100 fps" headline for the *average* scene.
+
+**But the crucial finding: SSR is NOT the grazing worst-case bottleneck.** At max-stress, turning SSR
+off saves only 0.53 ms — because the env-map IBL *fallback* reflection at extreme grazing makes the main
+pass ~3 ms **more** expensive (6.5→9.5), paying back almost exactly what the skipped SSR march saved.
+**The reflection is expensive by any method at grazing; SSR-off just moves the cost.** To shave the
+worst case you must cull the reflection *before either path* — that's the Fresnel cutoff (E5,
+`uSsrMinFresnel`), not on/off. So an SSR-off "low" quality tier would help calm sailing a lot and storms
+barely.
+
+### Still open (Tier 2)
+
+**E5 SSR cutoff** (`uSsrMinFresnel` → `--ssr-cutoff`) is now the top follow-up — it's the lever for the
+grazing worst case E6 just showed SSR-off *can't* fix, and the doc's anti-spike knob. **E4 SSR steps**
+(the `SSR_STEPS=20` constant → runtime) is lower value given E6. And since the `main` pass is a co-equal
+cost with SSR, a Tier-2 pass on the **main shader** (PBR vs the parked Phong; the composite cost) is
+worth adding.
+
+**Reconciling with `PERFORMANCE.md`:** its "SSR is the dominant cost center / ≈ half the frame" was
+roughly RIGHT — E6 puts SSR's true share at ~37% (the isolated per-pass timer's ~25% is a lower bound;
+it misses the main-pass sampling cost). The real corrections to fold in are: (1) SSR-off saves ~37% on
+average but **≈0 at the grazing worst case** (reflection-bound by any method — cull with the Fresnel
+cutoff, not on/off); (2) the `main` pass is the largest *single isolated* pass, so it's a co-equal
+target, not a footnote; (3) on this iGPU the cost is **DVFS-sublinear in resolution**; and (4) the real
+combined frame is **CPU-bound** (draw-call submission + physics) at ≤ native res, and **spiky** (1%low
+≈ half the avg).
