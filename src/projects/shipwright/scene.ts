@@ -10,6 +10,7 @@ import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics, RAFT, TEST_SHAPES, type Physics } from "./physics";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
 import { createPlayer } from "./player";
+import { createBuilder } from "./builder";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
 import {
@@ -417,6 +418,19 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     },
   });
   scene.add(player.object);
+
+  // Voxel builder: while in first person, aim at a voxel face and left-click to break / right-click
+  // to place / Q to drop a loose voxel. All the world mutation lives in physics.ts; this is input +
+  // the aim dot. Active only while the sailor holds pointer-lock control.
+  const builder = createBuilder(
+    camera,
+    renderer.domElement,
+    physics,
+    () => player.isActive(),
+    () => player.velocity(),
+  );
+  scene.add(builder.object);
+
   // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy), and
   // snapshot his post-step position right after each step so he interpolates in lock-step with
   // the raft (smooth eye at the render rate — see physics `alpha` / player.syncCamera).
@@ -427,7 +441,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .init()
     .then(() => {
       const w = physics.world();
-      if (w) player.attach(w);
+      if (w) {
+        player.attach(w);
+        physics.setPlayerCollider(player.collider()); // exclude the capsule from the build aim ray
+      }
     })
     .catch((err: unknown) => {
       console.error("Shipwright: Rapier physics failed to initialise", err);
@@ -944,6 +961,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // interpolated raft); in first person that also drives the eye camera, otherwise the orbit
       // debug camera runs.
       player.syncCamera(physics.alpha());
+      // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person.
+      builder.update();
       if (!player.isActive()) controls.update();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
@@ -964,6 +983,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       gui.destroy();
       player.dispose();
+      builder.dispose();
       controls.dispose();
       envRenderTarget?.dispose();
       ssrTarget.dispose();

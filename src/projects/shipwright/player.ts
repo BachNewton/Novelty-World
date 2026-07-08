@@ -62,6 +62,12 @@ export interface Player {
   syncCamera: (alpha: number) => void;
   /** Whether first-person control is engaged (pointer locked). */
   isActive: () => boolean;
+  /** The capsule collider once attached (null before). The voxel builder excludes it from its aim ray
+   *  so the eye — which sits inside the capsule — doesn't self-hit. */
+  collider: () => RAPIER.Collider | null;
+  /** The sailor's current world velocity (zero before attach). A dropped voxel inherits it so it keeps
+   *  the player's momentum instead of lurching when you drop while walking or riding a swell. */
+  velocity: () => THREE.Vector3;
   dispose: () => void;
 }
 
@@ -306,6 +312,12 @@ export function createPlayer(
       camera.quaternion.setFromEuler(euler);
     },
     isActive: () => active,
+    collider: () => collider,
+    velocity: () => {
+      if (!body) return new THREE.Vector3();
+      const lv = body.linvel();
+      return new THREE.Vector3(lv.x, lv.y, lv.z);
+    },
     dispose: () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);

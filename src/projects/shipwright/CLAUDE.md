@@ -298,5 +298,27 @@ code that floats the ship agree on where the surface is.
   NaN-ing the Rapier WASM solver and hard-freezing the app. The buoyancy **simulation** is now complete;
   the remaining work is **rendering** (see `docs/FIDELITY.md` "Hull interiors"): mask the global ocean
   surface out of dry hull interiors, and draw flooded interior water at each compartment's fill level.
-- **Also open:** shoreline **foam** (we have soft edges, not a foam line), then the
-  voxel core / ships (which will drive live re-classification of the trapped air).
+- **Voxel building — place / break / drop (step 5, Minecraft-style).** In first person, aim at a voxel
+  face and **left-click breaks**, **right-click places** a voxel on that face, **Q drops** a fresh
+  unconnected voxel ahead of you (a seed for a new raft). Creative mode: unlimited blocks, no inventory
+  yet (that lands with resource gathering, roadmap #8). It works on **any** voxel body — the raft AND
+  every `TEST_SHAPES` demo — via one general path, not a raft special case. `physics.ts` owns the
+  editing: each voxel is its own box collider keyed by cell in a **fixed body-local frame** (retained
+  voxels never shift when the ship grows/shrinks — Rapier derives the real COM from the colliders), so
+  a place adds one collider + one merged-geometry regen, a break removes one. A break that **disconnects**
+  a build runs connected-components and **splits** the loose chunk(s) into their own dynamic bodies
+  (each inherits the parent frame + pose + velocity — no teleport); breaking the last voxel removes the
+  build. `analyzeBuildVoids` / `groupCompartments` re-run per edit, and per-compartment flood fractions
+  are **carried across** the re-classification by cell overlap (patch a leak and the shipped water stays
+  to be bailed — not reset). A ray from the eye (voxel colliders only, player capsule excluded) drives a
+  Minecraft-style selection outline; placement is blocked where it would land inside the sailor.
+  `builder.ts` is just input + the highlight. Edits are **queued and applied at a fixed point in the
+  step loop** — right after the riders' ray casts and just before `world.step()` — because Rapier's
+  `add`/`removeCollider` DON'T touch the query BVH (only `step()` rebuilds it), so casting between an
+  edit and the next step traps the WASM (`unreachable`); queuing keeps every cast consistent with the
+  collider set, and makes edits discrete fixed-point events. Still *input-scheduled*, not fully
+  deterministic — host-authoritative multiplayer will replay them as an ordered edit log (roadmap #9).
+  *Refactor target:* `physics.ts` is ~2100 lines and should shed `shapes.ts` (the shape/`TEST_SHAPES`
+  content) and a pure `flooding.ts` (the already-unit-tested void model).
+- **Also open:** shoreline **foam** (we have soft edges, not a foam line); efficient chunk meshing
+  (greedy) once ships get large; and making voxel edits deterministic/replayable for co-op.

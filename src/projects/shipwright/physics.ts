@@ -125,6 +125,13 @@ const DRAG_FACE_AREA = VOXEL * VOXEL;
 const DRAG_QUADRATIC = 0.5 * WATER_DENSITY * DRAG_CUBE_CD * DRAG_FACE_AREA;
 const DRAG_LINEAR = 200; // ≈ ζ 0.23 per voxel — light, physical
 const DRAG_MULTIPLIER_DEFAULT = 1;
+// Ceiling on the relative speed (m/s) the per-voxel drag is evaluated at. Above it the quadratic drag
+// impulse would exceed the voxel's own momentum in one fixed step and overshoot — the numerical
+// stiffness that let a fast body (kicked by a bad contact after a runtime edit) diverge to Inf inside
+// world.step(). Chosen so the drag impulse stays under the body's momentum at our lightest voxel mass
+// + fixed dt (no overshoot); well above any speed calm-water floating produces, so normal motion is
+// untouched. See applyBuoyancy.
+const DRAG_MAX_REL_SPEED = 12;
 
 // Half-step used to finite-difference the water (particle) velocity analytically.
 const VELOCITY_EPS = 1 / 120;
@@ -506,12 +513,30 @@ export const RAFT: Shape = {
   cells: buildRaft(),
 };
 
-interface Visual {
+export interface Visual {
   /** InstancedMesh (one instance per voxel) OR, when `single`, one merged Mesh posed by the
    *  body transform. Buoyancy always uses `offsets` regardless of how it renders. */
   mesh: THREE.InstancedMesh | THREE.Mesh;
   /** True when `mesh` is a single merged Mesh (posed whole) rather than per-voxel instances. */
   single: boolean;
+  /** The build's CURRENT integer grid cells (X right, Y up, Z depth). The voxel builder mutates this
+   *  on place/break; every derived array below is recomputed from it (see `rebuildVoxelData`). */
+  cells: [number, number, number][];
+  /** The build's FIXED local-frame origin, in grid units (the centroid at creation time). Kept
+   *  constant across edits so retained voxels never shift when the ship grows or shrinks: a cell's
+   *  local offset is always (cell − centroid)·VOXEL. Rapier derives the true centre of mass from the
+   *  colliders, so the body origin needn't sit at the COM — it just has to be stable. */
+  centroid: THREE.Vector3;
+  /** Each voxel's box collider, keyed by cell ("x,y,z"), so a break removes exactly one collider and
+   *  a place adds one — no need to tear down and rebuild the whole compound. */
+  colliders: Map<string, RAPIER.Collider>;
+  /** Render material: the shared wood PBR material for textured builds, else an owned flat colour.
+   *  Reused (not recreated) when the mesh is regenerated on an edit. */
+  material: THREE.MeshStandardMaterial;
+  /** Renders with the shared wood material (vs an owned flat colour) — decides which path regenerates. */
+  textured: boolean;
+  /** The dynamic body, once created in `init`/a split/a drop (null before). */
+  body: RAPIER.RigidBody | null;
   /** Local voxel-centre offsets (metres), centred on the shape's centroid. */
   offsets: THREE.Vector3[];
   /** Local centres (metres) of the build's empty interior cells (voids), SAME body frame as
@@ -558,6 +583,18 @@ interface Visual {
   density: number;
 }
 
+/** A voxel the player is aiming at: the build + the cell hit (to break), the empty cell across the
+ *  hit face (to place into), and the world-space hit point (for a face-anchored highlight). */
+export interface VoxelHit {
+  visual: Visual;
+  /** The targeted voxel's grid cell — what a break removes. */
+  cell: [number, number, number];
+  /** The empty grid cell adjacent across the hit face — where a place adds a voxel. */
+  placeCell: [number, number, number];
+  /** World-space point the ray struck (origin + dir·toi). */
+  point: THREE.Vector3;
+}
+
 export interface Physics {
   /** Add to the scene once. Holds the tetromino meshes + the debug-arrow overlay. */
   object: THREE.Object3D;
@@ -578,6 +615,28 @@ export interface Physics {
    *  (the player) snapshots its post-step transform here, in lock-step with the raft's snapshot,
    *  so both interpolate off the same pair of steps. */
   onAfterStep: (cb: () => void) => void;
+  /** Cast a ray (world space) against the voxel bodies only (the player capsule and anything else are
+   *  excluded) and return the aimed voxel — the cell hit, the empty cell across the hit face, and the
+   *  hit point. Null if nothing editable is within `maxReach` metres. The builder calls this per frame
+   *  for the selection highlight and on click for the edit target. No-op (null) until `init` resolves. */
+  raycastVoxel: (origin: THREE.Vector3, dir: THREE.Vector3, maxReach: number) => VoxelHit | null;
+  /** Add a voxel in the empty cell across the aimed face, extending that build (same material +
+   *  density). Recomputes the build's colliders, buoyancy voids, and mesh. */
+  placeVoxel: (hit: VoxelHit) => void;
+  /** Remove the aimed voxel. If that disconnects the build into separate chunks, each chunk becomes
+   *  its own dynamic body (inheriting the pose + velocity); emptying a build removes it entirely. */
+  removeVoxel: (hit: VoxelHit) => void;
+  /** Drop a fresh, unconnected single voxel into the world just ahead of `origin` along `dir` — a new
+   *  editable body you can then build a ship onto (Q in first person). `velocity` seeds its motion (the
+   *  player's, so it keeps your momentum when dropped while moving); omit for a dead drop. */
+  dropVoxel: (origin: THREE.Vector3, dir: THREE.Vector3, velocity?: THREE.Vector3) => void;
+  /** Register a collider for `raycastVoxel` to exclude (the player capsule — the eye is inside it, so
+   *  it'd self-hit at toi 0). Call once after the player attaches. */
+  setPlayerCollider: (collider: RAPIER.Collider | null) => void;
+  /** Pose `target` (position + orientation) onto a build's cell at the render-interpolated transform
+   *  (matches the drawn mesh, including the hull's heel). The builder poses the selection highlight
+   *  with this so the outline sits squarely on the aimed voxel. */
+  poseVoxel: (target: THREE.Object3D, visual: Visual, cell: [number, number, number]) => void;
   /** Render-interpolation factor in [0, 1]: how far the leftover accumulator sits between the last
    *  two fixed steps. Interpolate any body riding the sim (the player) by this so it moves smoothly
    *  at the render rate, matching the interpolated raft. Valid after `update`. */
@@ -858,6 +917,20 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   const materials: THREE.MeshStandardMaterial[] = [];
   const visuals: Visual[] = [];
 
+  // Rapier world (null until init). Held here (not just in the returned closure) so the voxel-edit
+  // helpers below can add/remove colliders and bodies on it.
+  let world: RAPIER.World | null = null;
+  // collider.handle → the build + cell it belongs to. Each voxel is its own box collider, so a ray
+  // hit identifies the exact voxel directly, and an edit can find + remove its collider. Maintained
+  // incrementally as colliders are created/removed (place, break, split, drop).
+  const colliderToVoxel = new Map<
+    number,
+    { visual: Visual; cell: [number, number, number] }
+  >();
+  const cellKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
+  // The player capsule, excluded from the build ray (see setPlayerCollider / raycastVoxel).
+  let excludedCollider: RAPIER.Collider | null = null;
+
   // Shared wood-plank PBR material for the raft (and future wood builds). The maps live in
   // public/shipwright/; load them async and attach on success, so a missing or slow file
   // just leaves the wood-brown base colour rather than rendering the raft black.
@@ -937,56 +1010,55 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     im.instanceMatrix.needsUpdate = true;
   };
 
-  const rowCount = shapes.reduce((n, s) => n + (s.spawnOverride ? 0 : 1), 0);
-  let rowIndex = 0;
-  let arrowCursor = 0;
-  shapes.forEach((shape, i) => {
-    const n = shape.cells.length;
-    // Centre the cells on their centroid so the body origin sits at the middle of
-    // the shape and instance offsets are symmetric about it.
-    let cxSum = 0;
-    let cySum = 0;
-    let czSum = 0;
-    for (const [cx, cy, cz] of shape.cells) {
-      cxSum += cx;
-      cySum += cy;
-      czSum += cz;
+  // --- Voxel-build primitives ------------------------------------------------------------------
+  // A build is just its integer `cells`; everything else (offsets, void graph, colliders, mesh) is
+  // DERIVED from that list and recomputed when the player places/breaks a voxel. These helpers are
+  // the derivation, factored out of construction so the runtime editor re-runs the same code.
+
+  // Centroid of the cells, in grid units — the FIXED local-frame origin (see Visual.centroid).
+  const centroidOf = (cells: [number, number, number][]): THREE.Vector3 => {
+    const c = new THREE.Vector3();
+    for (const [x, y, z] of cells) {
+      c.x += x;
+      c.y += y;
+      c.z += z;
     }
-    const cxMean = cxSum / n;
-    const cyMean = cySum / n;
-    const czMean = czSum / n;
-    const offsets = shape.cells.map(
-      ([cx, cy, cz]) =>
-        new THREE.Vector3(
-          (cx - cxMean) * VOXEL,
-          (cy - cyMean) * VOXEL,
-          (cz - czMean) * VOXEL,
-        ),
+    if (cells.length > 0) c.multiplyScalar(1 / cells.length);
+    return c;
+  };
+
+  // Body-local metre offset of a cell about a fixed centroid.
+  const offsetOf = (
+    x: number,
+    y: number,
+    z: number,
+    centroid: THREE.Vector3,
+  ): THREE.Vector3 =>
+    new THREE.Vector3(
+      (x - centroid.x) * VOXEL,
+      (y - centroid.y) * VOXEL,
+      (z - centroid.z) * VOXEL,
     );
-    // Empty interior cells (voids) of this build + their compartments, in the SAME body-local frame
-    // as `offsets` (centred on the material centroid). Each step the compartment water levels split
-    // these into trapped air (buoyancy-only) and flooded (water weight) — see applyBuoyancy.
-    // Pre-analysed once here; a pure recompute of the cell list, ready for the voxel builder to re-run
-    // on every place/break.
-    const voids = analyzeBuildVoids(shape.cells);
-    const voidOffsets = voids.cells.map(
-      ([cx, cy, cz]) =>
-        new THREE.Vector3(
-          (cx - cxMean) * VOXEL,
-          (cy - cyMean) * VOXEL,
-          (cz - czMean) * VOXEL,
-        ),
-    );
-    const voidCount = voidOffsets.length;
-    // Compartments: per compartment its cell + opening void indices, its body-local centroid (mean of
-    // its cell offsets, where the buoyancy loop samples the external waterline), and its footprint
-    // (mean cells per vertical layer — the orifice fill-rate denominator).
+
+  const offsetsFor = (
+    cells: [number, number, number][],
+    centroid: THREE.Vector3,
+  ): THREE.Vector3[] => cells.map(([x, y, z]) => offsetOf(x, y, z, centroid));
+
+  // The void/compartment buoyancy data for a build, in the body-local frame about `centroid` (same
+  // frame as the material offsets). A pure recompute of the cell list — see analyzeBuildVoids.
+  const buildVoidData = (
+    cells: [number, number, number][],
+    centroid: THREE.Vector3,
+  ) => {
+    const voids = analyzeBuildVoids(cells);
+    const voidOffsets = voids.cells.map(([x, y, z]) => offsetOf(x, y, z, centroid));
     const { cells: compartmentCells, openings: compartmentOpenings } = groupCompartments(voids);
     const compartmentCentroidLocal = compartmentCells.map((cellIdxs) => {
-      const centroid = new THREE.Vector3();
-      for (const idx of cellIdxs) centroid.add(voidOffsets[idx]);
-      if (cellIdxs.length > 0) centroid.multiplyScalar(1 / cellIdxs.length);
-      return centroid;
+      const c = new THREE.Vector3();
+      for (const idx of cellIdxs) c.add(voidOffsets[idx]);
+      if (cellIdxs.length > 0) c.multiplyScalar(1 / cellIdxs.length);
+      return c;
     });
     const compartmentFootprint = Float32Array.from(compartmentCells, (cellIdxs) => {
       if (cellIdxs.length === 0) return 1;
@@ -999,7 +1071,329 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       }
       return cellIdxs.length / (maxY - minY + 1); // cells ÷ vertical span (layers) = mean cross-section
     });
+    return {
+      voidCells: voids.cells,
+      voidOffsets,
+      voidEnclosed: voids.enclosed,
+      voidCompartment: voids.compartment,
+      compartmentCells,
+      compartmentOpenings,
+      compartmentCentroidLocal,
+      compartmentFootprint,
+    };
+  };
 
+  // Build the render mesh for a set of offsets. A `single` build is one merged Mesh (continuous-UV
+  // geometry, posed whole); otherwise per-voxel instances of the shared box. Meshes drift metres
+  // from the origin as they float, so the origin-centred bounding sphere would wrongly cull them —
+  // they're tiny, just always draw.
+  const makeMesh = (
+    single: boolean,
+    material: THREE.MeshStandardMaterial,
+    offsets: THREE.Vector3[],
+  ): THREE.InstancedMesh | THREE.Mesh => {
+    const mesh: THREE.InstancedMesh | THREE.Mesh = single
+      ? new THREE.Mesh(buildMergedVoxelGeometry(offsets), material)
+      : new THREE.InstancedMesh(boxGeometry, material, Math.max(offsets.length, 1));
+    mesh.frustumCulled = false;
+    return mesh;
+  };
+
+  const disposeMesh = (v: Visual) => {
+    group.remove(v.mesh);
+    if (v.single) v.mesh.geometry.dispose();
+    else (v.mesh as THREE.InstancedMesh).dispose();
+  };
+
+  // Carry a build's per-compartment fill fraction across a void re-classification. Compartment IDS
+  // are NOT stable across an edit (they're just the discovery order of connected components, which a
+  // one-voxel change reshuffles), but grid-cell COORDS are — so each new compartment inherits the
+  // fill of whichever old compartment it shares the most cells with; a brand-new compartment starts
+  // dry. This is why an edit doesn't have to reset flooding to zero (patch a leak → the shipped water
+  // stays to be bailed).
+  const remapFlood = (
+    oldVoidCells: [number, number, number][],
+    oldCompartment: number[],
+    oldWater: Float32Array,
+    newVoidCells: [number, number, number][],
+    newCompartment: number[],
+    newCompCount: number,
+  ): Float32Array => {
+    const water = new Float32Array(newCompCount);
+    if (newCompCount === 0) return water;
+    const oldByCell = new Map<string, number>();
+    oldVoidCells.forEach(([x, y, z], i) => {
+      if (oldCompartment[i] !== -1) oldByCell.set(cellKey(x, y, z), oldCompartment[i]);
+    });
+    const overlap = Array.from({ length: newCompCount }, () => new Map<number, number>());
+    newVoidCells.forEach(([x, y, z], i) => {
+      const nc = newCompartment[i];
+      if (nc === -1) return;
+      const oc = oldByCell.get(cellKey(x, y, z));
+      if (oc === undefined) return;
+      overlap[nc].set(oc, (overlap[nc].get(oc) ?? 0) + 1);
+    });
+    for (let c = 0; c < newCompCount; c++) {
+      let best = -1;
+      let bestN = 0;
+      overlap[c].forEach((cnt, oc) => {
+        if (cnt > bestN) {
+          bestN = cnt;
+          best = oc;
+        }
+      });
+      water[c] = best >= 0 ? oldWater[best] : 0;
+    }
+    return water;
+  };
+
+  interface VisualOpts {
+    density: number;
+    single: boolean;
+    textured: boolean;
+    material: THREE.MeshStandardMaterial;
+  }
+
+  // Build a Visual (derived data + mesh, no body yet) from a cell list and push it. `centroidOverride`
+  // pins the local frame (a split child reuses its parent's frame so its voxels don't teleport);
+  // otherwise the centroid is the build's own.
+  const createVisual = (
+    cells: [number, number, number][],
+    opts: VisualOpts,
+    spawnPos: THREE.Vector3,
+    spawnQuat: THREE.Quaternion,
+    centroidOverride?: THREE.Vector3,
+  ): Visual => {
+    const centroid = centroidOverride ? centroidOverride.clone() : centroidOf(cells);
+    const offsets = offsetsFor(cells, centroid);
+    const vd = buildVoidData(cells, centroid);
+    const voidCount = vd.voidOffsets.length;
+    const nComp = vd.compartmentCells.length;
+    const mesh = makeMesh(opts.single, opts.material, offsets);
+    group.add(mesh);
+    const v: Visual = {
+      mesh,
+      single: opts.single,
+      cells: cells.map(([x, y, z]) => [x, y, z] as [number, number, number]),
+      centroid,
+      colliders: new Map(),
+      material: opts.material,
+      textured: opts.textured,
+      body: null,
+      offsets,
+      voidOffsets: vd.voidOffsets,
+      voidEnclosed: vd.voidEnclosed,
+      voidCompartment: vd.voidCompartment,
+      voidWorld: new Float32Array(voidCount * 3),
+      voidSubmerged: new Float32Array(voidCount),
+      voidFlooded: new Uint8Array(voidCount),
+      compartmentCells: vd.compartmentCells,
+      compartmentOpenings: vd.compartmentOpenings,
+      compartmentCentroidLocal: vd.compartmentCentroidLocal,
+      compartmentFloodLevel: new Float32Array(nComp),
+      compartmentFootprint: vd.compartmentFootprint,
+      compartmentWater: new Float32Array(nComp), // fill fraction, starts 0 (dry)
+      spawnPos: spawnPos.clone(),
+      spawnQuat: spawnQuat.clone(),
+      prevPos: spawnPos.clone(),
+      prevQuat: spawnQuat.clone(),
+      currPos: spawnPos.clone(),
+      currQuat: spawnQuat.clone(),
+      arrowBase: 0, // assigned by rebuildDiagnostics
+      density: opts.density,
+    };
+    visuals.push(v);
+    placeInstances(v, spawnPos, spawnQuat);
+    return v;
+  };
+
+  // Recompute a build's DERIVED state after its cells changed (place/break): offsets, void graph,
+  // flooding (fill carried over — see remapFlood), and the mesh. Colliders are handled separately by
+  // the edit op; the pose is preserved, so the rebuilt mesh re-poses at the current transform.
+  const rebuildVoxelData = (v: Visual) => {
+    const centroid = v.centroid;
+    // Old void grid-cells recovered from the current offsets (the frame is fixed, so this is exact),
+    // paired with the old flooding, to carry the fill across the re-classification.
+    const oldVoidCells = v.voidOffsets.map(
+      (o) =>
+        [
+          Math.round(o.x / VOXEL + centroid.x),
+          Math.round(o.y / VOXEL + centroid.y),
+          Math.round(o.z / VOXEL + centroid.z),
+        ] as [number, number, number],
+    );
+    const oldCompartment = v.voidCompartment;
+    const oldWater = v.compartmentWater;
+
+    const offsets = offsetsFor(v.cells, centroid);
+    const vd = buildVoidData(v.cells, centroid);
+    const voidCount = vd.voidOffsets.length;
+    const nComp = vd.compartmentCells.length;
+
+    v.offsets = offsets;
+    v.voidOffsets = vd.voidOffsets;
+    v.voidEnclosed = vd.voidEnclosed;
+    v.voidCompartment = vd.voidCompartment;
+    v.voidWorld = new Float32Array(voidCount * 3);
+    v.voidSubmerged = new Float32Array(voidCount);
+    v.voidFlooded = new Uint8Array(voidCount);
+    v.compartmentCells = vd.compartmentCells;
+    v.compartmentOpenings = vd.compartmentOpenings;
+    v.compartmentCentroidLocal = vd.compartmentCentroidLocal;
+    v.compartmentFloodLevel = new Float32Array(nComp);
+    v.compartmentFootprint = vd.compartmentFootprint;
+    v.compartmentWater = remapFlood(
+      oldVoidCells,
+      oldCompartment,
+      oldWater,
+      vd.voidCells,
+      vd.voidCompartment,
+      nComp,
+    );
+
+    disposeMesh(v);
+    v.mesh = makeMesh(v.single, v.material, offsets);
+    group.add(v.mesh);
+    placeInstances(v, v.currPos, v.currQuat);
+  };
+
+  // Add one voxel's box collider to a body, keyed + registered so a ray hit and a later break can
+  // find it. Density-weighted so mass follows the build (Rapier recomputes the body mass properties).
+  const addVoxelCollider = (
+    v: Visual,
+    body: RAPIER.RigidBody,
+    x: number,
+    y: number,
+    z: number,
+  ) => {
+    if (!world) return;
+    const off = offsetOf(x, y, z, v.centroid);
+    const collider = world.createCollider(
+      RAPIER.ColliderDesc.cuboid(HALF, HALF, HALF)
+        .setTranslation(off.x, off.y, off.z)
+        .setDensity(v.density)
+        .setFriction(0.5)
+        .setRestitution(0),
+      body,
+    );
+    v.colliders.set(cellKey(x, y, z), collider);
+    colliderToVoxel.set(collider.handle, { visual: v, cell: [x, y, z] });
+  };
+
+  // Create the dynamic body + one collider per current cell, optionally seeded with a velocity (a
+  // split child inherits its parent's). Used by init, split, and drop.
+  const createBody = (
+    v: Visual,
+    pos: THREE.Vector3,
+    quat: THREE.Quaternion,
+    linvel?: { x: number; y: number; z: number },
+    angvel?: { x: number; y: number; z: number },
+  ) => {
+    if (!world) return;
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(pos.x, pos.y, pos.z)
+        .setRotation(quat)
+        .setLinearDamping(LINEAR_DAMPING)
+        .setAngularDamping(ANGULAR_DAMPING)
+        .setCanSleep(false), // buoyancy keeps nudging — don't let bodies sleep
+    );
+    v.colliders.clear();
+    for (const [x, y, z] of v.cells) addVoxelCollider(v, body, x, y, z);
+    if (linvel) body.setLinvel(linvel, true);
+    if (angvel) body.setAngvel(angvel, true);
+    v.body = body;
+  };
+
+  // Remove a build entirely (its last voxel was broken): mesh, body (which frees its colliders), and
+  // the registry entries. The material is shared/owned-elsewhere, freed at dispose().
+  const destroyVisual = (v: Visual) => {
+    const idx = visuals.indexOf(v);
+    if (idx === -1) return;
+    disposeMesh(v);
+    for (const collider of v.colliders.values()) colliderToVoxel.delete(collider.handle);
+    v.colliders.clear();
+    if (world && v.body) world.removeRigidBody(v.body); // frees the body's colliders too
+    v.body = null;
+    visuals.splice(idx, 1);
+  };
+
+  // --- Diagnostics overlays (force arrows + trapped-air x-ray) --------------------------------
+  // Both index every build's buoyancy points (material voxels then void cells, in `visuals` order),
+  // so they're rebuilt whenever the point counts change — construction and every edit. The two shared
+  // resources (arrow group, x-ray box/material) are created once; the per-point arrows and the x-ray
+  // InstancedMesh (its capacity = the void-cell count) are re-created by rebuildDiagnostics.
+  const arrowGroup = new THREE.Group();
+  arrowGroup.visible = false;
+  group.add(arrowGroup);
+  const airBoxGeometry = new THREE.BoxGeometry(VOXEL * 0.85, VOXEL * 0.85, VOXEL * 0.85);
+  const airOverlayMaterial = new THREE.MeshBasicMaterial({
+    color: AIR_OVERLAY_COLOR,
+    transparent: true,
+    opacity: 0.25,
+    blending: THREE.AdditiveBlending, // stacked cells glow brighter the deeper the pocket
+    depthTest: false, // show THROUGH the opaque hull (a lidded/deep hull hides it otherwise)
+    depthWrite: false,
+  });
+  // The flat force/pos arrays (one entry per buoyancy point, indexed by v.arrowBase + j), the
+  // per-point arrows, and the trapped-air x-ray — all reallocated by rebuildDiagnostics. `let` so the
+  // hot loops (applyBuoyancy/syncMeshes/updateArrows) always read the current binding after a rebuild.
+  let forceArr: THREE.Vector3[] = [];
+  let posArr: THREE.Vector3[] = [];
+  let arrows: THREE.ArrowHelper[] = [];
+  let airOverlay = new THREE.InstancedMesh(airBoxGeometry, airOverlayMaterial, 1);
+  airOverlay.count = 0;
+  airOverlay.frustumCulled = false;
+  airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
+  airOverlay.visible = true; // on by default — the trapped-air x-ray is the main debugging aid now
+
+  const rebuildDiagnostics = () => {
+    // Re-number the contiguous buoyancy-point ranges (material voxels, then void cells, per build).
+    let cursor = 0;
+    for (const v of visuals) {
+      v.arrowBase = cursor;
+      cursor += v.offsets.length + v.voidOffsets.length;
+    }
+    forceArr = Array.from({ length: cursor }, () => new THREE.Vector3());
+    posArr = Array.from({ length: cursor }, () => new THREE.Vector3());
+
+    // Force arrows (teal per material voxel, blue per void cell) in the same order as arrowBase.
+    for (const a of arrows) a.dispose();
+    arrowGroup.clear();
+    arrows = [];
+    const addArrow = (color: number) => {
+      const arrow = new THREE.ArrowHelper(UP, ORIGIN, 1, color, 0.3, 0.2);
+      arrow.visible = false;
+      arrowGroup.add(arrow);
+      arrows.push(arrow);
+    };
+    for (const v of visuals) {
+      for (let j = 0; j < v.offsets.length; j++) addArrow(ARROW_COLOR);
+      for (let j = 0; j < v.voidOffsets.length; j++) addArrow(AIR_ARROW_COLOR);
+    }
+
+    // Trapped-air x-ray: capacity = total void cells; only the trapped-air subset draws (count set
+    // per frame in syncMeshes). Preserve the current on/off state across the reallocation.
+    const totalVoidCells = visuals.reduce((sum, v) => sum + v.voidOffsets.length, 0);
+    const wasVisible = airOverlay.visible;
+    group.remove(airOverlay);
+    airOverlay.dispose();
+    airOverlay = new THREE.InstancedMesh(
+      airBoxGeometry,
+      airOverlayMaterial,
+      Math.max(totalVoidCells, 1),
+    );
+    airOverlay.count = 0;
+    airOverlay.frustumCulled = false;
+    airOverlay.renderOrder = 999;
+    airOverlay.visible = wasVisible;
+    group.add(airOverlay);
+  };
+
+  // --- Construction: build each starting shape, then size the diagnostics -----------------------
+  const rowCount = shapes.reduce((n, s) => n + (s.spawnOverride ? 0 : 1), 0);
+  let rowIndex = 0;
+  shapes.forEach((shape, i) => {
     // Textured builds share the wood material; the rest get a flat colour we own + dispose.
     let material: THREE.MeshStandardMaterial;
     if (shape.textured === true) {
@@ -1012,17 +1406,6 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       });
       materials.push(material);
     }
-    // A `merged` build renders as one Mesh (continuous-UV geometry, posed whole); the rest
-    // render as per-voxel instances of the shared box.
-    const single = shape.merged === true;
-    const mesh: THREE.InstancedMesh | THREE.Mesh = single
-      ? new THREE.Mesh(buildMergedVoxelGeometry(offsets), material)
-      : new THREE.InstancedMesh(boxGeometry, material, n);
-    // Instances/merged meshes are translated metres from the origin and drift as they float, so
-    // the origin-centred bounding sphere would wrongly cull the whole mesh at some angles. These
-    // are tiny — just always draw them.
-    mesh.frustumCulled = false;
-    group.add(mesh);
 
     let spawnPos: THREE.Vector3;
     if (shape.spawnOverride) {
@@ -1042,98 +1425,36 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     const angle = shape.upright === true ? 0 : 0.4 + i * 0.15;
     const spawnQuat = new THREE.Quaternion().setFromAxisAngle(axis, angle);
 
-    const v: Visual = {
-      mesh,
-      single,
-      offsets,
-      voidOffsets,
-      voidEnclosed: voids.enclosed,
-      voidCompartment: voids.compartment,
-      voidWorld: new Float32Array(voidCount * 3),
-      voidSubmerged: new Float32Array(voidCount),
-      voidFlooded: new Uint8Array(voidCount),
-      compartmentCells,
-      compartmentOpenings,
-      compartmentCentroidLocal,
-      compartmentFloodLevel: new Float32Array(compartmentCells.length),
-      compartmentFootprint,
-      compartmentWater: new Float32Array(compartmentCells.length), // fill fraction, starts 0 (dry)
+    createVisual(
+      shape.cells,
+      {
+        density: shape.density ?? VOXEL_DENSITY,
+        single: shape.merged === true,
+        textured: shape.textured === true,
+        material,
+      },
       spawnPos,
       spawnQuat,
-      prevPos: spawnPos.clone(),
-      prevQuat: spawnQuat.clone(),
-      currPos: spawnPos.clone(),
-      currQuat: spawnQuat.clone(),
-      arrowBase: arrowCursor,
-      density: shape.density ?? VOXEL_DENSITY,
-    };
-    visuals.push(v);
-    placeInstances(v, spawnPos, spawnQuat);
-    arrowCursor += n + voidCount;
+    );
   });
+  rebuildDiagnostics();
 
-  // Buoyancy points = every visual's material voxels + its trapped-air cells. Allocate the flat
-  // force/pos/arrow arrays now the counts are known. (Static per build today; when the voxel
-  // builder edits a ship at runtime these reallocate alongside the recomputed air cells.)
-  const totalBuoyancyPoints = arrowCursor;
-  const forceArr = Array.from({ length: totalBuoyancyPoints }, () => new THREE.Vector3());
-  const posArr = Array.from({ length: totalBuoyancyPoints }, () => new THREE.Vector3());
-
-  // Per-point buoyancy-force debug overlay (off by default). One arrow per buoyancy point,
-  // positioned + scaled each frame from the last forces the sim applied. Built in the same
-  // contiguous order as `arrowBase`: each visual's material voxels (teal) then its void cells
-  // (blue), so the trapped air's lift is visible on its own (flooded voids apply no force → hidden).
-  const arrowGroup = new THREE.Group();
-  arrowGroup.visible = false;
-  group.add(arrowGroup);
-  const arrows: THREE.ArrowHelper[] = [];
-  const addArrow = (color: number) => {
-    const arrow = new THREE.ArrowHelper(UP, ORIGIN, 1, color, 0.3, 0.2);
-    arrow.visible = false;
-    arrowGroup.add(arrow);
-    arrows.push(arrow);
-  };
-  for (const v of visuals) {
-    for (let j = 0; j < v.offsets.length; j++) addArrow(ARROW_COLOR);
-    for (let j = 0; j < v.voidOffsets.length; j++) addArrow(AIR_ARROW_COLOR);
-  }
-
-  // Trapped-air x-ray overlay (off by default): a box filling each cell the sea DIDN'T reach (i.e.
-  // trapped air), drawn with depth test OFF so it shows THROUGH the opaque hull (a lidded or deep
-  // hull hides it otherwise) — the direct way to eyeball what the per-step flood classified. As a
-  // hull rolls or swamps, cells switch between air and flooded, so the glow updates live. ADDITIVE
-  // blending makes the stacked cells glow brighter the deeper the pocket. Boxes are inset to read as
-  // a floating inner volume; posed + counted each frame in syncMeshes from the last step's flood.
-  const totalVoidCells = visuals.reduce((sum, v) => sum + v.voidOffsets.length, 0);
-  const airBoxGeometry = new THREE.BoxGeometry(VOXEL * 0.85, VOXEL * 0.85, VOXEL * 0.85);
-  const airOverlayMaterial = new THREE.MeshBasicMaterial({
-    color: AIR_OVERLAY_COLOR,
-    transparent: true,
-    opacity: 0.25,
-    blending: THREE.AdditiveBlending,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const airOverlay = new THREE.InstancedMesh(
-    airBoxGeometry,
-    airOverlayMaterial,
-    Math.max(totalVoidCells, 1), // ≥1 buffer; only the trapped-air subset is drawn (count set per frame)
-  );
-  airOverlay.count = 0; // set each frame in syncMeshes to the current trapped-air-cell count
-  airOverlay.frustumCulled = false;
-  airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
-  airOverlay.visible = true; // on by default — the trapped-air x-ray is the main debugging aid now
-  group.add(airOverlay);
-
-  // Rapier is loaded async (init); until then there's no world and update no-ops.
-  // `bodies` is index-parallel to `visuals` once init resolves.
-  let world: RAPIER.World | null = null;
-  const bodies: RAPIER.RigidBody[] = [];
+  // Rapier is loaded async (init); until then there's no world and update no-ops. Bodies live on
+  // each Visual (v.body) once init resolves.
   const fixedStepCallbacks: ((dt: number, time: number) => void)[] = [];
   const afterStepCallbacks: (() => void)[] = [];
   let accumulator = 0;
   let interpAlpha = 0; // leftover-accumulator fraction in [0,1] for render interpolation (see update)
   let simFailed = false; // set if Rapier's WASM ever traps — we then stop stepping (see update)
+  let paused = false; // debug: freeze the sim (skip the whole step loop) to measure physics' frame cost
+  let hasStepped = false; // set after the first world.step() — the query BVH is only valid once stepped
+  // Deferred voxel edits (place/break/drop). They mutate the collider set, but the query BVH the raycasts
+  // use is ONLY rebuilt by world.step() (add/removeCollider don't touch it) — so casting between an edit
+  // and the next step dereferences a changed collider and traps the WASM. We therefore QUEUE edits and
+  // apply them inside the fixed loop right AFTER the riders' casts and right BEFORE world.step(), so the
+  // BVH is always consistent with the collider set at every cast, and the step immediately refreshes it.
+  // (This also makes edits discrete, fixed-point events — the shape a replayable co-op edit log needs.)
+  const editQueue: (() => void)[] = [];
 
   // Local water velocity = analytic time-derivative of the Gerstner particle ride
   // at this (x, z), by central finite difference. This is what the drag nudges the
@@ -1152,7 +1473,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   const applyBuoyancy = (time: number) => {
     for (let i = 0; i < visuals.length; i++) {
       const v = visuals[i];
-      const body = bodies[i];
+      const body = v.body;
+      if (!body) continue;
       const t = body.translation();
       const rot = body.rotation();
       tmpQuat.set(rot.x, rot.y, rot.z, rot.w);
@@ -1191,10 +1513,23 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         const rx = wx - com.x;
         const ry = wy - com.y;
         const rz = wz - com.z;
-        const relx = wv.x - (lin.x + (ang.y * rz - ang.z * ry));
-        const rely = wv.y - (lin.y + (ang.z * rx - ang.x * rz));
-        const relz = wv.z - (lin.z + (ang.x * ry - ang.y * rx));
-        const relSpeed = Math.hypot(relx, rely, relz);
+        let relx = wv.x - (lin.x + (ang.y * rz - ang.z * ry));
+        let rely = wv.y - (lin.y + (ang.z * rx - ang.x * rz));
+        let relz = wv.z - (lin.z + (ang.x * ry - ang.y * rx));
+        // Cap the relative velocity the drag sees. Form drag grows with v², so a body that gets fast (a
+        // bad contact from a runtime edit) generates a drag impulse larger than its own momentum in one
+        // step → it overshoots, oscillates, and can diverge to Inf INSIDE world.step(), before any post-
+        // step guard runs (this was the real solver-trap trigger). Clamping the whole relative-velocity
+        // vector keeps the damping strong but bounded so it can't overshoot. Inert in normal floating
+        // (relative speed ≪ the cap); only bites the pathological high-speed case.
+        let relSpeed = Math.hypot(relx, rely, relz);
+        if (relSpeed > DRAG_MAX_REL_SPEED) {
+          const s = DRAG_MAX_REL_SPEED / relSpeed;
+          relx *= s;
+          rely *= s;
+          relz *= s;
+          relSpeed = DRAG_MAX_REL_SPEED;
+        }
         const dc = (DRAG_LINEAR + DRAG_QUADRATIC * relSpeed) * submerged * params.drag;
         const fx = relx * dc;
         const fy = buoyancy + rely * dc;
@@ -1357,7 +1692,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     if (!world) return;
     for (let i = 0; i < visuals.length; i++) {
       const v = visuals[i];
-      const body = bodies[i];
+      const body = v.body;
+      if (!body) continue;
       body.setTranslation(v.spawnPos, true);
       body.setRotation(v.spawnQuat, true);
       body.setLinvel(ZERO, true);
@@ -1395,55 +1731,325 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     }
   };
 
+  // --- Voxel editing (place / break / drop) ---------------------------------------------------
+  // Scratch for the edit ops — these run once per click / once per frame (the highlight raycast), not
+  // per-voxel, so a little allocation is fine, but keep the hot-ish ray + pose reused.
+  const editPos = new THREE.Vector3();
+  const editQuat = new THREE.Quaternion();
+  const editNormal = new THREE.Vector3();
+  const editRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+  // Distance ahead of the eye a Q-dropped voxel spawns. A dropped voxel must NOT spawn overlapping any
+  // existing voxel: two dynamic bodies spawned in deep penetration is what the contact solver can't
+  // resolve — it blows up and traps the WASM. So `applyDropVoxel` nudges the spawn UP a voxel at a time
+  // until the spot is clear (stacking a Q-burst instead of piling it into one point), up to this cap.
+  const DROP_DISTANCE = 2;
+  const DROP_MAX_NUDGE = 64;
+  const dropProbe = new THREE.Vector3(); // scratch for the spawn-clearance check
+
+  // Connected components of a cell list by 6-face adjacency — the disconnection test after a break.
+  const connectedComponents = (
+    cells: [number, number, number][],
+  ): [number, number, number][][] => {
+    const present = new Set(cells.map(([x, y, z]) => cellKey(x, y, z)));
+    const seen = new Set<string>();
+    const comps: [number, number, number][][] = [];
+    for (const start of cells) {
+      if (seen.has(cellKey(start[0], start[1], start[2]))) continue;
+      const comp: [number, number, number][] = [];
+      const stack: [number, number, number][] = [start];
+      seen.add(cellKey(start[0], start[1], start[2]));
+      while (stack.length > 0) {
+        const cur = stack.pop();
+        if (!cur) break;
+        const [cx, cy, cz] = cur;
+        comp.push(cur);
+        const nbrs: [number, number, number][] = [
+          [cx - 1, cy, cz], [cx + 1, cy, cz],
+          [cx, cy - 1, cz], [cx, cy + 1, cz],
+          [cx, cy, cz - 1], [cx, cy, cz + 1],
+        ];
+        for (const nb of nbrs) {
+          const nk = cellKey(nb[0], nb[1], nb[2]);
+          if (present.has(nk) && !seen.has(nk)) {
+            seen.add(nk);
+            stack.push(nb);
+          }
+        }
+      }
+      comps.push(comp);
+    }
+    return comps;
+  };
+
+  const raycastVoxel = (
+    origin: THREE.Vector3,
+    dir: THREE.Vector3,
+    maxReach: number,
+  ): VoxelHit | null => {
+    // The query BVH is only valid once the world has stepped; and after a solver trap (simFailed) the
+    // WASM instance is poisoned, so any further cast throws "recursive use" — bail on both.
+    if (!world || !hasStepped || simFailed) return null;
+    editRay.origin.x = origin.x;
+    editRay.origin.y = origin.y;
+    editRay.origin.z = origin.z;
+    editRay.dir.x = dir.x;
+    editRay.dir.y = dir.y;
+    editRay.dir.z = dir.z;
+    // Exclude the player capsule (the eye sits inside it → it'd self-hit at toi 0); every other collider
+    // in the world is a voxel, confirmed via the map below. Excluding by HANDLE (not a filter predicate)
+    // keeps this a plain query with no JS callback. The one real hazard for a cast — traversing a BVH
+    // that still holds a freed collider's proxy — is closed by the edit queue: collider mutations are
+    // only applied immediately before a world.step(), which is the sole thing that refreshes the BVH, so
+    // no cast ever observes an un-stepped mutation. `solid` so a face flush with the ray still registers.
+    const hit = world.castRayAndGetNormal(
+      editRay,
+      maxReach,
+      true,
+      undefined,
+      undefined,
+      excludedCollider ?? undefined,
+    );
+    if (!hit) return null;
+    const rec = colliderToVoxel.get(hit.collider.handle);
+    if (!rec) return null; // not a voxel we know (shouldn't happen with the player excluded)
+    const v = rec.visual;
+    const [cx, cy, cz] = rec.cell;
+    const point = new THREE.Vector3(
+      origin.x + dir.x * hit.timeOfImpact,
+      origin.y + dir.y * hit.timeOfImpact,
+      origin.z + dir.z * hit.timeOfImpact,
+    );
+    // The hit face's outward normal (world) → the build's local grid axes (inverse body rotation) →
+    // the unit grid step to the empty neighbour across that face (where a place lands).
+    const rot = v.body ? v.body.rotation() : { x: 0, y: 0, z: 0, w: 1 };
+    editQuat.set(rot.x, rot.y, rot.z, rot.w).invert();
+    editNormal.set(hit.normal.x, hit.normal.y, hit.normal.z).applyQuaternion(editQuat);
+    const ax = Math.abs(editNormal.x);
+    const ay = Math.abs(editNormal.y);
+    const az = Math.abs(editNormal.z);
+    let dx = 0;
+    let dy = 0;
+    let dz = 0;
+    if (ax >= ay && ax >= az) dx = Math.sign(editNormal.x);
+    else if (ay >= az) dy = Math.sign(editNormal.y);
+    else dz = Math.sign(editNormal.z);
+    return {
+      visual: v,
+      cell: [cx, cy, cz],
+      placeCell: [cx + dx, cy + dy, cz + dz],
+      point,
+    };
+  };
+
+  const poseVoxel = (
+    target: THREE.Object3D,
+    v: Visual,
+    cell: [number, number, number],
+  ) => {
+    // Interpolated pose so the highlight sits on the DRAWN mesh (syncMeshes uses the same lerp/alpha).
+    editPos.lerpVectors(v.prevPos, v.currPos, interpAlpha);
+    editQuat.slerpQuaternions(v.prevQuat, v.currQuat, interpAlpha);
+    target.position
+      .copy(offsetOf(cell[0], cell[1], cell[2], v.centroid))
+      .applyQuaternion(editQuat)
+      .add(editPos);
+    target.quaternion.copy(editQuat);
+  };
+
+  const applyPlaceVoxel = (hit: VoxelHit) => {
+    if (!world) return;
+    const v = hit.visual;
+    const body = v.body;
+    if (!body) return;
+    const [x, y, z] = hit.placeCell;
+    if (v.colliders.has(cellKey(x, y, z))) return; // already occupied (shouldn't happen off a face)
+    v.cells.push([x, y, z]);
+    addVoxelCollider(v, body, x, y, z);
+    body.recomputeMassPropertiesFromColliders(); // mass follows the added voxel
+    rebuildVoxelData(v);
+  };
+
+  // Spin every non-largest chunk of a just-broken build off into its own body. Each child reuses the
+  // parent's local frame + pose (so its voxels don't teleport) and inherits its velocity (so it drifts
+  // apart naturally). The largest chunk stays on the original body.
+  const splitVisual = (v: Visual, comps: [number, number, number][][]) => {
+    const w = world;
+    if (!w || !v.body) return;
+    comps.sort((a, b) => b.length - a.length);
+    const t = v.body.translation();
+    const rot = v.body.rotation();
+    const lin = v.body.linvel();
+    const ang = v.body.angvel();
+    editPos.set(t.x, t.y, t.z);
+    editQuat.set(rot.x, rot.y, rot.z, rot.w);
+    for (let c = 1; c < comps.length; c++) {
+      for (const [x, y, z] of comps[c]) {
+        const col = v.colliders.get(cellKey(x, y, z));
+        if (col) {
+          w.removeCollider(col, true);
+          colliderToVoxel.delete(col.handle);
+          v.colliders.delete(cellKey(x, y, z));
+        }
+      }
+      const child = createVisual(
+        comps[c],
+        { density: v.density, single: v.single, textured: v.textured, material: v.material },
+        editPos,
+        editQuat,
+        v.centroid,
+      );
+      createBody(
+        child,
+        editPos,
+        editQuat,
+        { x: lin.x, y: lin.y, z: lin.z },
+        { x: ang.x, y: ang.y, z: ang.z },
+      );
+    }
+    v.cells = comps[0];
+    v.body.recomputeMassPropertiesFromColliders();
+    rebuildVoxelData(v);
+  };
+
+  const applyRemoveVoxel = (hit: VoxelHit) => {
+    if (!world) return;
+    const v = hit.visual;
+    const body = v.body;
+    if (!body) return;
+    const [x, y, z] = hit.cell;
+    const collider = v.colliders.get(cellKey(x, y, z));
+    if (!collider) return;
+    world.removeCollider(collider, true);
+    colliderToVoxel.delete(collider.handle);
+    v.colliders.delete(cellKey(x, y, z));
+    v.cells = v.cells.filter(([cx, cy, cz]) => cx !== x || cy !== y || cz !== z);
+
+    if (v.cells.length === 0) {
+      destroyVisual(v); // broke the last voxel — the build is gone
+    } else {
+      const comps = connectedComponents(v.cells);
+      if (comps.length > 1) splitVisual(v, comps);
+      else {
+        body.recomputeMassPropertiesFromColliders();
+        rebuildVoxelData(v);
+      }
+    }
+  };
+
+  // Is a voxel centred at `p` (world) overlapping any existing voxel? A plain check against our own
+  // voxel positions — NO physics query, so it has none of the query-BVH hazards, and it naturally
+  // includes voxels dropped earlier in this same batch (they're already in `visuals`, posed at their
+  // spawn). Two centres within one voxel edge in every axis ⇒ the 0.5 m boxes overlap.
+  const dropSpotOccupied = (p: THREE.Vector3): boolean => {
+    for (const v of visuals) {
+      for (const off of v.offsets) {
+        dropProbe.copy(off).applyQuaternion(v.currQuat).add(v.currPos);
+        if (
+          Math.abs(dropProbe.x - p.x) < VOXEL &&
+          Math.abs(dropProbe.y - p.y) < VOXEL &&
+          Math.abs(dropProbe.z - p.z) < VOXEL
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const applyDropVoxel = (
+    origin: THREE.Vector3,
+    dir: THREE.Vector3,
+    velocity?: { x: number; y: number; z: number },
+  ) => {
+    if (!world) return;
+    const spawn = new THREE.Vector3(
+      origin.x + dir.x * DROP_DISTANCE,
+      origin.y + dir.y * DROP_DISTANCE + 0.3, // a touch high so it drops in and settles
+      origin.z + dir.z * DROP_DISTANCE,
+    );
+    // Nudge up until the spot is clear of existing voxels — never spawn into deep penetration. Skip the
+    // drop entirely if no room turns up (a jammed column) rather than forcing an overlap.
+    let clear = false;
+    for (let attempt = 0; attempt < DROP_MAX_NUDGE; attempt++) {
+      if (!dropSpotOccupied(spawn)) {
+        clear = true;
+        break;
+      }
+      spawn.y += VOXEL;
+    }
+    if (!clear) return;
+    const quat = new THREE.Quaternion(); // level
+    const child = createVisual(
+      [[0, 0, 0]],
+      { density: RAFT_DENSITY, single: true, textured: true, material: woodMaterial },
+      spawn,
+      quat,
+      new THREE.Vector3(0, 0, 0),
+    );
+    // Seed with the player's velocity so it keeps their momentum (drop while walking/riding a swell and
+    // it travels with you, not lurching). Safe against the old clump bug because the spawn is already
+    // guaranteed clear — the clump only exploded when bodies shared a velocity AND were coincident.
+    createBody(child, spawn, quat, velocity);
+  };
+
+  // Public edit entry points: enqueue the mutation to run at the safe point in the fixed loop (see
+  // editQueue). `dir` is copied because the caller's vector (the camera forward) keeps changing.
+  const placeVoxel = (hit: VoxelHit) => editQueue.push(() => applyPlaceVoxel(hit));
+  const removeVoxel = (hit: VoxelHit) => editQueue.push(() => applyRemoveVoxel(hit));
+  const dropVoxel = (origin: THREE.Vector3, dir: THREE.Vector3, velocity?: THREE.Vector3) => {
+    const o = origin.clone();
+    const d = dir.clone();
+    // Snapshot the velocity at press time (the player keeps moving before the edit drains).
+    const vel = velocity ? { x: velocity.x, y: velocity.y, z: velocity.z } : undefined;
+    editQueue.push(() => applyDropVoxel(o, d, vel));
+  };
+
   return {
     object: group,
     init: async () => {
       await RAPIER.init();
       const w = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
       w.timestep = FIXED_DT;
-      for (const v of visuals) {
-        const desc = RAPIER.RigidBodyDesc.dynamic()
-          .setTranslation(v.spawnPos.x, v.spawnPos.y, v.spawnPos.z)
-          .setRotation(v.spawnQuat)
-          .setLinearDamping(LINEAR_DAMPING)
-          .setAngularDamping(ANGULAR_DAMPING)
-          .setCanSleep(false); // buoyancy keeps nudging — don't let bodies sleep
-        const body = w.createRigidBody(desc);
-        for (const offset of v.offsets) {
-          const collider = RAPIER.ColliderDesc.cuboid(HALF, HALF, HALF)
-            .setTranslation(offset.x, offset.y, offset.z)
-            .setDensity(v.density)
-            .setFriction(0.5)
-            .setRestitution(0);
-          w.createCollider(collider, body);
-        }
-        bodies.push(body);
-      }
-      world = w;
+      world = w; // set before createBody so it can create colliders on the world
+      for (const v of visuals) createBody(v, v.spawnPos, v.spawnQuat);
     },
     update: (delta, time) => {
-      if (!world || simFailed) return;
+      if (!world || simFailed || paused) return;
       accumulator += delta;
       let steps = 0;
       // Sample buoyancy at `time` — the SAME clock the ocean is drawn at — so bodies
       // float on the on-screen water. (A separate sim clock drifts out of phase, since
       // it seeds at 0 on Rapier's async load, and the bodies then ride an invisible,
       // offset sea.) Fixed dt is only the integration step, not the sampling clock.
-      // The whole stepping loop is guarded: if Rapier's WASM traps (a solver blow-up), it
-      // can't recover, so we stop stepping and freeze the bodies rather than hard-freezing
-      // the app — the scene keeps rendering the last pose.
+      // The whole stepping loop is guarded: if Rapier's WASM ever traps, the instance is poisoned and
+      // can't recover, so we stop stepping and freeze the bodies rather than hard-crashing the app.
       try {
         while (accumulator >= FIXED_DT && steps < MAX_SUBSTEPS) {
+          // Bound every body's velocity BEFORE we sample it for drag and before the solver integrates
+          // it: a finite, bounded input can't diverge to Inf inside world.step(). (Post-step clamping
+          // is always one step too late — the blow-up happens within the step it feeds.)
+          for (const v of visuals) if (v.body) clampVelocity(v.body);
           applyBuoyancy(time);
-          for (const cb of fixedStepCallbacks) cb(FIXED_DT, time);
+          for (const cb of fixedStepCallbacks) cb(FIXED_DT, time); // riders (player) cast HERE, pre-edit
+          // Apply queued voxel edits now — after the riders' casts, before the step that refreshes the
+          // query BVH — so no cast ever sees a collider set the BVH doesn't match (see editQueue). Each
+          // apply recomputes its own build; the diagnostics overlay is rebuilt ONCE for the whole batch
+          // (a Q-burst can apply many edits in a frame).
+          if (editQueue.length > 0) {
+            for (const edit of editQueue) edit();
+            editQueue.length = 0;
+            rebuildDiagnostics();
+          }
           world.step();
+          hasStepped = true;
           // Snapshot each body's post-step transform (shifting the last into `prev`) for render
           // interpolation, then let anything else riding the sim (the player) snapshot in lock-step.
           for (let i = 0; i < visuals.length; i++) {
             const v = visuals[i];
-            clampVelocity(bodies[i]); // keep the next step's inputs bounded — no solver explosion
-            const tr = bodies[i].translation();
-            const rot = bodies[i].rotation();
+            const body = v.body;
+            if (!body) continue;
+            const tr = body.translation();
+            const rot = body.rotation();
             v.prevPos.copy(v.currPos);
             v.prevQuat.copy(v.currQuat);
             v.currPos.set(tr.x, tr.y, tr.z);
@@ -1455,6 +2061,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         }
       } catch (err) {
         simFailed = true;
+        // A WASM trap poisons the instance — stop stepping (raycastVoxel also bails on simFailed, so we
+        // don't spawn the follow-on "recursive use" errors). Freezing beats hard-crashing; if this ever
+        // fires again, re-adding the diagnostic throws pinpoints the trapping call.
         console.warn("Shipwright physics halted after a solver error; freezing bodies.", err);
         return;
       }
@@ -1470,11 +2079,22 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     onAfterStep: (cb) => {
       afterStepCallbacks.push(cb);
     },
+    raycastVoxel,
+    placeVoxel,
+    removeVoxel,
+    dropVoxel,
+    poseVoxel,
+    setPlayerCollider: (collider) => {
+      excludedCollider = collider;
+    },
     alpha: () => interpAlpha,
     respawn,
     buildGui: ({ objects, debug }) => {
       const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");
+      // Freeze the whole step loop (buoyancy + world.step() + snapshots) to measure how much of the
+      // frame is Rapier physics vs. rendering — the render keeps running, bodies just hold their pose.
+      folder.add({ paused }, "paused").name("pause physics").onChange((on: boolean) => (paused = on));
       folder.add(params, "drag", 0, 3, 0.05).name("water drag");
       // Stage-1 A/B: turn the enclosed-air buoyancy off to watch a sealed dense hull sink (respawn
       // it after to reset). On = hulls float by the air they enclose; off = every voxel for itself.
@@ -1523,7 +2143,14 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         });
     },
     dispose: () => {
-      world?.free();
+      // After a solver trap the WASM borrow stays locked, so world.free() throws "attempted to take
+      // ownership while borrowed". We're tearing down anyway — swallow it so the three.js teardown
+      // below still runs (and doesn't leak GPU resources).
+      try {
+        world?.free();
+      } catch (err) {
+        console.warn("Shipwright: Rapier world.free() failed (poisoned after a solver trap).", err);
+      }
       boxGeometry.dispose();
       airBoxGeometry.dispose();
       airOverlay.dispose();
