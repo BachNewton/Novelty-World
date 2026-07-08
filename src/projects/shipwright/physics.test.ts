@@ -3,7 +3,7 @@ import {
   analyzeBuildVoids,
   compartmentTargetFill,
   groupCompartments,
-} from "./physics";
+} from "./flooding";
 
 // The buoyancy overhaul's trapped-air model is two pieces. analyzeBuildVoids pre-builds the STATIC
 // graph of a build's empty interior cells: their adjacency, the `enclosed` air-capable mask, and the

@@ -229,6 +229,20 @@ code that floats the ship agree on where the surface is.
   fragment-side **refraction / depth absorption / reflection** composite, the dedicated
   **low-res SSR pass** (`renderSsr`), their uniforms, and the Water/wave/reflection GUI +
   debug toggles. Single source of truth for the surface — buoyancy reads `sampleSurface`.
+- `physics.ts` — `createPhysics`, the Rapier buoyancy + voxel-editing engine: per-voxel
+  compound colliders, the force-based buoyancy/drag hot loop, compartment-flooding
+  integration, render interpolation, and the runtime voxel editor (place/break/split/drop,
+  the edit queue, `raycastVoxel`). Imports the pure model from `flooding.ts` and the build
+  catalogue from `shapes.ts`.
+- `flooding.ts` — the pure, unit-tested void/compartment model (`analyzeBuildVoids`,
+  `groupCompartments`, `compartmentTargetFill`): a build's air-cavity graph + the per-step
+  fill-fraction target math. No THREE/Rapier — just the integer cell list.
+- `shapes.ts` — the voxel-build catalogue: the `Shape` descriptor, the gameplay `RAFT`, and
+  the buoyancy-demo `TEST_SHAPES` (+ their builders and densities). Pure content.
+- `builder.ts` — `createBuilder`, first-person build input (place/break/drop) + the aim dot.
+  All world mutation delegates to `physics.ts`.
+- `benchmark.ts` — the render-cost flight schedule + the benchmark **wire types**
+  (`BenchmarkConfig`/`Result`/…); the driver that runs a flight lives in `scene.ts`.
 
 ## Status
 
@@ -318,7 +332,13 @@ code that floats the ship agree on where the surface is.
   edit and the next step traps the WASM (`unreachable`); queuing keeps every cast consistent with the
   collider set, and makes edits discrete fixed-point events. Still *input-scheduled*, not fully
   deterministic — host-authoritative multiplayer will replay them as an ordered edit log (roadmap #9).
-  *Refactor target:* `physics.ts` is ~2100 lines and should shed `shapes.ts` (the shape/`TEST_SHAPES`
-  content) and a pure `flooding.ts` (the already-unit-tested void model).
+  A finite-but-extreme body can't diverge to Inf inside a step: velocity is clamped pre-step and the
+  per-voxel drag relative-speed is capped (`DRAG_MAX_REL_SPEED`) so a fast body can't overshoot.
+- **`physics.ts` slimmed by extraction (refactor).** The pure void/flood model moved to `flooding.ts`
+  and the shape catalogue to `shapes.ts` (both behavior-preserving pure moves, tests green); the
+  benchmark wire types moved from `scene.ts` to `benchmark.ts`. `physics.ts` is now ~1600 lines and one
+  coherent thing (the Rapier buoyancy/voxel engine). *Not* split further: `ocean.ts` (GLSL + CPU
+  `sampleSurface` are locked adjacent) and the voxel-editor (shares the engine's closure — would add
+  indirection until `createPhysics` becomes a class).
 - **Also open:** shoreline **foam** (we have soft edges, not a foam line); efficient chunk meshing
   (greedy) once ships get large; and making voxel edits deterministic/replayable for co-op.

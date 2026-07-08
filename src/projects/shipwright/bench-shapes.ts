@@ -1,4 +1,5 @@
-import { TEST_SHAPES, analyzeBuildVoids } from "./physics";
+import { TEST_SHAPES } from "./shapes";
+import { analyzeBuildVoids } from "./flooding";
 
 /**
  * The physics load the benchmark puts under test — a stable, benchmark-OWNED set, seeded from the

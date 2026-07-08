@@ -22,6 +22,80 @@
 /** The physics/animation step, matched to the sim's own fixed timestep (`physics.ts`). */
 export const FIXED_DT = 1 / 60;
 
+// --- Wire types: the contract between the CLI (`tools/bench.mjs`) and the scene-closure driver that
+// runs a flight. The driver and its live per-run state (`BenchmarkRun`) live in `scene.ts` because they
+// need the camera/ocean/renderer/physics; these config/result shapes are what cross to the tool.
+
+/** Which cost centre a run exercises: "visuals" (render only, physics frozen — the default, GPU cost),
+ *  "physics" (step the bench physics with the ocean hidden — isolate CPU physics), or "both" (render
+ *  AND step — the true combined gameplay frame). See tools/bench.mjs --mode. */
+export type BenchmarkMode = "visuals" | "physics" | "both";
+
+export interface BenchmarkConfig {
+  /** Device-pixel-ratio the frame renders at (the dominant fill lever). */
+  renderScale?: number;
+  /** Fraction of render res the SSR march runs at (the reflection-resolution dial). */
+  reflectionRes?: number;
+  /** Turn SSR off (env-map-only reflection) to measure its share of the frame — E6. Skips the whole
+   *  low-res march pass, so the `ssr` GPU-ms drops to ~0. Default (undefined) leaves it on. */
+  ssrEnabled?: boolean;
+  /** Jerlov water type to pin for the whole run (optics cost). */
+  water?: string;
+  /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
+   *  speed) instead of the deterministic FIXED_DT. Set for headed WATCH runs — the numbers then
+   *  reflect felt smoothness, not the byte-identical cost the headless (default) mode gives. */
+  realtime?: boolean;
+  /** Seconds to hold the final frame before closing (real-time only), so the end reads as "done". */
+  endHoldSeconds?: number;
+  /** Which cost centre to exercise: "visuals" (render only, physics frozen — the default, GPU cost),
+   *  "physics" (step the bench physics with the ocean hidden — isolate CPU physics cost), or "both"
+   *  (render AND step — the true combined gameplay frame). See tools/bench.mjs --mode. */
+  mode?: BenchmarkMode;
+  /** Scale the physics load to this many buoyant hulls (physics/both modes) for the object-count
+   *  scaling sweep — a fresh grid of `benchShapesForCount` bodies instead of the demo BENCH_SHAPES.
+   *  Undefined = the default demo load. See tools/bench.mjs --bodies. */
+  bodies?: number;
+  /** Turn Rapier contact generation off on the bench bodies (collision groups) to isolate the
+   *  collision-resolution share of the physics step — mass/inertia/buoyancy/broad-phase stay put, only
+   *  narrow-phase + solver contacts drop. physics/both only. Default (undefined) = collision on. */
+  collisionEnabled?: boolean;
+}
+
+/** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
+export interface BenchmarkSample {
+  seg: string;
+  cpuMs: number;
+  physicsMs: number;
+  capture: number;
+  ssr: number;
+  main: number;
+}
+
+export interface BenchmarkResult {
+  fixedDt: number;
+  /** Which cost centre this run exercised (visuals / physics / both). */
+  mode: BenchmarkMode;
+  /** Number of physics bodies actually under load (0 in visuals mode) — the x-axis of a scaling
+   *  sweep, so it must travel with the numbers. */
+  bodies: number;
+  /** True when this was a real-time (headed) run — numbers are felt-smoothness, not deterministic. */
+  realtime: boolean;
+  /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
+  gpuAvailable: boolean;
+  /** The GPU the run actually executed on (WebGL UNMASKED_* strings) — cross-GPU comparison is the
+   *  whole point of a portable benchmark, so this must travel with the numbers. */
+  gpu: { vendor: string; renderer: string };
+  /** Actual pixels the frame was rendered at (res dominates cost, so record it): the drawing-buffer
+   *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
+  render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
+  segments: { name: string; description: string; measuredSeconds: number }[];
+  samples: BenchmarkSample[];
+}
+
+/** Default real-time end-hold (seconds) when the tool doesn't override it — long enough that the
+ *  ending clearly reads as "done" when watching live, without dragging out the close. */
+export const DEFAULT_END_HOLD_SECONDS = 2;
+
 // The flight is laid out on a TIME axis (seconds), walked by both drivers: the headless
 // (deterministic) driver advances it by FIXED_DT per frame; the headed (real-time) driver advances
 // it by the real frame delta, so it plays at natural wall-clock speed. Same path, only the clock

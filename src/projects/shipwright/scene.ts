@@ -7,7 +7,8 @@ import type {
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean, type ShadingMode } from "./ocean";
-import { createPhysics, RAFT, TEST_SHAPES, type Physics } from "./physics";
+import { createPhysics, type Physics } from "./physics";
+import { RAFT, TEST_SHAPES } from "./shapes";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
 import { createPlayer } from "./player";
 import { createBuilder } from "./builder";
@@ -19,76 +20,19 @@ import {
   buildTimeline,
   sampleTimeline,
   DEFAULT_MEASURED_SECONDS,
+  DEFAULT_END_HOLD_SECONDS,
   type BenchSegment,
   type Timeline,
+  type BenchmarkConfig,
+  type BenchmarkMode,
+  type BenchmarkSample,
+  type BenchmarkResult,
 } from "./benchmark";
 
 // --- Render-cost benchmark plumbing (see benchmark.ts + tools/bench.mjs) ------
-// Driven over `window.__shipwright.runBenchmark`; the driver lives in the scene closure
-// (it needs the camera/ocean/physics), these are just the wire types crossing to the tool.
-interface BenchmarkConfig {
-  /** Device-pixel-ratio the frame renders at (the dominant fill lever). */
-  renderScale?: number;
-  /** Fraction of render res the SSR march runs at (the reflection-resolution dial). */
-  reflectionRes?: number;
-  /** Turn SSR off (env-map-only reflection) to measure its share of the frame — E6. Skips the whole
-   *  low-res march pass, so the `ssr` GPU-ms drops to ~0. Default (undefined) leaves it on. */
-  ssrEnabled?: boolean;
-  /** Jerlov water type to pin for the whole run (optics cost). */
-  water?: string;
-  /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
-   *  speed) instead of the deterministic FIXED_DT. Set for headed WATCH runs — the numbers then
-   *  reflect felt smoothness, not the byte-identical cost the headless (default) mode gives. */
-  realtime?: boolean;
-  /** Seconds to hold the final frame before closing (real-time only), so the end reads as "done". */
-  endHoldSeconds?: number;
-  /** Which cost centre to exercise: "visuals" (render only, physics frozen — the default, GPU cost),
-   *  "physics" (step the bench physics with the ocean hidden — isolate CPU physics cost), or "both"
-   *  (render AND step — the true combined gameplay frame). See tools/bench.mjs --mode. */
-  mode?: BenchmarkMode;
-  /** Scale the physics load to this many buoyant hulls (physics/both modes) for the object-count
-   *  scaling sweep — a fresh grid of `benchShapesForCount` bodies instead of the demo BENCH_SHAPES.
-   *  Undefined = the default demo load. See tools/bench.mjs --bodies. */
-  bodies?: number;
-  /** Turn Rapier contact generation off on the bench bodies (collision groups) to isolate the
-   *  collision-resolution share of the physics step — mass/inertia/buoyancy/broad-phase stay put, only
-   *  narrow-phase + solver contacts drop. physics/both only. Default (undefined) = collision on. */
-  collisionEnabled?: boolean;
-}
-type BenchmarkMode = "visuals" | "physics" | "both";
-/** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
-interface BenchmarkSample {
-  seg: string;
-  cpuMs: number;
-  physicsMs: number;
-  capture: number;
-  ssr: number;
-  main: number;
-}
-interface BenchmarkResult {
-  fixedDt: number;
-  /** Which cost centre this run exercised (visuals / physics / both). */
-  mode: BenchmarkMode;
-  /** Number of physics bodies actually under load (0 in visuals mode) — the x-axis of a scaling
-   *  sweep, so it must travel with the numbers. */
-  bodies: number;
-  /** True when this was a real-time (headed) run — numbers are felt-smoothness, not deterministic. */
-  realtime: boolean;
-  /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
-  gpuAvailable: boolean;
-  /** The GPU the run actually executed on (WebGL UNMASKED_* strings) — cross-GPU comparison is the
-   *  whole point of a portable benchmark, so this must travel with the numbers. */
-  gpu: { vendor: string; renderer: string };
-  /** Actual pixels the frame was rendered at (res dominates cost, so record it): the drawing-buffer
-   *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
-  render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
-  segments: { name: string; description: string; measuredSeconds: number }[];
-  samples: BenchmarkSample[];
-}
-/** Default real-time end-hold (seconds) when the tool doesn't override it — long enough that the
- *  ending clearly reads as "done" when watching live, without dragging out the close. */
-const DEFAULT_END_HOLD_SECONDS = 2;
-
+// The config/sample/result WIRE TYPES live in benchmark.ts (the contract with the CLI); the DRIVER and
+// its live per-run state (BenchmarkRun, below) live here because they need the scene's camera/ocean/
+// renderer/physics. Driven over `window.__shipwright.runBenchmark`.
 interface BenchmarkRun {
   timeline: Timeline;
   /** Flight-time in seconds — advanced by FIXED_DT (headless) or the real delta (headed). */

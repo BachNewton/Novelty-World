@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
-import { analyzeBuildVoids } from "./physics";
+import { analyzeBuildVoids } from "./flooding";
 
 const enclosesAir = (cells: [number, number, number][]): boolean =>
   analyzeBuildVoids(cells).enclosed.some(Boolean);
