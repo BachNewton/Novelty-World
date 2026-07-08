@@ -294,6 +294,13 @@ byte-identical *work* ≠ identical *time* on a DVFS/thermal APU, so mind these,
 - **Slow thermal creep** drifts p50 up a few % across successive runs — another reason to A/B
   back-to-back, and to treat the absolute numbers as session-relative, not cross-day comparable.
 
+### The experiment suite
+
+`docs/perf-experiments.md` is a ready-to-run set of sweeps (render scale, reflection res, SSR
+steps/cutoff, SSR on/off, capture res, tessellation, MSAA, quality tiers) that turns *this doc's
+asserted cost model into measured numbers*. Tier 1 runs today; the rest need a one-line knob
+exposure each. Run the suite when there's time and fold the results back here.
+
 ### Known gaps (fast-follows)
 
 - **Live physics load is not measured.** The raft is shown at its **reset spawn pose** (a
