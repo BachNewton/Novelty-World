@@ -925,6 +925,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         // Optional: disable Rapier contact generation on the bench bodies (broad-phase/mass untouched)
         // to measure the collision-resolution share of the step — see BenchmarkConfig.collisionEnabled.
         if (config.collisionEnabled !== undefined) benchPhysics.setCollisionEnabled(config.collisionEnabled);
+        if (config.dragEnabled !== undefined) benchPhysics.setDragEnabled(config.dragEnabled);
       }
       const benchBodies = benchPhysics ? shapes.length : 0;
 

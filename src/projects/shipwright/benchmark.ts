@@ -67,6 +67,10 @@ export interface BenchmarkConfig {
    *  collision-resolution share of the physics step — mass/inertia/buoyancy/broad-phase stay put, only
    *  narrow-phase + solver contacts drop. physics/both only. Default (undefined) = collision on. */
   collisionEnabled?: boolean;
+  /** Turn the per-voxel hydrodynamic drag off (with its two `sampleParticle` water-velocity evals) to
+   *  isolate the drag/velocity-sampling share of the buoyancy loop. physics/both only. Alters dynamics
+   *  (undamped) — a COST probe, not a gameplay setting. Default (undefined) = drag on. */
+  dragEnabled?: boolean;
   /** Ocean tessellation quad edge in metres (E8): larger = a coarser plane (fewer segments/vertices).
    *  The segment count is `planeSize / quadSize`, clamped to [8, 2048]. The scene default is ~4.9 m
    *  (~1024² segments ≈ 1 M verts). Raise it (e.g. 625 → 8 segments, a near-flat plane) to isolate the

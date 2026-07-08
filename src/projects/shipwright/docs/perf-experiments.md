@@ -114,6 +114,12 @@ So greedy-meshing *colliders* (solver) is the smaller prize; the per-voxel buoya
 lever. Allocation is NOT it (a `sampleHeight` that drops the discarded normal Vector3 left buoyancy
 unchanged at 6.1 ms) — it's the Newton inversion + wave math.
 
+**Within buoyancy** (`--drag off`, physics 32, back-to-back A/B): drag ON = 6.5 ms, OFF = 5.1 ms → the
+**drag term + its 2 `sampleParticle` water-velocity evals is only ~1.4 ms (~22 %)**. The other **~78 %
+is the buoyancy-height Newton inversion + the void-cell flood sampling + force math**. So the buoyancy
+lever is the **height/void SAMPLE COUNT + Newton cost** (fewer sample points / cheaper height eval),
+NOT the drag — an analytic water-velocity would recover only ~22 %.
+
 **E5 SSR Fresnel cutoff** (`--ssr-cutoff`, visuals, SSR GPU-ms p50) — a **weak lever**:
 | cutoff | grazing-storm | max-stress | overhead-storm |
 |---|---|---|---|

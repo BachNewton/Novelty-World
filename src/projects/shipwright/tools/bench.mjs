@@ -109,6 +109,9 @@ if (args["ssr-cutoff"] !== undefined) config.ssrMinFresnel = Number(args["ssr-cu
 // collision on. NOTE: the bench hulls are laid out non-overlapping, so expect a SMALL delta — see the
 // isolation logic in docs/perf-experiments (collision cost here is broad-phase, which this doesn't cut).
 if (args.collision !== undefined) config.collisionEnabled = !(args.collision === "off" || args.collision === "false");
+// --drag off skips the per-voxel drag term + its 2 sampleParticle water-velocity evals — isolates the
+// drag/velocity-sampling share of the buoyancy loop (physics/both). A cost probe (alters dynamics).
+if (args.drag !== undefined) config.dragEnabled = !(args.drag === "off" || args.drag === "false");
 if (args.water !== undefined) config.water = args.water;
 // --shading full|flat|wireframe isolates the main pass's GPU cost: full = PBR+composite, flat = unlit
 // fill (same geometry → shading MATH = full−flat), wireframe = no fill (fill = flat−wireframe).
@@ -319,6 +322,7 @@ const slug =
     config.ssrEnabled === false ? "ssr-off" : null,
     config.ssrMinFresnel !== undefined ? `cut${config.ssrMinFresnel}` : null,
     config.collisionEnabled === false ? "collision-off" : null,
+    config.dragEnabled === false ? "drag-off" : null,
     config.quadSize !== undefined ? `q${config.quadSize}` : null,
   ]
     .filter(Boolean)

@@ -289,6 +289,11 @@ export interface Physics {
    *  solver contact cost from everything else. Used by the benchmark's `--collision off` (Option A to
    *  measure the collision-resolution share of the step). Default is enabled. */
   setCollisionEnabled: (on: boolean) => void;
+  /** Turn the per-voxel hydrodynamic drag term off (with its two `sampleParticle` water-velocity
+   *  evals) to isolate the drag/velocity-sampling share of the buoyancy loop — the benchmark's
+   *  `--drag off` cost knob. Buoyancy up-force stays; only the drag/damping (and its evals) drop.
+   *  Default enabled. Alters dynamics (undamped), so it's a COST probe, not a gameplay setting. */
+  setDragEnabled: (on: boolean) => void;
   /** Wall-clock ms of the LAST update()'s two hot phases, SUMMED across substeps: `buoyancy` = the
    *  per-voxel flood-fill + trapped-air force loop (applyBuoyancy), `solver` = Rapier's world.step().
    *  Lets the benchmark split the physics step into its two systems (thread 5). Both 0 before the
@@ -899,6 +904,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   let interpAlpha = 0; // leftover-accumulator fraction in [0,1] for render interpolation (see update)
   let simFailed = false; // set if Rapier's WASM ever traps — we then stop stepping (see update)
   let paused = false; // debug: freeze the sim (skip the whole step loop) to measure physics' frame cost
+  let dragEnabled = true; // bench cost-isolation (--drag off): skip the drag term + its 2 sampleParticle evals
   let hasStepped = false; // set after the first world.step() — the query BVH is only valid once stepped
   // Deferred voxel edits (place/break/drop). They mutate the collider set, but the query BVH the raycasts
   // use is ONLY rebuilt by world.step() (add/removeCollider don't touch it) — so casting between an edit
@@ -963,31 +969,39 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         // rest. The coefficient is linear + quadratic in the relative speed (the
         // quadratic term is the real ½·ρ·Cd·A·v² water resistance), scaled by how
         // submerged the voxel is and the user's drag multiplier.
-        const wv = waterVelocity(wx, wz, time);
-        const rx = wx - com.x;
-        const ry = wy - com.y;
-        const rz = wz - com.z;
-        let relx = wv.x - (lin.x + (ang.y * rz - ang.z * ry));
-        let rely = wv.y - (lin.y + (ang.z * rx - ang.x * rz));
-        let relz = wv.z - (lin.z + (ang.x * ry - ang.y * rx));
-        // Cap the relative velocity the drag sees. Form drag grows with v², so a body that gets fast (a
-        // bad contact from a runtime edit) generates a drag impulse larger than its own momentum in one
-        // step → it overshoots, oscillates, and can diverge to Inf INSIDE world.step(), before any post-
-        // step guard runs (this was the real solver-trap trigger). Clamping the whole relative-velocity
-        // vector keeps the damping strong but bounded so it can't overshoot. Inert in normal floating
-        // (relative speed ≪ the cap); only bites the pathological high-speed case.
-        let relSpeed = Math.hypot(relx, rely, relz);
-        if (relSpeed > DRAG_MAX_REL_SPEED) {
-          const s = DRAG_MAX_REL_SPEED / relSpeed;
-          relx *= s;
-          rely *= s;
-          relz *= s;
-          relSpeed = DRAG_MAX_REL_SPEED;
+        // `dragEnabled` gates the whole drag term — including its TWO `sampleParticle` evals
+        // (waterVelocity) — so `--drag off` isolates the drag/water-velocity share of the buoyancy
+        // hot loop (a cost-isolation knob like `--collision off`; default on = unchanged).
+        let fx = 0;
+        let fy = buoyancy;
+        let fz = 0;
+        if (dragEnabled) {
+          const wv = waterVelocity(wx, wz, time);
+          const rx = wx - com.x;
+          const ry = wy - com.y;
+          const rz = wz - com.z;
+          let relx = wv.x - (lin.x + (ang.y * rz - ang.z * ry));
+          let rely = wv.y - (lin.y + (ang.z * rx - ang.x * rz));
+          let relz = wv.z - (lin.z + (ang.x * ry - ang.y * rx));
+          // Cap the relative velocity the drag sees. Form drag grows with v², so a body that gets fast (a
+          // bad contact from a runtime edit) generates a drag impulse larger than its own momentum in one
+          // step → it overshoots, oscillates, and can diverge to Inf INSIDE world.step(), before any post-
+          // step guard runs (this was the real solver-trap trigger). Clamping the whole relative-velocity
+          // vector keeps the damping strong but bounded so it can't overshoot. Inert in normal floating
+          // (relative speed ≪ the cap); only bites the pathological high-speed case.
+          let relSpeed = Math.hypot(relx, rely, relz);
+          if (relSpeed > DRAG_MAX_REL_SPEED) {
+            const s = DRAG_MAX_REL_SPEED / relSpeed;
+            relx *= s;
+            rely *= s;
+            relz *= s;
+            relSpeed = DRAG_MAX_REL_SPEED;
+          }
+          const dc = (DRAG_LINEAR + DRAG_QUADRATIC * relSpeed) * submerged * params.drag;
+          fx = relx * dc;
+          fy = buoyancy + rely * dc;
+          fz = relz * dc;
         }
-        const dc = (DRAG_LINEAR + DRAG_QUADRATIC * relSpeed) * submerged * params.drag;
-        const fx = relx * dc;
-        const fy = buoyancy + rely * dc;
-        const fz = relz * dc;
 
         forceArr[gi].set(fx, fy, fz);
         body.addForceAtPoint({ x: fx, y: fy, z: fz }, { x: wx, y: wy, z: wz }, true);
@@ -1552,6 +1566,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     alpha: () => interpAlpha,
     respawn,
     stepTiming: () => ({ buoyancy: lastBuoyancyMs, solver: lastSolverMs }),
+    setDragEnabled: (on: boolean) => {
+      dragEnabled = on;
+    },
     setCollisionEnabled: (on: boolean) => {
       if (!world) return;
       // Toggle contact generation on every collider WITHOUT removing them, so mass/inertia/buoyancy
