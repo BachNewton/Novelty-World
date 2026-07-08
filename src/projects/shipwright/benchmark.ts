@@ -45,6 +45,10 @@ export interface BenchmarkConfig {
   ssrMinFresnel?: number;
   /** Jerlov water type to pin for the whole run (optics cost). */
   water?: string;
+  /** Water shading mode (isolates the main pass's GPU cost): "full" (production PBR + composite),
+   *  "flat" (unlit fill, same Gerstner geometry → the shading MATH is the full−flat delta), or
+   *  "wireframe" (no fill → the fill itself is flat−wireframe). See ocean.setShading. */
+  shading?: "full" | "flat" | "wireframe";
   /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
    *  speed) instead of the deterministic FIXED_DT. Set for headed WATCH runs — the numbers then
    *  reflect felt smoothness, not the byte-identical cost the headless (default) mode gives. */

@@ -110,6 +110,9 @@ if (args["ssr-cutoff"] !== undefined) config.ssrMinFresnel = Number(args["ssr-cu
 // isolation logic in docs/perf-experiments (collision cost here is broad-phase, which this doesn't cut).
 if (args.collision !== undefined) config.collisionEnabled = !(args.collision === "off" || args.collision === "false");
 if (args.water !== undefined) config.water = args.water;
+// --shading full|flat|wireframe isolates the main pass's GPU cost: full = PBR+composite, flat = unlit
+// fill (same geometry → shading MATH = full−flat), wireframe = no fill (fill = flat−wireframe).
+if (args.shading !== undefined) config.shading = args.shading;
 // --quad-size M sets the ocean tessellation quad edge in metres (E8): larger = coarser plane (fewer
 // vertices). segments = planeSize / quadSize, clamped [8, 2048]. Isolates the plane's VERTEX cost from
 // the fixed per-render-call submission overhead — e.g. --quad-size 625 collapses ~1 M verts to ~8²·2.
@@ -312,6 +315,7 @@ const slug =
     config.renderScale !== undefined ? `rs${config.renderScale}` : null,
     config.reflectionRes !== undefined ? `rr${config.reflectionRes}` : null,
     config.water !== undefined ? config.water.toLowerCase().replace(/\s+/g, "-") : null,
+    config.shading !== undefined && config.shading !== "full" ? config.shading : null,
     config.ssrEnabled === false ? "ssr-off" : null,
     config.ssrMinFresnel !== undefined ? `cut${config.ssrMinFresnel}` : null,
     config.collisionEnabled === false ? "collision-off" : null,
