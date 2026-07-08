@@ -33,23 +33,45 @@ The single living pick-up point for Shipwright perf work. **Measured data + anal
 6. **Collision RESOLUTION is ~free** (Tier 4, `--collision off`): `phys` moves <2% (noise) at 31 and 64
    bodies, because the bench bodies are non-overlapping. So `phys` = broad-phase collider maintenance +
    per-voxel buoyancy, **not** contacts. A contact-heavy (crowded-ships) scene would differ — unmeasured.
+7. **Render batching / instancing is NOT the lever — RULED OUT (2026-07-08).** Every body is already ONE
+   draw call (per-body `InstancedMesh`; merged mesh for the raft + Q-drop ships), and draw-call *count* is
+   trivial (~35). A global InstancedMesh would cut ~35→1 — a non-problem. The per-voxel matrix-posing
+   inefficiency (`placeInstances` rewrote every voxel's world matrix every frame) was fixed and A/B'd:
+   **−0.4 ms, inside the noise floor**, in `--mode physics` at 64 bodies (the flashy 23% first read was
+   pure thermal recovery — interleaved re-baseline confirmed). So per-voxel posing is negligible vs
+   buoyancy. **We keep guessing bottlenecks and getting them wrong; the one unexplored cost is the ~16 ms
+   render-prep of finding 4 — measure it before touching anything else (thread 1).**
 
 ## Open threads / next actions
 
-### 1. Render batching — draw-call submission  ← current focus
+### 1. Split the ~16 ms render-prep with seam timers  ← current focus, the one unexplored bottleneck
 
-**Theory to test (measure, don't assume):** when many bodies are in the scene, the FPS drop is draw-call
-**submission** (CPU feeding meshes to the GPU), NOT Rapier physics. Each body is submitted **twice** per
-frame — the water's scene-capture pass renders the whole scene (bodies included) before the main pass
-(verified: `scene.ts` `renderPrePasses` runs even with SSR off; only the SSR march is gated). Prove or
-kill this before building anything.
+**This is the highest-value thing, and it's a measurement, not a build.** The real frame (`--mode both`, 32
+bodies) is CPU-bound at **~24 ms**: physics is only **~8.5 ms**, and **~16 ms is render-prep we have never
+split.** Every lead we chased this session lived in the ~8.5 ms physics or the already-minimal draw-call
+count — we kept looking where the cost *isn't*. STOP guessing; instrument the 16 ms:
 
-**Evidence so far (believed, not isolated):**
-- Census (finding 4): real frame is CPU-bound, dominated by draw-call submission, not physics.
-- `--collision off` (finding 6): contacts are ~free → physics isn't the wall.
-- Live: SSR off + no bodies = **100 FPS**; add the physics testbed → **20–30**; **pause physics** (freezes
-  the step, bodies *still render*) → only **~75**. The 100→75 gap is the bodies' *render* cost; the
-  75→20–30 gap is the step. Pausing removes the step, not the drawing.
+- Wrap `ocean.update`, `renderPrePasses` (capture submit), and the main render in `performance.now()` spans
+  in `scene.ts` `stepBenchmark`; self-report them in the sample alongside `physicsMs`; add `bench.mjs`
+  columns. (This was "thread 3 / task B" — now the top priority.)
+- The split will say plainly whether the ~16 ms is **draw-call submission**, the **capture pass** (the whole
+  scene is drawn twice — a **depth-only capture** may cut it, since turbid water hides refraction per
+  `ocean.ts:404-410`), or the **Gerstner CPU field**. Only then pick a fix.
+
+**Ruled out this session — do NOT re-run (see finding 7):** render *batching* / instancing is a dead end.
+Bodies are already 1 draw call each; draw-call count is trivial; a global InstancedMesh solves a non-problem.
+The per-voxel matrix-posing fix (pose the mesh node once instead of rewriting every instance each frame) was
+implemented, A/B'd interleaved, and measured **neutral (−0.4 ms, noise)** — the first 23% reading was
+thermal. The change was **reverted** (perf-neutral + unverified visually); it's cleaner code if ever wanted,
+but it's not a perf lever.
+
+**Live evidence that the render cost is real (still valid):** SSR off + no bodies = **100 FPS**; add the
+testbed → **20–30**; **pause physics** (freezes the step, bodies *still render*) → only **~75**. The 100→75
+gap is the bodies' *render* cost (which the 16 ms split will finally attribute); the 75→20–30 gap is the step.
+
+> **The rest of this thread (constraints, lever taxonomy, meshing plan) is REFERENCE for the eventual
+> large-ship / many-body meshing work** — valid and worth keeping, but per finding 7 it is **NOT the current
+> perf lead**. Read it when ships actually get large; until then, the ~16 ms split above is the priority.
 
 **Design constraints (LOCKED by game direction):**
 - **No 1×1×1 special case.** A Q-dropped single voxel is a ship at size 1; it grows. Treat a 1-voxel body
@@ -73,21 +95,12 @@ first half). Face culling reduces *triangles + memory*, **not draw calls** — s
 draw-submission bottleneck (though it's worth it for large-ship memory + edit-rebake, and as insurance if
 the bodies ever turn out vertex-bound; note our hollow hulls waste fewer internal faces than solid blocks).
 
-**The plan:**
-1. **TEST the theory** — isolate body draw-submission from the step. Preferred: **seam timers** (this *is*
-   thread 3 / task B applied to render — wrap `renderPrePasses` + main render in `performance.now()`,
-   self-report like `physicsMs`, add `bench.mjs` columns). Quick alt: a **"hide bodies" toggle**
-   (`.visible=false` while stepping) A/B'd against "bodies visible + physics paused". Run **headed** too
-   (that's where 100→75 was seen). Success = a number showing draw-submission dwarfs the step at gameplay
-   body counts; if not, stop — the theory's wrong.
-2. **Quick POC** — smallest draw-call reduction, measured on `--bodies N`. Let Step-1 numbers pick the
-   technique: draw-CALL count → global instancing; matrix upload / capture fill → merged-per-body. Don't
-   pick before measuring.
-3. **TEST again** — POC vs baseline (`--mode both` + live headed). Confirm draw-submit dropped and you
-   didn't trade draw-calls for matrix churn.
-4. **FULL impl** (only if fruitful) — uniform across all bodies, integrated with place/break/split/drop.
-   Large ships → **chunked greedy meshing** (edit re-bakes only the affected chunk; includes face culling)
-   — the render twin of greedy-meshing the colliders. Keep it deterministic for host-authoritative co-op.
+**Deferred large-ship meshing plan** (do this when ships get big enough that *triangle count / memory /
+edit-rebake* actually bite — NOT a current perf lead; it does **not** cut draw calls, which are already
+minimal): **greedy visual meshing** (cull hidden faces + merge coplanar faces into quads) per **chunk**,
+uniform across all bodies, integrated with place/break/split/drop, chunked so an edit re-bakes only the
+touched region, and deterministic for host-authoritative co-op — the render twin of greedy-meshing the
+colliders.
 
 **Pointers:** `physics.ts` (`Visual` / `placeInstances` / `buildMergedVoxelGeometry` / `makeMesh`),
 `scene.ts` (`renderPrePasses`). The GUI "pause physics" freezes the step but keeps bodies rendering — the
@@ -104,10 +117,9 @@ manual version of the Step-1 A/B.
 - **Confirm:** a **headed** Chrome DevTools profile (JS flamechart + GC markers / heap sawtooth) before &
   after — some headless spikes may be GpuTimer-readback / rAF-pacing artifacts, so prove it real-time.
 
-### 3. CPU seam timers — split the ~12 ms render-prep (shared with thread 1)
-- Wrap `ocean.update` and `renderPrePasses` (and optionally `navBuoys.update`) in `performance.now()` spans
-  in `scene.ts` `stepBenchmark`, self-report alongside `physicsMs`, add `bench.mjs` columns. Tells us
-  draw-call-submission vs Gerstner-field. **This is Step 1 of thread 1** — doing it advances both.
+### 3. (merged into thread 1) CPU seam timers
+The render-prep seam-timer split **is now thread 1** — it stopped being a "shared fast-follow" and became
+the main event once this session ruled out batching. Do it there.
 
 ### 4. E5 — Fresnel cutoff (`--ssr-cutoff`)  ← grazing/worst-case + anti-spike lever
 - Expose `uSsrMinFresnel` (`ocean.ts`, default 0.05) as a runtime setter + `--ssr-cutoff`, **mirroring how
@@ -123,6 +135,11 @@ manual version of the Step-1 A/B.
   **buoyancy vs broad-phase split** (`applyBuoyancy` vs `world.step` timers — decides if greedy-meshing
   *colliders* is worth it for large ships), and a **contact-heavy bench scene** (the crowded-ships collision
   cost the non-overlapping grid hides — finding 6 caveat).
+- **Speed up the bench harness** (noticed 2026-07-08 — idle overhead around each flight). `bench.mjs` pays
+  ~8–11 s/run of non-GPU wait: `goto(..., waitUntil: "networkidle")` (slow/flaky on the Next *dev* server,
+  and redundant since we already `waitForFunction(__shipwright)` — switch to `"domcontentloaded"`); a fixed
+  3.5 s settle (replace with a `window.__shipwright.ready` signal set after the PMREM bake + Rapier init);
+  and `browser.close()` (~1–3 s, unavoidable). Trimming the first two speeds every run.
 
 ## Gotchas (don't rediscover them)
 
@@ -139,6 +156,10 @@ manual version of the Step-1 A/B.
   port (leave "A" untouched so it doesn't hot-reload while you edit "B"). Don't junction node_modules.
 - **Per-run wall-clock ≈ 2 min** for a visuals run; physics runs are faster. A full sweep is ~1 hr — script
   it in the background.
+- **Thermal masks A/B deltas.** A hot baseline vs a cooled "after" faked a **23% win** on 2026-07-08 that
+  interleaved re-baselining exposed as noise (real Δ −0.4 ms). Always interleave (baseline → fixed →
+  baseline) in one warm session, and trust p50 only on **0-spike** runs — a spiky run (e.g. 20 spikes) is
+  thermally compromised; discard it.
 
 ## How to re-run
 
