@@ -124,6 +124,17 @@ unchanged at 6.1 ms) — it's the Newton inversion + wave math.
 It discards near-head-on (low-Fresnel) pixels, but the costly ones are at grazing (high Fresnel, above
 the cutoff), so it can't cut the worst case. reflection-res (E2) / ssr-steps (E4) are the real SSR knobs.
 
+**Main-pass shading split** (`--shading`, visuals, GPU-ms p50, interleaved 0-spike full runs): the
+**water's screen-space composite + PBR is the single biggest GPU cost**, bigger than the SSR pass.
+| shading | main | capture | ssr | total |
+|---|---|---|---|---|
+| full (PBR + composite) | **6.3** | 0.8 | 2.4 | 9.5 |
+| flat (unlit fill, same geometry) | 2.2 | 0.8 | 2.4 | 5.5 |
+So the main pass = ~2.2 ms base fill + **~4.1 ms shading-math/composite** (refraction + Beer–Lambert +
+Fresnel + SSR sampling + PBR). capture/ssr are shading-independent (unchanged) — the split is clean.
+GPU-reduction priority is now: the **composite/PBR (~4.1 ms)** ≳ the SSR pass (2.4 ms) ≫ capture (0.8).
+(wireframe is NOT a clean no-fill baseline — a 1 M-vertex plane draws ~2 M line segments, its own cost.)
+
 ---
 
 ## Tier 0 — the system census (run this first)
