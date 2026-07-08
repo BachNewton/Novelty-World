@@ -1,9 +1,11 @@
 # Shipwright — Buoyancy / displacement overhaul (plan)
 
-**Status: Stage 1 shipped.** Air-cavity buoyancy is in (`physics.ts`): dense sealed hulls
-float on their enclosed air. Stages 2 (ocean interior masking) and 3 (compartment flooding)
-are next. A fresh session can pick those up from here. Read the repo-root `CLAUDE.md` "Water
-architecture" (the HYBRID floating decision) and `physics.ts` first.
+**Status: Stages 1 + 3a + 3b shipped.** Air-cavity buoyancy AND compartment flooding are in
+(`physics.ts`): dense sealed hulls float on their enclosed air, and a breached hull floods to the
+waterline through its holes (orifice-rate inflow) and founders. **Still open: Stage 2** (stop the
+ocean drawing inside a slammed hull) and **Stage 3c** (render interior water in flooded compartments).
+A fresh session can pick those up from here. Read the repo-root `CLAUDE.md` "Water architecture" (the
+HYBRID floating decision) and `physics.ts` first.
 
 ## Why (the goal)
 
@@ -49,9 +51,9 @@ gains water mass, so it sits lower / sinks.
 **Shipped, then superseded by the Stage 3a dynamic model below.** The first cut classified trapped
 air ONCE at build time in the body's local frame (a "sea rises + sideways, never down over a rim"
 flood). It floated open-top hulls (raft, boat) as well as sealed boxes, but only near the upright
-pose. That static classifier has since been **replaced** by the per-step world-space flood (Stage 3a)
-— `analyzeBuildVoids` (build-time graph) + `floodSea` (per-step) — which is orientation- and
-waterline-correct. What remains from Stage 1: buoyancy at zero mass + zero drag applied at each
+pose. That static classifier has since been **replaced** by the per-step world-space model
+(`analyzeBuildVoids` build-time graph + the buoyancy loop's per-compartment water level, Stage 3a→3b)
+— which is orientation- and waterline-correct. What remains from Stage 1: buoyancy at zero mass + zero drag applied at each
 air cell's point, the `TEST_SHAPES` "Sealed hull" (ρ = 1400 > water) + edge-case demos, the
 **"trapped-air cells"** Debug x-ray, and the **"air-cavity buoyancy" A/B switch**. The build-time
 graph is still a **pure function of the cell list**, ready for the voxel builder to re-run per
@@ -89,12 +91,13 @@ surface visually intruding into a slammed hull.
 
 ### Stage 3 — Compartment flooding + interior water (the gameplay layer, largest)
 
-- **Stage 3a — orientation-correct trapped air. ✅ DONE.** `analyzeBuildVoids` pre-builds two things
+- **Stage 3a — orientation-correct trapped air. ✅ DONE (per-step flood since replaced by 3b's level).**
+  `analyzeBuildVoids` pre-builds two things
   per build ONCE: the void graph, and a static **`enclosed` mask** (air-*capable* cells — those the
   sea can't reach by rising + moving sideways, i.e. below a rim; orientation-free shape geometry).
-  Then each step `floodSea` floods the outside sea through the voids whose centre is under the live
-  ocean surface, seeded from the ones exposed on the bounding-box faces. **Trapped air = enclosed AND
-  not flooded**, buoyant by submerged fraction. The two masks split the labour: `enclosed` rules out
+  Then each step (in 3a) a `floodSea` BFS flooded the outside sea through the voids whose centre is under
+  the live ocean surface, seeded from the ones exposed on the bounding-box faces. **Trapped air = enclosed
+  AND not flooded**, buoyant by submerged fraction. The two masks split the labour: `enclosed` rules out
   *open* volume so decorative geometry (a `Crown raft`'s merlons) never counts as air, while the
   per-step flood makes flooding orientation- + waterline-correct: capsize a `Bucket` → its mouth goes
   under → floods (phantom air gone); swamp a rim → floods; a sealed pontoon → air in any pose. Visible
@@ -104,46 +107,54 @@ surface visually intruding into a slammed hull.
   from "swamps on the splash-down" to "takes the plunge and bobs back up") and the **crown raft**
   (decorative merlons that add no air). A shallow bucket sinking on a hard drop is EXPECTED — the
   entry force drives its low rim fully under and it ships water.
-- **Flooding is ALL-OR-NOTHING per cell (a rate-limited version was tried and dropped).** A per-cell
-  `voidWater` that filled at a finite rate was implemented, but it made hulls look like they floated
-  too long after the rim went under — faking a slow inflow the visuals/physics didn't back. A fully
-  open hole floods fast, so we reverted to honest all-or-nothing: a cell the sea reaches loses its air
-  that frame. The realistic finite fill (and *where* the water stops) comes with the compartment
-  water-level model below, not a fudge factor. (A sealed below-deck is still never sea-reachable, so it
-  keeps its air at any depth — that's from the `enclosed`/flood split, not the rate.)
+- **Stage-3a flooding was ALL-OR-NOTHING per cell (`floodSea`), now SUPERSEDED by 3b.** Each step a BFS
+  flooded the sea through fully-submerged voids from the exposed cells; a cell the sea reached lost its
+  air that frame. A per-cell finite-fill `voidWater` had been tried before that and dropped (it faked a
+  slow inflow the visuals didn't back). Stage 3b below replaced the BFS entirely with a per-compartment
+  water LEVEL, which gives an honest finite fill (backed by a real level, not a fudge) — so `floodSea`
+  and the wet/all-or-nothing gate were deleted.
 - **Runaway guard (robustness).** The water model is tuned for gentle seas; cranking the wave sliders
   hard launches bodies and can pump energy until Rapier's WASM solver hits a non-finite value and
   traps (`"unreachable"`), which used to hard-freeze the app. Now each step clamps any body's speed
   back under a cap (`MAX_LINVEL`/`MAX_ANGVEL`) so the solver's inputs stay finite, and the whole
   stepping loop is wrapped so a trap (if one ever slips through) stops the sim and freezes the bodies
   instead of crashing the scene.
-- **Stage 3b — compartment water level with air-trapping (NEXT — the big one, model confirmed with
-  Kyle).** The current flood fills *every* submerged sea-reachable cell. The real model fills a
-  compartment only up to its **opening level, trapping air above** — Kyle's "a cannon hole below the
-  waterline fills up to the height of the hole, air stays above." Plan:
-  - **Group** the enclosed voids into **compartments** (connected components of the enclosed void
-    graph — the bulkhead already makes two). Precompute a compartment id per void, alongside
-    `analyzeBuildVoids` (static; re-run on build edits).
-  - Track a **water level `L` per compartment** (persistent sim state, integrated at `FIXED_DT`).
-    Each step: find the compartment's openings (its exposed cells) and their world heights; if any is
-    **below the external waterline** (submerged → an inflow path), raise `L` toward
-    **`min(external waterline, highest opening height)`** at a finite rate; else drain. A cell is
-    flooded iff its centre is below `L`. (This replaces the current all-or-nothing per-cell flood.)
-  - **Water mass / weight.** A *submerged* flooded cell is already neutral — losing its air buoyancy
-    equals the water's weight, which is why dense hulls sink and light ones swamp awash today. What's
-    still missing is water carried **above** the external waterline (a heeled/pitched boat, or water
-    perched above sea level inside the hull): add its **downward weight** `ρ·g·V` at that cell so a
-    tilted, part-flooded boat is pulled down realistically. This is the "extra water lowers the boat →
-    submerges more openings → cascade" feedback in full.
-  - **Wave/waterline caveat to handle:** the external surface varies per (x,z) with the waves; pick a
-    representative level per compartment (surface at its centroid, or per-opening) — don't assume a
-    flat sea. Also note the coarse ocean-mesh tessellation can render the surface a touch below the
-    analytic CPU height on sharp crests (see root `CLAUDE.md`), so "rendered water looks over the rim
-    but CPU says not quite" is a known cosmetic mismatch, not a physics bug.
-- **Render interior water** in flooded compartments at level `L` (builds on Stage 2's interior-water
-  path).
-- This is the "water only enters over the edge" behaviour and the storm-stakes gameplay.
-  It also completes below-deck: a sealed, un-flooded compartment is dry walkable air.
+- **Stage 3b — compartment fill level + water weight. ✅ DONE.** Replaces the all-or-nothing flood with a
+  per-compartment fill level (stored as a pose-invariant FRACTION), so a breached hull fills through its
+  holes and founders while a sealed one stays dry. As built (model confirmed with Kyle):
+  - **Compartments.** `analyzeBuildVoids` now also returns a `compartment` id per void — connected
+    components of the ENCLOSED void graph (a bulkhead makes two). `groupCompartments` (pure, at setup)
+    lists each compartment's cells + **openings**.
+  - **Openings** = where the sea meets a compartment: (a) its own EXPOSED cells (a hole flush with the
+    hull, e.g. an open-top rim — the only openings an upright bucket has, since nothing sits above it),
+    plus (b) OPEN voids face-adjacent to it (a side/bottom breach). A **fully sealed** compartment has
+    NO openings → it never floods, keeping its air at ANY depth (seal your hull to survive submersion).
+  - **Fill FRACTION per compartment** (persistent sim state, 0..1, integrated at `FIXED_DT`, reset dry
+    on respawn). The state is a *fraction*, NOT a world height, so it's **pose-invariant** — it tracks
+    the hull as it bobs/sinks/rolls. (A world-height level was tried first and was buggy: frozen at
+    spawn, it spuriously flooded a compartment's cells one layer at a time as the body settled *down*
+    into the sea — even a sealed box sank.) Each step: sample the sea at the compartment centroid
+    (`ext`, a representative waterline — the surface varies per x,z); if any opening is **below `ext`**,
+    the sea pours in toward **sea level**; else drain out the lowest opening. The fraction then realizes
+    to a world FLOOD LEVEL for the current pose (`dryFloor + fraction·span`); a cell is flooded iff its
+    centre is below it (world-horizontal, so water pools to a heeled hull's low side). This is Kyle's
+    condition — *a cell holds water iff it's below the current wave surface AND reachable from a
+    submerged opening* — evaluated at compartment granularity, plus the gradual fill rate below. **We
+    deliberately DON'T cap the fill at the highest hole to trap air above it (a diving-bell seal)** — at
+    0.5 m voxels that edge case isn't worth simulating, so any submerged hole just floods (an upside-down
+    bucket sinks). Air is trapped ONLY in a fully sealed compartment.
+  - **Orifice (Torricelli) fill rate.** `dL/dt = fillRate · Cd · Σ_holes √(2g·head) / footprint`, so how
+    fast a compartment fills depends on how open it is (a wide mouth ≈ its own cross-section → floods in
+    ~a second; a small cannon hole → trickles) and how deep the hole sits (bigger head → faster; deeply
+    submerged → near-instant). Draining is the same law with head = the interior water above a hole.
+    `footprint` = mean cells per vertical layer; `params.fillRate` (GUI "flood rate") scales it live.
+  - **Water weight.** A flooded cell carries `ρg·(1−submerged)·V` **downward** at its point: a submerged
+    flooded cell nets ~zero (its lost air lift equals the water's weight), while water perched above the
+    sea (a heeled/awash hull) pulls down for real. Because `L` is world-horizontal, water pools to the
+    low side of a heeled hull → the "extra water → submerges more openings → cascade" capsize feedback.
+- **Still TODO — render interior water** in flooded compartments at level `L` (Stage 3c; builds on
+  Stage 2's interior-water path). This is the "water only enters over the edge" behaviour and the
+  storm-stakes gameplay; a sealed, un-flooded compartment is dry walkable below-deck air.
 
 ## Hard parts (call these out when scoping)
 

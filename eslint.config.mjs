@@ -43,7 +43,8 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unnecessary-condition": "off",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "scripts/**"]),
+  // `.claude/**` is Claude Code's working area (git worktrees, settings) — never project source to lint.
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "scripts/**", ".claude/**"]),
 ]);
 
 export default eslintConfig;

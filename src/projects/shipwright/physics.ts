@@ -21,20 +21,28 @@ import type { Ocean } from "./ocean";
  * by geometry. It's scoped to collision / momentum / buoyancy ONLY — never water
  * rendering (that's ocean.ts).
  *
- * AIR-CAVITY BUOYANCY (see docs/buoyancy.md). Hulls float on the air they enclose, not just
- * on light voxels. `analyzeBuildVoids` pre-builds ONCE (pure, cheap, re-runnable per place/break
- * by the coming voxel builder) two things about a build's empty interior cells: the flood graph,
- * and a static ENCLOSED mask — which cells are air-CAPABLE (the sea can't reach them by rising +
- * moving sideways, i.e. they sit below a rim). Then EACH STEP `floodSea` floods the outside sea
- * through the voids under the live water surface. TRAPPED AIR = enclosed AND not flooded; it
- * displaces water at ZERO mass. The two masks divide the labour: `enclosed` (orientation-free
- * shape geometry) rules out open volume — a decorative crown above the rim is never air — while
- * the per-step flood makes flooding orientation- + waterline-correct: capsize a hull and its mouth
- * goes under → floods; swamp a rim → floods; a sealed pontoon is never reached → air in any pose.
- * Flooding is ALL-OR-NOTHING per cell (a fully open hole floods fast; a faked slow fill just made
- * hulls look like they floated too long). The proper compartment water-LEVEL model — fill only up to
- * a hole's height with air trapped above, plus water mass — is the next step (Stage 3b in
- * docs/buoyancy.md); interior water rendering is 3c.
+ * AIR-CAVITY BUOYANCY + COMPARTMENT FLOODING (see docs/buoyancy.md). Hulls float on the air they
+ * enclose, not just on light voxels. `analyzeBuildVoids` pre-builds ONCE (pure, cheap, re-runnable
+ * per place/break by the coming voxel builder) a build's empty interior cells: their adjacency
+ * graph, a static ENCLOSED mask (cells air-CAPABLE — the sea can't reach them by rising + moving
+ * sideways, i.e. they sit below a rim), and the COMPARTMENT each enclosed cell belongs to (connected
+ * components of the enclosed graph; a bulkhead makes two). ENCLOSED (orientation-free shape geometry)
+ * rules out open volume, so a decorative crown above the rim is never counted as air.
+ *
+ * Each fixed step every compartment tracks a FILL FRACTION (0..1) — pose-invariant flooding state, so
+ * it tracks the hull as it bobs/sinks/rolls instead of freezing at a spawn world height. Sample the
+ * sea at the compartment centroid, and if any of its openings (the cells where the sea meets it) sits
+ * underwater, raise the fraction toward sea level at a finite ORIFICE rate (wider/deeper holes fill
+ * faster); otherwise drain out the lowest opening. The fraction realizes to a world FLOOD LEVEL for the
+ * current pose (dryFloor + fraction·span), and a cell is FLOODED when its centre is below it (so water
+ * pools to a heeled hull's low side). Trapped air = enclosed AND not flooded → up-buoyancy at ZERO mass; a
+ * flooded cell instead carries WATER WEIGHT (ρg·(1−submerged)·V, down), so a swamped/heeled hull is
+ * pulled under and founders. This is orientation- + waterline-correct for free (openings' and cells'
+ * world heights track the hull as it rolls): a submerged opening floods to the waterline; a FULLY
+ * SEALED compartment (no openings) never floods, so it keeps its air at any depth — seal a hull and
+ * it survives underwater. We deliberately DON'T model a trapped-air (diving-bell) seal at a lone
+ * submerged hole — at 0.5 m voxels that edge case isn't worth simulating; a hole below the waterline
+ * just floods. Interior water rendering is Stage 3c (docs/buoyancy.md).
  *
  * Rapier is deterministic and we keep it that way for future host-authoritative
  * multiplayer: a FIXED physics timestep, and no wall-clock or Math.random in the
@@ -120,11 +128,17 @@ const DRAG_MULTIPLIER_DEFAULT = 1;
 // Half-step used to finite-difference the water (particle) velocity analytically.
 const VELOCITY_EPS = 1 / 120;
 
-// Flood gate: a void cell only conducts the sea (counts as "wet" in the flood) once it's this
-// submerged — ~fully, i.e. its top is under the surface. Keeps an open-top hull from flooding on
-// its own float line, where the rim cell sits half-submerged; it floods only when the sea crests
-// the rim. See the buoyancy loop.
-const FLOOD_WET_MIN = 0.999;
+// Flood inflow — ORIFICE (Torricelli) flow, so how fast a compartment fills depends on how open it is
+// and how deep its holes sit, not a flat fudge factor. Water enters a submerged hole at ~Cd·√(2g·head)
+// (head = the hole's depth below the sea surface). Summed over a compartment's holes and divided by
+// its `footprint` (mean horizontal cross-section, in cells), that becomes a water-LEVEL rise rate:
+//   dL/dt = params.fillRate · Cd · Σ_holes √(2g·head) / footprint
+// A WIDE mouth (open cells ≈ the compartment's own cross-section, e.g. a capsized bucket) floods in ~a
+// second and founders — nearly instantly when deeply submerged (big head); a small deep cannon hole
+// trickles in slowly. Draining is the same law with head = the interior water's height above a hole.
+// `params.fillRate` scales it live for tuning; determinism holds (pure √ of world heights + clock).
+const ORIFICE_C = 0.6; // discharge coefficient of a sharp-edged hole
+const FILL_RATE_DEFAULT = 1; // dimensionless multiplier on the orifice law (GUI "flood rate")
 
 
 // Spawn layout: a deterministic row dropped from a small height. Plate shapes get a
@@ -133,7 +147,7 @@ const FLOOD_WET_MIN = 0.999;
 // or tip over on the chop.
 const SPAWN_SPACING = 4;
 const SPAWN_HEIGHT = 1.5;
-const SPAWN_Z = -6;
+const SPAWN_Z = -48; // legacy per-voxel demos drop in a far BACK row, clear of the buckets up front
 
 const ARROW_COLOR = 0x35ffd0; // material-voxel buoyancy force arrows
 const AIR_ARROW_COLOR = 0x35a0ff; // sealed-air-cell buoyancy force arrows (distinct from material)
@@ -300,38 +314,44 @@ export const SEALED_HULL: Shape = {
   color: 0x9aa7b4,
   upright: true,
   density: DENSE_HULL_DENSITY,
-  spawnOverride: [-10, 3, -12],
+  spawnOverride: [-10, 3, -28],
   cells: buildSealedHull(),
 };
 
 // Stability buckets: open-top hulls (dense — float only on trapped air) across a MATRIX of wall
-// height (h3→h10) × interior air size (3×3, 4×4, 5×5), one row per interior size spread along x.
-// The spectrum shows the whole range — shallow walls swamp on the splash-down, tall walls take the
-// plunge and bob back up — and how a wider air cavity lifts more. Dropped in low for a gentle entry;
-// a hard drop that plunges the rim fully under floods it all-or-nothing, which is expected for a low
-// wall. Rows sit progressively further out (z) so the bigger footprints don't collide.
+// height (h3→h10) × interior air size (3×3, 4×4, 5×5). The spectrum shows the whole range — shallow
+// walls swamp on the splash-down, tall walls take the plunge and bob back up — and how a wider air
+// cavity lifts more. Laid out BROADSIDE to the default camera (pos (-8,2.5,8) → target (4,1.5,-4)) so
+// all 15 are in frame the instant the scene loads, no orbiting: that camera's ground-plane ray runs
+// along x = -z, its screen-right axis is (1,0,1)/√2 and its into-screen axis is (1,0,-1)/√2. We centre
+// the grid on the ray in the empty water beyond the other demos — heights spread across screen-right,
+// interior sizes recede into depth (smallest nearest). Dropped in low for a gentle entry.
 const BUCKET_COLORS = [0x4fbfa0, 0x4fae9e, 0x4f9eae, 0x4f7eae, 0x4f6ec0];
+const BUCKET_GRID_CENTER = new THREE.Vector3(12, 0, -12);
+const BUCKET_GRID_RIGHT = new THREE.Vector3(1, 0, 1).normalize(); // camera screen-right
+const BUCKET_GRID_DEPTH = new THREE.Vector3(1, 0, -1).normalize(); // camera into-screen
 const buildBuckets = (): Shape[] => {
   const heights = [3, 4, 6, 8, 10];
-  const rows = [
-    { ext: 5, z: -30, dx: 5 }, // 3×3 interior
-    { ext: 6, z: -38, dx: 6 }, // 4×4 interior
-    { ext: 7, z: -48, dx: 7 }, // 5×5 interior
-  ];
+  const exts = [5, 6, 7]; // interior 3×3, 4×4, 5×5
+  const COL = 5; // spacing between heights (across screen)
+  const ROW = 5; // spacing between interior sizes (into depth)
   const shapes: Shape[] = [];
-  for (const row of rows) {
-    const inner = row.ext - 2;
+  exts.forEach((ext, r) => {
+    const inner = ext - 2;
     heights.forEach((h, i) => {
+      const p = BUCKET_GRID_CENTER.clone()
+        .addScaledVector(BUCKET_GRID_RIGHT, (i - (heights.length - 1) / 2) * COL)
+        .addScaledVector(BUCKET_GRID_DEPTH, (r - 1) * ROW);
       shapes.push({
         name: `Bucket ${inner}x${inner} h${h}`,
         color: BUCKET_COLORS[i],
         upright: true,
         density: BUCKET_DENSITY,
-        spawnOverride: [(i - (heights.length - 1) / 2) * row.dx, 2 + i * 0.5, row.z],
-        cells: omitFace(buildHollowBox(row.ext, h, row.ext), 1, h - 1),
+        spawnOverride: [p.x, 1.5 + i * 0.3, p.z],
+        cells: omitFace(buildHollowBox(ext, h, ext), 1, h - 1),
       });
     });
-  }
+  });
   return shapes;
 };
 
@@ -399,7 +419,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Boat",
     color: 0xe6e2d8,
     upright: true,
-    spawnOverride: [9, 0.2, 0],
+    spawnOverride: [-14, 0.2, -2],
     cells: buildBoatCells(),
   },
   // The Stage-1 air-cavity demo (see SEALED_HULL): a dense sealed box that floats on its
@@ -413,7 +433,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Breached (side)",
     color: 0xd98f4f,
     upright: true,
-    spawnOverride: [-5, 3, -16],
+    spawnOverride: [-5, 3, -32],
     cells: omitCell(buildHollowBox(4, 4, 4), 0, 2, 2),
   },
   {
@@ -421,7 +441,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Breached (bottom)",
     color: 0xd9694f,
     upright: true,
-    spawnOverride: [0, 3, -16],
+    spawnOverride: [0, 3, -32],
     cells: omitCell(buildHollowBox(4, 4, 4), 2, 0, 2),
   },
   {
@@ -429,7 +449,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Bulkhead",
     color: 0x6fae4f,
     upright: true,
-    spawnOverride: [6, 3, -16],
+    spawnOverride: [6, 3, -32],
     cells: buildBulkheadHull(),
   },
   {
@@ -438,7 +458,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Open-bottom cup",
     color: 0x8f6fd9,
     upright: true,
-    spawnOverride: [3, 3, -22],
+    spawnOverride: [3, 3, -38],
     cells: omitFace(buildHollowBox(4, 4, 4), 1, 0),
   },
   // Stability buckets: a matrix of wall height × interior air size (see buildBuckets). Dropped in low
@@ -451,7 +471,7 @@ export const TEST_SHAPES: Shape[] = [
     name: "Crown raft",
     color: 0x9a92a8,
     upright: true,
-    spawnOverride: [-8, 2, -22],
+    spawnOverride: [-8, 2, -38],
     cells: buildCrownRaft(),
   },
 ];
@@ -494,21 +514,35 @@ interface Visual {
   /** Local voxel-centre offsets (metres), centred on the shape's centroid. */
   offsets: THREE.Vector3[];
   /** Local centres (metres) of the build's empty interior cells (voids), SAME body frame as
-   *  `offsets` and parallel to `voidExposed`/`voidAdjacency`. Each step the sea floods these; the
-   *  ones it doesn't reach are trapped air (buoyancy at zero mass — no collider, no mesh). */
+   *  `offsets`. Each step the compartment water levels split these into trapped air (buoyancy at zero
+   *  mass — no collider, no mesh) and flooded (water weight). */
   voidOffsets: THREE.Vector3[];
-  voidExposed: boolean[];
-  voidAdjacency: number[][];
   /** Per void: air-capable (enclosed) — a static shape property (see BuildVoids.enclosed). Trapped
-   *  air = this AND not flooded by the per-step sea; a decorative open volume is never enclosed. */
+   *  air = this AND its compartment's water level hasn't reached it; an open volume is never enclosed. */
   voidEnclosed: boolean[];
+  /** Per void: its compartment id (see BuildVoids.compartment), or -1 for an open void. */
+  voidCompartment: number[];
   /** Per-body flood scratch (allocated once, reused every step so the hot loop never allocates):
-   *  world x/y/z of each void, its submerged fraction, its wet flag, the flood result, a BFS stack. */
+   *  world x/y/z of each void, its submerged fraction, and whether it's currently flooded (for the
+   *  buoyancy loop's water weight + the trapped-air x-ray). */
   voidWorld: Float32Array;
   voidSubmerged: Float32Array;
-  voidWet: Uint8Array;
   voidFlooded: Uint8Array;
-  voidStack: Int32Array;
+  /** Compartments (connected enclosed voids) of this build: per compartment its cell + opening void
+   *  indices (into `voidOffsets`) and its body-local centroid (where the external waterline is
+   *  sampled). `compartmentWater` is the persistent per-compartment fill FRACTION (0..1), the one
+   *  piece of flooding SIM STATE — pose-invariant (so it tracks the hull as it moves), integrated at
+   *  FIXED_DT, reset to 0 (dry) on respawn. `compartmentFloodLevel` is per-step scratch: the world
+   *  height that fraction realizes to this pose, which the force loop floods cells below. */
+  compartmentCells: number[][];
+  compartmentOpenings: number[][];
+  compartmentCentroidLocal: THREE.Vector3[];
+  compartmentFloodLevel: Float32Array;
+  /** Per compartment: its mean horizontal cross-section in cells (nCells / vertical span), the
+   *  denominator of the orifice fill rate — how spread-out the compartment is, so a given hole area
+   *  fills a wide shallow bay slower than a narrow deep one. See ORIFICE_C / the buoyancy loop. */
+  compartmentFootprint: Float32Array;
+  compartmentWater: Float32Array;
   spawnPos: THREE.Vector3;
   spawnQuat: THREE.Quaternion;
   /** Post-step transforms of the last two fixed steps, interpolated at render time (see syncMeshes). */
@@ -573,25 +607,31 @@ export interface BuildVoids {
    *  reach it by RISING + moving sideways (never descending over a rim), in the build's local frame.
    *  An orientation-independent shape property: the raft/bucket interior below the rim is enclosed,
    *  but a decorative crown's open volume ABOVE the rim is not (the sea rises into it from the side).
-   *  Trapped air = enclosed AND not currently flooded (the per-step `floodSea` decides the flooding). */
+   *  Trapped air = enclosed AND its compartment's water level hasn't reached it (see the buoyancy loop). */
   enclosed: boolean[];
+  /** Per void: which sealed COMPARTMENT it belongs to (a connected component of the ENCLOSED void
+   *  graph), or -1 for an open void. An internal bulkhead splits a hull into two → ids 0 and 1. Each
+   *  compartment floods to its own water level, so a breached bay doesn't flood a sealed neighbour. */
+  compartment: number[];
 }
 
 /**
- * Pre-analyse a build's empty INTERIOR cells (the pockets a hull could hold air or water in) into a
- * graph the per-step sea flood walks. Interior = empty cells within the material's bounding box; a
- * hole in the shell simply leaves an empty cell ON the boundary (flagged `exposed`), which is how
- * the sea finds its way in. Pure + deterministic — a function of the cell list alone, cheap at build
- * sizes, re-run per place/break by the coming voxel builder to keep the graph correct as ships change.
+ * Pre-analyse a build's empty INTERIOR cells (the pockets a hull could hold air or water in) into the
+ * adjacency graph, `enclosed` mask, and `compartment` ids the flooding model uses. Interior = empty
+ * cells within the material's bounding box; a hole in the shell simply leaves an empty cell ON the
+ * boundary (flagged `exposed`), which is how the sea finds its way in. Pure + deterministic — a
+ * function of the cell list alone, cheap at build sizes, re-run per place/break by the coming voxel
+ * builder to keep the graph correct as ships change.
  *
- * This is HALF of the trapped-air model; the other half (`floodSea`) runs each step against the live
- * water surface, so which cells are air vs flooded is orientation- and waterline-correct as the hull
- * rolls and bobs — see the buoyancy loop and docs/buoyancy.md (Stage 3).
+ * This is the STATIC half of the trapped-air model; the dynamic half runs each step in the buoyancy
+ * loop, advancing a per-compartment water level against the live sea surface, so which cells are air
+ * vs flooded is orientation- and waterline-correct as the hull rolls and bobs — see docs/buoyancy.md.
  */
 export const analyzeBuildVoids = (
   cells: [number, number, number][],
 ): BuildVoids => {
-  if (cells.length === 0) return { cells: [], exposed: [], adjacency: [], enclosed: [] };
+  if (cells.length === 0)
+    return { cells: [], exposed: [], adjacency: [], enclosed: [], compartment: [] };
   const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
   const solid = new Set<string>();
   let minX = Infinity;
@@ -666,45 +706,105 @@ export const analyzeBuildVoids = (
     }
   }
   const enclosed = open.map((o) => !o);
-  return { cells: voidCells, exposed, adjacency, enclosed };
-};
 
-/**
- * Flood the outside sea through a build's voids for ONE step, writing 1 into `flooded[i]` for every
- * void the sea reaches. The sea starts at cells `exposed` to the outside that are `wet` (below the
- * live water surface) and spreads only to `wet` neighbours (`adjacency`) — so an intact hull whose
- * rim is above water keeps its air, while a submerged opening (a capsized hull's mouth, a swamped
- * gunwale, a breach) lets the sea in. Whatever the sea DOESN'T reach is trapped air. Because "wet"
- * is judged from each cell's real world height, this is orientation- and waterline-correct for free.
- *
- * Writes into caller-provided scratch (`flooded`, `stack`) so the hot loop never allocates; pure
- * given (exposed, adjacency, wet). `stack` must hold at least `exposed.length` entries.
- */
-export const floodSea = (
-  exposed: boolean[],
-  adjacency: number[][],
-  wet: Uint8Array,
-  flooded: Uint8Array,
-  stack: Int32Array,
-): void => {
-  const n = exposed.length;
-  flooded.fill(0, 0, n);
-  let sp = 0;
-  for (let i = 0; i < n; i++) {
-    if (exposed[i] && wet[i] === 1) {
-      flooded[i] = 1;
-      stack[sp++] = i;
-    }
-  }
-  while (sp > 0) {
-    const i = stack[--sp];
-    for (const j of adjacency[i]) {
-      if (flooded[j] === 0 && wet[j] === 1) {
-        flooded[j] = 1;
-        stack[sp++] = j;
+  // Group the enclosed voids into COMPARTMENTS — connected components of the enclosed graph, walking
+  // `adjacency` but only enclosed→enclosed (an open void breaks the connection, which is how a
+  // bulkhead sealing a hull into two bays yields two compartments). Open voids get -1. Each
+  // compartment floods to its own water level in the buoyancy loop.
+  const compartment = voidCells.map(() => -1);
+  let compartmentCount = 0;
+  const compStack: number[] = [];
+  for (let i = 0; i < voidCells.length; i++) {
+    if (!enclosed[i] || compartment[i] !== -1) continue;
+    const id = compartmentCount++;
+    compartment[i] = id;
+    compStack.push(i);
+    while (compStack.length > 0) {
+      const c = compStack.pop();
+      if (c === undefined) break;
+      for (const j of adjacency[c]) {
+        if (enclosed[j] && compartment[j] === -1) {
+          compartment[j] = id;
+          compStack.push(j);
+        }
       }
     }
   }
+
+  return { cells: voidCells, exposed, adjacency, enclosed, compartment };
+};
+
+/** Per compartment: its enclosed-void cell indices, and the OPENING indices — the void cells where
+ *  the sea meets the compartment. Two kinds, both taken at their own world height in the buoyancy
+ *  loop: (a) an EXPOSED compartment cell — a hole flush with the hull surface, e.g. an open-top rim,
+ *  which the sea touches directly; and (b) an OPEN void face-adjacent to the compartment — where it
+ *  meets already-open interior volume (a side/bottom breach). A pure derivation of `analyzeBuildVoids`
+ *  output, done once per build. A fully sealed compartment has NO openings → it never floods (keeps
+ *  its air at any depth); every other fills through its openings toward the external waterline. */
+export interface Compartments {
+  /** cells[c] = enclosed-void indices making up compartment c. */
+  cells: number[][];
+  /** openings[c] = void indices where the sea meets compartment c (deduped): its own exposed cells
+   *  plus the open voids adjacent to it. */
+  openings: number[][];
+}
+
+export const groupCompartments = (voids: BuildVoids): Compartments => {
+  let count = 0;
+  for (const c of voids.compartment) if (c + 1 > count) count = c + 1;
+  const cells: number[][] = Array.from({ length: count }, () => []);
+  const openingSets: Set<number>[] = Array.from({ length: count }, () => new Set<number>());
+  voids.compartment.forEach((c, i) => {
+    if (c === -1) return;
+    cells[c].push(i);
+    // (a) An exposed compartment cell is itself a hole flush with the hull (an open-top rim / mouth):
+    // the sea touches it directly, so it's an opening at its own height — the only openings an
+    // upright open-top hull has, since nothing exists above the bounding box to be an open neighbour.
+    if (voids.exposed[i]) openingSets[c].add(i);
+    // (b) An open void face-adjacent to the compartment is where it meets already-open interior
+    // volume that reaches the sea (a side or bottom breach).
+    for (const j of voids.adjacency[i]) {
+      if (voids.compartment[j] === -1) openingSets[c].add(j);
+    }
+  });
+  return { cells, openings: openingSets.map((s) => [...s]) };
+};
+
+/**
+ * The target water FILL FRACTION (0..1 of the compartment's cell span) a compartment seeks THIS step.
+ * The fraction is the persistent state — it's POSE-INVARIANT, so it tracks the hull as it bobs/sinks/
+ * rolls (a world-height level would freeze at spawn and spuriously flood cells as the body descends).
+ * `ext` is the external sea surface at the compartment; `openingHeights` are its holes' world heights
+ * (empty = fully sealed); `currentFill` is last step's fraction; `dryFloor`/`wetCeil` bound the
+ * compartment's cells this pose (so `fracBelow(y)` = how full it is if the water surface sits at world
+ * height `y`, treating the compartment as a uniform column — exact for boxes/buckets).
+ *
+ * - Sealed (no openings) → unchanged: no water can enter or leave, so it keeps its air at any depth.
+ * - A hole underwater (below `ext`) → fill toward SEA LEVEL (`fracBelow(ext)`). We deliberately don't
+ *   cap at the highest hole to trap air above it (a diving-bell seal) — not worth it at 0.5 m voxels,
+ *   so any submerged hole simply floods the compartment.
+ * - Otherwise (all holes above water) → drain out the LOWEST hole (`min(currentFill, fracBelow(lowest))`);
+ *   water below that hole is trapped and can't run uphill out.
+ *
+ * The caller rate-limits the move toward this target (see the buoyancy loop). Pure.
+ */
+export const compartmentTargetFill = (
+  openingHeights: number[],
+  ext: number,
+  currentFill: number,
+  dryFloor: number,
+  wetCeil: number,
+): number => {
+  const span = Math.max(wetCeil - dryFloor, 1e-6);
+  const fracBelow = (y: number) => clamp((y - dryFloor) / span, 0, 1);
+  if (openingHeights.length === 0) return currentFill;
+  let lowest = Infinity;
+  let anySubmerged = false;
+  for (const h of openingHeights) {
+    if (h < lowest) lowest = h;
+    if (h < ext) anySubmerged = true;
+  }
+  return anySubmerged ? fracBelow(ext) : Math.min(currentFill, fracBelow(lowest));
 };
 
 // Merge a shape's voxel boxes into ONE geometry with continuous, body-local, per-face planar
@@ -750,7 +850,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // `airBuoyancy` is the Stage-1 A/B switch: off, trapped-air cells contribute NO lift, so a dense
   // hull that floats on its trapped air sinks like the solid block it's built from. The direct
   // proof the enclosed air — not the material — is what floats it.
-  const params = { drag: DRAG_MULTIPLIER_DEFAULT, airBuoyancy: true };
+  const params = { drag: DRAG_MULTIPLIER_DEFAULT, airBuoyancy: true, fillRate: FILL_RATE_DEFAULT };
 
   const group = new THREE.Group();
   const boxGeometry = new THREE.BoxGeometry(VOXEL, VOXEL, VOXEL);
@@ -862,10 +962,11 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           (cz - czMean) * VOXEL,
         ),
     );
-    // Empty interior cells (voids) of this build + their flood graph, in the SAME body-local frame
-    // as `offsets` (centred on the material centroid). The sea floods these each step; whatever it
-    // can't reach is trapped air (buoyancy-only — see applyBuoyancy). Pre-analysed once here; a pure
-    // recompute of the cell list, ready for the voxel builder to re-run on every place/break.
+    // Empty interior cells (voids) of this build + their compartments, in the SAME body-local frame
+    // as `offsets` (centred on the material centroid). Each step the compartment water levels split
+    // these into trapped air (buoyancy-only) and flooded (water weight) — see applyBuoyancy.
+    // Pre-analysed once here; a pure recompute of the cell list, ready for the voxel builder to re-run
+    // on every place/break.
     const voids = analyzeBuildVoids(shape.cells);
     const voidOffsets = voids.cells.map(
       ([cx, cy, cz]) =>
@@ -876,6 +977,27 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         ),
     );
     const voidCount = voidOffsets.length;
+    // Compartments: per compartment its cell + opening void indices, its body-local centroid (mean of
+    // its cell offsets, where the buoyancy loop samples the external waterline), and its footprint
+    // (mean cells per vertical layer — the orifice fill-rate denominator).
+    const { cells: compartmentCells, openings: compartmentOpenings } = groupCompartments(voids);
+    const compartmentCentroidLocal = compartmentCells.map((cellIdxs) => {
+      const centroid = new THREE.Vector3();
+      for (const idx of cellIdxs) centroid.add(voidOffsets[idx]);
+      if (cellIdxs.length > 0) centroid.multiplyScalar(1 / cellIdxs.length);
+      return centroid;
+    });
+    const compartmentFootprint = Float32Array.from(compartmentCells, (cellIdxs) => {
+      if (cellIdxs.length === 0) return 1;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const idx of cellIdxs) {
+        const cy = voids.cells[idx][1];
+        if (cy < minY) minY = cy;
+        if (cy > maxY) maxY = cy;
+      }
+      return cellIdxs.length / (maxY - minY + 1); // cells ÷ vertical span (layers) = mean cross-section
+    });
 
     // Textured builds share the wood material; the rest get a flat colour we own + dispose.
     let material: THREE.MeshStandardMaterial;
@@ -924,14 +1046,17 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       single,
       offsets,
       voidOffsets,
-      voidExposed: voids.exposed,
-      voidAdjacency: voids.adjacency,
       voidEnclosed: voids.enclosed,
+      voidCompartment: voids.compartment,
       voidWorld: new Float32Array(voidCount * 3),
       voidSubmerged: new Float32Array(voidCount),
-      voidWet: new Uint8Array(voidCount),
       voidFlooded: new Uint8Array(voidCount),
-      voidStack: new Int32Array(voidCount),
+      compartmentCells,
+      compartmentOpenings,
+      compartmentCentroidLocal,
+      compartmentFloodLevel: new Float32Array(compartmentCells.length),
+      compartmentFootprint,
+      compartmentWater: new Float32Array(compartmentCells.length), // fill fraction, starts 0 (dry)
       spawnPos,
       spawnQuat,
       prevPos: spawnPos.clone(),
@@ -1078,13 +1203,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         body.addForceAtPoint({ x: fx, y: fy, z: fz }, { x: wx, y: wy, z: wz }, true);
       }
 
-      // Trapped-air cells (Stage 3, orientation-correct). First pose every void cell in world space
-      // and note whether its centre is under the live water surface (wet). Then flood the sea through
-      // the wet voids from the exposed (bounding-box-face) cells: whatever the sea reaches is FLOODED
-      // (water is there — no lift); whatever it can't reach is TRAPPED AIR that displaces water. This
-      // is judged from the cells' real world heights, so it tracks the hull's orientation + draft:
-      // capsize a bucket and its mouth goes under → the sea floods in → phantom air gone; swamp a rim
-      // → floods; a sealed cavity is never reached → air in any pose.
+      // COMPARTMENT FLOODING (Stage 3b, orientation-correct — see the module header). Three passes:
+      // (1) pose every void cell in world space + note how submerged it is; (2) advance each
+      // compartment's water level toward its target; (3) apply trapped-air lift OR flooded water
+      // weight per cell. All keyed off real world heights, so it tracks the hull's roll + draft.
       const voidN = v.voidOffsets.length;
       for (let j = 0; j < voidN; j++) {
         tmpVec.copy(v.voidOffsets[j]).applyQuaternion(tmpQuat);
@@ -1095,42 +1217,84 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         v.voidWorld[j * 3 + 1] = wy;
         v.voidWorld[j * 3 + 2] = wz;
         const surface = ocean.sampleSurface(wx, wz, time);
-        const submerged = clamp((surface.height - (wy - HALF)) / VOXEL, 0, 1);
-        v.voidSubmerged[j] = submerged;
-        // "Wet" (the sea conducts through this cell) only when the cell's TOP is under the surface,
-        // i.e. it's FULLY submerged — not merely half. This is what makes water enter an open-top
-        // hull only when the sea crests the rim (the top of the wall = the top of the rim cell): a
-        // hull floating with ~0.25 m of freeboard has its rim cell half-submerged, and half must NOT
-        // count as breached or every bucket would flood on its own float line. Buoyancy still uses the
-        // continuous `submerged` fraction, so lift stays smooth — only the flood gate is a full-cell test.
-        v.voidWet[j] = submerged >= FLOOD_WET_MIN ? 1 : 0;
+        v.voidSubmerged[j] = clamp((surface.height - (wy - HALF)) / VOXEL, 0, 1);
       }
-      floodSea(v.voidExposed, v.voidAdjacency, v.voidWet, v.voidFlooded, v.voidStack);
 
-      // Apply the trapped air's buoyancy — at each cell's own point, so the extra lift enters through
-      // the centre of buoyancy and the righting torques stay physical. Air cells carry NO mass and NO
-      // drag: the material shell already provides the whole wetted drag surface, so adding drag here
-      // would double-count it. Flooded voids (and, for the A/B test, all voids when airBuoyancy is
-      // off) apply nothing — the hull then floats on its shell alone.
+      // Advance each compartment's fill FRACTION (0..1) — the pose-invariant flooding state, so it
+      // tracks the hull as it bobs/sinks/rolls instead of freezing at a spawn world height. Sample the
+      // sea at the compartment centroid (a representative external waterline — the surface varies per
+      // x,z with the waves), read its openings' world heights, and step the fraction toward its target
+      // (compartmentTargetFill) at the ORIFICE rate Σ_holes √(2g·head)·Cd / footprint per second (see
+      // ORIFICE_C). The fraction then realizes to a world FLOOD LEVEL for this pose — dryFloor+f·span —
+      // which the force loop floods cells below (world-horizontal, so water pools to a heeled hull's
+      // low side). dryFloor/wetCeil come from the compartment's cell heights THIS pose.
+      const orifice = params.fillRate * ORIFICE_C * FIXED_DT;
+      for (let c = 0; c < v.compartmentCells.length; c++) {
+        const cellIdxs = v.compartmentCells[c];
+        if (cellIdxs.length === 0) continue;
+        let dryFloor = Infinity;
+        let wetCeil = -Infinity;
+        for (const idx of cellIdxs) {
+          const cy = v.voidWorld[idx * 3 + 1];
+          if (cy < dryFloor) dryFloor = cy;
+          if (cy > wetCeil) wetCeil = cy;
+        }
+        dryFloor -= HALF;
+        wetCeil += HALF;
+        const span = Math.max(wetCeil - dryFloor, 1e-6);
+
+        tmpVec.copy(v.compartmentCentroidLocal[c]).applyQuaternion(tmpQuat);
+        const ext = ocean.sampleSurface(tmpVec.x + t.x, tmpVec.z + t.z, time).height;
+
+        const openingIdxs = v.compartmentOpenings[c];
+        const openingHeights = openingIdxs.map((idx) => v.voidWorld[idx * 3 + 1]);
+
+        const water = v.compartmentWater[c];
+        const target = compartmentTargetFill(openingHeights, ext, water, dryFloor, wetCeil);
+        // Orifice rate toward the target, as a FRACTION change: fill through holes below the sea (head
+        // = sea − hole), drain through holes below the interior surface (head = level − hole). Wider/
+        // deeper holes → faster. Convert the level rate to a fraction rate by dividing by the span.
+        const level = dryFloor + water * span; // current interior surface (this pose) for the drain head
+        const rising = target > water;
+        let head = 0;
+        for (const oy of openingHeights) {
+          const h = (rising ? ext : level) - oy;
+          if (h > 0) head += Math.sqrt(2 * GRAVITY * h);
+        }
+        const maxDF = (orifice * head) / v.compartmentFootprint[c] / span;
+        const next = clamp(water + clamp(target - water, -maxDF, maxDF), 0, 1);
+        v.compartmentWater[c] = next;
+        v.compartmentFloodLevel[c] = dryFloor + next * span; // world level cells flood below
+      }
+
+      // Apply each void cell's force at its own point, so the lift/weight enters through the centre of
+      // buoyancy and the righting torques stay physical. Trapped air (enclosed + above its
+      // compartment's water level) displaces water at ZERO mass/drag — the material shell already
+      // carries the wetted drag. A FLOODED cell instead carries water weight ρg·(1−submerged)·V down:
+      // a submerged flooded cell nets ~zero (its lost air lift equals the water's weight), while water
+      // perched above the sea (a heeled/awash hull) pulls down for real — the "extra water sinks the
+      // boat → submerges more openings → cascade" feedback. Open voids and (A/B off) all voids: no force.
       for (let j = 0; j < voidN; j++) {
         const gi = v.arrowBase + v.offsets.length + j;
         const submerged = v.voidSubmerged[j];
-        // Trapped air = air-capable (enclosed) AND the sea hasn't reached it. All-or-nothing: a
-        // flooded cell gives no lift, full stop. (A finite fill RATE was tried and dropped — faking
-        // slow inflow made hulls look like they floated too long; a fully open hole floods fast, so
-        // we keep it honest until the compartment water-level model backs a real rate with visuals.)
-        // A non-enclosed void — an open volume like a decorative crown — never lifts either.
-        if (!params.airBuoyancy || !v.voidEnclosed[j] || v.voidFlooded[j] === 1 || submerged <= 0) {
-          forceArr[gi].set(0, 0, 0);
-          continue;
-        }
+        const comp = v.voidCompartment[j];
         const wx = v.voidWorld[j * 3];
         const wy = v.voidWorld[j * 3 + 1];
         const wz = v.voidWorld[j * 3 + 2];
+        const flooded = v.voidEnclosed[j] && comp !== -1 && wy < v.compartmentFloodLevel[comp];
+        v.voidFlooded[j] = flooded ? 1 : 0;
+
+        let fy = 0;
+        if (params.airBuoyancy) {
+          if (v.voidEnclosed[j] && !flooded && submerged > 0) {
+            fy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME; // trapped-air lift
+          } else if (flooded) {
+            fy = -WATER_DENSITY * GRAVITY * (1 - submerged) * VOXEL_VOLUME; // water weight
+          }
+        }
         posArr[gi].set(wx, wy, wz);
-        const buoyancy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME;
-        forceArr[gi].set(0, buoyancy, 0);
-        body.addForceAtPoint({ x: 0, y: buoyancy, z: 0 }, { x: wx, y: wy, z: wz }, true);
+        forceArr[gi].set(0, fy, 0);
+        if (fy !== 0) body.addForceAtPoint({ x: 0, y: fy, z: 0 }, { x: wx, y: wy, z: wz }, true);
       }
     }
   };
@@ -1199,6 +1363,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       body.setAngvel(ZERO, true);
       body.resetForces(true);
       body.resetTorques(true);
+      v.compartmentWater.fill(0); // drain every compartment dry (fill fraction is persistent state)
       // Re-seed the interpolation pair to the spawn pose, else the next frame lerps the mesh
       // across from wherever it was floating to the spawn.
       v.prevPos.copy(v.spawnPos);
@@ -1313,6 +1478,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // Stage-1 A/B: turn the enclosed-air buoyancy off to watch a sealed dense hull sink (respawn
       // it after to reset). On = hulls float by the air they enclose; off = every voxel for itself.
       folder.add(params, "airBuoyancy").name("air-cavity buoyancy");
+      // Multiplier on the orifice flood rate (see ORIFICE_C): a hole's inflow scales with its area +
+      // depth, this just tunes the overall pace live. Higher = swamped hulls founder sooner.
+      folder.add(params, "fillRate", 0, 3, 0.05).name("flood rate");
 
       // Live wood-material tuning (best judged at full framerate on a real GPU). `roughness`
       // trades gloss vs. how much the normal-map relief reads; `tile` is the texture repeats

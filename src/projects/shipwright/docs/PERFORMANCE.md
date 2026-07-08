@@ -6,7 +6,9 @@ The blow-by-blow is in git history; this is the distilled, actionable version.
 
 The ocean is the perf-dominant part of Shipwright: it shades most of the screen with a
 screen-space composite (refraction + depth + reflection) plus a PBR lighting pass and a
-separate reflection pass. Everything below is about that.
+separate reflection pass. Most of this doc is about that (GPU / fill). The separate
+**CPU-side** cost — Rapier physics + JS buoyancy sampling — has its own section,
+"**Physics & buoyancy (CPU)**", below.
 
 ---
 
@@ -149,6 +151,75 @@ separate reflection pass. Everything below is about that.
     matches a baked constant to within sub-%, with only a tiny fixed offset on the
     absolute ms (bake the chosen value to confirm the final number). Not built; pick it
     up if we want to dial these in by eye later.
+
+---
+
+## Physics & buoyancy (CPU) — the other cost center
+
+Distinct from the GPU/ocean cost above: this is the **CPU** side (Rapier + JS buoyancy in
+`physics.ts`). It's **not measured yet** (see the benchmark's "Live physics load" gap below) — the
+model here is reasoned, flagged where it's assumption. Correct it once instrumented.
+
+### Where it runs — all on the MAIN thread
+
+- **`@dimforge/rapier3d-compat` is single-threaded WASM on the main thread.** It's async only to
+  *load* the `.wasm`; `world.step()` is a blocking call on the render thread. No worker, no internal
+  solver threading (that needs the non-compat threaded build — see levers).
+- The whole sim runs **synchronously inside `physics.update(delta, time)`**, called once per rendered
+  frame from the shared three.js loop. Inside it a **fixed-timestep** loop runs 1–`MAX_SUBSTEPS` (5)
+  sub-steps; each sub-step does, in order: (1) **`applyBuoyancy`** — per-voxel buoyancy + drag, then
+  the per-compartment flood; (2) **`world.step()`** — Rapier collision + solver. So the buoyancy math
+  and the physics solver run back-to-back on the same thread, both competing with rendering.
+
+### The two costs — both scale with VOXEL COUNT
+
+1. **Rapier `world.step()`** over **one cuboid collider per voxel** (~2500 in the all-demos testbed):
+   broad + narrow phase + solver.
+2. **JS buoyancy sampling**, dominated by **`ocean.sampleSurface`** — a **Newton-Raphson inversion**
+   of the Gerstner field (iterative, 4 waves of sin/cos per iteration → trig-heavy). Called **once per
+   material voxel and once per void cell**, plus `waterVelocity` (2× `sampleParticle`) per material
+   voxel, plus one `sampleSurface` per compartment.
+
+**Do NOT assume Rapier dominates.** The per-voxel Gerstner inversion is trig-heavy and scales with the
+same voxel count as the colliders, so buoyancy sampling is plausibly **comparable** to the Rapier step,
+not negligible. Which wins is unmeasured — instrument before optimizing.
+
+**Stage 3b flooding is ~free on top.** The compartment fill model is per-**compartment** (a handful per
+hull): one extra `sampleSurface` + small loops each. The per-voxel work is unchanged from before it.
+
+**Testbed vs gameplay.** ~2500 colliders is the testbed dropping *every* demo at once. Real gameplay is
+one raft (~100 voxels) — a rounding error. Today's cost is a testbed artifact; don't over-optimize for it.
+
+### Levers, in priority order
+
+1. **Greedy-mesh the colliders** (a CPU pass merging runs of voxels into larger box colliders; separate
+   from render meshing). **Lossless for Rapier:** merged boxes exactly tile the same occupied volume →
+   identical collision surface, and identical mass / COM / inertia (inertia is additive over a partition
+   via parallel-axis, so a big box == the unit boxes composing it, at the same density). **Decoupled from
+   buoyancy:** keep per-voxel (or a wave-resolution sub-grid) buoyancy sampling and it stays exact.
+   Coarsening buoyancy to **one center sample per merged box** is the *only* approximation — it loses the
+   sub-box submersion gradient (a big box straddling a wave is wrong), fine for boxes small vs wavelength,
+   bad for large flat hulls. So: mesh the colliders freely; coarsen buoyancy only if you accept that trade.
+2. **Move the whole sim to a Web Worker** — run Rapier + buoyancy off the main thread, parallel to
+   rendering. The practical parallelism win. Our **deterministic fixed-step + render-interpolation** design
+   (no wall-clock, no `Math.random`, render lerps the last two snapshots) is *built* for this — the door was
+   deliberately kept open. Costs, not free: (a) **marshal body transforms** to the main thread each frame (a
+   `SharedArrayBuffer` / transferable, not per-frame `postMessage`); (b) **player/input coordination** — the
+   character controller steps inside the fixed loop and reads keyboard input, which lives on the main thread,
+   so splitting it across the worker boundary is the fiddly part. Context: native/AAA engines commonly run
+   physics on a dedicated thread/job system; in the *browser* it's the recognized approach for physics-heavy
+   games but less universal, precisely because of this marshaling friction.
+3. **Rapier internal multi-threading** — Rapier (Rust/Rayon) can thread its solver, but in the browser that
+   needs the **threaded** WASM build (not `-compat`), `SharedArrayBuffer`, a worker pool, and
+   `crossOriginIsolated` (COOP/COEP headers on Vercel). Speeds only the *solver* (not our JS buoyancy), only
+   at high contact counts. **Marginal for us** — do 1 and 2 first.
+
+### How to measure (do this before optimizing)
+
+Wrap `performance.now()` around `applyBuoyancy(time)` vs `world.step()` in the fixed loop and log per-frame
+ms for each — that resolves "which dominates" directly. It also closes the benchmark's **"Live physics load
+is not measured"** gap (below): the harness shows the raft at a static reset pose precisely because stepping
+physics deterministically there needs a sailor reset + fixed-step driving that isn't built yet.
 
 ---
 
