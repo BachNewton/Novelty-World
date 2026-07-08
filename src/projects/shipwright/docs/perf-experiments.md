@@ -19,8 +19,12 @@ Distilled from the determinism investigation (see `PERFORMANCE.md` → "Determin
   scale` scales everything (`down-calm`/`overhead-storm` = fill), SSR levers bite hardest at grazing
   (`grazing-storm`, `player-turn`, `max-stress`). The per-segment table is where the model lives.
 - **Serve THIS checkout's code**, ideally a production build (`next build && next start`) for clean
-  CPU-ms; a dev server is fine for GPU-ms as long as no edit lands mid-run. Every run stamps git SHA
-  + resolution + config in its JSON.
+  CPU-ms; a dev server is fine for GPU-ms as long as no edit lands mid-run.
+- **Hardware travels with every run.** Each JSON stamps git SHA + resolution + config **and the
+  hardware** — GPU (WebGL `UNMASKED_RENDERER`, e.g. `AMD Radeon 780M … D3D11`) + host CPU/OS/RAM —
+  and the filename is host-prefixed, so the same sweep can be run on different GPUs and compared
+  directly. Cross-GPU is a first-class axis: re-run any Tier-1 experiment on another machine to see
+  how the cost model shifts with the hardware.
 
 **Baseline** (every experiment diffs against this):
 ```
@@ -126,7 +130,8 @@ answers "does it stay smooth for 10 minutes", which fixed-dt can't.
 
 ## Results template (fill in per experiment)
 
-Per setting, from the headless JSON (`.bench/<label>/<sha>-<slug>.json`), keyed by git SHA + resolution:
+Per setting, from the headless JSON (`.bench/<label>/<host>-<sha>-<slug>.json`), keyed by git SHA +
+hardware (GPU) + resolution:
 
 | setting | overall tot50 | ssr50 | capture50 | main50 | max-stress tot50 | overall avgFPS | Δ vs baseline |
 |---|---|---|---|---|---|---|---|

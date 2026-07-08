@@ -52,6 +52,9 @@ interface BenchmarkResult {
   realtime: boolean;
   /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
   gpuAvailable: boolean;
+  /** The GPU the run actually executed on (WebGL UNMASKED_* strings) — cross-GPU comparison is the
+   *  whole point of a portable benchmark, so this must travel with the numbers. */
+  gpu: { vendor: string; renderer: string };
   /** Actual pixels the frame was rendered at (res dominates cost, so record it): the drawing-buffer
    *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
   render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
@@ -626,10 +629,19 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       benchmark = null;
       const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+      // The real GPU behind ANGLE, via the debug-renderer-info extension (some browsers strip it as
+      // a fingerprinting mitigation → fall back to the generic vendor/renderer strings).
+      const gl = renderer.getContext();
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      const gpu = {
+        vendor: String(gl.getParameter(dbg ? dbg.UNMASKED_VENDOR_WEBGL : gl.VENDOR)),
+        renderer: String(gl.getParameter(dbg ? dbg.UNMASKED_RENDERER_WEBGL : gl.RENDERER)),
+      };
       run.resolve({
         fixedDt: FIXED_DT,
         realtime: run.realtime,
         gpuAvailable: gpuTimer !== undefined && gpuTimer.available,
+        gpu,
         render: {
           width: db.x,
           height: db.y,

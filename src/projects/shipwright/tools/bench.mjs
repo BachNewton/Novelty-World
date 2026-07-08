@@ -34,6 +34,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import os from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = join(HERE, ".."); // src/projects/shipwright
@@ -197,6 +198,19 @@ for (const s of result.samples) {
   bySeg.get(s.seg).push(s);
 }
 
+// Hardware label — the GPU (from the page's WebGL) + host CPU/OS/RAM (from Node). The GPU renderer
+// string is the identifier that matters for cross-GPU comparison; the rest gives context (and the
+// CPU matters for the physics/CPU-side numbers). This is WHY runs are worth comparing across boxes.
+const hardware = {
+  gpu: result.gpu.renderer,
+  gpuVendor: result.gpu.vendor,
+  cpu: os.cpus()[0]?.model ?? "unknown",
+  cores: os.cpus().length,
+  ramGB: Math.round(os.totalmem() / 1e9),
+  os: `${os.platform()} ${os.release()} ${os.arch()}`,
+  host: os.hostname(),
+};
+
 const report = {
   meta: {
     tool: "bench.mjs",
@@ -205,6 +219,7 @@ const report = {
     url: URL,
     generatedAt: new Date().toISOString(),
     mode: result.realtime ? "real-time (headed)" : "fixed-dt (headless)",
+    hardware,
     fixedDt: result.fixedDt,
     gpuAvailable: result.gpuAvailable,
     render: result.render, // { width, height, pixelRatio, reflectionRes } — res dominates cost
@@ -233,7 +248,10 @@ const slug =
 const OUTDIR = LABEL ? join(PROJECT_DIR, ".bench", LABEL) : join(PROJECT_DIR, ".bench");
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only benchmark tool; the path is built from a hardcoded project dir + a slug derived from our own CLI args, never external input
 mkdirSync(OUTDIR, { recursive: true });
-const outPath = join(OUTDIR, `${SHA}-${slug}.json`);
+// Prefix the filename with the host so runs from different machines/GPUs don't overwrite each other.
+const hostSlug =
+  os.hostname().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "host";
+const outPath = join(OUTDIR, `${hostSlug}-${SHA}-${slug}.json`);
 // eslint-disable-next-line security/detect-non-literal-fs-filename -- see above; same controlled path
 writeFileSync(outPath, JSON.stringify(report, null, 2));
 
@@ -242,6 +260,8 @@ const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 const r = report.meta.render;
 console.log(`\nShipwright render-cost benchmark  (${SHA} on ${BRANCH})`);
+console.log(`hardware: ${hardware.gpu}`);
+console.log(`          ${hardware.cpu} (${hardware.cores} cores) · ${hardware.ramGB} GB · ${hardware.os} · ${hardware.host}`);
 console.log(`mode: ${report.meta.mode}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
 console.log(`config: ${Object.keys(config).length ? JSON.stringify(config) : "scene defaults"}   url: ${URL}`);
 console.log(
