@@ -40,10 +40,16 @@
 //
 // Prereq: a server serving this build + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--mode visuals|physics|both]
-//           [--bodies N] [--collision off] [--render-scale R] [--reflection-res R] [--ssr off]
-//           [--water NAME] [--label L]
-//           [--width 1600] [--height 900] [--headed] [--hold SEC] [--timeout MS]
-// Writes  <label>/<sha>-<slug>.json under ../.bench (gitignored, **/.bench/) and prints a summary.
+//   Cost centre:   [--mode visuals|physics|both] [--bodies N]
+//   GPU levers:    [--render-scale R] [--reflection-res R] [--ssr off] [--ssr-cutoff C (E5)]
+//                  [--quad-size M (E8 tess)] [--shading full|flat|wireframe] [--water NAME]
+//   Physics probes:[--collision off] [--drag off]        (cost-isolation; alter dynamics)
+//   Diagnostics:   [--gpu-timer off] [--bare-probe]       (isolate render-call / timer overhead)
+//   Run:           [--url U] [--label L] [--width 1600] [--height 900] [--headed] [--hold SEC] [--timeout MS]
+// Reports (stdout): per-segment FPS + per-pass GPU ms; a CPU seam split (ocean/capt/ssr/main/phys);
+//   a physics split (buoyancy/solver, physics/both); and a render census (draw calls + scene-graph
+//   node count — watch this, not just draw calls: hidden nodes still cost updateMatrixWorld).
+// Writes  <label>/<host>-<sha>-<slug>.json under ../.bench (gitignored, **/.bench/).
 
 import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
