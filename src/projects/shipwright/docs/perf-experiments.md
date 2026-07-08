@@ -136,9 +136,19 @@ the cutoff), so it can't cut the worst case. reflection-res (E2) / ssr-steps (E4
 |---|---|---|---|---|
 | full (PBR + composite) | **6.3** | 0.8 | 2.4 | 9.5 |
 | flat (unlit fill, same geometry) | 2.2 | 0.8 | 2.4 | 5.5 |
-So the main pass = ~2.2 ms base fill + **~4.1 ms shading-math/composite** (refraction + Beer–Lambert +
-Fresnel + SSR sampling + PBR). capture/ssr are shading-independent (unchanged) — the split is clean.
-GPU-reduction priority is now: the **composite/PBR (~4.1 ms)** ≳ the SSR pass (2.4 ms) ≫ capture (0.8).
+**Main-pass FULL decomposition** (`--shading flat` + `--water-fx off`, interleaved 0-spike, main GPU-ms):
+| variant | main | isolates |
+|---|---|---|
+| full | 6.28 | fill + PBR lighting + composite |
+| water-fx off | 5.12 | fill + PBR lighting (composite gated) |
+| flat (unlit) | 2.2 | fill only |
+
+→ **fill 2.2 ms (35 %) · PBR lighting 2.9 ms (46 %) · screen-space composite 1.2 ms (19 %)**. The
+**PBR BRDF + IBL lighting is the biggest main-pass cost — NOT the composite** (refraction + Beer–Lambert
++ SSR sampling is only ~1.2 ms). Full GPU frame (~9.5 ms): **PBR lighting 31 % · SSR pass 25 % · fill
+23 % · composite 13 % · capture 8 %**. GPU-reduction levers, ranked: **PBR lighting** (2.9 ms → the parked
+**Phong** tier, git ~`7085226`, ~½ cheaper per the doc → ~1.5 ms saved) ≈ **SSR pass** (2.4 ms →
+reflection-res E2 / ssr-steps E4) ≈ **fill** (2.2 ms → render-scale E1) ≫ composite (1.2) ≫ capture (0.8).
 (wireframe is NOT a clean no-fill baseline — a 1 M-vertex plane draws ~2 M line segments, its own cost.)
 
 ---

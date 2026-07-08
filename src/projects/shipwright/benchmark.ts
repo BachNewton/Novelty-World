@@ -49,6 +49,10 @@ export interface BenchmarkConfig {
    *  "flat" (unlit fill, same Gerstner geometry → the shading MATH is the full−flat delta), or
    *  "wireframe" (no fill → the fill itself is flat−wireframe). See ocean.setShading. */
   shading?: "full" | "flat" | "wireframe";
+  /** Turn the screen-space composite (refraction + Beer–Lambert depth + SSR sampling) off, leaving the
+   *  PBR-lit surface — so `full − waterFx-off` = the composite's GPU share, and `waterFx-off − flat` =
+   *  the PBR lighting share. Isolates the main pass further (a GPU cost probe). Default (undefined) = on. */
+  waterFx?: boolean;
   /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
    *  speed) instead of the deterministic FIXED_DT. Set for headed WATCH runs — the numbers then
    *  reflect felt smoothness, not the byte-identical cost the headless (default) mode gives. */

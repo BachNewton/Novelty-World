@@ -887,6 +887,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (config.ssrEnabled !== undefined) ocean.setSsrEnabled(config.ssrEnabled);
       if (config.ssrMinFresnel !== undefined) ocean.setSsrMinFresnel(config.ssrMinFresnel); // E5
       if (config.shading !== undefined) ocean.setShading(config.shading); // isolate main-pass fill vs math
+      if (config.waterFx !== undefined) ocean.setWaterFx(config.waterFx); // isolate the composite share
       // Diagnostic: run with the GpuTimer's queries off to isolate whether the timer's own
       // command-buffer fences inflate the CPU submit time. hasGpuTimer() stays true (the timer still
       // exists), so the tool doesn't abort; the GPU-ms columns just read 0 for the run.
