@@ -70,6 +70,60 @@ loop times what it calls) or by a module **self-reporting** its own breakdown �
 importing the bench (see `PERFORMANCE.md` → "measure from the seams"). Until then their cost hides
 inside the frame CPU total; the census still bounds it (CPU total − physics = everything else).
 
+**Update (2026-07-09): the seams are now instrumented** (see the session section below). The render-prep
+split (`ocean`/`captureCpu`/`ssrCpu`/`mainCpu`) revealed the **Ocean CPU field is ~0 ms** (`ocean.update`
+is 3 uniform writes; the census bound had over-attributed it), and the render CPU was ~all scene-graph
+traversal. The physics step is split into **buoyancy vs Rapier solver**. Remaining deferred: nav-buoys
+and the player controller (both small; absent or trivial in the bench world).
+
+---
+
+## 2026-07-09 session — render-prep RESOLVED + CPU seam timers + physics split
+
+The big result of this session (full narrative in `perf-handoff.md`): **the "~16 ms render-prep"
+that was the top open thread was scene-graph TRAVERSAL over ~12,800 hidden force-arrow debug nodes**,
+not draw calls, pixels, or vertices. Fixed by building the arrow overlay lazily. New instruments +
+knobs landed: CPU seam timers (`ocean`/`captureCpu`/`ssrCpu`/`mainCpu` + `mainRenderMs()` on the
+shared hook), a physics-step split (`buoyancy`/`solver`), a **render census** (draw calls + triangles
++ **scene-graph node count**) in every run header, and diagnostic knobs `--quad-size` (E8),
+`--gpu-timer off`, `--bare-probe`, `--ssr-cutoff` (E5).
+
+**Isolation ladder that found it** (780M, `--mode visuals`, p50 render CPU = capt+ssr+main):
+| probe | result | conclusion |
+|---|---|---|
+| render-scale 1.0→0.5 (¼ pixels) | 9.1 → 8.5 ms | NOT fragment/fill-bound |
+| `--quad-size` 4.9→625 m (1 M→128 plane verts) | 8.8 → 9.2 ms | NOT vertex-bound (E8) |
+| `--gpu-timer off` | 9.0 → 12.6 ms | NOT the timer (it's not inflating) |
+| `--bare-probe` (empty `renderer.render`) | ~0 ms | per-call floor is the CONTENT, not fixed overhead |
+| **render census** | 12,792 objects / **11 draw calls** | the graph is huge but draws are few → traversal |
+
+**Lazy-arrows fix — before → after** (p50, headless):
+| | scene objects | render CPU | total CPU | avgFPS |
+|---|---|---|---|---|
+| visuals | 12,792 → **72** | 9.0 → **0.8 ms** | 9.0 → **0.8** | → **109** |
+| both/32 | 29,873 → **107** | 20.1 → **1.4 ms** | 30.1 → **9.9** | 44 → **100** |
+GPU-ms is unchanged (the arrows never drew) — a pure CPU win. The interactive scene now hits the
+60 fps vsync cap (was ~20–30). **Lesson: measure scene-graph node count, not just draw calls.**
+
+**Physics step split** (`--mode physics`, p50 ms): buoyancy dominates, ~2.4× the Rapier solver, linear.
+| bodies | buoyancy | solver | other | phys |
+|---|---|---|---|---|
+| 32 | **6.1 (67 %)** | 2.5 (27 %) | 0.5 | 9.1 |
+| 64 | **11.6 (67 %)** | 4.6 (27 %) | 1.1 | 17.3 |
+So greedy-meshing *colliders* (solver) is the smaller prize; the per-voxel buoyancy sample loop is the
+lever. Allocation is NOT it (a `sampleHeight` that drops the discarded normal Vector3 left buoyancy
+unchanged at 6.1 ms) — it's the Newton inversion + wave math.
+
+**E5 SSR Fresnel cutoff** (`--ssr-cutoff`, visuals, SSR GPU-ms p50) — a **weak lever**:
+| cutoff | grazing-storm | max-stress | overhead-storm |
+|---|---|---|---|
+| 0.02 | 2.60 | 3.32 | 1.61 |
+| 0.05 (default) | 2.58 | 3.28 | 1.57 |
+| 0.10 | 2.54 | 3.35 | 1.57 |
+| 0.20 | 2.49 | 3.26 | 1.60 |
+It discards near-head-on (low-Fresnel) pixels, but the costly ones are at grazing (high Fresnel, above
+the cutoff), so it can't cut the worst case. reflection-res (E2) / ssr-steps (E4) are the real SSR knobs.
+
 ---
 
 ## Tier 0 — the system census (run this first)
