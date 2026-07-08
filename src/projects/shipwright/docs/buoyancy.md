@@ -1,7 +1,8 @@
 # Shipwright — Buoyancy / displacement overhaul (plan)
 
-**Status: not started.** This is the next big physics/rendering effort for Shipwright.
-A fresh session can pick it up from here. Read the repo-root `CLAUDE.md` "Water
+**Status: Stage 1 shipped.** Air-cavity buoyancy is in (`physics.ts`): dense sealed hulls
+float on their enclosed air. Stages 2 (ocean interior masking) and 3 (compartment flooding)
+are next. A fresh session can pick those up from here. Read the repo-root `CLAUDE.md` "Water
 architecture" (the HYBRID floating decision) and `physics.ts` first.
 
 ## Why (the goal)
@@ -43,7 +44,24 @@ gains water mass, so it sits lower / sinks.
 
 ## Staged plan
 
-### Stage 1 — Air-cavity buoyancy (foundational, moderate)
+### Stage 1 — Air-cavity buoyancy (foundational, moderate) — ✅ DONE
+
+**Shipped.** `physics.ts` `findTrappedAirCells` flood-fills each build (exported + unit-tested
+in `physics.test.ts`), and `applyBuoyancy` gives the trapped-air cells buoyancy at zero mass +
+zero drag. **The flood models the sea rising up + sideways but never falling *down* over a rim**,
+so it recognises not just fully-sealed boxes but **open-top hulls** — the raft's interior air
+layer and the boat hull below its gunwale both count (an intact upright hull floats on the air it
+holds). Side/bottom breaches flood; dynamic rim-overtopping (a storm swamping a boat) stays
+Stage 3, so this assumes rims sit above the waterline. A `TEST_SHAPES` "Sealed hull" (a dense box,
+ρ = 1400 > water, that floats on its cavity) demonstrates the extreme case; a **"trapped-air cells"
+Debug toggle** x-rays the classified air through the hull, and a **Physics "air-cavity buoyancy"
+A/B switch** turns it off to watch a dense hull sink without it. The classifier is a **pure
+function of the cell list** (not baked into the colliders or merged mesh), so the coming voxel
+builder can re-run it per place/break to keep cavities correct in real time — the one runtime piece
+still to add there is reallocating the buoyancy-point / air-overlay arrays when a build's cell
+count changes (they're sized once today).
+
+Original spec, for reference:
 
 Classify every cell of a build as **material** / **sealed-air** / **open-water**:
 
@@ -74,6 +92,17 @@ surface visually intruding into a slammed hull.
 
 ### Stage 3 — Compartment flooding + interior water (the gameplay layer, largest)
 
+- **Orientation-correct trapped air (subsumes the Stage 1 static classifier).** Stage 1 classifies
+  trapped air ONCE at build time, in the body's local frame with local +Y as "up" — only correct
+  near the upright design pose. As a hull rolls/capsizes, its down-face changes: a `Bucket`'s open
+  top swings under and its air should glug out, but the static set keeps floating it on phantom air.
+  Stage 3 fixes this by recomputing the trapped-air/flooded split **each step against the actual
+  world-space water surface and world-down** — flood the sea in from wherever it can reach at the
+  hull's current orientation + draft; whatever enclosed pocket is left above the waterline is the
+  buoyant air. (Fully-SEALED cavities are pose-independent, so they need no per-step recompute — an
+  optimisation: only builds with openings need the dynamic pass.) A cheap interim stopgap is to gate
+  open-pocket air off once a hull tilts past a threshold, but the world-space flood-fill is the real
+  fix and is roughly the same work as the per-compartment tracking below.
 - Track water **per sealed compartment**. When the ocean height at an **opening** (a gap in
   the shell, or the gunwale rim) exceeds that rim, water flows in: convert that compartment's
   sealed-air cells to **flooded** → buoyancy lost, water mass gained → the boat sits lower and
@@ -104,6 +133,12 @@ surface visually intruding into a slammed hull.
 
 ## Suggested sequence
 
-**Stage 1 → Stage 2 → Stage 3.** Stage 1 is the foundation (and immediately enables
+**Stage 1 → Stage 2 → Stage 3.** Stage 1 (✅) is the foundation (and immediately enables
 dense/creative hulls + below-deck volume); Stage 2 fixes the visible water-inside-the-hull
 glitch and is needed no matter what; Stage 3 is the rich gameplay and depends on both.
+
+**Interaction with the voxel builder (roadmap #5, likely next).** Players placing/breaking
+voxels will change the sealed-air classification live. Stage 1 was built for this: the classifier
+is pure and standalone, so the edit path is just — on a cell change, re-run `findTrappedAirCells`,
+swap the per-body air-cell list, and reallocate the buoyancy-point + air-overlay arrays for the new
+count (those are sized once at spawn today). No entanglement with the collider/mesh rebuild.

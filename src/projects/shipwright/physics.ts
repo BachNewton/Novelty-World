@@ -21,6 +21,17 @@ import type { Ocean } from "./ocean";
  * by geometry. It's scoped to collision / momentum / buoyancy ONLY — never water
  * rendering (that's ocean.ts).
  *
+ * STAGE 1 — air-cavity buoyancy (see docs/buoyancy.md). A build's empty cells are
+ * classified by flood-fill (`findTrappedAirCells`): pockets the outside sea can't reach
+ * — walled off on the sides and bottom, open top allowed (a boat hull below its gunwale
+ * counts, not just a sealed box) — are TRAPPED AIR. Those cells get buoyancy too — they
+ * displace water at ZERO mass — so a dense shell around a cavity floats high, like a real
+ * hull, instead of every voxel needing to be lighter than water. The classifier is a PURE
+ * function of the cell list (not baked into the colliders or merged mesh), so the coming
+ * Minecraft-style voxel builder can re-run it on every place/break to keep the cavities
+ * correct as players rebuild the ship in real time — the air set stays a cheap, standalone
+ * recompute, never entangled with the collider/mesh rebuild.
+ *
  * Rapier is deterministic and we keep it that way for future host-authoritative
  * multiplayer: a FIXED physics timestep, and no wall-clock or Math.random in the
  * sim. Buoyancy forces are a pure function of body state + the sim clock, and the
@@ -43,6 +54,10 @@ const VOXEL_DENSITY = 600;
 // once the perimeter wall's weight is counted, and an 85 kg sailor spread over the ~20 m²
 // deck adds only ~4 mm of draft — one person barely sinks it. See the player/raft plan.
 const RAFT_DENSITY = 400;
+// Denser than water (1000): a SOLID block of this sinks like a stone. The sealed-hull test
+// shape floats at this density anyway — proof that its enclosed air, not its material, is what
+// keeps it up (Stage 1). See `buildSealedHull` / TEST_SHAPES.
+const DENSE_HULL_DENSITY = 1400;
 // Metres of raft surface per wood-texture tile. Merged builds (see `merged`) get CONTINUOUS
 // body-local UVs, so planks flow seamlessly across voxels at this scale instead of the texture
 // restarting on every 0.5 m face (which read as thin stripes). Fine-tune live via "tile repeat".
@@ -94,7 +109,9 @@ const SPAWN_SPACING = 4;
 const SPAWN_HEIGHT = 1.5;
 const SPAWN_Z = -6;
 
-const ARROW_COLOR = 0x35ffd0;
+const ARROW_COLOR = 0x35ffd0; // material-voxel buoyancy force arrows
+const AIR_ARROW_COLOR = 0x35a0ff; // sealed-air-cell buoyancy force arrows (distinct from material)
+const AIR_OVERLAY_COLOR = 0x35d0ff; // translucent x-ray overlay filling the trapped-air cells
 const ARROW_SCALE = 1 / 300; // newtons → metres for the debug force arrows
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -156,6 +173,78 @@ const buildBoatCells = (): [number, number, number][] => {
   return cells;
 };
 
+// Hollow box shell (nx×ny×nz), walls one voxel thick on all six faces — the base for the sealed
+// hull and the hull edge-case demos. Punch holes with the filter helpers below (a breach that
+// floods, an open face that makes a bucket or an open-bottom cup) to stress the flood-fill.
+const buildHollowBox = (
+  nx: number,
+  ny: number,
+  nz: number,
+): [number, number, number][] => {
+  const cells: [number, number, number][] = [];
+  for (let x = 0; x < nx; x++) {
+    for (let y = 0; y < ny; y++) {
+      for (let z = 0; z < nz; z++) {
+        const onShell =
+          x === 0 || x === nx - 1 ||
+          y === 0 || y === ny - 1 ||
+          z === 0 || z === nz - 1;
+        if (onShell) cells.push([x, y, z]);
+      }
+    }
+  }
+  return cells;
+};
+
+// Drop one cell (a point breach) or a whole face (an opening) from a build — used to carve the
+// edge-case hulls so their difference from a plain sealed box is a single obvious hole.
+const omitCell = (
+  cells: [number, number, number][],
+  x: number,
+  y: number,
+  z: number,
+): [number, number, number][] =>
+  cells.filter(([cx, cy, cz]) => cx !== x || cy !== y || cz !== z);
+
+const omitFace = (
+  cells: [number, number, number][],
+  axis: 0 | 1 | 2,
+  value: number,
+): [number, number, number][] => cells.filter((c) => c[axis] !== value);
+
+// The Stage-1 air-cavity demo: a sealed 8³ box, walls one voxel thick, closed on ALL six sides
+// around a hollow 6³ interior. Built at DENSE_HULL_DENSITY, the shell alone is far heavier than
+// water — a solid block of it sinks — yet the box floats high, because the flood-fill classifies
+// the sealed interior as air that displaces water at zero mass. This is the whole point of the
+// overhaul: a hull floats on the air it encloses, not on light voxels.
+const buildSealedHull = (): [number, number, number][] => buildHollowBox(8, 8, 8);
+
+// A sealed hull split by an internal bulkhead into TWO separate air pockets — checks the flood-fill
+// keeps disjoint cavities apart (and previews how a bulkhead localises flooding for stability).
+const buildBulkheadHull = (): [number, number, number][] => {
+  const cells = buildHollowBox(7, 4, 4);
+  for (let y = 1; y < 3; y++) {
+    for (let z = 1; z < 3; z++) {
+      cells.push([3, y, z]); // complete the x=3 cross-section, walling the cavity into two
+    }
+  }
+  return cells;
+};
+
+// The Stage-1 air-cavity demonstrator (part of TEST_SHAPES, which the live scene drops in beside
+// the raft) — the direct way to SEE a dense hull float on trapped air. Steel-grey, dropped a few
+// metres off the raft's port bow: it plunges, then bobs up and floats high despite being denser
+// than water. Toggle the Debug "trapped-air cells" x-ray to watch the cavity do the work, or the
+// Physics "air-cavity buoyancy" switch off to watch it sink without it. Exported as a named handle.
+export const SEALED_HULL: Shape = {
+  name: "Sealed hull",
+  color: 0x9aa7b4,
+  upright: true,
+  density: DENSE_HULL_DENSITY,
+  spawnOverride: [-10, 3, -12],
+  cells: buildSealedHull(),
+};
+
 // The retired buoyancy testbed — a spread of 0.5 m³-voxel builds that validated the
 // per-voxel float (plates topple + self-right; upright shapes range from rock-stable
 // pyramid/catamaran to doomed pillar; a hollow boat hull as a scale reference). Kept
@@ -214,14 +303,62 @@ export const TEST_SHAPES: Shape[] = [
       [1, 1, 1],
     ],
   },
-  // The scale reference: a real-sized speedboat hull, front and centre at the origin,
-  // spawned at its waterline so it settles without a big drop.
+  // The scale reference: a real-sized speedboat hull, spawned at its waterline (off to starboard,
+  // clear of the raft that sits at the origin in the live scene) so it settles without a big drop.
   {
     name: "Boat",
     color: 0xe6e2d8,
     upright: true,
-    spawnOverride: [0, 0.2, 0],
+    spawnOverride: [9, 0.2, 0],
     cells: buildBoatCells(),
+  },
+  // The Stage-1 air-cavity demo (see SEALED_HULL): a dense sealed box that floats on its
+  // enclosed air. Dropped clear of the row — watch it plunge, then bob up and float high.
+  SEALED_HULL,
+  // --- Non-standard hulls: stress the flood-fill on gaps, holes, and openings. Default density so
+  // they float and stay put; toggle the Debug "trapped-air cells" x-ray on each to check what it
+  // classifies as air. Each is a plain hollow box differing by a single deliberate feature. ---
+  {
+    // Hole in a SIDE wall: the sea reaches the cavity sideways, so it FLOODS — overlay shows no air.
+    name: "Breached (side)",
+    color: 0xd98f4f,
+    upright: true,
+    spawnOverride: [-5, 3, -16],
+    cells: omitCell(buildHollowBox(4, 4, 4), 0, 2, 2),
+  },
+  {
+    // Hole in the FLOOR: the sea rises up through the breach, so it FLOODS too (tests +Y inflow).
+    name: "Breached (bottom)",
+    color: 0xd9694f,
+    upright: true,
+    spawnOverride: [0, 3, -16],
+    cells: omitCell(buildHollowBox(4, 4, 4), 2, 0, 2),
+  },
+  {
+    // Sealed box split by an internal wall → TWO separate trapped-air pockets in one hull.
+    name: "Bulkhead",
+    color: 0x6fae4f,
+    upright: true,
+    spawnOverride: [6, 3, -16],
+    cells: buildBulkheadHull(),
+  },
+  {
+    // Open TOP (no lid): the walls + floor still trap a tall air column below the rim — the open-top
+    // hull case that floats a boat. Overlay shows a full-height air stack.
+    name: "Bucket",
+    color: 0x4fae9e,
+    upright: true,
+    spawnOverride: [-3, 4, -22],
+    cells: omitFace(buildHollowBox(4, 6, 4), 1, 5),
+  },
+  {
+    // Closed top, open BOTTOM (an inverted cup / diving bell): the sea rises in and it FLOODS. A
+    // real diving bell would hold air; our model doesn't (rare for ships) — the documented limit.
+    name: "Open-bottom cup",
+    color: 0x8f6fd9,
+    upright: true,
+    spawnOverride: [3, 3, -22],
+    cells: omitFace(buildHollowBox(4, 4, 4), 1, 0),
   },
 ];
 
@@ -243,7 +380,7 @@ const buildRaft = (): [number, number, number][] => {
   return cells;
 };
 
-const RAFT: Shape = {
+export const RAFT: Shape = {
   name: "Raft",
   color: 0x6b4f3a, // wood-brown fallback shown until the plank texture loads
   upright: true, // drops level, no self-right tilt
@@ -262,6 +399,9 @@ interface Visual {
   single: boolean;
   /** Local voxel-centre offsets (metres), centred on the shape's centroid. */
   offsets: THREE.Vector3[];
+  /** Local trapped-air-cell centres (metres), SAME body frame as `offsets`. Buoyancy only —
+   *  they displace water (float the hull on trapped air) but have NO mass, collider, or mesh. */
+  airOffsets: THREE.Vector3[];
   spawnPos: THREE.Vector3;
   spawnQuat: THREE.Quaternion;
   /** Post-step transforms of the last two fixed steps, interpolated at render time (see syncMeshes). */
@@ -269,7 +409,8 @@ interface Visual {
   prevQuat: THREE.Quaternion;
   currPos: THREE.Vector3;
   currQuat: THREE.Quaternion;
-  /** Start index of this piece's voxels in the flat debug-arrow arrays. */
+  /** Start index of this piece's buoyancy points in the flat force/pos/arrow arrays: its
+   *  material voxels (`offsets.length`) then its trapped-air cells (`airOffsets.length`). */
   arrowBase: number;
   /** Voxel density (kg/m³) — sets the body's mass via the colliders. */
   density: number;
@@ -306,6 +447,108 @@ export interface Physics {
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+
+/**
+ * Classify a build's empty cells and return the ones that hold TRAPPED AIR — the pockets a hull
+ * encloses that displace water (buoyancy) at zero mass. "Trapped" means the open sea can't reach
+ * the cell because material walls it off on the sides and bottom. The TOP may be OPEN: an upright
+ * boat hull floats on the air below its gunwale even with no lid, as long as water doesn't crest
+ * the rim — so an open-topped hull's interior counts, not just a fully-sealed box.
+ *
+ * The trick is the flood that stands in for the sea: it spreads SIDEWAYS (±X, ±Z) and rises UP
+ * (+Y — so it climbs in through a breach in the bottom and floods) but never falls DOWN (−Y) over
+ * a rim into an open-top hull. Empty cells the flood can't reach = trapped air. Consequences:
+ * a solid deck + perimeter wall (the raft) traps the air layer inside the wall; a hole in the
+ * SIDE or BOTTOM floods; a fully-sealed box traps its whole cavity.
+ *
+ * IMPORTANT — this is a BUILD-TIME classification in the body's LOCAL frame, with local +Y hard-
+ * coded as "up". It is only correct near the DESIGN (upright) orientation. Gravity and the sea are
+ * world-fixed while the hull rotates, so an OPEN pocket's air is orientation-dependent: capsize the
+ * bucket and its "open top" now faces down — the air should glug out, but this static set still
+ * floats it on phantom air. FULLY-SEALED cavities are the exception: they hold their air in any
+ * pose, so the classification stays correct for them however they tumble. Making the open cases
+ * accurate under roll needs the per-step world-space flood-fill of Stage 3 (see docs/buoyancy.md),
+ * which recomputes trapped air against the actual orientation + water level each frame.
+ *
+ * Related simplification: this assumes rims stay above the waterline (intact hull, calm-ish sea).
+ * Dynamic swamping over a rim, draining, and per-compartment water level are likewise Stage 3;
+ * until then a trapped-air cell is buoyant whenever it's below the surface. (An exotic open-BOTTOM
+ * pocket — a diving bell — reads as flooded here, which is fine for ships.)
+ *
+ * Face-connectivity (6-neighbour) matches how water flows in a voxel model: a purely diagonal gap
+ * doesn't connect. Pure + deterministic — a function of the cell list alone, cheap at build sizes,
+ * re-run per place/break by the coming voxel builder to keep the cavities correct as ships change.
+ */
+export const findTrappedAirCells = (
+  cells: [number, number, number][],
+): [number, number, number][] => {
+  if (cells.length === 0) return [];
+  const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
+  const solid = new Set<string>();
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (const [x, y, z] of cells) {
+    solid.add(key(x, y, z));
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    maxZ = Math.max(maxZ, z);
+  }
+  // Pad by one so the flood starts in guaranteed-empty space wrapping the build.
+  const loX = minX - 1;
+  const loY = minY - 1;
+  const loZ = minZ - 1;
+  const hiX = maxX + 1;
+  const hiY = maxY + 1;
+  const hiZ = maxZ + 1;
+
+  // Seed the whole bottom pad layer (all empty, below the build), then flood sideways + UP — never
+  // down. Rising covers every outside cell (the sea reaches anything via up + sideways) and enters
+  // bottom breaches; refusing to descend keeps it from raining over a rim into an open-top hull.
+  const reached = new Set<string>();
+  const stack: [number, number, number][] = [];
+  for (let x = loX; x <= hiX; x++) {
+    for (let z = loZ; z <= hiZ; z++) {
+      reached.add(key(x, loY, z));
+      stack.push([x, loY, z]);
+    }
+  }
+  while (stack.length > 0) {
+    const cell = stack.pop();
+    if (!cell) break;
+    const [x, y, z] = cell;
+    const neighbours: [number, number, number][] = [
+      [x - 1, y, z], [x + 1, y, z],
+      [x, y, z - 1], [x, y, z + 1],
+      [x, y + 1, z], // UP only — the sea rises into a breach but never falls down over a rim
+    ];
+    for (const [nx, ny, nz] of neighbours) {
+      if (nx < loX || nx > hiX || ny < loY || ny > hiY || nz < loZ || nz > hiZ) continue;
+      const k = key(nx, ny, nz);
+      if (reached.has(k) || solid.has(k)) continue;
+      reached.add(k);
+      stack.push([nx, ny, nz]);
+    }
+  }
+
+  // Empty cells inside the ORIGINAL bounding box the flood never reached = trapped air.
+  const trapped: [number, number, number][] = [];
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      for (let z = minZ; z <= maxZ; z++) {
+        const k = key(x, y, z);
+        if (!solid.has(k) && !reached.has(k)) trapped.push([x, y, z]);
+      }
+    }
+  }
+  return trapped;
+};
 
 // Merge a shape's voxel boxes into ONE geometry with continuous, body-local, per-face planar
 // UVs (project each face onto its in-plane axes, scaled by WOOD_TILE). Because the UVs come from
@@ -347,7 +590,10 @@ const buildMergedVoxelGeometry = (offsets: THREE.Vector3[]): THREE.BufferGeometr
 };
 
 export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
-  const params = { drag: DRAG_MULTIPLIER_DEFAULT };
+  // `airBuoyancy` is the Stage-1 A/B switch: off, trapped-air cells contribute NO lift, so a dense
+  // hull that floats on its trapped air sinks like the solid block it's built from. The direct
+  // proof the enclosed air — not the material — is what floats it.
+  const params = { drag: DRAG_MULTIPLIER_DEFAULT, airBuoyancy: true };
 
   const group = new THREE.Group();
   const boxGeometry = new THREE.BoxGeometry(VOXEL, VOXEL, VOXEL);
@@ -401,10 +647,6 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   loadWood("wood_planks_nor.jpg", (t) => (woodMaterial.normalMap = t), false);
   loadWood("wood_planks_rough.jpg", (t) => (woodMaterial.roughnessMap = t), false);
   loadWood("wood_planks_ao.jpg", (t) => (woodMaterial.aoMap = t), false);
-
-  const totalVoxels = shapes.reduce((sum, s) => sum + s.cells.length, 0);
-  const forceArr = Array.from({ length: totalVoxels }, () => new THREE.Vector3());
-  const posArr = Array.from({ length: totalVoxels }, () => new THREE.Vector3());
 
   // Reused scratch objects — the per-frame loops must not allocate.
   const tmpQuat = new THREE.Quaternion();
@@ -463,6 +705,17 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           (cz - czMean) * VOXEL,
         ),
     );
+    // Trapped-air cells for this build, in the SAME body-local frame as `offsets` (centred on the
+    // material centroid, so they sit correctly against the colliders). Buoyancy-only — see
+    // applyBuoyancy. A pure recompute of the cell list, ready for runtime rebuilds later.
+    const airOffsets = findTrappedAirCells(shape.cells).map(
+      ([cx, cy, cz]) =>
+        new THREE.Vector3(
+          (cx - cxMean) * VOXEL,
+          (cy - cyMean) * VOXEL,
+          (cz - czMean) * VOXEL,
+        ),
+    );
 
     // Textured builds share the wood material; the rest get a flat colour we own + dispose.
     let material: THREE.MeshStandardMaterial;
@@ -510,6 +763,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       mesh,
       single,
       offsets,
+      airOffsets,
       spawnPos,
       spawnQuat,
       prevPos: spawnPos.clone(),
@@ -521,20 +775,61 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     };
     visuals.push(v);
     placeInstances(v, spawnPos, spawnQuat);
-    arrowCursor += n;
+    arrowCursor += n + airOffsets.length;
   });
 
-  // Per-voxel buoyancy-force debug overlay (off by default). One arrow per voxel,
-  // positioned + scaled each frame from the last forces applied by the sim.
+  // Buoyancy points = every visual's material voxels + its trapped-air cells. Allocate the flat
+  // force/pos/arrow arrays now the counts are known. (Static per build today; when the voxel
+  // builder edits a ship at runtime these reallocate alongside the recomputed air cells.)
+  const totalBuoyancyPoints = arrowCursor;
+  const forceArr = Array.from({ length: totalBuoyancyPoints }, () => new THREE.Vector3());
+  const posArr = Array.from({ length: totalBuoyancyPoints }, () => new THREE.Vector3());
+
+  // Per-point buoyancy-force debug overlay (off by default). One arrow per buoyancy point,
+  // positioned + scaled each frame from the last forces the sim applied. Built in the same
+  // contiguous order as `arrowBase`: each visual's material voxels (teal) then its trapped-air
+  // cells (blue), so the trapped air's lift is visible on its own.
   const arrowGroup = new THREE.Group();
   arrowGroup.visible = false;
   group.add(arrowGroup);
-  const arrows = Array.from({ length: totalVoxels }, () => {
-    const arrow = new THREE.ArrowHelper(UP, ORIGIN, 1, ARROW_COLOR, 0.3, 0.2);
+  const arrows: THREE.ArrowHelper[] = [];
+  const addArrow = (color: number) => {
+    const arrow = new THREE.ArrowHelper(UP, ORIGIN, 1, color, 0.3, 0.2);
     arrow.visible = false;
     arrowGroup.add(arrow);
-    return arrow;
+    arrows.push(arrow);
+  };
+  for (const v of visuals) {
+    for (let j = 0; j < v.offsets.length; j++) addArrow(ARROW_COLOR);
+    for (let j = 0; j < v.airOffsets.length; j++) addArrow(AIR_ARROW_COLOR);
+  }
+
+  // Trapped-air x-ray overlay (off by default): a box filling each trapped-air cell, drawn with
+  // depth test OFF so the air shows THROUGH the opaque hull (a lidded or deep hull hides it
+  // otherwise) — the direct way to eyeball what the flood-fill classified. ADDITIVE blending makes
+  // the stacked cells glow brighter the deeper the pocket, so it reads as an unmistakable cyan
+  // volume rather than a faint tint lost across the water. Boxes are slightly inset to read as a
+  // floating inner volume; posed each frame in syncMeshes (they ride the floating body).
+  const totalAirCells = visuals.reduce((sum, v) => sum + v.airOffsets.length, 0);
+  const airBoxGeometry = new THREE.BoxGeometry(VOXEL * 0.85, VOXEL * 0.85, VOXEL * 0.85);
+  const airOverlayMaterial = new THREE.MeshBasicMaterial({
+    color: AIR_OVERLAY_COLOR,
+    transparent: true,
+    opacity: 0.25,
+    blending: THREE.AdditiveBlending,
+    depthTest: false,
+    depthWrite: false,
   });
+  const airOverlay = new THREE.InstancedMesh(
+    airBoxGeometry,
+    airOverlayMaterial,
+    Math.max(totalAirCells, 1), // InstancedMesh needs a ≥1 buffer; count set below (0 for open builds)
+  );
+  airOverlay.count = totalAirCells;
+  airOverlay.frustumCulled = false;
+  airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
+  airOverlay.visible = false;
+  group.add(airOverlay);
 
   // Rapier is loaded async (init); until then there's no world and update no-ops.
   // `bodies` is index-parallel to `visuals` once init resolves.
@@ -613,6 +908,35 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         forceArr[gi].set(fx, fy, fz);
         body.addForceAtPoint({ x: fx, y: fy, z: fz }, { x: wx, y: wy, z: wz }, true);
       }
+
+      // Trapped-air cells: they displace water (buoyancy, gated by submerged fraction) but carry
+      // NO mass and NO drag — the material shell already provides the whole wetted drag surface,
+      // so adding drag here would double-count it. This is what floats a hull on its trapped air.
+      // Applied at each cell's own point, so the extra lift enters through the centre of buoyancy
+      // and the righting torques stay physical (a flooded compartment would simply drop out of this
+      // loop, losing its lift — the Stage 3 hook).
+      for (let j = 0; j < v.airOffsets.length; j++) {
+        const gi = v.arrowBase + v.offsets.length + j;
+        if (!params.airBuoyancy) {
+          forceArr[gi].set(0, 0, 0); // A/B test: kill the cavity's lift → the dense hull sinks
+          continue;
+        }
+        tmpVec.copy(v.airOffsets[j]).applyQuaternion(tmpQuat);
+        const wx = tmpVec.x + t.x;
+        const wy = tmpVec.y + t.y;
+        const wz = tmpVec.z + t.z;
+        posArr[gi].set(wx, wy, wz);
+
+        const surface = ocean.sampleSurface(wx, wz, time);
+        const submerged = clamp((surface.height - (wy - HALF)) / VOXEL, 0, 1);
+        if (submerged <= 0) {
+          forceArr[gi].set(0, 0, 0);
+          continue;
+        }
+        const buoyancy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME;
+        forceArr[gi].set(0, buoyancy, 0);
+        body.addForceAtPoint({ x: 0, y: buoyancy, z: 0 }, { x: wx, y: wy, z: wz }, true);
+      }
     }
   };
 
@@ -624,12 +948,25 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // (player.ts), so the two stay locked to each other; both simply render ~one step behind, which
   // is an imperceptible constant lag against the ocean, not jitter.
   const syncMeshes = (alpha: number) => {
+    const showAir = airOverlay.visible;
+    let airInstance = 0;
     for (let i = 0; i < visuals.length; i++) {
       const v = visuals[i];
       tmpPos.lerpVectors(v.prevPos, v.currPos, alpha);
       tmpQuat.slerpQuaternions(v.prevQuat, v.currQuat, alpha);
       placeInstances(v, tmpPos, tmpQuat);
+      // The sealed-air x-ray boxes ride the same interpolated body pose as the mesh.
+      if (showAir) {
+        for (const off of v.airOffsets) {
+          tmpVec.copy(off).applyQuaternion(tmpQuat).add(tmpPos);
+          dummy.position.copy(tmpVec);
+          dummy.quaternion.copy(tmpQuat);
+          dummy.updateMatrix();
+          airOverlay.setMatrixAt(airInstance++, dummy.matrix);
+        }
+      }
     }
+    if (showAir) airOverlay.instanceMatrix.needsUpdate = true;
   };
 
   const updateArrows = () => {
@@ -738,6 +1075,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");
       folder.add(params, "drag", 0, 3, 0.05).name("water drag");
+      // Stage-1 A/B: turn the enclosed-air buoyancy off to watch a sealed dense hull sink (respawn
+      // it after to reset). On = hulls float by the air they enclose; off = every voxel for itself.
+      folder.add(params, "airBuoyancy").name("air-cavity buoyancy");
 
       // Live wood-material tuning (best judged at full framerate on a real GPU). `roughness`
       // trades gloss vs. how much the normal-map relief reads; `tile` is the texture repeats
@@ -762,8 +1102,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           for (const t of woodTextures) t.repeat.set(v, v);
         });
 
-      // Force-vector arrows are a diagnostic overlay, not a look control — Debug folder.
-      const toggles = { arrows: false };
+      // Force-vector arrows + trapped-air x-ray are diagnostic overlays, not look controls — Debug.
+      const toggles = { arrows: false, trappedAir: false };
       debug
         .add(toggles, "arrows")
         .name("force arrows")
@@ -771,10 +1111,19 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           arrowGroup.visible = on;
           if (!on) for (const arrow of arrows) arrow.visible = false;
         });
+      debug
+        .add(toggles, "trappedAir")
+        .name("trapped-air cells")
+        .onChange((on: boolean) => {
+          airOverlay.visible = on;
+        });
     },
     dispose: () => {
       world?.free();
       boxGeometry.dispose();
+      airBoxGeometry.dispose();
+      airOverlay.dispose();
+      airOverlayMaterial.dispose();
       woodMaterial.dispose();
       for (const t of woodTextures) t.dispose();
       for (const material of materials) material.dispose();

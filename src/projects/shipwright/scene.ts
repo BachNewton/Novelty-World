@@ -7,7 +7,7 @@ import type {
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
 import { createOcean, type ShadingMode } from "./ocean";
-import { createPhysics } from "./physics";
+import { createPhysics, RAFT, TEST_SHAPES } from "./physics";
 import { createPlayer } from "./player";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
@@ -96,7 +96,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // dynamic body floated by per-voxel buoyancy sampled from `ocean.sampleSurface`, and owns the
   // shared physics world the player lives in too. Rapier loads async; `init()` is called below
   // once the player exists, so it can be attached to the world in the same step.
-  const physics = createPhysics(ocean);
+  // The raft is the real gameplay platform; the TEST_SHAPES are TEMPORARY buoyancy demos dropped
+  // in beside it — the tetromino plates topple + self-right, the upright shapes range from
+  // rock-stable to tippy, a scale-reference boat hull, and the Stage-1 "Sealed hull" that floats
+  // on trapped air despite being denser than water (flip the Debug "trapped-air cells" x-ray to
+  // watch its cavity do the lifting). Drop back to just [RAFT] once the demos aren't needed.
+  const physics = createPhysics(ocean, [RAFT, ...TEST_SHAPES]);
   scene.add(physics.object);
 
   // Debug seabed: a sandy plane tilted into a beach slope that rises from deep
