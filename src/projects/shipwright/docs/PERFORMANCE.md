@@ -215,27 +215,93 @@ not the average. Two distinct culprits on the target **AMD 780M APU**:
 
 ---
 
-## Planned: a repeatable perf-benchmark harness (not built yet)
+## The benchmark harness (built) — `tools/bench.mjs`
 
-A fixed, scripted workload that measures how a perf tweak actually moves the numbers, so this
-doc's cost model is *measured*, not asserted. Sketch, for whoever picks it up:
+Two instruments, one question each — keep them straight:
 
-- **Separate tool from `tools/shots.mjs`.** Shots want frozen, identical *pixels* (headless
-  SwiftShader is fine). A benchmark wants *milliseconds under load* — an animated scene on a
-  **real GPU**. Don't conflate them.
-- **Must run on real hardware, not headless.** SwiftShader timings don't track real-GPU
-  bottlenecks, and the `GpuTimer` (`EXT_disjoint_timer_query`) reports `n/a` under it. So this is
-  an in-app "benchmark mode" run in a real browser (or Playwright launched *headed with GPU*).
-- **Determinism via a scripted flight, not free-fly.** A fixed array of `(elapsed, cameraPose)`
-  keyframes stepped at a fixed `dt`, rendering each frame. Gerstner is a pure function of `t` and
-  physics is fixed-timestep, so the GPU does byte-identical work every run → an A/B diff reflects
-  only the tweak, not timing noise. Drive it through the `window.__shipwright` debug surface
-  (`setSun`/`setCamera`/`setSea`/`setPlaneSize`/freeze-step).
-- **Stress the worst cases this doc names:** water filling the screen, a grazing→overhead sweep
-  (varies fill *and* SSR hit-rate), rough seas (more normal variance), seabed on, max render
-  scale, max SSR distance.
-- **Output = JSON, not one number.** Per pass (`capture`/`ssr`/`main`/`total`) report **p50/p95/
-  p99** (percentiles catch hitches averages hide), keyed by git SHA, so a pass's cost can be
-  tracked across commits. This is the measured counterpart to the model above.
-- **Optional:** Playwright `recordVideo` for a visual+overlay artifact (cosmetic — the numbers
-  come from `GpuTimer`); and a regression gate (fail if p95 `total` rises >X% vs a stored baseline).
+- **Fixed-dt benchmark (`tools/bench.mjs`) — how much does a render technique COST.** Built.
+- **Real-time tool — how good does a render technique LOOK** (felt smoothness, thermal soak,
+  natural-speed recording). NOT built; deferred. When built it reuses the *same* `benchmark.ts`
+  `FLIGHT`, so the two share one camera path.
+
+### What it is
+
+A deterministic, **fixed-timestep** scripted flight through the scene's stressors, sampling
+per-pass **GPU** time every frame on a **real GPU**. The flight lives in `benchmark.ts`
+(`FLIGHT` = a list of segments, each a `(sea, sun, plane, camera(u))`); the driver is
+`window.__shipwright.runBenchmark(config)` in `scene.ts` (it overrides the sim clock + camera
++ scene state each frame, runs the pre-passes, and reads `GpuTimer.values()`); the CLI is
+`tools/bench.mjs` (Playwright launch + stats + JSON).
+
+**Why fixed-dt, not real-time (wall-clock):** the sea (`f(t)`) and camera (`f(u)`) are pure
+functions, so one fixed `dt` per rendered frame makes every run render a **byte-identical**
+sequence → an A/B diff between two tweaks reflects only the tweak, not timing noise. This is
+the dev/CI-regression convention. (A player-facing settings benchmark uses the real-time,
+wall-clock convention — that's the deferred "does it LOOK good" tool, which is also where
+screen recording belongs, because real-time = wall-clock plays back at natural speed with no
+tricks. Recording a fixed-dt run would slow-mo on heavy frames, so this tool doesn't record.)
+
+### Usage
+
+```bash
+# against a server running THIS checkout's code (NOT an unrelated :3001 dev server)
+node src/projects/shipwright/tools/bench.mjs --url http://localhost:3005/3d-games/shipwright
+# sweep a setting by invoking per-config and diffing the JSON:
+node .../bench.mjs --reflection-res 0.25 --label before
+node .../bench.mjs --reflection-res 0.5  --label after
+# WATCH the exact run being measured (strongest verification — same frames that make the numbers):
+node .../bench.mjs --headed --hold 3000
+```
+
+Config knobs (each applied once for the whole run; the flight sweeps sea/sun/camera itself):
+`--render-scale`, `--reflection-res`, `--water`, plus `--url`, `--label`, `--timeout`, `--headed`,
+`--hold`. Results land in `.bench/<label>/<sha>-<slug>.json` (gitignored) with a stdout summary
+table; per **segment** and **overall** it reports min/max/avg + 1%-low **FPS**, per-pass
+(`capture`/`ssr`/`main`/`total`) + frame **p50/p95/p99 ms**, and a **spike count** (frames >2× the
+median). FPS = `1000 / max(cpuMs, gpuTotal)`.
+
+### Traps it defends against (read before trusting a number)
+
+- **Must be a real GPU.** It launches ANGLE/D3D11 and **aborts** if `GpuTimer`
+  (`EXT_disjoint_timer_query`) is `n/a` (SwiftShader / blocked), rather than emit garbage.
+- **GPU-ms is build-mode-independent; CPU-ms is not.** The SSR/water GLSL is identical whether
+  Next serves a dev or prod bundle, so `ssr`/`main`/`capture`/`total` read the same on a dev
+  server — that's why GPU-ms is the source of truth and a **dev server is fine for GPU-cost
+  iteration**. The secondary `cpu` number is inflated by dev-mode JS; for clean CPU / final
+  numbers, point `--url` at a **production build** (`next build && next start`).
+- **Hot reload mid-run wrecks a run** (Fast Refresh remounts the three.js scene). The tool loads
+  a fresh page per run, so the discipline is: edit → let the server recompile → *then* run; never
+  edit while a run is in flight. If a remount happens the flight never completes and the tool
+  **fails loud** with a timeout message (use a prod build to remove HMR entirely).
+- **Warm-up + DVFS.** Each segment discards ~18 warmup frames (absorbs the `GpuTimer` async
+  readback lag + one-off hitches: PMREM re-bake on a sun change, plane rebuild, raft respawn). The
+  run is short, so it does **not** capture thermal droop — that's a real-time soak concern (above).
+
+### Determinism + noise floor (measured 2026-07-08, AMD 780M)
+
+The fixed-dt workload is byte-identical run-to-run — **verified**: three back-to-back warm headless
+runs agreed on **p50** GPU-ms to ~1-3% (e.g. `max-stress` tot50 10.12 / 10.09 / 10.37). But
+byte-identical *work* ≠ identical *time* on a DVFS/thermal APU, so mind these, or you'll chase ghosts:
+
+- **Measure HEADLESS; `--headed` is watch-only.** Headed vs headless are different GPU paths and
+  read ~2× apart (headed had a smaller effective viewport / on-screen path) — never compare across them.
+- **Cold start skews the first run** (clocks ramp from idle). The **warm-up lap** (240 unmeasured
+  frames of the heaviest scene, `WARMUP_LAP_FRAMES`) exists to absorb this so a fresh run reads like
+  a warm one; even so, prefer running your A and B **back-to-back in one warm session**.
+- **p50/avg are the trustworthy A/B metric (~3% noise floor); p95/p99/spikes are directional.** The
+  tails catch real hitches but also random OS/GC blips (a warm run threw a lone 19 ms frame in
+  `max-stress`). A tweak that moves p50 by <~3% needs interleaved A/B/A/B + averaging to trust.
+- **Slow thermal creep** drifts p50 up a few % across successive runs — another reason to A/B
+  back-to-back, and to treat the absolute numbers as session-relative, not cross-day comparable.
+
+### Known gaps (fast-follows)
+
+- **Live physics load is not measured.** The raft is shown at its **reset spawn pose** (a
+  deterministic reflective object for SSR/fill), because the Rapier bodies (raft + sailor) settle
+  in real time before a run and only the raft can be reset today. Stepping physics deterministically
+  needs a sailor reset too + fixed-step driving from the benchmark. Until then the CPU number is
+  render-prep only, not a Rapier-cost measurement.
+- **`SSR_STEPS`/`SSR_REFINE` aren't runtime-swept** (still compile-time). Pair the benchmark with
+  the uniform-`break` refactor (see the compile-time-knobs note above) to sweep them per run.
+- **No regression gate yet.** JSON is keyed by git SHA; a gate (fail if p95 `total` rises >X% vs a
+  stored baseline) is the natural next step.

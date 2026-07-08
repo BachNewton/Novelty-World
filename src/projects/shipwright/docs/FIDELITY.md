@@ -55,6 +55,18 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
 
 ---
 
+## Known rendering bugs (surfaced, not yet fixed)
+
+- **Sun-movement flicker.** With a smoothly moving sun — the benchmark's `day-sweep` segment
+  (`tools/bench.mjs`, headed real-time) sweeps noon→sunset — the frame **flickers** as the sun
+  descends. This is a real rendering bug, **not** a benchmark artifact, and it's exactly what the
+  motion benchmark exists to surface (you'd rarely hold a moving-sun condition by hand). It matters
+  because a **day/night cycle is planned** (see `PERFORMANCE.md`). Not diagnosed yet; first places to
+  look when we do: the per-frame **PMREM env-map re-bake** (every `updateSun` rebuilds
+  `scene.environment`, so any instability in the bake — or in the HDR sky clamp — reads as the water
+  reflection / IBL jittering frame-to-frame), and/or the **auto-exposure / veil** stepping as
+  elevation changes. **Parked — noted only, no fix now.**
+
 ## Tweaks & enhancements (backlog — none are blockers)
 
 ### Refraction offset — dropped; revisit only *with a seabed*

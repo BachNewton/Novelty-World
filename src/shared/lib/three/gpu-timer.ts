@@ -89,6 +89,18 @@ export class GpuTimer {
     this.inFlight.push({ name, query });
   }
 
+  /**
+   * The most recent raw per-pass GPU-ms reading (one entry per span name, e.g.
+   * `capture` / `ssr` / `main`). Unlike the panel's label — which shows a smoothed
+   * EMA — this is the last value `poll()` read back, so it's the right source for a
+   * benchmark sampling per-frame cost. Reflects a reading from ~1–2 frames ago
+   * (queries resolve asynchronously); a caller wanting per-frame attribution should
+   * let a few frames of warmup pass after any scene change so the readback catches up.
+   */
+  values(): Map<string, number> {
+    return new Map(this.latest);
+  }
+
   /** Collect finished query results and advance every graph one frame. Call once per frame. */
   poll(): void {
     if (this.ext === null) return;

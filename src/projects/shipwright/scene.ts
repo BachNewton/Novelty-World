@@ -11,6 +11,76 @@ import { createPhysics, RAFT, TEST_SHAPES } from "./physics";
 import { createPlayer } from "./player";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
+import {
+  FLIGHT,
+  FIXED_DT,
+  buildTimeline,
+  sampleTimeline,
+  DEFAULT_MEASURED_SECONDS,
+  type BenchSegment,
+  type Timeline,
+} from "./benchmark";
+
+// --- Render-cost benchmark plumbing (see benchmark.ts + tools/bench.mjs) ------
+// Driven over `window.__shipwright.runBenchmark`; the driver lives in the scene closure
+// (it needs the camera/ocean/physics), these are just the wire types crossing to the tool.
+interface BenchmarkConfig {
+  /** Device-pixel-ratio the frame renders at (the dominant fill lever). */
+  renderScale?: number;
+  /** Fraction of render res the SSR march runs at (the reflection-resolution dial). */
+  reflectionRes?: number;
+  /** Jerlov water type to pin for the whole run (optics cost). */
+  water?: string;
+  /** Real-time mode: advance the flight by the real frame delta (wall-clock, natural playback
+   *  speed) instead of the deterministic FIXED_DT. Set for headed WATCH runs — the numbers then
+   *  reflect felt smoothness, not the byte-identical cost the headless (default) mode gives. */
+  realtime?: boolean;
+  /** Seconds to hold the final frame before closing (real-time only), so the end reads as "done". */
+  endHoldSeconds?: number;
+}
+/** One recorded frame: CPU prep ms + the raw per-pass GPU ms from the timer. */
+interface BenchmarkSample {
+  seg: string;
+  cpuMs: number;
+  capture: number;
+  ssr: number;
+  main: number;
+}
+interface BenchmarkResult {
+  fixedDt: number;
+  /** True when this was a real-time (headed) run — numbers are felt-smoothness, not deterministic. */
+  realtime: boolean;
+  /** False when EXT_disjoint_timer_query is unavailable — the tool must reject the run. */
+  gpuAvailable: boolean;
+  /** Actual pixels the frame was rendered at (res dominates cost, so record it): the drawing-buffer
+   *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
+  render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
+  segments: { name: string; description: string; measuredSeconds: number }[];
+  samples: BenchmarkSample[];
+}
+/** Default real-time end-hold (seconds) when the tool doesn't override it — long enough that the
+ *  ending clearly reads as "done" when watching live. */
+const DEFAULT_END_HOLD_SECONDS = 4;
+
+interface BenchmarkRun {
+  timeline: Timeline;
+  /** Flight-time in seconds — advanced by FIXED_DT (headless) or the real delta (headed). */
+  elapsed: number;
+  /** Real-time end-hold accumulator (seconds spent holding the final frame) + its target. */
+  holdElapsed: number;
+  endHoldSeconds: number;
+  /** Last sun elevation/azimuth pushed during a sweep, so the sunset HOLD doesn't re-bake every
+   *  frame (only re-bake when the sun actually moves). NaN before the first sweep frame. */
+  lastSunEl: number;
+  lastSunAz: number;
+  realtime: boolean;
+  /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
+  prevIndex: number;
+  /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
+  baseWater: string;
+  samples: BenchmarkSample[];
+  resolve: (result: BenchmarkResult) => void;
+}
 
 // Debug probe grid: bright dots placed at the CPU-sampled surface height, the
 // same way the buoys are sampled. Overlaid on the wireframe ocean, they reveal
@@ -83,6 +153,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   };
   sizeSsrTarget();
   ocean.setSsrSource(ssrTarget.texture);
+
+  // The water's screen-space pre-passes for one frame: (1) capture the scene MINUS the water
+  // into the shared colour+depth target, (2) render the low-res SSR reflections that read it.
+  // Both the normal loop and the benchmark driver call this; the main render that samples their
+  // output runs afterwards in the shared hook. Guards on `sceneCapture` so it's a no-op if the
+  // capture target wasn't allocated.
+  const renderPrePasses = () => {
+    if (!sceneCapture) return;
+    timeSpan("capture", () => {
+      ocean.mesh.visible = false;
+      renderer.setRenderTarget(sceneCapture.target);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      ocean.mesh.visible = true;
+    });
+    timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
+  };
 
   // Navigational-marker buoys (lateral + cardinal): the kinematic half of the
   // HYBRID floating model — capsule/spar floats that ride the water via
@@ -487,6 +574,123 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   let elapsed = 0;
   let paused = false;
 
+  // --- Render-cost benchmark driver ------------------------------------------
+  // Runs the scripted fixed-dt flight (benchmark.ts) inside the shared animation loop: each
+  // frame it overrides the sim clock, camera, and per-segment scene state deterministically,
+  // runs the pre-passes, and samples the GpuTimer. See `runBenchmark` on the debug surface.
+  let benchmark: BenchmarkRun | null = null;
+  const benchTarget = new THREE.Vector3();
+  const applyBenchSegment = (seg: BenchSegment, run: BenchmarkRun) => {
+    // Fully reset every dimension each segment (never carry a prior segment's state): wavelength
+    // defaults to 1 unless the segment sets a long swell, and water reverts to the run's base.
+    ocean.setSea({
+      amplitude: seg.sea.amplitude,
+      steepness: seg.sea.steepness,
+      wavelength: seg.sea.wavelength ?? 1,
+    });
+    ocean.setWaterType(seg.water ?? run.baseWater);
+    const plane = seg.plane ?? 5000;
+    if (plane !== debug.planeSize) {
+      debug.planeSize = plane;
+      applyGrid();
+    }
+    const [el, az] = seg.sunSweep ? seg.sunSweep.from : seg.sun;
+    params.elevation = el;
+    params.azimuth = az;
+    updateSun(); // one PMREM re-bake, in the segment's (discarded) warmup
+    run.lastSunEl = NaN; // force the first sweep frame to push (NaN !== any real angle)
+    run.lastSunAz = NaN;
+    // Raft: shown as a deterministic reflective object (reset to spawn, NOT stepped — see
+    // benchmark.ts on why live physics is deferred). `update(0)` poses the mesh at spawn.
+    physics.object.visible = seg.raft === true;
+    if (seg.raft === true) {
+      physics.respawn();
+      physics.update(0, run.elapsed);
+    }
+  };
+  const stepBenchmark = (delta: number) => {
+    const run = benchmark;
+    if (!run) return;
+    // Headless: fixed dt → byte-identical flight. Headed: real delta → natural wall-clock playback
+    // (clamped so a load hitch can't leap past a whole segment).
+    run.elapsed += run.realtime ? Math.min(delta, 0.1) : FIXED_DT;
+    const s = sampleTimeline(run.timeline, run.elapsed);
+    if (!s) {
+      // Real-time: hold the final (max-stress) frame briefly so the end reads as "done" instead of
+      // vanishing mid-scene. The camera/scene are untouched, so renderPrePasses re-shows it. Headless
+      // has no viewer, so it resolves at once.
+      if (run.realtime && run.holdElapsed < run.endHoldSeconds) {
+        run.holdElapsed += Math.min(delta, 0.1);
+        if (debug.capture) renderPrePasses();
+        return;
+      }
+      benchmark = null;
+      const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+      run.resolve({
+        fixedDt: FIXED_DT,
+        realtime: run.realtime,
+        gpuAvailable: gpuTimer !== undefined && gpuTimer.available,
+        render: {
+          width: db.x,
+          height: db.y,
+          pixelRatio: renderer.getPixelRatio(),
+          reflectionRes: ssrScale.value,
+        },
+        segments: FLIGHT.map((seg) => ({
+          name: seg.name,
+          description: seg.description,
+          measuredSeconds: seg.measuredSeconds ?? DEFAULT_MEASURED_SECONDS,
+        })),
+        samples: run.samples,
+      });
+      return;
+    }
+    const { seg } = s;
+    // NB: `performance` is shadowed in this scope by the lil-gui "Performance" folder, so reach
+    // the global timing API explicitly.
+    const cpuStart = globalThis.performance.now();
+    if (s.index !== run.prevIndex) {
+      run.prevIndex = s.index;
+      applyBenchSegment(seg, run);
+    }
+    // Sun sweep (REAL-TIME ONLY — see the type doc): ease OUT `from` → `to` over the first
+    // `sweepFraction` of the window (fast near noon, slow near the horizon), then HOLD at `to`. Each
+    // move re-bakes the PMREM env map, so we skip it when the sun hasn't moved (the sunset hold) and
+    // suppress it entirely in the headless cost run (which would thermally pollute later segments).
+    if (seg.sunSweep && run.realtime) {
+      const frac = seg.sunSweep.sweepFraction ?? 1;
+      const x = frac > 0 ? Math.min(1, s.u / frac) : 1;
+      const p = 1 - (1 - x) * (1 - x); // quadratic ease-out: decelerates toward sunset
+      const el = THREE.MathUtils.lerp(seg.sunSweep.from[0], seg.sunSweep.to[0], p);
+      const az = THREE.MathUtils.lerp(seg.sunSweep.from[1], seg.sunSweep.to[1], p);
+      if (el !== run.lastSunEl || az !== run.lastSunAz) {
+        params.elevation = el;
+        params.azimuth = az;
+        updateSun();
+        run.lastSunEl = el;
+        run.lastSunAz = az;
+      }
+    }
+    ocean.update(run.elapsed);
+    navBuoys.update(ocean, run.elapsed);
+    const pose = seg.camera(s.u);
+    camera.position.set(pose.pos[0], pose.pos[1], pose.pos[2]);
+    benchTarget.set(pose.target[0], pose.target[1], pose.target[2]);
+    camera.lookAt(benchTarget);
+    if (debug.capture) renderPrePasses();
+    const cpuMs = globalThis.performance.now() - cpuStart;
+    if (s.measured && gpuTimer) {
+      const g = gpuTimer.values();
+      run.samples.push({
+        seg: seg.name,
+        cpuMs,
+        capture: g.get("capture") ?? 0,
+        ssr: g.get("ssr") ?? 0,
+        main: g.get("main") ?? 0,
+      });
+    }
+  };
+
   // Debug control surface for reproducible screenshots + static A/B (driven by
   // scripts/shipwright-shots.mjs). An automated capture sets the scene deterministically —
   // sun, camera, a frozen wave field, water type, lighting mode — so a change is compared
@@ -556,6 +760,58 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.setVeilBrightness(value);
       syncGui();
     },
+    // Expose the two GUI-only cost dials the benchmark sweeps as settings.
+    setRenderScale: (scale: number) => {
+      perf.renderScale = scale;
+      ctx.setPixelRatio(scale);
+      syncGui();
+    },
+    setReflectionRes: (scale: number) => {
+      ssrScale.value = scale;
+      sizeSsrTarget();
+      syncGui();
+    },
+    // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
+    hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
+    // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
+    // Applies the run's global cost settings, forces stride 1 (never skip a flight frame), and
+    // hides non-flight objects for a clean, consistent scene. See tools/bench.mjs.
+    runBenchmark: (config: BenchmarkConfig) =>
+      new Promise<BenchmarkResult>((resolve) => {
+        if (config.renderScale !== undefined) {
+          perf.renderScale = config.renderScale;
+          ctx.setPixelRatio(config.renderScale);
+        }
+        if (config.reflectionRes !== undefined) {
+          ssrScale.value = config.reflectionRes;
+          sizeSsrTarget();
+        }
+        if (config.water !== undefined) ocean.setWaterType(config.water);
+        ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
+
+        measuringPole.object.visible = false;
+        seabed.visible = false;
+        probes.visible = false;
+        player.object.visible = false;
+        physics.object.visible = false;
+        paused = false;
+        syncGui();
+        benchmark = {
+          // Warm-up lap kept in both modes; headed just plays it at real-time (a few seconds).
+          timeline: buildTimeline(FLIGHT, true),
+          elapsed: 0,
+          holdElapsed: 0,
+          endHoldSeconds: config.endHoldSeconds ?? DEFAULT_END_HOLD_SECONDS,
+          lastSunEl: NaN,
+          lastSunAz: NaN,
+          realtime: config.realtime === true,
+          prevIndex: -1,
+          // Segments without their own `water` revert to this — the run's override or the scene default.
+          baseWater: config.water ?? "Coastal 5",
+          samples: [],
+          resolve,
+        };
+      }),
   };
   if (process.env.NODE_ENV !== "production") {
     (window as unknown as { __shipwright?: typeof debugApi }).__shipwright = debugApi;
@@ -563,6 +819,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   return {
     onFrame: (delta) => {
+      // The benchmark drives its own deterministic clock/camera/passes — hand it the frame and
+      // skip the normal interactive path entirely (see stepBenchmark). The shared hook still
+      // runs the `main` render + gpuTimer.poll() after this returns.
+      if (benchmark) {
+        stepBenchmark(delta);
+        return;
+      }
       // `paused` (debug freeze) holds the wave field + physics on one frame so an automated
       // capture gets a reproducible static image; the scene still renders each frame. `simSpeed`
       // scales the clock for slow-mo/pause inspection — both the wave time and the physics get the
@@ -589,18 +852,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
       // onFrame and draws the water sampling this capture).
-      if (sceneCapture && debug.capture) {
-        timeSpan("capture", () => {
-          ocean.mesh.visible = false;
-          renderer.setRenderTarget(sceneCapture.target);
-          renderer.render(scene, camera);
-          renderer.setRenderTarget(null);
-          ocean.mesh.visible = true;
-        });
-        // Then render the low-res SSR reflections (water only, reading that capture) so
-        // the main render below can sample them. Needs the capture, hence gated with it.
-        timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
-      }
+      if (debug.capture) renderPrePasses();
     },
     onResize: () => {
       // The hook resizes the capture target itself; just refresh the shader's copy

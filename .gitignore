@@ -53,3 +53,6 @@ src/projects/monopoly/bots/optimize/*.log
 
 # Shipwright debug screenshots (scripts/shipwright-shots.mjs)
 **/.shots/
+
+# Shipwright render-cost benchmark results (src/projects/shipwright/tools/bench.mjs)
+**/.bench/

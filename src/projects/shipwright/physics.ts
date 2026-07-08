@@ -547,6 +547,10 @@ export interface Physics {
    *  two fixed steps. Interpolate any body riding the sim (the player) by this so it moves smoothly
    *  at the render rate, matching the interpolated raft. Valid after `update`. */
   alpha: () => number;
+  /** Reset every body to its spawn pose + zero velocity and re-seed the interpolation pair, so the
+   *  sim starts from a KNOWN state. Used by the deterministic benchmark (and the debug "respawn"
+   *  button) to make physics reproducible run-to-run. No-op until `init()` has resolved. */
+  respawn: () => void;
   /** Fill the "Objects" folder (physics + raft material) and append the force-arrow
    *  diagnostic to the "Debug" folder. */
   buildGui: (folders: { objects: GUI; debug: GUI }) => void;
@@ -1301,6 +1305,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       afterStepCallbacks.push(cb);
     },
     alpha: () => interpAlpha,
+    respawn,
     buildGui: ({ objects, debug }) => {
       const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");
