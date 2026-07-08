@@ -68,6 +68,9 @@ export interface BenchmarkConfig {
    *  per-span queries force ANGLE to fence/flush the command buffer, which may inflate the CPU submit
    *  time; turning them off isolates that overhead. GPU-ms columns read 0. Default (undefined) = on. */
   gpuTimer?: boolean;
+  /** Diagnostic: render an empty scene per measured frame and report the CPU ms (bareMs) — the
+   *  irreducible per-call renderer.render() floor. Adds one render/frame, so opt-in. Default off. */
+  bareProbe?: boolean;
 }
 
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
@@ -89,6 +92,9 @@ export interface BenchmarkSample {
   captureCpuMs: number;
   ssrCpuMs: number;
   mainCpuMs: number;
+  /** Diagnostic (--bare-probe only, else 0): CPU ms to render an EMPTY scene to the default
+   *  framebuffer — the irreducible per-call renderer.render() overhead (no draws, no target switch). */
+  bareMs: number;
 }
 
 export interface BenchmarkResult {
@@ -109,6 +115,10 @@ export interface BenchmarkResult {
    *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
   render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
   segments: { name: string; description: string; measuredSeconds: number }[];
+  /** A one-shot census of the render at flight's end (the last main pass): draw `calls` + `triangles`
+   *  (three.js resets info.render per render call, so this is the main pass alone), plus the live
+   *  scene-graph size. Diagnoses whether draw-call SUBMISSION drives the CPU render-prep (thread 1). */
+  renderInfo: { calls: number; triangles: number; sceneObjects: number; visibleMeshes: number };
   samples: BenchmarkSample[];
 }
 

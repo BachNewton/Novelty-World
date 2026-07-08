@@ -777,20 +777,18 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
   airOverlay.visible = true; // on by default — the trapped-air x-ray is the main debugging aid now
 
-  const rebuildDiagnostics = () => {
-    // Re-number the contiguous buoyancy-point ranges (material voxels, then void cells, per build).
-    let cursor = 0;
-    for (const v of visuals) {
-      v.arrowBase = cursor;
-      cursor += v.offsets.length + v.voidOffsets.length;
-    }
-    forceArr = Array.from({ length: cursor }, () => new THREE.Vector3());
-    posArr = Array.from({ length: cursor }, () => new THREE.Vector3());
-
-    // Force arrows (teal per material voxel, blue per void cell) in the same order as arrowBase.
+  const clearArrows = () => {
     for (const a of arrows) a.dispose();
     arrowGroup.clear();
     arrows = [];
+  };
+  // Force arrows (teal per material voxel, blue per void cell) in the same order as arrowBase — one
+  // ArrowHelper (a Group + line + cone = ~3 Object3D) per buoyancy point. Built LAZILY: created only
+  // while the "force arrows" debug toggle is on, because thousands of them (all bodies' voxels) bloat
+  // the scene graph, and three.js' updateMatrixWorld traverses even hidden nodes on EVERY render call
+  // (capture + SSR + main = 3×/frame) — the dominant CPU render-prep cost (see docs/perf-handoff.md).
+  const rebuildArrows = () => {
+    clearArrows();
     const addArrow = (color: number) => {
       const arrow = new THREE.ArrowHelper(UP, ORIGIN, 1, color, 0.3, 0.2);
       arrow.visible = false;
@@ -801,6 +799,22 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       for (let j = 0; j < v.offsets.length; j++) addArrow(ARROW_COLOR);
       for (let j = 0; j < v.voidOffsets.length; j++) addArrow(AIR_ARROW_COLOR);
     }
+  };
+
+  const rebuildDiagnostics = () => {
+    // Re-number the contiguous buoyancy-point ranges (material voxels, then void cells, per build).
+    let cursor = 0;
+    for (const v of visuals) {
+      v.arrowBase = cursor;
+      cursor += v.offsets.length + v.voidOffsets.length;
+    }
+    forceArr = Array.from({ length: cursor }, () => new THREE.Vector3());
+    posArr = Array.from({ length: cursor }, () => new THREE.Vector3());
+
+    // Only materialize the arrow objects when the overlay is on; otherwise keep the graph lean (the
+    // buoyancy loop still fills forceArr/posArr, so toggling on rebuilds arrows that light up at once).
+    if (arrowGroup.visible) rebuildArrows();
+    else clearArrows();
 
     // Trapped-air x-ray: capacity = total void cells; only the trapped-air subset draws (count set
     // per frame in syncMeshes). Preserve the current on/off state across the reallocation.
@@ -1574,7 +1588,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         .name("force arrows")
         .onChange((on: boolean) => {
           arrowGroup.visible = on;
-          if (!on) for (const arrow of arrows) arrow.visible = false;
+          // Materialize the arrow objects on demand (they're not built while off — see rebuildArrows);
+          // tear them back out when hidden so the idle scene graph stays lean.
+          if (on) rebuildArrows();
+          else clearArrows();
         });
       debug
         .add(toggles, "trappedAir")

@@ -114,6 +114,9 @@ if (args["quad-size"] !== undefined) config.quadSize = Number(args["quad-size"])
 // --gpu-timer off disables the GpuTimer's TIME_ELAPSED queries (still measures wall-clock CPU) — to
 // check whether the timer's own command-buffer fences inflate the per-render CPU submit. GPU-ms → 0.
 if (args["gpu-timer"] !== undefined) config.gpuTimer = !(args["gpu-timer"] === "off" || args["gpu-timer"] === "false");
+// --bare-probe renders an empty scene per frame to read the irreducible per-call renderer.render()
+// floor (the `bare` column). Adds one render/frame, so only for diagnostics.
+if (args["bare-probe"] !== undefined) config.bareProbe = true;
 if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
 if (args.bodies !== undefined) config.bodies = Number(args.bodies); // physics-load body count (scaling sweep)
 if (HEADED) config.realtime = true; // headed = real-time (natural-speed) watch mode
@@ -175,6 +178,7 @@ const summarise = (frames) => {
       ssrCpu: passStats(frames, (f) => f.ssrCpuMs ?? 0),
       mainCpu: passStats(frames, (f) => f.mainCpuMs ?? 0),
       cpuTotal: passStats(frames, (f) => f.cpuMs + (f.mainCpuMs ?? 0)),
+      bare: passStats(frames, (f) => f.bareMs ?? 0), // irreducible per-call renderer.render() floor (--bare-probe)
     },
     spikes: {
       count: spikes.length,
@@ -278,6 +282,7 @@ const report = {
     bodies: result.bodies, // physics bodies under load (0 in visuals mode)
     hardware,
     fixedDt: result.fixedDt,
+    renderInfo: result.renderInfo, // main-pass draw calls + triangles + scene-graph size (thread 1 diag)
     gpuAvailable: result.gpuAvailable,
     render: result.render, // { width, height, pixelRatio, reflectionRes } — res dominates cost
     config,
@@ -325,6 +330,8 @@ console.log(`          ${hardware.cpu} (${hardware.cores} cores) · ${hardware.r
 const testLabel = report.meta.bodies > 0 ? `${report.meta.testMode} (${report.meta.bodies} bodies)` : report.meta.testMode;
 console.log(`clock: ${report.meta.clock}   test: ${testLabel}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
 console.log(`config: ${Object.keys(config).length ? JSON.stringify(config) : "scene defaults"}   url: ${URL}`);
+const ri = result.renderInfo;
+if (ri) console.log(`render census (main pass): ${ri.calls} draw calls · ${ri.triangles.toLocaleString()} tris · ${ri.sceneObjects} scene objects (${ri.visibleMeshes} visible meshes)`);
 console.log(
   "\n" +
     pad("segment", 16) +
@@ -378,6 +385,12 @@ for (const seg of report.segments) console.log(cpuRow(seg.name, seg));
 console.log("-".repeat(72));
 console.log(cpuRow("OVERALL", report.overall));
 console.log("(ocean=Gerstner uniform+buoy sampling · capt=capture-pass submit · main=main-render submit · onFrm excludes main · total=onFrm+main)");
+if (report.overall.ms.bare.p50 > 0) {
+  console.log(
+    `bare renderer.render() floor (empty scene, --bare-probe): p50 ${report.overall.ms.bare.p50} ms ` +
+      `— the IRREDUCIBLE per-call cost (no draws, no target switch). 3 real calls/frame => ~${round(report.overall.ms.bare.p50 * 3, 1)} ms floor.`,
+  );
+}
 // The per-pass `ssr50` is the DEDICATED march pass ONLY — it does NOT include the cost SSR adds inside
 // the `main` pass (sampling the reflection texture + occupancy), so it UNDER-reports SSR's true weight.
 // For SSR's real frame share, diff a `--ssr off` run against the default (E6 measured ~37%, vs the ~25%

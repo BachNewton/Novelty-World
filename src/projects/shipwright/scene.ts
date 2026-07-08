@@ -45,6 +45,9 @@ interface BenchmarkRun {
   lastSunEl: number;
   lastSunAz: number;
   realtime: boolean;
+  /** Diagnostic: also render an empty scene per measured frame to read the irreducible per-call
+   *  renderer.render() overhead (bareMs). Opt-in via --bare-probe. */
+  bareProbe: boolean;
   mode: BenchmarkMode;
   /** The benchmark-owned physics world (BENCH_SHAPES) stepped each frame in physics/both mode; null
    *  in visuals mode. Separate from the gameplay physics + sailor, so respawn() → deterministic. */
@@ -586,6 +589,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // runs the pre-passes, and samples the GpuTimer. See `runBenchmark` on the debug surface.
   let benchmark: BenchmarkRun | null = null;
   const benchTarget = new THREE.Vector3();
+  // Diagnostic: an empty scene rendered to the default framebuffer isolates the IRREDUCIBLE per-call
+  // renderer.render() overhead (no draws, no render-target switch) from reducible scene/target work.
+  // Opt-in via --bare-probe; the main render redraws over it so it's invisible headless.
+  const bareScene = new THREE.Scene();
   const applyBenchSegment = (seg: BenchSegment, run: BenchmarkRun) => {
     // Fully reset every dimension each segment (never carry a prior segment's state): wavelength
     // defaults to 1 unless the segment sets a long swell, and water reverts to the run's base.
@@ -633,6 +640,21 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         return;
       }
       benchmark = null;
+      // Census the render BEFORE teardown, while the bench bodies are still in the scene and
+      // renderer.info holds the last main render's draw count (three resets it per render call). Tells
+      // us whether draw-call SUBMISSION is the CPU render-prep driver (thread 1). See BenchmarkResult.
+      let sceneObjects = 0;
+      let visibleMeshes = 0;
+      scene.traverse((o) => {
+        sceneObjects++;
+        if (o instanceof THREE.Mesh && o.visible) visibleMeshes++;
+      });
+      const renderInfo = {
+        calls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        sceneObjects,
+        visibleMeshes,
+      };
       // Tear down the benchmark-owned physics world (if any).
       if (run.benchPhysics) {
         scene.remove(run.benchPhysics.object);
@@ -665,6 +687,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           description: seg.description,
           measuredSeconds: seg.measuredSeconds ?? DEFAULT_MEASURED_SECONDS,
         })),
+        renderInfo,
         samples: run.samples,
       });
       return;
@@ -721,6 +744,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     prepassCpu.ssr = 0;
     if (debug.capture && run.mode !== "physics") renderPrePasses();
     const cpuMs = globalThis.performance.now() - cpuStart;
+    // Bare-render probe: the CPU cost of rendering an EMPTY scene to the default framebuffer — the
+    // irreducible per-call renderer.render() floor (no draws, no target switch). The main render
+    // redraws over it. Only when --bare-probe; 0 otherwise.
+    let bareMs = 0;
+    if (run.bareProbe) {
+      const b0 = globalThis.performance.now();
+      renderer.render(bareScene, camera);
+      bareMs = globalThis.performance.now() - b0;
+    }
     if (s.measured && gpuTimer) {
       const g = gpuTimer.values();
       run.samples.push({
@@ -740,6 +772,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         captureCpuMs: prepassCpu.capture,
         ssrCpuMs: prepassCpu.ssr,
         mainCpuMs: mainRenderMs(),
+        bareMs,
       });
     }
   };
@@ -894,6 +927,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           lastSunEl: NaN,
           lastSunAz: NaN,
           realtime: config.realtime === true,
+          bareProbe: config.bareProbe === true,
           mode,
           benchPhysics,
           benchBodies,
