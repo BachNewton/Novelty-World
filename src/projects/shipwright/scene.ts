@@ -337,7 +337,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     capture: true,
     planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
     quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
-    simSpeed: 0.5, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
+    simSpeed: 1, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
   };
 
   // --- Environment: sun + sky -------------------------------------------------

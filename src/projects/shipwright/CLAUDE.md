@@ -280,12 +280,12 @@ code that floats the ship agree on where the surface is.
   flooded**, buoyant by submerged fraction at **zero mass / zero drag**. `enclosed` (shape geometry)
   keeps *open* volume — a decorative crown — from counting as air; the per-step flood makes flooding
   **orientation- + waterline-correct** (capsize → mouth floods; swamp a rim → floods; sealed pontoon
-  → air in any pose). Flooding is **rate-limited** (persistent per-cell `voidWater`, `FILL_RATE`/
-  `DRAIN_RATE`): merely dipping under the surface for a moment barely ships water and the hull bobs
-  back up — only sustained inflow over a rim founders it, and a sealed below-deck keeps its air at any
-  depth. Demos in `TEST_SHAPES`: Sealed hull (ρ = 1400), breached / bulkhead /
-  open-bottom edge cases, five **stability buckets** (wall heights h3→h10 → a swamp-vs-bob-back
-  spectrum), a
+  → air in any pose). Flooding is **all-or-nothing** per cell (a sea-reached cell loses its air that
+  frame — a faked slow fill made hulls look like they floated too long; the realistic finite fill
+  comes with the compartment model, not a fudge). A sealed below-deck is never sea-reachable, so it
+  keeps its air at any depth. Demos in `TEST_SHAPES`: Sealed hull (ρ = 1400), breached / bulkhead /
+  open-bottom edge cases, a 3×5 matrix of **stability buckets** (wall height h3→h10 × interior air
+  3×3/4×4/5×5 → a swamp-vs-bob-back spectrum), a
   **crown raft** (decorative merlons add no air). Debug: a **"trapped-air cells" x-ray** (updates live
   as shapes roll) + an **"air-cavity buoyancy" A/B switch**. A **runaway guard** (`MAX_LINVEL`/
   `MAX_ANGVEL` velocity clamp + a try/catch around the step loop) keeps heavy-sea instability from

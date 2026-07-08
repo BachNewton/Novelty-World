@@ -104,16 +104,13 @@ surface visually intruding into a slammed hull.
   from "swamps on the splash-down" to "takes the plunge and bobs back up") and the **crown raft**
   (decorative merlons that add no air). A shallow bucket sinking on a hard drop is EXPECTED — the
   entry force drives its low rim fully under and it ships water.
-- **Rate-limited flooding. ✅ DONE.** Flooding is NOT instantaneous — that made merely dipping a hull
-  under the surface (e.g. a bucket's splash-down) drain its air in one frame, when almost no water had
-  actually poured in. Now each enclosed cell carries a persistent water level (`voidWater` 0..1) that
-  rises toward the flood at `FILL_RATE` while the sea reaches it and falls at `DRAIN_RATE` when it
-  doesn't; air buoyancy scales by `(1 − voidWater)`. So a brief dunk barely ships water and the hull
-  bobs back up, while sustained inflow over a rim founders it — and a **sealed** below-deck, never
-  sea-reachable, keeps its air and buoyancy however deep it sits (the essential gameplay). The water
-  level is deterministic sim state (integrated at `FIXED_DT`). *Limitation:* draining is gated only on
-  "the sea no longer reaches the cell", so water shipped into a compartment can drain back out once its
-  rim clears the surface — proper trapped-water persistence wants the per-compartment water column below.
+- **Flooding is ALL-OR-NOTHING per cell (a rate-limited version was tried and dropped).** A per-cell
+  `voidWater` that filled at a finite rate was implemented, but it made hulls look like they floated
+  too long after the rim went under — faking a slow inflow the visuals/physics didn't back. A fully
+  open hole floods fast, so we reverted to honest all-or-nothing: a cell the sea reaches loses its air
+  that frame. The realistic finite fill (and *where* the water stops) comes with the compartment
+  water-level model below, not a fudge factor. (A sealed below-deck is still never sea-reachable, so it
+  keeps its air at any depth — that's from the `enclosed`/flood split, not the rate.)
 - **Runaway guard (robustness).** The water model is tuned for gentle seas; cranking the wave sliders
   hard launches bodies and can pump energy until Rapier's WASM solver hits a non-finite value and
   traps (`"unreachable"`), which used to hard-freeze the app. Now each step clamps any body's speed
@@ -131,7 +128,7 @@ surface visually intruding into a slammed hull.
     Each step: find the compartment's openings (its exposed cells) and their world heights; if any is
     **below the external waterline** (submerged → an inflow path), raise `L` toward
     **`min(external waterline, highest opening height)`** at a finite rate; else drain. A cell is
-    flooded iff its centre is below `L`. (This subsumes today's per-cell `voidWater`.)
+    flooded iff its centre is below `L`. (This replaces the current all-or-nothing per-cell flood.)
   - **Water mass / weight.** A *submerged* flooded cell is already neutral — losing its air buoyancy
     equals the water's weight, which is why dense hulls sink and light ones swamp awash today. What's
     still missing is water carried **above** the external waterline (a heeled/pitched boat, or water

@@ -31,10 +31,10 @@ import type { Ocean } from "./ocean";
  * shape geometry) rules out open volume — a decorative crown above the rim is never air — while
  * the per-step flood makes flooding orientation- + waterline-correct: capsize a hull and its mouth
  * goes under → floods; swamp a rim → floods; a sealed pontoon is never reached → air in any pose.
- * Flooding is RATE-limited (per-cell `voidWater`, FILL_RATE/DRAIN_RATE), so merely dipping under the
- * surface for a moment barely ships water and the hull bobs back up — only a sustained inflow over a
- * rim founders it. (Deferred: flooded cells don't yet add water MASS to actively sink a swamped hull,
- * and interior water isn't rendered — Stage 3b-mass / 3c in docs/buoyancy.md.)
+ * Flooding is ALL-OR-NOTHING per cell (a fully open hole floods fast; a faked slow fill just made
+ * hulls look like they floated too long). The proper compartment water-LEVEL model — fill only up to
+ * a hole's height with air trapped above, plus water mass — is the next step (Stage 3b in
+ * docs/buoyancy.md); interior water rendering is 3c.
  *
  * Rapier is deterministic and we keep it that way for future host-authoritative
  * multiplayer: a FIXED physics timestep, and no wall-clock or Math.random in the
@@ -126,14 +126,6 @@ const VELOCITY_EPS = 1 / 120;
 // the rim. See the buoyancy loop.
 const FLOOD_WET_MIN = 0.999;
 
-// Flooding is RATE-limited, not instantaneous. When the sea can reach an enclosed cell (its opening
-// is submerged) water pours in over that opening at FILL_RATE; when the sea no longer reaches it,
-// the trapped air pushes the water back out at DRAIN_RATE. So a hull dunked for a moment by a splash
-// or a passing wave barely ships any water and bobs back up — merely going UNDER the surface doesn't
-// flood a hull, only sustained inflow over a rim does. (A sealed below-deck is never sea-reachable,
-// so it keeps its air and buoyancy however deep it sits — the point of the whole model.) Per second.
-const FILL_RATE = 0.4;
-const DRAIN_RATE = 0.6;
 
 // Spawn layout: a deterministic row dropped from a small height. Plate shapes get a
 // fixed (non-random — determinism) tilt so they enter at an angle and must
@@ -312,6 +304,37 @@ export const SEALED_HULL: Shape = {
   cells: buildSealedHull(),
 };
 
+// Stability buckets: open-top hulls (dense — float only on trapped air) across a MATRIX of wall
+// height (h3→h10) × interior air size (3×3, 4×4, 5×5), one row per interior size spread along x.
+// The spectrum shows the whole range — shallow walls swamp on the splash-down, tall walls take the
+// plunge and bob back up — and how a wider air cavity lifts more. Dropped in low for a gentle entry;
+// a hard drop that plunges the rim fully under floods it all-or-nothing, which is expected for a low
+// wall. Rows sit progressively further out (z) so the bigger footprints don't collide.
+const BUCKET_COLORS = [0x4fbfa0, 0x4fae9e, 0x4f9eae, 0x4f7eae, 0x4f6ec0];
+const buildBuckets = (): Shape[] => {
+  const heights = [3, 4, 6, 8, 10];
+  const rows = [
+    { ext: 5, z: -30, dx: 5 }, // 3×3 interior
+    { ext: 6, z: -38, dx: 6 }, // 4×4 interior
+    { ext: 7, z: -48, dx: 7 }, // 5×5 interior
+  ];
+  const shapes: Shape[] = [];
+  for (const row of rows) {
+    const inner = row.ext - 2;
+    heights.forEach((h, i) => {
+      shapes.push({
+        name: `Bucket ${inner}x${inner} h${h}`,
+        color: BUCKET_COLORS[i],
+        upright: true,
+        density: BUCKET_DENSITY,
+        spawnOverride: [(i - (heights.length - 1) / 2) * row.dx, 2 + i * 0.5, row.z],
+        cells: omitFace(buildHollowBox(row.ext, h, row.ext), 1, h - 1),
+      });
+    });
+  }
+  return shapes;
+};
+
 // The retired buoyancy testbed — a spread of 0.5 m³-voxel builds that validated the
 // per-voxel float (plates topple + self-right; upright shapes range from rock-stable
 // pyramid/catamaran to doomed pillar; a hollow boat hull as a scale reference). Kept
@@ -418,52 +441,10 @@ export const TEST_SHAPES: Shape[] = [
     spawnOverride: [3, 3, -22],
     cells: omitFace(buildHollowBox(4, 4, 4), 1, 0),
   },
-  // --- Stability buckets: open-top hulls (dense — float only on trapped air) across a SPECTRUM of
-  // wall heights (h3 → h10), dropped in from above (use Debug "sim speed" to slow the entry). The
-  // spectrum shows the whole range: the shallow ones ship water over the rim on the splash-down and
-  // found; the tall ones take the plunge and bob back up. (A hard entry driving the rim fully under
-  // and sinking a shallow bucket is EXPECTED, not a bug — low freeboard swamps.) Flooding is
-  // rate-limited today; fill-to-the-hole-line with trapped air is the compartment model still to come.
-  {
-    name: "Bucket h3",
-    color: 0x4fbfa0,
-    upright: true,
-    density: BUCKET_DENSITY,
-    spawnOverride: [-10, 4.5, -30],
-    cells: omitFace(buildHollowBox(5, 3, 5), 1, 2),
-  },
-  {
-    name: "Bucket h4",
-    color: 0x4fae9e,
-    upright: true,
-    density: BUCKET_DENSITY,
-    spawnOverride: [-5, 5, -30],
-    cells: omitFace(buildHollowBox(5, 4, 5), 1, 3),
-  },
-  {
-    name: "Bucket h6",
-    color: 0x4f9eae,
-    upright: true,
-    density: BUCKET_DENSITY,
-    spawnOverride: [0, 5.5, -30],
-    cells: omitFace(buildHollowBox(5, 6, 5), 1, 5),
-  },
-  {
-    name: "Bucket h8",
-    color: 0x4f7eae,
-    upright: true,
-    density: BUCKET_DENSITY,
-    spawnOverride: [5, 6, -30],
-    cells: omitFace(buildHollowBox(5, 8, 5), 1, 7),
-  },
-  {
-    name: "Bucket h10",
-    color: 0x4f6ec0,
-    upright: true,
-    density: BUCKET_DENSITY,
-    spawnOverride: [10, 6.5, -30],
-    cells: omitFace(buildHollowBox(5, 10, 5), 1, 9),
-  },
+  // Stability buckets: a matrix of wall height × interior air size (see buildBuckets). Dropped in low
+  // (Debug "sim speed" slows the entry). Flooding is all-or-nothing — a hard entry that drives the
+  // rim fully under floods a low-walled bucket, which is expected.
+  ...buildBuckets(),
   {
     // Decorative crown (see buildCrownRaft): pointed merlons that must NOT change the trapped air —
     // the overlay should show only the deck-level interior, exactly like a plain raft.
@@ -528,10 +509,6 @@ interface Visual {
   voidWet: Uint8Array;
   voidFlooded: Uint8Array;
   voidStack: Int32Array;
-  /** Persistent per-void water level 0..1 (STATE, not scratch): how full each enclosed cell is right
-   *  now. Rises toward the flood (FILL_RATE) while the sea reaches it, falls (DRAIN_RATE) when it
-   *  doesn't — so flooding is gradual, not instant. Air buoyancy scales by (1 − this). */
-  voidWater: Float32Array;
   spawnPos: THREE.Vector3;
   spawnQuat: THREE.Quaternion;
   /** Post-step transforms of the last two fixed steps, interpolated at render time (see syncMeshes). */
@@ -951,7 +928,6 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       voidWet: new Uint8Array(voidCount),
       voidFlooded: new Uint8Array(voidCount),
       voidStack: new Int32Array(voidCount),
-      voidWater: new Float32Array(voidCount),
       spawnPos,
       spawnQuat,
       prevPos: spawnPos.clone(),
@@ -1134,22 +1110,13 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // off) apply nothing — the hull then floats on its shell alone.
       for (let j = 0; j < voidN; j++) {
         const gi = v.arrowBase + v.offsets.length + j;
-        // Rate-limit the water level toward the flood: fill while the sea reaches this cell, drain
-        // when it doesn't (see FILL_RATE/DRAIN_RATE). This is what makes a brief dunk barely ship
-        // water while a sustained submersion founders the hull — the fix for "going under the surface
-        // instantly floods it". FIXED_DT because this runs once per fixed sub-step.
-        if (v.voidFlooded[j] === 1) {
-          v.voidWater[j] = Math.min(1, v.voidWater[j] + FILL_RATE * FIXED_DT);
-        } else {
-          v.voidWater[j] = Math.max(0, v.voidWater[j] - DRAIN_RATE * FIXED_DT);
-        }
-
         const submerged = v.voidSubmerged[j];
-        const airFrac = 1 - v.voidWater[j];
-        // Trapped air = air-capable (enclosed), still holding air, and submerged. A non-enclosed void
-        // (an open volume, e.g. a decorative crown) never lifts; the air's lift scales with airFrac,
-        // so a half-flooded compartment gives half its buoyancy.
-        if (!params.airBuoyancy || !v.voidEnclosed[j] || submerged <= 0 || airFrac <= 0) {
+        // Trapped air = air-capable (enclosed) AND the sea hasn't reached it. All-or-nothing: a
+        // flooded cell gives no lift, full stop. (A finite fill RATE was tried and dropped — faking
+        // slow inflow made hulls look like they floated too long; a fully open hole floods fast, so
+        // we keep it honest until the compartment water-level model backs a real rate with visuals.)
+        // A non-enclosed void — an open volume like a decorative crown — never lifts either.
+        if (!params.airBuoyancy || !v.voidEnclosed[j] || v.voidFlooded[j] === 1 || submerged <= 0) {
           forceArr[gi].set(0, 0, 0);
           continue;
         }
@@ -1157,7 +1124,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         const wy = v.voidWorld[j * 3 + 1];
         const wz = v.voidWorld[j * 3 + 2];
         posArr[gi].set(wx, wy, wz);
-        const buoyancy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME * airFrac;
+        const buoyancy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME;
         forceArr[gi].set(0, buoyancy, 0);
         body.addForceAtPoint({ x: 0, y: buoyancy, z: 0 }, { x: wx, y: wy, z: wz }, true);
       }
@@ -1183,10 +1150,10 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // (trapped air) per the last step's flood — so the glow updates live as the hull rolls/swamps.
       if (showAir) {
         for (let j = 0; j < v.voidOffsets.length; j++) {
-          // Draw only trapped air: air-capable (enclosed) and still mostly air (not yet flooded).
-          // Open volumes (a decorative crown) and filled compartments are skipped, so the x-ray
-          // recedes as water pours in.
-          if (!v.voidEnclosed[j] || v.voidWater[j] >= 0.5) continue;
+          // Draw only trapped air: air-capable (enclosed) and not currently flooded. Open volumes
+          // (a decorative crown) and flooded compartments are skipped, so the x-ray blinks out the
+          // frame a hull ships water.
+          if (!v.voidEnclosed[j] || v.voidFlooded[j] === 1) continue;
           tmpVec.copy(v.voidOffsets[j]).applyQuaternion(tmpQuat).add(tmpPos);
           dummy.position.copy(tmpVec);
           dummy.quaternion.copy(tmpQuat);
@@ -1228,7 +1195,6 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       body.setAngvel(ZERO, true);
       body.resetForces(true);
       body.resetTorques(true);
-      v.voidWater.fill(0); // start dry again — no residual flooding from the last life
       // Re-seed the interpolation pair to the spawn pose, else the next frame lerps the mesh
       // across from wherever it was floating to the spawn.
       v.prevPos.copy(v.spawnPos);
