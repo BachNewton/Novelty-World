@@ -211,7 +211,10 @@ page.on("pageerror", (e) => errors.push(e.message));
 
 let result;
 try {
-  await page.goto(URL, { waitUntil: "networkidle" });
+  // "domcontentloaded", NOT "networkidle": the Next *dev* server keeps an HMR websocket open, so the
+  // network never fully idles (slow/flaky wait). We wait for the app to boot via waitForFunction(
+  // __shipwright) below anyway, which is the real readiness signal — networkidle was redundant.
+  await page.goto(URL, { waitUntil: "domcontentloaded" });
   // Headed watch: raise + focus the window so the run is visible immediately (Windows can otherwise
   // open it behind the active window). CDP Page.bringToFront activates the tab and raises the OS window.
   if (HEADED) await page.bringToFront();
