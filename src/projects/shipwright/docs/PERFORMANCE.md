@@ -192,8 +192,18 @@ one raft (~100 voxels) — a rounding error. Today's cost is a testbed artifact;
 
 ### Levers, in priority order
 
+**Measured (2026-07-08, `--collision off`, SHA `10bfdbf`): collision RESOLUTION is ~free in the current
+scenes.** Toggling Rapier's narrow-phase + solver contacts off moved `phys50` by <2% (noise) at both ~31
+and 64 bodies — because the bench bodies are non-overlapping (no contacts to resolve). So today's `phys`
+cost is **broad-phase collider maintenance + per-voxel buoyancy**, not contacts. Greedy-mesh (lever 1)
+targets the broad-phase half; the buoyancy half is untouched by it. A **contact-heavy** scene (crowded /
+touching ships) would surface a real collision cost — not yet measured. See `perf-experiments.md` → "Tier
+4 — collision on/off".
+
 1. **Greedy-mesh the colliders** (a CPU pass merging runs of voxels into larger box colliders; separate
-   from render meshing). **Lossless for Rapier:** merged boxes exactly tile the same occupied volume →
+   from render meshing). Cuts the **broad-phase** cost (an AABB per collider, refit every step for every
+   collider — paid continuously, contacts or not), so it helps at any contact level; it does **not** cut
+   buoyancy. **Lossless for Rapier:** merged boxes exactly tile the same occupied volume →
    identical collision surface, and identical mass / COM / inertia (inertia is additive over a partition
    via parallel-axis, so a big box == the unit boxes composing it, at the same density). **Decoupled from
    buoyancy:** keep per-voxel (or a wave-resolution sub-grid) buoyancy sampling and it stays exact.

@@ -40,7 +40,8 @@
 //
 // Prereq: a server serving this build + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/shipwright/tools/bench.mjs [--url U] [--mode visuals|physics|both]
-//           [--bodies N] [--render-scale R] [--reflection-res R] [--ssr off] [--water NAME] [--label L]
+//           [--bodies N] [--collision off] [--render-scale R] [--reflection-res R] [--ssr off]
+//           [--water NAME] [--label L]
 //           [--width 1600] [--height 900] [--headed] [--hold SEC] [--timeout MS]
 // Writes  <label>/<sha>-<slug>.json under ../.bench (gitignored, **/.bench/) and prints a summary.
 
@@ -99,6 +100,12 @@ if (args["reflection-res"] !== undefined) config.reflectionRes = Number(args["re
 // --ssr off (or false) disables SSR entirely (env-map fallback + the march pass is skipped) — E6, to
 // measure SSR's share of the frame. Any other value (or omitting the flag) leaves SSR on.
 if (args.ssr !== undefined) config.ssrEnabled = !(args.ssr === "off" || args.ssr === "false");
+// --collision off (or false) disables Rapier contact generation on the bench bodies (collision groups)
+// — mass/inertia/buoyancy + the broad-phase AABBs stay, only narrow-phase + solver contacts drop — to
+// measure collision-resolution's share of the physics step (physics/both modes). Any other value keeps
+// collision on. NOTE: the bench hulls are laid out non-overlapping, so expect a SMALL delta — see the
+// isolation logic in docs/perf-experiments (collision cost here is broad-phase, which this doesn't cut).
+if (args.collision !== undefined) config.collisionEnabled = !(args.collision === "off" || args.collision === "false");
 if (args.water !== undefined) config.water = args.water;
 if (args.mode !== undefined) config.mode = args.mode; // visuals | physics | both (default visuals)
 if (args.bodies !== undefined) config.bodies = Number(args.bodies); // physics-load body count (scaling sweep)
@@ -278,6 +285,7 @@ const slug =
     config.reflectionRes !== undefined ? `rr${config.reflectionRes}` : null,
     config.water !== undefined ? config.water.toLowerCase().replace(/\s+/g, "-") : null,
     config.ssrEnabled === false ? "ssr-off" : null,
+    config.collisionEnabled === false ? "collision-off" : null,
   ]
     .filter(Boolean)
     .join("-") || "default";

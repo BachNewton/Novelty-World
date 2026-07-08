@@ -645,6 +645,11 @@ export interface Physics {
    *  sim starts from a KNOWN state. Used by the deterministic benchmark (and the debug "respawn"
    *  button) to make physics reproducible run-to-run. No-op until `init()` has resolved. */
   respawn: () => void;
+  /** Enable/disable contact generation on ALL colliders at once (via collision groups), leaving mass,
+   *  inertia, buoyancy, and the broad-phase AABBs untouched — so it isolates Rapier's narrow-phase +
+   *  solver contact cost from everything else. Used by the benchmark's `--collision off` (Option A to
+   *  measure the collision-resolution share of the step). Default is enabled. */
+  setCollisionEnabled: (on: boolean) => void;
   /** Fill the "Objects" folder (physics + raft material) and append the force-arrow
    *  diagnostic to the "Debug" folder. */
   buildGui: (folders: { objects: GUI; debug: GUI }) => void;
@@ -2089,6 +2094,17 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     },
     alpha: () => interpAlpha,
     respawn,
+    setCollisionEnabled: (on: boolean) => {
+      if (!world) return;
+      // Toggle contact generation on every collider WITHOUT removing them, so mass/inertia/buoyancy
+      // and the broad-phase AABBs are all untouched — the ONLY change is whether Rapier's narrow phase
+      // + solver do contact work. Collision groups are a u32 = (membership<<16)|filter; two colliders
+      // interact only if each one's membership bit falls in the other's filter. filter=0 (0xffff0000)
+      // → no pair ever matches → zero contacts; 0xffffffff is Rapier's default (collide with all).
+      // This isolates the collision-RESOLUTION cost for the benchmark; the broad phase still runs.
+      const groups = on ? 0xffffffff : 0xffff0000;
+      world.forEachCollider((c) => c.setCollisionGroups(groups));
+    },
     buildGui: ({ objects, debug }) => {
       const folder = objects.addFolder("Physics");
       folder.add({ respawn }, "respawn").name("respawn shapes");

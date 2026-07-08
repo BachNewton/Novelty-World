@@ -428,6 +428,35 @@ the headless signal alone.
   (transient render hitch, not load-dependent); `phys50` is rock-steady across both passes and is the
   reliable metric here.*
 
+### Tier 4 — collision on/off (contact-resolution share, done 2026-07-08)
+
+Exposed `--collision off` (a runtime `physics.setCollisionEnabled` that sets every collider's collision
+groups to non-interacting — mass, inertia, buoyancy, and the broad-phase AABBs stay put; only Rapier's
+narrow-phase + solver *contact* work drops). Isolates the collision-**resolution** cost from the rest of
+the step. Wired exactly like `--ssr off` (physics/both modes only). SHA `10bfdbf`, AMD 780M.
+
+| load | collision ON `phys50` | collision OFF `phys50` | Δ |
+|---|---|---|---|
+| default demo (~31 bodies) | 6.6 ms | 6.7 ms | **+0.1 ms (noise)** |
+| 64-body grid | 20.3 ms | 20.0 ms | **−0.3 ms (−1.5%, noise)** |
+
+- **Collision resolution is ~free here — at *any* body count.** Both deltas sit inside the ~3% noise
+  floor (at 31 bodies "off" even read *higher* than "on", impossible for real work). So the `phys` cost
+  is **entirely broad-phase collider maintenance + per-voxel buoyancy sampling**; narrow-phase + solver
+  contribute nothing.
+- **Why, and the limit of this result:** the bench grid is **deliberately non-overlapping**
+  (`bench-shapes.ts` `GRID_SPACING = 8 m` > the ~6 m boat), and there is no seabed collider, so nothing
+  ever touches → no contacts to resolve. Body count scales broad-phase + buoyancy, **not** contacts, so
+  more bodies won't surface a collision cost. A **contact-heavy** scene (bodies that overlap / drift
+  together / settle on a floor) would — that's the gameplay-relevant follow-up (crowded ships), not a
+  bigger `--bodies`.
+- **Consequence for the optimization plan:** "turn off collision" buys nothing when bodies float apart.
+  The physics levers that matter are **greedy-meshing** (cuts broad-phase, always-on) and the
+  **buoyancy sampler** (per-voxel Gerstner) — split still owed (P4 below). Greedy-meshing's ceiling is
+  the broad-phase share, which is contact-independent (it's the every-frame AABB maintenance, not
+  contacts) — so it helps even with zero contacts, but only up to whatever fraction of `phys` isn't
+  buoyancy.
+
 ### Tier 2 — E6 SSR on/off (done)
 
 Exposed `--ssr off` (a runtime `ocean.setSsrEnabled`; the uniform is now the single source of truth and

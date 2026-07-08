@@ -50,6 +50,10 @@ interface BenchmarkConfig {
    *  scaling sweep — a fresh grid of `benchShapesForCount` bodies instead of the demo BENCH_SHAPES.
    *  Undefined = the default demo load. See tools/bench.mjs --bodies. */
   bodies?: number;
+  /** Turn Rapier contact generation off on the bench bodies (collision groups) to isolate the
+   *  collision-resolution share of the physics step — mass/inertia/buoyancy/broad-phase stay put, only
+   *  narrow-phase + solver contacts drop. physics/both only. Default (undefined) = collision on. */
+  collisionEnabled?: boolean;
 }
 type BenchmarkMode = "visuals" | "physics" | "both";
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
@@ -899,6 +903,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         scene.add(benchPhysics.object);
         await benchPhysics.init(); // load Rapier + build the world/bodies before the flight starts
         benchPhysics.respawn();
+        // Optional: disable Rapier contact generation on the bench bodies (broad-phase/mass untouched)
+        // to measure the collision-resolution share of the step — see BenchmarkConfig.collisionEnabled.
+        if (config.collisionEnabled !== undefined) benchPhysics.setCollisionEnabled(config.collisionEnabled);
       }
       const benchBodies = benchPhysics ? shapes.length : 0;
 
