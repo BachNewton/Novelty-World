@@ -10,6 +10,8 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { GpuTimer } from "./gpu-timer";
 
 export interface BloomOptions {
+  /** Start with bloom on (default true when a bloom option is given at all). `ctx.setBloom` overrides. */
+  enabled?: boolean;
   strength?: number;
   radius?: number;
   threshold?: number;
@@ -26,6 +28,18 @@ export interface BloomOptions {
    * warmth in the glow around a clipping core.
    */
   clamp?: number;
+  /**
+   * Render the bloom pyramid at this fraction of the drawing buffer (default 1). Bloom is a BLUR, so
+   * half resolution is visually near-free and quarters its fill cost. `UnrealBloomPass` already halves
+   * again internally for its first mip.
+   */
+  resolutionScale?: number;
+  /**
+   * MSAA samples on the composer's HDR target (default 4). On a bandwidth-starved iGPU this, and NOT
+   * the blur, is what "adding bloom" actually costs: a 1080p HalfFloat 4x target is ~66 MB to write
+   * and resolve every frame. Set 0 when the scene already supersamples via its render scale.
+   */
+  samples?: number;
 }
 
 export interface ThreeSceneOptions {
@@ -89,6 +103,12 @@ export interface ThreeSceneOptions {
 export interface SceneCaptureOptions {
   /** Render the capture at this fraction of the drawing buffer (default 1). */
   resolutionScale?: number;
+  /**
+   * MSAA samples on the composer's HDR target (default 4). On a bandwidth-starved iGPU this, and NOT
+   * the blur, is what "adding bloom" actually costs: a 1080p HalfFloat 4x target is ~66 MB to write
+   * and resolve every frame. Set 0 when the scene already supersamples via its render scale.
+   */
+  samples?: number;
 }
 
 export interface SceneCapture {
@@ -167,8 +187,12 @@ export interface ThreeSceneHandlers {
 const patchBloomPrefilter = (pass: UnrealBloomPass, clamp: number): void => {
   const material = pass.materialHighPassFilter;
   material.uniforms.bloomClamp = { value: clamp };
+  // NB the sampler is `tDiffuse`, which is what `UnrealBloomPass.render()` binds every frame. Naming
+  // it anything else compiles fine and silently reads whatever texture is bound to unit 0 — a glow
+  // that ignores every parameter you give it. (Found by a blind reviewer noticing that a 12-cell
+  // parameter sweep produced twelve byte-identical images.)
   material.fragmentShader = /* glsl */ `
-    uniform sampler2D colorTexture;
+    uniform sampler2D tDiffuse;
     uniform vec3 defaultColor;
     uniform float defaultOpacity;
     uniform float luminosityThreshold;
@@ -177,7 +201,7 @@ const patchBloomPrefilter = (pass: UnrealBloomPass, clamp: number): void => {
     varying vec2 vUv;
 
     void main() {
-      vec4 texel = texture2D( colorTexture, vUv );
+      vec4 texel = texture2D( tDiffuse, vUv );
       float v = dot( texel.xyz, vec3( 0.299, 0.587, 0.114 ) );
       vec4 outputColor = vec4( defaultColor.rgb, defaultOpacity );
       float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );
@@ -262,13 +286,14 @@ export function useThreeScene(
       const size = new THREE.Vector2(container.clientWidth, container.clientHeight);
       const target = new THREE.WebGLRenderTarget(size.x, size.y, {
         type: THREE.HalfFloatType,
-        samples: 4,
+        samples: settings.samples ?? 4,
       });
       composer = new EffectComposer(renderer, target);
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(size.x, size.y);
+      const bloomScale = settings.resolutionScale ?? 1;
       bloomPass = new UnrealBloomPass(
-        size,
+        size.clone().multiplyScalar(bloomScale),
         settings.strength ?? 0.5,
         settings.radius ?? 0.4,
         settings.threshold ?? 0.9,
@@ -278,7 +303,8 @@ export function useThreeScene(
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
     };
-    let bloomEnabled = bloomOption !== false;
+    let bloomEnabled =
+      bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
     if (bloomEnabled) buildComposer();
     const setBloom = (enabled: boolean) => {
       if (enabled) buildComposer();

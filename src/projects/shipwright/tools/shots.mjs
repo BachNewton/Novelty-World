@@ -353,7 +353,7 @@ for (const s of selected) {
     const api = window.__shipwright;
     api.resume();
     if (c.setPlane) api.setPlaneSize(c.plane); // rebuild only when the plane size changes (see above)
-    api.setVisibility({ physics: false, seabed: c.seabed, pole: c.pole, island: c.island, rig: c.rig });
+    api.setVisibility({ physics: false, player: false, seabed: c.seabed, pole: c.pole, island: c.island, rig: c.rig });
     api.setShading(c.shading);
     api.setWaterFx(c.waterFx);
     api.setWaterType(c.water);

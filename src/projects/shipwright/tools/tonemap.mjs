@@ -89,7 +89,7 @@ const applyScene = async (scene) => {
       const api = window.__shipwright;
       api.resume();
       api.setPlaneSize(1000);
-      api.setVisibility({ physics: false, seabed: false, pole: false, island: c.island === true, rig: c.rig === true });
+      api.setVisibility({ physics: false, player: false, seabed: false, pole: false, island: c.island === true, rig: c.rig === true });
       api.setShading("full");
       api.setWaterFx(true);
       api.setWaterType(c.water);

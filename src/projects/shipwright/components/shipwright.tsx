@@ -19,7 +19,18 @@ export function Shipwright() {
     // HDR bloom, off at mount. `scene.ts` can switch it live (Environment -> Display) and the
     // tonemap x bloom experiment drives it over the debug API. Strength/radius are the values that
     // survived that experiment; the exposure-tracking threshold + energy clamp live in `scene.ts`.
-    bloom: { strength: 0.35, radius: 0.55 },
+    // strength 0.15: the ONLY value in the sweep that does not wash the sunset to milky white. It is
+    // the dominant knob; knee and clamp (set live from the exposure in scene.ts) shape the glow.
+    // Half-res pyramid: bloom is a blur, so it is visually free and cuts the pass's fill by ~4x.
+    // OFF by default, and the measurement says why. On the target AMD 780M at 1080p:
+    //     bloom + a 4x-MSAA HDR target   +3.64 ms   (of a ~9.5 ms GPU budget)
+    //     bloom + a 1x-MSAA HDR target   +3.44 ms
+    //     bloom, no MSAA on that target  +1.18 ms
+    // So "adding bloom" costs 2.5 ms of MSAA RESOLVE on a 1080p HalfFloat target (~66 MB/frame on a
+    // 512 MB UMA iGPU) and only 1.2 ms of actual blur. The blur is cheap; the HDR framebuffer is not.
+    // Blind review of the 2x2 called bloom a mild win at sunset and neutral at the zenith, so it does
+    // not earn 3.6 ms -- but it plausibly earns 1.2. Enable it from the GUI (Environment -> Display).
+    bloom: { enabled: false, strength: 0.15, radius: 0.6, resolutionScale: 0.5, samples: 4 },
     // MSAA on: even though the device-ratio render scale supersamples, MSAA still
     // visibly cleans up geometry edges (the horizon, object silhouettes) that
     // supersampling alone leaves faintly aliased. It only samples coverage/depth, not

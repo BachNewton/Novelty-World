@@ -320,11 +320,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // radiance E/Omega, several hundred times the sky, and `strength * blur(highpass)` is unbounded. A
   // real lens spreads only a bounded fraction of a source into its wide tail. 8x display white keeps a
   // blazing core, a wide warm glow, and a sea that is still visible around it.
-  const BLOOM_KNEE = 1.3;
-  const BLOOM_CLAMP = 8;
+  // BLOOM_CLAMP is in units of DISPLAY WHITE. It has to be large: the sun disc is only ~10 px across,
+  // so a tight clamp leaves it no energy to glow with (8x white produced no visible halo at all),
+  // while no clamp at all turns the frame into a white rectangle. What is being bounded is the
+  // fraction of a source's energy a lens throws into its wide glare tail; `UnrealBloomPass` has no
+  // energy normalisation, so `strength x clamp` is the halo's real scale.
+  // Settled by a parameter sweep, graded blind (docs/LIGHTING.md "The tonemap x bloom experiment"):
+  //   knee 32   the bright sunset SKY must be excluded, or the whole frame veils to milky white. This
+  //             is the knob that decides whether bloom is usable at all: at knee 1.3 every cell of the
+  //             sweep was "WASHED OUT", at knee 32 the deep-red horizon band and the buoys survive.
+  //   clamp 1000  high enough that the ORANGE disc out-shines the white aerosol glow beside it (at
+  //             clamp 50 the disc was clamped BELOW the sky, so the halo was the sky's, and white);
+  //             low enough that the core stays small.
+  //   strength    lives on the pass (shipwright.tsx); 0.15 is the only value that does not wash.
+  const bloomTuning = { strength: 0.15, radius: 0.6, clamp: 1000, knee: 32 };
   const applyBloomThreshold = (exposure: number) => {
     const e = Math.max(exposure, 1e-6);
-    ctx.setBloomPrefilter({ threshold: BLOOM_KNEE / e, clamp: BLOOM_CLAMP / e });
+    ctx.setBloomPrefilter({ threshold: bloomTuning.knee / e, clamp: bloomTuning.clamp / e });
   };
 
   // `onState` fires immediately on subscribe, so everything it calls must already exist.
@@ -484,7 +496,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ctx.setBloom(on);
     applyBloomThreshold(daylight.state().exposure);
   });
-  const bloomTuning = { strength: 0.5, radius: 0.4 };
   displayFolder.add(bloomTuning, "strength", 0, 2, 0.01).onChange((v: number) => {
     const pass = ctx.bloomPass();
     if (pass) pass.strength = v;
@@ -493,6 +504,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const pass = ctx.bloomPass();
     if (pass) pass.radius = v;
   });
+  displayFolder
+    .add(bloomTuning, "clamp", 1, 20000, 1)
+    .name("glare clamp (x white)")
+    .onChange(() => applyBloomThreshold(daylight.state().exposure));
+  displayFolder
+    .add(bloomTuning, "knee", 0.5, 4, 0.05)
+    .name("glare knee (x white)")
+    .onChange(() => applyBloomThreshold(daylight.state().exposure));
 
   // --- Debug: diagnostics + overlays only -------------------------------------
   debugFolder
@@ -800,8 +819,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       seabed?: boolean;
       island?: boolean;
       rig?: boolean;
+      player?: boolean;
     }) => {
       if (opts.physics !== undefined) physics.object.visible = opts.physics;
+      // The sailor spawns above the raft, so with the Rapier bodies frozen for capture he hangs in
+      // mid-air. Reviewers kept reporting him as "a floating glassy dome".
+      if (opts.player !== undefined) player.object.visible = opts.player;
       if (opts.pole !== undefined) measuringPole.object.visible = opts.pole;
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
@@ -829,11 +852,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       applyBloomThreshold(daylight.state().exposure);
       syncGui();
     },
-    setBloomTuning: (opts: { strength?: number; radius?: number }) => {
+    setBloomTuning: (opts: { strength?: number; radius?: number; clamp?: number; knee?: number }) => {
+      if (opts.clamp !== undefined) bloomTuning.clamp = opts.clamp;
+      if (opts.knee !== undefined) bloomTuning.knee = opts.knee;
+      applyBloomThreshold(daylight.state().exposure);
       const pass = ctx.bloomPass();
       if (!pass) return;
       if (opts.strength !== undefined) pass.strength = opts.strength;
       if (opts.radius !== undefined) pass.radius = opts.radius;
+      syncGui();
     },
     /**
      * Measure the sun:sky irradiance ratio on the real GPU, with each source isolated, by rendering
