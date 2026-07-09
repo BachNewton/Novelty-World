@@ -380,11 +380,11 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     // so the map shows its true colour instead of being tinted darker by this multiplier.
     roughness: 0.85, // matte deck timber
     metalness: 0,
-    // `specularIntensity: 0` and `envMapIntensity: 0.3` used to live here. Both were the buoy/island
+    // A zeroed specular and a per-material env scale used to live here. Both were the buoy/island
     // seam in another costume: the deck went white not because dry wood is non-reflective (it isn't —
     // every dielectric has F0 ≈ 0.04) but because the sky env out-lit the sun ~21:1, so a broad
     // white sheen sat on top of everything. With the light balanced, wood is allowed to be wood.
-    // Restore a physical dielectric: full specular, no env exception.
+    // Restore a physical dielectric: full specular, no env exception. See docs/LIGHTING.md.
     specularIntensity: 1,
     // Strong normal + an AO map are what stop the deck reading as a flat brown decal: normal
     // relief needs a raking sun to show (a flat deck lit from overhead shows little), so lean on

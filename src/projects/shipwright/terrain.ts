@@ -433,8 +433,8 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
 
   // No per-material lighting exception. The land is lit by the same sun and the same sky as the
   // buoys, the raft and the sea — which is the entire point of the lighting overhaul. Its old
-  // `envMapIntensity: 0.22` (plus a `setEnvironment` that re-pointed the PMREM texture onto this
-  // material just so three would honour that value) existed only to dim a sky that out-lit the sun
+  // per-material env scale (0.22, plus a `setEnvironment` that re-pointed the PMREM texture onto
+  // this material just so three would honour it) existed only to dim a sky that out-lit the sun
   // ~21:1. Fix the balance and the hack has nothing left to do. See docs/LIGHTING.md.
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,

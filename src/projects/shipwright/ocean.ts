@@ -702,9 +702,9 @@ export function createOcean(): Ocean {
     material.normalScale.set(baseRippleStrength * seaFactor, baseRippleStrength * seaFactor);
   };
   applyRippleStrength();
-  // NO envMapIntensity. The IBL from `scene.environment` is the physically-scaled sky dome, at
-  // `scene.environmentIntensity = 1`, exactly like every other material in the project. That is the
-  // whole thesis: one lighting model, no per-material exceptions.
+  // No per-material env scale. The IBL from `scene.environment` is the physically-scaled sky dome,
+  // at `scene.environmentIntensity = 1`, exactly like every other material in the project. That is
+  // the whole thesis: one lighting model, no per-material exceptions.
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
