@@ -14,6 +14,7 @@ import { createPlayer } from "./player";
 import { createBuilder } from "./builder";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
+import { createTerrain, type ArchipelagoProfile } from "./terrain";
 import {
   FLIGHT,
   FIXED_DT,
@@ -68,6 +69,19 @@ interface BenchmarkRun {
 const PROBE_SIDE = 15;
 const PROBE_SPACING = 6; // metres between probes
 
+// The archipelago (roadmap #7). One continuous bedrock field, cut by sea level — see terrain.ts and
+// docs/ISLANDS.md. This seed/centre was CHOSEN by searching for a window that reads as an Archipelago
+// Sea skerry field from the raft: ~14 % land, 53 islands, of which 45 are skerries under 120 m², and
+// one 42,000 m² landfall island peaking at 12.8 m off to the south-east. The raft's spawn at the
+// world origin sits in ~9 m of open water with room to sail.
+const ARCHIPELAGO: ArchipelagoProfile = {
+  seed: 8,
+  center: [0, -200],
+  extent: 600,
+  grain: Math.PI / 8, // the glacial grain: islands stretch along it
+  deep: -30,
+};
+
 /**
  * Builds the Shipwright ocean scene: a Gerstner wave surface (see `ocean.ts`),
  * simple lighting, a procedural sky, marker buoys that ride the waves, and a
@@ -87,6 +101,62 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   scene.add(hemiLight);
   const sunLight = new THREE.DirectionalLight(0xfff2e0, 2.5);
   scene.add(sunLight);
+
+  // Shadows. The scene ran without them for as long as it was only water + small floaters, where they
+  // buy nothing. Land changes that: a forest that casts nothing onto its own floor reads flat and
+  // bright no matter how low the rock albedo goes — the islands looked like sand dunes at close
+  // range until this went in. Only the terrain and its spruce cast/receive for now; the ocean
+  // deliberately does NOT receive (shadows on the surface are subtle in reality, and would have to be
+  // reconciled with the screen-space composite, which is the trickiest code in the project).
+  renderer.shadowMap.enabled = true;
+  // NOT PCFSoftShadowMap — three deprecated it and silently falls back to PCFShadowMap, logging a
+  // warning. Ask for what we actually get.
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.near = 1;
+  sunLight.shadow.camera.far = 1200;
+  sunLight.shadow.bias = -0.0005;
+  // Large normalBias: the terrain is one huge low-poly-ish surface at grazing sun, where depth bias
+  // alone either acnes or peter-pans. Offsetting along the normal is the robust lever here.
+  sunLight.shadow.normalBias = 0.5;
+  const SHADOW_RADIUS = 200; // metres of the frustum's half-extent; it follows the view
+  Object.assign(sunLight.shadow.camera, {
+    left: -SHADOW_RADIUS,
+    right: SHADOW_RADIUS,
+    top: SHADOW_RADIUS,
+    bottom: -SHADOW_RADIUS,
+  });
+  sunLight.shadow.camera.updateProjectionMatrix();
+  scene.add(sunLight.target);
+
+  /** Keep the shadow frustum over whatever the camera is LOOKING AT. A single ortho box big enough
+   *  for the whole 600 m window would waste most of its texels on empty sea; anchoring the box to
+   *  the view keeps ~0.2 m per texel where it is actually seen.
+   *
+   *  Anchoring it at the camera's POSITION is the obvious thing and it is wrong: an overhead look-at
+   *  camera can sit 300 m from the islands it is framing, which puts them outside the box entirely
+   *  and silently drops every shadow in the frame. Because this world is a sea at y = 0, the honest
+   *  anchor is where the view ray meets the water; when the camera looks up or level (a sailor's
+   *  eye), the ray never lands, so fall back to a fixed distance ahead.
+   *  `sunDirection` is set by `updateSun`. */
+  const SHADOW_FOCUS_AHEAD = 90; // metres ahead when the view ray never meets the sea
+  const sunDirection = new THREE.Vector3(0, 1, 0);
+  const shadowFocus = new THREE.Vector3();
+  const viewDirection = new THREE.Vector3();
+  const syncSunShadow = () => {
+    camera.getWorldDirection(viewDirection);
+    const looksDown = viewDirection.y < -0.05;
+    const reach = looksDown
+      ? Math.min(-camera.position.y / viewDirection.y, 400)
+      : SHADOW_FOCUS_AHEAD;
+    shadowFocus.copy(camera.position).addScaledVector(viewDirection, reach);
+    shadowFocus.y = 0;
+
+    sunLight.target.position.copy(shadowFocus);
+    sunLight.target.updateMatrixWorld();
+    sunLight.position.copy(shadowFocus).addScaledVector(sunDirection, 600);
+  };
 
   const ocean = createOcean();
   scene.add(ocean.mesh);
@@ -206,6 +276,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   seabed.position.y = -16;
   seabed.visible = false;
   scene.add(seabed);
+
+  // The procedural archipelago (see terrain.ts). It's ordinary opaque scene geometry on layer 0, so
+  // it lands in the scene-capture pass automatically — the water's Beer-Lambert absorption reads the
+  // drowned bedrock and shades the shallows with no shader work at all.
+  // Visible in the live scene; HIDDEN by default in captures (see `setVisibility`), because adding
+  // it to the existing shot groups would invalidate every A/B baseline in .shots/.
+  const island = createTerrain(ARCHIPELAGO);
+  scene.add(island.object);
 
   // Secchi measuring staff: a metre-numbered board through the surface whose submerged
   // part fades by the real depth-absorption — read the visibility straight off it. A
@@ -342,7 +420,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const theta = THREE.MathUtils.degToRad(params.azimuth);
     sun.setFromSphericalCoords(1, phi, theta);
     sky.material.uniforms.sunPosition.value.copy(sun);
-    sunLight.position.copy(sun).multiplyScalar(1000);
+    sunDirection.copy(sun);
+    syncSunShadow(); // the light's position is now derived from the camera + this direction
 
     sceneEnv.add(sky);
     envRenderTarget?.dispose();
@@ -351,6 +430,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     envRenderTarget = pmremGenerator.fromScene(sceneEnv);
     scene.add(sky);
     scene.environment = envRenderTarget.texture;
+    // The land owns the SAME texture explicitly, so its own `envMapIntensity` is respected — three
+    // ignores that property on materials that merely inherit `scene.environment`. See
+    // `Terrain.setEnvironment`. Must be re-pointed on every re-bake: the old target is disposed above.
+    island.setEnvironment(scene.environment);
     applyLighting(); // re-derive exposure + veil for the new sun elevation
   };
   updateSun();
@@ -428,6 +511,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     normalMap: true,
     probes: false,
     seabed: false,
+    island: true,
     pole: true,
     waterFx: true,
     capture: true,
@@ -555,6 +639,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .onChange((on: boolean) => ocean.setNormalMap(on));
   debugFolder.add(debug, "probes").onChange((on: boolean) => {
     probes.visible = on;
+  });
+  debugFolder.add(debug, "island").onChange((on: boolean) => {
+    island.object.visible = on;
   });
   debugFolder.add(debug, "seabed").name("sea floor").onChange((on: boolean) => {
     seabed.visible = on;
@@ -834,10 +921,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // Toggle scene objects for clean/deterministic captures. The Rapier bodies settle
     // nondeterministically (step count depends on wall-clock), so hide them for A/B;
     // the pole + seabed are framing choices.
-    setVisibility: (opts: { physics?: boolean; pole?: boolean; seabed?: boolean }) => {
+    setVisibility: (opts: {
+      physics?: boolean;
+      pole?: boolean;
+      seabed?: boolean;
+      island?: boolean;
+    }) => {
       if (opts.physics !== undefined) physics.object.visible = opts.physics;
       if (opts.pole !== undefined) measuringPole.object.visible = opts.pole;
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
+      if (opts.island !== undefined) island.object.visible = opts.island;
     },
     setAutoExposure: (on: boolean) => {
       lighting.auto = on;
@@ -902,6 +995,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
       measuringPole.object.visible = false;
       seabed.visible = false;
+      island.object.visible = false; // keep the flight comparable to every historical bench run
       probes.visible = false;
       player.object.visible = false;
       physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
@@ -993,6 +1087,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person.
       builder.update();
       if (!player.isActive()) controls.update();
+      // Re-anchor the sun's shadow frustum on the (now-final) camera position, so its texels stay
+      // where they are seen. Must precede the capture: that pass renders the scene, shadows and all.
+      syncSunShadow();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
@@ -1025,6 +1122,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       measuringPole.dispose();
       seabedGeometry.dispose();
       seabedMaterial.dispose();
+      island.dispose();
       probes.dispose();
       probeGeometry.dispose();
       probeMaterial.dispose();

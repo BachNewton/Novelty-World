@@ -40,6 +40,12 @@ const CAMERAS = {
   high: { pos: [-11, 12, 14], target: [2, -3, -5] }, // oblique, looks down across the shallows
   sea: { pos: [-10, 8, 10], target: [6, 2, -6] }, // across-and-down: reads roughness vs the horizon
   flatcam: { pos: [-3, 3.0, 4], target: [15, 2.6, -14] }, // very low, near-flat grazing — crest test
+  // Archipelago framings. The window is centred on (0, -200); the landfall island (42,000 m²,
+  // peak 12.8 m) sits at (52, -188), and skerries pepper the water around the raft at the origin.
+  archGrain: { pos: [-70, 80, 110], target: [30, 0, -210] }, // high oblique: reads the glacial GRAIN
+  archLandfall: { pos: [-14, 4.5, 24], target: [52, 7, -188] }, // sailing toward the big island
+  archShore: { pos: [8, 2.4, -128], target: [56, 3.5, -186] }, // close in: the black lichen band
+  archSkerry: { pos: [-16, 1.9, 46], target: [-64, 0.8, 6] }, // eye at sea level among the skerries
 };
 
 const DEFAULTS = {
@@ -48,6 +54,9 @@ const DEFAULTS = {
   sea: { amplitude: 1, steepness: 0.2, wavelength: 1 },
   seabed: false,
   pole: false,
+  // Off by default: groups 01–04 are frozen A/B baselines, and dropping an island into their
+  // frames would invalidate every one of them. Group 05 opts in.
+  island: false,
   // Deliberately DECOUPLED from the scene's 5000 m default: the tool drives its own scene instance
   // (a separate Playwright browser), so it can use a cheap 1000 m plane for fast CPU/SwiftShader
   // captures while the live render stays 5000 m. Vertex count is what's costly on SwiftShader (it's
@@ -140,6 +149,24 @@ scenarios.push({ group: "04-beauty", name: "sunset-backlit", camera: "grazing", 
 // test for the SSR grazing/horizon seam (this framing is where the black crest edges showed worst).
 scenarios.push({ group: "04-beauty", name: "low-grazing-chop", camera: "flatcam", sea: { amplitude: 1, steepness: 0.25 }, sun: [20, 135] });
 
+// Group 05 — the procedural archipelago (roadmap #7). Judged against docs/ISLANDS.md, whose target
+// is the Finnish Archipelago Sea: drowned ice-scoured bedrock, no beach anywhere, a thin crisp black
+// lichen band at the waterline, many small skerries, and a shared glacial GRAIN the islands stretch
+// along. Coastal 5 (dark brackish green) is the correct water and the default here — turquoise
+// shallows are a Caribbean look and would be WRONG.
+const ARCH_SEA = { amplitude: 0.5, steepness: 0.12 }; // calm: a Baltic summer day
+const BALTIC = "Coastal 5";
+scenarios.push({ group: "05-islands", name: "grain", camera: "archGrain", island: true, water: BALTIC, sea: ARCH_SEA, sun: [30, 135] });
+scenarios.push({ group: "05-islands", name: "landfall", camera: "archLandfall", island: true, water: BALTIC, sea: ARCH_SEA, sun: [20, 135] });
+scenarios.push({ group: "05-islands", name: "shore", camera: "archShore", island: true, water: BALTIC, sea: ARCH_SEA, sun: [25, 200] });
+scenarios.push({ group: "05-islands", name: "skerries", camera: "archSkerry", island: true, water: BALTIC, sea: ARCH_SEA, sun: [12, 135] });
+// Hero: low warm sun behind the archipelago, silhouettes against the glitter road.
+scenarios.push({ group: "05-islands", name: "sunset-backlit", camera: "archLandfall", island: true, water: BALTIC, sea: ARCH_SEA, sun: [4, 135] });
+// Diagnostic, NOT a target look: the same shore under the clearest water. docs/ISLANDS.md predicts
+// the blown-out shallow rim largely disappears once bright sand is replaced by dark bedrock — this
+// frame is where that prediction gets checked.
+scenarios.push({ group: "05-islands", name: "shore-clearwater-diagnostic", camera: "archShore", island: true, water: "Oceanic II", sea: ARCH_SEA, sun: [25, 200] });
+
 // ---------------------------------------------------------------------------
 
 // SwiftShader (CPU rasteriser) is the default here because it's deterministic and needs no GPU —
@@ -152,10 +179,19 @@ scenarios.push({ group: "04-beauty", name: "low-grazing-chop", camera: "flatcam"
 // (confirmed rendering on an AMD Radeon 780M via D3D11). Then drive the same window.__shipwright API,
 // freeze, and screenshot. Run from the PROJECT ROOT so `playwright` resolves. (Faster still: iterate
 // live on the dev server — Kyle keeps it on :3001 — since lighting/feel is best judged in motion.)
+//
+// `SHOTS_GPU=1` flips to that real-GPU path. Use it whenever the frames are being judged for
+// LIGHTING or MATERIAL (island rock/sand/grass, water colour) rather than diffed frame-for-frame:
+// SwiftShader's darker/greener render would have you tuning against a lie. Leave it off for A/B
+// regression captures, where determinism matters more than colour accuracy.
+const USE_GPU = process.env.SHOTS_GPU === "1";
 const browser = await chromium.launch({
   headless: true,
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+  args: USE_GPU
+    ? ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"]
+    : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
+console.log(`renderer: ${USE_GPU ? "real GPU (ANGLE/D3D11)" : "SwiftShader (deterministic)"}`);
 const page = await browser.newPage({ viewport: VIEWPORT });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -195,6 +231,7 @@ for (const s of selected) {
     sea: { ...DEFAULTS.sea, ...(s.sea ?? {}) },
     seabed: s.seabed ?? DEFAULTS.seabed,
     pole: s.pole ?? DEFAULTS.pole,
+    island: s.island ?? DEFAULTS.island,
     plane,
     setPlane: plane !== appliedPlane, // rebuild the (heavy) mesh only when the size actually changes
     shading: s.shading ?? "full", // "full" | "flat" (unlit) | "wireframe" — for diagnostics
@@ -209,7 +246,7 @@ for (const s of selected) {
     const api = window.__shipwright;
     api.resume();
     if (c.setPlane) api.setPlaneSize(c.plane); // rebuild only when the plane size changes (see above)
-    api.setVisibility({ physics: false, seabed: c.seabed, pole: c.pole });
+    api.setVisibility({ physics: false, seabed: c.seabed, pole: c.pole, island: c.island });
     api.setShading(c.shading);
     api.setWaterFx(c.waterFx);
     api.setWaterType(c.water);

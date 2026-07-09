@@ -56,7 +56,8 @@ Rough, non-binding direction of travel (order and scope will flex):
    (`sampleParticle`); at this step bring in **Rapier** for the player's ship as a
    collidable dynamic body with force-based buoyancy (`sampleSurface`) + player
    movement. See the HYBRID decision under "Water architecture".
-7. Procedural islands — an archipelago of terrain to sail between.
+7. **Procedural islands** ✅ *(first pass)* — a seeded, world-anchored bedrock heightfield cut by sea
+   level, targeting the **Finnish Archipelago Sea**. See `terrain.ts` + `docs/ISLANDS.md`.
 8. Resources & gathering — harvest from islands into an inventory.
 9. Multiplayer co-op — shared world + ship via the platform's multiplayer libs
    (`src/shared/lib/multiplayer`, host-authoritative — see root CLAUDE.md).
@@ -241,6 +242,9 @@ code that floats the ship agree on where the surface is.
   the buoyancy-demo `TEST_SHAPES` (+ their builders and densities). Pure content.
 - `builder.ts` — `createBuilder`, first-person build input (place/break/drop) + the aim dot.
   All world mutation delegates to `physics.ts`.
+- `terrain.ts` — `createTerrain`, the procedural archipelago: the pure seeded bedrock field
+  (`bedrockField` → `height` + the `broad` shelter proxy), the exposure-gradient surface colouring, and
+  the instanced spruce. Pure noise helpers are unit-tested in `terrain.test.ts`. See `docs/ISLANDS.md`.
 - `benchmark.ts` — the render-cost flight schedule + the benchmark **wire types**
   (`BenchmarkConfig`/`Result`/…); the driver that runs a flight lives in `scene.ts`.
 
@@ -340,5 +344,31 @@ code that floats the ship agree on where the surface is.
   coherent thing (the Rapier buoyancy/voxel engine). *Not* split further: `ocean.ts` (GLSL + CPU
   `sampleSurface` are locked adjacent) and the voxel-editor (shares the engine's closure — would add
   indirection until `createPhysics` becomes a class).
+- **Procedural archipelago — first pass (step 7).** `terrain.ts` generates ONE continuous, seeded,
+  world-anchored bedrock field (anisotropic fBm stretched along a glacial grain) and lets **sea level
+  cut it**; there is no per-island primitive. A radial falloff mask was tried first and cannot produce a
+  lineated chain of skerries — it always reads as a muffin. The 600 m window holds 53 islands, 45 of
+  them skerries under 120 m², around one 4.2 ha landfall island peaking at 12.8 m — a size distribution
+  that matches the real Archipelago Sea, where only 257 of ~50,000 islands exceed 1 km². Surface colour
+  is an **exposure** gradient (bare rock at the water → pale lichen ring → grey-brown undergrowth →
+  spruce), NOT an elevation one: ramping lichen up with height is a snow-line function and rendered the
+  islands as snow-capped peaks. Vegetation is gated on **shelter** (`broad`, the field with metre-scale
+  detail removed) rather than height, so skerries stay bare while island interiors forest up. ~1,000
+  instanced spruce, clumped into stands. The whole archipelago + forest is **3 scene-graph nodes**.
+  Target + review loop in `docs/ISLANDS.md`. Deferred: roche-moutonnée asymmetry, boulders, rock
+  micro-detail, chunking/streaming (needed before the window can grow past ~600 m; generation is
+  currently ~1.65 s on the main thread and wants a Web Worker).
+- **⚠ TOP OPEN ISSUE — the scene's sun:sky lighting balance is inverted, and it is not an island bug.**
+  Measured with each source isolated: the PMREM sky env out-lights the directional sun **~21:1 in linear
+  terms** on an opaque surface; reality is ~5:1 the other way. So the sun contributes 1–8 % of the land's
+  brightness at every azimuth, rock has no form, and shadows have almost nothing to remove.
+  `sunLight.intensity` is also a **constant** all day, while exposure, veil, and env intensity are
+  already elevation-driven — which is why dusk needs the veil hack. This is the diffuse twin of
+  `FIDELITY.md`'s specular "IBL sheen / noon goes white", and probably the same root cause as its "sun
+  glitter is a milky smear" gap. The land currently dodges it with a **per-material `envMapIntensity`**
+  (a hack — it makes the islands and the buoys look like they are in different scenes) which the
+  lighting overhaul must DELETE, along with `Terrain.setEnvironment`. Target: one physically-based
+  model, zero per-material lighting exceptions, sun as a function of elevation (air mass) and
+  ultimately of latitude 60°N + day-of-year, able to cover clear day → sunset → overcast → winter.
 - **Also open:** shoreline **foam** (we have soft edges, not a foam line); efficient chunk meshing
   (greedy) once ships get large; and making voxel edits deterministic/replayable for co-op.
