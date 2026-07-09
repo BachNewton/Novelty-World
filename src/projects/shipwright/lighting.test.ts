@@ -207,7 +207,7 @@ describe("overcast", () => {
     expect(cb.cloudBeamFactor).toBeGreaterThan(stratus.cloudBeamFactor * 50);
   });
 
-  it("cirrus barely dims the beam — tau 0.35 with g = 0.8 is a similarity depth of 0.07", () => {
+  it("cirrus barely dims the beam — a similarity depth of tau*(1-g)", () => {
     const state = computeLighting(
       input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.cirrus) }),
     );

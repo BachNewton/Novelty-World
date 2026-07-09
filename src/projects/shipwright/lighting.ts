@@ -340,8 +340,14 @@ export interface LightingState {
   horizontalIrradiance: Rgb;
   /** Mean cloud-beam transmittance — the spatial mean of the cloud shadow map. */
   cloudBeamFactor: number;
-  /** Mean cloud thickness mask; drives the dome's horizon fade so overcast stays overcast. */
+  /** Area fraction of the sky the cloud mask covers. */
   cloudFraction: number;
+  /** Mean cloud thickness over the whole plane; drives the dome's horizon fade, where the cloud-plane
+   *  coordinate runs away, so overcast stays overcast and a tapered deck does not thicken. */
+  cloudPlaneThickness: number;
+  /** Mean of the dome's sun-shading modulation. The shader divides by it, so self-shadowing
+   *  redistributes a cloud's radiance without inventing or destroying energy. */
+  cloudShadeMean: number;
   /** Downwelling irradiance just BELOW the water surface, split by source, because the water shader
    *  must attenuate the BEAM half per-fragment by the cloud shadow map (as every other material does)
    *  and leave the sky half alone. Summed, they are the veil. Note `underwaterBeam` carries the
@@ -369,8 +375,8 @@ export interface LightingInput {
 
 /** Cosine-weighted hemisphere quadrature for the cloudy dome. Coarser than the clear-sky integral
  *  because it is only ever a correction to a smooth field, and it costs an fbm per sample. */
-const DOME_PHI = 48;
-const DOME_MU = 32;
+const DOME_PHI = 40;
+const DOME_MU = 24;
 
 /**
  * Integrate the dome we ACTUALLY render — Preetham × `domeScale`, blended toward CIE overcast by the
@@ -385,8 +391,13 @@ const integrateDome = (
   overcastZenith: Rgb,
   clearChroma: Rgb,
   clearDhi: number,
-  cloudFraction: number,
+  planeThickness: number,
 ): Rgb => {
+  // NB the dome's sun-shading modulation (self-shadow taps + phase, `sky.ts`) is NOT integrated here.
+  // It is normalised to a spatial mean of 1 by `cloudStats.shadeMean`, so it redistributes a cloud's
+  // radiance without changing its total; what it leaves on the table is the covariance between that
+  // modulation and the cosine weight, which is second order. Four extra fbm taps per direction would
+  // triple this integral's cost to chase it.
   // With no cloud the dome IS the clear sky, whose irradiance we already know exactly (that is what
   // `domeScale` was built from). Skip 1536 fbm evaluations for the common case.
   if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) return scaleRgb(clearChroma, clearDhi);
@@ -394,7 +405,7 @@ const integrateDome = (
   const shapeElRad = skyShapeElevation(input.elevationDeg) * DEG;
   const terms = sunTerms(shapeElRad, input.sky, input.elevationDeg * DEG);
   const sunHoriz = Math.cos(shapeElRad);
-  const threshold = cloudThreshold(input.cloud.coverage);
+  const threshold = cloudThreshold(input.cloud);
   const out: Rgb = [0, 0, 0];
 
   for (let m = 0; m < DOME_MU; m++) {
@@ -420,7 +431,7 @@ const integrateDome = (
         input.cloudOffset[1],
         threshold,
       );
-      const thickness = cloudFraction + (sampled - cloudFraction) * horizonFade;
+      const thickness = planeThickness + (sampled - planeThickness) * horizonFade;
       const alpha = cloudViewOpacity(thickness, mu, input.cloud.tau);
       const cie = cieOvercastShape(mu);
       for (let i = 0; i < 3; i++) {
@@ -481,10 +492,17 @@ export const computeLighting = (input: LightingInput): LightingState => {
   const clearChroma: Rgb = [rawClear[0] / rawLum, rawClear[1] / rawLum, rawClear[2] / rawLum];
 
   // --- Clouds: how much beam survives, on average, and how much energy the deck re-emits downward.
-  const stats = cloudStats(input.cloud, sinH);
+  // The sun's direction projected onto the cloud plane, for the self-shadow march.
+  const sunPlane: [number, number] =
+    direction[1] > 1e-3 ? [direction[0] / direction[1], direction[2] / direction[1]] : [1, 0];
+  const sunPlaneLen = Math.hypot(sunPlane[0], sunPlane[1]) || 1;
+  const stats = cloudStats(input.cloud, sinH, [sunPlane[0] / sunPlaneLen, sunPlane[1] / sunPlaneLen]);
   const beamHorizontal = scaleRgb(beamClear, stats.beamFactor * sinH);
-  const tTot = cloudTotalTransmittance(input.cloud.tau);
-  const tBeam = cloudBeamTransmittance(input.cloud.tau, sinH);
+  // The optical depth of a TYPICAL cloud, not of an imaginary one at full thickness. Once `taper`
+  // makes the thickness bleed to zero at the edges, `tau` alone would overstate the deck.
+  const tauEff = input.cloud.tau * (stats.meanThickness > 0 ? stats.meanThickness : 1);
+  const tTot = cloudTotalTransmittance(tauEff);
+  const tBeam = cloudBeamTransmittance(tauEff, sinH);
   const globalClear: Rgb = [0, 1, 2].map(
     (i) => beamClear[i] * sinH + clearChroma[i] * clearDhi,
   ) as Rgb;
@@ -513,7 +531,7 @@ export const computeLighting = (input: LightingInput): LightingState => {
     overcastZenithRadiance,
     clearChroma,
     clearDhi,
-    stats.fraction,
+    stats.planeThickness,
   );
 
   const horizontalIrradiance: Rgb = [0, 1, 2].map(
@@ -570,6 +588,8 @@ export const computeLighting = (input: LightingInput): LightingState => {
     horizontalIrradiance,
     cloudBeamFactor: stats.beamFactor,
     cloudFraction: stats.fraction,
+    cloudPlaneThickness: stats.planeThickness,
+    cloudShadeMean: stats.shadeMean,
     underwaterBeam,
     underwaterSky,
     exposure,

@@ -5,6 +5,9 @@ import {
   CLOUD_FIELD_GLSL,
   CLOUD_GENERA,
   CLOUD_GENUS_NAMES,
+  CLOUD_SCATTER_SHARE,
+  CLOUD_SHADOW_STEP_FEATURES,
+  CLOUD_SHADOW_TAPS,
   DEFAULT_GENUS,
   cloudStateFromGenus,
   cloudThreshold,
@@ -235,12 +238,17 @@ uniform float uShowSunDisc;
 uniform vec3 uOvercastZenith;
 uniform vec3 uGroundRadiance;
 uniform float uCloudTau;
-uniform float uCloudFraction;
+uniform float uCloudFraction; // the field's MEAN THICKNESS over the plane, not its covered fraction
 uniform float uCloudAltitude;
 uniform float uCloudThreshold;
 uniform float uCloudEdge;
+uniform float uCloudTaper;
+uniform float uCloudBillow;
+uniform float uCloudShear;
 uniform float uCloudFrequency;
 uniform vec2 uCloudOffset;
+uniform vec2 uCloudSunStep;   // sun direction on the cloud plane x one tap length, in METRES
+uniform float uCloudShadeMean;
 
 ${CLOUD_FIELD_GLSL}
 
@@ -312,7 +320,30 @@ void main() {
     float alpha = 1.0 - exp(-uCloudTau * thickness * path);
     // CIE Standard Overcast Sky: zenith is 3x the horizon, azimuthally uniform, no disc. Its zenith
     // radiance is set from the energy the deck actually transmits, so the picture and the light agree.
+    // That is the AMBIENT (multiply-scattered) half of a cloud's radiance.
     vec3 cloudRadiance = uOvercastZenith * ((1.0 + 2.0 * dy) / 3.0);
+
+    // SELF-SHADOW. March a few taps of the same noise along the sun's direction across the cloud
+    // plane and accumulate the thickness in the way. This is the single biggest step from "flat
+    // opaque smear" to "cumulus": a cloud's sun-facing side lights up and its far side goes dark,
+    // because something finally samples the cloud's own depth toward the sun.
+    vec2 planeUv = direction.xz * cloudDist;
+    float sunDepth = 0.0;
+    for (int i = 1; i <= ${CLOUD_SHADOW_TAPS}; i++) {
+      sunDepth += cloudThickness(planeUv + uCloudSunStep * float(i));
+    }
+    float sunTransmit = exp(-uCloudTau * (1.0 - ${CLOUD_ASYMMETRY.toFixed(4)}) * sunDepth * ${CLOUD_SHADOW_STEP_FEATURES.toFixed(4)});
+
+    // Henyey-Greenstein on the VIEW-SUN angle: forward scattering, so a cloud between you and the sun
+    // gets a silver lining. 4*pi*HG has a mean of 1 over the sphere, so this tilts the single-scatter
+    // lobe without adding energy.
+    float sunPhase = 4.0 * pi * hgPhase(dot(direction, uSunDiscDirection), 0.55);
+
+    // Ambient + single scatter, divided by the field's own spatial mean (measured on the CPU by
+    // cloudStats). The deck redistributes its radiance -- lit sides, dark sides -- without inventing
+    // or destroying any of the energy the light model already budgeted for it.
+    float shade = ${CLOUD_SCATTER_SHARE.toFixed(4)} + (1.0 - ${CLOUD_SCATTER_SHARE.toFixed(4)}) * sunTransmit * sunPhase;
+    cloudRadiance *= shade / uCloudShadeMean;
 
     // AERIAL PERSPECTIVE. The cloud is cloudDist metres away and the air between scatters: it dims the
     // cloud and fills in with airlight. Approximating the airlight by the clear-sky radiance in the
@@ -372,6 +403,9 @@ uniform float uCloudShadowSpan;
 uniform float uCloudExtinction; // tau * (1 - g) * slantPath, all folded into one scalar
 uniform float uCloudThreshold;
 uniform float uCloudEdge;
+uniform float uCloudTaper;
+uniform float uCloudBillow;
+uniform float uCloudShear;
 uniform float uCloudFrequency;
 uniform vec2 uCloudOffset;
 
@@ -475,8 +509,13 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uCloudAltitude: { value: 1200 },
     uCloudThreshold: { value: 1.001 },
     uCloudEdge: { value: 0.3 },
+    uCloudTaper: { value: 0.5 },
+    uCloudBillow: { value: 0 },
+    uCloudShear: { value: 1 },
     uCloudFrequency: { value: 0 },
     uCloudOffset: { value: new THREE.Vector2() },
+    uCloudSunStep: { value: new THREE.Vector2() },
+    uCloudShadeMean: { value: 1 },
   };
   const skyMaterial = new THREE.ShaderMaterial({
     name: "ShipwrightSky",
@@ -498,6 +537,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uCloudExtinction: { value: 0 },
     uCloudThreshold: { value: 1.001 },
     uCloudEdge: { value: 0.3 },
+    uCloudTaper: { value: 0.5 },
+    uCloudBillow: { value: 0 },
+    uCloudShear: { value: 1 },
     uCloudFrequency: { value: 0 },
     uCloudOffset: { value: new THREE.Vector2() },
   };
@@ -636,15 +678,29 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     skyUniforms.uOvercastZenith.value.set(...state.overcastZenithRadiance);
     skyUniforms.uGroundRadiance.value.set(...state.groundRadiance);
 
-    const threshold = cloudThreshold(cloud.coverage);
+    const threshold = cloudThreshold(cloud);
     const frequency = 1 / cloud.featureSize;
     skyUniforms.uCloudTau.value = cloud.tau;
-    skyUniforms.uCloudFraction.value = state.cloudFraction;
+    skyUniforms.uCloudFraction.value = state.cloudPlaneThickness;
     skyUniforms.uCloudAltitude.value = cloud.altitude;
     skyUniforms.uCloudThreshold.value = threshold;
     skyUniforms.uCloudEdge.value = cloud.edge;
+    skyUniforms.uCloudTaper.value = cloud.taper;
+    skyUniforms.uCloudBillow.value = cloud.billow;
+    skyUniforms.uCloudShear.value = cloud.shear;
     skyUniforms.uCloudFrequency.value = cloud.coverage > 0 ? frequency : 0;
     skyUniforms.uCloudOffset.value.set(cloudOffset[0], cloudOffset[1]);
+    skyUniforms.uCloudShadeMean.value = state.cloudShadeMean;
+    // The self-shadow march: one tap length along the sun's direction, projected onto the cloud
+    // plane. Same direction, same step, same units the CPU twin measured `shadeMean` with.
+    const sunPlaneX = sunDirection.y > 1e-3 ? sunDirection.x / sunDirection.y : 1;
+    const sunPlaneZ = sunDirection.y > 1e-3 ? sunDirection.z / sunDirection.y : 0;
+    const sunPlaneLen = Math.hypot(sunPlaneX, sunPlaneZ) || 1;
+    const stepLength = cloud.featureSize * CLOUD_SHADOW_STEP_FEATURES;
+    skyUniforms.uCloudSunStep.value.set(
+      (sunPlaneX / sunPlaneLen) * stepLength,
+      (sunPlaneZ / sunPlaneLen) * stepLength,
+    );
 
     // The cloud shadow pass, and the uniforms every lit material reads.
     const sinH = Math.sin(Math.max(elevation, 0) * DEG);
@@ -653,6 +709,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     cloudShadowUniforms.uCloudExtinction.value = cloud.tau * (1 - CLOUD_ASYMMETRY) * slant;
     cloudShadowUniforms.uCloudThreshold.value = threshold;
     cloudShadowUniforms.uCloudEdge.value = cloud.edge;
+    cloudShadowUniforms.uCloudTaper.value = cloud.taper;
+    cloudShadowUniforms.uCloudBillow.value = cloud.billow;
+    cloudShadowUniforms.uCloudShear.value = cloud.shear;
     cloudShadowUniforms.uCloudFrequency.value = frequency;
     cloudShadowUniforms.uCloudOffset.value.set(cloudOffset[0], cloudOffset[1]);
 
@@ -808,6 +867,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
       clouds.add(cloud, "altitude", 200, 12000, 50).listen().onChange(applyState);
       clouds.add(cloud, "featureSize", 200, 8000, 50).name("feature size (m)").listen().onChange(applyState);
       clouds.add(cloud, "edge", 0.02, 0.8, 0.01).name("edge softness").listen().onChange(applyState);
+      clouds.add(cloud, "taper", 0, 1, 0.01).name("edge taper").listen().onChange(applyState);
+      clouds.add(cloud, "billow", 0, 1, 0.01).name("billow (convective)").listen().onChange(applyState);
+      clouds.add(cloud, "shear", 0.05, 1, 0.01).name("wind shear").listen().onChange(applyState);
       clouds.close();
     },
     dispose: () => {
