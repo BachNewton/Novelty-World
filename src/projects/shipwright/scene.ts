@@ -95,6 +95,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // the sun climbs instead of blowing the frame to washed-white at noon off a fixed value.
   camera.position.set(-8, 2.5, 8); // low, aimed across the water toward the low sun
 
+  // The shared hook's 1 m default near plane is an ocean-scale value: in first person it slices
+  // through anything the sailor stands next to (a 0.5 m voxel is well inside it — press against a
+  // wall, look down, and you see through its faces into the block). His capsule radius is 0.3 m,
+  // so the plane must sit comfortably inside that. Cheap: depth is a 24-bit DepthTexture, and the
+  // SSR/absorption reconstruction reads `camera.near` straight off the camera (`setViewParams`).
+  camera.near = 0.1;
+  camera.updateProjectionMatrix();
+
   // Lighting is intentionally minimal — just enough to complement the water and
   // give the sun a specular glint. The env map (below) does most of the work.
   const hemiLight = new THREE.HemisphereLight(0x9fc5e8, 0x0a1a24, 0.5);
@@ -183,6 +191,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     if (gpuTimer) gpuTimer.span(name, fn);
     else fn();
   };
+
+  // Frames rendered since setup. Exposed on the debug API so an automated capture can wait on a
+  // real rendered frame instead of sleeping for a guessed number of milliseconds.
+  let frameCount = 0;
 
   // CPU seam timers for the benchmark render-prep split (docs/perf-handoff.md thread 1): the
   // wall-clock SUBMISSION cost of each pre-pass, as opposed to `gpuTimer`'s GPU-execution time.
@@ -963,6 +975,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.setSsrEnabled(on);
       syncGui();
     },
+    /** True once everything an automated capture depends on has settled: the async ripple normal map
+     *  has decoded. (The PMREM sky bake is synchronous inside `updateSun`, which runs during setup
+     *  before `__shipwright` is published, and the Rapier bodies are hidden for capture — so neither
+     *  needs waiting on.) Replaces a hardcoded sleep in `tools/shots.mjs`. */
+    isReady: () => ocean.isReady(),
+    /** Frames rendered since setup. A capture applies its scene state, then waits for this to advance,
+     *  which is the real event it needs — a rendered frame — rather than a guessed number of ms. */
+    frameCount: () => frameCount,
     // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
     hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
     // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
@@ -1056,6 +1076,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   return {
     onFrame: (delta) => {
+      frameCount++;
       // The benchmark drives its own deterministic clock/camera/passes — hand it the frame and
       // skip the normal interactive path entirely (see stepBenchmark). The shared hook still
       // runs the `main` render + gpuTimer.poll() after this returns.

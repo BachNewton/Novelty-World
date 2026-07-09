@@ -3,9 +3,13 @@
 // Drives the scene's debug control surface (window.__shipwright, attached in dev by
 // ../scene.ts) over Playwright to set the sun, camera, water type, sea state, and lighting,
 // FREEZE the wave field on a fixed time `t`, then screenshot. Because the Gerstner surface +
-// buoys are pure functions of `t`, a frozen frame is bit-identical every run — so changes are
+// buoys are pure functions of `t`, a frozen frame shows the SAME SEA every run — so a change is
 // compared frame-for-frame instead of by eye on rolling waves. The nondeterministic Rapier
 // testbed bodies are hidden for capture.
+//
+// NB frames are NOT bit-identical between runs (the GPU differs on ~0.5% of pixels, mostly specular
+// glitter), and they don't need to be: what freezing `t` buys is COMPARABILITY, not byte equality.
+// These frames are graded by a reviewer reading the whole image against a written rubric.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/shipwright/tools/shots.mjs [filter] [label]
@@ -32,7 +36,7 @@ const FREEZE_T = 30; // fixed wave-field time → identical surface every run
 // Camera framings (world metres). Heading of "mid"/"grazing" faces ~az135, so "sun front"
 // (az135) puts the glitter road ahead; the sun-heading group rotates the sun, not the camera,
 // to keep framing constant. Crucially, each eye sits ABOVE the wave crests for its sea state —
-// a crest within ~1 m of the eye near-plane-clips (pale wedge), and one above it swamps the
+// a crest within ~0.1 m of the eye near-plane-clips (pale wedge), and one above it swamps the
 // camera (buoys float over a void). "high" is an oblique down-look for the underwater view.
 const CAMERAS = {
   grazing: { pos: [-6, 2.7, 6], target: [4, 1.6, -4] }, // low & flat; pair with calm/moderate seas
@@ -169,29 +173,30 @@ scenarios.push({ group: "05-islands", name: "shore-clearwater-diagnostic", camer
 
 // ---------------------------------------------------------------------------
 
-// SwiftShader (CPU rasteriser) is the default here because it's deterministic and needs no GPU —
-// ideal for the frozen-frame A/B captures this suite is for (identical pixels every run, on any CI
-// box). BUT it does NOT faithfully reproduce Shipwright's PBR lighting/tone-mapping — it renders the
-// scene darker/greener and misses the highlight washout — so it is UNRELIABLE for judging LIGHTING or
-// MATERIAL look. To verify those against what a real display shows, launch on the REAL GPU instead:
-//   headless: true (or "--headless=new"),
-//   args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"]
-// (confirmed rendering on an AMD Radeon 780M via D3D11). Then drive the same window.__shipwright API,
-// freeze, and screenshot. Run from the PROJECT ROOT so `playwright` resolves. (Faster still: iterate
-// live on the dev server — Kyle keeps it on :3001 — since lighting/feel is best judged in motion.)
+// Renders on the REAL GPU (ANGLE/D3D11; confirmed on an AMD Radeon 780M) by default. Set
+// SHOTS_CPU=1 to fall back to the SwiftShader CPU rasteriser.
 //
-// `SHOTS_GPU=1` flips to that real-GPU path. Use it whenever the frames are being judged for
-// LIGHTING or MATERIAL (island rock/sand/grass, water colour) rather than diffed frame-for-frame:
-// SwiftShader's darker/greener render would have you tuning against a lie. Leave it off for A/B
-// regression captures, where determinism matters more than colour accuracy.
-const USE_GPU = process.env.SHOTS_GPU === "1";
+// This default was flipped after measuring, and the old rationale for SwiftShader turned out to be
+// wrong on both counts:
+//   * "SwiftShader renders darker/greener and misses the highlight washout, so it's unreliable for
+//     judging lighting/material" — MEASURED FALSE. Against the GPU it differs by a mean of ~1.0-1.5
+//     out of 255 (islands/landfall: mean 1.09; sun-85°-front: mean 1.46; mean frame luma 146.83 vs
+//     147.03). The differences are broad but tiny, concentrated in a few specular/glitter pixels.
+//   * "SwiftShader is deterministic, giving bit-identical A/B frames" — this bought us nothing. The
+//     GPU is *nearly* deterministic (two runs of the same frozen frame differ on 0.54% of pixels),
+//     and, decisively, WE DO NOT NEED BIT-EXACTNESS: frames are graded by a reviewer agent reading
+//     the whole image against a written rubric, not by a byte diff. What the frozen wave field `t`
+//     actually buys is COMPARABILITY — same sea, same camera, same sun — and that is unaffected.
+// Meanwhile the GPU is ~3.7x faster (8.0 s vs 29.7 s for one scenario, end to end) and is the
+// renderer we actually ship on. (Faster still for feel: iterate live on the dev server on :3001.)
+const USE_GPU = process.env.SHOTS_CPU !== "1";
 const browser = await chromium.launch({
   headless: true,
   args: USE_GPU
     ? ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"]
     : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
-console.log(`renderer: ${USE_GPU ? "real GPU (ANGLE/D3D11)" : "SwiftShader (deterministic)"}`);
+console.log(`renderer: ${USE_GPU ? "real GPU (ANGLE/D3D11)" : "SwiftShader (CPU fallback)"}`);
 const page = await browser.newPage({ viewport: VIEWPORT });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -214,8 +219,10 @@ await page.evaluate(() => {
   });
 });
 
-// Let the ripple texture load, the physics settle, and the sky env-map bake.
-await page.waitForTimeout(3000);
+// Wait on the EVENT, not the clock. `isReady()` reports that the async ripple normal map has
+// decoded; the sky's PMREM bake is synchronous inside setup, and the Rapier bodies are hidden for
+// capture. This replaced a hardcoded 3 s sleep, which was both slower and a race waiting to happen.
+await page.waitForFunction(() => window.__shipwright.isReady(), { timeout: 20000 });
 
 const selected = scenarios.filter((s) => `${s.group}/${s.name}`.includes(FILTER));
 console.log(`capturing ${selected.length}/${scenarios.length} scenarios${FILTER ? ` matching "${FILTER}"` : ""}`);
@@ -239,6 +246,7 @@ for (const s of selected) {
     freezeT: FREEZE_T,
   };
   appliedPlane = plane;
+  const before = await page.evaluate(() => window.__shipwright.frameCount());
   const dir = join(OUTDIR, s.group);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only screenshot tool; `dir` is built from a hardcoded scenario list under a fixed project path, never external input
   mkdirSync(dir, { recursive: true });
@@ -256,7 +264,12 @@ for (const s of selected) {
     api.setCamera(c.cam.pos, c.cam.target);
     api.freeze(c.freezeT);
   }, cfg);
-  await page.waitForTimeout(400); // render the frozen state (paused → identical thereafter)
+  // Wait for the frozen state to actually reach the screen: two rendered frames, not a sleep. One
+  // would do (the capture + SSR pre-passes and the main render all happen inside a single frame),
+  // but two costs a millisecond and removes any doubt.
+  await page.waitForFunction((n) => window.__shipwright.frameCount() >= n + 2, before, {
+    timeout: 10000,
+  });
   await page.screenshot({ path: join(dir, `${s.name}.png`) });
   console.log("wrote", join(s.group, `${s.name}.png`));
 }

@@ -78,6 +78,9 @@ export interface ParticleSample {
 
 export interface Ocean {
   mesh: THREE.Mesh;
+  /** True once the ripple normal map has decoded. Before that the surface renders visibly
+   *  differently, so an automated capture must wait on this rather than on a guessed timeout. */
+  isReady: () => boolean;
   /** Advance the surface to `time` seconds. Call once per frame. */
   update: (time: number) => void;
   /** Water height + normal at world (x, z) and `time` — mirrors the shader. */
@@ -616,7 +619,13 @@ export function createOcean(): Ocean {
   };
   const geometry = buildGeometry();
 
-  const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL);
+  // The ripple map loads asynchronously, and the water renders visibly differently before it
+  // arrives. Anything that wants a settled frame (the screenshot suite) must WAIT ON THIS, not on a
+  // guessed timeout.
+  let detailNormalsLoaded = false;
+  const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL, () => {
+    detailNormalsLoaded = true;
+  });
   detailNormals.wrapS = THREE.RepeatWrapping;
   detailNormals.wrapT = THREE.RepeatWrapping;
   // Max anisotropy: the ripple normal map is sampled at a hard grazing angle across the far
@@ -824,6 +833,7 @@ export function createOcean(): Ocean {
 
   return {
     mesh,
+    isReady: () => detailNormalsLoaded,
     update: (time) => {
       uniforms.uTime.value = time;
       // Scroll the ripple layers diagonally so the surface never looks static.
