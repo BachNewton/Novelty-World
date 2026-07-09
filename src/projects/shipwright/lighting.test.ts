@@ -15,7 +15,7 @@ import {
   sunSkyRatio,
   type LightingInput,
 } from "./lighting";
-import { luminance } from "./sky-model";
+import { clearSkyRadiance, luminance, sunTerms } from "./sky-model";
 import { CLOUD_GENERA, cloudStateFromGenus, cloudTotalTransmittance, type CloudGenusName } from "./clouds";
 
 const input = (over: Partial<LightingInput> = {}): LightingInput => ({
@@ -278,6 +278,40 @@ describe("the twilight seam", () => {
     const state = computeLighting(input({ elevationDeg: -6 }));
     expect(luminance(state.skyIrradiance)).toBeGreaterThan(0);
     expect(luminance(state.beamHorizontal)).toBe(0);
+  });
+
+  it("Earth's shadow kills the aerosol aureole long before it kills the Rayleigh glow", () => {
+    // z = R*(sec d - 1); lit fraction = exp(-z / H). Aerosol H = 1.2 km, air H = 8.4 km.
+    const terms = (h: number) => sunTerms(0, DEFAULT_SKY, (h * Math.PI) / 180);
+    expect(terms(0).litMie).toBe(1);
+    expect(terms(0).litRayleigh).toBe(1);
+    expect(terms(-2).litMie).toBeCloseTo(0.04, 2);
+    expect(terms(-2).litRayleigh).toBeCloseTo(0.63, 2);
+    expect(terms(-4).litMie).toBeLessThan(1e-5);
+    expect(terms(-4).litRayleigh).toBeCloseTo(0.156, 2);
+    expect(terms(-6).litRayleigh).toBeLessThan(0.02);
+    // ...which is precisely why the twilight sky is blue, not white.
+  });
+
+  it("so the sky's forward-scatter hot spot dies as the sun sets, and the sky blues", () => {
+    // The peak-to-zenith radiance ratio near the (frozen) sun position must COLLAPSE below 0,
+    // otherwise a chrome ball keeps reflecting a sun that has already set. A blind reviewer caught
+    // exactly that before this term existed.
+    const peakOverZenith = (h: number) => {
+      const t = sunTerms(0, DEFAULT_SKY, (h * Math.PI) / 180);
+      const aureole = luminance(clearSkyRadiance(Math.sin(0.02), Math.cos(0.02), t));
+      const zenith = luminance(clearSkyRadiance(1, 0, t));
+      return aureole / zenith;
+    };
+    expect(peakOverZenith(0)).toBeGreaterThan(5);
+    expect(peakOverZenith(-4)).toBeLessThan(peakOverZenith(0) / 2);
+    expect(peakOverZenith(-6)).toBeLessThan(peakOverZenith(-4));
+  });
+
+  it("never divides by zero when both scattering columns are fully shadowed", () => {
+    const t = sunTerms(0, DEFAULT_SKY, (-18 * Math.PI) / 180);
+    const l = clearSkyRadiance(0.5, 0.5, t);
+    expect(l.every((v) => Number.isFinite(v) && v >= 0)).toBe(true);
   });
 });
 

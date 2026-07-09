@@ -80,7 +80,10 @@ const GENERA = {
   cirrus: { name: "Cirrus", coverage: 0.45, tau: 0.35, altitude: 9000, featureSize: 4200, edge: 0.42, wind: [26, 7] },
   cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 900, edge: 0.1, wind: [7, 2] },
   stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, featureSize: 3000, edge: 0.55, wind: [5, 1] },
-  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 120, altitude: 900, featureSize: 2600, edge: 0.08, wind: [10, 3] },
+  // tau 250, not 120: measured, 120 put the base at only 2.3x darker than the clear sky beside it,
+  // where a real thunderhead's base is ~7-10x darker. Its two-stream transmittance then delivers
+  // ~14 W/m2 under the cell, which is the ~1500 lx a real Cb base actually passes.
+  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 250, altitude: 900, featureSize: 2600, edge: 0.08, wind: [10, 3] },
 } satisfies Record<string, CloudGenus>;
 
 /** The genera by name. Keyed by a real union rather than `string`, so a lookup is TOTAL and callers
@@ -318,9 +321,18 @@ export const cloudStats = (state: CloudState, sinH: number): CloudStats => {
  * Opacity of the cloud deck looking OUT along a view direction with `dirY = cos(zenith)`.
  * The dome shader computes exactly this; the CPU integral in `lighting.ts` calls it to measure how
  * much of the sky the cloud has replaced.
+ *
+ * NOTE the FULL `tau`, with no `(1 − g)`. The similarity transform belongs to the BEAM: a photon
+ * scattered forward by 2° is still, for all practical purposes, in the beam. It does not belong to
+ * how opaque a cloud looks against the sky behind it — there, any scattering event replaces the
+ * background's radiance with the cloud's own, so the full extinction applies.
+ *
+ * Getting this wrong made cirrus invisible: `tau = 0.35` with `(1 − g) = 0.2` is a similarity depth of
+ * 0.07, i.e. 7 % opacity, and a blind reviewer reported the cirrus frames as "a cloudless-looking sky".
+ * At full tau it is a 30 % veil, which is what a cirrus veil is.
  */
 export const cloudViewOpacity = (thickness: number, dirY: number, tau: number): number => {
   if (tau <= 0 || thickness <= 0) return 0;
   const path = Math.min(1 / Math.max(dirY, 0.05), MAX_SLAB_PATH);
-  return 1 - Math.exp(-tau * (1 - CLOUD_ASYMMETRY) * thickness * path);
+  return 1 - Math.exp(-tau * thickness * path);
 };

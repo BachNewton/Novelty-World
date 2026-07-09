@@ -13,6 +13,19 @@ export interface BloomOptions {
   strength?: number;
   radius?: number;
   threshold?: number;
+  /**
+   * Maximum luminance a single pixel may contribute to the bloom, in the scene's own linear units.
+   * Defaults to `Infinity` (three's stock behaviour).
+   *
+   * WHY IT EXISTS: `UnrealBloomPass` adds `strength × blur(highpass(colour))` with no bound. That is
+   * fine for LDR-ish content whose highlights sit at 2–5× white. It is catastrophic for a physically
+   * scaled scene, where a sun disc's radiance is `E / Ω` — several hundred times the sky — and one
+   * pixel of it blows the entire frame to white. A real lens spreads only a bounded fraction of a
+   * source's energy into its wide glare tail; the clamp is that bound. Hue is preserved (the colour is
+   * scaled, not clipped per channel), which is the whole point: it is what lets a warm sun keep its
+   * warmth in the glow around a clipping core.
+   */
+  clamp?: number;
 }
 
 export interface ThreeSceneOptions {
@@ -33,8 +46,18 @@ export interface ThreeSceneOptions {
    * bandwidth on weak/iGPU targets. Fixed at mount (WebGL context creation).
    */
   antialias?: boolean;
-  /** Render through an HDR bloom pipeline. `true` uses defaults; pass an object to tune. */
+  /**
+   * Render through an HDR bloom pipeline. `true` uses defaults; pass an object to tune. Can also be
+   * switched at runtime via `ctx.setBloom` — the composer is built on first enable and reused, and
+   * disabling it goes back to a direct `renderer.render`, so an A/B measures bloom's REAL cost rather
+   * than the cost of a composer that happens to be idle.
+   */
   bloom?: boolean | BloomOptions;
+  /**
+   * Tone-mapping operator (default `ACESFilmicToneMapping`). Live via `ctx.setToneMapping`.
+   * Changing it recompiles every material, which is fine for an A/B and not for a hot path.
+   */
+  toneMapping?: THREE.ToneMapping;
   /**
    * Allocate a render target with a colour texture **and** a depth texture, exposed
    * on the context as `sceneCapture`. A scene renders itself into it (typically
@@ -78,8 +101,21 @@ export interface ThreeSceneContext {
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   container: HTMLDivElement;
-  /** Present when the `bloom` option is enabled, so a scene can add UI to tune it. */
-  bloomPass?: UnrealBloomPass;
+  /** The bloom pass, once bloom has been enabled at least once. Tune `strength` / `radius` /
+   *  `threshold` on it directly. NB `threshold` is applied to the UNEXPOSED linear image, so a scene
+   *  with auto-exposure must scale it by `1 / toneMappingExposure` or the whole sky will bloom at dusk. */
+  bloomPass: () => UnrealBloomPass | undefined;
+  /** Turn the HDR bloom pipeline on or off. Off means no composer at all. */
+  setBloom: (enabled: boolean) => void;
+  isBloomEnabled: () => boolean;
+  /**
+   * Set the bloom's prefilter. A scene with auto-exposure must call this whenever the exposure moves:
+   * bloom sees the UNEXPOSED linear image, while "bright" is a statement about the display, so both
+   * `threshold` and `clamp` are display-space numbers divided by the exposure. No-op without bloom.
+   */
+  setBloomPrefilter: (prefilter: { threshold: number; clamp: number; smoothWidth?: number }) => void;
+  /** Swap the tone-mapping operator. Recompiles materials. */
+  setToneMapping: (mode: THREE.ToneMapping) => void;
   /** Present when the `sceneCapture` option is enabled — a colour+depth scene target. */
   sceneCapture?: SceneCapture;
   /**
@@ -123,6 +159,38 @@ export interface ThreeSceneHandlers {
 }
 
 /**
+ * Add a hue-preserving energy clamp to `UnrealBloomPass`'s luminosity high-pass.
+ *
+ * Everything except the two marked lines is three's own `LuminosityHighPassShader`. We cannot subclass
+ * our way to this: the material is built in the constructor from a module-private shader object.
+ */
+const patchBloomPrefilter = (pass: UnrealBloomPass, clamp: number): void => {
+  const material = pass.materialHighPassFilter;
+  material.uniforms.bloomClamp = { value: clamp };
+  material.fragmentShader = /* glsl */ `
+    uniform sampler2D colorTexture;
+    uniform vec3 defaultColor;
+    uniform float defaultOpacity;
+    uniform float luminosityThreshold;
+    uniform float smoothWidth;
+    uniform float bloomClamp;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 texel = texture2D( colorTexture, vUv );
+      float v = dot( texel.xyz, vec3( 0.299, 0.587, 0.114 ) );
+      vec4 outputColor = vec4( defaultColor.rgb, defaultOpacity );
+      float alpha = smoothstep( luminosityThreshold, luminosityThreshold + smoothWidth, v );
+      // Bound the energy one pixel may pour into the glare tail, WITHOUT clipping its hue: scale the
+      // whole colour, so a 1.84 : 1 : 0.21 sunset sun still glows orange rather than white.
+      vec3 bounded = texel.xyz * min( 1.0, bloomClamp / max( v, 1e-8 ) );
+      gl_FragColor = mix( outputColor, vec4( bounded, texel.a ), alpha );
+    }
+  `;
+  material.needsUpdate = true;
+};
+
+/**
  * Mounts a vanilla three.js renderer into a container `<div>` and drives its
  * whole lifecycle from React: it creates the `WebGLRenderer` + a
  * `PerspectiveCamera`, runs the animation loop, keeps the drawing buffer sized
@@ -149,6 +217,7 @@ export function useThreeScene(
   const gpuStatsRef = useRef(options.gpuStats ?? false);
   const antialiasRef = useRef(options.antialias ?? true);
   const bloomRef = useRef(options.bloom ?? false);
+  const toneMappingRef = useRef(options.toneMapping ?? THREE.ACESFilmicToneMapping);
   const sceneCaptureRef = useRef(options.sceneCapture ?? false);
   const maxPixelRatioRef = useRef(options.maxPixelRatio ?? 2);
 
@@ -164,7 +233,7 @@ export function useThreeScene(
     const renderer = new THREE.WebGLRenderer({ antialias: antialiasRef.current });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMapping = toneMappingRef.current;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -175,15 +244,21 @@ export function useThreeScene(
       20000,
     );
 
-    // Optional HDR bloom pipeline. Rendering through an EffectComposer backed by
-    // a HalfFloat + multisampled target keeps the very bright sun in HDR, so
-    // bloom turns it into a glow instead of clipping to white; the final
-    // OutputPass applies the renderer's tone mapping + exposure and sRGB encode.
+    // Optional HDR bloom pipeline. Rendering through an EffectComposer backed by a HalfFloat +
+    // multisampled target keeps the very bright sun in HDR, so bloom turns it into a coloured glow
+    // instead of clipping to white; the final OutputPass applies the renderer's tone mapping +
+    // exposure and the sRGB encode.
+    //
+    // Built lazily and kept, so `setBloom(false)` really is "no composer" — the honest baseline for a
+    // GPU-cost A/B. NB three renders with NoToneMapping into a render target, so the whole scene
+    // arrives at the OutputPass in linear HDR: exactly what bloom needs, and why the water's composite
+    // had to move out of display space first.
     const bloomOption = bloomRef.current;
     let composer: EffectComposer | undefined;
     let bloomPass: UnrealBloomPass | undefined;
-    if (bloomOption) {
-      const settings = bloomOption === true ? {} : bloomOption;
+    const buildComposer = () => {
+      if (composer) return;
+      const settings = typeof bloomOption === "object" ? bloomOption : {};
       const size = new THREE.Vector2(container.clientWidth, container.clientHeight);
       const target = new THREE.WebGLRenderTarget(size.x, size.y, {
         type: THREE.HalfFloatType,
@@ -198,10 +273,37 @@ export function useThreeScene(
         settings.radius ?? 0.4,
         settings.threshold ?? 0.9,
       );
+      patchBloomPrefilter(bloomPass, settings.clamp ?? Infinity);
       composer.addPass(new RenderPass(scene, camera));
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
-    }
+    };
+    let bloomEnabled = bloomOption !== false;
+    if (bloomEnabled) buildComposer();
+    const setBloom = (enabled: boolean) => {
+      if (enabled) buildComposer();
+      bloomEnabled = enabled;
+    };
+    const setBloomPrefilter = ({
+      threshold,
+      clamp,
+      smoothWidth,
+    }: {
+      threshold: number;
+      clamp: number;
+      smoothWidth?: number;
+    }) => {
+      if (!bloomPass) return;
+      bloomPass.threshold = threshold;
+      // `highPassUniforms` is typed `object` by @types/three; the material owns the same object with a
+      // usable type.
+      const uniforms = bloomPass.materialHighPassFilter.uniforms;
+      uniforms.luminosityThreshold.value = threshold;
+      // The stock smoothWidth is an ABSOLUTE 0.01, which swamps a threshold that tracks a large
+      // exposure. Make it relative to the threshold so the knee has the same softness at any exposure.
+      uniforms.smoothWidth.value = smoothWidth ?? threshold * 0.5;
+      uniforms.bloomClamp.value = clamp;
+    };
 
     // Optional colour+depth scene capture for screen-space effects (SSR,
     // refraction, depth). Sized to the drawing buffer × resolutionScale; shaders
@@ -251,7 +353,13 @@ export function useThreeScene(
       camera,
       renderer,
       container,
-      bloomPass,
+      bloomPass: () => bloomPass,
+      setBloom,
+      isBloomEnabled: () => bloomEnabled,
+      setBloomPrefilter,
+      setToneMapping: (mode) => {
+        renderer.toneMapping = mode;
+      },
       sceneCapture,
       gpuTimer,
       setPixelRatio,
@@ -270,7 +378,7 @@ export function useThreeScene(
     // Uses the Page Visibility API to avoid a huge delta when the tab regains focus.
     timer.connect(document);
     const renderMain = (d: number) => {
-      if (composer) composer.render(d);
+      if (bloomEnabled && composer) composer.render(d);
       else renderer.render(scene, camera);
     };
     // Frame-rate cap: render 1 of every `frameStride` vsync callbacks (even cadence).

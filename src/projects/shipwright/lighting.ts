@@ -291,11 +291,15 @@ export const skyShapeElevation = (elevationDeg: number): number => Math.max(elev
 
 let rawCacheKey = "";
 let rawCacheValue: Rgb = [0, 0, 0];
-const rawClearSkyIrradiance = (shapeElevationDeg: number, params: SkyParams): Rgb => {
-  const key = `${shapeElevationDeg.toFixed(3)}|${params.turbidity}|${params.rayleigh}|${params.mieCoefficient}|${params.mieDirectionalG}`;
+const rawClearSkyIrradiance = (
+  shapeElevationDeg: number,
+  trueElevationDeg: number,
+  params: SkyParams,
+): Rgb => {
+  const key = `${shapeElevationDeg.toFixed(3)}|${trueElevationDeg.toFixed(3)}|${params.turbidity}|${params.rayleigh}|${params.mieCoefficient}|${params.mieDirectionalG}`;
   if (key !== rawCacheKey) {
     rawCacheKey = key;
-    rawCacheValue = clearSkyIrradiance(shapeElevationDeg * DEG, params);
+    rawCacheValue = clearSkyIrradiance(shapeElevationDeg * DEG, params, trueElevationDeg * DEG);
   }
   return rawCacheValue;
 };
@@ -388,7 +392,7 @@ const integrateDome = (
   if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) return scaleRgb(clearChroma, clearDhi);
 
   const shapeElRad = skyShapeElevation(input.elevationDeg) * DEG;
-  const terms = sunTerms(shapeElRad, input.sky);
+  const terms = sunTerms(shapeElRad, input.sky, input.elevationDeg * DEG);
   const sunHoriz = Math.cos(shapeElRad);
   const threshold = cloudThreshold(input.cloud.coverage);
   const out: Rgb = [0, 0, 0];
@@ -470,7 +474,7 @@ export const computeLighting = (input: LightingInput): LightingState => {
   const beamClear = beamIrradiance(elevationDeg);
 
   // --- The clear dome: Preetham's shape + chromaticity, the irradiance model's energy.
-  const rawClear = rawClearSkyIrradiance(shapeEl, input.sky);
+  const rawClear = rawClearSkyIrradiance(shapeEl, elevationDeg, input.sky);
   const rawLum = Math.max(luminance(rawClear), 1e-12);
   const clearDhi = clearSkyDhi(elevationDeg);
   const domeScale = clearDhi / rawLum;

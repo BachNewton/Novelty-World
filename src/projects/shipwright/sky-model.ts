@@ -67,6 +67,36 @@ const hgPhase = (cosTheta: number, g: number): number => {
   return (ONE_OVER_FOUR_PI * (1 - g2)) / Math.pow(1 - 2 * g * cosTheta + g2, 1.5);
 };
 
+// --- Earth's shadow, and why twilight goes blue ------------------------------
+// When the sun is `d` degrees below the horizon, the air along a horizontal line of sight is in the
+// planet's shadow up to a height `z = R·(sec d − 1)`. Only the air ABOVE that still scatters direct
+// sunlight toward you, so the in-scattering source is attenuated by the fraction of each scatterer's
+// column that remains lit: `exp(−z / H)`.
+//
+// The two scale heights differ by 7x, and that is the whole story of twilight:
+//
+//   depression | shadow z | aerosol lit (H=1.2 km) | air lit (H=8.4 km)
+//        0.5°  |  0.24 km |          0.82          |       0.97
+//        1°    |  0.97 km |          0.45          |       0.89
+//        2°    |  3.9 km  |          0.04          |       0.63
+//        4°    | 15.6 km  |          ~0            |       0.16
+//        6°    | 35 km    |           0            |       0.015
+//
+// The aerosol dies almost at once, taking Preetham's sharp forward-scattering AUREOLE with it; the
+// Rayleigh glow lingers, broad and blue. That is why the sunset's hot white spot becomes a wide blue
+// twilight arch — and why, before this term existed, a chrome ball still reflected a sun-shaped
+// highlight at −6°, which a blind reviewer immediately (and rightly) called out.
+const EARTH_RADIUS_KM = 6371;
+const RAYLEIGH_SCALE_HEIGHT_KM = 8.4;
+const MIE_SCALE_HEIGHT_KM = 1.2;
+
+/** Fraction of a scatterer's column, of scale height `scaleHeightKm`, still lit by the direct beam. */
+const sunlitFraction = (elevationRad: number, scaleHeightKm: number): number => {
+  if (elevationRad >= 0) return 1;
+  const shadowKm = EARTH_RADIUS_KM * (1 / Math.cos(elevationRad) - 1);
+  return Math.exp(-shadowKm / scaleHeightKm);
+};
+
 /** The per-sun-position terms Preetham hoists into its vertex shader. Build once per sun move. */
 export interface SunTerms {
   betaR: Rgb;
@@ -75,11 +105,23 @@ export interface SunTerms {
   /** `sin(elevation)` of the sun the dome's SHAPE is evaluated at. */
   sunY: number;
   g: number;
+  /** Sunlit fraction of the Rayleigh / Mie columns. 1 above the horizon. See `sunlitFraction`. */
+  litRayleigh: number;
+  litMie: number;
 }
 
-export const sunTerms = (sunElevationRad: number, p: SkyParams): SunTerms => {
+/**
+ * @param shapeElevationRad the elevation the dome's SHAPE is evaluated at — clamped to the horizon.
+ * @param trueElevationRad  the sun's real elevation, which may be below it. Only the shadow term
+ *                          uses this; everything else is frozen at the sunset geometry.
+ */
+export const sunTerms = (
+  shapeElevationRad: number,
+  p: SkyParams,
+  trueElevationRad = shapeElevationRad,
+): SunTerms => {
   const mie = totalMie(p.turbidity);
-  const sunY = Math.sin(sunElevationRad);
+  const sunY = Math.sin(shapeElevationRad);
   return {
     // `vSunfade` is 1 for a unit sun vector (three's own usage), so the rayleigh coefficient reduces
     // to `rayleigh` and the `- (1 - vSunfade)` term drops out. Deliberately not ported.
@@ -92,6 +134,8 @@ export const sunTerms = (sunElevationRad: number, p: SkyParams): SunTerms => {
     sunE: sunIntensity(sunY),
     sunY,
     g: p.mieDirectionalG,
+    litRayleigh: sunlitFraction(trueElevationRad, RAYLEIGH_SCALE_HEIGHT_KM),
+    litMie: sunlitFraction(trueElevationRad, MIE_SCALE_HEIGHT_KM),
   };
 };
 
@@ -116,8 +160,11 @@ export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): R
   for (let i = 0; i < 3; i++) {
     const bR = t.betaR[i];
     const bM = t.betaM[i];
+    // Extinction along the VIEW path — unaffected by where the sun is.
     const fex = Math.exp(-(bR * sR + bM * sM));
-    const ratio = (bR * rPhase + bM * mPhase) / (bR + bM);
+    // In-scattering SOURCE — only the sunlit part of each column contributes. Numerator only: the
+    // denominator is the total scattering coefficient, which does not care about the sun.
+    const ratio = (t.litRayleigh * bR * rPhase + t.litMie * bM * mPhase) / (bR + bM);
     let lin = Math.pow(t.sunE * ratio * (1 - fex), 1.5);
     lin *= 1 + (Math.pow(t.sunE * ratio * fex, 0.5) - 1) * horizonMix;
     out[i] = lin + 0.1 * fex;
@@ -148,9 +195,13 @@ const MU_STEPS = 64;
  * `E = ∫ L(ω)·cos θ dω`, midpoint rule in `(φ, μ = cos θ)`. Raw Preetham units.
  * The solar disc is excluded (see `clearSkyRadiance`).
  */
-export const clearSkyIrradiance = (sunElevationRad: number, p: SkyParams): Rgb => {
-  const t = sunTerms(sunElevationRad, p);
-  const sunHoriz = Math.cos(sunElevationRad);
+export const clearSkyIrradiance = (
+  shapeElevationRad: number,
+  p: SkyParams,
+  trueElevationRad = shapeElevationRad,
+): Rgb => {
+  const t = sunTerms(shapeElevationRad, p, trueElevationRad);
+  const sunHoriz = Math.cos(shapeElevationRad);
   const out: Rgb = [0, 0, 0];
   for (let m = 0; m < MU_STEPS; m++) {
     const mu = (m + 0.5) / MU_STEPS; // cos(zenith) of the sample direction

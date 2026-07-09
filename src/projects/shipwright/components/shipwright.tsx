@@ -16,6 +16,10 @@ export function Shipwright() {
     // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
     // edge-bleed, for only a VRAM/bandwidth cost.
     sceneCapture: { resolutionScale: 1 },
+    // HDR bloom, off at mount. `scene.ts` can switch it live (Environment -> Display) and the
+    // tonemap x bloom experiment drives it over the debug API. Strength/radius are the values that
+    // survived that experiment; the exposure-tracking threshold + energy clamp live in `scene.ts`.
+    bloom: { strength: 0.35, radius: 0.55 },
     // MSAA on: even though the device-ratio render scale supersamples, MSAA still
     // visibly cleans up geometry edges (the horizon, object silhouettes) that
     // supersampling alone leaves faintly aliased. It only samples coverage/depth, not

@@ -225,6 +225,8 @@ uniform vec3 uBetaM;
 uniform float uSunE;
 uniform float uSunShapeY;
 uniform float uMieG;
+uniform float uLitRayleigh; // fraction of each scatterer's column still lit by the direct beam --
+uniform float uLitMie;      // 1 above the horizon, and the reason twilight goes blue (sky-model.ts)
 uniform float uDomeScale;
 uniform vec3 uSunDiscRadiance;
 uniform float uSunDiscCosInner;
@@ -270,7 +272,12 @@ void main() {
   float cosTheta = dot(direction, uSunShapeDirection);
   float rPhase = rayleighPhase(cosTheta * 0.5 + 0.5);
   float mPhase = hgPhase(cosTheta, uMieG);
-  vec3 ratio = (uBetaR * rPhase + uBetaM * mPhase) / (uBetaR + uBetaM);
+  // In-scattering SOURCE: only the sunlit part of each column contributes. Numerator only -- the
+  // denominator is the total scattering coefficient, which does not care where the sun is. Below the
+  // horizon the aerosol column goes dark almost at once (scale height 1.2 km) and takes the sharp
+  // forward-scattering aureole with it, while the Rayleigh column (8.4 km) lingers: sunset's hot white
+  // spot becomes a wide blue twilight arch, and a chrome ball stops reflecting a sun that has set.
+  vec3 ratio = (uLitRayleigh * uBetaR * rPhase + uLitMie * uBetaM * mPhase) / (uBetaR + uBetaM);
 
   vec3 Lin = pow(uSunE * ratio * (1.0 - Fex), vec3(1.5));
   Lin *= mix(vec3(1.0), pow(uSunE * ratio * Fex, vec3(0.5)), clamp(pow(1.0 - uSunShapeY, 5.0), 0.0, 1.0));
@@ -297,8 +304,12 @@ void main() {
     // MEAN rather than toward zero -- otherwise an overcast sky opens into clear blue at the horizon.
     thickness = mix(uCloudFraction, thickness, smoothstep(0.0, 0.10, dy));
 
+    // FULL tau here, no similarity transform: (1 - g) belongs to the BEAM (a photon scattered 2 deg
+    // forward is still in the beam), not to how opaque a cloud looks against the sky behind it. See
+    // clouds.ts cloudViewOpacity -- with (1 - g) applied, cirrus at tau 0.35 was 7% opaque and simply
+    // invisible.
     float path = min(1.0 / max(dy, 0.05), 38.0);
-    float alpha = 1.0 - exp(-uCloudTau * (1.0 - ${CLOUD_ASYMMETRY.toFixed(4)}) * thickness * path);
+    float alpha = 1.0 - exp(-uCloudTau * thickness * path);
     // CIE Standard Overcast Sky: zenith is 3x the horizon, azimuthally uniform, no disc. Its zenith
     // radiance is set from the energy the deck actually transmits, so the picture and the light agree.
     vec3 cloudRadiance = uOvercastZenith * ((1.0 + 2.0 * dy) / 3.0);
@@ -450,6 +461,8 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uSunE: { value: 0 },
     uSunShapeY: { value: 0 },
     uMieG: { value: DEFAULT_SKY.mieDirectionalG },
+    uLitRayleigh: { value: 1 },
+    uLitMie: { value: 1 },
     uDomeScale: { value: 1 },
     uSunDiscRadiance: { value: new THREE.Vector3() },
     uSunDiscCosInner: { value: Math.cos(0.267 * DEG) },
@@ -606,8 +619,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     // would recompile every material (NUM_DIR_LIGHTS changes). Intensity 0 costs a multiply.
     syncSunShadow();
 
-    // The dome.
-    const terms = sunTerms(skyShapeElevation(elevation) * DEG, skyParams);
+    // The dome. `sunTerms` takes BOTH the frozen shape elevation and the true one: the shape is
+    // clamped at the horizon (Preetham is undefined below it) while Earth's shadow keeps rising.
+    const terms = sunTerms(skyShapeElevation(elevation) * DEG, skyParams, elevation * DEG);
     skyUniforms.uSunShapeDirection.value.copy(shapeDirection);
     skyUniforms.uSunDiscDirection.value.copy(sunDirection);
     skyUniforms.uBetaR.value.set(...terms.betaR);
@@ -615,6 +629,8 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     skyUniforms.uSunE.value = terms.sunE;
     skyUniforms.uSunShapeY.value = terms.sunY;
     skyUniforms.uMieG.value = skyParams.mieDirectionalG;
+    skyUniforms.uLitRayleigh.value = terms.litRayleigh;
+    skyUniforms.uLitMie.value = terms.litMie;
     skyUniforms.uDomeScale.value = state.domeScale;
     skyUniforms.uSunDiscRadiance.value.set(...(sun ? sun.discRadiance : ([0, 0, 0] as Rgb)));
     skyUniforms.uOvercastZenith.value.set(...state.overcastZenithRadiance);

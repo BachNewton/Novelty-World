@@ -67,6 +67,16 @@ interface BenchmarkRun {
   resolve: (result: BenchmarkResult) => void;
 }
 
+/** The tone-mapping operators the 2x2 experiment compares. ACES desaturates bright highlights hard,
+ *  which is why a correctly-warm low sun clips to flat white; AgX holds hue much further up. */
+const TONE_MAPPINGS = {
+  ACES: THREE.ACESFilmicToneMapping,
+  AgX: THREE.AgXToneMapping,
+} as const;
+type ToneMappingName = keyof typeof TONE_MAPPINGS;
+/** Narrow a name that arrived from the GUI or the debug API, so the lookup below is total. */
+const isToneMapping = (name: string): name is ToneMappingName => name in TONE_MAPPINGS;
+
 // Debug probe grid: bright dots placed at the CPU-sampled surface height, the
 // same way the buoys are sampled. Overlaid on the wireframe ocean, they reveal
 // whether the CPU wave field matches the GPU-rendered surface.
@@ -298,7 +308,30 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // clouds, the atmosphere dials, the benchmark. The downwelling veil is now DERIVED: the
   // Fresnel-transmitted beam plus skylight, just below the surface. `veilForSun` and its "perceptual
   // choices (not derived)" comment are both gone.
-  daylight.onState((light) => ocean.setDownwelling(light.underwaterBeam, light.underwaterSky));
+  // Bloom's high-pass runs on the UNEXPOSED linear image (the OutputPass exposes afterwards), while
+  // "bright" is a statement about the DISPLAY. So both numbers below are DISPLAY-space and get divided
+  // by the exposure, which ranges over 300x across a day.
+  //
+  // BLOOM_KNEE is the post-exposure luminance at which ACES has rolled off toward white: above it a
+  // pixel is on its way to clipping, and belongs in a coloured glow instead.
+  //
+  // BLOOM_CLAMP is the bound on how much energy ONE pixel may pour into the glare tail. Without it the
+  // first frame of this experiment was a solid white rectangle: a physically scaled sun disc has
+  // radiance E/Omega, several hundred times the sky, and `strength * blur(highpass)` is unbounded. A
+  // real lens spreads only a bounded fraction of a source into its wide tail. 8x display white keeps a
+  // blazing core, a wide warm glow, and a sea that is still visible around it.
+  const BLOOM_KNEE = 1.3;
+  const BLOOM_CLAMP = 8;
+  const applyBloomThreshold = (exposure: number) => {
+    const e = Math.max(exposure, 1e-6);
+    ctx.setBloomPrefilter({ threshold: BLOOM_KNEE / e, clamp: BLOOM_CLAMP / e });
+  };
+
+  // `onState` fires immediately on subscribe, so everything it calls must already exist.
+  daylight.onState((light) => {
+    ocean.setDownwelling(light.underwaterBeam, light.underwaterSky);
+    applyBloomThreshold(light.exposure);
+  });
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -437,6 +470,29 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   performance.add(debug, "capture").name("scene capture");
+  // The tonemap x bloom 2x2 (docs/LIGHTING.md). Both are live so they can be A/B'd in one warm
+  // session; switching either recompiles materials, which is fine here and nowhere near a hot path.
+  const display: { toneMapping: string; bloom: boolean } = { toneMapping: "ACES", bloom: ctx.isBloomEnabled() };
+  const displayFolder = environment.addFolder("Display");
+  displayFolder
+    .add(display, "toneMapping", Object.keys(TONE_MAPPINGS))
+    .name("tonemap")
+    .onChange((name: string) => {
+      if (isToneMapping(name)) ctx.setToneMapping(TONE_MAPPINGS[name]);
+    });
+  displayFolder.add(display, "bloom").onChange((on: boolean) => {
+    ctx.setBloom(on);
+    applyBloomThreshold(daylight.state().exposure);
+  });
+  const bloomTuning = { strength: 0.5, radius: 0.4 };
+  displayFolder.add(bloomTuning, "strength", 0, 2, 0.01).onChange((v: number) => {
+    const pass = ctx.bloomPass();
+    if (pass) pass.strength = v;
+  });
+  displayFolder.add(bloomTuning, "radius", 0, 1, 0.01).onChange((v: number) => {
+    const pass = ctx.bloomPass();
+    if (pass) pass.radius = v;
+  });
 
   // --- Debug: diagnostics + overlays only -------------------------------------
   debugFolder
@@ -762,6 +818,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       daylight.setAdaptationFloorLux(lux);
       syncGui();
     },
+    // The tonemap x bloom 2x2. Both re-derive the bloom threshold from the current exposure.
+    setToneMapping: (name: string) => {
+      if (!isToneMapping(name)) return;
+      ctx.setToneMapping(TONE_MAPPINGS[name]);
+      syncGui();
+    },
+    setBloom: (on: boolean) => {
+      ctx.setBloom(on);
+      applyBloomThreshold(daylight.state().exposure);
+      syncGui();
+    },
+    setBloomTuning: (opts: { strength?: number; radius?: number }) => {
+      const pass = ctx.bloomPass();
+      if (!pass) return;
+      if (opts.strength !== undefined) pass.strength = opts.strength;
+      if (opts.radius !== undefined) pass.radius = opts.radius;
+    },
     /**
      * Measure the sun:sky irradiance ratio on the real GPU, with each source isolated, by rendering
      * a diffuse card into a linear HalfFloat target. Nothing is tone-mapped there (three only
@@ -817,6 +890,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     frameCount: () => frameCount,
     // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
     hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
+    /** Last per-pass GPU times, ms. `total` is the sum of the passes this scene runs. Used by the
+     *  tonemap x bloom experiment to price each cell of the 2x2 in one warm session. */
+    gpuTimings: () => {
+      const g = gpuTimer?.values();
+      const cloud = g?.get("cloud") ?? 0;
+      const capture = g?.get("capture") ?? 0;
+      const ssr = ocean.isSsrEnabled() ? (g?.get("ssr") ?? 0) : 0;
+      const main = g?.get("main") ?? 0;
+      return { cloud, capture, ssr, main, total: cloud + capture + ssr + main };
+    },
     // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
     // Applies the run's global cost settings, forces stride 1 (never skip a flight frame), and
     // hides non-flight objects for a clean, consistent scene. See tools/bench.mjs.
