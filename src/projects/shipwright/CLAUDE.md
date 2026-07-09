@@ -154,9 +154,13 @@ code that floats the ship agree on where the surface is.
   then samples) — NOT inline in the water fragment; the low-res reflection is
   re-distorted at full res by the ripple normal map (+ the analytic wave slope) at sample time.
   The depth absorption rides the per-pixel wave normal, so it tracks the displaced waves.
-  Composited **after `<tonemapping_fragment>`** because the captured colour is
-  tone-mapped (three tone-maps in-material regardless of render target) — matching
-  spaces avoids a double tone-map.
+  Composited **before `<tonemapping_fragment>`, in linear HDR.** (This reverses an
+  earlier claim that three tone-maps in-material regardless of render target. It does
+  not: `WebGLPrograms.getParameters` sets `toneMapping = NoToneMapping` unless
+  `currentRenderTarget === null`. The capture was ALWAYS linear, and the old code
+  composited it into an already-tone-mapped base -- a real bug that looked plausible
+  because both sat near [0,1]. See `docs/lighting-log.md`.) The SSR target is
+  HalfFloat for the same reason; at 8 bits every reflected highlight clamped to 1.0.
 - **Why SSR, not planar reflection (a hard-won decision).** Planar reflection
   (mirror camera + `textureMatrix`, three's `Water`/`Reflector`) is **fundamentally
   incompatible with a vertex-displaced surface**, and we proved it the slow way:
@@ -176,16 +180,30 @@ code that floats the ship agree on where the surface is.
   - Distortion is driven by the **world** wave normal (0 on flat water → clean; grows
     with chop → the sea scatters its own reflection). Do NOT use the view-space
     `normal.xy` for distortion — it's nonzero even on flat water and shifts everything.
-- **Lighting is intentionally simple** right now (a hemisphere fill + a
-  directional sun aligned with the sky) so it complements the water without being
-  a thing to troubleshoot. Beautify later. The env map is the water's sky reflection
-  (correct on the displaced surface — it reflects per-pixel by the real normal) and
-  the SSR fallback; `material.envMapIntensity` tunes it in `ocean.ts`.
-- **Bloom is parked.** The shared hook still supports `{ bloom: true }` (HDR
-  `EffectComposer`: HalfFloat+MSAA → `RenderPass` → `UnrealBloomPass` →
-  `OutputPass`, exposing the pass on the scene context), but Shipwright currently
-  runs without it while we focus on the water. Re-enable for a tasteful sun glow
-  once the sea is dialled in.
+- **Lighting is ONE PHYSICAL MODEL, with no per-material exceptions.** `lighting.ts`
+  (pure physics, unit-tested), `sky-model.ts` (its CPU twin of the dome's GLSL),
+  `clouds.ts` (one cloud field) and `sky.ts` (the three.js side). Air mass ->
+  Meinel & Meinel beam -> Haurwitz diffuse -> the measured twilight table; clouds by
+  two-stream optical depth tau. Exposure is a real photographic meter on the scene's
+  own irradiance. See `docs/LIGHTING.md` (the brief) and `docs/lighting-log.md`
+  (what landed, what was measured, what is still wrong).
+  - **Never add a per-material lighting exception.** The env-scale property must
+    stay absent from source: if an object looks wrong, the MODEL is wrong.
+  - **Cloud shadows reach every lit material through ONE global override of three's
+    `lights_fragment_begin` ShaderChunk** (`sky.ts` `installGlobalLighting`). It
+    multiplies ALL directional lights, so a moon added later is shadowed for free.
+  - **Do not divide by the sun's intensity anywhere.** `sources` is a list; at
+    -18 degrees it is empty and everything must still work.
+  - The env map is the water's sky reflection (correct on the displaced surface --
+    it reflects per-pixel by the real normal) and the SSR fallback. It is baked
+    WITHOUT the sun's disc: the `DirectionalLight` already carries the beam.
+- **Tone mapping is AgX; bloom is built and OFF.** Settled by the 2x2 in
+  `docs/LIGHTING.md`, graded blind. ACES desaturates a highlight *before* it clips,
+  so the 4-degree sun-glitter road renders neutral silver; AgX renders the same pixels
+  gold, for 0.37 ms (noise). Bloom then spreads an already-white pixel into a white
+  halo, and as tuned it washes out the very hero frames it was meant to save -- it
+  costs +3.7 ms with an MSAA HDR target, of which only 1.2 ms is the blur and the rest
+  is the resolve. Live switches: Environment -> Display. See `docs/lighting-log.md`.
 - **Debug overlays:** the shared hook takes `{ stats: true }` to show a three.js
   FPS/ms panel. Scene-specific tweakables use a **lil-gui** panel built in
   `scene.ts` (`three/examples/jsm/libs/lil-gui.module.min.js`, typed via
@@ -218,8 +236,8 @@ code that floats the ship agree on where the surface is.
 
 - `index.tsx` — re-exports `Shipwright` (registered in `PROJECT_COMPONENTS`).
 - `components/shipwright.tsx` — root component; full-bleed canvas + HUD overlay.
-- `scene.ts` — `setupOceanScene`, the imperative three.js scene builder (sky,
-  lights, camera, GUI, the buoy, debug overlays). Owns the **scene-capture pass**
+- `scene.ts` — `setupOceanScene`, the imperative three.js scene builder (camera, GUI, the buoys, debug
+  overlays; the light itself lives in `sky.ts`). Owns the **scene-capture pass**
   (hide water → render into `sceneCapture` → bind to the ocean) and the render-scale
   control. New non-water systems (voxels, islands) grow here or in sibling modules,
   kept free of React.
@@ -245,6 +263,18 @@ code that floats the ship agree on where the surface is.
 - `terrain.ts` — `createTerrain`, the procedural archipelago: the pure seeded bedrock field
   (`bedrockField` → `height` + the `broad` shelter proxy), the exposure-gradient surface colouring, and
   the instanced spruce. Pure noise helpers are unit-tested in `terrain.test.ts`. See `docs/ISLANDS.md`.
+- `lighting.ts` — the physical light model, PURE (no three.js), unit-tested. Air mass, the direct beam
+  and its colour, diffuse skylight, twilight, cloud optics, exposure. One `computeLighting` that
+  everything downstream reads. Nothing else may invent light.
+- `sky-model.ts` — the CPU twin of the dome's GLSL (Preetham + Earth's shadow), so the sky we RENDER is
+  the sky we INTEGRATE. Same lock-step contract `ocean.ts` keeps with `sampleSurface`.
+- `clouds.ts` — one 2-D cloud field, evaluated by the dome, by the shadow map, and by the CPU. Genus
+  presets. The light reads only `cloudTransmittance` and tau, so phase 3 changed the clouds' appearance
+  without touching the balance.
+- `sky.ts` — the three.js side: the dome, the sun, the PMREM bake, the shadow frustum, the cloud shadow
+  map, exposure, and the project's ONE global `lights_fragment_begin` override.
+- `lighting-rig.ts` — the debug-only calibration rig (spheres of known albedo) AND the linear-HDR probe
+  behind `measureLighting()`.
 - `benchmark.ts` — the render-cost flight schedule + the benchmark **wire types**
   (`BenchmarkConfig`/`Result`/…); the driver that runs a flight lives in `scene.ts`.
 
@@ -358,17 +388,13 @@ code that floats the ship agree on where the surface is.
   Target + review loop in `docs/ISLANDS.md`. Deferred: roche-moutonnée asymmetry, boulders, rock
   micro-detail, chunking/streaming (needed before the window can grow past ~600 m; generation is
   currently ~1.65 s on the main thread and wants a Web Worker).
-- **⚠ TOP OPEN ISSUE — the scene's sun:sky lighting balance is inverted, and it is not an island bug.**
-  Measured with each source isolated: the PMREM sky env out-lights the directional sun **~21:1 in linear
-  terms** on an opaque surface; reality is ~5:1 the other way. So the sun contributes 1–8 % of the land's
-  brightness at every azimuth, rock has no form, and shadows have almost nothing to remove.
-  `sunLight.intensity` is also a **constant** all day, while exposure, veil, and env intensity are
-  already elevation-driven — which is why dusk needs the veil hack. This is the diffuse twin of
-  `FIDELITY.md`'s specular "IBL sheen / noon goes white", and probably the same root cause as its "sun
-  glitter is a milky smear" gap. The land currently dodges it with a **per-material `envMapIntensity`**
-  (a hack — it makes the islands and the buoys look like they are in different scenes) which the
-  lighting overhaul must DELETE, along with `Terrain.setEnvironment`. Target: one physically-based
-  model, zero per-material lighting exceptions, sun as a function of elevation (air mass) and
-  ultimately of latitude 60°N + day-of-year, able to cover clear day → sunset → overcast → winter.
+- **Lighting overhaul — SHIPPED.** The sun:sky balance was inverted ~1:21; it is now **10.3:1 at the
+  zenith, 1:1 at ~7 degrees, and exactly 0 below the horizon**, MEASURED on the real GPU with each
+  source isolated (`tools/probe.mjs`). Every per-material lighting exception is gone, `hemiLight` is
+  gone, and `envIntensityForSun` / `veilForSun` / `AMBIENT_FLOOR` went with them. Universal shadows;
+  overcast by cloud optical depth tau (the sun goes to zero and the shadows go with it, because there is
+  no beam); twilight to -18 degrees; clouds by genus; AgX tone mapping. The full account -- including six
+  bugs the probe and the blind reviewers found, and everything tried and rejected -- is in
+  **`docs/lighting-log.md`**. The brief it was built against is `docs/LIGHTING.md`.
 - **Also open:** shoreline **foam** (we have soft edges, not a foam line); efficient chunk meshing
   (greedy) once ships get large; and making voxel edits deterministic/replayable for co-op.

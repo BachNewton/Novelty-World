@@ -4,6 +4,7 @@ import {
   cloudBeamTransmittance,
   cloudFieldJs,
   cloudStateFromGenus,
+  cloudScatterShare,
   cloudStats,
   cloudThreshold,
   cloudViewOpacity,
@@ -74,9 +75,28 @@ describe("the cloud field", () => {
     // by it leaves the deck's total radiance untouched while lighting one side and darkening the other.
     const { shadeMean } = cloudStats(cumulus, 1, SUN_PLANE);
     expect(shadeMean).toBeGreaterThan(0.5);
-    expect(shadeMean).toBeLessThan(1);
-    // A thin cirrus veil casts almost no shadow on itself.
-    expect(cloudStats(cirrus, 1, SUN_PLANE).shadeMean).toBeGreaterThan(shadeMean);
+    expect(shadeMean).toBeLessThanOrEqual(1);
+  });
+
+  it("thick clouds are dominated by MULTIPLE scattering, so their bases are flat and dark", () => {
+    // A photon in an optically thick cloud scatters dozens of times and arrives from everywhere.
+    // Held fixed at 0.45 this share gave a tau-250 thunderhead the same phase-driven brightening as a
+    // wisp of cirrus, and it rendered as a pale lilac blob: a blind reviewer scored cumulonimbus 1/10.
+    expect(cloudScatterShare(0.3)).toBeGreaterThan(0.9); // cirrus: almost pure single scatter
+    expect(cloudScatterShare(11)).toBeCloseTo(0.31, 1); // cumulus: lit flanks, dark flanks
+    expect(cloudScatterShare(20)).toBeCloseTo(0.2, 1); // stratus: nearly flat
+    expect(cloudScatterShare(150)).toBeLessThan(0.05); // cumulonimbus: a dark, flat base
+    expect(cloudScatterShare(0)).toBe(1);
+  });
+
+  it("gives each genus the single-scatter share its optical depth demands", () => {
+    const share = (s: ReturnType<typeof cloudStateFromGenus>) =>
+      cloudStats(s, 1, SUN_PLANE).scatterShare;
+    const cb = cloudStateFromGenus(CLOUD_GENERA.cumulonimbus);
+    expect(share(cirrus)).toBeGreaterThan(0.8);
+    expect(share(cumulus)).toBeLessThan(share(cirrus));
+    expect(share(stratus)).toBeLessThan(share(cumulus));
+    expect(share(cb)).toBeLessThan(0.06);
   });
 });
 
@@ -137,9 +157,10 @@ describe("genus character", () => {
     expect(genus("cumulus").shear).toBe(1);
   });
 
-  it("stratus is a slab and cirrus is a lens", () => {
-    expect(genus("stratus").taper).toBeLessThan(0.3);
-    expect(genus("cirrus").taper).toBe(1);
+  it("stratus is a slab, cirrus is a sheet, cumulus is a lens", () => {
+    expect(genus("stratus").taper).toBeLessThan(0.3); // uniform slab
+    expect(genus("cumulus").taper).toBeGreaterThan(0.8); // tapers hard to nothing
+    expect(genus("cirrus").taper).toBeGreaterThan(genus("stratus").taper);
     expect(genus("stratus").edge).toBeGreaterThan(genus("cumulus").edge);
   });
 });

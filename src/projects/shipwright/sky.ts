@@ -5,9 +5,9 @@ import {
   CLOUD_FIELD_GLSL,
   CLOUD_GENERA,
   CLOUD_GENUS_NAMES,
-  CLOUD_SCATTER_SHARE,
   CLOUD_SHADOW_STEP_FEATURES,
   CLOUD_SHADOW_TAPS,
+  CLOUD_VIEW_ASYMMETRY,
   DEFAULT_GENUS,
   cloudStateFromGenus,
   cloudThreshold,
@@ -249,6 +249,7 @@ uniform float uCloudFrequency;
 uniform vec2 uCloudOffset;
 uniform vec2 uCloudSunStep;   // sun direction on the cloud plane x one tap length, in METRES
 uniform float uCloudShadeMean;
+uniform float uCloudScatterShare;
 
 ${CLOUD_FIELD_GLSL}
 
@@ -337,12 +338,18 @@ void main() {
     // Henyey-Greenstein on the VIEW-SUN angle: forward scattering, so a cloud between you and the sun
     // gets a silver lining. 4*pi*HG has a mean of 1 over the sphere, so this tilts the single-scatter
     // lobe without adding energy.
-    float sunPhase = 4.0 * pi * hgPhase(dot(direction, uSunDiscDirection), 0.55);
+    float sunPhase = 4.0 * pi * hgPhase(dot(direction, uSunDiscDirection), ${CLOUD_VIEW_ASYMMETRY.toFixed(3)});
 
-    // Ambient + single scatter, divided by the field's own spatial mean (measured on the CPU by
-    // cloudStats). The deck redistributes its radiance -- lit sides, dark sides -- without inventing
-    // or destroying any of the energy the light model already budgeted for it.
-    float shade = ${CLOUD_SCATTER_SHARE.toFixed(4)} + (1.0 - ${CLOUD_SCATTER_SHARE.toFixed(4)}) * sunTransmit * sunPhase;
+    // Multiple scatter (isotropic) + single scatter (self-shadowed, phase-tilted), divided by the
+    // field's own spatial mean (measured on the CPU by cloudStats). The deck redistributes its
+    // radiance -- lit sides, dark sides -- without inventing or destroying any of the energy the light
+    // model already budgeted for it.
+    //
+    // uCloudScatterShare falls as 1/(1 + tau*(1-g)): 0.94 for cirrus, 0.03 for a thunderhead. A photon
+    // in an optically thick cloud scatters dozens of times and arrives from everywhere, so a Cb base is
+    // flat and dark whatever the sun is doing -- while a cirrus veil is almost pure single scatter and
+    // blazes when you look through it at the sun.
+    float shade = (1.0 - uCloudScatterShare) + uCloudScatterShare * sunTransmit * sunPhase;
     cloudRadiance *= shade / uCloudShadeMean;
 
     // AERIAL PERSPECTIVE. The cloud is cloudDist metres away and the air between scatters: it dims the
@@ -418,10 +425,13 @@ void main() {
 }
 `;
 
-/** Texels of the cloud shadow map. 512² over 6 km is ~12 m/texel; cloud features are ~900 m across,
- *  so this is far finer than the field it samples and costs well under 0.1 ms. */
+/** Texels of the cloud shadow map. 512² over 8 km is ~16 m/texel; cumulus cells are ~650 m across, so
+ *  this is far finer than the field it samples, and it measures at 0.14 ms. */
 const CLOUD_SHADOW_SIZE = 512;
-const CLOUD_SHADOW_SPAN = 6000; // metres of cloud plane the map covers
+const CLOUD_SHADOW_SPAN = 8000; // metres of cloud plane the map covers
+/** How far ahead the cloud map's focus may chase the view ray to the water. Much longer than the sun
+ *  shadow frustum's 400 m, because this map is 8 km across and an aerial camera looks kilometres out. */
+const CLOUD_FOCUS_MAX_REACH = 3000;
 /** Below this the beam is negligible and the cloud-plane projection runs to the horizon. */
 const CLOUD_SHADOW_MIN_ELEVATION = 1;
 
@@ -453,6 +463,16 @@ export interface Daylight {
   update: (time: number) => void;
   /** Redraw the cloud shadow map. Call inside a GPU-timed span, before the scene's other passes. */
   renderCloudShadow: (renderer: THREE.WebGLRenderer) => void;
+  /** Read the cloud shadow map back and report its statistics. The instrument for "is the deck
+   *  actually shadowing anything, and by how much" — a uniform map means a uniform sea, and no amount
+   *  of staring at a frame distinguishes that from a scene that happens to sit in a gap. */
+  cloudShadowStats: (renderer: THREE.WebGLRenderer) => {
+    min: number;
+    max: number;
+    mean: number;
+    strength: number;
+    beamMean: number;
+  };
   /** Called by `applyState`; exposed so the debug probe can force a re-bake after poking uniforms. */
   refresh: () => void;
   buildGui: (folders: { environment: GUI }) => void;
@@ -516,6 +536,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uCloudOffset: { value: new THREE.Vector2() },
     uCloudSunStep: { value: new THREE.Vector2() },
     uCloudShadeMean: { value: 1 },
+    uCloudScatterShare: { value: 1 },
   };
   const skyMaterial = new THREE.ShaderMaterial({
     name: "ShipwrightSky",
@@ -568,6 +589,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   const cloudShadowCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   LIGHTING_UNIFORMS.uCloudShadowMap.value = cloudShadowTarget.texture;
   LIGHTING_UNIFORMS.uCloudShadowScale.value = 1 / CLOUD_SHADOW_SPAN;
+  cloudShadowUniforms.uCloudShadowSpan.value = CLOUD_SHADOW_SPAN;
 
   // --- PMREM ----------------------------------------------------------------
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -617,13 +639,35 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     sunLight.position.copy(shadowFocus).addScaledVector(sunDirection, 600);
   };
 
-  /** Re-centre the cloud shadow map on the cloud-plane point the camera's ground position projects
-   *  to, snapped to a texel so the field does not shimmer as the camera moves. */
+  /** Re-centre the cloud shadow map on the cloud-plane point that the VIEW's focus projects to, snapped
+   *  to a texel so the field does not shimmer as the camera moves.
+   *
+   *  Centring it on the CAMERA's position is the obvious thing and it is wrong, for exactly the reason
+   *  `syncSunShadow` above already records: a camera 700 m back and 450 m up from the water it frames
+   *  puts most of that water outside a 6 km window, where every fragment feathers to the field's mean.
+   *  The sea then renders perfectly, uniformly lit under a broken cumulus deck — and three separate
+   *  blind reviewers reported "no dappling" before the shadow map's own readback showed the map was
+   *  fine and the projection was not. `shadowFocus` is where the view ray meets the sea. */
+  const cloudFocus = new THREE.Vector3();
   const syncCloudShadowOrigin = () => {
+    // Its OWN focus, not the sun frustum's. `shadowFocus` caps its reach at 400 m, which is right for a
+    // 200 m ortho shadow box and useless for an 8 km cloud map: from an aerial camera 450 m up, 400 m
+    // along the view ray is still 340 m above the sea, so the map stayed centred on the camera and
+    // most of the visible water fell outside it — feathering to the field's mean, i.e. rendering as a
+    // perfectly, uniformly lit sea under a broken deck. Three blind reviewers reported "no dappling"
+    // before the map's own readback proved the map was fine and the projection was not.
+    camera.getWorldDirection(viewDirection);
+    const looksDown = viewDirection.y < -0.02;
+    const reach = looksDown
+      ? Math.min(-camera.position.y / viewDirection.y, CLOUD_FOCUS_MAX_REACH)
+      : SHADOW_FOCUS_AHEAD;
+    cloudFocus.copy(camera.position).addScaledVector(viewDirection, reach);
+    cloudFocus.y = 0;
+
     const sy = Math.max(sunDirection.y, 1e-3);
     const t = cloud.altitude / sy;
-    const cx = camera.position.x + sunDirection.x * t;
-    const cz = camera.position.z + sunDirection.z * t;
+    const cx = cloudFocus.x + sunDirection.x * t;
+    const cz = cloudFocus.z + sunDirection.z * t;
     const texel = CLOUD_SHADOW_SPAN / CLOUD_SHADOW_SIZE;
     const originX = Math.round((cx - CLOUD_SHADOW_SPAN / 2) / texel) * texel;
     const originZ = Math.round((cz - CLOUD_SHADOW_SPAN / 2) / texel) * texel;
@@ -691,6 +735,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     skyUniforms.uCloudFrequency.value = cloud.coverage > 0 ? frequency : 0;
     skyUniforms.uCloudOffset.value.set(cloudOffset[0], cloudOffset[1]);
     skyUniforms.uCloudShadeMean.value = state.cloudShadeMean;
+    skyUniforms.uCloudScatterShare.value = state.cloudScatterShare;
     // The self-shadow march: one tap length along the sun's direction, projected onto the cloud
     // plane. Same direction, same step, same units the CPU twin measured `shadeMean` with.
     const sunPlaneX = sunDirection.y > 1e-3 ? sunDirection.x / sunDirection.y : 1;
@@ -721,7 +766,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     // Outside the shadow map, and below the elevation where the projection is meaningful, every
     // fragment sees the field's spatial mean — which is exactly what the CPU energy budget used.
     LIGHTING_UNIFORMS.uCloudBeamMean.value = state.cloudBeamFactor;
-    syncCloudShadowOrigin();
+    syncCloudShadowOrigin(); // after syncSunShadow above, which is what sets `shadowFocus`
 
     // Exposure. A real photographic meter on the scene's own light (see lighting.ts), NOT a curve
     // in sun elevation, and it never divides by the sun.
@@ -792,6 +837,36 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
       r.setRenderTarget(cloudShadowTarget);
       r.render(cloudShadowScene, cloudShadowCamera);
       r.setRenderTarget(previous);
+    },
+    cloudShadowStats: (r) => {
+      // The WHOLE map. Reading a 64x64 corner would report the distribution of one cloud, not of the
+      // field, and would have hidden the projection bug above rather than exposed it.
+      const side = CLOUD_SHADOW_SIZE;
+      const pixels = new Uint16Array(side * side * 4);
+      const half = (h: number) => {
+        const e = (h & 0x7c00) >> 10;
+        const f = h & 0x03ff;
+        if (e === 0) return Math.pow(2, -14) * (f / 1024);
+        if (e === 0x1f) return NaN;
+        return Math.pow(2, e - 15) * (1 + f / 1024);
+      };
+      r.readRenderTargetPixels(cloudShadowTarget, 0, 0, side, side, pixels);
+      let min = Infinity;
+      let max = -Infinity;
+      let sum = 0;
+      for (let i = 0; i < side * side; i++) {
+        const v = half(pixels[i * 4]);
+        min = Math.min(min, v);
+        max = Math.max(max, v);
+        sum += v;
+      }
+      return {
+        min,
+        max,
+        mean: sum / (side * side),
+        strength: LIGHTING_UNIFORMS.uCloudShadowStrength.value,
+        beamMean: LIGHTING_UNIFORMS.uCloudBeamMean.value,
+      };
     },
     refresh: applyState,
     buildGui: ({ environment }) => {

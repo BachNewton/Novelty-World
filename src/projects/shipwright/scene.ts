@@ -917,6 +917,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     frameCount: () => frameCount,
     // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
     hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
+    /** Statistics of the cloud shadow map, straight off the GPU. `min`/`max` far apart means a real
+     *  dappled field; `min == max` means a uniform deck (or a bug). */
+    cloudShadowStats: () => daylight.cloudShadowStats(renderer),
     /** Last per-pass GPU times, ms. `total` is the sum of the passes this scene runs. Used by the
      *  tonemap x bloom experiment to price each cell of the 2x2 in one warm session. */
     gpuTimings: () => {

@@ -121,32 +121,23 @@ the same rock, continuing down.
   bright background. No shader change was needed. Watch for it returning anywhere pale rock meets
   shallow water.
 
-- **The sun:sky lighting balance is inverted, scene-wide (open, and it is not only an island bug).**
-  Measured on a sun-facing slope at fixed exposure, with each source isolated:
+- **The sun:sky lighting balance was inverted scene-wide — FIXED.** The sky used to out-light the sun
+  ~21 : 1 in linear terms, so rock had no form and shadows had almost nothing to remove; the islands read
+  as smooth cream dunes. The land dodged it with a per-material env scale (0.22 bedrock, 0.3 spruce) plus
+  a `Terrain.setEnvironment` that re-pointed the PMREM texture onto those materials just so three would
+  honour the value. **All of it is deleted.** The land is now lit by the same sun and the same sky as the
+  buoys, the raft and the sea, and a blind reviewer's verdict on the after-frames was: *"rock now has real
+  form — lit sun-facing slopes, shadowed lee sides, legible whaleback relief"*. See `docs/lighting-log.md`.
 
-  | source | intensity | land luma |
-  |---|---|---|
-  | directional sun | 2.5 | 15.1 |
-  | hemisphere | 0.5 | 4.7 |
-  | **PMREM sky env** | **1.0** | **87.5** |
+  ⚠ **The three.js trap that forced the hack, kept because it will catch someone again:**
+  `material.envMapIntensity` is IGNORED on any material that has no `envMap` of its own and merely
+  inherits `scene.environment` — the renderer overwrites the uniform with `scene.environmentIntensity`,
+  and only restores the material's value inside `if (material.envMap)`.
 
-  The sky out-lights the sun ~5.8 : 1 on land. Reality is the other way round — direct sun on a
-  facing surface is roughly 4–6× the skylight. Consequences: lit from every direction by a bright
-  dome, rock has no form and shadows have almost nothing to remove (the sun contributed **1–8 %** of
-  the land's brightness at *every* azimuth tested). The islands read as smooth cream dunes. This is
-  the **diffuse twin** of the specular "IBL sheen / noon goes white" problem in `FIDELITY.md`.
-
-  Not fixed scene-wide, because `scene.environmentIntensity` is global and the water's whole look
-  (veil, SSR fallback, `envIntensityForSun`) is tuned around it. Instead the land dims its own share
-  via a per-material `envMapIntensity` (0.22 bedrock, 0.3 spruce). **The proper fix — raising the sun
-  relative to the sky — is a water-side decision and would probably also close `FIDELITY.md`'s "sun
-  glitter is a milky smear" gap, since that too is a sun-too-weak symptom.**
-
-  ⚠ **three.js trap:** `material.envMapIntensity` is IGNORED on any material that has no `envMap` of
-  its own and merely inherits `scene.environment` — the renderer overwrites the uniform with
-  `scene.environmentIntensity`, and only restores the material's value inside `if (material.envMap)`.
-  The land's materials therefore explicitly own the same PMREM texture (`Terrain.setEnvironment`,
-  re-pointed on every sun re-bake). Setting `envMapIntensity` alone changed *nothing*, byte for byte.
+  ⚠ **Watch item.** The rock's albedos were dialled under a sky-dominated light. Under a correct
+  sun-dominated one, a reviewer flagged sunlit bedrock as reading a touch pale ("snow-cap risk", the very
+  failure this doc warns about). Re-check the palette against wet-and-dry Baltic granite now that the
+  light is right; do not re-introduce a per-material lighting exception to fix it.
 
 - **Shadows exist now, and their frustum follows the VIEW, not the camera.** A directional shadow
   frustum anchored at the camera's *position* silently drops every shadow when an overhead look-at

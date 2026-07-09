@@ -119,10 +119,10 @@ const GENERA = {
   clear: { name: "Clear", coverage: 0, tau: 0, altitude: 6000, featureSize: 2000, edge: 0.3, taper: 0.5, billow: 0, shear: 1, wind: [6, 2] },
   // A thin, flat, backlit sheet with no self-shadowing — which is precisely what the old 2-D model
   // could produce, and why everything used to look like cirrus. Stretched hard along the wind.
-  cirrus: { name: "Cirrus", coverage: 0.45, tau: 0.5, altitude: 9000, featureSize: 4200, edge: 0.42, taper: 1, billow: 0, shear: 0.16, wind: [26, 7] },
+  cirrus: { name: "Cirrus", coverage: 0.5, tau: 0.9, altitude: 9000, featureSize: 4200, edge: 0.42, taper: 0.75, billow: 0, shear: 0.16, wind: [26, 7] },
   // Convective: sharp cauliflower edges, strong self-shadowing, sparse. The genus the cloud shadow
   // map exists for.
-  cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 900, edge: 0.1, taper: 0.9, billow: 0.85, shear: 1, wind: [7, 2] },
+  cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 650, edge: 0.1, taper: 0.9, billow: 0.85, shear: 1, wind: [7, 2] },
   // A featureless slab. Soft edge, no taper, no billow — the light must go flat and shadowless.
   stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, featureSize: 3000, edge: 0.55, taper: 0.15, billow: 0, shear: 1, wind: [5, 1] },
   // tau 250, not 120: measured, 120 put the base at only 2.3x darker than the clear sky beside it,
@@ -398,11 +398,35 @@ export interface CloudStats {
   /** Mean of the dome's sun-shading modulation, so the shader can divide by it and redistribute the
    *  cloud's radiance (lit sides, dark sides) without inventing or destroying energy. */
   shadeMean: number;
+  /** Single-scatter share at this deck's typical optical depth. See `cloudScatterShare`. */
+  scatterShare: number;
 }
 
-/** Fraction of the ambient (multiply-scattered) share in a cloud's radiance; the rest is single
- *  scatter from the sun, and is what self-shadowing modulates. */
-export const CLOUD_SCATTER_SHARE = 0.55;
+/**
+ * Share of a cloud's radiance that is SINGLE scatter from the sun — the part self-shadowing modulates
+ * and the phase function tilts. The rest is multiple scattering, which is nearly isotropic.
+ *
+ * It cannot be a constant, and the frames prove it. Fixed at 0.45, a τ = 250 thunderhead got the same
+ * phase-driven brightening as a wisp of cirrus, and rendered as a pale lilac blob: a blind reviewer
+ * scored cumulonimbus 1/10 for "recognisable as this genus". A photon in an optically thick cloud
+ * scatters dozens of times before it leaves, and arrives from every direction.
+ *
+ * `s = 1/(1 + τ·(1−g))` — the same similarity depth the beam uses, and the standard single-scattering
+ * approximation's ratio. Measured over the genera:
+ *
+ * | genus | τ·h (typical) | similarity depth | single-scatter share |
+ * |---|---|---|---|
+ * | cirrus | 0.3 | 0.06 | 0.94 — a translucent, backlit sheet with a blazing silver lining |
+ * | cumulus | 11 | 2.3 | 0.31 — lit flanks, dark flanks |
+ * | stratus | 20 | 4.0 | 0.20 — nearly flat, as an overcast deck is |
+ * | cumulonimbus | 150 | 30 | 0.03 — a dark, flat base, whatever the sun is doing |
+ */
+export const cloudScatterShare = (effectiveTau: number): number =>
+  1 / (1 + effectiveTau * (1 - CLOUD_ASYMMETRY));
+
+/** Asymmetry of the cloud's own view-facing phase function. Lower than the beam's `g`, because what
+ *  you see is dominated by low-order scattering that has already been spread. */
+export const CLOUD_VIEW_ASYMMETRY = 0.5;
 
 /** How far the self-shadow taps march along the sun's direction, in feature widths, and how many. */
 export const CLOUD_SHADOW_TAPS = 3;
@@ -424,7 +448,7 @@ const STATS_CACHE_LIMIT = 64;
  */
 export const cloudStats = (state: CloudState, sinH: number, sunPlane: [number, number]): CloudStats => {
   if (state.coverage <= 0 || state.tau <= 0) {
-    return { fraction: 0, planeThickness: 0, beamFactor: 1, meanThickness: 0, shadeMean: 1 };
+    return { fraction: 0, planeThickness: 0, beamFactor: 1, meanThickness: 0, shadeMean: 1, scatterShare: 1 };
   }
   const key = [
     state.coverage, state.tau, state.featureSize, state.edge, state.taper, state.billow, state.shear,
@@ -439,20 +463,31 @@ export const cloudStats = (state: CloudState, sinH: number, sunPlane: [number, n
   const stepX = sunPlane[0] * state.featureSize * CLOUD_SHADOW_STEP_FEATURES;
   const stepZ = sunPlane[1] * state.featureSize * CLOUD_SHADOW_STEP_FEATURES;
 
+  // Two passes: the first measures the deck's typical optical depth, which sets the single-scatter
+  // share, which the second pass needs to measure the shading's mean. Cheap -- the first pass is the
+  // thickness only, no self-shadow taps.
   let maskSum = 0;
   let thicknessSum = 0;
   let beam = 0;
-  let shade = 0;
   for (let i = 0; i < STAT_SIDE; i++) {
     for (let j = 0; j < STAT_SIDE; j++) {
       const cx = ((i + 0.5) / STAT_SIDE) * span;
       const cz = ((j + 0.5) / STAT_SIDE) * span;
       const parts = cloudFieldParts(cx, cz, state, 0, 0, threshold);
-      const t = parts.thickness;
       maskSum += parts.mask;
-      thicknessSum += t;
-      beam += Math.exp(-k * t);
+      thicknessSum += parts.thickness;
+      beam += Math.exp(-k * parts.thickness);
+    }
+  }
+  const nAll = STAT_SIDE * STAT_SIDE;
+  const meanThickness = maskSum > 0 ? thicknessSum / maskSum : 0;
+  const scatterShare = cloudScatterShare(state.tau * (meanThickness > 0 ? meanThickness : 1));
 
+  let shade = 0;
+  for (let i = 0; i < STAT_SIDE; i++) {
+    for (let j = 0; j < STAT_SIDE; j++) {
+      const cx = ((i + 0.5) / STAT_SIDE) * span;
+      const cz = ((j + 0.5) / STAT_SIDE) * span;
       // The same self-shadow march the dome does, so `shadeMean` really is the mean of what is drawn.
       let sunDepth = 0;
       for (let s = 1; s <= CLOUD_SHADOW_TAPS; s++) {
@@ -461,18 +496,19 @@ export const cloudStats = (state: CloudState, sinH: number, sunPlane: [number, n
       const tSun = Math.exp(
         -state.tau * (1 - CLOUD_ASYMMETRY) * sunDepth * CLOUD_SHADOW_STEP_FEATURES,
       );
-      shade += CLOUD_SCATTER_SHARE + (1 - CLOUD_SCATTER_SHARE) * tSun;
+      shade += 1 - scatterShare + scatterShare * tSun;
     }
   }
-  const n = STAT_SIDE * STAT_SIDE;
+  const n = nAll;
   const result: CloudStats = {
     fraction: maskSum / n,
     planeThickness: thicknessSum / n,
     beamFactor: beam / n,
     // Thickness WHERE THERE IS CLOUD: `tau * this` is the optical depth of a typical cloud, which is
     // what its radiative balance must use once `taper` makes the thickness vary.
-    meanThickness: maskSum > 0 ? thicknessSum / maskSum : 0,
+    meanThickness,
     shadeMean: Math.max(shade / n, 1e-3),
+    scatterShare,
   };
   if (statsCache.size >= STATS_CACHE_LIMIT) statsCache.clear();
   statsCache.set(key, result);

@@ -55,10 +55,16 @@ const CAMERAS = {
   // road is in shot. `cloudy` tilts up so the deck fills the upper two thirds while the rig and the
   // horizon stay in the lower third -- you must be able to see the sky AND what it does to the sea.
   rig: { pos: [-5.5, 2.4, 5.5], target: [0.6, 1.3, -0.6] },
-  cloudy: { pos: [-7, 3.4, 8], target: [3, 5.0, -7] },
-  // High and wide: several km of sea, so 900 m cloud shadows read as a pattern rather than as one
-  // ambiguous dark patch. The dappling hero framing.
-  dapple: { pos: [-260, 180, 320], target: [140, 0, -180] },
+  cloudy: { pos: [-7, 3.2, 8], target: [3, 6.2, -7] },
+  // HIGH and STEEP, near a plan view. Cumulus cells are ~650 m across and their shadows are a
+  // kilometre-scale pattern, so a shallow camera compresses the whole thing into a thin band at the
+  // horizon: measured, the sea's mean brightness swings 2.1x as the deck drifts past a LOW camera
+  // (the sun blinks in and out, which is what a sailor sees) but the frame shows no PATTERN. Looking
+  // steeply down over ~3 km of water is the only framing in which "dappled" is a thing you can see in
+  // one still image.
+  dapple: { pos: [-900, 1500, 1400], target: [100, 0, -200] },
+  // Low, looking up at the tower. A squall is a thing you stand under.
+  squallCam: { pos: [-6, 3, 9], target: [4, 11, -8] },
 };
 
 const DEFAULTS = {
@@ -259,10 +265,10 @@ scenarios.push({ group: "06-lighting/d-hero", name: "civil-twilight", camera: "g
 // a specular sea are the hardest test of "blacks stay black, hues stay hued".
 scenarios.push({ group: "06-lighting/d-hero", name: "tropical-zenith", camera: "rig", rig: true, water: "Oceanic I", sea: LIGHT_SEA, sun: [88, 225] });
 // Fair-weather cumulus over the archipelago: where the cloud shadow map earns its keep.
-scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [35, 135], plane: 5000 });
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [55, 135], plane: 5000 });
 // Cloud shadows sweeping open water, from high enough that several kilometres of sea are in frame.
-scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapple", cloud: "cumulus", sea: LIGHT_SEA, sun: [45, 225], plane: 5000 });
-scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "dapple", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [30, 225], plane: 5000 });
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapple", cloud: "cumulus", sea: LIGHT_SEA, sun: [45, 225], plane: 8000 });
+scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "squallCam", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [28, 135], plane: 5000 });
 
 // ---------------------------------------------------------------------------
 

@@ -348,6 +348,9 @@ export interface LightingState {
   /** Mean of the dome's sun-shading modulation. The shader divides by it, so self-shadowing
    *  redistributes a cloud's radiance without inventing or destroying energy. */
   cloudShadeMean: number;
+  /** Single-scatter share at this deck's typical optical depth: 0.94 for cirrus, 0.03 for a
+   *  thunderhead. Multiple scattering is isotropic, so a thick cloud's base is flat and dark. */
+  cloudScatterShare: number;
   /** Downwelling irradiance just BELOW the water surface, split by source, because the water shader
    *  must attenuate the BEAM half per-fragment by the cloud shadow map (as every other material does)
    *  and leave the sky half alone. Summed, they are the veil. Note `underwaterBeam` carries the
@@ -590,6 +593,7 @@ export const computeLighting = (input: LightingInput): LightingState => {
     cloudFraction: stats.fraction,
     cloudPlaneThickness: stats.planeThickness,
     cloudShadeMean: stats.shadeMean,
+    cloudScatterShare: stats.scatterShare,
     underwaterBeam,
     underwaterSky,
     exposure,

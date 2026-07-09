@@ -65,6 +65,24 @@ watch the census node count as ships get large.
 
 ---
 
+## The lighting overhaul's cost (2026-07-10)
+
+Measured with `tools/bench.mjs` on the AMD 780M, visuals mode.
+
+- **Cloud shadow pass: 0.14 ms** — a 512² fullscreen quad evaluating the cloud field, `cloud50` in the
+  bench table. Under the 0.1–0.2 ms the brief budgeted for it.
+- **Overall GPU total: ~10.5 ms p50**, against ~9.5 ms before. The delta is that pass plus one texture
+  fetch per lit fragment in the global `lights_fragment_begin` override.
+- **Bloom is +3.64 ms and NOT because of the blur.** Isolated: `bloom + 4x-MSAA HDR target` +3.64 ms,
+  `1x-MSAA` +3.44 ms, `no MSAA on that target` **+1.18 ms**. So 2.5 ms is the MSAA *resolve* of a 1080p
+  HalfFloat target (~66 MB/frame on a 512 MB UMA iGPU) and only 1.2 ms is the pyramid. Halving the bloom
+  pyramid's resolution changed nothing, which is what pointed at it. Bloom therefore ships OFF.
+- **AgX vs ACES: 0.37 ms**, inside the noise.
+- **CPU:** `computeLighting` is 1.0 ms clear / ~5.5 ms with cloud — **per sun move, not per frame**, and
+  memoised on a quantised key so the bench's day-sweep hits the cache on most frames.
+
+---
+
 ## TL;DR — the levers, in priority order
 
 1. **Render scale** (top of the GUI). Global fill multiplier — cost scales with pixel
