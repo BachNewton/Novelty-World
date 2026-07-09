@@ -96,12 +96,16 @@ export interface Ocean {
   /** Debug: gate the whole see-through/depth/SSR composite (isolate its cost). */
   setWaterFx: (on: boolean) => void;
   /**
-   * The downwelling irradiance just BELOW the surface, linear RGB in renderer units. The water
-   * body's displayed radiance is Gordon's `R∞ × E_d / π` — so this is the light, and `R∞` (from the
-   * Jerlov type) is the reflectance. Derived by `lighting.ts` from the beam and the sky; it is no
+   * The downwelling irradiance just BELOW the surface, linear RGB in renderer units, split into its
+   * beam and sky halves. The water body's displayed radiance is Gordon's `R∞ × E_d / π` — so this is
+   * the light, and `R∞` (from the Jerlov type) is the reflectance. Derived by `lighting.ts`; it is no
    * longer a hand-tuned "veil brightness".
+   *
+   * Split because the shader attenuates the BEAM half per-fragment by the cloud shadow map, so a
+   * cloud shadow darkens the water's body and not merely its glitter. `beam` is therefore the
+   * CLEAR-sky beam — the cloud is applied once, in the shader.
    */
-  setDownwelling: (irradiance: [number, number, number]) => void;
+  setDownwelling: (beam: [number, number, number], sky: [number, number, number]) => void;
   /** Load a Jerlov water type by name (colour + clarity derive from its optics). */
   setWaterType: (name: string) => void;
   /** Set sea-state multipliers (wave height / steepness / wavelength); rebuilds the wave set. */
@@ -353,7 +357,8 @@ uniform float uReflectWaveStrength; // wave-slope smear of the reflection (see t
 uniform vec3 uAbsorption;
 uniform vec3 uScattering;
 uniform vec3 uBackscatter;
-uniform vec3 uDownwelling; // E_d / PI: the radiance the water body is lit by, in linear HDR
+uniform vec3 uDownwellingBeam; // E_beam / PI, CLEAR sky: the shader applies the cloud shadow itself
+uniform vec3 uDownwellingSky;  // E_sky / PI
 uniform bool uSsrEnabled;
 uniform float uReflectionStrength;
 uniform float uReflectMin;
@@ -464,7 +469,14 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     // just under the surface. Both halves are now physics: the water's optics were already, and the
     // light finally is too.
     vec3 rInf = uBackscatter / max(uAbsorption + uBackscatter, vec3(1e-4));
-    vec3 deep = rInf * uDownwelling;
+    // The sea is a material like any other: the cloud above it dims the beam reaching it. Without
+    // this the water body stays as bright under a cumulus shadow as in full sun, and the only thing a
+    // passing cloud takes away is the glitter — which is why dappled light was invisible on water.
+    // shipwrightCloudTransmittance is the project's ONE global lighting chunk (sky.ts), reached the
+    // same way every lit material reaches it. Its argument is the view-space position, exactly as
+    // three's lights_fragment_begin passes it. (No backticks in GLSL -- it is a template literal.)
+    vec3 downwelling = uDownwellingSky + uDownwellingBeam * shipwrightCloudTransmittance(-vViewPosition);
+    vec3 deep = rInf * downwelling;
     vec3 body = refracted * transmit + deep * (1.0 - transmit);
 
     // Geometric Fresnel (0 head-on → 1 grazing). uReflectMin lifts the head-on
@@ -550,8 +562,9 @@ export function createOcean(): Ocean {
     // below the surface — Fresnel-transmitted beam plus Fresnel-transmitted skylight. DERIVED per
     // frame by `lighting.ts` (see `setDownwelling`), colour and all, which is why `veilForSun` and
     // the fixed cool-neutral `uWaterLight` tint both ceased to exist. Clarity is untouched by this:
-    // that is the extinction term.
-    uDownwelling: { value: new THREE.Vector3(0, 0, 0) },
+    // that is the extinction term. Kept apart so the beam can be cloud-shadowed per fragment.
+    uDownwellingBeam: { value: new THREE.Vector3(0, 0, 0) },
+    uDownwellingSky: { value: new THREE.Vector3(0, 0, 0) },
     // Screen-space reflection: ray-marches the captured depth to reflect dynamic
     // geometry; misses fall back to the env-map sky. uProjection is bound with the
     // view params (it changes on resize). uSsrMinFresnel gates the march — below it
@@ -879,9 +892,10 @@ export function createOcean(): Ocean {
     setWaterFx: (on: boolean) => {
       uniforms.uWaterFx.value = on;
     },
-    setDownwelling: ([r, g, b]) => {
+    setDownwelling: (beam, sky) => {
       // Irradiance -> the Lambertian radiance Gordon's R_inf multiplies.
-      uniforms.uDownwelling.value.set(r / Math.PI, g / Math.PI, b / Math.PI);
+      uniforms.uDownwellingBeam.value.set(...beam).divideScalar(Math.PI);
+      uniforms.uDownwellingSky.value.set(...sky).divideScalar(Math.PI);
     },
     setWaterType: (name: string) => {
       const type = WATER_TYPES.find((t) => t.name === name);

@@ -209,8 +209,12 @@ void main() {
 }
 `;
 
-// The fragment mirrors `sky-model.ts` term for term (Preetham's clear radiance) and `clouds.ts`
-// (the deck). Change one, change the other; `sky.test.ts` pins that they agree.
+// The fragment mirrors `sky-model.ts` term for term (Preetham's clear radiance) and `clouds.ts` (the
+// deck). Change one, change the other.
+//
+// NB: no backticks anywhere inside the GLSL — it lives in a template literal, and one in a comment
+// silently terminates it. The parse error then points hundreds of characters away at something
+// innocent. This has cost real time three times over.
 const SKY_FRAG = /* glsl */ `
 varying vec3 vWorldPosition;
 
@@ -283,28 +287,48 @@ void main() {
   float disc = smoothstep(uSunDiscCosOuter, uSunDiscCosInner, discCos) * uShowSunDisc;
   radiance += uSunDiscRadiance * disc;
 
-  // --- The cloud deck. Same field the shadow map and the CPU integral read.
-  if (uCloudTau > 0.0 && uCloudFrequency > 0.0) {
-    float dy = max(direction.y, 0.0);
-    vec2 planeUv = direction.xz * (uCloudAltitude / max(dy, 0.02));
-    float thickness = cloudThickness(planeUv);
+  // --- The cloud deck. Same field the shadow map and the CPU integral read. Only ABOVE the horizon:
+  // below it the cloud plane is behind you, and drawing it there put an opaque wall under the horizon.
+  if (uCloudTau > 0.0 && uCloudFrequency > 0.0 && direction.y > 0.0) {
+    float dy = direction.y;
+    float cloudDist = uCloudAltitude / max(dy, 0.02);
+    float thickness = cloudThickness(direction.xz * cloudDist);
     // Toward the horizon the cloud-plane coordinate runs away, so fade the sample toward the field's
     // MEAN rather than toward zero -- otherwise an overcast sky opens into clear blue at the horizon.
-    float horizonFade = smoothstep(0.0, 0.10, dy);
-    thickness = mix(uCloudFraction, thickness, horizonFade);
+    thickness = mix(uCloudFraction, thickness, smoothstep(0.0, 0.10, dy));
 
     float path = min(1.0 / max(dy, 0.05), 38.0);
     float alpha = 1.0 - exp(-uCloudTau * (1.0 - ${CLOUD_ASYMMETRY.toFixed(4)}) * thickness * path);
     // CIE Standard Overcast Sky: zenith is 3x the horizon, azimuthally uniform, no disc. Its zenith
     // radiance is set from the energy the deck actually transmits, so the picture and the light agree.
     vec3 cloudRadiance = uOvercastZenith * ((1.0 + 2.0 * dy) / 3.0);
-    radiance = mix(radiance, cloudRadiance, alpha);
+
+    // AERIAL PERSPECTIVE. The cloud is cloudDist metres away and the air between scatters: it dims the
+    // cloud and fills in with airlight. Approximating the airlight by the clear-sky radiance in the
+    // same direction -- exact for a horizontally uniform atmosphere -- collapses the whole thing to
+    // one per-channel factor on the cloud's opacity. Blue extinguishes first (Rayleigh), so a distant
+    // dark cloud base hazes to blue-grey. Without it a low deck stacks into a hard dark belt around
+    // the horizon instead of fading into the sky.
+    vec3 aerial = exp(-(uBetaR + uBetaM) * cloudDist);
+    radiance = mix(radiance, cloudRadiance, vec3(alpha) * aerial);
   }
 
-  // --- Below the horizon: the ground bouncing the scene's own light back up. This is the term that
-  // makes deleting the hemisphere light free. Without it the dome's lower half is the (bright)
-  // horizon radiance, which lights every underside as if the sea were a lamp.
-  radiance = mix(radiance, uGroundRadiance, smoothstep(0.0, -0.03, direction.y));
+  // --- Below the horizon: the SEA, and it is a Fresnel reflector, not a Lambertian card.
+  //
+  // Looking steeply down you see water: reflectance ~2 %, so almost all of what you get is the light
+  // the sea bounces back up (uGroundRadiance). Looking along the surface you see a mirror: Fresnel
+  // goes to 1 at grazing, so the far sea IS the horizon sky -- which is exactly what radiance already
+  // holds here, because Preetham's zenith angle clamps at 90 degrees.
+  //
+  // One Schlick term therefore does three jobs at once: it makes the ocean plane's finite far edge
+  // seamless, it stops the dome's lower half lighting every underside as though the sea were a lamp
+  // (which is what let hemiLight be deleted), and it gives a chrome ball a sea to reflect instead of a
+  // flat grey fill.
+  if (direction.y < 0.0) {
+    float cosIncidence = -direction.y;
+    float fresnel = 0.02 + 0.98 * pow(1.0 - cosIncidence, 5.0);
+    radiance = mix(uGroundRadiance, radiance, fresnel);
+  }
 
   // Mobile render fix, retained: PMREM bakes into a HalfFloat target (ceiling 65504). Desktop drivers
   // clamp an over-range write; many mobile drivers emit +Inf, which PMREM's blur smears into NaN

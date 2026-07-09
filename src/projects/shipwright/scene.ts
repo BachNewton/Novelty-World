@@ -298,7 +298,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // clouds, the atmosphere dials, the benchmark. The downwelling veil is now DERIVED: the
   // Fresnel-transmitted beam plus skylight, just below the surface. `veilForSun` and its "perceptual
   // choices (not derived)" comment are both gone.
-  daylight.onState((light) => ocean.setDownwelling(light.underwaterIrradiance));
+  daylight.onState((light) => ocean.setDownwelling(light.underwaterBeam, light.underwaterSky));
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -664,6 +664,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         seg: seg.name,
         cpuMs,
         physicsMs,
+        cloud: g.get("cloud") ?? 0,
         capture: g.get("capture") ?? 0,
         // When SSR is off its pass is skipped, so no fresh reading lands — but GpuTimer carries the
         // last value forward (for its panel), which would record a stale "ssr" cost from before the

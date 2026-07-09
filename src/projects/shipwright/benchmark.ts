@@ -94,6 +94,9 @@ export interface BenchmarkSample {
   seg: string;
   cpuMs: number;
   physicsMs: number;
+  /** GPU ms of the cloud-shadow pass (a 512x512 fullscreen quad; 0 when the sky is clear and the
+   *  pass is skipped entirely). Part of the lighting overhaul's cost. */
+  cloud: number;
   capture: number;
   ssr: number;
   main: number;

@@ -56,6 +56,9 @@ const CAMERAS = {
   // horizon stay in the lower third -- you must be able to see the sky AND what it does to the sea.
   rig: { pos: [-5.5, 2.4, 5.5], target: [0.6, 1.3, -0.6] },
   cloudy: { pos: [-7, 3.4, 8], target: [3, 5.0, -7] },
+  // High and wide: several km of sea, so 900 m cloud shadows read as a pattern rather than as one
+  // ambiguous dark patch. The dappling hero framing.
+  dapple: { pos: [-260, 180, 320], target: [140, 0, -180] },
 };
 
 const DEFAULTS = {
@@ -235,6 +238,11 @@ for (const genus of GENERA) {
       cloud: genus,
       sea: LIGHT_SEA,
       sun: [el, 225],
+      // The sea must run to the TRUE horizon here. Fair-weather cumulus are ~900 m across, so on the
+      // suite's usual 1000 m plane the whole scene sits inside a single cloud cell and "dappled"
+      // light is invisible -- which is what it looked like on the first review. Physics, not a bug:
+      // the frame was too small to contain the phenomenon.
+      plane: 5000,
     });
   }
 }
@@ -251,7 +259,10 @@ scenarios.push({ group: "06-lighting/d-hero", name: "civil-twilight", camera: "g
 // a specular sea are the hardest test of "blacks stay black, hues stay hued".
 scenarios.push({ group: "06-lighting/d-hero", name: "tropical-zenith", camera: "rig", rig: true, water: "Oceanic I", sea: LIGHT_SEA, sun: [88, 225] });
 // Fair-weather cumulus over the archipelago: where the cloud shadow map earns its keep.
-scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [35, 135] });
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [35, 135], plane: 5000 });
+// Cloud shadows sweeping open water, from high enough that several kilometres of sea are in frame.
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapple", cloud: "cumulus", sea: LIGHT_SEA, sun: [45, 225], plane: 5000 });
+scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "dapple", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [30, 225], plane: 5000 });
 
 // ---------------------------------------------------------------------------
 
@@ -289,7 +300,11 @@ await page.waitForFunction(() => "__shipwright" in window, { timeout: 20000 });
 // Hide dev overlays for clean frames: the lil-gui panel, the small Stats.js canvas, and the
 // GPU-timer text panel (a fixed div starting "GPU ms"). Each is styled imperatively, so target
 // them structurally rather than by class.
-await page.addStyleTag({ content: ".lil-gui{display:none!important}" });
+// Hide dev chrome that would otherwise sit in every captured frame: the lil-gui panel and Next's
+// dev-tools indicator (a fixed button in the corner).
+await page.addStyleTag({
+  content: ".lil-gui{display:none!important} nextjs-portal{display:none!important}",
+});
 await page.evaluate(() => {
   document.querySelectorAll("canvas").forEach((c) => {
     if (c.width <= 100 && c.parentElement) c.parentElement.style.display = "none";

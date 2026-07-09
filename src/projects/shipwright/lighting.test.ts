@@ -224,30 +224,42 @@ describe("overcast", () => {
 });
 
 describe("exposure", () => {
-  it("meters middle grey, so a grey card holds still from zenith to civil twilight", () => {
-    const grey = (h: number) => {
-      const s = computeLighting(input({ elevationDeg: h }));
-      return (s.exposure * (0.18 / Math.PI) * luminance(s.horizontalIrradiance));
-    };
-    for (const h of [90, 30, 4.5, 0, -4]) {
-      expect(grey(h)).toBeCloseTo(DEFAULT_EXPOSURE_KEY, 3);
+  const rendered = (h: number) => {
+    const s = computeLighting(input({ elevationDeg: h }));
+    return s.exposure * (0.18 / Math.PI) * luminance(s.horizontalIrradiance);
+  };
+
+  it("meters middle grey all the way down to sunset", () => {
+    // A grey card holds still from the tropical zenith to the moment the sun's disc leaves the
+    // horizon. That is what a light meter does, and it is why golden hour is not a dark photograph.
+    for (const h of [90, 53, 30, 10, 4.5, 1]) {
+      expect(rendered(h)).toBeCloseTo(DEFAULT_EXPOSURE_KEY, 3);
     }
   });
 
-  it("stops opening up below the civil-twilight floor, so night goes dark rather than grey", () => {
-    const rendered = (s: ReturnType<typeof computeLighting>) =>
-      s.exposure * (0.18 / Math.PI) * luminance(s.horizontalIrradiance);
+  it("then lets twilight actually get dark, one step at a time", () => {
+    // The failure this pins: with the floor at 3 lx (the BOTTOM of civil twilight) the meter tracked
+    // all the way down and -2, -4 and -6 rendered identically to sunset. Three blind reviewers called
+    // it. The floor is now the illuminance at sunset itself, so the exposure stops there.
+    const stops = (h: number) => Math.log2(rendered(h) / DEFAULT_EXPOSURE_KEY);
+    expect(stops(0)).toBeCloseTo(0, 1);
+    expect(stops(-2)).toBeGreaterThan(-2.5);
+    expect(stops(-2)).toBeLessThan(-1);
+    expect(stops(-4)).toBeLessThan(stops(-2) - 1);
+    expect(stops(-6)).toBeLessThan(stops(-4) - 2);
+    expect(stops(-12)).toBeLessThan(-12);
+  });
+
+  it("pins the exposure at the floor, so every twilight frame shares one meter reading", () => {
+    const sunset = computeLighting(input({ elevationDeg: 0 }));
     const civil = computeLighting(input({ elevationDeg: -6 }));
     const nautical = computeLighting(input({ elevationDeg: -12 }));
     const astronomical = computeLighting(input({ elevationDeg: -18 }));
-
-    // Civil twilight is the last stop the meter can hold; below it exposure is pinned and the
-    // frame darkens with the real light instead of being lifted into a grey night.
-    expect(nautical.exposure).toBeCloseTo(astronomical.exposure, 0);
-    expect(civil.exposure).toBeLessThan(nautical.exposure);
-    expect(rendered(civil)).toBeCloseTo(DEFAULT_EXPOSURE_KEY, 2);
-    expect(rendered(nautical)).toBeLessThan(DEFAULT_EXPOSURE_KEY / 100);
-    expect(rendered(astronomical)).toBeLessThan(rendered(nautical));
+    // All of them are below the floor, so the exposure is identical and only the LIGHT changes.
+    for (const s of [civil, nautical, astronomical]) {
+      expect(s.exposure).toBeCloseTo(sunset.exposure, 0);
+    }
+    expect(nautical.illuminanceLux).toBeLessThan(civil.illuminanceLux / 100);
   });
 
   it("never divides by the sun: exposure is finite with no directional source at all", () => {
@@ -273,19 +285,33 @@ describe("derived quantities that used to be hand-tuned curves", () => {
   it("the veil is the downwelling irradiance under the surface, never brighter than above it", () => {
     for (const h of [90, 30, 4.5, 0, -6]) {
       const s = computeLighting(input({ elevationDeg: h }));
-      expect(luminance(s.underwaterIrradiance)).toBeLessThanOrEqual(
-        luminance(s.horizontalIrradiance) + 1e-9,
-      );
-      expect(luminance(s.underwaterIrradiance)).toBeGreaterThan(0);
+      const veil = luminance(s.underwaterBeam) + luminance(s.underwaterSky);
+      expect(veil).toBeLessThanOrEqual(luminance(s.horizontalIrradiance) + 1e-9);
+      expect(veil).toBeGreaterThan(0);
     }
   });
 
   it("the beam's Fresnel loss into the water grows as the sun drops", () => {
     const share = (h: number) => {
       const s = computeLighting(input({ elevationDeg: h }));
-      return luminance(s.underwaterIrradiance) / luminance(s.horizontalIrradiance);
+      return (
+        (luminance(s.underwaterBeam) + luminance(s.underwaterSky)) /
+        luminance(s.horizontalIrradiance)
+      );
     };
     expect(share(90)).toBeGreaterThan(share(10));
+  });
+
+  it("the veil's BEAM half carries the clear-sky beam — the cloud is applied once, in the shader", () => {
+    // The shadow map multiplies `underwaterBeam` per fragment. If the cloud's spatial mean were
+    // baked in here too, a cumulus shadow would darken the sea's body twice over.
+    const clear = computeLighting(input({ elevationDeg: 40 }));
+    const cloudy = computeLighting(
+      input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA.stratus) }),
+    );
+    expect(luminance(cloudy.underwaterBeam)).toBeCloseTo(luminance(clear.underwaterBeam), 6);
+    // ...while the SKY half really does dim under the deck.
+    expect(luminance(cloudy.underwaterSky)).toBeGreaterThan(luminance(clear.underwaterSky));
   });
 
   it("the ground bounce tracks the scene's total light, not the sun specifically", () => {

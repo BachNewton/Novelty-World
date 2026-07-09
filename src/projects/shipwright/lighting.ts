@@ -53,6 +53,7 @@ import {
   type SkyParams,
 } from "./sky-model";
 import {
+  cloudBeamTransmittance,
   cloudTotalTransmittance,
   cloudFieldJs,
   cloudThreshold,
@@ -108,16 +109,32 @@ const TWILIGHT_LUX: [number, number][] = [
 ];
 
 /**
- * The single **adaptation** parameter, in lux. Below this metered illuminance the exposure stops
- * opening up and the frame genuinely darkens. `3 lx` is the civil-twilight threshold — by definition
- * the illuminance at which outdoor activity without artificial light ends — so the model auto-exposes
- * all the way down through civil twilight and lets nautical twilight and night go dark, as they are.
+ * The single **adaptation** parameter, in lux. Above it the meter tracks the scene and holds middle
+ * grey; below it the meter is pinned and the frame genuinely darkens with the real light.
+ *
+ * `400 lx` is the horizontal illuminance at the instant the sun's disc leaves the refracted horizon —
+ * the top of civil twilight, and the last light that is *direct*. So: the exposure is set by the last
+ * of the sunlight, and after the sun sets the world simply gets darker. Measured consequence, which is
+ * the ladder the reviewers asked for and the physics already knew:
+ *
+ * | sun | illuminance | stops below middle grey |
+ * |---|---|---|
+ * | 0°  | 400 lx  | 0    (a properly exposed sunset) |
+ * | −2° | 130 lx  | −1.6 |
+ * | −4° | 33 lx   | −3.6 |
+ * | −6° | 3.4 lx  | −6.9 (civil twilight ends; nearly black) |
+ * | −12°| 0.008 lx| −15.6 (night) |
+ *
+ * The first value tried was `3 lx` — the *bottom* of civil twilight — and it auto-exposed all the way
+ * through dusk: −2°, −4° and −6° all rendered at middle grey, a "bright dusk" that three blind
+ * reviewers independently called the one thing that was actually wrong.
  *
  * This replaces `exposureForSun`'s `AMBIENT_FLOOR = 0.2`, which existed only because there was no
- * night model. It is deliberately ONE knob: the night *look* (eye adaptation, an artistic lift, moon
- * and stars) is content, and is Kyle's call, not this model's.
+ * night model. It is deliberately ONE knob, and the doc is explicit that the night *look* — eye
+ * adaptation, an artistic lift, the moon — is Kyle's call, not this model's. Drop it toward 3 lx for a
+ * fully dark-adapted night; raise it for a scene that falls dark sooner.
  */
-export const DEFAULT_ADAPTATION_FLOOR_LUX = 3;
+export const DEFAULT_ADAPTATION_FLOOR_LUX = 400;
 
 /** Photographic key: the fraction of the display range a mid-grey subject is metered to. 0.18 is the
  *  grey card. Tone-mapper-independent — ACES or AgX then decides where 0.18 lands on screen. */
@@ -321,8 +338,13 @@ export interface LightingState {
   cloudBeamFactor: number;
   /** Mean cloud thickness mask; drives the dome's horizon fade so overcast stays overcast. */
   cloudFraction: number;
-  /** Downwelling irradiance just BELOW the water surface (Fresnel-transmitted). Drives the veil. */
-  underwaterIrradiance: Rgb;
+  /** Downwelling irradiance just BELOW the water surface, split by source, because the water shader
+   *  must attenuate the BEAM half per-fragment by the cloud shadow map (as every other material does)
+   *  and leave the sky half alone. Summed, they are the veil. Note `underwaterBeam` carries the
+   *  CLEAR-sky beam: the cloud's mean is already in the shadow map, and applying it twice would
+   *  double-count. */
+  underwaterBeam: Rgb;
+  underwaterSky: Rgb;
   /** `renderer.toneMappingExposure`. */
   exposure: number;
   /** Illuminance a light meter reads on a horizontal surface, lux. Diagnostics + the exposure floor. */
@@ -400,7 +422,10 @@ const integrateDome = (
       for (let i = 0; i < 3; i++) {
         const clear = raw[i] * domeScale;
         const cloudy = overcastZenith[i] * cie;
-        out[i] += (clear + (cloudy - clear) * alpha) * mu;
+        // Aerial perspective (see the shader, which does the same thing): the cloud is `planeDist`
+        // metres away, and the air between dims it while filling in with airlight. Blue goes first.
+        const aerial = Math.exp(-(terms.betaR[i] + terms.betaM[i]) * planeDist);
+        out[i] += (clear + (cloudy - clear) * alpha * aerial) * mu;
       }
     }
   }
@@ -455,11 +480,23 @@ export const computeLighting = (input: LightingInput): LightingState => {
   const stats = cloudStats(input.cloud, sinH);
   const beamHorizontal = scaleRgb(beamClear, stats.beamFactor * sinH);
   const tTot = cloudTotalTransmittance(input.cloud.tau);
+  const tBeam = cloudBeamTransmittance(input.cloud.tau, sinH);
   const globalClear: Rgb = [0, 1, 2].map(
     (i) => beamClear[i] * sinH + clearChroma[i] * clearDhi,
   ) as Rgb;
+  // How bright the CLOUD ITSELF is, seen from below: of everything that reaches the ground THROUGH a
+  // cloud (`tTot · E_global`), the part that arrives as an unscattered beam (`tBeam · E_beam`) is the
+  // sun; the rest is the cloud's own glow.
+  //
+  // Both terms must describe the SAME patch of sky. Subtracting `beamHorizontal` — which is the beam
+  // averaged over the whole dome, gaps included — made `E_overcast` go NEGATIVE for any broken deck:
+  // at 85° under fair-weather cumulus it was `0.27·1.03 − 0.66 < 0`, clamped to zero, and the clouds
+  // rendered PURE BLACK with a black wall wherever the deck stacked up at the horizon. Two blind
+  // reviewers called it independently. The gap fraction belongs in the beam's spatial mean (which
+  // drives the exposure and the shadow map), never in a single cloud's radiative balance.
+  const beamHorizontalClear = scaleRgb(beamClear, sinH);
   const overcastDome: Rgb = [0, 1, 2].map((i) =>
-    Math.max(0, tTot * globalClear[i] - beamHorizontal[i]),
+    Math.max(0, tTot * globalClear[i] - tBeam * beamHorizontalClear[i]),
   ) as Rgb;
   const overcastZenithRadiance: Rgb = [0, 1, 2].map((i) =>
     cieOvercastZenith(overcastDome[i]),
@@ -487,11 +524,14 @@ export const computeLighting = (input: LightingInput): LightingState => {
 
   // --- Downwelling just under the water surface: the veil, derived at last.
   // `E_d = (1 − F(θ))·E_beam,horizontal + (1 − F_diffuse)·E_sky`.
+  //
+  // The beam half uses the CLEAR beam. The water shader multiplies it by the same cloud shadow map
+  // every other material samples, so a cloud shadow darkens the sea's BODY as well as killing its
+  // glitter — which is what actually makes dappled light legible on water. Feeding the cloud-averaged
+  // beam in here would count the cloud twice.
   const fBeam = waterBeamFresnel(elevationDeg);
-  const underwaterIrradiance: Rgb = [0, 1, 2].map(
-    (i) =>
-      (1 - fBeam) * beamHorizontal[i] + (1 - WATER_DIFFUSE_FRESNEL) * skyIrradiance[i],
-  ) as Rgb;
+  const underwaterBeam = scaleRgb(beamHorizontalClear, 1 - fBeam);
+  const underwaterSky = scaleRgb(skyIrradiance, 1 - WATER_DIFFUSE_FRESNEL);
 
   // --- Exposure: a real photographic meter. `key / L_avg`, where `L_avg` is the radiance of a grey
   // card lying flat in this scene. No `AMBIENT_FLOOR`; instead the meter bottoms out at a real
@@ -526,7 +566,8 @@ export const computeLighting = (input: LightingInput): LightingState => {
     horizontalIrradiance,
     cloudBeamFactor: stats.beamFactor,
     cloudFraction: stats.fraction,
-    underwaterIrradiance,
+    underwaterBeam,
+    underwaterSky,
     exposure,
     illuminanceLux,
   };
