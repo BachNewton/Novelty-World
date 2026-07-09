@@ -75,15 +75,24 @@ export interface CloudGenus {
   wind: [number, number];
 }
 
-export const CLOUD_GENERA: Record<string, CloudGenus> = {
+const GENERA = {
   clear: { name: "Clear", coverage: 0, tau: 0, altitude: 6000, featureSize: 2000, edge: 0.3, wind: [6, 2] },
   cirrus: { name: "Cirrus", coverage: 0.45, tau: 0.35, altitude: 9000, featureSize: 4200, edge: 0.42, wind: [26, 7] },
   cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 900, edge: 0.1, wind: [7, 2] },
   stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, featureSize: 3000, edge: 0.55, wind: [5, 1] },
   cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 120, altitude: 900, featureSize: 2600, edge: 0.08, wind: [10, 3] },
-};
+} satisfies Record<string, CloudGenus>;
 
-export const DEFAULT_GENUS = "cumulus";
+/** The genera by name. Keyed by a real union rather than `string`, so a lookup is TOTAL and callers
+ *  cannot pretend to handle a miss that the type system says can never happen. */
+export type CloudGenusName = keyof typeof GENERA;
+export const CLOUD_GENERA: Record<CloudGenusName, CloudGenus> = GENERA;
+export const CLOUD_GENUS_NAMES = Object.keys(GENERA) as CloudGenusName[];
+
+/** Narrow a string that came in over the debug API or the shot suite. */
+export const isCloudGenus = (name: string): name is CloudGenusName => name in GENERA;
+
+export const DEFAULT_GENUS: CloudGenusName = "cumulus";
 
 /** The live cloud parameters the sky, the shadow map and the light all read. */
 export interface CloudState {

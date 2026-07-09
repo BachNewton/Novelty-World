@@ -259,7 +259,8 @@ for (const s of selected) {
     api.setWaterFx(c.waterFx);
     api.setWaterType(c.water);
     api.setSea(c.sea);
-    api.setAutoExposure(true);
+    // Exposure is DERIVED from the scene's own light now (lighting.ts), so there is no auto/manual
+    // switch to arm. `setSun` alone re-meters the frame.
     api.setSun(c.sun[0], c.sun[1]);
     api.setCamera(c.cam.pos, c.cam.target);
     api.freeze(c.freezeT);

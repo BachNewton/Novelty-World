@@ -384,18 +384,6 @@ export interface Terrain {
   heightAt: (x: number, z: number) => number;
   /** How many spruce were planted. Reported so the tree count can be watched as the window grows. */
   treeCount: number;
-  /**
-   * Point the land's materials at the scene's PMREM environment texture. Call after every re-bake.
-   *
-   * This exists for a non-obvious three.js reason. `material.envMapIntensity` is IGNORED for any
-   * material that has no `envMap` of its own and merely inherits `scene.environment`: the renderer
-   * overwrites the uniform with `scene.environmentIntensity`
-   * (`WebGLRenderer`: `m_uniforms.envMapIntensity.value = scene.environmentIntensity`), and
-   * `refreshUniformsStandard` only restores the material's own value inside `if ( material.envMap )`.
-   * So to dim the sky's contribution on the land WITHOUT touching the water — which is tuned around
-   * the scene-wide intensity — the land's materials must own the very same texture.
-   */
-  setEnvironment: (environment: THREE.Texture | null) => void;
   dispose: () => void;
 }
 
@@ -443,18 +431,15 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
   }
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
+  // No per-material lighting exception. The land is lit by the same sun and the same sky as the
+  // buoys, the raft and the sea — which is the entire point of the lighting overhaul. Its old
+  // `envMapIntensity: 0.22` (plus a `setEnvironment` that re-pointed the PMREM texture onto this
+  // material just so three would honour that value) existed only to dim a sky that out-lit the sun
+  // ~21:1. Fix the balance and the hack has nothing left to do. See docs/LIGHTING.md.
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.92,
     metalness: 0,
-    // The sky env map out-lights the directional sun on land by ~5.8:1 (measured, at fixed exposure,
-    // on a sun-facing slope: env 87.5 vs sun 15.1 vs hemisphere 4.7). Reality is the other way round.
-    // Lit from every direction by a bright dome, rock has no form and shadows have nothing to remove
-    // — the islands read as smooth cream dunes. `scene.environmentIntensity` is scene-wide and the
-    // water's look is tuned around it, so the surgical lever is this PER-MATERIAL scale. The scene-wide
-    // sun:sky inversion is a real bug and is filed in docs/ISLANDS.md; this does not fix it, it just
-    // stops the land paying for it.
-    envMapIntensity: 0.22,
   });
 
   const bedrock = new THREE.Mesh(geometry, material);
@@ -507,9 +492,6 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
-    // Same env-dominance correction as the bedrock, but a touch higher: a canopy fully crushed to the
-    // sun's contribution goes black wherever it faces away.
-    envMapIntensity: 0.3,
   });
   const forest = new THREE.InstancedMesh(spruceGeometry, spruceMaterial, Math.max(1, sites.length));
   forest.name = "spruce";
@@ -540,12 +522,6 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
     object: group,
     heightAt,
     treeCount: sites.length,
-    // Assigning the texture is enough — the shader program key only asks whether *some* env map
-    // exists (`material.envMap || scene.environment`), which was already true, so no recompile.
-    setEnvironment: (environment) => {
-      material.envMap = environment;
-      spruceMaterial.envMap = environment;
-    },
     dispose: () => {
       geometry.dispose();
       material.dispose();

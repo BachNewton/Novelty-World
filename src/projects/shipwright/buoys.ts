@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { enableShadows } from "./sky";
 import type { Ocean } from "./ocean";
 
 /**
@@ -148,6 +149,10 @@ export function createNavBuoys(): NavBuoys {
     root.add(group);
     buoys.push({ object: group, restX: spec.restX, restZ: spec.restZ });
   }
+
+  // Buoys are opaque solids on open water: they cast onto the sea and onto each other. Applied to
+  // the whole root so the spars, masts and topmark cones are all covered without touching materials.
+  enableShadows(root);
 
   return {
     object: root,

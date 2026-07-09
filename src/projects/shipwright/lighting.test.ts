@@ -16,7 +16,7 @@ import {
   type LightingInput,
 } from "./lighting";
 import { luminance } from "./sky-model";
-import { CLOUD_GENERA, cloudStateFromGenus, cloudTotalTransmittance } from "./clouds";
+import { CLOUD_GENERA, cloudStateFromGenus, cloudTotalTransmittance, type CloudGenusName } from "./clouds";
 
 const input = (over: Partial<LightingInput> = {}): LightingInput => ({
   elevationDeg: 30,
@@ -179,7 +179,7 @@ describe("overcast", () => {
   });
 
   it("dims the scene monotonically with optical depth, for the genera that fully cover", () => {
-    const lux = (genus: string) =>
+    const lux = (genus: CloudGenusName) =>
       computeLighting(input({ elevationDeg: 40, cloud: cloudStateFromGenus(CLOUD_GENERA[genus]) }))
         .illuminanceLux;
     expect(lux("stratus")).toBeLessThan(lux("cumulus"));
