@@ -60,10 +60,35 @@ not land.
 
 ---
 
+## This is a GENERAL lighting system, not a Finnish one
+
+The model takes **sun elevation**, not latitude. Latitude only determines the *trajectory* elevation
+follows across a day and a year — and that layer bolts on later via a solar-position library. So a model
+that is correct across the **full elevation range** is automatically correct everywhere on Earth.
+
+> Finland is **content**. The physics is not. A lighting system strong enough to make the Archipelago
+> Sea look right at 6° will make Costa Rica look right at 88°, and it must do both without a single
+> per-region constant.
+
+This has three consequences the reviewer must enforce:
+
+- **No hand-fitted constants over elevation bands.** This is the real objection to `envIntensityForSun`
+  (which lerps over `30°…90°`) — not that its range is unused in Finland, but that a band-fitted fudge
+  is not a model. Derive from air mass; do not lerp between eyeballed endpoints.
+- **The sweep must cover 0°–90°**, not stop at Finland's 53.4° maximum. The tropics are the *harsher*
+  test: white sand at ~0.9 albedo under a zenith sun over Jerlov I water is the worst case for
+  "blacks stay black, hues stay hued" and for highlight clipping — exactly the failures being fixed.
+  Deleting the high-sun frames would delete the hardest ones.
+- **Twilight below the horizon must also work**, because at high latitude that is most of the year.
+
+Finland gets the **hero frames and the reviewer's attention**, because it is what ships first. It does
+not get to define the model's domain.
+
 ## What the model must handle
 
-The sea is Finland, latitude ≈ **60° N**. Full day/night and seasons are **out of scope now**, but the
-model must be *shaped* so they drop in without a rewrite.
+The first sea is Finland, latitude ≈ **60° N** (sun never above ~53.4°, midwinter noon ~6.6°). Full
+day/night and seasons are **out of scope now**, but the model must be *shaped* so they drop in without a
+rewrite — and must already be correct at tropical elevations it has not yet been asked to render.
 
 - **Bright clear summer day** — high sun, hard shadows, ~5:1 sun:sky.
 - **Golden hour and red/orange sunset** — long air mass, strongly reddened and dimmed beam,
@@ -193,22 +218,41 @@ spectrum, and water turbidity together. Build the seam; don't wire it yet.
 These are numbers, not vibes. The overhaul is judged against them first, and against reviewer eyes
 second.
 
-1. **Sun : sky irradiance ratio on a sun-facing diffuse surface**, measured by isolating each source
-   at fixed exposure (the probe that found the bug):
+1. **Sun : sky irradiance ratio, DERIVED — not eyeballed.** Do not lerp between hand-picked endpoints;
+   that is the fudge we are removing. Compute it.
 
-   | sun elevation | target ratio (sun : sky) | rationale |
-   |---|---|---|
-   | 53° (the Finnish maximum) | ~5 : 1 | ~100 klx beam vs ~15–20 klx skylight |
-   | 30° | ~3 : 1 | air mass ≈ 2 |
-   | 10° | ~1 : 1 | air mass ≈ 5.6, beam heavily attenuated |
-   | 4° | ~0.4 : 1 | air mass ≈ 12; the sky wins at dusk |
-   | below 0° | 0 : 1 | no beam at all — skylight only |
-   | overcast | 0 : 1 | no beam at all |
+   - **Air mass.** `AM ≈ 1/sin(h)` is the cheap form; use **Kasten–Young** near the horizon, where
+     `1/sin(h)` diverges and is wrong by a factor of ~1.5 below 2°.
+   - **Direct normal irradiance** collapses with air mass. The standard clear-sky approximation
+     (Meinel & Meinel) is all you need:
+     `DNI(AM) ≈ 1353 · 0.7 ^ (AM ^ 0.678)  [W/m²]`
+   - **Diffuse horizontal irradiance** on a clear day is ~10–15 % of GHI near noon (≈110 W/m²), and
+     falls toward ~30 W/m² near the horizon. Measure what the engine's Sky actually delivers with the
+     probe; any standard clear-sky diffuse model (Haurwitz, Ineichen) is fine. The *shape* matters more
+     than the exact constant.
 
-   Note the top row: **53.4° is the highest the sun ever gets at 60° N.** Do not tune at 90°.
+   **State the surface orientation, or the ratio is meaningless.** Define the target on a **horizontal
+   diffuse surface** (the sea, a deck, flat rock), where the beam is foreshortened by `sin(h)`:
 
-   The beam should fall off with **air mass**, not linearly with elevation. `AM ≈ 1/sin(h)` is the
-   cheap approximation; Kasten–Young is the honest one near the horizon.
+   `ratio(h) = DNI(AM(h)) · sin(h)  :  DHI(h)`
+
+   | sun elevation | AM | DNI (W/m²) | beam on horizontal | target ratio (sun : sky) |
+   |---|---|---|---|---|
+   | 90° (tropics, zenith) | 1.0 | ~947 | 947 | **~8.5 : 1** |
+   | 53° (Finnish maximum) | 1.25 | ~893 | 713 | ~6.5 : 1 |
+   | 30° | 2.0 | ~765 | 383 | ~3.5 : 1 |
+   | 22° | 2.7 | ~676 | 253 | ~2.5 : 1 |
+   | 15° | 3.9 | ~553 | 143 | ~1.6 : 1 |
+   | 10° | 5.8 | ~421 | 73 | **~1 : 1** |
+   | 7° | 8.2 | ~306 | 37 | ~0.6 : 1 |
+   | 4.5° | 12.7 | ~184 | 14 | ~0.3 : 1 |
+   | 0° | ~38 | ~20 | 0 | 0 : 1 |
+   | below 0° | — | 0 | 0 | **0 : 1** — skylight only |
+   | overcast (any h) | — | ≈0 | ≈0 | **0 : 1** — no beam at all |
+
+   Today the measured ratio is about **1 : 21** — inverted at *every* elevation. Note that on a
+   *sun-facing* surface (the probe that found the bug) the ratio is higher, since the beam is not
+   foreshortened; report which surface you measured.
 
 2. **Zero per-material lighting exceptions.** `grep envMapIntensity` → empty. Delete the land's hack
    and `Terrain.setEnvironment` (`terrain.ts`). If any object needs a special case, the model is wrong.
@@ -343,40 +387,40 @@ its own frames. Calibration rig in shot; islands only in the hero frames (terrai
 run, not per shot).
 
 ### Space the elevations by AIR MASS, not by degrees
-The existing ladder is `[0, 4, 12, 25, 85]`, and it is wrong in three ways.
+The existing ladder is `[0, 4, 12, 25, 85]`, and it is badly distributed. Air mass `≈ 1/sin(h)`:
 
-**The top rung does not exist.** At **60° N the sun never exceeds ~53.4°** (summer solstice:
-`90 − 60 + 23.44`), and at midwinter it peaks at **~6.6°**. So `e85` / `e90` test a sun Finland never
-sees — and note that `envIntensityForSun` currently interpolates over `30°…90°`, i.e. **that curve is
-tuned entirely inside a range the game will never render.**
+| elevation | 90° | 70° | 53° | 40° | 30° | 22° | 15° | 10° | 7° | 4.5° | 2.5° | 1° | 0° |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| air mass | 1.00 | 1.06 | 1.25 | 1.56 | 2.0 | 2.7 | 3.9 | 5.8 | 8.2 | 12.7 | ~20 | ~26 | ~38 |
 
-**The spacing is backwards.** Air mass `≈ 1/sin(h)` (use Kasten–Young near the horizon):
-
-| elevation | 53° | 40° | 30° | 22° | 15° | 10° | 7° | 4.5° | 2.5° | 1° | 0° |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| air mass | 1.25 | 1.6 | 2.0 | 2.7 | 3.9 | 5.6 | 7.9 | ~11.5 | ~16.5 | ~24 | ~38 |
-
-Nothing happens between 25° and 85° (1.1 air masses). Everything happens below 10°. The old suite's own
-comment claims its steps are "roughly even in air mass" — they are not.
-
-**Nothing is below the horizon.** Civil twilight is long at this latitude, and blue hour / the white
-nights are the setting's signature light. Most of a Finnish year happens below 15°.
+`25° → 85°` spans **1.1 air masses** — essentially nothing changes. `4° → 0°` spans **26**. Everything
+happens below 10°, and the sweep spends most of its samples where nothing moves. (The old suite's own
+comment claims its steps are "roughly even in air mass". They are not.) And **nothing is below the
+horizon**, though civil twilight is where a high-latitude sea spends much of its year.
 
 ### The four sub-groups
+Cover the **full 0°–90° range** — this is a general lighting system, not a Finnish one (see above). The
+high end is the *harsher* test, not the irrelevant one: white sand under a zenith sun over Jerlov I
+water is the worst case for highlight clipping and for keeping blacks black.
+
 - **A — elevation ladder (the physics check).** One azimuth (side: the most diagnostic for form and
-  shadow), clear sky, rig in frame. Steps ≈ ×1.4 in air mass:
-  **`53, 40, 30, 22, 15, 10, 7, 4.5, 2.5, 1, 0, −2, −4, −6`** (14 frames). Below 0° there is no direct
-  beam at all — only skylight — which is the strongest possible test that the model does not secretly
-  depend on the sun.
-- **B — azimuth cross (shadows + glitter).** Elevations `53, 25, 8, 2` × front / side / behind (12).
-- **C — cloud states.** Elevations `40, 10, 2` × cirrus / cumulus / stratus / cumulonimbus (12).
+  shadow), clear sky, rig in frame. Steps ≈ ×1.3 in air mass across the whole range:
+  **`90, 70, 53, 40, 30, 22, 15, 10, 7, 4.5, 2.5, 1, 0, −2, −4, −6`** (16 frames).
+  - `90°` is the tropical zenith and the harshest frame in the suite. Azimuth is undefined there, which
+    is harmless for a single-azimuth ladder.
+  - `53.4°` is Finland's maximum; `6.6°` its midwinter noon. Mark both, and weight review attention
+    toward the low end — but do not let the model *break* above them.
+  - Below `0°` there is **no direct beam at all**, only skylight. This is the strongest possible test
+    that the model does not secretly depend on the sun existing.
+- **B — azimuth cross (shadows + glitter).** Elevations `85, 53, 25, 8, 2` × front / side / behind (15).
+  Use `85°`, not `90°` — at the true zenith the sun's azimuth is undefined and the three frames would
+  render identically.
+- **C — cloud states.** Elevations `70, 40, 10, 2` × cirrus / cumulus / stratus / cumulonimbus (16).
 - **D — heroes.** `04-beauty/*` + `05-islands/sunset-backlit`.
 
-~40 frames, each answering something specific, instead of a 120-frame cross product nobody can review.
+~50 frames, each answering something specific, instead of a cross product nobody can review.
 
-**Leave groups 01–04 alone** — they are the water's regression baselines. But their top rung (`e85`,
-`e90`) is unphysical for this setting: useful as a worst-case sheen stress test, never as the thing that
-*drives* a decision.
+**Leave groups 01–04 alone** — they are the water's regression baselines.
 
 ---
 
