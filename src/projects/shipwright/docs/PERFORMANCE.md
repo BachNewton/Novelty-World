@@ -23,6 +23,48 @@ separate reflection pass. Most of this doc is about that (GPU / fill). The separ
 
 ---
 
+## CPU render-prep — the scene-graph traversal cost (the 2026-07-09 lesson)
+
+For months the "real frame" looked CPU-bound on a mysterious ~16-20 ms of "render-prep" that no GPU
+lever touched. It was **scene-graph traversal**, and the story is worth internalizing because it will
+recur as the voxel game grows.
+
+**The mechanism.** `renderer.render(scene, camera)` calls `scene.updateMatrixWorld()`, which walks the
+**entire** scene graph and recomputes **every** node's world matrix — and it does **NOT skip hidden
+nodes** (`visible` only gates whether something is *drawn/culled*, never whether its matrix updates).
+Shipwright renders the scene **three times per frame** (capture pass → SSR pass → main pass), so the
+whole graph is traversed **×3 every frame**.
+
+**What bit us.** The buoyancy debug **force arrows** built one `THREE.ArrowHelper` per voxel + per
+void-cell, for every body — each ArrowHelper is a Group + Line + Mesh ≈ **3 `Object3D`s**. The all-demos
+testbed had **~4,300 arrows → ~12,800 nodes**, and they were created **eagerly even though the overlay
+defaults OFF**. So ~12,800 hidden nodes were matrix-updated ~38,000×/frame for **zero pixels and zero
+draw calls**. Cost: ~18-19 ms CPU/frame (render-prep 20 → 1.4 ms); the interactive scene went
+**~20-30 → 60 fps** (vsync cap), the both/32 bench **44 → 100 fps**. Fix (`bd2c693`): build the arrow
+objects **lazily** — only while the toggle is on, disposed + removed on toggle-off (so enable→disable
+returns to the lean graph; it's *stricter* than the old "create once, just hide" which paid the tax
+forever). GPU-ms was unchanged — a pure-CPU win.
+
+**Why the earlier hunts missed it — node count ≠ draw count.** Draw calls were ~11-44 (correctly called
+"trivial"), and that was used to conclude render-prep was cheap. But the traversal cost tracks
+**scene-graph node count**, not draw count — a scene can have 35 draws and 30,000 nodes. `--bare-probe`
+(an empty `renderer.render`) measured ~0 ms and the render **census** (now printed in every bench header)
+exposed the 12,800-node / 11-draw mismatch. **Rule: when render-prep CPU is high, look at node count,
+not just draw calls or GPU-ms.**
+
+**The durable principle — instance, don't multiply nodes.** The traversal walks **nodes, not
+primitives inside a node**. A `THREE.InstancedMesh` is **one node** no matter how many instances it
+holds. The trapped-air x-ray overlay is the counter-example done right: one `InstancedMesh`
+(`physics.ts` `airOverlay`) for *all* void cells across *all* bodies → **1 node**, so it's immune to this
+even though it's on-by-default and actually drawn (its small cost — 1 transparent draw + a per-frame
+instance-matrix upload — is already inside the good post-fix numbers). The arrows were the anti-pattern
+(N separate objects); the overlay was the pattern (1 instanced node). **Applies to voxel bodies too:**
+per-body `InstancedMesh` / merged mesh keeps each body at 1 node — do NOT let any per-voxel/per-cell
+feature (debug or gameplay) spawn a node per element. Prefer instancing or a single merged mesh, and
+watch the census node count as ships get large.
+
+---
+
 ## TL;DR — the levers, in priority order
 
 1. **Render scale** (top of the GUI). Global fill multiplier — cost scales with pixel
@@ -54,10 +96,11 @@ separate reflection pass. Most of this doc is about that (GPU / fill). The separ
 
 - **Fill / fragment-bound, and on a small-VRAM iGPU also bandwidth-bound.** The water
   shades the whole screen, so cost tracks pixel count, not vertices.
-- **SSR (screen-space reflection) is the dominant cost center.** It ray-marches the
+- **SSR (screen-space reflection) is a leading cost center** (see the full GPU decomposition in "Key
+  findings" — as of 2026-07-09 PBR lighting 2.9 ms slightly edges the SSR pass 2.4 ms). It ray-marches the
   depth buffer per water pixel — up to `SSR_STEPS` *dependent* texture fetches each.
   Dependent fetches are the worst case for a fetch-starved iGPU. Neutering SSR alone
-  took a default frame from **~37 → ~100 FPS** (the whole investigation's headline).
+  took a default frame from **~37 → ~100 FPS** (the historical headline, from when the march ran inline).
   - **Confirmed by direct per-pass GPU timing** (the `GpuTimer` panel, not FPS
     inference). On **this dev machine's AMD 780M** (512 MB UMA — the worst-case target
     below), sunset default, measured 2026-07-07: `capture ≈ 0.9 ms`, **`ssr ≈ 4 ms`**,
@@ -105,17 +148,28 @@ separate reflection pass. Most of this doc is about that (GPU / fill). The separ
 
 ## Key findings (distilled)
 
-- **SSR is the bottleneck**, not lighting, tessellation, or plane size. Confirm anything
-  else against this first.
-- **The low-res SSR pass is a two-part win:** occupancy reclaim (helps at *any*
-  reflection res) + fewer marching pixels (the resolution dial). At the sunset default
-  it took the frame comfortably to the refresh cap.
-- **PBR vs Phong is coverage-dependent.** A Phong variant measured ~2× cheaper *per
-  pixel* — but that only shows when water fills the screen in an otherwise-empty scene.
-  In real, populated frames (geometry occupying the screen, the frame dominated by
-  capture/SSR/other geometry) the difference vanishes into noise. We kept **PBR** for the
-  better look (IBL ambient — the warm-sunset wash — + PMREM reflection). Phong lives in
-  git history (around commit `7085226`) if a weak device ever needs it back as a tier.
+- **The GPU frame is now fully decomposed (2026-07-09, 780M, visuals ~9.5 ms, `--shading` +
+  `--water-fx`):** **PBR lighting 2.9 ms (31 %) · SSR pass 2.4 ms (25 %) · fill 2.2 ms (23 %) ·
+  screen-space composite 1.2 ms (13 %) · capture 0.8 ms (8 %)**. Two things this corrects:
+  - **SSR is a co-leader, not the sole bottleneck.** The dedicated SSR pass (2.4 ms) is real and big,
+    but the **PBR BRDF + IBL lighting is now the single biggest slice (2.9 ms)** and the screen-space
+    composite (refraction + Beer–Lambert + SSR *sampling*) is only ~1.2 ms. "SSR is *the* bottleneck"
+    was true of the old inline march; with the march in its own low-res pass, PBR lighting edges it out.
+  - **The parked Phong tier is now a concrete number, not a vibe.** PBR lighting is 2.9 ms and Phong
+    measured ~½ per-pixel → a Phong quality tier saves **~1.5 ms** (git ~`7085226`). Still coverage-
+    dependent and a look downgrade — a deliberate low-end-tier lever, not a default.
+- **The low-res SSR pass is a two-part win:** occupancy reclaim (helps at *any* reflection res) + fewer
+  marching pixels (the resolution dial). At the sunset default it took the frame to the refresh cap.
+- **`--ssr-cutoff` (Fresnel gate, E5) is a WEAK lever** (measured 2026-07-09): sweeping 0.02→0.2 barely
+  moved SSR GPU-ms, because it discards *near-head-on* pixels but the costly ones are at *grazing* (high
+  Fresnel, above the cutoff). reflection-res (E2) / ssr-steps (E4) are the real SSR knobs.
+- **Scene-capture res (0.5) did little for compute** — it's only 0.8 ms of the frame anyway. Saves VRAM/
+  bandwidth + sets underwater clarity, but the SSR march runs per *output* pixel regardless.
+- **Device context:** the constraint is a weak **AMD 780M iGPU** — small dedicated VRAM
+  (~512 MB UMA) that spills to slow shared system RAM under load. A **Pixel 10 Pro XL**
+  (tile-based deferred GPU + fast unified memory) runs the full thing smoothly; mobile
+  TBDR is ideal for this fill/bandwidth workload, immediate-mode iGPUs are the worst case.
+  More BIOS UMA would *not* have fixed the compute/ALU costs we found — measure, don't
 - **Scene-capture res (0.5) did little for compute.** It saves capture VRAM/bandwidth and
   sets underwater clarity, but the SSR march runs per *output* pixel regardless.
 - **Device context:** the constraint is a weak **AMD 780M iGPU** — small dedicated VRAM

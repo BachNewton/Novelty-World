@@ -26,12 +26,32 @@ The seam timers (thread 1's actual task) were built, and they + a render census 
 | **visuals** before→after | 12,792 → **72** | 9.0 → **0.8 ms** | 9.0 → **0.8** | → **109** |
 | **both/32** before→after | 29,873 → **107** | 20.1 → **1.4 ms** | 30.1 → **9.9** | 44 → **100** |
 
-**The frame is now PHYSICS-bound** (both/32 ≈ 8.5 ms physics vs ~1.4 ms render CPU). The GPU-fill levers
-(render-scale/reflection-res/ssr-cutoff/E7 capture-scale) were never the lever for this — they move
-GPU-ms (now co-equal, ~9.5 ms), not the CPU floor. **New frontier: the buoyancy loop** — the physics
-seam split (commit `b9348b0`) shows per-voxel buoyancy is **~67 %** of the step (solver ~27 %), linear
-in body count. See thread 5. New diagnostic knobs kept: `--quad-size`, `--gpu-timer off`, `--bare-probe`,
-and the render census (draw calls + scene-graph size) in every run's header.
+## [2026-07-09] NEW PERSON — START HERE: the frame is fully decomposed
+
+Render-prep CPU is solved, so the frame now has **two ceilings**, and the whole session decomposed each
+to its sub-part (780M, p50). Crossover is **~32 bodies**: below it GPU-bound (~100 fps), above it
+physics-bound (64 bodies = 53 fps). 0 spikes throughout.
+
+- **GPU ceiling (~9.5 ms, the <32-body limit)** — decomposed via `--shading` + `--water-fx`:
+  **PBR lighting 2.9 ms (31 %) · SSR pass 2.4 ms (25 %) · fill 2.2 ms (23 %) · composite 1.2 ms (13 %) ·
+  capture 0.8 ms (8 %)**. The single biggest slice is **PBR BRDF + IBL lighting**, not the screen-space
+  composite (a correction to the old "SSR is *the* cost" framing). Concrete lever: the parked **Phong**
+  tier (git ~`7085226`) ≈ **1.5 ms**, but it's a look downgrade — a low-end-tier decision, not a default.
+- **Physics ceiling (the >32-body limit)** — decomposed via `stepTiming()` + `--drag off`:
+  **buoyancy ~67 %, Rapier solver ~27 %** (both linear in body count); and *within* buoyancy,
+  **height/void Newton sampling ~78 %, drag/water-velocity ~22 %**. So the lever is the **buoyancy
+  height SAMPLE COUNT + Newton cost** (fewer sample points / cheaper eval), NOT the drag, and
+  greedy-meshing *colliders* (solver, 27 %) is the smaller prize.
+
+**Both remaining levers are FIDELITY/GAMEPLAY tradeoffs** (float accuracy vs sample count; look vs Phong)
+— that's why they weren't taken unattended; pick the tradeoff, then use the knobs below to measure it.
+Full tables + methodology: `perf-experiments.md` → "2026-07-09 session". Deeper "why" + the durable
+**instance-don't-multiply-nodes** lesson: `PERFORMANCE.md` → "CPU render-prep — scene-graph traversal".
+
+**Diagnostic knobs added this session (all in `bench.mjs --help` header):** `--quad-size` (E8),
+`--gpu-timer off`, `--bare-probe`, `--ssr-cutoff` (E5, weak lever), `--shading`, `--water-fx`,
+`--drag off`; plus the **render census** (draw calls **+ scene-graph node count**) in every run header —
+watch node count as ships grow, it's the metric the arrows hid behind.
 
 ## Where things stand
 
@@ -39,14 +59,17 @@ and the render census (draw calls + scene-graph size) in every run's header.
   reflection-res, E3 water, P3 body-count, native-res anchor, a spikes/smoothness pass, and **E6 (SSR
   on/off)**. 2 interleaved passes, agreed within 1–2% (no thermal drift). All in `perf-experiments.md`.
 - **Landed since:** the E6 knob (`--ssr off`) + GpuTimer stale-value fix; player **voxel building**
-  (place/break/drop, commit `10bfdbf`); the **`--collision off`** knob + collision-resolution finding
-  (commit `0151ad6`, Tier 4); and the **2026-07-09 render-prep session** — CPU seam timers (`0b4f70f`),
-  the `--quad-size`/`--gpu-timer`/`--bare-probe` diagnostics (`430270e`), the **lazy-arrows fix**
-  (`bd2c693`, the thread-1 resolution above), and the **physics-step seam split** (`b9348b0`). Current
-  `main` ≈ `b9348b0`.
-- **Servers:** none left running. Start `npm run dev` (port 3001) to bench. No prod build needed.
-- **`.bench/` data** is gitignored but present locally under `src/projects/shipwright/.bench/`
-  (`census-*`, `e1-*`, `e2-*`, `e3-*`, `p3-*`, `native-*`, `e6-*`, `coll-*`). Re-runnable any time.
+  (place/break/drop, `10bfdbf`); the **`--collision off`** knob (`0151ad6`, Tier 4); and the full
+  **2026-07-09 render-prep + decomposition session** — CPU seam timers (`0b4f70f`), diagnostics
+  `--quad-size`/`--gpu-timer`/`--bare-probe` (`430270e`), the **lazy-arrows fix** (`bd2c693`), the
+  physics split (`b9348b0`), `sampleHeight` (`809fd47` + `6615b21`), `--ssr-cutoff` E5 (`127e35d`),
+  the harness `domcontentloaded` fix (`b0eaee1`), doc reconciliation (`de43a87`/`0615772`), `--shading`
+  (`1e1cfec`), the main-pass GPU decomposition + `--water-fx` (`4537462`/`882be33`), and `--drag off`
+  (`4a5b98a`). Current `main` at/after these.
+- **Servers:** dev server is expected running on **port 3001** (`npm run dev`) — the bench API is dev-only.
+- **`.bench/` data** is gitignored but present locally under `src/projects/shipwright/.bench/`. Session
+  labels include `final-b*` (post-fix scaling), `physsplit-*`, `mp-*`/`shade-*` (GPU decomposition),
+  `drag-*`, `e5-cut*`. Re-runnable any time.
 
 ## The findings that matter (condensed)
 
@@ -169,13 +192,20 @@ shared hook's `mainRenderMs()` (the main-render CPU submit, previously counted n
 The physics seam split (`b9348b0`) shows **buoyancy ~67 % of the step, Rapier solver ~27 %**, both linear
 in body count (32 bodies: 6.1 / 2.5 ms; 64: 11.6 / 4.6 ms). So:
 - **Greedy-meshing the COLLIDERS (solver) is the smaller prize** — the solver is only 27 %. Deprioritize it.
-- **The buoyancy sample loop is the lever.** Each voxel + void cell does a Gerstner `sampleSurface`
-  (Newton-inverted) + a `waterVelocity` (2 `sampleParticle`s) every substep. Levers to explore: fewer
-  sample points (sample per-N-voxels / per-face, not per-voxel), a cheaper height sample for buoyancy
-  (the Newton inversion may be overkill when only submersion depth is needed), the out-param cleanup
-  (thread 2), and — real-time only — the **substep count**: at low FPS the accumulator runs 2–N substeps
-  (bounded by `MAX_SUBSTEPS`), multiplying the per-substep cost (headed 32-body `phys` was ~22 ms = ~2–3
-  substeps of ~8.5 ms). A slow-frame→bigger-dt→more-substeps mild spiral; worth confirming behaviour.
+- **The buoyancy sample loop is the lever, and it's the height/Newton sampling, not the drag.** Each
+  voxel + void cell does a Gerstner height sample (`ocean.sampleHeight`, Newton-inverted) + material
+  voxels add a `waterVelocity` (2 `sampleParticle`s) every substep. **Measured (`--drag off`):** the
+  whole drag term + its 2 evals is only **~22 %** of buoyancy; **~78 % is the height/void Newton sampling
+  + force math**. And **allocation is NOT the cost** — `sampleHeight` (landed, `809fd47`/`6615b21`) drops
+  the discarded normal Vector3 and left buoyancy unchanged. So the real levers (all FIDELITY tradeoffs):
+  **fewer sample points** (per-N-voxels / per-face, not per-voxel), or a **cheaper height eval** (the
+  full Newton inversion may be overkill when only submersion depth is needed — at the calm gameplay sea,
+  horizontal displacement is tiny, so fewer iterations may suffice). Prototype behind a default-off flag
+  + judge the float feel.
+- **Real-time substep spiral (latent):** at low FPS the fixed-step accumulator runs 2–N substeps
+  (bounded by `MAX_SUBSTEPS`), multiplying the per-substep cost (headed 32-body `phys` was ~22 ms ≈ 2–3
+  substeps of ~8.5 ms). Handled correctly today (backlog dropped past the cap = time-dilation, not a
+  hang), but it means slow frames get slower under heavy load — worth confirming feel when ships scale.
 - Still open: a **contact-heavy bench scene** (the crowded-ships collision cost the non-overlapping grid
   hides — finding 6 caveat).
 
@@ -185,19 +215,24 @@ in body count (32 bodies: 6.1 / 2.5 ms; 64: 11.6 / 4.6 ms). So:
 - **Main-shader Tier-2** — measure PBR vs the parked Phong (git ~`7085226`) + the composite cost.
 - **Reconcile `PERFORMANCE.md`** — fold in DVFS-sublinearity, the (now-fixed) CPU render floor, the
   render census (scene-graph size ≠ draw calls), the physics split (buoyancy 67 %), spike/1%low reality.
-- **Speed up the bench harness** (noticed 2026-07-08 — idle overhead around each flight). `bench.mjs` pays
-  ~8–11 s/run of non-GPU wait: `goto(..., waitUntil: "networkidle")` (slow/flaky on the Next *dev* server,
-  and redundant since we already `waitForFunction(__shipwright)` — switch to `"domcontentloaded"`); a fixed
-  3.5 s settle (replace with a `window.__shipwright.ready` signal set after the PMREM bake + Rapier init);
-  and `browser.close()` (~1–3 s, unavoidable). Trimming the first two speeds every run.
+- **Speed up the bench harness** (partial — `domcontentloaded` landed `b0eaee1`). Still open: the fixed
+  3.5 s settle (replace with a `window.__shipwright.ready` signal set after the PMREM bake + Rapier init)
+  and `browser.close()` (~1–3 s, unavoidable). Lower value now the flaky `networkidle` wait is gone.
 
 ## Gotchas (don't rediscover them)
 
+- **Scene-graph node count ≠ draw calls — and `updateMatrixWorld` traverses HIDDEN nodes.** The whole
+  thread-1 saga: 12,800 nodes / 11 draws, all invisible, cost ~18 ms/frame because `renderer.render`
+  walks every node's matrix each call (×3 passes) regardless of `visible`. **When render-prep CPU is
+  high, read the census node count, not draw calls or GPU-ms.** And **instance, don't multiply nodes**:
+  an `InstancedMesh` is 1 node for N elements (the trapped-air overlay does this right; the arrows did
+  not). Never spawn a node per voxel / per cell — debug or gameplay. (Full write-up: `PERFORMANCE.md` →
+  "CPU render-prep — scene-graph traversal".)
 - **`GpuTimer.values()` carries the last per-span value forward** (for its panel), so a *skipped* span
   reports a stale reading. The benchmark forces `ssr = 0` when SSR is off — replicate that guard for any
   future "skip a pass" experiment (the `--collision off` knob needed no such guard — it doesn't skip a span).
 - **Pause physics ≠ despawn.** The GUI "pause physics" freezes the step but keeps bodies **rendering** — to
-  remove their render cost you must hide/despawn them, not pause. (This is the core of thread 1.)
+  remove their render cost you must hide/despawn them, not pause.
 - **Render-scale caps at 2×** (`maxPixelRatio`): `--render-scale 2.5`/`3.0` all render at 3200×1800. To
   exceed 5.76 MP, use a larger `--width`/`--height` viewport.
 - **Bench control API is dev-only** (`window.__shipwright`, gated on `NODE_ENV !== "production"`). Bench
