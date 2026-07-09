@@ -198,11 +198,14 @@ second.
 
    | sun elevation | target ratio (sun : sky) | rationale |
    |---|---|---|
-   | 60° (high summer) | ~5 : 1 | ~100 klx beam vs ~15–20 klx skylight |
+   | 53° (the Finnish maximum) | ~5 : 1 | ~100 klx beam vs ~15–20 klx skylight |
    | 30° | ~3 : 1 | air mass ≈ 2 |
    | 10° | ~1 : 1 | air mass ≈ 5.6, beam heavily attenuated |
    | 4° | ~0.4 : 1 | air mass ≈ 12; the sky wins at dusk |
+   | below 0° | 0 : 1 | no beam at all — skylight only |
    | overcast | 0 : 1 | no beam at all |
+
+   Note the top row: **53.4° is the highest the sun ever gets at 60° N.** Do not tune at 90°.
 
    The beam should fall off with **air mass**, not linearly with elevation. `AM ≈ 1/sin(h)` is the
    cheap approximation; Kasten–Young is the honest one near the horizon.
@@ -334,18 +337,46 @@ to a human *and to a reviewer agent* in a single frame. Without it, everyone is 
 
 ## The `06-lighting` shot group
 
-Do **not** re-run the whole suite for lighting work; most of it tests clarity and sea state. Build a
-group that stresses the light itself, with the calibration rig in frame and islands only in a few hero
-shots (they cost ~1.65 s of terrain generation once per run).
+Do **not** re-run the whole suite for lighting work; most of it tests clarity and sea state. And do
+**not** build a blind cross-product of every axis — each axis answers a different question, so give each
+its own frames. Calibration rig in shot; islands only in the hero frames (terrain costs ~1.65 s once per
+run, not per shot).
 
-- **Elevation sweep: −6°, −2°, 0°, 2°, 4°, 8°, 15°, 25°, 40°, 53°.** Dense at the bottom, because that
-  is where the light actually changes — and because **at 60° N the sun never exceeds ~53.4°** (summer
-  solstice: `90 − 60 + 23.44`) and at midwinter peaks at **~6.6°**. The existing suite's `e85` / `e90`
-  frames are testing a sun that Finland never sees. Most of a Finnish year happens below 15°.
-- **× cloud state:** clear, fair-weather cumulus, overcast stratus, cumulonimbus.
-- **× a couple of azimuths** (front / side / behind), because sun-relative geometry is what shadows and
-  glitter key off.
-- Hero frames: `04-beauty/*` and `05-islands/sunset-backlit`.
+### Space the elevations by AIR MASS, not by degrees
+The existing ladder is `[0, 4, 12, 25, 85]`, and it is wrong in three ways.
+
+**The top rung does not exist.** At **60° N the sun never exceeds ~53.4°** (summer solstice:
+`90 − 60 + 23.44`), and at midwinter it peaks at **~6.6°**. So `e85` / `e90` test a sun Finland never
+sees — and note that `envIntensityForSun` currently interpolates over `30°…90°`, i.e. **that curve is
+tuned entirely inside a range the game will never render.**
+
+**The spacing is backwards.** Air mass `≈ 1/sin(h)` (use Kasten–Young near the horizon):
+
+| elevation | 53° | 40° | 30° | 22° | 15° | 10° | 7° | 4.5° | 2.5° | 1° | 0° |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| air mass | 1.25 | 1.6 | 2.0 | 2.7 | 3.9 | 5.6 | 7.9 | ~11.5 | ~16.5 | ~24 | ~38 |
+
+Nothing happens between 25° and 85° (1.1 air masses). Everything happens below 10°. The old suite's own
+comment claims its steps are "roughly even in air mass" — they are not.
+
+**Nothing is below the horizon.** Civil twilight is long at this latitude, and blue hour / the white
+nights are the setting's signature light. Most of a Finnish year happens below 15°.
+
+### The four sub-groups
+- **A — elevation ladder (the physics check).** One azimuth (side: the most diagnostic for form and
+  shadow), clear sky, rig in frame. Steps ≈ ×1.4 in air mass:
+  **`53, 40, 30, 22, 15, 10, 7, 4.5, 2.5, 1, 0, −2, −4, −6`** (14 frames). Below 0° there is no direct
+  beam at all — only skylight — which is the strongest possible test that the model does not secretly
+  depend on the sun.
+- **B — azimuth cross (shadows + glitter).** Elevations `53, 25, 8, 2` × front / side / behind (12).
+- **C — cloud states.** Elevations `40, 10, 2` × cirrus / cumulus / stratus / cumulonimbus (12).
+- **D — heroes.** `04-beauty/*` + `05-islands/sunset-backlit`.
+
+~40 frames, each answering something specific, instead of a 120-frame cross product nobody can review.
+
+**Leave groups 01–04 alone** — they are the water's regression baselines. But their top rung (`e85`,
+`e90`) is unphysical for this setting: useful as a worst-case sheen stress test, never as the thing that
+*drives* a decision.
 
 ---
 
