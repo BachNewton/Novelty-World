@@ -353,13 +353,22 @@ void main() {
     cloudRadiance *= shade / uCloudShadeMean;
 
     // AERIAL PERSPECTIVE. The cloud is cloudDist metres away and the air between scatters: it dims the
-    // cloud and fills in with airlight. Approximating the airlight by the clear-sky radiance in the
-    // same direction -- exact for a horizontally uniform atmosphere -- collapses the whole thing to
-    // one per-channel factor on the cloud's opacity. Blue extinguishes first (Rayleigh), so a distant
-    // dark cloud base hazes to blue-grey. Without it a low deck stacks into a hard dark belt around
-    // the horizon instead of fading into the sky.
+    // cloud and fills in with AIRLIGHT. Blue extinguishes first (Rayleigh), so a distant dark cloud
+    // base hazes to blue-grey; without this a low deck stacks into a hard dark belt at the horizon.
+    //
+    // But the airlight is lit by whatever is actually above it. Approximating it by the clear-sky
+    // radiance -- as if a blue sky were shining down through the deck -- is only right for ISOLATED
+    // clouds. Under total overcast there is no blue sky, and the light in front of the deck is the
+    // deck's own. Getting this wrong made a stratus dome dissolve into a clean blue gradient at low
+    // sun, where the cloud is 14 km away along a near-horizontal ray: the light said overcast and the
+    // sky said clear, which is the one failure this whole model exists to prevent.
+    //
+    // uCloudFraction is the field's MEAN THICKNESS, so it interpolates exactly the right way: ~0 for a
+    // sparse cumulus field (airlight = the sky between the clouds), ~1 for a stratus deck.
     vec3 aerial = exp(-(uBetaR + uBetaM) * cloudDist);
-    radiance = mix(radiance, cloudRadiance, vec3(alpha) * aerial);
+    vec3 airlight = mix(radiance, cloudRadiance, uCloudFraction);
+    vec3 hazed = mix(cloudRadiance, airlight, 1.0 - aerial);
+    radiance = mix(radiance, hazed, alpha);
   }
 
   // --- Below the horizon: the SEA, and it is a Fresnel reflector, not a Lambertian card.

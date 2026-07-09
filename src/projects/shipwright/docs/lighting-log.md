@@ -100,17 +100,24 @@ by the last of the *direct* light, and after that the world simply gets darker:
 
 τ drives the sky, the beam, the cloud shadow map and the exposure. Measured at 40°:
 
-| genus | covered | beam factor | single-scatter share | illuminance | % of clear |
-|---|---|---|---|---|---|
-| clear | 0.00 | 1.000 | 1.00 | 70,827 lx | 100 % |
-| cirrus | 0.52 | 0.945 | 0.93 | 67,795 lx | 96 % |
-| cumulus | 0.33 | 0.726 | 0.43 | 59,744 lx | 84 % |
-| stratus | 1.00 | 0.0018 | 0.20 | 17,552 lx | **25 %** |
-| cumulonimbus | 0.75 | 0.174 | 0.03 | 15,269 lx | 22 % |
+| genus | covered | beam factor | single-scatter share | base vs clear sky | illuminance | % of clear |
+|---|---|---|---|---|---|---|
+| clear | 0.00 | 1.000 | 1.00 | — | 70,827 lx | 100 % |
+| cirrus | 0.52 | 0.945 | 0.93 | 0.6x (brighter) | 67,701 lx | 96 % |
+| cumulus | 0.33 | 0.726 | 0.43 | 0.3x (brighter) | 60,010 lx | 85 % |
+| stratus | 1.00 | 0.0018 | 0.20 | 0.5x (brighter) | 17,500 lx | **25 %** |
+| cumulonimbus | 0.75 | 0.174 | 0.02 | **6.2x darker** | 13,430 lx | 19 % |
 
-Stratus lands in the brief's 10–25 % band straight out of the two-stream solution, and the sun goes to
-zero *because there is no beam*, not because a flag was set. Cumulonimbus's mean is near stratus's, and
-that is correct: 25 % of its sky is gaps, so the drama is **contrast**, not mean illuminance.
+Stratus lands in the brief's 10-25 % band straight out of the two-stream solution, and the sun goes to
+zero *because there is no beam*, not because a flag was set. Cumulonimbus's mean illuminance is near
+stratus's, and that is correct: 25 % of its sky is gaps, so the drama is **contrast**, not mean.
+
+A white cloud is *brighter* than the blue sky beside it; only a thunderhead's base is darker (a real one
+runs ~500 cd/m2 against a ~3700 cd/m2 sky, i.e. 7-10x; ours is 6.2x). The **exposure fights you** here:
+the meter reads the scene's mean illuminance, which under a 72 %-covered deck is dominated by its sunlit
+gaps, so it lifts the frame ~4.5x and the cloud with it. A photographer exposes for the gaps and lets the
+base go black; a middle-grey meter cannot. This is the one place where "expose for middle grey" and "a
+thunderhead looks like a thunderhead" pull apart, and we chose the meter.
 
 ---
 
@@ -316,6 +323,19 @@ he hung in mid-air at his spawn; two reviewers described him as "a floating glas
 - **The similarity transform `(1 − g)` on a cloud's *visual* opacity.** It belongs to the beam alone.
   With it, cirrus at τ = 0.5 was a 7 % veil and a reviewer described the cirrus frames as "a
   cloudless-looking sky".
+- **Approximating aerial perspective's airlight by the clear-sky radiance.** Right for isolated clouds;
+  wrong under overcast, where there is no blue sky to shine down through the deck. At low sun a stratus
+  cloud is 14 km away along a near-horizontal ray, so 40-70 % of the "clear sky" leaked back in and the
+  dome dissolved into a clean blue gradient — *the light said overcast and the sky said clear*, the one
+  failure this whole model exists to prevent. The airlight is now interpolated between the clear sky and
+  the deck's own radiance by the field's mean thickness: ~0 for sparse cumulus, ~1 for stratus.
+- **Cumulonimbus at τ = 120, then 250.** At 120 the base was only 2.3x darker than the clear sky beside
+  it, and at 250 it was 4.2x, where a real thunderhead is 7-10x. Two blind reviewers, two builds apart,
+  independently used the words "pale lilac blob". Now τ = 500 (real Cb run 100-1000); the base is 6.2x
+  darker and the frame finally reads as a storm.
+- **Shooting the squall hero with the sun BEHIND the cloud** (azimuth 135). The cell was backlit and
+  showed a beautiful silver lining, which is not a squall. Sun behind the *camera* (azimuth 315) shows
+  its shadowed near face — its base — which is.
 - **Bloom at the stock threshold.** Every cell of that sweep row was graded WASHED OUT.
 - **Halving the bloom pyramid's resolution to save GPU.** Changed nothing — the cost is the HDR MSAA
   target, not the blur.
@@ -341,10 +361,11 @@ Measured with `tools/bench.mjs`, real GPU, AMD 780M, visuals mode.
 
 ## Still wrong, ranked
 
-1. **Cumulus does not read as sparse fair-weather cumulus** from a low camera. Real cumulus at 1200 m
-   seen from 3 m up genuinely covers the low sky — the deck stacks up toward the horizon — but the
-   frames read as a stratocumulus "mackerel sheet". Partly framing, partly that a 2-D field has no
-   vertical extent, so there are no *heaps*.
+1. **Cumulus does not read as sparse fair-weather cumulus** from a low camera; blind reviewers name it
+   "stratocumulus" or "a mackerel sheet", and scored it 3/10 for recognisability. Real cumulus at 1200 m
+   seen from 3 m up genuinely covers the low sky — the deck stacks up toward the horizon — but the deeper
+   cause is that a 2-D field has no vertical extent, so there are no *heaps*, only patches. This is the
+   genus that most wants the next increment of work.
 2. **Dappling needs kilometres.** Cumulus cells are ~650 m across; a frame showing 2 km of sea shows
    three of them. The mechanism is verified working (the probe reads beam = 0 under a cell and full
    beam in a gap at the same elevation), but a hero frame has to be shot from high and wide or the
@@ -352,9 +373,8 @@ Measured with `tools/bench.mjs`, real GPU, AMD 780M, visuals mode.
 3. **The clouds have no vertical structure.** Self-shadow taps along the sun's *horizontal* direction
    give lit and dark *sides*; they cannot give a lit *top* and a dark *base*. That is the honest limit
    of a 2-D field, and the reason the doc's own genus table asks only for "recognisable", not "correct".
-4. **Stratus's dome weakens at low sun**, where the aerial-perspective term mixes the clear sky's
-   colour back in and the deck's own radiance is very dim. The *light* stays correctly shadowless, so
-   the picture and the light disagree at e02 — the one place they still do.
+4. **Cloud edges are still hard-ish**, especially on the optically deepest genera, where the opacity
+   saturates a few noise units past the threshold no matter how gently the thickness tapers.
 5. **The sun disc's core still clips to white** at every elevation. AgX saves the falloff, bloom (as
    tuned) does not save the core, and nothing will: the disc's radiance is `E/Ω`, thousands of times
    over the white point. Dimming it was tried before this overhaul and rejected — it becomes a weak dot.
@@ -362,6 +382,30 @@ Measured with `tools/bench.mjs`, real GPU, AMD 780M, visuals mode.
    needs a microfacet sparkle term with sub-pixel normal variance (`FIDELITY.md`), not more light.
 7. **three's PMREM under-delivers a horizon-bright sky by ~8 %** (see above). Uncorrected on purpose.
 8. **The Earth's shadow does not rise.** No Belt of Venus, no narrowing twilight arch.
+
+---
+
+## The final blind review, for the record
+
+Graded on the last-but-one build (before the airlight and τ = 500 fixes), 21 frames, no code:
+
+| genus | sailor names it? | light agrees? | recognisable |
+|---|---|---|---|
+| cirrus | yes (streaks a touch faint) | yes — disc and illuminance intact, shadows crisp | 6/10 |
+| cumulus | no — reads as stratocumulus | n/a | 3/10 |
+| stratus | at high sun yes; at low sun the cover collapsed | **fixed since** (the airlight) | 5/10 |
+| cumulonimbus | no — pale base | **fixed since** (τ = 500) | 2/10 |
+
+Their verdict on the balance itself, which is what this overhaul is actually for:
+
+> "`tropical-zenith` and `civil-twilight` prove the sun:sky ratio is fixed — spheres finally have form,
+> the 0.04 sphere stays black under a zenith sun, the beam vanishes cleanly below the horizon, and
+> shadows are real and universal. That is a large, genuine improvement."
+
+and on the frame the whole cloud-shadow apparatus exists for:
+
+> "`dappled-sea` — legible dark serpentine cloud-shadow bands sweeping across the water against lit sea.
+> Delivers its name."
 
 ---
 

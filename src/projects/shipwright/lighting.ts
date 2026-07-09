@@ -440,10 +440,13 @@ const integrateDome = (
       for (let i = 0; i < 3; i++) {
         const clear = raw[i] * domeScale;
         const cloudy = overcastZenith[i] * cie;
-        // Aerial perspective (see the shader, which does the same thing): the cloud is `planeDist`
-        // metres away, and the air between dims it while filling in with airlight. Blue goes first.
+        // Aerial perspective, exactly as the shader does it: the cloud is `planeDist` metres away, the
+        // air between dims it and fills in with airlight, and that airlight is lit by whatever is
+        // actually above it — the sky between sparse clouds, the deck itself under an overcast.
         const aerial = Math.exp(-(terms.betaR[i] + terms.betaM[i]) * planeDist);
-        out[i] += (clear + (cloudy - clear) * alpha * aerial) * mu;
+        const airlight = clear + (cloudy - clear) * planeThickness;
+        const hazed = cloudy + (airlight - cloudy) * (1 - aerial);
+        out[i] += (clear + (hazed - clear) * alpha) * mu;
       }
     }
   }

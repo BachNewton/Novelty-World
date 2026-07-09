@@ -125,10 +125,16 @@ const GENERA = {
   cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 650, edge: 0.1, taper: 0.9, billow: 0.85, shear: 1, wind: [7, 2] },
   // A featureless slab. Soft edge, no taper, no billow — the light must go flat and shadowless.
   stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, featureSize: 3000, edge: 0.55, taper: 0.15, billow: 0, shear: 1, wind: [5, 1] },
-  // tau 250, not 120: measured, 120 put the base at only 2.3x darker than the clear sky beside it,
-  // where a real thunderhead's base is ~7-10x darker. At 250 its two-stream transmittance passes
-  // ~14 W/m2, i.e. the ~1500 lx a real Cb base actually does.
-  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 250, altitude: 900, featureSize: 2600, edge: 0.08, taper: 0.5, billow: 0.6, shear: 1, wind: [10, 3] },
+  // tau 500. Real cumulonimbus optical depths run 100-1000, and the base's darkness is what names the
+  // genus. Measured: at tau 120 the base was 2.3x darker than the clear sky beside it and at 250 it was
+  // 4.2x, where a real thunderhead's base (~500 cd/m2 against a ~3700 cd/m2 sky) is 7-10x. At 500 the
+  // two-stream transmittance is 1.3%, and the base finally goes near-black.
+  //
+  // NOTE the exposure fights you here: the meter reads the scene's MEAN illuminance, which under a
+  // 72%-covered deck is dominated by its sunlit gaps, so it lifts the frame ~4.5x and the cloud with
+  // it. A photographer exposes for the gaps and lets the base go black; our meter cannot. This is the
+  // one place where "expose for middle grey" and "a thunderhead looks like a thunderhead" pull apart.
+  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 500, altitude: 900, featureSize: 2600, edge: 0.08, taper: 0.5, billow: 0.6, shear: 1, wind: [10, 3] },
 } satisfies Record<string, CloudGenus>;
 
 /** The genera by name. Keyed by a real union rather than `string`, so a lookup is TOTAL and callers

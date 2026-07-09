@@ -268,7 +268,9 @@ scenarios.push({ group: "06-lighting/d-hero", name: "tropical-zenith", camera: "
 scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [55, 135], plane: 5000 });
 // Cloud shadows sweeping open water, from high enough that several kilometres of sea are in frame.
 scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapple", cloud: "cumulus", sea: LIGHT_SEA, sun: [45, 225], plane: 8000 });
-scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "squallCam", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [28, 135], plane: 5000 });
+// Sun BEHIND the camera (az 315), so we look at the cell's shadowed near face -- its base. At az 135
+// the same cloud is backlit and shows its silver lining, which is beautiful and is not a squall.
+scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "squallCam", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [25, 315], plane: 5000 });
 
 // ---------------------------------------------------------------------------
 
