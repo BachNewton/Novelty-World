@@ -14,7 +14,9 @@ import type { Physics, VoxelHit } from "./physics";
  *
  * Aiming uses a single world-space cue instead of an always-on crosshair: an AIM DOT sphere sat at the
  * exact point the ray strikes, shown ONLY when you're pointed at a buildable voxel (nothing appears
- * over open sea), so it doubles as a "you can build here" reticle.
+ * over open sea), so it doubles as a "you can build here" reticle. It goes dim grey when the aimed
+ * face would place a voxel inside the sailor: you're still on a voxel (and can still break it), you
+ * just can't build there.
  *
  * All the world mutation lives in physics.ts (it owns the Rapier world + the collider↔voxel map); this
  * module is just input + the aim dot, so it stays free of physics detail. Creative mode: blocks are
@@ -24,6 +26,12 @@ import type { Physics, VoxelHit } from "./physics";
 const VOXEL = 0.5; // metres — the standard building voxel (matches physics.ts)
 const REACH = 5; // metres the sailor can place/break at
 const AIM_DOT_RADIUS = 0.02; // metres — the world-space reticle sphere at the ray hit point
+// The dot's two states. Blocked is a mid grey at reduced opacity: legible against both the pale deck
+// and the dark sea, but clearly withdrawn next to the bright white of a placeable face.
+const AIM_COLOR_PLACEABLE = 0xffffff;
+const AIM_COLOR_BLOCKED = 0x707070;
+const AIM_OPACITY_PLACEABLE = 0.9;
+const AIM_OPACITY_BLOCKED = 0.55;
 
 // Player capsule (mirror of player.ts HEIGHT/RADIUS) for the anti-suffocation guard, so a placed
 // voxel can't land inside the sailor. Kept in step with player.ts — the camera in first person sits
@@ -52,11 +60,11 @@ export function createBuilder(
   // render order so it always reads crisply on the surface it's touching instead of z-fighting it.
   const aimGeometry = new THREE.SphereGeometry(AIM_DOT_RADIUS, 12, 12);
   const aimMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
+    color: AIM_COLOR_PLACEABLE,
     depthTest: false,
     depthWrite: false,
     transparent: true,
-    opacity: 0.9,
+    opacity: AIM_OPACITY_PLACEABLE,
   });
   const aimDot = new THREE.Mesh(aimGeometry, aimMaterial);
   aimDot.renderOrder = 1000;
@@ -122,6 +130,8 @@ export function createBuilder(
         aimDot.visible = true;
         physics.poseVoxel(probe, currentHit.visual, currentHit.placeCell);
         canPlace = !wouldHitPlayer(probe.position);
+        aimMaterial.color.setHex(canPlace ? AIM_COLOR_PLACEABLE : AIM_COLOR_BLOCKED);
+        aimMaterial.opacity = canPlace ? AIM_OPACITY_PLACEABLE : AIM_OPACITY_BLOCKED;
       } else {
         aimDot.visible = false; // nothing buildable under the crosshair (e.g. open sea)
         canPlace = false;
