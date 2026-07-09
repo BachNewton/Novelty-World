@@ -1,5 +1,6 @@
 "use client";
 
+import * as THREE from "three";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { setupOceanScene } from "../scene";
 
@@ -7,6 +8,16 @@ import { setupOceanScene } from "../scene";
  *  Everything else — islands, voxel ships, multiplayer — builds on top of this. */
 export function Shipwright() {
   const containerRef = useThreeScene(setupOceanScene, {
+    // AgX, not ACES. This is the Tier-2 tone-mapping decision, settled by the 2x2 in
+    // docs/LIGHTING.md and graded blind. ACES desaturates a highlight BEFORE it clips, so a
+    // physically warm low sun renders neutral-silver: the sun-glitter road at 4 deg is silver-white
+    // under ACES and gold under AgX -- the same pixels, the same frame, and precisely the gap
+    // FIDELITY.md names. AgX costs 0.37 ms (inside the noise) and no artefacts.
+    //
+    // The trade, and it is real: AgX pulls whole-image saturation down a little -- a paler blue sky
+    // and slightly softer primaries at the zenith. That is close to this project's own aesthetic note
+    // ("at noon colours are bright but naturally less punchy"), so it is accepted rather than fought.
+    toneMapping: THREE.AgXToneMapping,
     stats: true,
     // Per-pass GPU timing (capture / ssr / main) so the SSR res·steps·refine knobs can
     // be dialled by watching real GPU cost, not CPU-side fps — see docs/PERFORMANCE.md.

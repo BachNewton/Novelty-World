@@ -484,7 +484,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   performance.add(debug, "capture").name("scene capture");
   // The tonemap x bloom 2x2 (docs/LIGHTING.md). Both are live so they can be A/B'd in one warm
   // session; switching either recompiles materials, which is fine here and nowhere near a hot path.
-  const display: { toneMapping: string; bloom: boolean } = { toneMapping: "ACES", bloom: ctx.isBloomEnabled() };
+  const display: { toneMapping: string; bloom: boolean } = { toneMapping: "AgX", bloom: ctx.isBloomEnabled() };
   const displayFolder = environment.addFolder("Display");
   displayFolder
     .add(display, "toneMapping", Object.keys(TONE_MAPPINGS))
