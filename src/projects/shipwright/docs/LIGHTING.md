@@ -121,6 +121,71 @@ The unification, all driven by one τ:
 with it, the dome flattens, and *every object must still look right, together*. If any object needs a
 special case at τ = 1, the model is wrong.
 
+### The cloud shadow map, and the ONE sanctioned way to touch every material
+The same cloud field, evaluated on a plane and projected from the sun into a small render target
+(512²–1024², refreshed at ~15 Hz — well under 0.1 ms), gives **moving dappled light** sweeping across
+the sea and the islands. It is the single cheapest atmosphere in this document.
+
+It has to multiply the sun's contribution on **every** object. The tempting route is patching each
+material, which is precisely the mistake that produced the buoy/island seam. **The sanctioned route is
+a single global override of three's `lights_fragment_begin` `ShaderChunk`**, so every
+`MeshStandardMaterial` in the project picks it up from one place. One patch, one model, no per-object
+exceptions. It also drops straight into a volumetric shaft march later.
+
+---
+
+## Clouds: genera, not a density slider
+
+three's `Sky` already grows clouds from multi-octave value noise, already projects them onto a plane at
+altitude (`cloudUV = direction.xz / (direction.y * elevation)`), and already scrolls them
+(`cloudUV += time * cloudSpeed`). So they have parallax and they move. What they lack is why they only
+ever look like **cirrus**:
+
+```glsl
+float cloudNoise   = fbm( cloudUV * 1000.0 );                                  // 2D — no thickness
+float cloudMask    = smoothstep( 1.0 - cloudCoverage, ...+0.3, cloudNoise );   // fixed 0.3 edge width
+float sunInfluence = dot( direction, vSunDirection ) * 0.5 + 0.5;              // VIEW angle only
+```
+
+**No thickness, no self-shadowing, no phase function.** A cloud can never have a lit top and a dark
+base, because nothing samples the cloud's own depth toward the sun. Raising `cloudDensity` only slides
+a threshold, and the noise floods into a flat opaque smear. Cirrus reads well because cirrus genuinely
+*is* a thin, flat, backlit sheet with no self-shadowing — the model's limitations are cirrus. Cumulus
+violates every one of those assumptions.
+
+We do **not** need to simulate clouds. We need a sailor to recognise what he is looking at, and the
+light to match it. Five cheap additions get stratus, cumulus and cumulonimbus out of the same 2D field:
+
+1. **Treat the noise as THICKNESS, not a mask.** Transmittance `T = exp(−τ · h)`: thick is dark, thin
+   is translucent.
+2. **Self-shadow with 2–4 taps** of the same noise, offset along the sun direction in cloud-plane UV.
+   This alone produces lit tops and dark bases — the single biggest step from "smear" to "cumulus".
+3. **Beer–Powder** for dark interiors with bright thin edges, and a **Henyey–Greenstein phase** term on
+   the view–sun angle for the silver lining when backlit. Both are a few instructions.
+4. **Edge sharpness as a parameter** (the smoothstep width), not a hardcoded `0.3`: sharp cauliflower
+   edges for cumulus, soft featureless for stratus.
+5. **Noise character + layers.** Billow noise (`1 − |noise|`) for cumulus; strongly wind-sheared
+   anisotropic sampling for cirrus; low-frequency low-contrast for stratus. Two or three layers at
+   different altitudes, composited back-to-front, is most of a real sky.
+
+### Genus presets, and the light each one implies
+One parameter set per genus — and because the **same τ feeds the lighting**, the light follows the sky
+automatically. This is the "one model" property paying out.
+
+| genus | altitude | τ | what the light does |
+|---|---|---|---|
+| **Cirrus / cirrostratus** | high | ~0.1–0.5 | sun disc still visible (halo); shadows barely soften; illuminance almost unchanged |
+| **Fair-weather cumulus** | low | high locally, coverage 0.2–0.4 | **dappled** — the sun blinks in and out. The cloud shadow map earns its keep here |
+| **Stratus / stratocumulus** | low | ~10–40 | no disc, near-uniform dome, no cast shadows, **10–25 % of clear-sky illuminance**, cool grey |
+| **Cumulonimbus** | towering | enormous | near-black base, violent contrast, dramatic shafts through gaps, steel/green cast |
+
+A Baltic sailor sees mostly low stratus and stratocumulus, fair-weather cumulus, cirrus ahead of a
+front, and cumulonimbus in a squall. Those four are the target.
+
+**Later coupling (not now):** `FIDELITY.md` notes that scattering `b` should rise with sea state, and
+`sea-conditions.md` owns the wave spectrum. Weather ought eventually to drive cloud genus, wave
+spectrum, and water turbidity together. Build the seam; don't wire it yet.
+
 ---
 
 ## Targets (the acceptance criteria)
@@ -236,22 +301,73 @@ Dimming the sun disc so it stops clipping was tried and rejected — it becomes 
 
 ---
 
+---
+
+## Phasing — do these in order, and review between them
+
+Do not attempt clouds and the light balance in one swing; if both change at once, a bad frame cannot be
+attributed. Between phases, capture and run the reviewers.
+
+- **Phase 1 — the balance.** Sun:sky ratio, air-mass falloff, delete the per-material hack, universal
+  shadows, exposure. `τ` exists but is driven by a single scalar. **Overcast must already work.**
+- **Phase 2 — tonemap × bloom.** The 2×2 experiment, on hero frames, with GPU-ms.
+- **Phase 3 — clouds.** Thickness, self-shadow taps, phase function, layers, genus presets. The cloud
+  field now *derives* τ instead of being told it.
+
+**The seam between phases 1 and 3** is a small interface, defined in phase 1 and re-implemented in
+phase 3: something like `cloudTransmittance(direction) → float` and a scalar `cloudOpticalDepth`. The
+lighting reads only that interface, so phase 3 swaps the cloud model without touching the light.
+
+---
+
+## The calibration rig (build this first — it is how the frames get judged)
+
+`measuring-pole.ts` is a Secchi staff: it makes water clarity *readable straight off the image*. Do the
+same for light. Add a debug-only **lighting rig** — a row of spheres of known albedo (0.04, 0.18, 0.90),
+one chrome, one rough dielectric — floating in frame, off by default, toggled through the debug API
+alongside `pole` and `seabed`.
+
+With it, the sun:sky ratio, the shadow terminator, the sheen, and the highlight roll-off are all legible
+to a human *and to a reviewer agent* in a single frame. Without it, everyone is arguing about vibes.
+
+---
+
+## The `06-lighting` shot group
+
+Do **not** re-run the whole suite for lighting work; most of it tests clarity and sea state. Build a
+group that stresses the light itself, with the calibration rig in frame and islands only in a few hero
+shots (they cost ~1.65 s of terrain generation once per run).
+
+- **Elevation sweep: −6°, −2°, 0°, 2°, 4°, 8°, 15°, 25°, 40°, 53°.** Dense at the bottom, because that
+  is where the light actually changes — and because **at 60° N the sun never exceeds ~53.4°** (summer
+  solstice: `90 − 60 + 23.44`) and at midwinter peaks at **~6.6°**. The existing suite's `e85` / `e90`
+  frames are testing a sun that Finland never sees. Most of a Finnish year happens below 15°.
+- **× cloud state:** clear, fair-weather cumulus, overcast stratus, cumulonimbus.
+- **× a couple of azimuths** (front / side / behind), because sun-relative geometry is what shadows and
+  glitter key off.
+- Hero frames: `04-beauty/*` and `05-islands/sunset-backlit`.
+
+---
+
 ## The review loop (how this gets validated)
 
 Exactly the loop in `FIDELITY.md` §"Validating looks changes", which has caught real errors all the way
 through the island work:
 
 1. **Baseline first.** `node tools/shots.mjs "" baseline` before any change.
-2. **Capture on the real GPU.** `SHOTS_GPU=1 node tools/shots.mjs "" <label>`. SwiftShader renders
-   darker/greener and is explicitly **unreliable for judging lighting or material** — the exact thing
-   under test here. Tuning against it means tuning against a lie.
-3. **Probe, don't squint.** The sun:sky ratio is measured by isolating each source at fixed exposure.
-   Report the table above, at every elevation, before and after.
-4. **Re-review with fresh, BLIND reviewer agents** — no code context, never shown the diff — grounded
+2. **Capture on the real GPU** — it is now the default (`SHOTS_CPU=1` falls back to SwiftShader).
+3. **Frames are NOT bit-identical between runs**, and they do not need to be. The GPU differs on ~0.5 %
+   of pixels between two runs of the same frozen frame (mostly specular glitter). Freezing the wave
+   field `t` buys **comparability** — same sea, same camera, same sun — not byte equality. Reviewers
+   grade the whole image against this rubric; nobody diffs bytes. Do not chase pixel-exactness.
+4. **Probe, don't squint.** The sun:sky ratio is measured by isolating each source at fixed exposure
+   (set sun/hemi/env intensity independently, screenshot, compare mean luma — converting out of sRGB
+   before drawing conclusions). Report the target table above, at every elevation, before and after.
+5. **Re-review with fresh, BLIND reviewer agents** — no code context, never shown the diff — grounded
    in this doc + `FIDELITY.md` + `ISLANDS.md`. Ask for a per-frame verdict
    (PLAUSIBLE / QUESTIONABLE / WRONG / ARTIFACT + a physical reason) and a ranked list of what still
    looks wrong.
-5. **Judge against real sun and sky optics**, not taste and not the brand palette.
+6. **Judge against real sun and sky optics**, not taste and not the brand palette.
 
 ---
 
@@ -279,11 +395,34 @@ through the island work:
    bloom over everything — which would violate the project's "blacks stay dark; a washed grey-black look
    is a **bug**, not a style choice" rule.
 
+4. **Clouds: genera, not a density slider.** Stratus, fair-weather cumulus and cumulonimbus must each be
+   recognisable to a sailor, and the light must match each. Achieved with thickness + sun-direction
+   self-shadow taps + a phase function + layers — **not** with a volumetric simulation. See "Clouds".
+
 ## Deliverables
 
 - The rebalanced lighting model, with the sun:sky ratio table above measured and reported before/after.
 - `grep -r envMapIntensity src/projects/shipwright` → **empty**.
-- Overcast working via `τ`, demonstrated at `τ = 0`, mid, and full.
+- Universal shadows, applied through **one** `lights_fragment_begin` chunk override, not per material.
+- Overcast working via `τ`, demonstrated at `τ = 0`, mid, and full — with the sun going to zero and the
+  shadows going with it.
+- The **lighting calibration rig**, debug-only, toggled like the measuring pole.
+- The `06-lighting` shot group: elevation sweep (−6° … 53°) × cloud state × azimuth.
 - The tonemap × bloom 2×2, with GPU-ms and a recommendation.
-- A new `06-lighting` shot group in `tools/shots.mjs`: the elevation sweep × clear/overcast.
+- Cloud genus presets (cirrus / cumulus / stratus / cumulonimbus) and the `cloudTransmittance` seam.
 - This doc, updated with what was learned and what is still wrong.
+
+## Non-goals (explicitly out of scope)
+
+- Volumetric clouds (a raymarched cloudscape). three's `webgl_volume_cloud` example is a single 128³
+  Perlin texture raymarched inside a unit box — a volume-rendering demo, not a cloudscape system, with
+  no scene lighting and no shadows. A real cloudscape needs a curved atmosphere shell, Perlin–Worley
+  noise, multiple scattering and temporal reprojection; production versions cost ~2–4 ms *with compute
+  shaders*, which WebGL does not have. Against a ~9.5 ms GPU ceiling with SSR already dominant, this is
+  its own project.
+- **Volumetric light shafts / god rays.** (Same phenomenon as sun shafts and crepuscular rays: light
+  scattered toward the eye by a medium, made visible by an occluder.) They need a scattering medium and
+  a shadow map — **not** volumetric clouds — so once this overhaul lands universal shadows and a cloud
+  shadow map, god rays become a small, separate, ~1–3 ms follow-up that marches the view ray against
+  them. `FIDELITY.md` already wants them for the underwater camera. Build toward it; don't build it here.
+- Day/night cycle, seasons, and solar position from `(lat, lon, date, time)`.
