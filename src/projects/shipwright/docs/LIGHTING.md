@@ -84,6 +84,52 @@ This has three consequences the reviewer must enforce:
 Finland gets the **hero frames and the reviewer's attention**, because it is what ships first. It does
 not get to define the model's domain.
 
+---
+
+## Twilight is IN scope. Night is NOT. Here is the line.
+
+They are different problems, and conflating them is how this task doubles in size.
+
+### Twilight (0° → −18°) — **in scope, and mandatory**
+Below the horizon there is **no direct beam**, only sunlight scattered by the atmosphere. It is the same
+model with the beam at zero, and it is the strongest test in this document: if anything still looks
+sun-dependent at −6°, the model is lying somewhere. The elevation ladder already demands it.
+
+Today the sun cannot go below 0° — **the debug GUI slider and the `setSun` API both need extending to
+−18°.** That is a hole in the brief, not a new feature.
+
+Three things must be right, and none is optional:
+
+- **The beam vanishes correctly.** Zero for `h ≤ 0`, with a soft transition across the sun's angular
+  radius (~0.27°). Note that atmospheric refraction (~0.57° at the horizon) means the sun is
+  *geometrically* below the horizon at the moment you watch it set — worth getting right, it is free.
+- **Preetham is undefined for a sun below the horizon** and will not degrade gracefully. Do not let the
+  sky snap to black at 0°. Handle it deliberately (e.g. clamp the sun to the horizon inside the sky
+  model while scaling total sky radiance down a twilight curve, or blend toward a measured twilight
+  gradient), and **write down what you chose and why** in this doc.
+- **Exposure must not run away.** `exposureForSun`'s `AMBIENT_FLOOR = 0.2` exists purely because there
+  is no night model. Replace it with a principled floor grounded in real illuminance: civil twilight
+  ~3–300 lux, nautical ~0.008–3 lux, full moon ~0.25 lux, starlight ~0.001 lux.
+
+### Night proper (sun < −18°) — **out of scope tonight**
+Night is not a sun problem. It is **new light sources** — moon, stars, airglow, later lanterns and
+ship's lights. That is content, not the lighting model.
+
+The point of a correct model is that adding the moon later is *trivial*: a moon is just another
+directional light with its own env map and its own (much smaller) irradiance. **If adding it later is
+painful, the architecture was wrong.** So instead of building it, build the seam:
+
+- **Nothing may assume there is exactly one directional light.**
+- **Nothing may divide by the sun's intensity**, or by anything that reaches zero below the horizon.
+- The sky's radiance and the exposure must be driven by *the scene's actual light*, not by
+  `sunLight.intensity` specifically.
+
+### And one decision that is NOT the agent's to make
+Physically correct night is **nearly black** — starlight is ~0.001 lux, a millionth of daylight. A
+faithful night is unplayable without eye adaptation or a deliberate artistic lift, and *that is a design
+call for Kyle*, not something to invent unattended at 3am. Get the physics right down to −18°, expose a
+single adaptation / night-lift parameter, and **do not invent a night look.**
+
 ## What the model must handle
 
 The first sea is Finland, latitude ≈ **60° N** (sun never above ~53.4°, midwinter noon ~6.6°). Full
@@ -501,3 +547,7 @@ through the island work:
   shadow map, god rays become a small, separate, ~1–3 ms follow-up that marches the view ray against
   them. `FIDELITY.md` already wants them for the underwater camera. Build toward it; don't build it here.
 - Day/night cycle, seasons, and solar position from `(lat, lon, date, time)`.
+- **Night light sources** — moon, stars, airglow, lanterns — and any artistic night look or eye
+  adaptation curve. Twilight down to −18° IS in scope; night bodies are not. Build the seam (no code may
+  assume a single directional light, or divide by the sun's intensity) so the moon is trivial to add
+  later. See "Twilight is IN scope. Night is NOT."
