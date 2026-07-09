@@ -101,7 +101,11 @@ vec3 shipwrightWorldFromView(vec3 viewPosition) {
 // Fraction of the direct beam that survives the cloud deck above this point. Projected from the
 // light along its own direction onto the cloud plane, so it is correct for ANY directional source.
 float shipwrightCloudTransmittance(vec3 viewPosition) {
-  if (uCloudShadowStrength <= 0.0) return 1.0;
+  // No map (clear sky, or a sun so low the cloud-plane projection runs to the horizon): fall back to
+  // the field's MEAN transmittance, which is 1.0 under a clear sky and ~0 under stratus. Returning a
+  // literal 1.0 here let the sun blaze at full strength through an overcast deck below 1 degree --
+  // exactly the "the picture and the light disagree" failure this model exists to remove.
+  if (uCloudShadowStrength <= 0.0) return uCloudBeamMean;
   vec3 world = shipwrightWorldFromView(viewPosition);
   float t = (uCloudShadowAltitude - world.y) / max(uCloudSunDirection.y, 1e-3);
   vec2 plane = world.xz + uCloudSunDirection.xz * t;

@@ -121,8 +121,13 @@ export const cloudStateFromGenus = (g: CloudGenus): CloudState => ({
 // NB: no backticks anywhere inside the GLSL — it lives in a template literal.
 
 export const CLOUD_FIELD_GLSL = /* glsl */ `
+// The +74.7 phase is load-bearing: without it hash(0,0) = fract(sin(0) * 43758) = 0 EXACTLY, and
+// because fbm doubles p each octave, (0,0) stays on the degenerate lattice corner in every octave.
+// The result is a permanent thin spot in the cloud deck over the world origin -- which is where the
+// raft spawns. Caught by the lighting probe (the stratus beam read 8.9x its own model there), never
+// by eye.
 float cloudHash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  return fract(sin(dot(p, vec2(127.1, 311.7)) + 74.7) * 43758.5453123);
 }
 float cloudValueNoise(vec2 p) {
   vec2 i = floor(p);
@@ -143,7 +148,9 @@ float cloudFbm(vec2 p) {
   for (int i = 0; i < 5; i++) {
     value += amplitude * cloudValueNoise(p);
     total += amplitude;
-    p *= 2.0;
+    // Translate as well as scale, so successive octaves land on different lattice phases and no
+    // single point can sit on a degenerate corner in all five at once.
+    p = p * 2.0 + vec2(37.1, 17.3);
     amplitude *= 0.5;
   }
   return value / total;
@@ -170,7 +177,7 @@ vec2 cloudPlaneFromWorld(vec3 p, vec3 sunDir, float altitude) {
 // Mirrors CLOUD_FIELD_GLSL term for term. Used ONLY for means/integrals (see the file header).
 
 const hash = (x: number, y: number): number => {
-  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123;
+  const s = Math.sin(x * 127.1 + y * 311.7 + 74.7) * 43758.5453123;
   return s - Math.floor(s);
 };
 
@@ -197,8 +204,8 @@ const fbm = (x: number, y: number): number => {
   for (let i = 0; i < 5; i++) {
     value += amplitude * valueNoise(px, py);
     total += amplitude;
-    px *= 2;
-    py *= 2;
+    px = px * 2 + 37.1;
+    py = py * 2 + 17.3;
     amplitude *= 0.5;
   }
   return value / total;
