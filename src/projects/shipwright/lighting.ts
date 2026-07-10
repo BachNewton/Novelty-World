@@ -506,6 +506,10 @@ export interface LightingInput {
 const DOME_PHI = 40;
 const DOME_MU = 24;
 
+/** Where the dome shader stops trusting the cloud-plane coordinate and fades to the field's mean.
+ *  Must equal the upper edge of `smoothstep(0.0, 0.10, dy)` in `sky.ts`'s dome fragment. */
+export const HORIZON_FADE_MU = 0.1;
+
 /**
  * Integrate the dome we ACTUALLY render — Preetham × `domeScale`, blended toward CIE overcast by the
  * cloud field's per-direction opacity — to get the diffuse irradiance it delivers.
@@ -535,6 +539,13 @@ const integrateDome = (
   // radiance without changing its total; what it leaves on the table is the covariance between that
   // modulation and the cosine weight, which is second order. Four extra fbm taps per direction would
   // triple this integral's cost to chase it.
+  //
+  // That is the ONE place this integral is an approximation of the dome rather than a transcription of
+  // it, and it is deliberate. (`shadeMean` also omits the view-sun HG phase the shader applies, whose
+  // 4-pi-normalised mean over the sphere is 1 -- see `sky.ts`.) Everything else here, including the
+  // horizon fade below, is term-for-term. An independent review found the fade had silently become a
+  // linear ramp against the shader's smoothstep; if a second approximation ever creeps in, it belongs
+  // in this comment or it does not belong at all.
   // With no cloud the dome IS the clear sky, whose irradiance we already know exactly (that is what
   // `domeScale` was built from). Skip 1536 fbm evaluations for the common case.
   if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) {
@@ -560,7 +571,13 @@ const integrateDome = (
     // the shader (and this) fade the sampled thickness toward the field's MEAN there rather than to
     // zero — otherwise an overcast sky would open into clear blue at the horizon.
     const planeDist = input.cloud.altitude / Math.max(mu, 0.02);
-    const horizonFade = Math.max(0, Math.min(1, mu / 0.1));
+    // The SAME cubic the dome shader uses: `smoothstep(0.0, 0.10, dy)` (sky.ts). A linear ramp was
+    // close enough to look right and wrong enough to matter -- it differs from smoothstep by up to
+    // 0.09 across a band that is ~10 % of the hemisphere by solid angle, and that band feeds
+    // `skyMeanRadiance`, hence `fieldLuminance`, hence the exposure of every cloudy frame. The whole
+    // model rests on "the sky we integrate is the sky we render"; a fade is part of the sky.
+    const fadeT = Math.max(0, Math.min(1, mu / HORIZON_FADE_MU));
+    const horizonFade = fadeT * fadeT * (3 - 2 * fadeT);
     for (let f = 0; f < DOME_PHI; f++) {
       const phi = ((f + 0.5) / DOME_PHI) * Math.PI * 2;
       const dx = sinT * Math.cos(phi);

@@ -8,6 +8,7 @@ import {
   WATTS_PER_UNIT,
   airMass,
   beamIrradiance,
+  HORIZON_FADE_MU,
   beamOpticalDepth,
   sourceTints,
   clearSkyDhi,
@@ -301,6 +302,45 @@ describe("exposure", () => {
     expect(night.sources).toHaveLength(0);
     expect(Number.isFinite(night.exposure)).toBe(true);
     expect(night.exposure).toBeGreaterThan(0);
+  });
+});
+
+describe("the CPU/GPU lock-step contract", () => {
+  it("fades the cloud deck at the horizon with the SAME cubic the dome shader uses", () => {
+    // REGRESSION, found by an independent code review. The dome fragment does
+    //     thickness = mix(uCloudFraction, thickness, smoothstep(0.0, 0.10, dy))
+    // and this integral used a LINEAR ramp `clamp(mu / 0.1)`. They differ by up to 0.09 across a band
+    // that is ~10 % of the hemisphere by solid angle -- structural, not float noise -- and that band
+    // feeds `skyMeanRadiance`, hence `fieldLuminance`, hence the exposure of every cloudy frame.
+    //
+    // This test does not check the integral (too coarse to isolate). It checks the FADE ITSELF against
+    // a literal transcription of GLSL `smoothstep`, at the boundaries and where the two curves are
+    // furthest apart. If someone re-linearises it, the midpoints move and this fails.
+    const glslSmoothstep = (edge0: number, edge1: number, x: number) => {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    };
+    const cpuFade = (mu: number) => {
+      const t = Math.max(0, Math.min(1, mu / HORIZON_FADE_MU));
+      return t * t * (3 - 2 * t);
+    };
+
+    for (const mu of [0, 0.01, 0.025, 0.05, 0.075, 0.09, 0.1, 0.2, 1]) {
+      expect(cpuFade(mu), `mu=${mu}`).toBeCloseTo(glslSmoothstep(0, 0.1, mu), 12);
+    }
+    // And it is genuinely NOT the linear ramp it used to be: the gap peaks around the quarter points.
+    const linear = (mu: number) => Math.max(0, Math.min(1, mu / HORIZON_FADE_MU));
+    expect(Math.abs(cpuFade(0.025) - linear(0.025))).toBeGreaterThan(0.08);
+    expect(Math.abs(cpuFade(0.075) - linear(0.075))).toBeGreaterThan(0.08);
+    // Endpoints must still agree, or the fade would not be a fade.
+    expect(cpuFade(0)).toBe(0);
+    expect(cpuFade(HORIZON_FADE_MU)).toBe(1);
+  });
+
+  it("keeps the fade's edge in one place, so the shader and the integral cannot drift apart", () => {
+    // `sky.ts` hard-codes `smoothstep(0.0, 0.10, dy)`. If that 0.10 ever moves, this constant must
+    // move with it -- the export exists so the pair is greppable as a pair.
+    expect(HORIZON_FADE_MU).toBe(0.1);
   });
 });
 

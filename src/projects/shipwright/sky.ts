@@ -128,7 +128,14 @@ float shipwrightCloudTransmittance(vec3 viewPosition) {
 const DIR_LIGHT_ANCHOR = "\t\tgetDirectionalLightInfo( directionalLight, directLight );";
 
 let globalLightingInstalled = false;
+/** How many live `Daylight`s depend on the global patch. The last one out puts the lights back. */
+let globalLightingUsers = 0;
 const USER_HOOK = Symbol("shipwright.onBeforeCompile");
+/** Written into the prepended declarations so a re-evaluated module can SEE its own prior work.
+ *  `globalLightingInstalled` lives in module scope and resets on hot reload; `THREE` does not. */
+const PARS_SENTINEL = "// shipwright-lighting-installed";
+/** The white 1x1 the shadow lookup falls back to. Kept so teardown can point the uniform back at it. */
+let whitePixel: THREE.DataTexture | undefined;
 
 interface HookedMaterial extends THREE.Material {
   [USER_HOOK]?: (shader: THREE.WebGLProgramParametersWithUniforms, renderer: THREE.WebGLRenderer) => void;
@@ -152,15 +159,34 @@ interface HookedMaterial extends THREE.Material {
  *
  * This mutates the imported `three` module for the whole page. That is the point — but it means the
  * defaults must be inert: `uCloudShadowStrength = 0` short-circuits the lookup, so any other scene
- * on the page renders exactly as before.
+ * on the page renders exactly as before. `uninstallGlobalLighting` makes that true again on teardown:
+ * shipwright is the only three.js scene on the page TODAY, and this file's own thesis is that there is
+ * exactly one global patch — so it has to be able to un-patch, or the next project inherits our sky.
+ *
+ * The idempotency guard is deliberately BELT AND BRACES. `globalLightingInstalled` is module scope and
+ * resets on hot reload; the mutated `THREE` singleton does not. So the real guard is a sentinel written
+ * into the chunk itself: without it, one Fast Refresh of this module prepends the declarations twice
+ * and every shader on the page fails to compile.
  */
+/** three's own chunks, captured before we touch them, so teardown restores byte-for-byte. */
+let pristineParsBegin: string | undefined;
+let pristineFragmentBegin: string | undefined;
+
 export const installGlobalLighting = (): void => {
-  if (globalLightingInstalled) return;
+  globalLightingUsers++;
+  if (globalLightingInstalled || THREE.ShaderChunk.lights_pars_begin.includes(PARS_SENTINEL)) {
+    globalLightingInstalled = true;
+    return;
+  }
   globalLightingInstalled = true;
 
-  LIGHTING_UNIFORMS.uCloudShadowMap.value ??= makeWhitePixel();
+  whitePixel ??= makeWhitePixel();
+  LIGHTING_UNIFORMS.uCloudShadowMap.value ??= whitePixel;
 
-  THREE.ShaderChunk.lights_pars_begin = LIGHTS_PARS_PREFIX + THREE.ShaderChunk.lights_pars_begin;
+  pristineParsBegin = THREE.ShaderChunk.lights_pars_begin;
+  pristineFragmentBegin = THREE.ShaderChunk.lights_fragment_begin;
+
+  THREE.ShaderChunk.lights_pars_begin = `${PARS_SENTINEL}\n${LIGHTS_PARS_PREFIX}${THREE.ShaderChunk.lights_pars_begin}`;
 
   if (!THREE.ShaderChunk.lights_fragment_begin.includes(DIR_LIGHT_ANCHOR)) {
     throw new Error("Shipwright lighting: three's lights_fragment_begin no longer matches the anchor");
@@ -183,6 +209,43 @@ export const installGlobalLighting = (): void => {
       this[USER_HOOK] = fn;
     },
   });
+};
+
+/**
+ * Put three back exactly as we found it. Called by the last `Daylight` to be disposed.
+ *
+ * The old `dispose()` freed this module's GPU resources and stopped there, which left the *global*
+ * uniform `uCloudShadowStrength = 1` pointing at a **disposed** render target. Nothing bit, because
+ * shipwright is the only three.js scene on this page today. The moment a second one mounts — or a
+ * client-side navigation remounts this one without a full reload — every lit material on the page
+ * would sample a dead texture through a chunk we patched and never unpatched. A global mutation that
+ * cannot be undone is a global mutation you have inflicted on everyone else.
+ *
+ * Ordering matters: make the uniforms inert FIRST, so any frame that renders between here and the
+ * chunk restore short-circuits the lookup instead of touching the texture we are about to drop.
+ */
+export const uninstallGlobalLighting = (): void => {
+  globalLightingUsers = Math.max(0, globalLightingUsers - 1);
+  if (globalLightingUsers > 0 || !globalLightingInstalled) return;
+
+  LIGHTING_UNIFORMS.uCloudShadowStrength.value = 0;
+  if (whitePixel !== undefined) LIGHTING_UNIFORMS.uCloudShadowMap.value = whitePixel;
+
+  if (pristineParsBegin !== undefined) THREE.ShaderChunk.lights_pars_begin = pristineParsBegin;
+  if (pristineFragmentBegin !== undefined) {
+    THREE.ShaderChunk.lights_fragment_begin = pristineFragmentBegin;
+  }
+  pristineParsBegin = undefined;
+  pristineFragmentBegin = undefined;
+
+  // Restoring the prototype means deleting our accessor: three's `Material` has no own
+  // `onBeforeCompile` on the prototype (it is an instance-assigned no-op in its constructor), so
+  // `delete` is the correct inverse of `defineProperty` here, not a re-definition.
+  delete (THREE.Material.prototype as Partial<THREE.Material>).onBeforeCompile;
+
+  whitePixel?.dispose();
+  whitePixel = undefined;
+  globalLightingInstalled = false;
 };
 
 /**
@@ -988,6 +1051,8 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
       clouds.close();
     },
     dispose: () => {
+      // Before anything is freed: the global uniform still points at `cloudShadowTarget`.
+      uninstallGlobalLighting();
       skyMesh.geometry.dispose();
       skyMaterial.dispose();
       cloudShadowQuad.geometry.dispose();
