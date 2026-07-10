@@ -71,8 +71,9 @@ export const WATTS_PER_UNIT = 1000;
 /** Solar constant used by Meinel & Meinel, W/m². */
 const SOLAR_CONSTANT = 1353;
 
-/** Luminous efficacy of daylight, lm/W. Converts the twilight illuminance table into irradiance. */
-const DAYLIGHT_EFFICACY = 110;
+/** Luminous efficacy of daylight, lm/W. Converts the twilight illuminance table into irradiance, and
+ *  a navigation light's candela into the renderer's units (`iala.ts`). */
+export const DAYLIGHT_EFFICACY = 110;
 
 /** Solid angle of the sun's disc, steradians (angular radius 0.267°). The disc's radiance is
  *  `E_beam / Ω`, so integrating the disc returns exactly the beam — no magic disc brightness. */

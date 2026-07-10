@@ -700,7 +700,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // Gerstner CPU field: the ocean uniform update + nav-buoy surface sampling (the CPU wave eval).
     const oceanStart = globalThis.performance.now();
     ocean.update(run.elapsed);
-    navBuoys.update(ocean, run.elapsed);
+    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux);
     const oceanMs = globalThis.performance.now() - oceanStart;
     // Step the benchmark's OWN physics world (physics/both modes). One deterministic FIXED_DT step
     // per frame headless (byte-identical); real delta headed (natural-speed). Timed on its own so the
@@ -839,6 +839,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
       if (opts.rig !== undefined) materialRig.object.visible = opts.rig;
+    },
+    // Force the buoy lanterns on in daylight. The photocell is physical (they light below ~50 lx), so
+    // the capture tool needs a way to photograph a lamp against a sky that is not black.
+    setBuoyLights: (alwaysOn: boolean) => {
+      navBuoys.setPhotocellOverride(alwaysOn);
     },
     setTurbidity: (turbidity: number) => {
       daylight.setTurbidity(turbidity);
@@ -1072,7 +1077,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
-      navBuoys.update(ocean, elapsed);
+      navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
       // Pose the sailor at the interpolated physics state (smooth at the render rate, matching the
