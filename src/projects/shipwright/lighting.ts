@@ -137,12 +137,11 @@ const TWILIGHT_LUX: [number, number][] = [
  */
 export const DEFAULT_ADAPTATION_FLOOR_LUX = 400;
 
-/** Photographic key: the fraction of the display range a mid-grey subject is metered to. 0.18 is the
- *  grey card. Tone-mapper-independent — ACES or AgX then decides where 0.18 lands on screen. */
+/** Photographic key: where the meter places the SCENE'S OWN AVERAGE luminance. 0.18 is middle grey.
+ *  Note this is not "a grey card renders at 0.18" — that only holds if the scene averages 18%
+ *  reflectance, and a sea of albedo 0.07 under a bright sky does not. See `fieldLuminance`.
+ *  Tone-mapper-independent: ACES or AgX then decides where 0.18 lands on screen. */
 export const DEFAULT_EXPOSURE_KEY = 0.18;
-
-/** Reflectance of a standard grey card. The scene's "average subject". */
-const MIDDLE_GREY_ALBEDO = 0.18;
 
 /** Broadband albedo of what lies below the horizon — mostly sea, a little rock. Lights the undersides
  *  of everything, and is why deleting the hemisphere light costs nothing. */
