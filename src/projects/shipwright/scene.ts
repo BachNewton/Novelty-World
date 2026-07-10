@@ -13,6 +13,12 @@ import { ALL_MATERIAL_NAMES, createMaterialRig, type RowName } from "./material-
 import { DEFAULT_PROBE_SET, isMaterialName, type MaterialName } from "./materials";
 import { CLOUD_GENUS_NAMES } from "./clouds";
 import { createOcean, type ShadingMode } from "./ocean";
+import {
+  createVolumetricClouds,
+  CUMULUS,
+  STORM,
+  type VolumetricCloudParams,
+} from "./clouds-volumetric";
 import { createPhysics, type Physics } from "./physics";
 import { RAFT, TEST_SHAPES } from "./shapes";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
@@ -138,6 +144,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   const ocean = createOcean();
   scene.add(ocean.mesh);
+
+  // Standalone volumetric cloud pass (the spike). Drawn OVER the sky, decoupled from the dome shader
+  // (see clouds-volumetric.ts). Appearance only — not yet in the light / shadow / exposure path. Off
+  // by default; the debug API and the shot suite turn it on and hide the flat deck.
+  const volClouds = createVolumetricClouds();
+  volClouds.setEnabled(false);
+  scene.add(volClouds.mesh);
+  const cloudSunDir = new THREE.Vector3();
+  const cloudSunColor = new THREE.Color();
+  const cloudSkyColor = new THREE.Color();
 
   // Gentle-swell sea for the raft/player test. The default sea (~1.7 m primary amplitude) is a
   // rough open-water state; dial it down to a low, long swell the small raft RIDES like a cork
@@ -349,6 +365,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   daylight.onState((light) => {
     ocean.setDownwelling(light.underwaterBeam, light.underwaterSky);
     applyBloomThreshold(light.exposure);
+    // Keep the volumetric clouds lit in lock-step with the scene's own sun and ambient — the sun beam
+    // from the DirectionalLight, the ambient from the dome's overcast-zenith radiance.
+    cloudSunDir.subVectors(daylight.sunLight.position, daylight.sunLight.target.position).normalize();
+    volClouds.setLight({
+      sunDirection: cloudSunDir,
+      sunColor: cloudSunColor.copy(daylight.sunLight.color).multiplyScalar(daylight.sunLight.intensity),
+      skyColor: cloudSkyColor.setRGB(
+        light.overcastZenithRadiance[0],
+        light.overcastZenithRadiance[1],
+        light.overcastZenithRadiance[2],
+      ),
+    });
   });
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -785,6 +813,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       syncGui();
     },
     cloudGenera: () => CLOUD_GENUS_NAMES,
+    // Volumetric cloud spike. Turning it on hides the flat deck so only the volumetric shows.
+    setVolumetricClouds: (enabled: boolean, preset?: string) => {
+      volClouds.setEnabled(enabled);
+      if (enabled) daylight.setCloudGenus("clear");
+      if (preset === "storm") volClouds.setParams(STORM);
+      else if (preset === "cumulus") volClouds.setParams(CUMULUS);
+    },
+    setVolumetricParams: (patch: Partial<VolumetricCloudParams>) => {
+      volClouds.setParams(patch);
+    },
     setCamera: (pos: [number, number, number], target: [number, number, number]) => {
       camera.position.set(...pos);
       controls.target.set(...target);
@@ -1076,6 +1114,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         physics.update(dt, elapsed);
       }
       ocean.update(elapsed);
+      volClouds.setTime(elapsed); // same clock the ocean renders at, so a frozen frame freezes the drift
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
       navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
@@ -1115,6 +1154,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       daylight.dispose();
       lightingRig.dispose();
       materialRig.dispose();
+      volClouds.dispose();
       ocean.dispose();
       physics.dispose();
       navBuoys.dispose();
