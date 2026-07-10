@@ -226,42 +226,74 @@ describe("overcast", () => {
 });
 
 describe("exposure", () => {
-  const rendered = (h: number) => {
+  /** The rendered, pre-tonemap luminance of a grey card lying flat in the scene. */
+  const greyCard = (h: number) => {
     const s = computeLighting(input({ elevationDeg: h }));
     return s.exposure * (0.18 / Math.PI) * luminance(s.horizontalIrradiance);
   };
 
-  it("meters middle grey all the way down to sunset", () => {
-    // A grey card holds still from the tropical zenith to the moment the sun's disc leaves the
-    // horizon. That is what a light meter does, and it is why golden hour is not a dark photograph.
-    for (const h of [90, 53, 30, 10, 4.5, 1]) {
-      expect(rendered(h)).toBeCloseTo(DEFAULT_EXPOSURE_KEY, 3);
+  it("meters the SCENE's average luminance, not a grey card on the ground", () => {
+    // An averaging meter places the scene's own average at middle grey. The first version metered
+    // `(0.18/pi) * E_horizontal` -- an incident meter with a cosine receptor, which no camera and no
+    // retina is. Its consequence was measured: at a 0 degree sun it pinned the sea at a rendered 0.07
+    // and to do so put 36% of the sky hemisphere above the white point, where AgX desaturates it to
+    // cream. Three blind reviewers called those sunsets "a pale wash".
+    for (const h of [90, 53, 30, 10, 4.5, 1, 0]) {
+      const s = computeLighting(input({ elevationDeg: h }));
+      expect(s.fieldLuminance * s.exposure).toBeCloseTo(DEFAULT_EXPOSURE_KEY, 4);
     }
+  });
+
+  it("does NOT hold a grey card at middle grey, because the sea is darker than one", () => {
+    // The corollary, and the thing that makes a sunset a sunset. A scene whose average is below 18%
+    // reflectance renders a grey card ABOVE middle grey; a scene dominated by a blazing sky renders
+    // it far below. If a refactor ever pins the card back to 0.18 at every elevation, the meter has
+    // silently gone back to metering the ground.
+    expect(greyCard(90)).toBeGreaterThan(DEFAULT_EXPOSURE_KEY * 1.5);
+    expect(greyCard(0)).toBeLessThan(DEFAULT_EXPOSURE_KEY);
+  });
+
+  it("stops down as the sky takes over the field of view", () => {
+    // The whole sunset fix in one assertion. As the sun drops, the sky's mean radiance falls far more
+    // slowly than the light landing on a horizontal surface (the aureole sits where cos(theta) ~ 0),
+    // so the sky's SHARE of the field grows -- and the meter must respond to it.
+    const skyShare = (h: number) => {
+      const s = computeLighting(input({ elevationDeg: h }));
+      return (0.5 * luminance(s.skyMeanRadiance)) / s.fieldLuminance;
+    };
+    expect(skyShare(90)).toBeLessThan(skyShare(0));
+    expect(skyShare(0)).toBeGreaterThan(0.85); // at sunset the field IS the sky
+    // ...and the sea therefore falls toward silhouette rather than holding at a fixed grey.
+    const sea = (h: number) => {
+      const s = computeLighting(input({ elevationDeg: h }));
+      return s.exposure * luminance(s.groundRadiance);
+    };
+    expect(sea(0)).toBeLessThan(sea(90) / 3);
   });
 
   it("then lets twilight actually get dark, one step at a time", () => {
     // The failure this pins: with the floor at 3 lx (the BOTTOM of civil twilight) the meter tracked
     // all the way down and -2, -4 and -6 rendered identically to sunset. Three blind reviewers called
-    // it. The floor is now the illuminance at sunset itself, so the exposure stops there.
-    const stops = (h: number) => Math.log2(rendered(h) / DEFAULT_EXPOSURE_KEY);
-    expect(stops(0)).toBeCloseTo(0, 1);
-    expect(stops(-2)).toBeGreaterThan(-2.5);
+    // it. The floor is the field luminance at sunset itself, so the meter stops there.
+    const stops = (h: number) => Math.log2(greyCard(h) / greyCard(0));
+    expect(stops(0)).toBe(0);
     expect(stops(-2)).toBeLessThan(-1);
     expect(stops(-4)).toBeLessThan(stops(-2) - 1);
     expect(stops(-6)).toBeLessThan(stops(-4) - 2);
     expect(stops(-12)).toBeLessThan(-12);
   });
 
-  it("pins the exposure at the floor, so every twilight frame shares one meter reading", () => {
-    const sunset = computeLighting(input({ elevationDeg: 0 }));
+  it("pins the exposure at the floor, so every deep-twilight frame shares one meter reading", () => {
     const civil = computeLighting(input({ elevationDeg: -6 }));
     const nautical = computeLighting(input({ elevationDeg: -12 }));
     const astronomical = computeLighting(input({ elevationDeg: -18 }));
-    // All of them are below the floor, so the exposure is identical and only the LIGHT changes.
-    for (const s of [civil, nautical, astronomical]) {
-      expect(s.exposure).toBeCloseTo(sunset.exposure, 0);
+    // All below the floor, so the exposure is identical and only the LIGHT changes.
+    for (const s of [nautical, astronomical]) {
+      expect(s.exposure).toBeCloseTo(civil.exposure, 0);
     }
     expect(nautical.illuminanceLux).toBeLessThan(civil.illuminanceLux / 100);
+    // The sun is still up at 0 degrees, so the meter is still tracking there, not yet pinned.
+    expect(computeLighting(input({ elevationDeg: 0 })).exposure).toBeLessThan(civil.exposure);
   });
 
   it("never divides by the sun: exposure is finite with no directional source at all", () => {

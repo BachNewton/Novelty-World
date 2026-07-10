@@ -43,6 +43,7 @@
 import {
   DEFAULT_SKY,
   clearSkyIrradiance,
+  clearSkyMeanRadiance,
   cieOvercastShape,
   cieOvercastZenith,
   clearSkyRadiance,
@@ -379,6 +380,7 @@ export const skyShapeElevation = (elevationDeg: number): number => Math.max(elev
 
 let rawCacheKey = "";
 let rawCacheValue: Rgb = [0, 0, 0];
+let rawMeanCacheValue: Rgb = [0, 0, 0];
 const rawClearSkyIrradiance = (
   shapeElevationDeg: number,
   trueElevationDeg: number,
@@ -390,15 +392,20 @@ const rawClearSkyIrradiance = (
     // Integrate the dome we RENDER, tint and all, so `domeScale` still lands the energy exactly on
     // Haurwitz. The tint has unit luminance but the integral does not commute with it, so the scale
     // moves a little — which is the point: we are pinning the tinted dome, not the untinted one.
-    rawCacheValue = clearSkyIrradiance(
+    const tints = sourceTints(trueElevationDeg, params.turbidity);
+    rawCacheValue = clearSkyIrradiance(shapeElevationDeg * DEG, params, trueElevationDeg * DEG, tints);
+    rawMeanCacheValue = clearSkyMeanRadiance(
       shapeElevationDeg * DEG,
       params,
       trueElevationDeg * DEG,
-      sourceTints(trueElevationDeg, params.turbidity),
+      tints,
     );
   }
   return rawCacheValue;
 };
+
+/** Companion to `rawClearSkyIrradiance`: same cache, same quadrature, no cosine. Call it AFTER. */
+const rawClearSkyMeanRadiance = (): Rgb => rawMeanCacheValue;
 
 // --- The full state ----------------------------------------------------------
 
@@ -454,6 +461,10 @@ export interface LightingState {
    *  double-count. */
   underwaterBeam: Rgb;
   underwaterSky: Rgb;
+  /** Solid-angle mean radiance of the dome we render — how bright the sky LOOKS. Meters the camera. */
+  skyMeanRadiance: Rgb;
+  /** The scene's own average luminance, `½·sky + ½·sea`. What the exposure meter actually reads. */
+  fieldLuminance: number;
   /** `renderer.toneMappingExposure`. */
   exposure: number;
   /** Illuminance a light meter reads on a horizontal surface, lux. Diagnostics + the exposure floor. */
@@ -484,14 +495,23 @@ const DOME_MU = 24;
  * Measuring rather than predicting is what keeps "what you see" and "what lights you" the same thing.
  * With no cloud the answer is `clearDhi` by construction, so we skip the integral entirely.
  */
+interface DomeIntegrals {
+  /** `∫ L cos θ dω` — how much light lands on a horizontal surface. Lights the scene. */
+  irradiance: Rgb;
+  /** `(1/2π) ∫ L dω` — how bright the sky LOOKS. Meters the camera. Near a low sun these two differ
+   *  by more than an order of magnitude, because the aureole sits where `cos θ` is nearly zero. */
+  meanRadiance: Rgb;
+}
+
 const integrateDome = (
   input: LightingInput,
   domeScale: number,
   overcastZenith: Rgb,
   clearChroma: Rgb,
   clearDhi: number,
+  clearMeanRadiance: Rgb,
   planeThickness: number,
-): Rgb => {
+): DomeIntegrals => {
   // NB the dome's sun-shading modulation (self-shadow taps + phase, `sky.ts`) is NOT integrated here.
   // It is normalised to a spatial mean of 1 by `cloudStats.shadeMean`, so it redistributes a cloud's
   // radiance without changing its total; what it leaves on the table is the covariance between that
@@ -499,7 +519,9 @@ const integrateDome = (
   // triple this integral's cost to chase it.
   // With no cloud the dome IS the clear sky, whose irradiance we already know exactly (that is what
   // `domeScale` was built from). Skip 1536 fbm evaluations for the common case.
-  if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) return scaleRgb(clearChroma, clearDhi);
+  if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) {
+    return { irradiance: scaleRgb(clearChroma, clearDhi), meanRadiance: clearMeanRadiance };
+  }
 
   const shapeElRad = skyShapeElevation(input.elevationDeg) * DEG;
   const terms = sunTerms(
@@ -511,6 +533,7 @@ const integrateDome = (
   const sunHoriz = Math.cos(shapeElRad);
   const threshold = cloudThreshold(input.cloud);
   const out: Rgb = [0, 0, 0];
+  const mean: Rgb = [0, 0, 0];
 
   for (let m = 0; m < DOME_MU; m++) {
     const mu = (m + 0.5) / DOME_MU;
@@ -547,12 +570,18 @@ const integrateDome = (
         const aerial = Math.exp(-(terms.betaR[i] + terms.betaM[i]) * planeDist);
         const airlight = clear + (cloudy - clear) * planeThickness;
         const hazed = cloudy + (airlight - cloudy) * (1 - aerial);
-        out[i] += (clear + (hazed - clear) * alpha) * mu;
+        const radiance = clear + (hazed - clear) * alpha;
+        out[i] += radiance * mu; // cosine-weighted: irradiance
+        mean[i] += radiance; // unweighted: what the sky looks like
       }
     }
   }
   const w = (2 * Math.PI) / (DOME_PHI * DOME_MU);
-  return [out[0] * w, out[1] * w, out[2] * w];
+  const n = DOME_PHI * DOME_MU;
+  return {
+    irradiance: [out[0] * w, out[1] * w, out[2] * w],
+    meanRadiance: [mean[0] / n, mean[1] / n, mean[2] / n],
+  };
 };
 
 /** Fresnel reflectance of air→water for an unpolarised beam at solar elevation `h` (Schlick is not
@@ -632,15 +661,19 @@ export const computeLighting = (input: LightingInput): LightingState => {
     cieOvercastZenith(overcastDome[i]),
   ) as Rgb;
 
-  // --- Measure the dome we render (see integrateDome).
-  const skyIrradiance = integrateDome(
+  // --- Measure the dome we render (see integrateDome). Two integrals, because "how much light does
+  // the sky DELIVER" and "how bright does the sky LOOK" are different questions with different answers.
+  const dome = integrateDome(
     input,
     domeScale,
     overcastZenithRadiance,
     clearChroma,
     clearDhi,
+    scaleRgb(rawClearSkyMeanRadiance(), domeScale),
     stats.planeThickness,
   );
+  const skyIrradiance = dome.irradiance;
+  const skyMeanRadiance = dome.meanRadiance;
 
   const horizontalIrradiance: Rgb = [0, 1, 2].map(
     (i) => beamHorizontal[i] + skyIrradiance[i],
@@ -663,13 +696,41 @@ export const computeLighting = (input: LightingInput): LightingState => {
   const underwaterBeam = scaleRgb(beamHorizontalClear, 1 - fBeam);
   const underwaterSky = scaleRgb(skyIrradiance, 1 - WATER_DIFFUSE_FRESNEL);
 
-  // --- Exposure: a real photographic meter. `key / L_avg`, where `L_avg` is the radiance of a grey
-  // card lying flat in this scene. No `AMBIENT_FLOOR`; instead the meter bottoms out at a real
-  // illuminance (civil twilight) and the frame is allowed to go dark below it.
+  // --- Exposure: an averaging meter that looks at the SCENE, not at the ground.
+  //
+  // The first version metered a grey card lying flat: `key / ((0.18/π)·E_horizontal)`. That is an
+  // incident-light meter with a cosine receptor, and no camera and no retina is one. Its consequence
+  // was measured, not argued: at a 0° sun it holds the sea at a rendered 0.07 forever, and to do so it
+  // must set an exposure that puts **36 % of the sky hemisphere above the white point**. AgX then does
+  // its job and desaturates the clipped sky to cream. Three blind reviewers, independently, called the
+  // sunsets "a pale wash" and "a wet firework" — and they were describing an over-exposed sky.
+  //
+  // A real meter integrates the LUMINANCE of the field of view. So does the eye. At noon that field is
+  // an even blue dome over a dark sea and the answer barely moves. At sunset the field is dominated by
+  // a sky that is hundreds of times brighter than the water, the meter stops down hard, and you get
+  // the photograph everyone has actually seen: a silhouetted foreground under a saturated sky.
+  //
+  //   L_field = ½·(mean sky radiance)  +  ½·(sea radiance)
+  //
+  // Half and half because the horizon splits the field of view in two — this is the scene's own
+  // average luminance, `(1/4π)∫L dω`, with the upper hemisphere measured by `integrateDome` and the
+  // lower one being the sea, which is Lambertian by construction.
+  //
+  // The SUN'S DISC is excluded, for the same reason it is excluded from the env bake: it is 6.8e-5 sr
+  // of the sphere and a million times middle grey, so including it would let a camera turning toward
+  // the sun stop the whole world down. Real meters clamp it; real eyes squint. That is glare, and
+  // glare is a separate model.
+  const seaLuminance = luminance(groundRadiance);
+  const skyLuminance = luminance(skyMeanRadiance);
+  const fieldLuminance = 0.5 * skyLuminance + 0.5 * seaLuminance;
+
+  // The adaptation floor, unchanged in meaning and now expressed in the meter's own units. A dome
+  // delivering `E` on a horizontal surface has mean radiance `E/π` if it is uniform, and the sea below
+  // it has `albedo·E/π`, so the field it produces is `((1+albedo)/2)·E/π`. Below that the meter is
+  // pinned and the frame genuinely darkens, which is what makes twilight twilight.
   const floorIrradiance = input.adaptationFloorLux / (DAYLIGHT_EFFICACY * WATTS_PER_UNIT);
-  const meteredIrradiance = Math.max(luminance(horizontalIrradiance), floorIrradiance);
-  const greyRadiance = (MIDDLE_GREY_ALBEDO / Math.PI) * meteredIrradiance;
-  const exposure = input.exposureKey / Math.max(greyRadiance, 1e-9);
+  const floorLuminance = ((1 + input.groundAlbedo) / 2) * (floorIrradiance / Math.PI);
+  const exposure = input.exposureKey / Math.max(fieldLuminance, floorLuminance, 1e-9);
 
   const sources: DirectionalSource[] =
     luminance(beamClear) > 0
@@ -692,6 +753,8 @@ export const computeLighting = (input: LightingInput): LightingState => {
     overcastZenithRadiance,
     groundRadiance,
     skyIrradiance,
+    skyMeanRadiance,
+    fieldLuminance,
     beamHorizontal,
     horizontalIrradiance,
     cloudBeamFactor: stats.beamFactor,

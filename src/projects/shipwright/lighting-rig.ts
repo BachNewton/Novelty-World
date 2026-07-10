@@ -2,38 +2,27 @@ import * as THREE from "three";
 import { luminance, type Rgb } from "./sky-model";
 
 /**
- * The lighting calibration rig — what `measuring-pole.ts` is to water clarity, this is to light.
+ * The irradiance probe — what `measuring-pole.ts` is to water clarity, this is to light.
  *
- * Two instruments in one module, because they answer the same question at different resolutions:
+ * `measure()` renders a sun-facing card into an off-screen HalfFloat target and reads back the LINEAR
+ * radiance, with each light source isolated. This is the instrument that found the original bug, and
+ * it is strictly better than reading a screenshot: rendering into a render target means three applies
+ * NO tone mapping (it only tone-maps when drawing to the canvas), so we read true linear radiance and
+ * never have to undo sRGB or invert AgX to reason about a ratio.
  *
- * 1. **The visible rig** (`object`): a row of spheres of KNOWN albedo floating in frame, so the
- *    sun:sky ratio, the shadow terminator, the IBL sheen and the highlight roll-off are all legible
- *    straight off a screenshot — to a human and to a blind reviewer agent. Without it everyone is
- *    arguing about vibes.
+ * The VISIBLE calibration rig used to live here too — five spheres of known albedo. It has grown into
+ * its own thing (`material-rig.ts` + `materials.ts`): a grid of measured materials at three depths,
+ * with no dependency on this file or on the lighting model, so it can be dropped onto an older build
+ * and A/B'd against it. A calibration instrument that only compiles against the thing it calibrates
+ * is not an instrument.
  *
- * 2. **The probe** (`measure`): renders a sun-facing card into an off-screen HalfFloat target and
- *    reads back the LINEAR radiance, with each light source isolated. This is the instrument that
- *    found the original bug, and it is strictly better than the screenshot method the brief
- *    describes: rendering into a render target means three applies NO tone mapping (it only tone-maps
- *    when drawing to the canvas), so we read true linear radiance and never have to undo sRGB or
- *    invert ACES to reason about a ratio.
- *
- * The probe is PERMANENT rather than a temporary set of debug setters. The brief asked for the
- * setters to be removed afterwards; the intent is that no lighting back-door survives into the
- * shipped model, and a single self-contained `measure()` that saves and restores every value it
- * touches satisfies that better than three raw intensity setters would. Nothing outside this file
- * can reach in and scale a light.
+ * The probe is PERMANENT rather than a temporary set of debug setters. The intent is that no lighting
+ * back-door survives into the shipped model, and a single self-contained `measure()` that saves and
+ * restores every value it touches satisfies that better than three raw intensity setters would.
+ * Nothing outside this file can reach in and scale a light.
  */
 
-/** Albedos worth having in frame. 0.04 is a black rubber ball / the darkest natural surface; 0.18 is
- *  the photographer's grey card; 0.90 is fresh snow, white sand, and the brief's tropical worst case
- *  for "blacks stay black, hues stay hued". */
-const DIFFUSE_ALBEDOS = [0.04, 0.18, 0.9];
-const SPHERE_RADIUS = 0.6;
-const SPHERE_GAP = 1.7;
-
 export interface LightingRig {
-  object: THREE.Object3D;
   /**
    * Measure the scene's irradiance on a diffuse card, per light source, in LINEAR renderer units.
    * Renders off-screen; leaves the scene exactly as it found it.
@@ -84,42 +73,6 @@ const PROBE_ORIGIN = new THREE.Vector3(0, 500, 0);
 const PROBE_LAYER = 2;
 
 export const createLightingRig = (): LightingRig => {
-  const group = new THREE.Group();
-  group.name = "lighting-rig";
-  group.visible = false;
-
-  const geometry = new THREE.SphereGeometry(SPHERE_RADIUS, 48, 32);
-  const materials: THREE.Material[] = [];
-
-  const addSphere = (material: THREE.MeshStandardMaterial, index: number) => {
-    materials.push(material);
-    const mesh = new THREE.Mesh(geometry, material);
-    // A row across the view, floating just above the waterline so the shadow terminator and the
-    // reflection of each ball in the sea are both in frame.
-    mesh.position.set((index - 2) * SPHERE_GAP, SPHERE_RADIUS + 0.9, 0);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  };
-
-  // Three Lambertian references of known albedo. roughness 1 / metalness 0 is as close to a pure
-  // diffuse reflector as a metallic-roughness BRDF gets; the residual F0 = 0.04 specular is exactly
-  // the "IBL sheen" we are here to watch, so it belongs in the picture.
-  DIFFUSE_ALBEDOS.forEach((albedo, i) => {
-    addSphere(
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(albedo, albedo, albedo),
-        roughness: 1,
-        metalness: 0,
-      }),
-      i,
-    );
-  });
-  // Chrome: reads the sky's radiance distribution directly, including the sun's disc and the clouds.
-  addSphere(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.02, metalness: 1 }), 3);
-  // A rough dielectric: the highlight roll-off and the specular lobe's shape at any sun elevation.
-  addSphere(new THREE.MeshStandardMaterial({ color: 0x8a2f2f, roughness: 0.35, metalness: 0 }), 4);
-
   // --- The probe -------------------------------------------------------------
   // A PURE Lambertian, and it has to be: `specularIntensity: 0` on a physical material zeroes both
   // F0 and F90 (three: `specularF90 = mix(specularIntensity, 1.0, metalness)`), so the card has no
@@ -260,11 +213,8 @@ export const createLightingRig = (): LightingRig => {
   };
 
   return {
-    object: group,
     measure,
     dispose: () => {
-      geometry.dispose();
-      materials.forEach((m) => m.dispose());
       probeCard.geometry.dispose();
       (probeCard.material as THREE.Material).dispose();
       probeTarget.dispose();

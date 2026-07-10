@@ -9,6 +9,8 @@ import { createDaylight, enableShadows } from "./sky";
 import { sunSkyRatio } from "./lighting";
 import { luminance } from "./sky-model";
 import { createLightingRig, type LightingMeasurement } from "./lighting-rig";
+import { ALL_MATERIAL_NAMES, createMaterialRig, type RowName } from "./material-rig";
+import { DEFAULT_PROBE_SET, isMaterialName, type MaterialName } from "./materials";
 import { CLOUD_GENUS_NAMES } from "./clouds";
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics, type Physics } from "./physics";
@@ -123,12 +125,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // below the horizon) is now the dome's own physically-derived ground radiance.
   const daylight = createDaylight({ scene, renderer, camera });
 
-  // The lighting calibration rig: spheres of known albedo (0.04 / 0.18 / 0.90 + chrome + a rough
-  // dielectric), off by default, toggled like the measuring pole. It makes the sun:sky ratio, the
-  // shadow terminator, the sheen and the highlight roll-off legible straight off a frame — to a human
-  // and to a blind reviewer agent. It also owns the linear-HDR probe behind `measureLighting()`.
+  // The linear-HDR irradiance probe behind `measureLighting()`. No scene objects of its own.
   const lightingRig = createLightingRig();
-  scene.add(lightingRig.object);
+
+  // The material calibration rig: a grid of spheres and cubes of MEASURED reflectance (materials.ts),
+  // at three depths — floating, straddling the waterline, and submerged — all in one frame, because
+  // the seam between the above-water shading and the underwater absorption is exactly what a rig split
+  // across three separate shots can never show. Off by default; toggled like the measuring pole.
+  // Depends on three and materials.ts alone, so it drops onto an older build to A/B against.
+  const materialRig = createMaterialRig();
+  scene.add(materialRig.object);
 
   const ocean = createOcean();
   scene.add(ocean.mesh);
@@ -536,8 +542,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   });
   // The lighting rig, toggled exactly like the measuring pole: one is the gauge for water clarity,
   // the other for light. Both make a frame readable instead of arguable.
-  debugFolder.add(debug, "rig").name("lighting rig").onChange((on: boolean) => {
-    lightingRig.object.visible = on;
+  debugFolder.add(debug, "rig").name("material rig").onChange((on: boolean) => {
+    materialRig.object.visible = on;
   });
   // Slow-mo / pause the whole sim (waves + physics stay in lock-step) to study a fast event like a
   // bucket dropping in and shipping water. 0 pauses; 0.1–0.3 is a good crawl for watching the entry.
@@ -820,7 +826,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       island?: boolean;
       rig?: boolean;
       player?: boolean;
+      buoys?: boolean;
     }) => {
+      // The nav buoys sit at the world origin, which is exactly where the material rig stands. They
+      // are also the flat-painted objects the rig exists to replace as a fidelity reference.
+      if (opts.buoys !== undefined) navBuoys.object.visible = opts.buoys;
       if (opts.physics !== undefined) physics.object.visible = opts.physics;
       // The sailor spawns above the raft, so with the Rapier bodies frozen for capture he hangs in
       // mid-air. Reviewers kept reporting him as "a floating glassy dome".
@@ -828,12 +838,26 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (opts.pole !== undefined) measuringPole.object.visible = opts.pole;
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
-      if (opts.rig !== undefined) lightingRig.object.visible = opts.rig;
+      if (opts.rig !== undefined) materialRig.object.visible = opts.rig;
     },
     setTurbidity: (turbidity: number) => {
       daylight.setTurbidity(turbidity);
       syncGui();
     },
+    // --- The material rig. `rigMaterials()` is what a BLIND reviewer is told, and all they are told:
+    // the left-to-right order of the probes. Never rendered as labels into the frame, because text in
+    // a frame whose purpose is judging photorealism is text that gets lit and tone-mapped.
+    setRigMaterials: (names: string[]) => {
+      materialRig.setMaterials(names.filter((n): n is MaterialName => isMaterialName(n)));
+    },
+    setRigRow: (row: string, visible: boolean) => {
+      if (row === "submerged" || row === "waterline" || row === "above") {
+        materialRig.setRow(row satisfies RowName, visible);
+      }
+    },
+    rigMaterials: () => materialRig.materialOrder(),
+    allMaterials: () => [...ALL_MATERIAL_NAMES],
+    defaultProbeSet: () => [...DEFAULT_PROBE_SET],
     // Exposure and the veil are DERIVED, so there is nothing to set: `setAutoExposure`,
     // `setExposure` and `setVeil` are gone with the curves that needed them. `key` is the one
     // photographic dial left (where middle grey is metered), and it is not sun-dependent.
@@ -964,7 +988,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
       measuringPole.object.visible = false;
       seabed.visible = false;
-      lightingRig.object.visible = false;
+      materialRig.object.visible = false;
       island.object.visible = false; // keep the flight comparable to every historical bench run
       probes.visible = false;
       player.object.visible = false;
@@ -1085,6 +1109,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ssrTarget.dispose();
       daylight.dispose();
       lightingRig.dispose();
+      materialRig.dispose();
       ocean.dispose();
       physics.dispose();
       navBuoys.dispose();

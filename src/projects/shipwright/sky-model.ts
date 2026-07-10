@@ -252,6 +252,44 @@ export const clearSkyIrradiance = (
   return [out[0] * w, out[1] * w, out[2] * w];
 };
 
+/**
+ * Solid-angle MEAN radiance of the raw clear dome over the upper hemisphere: `(1/2π)·∫ L dω`.
+ *
+ * Not the same integral as `clearSkyIrradiance`, which weights by `cos θ` because it asks how much
+ * light lands on a flat surface. This one asks how bright the sky LOOKS, which is what an eye and a
+ * camera's averaging meter respond to, and it therefore has no cosine. Near a low sun the two diverge
+ * by more than an order of magnitude — the aureole is at the horizon, where `cos θ` ≈ 0.
+ *
+ * The solar disc is excluded, exactly as it is from `clearSkyRadiance` and the env bake.
+ */
+export const clearSkyMeanRadiance = (
+  shapeElevationRad: number,
+  p: SkyParams,
+  trueElevationRad = shapeElevationRad,
+  tints: { rayleigh: Rgb; mie: Rgb } = { rayleigh: [1, 1, 1], mie: [1, 1, 1] },
+): Rgb => {
+  const t = sunTerms(shapeElevationRad, p, trueElevationRad, tints);
+  const sunHoriz = Math.cos(shapeElevationRad);
+  const out: Rgb = [0, 0, 0];
+  for (let m = 0; m < MU_STEPS; m++) {
+    const mu = (m + 0.5) / MU_STEPS;
+    const sinT = Math.sqrt(Math.max(0, 1 - mu * mu));
+    for (let f = 0; f < PHI_STEPS; f++) {
+      const phi = ((f + 0.5) / PHI_STEPS) * Math.PI * 2;
+      const cosTheta = sinT * Math.cos(phi) * sunHoriz + mu * t.sunY;
+      const l = clearSkyRadiance(mu, cosTheta, t);
+      out[0] += l[0];
+      out[1] += l[1];
+      out[2] += l[2];
+    }
+  }
+  // `dω = dφ dμ` exactly, so uniform samples in (φ, μ) are uniform in SOLID ANGLE and the plain mean
+  // of the samples is `(1/2π)·∫ L dω`. No weight, no Jacobian. (The irradiance integral above carries
+  // an extra `· mu` precisely because it is NOT this quantity.)
+  const n = MU_STEPS * PHI_STEPS;
+  return [out[0] / n, out[1] / n, out[2] / n];
+};
+
 /** Rec. 709 luminance — how a triple collapses to the single number a light meter reads. */
 export const luminance = (c: Rgb): number => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
