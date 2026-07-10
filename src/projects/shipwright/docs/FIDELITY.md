@@ -21,21 +21,17 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
   - **backscatter fraction `B`** — the small slice that returns to the eye (`b_b = B·b`);
     sets the veil colour via Gordon's `R∞ = b_b/(a + b_b)`.
   - Water types are Jerlov's real classes: **oceanic I–III**, **coastal 1/3/5/7/9**.
-- **Veil brightness** (downwelling) is **sun-driven** (`veilForSun` in `scene.ts`): it lights
-  the water BODY (displayed body = the type's `R∞` reflectance × this veil), so it sits in the
-  same exposed/tone-mapped space as the scene. Because auto-exposure already holds the mid-level
-  roughly constant through the day, the veil is a **plateaued bright daytime value** (~0.6) that
-  rolls *down* toward true dusk (~0.15) — NOT a ramp up to noon. This is what lets turbid coastal
-  water read its green→olive body by day (a dim veil crushed it to near-black), while clear water
-  stays deep blue (its `R∞` is tiny regardless). Still a *perceptual* quantity (chosen magnitudes).
-- **Sun-driven IBL sheen roll-off** (`envIntensityForSun`, `scene.ts`). The noon sky env map is so
-  bright its broad specular reflection adds a near-white sheen to every surface — black paint lifts
-  to grey, saturated colours (buoys) dilute toward white. Exposure can't fix it (it scales colour
-  and sheen together, so saturation is unchanged); the fix cuts the sheen itself by easing
-  `scene.environmentIntensity` down as the sun climbs (1.0 up to 30° → 0.45 by zenith). Noon keeps
-  hue + dark blacks; low/mid sun (≤30°) is untouched so dusk/golden reflections don't change. NB
-  this is the *energy* half of "noon goes white" — the *display* half (bright warm highlights like
-  the sun disc + glitter clipping to white) is a separate, unaddressed tonemapping problem (backlog).
+- **Veil brightness (downwelling) is DERIVED, not tuned.** `veilForSun` is gone. The water body's
+  displayed radiance is Gordon's `R∞ × E_d / π`, where `E_d` is the real downwelling irradiance just
+  below the surface — the Fresnel-transmitted beam plus the Fresnel-transmitted skylight, computed by
+  `lighting.ts` from the sun's air mass and the sky's own irradiance. Its colour is derived too, so the
+  old fixed cool-neutral `uWaterLight` tint is gone as well. It is split into beam and sky halves so the
+  shader can attenuate the beam half per-fragment by the cloud shadow map: a passing cumulus now darkens
+  the sea's BODY, not merely its glitter. The whole composite runs in **linear HDR**, before the tonemap.
+- **The IBL sheen roll-off is gone, because the sheen is gone.** `envIntensityForSun` existed only
+  because the sky env out-lit the sun ~21:1. `scene.environmentIntensity` is a constant 1.0. Verified by
+  blind review after the overhaul: the 0.04-albedo sphere stays black at the tropical zenith, the 0.90
+  sphere keeps its shading instead of clipping, and the buoys keep their hue. See `lighting-log.md`.
 - **No lateral refraction offset — the see-through is sampled straight through.** We removed the
   screen-space UV offset (previously the depth-gated wave normal). Any lateral offset *shears* the
   submerged silhouette of a discrete object straddling the waterline: its above-water half samples
@@ -102,7 +98,14 @@ Today only the object→eye path is attenuated; the light *reaching* a submerged
 Multiply the refracted sample by `exp(-Kd · depthBelowSurface)` so deep objects also dim
 from reduced illumination. Minor gap noted in the optics diagnosis.
 
-### Sun glitter / microfacet sparkle — TOP photoreal gap at mid/high sun
+### Sun glitter / microfacet sparkle — still the top photoreal gap at mid/high sun
+
+**Update after the lighting overhaul.** It improved, exactly as `LIGHTING.md` predicted it would if the
+diagnosis ("a sun-too-weak symptom") was right. A blind before/after reviewer, unprompted: *"baseline's
+low-contrast milky lane is replaced by a higher-contrast, more legible sun-glitter path"*. It is still a
+smear rather than thousands of discrete sparkles — so the remaining gap really is the microfacet term
+below, and not the light.
+
 The single biggest remaining "it doesn't look real" at mid-to-high sun (independent reviewers,
 `01-sun-heading/e25-front`, `03-sea-state/3–5`, `04-beauty/low-grazing-chop`): the sun's specular
 lane on the water is a **smooth milky low-contrast smear**, where real rippled water breaks a high
@@ -111,7 +114,16 @@ sun into **thousands of discrete sparkles**. It reads correct at *low grazing* s
 (sub-pixel normal variance → many bright glints), likely with **dual-scale normals** (finer + coarser
 ripple layers) feeding it. Root `CLAUDE.md` future rungs.
 
-### HDR bloom → warm sun disc + warm glitter (the "display half" of noon-white)
+### HDR bloom → warm sun disc + warm glitter — RESOLVED, and the answer was AgX, not bloom
+
+The 2×2 was run and graded blind (see `lighting-log.md`). **AgX fixes the glitter's hue; bloom does
+not.** Same pixels, same frame: the 4° glitter road is neutral silver under ACES and gold under AgX,
+with bloom off in both — because ACES desaturates a highlight *before* it clips, so bloom then spreads
+an already-white pixel into a white halo. Shipwright now runs AgX with bloom off. The disc's blown CORE
+is unfixable (its radiance is `E/Ω`, thousands of times the white point); AgX saves its falloff, which
+is what a viewer actually reads as "the sun is orange". The original statement of the problem follows.
+
+#### (original)
 The `envIntensityForSun` roll-off fixed the *energy* half of noon washing (see "The look today"),
 but the **display half** is untouched: bright, correctly-warm highlights **clip to flat white**
 because they exceed the tonemap white point. Two symptoms: the **sun disc stays white at low sun**

@@ -50,6 +50,21 @@ const CAMERAS = {
   archLandfall: { pos: [-14, 4.5, 24], target: [52, 7, -188] }, // sailing toward the big island
   archShore: { pos: [8, 2.4, -128], target: [56, 3.5, -186] }, // close in: the black lichen band
   archSkerry: { pos: [-16, 1.9, 46], target: [-64, 0.8, 6] }, // eye at sea level among the skerries
+  // 06-lighting framings. `rig` frames the calibration spheres against the sea + horizon: close
+  // enough that the shadow terminator on each ball is readable, low enough that the sun's glitter
+  // road is in shot. `cloudy` tilts up so the deck fills the upper two thirds while the rig and the
+  // horizon stay in the lower third -- you must be able to see the sky AND what it does to the sea.
+  rig: { pos: [-5.5, 2.4, 5.5], target: [0.6, 1.3, -0.6] },
+  cloudy: { pos: [-7, 3.2, 8], target: [3, 6.2, -7] },
+  // HIGH and STEEP, near a plan view. Cumulus cells are ~650 m across and their shadows are a
+  // kilometre-scale pattern, so a shallow camera compresses the whole thing into a thin band at the
+  // horizon: measured, the sea's mean brightness swings 2.1x as the deck drifts past a LOW camera
+  // (the sun blinks in and out, which is what a sailor sees) but the frame shows no PATTERN. Looking
+  // steeply down over ~3 km of water is the only framing in which "dappled" is a thing you can see in
+  // one still image.
+  dapple: { pos: [-900, 1500, 1400], target: [100, 0, -200] },
+  // Low, looking up at the tower. A squall is a thing you stand under.
+  squallCam: { pos: [-6, 3, 9], target: [4, 11, -8] },
 };
 
 const DEFAULTS = {
@@ -61,6 +76,10 @@ const DEFAULTS = {
   // Off by default: groups 01–04 are frozen A/B baselines, and dropping an island into their
   // frames would invalidate every one of them. Group 05 opts in.
   island: false,
+  rig: false,
+  // Clear sky by default. Groups 01–05 test water clarity, sea state and land — a cloud deck (which
+  // now casts real shadows) would confound every one of them. Group 06-lighting/C opts in per genus.
+  cloud: "clear",
   // Deliberately DECOUPLED from the scene's 5000 m default: the tool drives its own scene instance
   // (a separate Playwright browser), so it can use a cheap 1000 m plane for fast CPU/SwiftShader
   // captures while the live render stays 5000 m. Vertex count is what's costly on SwiftShader (it's
@@ -171,6 +190,88 @@ scenarios.push({ group: "05-islands", name: "sunset-backlit", camera: "archLandf
 // frame is where that prediction gets checked.
 scenarios.push({ group: "05-islands", name: "shore-clearwater-diagnostic", camera: "archShore", island: true, water: "Oceanic II", sea: ARCH_SEA, sun: [25, 200] });
 
+// Group 06 — THE LIGHT ITSELF (see docs/LIGHTING.md "The 06-lighting shot group"). Deliberately NOT
+// a cross-product of every axis: each sub-group answers one question. The calibration rig is in shot
+// for A, B and C, so the sun:sky ratio, the shadow terminator, the sheen and the highlight roll-off
+// are all legible from the image alone. Islands only in the heroes (terrain costs ~1.65 s per run).
+const LIGHT_SEA = { amplitude: 0.45, steepness: 0.12 };
+
+// A — the elevation ladder (the physics check). ONE azimuth (side: most diagnostic for form and
+// shadow), clear sky. Steps are ~x1.3 in AIR MASS, not in degrees: 25->85 spans 1.1 air masses and
+// nothing changes, while 4->0 spans 26. The full 0-90 range, because this is a general lighting
+// model, not a Finnish one: 90 deg is the tropical zenith and the harshest frame in the suite.
+// Below 0 there is NO direct beam at all -- the strongest possible test that nothing secretly
+// depends on the sun existing.
+const LADDER = [90, 70, 53, 40, 30, 22, 15, 10, 7, 4.5, 2.5, 1, 0, -2, -4, -6];
+for (const el of LADDER) {
+  const slug = el < 0 ? `m${String(-el).replace(".", "_")}` : String(el).replace(".", "_").padStart(2, "0");
+  scenarios.push({
+    group: "06-lighting/a-elevation",
+    name: `e${slug}`,
+    camera: "rig",
+    rig: true,
+    sea: LIGHT_SEA,
+    sun: [el, 225], // side
+  });
+}
+
+// B — the azimuth cross (shadows + glitter). 85, NOT 90: at the true zenith the sun's azimuth is
+// undefined and the three frames would render identically.
+for (const el of [85, 53, 25, 8, 2]) {
+  for (const [h, az] of Object.entries(HEADINGS)) {
+    scenarios.push({
+      group: "06-lighting/b-azimuth",
+      name: `e${String(el).padStart(2, "0")}-${h}`,
+      camera: "rig",
+      rig: true,
+      sea: LIGHT_SEA,
+      sun: [el, az],
+    });
+  }
+}
+
+// C — cloud states. One tau drives the sky, the beam, the cloud shadow map and the exposure, so the
+// picture and the light cannot disagree. Overcast is the acid test: push tau up and the sun goes to
+// zero, the shadows go with it, the dome flattens, and every object must still look right together.
+const GENERA = ["cirrus", "cumulus", "stratus", "cumulonimbus"];
+for (const genus of GENERA) {
+  for (const el of [70, 40, 10, 2]) {
+    scenarios.push({
+      group: `06-lighting/c-cloud/${genus}`,
+      name: `e${String(el).padStart(2, "0")}`,
+      camera: "cloudy",
+      rig: true,
+      cloud: genus,
+      sea: LIGHT_SEA,
+      sun: [el, 225],
+      // The sea must run to the TRUE horizon here. Fair-weather cumulus are ~900 m across, so on the
+      // suite's usual 1000 m plane the whole scene sits inside a single cloud cell and "dappled"
+      // light is invisible -- which is what it looked like on the first review. Physics, not a bug:
+      // the frame was too small to contain the phenomenon.
+      plane: 5000,
+    });
+  }
+}
+
+// D — heroes. The frames a human actually judges the look on, no rig, no instrument in shot.
+scenarios.push({ group: "06-lighting/d-hero", name: "glitter-low-sun", camera: "grazing", sea: { amplitude: 0.4, steepness: 0.1 }, sun: [4, 135] });
+scenarios.push({ group: "06-lighting/d-hero", name: "sunset-backlit", camera: "grazing", sea: { amplitude: 0.4, steepness: 0.1 }, sun: [0, 135] });
+scenarios.push({ group: "06-lighting/d-hero", name: "low-grazing-chop", camera: "flatcam", sea: { amplitude: 1, steepness: 0.25 }, sun: [20, 135] });
+scenarios.push({ group: "06-lighting/d-hero", name: "islands-sunset-backlit", camera: "archLandfall", island: true, water: BALTIC, sea: ARCH_SEA, sun: [4, 135] });
+// Twilight hero: no beam at all, only scattered skylight. If anything here still looks sun-lit, the
+// model is lying somewhere.
+scenarios.push({ group: "06-lighting/d-hero", name: "civil-twilight", camera: "grazing", sea: { amplitude: 0.4, steepness: 0.1 }, sun: [-4, 135] });
+// The tropical worst case: a near-zenith sun over the clearest water, where a 0.90-albedo sphere and
+// a specular sea are the hardest test of "blacks stay black, hues stay hued".
+scenarios.push({ group: "06-lighting/d-hero", name: "tropical-zenith", camera: "rig", rig: true, water: "Oceanic I", sea: LIGHT_SEA, sun: [88, 225] });
+// Fair-weather cumulus over the archipelago: where the cloud shadow map earns its keep.
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-islands", camera: "archGrain", island: true, water: BALTIC, cloud: "cumulus", sea: ARCH_SEA, sun: [55, 135], plane: 5000 });
+// Cloud shadows sweeping open water, from high enough that several kilometres of sea are in frame.
+scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapple", cloud: "cumulus", sea: LIGHT_SEA, sun: [45, 225], plane: 8000 });
+// Sun BEHIND the camera (az 315), so we look at the cell's shadowed near face -- its base. At az 135
+// the same cloud is backlit and shows its silver lining, which is beautiful and is not a squall.
+scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "squallCam", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [25, 315], plane: 5000 });
+
 // ---------------------------------------------------------------------------
 
 // Renders on the REAL GPU (ANGLE/D3D11; confirmed on an AMD Radeon 780M) by default. Set
@@ -207,7 +308,11 @@ await page.waitForFunction(() => "__shipwright" in window, { timeout: 20000 });
 // Hide dev overlays for clean frames: the lil-gui panel, the small Stats.js canvas, and the
 // GPU-timer text panel (a fixed div starting "GPU ms"). Each is styled imperatively, so target
 // them structurally rather than by class.
-await page.addStyleTag({ content: ".lil-gui{display:none!important}" });
+// Hide dev chrome that would otherwise sit in every captured frame: the lil-gui panel and Next's
+// dev-tools indicator (a fixed button in the corner).
+await page.addStyleTag({
+  content: ".lil-gui{display:none!important} nextjs-portal{display:none!important}",
+});
 await page.evaluate(() => {
   document.querySelectorAll("canvas").forEach((c) => {
     if (c.width <= 100 && c.parentElement) c.parentElement.style.display = "none";
@@ -239,6 +344,8 @@ for (const s of selected) {
     seabed: s.seabed ?? DEFAULTS.seabed,
     pole: s.pole ?? DEFAULTS.pole,
     island: s.island ?? DEFAULTS.island,
+    rig: s.rig ?? DEFAULTS.rig,
+    cloud: s.cloud ?? DEFAULTS.cloud,
     plane,
     setPlane: plane !== appliedPlane, // rebuild the (heavy) mesh only when the size actually changes
     shading: s.shading ?? "full", // "full" | "flat" (unlit) | "wireframe" — for diagnostics
@@ -254,12 +361,14 @@ for (const s of selected) {
     const api = window.__shipwright;
     api.resume();
     if (c.setPlane) api.setPlaneSize(c.plane); // rebuild only when the plane size changes (see above)
-    api.setVisibility({ physics: false, seabed: c.seabed, pole: c.pole, island: c.island });
+    api.setVisibility({ physics: false, player: false, seabed: c.seabed, pole: c.pole, island: c.island, rig: c.rig });
     api.setShading(c.shading);
     api.setWaterFx(c.waterFx);
     api.setWaterType(c.water);
+    api.setCloudGenus(c.cloud);
     api.setSea(c.sea);
-    api.setAutoExposure(true);
+    // Exposure is DERIVED from the scene's own light now (lighting.ts), so there is no auto/manual
+    // switch to arm. `setSun` alone re-meters the frame.
     api.setSun(c.sun[0], c.sun[1]);
     api.setCamera(c.cam.pos, c.cam.target);
     api.freeze(c.freezeT);

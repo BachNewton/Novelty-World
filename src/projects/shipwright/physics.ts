@@ -380,13 +380,12 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     // so the map shows its true colour instead of being tinted darker by this multiplier.
     roughness: 0.85, // matte deck timber
     metalness: 0,
-    // DRY weathered wood is ~non-reflective: the default dielectric specular (F0 ≈ 0.04)
-    // Fresnel-boosts at grazing angles into a bright sky/sun sheen the flat deck shows across
-    // its whole face → ACES desaturates the clipped highlight to white (the "metal deck" bug).
-    // Zero it out for a fully matte deck with no sun hotspot; raise the "specular" slider later
-    // when the deck is WET (spray/waves) for that case's sheen.
-    specularIntensity: 0,
-    envMapIntensity: 0.3, // ambient fill only
+    // A zeroed specular and a per-material env scale used to live here. Both were the buoy/island
+    // seam in another costume: the deck went white not because dry wood is non-reflective (it isn't —
+    // every dielectric has F0 ≈ 0.04) but because the sky env out-lit the sun ~21:1, so a broad
+    // white sheen sat on top of everything. With the light balanced, wood is allowed to be wood.
+    // Restore a physical dielectric: full specular, no env exception. See docs/LIGHTING.md.
+    specularIntensity: 1,
     // Strong normal + an AO map are what stop the deck reading as a flat brown decal: normal
     // relief needs a raking sun to show (a flat deck lit from overhead shows little), so lean on
     // it hard; AO darkens the plank seams/crevices in AMBIENT light, giving depth at ANY sun angle.
@@ -536,6 +535,11 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       ? new THREE.Mesh(buildMergedVoxelGeometry(offsets), material)
       : new THREE.InstancedMesh(boxGeometry, material, Math.max(offsets.length, 1));
     mesh.frustumCulled = false;
+    // Voxel builds are opaque solids: they cast onto the sea, onto the islands, and onto their own
+    // decks. Set here rather than at the call sites so a runtime edit (place / break / split) can
+    // never produce a hull that quietly stops casting.
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
   };
 
@@ -1600,11 +1604,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // tileable), lower values enlarge the planks but reveal a per-voxel seam.
       const wood = objects.addFolder("Raft wood");
       wood.add(woodMaterial, "roughness", 0, 1, 0.01);
-      // Specular reflectance. The default (1 → F0 ≈ 0.04) Fresnel-boosts at grazing angles into a
-      // bright sky/sun sheen that blows the flat deck white; keep it low for matte weathered wood.
       wood.add(woodMaterial, "specularIntensity", 0, 1, 0.01).name("specular");
       wood.add(woodMaterial, "aoMapIntensity", 0, 2, 0.05).name("ao"); // crevice depth, any sun angle
-      wood.add(woodMaterial, "envMapIntensity", 0, 1.5, 0.05).name("env reflect");
       const woodProxy = { normalDepth: woodMaterial.normalScale.x, tile: 1 };
       wood
         .add(woodProxy, "normalDepth", 0, 3, 0.05)

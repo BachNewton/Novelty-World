@@ -95,8 +95,17 @@ export interface Ocean {
   setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => void;
   /** Debug: gate the whole see-through/depth/SSR composite (isolate its cost). */
   setWaterFx: (on: boolean) => void;
-  /** Set the water body's downwelling brightness (the veil), driven by sun elevation. */
-  setVeilBrightness: (value: number) => void;
+  /**
+   * The downwelling irradiance just BELOW the surface, linear RGB in renderer units, split into its
+   * beam and sky halves. The water body's displayed radiance is Gordon's `R∞ × E_d / π` — so this is
+   * the light, and `R∞` (from the Jerlov type) is the reflectance. Derived by `lighting.ts`; it is no
+   * longer a hand-tuned "veil brightness".
+   *
+   * Split because the shader attenuates the BEAM half per-fragment by the cloud shadow map, so a
+   * cloud shadow darkens the water's body and not merely its glitter. `beam` is therefore the
+   * CLEAR-sky beam — the cloud is applied once, in the shader.
+   */
+  setDownwelling: (beam: [number, number, number], sky: [number, number, number]) => void;
   /** Load a Jerlov water type by name (colour + clarity derive from its optics). */
   setWaterType: (name: string) => void;
   /** Set sea-state multipliers (wave height / steepness / wavelength); rebuilds the wave set. */
@@ -348,8 +357,8 @@ uniform float uReflectWaveStrength; // wave-slope smear of the reflection (see t
 uniform vec3 uAbsorption;
 uniform vec3 uScattering;
 uniform vec3 uBackscatter;
-uniform vec3 uWaterLight;
-uniform float uWaterLightIntensity;
+uniform vec3 uDownwellingBeam; // E_beam / PI, CLEAR sky: the shader applies the cloud shadow itself
+uniform vec3 uDownwellingSky;  // E_sky / PI
 uniform bool uSsrEnabled;
 uniform float uReflectionStrength;
 uniform float uReflectMin;
@@ -407,9 +416,24 @@ void main() {
 }
 `;
 
-// Injected AFTER <tonemapping_fragment>: the captured scene colour is tone-mapped
-// (three applies tone mapping in the material regardless of render target), so we
-// composite in that same tone-mapped space to avoid a double tone-map.
+// Injected BEFORE <tonemapping_fragment>, i.e. in LINEAR HDR. (Tier-2 change; the reasoning is in
+// docs/LIGHTING.md.)
+//
+// The old comment here — and CLAUDE.md — asserted that "three applies tone mapping in the material
+// regardless of render target", so the captured scene came back tone-mapped and the composite had to
+// match that space. THAT IS NOT TRUE of this version of three, and it is checkable:
+// `WebGLPrograms.getParameters` sets `toneMapping = NoToneMapping` unless
+// `currentRenderTarget === null`. The scene capture is a render target, so it was ALWAYS linear HDR,
+// and the old code was mixing a linear capture into an already-tone-mapped base — a real bug that
+// happened to look plausible because both live near [0,1] at the old exposure.
+//
+// Compositing before the tonemap fixes that, and buys three things:
+//   * the veil becomes a real downwelling irradiance instead of a display-space fudge;
+//   * bright warm highlights (the sun's glitter road) survive into the tonemap as HDR, so they can
+//     roll off with their hue instead of clipping flat;
+//   * HDR bloom becomes possible at all — it needs everything linear until one tonemap at the end.
+// With bloom enabled the whole main pass renders into a HalfFloat target, so `tonemapping_fragment`
+// is a no-op here and the composite is linear all the way to the final OutputPass. Both paths agree.
 //
 // See-through: sample the scene behind the water STRAIGHT through, at this fragment's screen UV.
 // We deliberately do NOT apply a lateral screen-space refraction offset. A UV offset (by the
@@ -441,7 +465,18 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     // behind the water is tinted by these same terms for free.
     vec3 extinction = uAbsorption + uScattering;
     vec3 transmit = exp(-extinction * thickness);
-    vec3 deep = uBackscatter / max(uAbsorption + uBackscatter, vec3(1e-4)) * uWaterLight * uWaterLightIntensity;
+    // Gordon's semi-infinite reflectance R_inf = b_b/(a + b_b), lit by the real downwelling radiance
+    // just under the surface. Both halves are now physics: the water's optics were already, and the
+    // light finally is too.
+    vec3 rInf = uBackscatter / max(uAbsorption + uBackscatter, vec3(1e-4));
+    // The sea is a material like any other: the cloud above it dims the beam reaching it. Without
+    // this the water body stays as bright under a cumulus shadow as in full sun, and the only thing a
+    // passing cloud takes away is the glitter — which is why dappled light was invisible on water.
+    // shipwrightCloudTransmittance is the project's ONE global lighting chunk (sky.ts), reached the
+    // same way every lit material reaches it. Its argument is the view-space position, exactly as
+    // three's lights_fragment_begin passes it. (No backticks in GLSL -- it is a template literal.)
+    vec3 downwelling = uDownwellingSky + uDownwellingBeam * shipwrightCloudTransmittance(-vViewPosition);
+    vec3 deep = rInf * downwelling;
     vec3 body = refracted * transmit + deep * (1.0 - transmit);
 
     // Geometric Fresnel (0 head-on → 1 grazing). uReflectMin lifts the head-on
@@ -523,15 +558,13 @@ export function createOcean(): Ocean {
     uAbsorption: { value: new THREE.Vector3(0.45, 0.25, 0.55) },
     uScattering: { value: new THREE.Vector3(0.75, 0.75, 0.75) },
     uBackscatter: { value: new THREE.Vector3(0.018, 0.018, 0.018) },
-    // Downwelling light tint the veil is lit by. (Later: sample sky/sun.)
-    uWaterLight: { value: new THREE.Color(0.85, 0.95, 1.0) },
-    // Downwelling irradiance scale — how much light actually reaches (and lights) the water
-    // body. LOW here because the default scene is DUSK (sun elevation ~14°): little light
-    // penetrates, so the body stays dim and the sea reads by its SKY REFLECTION (the dark-
-    // blue look) rather than a lit green body. This should track the real sun/sky brightness
-    // later (bright noon → a brighter, greener body; dim dusk → this). Note: visibility/clarity
-    // is unaffected by this — that's the extinction term, not the veil.
-    uWaterLightIntensity: { value: 0.12 },
+    // The radiance the water body is lit by: E_d / PI, where E_d is the downwelling irradiance just
+    // below the surface — Fresnel-transmitted beam plus Fresnel-transmitted skylight. DERIVED per
+    // frame by `lighting.ts` (see `setDownwelling`), colour and all, which is why `veilForSun` and
+    // the fixed cool-neutral `uWaterLight` tint both ceased to exist. Clarity is untouched by this:
+    // that is the extinction term. Kept apart so the beam can be cloud-shadowed per fragment.
+    uDownwellingBeam: { value: new THREE.Vector3(0, 0, 0) },
+    uDownwellingSky: { value: new THREE.Vector3(0, 0, 0) },
     // Screen-space reflection: ray-marches the captured depth to reflect dynamic
     // geometry; misses fall back to the env-map sky. uProjection is bound with the
     // view params (it changes on resize). uSsrMinFresnel gates the march — below it
@@ -682,14 +715,17 @@ export function createOcean(): Ocean {
     material.normalScale.set(baseRippleStrength * seaFactor, baseRippleStrength * seaFactor);
   };
   applyRippleStrength();
-  material.envMapIntensity = 1.0; // IBL (ambient + reflection) from scene.environment (PMREM sky)
+  // No per-material env scale. The IBL from `scene.environment` is the physically-scaled sky dome,
+  // at `scene.environmentIntensity = 1`, exactly like every other material in the project. That is
+  // the whole thesis: one lighting model, no per-material exceptions.
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${OCEAN_FRAG_PARS}`)
+      // BEFORE the tonemap: the composite runs in linear HDR (see OCEAN_FRAG_WATER).
       .replace(
         "#include <tonemapping_fragment>",
-        `#include <tonemapping_fragment>\n${OCEAN_FRAG_WATER}`,
+        `${OCEAN_FRAG_WATER}\n\t#include <tonemapping_fragment>`,
       );
   };
   // Keep this material's patched program from being shared with a stock one.
@@ -856,8 +892,10 @@ export function createOcean(): Ocean {
     setWaterFx: (on: boolean) => {
       uniforms.uWaterFx.value = on;
     },
-    setVeilBrightness: (value: number) => {
-      uniforms.uWaterLightIntensity.value = value;
+    setDownwelling: (beam, sky) => {
+      // Irradiance -> the Lambertian radiance Gordon's R_inf multiplies.
+      uniforms.uDownwellingBeam.value.set(...beam).divideScalar(Math.PI);
+      uniforms.uDownwellingSky.value.set(...sky).divideScalar(Math.PI);
     },
     setWaterType: (name: string) => {
       const type = WATER_TYPES.find((t) => t.name === name);
@@ -910,10 +948,9 @@ export function createOcean(): Ocean {
         });
 
       const bodyFolder = sea.addFolder("Water body");
-      // Veil brightness (uWaterLightIntensity — the downwelling light the water body glows
-      // with) is now a LIGHTING control: it lives in scene.ts's "Lighting" folder and auto-
-      // derives from sun elevation (see setVeilBrightness). Kept out of here to avoid two
-      // controls writing the same uniform.
+      // There is no veil-brightness dial any more. The downwelling irradiance the body is lit by is
+      // DERIVED from the sun and the sky (`lighting.ts` -> `setDownwelling`), so there is nothing
+      // here for a human to tune: change the light, and the water follows.
       const absorb = uniforms.uAbsorption.value;
       const scatter = uniforms.uScattering.value;
       const backscatter = uniforms.uBackscatter.value;
@@ -936,7 +973,6 @@ export function createOcean(): Ocean {
       surface.addColor(material, "color");
       surface.add(material, "roughness", 0, 1, 0.01);
       surface.add(material, "metalness", 0, 1, 0.01);
-      surface.add(material, "envMapIntensity", 0, 2, 0.01).name("env reflection");
       surface
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")

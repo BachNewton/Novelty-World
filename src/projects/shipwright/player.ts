@@ -82,6 +82,10 @@ export function createPlayer(
   const material = new THREE.MeshStandardMaterial({ color: 0xd9c8a8, roughness: 0.85 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.copy(SPAWN);
+  // The sailor casts a shadow on his own deck. (He is hidden in first person, so this only shows
+  // from the orbit camera and in another player's view once co-op lands.)
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
 
   let world: RAPIER.World | null = null;
   let body: RAPIER.RigidBody | null = null;

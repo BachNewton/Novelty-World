@@ -1,11 +1,17 @@
 import * as THREE from "three";
-import { Sky } from "three/examples/jsm/objects/Sky.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 import type {
   ThreeSceneContext,
   ThreeSceneHandlers,
 } from "@/shared/lib/three/use-three-scene";
+import { createDaylight, enableShadows } from "./sky";
+import { sunSkyRatio } from "./lighting";
+import { luminance } from "./sky-model";
+import { createLightingRig, type LightingMeasurement } from "./lighting-rig";
+import { ALL_MATERIAL_NAMES, createMaterialRig, type RowName } from "./material-rig";
+import { DEFAULT_PROBE_SET, isMaterialName, type MaterialName } from "./materials";
+import { CLOUD_GENUS_NAMES } from "./clouds";
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics, type Physics } from "./physics";
 import { RAFT, TEST_SHAPES } from "./shapes";
@@ -63,6 +69,16 @@ interface BenchmarkRun {
   resolve: (result: BenchmarkResult) => void;
 }
 
+/** The tone-mapping operators the 2x2 experiment compares. ACES desaturates bright highlights hard,
+ *  which is why a correctly-warm low sun clips to flat white; AgX holds hue much further up. */
+const TONE_MAPPINGS = {
+  ACES: THREE.ACESFilmicToneMapping,
+  AgX: THREE.AgXToneMapping,
+} as const;
+type ToneMappingName = keyof typeof TONE_MAPPINGS;
+/** Narrow a name that arrived from the GUI or the debug API, so the lookup below is total. */
+const isToneMapping = (name: string): name is ToneMappingName => name in TONE_MAPPINGS;
+
 // Debug probe grid: bright dots placed at the CPU-sampled surface height, the
 // same way the buoys are sampled. Overlaid on the wireframe ocean, they reveal
 // whether the CPU wave field matches the GPU-rendered surface.
@@ -83,16 +99,14 @@ const ARCHIPELAGO: ArchipelagoProfile = {
 };
 
 /**
- * Builds the Shipwright ocean scene: a Gerstner wave surface (see `ocean.ts`),
- * simple lighting, a procedural sky, marker buoys that ride the waves, and a
- * stripped-down debug overlay (wireframe water + CPU probe dots + grid/axes) for
- * diagnosing how floaters sit relative to the water.
+ * Builds the Shipwright ocean scene: a Gerstner wave surface (see `ocean.ts`), the physical sky and
+ * sun (see `sky.ts` + `lighting.ts`), marker buoys that ride the waves, and a stripped-down debug
+ * overlay (wireframe water + CPU probe dots + the lighting rig) for diagnosing how floaters sit
+ * relative to the water and how the light falls on everything.
  */
 export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const { scene, camera, renderer } = ctx;
 
-  // Exposure is sun-driven (auto-exposure, see the Lighting block below) — it stops down as
-  // the sun climbs instead of blowing the frame to washed-white at noon off a fixed value.
   camera.position.set(-8, 2.5, 8); // low, aimed across the water toward the low sun
 
   // The shared hook's 1 m default near plane is an ocean-scale value: in first person it slices
@@ -103,68 +117,24 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   camera.near = 0.1;
   camera.updateProjectionMatrix();
 
-  // Lighting is intentionally minimal — just enough to complement the water and
-  // give the sun a specular glint. The env map (below) does most of the work.
-  const hemiLight = new THREE.HemisphereLight(0x9fc5e8, 0x0a1a24, 0.5);
-  scene.add(hemiLight);
-  const sunLight = new THREE.DirectionalLight(0xfff2e0, 2.5);
-  scene.add(sunLight);
+  // The whole light — sun, sky dome, PMREM bake, shadow frustum, cloud shadow map, exposure — lives
+  // in `sky.ts` behind one physical model (`lighting.ts`). It installs the project's single global
+  // `lights_fragment_begin` ShaderChunk override on construction, so every lit material in the scene
+  // picks up cloud shadowing from one place. There is no `hemiLight` any more: it was a second sky
+  // stacked on the PMREM sky, and the half of it that did real work (bounce off the water and rock
+  // below the horizon) is now the dome's own physically-derived ground radiance.
+  const daylight = createDaylight({ scene, renderer, camera });
 
-  // Shadows. The scene ran without them for as long as it was only water + small floaters, where they
-  // buy nothing. Land changes that: a forest that casts nothing onto its own floor reads flat and
-  // bright no matter how low the rock albedo goes — the islands looked like sand dunes at close
-  // range until this went in. Only the terrain and its spruce cast/receive for now; the ocean
-  // deliberately does NOT receive (shadows on the surface are subtle in reality, and would have to be
-  // reconciled with the screen-space composite, which is the trickiest code in the project).
-  renderer.shadowMap.enabled = true;
-  // NOT PCFSoftShadowMap — three deprecated it and silently falls back to PCFShadowMap, logging a
-  // warning. Ask for what we actually get.
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(2048, 2048);
-  sunLight.shadow.camera.near = 1;
-  sunLight.shadow.camera.far = 1200;
-  sunLight.shadow.bias = -0.0005;
-  // Large normalBias: the terrain is one huge low-poly-ish surface at grazing sun, where depth bias
-  // alone either acnes or peter-pans. Offsetting along the normal is the robust lever here.
-  sunLight.shadow.normalBias = 0.5;
-  const SHADOW_RADIUS = 200; // metres of the frustum's half-extent; it follows the view
-  Object.assign(sunLight.shadow.camera, {
-    left: -SHADOW_RADIUS,
-    right: SHADOW_RADIUS,
-    top: SHADOW_RADIUS,
-    bottom: -SHADOW_RADIUS,
-  });
-  sunLight.shadow.camera.updateProjectionMatrix();
-  scene.add(sunLight.target);
+  // The linear-HDR irradiance probe behind `measureLighting()`. No scene objects of its own.
+  const lightingRig = createLightingRig();
 
-  /** Keep the shadow frustum over whatever the camera is LOOKING AT. A single ortho box big enough
-   *  for the whole 600 m window would waste most of its texels on empty sea; anchoring the box to
-   *  the view keeps ~0.2 m per texel where it is actually seen.
-   *
-   *  Anchoring it at the camera's POSITION is the obvious thing and it is wrong: an overhead look-at
-   *  camera can sit 300 m from the islands it is framing, which puts them outside the box entirely
-   *  and silently drops every shadow in the frame. Because this world is a sea at y = 0, the honest
-   *  anchor is where the view ray meets the water; when the camera looks up or level (a sailor's
-   *  eye), the ray never lands, so fall back to a fixed distance ahead.
-   *  `sunDirection` is set by `updateSun`. */
-  const SHADOW_FOCUS_AHEAD = 90; // metres ahead when the view ray never meets the sea
-  const sunDirection = new THREE.Vector3(0, 1, 0);
-  const shadowFocus = new THREE.Vector3();
-  const viewDirection = new THREE.Vector3();
-  const syncSunShadow = () => {
-    camera.getWorldDirection(viewDirection);
-    const looksDown = viewDirection.y < -0.05;
-    const reach = looksDown
-      ? Math.min(-camera.position.y / viewDirection.y, 400)
-      : SHADOW_FOCUS_AHEAD;
-    shadowFocus.copy(camera.position).addScaledVector(viewDirection, reach);
-    shadowFocus.y = 0;
-
-    sunLight.target.position.copy(shadowFocus);
-    sunLight.target.updateMatrixWorld();
-    sunLight.position.copy(shadowFocus).addScaledVector(sunDirection, 600);
-  };
+  // The material calibration rig: a grid of spheres and cubes of MEASURED reflectance (materials.ts),
+  // at three depths — floating, straddling the waterline, and submerged — all in one frame, because
+  // the seam between the above-water shading and the underwater absorption is exactly what a rig split
+  // across three separate shots can never show. Off by default; toggled like the measuring pole.
+  // Depends on three and materials.ts alone, so it drops onto an older build to A/B against.
+  const materialRig = createMaterialRig();
+  scene.add(materialRig.object);
 
   const ocean = createOcean();
   scene.add(ocean.mesh);
@@ -210,7 +180,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // softening so ¼ reads ~the same as full for ~4× fewer marched pixels. Raise it via the GUI for
   // beauty shots on a strong GPU.
   const ssrScale = { value: 0.25 };
-  const ssrTarget = new THREE.WebGLRenderTarget(1, 1);
+  // HalfFloat, not the default UnsignedByte: the SSR pass samples the linear-HDR scene capture, and
+  // an 8-bit target would clamp every reflected highlight to 1.0 before the water ever saw it — the
+  // sun's reflection off a wave crest would come back as flat white. Matters now that the water
+  // composite runs in linear HDR (see ocean.ts).
+  const ssrTarget = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
   const sizeSsrTarget = () => {
     const db = renderer.getDrawingBufferSize(new THREE.Vector2());
     ssrTarget.setSize(
@@ -228,6 +202,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // capture target wasn't allocated.
   const renderPrePasses = () => {
     if (!sceneCapture) return;
+    // FIRST: the cloud shadow map. Every lit material samples it, including the ones drawn into the
+    // capture below, so it has to be current before any of them run.
+    timeSpan("cloud", () => daylight.renderCloudShadow(renderer));
     const captureStart = globalThis.performance.now();
     timeSpan("capture", () => {
       ocean.mesh.visible = false;
@@ -287,6 +264,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   seabed.rotation.x = 0.22;
   seabed.position.y = -16;
   seabed.visible = false;
+  enableShadows(seabed);
   scene.add(seabed);
 
   // The procedural archipelago (see terrain.ts). It's ordinary opaque scene geometry on layer 0, so
@@ -332,123 +310,46 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     probes.instanceMatrix.needsUpdate = true;
   };
 
-  // Procedural sky; baked to an env map (PMREM) so the water reflects a real
-  // horizon. Regenerated whenever the sun or clouds change.
-  const sky = new Sky();
-  // Mobile render fix: the Preetham sun-disc term reaches ~1e6 radiance, far past
-  // the 65504 ceiling of the HalfFloat env-map target PMREM bakes into. Desktop
-  // GPU drivers clamp an over-range half-float write to a finite max, but many
-  // mobile drivers (observed on a Pixel 10 Pro XL, WebGL2 highp) emit +Inf, which
-  // PMREM's roughness blur then smears into NaN across the whole env map — so every
-  // PBR surface reading scene.environment (ocean + cube) renders black once the sun
-  // rises past ~19° and the disc crosses the ceiling. Clamp the sky's output below
-  // 65504 so the baked value is finite everywhere, matching what desktop already
-  // does. Injected before <tonemapping_fragment> (present in both stock and our
-  // clouded Sky, after gl_FragColor is assigned) so it's agnostic to the color var.
-  sky.material.fragmentShader = sky.material.fragmentShader.replace(
-    "#include <tonemapping_fragment>",
-    "gl_FragColor.rgb = min( gl_FragColor.rgb, vec3( 60000.0 ) );\n\t#include <tonemapping_fragment>",
-  );
-  sky.scale.setScalar(10000);
-  scene.add(sky);
-  const skyUniforms = sky.material.uniforms;
-  // Rayleigh sets how much the atmosphere reddens the low sun (blue scattered out of the long
-  // horizon path → warm/orange disc); turbidity is haze, which washes that colour toward white.
-  // Raised rayleigh + lowered turbidity so deep golden hour (~4°) stays distinctly warm instead
-  // of fading to pale pastel a step early, while the zenith just reads a touch deeper blue.
-  skyUniforms.turbidity.value = 3;
-  skyUniforms.rayleigh.value = 3;
-  skyUniforms.mieCoefficient.value = 0.004;
-  skyUniforms.mieDirectionalG.value = 0.8;
-  skyUniforms.cloudCoverage.value = 0.4;
-  skyUniforms.cloudDensity.value = 0.5;
-  skyUniforms.cloudElevation.value = 0.5;
-
-  const sun = new THREE.Vector3();
-  const pmremGenerator = new THREE.PMREMGenerator(renderer);
-  const sceneEnv = new THREE.Scene();
-  let envRenderTarget: THREE.WebGLRenderTarget | undefined;
-
-  const params = { elevation: 14, azimuth: 135 };
-
-  // --- Lighting: sun-driven auto-exposure + veil brightness ------------------
-  // The sky IBL + sun brighten enormously from dusk to noon, so a fixed exposure that suits
-  // dusk blows the frame to washed-white at noon (a real camera/eye stops down as the sun
-  // climbs). Derive exposure from sun elevation: scene brightness rises ~with sin(elevation)
-  // over an ambient-skylight floor, and exposure = key / brightness holds the frame roughly
-  // constant so only the specular sun-glitter clips. ACESFilmic tone mapping (set in the
-  // shared hook) gives the highlight roll-off.
+  // The water follows the light through ONE subscription, no matter what moved it — the sun, the
+  // clouds, the atmosphere dials, the benchmark. The downwelling veil is now DERIVED: the
+  // Fresnel-transmitted beam plus skylight, just below the surface. `veilForSun` and its "perceptual
+  // choices (not derived)" comment are both gone.
+  // Bloom's high-pass runs on the UNEXPOSED linear image (the OutputPass exposes afterwards), while
+  // "bright" is a statement about the DISPLAY. So both numbers below are DISPLAY-space and get divided
+  // by the exposure, which ranges over 300x across a day.
   //
-  // Veil brightness (uWaterLightIntensity) is the downwelling irradiance the water BODY is lit
-  // by — Gordon's R∞ (the type's body colour) is a reflectance, so the displayed body = R∞ ×
-  // this veil. It must sit in the SAME exposed/tone-mapped space as everything else: because
-  // auto-exposure already holds the scene's mid-level roughly constant from dusk to noon, the
-  // veil should be roughly CONSTANT through the day too — NOT ramp up toward noon. (The old
-  // model ramped it up with elevation, which both crushed turbid water to near-black by day —
-  // 0.26 × a dark R∞ — and, composited after tone mapping, pushed clear water toward a clipped
-  // cyan at noon.) So: a bright, plateaued daytime value that lets turbid water express its
-  // green→olive body, rolling DOWN only toward true dusk (front-loaded, matching the air-mass
-  // dimming) where the light genuinely fails. Perceptual choices (not derived), hence tunable.
-  const lighting = { auto: true, key: 0.22 };
-  const AMBIENT_FLOOR = 0.2; // skylight present even at the horizon, so exposure can't run away
-  const VEIL_DUSK = 0.15; // dim, warm dusk body (sun on the horizon; little light penetrates)
-  const VEIL_DAY = 0.6; // bright daytime body — turbid coastal water reads its true olive/green
-  const veilState = { value: VEIL_DUSK };
-  const exposureForSun = (elevation: number) => {
-    const brightness = AMBIENT_FLOOR + Math.sin(THREE.MathUtils.degToRad(Math.max(elevation, 0)));
-    return THREE.MathUtils.clamp(lighting.key / brightness, 0.05, 1.2);
-  };
-  // Front-loaded rise from dusk to full daylight, plateaued by ~18° (established day) so noon
-  // adds no extra veil to clip against — the reverse of the old ramp-to-noon.
-  const veilForSun = (elevation: number) =>
-    THREE.MathUtils.lerp(VEIL_DUSK, VEIL_DAY, THREE.MathUtils.smoothstep(elevation, 0, 18));
-  // IBL sheen roll-off at high sun. The noon sky env map is so bright that its broad SPECULAR
-  // reflection (a near-white sheen every surface picks up, dielectric F0≈0.04 × a huge env) washes
-  // objects: it adds white on top, so black paint lifts to grey and saturated hues dilute toward
-  // white. Exposure can't fix it — dropping exposure scales the colour AND the white sheen together,
-  // so saturation (their ratio) is unchanged. The fix is to cut the sheen itself: ease
-  // scene.environmentIntensity DOWN as the sun climbs, so noon keeps hue + dark blacks while low sun
-  // keeps its full glossy env (dusk/golden-hour reflections read great and must not change).
-  const ENV_INTENSITY_LOW = 1.0; // low/mid sun — full env reflection
-  const ENV_INTENSITY_HIGH = 0.45; // noon — tame the bright-sky sheen washing objects
-  const envIntensityForSun = (elevation: number) =>
-    THREE.MathUtils.lerp(
-      ENV_INTENSITY_LOW,
-      ENV_INTENSITY_HIGH,
-      THREE.MathUtils.smoothstep(elevation, 30, 90),
-    );
-  // When auto, exposure + veil + env intensity derive from the sun. The GUI dials use .listen() so
-  // their displays follow along automatically — no explicit controller refresh needed here.
-  const applyLighting = () => {
-    if (!lighting.auto) return;
-    renderer.toneMappingExposure = exposureForSun(params.elevation);
-    veilState.value = veilForSun(params.elevation);
-    ocean.setVeilBrightness(veilState.value);
-    scene.environmentIntensity = envIntensityForSun(params.elevation);
+  // BLOOM_KNEE is the post-exposure luminance at which ACES has rolled off toward white: above it a
+  // pixel is on its way to clipping, and belongs in a coloured glow instead.
+  //
+  // BLOOM_CLAMP is the bound on how much energy ONE pixel may pour into the glare tail. Without it the
+  // first frame of this experiment was a solid white rectangle: a physically scaled sun disc has
+  // radiance E/Omega, several hundred times the sky, and `strength * blur(highpass)` is unbounded. A
+  // real lens spreads only a bounded fraction of a source into its wide tail. 8x display white keeps a
+  // blazing core, a wide warm glow, and a sea that is still visible around it.
+  // BLOOM_CLAMP is in units of DISPLAY WHITE. It has to be large: the sun disc is only ~10 px across,
+  // so a tight clamp leaves it no energy to glow with (8x white produced no visible halo at all),
+  // while no clamp at all turns the frame into a white rectangle. What is being bounded is the
+  // fraction of a source's energy a lens throws into its wide glare tail; `UnrealBloomPass` has no
+  // energy normalisation, so `strength x clamp` is the halo's real scale.
+  // Settled by a parameter sweep, graded blind (docs/LIGHTING.md "The tonemap x bloom experiment"):
+  //   knee 32   the bright sunset SKY must be excluded, or the whole frame veils to milky white. This
+  //             is the knob that decides whether bloom is usable at all: at knee 1.3 every cell of the
+  //             sweep was "WASHED OUT", at knee 32 the deep-red horizon band and the buoys survive.
+  //   clamp 1000  high enough that the ORANGE disc out-shines the white aerosol glow beside it (at
+  //             clamp 50 the disc was clamped BELOW the sky, so the halo was the sky's, and white);
+  //             low enough that the core stays small.
+  //   strength    lives on the pass (shipwright.tsx); 0.15 is the only value that does not wash.
+  const bloomTuning = { strength: 0.15, radius: 0.6, clamp: 1000, knee: 32 };
+  const applyBloomThreshold = (exposure: number) => {
+    const e = Math.max(exposure, 1e-6);
+    ctx.setBloomPrefilter({ threshold: bloomTuning.knee / e, clamp: bloomTuning.clamp / e });
   };
 
-  const updateSun = () => {
-    const phi = THREE.MathUtils.degToRad(90 - params.elevation);
-    const theta = THREE.MathUtils.degToRad(params.azimuth);
-    sun.setFromSphericalCoords(1, phi, theta);
-    sky.material.uniforms.sunPosition.value.copy(sun);
-    sunDirection.copy(sun);
-    syncSunShadow(); // the light's position is now derived from the camera + this direction
-
-    sceneEnv.add(sky);
-    envRenderTarget?.dispose();
-    // Bake the sky to a PMREM env map — image-based lighting (ambient + reflection) for
-    // the water and the other PBR surfaces via scene.environment.
-    envRenderTarget = pmremGenerator.fromScene(sceneEnv);
-    scene.add(sky);
-    scene.environment = envRenderTarget.texture;
-    // The land owns the SAME texture explicitly, so its own `envMapIntensity` is respected — three
-    // ignores that property on materials that merely inherit `scene.environment`. See
-    // `Terrain.setEnvironment`. Must be re-pointed on every re-bake: the old target is disposed above.
-    island.setEnvironment(scene.environment);
-    applyLighting(); // re-derive exposure + veil for the new sun elevation
-  };
-  updateSun();
+  // `onState` fires immediately on subscribe, so everything it calls must already exist.
+  daylight.onState((light) => {
+    ocean.setDownwelling(light.underwaterBeam, light.underwaterSky);
+    applyBloomThreshold(light.exposure);
+  });
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -525,6 +426,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     seabed: false,
     island: true,
     pole: true,
+    rig: false,
     waterFx: true,
     capture: true,
     planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
@@ -532,61 +434,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     simSpeed: 1, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
   };
 
-  // --- Environment: sun + sky -------------------------------------------------
-  const sunFolder = environment.addFolder("Sun");
-  sunFolder.add(params, "elevation", 0, 90, 0.1).onChange(updateSun);
-  sunFolder.add(params, "azimuth", -180, 180, 0.1).onChange(updateSun);
-
-  // Lighting: exposure + veil brightness. Both auto-derive from sun elevation by default
-  // (see the Lighting block above); dragging either dial drops to manual. `brightness` (key)
-  // scales the whole auto-exposure curve — the one master knob for overall scene brightness.
-  const lightFolder = environment.addFolder("Lighting");
-  lightFolder.add(lighting, "auto").name("auto (sun-driven)").listen().onChange(applyLighting);
-  lightFolder.add(lighting, "key", 0.05, 0.6, 0.005).name("brightness").onChange(applyLighting);
-  lightFolder
-    .add(renderer, "toneMappingExposure", 0, 1.2, 0.01)
-    .name("exposure")
-    .listen()
-    .onChange(() => {
-      lighting.auto = false;
-    });
-  lightFolder
-    .add(veilState, "value", 0, 1.5, 0.01)
-    .name("veil brightness")
-    .listen()
-    .onChange(() => {
-      lighting.auto = false;
-      ocean.setVeilBrightness(veilState.value);
-    });
-  lightFolder.close();
-
-  // Atmosphere + clouds are rarely touched once dialled — collapsed by default.
-  const atmoFolder = environment.addFolder("Atmosphere");
-  atmoFolder.add(skyUniforms.turbidity, "value", 0, 20, 0.1).name("turbidity").onChange(updateSun);
-  atmoFolder.add(skyUniforms.rayleigh, "value", 0, 4, 0.01).name("rayleigh").onChange(updateSun);
-  atmoFolder
-    .add(skyUniforms.mieCoefficient, "value", 0, 0.1, 0.001)
-    .name("haze")
-    .onChange(updateSun);
-  atmoFolder
-    .add(skyUniforms.mieDirectionalG, "value", 0, 1, 0.01)
-    .name("sun glow")
-    .onChange(updateSun);
-  atmoFolder.close();
-  const cloudFolder = environment.addFolder("Clouds");
-  cloudFolder
-    .add(skyUniforms.cloudCoverage, "value", 0, 1, 0.01)
-    .name("coverage")
-    .onChange(updateSun);
-  cloudFolder
-    .add(skyUniforms.cloudDensity, "value", 0, 1, 0.01)
-    .name("density")
-    .onChange(updateSun);
-  cloudFolder
-    .add(skyUniforms.cloudElevation, "value", 0, 1, 0.01)
-    .name("elevation")
-    .onChange(updateSun);
-  cloudFolder.close();
+  // --- Environment: sun, sky, atmosphere, clouds (all owned by sky.ts) ---------
+  daylight.buildGui({ environment });
 
   // --- Sea: wave shape + water optics (ocean.ts fills its own sub-folders) -----
   ocean.buildGui({ sea: seaFolder });
@@ -639,6 +488,36 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   performance.add(debug, "capture").name("scene capture");
+  // The tonemap x bloom 2x2 (docs/LIGHTING.md). Both are live so they can be A/B'd in one warm
+  // session; switching either recompiles materials, which is fine here and nowhere near a hot path.
+  const display: { toneMapping: string; bloom: boolean } = { toneMapping: "AgX", bloom: ctx.isBloomEnabled() };
+  const displayFolder = environment.addFolder("Display");
+  displayFolder
+    .add(display, "toneMapping", Object.keys(TONE_MAPPINGS))
+    .name("tonemap")
+    .onChange((name: string) => {
+      if (isToneMapping(name)) ctx.setToneMapping(TONE_MAPPINGS[name]);
+    });
+  displayFolder.add(display, "bloom").onChange((on: boolean) => {
+    ctx.setBloom(on);
+    applyBloomThreshold(daylight.state().exposure);
+  });
+  displayFolder.add(bloomTuning, "strength", 0, 2, 0.01).onChange((v: number) => {
+    const pass = ctx.bloomPass();
+    if (pass) pass.strength = v;
+  });
+  displayFolder.add(bloomTuning, "radius", 0, 1, 0.01).onChange((v: number) => {
+    const pass = ctx.bloomPass();
+    if (pass) pass.radius = v;
+  });
+  displayFolder
+    .add(bloomTuning, "clamp", 1, 20000, 1)
+    .name("glare clamp (x white)")
+    .onChange(() => applyBloomThreshold(daylight.state().exposure));
+  displayFolder
+    .add(bloomTuning, "knee", 0.5, 4, 0.05)
+    .name("glare knee (x white)")
+    .onChange(() => applyBloomThreshold(daylight.state().exposure));
 
   // --- Debug: diagnostics + overlays only -------------------------------------
   debugFolder
@@ -660,6 +539,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   });
   debugFolder.add(debug, "pole").name("measuring pole").onChange((on: boolean) => {
     measuringPole.object.visible = on;
+  });
+  // The lighting rig, toggled exactly like the measuring pole: one is the gauge for water clarity,
+  // the other for light. Both make a frame readable instead of arguable.
+  debugFolder.add(debug, "rig").name("material rig").onChange((on: boolean) => {
+    materialRig.object.visible = on;
   });
   // Slow-mo / pause the whole sim (waves + physics stay in lock-step) to study a fast event like a
   // bucket dropping in and shipping water. 0 pauses; 0.1–0.3 is a good crawl for watching the entry.
@@ -707,9 +591,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       applyGrid();
     }
     const [el, az] = seg.sunSweep ? seg.sunSweep.from : seg.sun;
-    params.elevation = el;
-    params.azimuth = az;
-    updateSun(); // one PMREM re-bake, in the segment's (discarded) warmup
+    daylight.setSun(el, az); // one PMREM re-bake, in the segment's (discarded) warmup
     run.lastSunEl = NaN; // force the first sweep frame to push (NaN !== any real angle)
     run.lastSunAz = NaN;
     // Raft (VISUALS mode only): show the gameplay bodies statically as a reflective object (reset to
@@ -810,9 +692,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       const el = THREE.MathUtils.lerp(seg.sunSweep.from[0], seg.sunSweep.to[0], p);
       const az = THREE.MathUtils.lerp(seg.sunSweep.from[1], seg.sunSweep.to[1], p);
       if (el !== run.lastSunEl || az !== run.lastSunAz) {
-        params.elevation = el;
-        params.azimuth = az;
-        updateSun();
+        daylight.setSun(el, az);
         run.lastSunEl = el;
         run.lastSunAz = az;
       }
@@ -820,7 +700,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // Gerstner CPU field: the ocean uniform update + nav-buoy surface sampling (the CPU wave eval).
     const oceanStart = globalThis.performance.now();
     ocean.update(run.elapsed);
-    navBuoys.update(ocean, run.elapsed);
+    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux);
     const oceanMs = globalThis.performance.now() - oceanStart;
     // Step the benchmark's OWN physics world (physics/both modes). One deterministic FIXED_DT step
     // per frame headless (byte-identical); real delta headed (natural-speed). Timed on its own so the
@@ -865,6 +745,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         seg: seg.name,
         cpuMs,
         physicsMs,
+        cloud: g.get("cloud") ?? 0,
         capture: g.get("capture") ?? 0,
         // When SSR is off its pass is skipped, so no fresh reading lands — but GpuTimer carries the
         // last value forward (for its panel), which would record a stale "ssr" cost from before the
@@ -893,12 +774,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     gui.controllersRecursive().forEach((c) => c.updateDisplay());
   };
   const debugApi = {
+    // Elevation may be NEGATIVE: twilight down to -18 deg is in scope, and those frames are the
+    // strongest test that nothing secretly depends on the sun existing.
     setSun: (elevation: number, azimuth: number) => {
-      params.elevation = elevation;
-      params.azimuth = azimuth;
-      updateSun();
+      daylight.setSun(elevation, azimuth);
       syncGui();
     },
+    setCloudGenus: (name: string) => {
+      daylight.setCloudGenus(name);
+      syncGui();
+    },
+    cloudGenera: () => CLOUD_GENUS_NAMES,
     setCamera: (pos: [number, number, number], target: [number, number, number]) => {
       camera.position.set(...pos);
       controls.target.set(...target);
@@ -938,27 +824,106 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       pole?: boolean;
       seabed?: boolean;
       island?: boolean;
+      rig?: boolean;
+      player?: boolean;
+      buoys?: boolean;
     }) => {
+      // The nav buoys sit at the world origin, which is exactly where the material rig stands. They
+      // are also the flat-painted objects the rig exists to replace as a fidelity reference.
+      if (opts.buoys !== undefined) navBuoys.object.visible = opts.buoys;
       if (opts.physics !== undefined) physics.object.visible = opts.physics;
+      // The sailor spawns above the raft, so with the Rapier bodies frozen for capture he hangs in
+      // mid-air. Reviewers kept reporting him as "a floating glassy dome".
+      if (opts.player !== undefined) player.object.visible = opts.player;
       if (opts.pole !== undefined) measuringPole.object.visible = opts.pole;
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
+      if (opts.rig !== undefined) materialRig.object.visible = opts.rig;
     },
-    setAutoExposure: (on: boolean) => {
-      lighting.auto = on;
-      applyLighting();
+    // Force the buoy lanterns on in daylight. The photocell is physical (they light below ~50 lx), so
+    // the capture tool needs a way to photograph a lamp against a sky that is not black.
+    setBuoyLights: (alwaysOn: boolean) => {
+      navBuoys.setPhotocellOverride(alwaysOn);
+    },
+    setTurbidity: (turbidity: number) => {
+      daylight.setTurbidity(turbidity);
       syncGui();
     },
-    setExposure: (value: number) => {
-      lighting.auto = false;
-      renderer.toneMappingExposure = value;
+    // --- The material rig. `rigMaterials()` is what a BLIND reviewer is told, and all they are told:
+    // the left-to-right order of the probes. Never rendered as labels into the frame, because text in
+    // a frame whose purpose is judging photorealism is text that gets lit and tone-mapped.
+    setRigMaterials: (names: string[]) => {
+      materialRig.setMaterials(names.filter((n): n is MaterialName => isMaterialName(n)));
+    },
+    setRigRow: (row: string, visible: boolean) => {
+      if (row === "submerged" || row === "waterline" || row === "above") {
+        materialRig.setRow(row satisfies RowName, visible);
+      }
+    },
+    rigMaterials: () => materialRig.materialOrder(),
+    allMaterials: () => [...ALL_MATERIAL_NAMES],
+    defaultProbeSet: () => [...DEFAULT_PROBE_SET],
+    // Exposure and the veil are DERIVED, so there is nothing to set: `setAutoExposure`,
+    // `setExposure` and `setVeil` are gone with the curves that needed them. `key` is the one
+    // photographic dial left (where middle grey is metered), and it is not sun-dependent.
+    setExposureKey: (key: number) => {
+      daylight.setExposureKey(key);
       syncGui();
     },
-    setVeil: (value: number) => {
-      lighting.auto = false;
-      veilState.value = value;
-      ocean.setVeilBrightness(value);
+    setAdaptationFloorLux: (lux: number) => {
+      daylight.setAdaptationFloorLux(lux);
       syncGui();
+    },
+    // The tonemap x bloom 2x2. Both re-derive the bloom threshold from the current exposure.
+    setToneMapping: (name: string) => {
+      if (!isToneMapping(name)) return;
+      ctx.setToneMapping(TONE_MAPPINGS[name]);
+      syncGui();
+    },
+    setBloom: (on: boolean) => {
+      ctx.setBloom(on);
+      applyBloomThreshold(daylight.state().exposure);
+      syncGui();
+    },
+    setBloomTuning: (opts: { strength?: number; radius?: number; clamp?: number; knee?: number }) => {
+      if (opts.clamp !== undefined) bloomTuning.clamp = opts.clamp;
+      if (opts.knee !== undefined) bloomTuning.knee = opts.knee;
+      applyBloomThreshold(daylight.state().exposure);
+      const pass = ctx.bloomPass();
+      if (!pass) return;
+      if (opts.strength !== undefined) pass.strength = opts.strength;
+      if (opts.radius !== undefined) pass.radius = opts.radius;
+      syncGui();
+    },
+    /**
+     * Measure the sun:sky irradiance ratio on the real GPU, with each source isolated, by rendering
+     * a diffuse card into a linear HalfFloat target. Nothing is tone-mapped there (three only
+     * tone-maps when drawing to the canvas), so these are TRUE LINEAR radiances -- no sRGB to undo,
+     * no ACES to invert. Restores every value it touches.
+     */
+    measureLighting: (): LightingMeasurement & { modelled: Record<string, number> } => {
+      const measured = lightingRig.measure({
+        renderer,
+        scene,
+        sunDirection: new THREE.Vector3().copy(daylight.sunLight.position).sub(daylight.sunLight.target.position).normalize(),
+        directionalLights: [daylight.sunLight],
+      });
+      const light = daylight.state();
+      return {
+        ...measured,
+        // What the CPU model PREDICTS, so a divergence between model and render is visible at once.
+        modelled: {
+          exposure: light.exposure,
+          illuminanceLux: light.illuminanceLux,
+          cloudBeamFactor: light.cloudBeamFactor,
+          // LUMINANCE, so it is comparable with the probe's luminance-weighted ratio. (Comparing a
+          // single channel against a luminance would read as a spurious model/render divergence,
+          // because the sky is far bluer than the beam.)
+          ratioHorizontal: sunSkyRatio(light),
+          beamHorizontal: luminance(light.beamHorizontal),
+          skyIrradiance: luminance(light.skyIrradiance),
+        },
+      };
     },
     // Expose the two GUI-only cost dials the benchmark sweeps as settings.
     setRenderScale: (scale: number) => {
@@ -976,15 +941,28 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       syncGui();
     },
     /** True once everything an automated capture depends on has settled: the async ripple normal map
-     *  has decoded. (The PMREM sky bake is synchronous inside `updateSun`, which runs during setup
-     *  before `__shipwright` is published, and the Rapier bodies are hidden for capture — so neither
-     *  needs waiting on.) Replaces a hardcoded sleep in `tools/shots.mjs`. */
+     *  has decoded. (The PMREM sky bake is synchronous inside `daylight.setSun`, which runs during
+     *  setup before `__shipwright` is published, and the Rapier bodies are hidden for capture — so
+     *  neither needs waiting on.) Replaces a hardcoded sleep in `tools/shots.mjs`. */
     isReady: () => ocean.isReady(),
     /** Frames rendered since setup. A capture applies its scene state, then waits for this to advance,
      *  which is the real event it needs — a rendered frame — rather than a guessed number of ms. */
     frameCount: () => frameCount,
     // The benchmark's GPU-ms metric needs EXT_disjoint_timer_query; the tool aborts if false.
     hasGpuTimer: () => gpuTimer !== undefined && gpuTimer.available,
+    /** Statistics of the cloud shadow map, straight off the GPU. `min`/`max` far apart means a real
+     *  dappled field; `min == max` means a uniform deck (or a bug). */
+    cloudShadowStats: () => daylight.cloudShadowStats(renderer),
+    /** Last per-pass GPU times, ms. `total` is the sum of the passes this scene runs. Used by the
+     *  tonemap x bloom experiment to price each cell of the 2x2 in one warm session. */
+    gpuTimings: () => {
+      const g = gpuTimer?.values();
+      const cloud = g?.get("cloud") ?? 0;
+      const capture = g?.get("capture") ?? 0;
+      const ssr = ocean.isSsrEnabled() ? (g?.get("ssr") ?? 0) : 0;
+      const main = g?.get("main") ?? 0;
+      return { cloud, capture, ssr, main, total: cloud + capture + ssr + main };
+    },
     // Run the deterministic fixed-dt flight (benchmark.ts) and resolve with per-frame samples.
     // Applies the run's global cost settings, forces stride 1 (never skip a flight frame), and
     // hides non-flight objects for a clean, consistent scene. See tools/bench.mjs.
@@ -1015,6 +993,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
       measuringPole.object.visible = false;
       seabed.visible = false;
+      materialRig.object.visible = false;
       island.object.visible = false; // keep the flight comparable to every historical bench run
       probes.visible = false;
       player.object.visible = false;
@@ -1098,7 +1077,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
-      navBuoys.update(ocean, elapsed);
+      navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
       // Pose the sailor at the interpolated physics state (smooth at the render rate, matching the
@@ -1108,9 +1087,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person.
       builder.update();
       if (!player.isActive()) controls.update();
-      // Re-anchor the sun's shadow frustum on the (now-final) camera position, so its texels stay
-      // where they are seen. Must precede the capture: that pass renders the scene, shadows and all.
-      syncSunShadow();
+      // Re-anchor the sun's shadow frustum and the cloud shadow map on the (now-final) camera, and
+      // scroll the cloud deck. Must precede the pre-passes: they render the scene, shadows and all.
+      daylight.update(elapsed);
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
@@ -1132,11 +1111,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       player.dispose();
       builder.dispose();
       controls.dispose();
-      envRenderTarget?.dispose();
       ssrTarget.dispose();
-      pmremGenerator.dispose();
-      sky.geometry.dispose();
-      sky.material.dispose();
+      daylight.dispose();
+      lightingRig.dispose();
+      materialRig.dispose();
       ocean.dispose();
       physics.dispose();
       navBuoys.dispose();

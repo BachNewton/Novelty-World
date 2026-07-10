@@ -1,0 +1,832 @@
+/**
+ * The physical light model — pure math, no three.js. `sky.ts` renders what this computes.
+ *
+ * ## The one rule
+ *
+ * Every number below is either a **published model** or a **measurement of what we render**. There
+ * are no constants fitted over elevation bands. `envIntensityForSun`'s `lerp(1.0, 0.45, 30°…90°)`
+ * was not wrong because Finland never sees 90° — it was wrong because a band-fitted lerp is not a
+ * model. Everything here derives from air mass.
+ *
+ * ## Units
+ *
+ * Irradiance is in **kW/m²** (`1.0` renderer unit = 1000 W/m²), so a clear zenith sun on a facing
+ * surface is `0.947` and numbers stay near 1. Radiance is kW/m²/sr. The renderer's white point is
+ * the **extraterrestrial beam**: `E0` is spectrally flat, so every colour in the scene is put there
+ * by the atmosphere, not by a chosen sun tint.
+ *
+ * ## Where each piece comes from
+ *
+ * | quantity | source |
+ * |---|---|
+ * | air mass | Kasten–Young (1989) — `1/sin h` is ~1.5× wrong below 2° |
+ * | direct normal irradiance | Meinel & Meinel: `DNI = 1353 · 0.7^(AM^0.678)` W/m² |
+ * | beam **colour** | Rayleigh + Ångström aerosol + Chappuis ozone optical depths, pinned so their luminance-weighted transmittance at AM=1 is exactly Meinel's 0.70 |
+ * | diffuse horizontal irradiance | Haurwitz (1945) clear-sky GHI, minus the beam |
+ * | twilight (h < 3°) | the standard measured horizontal-illuminance table |
+ * | cloud transmittance | two-stream, conservative scattering (`clouds.ts`) |
+ * | sky **distribution + chromaticity** | Preetham (`sky-model.ts`) |
+ *
+ * ### Why Preetham supplies the shape but not the energy
+ * MEASURED, not assumed: calibrate three's `Sky` so its diffuse horizontal irradiance is 110 W/m² at
+ * the zenith, and it then delivers **11.7 W/m² at 10°** and **0.6 W/m² at 0°**, against ~61 and ~4
+ * in reality. Its `pow(Lin, 1.5)` is a look hack, not radiative transfer, and it collapses the low-sun
+ * sky by an order of magnitude. Using it directly would put the sun:sky ratio at 6.4:1 at 10°, where
+ * the physics says ~1:1 — i.e. it would silently re-create the bug this overhaul exists to remove.
+ *
+ * So: **Preetham gives the dome its angular distribution and its colour; the clear-sky irradiance
+ * model gives it its energy.** The dome is renormalised per elevation. This also means `turbidity`
+ * and `rayleigh` reshape and recolour the sky without changing how much light it delivers — a
+ * deliberate split, and the one place where the rendered sky and a textbook disagree by construction.
+ */
+
+import {
+  DEFAULT_SKY,
+  clearSkyIrradiance,
+  clearSkyMeanRadiance,
+  cieOvercastShape,
+  cieOvercastZenith,
+  clearSkyRadiance,
+  luminance,
+  scaleRgb,
+  sunTerms,
+  type Rgb,
+  type SkyParams,
+} from "./sky-model";
+import {
+  cloudBeamTransmittance,
+  cloudTotalTransmittance,
+  cloudFieldJs,
+  cloudThreshold,
+  cloudViewOpacity,
+  cloudStats,
+  type CloudState,
+} from "./clouds";
+
+const DEG = Math.PI / 180;
+
+/** Renderer irradiance unit, in W/m². Keeps a zenith sun near 1.0. */
+export const WATTS_PER_UNIT = 1000;
+
+/** Solar constant used by Meinel & Meinel, W/m². */
+const SOLAR_CONSTANT = 1353;
+
+/** Luminous efficacy of daylight, lm/W. Converts the twilight illuminance table into irradiance, and
+ *  a navigation light's candela into the renderer's units (`iala.ts`). */
+export const DAYLIGHT_EFFICACY = 110;
+
+/** Solid angle of the sun's disc, steradians (angular radius 0.267°). The disc's radiance is
+ *  `E_beam / Ω`, so integrating the disc returns exactly the beam — no magic disc brightness. */
+export const SUN_SOLID_ANGLE = 6.807e-5;
+
+/** Sun's angular radius and mean atmospheric refraction at the horizon, degrees. Together they say
+ *  the disc is fully up at h ≥ −0.30° and fully set at h ≤ −0.83°: the sun you watch touch the
+ *  horizon is already geometrically below it. Free to get right. */
+const SUN_ANGULAR_RADIUS_DEG = 0.267;
+const HORIZON_REFRACTION_DEG = 0.567;
+
+/** Diffuse Fresnel reflectance of a flat air→water surface for isotropic sky — the standard 0.066
+ *  (Jerlov). Used to get the downwelling irradiance just *under* the surface. */
+const WATER_DIFFUSE_FRESNEL = 0.066;
+
+/**
+ * Illuminance the sky alone puts on a horizontal surface during twilight, lux, against solar
+ * elevation. The standard tabulation — the same one that defines civil (−6°), nautical (−12°) and
+ * astronomical (−18°) twilight. Interpolated in log space, which is how it actually behaves.
+ */
+const TWILIGHT_LUX: [number, number][] = [
+  [0, 400],
+  [-1, 235],
+  [-2, 130],
+  [-3, 68],
+  [-4, 33],
+  [-5, 14],
+  [-6, 3.4],
+  [-8, 0.35],
+  [-10, 0.045],
+  [-12, 0.008],
+  [-14, 0.0025],
+  [-16, 0.0012],
+  [-18, 0.0007],
+];
+
+/**
+ * The single **adaptation** parameter, in lux. Above it the meter tracks the scene and holds middle
+ * grey; below it the meter is pinned and the frame genuinely darkens with the real light.
+ *
+ * `400 lx` is the horizontal illuminance at the instant the sun's disc leaves the refracted horizon —
+ * the top of civil twilight, and the last light that is *direct*. So: the exposure is set by the last
+ * of the sunlight, and after the sun sets the world simply gets darker. Measured consequence, which is
+ * the ladder the reviewers asked for and the physics already knew:
+ *
+ * | sun | illuminance | stops below middle grey |
+ * |---|---|---|
+ * | 0°  | 400 lx  | 0    (a properly exposed sunset) |
+ * | −2° | 130 lx  | −1.6 |
+ * | −4° | 33 lx   | −3.6 |
+ * | −6° | 3.4 lx  | −6.9 (civil twilight ends; nearly black) |
+ * | −12°| 0.008 lx| −15.6 (night) |
+ *
+ * The first value tried was `3 lx` — the *bottom* of civil twilight — and it auto-exposed all the way
+ * through dusk: −2°, −4° and −6° all rendered at middle grey, a "bright dusk" that three blind
+ * reviewers independently called the one thing that was actually wrong.
+ *
+ * This replaces `exposureForSun`'s `AMBIENT_FLOOR = 0.2`, which existed only because there was no
+ * night model. It is deliberately ONE knob, and the doc is explicit that the night *look* — eye
+ * adaptation, an artistic lift, the moon — is Kyle's call, not this model's. Drop it toward 3 lx for a
+ * fully dark-adapted night; raise it for a scene that falls dark sooner.
+ */
+export const DEFAULT_ADAPTATION_FLOOR_LUX = 400;
+
+/**
+ * Photographic key: where the meter places the SCENE'S OWN AVERAGE luminance.
+ *
+ * **0.125, not 0.18.** Those two numbers get conflated constantly and they are not the same thing.
+ * `0.18` is the reflectance of a *grey card* — a physical object you hold in the light. `key` here is
+ * the calibration of a **reflected-light averaging meter**, and ISO 2720 fixes that through its meter
+ * constant `K`, which every manufacturer sets in `[10.6, 13.4]`. The canonical `K = 12.5` puts the
+ * metered scene average near **12.5 % of the display range**, not 18 %. A meter has never placed a
+ * grey card at middle grey except by coincidence.
+ *
+ * This is not a brightness dial that was turned until the pictures looked nice. It was 0.18 by
+ * mistake — the grey-card number, carried over from the old grey-card meter that `fieldLuminance`
+ * replaced. Three blind reviewers had independently reported the daylight as "milky" and the midday
+ * zenith as "pale". A fourth, given 0.18 / 0.15 / 0.125 with no idea what the variable was, ranked
+ * **0.125 first overall, first at high sun, and first at sunset**, and said of 0.18: *"do not ship."*
+ *
+ * The cost, stated plainly: at −6° the sea and the buoy hulls fall to near-black, leaving the
+ * navigation lights and the afterglow band. That is what a sun 6° below the horizon actually looks
+ * like, and `DEFAULT_ADAPTATION_FLOOR_LUX` is the knob for anyone who disagrees.
+ *
+ * Tone-mapper-independent: AgX then decides where 0.125 lands on screen.
+ */
+export const DEFAULT_EXPOSURE_KEY = 0.125;
+
+/** Broadband albedo of what lies below the horizon — mostly sea, a little rock. Lights the undersides
+ *  of everything, and is why deleting the hemisphere light costs nothing. */
+export const DEFAULT_GROUND_ALBEDO = 0.07;
+
+// --- Air mass and the direct beam -------------------------------------------
+
+/** Kasten–Young (1989) relative optical air mass. Valid to the horizon, where `1/sin h` diverges. */
+export const airMass = (elevationDeg: number): number => {
+  const h = Math.max(elevationDeg, 0);
+  return 1 / (Math.sin(h * DEG) + 0.50572 * Math.pow(h + 6.07995, -1.6364));
+};
+
+// --- The atmosphere the beam crosses ----------------------------------------
+// Rayleigh at the sRGB primaries' effective wavelengths, plus an Ångström aerosol term `β·λ^−1.3` and
+// the ozone Chappuis band.
+
+const LAMBDA = [0.612, 0.549, 0.465];
+const RAYLEIGH_TAU: Rgb = LAMBDA.map((l) => {
+  const l2 = 1 / (l * l);
+  const l4 = l2 * l2;
+  return 0.008569 * l4 * (1 + 0.0113 * l2 + 0.00013 * l4);
+}) as Rgb;
+/** Chappuis band, 300 DU column. */
+const OZONE_TAU: Rgb = [0.0395, 0.025, 0.0048];
+
+const tauForBeta = (beta: number): Rgb =>
+  [0, 1, 2].map((i) => RAYLEIGH_TAU[i] + beta * Math.pow(LAMBDA[i], -1.3) + OZONE_TAU[i]) as Rgb;
+
+/**
+ * The Ångström turbidity coefficient at the reference sky (`turbidity = 3`). It is not chosen: it is
+ * *solved* so that the luminance-weighted transmittance `Σ w_i·exp(−τ_i)` at AM = 1 equals Meinel &
+ * Meinel's 0.70 exactly. So the magnitude and the colour of the beam come from two independent
+ * published models forced to agree at one point, and Beer's law does the rest. Comes out at 0.108 —
+ * an average continental haze load, which is what Meinel's 0.70 implies.
+ */
+const REFERENCE_BETA = (() => {
+  let lo = 0;
+  let hi = 0.5;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    const t = tauForBeta(mid).map((x) => Math.exp(-x)) as Rgb;
+    if (luminance(t) > 0.7) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+})();
+
+/** The turbidity `REFERENCE_BETA` was solved at. `DEFAULT_SKY.turbidity`. */
+const REFERENCE_TURBIDITY = 3;
+
+/**
+ * Per-channel optical depth of the whole atmosphere at AM = 1, for a given **turbidity**.
+ *
+ * Turbidity IS the aerosol load, so it must drive the beam and not only the sky. Before this, raising
+ * turbidity milked the dome and left the disc burning at full strength — which is exactly the
+ * "the picture and the light disagree" failure this model exists to prevent, in miniature.
+ *
+ * `β ∝ turbidity` is the standard Ångström–Linke relation, anchored at the solved reference. The
+ * consequence is the one everyone already knows: a hazy sunset has a **dim, deep-orange, lookable-at**
+ * sun, because the aerosol column has eaten the beam (and the blue end of it first). A clear one has a
+ * blinding white disc, whatever its hue, because it is a million times middle grey.
+ *
+ * `clearSkyDhi` picks up the other half for free: it is `GHI − beam`, so beam lost to haze reappears as
+ * diffuse skylight, which is what haze does.
+ */
+export const beamOpticalDepth = (turbidity: number = REFERENCE_TURBIDITY): Rgb =>
+  tauForBeta((REFERENCE_BETA * Math.max(turbidity, 0)) / REFERENCE_TURBIDITY);
+
+/** τ(R,G,B) at one air mass, at the reference turbidity. `[0.3074, 0.3590, 0.4910]`. */
+export const BEAM_OPTICAL_DEPTH: Rgb = beamOpticalDepth();
+
+/**
+ * Fraction of the solar disc above the *refracted* horizon. 1 above −0.30°, 0 below −0.83°.
+ * Nothing else in the model needs to know the sun has set — the beam simply becomes zero.
+ */
+export const sunDiscVisibility = (elevationDeg: number): number => {
+  const top = SUN_ANGULAR_RADIUS_DEG - HORIZON_REFRACTION_DEG; // -0.300°
+  const bottom = -SUN_ANGULAR_RADIUS_DEG - HORIZON_REFRACTION_DEG; // -0.834°
+  const t = Math.max(0, Math.min(1, (elevationDeg - bottom) / (top - bottom)));
+  return t * t * (3 - 2 * t);
+};
+
+/** Scale heights of the two scattering species. The 7x gap is why twilight turns blue. */
+const RAYLEIGH_SCALE_HEIGHT_KM = 8.4;
+const MIE_SCALE_HEIGHT_KM = 1.2;
+
+/**
+ * The **colour** of the beam where it meets the air that scatters it, per species, at unit luminance.
+ *
+ * Preetham's in-scattering source is a *scalar* (`sunE`), so the light it scatters toward you still
+ * has all its blue no matter how far it travelled to get there. That is why three's `Sky` — and ours,
+ * until now — puts a blazing WHITE aureole around a horizon sun: a halo made of light that, by Beer's
+ * law, has no blue left in it. The beam at 1° has `B/G = 0.30`; its own forward-scattered halo cannot
+ * be whiter than its source.
+ *
+ * But ONE tint for the whole dome is just as wrong, and it looks it — the anti-solar sky at sunset
+ * goes olive. The beam lighting an aerosol at 1 km has crossed nearly the whole column; the beam
+ * lighting a Rayleigh scatterer at 8 km has not. So each species gets the beam that actually reaches
+ * it, and there is nothing to fit: for an exponential column of scale height `H_j` seen by scatterers
+ * distributed as `exp(−z/H_s)`, the density-weighted mean optical depth crossed is exactly
+ *
+ *     ⟨τ_j⟩ = τ_j · H_j / (H_s + H_j)
+ *
+ * (both integrals are elementary). Ozone sits at 25 km, above both, so the beam crosses all of it.
+ * The two rows fall out:
+ *
+ *   scatterer      | of Rayleigh | of aerosol | of ozone |  tint at a 0° sun
+ *   Mie   (1.2 km) |    0.875    |    0.50    |    1     |  1.39 : 0.95 : 0.34   (a deep orange halo)
+ *   Rayleigh (8.4) |    0.50     |    0.125   |    1     |  1.09 : 1.01 : 0.68   (a sky that stays blue)
+ *
+ * `clearSkyRadiance` mixes them by the very weights it already computes for `ratio`, so the sky is
+ * reddened exactly where the aerosol does the scattering. Unit luminance keeps this a HUE change:
+ * `domeScale` re-measures the tinted dome and pins its energy to Haurwitz regardless. Preetham keeps
+ * the shape, Haurwitz keeps the energy, Beer's law now keeps the colour — the split the model claimed
+ * all along and only ever honoured for the beam.
+ *
+ * Clamped at the horizon: below it, `sunlitFraction` — not the tint — is what puts the lights out.
+ */
+export interface SourceTints {
+  rayleigh: Rgb;
+  mie: Rgb;
+}
+
+export const sourceTints = (elevationDeg: number, turbidity?: number): SourceTints => {
+  const amp = Math.pow(airMass(Math.max(elevationDeg, 0)), 0.678);
+  const beta = (REFERENCE_BETA * Math.max(turbidity ?? REFERENCE_TURBIDITY, 0)) / REFERENCE_TURBIDITY;
+  const aerosol = LAMBDA.map((l) => beta * Math.pow(l, -1.3)) as Rgb;
+
+  const tintFor = (scattererScaleHeightKm: number): Rgb => {
+    const fR = RAYLEIGH_SCALE_HEIGHT_KM / (scattererScaleHeightKm + RAYLEIGH_SCALE_HEIGHT_KM);
+    const fM = MIE_SCALE_HEIGHT_KM / (scattererScaleHeightKm + MIE_SCALE_HEIGHT_KM);
+    const transmittance = [0, 1, 2].map((i) =>
+      Math.exp(-amp * (fR * RAYLEIGH_TAU[i] + fM * aerosol[i] + OZONE_TAU[i])),
+    ) as Rgb;
+    const lum = Math.max(luminance(transmittance), 1e-9);
+    return [transmittance[0] / lum, transmittance[1] / lum, transmittance[2] / lum];
+  };
+
+  return { rayleigh: tintFor(RAYLEIGH_SCALE_HEIGHT_KM), mie: tintFor(MIE_SCALE_HEIGHT_KM) };
+};
+
+/**
+ * Direct normal irradiance of the beam, per channel, in renderer units (kW/m²).
+ * `DNI_λ = E0 · exp(−τ_λ · AM^0.678)`; its luminance is exactly Meinel & Meinel's
+ * `1353 · 0.7^(AM^0.678)`, because that is how `BEAM_OPTICAL_DEPTH` was pinned.
+ */
+export const beamIrradiance = (elevationDeg: number, turbidity?: number): Rgb => {
+  const visible = sunDiscVisibility(elevationDeg);
+  if (visible <= 0) return [0, 0, 0];
+  const amp = Math.pow(airMass(elevationDeg), 0.678);
+  const k = (SOLAR_CONSTANT / WATTS_PER_UNIT) * visible;
+  const tau = turbidity === undefined ? BEAM_OPTICAL_DEPTH : beamOpticalDepth(turbidity);
+  return [0, 1, 2].map((i) => k * Math.exp(-tau[i] * amp)) as Rgb;
+};
+
+// --- Diffuse skylight --------------------------------------------------------
+
+/** Haurwitz (1945) clear-sky global horizontal irradiance, W/m². */
+const haurwitzGhi = (elevationDeg: number): number => {
+  const cosZ = Math.sin(Math.max(elevationDeg, 0) * DEG);
+  if (cosZ <= 0) return 0;
+  return 1098 * cosZ * Math.exp(-0.059 / cosZ);
+};
+
+/** Log-space interpolation of the measured twilight illuminance table, lux. */
+const twilightLux = (elevationDeg: number): number => {
+  const table = TWILIGHT_LUX;
+  if (elevationDeg >= table[0][0]) return table[0][1];
+  const last = table[table.length - 1];
+  if (elevationDeg <= last[0]) return last[1];
+  for (let i = 0; i < table.length - 1; i++) {
+    const [h0, e0] = table[i];
+    const [h1, e1] = table[i + 1];
+    if (elevationDeg <= h0 && elevationDeg >= h1) {
+      const t = (elevationDeg - h0) / (h1 - h0);
+      return Math.exp(Math.log(e0) + t * (Math.log(e1) - Math.log(e0)));
+    }
+  }
+  return last[1];
+};
+
+/** Elevation at which we hand over from Haurwitz to the twilight table. Haurwitz's GHI drops below
+ *  the beam below ~2°, i.e. it stops being a diffuse model there. */
+const TWILIGHT_HANDOVER_DEG = 3;
+
+/**
+ * Diffuse horizontal irradiance from the whole clear sky, renderer units. Continuous from 90° to
+ * −18°: Haurwitz above the handover, the measured twilight table below it, and a log-space blend
+ * across the join (which is anchored on the Haurwitz value, so there is no step).
+ */
+export const clearSkyDhi = (elevationDeg: number, turbidity?: number): number => {
+  const daylightWatts = (h: number) =>
+    Math.max(
+      0,
+      haurwitzGhi(h) - luminance(beamIrradiance(h, turbidity)) * WATTS_PER_UNIT * Math.sin(h * DEG),
+    );
+
+  if (elevationDeg >= TWILIGHT_HANDOVER_DEG) {
+    return daylightWatts(elevationDeg) / WATTS_PER_UNIT;
+  }
+  // Below the horizon the measured table IS the model.
+  const horizonWatts = twilightLux(0) / DAYLIGHT_EFFICACY;
+  if (elevationDeg <= 0) {
+    return twilightLux(elevationDeg) / DAYLIGHT_EFFICACY / WATTS_PER_UNIT;
+  }
+  // 0°…3°: geometric interpolation between the two models' own values at their own anchors, so the
+  // curve is continuous at both ends without either being rescaled to flatter the other. (They
+  // differ by ~1.5× where they meet — two independent sources, honestly disagreeing.)
+  const joinWatts = daylightWatts(TWILIGHT_HANDOVER_DEG);
+  const t = elevationDeg / TWILIGHT_HANDOVER_DEG;
+  return (
+    Math.exp(Math.log(horizonWatts) + t * (Math.log(joinWatts) - Math.log(horizonWatts))) /
+    WATTS_PER_UNIT
+  );
+};
+
+/**
+ * Elevation the sky's *shape* is evaluated at. Preetham is undefined for a sun below the horizon —
+ * its `sunIntensity` cutoff drives the whole dome to black by −2.3°, which would make the sky snap
+ * off at dusk. So we **freeze the dome's geometry at the sunset configuration (h = 0)** and let
+ * `clearSkyDhi`'s twilight table scale its total energy down instead.
+ *
+ * What this gets right: the magnitude at every depression angle (it is measured data), the colour of
+ * the horizon glow, and the sun-side/anti-sun asymmetry.
+ * What it gets wrong: the glow stays as broad at −6° as it is at sunset, because we do not model the
+ * Earth's shadow rising through the atmosphere (no Belt of Venus, no narrowing). That is a known,
+ * accepted limitation of freezing the geometry, and it is written down here rather than hidden.
+ */
+export const skyShapeElevation = (elevationDeg: number): number => Math.max(elevationDeg, 0);
+
+// --- Cached clear-sky dome integral -----------------------------------------
+// `clearSkyIrradiance` is a 6144-sample quadrature. It is a pure function of (elevation, params), and
+// the sun moves far less often than the frame renders, so memoise on a quantised elevation.
+
+let rawCacheKey = "";
+let rawCacheValue: Rgb = [0, 0, 0];
+let rawMeanCacheValue: Rgb = [0, 0, 0];
+const rawClearSkyIrradiance = (
+  shapeElevationDeg: number,
+  trueElevationDeg: number,
+  params: SkyParams,
+): Rgb => {
+  const key = `${shapeElevationDeg.toFixed(3)}|${trueElevationDeg.toFixed(3)}|${params.turbidity}|${params.rayleigh}|${params.mieCoefficient}|${params.mieDirectionalG}`;
+  if (key !== rawCacheKey) {
+    rawCacheKey = key;
+    // Integrate the dome we RENDER, tint and all, so `domeScale` still lands the energy exactly on
+    // Haurwitz. The tint has unit luminance but the integral does not commute with it, so the scale
+    // moves a little — which is the point: we are pinning the tinted dome, not the untinted one.
+    const tints = sourceTints(trueElevationDeg, params.turbidity);
+    rawCacheValue = clearSkyIrradiance(shapeElevationDeg * DEG, params, trueElevationDeg * DEG, tints);
+    rawMeanCacheValue = clearSkyMeanRadiance(
+      shapeElevationDeg * DEG,
+      params,
+      trueElevationDeg * DEG,
+      tints,
+    );
+  }
+  return rawCacheValue;
+};
+
+/** Companion to `rawClearSkyIrradiance`: same cache, same quadrature, no cosine. Call it AFTER. */
+const rawClearSkyMeanRadiance = (): Rgb => rawMeanCacheValue;
+
+// --- The full state ----------------------------------------------------------
+
+/** A directional light. There is one today; a moon would be a second, and nothing may assume
+ *  otherwise — no code divides by "the sun's" intensity. */
+export interface DirectionalSource {
+  name: string;
+  /** Unit vector FROM the scene TOWARD the source. */
+  direction: [number, number, number];
+  /** Normal irradiance, renderer units, BEFORE cloud attenuation (which the shader applies
+   *  per-fragment from the cloud shadow map, so applying it here too would double-count). */
+  irradiance: Rgb;
+  /** Radiance of the source's disc, for the sky dome. `irradiance / solidAngle`. */
+  discRadiance: Rgb;
+  angularRadius: number;
+}
+
+export interface LightingState {
+  elevationDeg: number;
+  azimuthDeg: number;
+  sources: DirectionalSource[];
+  /** Scalar by which the raw Preetham dome must be multiplied to carry the physical clear-sky
+   *  irradiance. Per elevation, derived — never a hand-fitted band. */
+  domeScale: number;
+  /** Zenith radiance of the CIE overcast component the dome blends toward under cloud. */
+  overcastZenithRadiance: Rgb;
+  /** Uniform radiance below the horizon: the ground bouncing the scene's own light back up. */
+  groundRadiance: Rgb;
+  /** Diffuse irradiance from the whole dome (clouds included) on a horizontal surface. MEASURED by
+   *  integrating the dome we actually render, not predicted. */
+  skyIrradiance: Rgb;
+  /** Beam irradiance on a HORIZONTAL surface, after the cloud field's mean attenuation. */
+  beamHorizontal: Rgb;
+  /** Total downward irradiance on a horizontal surface. Exposure meters this. */
+  horizontalIrradiance: Rgb;
+  /** Mean cloud-beam transmittance — the spatial mean of the cloud shadow map. */
+  cloudBeamFactor: number;
+  /** Area fraction of the sky the cloud mask covers. */
+  cloudFraction: number;
+  /** Mean cloud thickness over the whole plane; drives the dome's horizon fade, where the cloud-plane
+   *  coordinate runs away, so overcast stays overcast and a tapered deck does not thicken. */
+  cloudPlaneThickness: number;
+  /** Mean of the dome's sun-shading modulation. The shader divides by it, so self-shadowing
+   *  redistributes a cloud's radiance without inventing or destroying energy. */
+  cloudShadeMean: number;
+  /** Single-scatter share at this deck's typical optical depth: 0.94 for cirrus, 0.03 for a
+   *  thunderhead. Multiple scattering is isotropic, so a thick cloud's base is flat and dark. */
+  cloudScatterShare: number;
+  /** Downwelling irradiance just BELOW the water surface, split by source, because the water shader
+   *  must attenuate the BEAM half per-fragment by the cloud shadow map (as every other material does)
+   *  and leave the sky half alone. Summed, they are the veil. Note `underwaterBeam` carries the
+   *  CLEAR-sky beam: the cloud's mean is already in the shadow map, and applying it twice would
+   *  double-count. */
+  underwaterBeam: Rgb;
+  underwaterSky: Rgb;
+  /** Solid-angle mean radiance of the dome we render — how bright the sky LOOKS. Meters the camera. */
+  skyMeanRadiance: Rgb;
+  /** The scene's own average luminance, `½·sky + ½·sea`. What the exposure meter actually reads. */
+  fieldLuminance: number;
+  /** `renderer.toneMappingExposure`. */
+  exposure: number;
+  /** Illuminance a light meter reads on a horizontal surface, lux. Diagnostics + the exposure floor. */
+  illuminanceLux: number;
+}
+
+export interface LightingInput {
+  elevationDeg: number;
+  azimuthDeg: number;
+  sky: SkyParams;
+  cloud: CloudState;
+  /** Cloud-plane scroll offset (noise units), so the integral sees the same field the shader draws. */
+  cloudOffset: [number, number];
+  exposureKey: number;
+  adaptationFloorLux: number;
+  groundAlbedo: number;
+}
+
+/** Cosine-weighted hemisphere quadrature for the cloudy dome. Coarser than the clear-sky integral
+ *  because it is only ever a correction to a smooth field, and it costs an fbm per sample. */
+const DOME_PHI = 40;
+const DOME_MU = 24;
+
+/** Where the dome shader stops trusting the cloud-plane coordinate and fades to the field's mean.
+ *  Must equal the upper edge of `smoothstep(0.0, 0.10, dy)` in `sky.ts`'s dome fragment. */
+export const HORIZON_FADE_MU = 0.1;
+
+/**
+ * Integrate the dome we ACTUALLY render — Preetham × `domeScale`, blended toward CIE overcast by the
+ * cloud field's per-direction opacity — to get the diffuse irradiance it delivers.
+ *
+ * Measuring rather than predicting is what keeps "what you see" and "what lights you" the same thing.
+ * With no cloud the answer is `clearDhi` by construction, so we skip the integral entirely.
+ */
+interface DomeIntegrals {
+  /** `∫ L cos θ dω` — how much light lands on a horizontal surface. Lights the scene. */
+  irradiance: Rgb;
+  /** `(1/2π) ∫ L dω` — how bright the sky LOOKS. Meters the camera. Near a low sun these two differ
+   *  by more than an order of magnitude, because the aureole sits where `cos θ` is nearly zero. */
+  meanRadiance: Rgb;
+}
+
+const integrateDome = (
+  input: LightingInput,
+  domeScale: number,
+  overcastZenith: Rgb,
+  clearChroma: Rgb,
+  clearDhi: number,
+  clearMeanRadiance: Rgb,
+  planeThickness: number,
+): DomeIntegrals => {
+  // NB the dome's sun-shading modulation (self-shadow taps + phase, `sky.ts`) is NOT integrated here.
+  // It is normalised to a spatial mean of 1 by `cloudStats.shadeMean`, so it redistributes a cloud's
+  // radiance without changing its total; what it leaves on the table is the covariance between that
+  // modulation and the cosine weight, which is second order. Four extra fbm taps per direction would
+  // triple this integral's cost to chase it.
+  //
+  // That is the ONE place this integral is an approximation of the dome rather than a transcription of
+  // it, and it is deliberate. (`shadeMean` also omits the view-sun HG phase the shader applies, whose
+  // 4-pi-normalised mean over the sphere is 1 -- see `sky.ts`.) Everything else here, including the
+  // horizon fade below, is term-for-term. An independent review found the fade had silently become a
+  // linear ramp against the shader's smoothstep; if a second approximation ever creeps in, it belongs
+  // in this comment or it does not belong at all.
+  // With no cloud the dome IS the clear sky, whose irradiance we already know exactly (that is what
+  // `domeScale` was built from). Skip 1536 fbm evaluations for the common case.
+  if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) {
+    return { irradiance: scaleRgb(clearChroma, clearDhi), meanRadiance: clearMeanRadiance };
+  }
+
+  const shapeElRad = skyShapeElevation(input.elevationDeg) * DEG;
+  const terms = sunTerms(
+    shapeElRad,
+    input.sky,
+    input.elevationDeg * DEG,
+    sourceTints(input.elevationDeg, input.sky.turbidity),
+  );
+  const sunHoriz = Math.cos(shapeElRad);
+  const threshold = cloudThreshold(input.cloud);
+  const out: Rgb = [0, 0, 0];
+  const mean: Rgb = [0, 0, 0];
+
+  for (let m = 0; m < DOME_MU; m++) {
+    const mu = (m + 0.5) / DOME_MU;
+    const sinT = Math.sqrt(Math.max(0, 1 - mu * mu));
+    // Distance along the view ray to the cloud plane. Diverges at the horizon, which is exactly why
+    // the shader (and this) fade the sampled thickness toward the field's MEAN there rather than to
+    // zero — otherwise an overcast sky would open into clear blue at the horizon.
+    const planeDist = input.cloud.altitude / Math.max(mu, 0.02);
+    // The SAME cubic the dome shader uses: `smoothstep(0.0, 0.10, dy)` (sky.ts). A linear ramp was
+    // close enough to look right and wrong enough to matter -- it differs from smoothstep by up to
+    // 0.09 across a band that is ~10 % of the hemisphere by solid angle, and that band feeds
+    // `skyMeanRadiance`, hence `fieldLuminance`, hence the exposure of every cloudy frame. The whole
+    // model rests on "the sky we integrate is the sky we render"; a fade is part of the sky.
+    const fadeT = Math.max(0, Math.min(1, mu / HORIZON_FADE_MU));
+    const horizonFade = fadeT * fadeT * (3 - 2 * fadeT);
+    for (let f = 0; f < DOME_PHI; f++) {
+      const phi = ((f + 0.5) / DOME_PHI) * Math.PI * 2;
+      const dx = sinT * Math.cos(phi);
+      const dz = sinT * Math.sin(phi);
+      const cosTheta = dx * sunHoriz + mu * terms.sunY;
+
+      const raw = clearSkyRadiance(mu, cosTheta, terms);
+      const sampled = cloudFieldJs(
+        dx * planeDist,
+        dz * planeDist,
+        input.cloud,
+        input.cloudOffset[0],
+        input.cloudOffset[1],
+        threshold,
+      );
+      const thickness = planeThickness + (sampled - planeThickness) * horizonFade;
+      const alpha = cloudViewOpacity(thickness, mu, input.cloud.tau);
+      const cie = cieOvercastShape(mu);
+      for (let i = 0; i < 3; i++) {
+        const clear = raw[i] * domeScale;
+        const cloudy = overcastZenith[i] * cie;
+        // Aerial perspective, exactly as the shader does it: the cloud is `planeDist` metres away, the
+        // air between dims it and fills in with airlight, and that airlight is lit by whatever is
+        // actually above it — the sky between sparse clouds, the deck itself under an overcast.
+        const aerial = Math.exp(-(terms.betaR[i] + terms.betaM[i]) * planeDist);
+        const airlight = clear + (cloudy - clear) * planeThickness;
+        const hazed = cloudy + (airlight - cloudy) * (1 - aerial);
+        const radiance = clear + (hazed - clear) * alpha;
+        out[i] += radiance * mu; // cosine-weighted: irradiance
+        mean[i] += radiance; // unweighted: what the sky looks like
+      }
+    }
+  }
+  const w = (2 * Math.PI) / (DOME_PHI * DOME_MU);
+  const n = DOME_PHI * DOME_MU;
+  return {
+    irradiance: [out[0] * w, out[1] * w, out[2] * w],
+    meanRadiance: [mean[0] / n, mean[1] / n, mean[2] / n],
+  };
+};
+
+/** Fresnel reflectance of air→water for an unpolarised beam at solar elevation `h` (Schlick is not
+ *  good enough at grazing; this is the exact Fresnel average). */
+const waterBeamFresnel = (elevationDeg: number): number => {
+  if (elevationDeg <= 0) return 1;
+  const n = 1.333;
+  const cosI = Math.sin(elevationDeg * DEG); // angle from the surface NORMAL is 90° − h
+  const sinT = Math.sqrt(Math.max(0, 1 - cosI * cosI)) / n;
+  if (sinT >= 1) return 1;
+  const cosT = Math.sqrt(1 - sinT * sinT);
+  const rs = (cosI - n * cosT) / (cosI + n * cosT);
+  const rp = (n * cosI - cosT) / (n * cosI + cosT);
+  return Math.min(1, (rs * rs + rp * rp) / 2);
+};
+
+/**
+ * The whole model, in one pure function. Everything downstream — the sun light, the dome, the
+ * exposure, the veil, the ground bounce, the reported ratio — reads this and nothing else.
+ */
+export const computeLighting = (input: LightingInput): LightingState => {
+  const { elevationDeg, azimuthDeg } = input;
+  const shapeEl = skyShapeElevation(elevationDeg);
+  const sinH = Math.sin(Math.max(elevationDeg, 0) * DEG);
+
+  // Sun direction, matching three's spherical convention in scene.ts.
+  const phi = (90 - elevationDeg) * DEG;
+  const theta = azimuthDeg * DEG;
+  const direction: [number, number, number] = [
+    Math.sin(phi) * Math.sin(theta),
+    Math.cos(phi),
+    Math.sin(phi) * Math.cos(theta),
+  ];
+
+  // --- The beam, clear-sky. Clouds are applied per-fragment by the shadow map, so the light itself
+  // carries the unattenuated beam and only the CPU-side energy budget uses the mean. Turbidity is the
+  // aerosol load, so it dims and reddens the BEAM as well as milking the dome.
+  const beamClear = beamIrradiance(elevationDeg, input.sky.turbidity);
+
+  // --- The clear dome: Preetham's shape + chromaticity, the irradiance model's energy.
+  const rawClear = rawClearSkyIrradiance(shapeEl, elevationDeg, input.sky);
+  const rawLum = Math.max(luminance(rawClear), 1e-12);
+  const clearDhi = clearSkyDhi(elevationDeg, input.sky.turbidity);
+  const domeScale = clearDhi / rawLum;
+  const clearChroma: Rgb = [rawClear[0] / rawLum, rawClear[1] / rawLum, rawClear[2] / rawLum];
+
+  // --- Clouds: how much beam survives, on average, and how much energy the deck re-emits downward.
+  // The sun's direction projected onto the cloud plane, for the self-shadow march.
+  const sunPlane: [number, number] =
+    direction[1] > 1e-3 ? [direction[0] / direction[1], direction[2] / direction[1]] : [1, 0];
+  const sunPlaneLen = Math.hypot(sunPlane[0], sunPlane[1]) || 1;
+  const stats = cloudStats(input.cloud, sinH, [sunPlane[0] / sunPlaneLen, sunPlane[1] / sunPlaneLen]);
+  const beamHorizontal = scaleRgb(beamClear, stats.beamFactor * sinH);
+  // The optical depth of a TYPICAL cloud, not of an imaginary one at full thickness. Once `taper`
+  // makes the thickness bleed to zero at the edges, `tau` alone would overstate the deck.
+  const tauEff = input.cloud.tau * (stats.meanThickness > 0 ? stats.meanThickness : 1);
+  const tTot = cloudTotalTransmittance(tauEff);
+  const tBeam = cloudBeamTransmittance(tauEff, sinH);
+  const globalClear: Rgb = [0, 1, 2].map(
+    (i) => beamClear[i] * sinH + clearChroma[i] * clearDhi,
+  ) as Rgb;
+  // How bright the CLOUD ITSELF is, seen from below: of everything that reaches the ground THROUGH a
+  // cloud (`tTot · E_global`), the part that arrives as an unscattered beam (`tBeam · E_beam`) is the
+  // sun; the rest is the cloud's own glow.
+  //
+  // Both terms must describe the SAME patch of sky. Subtracting `beamHorizontal` — which is the beam
+  // averaged over the whole dome, gaps included — made `E_overcast` go NEGATIVE for any broken deck:
+  // at 85° under fair-weather cumulus it was `0.27·1.03 − 0.66 < 0`, clamped to zero, and the clouds
+  // rendered PURE BLACK with a black wall wherever the deck stacked up at the horizon. Two blind
+  // reviewers called it independently. The gap fraction belongs in the beam's spatial mean (which
+  // drives the exposure and the shadow map), never in a single cloud's radiative balance.
+  const beamHorizontalClear = scaleRgb(beamClear, sinH);
+  const overcastDome: Rgb = [0, 1, 2].map((i) =>
+    Math.max(0, tTot * globalClear[i] - tBeam * beamHorizontalClear[i]),
+  ) as Rgb;
+  const overcastZenithRadiance: Rgb = [0, 1, 2].map((i) =>
+    cieOvercastZenith(overcastDome[i]),
+  ) as Rgb;
+
+  // --- Measure the dome we render (see integrateDome). Two integrals, because "how much light does
+  // the sky DELIVER" and "how bright does the sky LOOK" are different questions with different answers.
+  const dome = integrateDome(
+    input,
+    domeScale,
+    overcastZenithRadiance,
+    clearChroma,
+    clearDhi,
+    scaleRgb(rawClearSkyMeanRadiance(), domeScale),
+    stats.planeThickness,
+  );
+  const skyIrradiance = dome.irradiance;
+  const skyMeanRadiance = dome.meanRadiance;
+
+  const horizontalIrradiance: Rgb = [0, 1, 2].map(
+    (i) => beamHorizontal[i] + skyIrradiance[i],
+  ) as Rgb;
+  const illuminanceLux = luminance(horizontalIrradiance) * WATTS_PER_UNIT * DAYLIGHT_EFFICACY;
+
+  // --- Ground bounce: what lies below the horizon reflects the scene's own light back up. This is
+  // why `hemiLight` could be deleted rather than replaced — a hemisphere light on top of the PMREM
+  // sky was double-counting the sky, and this term is the half it was actually standing in for.
+  const groundRadiance = scaleRgb(horizontalIrradiance, input.groundAlbedo / Math.PI);
+
+  // --- Downwelling just under the water surface: the veil, derived at last.
+  // `E_d = (1 − F(θ))·E_beam,horizontal + (1 − F_diffuse)·E_sky`.
+  //
+  // The beam half uses the CLEAR beam. The water shader multiplies it by the same cloud shadow map
+  // every other material samples, so a cloud shadow darkens the sea's BODY as well as killing its
+  // glitter — which is what actually makes dappled light legible on water. Feeding the cloud-averaged
+  // beam in here would count the cloud twice.
+  const fBeam = waterBeamFresnel(elevationDeg);
+  const underwaterBeam = scaleRgb(beamHorizontalClear, 1 - fBeam);
+  const underwaterSky = scaleRgb(skyIrradiance, 1 - WATER_DIFFUSE_FRESNEL);
+
+  // --- Exposure: an averaging meter that looks at the SCENE, not at the ground.
+  //
+  // The first version metered a grey card lying flat: `key / ((0.18/π)·E_horizontal)`. That is an
+  // incident-light meter with a cosine receptor, and no camera and no retina is one. Its consequence
+  // was measured, not argued: at a 0° sun it holds the sea at a rendered 0.07 forever, and to do so it
+  // must set an exposure that puts **36 % of the sky hemisphere above the white point**. AgX then does
+  // its job and desaturates the clipped sky to cream. Three blind reviewers, independently, called the
+  // sunsets "a pale wash" and "a wet firework" — and they were describing an over-exposed sky.
+  //
+  // A real meter integrates the LUMINANCE of the field of view. So does the eye. At noon that field is
+  // an even blue dome over a dark sea and the answer barely moves. At sunset the field is dominated by
+  // a sky that is hundreds of times brighter than the water, the meter stops down hard, and you get
+  // the photograph everyone has actually seen: a silhouetted foreground under a saturated sky.
+  //
+  //   L_field = ½·(mean sky radiance)  +  ½·(sea radiance)
+  //
+  // Half and half because the horizon splits the field of view in two — this is the scene's own
+  // average luminance, `(1/4π)∫L dω`, with the upper hemisphere measured by `integrateDome` and the
+  // lower one being the sea, which is Lambertian by construction.
+  //
+  // The SUN'S DISC is excluded, for the same reason it is excluded from the env bake: it is 6.8e-5 sr
+  // of the sphere and a million times middle grey, so including it would let a camera turning toward
+  // the sun stop the whole world down. Real meters clamp it; real eyes squint. That is glare, and
+  // glare is a separate model.
+  const seaLuminance = luminance(groundRadiance);
+  const skyLuminance = luminance(skyMeanRadiance);
+  const fieldLuminance = 0.5 * skyLuminance + 0.5 * seaLuminance;
+
+  // The adaptation floor, unchanged in meaning and now expressed in the meter's own units. A dome
+  // delivering `E` on a horizontal surface has mean radiance `E/π` if it is uniform, and the sea below
+  // it has `albedo·E/π`, so the field it produces is `((1+albedo)/2)·E/π`. Below that the meter is
+  // pinned and the frame genuinely darkens, which is what makes twilight twilight.
+  const floorIrradiance = input.adaptationFloorLux / (DAYLIGHT_EFFICACY * WATTS_PER_UNIT);
+  const floorLuminance = ((1 + input.groundAlbedo) / 2) * (floorIrradiance / Math.PI);
+  const exposure = input.exposureKey / Math.max(fieldLuminance, floorLuminance, 1e-9);
+
+  const sources: DirectionalSource[] =
+    luminance(beamClear) > 0
+      ? [
+          {
+            name: "sun",
+            direction,
+            irradiance: beamClear,
+            discRadiance: scaleRgb(beamClear, 1 / SUN_SOLID_ANGLE),
+            angularRadius: SUN_ANGULAR_RADIUS_DEG * DEG,
+          },
+        ]
+      : [];
+
+  return {
+    elevationDeg,
+    azimuthDeg,
+    sources,
+    domeScale,
+    overcastZenithRadiance,
+    groundRadiance,
+    skyIrradiance,
+    skyMeanRadiance,
+    fieldLuminance,
+    beamHorizontal,
+    horizontalIrradiance,
+    cloudBeamFactor: stats.beamFactor,
+    cloudFraction: stats.fraction,
+    cloudPlaneThickness: stats.planeThickness,
+    cloudShadeMean: stats.shadeMean,
+    cloudScatterShare: stats.scatterShare,
+    underwaterBeam,
+    underwaterSky,
+    exposure,
+    illuminanceLux,
+  };
+};
+
+/** The headline diagnostic: beam vs sky on a HORIZONTAL diffuse surface, the orientation the target
+ *  table in `docs/LIGHTING.md` is defined on. `Infinity` would be meaningless, so a dark sky reads 0. */
+export const sunSkyRatio = (state: LightingState): number => {
+  const sky = luminance(state.skyIrradiance);
+  return sky > 0 ? luminance(state.beamHorizontal) / sky : 0;
+};
+
+/**
+ * Same ratio on a surface whose normal points AT the sun — no `sin h` foreshortening. This is the
+ * orientation of the probe that originally found the bug, and it always reads higher, so always say
+ * which surface a number refers to.
+ *
+ * The sky term uses the isotropic view factor of a plane tilted `90° − h` from horizontal,
+ * `(1 + sin h)/2`: it sees the whole dome lying flat and half of it standing up. Approximate,
+ * because our dome is not isotropic — the GPU probe (`lighting-rig.ts`) measures the real thing.
+ */
+export const sunSkyRatioSunFacing = (state: LightingState): number => {
+  const sky = luminance(state.skyIrradiance);
+  if (sky <= 0 || state.sources.length === 0) return 0;
+  const beamNormal = luminance(state.sources[0].irradiance) * state.cloudBeamFactor;
+  const viewFactor = (1 + Math.sin(Math.max(state.elevationDeg, 0) * DEG)) / 2;
+  return beamNormal / (sky * viewFactor);
+};
+
+export { DEFAULT_SKY };
+export type { Rgb, SkyParams, CloudState };

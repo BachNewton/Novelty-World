@@ -167,7 +167,7 @@ const passStats = (frames, pick) => {
 // Frames: [{ cpuMs, capture, ssr, main }]. GPU total is the fill/SSR bottleneck; a frame's
 // real cost is max(CPU prep, GPU total) since the two pipeline. FPS derives from that.
 const summarise = (frames) => {
-  const frameMs = frames.map((f) => Math.max(f.cpuMs, f.capture + f.ssr + f.main));
+  const frameMs = frames.map((f) => Math.max(f.cpuMs, f.cloud + f.capture + f.ssr + f.main));
   const frameSorted = [...frameMs].sort((a, b) => a - b);
   const median = percentile(frameSorted, 0.5);
   const spikeThreshold = median * 2; // a frame taking >2× the median frame is a hitch
@@ -182,7 +182,8 @@ const summarise = (frames) => {
     },
     ms: {
       frame: { p50: round(median), p95: round(percentile(frameSorted, 0.95)), p99: round(percentile(frameSorted, 0.99)) },
-      total: passStats(frames, (f) => f.capture + f.ssr + f.main),
+      total: passStats(frames, (f) => f.cloud + f.capture + f.ssr + f.main),
+      cloud: passStats(frames, (f) => f.cloud),
       capture: passStats(frames, (f) => f.capture),
       ssr: passStats(frames, (f) => f.ssr),
       main: passStats(frames, (f) => f.main),
@@ -364,7 +365,9 @@ console.log(
     pad("segment", 16) +
     padL("avgFPS", 8) +
     padL("1%low", 8) +
+    padL("cloud50", 8) +
     padL("ssr50", 8) +
+    padL("main50", 8) +
     padL("tot50", 8) +
     padL("phys50", 8) +
     padL("tot95", 8) +
@@ -374,7 +377,9 @@ const row = (name, st) =>
   pad(name, 16) +
   padL(st.fps.avg, 8) +
   padL(st.fps.onePctLow, 8) +
+  padL(st.ms.cloud.p50, 8) +
   padL(st.ms.ssr.p50, 8) +
+  padL(st.ms.main.p50, 8) +
   padL(st.ms.total.p50, 8) +
   padL(st.ms.physics.p50, 8) +
   padL(st.ms.total.p95, 8) +
