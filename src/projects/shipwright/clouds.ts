@@ -98,6 +98,11 @@ export interface CloudGenus {
   tau: number;
   /** Cloud-base altitude, metres. Sets parallax and how fast the field runs to the horizon. */
   altitude: number;
+  /** Vertical extent of the deck, metres: the slab runs [altitude, altitude + height·thickness].
+   *  0 = a flat plane (the old model — cirrus, stratus). > 0 = the dome marches the view ray through
+   *  a real 3-D slab, so the cloud has a silhouette that stacks toward the horizon and shows sides.
+   *  Does NOT touch the light: `cloudStats` still integrates the 2-D thickness field. */
+  height: number;
   /** Horizontal size of one noise feature, metres. */
   featureSize: number;
   /** Width of the coverage threshold's soft edge, in noise units. Sharp = cauliflower cumulus,
@@ -116,15 +121,15 @@ export interface CloudGenus {
 }
 
 const GENERA = {
-  clear: { name: "Clear", coverage: 0, tau: 0, altitude: 6000, featureSize: 2000, edge: 0.3, taper: 0.5, billow: 0, shear: 1, wind: [6, 2] },
+  clear: { name: "Clear", coverage: 0, tau: 0, altitude: 6000, height: 0, featureSize: 2000, edge: 0.3, taper: 0.5, billow: 0, shear: 1, wind: [6, 2] },
   // A thin, flat, backlit sheet with no self-shadowing — which is precisely what the old 2-D model
   // could produce, and why everything used to look like cirrus. Stretched hard along the wind.
-  cirrus: { name: "Cirrus", coverage: 0.5, tau: 0.9, altitude: 9000, featureSize: 4200, edge: 0.42, taper: 0.75, billow: 0, shear: 0.16, wind: [26, 7] },
+  cirrus: { name: "Cirrus", coverage: 0.5, tau: 0.9, altitude: 9000, height: 0, featureSize: 4200, edge: 0.42, taper: 0.75, billow: 0, shear: 0.16, wind: [26, 7] },
   // Convective: sharp cauliflower edges, strong self-shadowing, sparse. The genus the cloud shadow
-  // map exists for.
-  cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, featureSize: 650, edge: 0.1, taper: 0.9, billow: 0.85, shear: 1, wind: [7, 2] },
+  // map exists for — and the SPIKE genus: `height` gives it the vertical extent a heap needs.
+  cumulus: { name: "Fair-weather cumulus", coverage: 0.3, tau: 18, altitude: 1200, height: 700, featureSize: 650, edge: 0.1, taper: 0.9, billow: 0.85, shear: 1, wind: [7, 2] },
   // A featureless slab. Soft edge, no taper, no billow — the light must go flat and shadowless.
-  stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, featureSize: 3000, edge: 0.55, taper: 0.15, billow: 0, shear: 1, wind: [5, 1] },
+  stratus: { name: "Stratus", coverage: 1, tau: 22, altitude: 700, height: 0, featureSize: 3000, edge: 0.55, taper: 0.15, billow: 0, shear: 1, wind: [5, 1] },
   // tau 500. Real cumulonimbus optical depths run 100-1000, and the base's darkness is what names the
   // genus. Measured: at tau 120 the base was 2.3x darker than the clear sky beside it and at 250 it was
   // 4.2x, where a real thunderhead's base (~500 cd/m2 against a ~3700 cd/m2 sky) is 7-10x. At 500 the
@@ -134,7 +139,7 @@ const GENERA = {
   // 72%-covered deck is dominated by its sunlit gaps, so it lifts the frame ~4.5x and the cloud with
   // it. A photographer exposes for the gaps and lets the base go black; our meter cannot. This is the
   // one place where "expose for middle grey" and "a thunderhead looks like a thunderhead" pull apart.
-  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 500, altitude: 900, featureSize: 2600, edge: 0.08, taper: 0.5, billow: 0.6, shear: 1, wind: [10, 3] },
+  cumulonimbus: { name: "Cumulonimbus", coverage: 0.72, tau: 500, altitude: 900, height: 3000, featureSize: 2600, edge: 0.08, taper: 0.5, billow: 0.6, shear: 1, wind: [10, 3] },
 } satisfies Record<string, CloudGenus>;
 
 /** The genera by name. Keyed by a real union rather than `string`, so a lookup is TOTAL and callers
@@ -153,6 +158,7 @@ export interface CloudState {
   coverage: number;
   tau: number;
   altitude: number;
+  height: number;
   featureSize: number;
   edge: number;
   taper: number;
@@ -165,6 +171,7 @@ export const cloudStateFromGenus = (g: CloudGenus): CloudState => ({
   coverage: g.coverage,
   tau: g.tau,
   altitude: g.altitude,
+  height: g.height,
   featureSize: g.featureSize,
   edge: g.edge,
   taper: g.taper,

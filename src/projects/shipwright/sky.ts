@@ -306,6 +306,7 @@ uniform vec3 uGroundRadiance;
 uniform float uCloudTau;
 uniform float uCloudFraction; // the field's MEAN THICKNESS over the plane, not its covered fraction
 uniform float uCloudAltitude;
+uniform float uCloudHeight;   // vertical extent of the deck (m). 0 = flat plane; > 0 = relief march
 uniform float uCloudThreshold;
 uniform float uCloudEdge;
 uniform float uCloudTaper;
@@ -384,29 +385,68 @@ void main() {
   // --- The cloud deck. Same field the shadow map and the CPU integral read. Only ABOVE the horizon:
   // below it the cloud plane is behind you, and drawing it there put an opaque wall under the horizon.
   if (uCloudTau > 0.0 && uCloudFrequency > 0.0 && direction.y > 0.0) {
-    float dy = direction.y;
-    float cloudDist = uCloudAltitude / max(dy, 0.02);
-    float thickness = cloudThickness(direction.xz * cloudDist);
-    // Toward the horizon the cloud-plane coordinate runs away, so fade the sample toward the field's
-    // MEAN rather than toward zero -- otherwise an overcast sky opens into clear blue at the horizon.
-    thickness = mix(uCloudFraction, thickness, smoothstep(0.0, 0.10, dy));
+    float dy = max(direction.y, 0.02);
+    float cloudDist = uCloudAltitude / dy;    // to the base plane; used for aerial perspective below
+    vec2 planeUv = direction.xz * cloudDist;  // ray-meets-base-plane; the flat-path shading anchor
+    float alpha;
 
-    // FULL tau here, no similarity transform: (1 - g) belongs to the BEAM (a photon scattered 2 deg
-    // forward is still in the beam), not to how opaque a cloud looks against the sky behind it. See
-    // clouds.ts cloudViewOpacity -- with (1 - g) applied, cirrus at tau 0.35 was 7% opaque and simply
-    // invisible.
-    float path = min(1.0 / max(dy, 0.05), 38.0);
-    float alpha = 1.0 - exp(-uCloudTau * thickness * path);
+    // FULL tau throughout, no similarity transform: (1 - g) belongs to the BEAM (a photon scattered
+    // 2 deg forward is still in the beam), not to how opaque a cloud looks against the sky behind it.
+    // See clouds.ts cloudViewOpacity -- with (1 - g) applied, cirrus at tau 0.35 was 7% opaque.
+    if (uCloudHeight > 0.5) {
+      // RELIEF MARCH (the spike). The deck is a slab [base, base + H*thickness], not a plane. Marching
+      // the view ray through it gives the cloud VERTICAL EXTENT: a 3-D silhouette that stacks toward
+      // the horizon and shows sun-facing vs shadowed SIDES, instead of a flat texture hovering. Volume
+      // extinction is sigma = tau/H per metre (a full-thickness column, H m tall, has optical depth
+      // tau), so a UNIFORM deck reduces this EXACTLY to the old flat model -- and the LIGHT is untouched,
+      // because cloudStats still integrates the same 2-D thickness field.
+      float base = uCloudAltitude;
+      float H = uCloudHeight;
+      float tBase = (base - cameraPosition.y) / dy;         // ray enters the slab (bottom)
+      float tTop = (base + H - cameraPosition.y) / dy;      // ray leaves the slab (top)
+      const int NV = 48;
+      float dt = (tTop - tBase) / float(NV);
+      float sigma = uCloudTau / H;
+      // Jitter the march start by up to one step, per pixel, so the fixed-step quantization becomes
+      // fine grain instead of a Venetian-blind stipple (worst near overhead, where the surface is
+      // steep relative to the ray). A soft vertical falloff at the cloud TOP does the same for the
+      // silhouette: a hard p.y < top test slabs the cloud into horizontal bands.
+      float jitter = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+      float soft = H * 0.15;
+      float odepth = 0.0;
+      bool hit = false;
+      for (int i = 0; i < NV; i++) {
+        vec3 p = cameraPosition + direction * (tBase + (float(i) + jitter) * dt);
+        float th = cloudThickness(p.xz);
+        float top = base + H * th;
+        float d = 1.0 - smoothstep(top - soft, top, p.y);   // soft cloud top; 1 inside, 0 above
+        if (d > 0.0) {
+          odepth += sigma * d * dt;
+          if (!hit && d > 0.5) { hit = true; planeUv = p.xz; } // first solid sample = visible surface
+          if (odepth > 6.0) break;                          // saturated -- no point marching further
+        }
+      }
+      float reliefAlpha = 1.0 - exp(-odepth);
+      // Near the geometric horizon the steps outrun the feature size and the march sparkles; fade to
+      // the coherent flat mean there. The interesting regime (dy ~ 0.1-0.4) stays full relief.
+      float thF = mix(uCloudFraction, cloudThickness(planeUv), smoothstep(0.0, 0.10, dy));
+      float flatAlpha = 1.0 - exp(-uCloudTau * thF * min(1.0 / dy, 38.0));
+      alpha = mix(flatAlpha, reliefAlpha, smoothstep(0.05, 0.12, dy));
+    } else {
+      // FLAT plane (cirrus, stratus): no meaningful vertical extent. Fade the sample toward the field's
+      // MEAN at the horizon, else an overcast sky opens into clear blue there.
+      float thickness = mix(uCloudFraction, cloudThickness(planeUv), smoothstep(0.0, 0.10, dy));
+      alpha = 1.0 - exp(-uCloudTau * thickness * min(1.0 / dy, 38.0));
+    }
+
     // CIE Standard Overcast Sky: zenith is 3x the horizon, azimuthally uniform, no disc. Its zenith
     // radiance is set from the energy the deck actually transmits, so the picture and the light agree.
     // That is the AMBIENT (multiply-scattered) half of a cloud's radiance.
     vec3 cloudRadiance = uOvercastZenith * ((1.0 + 2.0 * dy) / 3.0);
 
-    // SELF-SHADOW. March a few taps of the same noise along the sun's direction across the cloud
-    // plane and accumulate the thickness in the way. This is the single biggest step from "flat
-    // opaque smear" to "cumulus": a cloud's sun-facing side lights up and its far side goes dark,
-    // because something finally samples the cloud's own depth toward the sun.
-    vec2 planeUv = direction.xz * cloudDist;
+    // SELF-SHADOW. March a few taps of the same noise along the sun's direction from the visible
+    // surface and accumulate the thickness in the way: a cloud's sun-facing side lights up and its far
+    // side goes dark. Anchored at planeUv -- the relief hit for a slab, the plane crossing for a sheet.
     float sunDepth = 0.0;
     for (int i = 1; i <= ${CLOUD_SHADOW_TAPS}; i++) {
       sunDepth += cloudThickness(planeUv + uCloudSunStep * float(i));
@@ -619,6 +659,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uCloudTau: { value: 0 },
     uCloudFraction: { value: 0 },
     uCloudAltitude: { value: 1200 },
+    uCloudHeight: { value: 0 },
     uCloudThreshold: { value: 1.001 },
     uCloudEdge: { value: 0.3 },
     uCloudTaper: { value: 0.5 },
@@ -826,6 +867,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     skyUniforms.uCloudTau.value = cloud.tau;
     skyUniforms.uCloudFraction.value = state.cloudPlaneThickness;
     skyUniforms.uCloudAltitude.value = cloud.altitude;
+    skyUniforms.uCloudHeight.value = cloud.height;
     skyUniforms.uCloudThreshold.value = threshold;
     skyUniforms.uCloudEdge.value = cloud.edge;
     skyUniforms.uCloudTaper.value = cloud.taper;

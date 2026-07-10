@@ -784,6 +784,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       daylight.setCloudGenus(name);
       syncGui();
     },
+    // Spike affordance (relief clouds): override the deck's vertical extent so the shot suite can A/B
+    // relief-on (genus default) vs relief-off (height 0 -> the old flat plane) on one server.
+    setCloudHeight: (metres: number) => {
+      daylight.setCloudOverrides({ height: metres });
+    },
     cloudGenera: () => CLOUD_GENUS_NAMES,
     setCamera: (pos: [number, number, number], target: [number, number, number]) => {
       camera.position.set(...pos);
