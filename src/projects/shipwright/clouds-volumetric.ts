@@ -70,20 +70,20 @@ export interface VolumetricCloudParams {
 }
 
 export const CUMULUS: VolumetricCloudParams = {
-  coverage: 0.4, // sparser -> distinct fair-weather puffs with blue sky between, not a connected sheet
+  coverage: 0.5,
   base: 900,
-  thickness: 320,
+  thickness: 450, // taller so the height-narrowing has room to build a domed cauliflower crown
   absorption: 0.06,
   density: 1,
-  featureSize: 520,
+  featureSize: 450, // the Worley bump scale — the size of one cauliflower lump
   wind: [7, 2],
   sunGain: 1.1,
   ambientGain: 0.8,
-  // High step counts on purpose: we are optimising for the LOOK now and will amortise the cost by
-  // baking to a cubemap. 80 steps keeps even shallow-angle clouds sampled; grain is no longer free.
-  steps: 80,
-  lightSteps: 8,
-  erode: 0.5,
+  // Worley is heavier per sample than value noise, so fewer steps than last pass; still plenty to
+  // stay clean. Cost is amortised later by baking to a cubemap (+ a baked 3-D noise texture).
+  steps: 48,
+  lightSteps: 5,
+  erode: 0.4,
   haze: 0.0001,
 };
 
@@ -188,48 +188,53 @@ float fbm(vec2 p) {
   return v / tot;
 }
 
-// --- true 3-D value-noise fBm, for erosion that billows and overhangs (not a 2-D offset fake) ---
-float vhash3(vec3 p) {
-  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+// --- Worley (cellular) noise. Inverted, its rounded cellular bumps ARE the cauliflower shape of a
+// cumulus. This is the piece value/Perlin noise cannot give: Perlin makes smooth lumpy blobs that
+// read as boxy; Worley makes the fluffy, self-similar billows a real cumulus has (cf. Nubis). ---
+vec3 hash33(vec3 p) {
+  p = vec3(dot(p, vec3(127.1, 311.7, 74.7)),
+           dot(p, vec3(269.5, 183.3, 246.1)),
+           dot(p, vec3(113.5, 271.9, 124.6)));
+  return fract(sin(p) * 43758.5453123);
 }
-float vnoise3(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(mix(vhash3(i + vec3(0, 0, 0)), vhash3(i + vec3(1, 0, 0)), f.x),
-        mix(vhash3(i + vec3(0, 1, 0)), vhash3(i + vec3(1, 1, 0)), f.x), f.y),
-    mix(mix(vhash3(i + vec3(0, 0, 1)), vhash3(i + vec3(1, 0, 1)), f.x),
-        mix(vhash3(i + vec3(0, 1, 1)), vhash3(i + vec3(1, 1, 1)), f.x), f.y),
-    f.z);
-}
-float fbm3(vec3 p) {
-  float v = 0.0;
-  float amp = 0.5;
-  float tot = 0.0;
-  for (int i = 0; i < 4; i++) {
-    v += amp * vnoise3(p);
-    tot += amp;
-    p = p * 2.0 + vec3(17.1, 9.3, 23.7);
-    amp *= 0.5;
+// Inverted Worley F1 in ~[0,1]: 1 near a cell centre, 0 at cell edges -> a field of rounded bumps.
+float worley(vec3 p) {
+  vec3 id = floor(p);
+  vec3 fp = fract(p);
+  float d = 1.0;
+  for (int x = -1; x <= 1; x++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int z = -1; z <= 1; z++) {
+        vec3 o = vec3(float(x), float(y), float(z));
+        vec3 r = o + hash33(id + o) - fp;
+        d = min(d, dot(r, r));
+      }
+    }
   }
-  return v / tot;
+  return 1.0 - clamp(sqrt(d), 0.0, 1.0);
+}
+float remap(float v, float lo, float hi, float nlo, float nhi) {
+  return nlo + (clamp(v, lo, hi) - lo) / max(hi - lo, 1e-5) * (nhi - nlo);
 }
 
 // Cloud density in [0,1] at a world point.
 float density(vec3 p) {
   vec3 wp = p + vec3(uWind.x, 0.0, uWind.y) * uTime;
-  float shape = fbm(wp.xz * uFeatureScale);
-  // Coverage: higher coverage lowers the threshold the noise must clear.
-  float cov = smoothstep(1.0 - uCoverage, 1.0 - uCoverage + 0.22, shape);
-  if (cov <= 0.0) return 0.0;
-  // Vertical profile: dense in the lower-middle, wispy at the top, roundish base.
   float h = clamp((p.y - uBase) / uThickness, 0.0, 1.0);
-  float profile = smoothstep(0.0, 0.18, h) * (1.0 - smoothstep(0.55, 1.0, h));
-  // True 3-D erosion carves cauliflower billows and overhangs a heightfield can't represent.
-  float ero = fbm3(wp * (uFeatureScale * 2.4));
-  float d = clamp(cov * profile - ero * uErode, 0.0, 1.0);
-  return d * uDensity;
+  // Broad coverage (where clouds live), from cheap value noise. The threshold RISES with height, so
+  // the footprint shrinks upward -> a domed cauliflower crown over a flatter base, not a slab.
+  float cov = fbm(wp.xz * uFeatureScale * 0.6);
+  float thresh = 1.0 - uCoverage + 0.5 * h * h;
+  float coverage = smoothstep(thresh, thresh + 0.15, cov);
+  if (coverage <= 0.0) return 0.0;
+  // Flat-ish base, fade out toward the top.
+  float profile = smoothstep(0.0, 0.1, h) * (1.0 - smoothstep(0.6, 1.0, h));
+  // Rounded billows: big inverted-Worley bumps, eroded at their edges by higher-frequency Worley.
+  float billow = worley(wp * (uFeatureScale * 1.5));
+  float base = coverage * profile * billow;
+  float detail = worley(wp * (uFeatureScale * 4.5));
+  float d = remap(base, detail * uErode, 1.0, 0.0, 1.0);
+  return clamp(d, 0.0, 1.0) * uDensity;
 }
 
 float hg(float c, float g) {
