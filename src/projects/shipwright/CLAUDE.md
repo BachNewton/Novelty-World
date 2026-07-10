@@ -257,9 +257,27 @@ code that floats the ship agree on where the surface is.
   target on the context; `{ resolutionScale }` renders it below screen res),
   **`antialias`** (default true; false drops MSAA), and **`maxPixelRatio`** + live
   **`ctx.setPixelRatio`** for a render-scale control.
-- **Sky** comes from three.js's `Sky` addon (`three/examples/jsm/objects/Sky.js`)
-  with clouds, baked to an env map via `PMREMGenerator`. The env map is the water's
-  sky reflection (per-pixel, correct on the displaced surface) and the SSR fallback.
+- **The sky is OURS, not three's `Sky` addon.** That addon is not imported anywhere.
+  `sky.ts` draws its own dome and `sky-model.ts` is that dome's CPU twin. Both began
+  as a port of the addon's Preetham GLSL, and most of what they inherited has since
+  been replaced or deleted: the magnitude (`domeScale` renormalises to Haurwitz), the
+  scalar colour source (`sourceTints`, per scattering species), and the `L0 = 0.1*Fex`
+  floor (deleted -- it peaked at the zenith and drew twilight upside down).
+  - **What remains of Preetham is known to be wrong, and is the next work.** Its
+    scattering coefficients disagree with our own beam's optical depths by ~227x. Its
+    `rayleighPhase(cosTheta * 0.5 + 0.5)` is a bug faithfully ported from three: it
+    gives `p(180) / p(0) = 0.50` where Rayleigh is symmetric and must be 1.00. Its
+    single Henyey-Greenstein aerosol lobe falls off 6.1x between 2 and 20 degrees from
+    the sun where the measured sky falls ~30x -- so it does not dim the sun's glow, it
+    SMEARS it across the whole dome. That smear is the washed sunset. `pow(Lin, 1.5)`
+    and `horizonMix` are admitted look hacks and they entangle the coefficients, which
+    is why the coefficients cannot simply be corrected in place.
+  - **The sun:sky ladder is structurally protected while you fix this.** For a clear
+    sky `skyIrradiance = clearChroma * clearDhi`, and `clearDhi` comes from Haurwitz,
+    not from the dome. The dome supplies distribution and colour; the irradiance model
+    supplies energy. Changing how the sky LOOKS cannot change how much it LIGHTS.
+  The dome is baked to an env map via `PMREMGenerator`; that env map is the water's sky
+  reflection (per-pixel, correct on the displaced surface) and the SSR fallback.
   (`public/shipwright/waternormals.jpg` is the fine ripple normal map the ocean uses.)
 - **Assets** for this project go under `public/shipwright/`.
 

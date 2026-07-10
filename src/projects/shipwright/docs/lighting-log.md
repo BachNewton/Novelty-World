@@ -610,6 +610,127 @@ said nothing may assume that, and nothing may divide by the sun's intensity. A l
 
 ---
 
+---
+
+## The washed sunset: what it actually is, and the numbers to start from
+
+This is the one thing four independent blind reviewers named that is still true, and it is the next
+piece of work. Everything below was measured, not guessed. It is written down here because it cost real
+measurement to obtain and none of it is obvious from the code.
+
+### It was never physics vs beauty
+
+Three times this overhaul appeared to trade beauty for correctness. Three times the cause was a place
+where the physics was still WRONG:
+
+| the complaint | the actual cause |
+|---|---|
+| "the sunset washed out" | the exposure meter read a grey card lying on the ground |
+| "midday went milky" | `key = 0.18` is a grey card's reflectance; a meter's ISO 2720 constant is 0.125 |
+| "the sky near the sun is hazy" | our aerosol phase function smears the sun's light across the whole dome |
+
+Preetham's sunsets look good because **its hacks are crude imitations of physics it never modelled.**
+`pow(Lin, 1.5)` is a nonlinear contrast boost that partially fakes the concentration a real aerosol phase
+function produces. That is what a fudge factor IS: a local approximation to a real phenomenon, tuned in
+one regime. It works exactly where it was fitted and fails everywhere else -- beautiful sunsets, blown-out
+noon, black islands, and a scene brightness that swings with the sun's compass heading.
+
+So the remaining work is not to fight the physics. It is to finish removing Preetham's leftovers.
+
+### 1. A single Henyey-Greenstein lobe is not an aerosol
+
+Phase functions all integrate to 1 over the sphere, so a broader lobe does not dim the glow -- it
+SPREADS it. Measured fall-off away from the sun, the band that actually fills the frame (at 55 deg vFOV
+and 1080p, one degree is about twenty pixels):
+
+| fall-off | HG(g=0.8), what we ship | two-term HG (w .75, g1 .90, g2 .10) | measured aerosol |
+|---|---|---|---|
+| 2 deg -> 20 deg | **6.1x** | 32x | ~30x (Green 1971, via Noll 2012) |
+| 2 deg -> 30 deg | 15.5x | 84x | -- |
+
+The same total energy, differently distributed. Concentrating it near the sun makes the sky twenty
+degrees away DARKER, and darker-sky-against-bright-sun is what a fiery sunset is made of.
+
+Cornette-Shanks does NOT fix this: it doubles `p(2)/p(90)` but moves `p(2)/p(30)` only 15.5 -> 17.7.
+Nothing in the HG family reproduces the true sub-degree circumsolar spike either (Buie 2003 measures a
+171x drop from 0.27 to 2.5 degrees; HG(0.8) drops 1.06x, TTHG 1.26x) -- but that spike is a few pixels
+wide and is not what "hazy near the sun" means. The 2-20 degree band is.
+
+Suggested TTHG parameters, DERIVED (not published) from two cited constraints -- OPAC/AERONET continental
+asymmetry `<cos> ~ 0.70` and Buie's measured `theta^-2.3` aureole -- `w = 0.75, g1 = 0.90, g2 = 0.10`.
+No published two-term fit exists for terrestrial haze; the numbers that circulate (0.889 / 0.094 / 0.743)
+are **Martian dust**. Do not cite them as terrestrial.
+
+### 2. `rayleighPhase(cosTheta * 0.5 + 0.5)` is a bug, faithfully ported from three
+
+three's `Sky` remaps the cosine into `[0,1]` before the Rayleigh phase, which destroys the backscatter
+lobe. Rayleigh is symmetric: `p(180) / p(0)` must be **1.00**. Ported, it is **0.50** -- the anti-solar
+sky gets half the Rayleigh phase it is owed. Free to fix; the correct call is `rayleighPhase(cosTheta)`.
+
+| angle from sun | real p | three's ported p | error |
+|---|---|---|---|
+| 0 deg | 0.11937 | 0.11937 | 1.00x |
+| 90 deg | 0.05968 | 0.07460 | 1.25x |
+| 180 deg | 0.11937 | 0.05968 | **0.50x** |
+
+### 3. The dome and the beam disagree about the air by 227x
+
+Aerosol : Rayleigh optical-depth ratio at 550 nm, in the two halves of our own model:
+
+    the DOME says   0.0106      (Preetham's betaM/betaR, as three ships them)
+    the BEAM says   2.4082      (our own solved Angstrom beta)
+    real clear sky  ~1.0
+
+A naive reconciliation does NOT work, and this was measured before it was believed: matching the
+coefficients drives the aureole:zenith ratio from 25 to **966** and turns the zenith grey, because
+`pow(Lin, 1.5)` amplifies whatever it is given. **You cannot correct the physics inside an empirical fit
+that was tuned around the broken physics.** Removing the 1.5 power is a precondition, not an option.
+
+One number does move the right way under reconciliation, and it is a hint the direction is sound: the
+zenith's blue:red at a 40 degree sun goes 7.39 -> 3.36, and a real clear zenith is 2.5-4. **Our sky is
+currently too blue.**
+
+### 4. We attribute absorption to scattering
+
+`REFERENCE_BETA` was solved so the beam's luminance-weighted transmittance at AM=1 equals Meinel's 0.70.
+But **Meinel's 0.70 is a broadband figure that includes water-vapour and mixed-gas absorption**, which
+lives mostly in the near infrared. All of that non-Rayleigh, non-ozone extinction was handed to aerosol
+SCATTERING. Beer's law for the beam cannot tell the difference -- it only sees total tau. The sky can:
+absorption removes light, scattering redirects it into the aureole.
+
+Separating them (Bird & Hulstrom component transmittances at AM=1: water vapour 0.91, mixed gases 0.99;
+their product with Rayleigh, aerosol and ozone is 0.727, against Meinel's 0.70):
+
+| | today | with gaseous absorption split out |
+|---|---|---|
+| solved Angstrom beta | 0.1082 | **0.0597** |
+| AOD(550 nm) | 0.2354 | **0.1299** (real clear continental: 0.05-0.15) |
+| aerosol : Rayleigh at 550 | 2.41 | **1.33** (real ~1.0) |
+| luminance transmittance at AM=1 | 0.7000 | 0.7000 (pinned, unchanged) |
+| beam R/G at a 0 deg sun | 1.83 | 1.56 |
+
+Note the last row: the fix makes the sunset beam slightly LESS red, because optical depth moves from a
+`lambda^-1.3` aerosol to a grey absorber. That is the correct direction physically and it fights the
+thing we want. Watch it in the A/B.
+
+### The safety property that makes all of this tractable
+
+**Changing the dome's angular shape cannot break the sun:sky ladder.** For a clear sky
+`skyIrradiance = clearChroma * clearDhi`, and `clearDhi` comes from **Haurwitz**, not from the dome. The
+dome supplies distribution and colour; the irradiance model supplies energy. So shape and colour may move
+freely; the acceptance table is structurally protected. What the shape DOES touch is chromaticity,
+`skyMeanRadiance` (hence exposure), and what you see -- which is what the probe, the A/B suite and the
+blind reviewers are for.
+
+### Sources
+
+Buie et al. 2003 (Solar Energy 74:113, circumsolar/sunshape); Green, Deepak & Lipofsky 1971 via Noll et
+al. 2012 (Cerro Paranal sky model, which explicitly rejects HG for measured Mie); Cornette & Shanks 1992;
+Kattawar 1975 (two-term HG); Hess et al. 1998 (OPAC); Hosek & Wilkie 2012 (who name "sunsets and high
+turbidity" as the Preetham failure modes they set out to fix); Bird & Hulstrom (component transmittances).
+
+---
+
 ## Still wrong, ranked
 
 Re-ranked after the second pass. Items 1-3 are what four independent blind reviewers, given only images
