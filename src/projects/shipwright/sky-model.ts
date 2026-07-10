@@ -153,6 +153,22 @@ export const sunTerms = (
  * the sun. RAW Preetham units (three's `* 0.04` display scale NOT applied) and WITHOUT the solar
  * disc — the disc is drawn by the dome shader alone, never by the env bake or this integral, so the
  * beam is never counted twice against the `DirectionalLight` that already carries it.
+ *
+ * ## `L0` is deleted, and it was the twilight bug
+ *
+ * three's `Sky` adds a floor `L0 = 0.1 · Fex`: a bare constant times the VIEW-path transmittance. It
+ * names nothing. Worse, it is angularly INVERTED — `Fex` is ~1 at the zenith (a short path out) and
+ * ~0.008 at the horizon (a long one), so the floor is brightest straight up and dark where the sun
+ * actually set. In daylight `Lin` buries it (0.6 % of the sunward horizon). Below the horizon `Lin`
+ * collapses with the Earth's shadow and the floor does not, because it never depended on the sun at
+ * all. Measured share of the zenith's radiance:
+ *
+ *   sun at  0° → 15 %      sun at −2° → 32 %      sun at −6° → 99.9 %
+ *
+ * So civil twilight rendered as a warm glow ON TOP of a black horizon: the sunset drawn upside down.
+ * Three blind reviewers flagged it independently; one called the −6° frames an outright artifact.
+ * A fudge factor is exactly what this overhaul exists to remove, so it is gone rather than tuned, and
+ * the dome is now pure in-scattering. `domeScale` re-pins the energy, so daylight barely moves.
  */
 export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): Rgb => {
   const zenithAngle = Math.acos(Math.max(0, dirY));
@@ -182,7 +198,7 @@ export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): R
     // is a fit artefact of Preetham's magnitude, not a property of the source: scattered radiance is
     // LINEAR in the incident beam, so raising a chromaticity to 1.5 would just oversaturate it.
     const tint = (wR * t.tintRayleigh[i] + wM * t.tintMie[i]) / Math.max(wR + wM, 1e-12);
-    out[i] = (lin + 0.1 * fex) * tint;
+    out[i] = lin * tint;
   }
   return out;
 };

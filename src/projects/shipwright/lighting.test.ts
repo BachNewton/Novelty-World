@@ -315,6 +315,56 @@ describe("the twilight seam", () => {
     const l = clearSkyRadiance(0.5, 0.5, t);
     expect(l.every((v) => Number.isFinite(v) && v >= 0)).toBe(true);
   });
+
+  it("draws twilight the right way UP: the afterglow is low and toward the sun", () => {
+    // REGRESSION. three's Sky floors the dome at `L0 = 0.1 * Fex` -- a constant times the VIEW-path
+    // transmittance, so it PEAKS AT THE ZENITH (short path out) and dies at the horizon (long one).
+    // In daylight Lin buries it. Below the horizon Lin collapses with the Earth's shadow and the
+    // floor does not, because it never depended on the sun: it was 99.9% of the -6 degree zenith and
+    // rendered civil twilight as a warm glow straight overhead above a black horizon. The sunset,
+    // upside down. Three blind reviewers called it out; the fix was to delete the fudge, not tune it.
+    const sample = (h: number) => {
+      const t = sunTerms(0, DEFAULT_SKY, (h * Math.PI) / 180, sourceTints(h));
+      return {
+        towardSun: luminance(clearSkyRadiance(Math.sin(0.02), Math.cos(0.02), t)),
+        awayFromSun: luminance(clearSkyRadiance(Math.sin(0.02), -Math.cos(0.02), t)),
+        zenith: luminance(clearSkyRadiance(1, Math.sin((h * Math.PI) / 180), t)),
+      };
+    };
+
+    for (const h of [0, -2, -4, -6]) {
+      const { towardSun, awayFromSun, zenith } = sample(h);
+      // The sun's own horizon always outshines the horizon opposite it...
+      expect(towardSun).toBeGreaterThan(awayFromSun);
+      // ...and the sky overhead never runs away from it. Below the horizon the two come within a few
+      // percent, and that is honest rather than ideal: the Mie aureole dies first (scale height
+      // 1.2 km), so the sunset's hot spot broadens into a wide, nearly altitude-uniform twilight
+      // arch. A real arch still favours the horizon. Preetham's frozen shape does not know that, and
+      // that residual is documented rather than papered over. What must never return is the zenith
+      // OUT-shining the sunset by 10x, which is what the fudge floor did.
+      expect(zenith).toBeLessThanOrEqual(towardSun * 1.1);
+    }
+
+    // With the sun up, the sunset is emphatically a sunset: the glow is on the horizon, and it is on
+    // the sun's side of it.
+    const sunset = sample(0);
+    expect(sunset.towardSun / sunset.zenith).toBeGreaterThan(10);
+    expect(sunset.towardSun / sunset.awayFromSun).toBeGreaterThan(50);
+
+    // Deep in twilight the aureole is gone and only Rayleigh is left, so the azimuthal contrast
+    // settles on the ratio of its phase function forward to back: 2:1 in the phase, ~4:1 here once
+    // the view-path extinction has had its say. It must not go isotropic.
+    const civil = sample(-6);
+    expect(civil.towardSun / civil.awayFromSun).toBeGreaterThan(2.5);
+  });
+
+  it("goes to zero, not to a floor, when the Earth's shadow covers both columns", () => {
+    // With `L0` gone the dome is pure in-scattering, so an unlit atmosphere emits nothing. The old
+    // floor made the sky at -18 degrees as bright as the sky at -6.
+    const deep = luminance(clearSkyRadiance(1, 0, sunTerms(0, DEFAULT_SKY, (-18 * Math.PI) / 180)));
+    const civil = luminance(clearSkyRadiance(1, 0, sunTerms(0, DEFAULT_SKY, (-6 * Math.PI) / 180)));
+    expect(deep).toBeLessThan(civil / 100);
+  });
 });
 
 describe("derived quantities that used to be hand-tuned curves", () => {

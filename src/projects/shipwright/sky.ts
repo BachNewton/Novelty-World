@@ -295,7 +295,10 @@ void main() {
 
   vec3 Lin = pow(uSunE * ratio * (1.0 - Fex), vec3(1.5));
   Lin *= mix(vec3(1.0), pow(uSunE * ratio * Fex, vec3(0.5)), clamp(pow(1.0 - uSunShapeY, 5.0), 0.0, 1.0));
-  vec3 L0 = vec3(0.1) * Fex;
+  // No L0 floor. three's Sky adds 0.1 * Fex, a constant times the VIEW-path transmittance -- so it
+  // peaks at the zenith and dies at the horizon. Below the horizon Lin collapses with Earth's shadow
+  // and that floor does not (it never depended on the sun), so it became 99.9% of the -6 degree sky
+  // and drew the afterglow straight UP. See sky-model.ts clearSkyRadiance.
 
   // Preetham's in-scattering source is a SCALAR (uSunE), so its aureole stayed white around a sun
   // whose blue Beer's law had already eaten. Each species instead scatters the beam that reached IT:
@@ -306,7 +309,7 @@ void main() {
   // uDomeScale carries the dome's ENERGY, set per elevation from a real clear-sky irradiance model.
   // Preetham's own magnitude is discarded: it under-delivers the low-sun sky by ~10x (see lighting.ts).
   // It is measured on the TINTED dome, so the energy still lands on Haurwitz and the tint moves hue alone.
-  vec3 radiance = (Lin + L0) * tint * uDomeScale;
+  vec3 radiance = Lin * tint * uDomeScale;
 
   // --- The solar disc. Its radiance is E_beam / solid angle, so integrating it returns exactly the
   // beam the DirectionalLight carries -- and it reddens with air mass for free, because E_beam does.
