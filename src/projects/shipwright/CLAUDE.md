@@ -182,21 +182,55 @@ code that floats the ship agree on where the surface is.
     `normal.xy` for distortion — it's nonzero even on flat water and shifts everything.
 - **Lighting is ONE PHYSICAL MODEL, with no per-material exceptions.** `lighting.ts`
   (pure physics, unit-tested), `sky-model.ts` (its CPU twin of the dome's GLSL),
-  `clouds.ts` (one cloud field) and `sky.ts` (the three.js side). Air mass ->
-  Meinel & Meinel beam -> Haurwitz diffuse -> the measured twilight table; clouds by
-  two-stream optical depth tau. Exposure is a real photographic meter on the scene's
-  own irradiance. See `docs/LIGHTING.md` (the brief) and `docs/lighting-log.md`
-  (what landed, what was measured, what is still wrong).
+  `clouds.ts` (one cloud field), `iala.ts` (navigation lights, the only emitter that
+  is not the sun) and `sky.ts` (the three.js side). Air mass -> Meinel & Meinel beam
+  -> Haurwitz diffuse -> the measured twilight table; clouds by two-stream optical
+  depth tau. See `docs/LIGHTING.md` (the brief) and `docs/lighting-log.md` (what
+  landed, what was measured, what is still wrong).
   - **Never add a per-material lighting exception.** The env-scale property must
     stay absent from source: if an object looks wrong, the MODEL is wrong.
   - **Cloud shadows reach every lit material through ONE global override of three's
     `lights_fragment_begin` ShaderChunk** (`sky.ts` `installGlobalLighting`). It
-    multiplies ALL directional lights, so a moon added later is shadowed for free.
+    multiplies ALL DIRECTIONAL lights, so a moon added later is shadowed for free --
+    and a buoy lantern, which sits *beneath* the deck, correctly is not.
   - **Do not divide by the sun's intensity anywhere.** `sources` is a list; at
     -18 degrees it is empty and everything must still work.
   - The env map is the water's sky reflection (correct on the displaced surface --
     it reflects per-pixel by the real normal) and the SSR fallback. It is baked
     WITHOUT the sun's disc: the `DirectionalLight` already carries the beam.
+- **Exposure meters the SCENE, not the ground.** `exposure = key / L_field`, where
+  `L_field = 0.5 * mean sky radiance + 0.5 * sea radiance` -- the scene's own average
+  luminance. It is NOT `(0.18/pi) * E_horizontal`; that is an incident meter with a
+  cosine receptor, which no camera and no retina is, and it drove a THIRD of the
+  sunset sky above the white point. The sun's disc is excluded (glare is a separate
+  model). **Corollary: a grey card does NOT render at middle grey** -- an averaging
+  meter places the scene's average there, and a sea of albedo 0.07 is not a grey
+  card. A test pins this; if you "fix" it you have re-broken the sunset.
+- **`turbidity` drives the beam as well as the dome**, because it IS the aerosol
+  load. And the dome's in-scattering source carries the BEAM'S COLOUR, per species
+  (`sourceTints`): the aerosol at 1.2 km has crossed nearly the whole column, the
+  Rayleigh air at 8.4 km has not, so a sunset aureole reddens while the zenith stays
+  blue. Preetham's `L0 = 0.1 * Fex` floor is DELETED -- it peaked at the zenith and
+  drew civil twilight upside down.
+- **Materials come from `materials.ts`, with sources.** Measured reflectances, each
+  carrying its citation, and `derived: true` on anything reasoned rather than
+  measured. Two traps it exists to prevent: 18% grey encodes to sRGB **118**, not
+  128; and rust is a **dielectric** (`metalness: 0`), not a dirty metal.
+- **The calibration rig (`material-rig.ts`) depends on three + `materials.ts` and
+  NOTHING else**, on purpose: it has to compile against an older build so the two can
+  be A/B'd. An instrument that only works on the thing it measures is not an
+  instrument. It puts all three depths -- floating, straddling the waterline,
+  submerged -- in ONE frame, because the seam between the above-water shading and the
+  underwater absorption is exactly what separate shots can never show.
+- **Navigation marks are lit, and they are the model's second light source.**
+  `iala.ts` holds the standard as pure data: Allard's Law converts a chart's *nominal
+  range* in nautical miles to candela at the 1933 night threshold (`2e-7` lux), and
+  `cd -> PointLight.intensity` is `cd / (efficacy * 1000)` because three's point
+  lights carry an irradiance x m^2. Finland is IALA **Region A: port is RED,
+  starboard is GREEN** ("red right returning" is the American rule and is wrong
+  here). Signal green is a **blue-green**, not a lime. South cardinal's long flash is
+  a safety feature -- six flashes must never be miscountable as three or nine. The
+  lanterns switch on a photocell reading the model's own illuminance, not a clock.
 - **Tone mapping is AgX; bloom is built and OFF.** Settled by the 2x2 in
   `docs/LIGHTING.md`, graded blind. ACES desaturates a highlight *before* it clips,
   so the 4-degree sun-glitter road renders neutral silver; AgX renders the same pixels
@@ -273,8 +307,12 @@ code that floats the ship agree on where the surface is.
   without touching the balance.
 - `sky.ts` — the three.js side: the dome, the sun, the PMREM bake, the shadow frustum, the cloud shadow
   map, exposure, and the project's ONE global `lights_fragment_begin` override.
-- `lighting-rig.ts` — the debug-only calibration rig (spheres of known albedo) AND the linear-HDR probe
-  behind `measureLighting()`.
+- `lighting-rig.ts` — the linear-HDR irradiance probe behind `measureLighting()`. No scene objects.
+- `materials.ts` — the measured material library, with a source per entry. Used by the calibration rig
+  AND by the game. `material-rig.ts` — the rig itself: spheres + cubes of known reflectance at three
+  depths in one frame. Both depend on nothing but three, so they drop onto an older build for an A/B.
+- `iala.ts` — the buoyage standard as pure data: mark colours, topmarks, light rhythms, Allard's-law
+  photometry, IALA signal chromaticities. Unit-tested. `buoys.ts` renders it.
 - `benchmark.ts` — the render-cost flight schedule + the benchmark **wire types**
   (`BenchmarkConfig`/`Result`/…); the driver that runs a flight lives in `scene.ts`.
 

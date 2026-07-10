@@ -359,29 +359,243 @@ Measured with `tools/bench.mjs`, real GPU, AMD 780M, visuals mode.
 
 ---
 
+---
+
+## The second pass: what a question about the sun disc turned up
+
+The overhaul above shipped. Then Kyle asked *"where did the sun disc go?"* and pulling that thread
+found four more bugs, each one a place where a fudge factor or an unphysical assumption was still
+holding the model together. Every one was caught by measurement or by a blind reviewer, never by taste.
+
+### 1. `turbidity` reshaped the sky but never touched the beam
+
+You could crank the haze and the sun kept burning at full clear-air strength. Turbidity **is** the
+aerosol load, so it now drives the Angstrom coefficient (`beta` proportional to `T`, anchored at the
+solved reference). Because `clearSkyDhi = GHI - beam`, the light the haze steals from the beam
+reappears as diffuse skylight for free -- which is what haze does. Illuminance holds; the beam reddens
+`R/G 1.38 -> 2.58` across `T = 3 -> 8` at 3 degrees.
+
+### 2. Preetham's in-scattering source is a SCALAR, so its aureole cannot redden
+
+`sunE` is one number. The halo around a horizon sun was therefore rendered **white** -- a halo made of
+light whose blue Beer's law had already eaten. The source spectrum has to be the beam's spectrum.
+
+A single dome-wide tint was tried first and is **wrong**: the anti-solar sky at sunset went olive, and
+a blind reviewer given the three variants and no code called it *"a hue that does not occur in that
+direction."* The beam lighting an aerosol at 1.2 km has crossed nearly the whole column; the beam
+lighting a Rayleigh scatterer at 8.4 km has not. Nothing is fitted -- for exponential columns the
+density-weighted mean optical depth crossed is exactly `tau_j * H_j / (H_s + H_j)`:
+
+| scatterer | of Rayleigh | of aerosol | tint at a 0 degree sun |
+|---|---|---|---|
+| Mie (1.2 km) | 0.875 | 0.500 | 1.385 : 0.954 : 0.324 |
+| Rayleigh (8.4 km) | 0.500 | 0.125 | 1.091 : 1.006 : 0.670 |
+
+So the aureole reddens and the zenith stays blue. Mixed by the same weights `ratio` is already built
+from, applied **outside** Preetham's 1.5 power (a fit artefact of its magnitude -- scattered radiance is
+linear in the incident beam). Both tints carry unit luminance and `domeScale` re-measures the tinted
+dome, so this moves **hue and never energy**.
+
+### 3. `L0 = 0.1 * Fex` -- a fudge that drew twilight upside down
+
+three's `Sky` floors the dome at a bare constant times the **view-path** transmittance. `Fex` is about 1
+at the zenith (a short path out) and about 0.008 at the horizon (a long one), so the floor is brightest
+straight overhead and darkest exactly where the sun set. Daylight buries it. Below the horizon `Lin`
+collapses with the Earth's shadow and the floor does not, **because it never depended on the sun at
+all**:
+
+| sun elevation | `L0` share of the zenith's radiance |
+|---|---|
+| 0 | 15 % |
+| -2 | 32 % |
+| -6 | **99.9 %** |
+
+Civil twilight rendered as a warm glow above a black horizon: the sunset, drawn upside down. Three
+blind reviewers flagged the -6 degree frames independently; one named the glow's position outright. It
+is a fudge factor, so it was **deleted, not tuned**, and the dome is now pure in-scattering.
+
+Measured after (luminance):
+
+| sun | toward-sun horizon | anti-sun horizon | zenith |
+|---|---|---|---|
+| 0 | 75x | 1x | 4.5x |
+| -6 | 4x | 1x | 4.1x |
+
+The 75:1 azimuthal contrast at sunset and the 4:1 that survives to -6 (the Rayleigh phase function's
+forward:back, once the Mie aureole has died with its 1.2 km scale height) are both pinned by tests, as
+is *"the zenith never outshines the sunset"*.
+
+**Honest residual:** below -4 degrees the arch is nearly uniform in *altitude* (zenith within a few
+percent of the sunward horizon) where a real twilight still favours the horizon. That is Preetham's
+frozen shape, not a constant someone chose, and the test asserts what is true rather than what would be
+nice.
+
+### 4. The exposure meter was not physical, and THAT was the "ugly sunset"
+
+Reviewers kept reporting the same trade: physics up, sunsets down. *"A pale wash."* *"A wet firework."*
+It was not a trade. Exposure was `key / ((0.18/pi) * E_horizontal)` -- an incident-light meter with a
+cosine receptor, reading a grey card lying flat on the ground. **No camera and no retina is one.**
+
+| sun | exposure | sky 2 deg from sun | sea | % of sky hemisphere over white |
+|---|---|---|---|---|
+| 40 | 4.9 | 0.96 | 0.07 | 0.0 % |
+| 5 | 64.6 | 13.50 | 0.07 | 17.2 % |
+| 0 | 863.9 | 5.07 | 0.07 | **35.8 %** |
+
+To hold the sea at a rendered 0.07 *forever*, it drove a third of the sunset sky above the white point
+-- and AgX then did exactly its job and desaturated the clipped sky to cream. The reviewers were not
+expressing a preference; they were reporting an over-exposed sky.
+
+A real meter integrates the **luminance of the field of view**, and so does the eye:
+
+```
+L_field = 0.5 * (mean sky radiance) + 0.5 * (sea radiance)
+```
+
+the scene's own average luminance, `(1/4pi) * integral L dw`, split at the horizon. The sky half needed
+a quantity nothing computed: the solid-angle **mean radiance** of the dome -- no cosine, because *"how
+bright does the sky look"* is a different question from *"how much light does it deliver"*. Near a low
+sun the two differ by an order of magnitude, because the aureole sits exactly where `cos(theta)` is
+nearly zero. That gap **was** the bug.
+
+| sun | exposure | sky 2 deg from sun | sea | % of sky hemisphere over white |
+|---|---|---|---|---|
+| 40 | 6.2 | 1.22 | 0.09 | 0.5 % |
+| 5 | 27.0 | 5.64 | 0.03 | 4.1 % |
+| 0 | 230.3 | 1.35 | 0.02 | **4.4 %** |
+
+At noon the field is an even dome over a dark sea and the answer barely moves. At sunset the field *is*
+the sky, the meter stops down about 1.9 stops, the sea falls toward silhouette, and the sky lands in
+the tonemapper's sweet spot with its colour intact.
+
+The sun's **disc is excluded from the meter**, for the same reason it is excluded from the env bake:
+`6.8e-5` sr and a million times middle grey, so a camera turning toward it would stop the whole world
+down. Real meters clamp it and real eyes squint -- that is glare, and glare is a separate model.
+
+**Corollary, pinned by a test because someone will "fix" it back:** a grey card no longer renders at
+middle grey. An averaging meter places the *scene's* average there, and a sea of albedo 0.07 under a
+bright sky is not a grey card. `MIDDLE_GREY_ALBEDO` went dead and lint found it -- a fitting tombstone.
+
+A three-way blind review (old / overhaul-before-the-meter / overhaul-with-the-meter) ranked the new
+meter first overall and first on sunset physical plausibility, calling it *"the only system that is
+never broken."* It also said the old system still owns the single hero into-sun frame. That is recorded
+below, unresolved.
+
+---
+
+## The instruments, rebuilt
+
+You cannot judge a lighting model against flat vertex colours. A painted buoy tells you the light
+**arrived**; it cannot tell you the light is **right**.
+
+- **`materials.ts`** -- measured reflectances with their sources (physicallybased.info, Google Filament,
+  Frostbite, the EPA rock-reflectance study), and an explicit `derived: true` on every value that is
+  physically reasoned but not traceable to a measurement. Two findings worth carrying forward:
+  - **18 % grey encodes to sRGB 118, not 128.** Both balls are in the rig, side by side, so a
+    transfer-function error cannot hide.
+  - **The measured values break the published authoring ranges.** Chromium's red F0 is 0.654 against a
+    stated metal floor of 0.66; gold's blue is 0.307. Those ranges are heuristics for hand-painting a
+    texture, not statements about reflectance. The guard checks what is *impossible* and demands a
+    justification from anything outside the heuristic, rather than clamping measured data to it.
+- **`material-rig.ts`** -- spheres *and* cubes, at three depths, **in one frame**. The obvious design
+  (photograph "above water", "at the waterline", "submerged" separately) cannot find the bug it most
+  needs to find: if one reviewer approves the above-water frames and another approves the submerged
+  ones, both can be right while the seam *between* the two models is broken, because that seam is in
+  neither picture. A sphere half in and half out of the sea is the test. Depends on `three` and
+  `materials.ts` alone, so it drops onto the old build unchanged and the A/B is honest.
+- **`tools/ab-shots.mjs`** and **`tools/material-shots.mjs`** -- capture the same frames against two
+  builds, driving only the debug API both share, with anything newer behind `?.()` so the older build
+  keeps its own default rather than being handed a nicer starting position.
+
+---
+
+## The second light source
+
+`iala.ts` and the lit navigation marks. Everything in this renderer had exactly one emitter; the brief
+said nothing may assume that, and nothing may divide by the sun's intensity. A lit buoy is the test.
+
+- **Photometry is real.** A chart prints a light's *nominal range* in nautical miles -- its luminous
+  range at 10 NM meteorological visibility (`T = 0.74/NM`). Allard's Law inverts it to candela at the
+  night threshold illuminance `E_t = 2e-7 lux` (agreed at Paris in 1933, and still what every List of
+  Lights is computed against): `I = 0.686 * d^2 * 0.74^-d`. IALA's own anchor, 500 cd ~ 8 NM, comes out
+  at 488. A test closes the loop the other way: a lamp rated for `d` NM must put exactly `2e-7` lux on
+  the eye at `d` NM.
+- **Units close.** three multiplies `color * intensity` and divides by `d^2`, so a `PointLight`'s
+  intensity is an irradiance times m^2 -- the same quantity the sun's `DirectionalLight` carries, times
+  metres squared. `cd -> renderer = cd / (efficacy * 1000)`. Test: 100 cd at 5 m is 4 lux, in our units
+  as in anyone's. And because three multiplies the *colour* in, a saturated green lamp would emit only
+  `luminance(green)` of its rating; that is divided back out, so **candela means candela at any colour**.
+- **Colour.** IALA E-200-1 gives CIE chromaticity boundaries, not RGB. Signal green is a **blue-green**
+  (the standard explicitly excludes yellow-greens); signal yellow is an **amber**. Blue appears on
+  exactly one mark in the whole system -- the emergency wreck buoy -- and a test pins that.
+- **Rhythm.** Cardinals by the clock face: 3 flashes = East, 6 = South, 9 = West, North continuous.
+  **South's long flash is a safety feature, not decoration** -- it exists so six flashes can never be
+  miscounted as three or nine. It has its own test. The period test immediately caught a real error: the
+  hand-written `Fl(2+1)` group summed to 9.5 s, not 10.
+- **Blondel-Rey is deliberately NOT applied.** A 0.25 s flash *looks* dimmer because the eye integrates
+  over about 0.2 s. That is a property of the observer. We render the lamp's instantaneous intensity and
+  let the person looking at the screen do their own integrating; baking in an effective-intensity factor
+  would count the eye twice.
+- **Region A.** Finland is Region A: **port is red, starboard is green.** "Red right returning" is the
+  American rule and is wrong here.
+- The lanterns are switched by a **photocell on the model's own illuminance** (about 50 lx), not by a
+  clock, so they are dark by day and lit through dusk at any latitude or season -- which matters at 60
+  degrees north. Measured: dark at -2 (130 lx), lit at -4 (33 lx).
+- Two consequences fall out of the physics rather than being special-cased: the global cloud-shadow
+  override multiplies **directional** lights only, so a cloud cannot shadow a lantern beneath the deck;
+  and the exposure meter does not see the lanterns, because a lamp that could stop the whole world down
+  by drifting into frame would be a bug.
+- **Cost: nothing.** `main` 6.38 ms -> 6.23 ms with six lanterns lit; totals 11.05 -> 10.96.
+
+---
+
 ## Still wrong, ranked
 
-1. **Cumulus does not read as sparse fair-weather cumulus** from a low camera; blind reviewers name it
+Re-ranked after the second pass. Items 1-3 are what four independent blind reviewers, given only images
+and the fidelity docs, kept naming without prompting.
+
+1. **The old build still owns the single hero into-sun sunset.** A three-way blind review put the new
+   meter first overall and first on sunset *plausibility*, and still called the old system's
+   `a-sunward-e00` "the best frame in the whole set". The new one has a white bloom hotspot around the
+   disc and a sea that is a notch less silhouetted. Part of that is unfixable (the disc's core is
+   `E/Omega`), and part is real: our aureole-to-zenith contrast at a 0 degree sun is about 10:1 where
+   the real sky is nearer 50:1, because Preetham's single Henyey-Greenstein lobe at `g = 0.8` is too
+   broad to be an aerosol aureole. A real Mie phase function has a sharp forward diffraction peak. That
+   is the next physics to attack, and it must be A/B'd -- a two-term phase reshapes every frame.
+2. **Sun glitter is still a smear at mid/high sun.** Named "the top remaining CG tell" by two reviewers
+   independently. It needs a microfacet sparkle term with sub-pixel normal variance (`FIDELITY.md`), not
+   more light.
+3. **Directional contrast on the islands is a little flat.** The sky-fill that (correctly) rescues the
+   back-lit rock also lifts its shadow side, so the sun does less *shaping* than it should. The old
+   build over-responded to the sun and crushed the shadow side to black; ours errs the safe way, but it
+   errs.
+4. **Golden-hour rock ignores the warm low sun** -- it stays cool-neutral while the sky around it goes
+   gold. Same class of bug as the ones this overhaul exists to kill: a surface not receiving the light
+   the model says is falling on it. Worth chasing.
+5. **Cumulus does not read as sparse fair-weather cumulus** from a low camera; blind reviewers name it
    "stratocumulus" or "a mackerel sheet", and scored it 3/10 for recognisability. Real cumulus at 1200 m
    seen from 3 m up genuinely covers the low sky — the deck stacks up toward the horizon — but the deeper
    cause is that a 2-D field has no vertical extent, so there are no *heaps*, only patches. This is the
    genus that most wants the next increment of work.
-2. **Dappling needs kilometres.** Cumulus cells are ~650 m across; a frame showing 2 km of sea shows
+6. **Dappling needs kilometres.** Cumulus cells are ~650 m across; a frame showing 2 km of sea shows
    three of them. The mechanism is verified working (the probe reads beam = 0 under a cell and full
    beam in a gap at the same elevation), but a hero frame has to be shot from high and wide or the
    pattern is not a pattern. Reviewers reported "no dappling" three times before this was understood.
-3. **The clouds have no vertical structure.** Self-shadow taps along the sun's *horizontal* direction
+7. **The clouds have no vertical structure.** Self-shadow taps along the sun's *horizontal* direction
    give lit and dark *sides*; they cannot give a lit *top* and a dark *base*. That is the honest limit
    of a 2-D field, and the reason the doc's own genus table asks only for "recognisable", not "correct".
-4. **Cloud edges are still hard-ish**, especially on the optically deepest genera, where the opacity
+8. **Cloud edges are still hard-ish**, especially on the optically deepest genera, where the opacity
    saturates a few noise units past the threshold no matter how gently the thickness tapers.
-5. **The sun disc's core still clips to white** at every elevation. AgX saves the falloff, bloom (as
+9. **The sun disc's core still clips to white** at every elevation. AgX saves the falloff, bloom (as
    tuned) does not save the core, and nothing will: the disc's radiance is `E/Ω`, thousands of times
    over the white point. Dimming it was tried before this overhaul and rejected — it becomes a weak dot.
-6. **Sun glitter is still a smear at mid/high sun**, though measurably less milky than baseline. That
-   needs a microfacet sparkle term with sub-pixel normal variance (`FIDELITY.md`), not more light.
-7. **three's PMREM under-delivers a horizon-bright sky by ~8 %** (see above). Uncorrected on purpose.
-8. **The Earth's shadow does not rise.** No Belt of Venus, no narrowing twilight arch.
+10. **three's PMREM under-delivers a horizon-bright sky by ~8 %** (see above). Uncorrected on purpose.
+11. **The Earth's shadow does not rise.** No Belt of Venus, no narrowing twilight arch.
+12. **Below -4 degrees the twilight arch is nearly uniform in altitude** (see `L0`, above). Preetham's
+    frozen shape does not know that a real arch still favours the horizon.
+13. **The midday zenith is a touch milkier** than the build immediately before the meter change -- the
+    honest cost of metering the field instead of the ground, about a third of a stop. Two reviewers
+    noticed; both still preferred the new meter overall.
 
 ---
 
