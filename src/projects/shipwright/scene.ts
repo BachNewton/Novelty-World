@@ -465,6 +465,86 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // --- Environment: sun, sky, atmosphere, clouds (all owned by sky.ts) ---------
   daylight.buildGui({ environment });
 
+  // --- Volumetric cloud pass — live controls (the spike) -----------------------
+  // A dedicated folder; the flat-deck genus controls stay in daylight.buildGui above. Enabling this
+  // hides the flat deck. Every slider is a live uniform, so the look can be dialled without a rebuild.
+  const volFolder = environment.addFolder("Volumetric Clouds");
+  const volState = {
+    enabled: false,
+    preset: "cumulus",
+    coverage: CUMULUS.coverage,
+    base: CUMULUS.base,
+    thickness: CUMULUS.thickness,
+    absorption: CUMULUS.absorption,
+    density: CUMULUS.density,
+    featureSize: CUMULUS.featureSize,
+    erode: CUMULUS.erode,
+    haze: CUMULUS.haze,
+    steps: CUMULUS.steps,
+    lightSteps: CUMULUS.lightSteps,
+    sunGain: CUMULUS.sunGain,
+    ambientGain: CUMULUS.ambientGain,
+    windX: CUMULUS.wind[0],
+    windZ: CUMULUS.wind[1],
+  };
+  const pushVol = () => {
+    volClouds.setParams({
+      coverage: volState.coverage,
+      base: volState.base,
+      thickness: volState.thickness,
+      absorption: volState.absorption,
+      density: volState.density,
+      featureSize: volState.featureSize,
+      erode: volState.erode,
+      haze: volState.haze,
+      steps: volState.steps,
+      lightSteps: volState.lightSteps,
+      sunGain: volState.sunGain,
+      ambientGain: volState.ambientGain,
+      wind: [volState.windX, volState.windZ],
+    });
+  };
+  const refreshVol = () => volFolder.controllersRecursive().forEach((c) => c.updateDisplay());
+  volFolder.add(volState, "enabled").onChange((on: boolean) => {
+    volClouds.setEnabled(on);
+    if (on) daylight.setCloudGenus("clear"); // hide the flat deck so only the volumetric shows
+  });
+  volFolder.add(volState, "preset", ["cumulus", "storm"]).onChange((name: string) => {
+    const preset = name === "storm" ? STORM : CUMULUS;
+    Object.assign(volState, {
+      coverage: preset.coverage,
+      base: preset.base,
+      thickness: preset.thickness,
+      absorption: preset.absorption,
+      density: preset.density,
+      featureSize: preset.featureSize,
+      erode: preset.erode,
+      haze: preset.haze,
+      steps: preset.steps,
+      lightSteps: preset.lightSteps,
+      sunGain: preset.sunGain,
+      ambientGain: preset.ambientGain,
+      windX: preset.wind[0],
+      windZ: preset.wind[1],
+    });
+    pushVol();
+    refreshVol();
+  });
+  volFolder.add(volState, "coverage", 0, 1, 0.01).onChange(pushVol);
+  volFolder.add(volState, "base", 200, 4000, 50).name("base (m)").onChange(pushVol);
+  volFolder.add(volState, "thickness", 50, 3000, 50).name("thickness (m)").onChange(pushVol);
+  volFolder.add(volState, "absorption", 0.005, 0.15, 0.005).onChange(pushVol);
+  volFolder.add(volState, "density", 0.2, 2, 0.05).onChange(pushVol);
+  volFolder.add(volState, "featureSize", 200, 3000, 50).name("feature size (m)").onChange(pushVol);
+  volFolder.add(volState, "erode", 0, 0.9, 0.02).name("erode (detail)").onChange(pushVol);
+  volFolder.add(volState, "haze", 0, 0.0004, 0.00001).name("haze").onChange(pushVol);
+  volFolder.add(volState, "steps", 8, 96, 1).name("view steps").onChange(pushVol);
+  volFolder.add(volState, "lightSteps", 1, 16, 1).name("light steps").onChange(pushVol);
+  volFolder.add(volState, "sunGain", 0, 3, 0.05).name("sun gain").onChange(pushVol);
+  volFolder.add(volState, "ambientGain", 0, 2, 0.05).name("ambient gain").onChange(pushVol);
+  volFolder.add(volState, "windX", -20, 20, 0.5).name("wind x").onChange(pushVol);
+  volFolder.add(volState, "windZ", -20, 20, 0.5).name("wind z").onChange(pushVol);
+
   // --- Sea: wave shape + water optics (ocean.ts fills its own sub-folders) -----
   ocean.buildGui({ sea: seaFolder });
 

@@ -59,18 +59,30 @@ export interface VolumetricCloudParams {
   sunGain: number;
   /** Scales the ambient sky contribution. */
   ambientGain: number;
+  /** View-march samples. More = finer detail + less banding, at linear cost. */
+  steps: number;
+  /** Sun-march samples for self-shadowing. */
+  lightSteps: number;
+  /** How hard the high-frequency detail carves the cloud (billow depth / wispiness). */
+  erode: number;
+  /** Aerial-perspective haze: per-metre rate at which distant clouds wash toward the sky. */
+  haze: number;
 }
 
 export const CUMULUS: VolumetricCloudParams = {
-  coverage: 0.42,
-  base: 1200,
-  thickness: 550,
-  absorption: 0.03,
+  coverage: 0.5,
+  base: 900,
+  thickness: 250, // a thinner slab, finely sampled -> crisp, like the reference (not a coarse 550 m)
+  absorption: 0.05,
   density: 1,
-  featureSize: 700,
+  featureSize: 550,
   wind: [7, 2],
   sunGain: 1,
-  ambientGain: 0.7,
+  ambientGain: 0.75,
+  steps: 40, // 40 steps over 250 m ~ 6 m/step: fine enough to kill most of the grain
+  lightSteps: 6,
+  erode: 0.45,
+  haze: 0.00008,
 };
 
 /** The "big dark clouds rolling in" mood, by the two dials Kyle spotted: taller + more absorbing. */
@@ -84,6 +96,10 @@ export const STORM: VolumetricCloudParams = {
   wind: [11, 3],
   sunGain: 1,
   ambientGain: 0.5,
+  steps: 56, // a thick slab needs many more samples than cumulus or it bands into grey
+  lightSteps: 6,
+  erode: 0.4,
+  haze: 0.00006,
 };
 
 export interface CloudLight {
@@ -133,9 +149,13 @@ uniform float uFeatureScale; // 1 / featureSize
 uniform vec2 uWind;          // m/s
 uniform float uSunGain;
 uniform float uAmbientGain;
+uniform float uSteps;       // view-march samples (quality/detail dial)
+uniform float uLightSteps;  // sun-march samples
+uniform float uErode;       // how hard the high-frequency detail carves the cloud
+uniform float uHaze;        // aerial perspective: distant clouds wash toward the sky
 
-const int STEPS = 28;
-const int LIGHT_STEPS = 6;
+const int MAX_STEPS = 96;   // hard cap for the dynamic loop; uSteps is the live count
+const int MAX_LIGHT = 16;
 const float MAX_DISTANCE = 14000.0;
 const float PI = 3.141592653589793;
 
@@ -166,20 +186,47 @@ float fbm(vec2 p) {
   return v / tot;
 }
 
+// --- true 3-D value-noise fBm, for erosion that billows and overhangs (not a 2-D offset fake) ---
+float vhash3(vec3 p) {
+  return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123);
+}
+float vnoise3(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(vhash3(i + vec3(0, 0, 0)), vhash3(i + vec3(1, 0, 0)), f.x),
+        mix(vhash3(i + vec3(0, 1, 0)), vhash3(i + vec3(1, 1, 0)), f.x), f.y),
+    mix(mix(vhash3(i + vec3(0, 0, 1)), vhash3(i + vec3(1, 0, 1)), f.x),
+        mix(vhash3(i + vec3(0, 1, 1)), vhash3(i + vec3(1, 1, 1)), f.x), f.y),
+    f.z);
+}
+float fbm3(vec3 p) {
+  float v = 0.0;
+  float amp = 0.5;
+  float tot = 0.0;
+  for (int i = 0; i < 4; i++) {
+    v += amp * vnoise3(p);
+    tot += amp;
+    p = p * 2.0 + vec3(17.1, 9.3, 23.7);
+    amp *= 0.5;
+  }
+  return v / tot;
+}
+
 // Cloud density in [0,1] at a world point.
 float density(vec3 p) {
-  vec2 uv = (p.xz + uWind * uTime) * uFeatureScale;
-  float shape = fbm(uv);
+  vec3 wp = p + vec3(uWind.x, 0.0, uWind.y) * uTime;
+  float shape = fbm(wp.xz * uFeatureScale);
   // Coverage: higher coverage lowers the threshold the noise must clear.
   float cov = smoothstep(1.0 - uCoverage, 1.0 - uCoverage + 0.22, shape);
   if (cov <= 0.0) return 0.0;
   // Vertical profile: dense in the lower-middle, wispy at the top, roundish base.
   float h = clamp((p.y - uBase) / uThickness, 0.0, 1.0);
   float profile = smoothstep(0.0, 0.18, h) * (1.0 - smoothstep(0.55, 1.0, h));
-  // Pseudo-3-D erosion: higher-frequency detail that varies with height carves billows/overhangs,
-  // so this is a soft blob, not a single-valued heightfield surface.
-  float ero = fbm(uv * 3.1 + vec2(p.y * 0.02, uTime * 0.05));
-  float d = clamp(cov * profile - ero * 0.4, 0.0, 1.0);
+  // True 3-D erosion carves cauliflower billows and overhangs a heightfield can't represent.
+  float ero = fbm3(wp * (uFeatureScale * 2.4));
+  float d = clamp(cov * profile - ero * uErode, 0.0, 1.0);
   return d * uDensity;
 }
 
@@ -201,22 +248,26 @@ void main() {
   float tTop = (uBase + uThickness - ro.y) / rd.y;
   if (tBase > MAX_DISTANCE) discard;
   tTop = min(tTop, MAX_DISTANCE);
-  float dt = (tTop - tBase) / float(STEPS);
+  float dt = (tTop - tBase) / uSteps;
 
   float jitter = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
   float ph = phase(dot(rd, uSunDirection));
-  float lightStep = uThickness / float(LIGHT_STEPS);
+  float lightStep = uThickness / uLightSteps;
 
   float T = 1.0;
   vec3 L = vec3(0.0);
-  for (int i = 0; i < STEPS; i++) {
+  float firstT = -1.0; // distance to the first solid sample, for the distance haze
+  for (int i = 0; i < MAX_STEPS; i++) {
+    if (float(i) >= uSteps) break;
     float t = tBase + (float(i) + jitter) * dt;
     vec3 p = ro + rd * t;
     float d = density(p);
     if (d > 0.001) {
+      if (firstT < 0.0) firstT = t;
       // Self-shadow: march toward the sun and accumulate density in the way.
       float sunDepth = 0.0;
-      for (int j = 1; j <= LIGHT_STEPS; j++) {
+      for (int j = 1; j <= MAX_LIGHT; j++) {
+        if (float(j) > uLightSteps) break;
         sunDepth += density(p + uSunDirection * (lightStep * float(j)));
       }
       float sunT = exp(-uAbsorption * sunDepth * lightStep);
@@ -228,7 +279,14 @@ void main() {
     }
   }
 
-  gl_FragColor = vec4(L, 1.0 - T);
+  // Aerial perspective: distant clouds wash toward the ambient sky, which also softens the far,
+  // under-sampled edge into haze instead of a hard grainy block.
+  vec3 col = L;
+  if (firstT > 0.0) {
+    float haze = 1.0 - exp(-firstT * uHaze);
+    col = mix(L, uSkyColor * uAmbientGain, haze);
+  }
+  gl_FragColor = vec4(col, 1.0 - T);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -249,6 +307,10 @@ export function createVolumetricClouds(params: VolumetricCloudParams = CUMULUS):
     uWind: { value: new THREE.Vector2(params.wind[0], params.wind[1]) },
     uSunGain: { value: params.sunGain },
     uAmbientGain: { value: params.ambientGain },
+    uSteps: { value: params.steps },
+    uLightSteps: { value: params.lightSteps },
+    uErode: { value: params.erode },
+    uHaze: { value: params.haze },
   };
 
   const material = new THREE.ShaderMaterial({
@@ -286,6 +348,10 @@ export function createVolumetricClouds(params: VolumetricCloudParams = CUMULUS):
       if (patch.wind !== undefined) uniforms.uWind.value.set(patch.wind[0], patch.wind[1]);
       if (patch.sunGain !== undefined) uniforms.uSunGain.value = patch.sunGain;
       if (patch.ambientGain !== undefined) uniforms.uAmbientGain.value = patch.ambientGain;
+      if (patch.steps !== undefined) uniforms.uSteps.value = patch.steps;
+      if (patch.lightSteps !== undefined) uniforms.uLightSteps.value = patch.lightSteps;
+      if (patch.erode !== undefined) uniforms.uErode.value = patch.erode;
+      if (patch.haze !== undefined) uniforms.uHaze.value = patch.haze;
     },
     setEnabled(enabled) {
       mesh.visible = enabled;
