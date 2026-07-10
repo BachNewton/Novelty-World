@@ -198,6 +198,11 @@ code that floats the ship agree on where the surface is.
   - The env map is the water's sky reflection (correct on the displaced surface --
     it reflects per-pixel by the real normal) and the SSR fallback. It is baked
     WITHOUT the sun's disc: the `DirectionalLight` already carries the beam.
+- **The exposure key is 0.125 (ISO 2720), NOT 0.18.** `0.18` is a grey CARD's
+  reflectance; `key` is the calibration of a reflected-light averaging meter, whose
+  ISO 2720 constant `K = 12.5` places the scene average near 12.5 %. A meter has
+  never put a grey card at middle grey except by coincidence. Blind review confirmed:
+  0.125 beat 0.15 and 0.18 at high sun AND at sunset.
 - **Exposure meters the SCENE, not the ground.** `exposure = key / L_field`, where
   `L_field = 0.5 * mean sky radiance + 0.5 * sea radiance` -- the scene's own average
   luminance. It is NOT `(0.18/pi) * E_horizontal`; that is an incident meter with a

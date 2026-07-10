@@ -481,6 +481,67 @@ meter first overall and first on sunset physical plausibility, calling it *"the 
 never broken."* It also said the old system still owns the single hero into-sun frame. That is recorded
 below, unresolved.
 
+### 5. The key was 0.18, which is a grey card, not a meter
+
+The old meter's premise outlived it by one commit. `key` is where the meter places the scene's average,
+and it was still carrying the *grey-card* number.
+
+`0.18` is the reflectance of a physical grey card. `key` is the calibration of a reflected-light
+**averaging meter**, which ISO 2720 fixes through its meter constant `K`, set by every manufacturer in
+`[10.6, 13.4]`. The canonical `K = 12.5` puts the metered scene average near **12.5 %** of the display
+range. A meter has never placed a grey card at middle grey except by coincidence.
+
+Three blind reviewers had independently called the daylight "milky" and the midday zenith "pale". A
+fourth was handed `0.18 / 0.15 / 0.125` with no idea what the variable was, and ranked **0.125 first
+overall, first at high sun, first at sunset**, writing of `0.18`: *"do not ship."* `0.15` was offered as
+a risk-averse compromise and rejected on principle -- a number chosen to split a difference is exactly
+the fudge this overhaul keeps deleting.
+
+**Cost, stated plainly:** at -6 degrees the sea and the buoy hulls fall to near-black, leaving the
+navigation lights and the afterglow band. That is what a sun 6 degrees below the horizon looks like.
+`DEFAULT_ADAPTATION_FLOOR_LUX` is the knob for anyone who disagrees.
+
+### An instrument that could not see what it measured
+
+A blind reviewer named "the gloss gelcoat and the matte white are indistinguishable" as the top defect
+in the material set. They were right about the frames and wrong about the material: an isolated capture
+shows the clearcoat's highlight exactly where it belongs.
+
+Every camera in the suite looked at the probes **from the sun's own side**, so their lit caps pointed
+away and no specular lobe could ever land in view. Fixed by a front-lit group (sun behind the camera).
+Worth remembering: a reviewer can only report what the frames show, so a gap in the *instrument* comes
+back as a false defect in the *model*.
+
+---
+
+## What the blind reviewers found in the A/B (old build vs new)
+
+Four reviewers, four lenses, no code, neutral directory names.
+
+| lens | winner | margin |
+|---|---|---|
+| physical accuracy | new | "decisive" on the day side |
+| photorealism | new | "clear, approaching decisive" |
+| beauty / holistic coherence | new | clear win, real trade |
+| directional lighting (sun around the compass) | new | "decisively" |
+| materials (calibration rig) | new | "decisively" |
+| water optics (8 Jerlov types) | new | "moderately to clearly decisive" |
+
+Unprompted, and independently, they all landed on the same indictment of the old model:
+
+> "Buoys, hulls and water are daylit while the granite-and-spruce archipelago behind them is a black
+> night-time cutout. That is one scene wearing two different suns."
+
+That is the per-material lighting hack this overhaul deleted. The rotation reviewer isolated it: on the
+old build the scene's brightness **swings with the sun's compass heading** at fixed elevation, which is
+impossible. The material reviewer found a second one the rig was built to catch: the old build renders
+the **submerged half of a straddling object brighter than its above-water half** -- a seam that only a
+sphere cut by the waterline can show.
+
+Where the old build still wins, recorded honestly: its unlit deep water is a touch richer, its buoy
+paint desaturates more correctly at dusk, and until the meter fix it owned the single hero into-sun
+sunset frame.
+
 ---
 
 ## The instruments, rebuilt
