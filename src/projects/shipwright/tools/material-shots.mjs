@@ -63,6 +63,12 @@ const WORLD_SET = [
 const CAM = {
   wide: { pos: [0, 6.4, 17.5], target: [0, -0.5, 0] },
   raking: { pos: [-11, 1.9, 12], target: [2, -0.2, -1] },
+  // Square-on to the rig, eye at probe height. The ONLY geometry in which a specular lobe can land on
+  // a probe's visible cap -- every other camera here looks at the probes from the sun's own side, so
+  // their lit faces point away. A blind reviewer reported "the gloss gelcoat and the matte white are
+  // indistinguishable"; they were right about the FRAMES and wrong about the material, because no frame
+  // in the suite could show a highlight. The instrument has to be able to see the thing it measures.
+  frontlit: { pos: [0, 2.6, 12], target: [0, 0.9, -3.4] },
   overhead: { pos: [0, 12, 8], target: [0, -1, 0] },
   // The navigation marks: a low eye down the channel, the way a helmsman sees them.
   marks: { pos: [-6, 2.4, 6], target: [4, 1.6, -4] },
@@ -103,6 +109,21 @@ for (const el of [40, 15, 5, 1]) {
   add(`d-raking-e${slug(el)}`, { set: WORLD_SET, cam: "raking", el });
   add(`d-raking-ref-e${slug(el)}`, { set: REFERENCE_SET, cam: "raking", el });
 }
+// D2 -- FRONT-LIT. Sun behind the camera (azimuth 315 against the suite's 135), so the specular lobes
+// are on the probes' visible caps: the clearcoat's hard little highlight against the matte paint's
+// broad one, the metals' mirror glint, the chrome ball's image of the sun.
+for (const el of [50, 30, 15, 5]) {
+  add(`d2-frontlit-world-e${slug(el)}`, { set: WORLD_SET, cam: "frontlit", el, az: 315 });
+  add(`d2-frontlit-ref-e${slug(el)}`, { set: REFERENCE_SET, cam: "frontlit", el, az: 315 });
+}
+// The gloss/matte pair alone, big in frame. If these two ever look the same, the clearcoat is gone.
+add("d2-gloss-vs-matte-e30", {
+  set: ["gelcoat", "matte-white"],
+  cam: "frontlit",
+  el: 30,
+  az: 315,
+});
+
 // E -- WATER CLARITY, the axis this rig exists for as much as the light does.
 //
 // A Jerlov water type is two independent claims at once: the BODY COLOUR the column converges to, and
