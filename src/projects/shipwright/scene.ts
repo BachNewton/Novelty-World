@@ -538,7 +538,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   volFolder.add(volState, "featureSize", 200, 3000, 50).name("feature size (m)").onChange(pushVol);
   volFolder.add(volState, "erode", 0, 0.9, 0.02).name("erode (detail)").onChange(pushVol);
   volFolder.add(volState, "haze", 0, 0.0004, 0.00001).name("haze").onChange(pushVol);
-  volFolder.add(volState, "steps", 8, 96, 1).name("view steps").onChange(pushVol);
+  volFolder.add(volState, "steps", 8, 160, 1).name("view steps").onChange(pushVol);
   volFolder.add(volState, "lightSteps", 1, 16, 1).name("light steps").onChange(pushVol);
   volFolder.add(volState, "sunGain", 0, 3, 0.05).name("sun gain").onChange(pushVol);
   volFolder.add(volState, "ambientGain", 0, 2, 0.05).name("ambient gain").onChange(pushVol);

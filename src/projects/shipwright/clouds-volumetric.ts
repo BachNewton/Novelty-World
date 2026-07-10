@@ -70,19 +70,21 @@ export interface VolumetricCloudParams {
 }
 
 export const CUMULUS: VolumetricCloudParams = {
-  coverage: 0.5,
+  coverage: 0.4, // sparser -> distinct fair-weather puffs with blue sky between, not a connected sheet
   base: 900,
-  thickness: 250, // a thinner slab, finely sampled -> crisp, like the reference (not a coarse 550 m)
-  absorption: 0.05,
+  thickness: 320,
+  absorption: 0.06,
   density: 1,
-  featureSize: 550,
+  featureSize: 520,
   wind: [7, 2],
-  sunGain: 1,
-  ambientGain: 0.75,
-  steps: 40, // 40 steps over 250 m ~ 6 m/step: fine enough to kill most of the grain
-  lightSteps: 6,
-  erode: 0.45,
-  haze: 0.00008,
+  sunGain: 1.1,
+  ambientGain: 0.8,
+  // High step counts on purpose: we are optimising for the LOOK now and will amortise the cost by
+  // baking to a cubemap. 80 steps keeps even shallow-angle clouds sampled; grain is no longer free.
+  steps: 80,
+  lightSteps: 8,
+  erode: 0.5,
+  haze: 0.0001,
 };
 
 /** The "big dark clouds rolling in" mood, by the two dials Kyle spotted: taller + more absorbing. */
@@ -154,8 +156,8 @@ uniform float uLightSteps;  // sun-march samples
 uniform float uErode;       // how hard the high-frequency detail carves the cloud
 uniform float uHaze;        // aerial perspective: distant clouds wash toward the sky
 
-const int MAX_STEPS = 96;   // hard cap for the dynamic loop; uSteps is the live count
-const int MAX_LIGHT = 16;
+const int MAX_STEPS = 160;  // hard cap for the dynamic loop; uSteps is the live count
+const int MAX_LIGHT = 24;
 const float MAX_DISTANCE = 14000.0;
 const float PI = 3.141592653589793;
 
@@ -271,9 +273,15 @@ void main() {
         sunDepth += density(p + uSunDirection * (lightStep * float(j)));
       }
       float sunT = exp(-uAbsorption * sunDepth * lightStep);
-      vec3 scatter = uSunColor * uSunGain * sunT * ph + uSkyColor * uAmbientGain;
+      // Powder / dark-edge: a thin sunlit rim scatters less back than its optical depth suggests
+      // (the multiple-scatter deficit), which is what gives cumulus their crisp cauliflower edges.
+      float powder = 1.0 - exp(-uAbsorption * d * 6.0);
+      // Height-graded ambient: bright sunlit tops, darker bases — the read of a real cumulus.
+      float hh = clamp((p.y - uBase) / uThickness, 0.0, 1.0);
+      vec3 sunLight = uSunColor * uSunGain * sunT * ph * mix(1.0, powder, 0.55);
+      vec3 ambient = uSkyColor * uAmbientGain * (0.3 + 0.7 * hh);
       float Ti = exp(-uAbsorption * d * dt);
-      L += T * scatter * (1.0 - Ti);
+      L += T * (sunLight + ambient) * (1.0 - Ti);
       T *= Ti;
       if (T < 0.02) break;
     }
