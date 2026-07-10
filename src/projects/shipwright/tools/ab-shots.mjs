@@ -94,6 +94,42 @@ for (const el of [40, 10, 3]) {
 for (const el of [70, 40, 22, 10, 3, 0, -4]) {
   add(`e-wide-e${slug(el)}`, { cam: "wide", el, physics: true, island: true, sea: SEA_CHOP });
 }
+// G -- the sun goes AROUND. Every frame above is lit from azimuth 135, so the islands only ever get
+// one side of their light. Rock, lichen and spruce are the scene's only opaque diffuse surfaces, and
+// a lighting model that is only ever checked front-lit has not been checked. Same camera, same sun
+// height, sun walked around the compass: front-lit, cross-lit, and straight into the sun behind the
+// rock (where the spruce should rim-light and the shadowed faces must be carried by the SKY alone).
+for (const az of [0, 45, 90, 135, 180, 225, 270, 315]) {
+  add(`g-islands-a${String(az).padStart(3, "0")}-e22`, {
+    cam: "islands",
+    el: 22,
+    az,
+    island: true,
+    sea: SEA_CHOP,
+  });
+}
+// The same circuit at golden hour, where the terminator is longest and shadows are most legible.
+for (const az of [45, 135, 225, 315]) {
+  add(`g-islands-a${String(az).padStart(3, "0")}-e07`, {
+    cam: "islands",
+    el: 7,
+    az,
+    island: true,
+    sea: SEA_CHOP,
+  });
+}
+// And with everything in frame, so the raft and buoys rotate their shadows with the rock.
+for (const az of [45, 135, 225, 315]) {
+  add(`g-wide-a${String(az).padStart(3, "0")}-e15`, {
+    cam: "wide",
+    el: 15,
+    az,
+    physics: true,
+    island: true,
+    sea: SEA_CHOP,
+  });
+}
+
 // F -- sea states and water types, so the light is judged over more than one surface.
 add("f-glassy-e05", { cam: "sunward", el: 5, sea: SEA_GLASS });
 add("f-storm-e20", { cam: "sunward", el: 20, sea: SEA_STORM });
@@ -166,13 +202,14 @@ for (const shot of shots) {
       a.setWaterFx(true);
       a.setWaterType(c.water);
       a.setSea(c.sea);
-      a.setSun(c.el, 135);
+      a.setSun(c.el, c.az);
       a.setCamera(c.cam.pos, c.cam.target);
       a.freeze(c.t);
     },
     {
       cam,
       el: shot.el,
+      az: shot.az ?? 135,
       sea,
       water: shot.water ?? "Coastal 5",
       physics: shot.physics === true,
