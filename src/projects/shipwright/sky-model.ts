@@ -108,17 +108,24 @@ export interface SunTerms {
   /** Sunlit fraction of the Rayleigh / Mie columns. 1 above the horizon. See `sunlitFraction`. */
   litRayleigh: number;
   litMie: number;
+  /** The beam's colour where it meets each scattering species, at unit luminance. See `sourceTints`. */
+  tintRayleigh: Rgb;
+  tintMie: Rgb;
 }
 
 /**
  * @param shapeElevationRad the elevation the dome's SHAPE is evaluated at — clamped to the horizon.
  * @param trueElevationRad  the sun's real elevation, which may be below it. Only the shadow term
  *                          uses this; everything else is frozen at the sunset geometry.
+ * @param tints             `lighting.ts` owns the beam, so it hands us the colour that reaches each
+ *                          scattering species rather than this module re-deriving an optical depth it
+ *                          has no business owning. Identity tints reproduce raw Preetham.
  */
 export const sunTerms = (
   shapeElevationRad: number,
   p: SkyParams,
   trueElevationRad = shapeElevationRad,
+  tints: { rayleigh: Rgb; mie: Rgb } = { rayleigh: [1, 1, 1], mie: [1, 1, 1] },
 ): SunTerms => {
   const mie = totalMie(p.turbidity);
   const sunY = Math.sin(shapeElevationRad);
@@ -136,6 +143,8 @@ export const sunTerms = (
     g: p.mieDirectionalG,
     litRayleigh: sunlitFraction(trueElevationRad, RAYLEIGH_SCALE_HEIGHT_KM),
     litMie: sunlitFraction(trueElevationRad, MIE_SCALE_HEIGHT_KM),
+    tintRayleigh: tints.rayleigh,
+    tintMie: tints.mie,
   };
 };
 
@@ -164,10 +173,16 @@ export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): R
     const fex = Math.exp(-(bR * sR + bM * sM));
     // In-scattering SOURCE — only the sunlit part of each column contributes. Numerator only: the
     // denominator is the total scattering coefficient, which does not care about the sun.
-    const ratio = (t.litRayleigh * bR * rPhase + t.litMie * bM * mPhase) / (bR + bM);
+    const wR = t.litRayleigh * bR * rPhase;
+    const wM = t.litMie * bM * mPhase;
+    const ratio = (wR + wM) / (bR + bM);
     let lin = Math.pow(t.sunE * ratio * (1 - fex), 1.5);
     lin *= 1 + (Math.pow(t.sunE * ratio * fex, 0.5) - 1) * horizonMix;
-    out[i] = lin + 0.1 * fex;
+    // Each species scatters the beam that actually reached IT. Applied OUTSIDE the 1.5 power, which
+    // is a fit artefact of Preetham's magnitude, not a property of the source: scattered radiance is
+    // LINEAR in the incident beam, so raising a chromaticity to 1.5 would just oversaturate it.
+    const tint = (wR * t.tintRayleigh[i] + wM * t.tintMie[i]) / Math.max(wR + wM, 1e-12);
+    out[i] = (lin + 0.1 * fex) * tint;
   }
   return out;
 };
@@ -199,8 +214,9 @@ export const clearSkyIrradiance = (
   shapeElevationRad: number,
   p: SkyParams,
   trueElevationRad = shapeElevationRad,
+  tints: { rayleigh: Rgb; mie: Rgb } = { rayleigh: [1, 1, 1], mie: [1, 1, 1] },
 ): Rgb => {
-  const t = sunTerms(shapeElevationRad, p, trueElevationRad);
+  const t = sunTerms(shapeElevationRad, p, trueElevationRad, tints);
   const sunHoriz = Math.cos(shapeElevationRad);
   const out: Rgb = [0, 0, 0];
   for (let m = 0; m < MU_STEPS; m++) {

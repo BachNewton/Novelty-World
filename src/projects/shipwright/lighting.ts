@@ -155,38 +155,63 @@ export const airMass = (elevationDeg: number): number => {
   return 1 / (Math.sin(h * DEG) + 0.50572 * Math.pow(h + 6.07995, -1.6364));
 };
 
+// --- The atmosphere the beam crosses ----------------------------------------
+// Rayleigh at the sRGB primaries' effective wavelengths, plus an Ångström aerosol term `β·λ^−1.3` and
+// the ozone Chappuis band.
+
+const LAMBDA = [0.612, 0.549, 0.465];
+const RAYLEIGH_TAU: Rgb = LAMBDA.map((l) => {
+  const l2 = 1 / (l * l);
+  const l4 = l2 * l2;
+  return 0.008569 * l4 * (1 + 0.0113 * l2 + 0.00013 * l4);
+}) as Rgb;
+/** Chappuis band, 300 DU column. */
+const OZONE_TAU: Rgb = [0.0395, 0.025, 0.0048];
+
+const tauForBeta = (beta: number): Rgb =>
+  [0, 1, 2].map((i) => RAYLEIGH_TAU[i] + beta * Math.pow(LAMBDA[i], -1.3) + OZONE_TAU[i]) as Rgb;
+
 /**
- * Per-channel optical depth of the whole atmosphere at AM = 1.
- *
- * Rayleigh at the sRGB primaries' effective wavelengths (612 / 549 / 465 nm), plus an Ångström
- * aerosol term `β·λ^−1.3` and the ozone Chappuis band. `β` is not chosen: it is *solved* so that the
- * luminance-weighted transmittance `Σ w_i·exp(−τ_i)` equals Meinel & Meinel's 0.70 exactly. So the
- * magnitude and the colour of the beam come from two independent published models that are forced to
- * agree at one point, and everything else follows from Beer's law.
+ * The Ångström turbidity coefficient at the reference sky (`turbidity = 3`). It is not chosen: it is
+ * *solved* so that the luminance-weighted transmittance `Σ w_i·exp(−τ_i)` at AM = 1 equals Meinel &
+ * Meinel's 0.70 exactly. So the magnitude and the colour of the beam come from two independent
+ * published models forced to agree at one point, and Beer's law does the rest. Comes out at 0.108 —
+ * an average continental haze load, which is what Meinel's 0.70 implies.
  */
-const beamOpticalDepth = (): Rgb => {
-  const lambda = [0.612, 0.549, 0.465];
-  const rayleigh = lambda.map((l) => {
-    const l2 = 1 / (l * l);
-    const l4 = l2 * l2;
-    return 0.008569 * l4 * (1 + 0.0113 * l2 + 0.00013 * l4);
-  });
-  const ozone = [0.0395, 0.025, 0.0048]; // Chappuis, 300 DU column
-  const tauFor = (beta: number): Rgb =>
-    [0, 1, 2].map((i) => rayleigh[i] + beta * Math.pow(lambda[i], -1.3) + ozone[i]) as Rgb;
-  // Bisect β so the luminance-weighted transmittance at AM = 1 is Meinel's 0.70.
+const REFERENCE_BETA = (() => {
   let lo = 0;
   let hi = 0.5;
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
-    const t = tauFor(mid).map((x) => Math.exp(-x)) as Rgb;
+    const t = tauForBeta(mid).map((x) => Math.exp(-x)) as Rgb;
     if (luminance(t) > 0.7) lo = mid;
     else hi = mid;
   }
-  return tauFor((lo + hi) / 2);
-};
+  return (lo + hi) / 2;
+})();
 
-/** τ(R,G,B) at one air mass. Computed once; `[0.3074, 0.3590, 0.4910]`. */
+/** The turbidity `REFERENCE_BETA` was solved at. `DEFAULT_SKY.turbidity`. */
+const REFERENCE_TURBIDITY = 3;
+
+/**
+ * Per-channel optical depth of the whole atmosphere at AM = 1, for a given **turbidity**.
+ *
+ * Turbidity IS the aerosol load, so it must drive the beam and not only the sky. Before this, raising
+ * turbidity milked the dome and left the disc burning at full strength — which is exactly the
+ * "the picture and the light disagree" failure this model exists to prevent, in miniature.
+ *
+ * `β ∝ turbidity` is the standard Ångström–Linke relation, anchored at the solved reference. The
+ * consequence is the one everyone already knows: a hazy sunset has a **dim, deep-orange, lookable-at**
+ * sun, because the aerosol column has eaten the beam (and the blue end of it first). A clear one has a
+ * blinding white disc, whatever its hue, because it is a million times middle grey.
+ *
+ * `clearSkyDhi` picks up the other half for free: it is `GHI − beam`, so beam lost to haze reappears as
+ * diffuse skylight, which is what haze does.
+ */
+export const beamOpticalDepth = (turbidity: number = REFERENCE_TURBIDITY): Rgb =>
+  tauForBeta((REFERENCE_BETA * Math.max(turbidity, 0)) / REFERENCE_TURBIDITY);
+
+/** τ(R,G,B) at one air mass, at the reference turbidity. `[0.3074, 0.3590, 0.4910]`. */
 export const BEAM_OPTICAL_DEPTH: Rgb = beamOpticalDepth();
 
 /**
@@ -200,17 +225,77 @@ export const sunDiscVisibility = (elevationDeg: number): number => {
   return t * t * (3 - 2 * t);
 };
 
+/** Scale heights of the two scattering species. The 7x gap is why twilight turns blue. */
+const RAYLEIGH_SCALE_HEIGHT_KM = 8.4;
+const MIE_SCALE_HEIGHT_KM = 1.2;
+
+/**
+ * The **colour** of the beam where it meets the air that scatters it, per species, at unit luminance.
+ *
+ * Preetham's in-scattering source is a *scalar* (`sunE`), so the light it scatters toward you still
+ * has all its blue no matter how far it travelled to get there. That is why three's `Sky` — and ours,
+ * until now — puts a blazing WHITE aureole around a horizon sun: a halo made of light that, by Beer's
+ * law, has no blue left in it. The beam at 1° has `B/G = 0.30`; its own forward-scattered halo cannot
+ * be whiter than its source.
+ *
+ * But ONE tint for the whole dome is just as wrong, and it looks it — the anti-solar sky at sunset
+ * goes olive. The beam lighting an aerosol at 1 km has crossed nearly the whole column; the beam
+ * lighting a Rayleigh scatterer at 8 km has not. So each species gets the beam that actually reaches
+ * it, and there is nothing to fit: for an exponential column of scale height `H_j` seen by scatterers
+ * distributed as `exp(−z/H_s)`, the density-weighted mean optical depth crossed is exactly
+ *
+ *     ⟨τ_j⟩ = τ_j · H_j / (H_s + H_j)
+ *
+ * (both integrals are elementary). Ozone sits at 25 km, above both, so the beam crosses all of it.
+ * The two rows fall out:
+ *
+ *   scatterer      | of Rayleigh | of aerosol | of ozone |  tint at a 0° sun
+ *   Mie   (1.2 km) |    0.875    |    0.50    |    1     |  1.39 : 0.95 : 0.34   (a deep orange halo)
+ *   Rayleigh (8.4) |    0.50     |    0.125   |    1     |  1.09 : 1.01 : 0.68   (a sky that stays blue)
+ *
+ * `clearSkyRadiance` mixes them by the very weights it already computes for `ratio`, so the sky is
+ * reddened exactly where the aerosol does the scattering. Unit luminance keeps this a HUE change:
+ * `domeScale` re-measures the tinted dome and pins its energy to Haurwitz regardless. Preetham keeps
+ * the shape, Haurwitz keeps the energy, Beer's law now keeps the colour — the split the model claimed
+ * all along and only ever honoured for the beam.
+ *
+ * Clamped at the horizon: below it, `sunlitFraction` — not the tint — is what puts the lights out.
+ */
+export interface SourceTints {
+  rayleigh: Rgb;
+  mie: Rgb;
+}
+
+export const sourceTints = (elevationDeg: number, turbidity?: number): SourceTints => {
+  const amp = Math.pow(airMass(Math.max(elevationDeg, 0)), 0.678);
+  const beta = (REFERENCE_BETA * Math.max(turbidity ?? REFERENCE_TURBIDITY, 0)) / REFERENCE_TURBIDITY;
+  const aerosol = LAMBDA.map((l) => beta * Math.pow(l, -1.3)) as Rgb;
+
+  const tintFor = (scattererScaleHeightKm: number): Rgb => {
+    const fR = RAYLEIGH_SCALE_HEIGHT_KM / (scattererScaleHeightKm + RAYLEIGH_SCALE_HEIGHT_KM);
+    const fM = MIE_SCALE_HEIGHT_KM / (scattererScaleHeightKm + MIE_SCALE_HEIGHT_KM);
+    const transmittance = [0, 1, 2].map((i) =>
+      Math.exp(-amp * (fR * RAYLEIGH_TAU[i] + fM * aerosol[i] + OZONE_TAU[i])),
+    ) as Rgb;
+    const lum = Math.max(luminance(transmittance), 1e-9);
+    return [transmittance[0] / lum, transmittance[1] / lum, transmittance[2] / lum];
+  };
+
+  return { rayleigh: tintFor(RAYLEIGH_SCALE_HEIGHT_KM), mie: tintFor(MIE_SCALE_HEIGHT_KM) };
+};
+
 /**
  * Direct normal irradiance of the beam, per channel, in renderer units (kW/m²).
  * `DNI_λ = E0 · exp(−τ_λ · AM^0.678)`; its luminance is exactly Meinel & Meinel's
  * `1353 · 0.7^(AM^0.678)`, because that is how `BEAM_OPTICAL_DEPTH` was pinned.
  */
-export const beamIrradiance = (elevationDeg: number): Rgb => {
+export const beamIrradiance = (elevationDeg: number, turbidity?: number): Rgb => {
   const visible = sunDiscVisibility(elevationDeg);
   if (visible <= 0) return [0, 0, 0];
   const amp = Math.pow(airMass(elevationDeg), 0.678);
   const k = (SOLAR_CONSTANT / WATTS_PER_UNIT) * visible;
-  return [0, 1, 2].map((i) => k * Math.exp(-BEAM_OPTICAL_DEPTH[i] * amp)) as Rgb;
+  const tau = turbidity === undefined ? BEAM_OPTICAL_DEPTH : beamOpticalDepth(turbidity);
+  return [0, 1, 2].map((i) => k * Math.exp(-tau[i] * amp)) as Rgb;
 };
 
 // --- Diffuse skylight --------------------------------------------------------
@@ -248,9 +333,12 @@ const TWILIGHT_HANDOVER_DEG = 3;
  * −18°: Haurwitz above the handover, the measured twilight table below it, and a log-space blend
  * across the join (which is anchored on the Haurwitz value, so there is no step).
  */
-export const clearSkyDhi = (elevationDeg: number): number => {
+export const clearSkyDhi = (elevationDeg: number, turbidity?: number): number => {
   const daylightWatts = (h: number) =>
-    Math.max(0, haurwitzGhi(h) - luminance(beamIrradiance(h)) * WATTS_PER_UNIT * Math.sin(h * DEG));
+    Math.max(
+      0,
+      haurwitzGhi(h) - luminance(beamIrradiance(h, turbidity)) * WATTS_PER_UNIT * Math.sin(h * DEG),
+    );
 
   if (elevationDeg >= TWILIGHT_HANDOVER_DEG) {
     return daylightWatts(elevationDeg) / WATTS_PER_UNIT;
@@ -299,7 +387,15 @@ const rawClearSkyIrradiance = (
   const key = `${shapeElevationDeg.toFixed(3)}|${trueElevationDeg.toFixed(3)}|${params.turbidity}|${params.rayleigh}|${params.mieCoefficient}|${params.mieDirectionalG}`;
   if (key !== rawCacheKey) {
     rawCacheKey = key;
-    rawCacheValue = clearSkyIrradiance(shapeElevationDeg * DEG, params, trueElevationDeg * DEG);
+    // Integrate the dome we RENDER, tint and all, so `domeScale` still lands the energy exactly on
+    // Haurwitz. The tint has unit luminance but the integral does not commute with it, so the scale
+    // moves a little — which is the point: we are pinning the tinted dome, not the untinted one.
+    rawCacheValue = clearSkyIrradiance(
+      shapeElevationDeg * DEG,
+      params,
+      trueElevationDeg * DEG,
+      sourceTints(trueElevationDeg, params.turbidity),
+    );
   }
   return rawCacheValue;
 };
@@ -406,7 +502,12 @@ const integrateDome = (
   if (input.cloud.coverage <= 0 || input.cloud.tau <= 0) return scaleRgb(clearChroma, clearDhi);
 
   const shapeElRad = skyShapeElevation(input.elevationDeg) * DEG;
-  const terms = sunTerms(shapeElRad, input.sky, input.elevationDeg * DEG);
+  const terms = sunTerms(
+    shapeElRad,
+    input.sky,
+    input.elevationDeg * DEG,
+    sourceTints(input.elevationDeg, input.sky.turbidity),
+  );
   const sunHoriz = Math.cos(shapeElRad);
   const threshold = cloudThreshold(input.cloud);
   const out: Rgb = [0, 0, 0];
@@ -487,13 +588,14 @@ export const computeLighting = (input: LightingInput): LightingState => {
   ];
 
   // --- The beam, clear-sky. Clouds are applied per-fragment by the shadow map, so the light itself
-  // carries the unattenuated beam and only the CPU-side energy budget uses the mean.
-  const beamClear = beamIrradiance(elevationDeg);
+  // carries the unattenuated beam and only the CPU-side energy budget uses the mean. Turbidity is the
+  // aerosol load, so it dims and reddens the BEAM as well as milking the dome.
+  const beamClear = beamIrradiance(elevationDeg, input.sky.turbidity);
 
   // --- The clear dome: Preetham's shape + chromaticity, the irradiance model's energy.
   const rawClear = rawClearSkyIrradiance(shapeEl, elevationDeg, input.sky);
   const rawLum = Math.max(luminance(rawClear), 1e-12);
-  const clearDhi = clearSkyDhi(elevationDeg);
+  const clearDhi = clearSkyDhi(elevationDeg, input.sky.turbidity);
   const domeScale = clearDhi / rawLum;
   const clearChroma: Rgb = [rawClear[0] / rawLum, rawClear[1] / rawLum, rawClear[2] / rawLum];
 

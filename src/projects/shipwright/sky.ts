@@ -21,6 +21,7 @@ import {
   DEFAULT_GROUND_ALBEDO,
   computeLighting,
   skyShapeElevation,
+  sourceTints,
   sunSkyRatio,
   sunSkyRatioSunFacing,
   type LightingState,
@@ -226,6 +227,8 @@ uniform vec3 uSunDiscDirection;    // the true sun direction, which may be below
 uniform vec3 uBetaR;
 uniform vec3 uBetaM;
 uniform float uSunE;
+uniform vec3 uTintRayleigh;
+uniform vec3 uTintMie;
 uniform float uSunShapeY;
 uniform float uMieG;
 uniform float uLitRayleigh; // fraction of each scatterer's column still lit by the direct beam --
@@ -286,15 +289,24 @@ void main() {
   // horizon the aerosol column goes dark almost at once (scale height 1.2 km) and takes the sharp
   // forward-scattering aureole with it, while the Rayleigh column (8.4 km) lingers: sunset's hot white
   // spot becomes a wide blue twilight arch, and a chrome ball stops reflecting a sun that has set.
-  vec3 ratio = (uLitRayleigh * uBetaR * rPhase + uLitMie * uBetaM * mPhase) / (uBetaR + uBetaM);
+  vec3 wR = uLitRayleigh * uBetaR * rPhase;
+  vec3 wM = uLitMie * uBetaM * mPhase;
+  vec3 ratio = (wR + wM) / (uBetaR + uBetaM);
 
   vec3 Lin = pow(uSunE * ratio * (1.0 - Fex), vec3(1.5));
   Lin *= mix(vec3(1.0), pow(uSunE * ratio * Fex, vec3(0.5)), clamp(pow(1.0 - uSunShapeY, 5.0), 0.0, 1.0));
   vec3 L0 = vec3(0.1) * Fex;
 
+  // Preetham's in-scattering source is a SCALAR (uSunE), so its aureole stayed white around a sun
+  // whose blue Beer's law had already eaten. Each species instead scatters the beam that reached IT:
+  // the aerosol sits at 1.2 km and has crossed nearly the whole column (deep orange); the Rayleigh
+  // air reaches 8.4 km and has not (stays blue). Mixed by the same weights ratio itself is built from.
+  vec3 tint = (wR * uTintRayleigh + wM * uTintMie) / max(wR + wM, vec3(1e-12));
+
   // uDomeScale carries the dome's ENERGY, set per elevation from a real clear-sky irradiance model.
   // Preetham's own magnitude is discarded: it under-delivers the low-sun sky by ~10x (see lighting.ts).
-  vec3 radiance = (Lin + L0) * uDomeScale;
+  // It is measured on the TINTED dome, so the energy still lands on Haurwitz and the tint moves hue alone.
+  vec3 radiance = (Lin + L0) * tint * uDomeScale;
 
   // --- The solar disc. Its radiance is E_beam / solid angle, so integrating it returns exactly the
   // beam the DirectionalLight carries -- and it reddens with air mass for free, because E_beam does.
@@ -466,6 +478,9 @@ export interface Daylight {
   setCloudGenus: (name: string) => void;
   cloudGenus: () => CloudGenusName;
   setCloudOverrides: (patch: Partial<CloudState>) => void;
+  /** The aerosol load. Drives the beam's extinction as well as the dome's, so a hazy sunset has a
+   *  dim, deep-orange, lookable-at sun and a clear one has a blinding white disc. */
+  setTurbidity: (turbidity: number) => void;
   setExposureKey: (key: number) => void;
   setAdaptationFloorLux: (lux: number) => void;
   /** Advance the cloud scroll + re-anchor the sun's shadow frustum on the view. Once per frame. */
@@ -522,6 +537,8 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     uBetaR: { value: new THREE.Vector3() },
     uBetaM: { value: new THREE.Vector3() },
     uSunE: { value: 0 },
+    uTintRayleigh: { value: new THREE.Vector3(1, 1, 1) },
+    uTintMie: { value: new THREE.Vector3(1, 1, 1) },
     uSunShapeY: { value: 0 },
     uMieG: { value: DEFAULT_SKY.mieDirectionalG },
     uLitRayleigh: { value: 1 },
@@ -716,12 +733,19 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
 
     // The dome. `sunTerms` takes BOTH the frozen shape elevation and the true one: the shape is
     // clamped at the horizon (Preetham is undefined below it) while Earth's shadow keeps rising.
-    const terms = sunTerms(skyShapeElevation(elevation) * DEG, skyParams, elevation * DEG);
+    const terms = sunTerms(
+      skyShapeElevation(elevation) * DEG,
+      skyParams,
+      elevation * DEG,
+      sourceTints(elevation, skyParams.turbidity),
+    );
     skyUniforms.uSunShapeDirection.value.copy(shapeDirection);
     skyUniforms.uSunDiscDirection.value.copy(sunDirection);
     skyUniforms.uBetaR.value.set(...terms.betaR);
     skyUniforms.uBetaM.value.set(...terms.betaM);
     skyUniforms.uSunE.value = terms.sunE;
+    skyUniforms.uTintRayleigh.value.set(...terms.tintRayleigh);
+    skyUniforms.uTintMie.value.set(...terms.tintMie);
     skyUniforms.uSunShapeY.value = terms.sunY;
     skyUniforms.uMieG.value = skyParams.mieDirectionalG;
     skyUniforms.uLitRayleigh.value = terms.litRayleigh;
@@ -817,6 +841,10 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     cloudGenus: () => genusName,
     setCloudOverrides: (patch) => {
       cloud = { ...cloud, ...patch };
+      applyState();
+    },
+    setTurbidity: (turbidity) => {
+      skyParams.turbidity = turbidity;
       applyState();
     },
     setExposureKey: (key) => {

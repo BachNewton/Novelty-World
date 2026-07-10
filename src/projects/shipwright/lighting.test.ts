@@ -8,6 +8,8 @@ import {
   WATTS_PER_UNIT,
   airMass,
   beamIrradiance,
+  beamOpticalDepth,
+  sourceTints,
   clearSkyDhi,
   computeLighting,
   skyShapeElevation,
@@ -367,5 +369,62 @@ describe("the optical depths that colour the beam", () => {
   it("have exactly Meinel's luminance-weighted transmittance at one air mass", () => {
     const t = BEAM_OPTICAL_DEPTH.map((x) => Math.exp(-x)) as [number, number, number];
     expect(luminance(t)).toBeCloseTo(0.7, 5);
+  });
+
+  it("rise with turbidity, because turbidity IS the aerosol load", () => {
+    // The sky dome always took `turbidity`; the BEAM did not, so a hazy sky came with a sun burning at
+    // full clear-air strength. The picture and the light disagreed.
+    expect(beamOpticalDepth(3)).toEqual(BEAM_OPTICAL_DEPTH);
+    for (const i of [0, 1, 2]) {
+      expect(beamOpticalDepth(8)[i]).toBeGreaterThan(beamOpticalDepth(3)[i]);
+      expect(beamOpticalDepth(1)[i]).toBeLessThan(beamOpticalDepth(3)[i]);
+    }
+    // Only the aerosol term moves; Rayleigh and ozone are properties of the gas column, not the haze.
+    expect(beamOpticalDepth(0)[1]).toBeCloseTo(0.123, 3); // Rayleigh(549) 0.098 + ozone(549) 0.025
+  });
+
+  it("redden the beam faster than they dim it, so a hazy horizon sun goes deep orange", () => {
+    // beta * lambda^-1.3 hits blue hardest. This is the whole reason the classic big orange sun needs
+    // haze: it is the only thing that can dim a disc that is a million times middle grey.
+    const hue = (t: number) => {
+      const [r, g] = beamIrradiance(1, t);
+      return r / g;
+    };
+    expect(hue(8)).toBeGreaterThan(hue(3));
+    expect(hue(3)).toBeGreaterThan(hue(1));
+    expect(luminance(beamIrradiance(1, 8))).toBeLessThan(0.25 * luminance(beamIrradiance(1, 3)));
+  });
+
+  it("reddens the aerosol's source far harder than the air's, so a sunset sky stays blue overhead", () => {
+    // A single dome-wide tint was tried first and the ANTI-SOLAR sky at sunset went olive: the beam
+    // that lights a Rayleigh scatterer at 8.4 km has NOT crossed the column the beam lighting an
+    // aerosol at 1.2 km has. `H_j/(H_s + H_j)` is exact for exponential columns; nothing is fitted.
+    const { rayleigh, mie } = sourceTints(0);
+    expect(mie[2]).toBeLessThan(0.45); // the aureole loses most of its blue
+    expect(rayleigh[2]).toBeGreaterThan(0.6); // the sky keeps most of its own
+    expect(mie[0]).toBeGreaterThan(rayleigh[0]);
+    // Overhead they nearly agree, because there is barely any column to cross either way — the
+    // aerosol still sees ~5% more of it, which is exactly the asymmetry, just very small at AM = 1.
+    const high = sourceTints(90);
+    for (const i of [0, 1, 2]) expect(Math.abs(high.mie[i] - high.rayleigh[i])).toBeLessThan(0.08);
+  });
+
+  it("has unit luminance for both species, so the tint moves hue and never energy", () => {
+    for (const el of [90, 30, 5, 0]) {
+      const t = sourceTints(el);
+      expect(luminance(t.rayleigh)).toBeCloseTo(1, 6);
+      expect(luminance(t.mie)).toBeCloseTo(1, 6);
+    }
+  });
+
+  it("hands the beam's loss to the sky, because haze scatters rather than absorbs", () => {
+    // DHI is GHI - beam, so this falls out for free. Total illuminance must barely move at high sun.
+    const at = (turbidity: number) =>
+      computeLighting(input({ elevationDeg: 40, sky: { ...DEFAULT_SKY, turbidity } }));
+    const clear = at(2);
+    const hazy = at(8);
+    expect(luminance(hazy.skyIrradiance)).toBeGreaterThan(luminance(clear.skyIrradiance));
+    expect(sunSkyRatio(hazy)).toBeLessThan(sunSkyRatio(clear));
+    expect(hazy.illuminanceLux).toBeGreaterThan(0.6 * clear.illuminanceLux);
   });
 });

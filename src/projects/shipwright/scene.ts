@@ -830,6 +830,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (opts.island !== undefined) island.object.visible = opts.island;
       if (opts.rig !== undefined) lightingRig.object.visible = opts.rig;
     },
+    setTurbidity: (turbidity: number) => {
+      daylight.setTurbidity(turbidity);
+      syncGui();
+    },
     // Exposure and the veil are DERIVED, so there is nothing to set: `setAutoExposure`,
     // `setExposure` and `setVeil` are gone with the curves that needed them. `key` is the one
     // photographic dial left (where middle grey is metered), and it is not sun-dependent.
