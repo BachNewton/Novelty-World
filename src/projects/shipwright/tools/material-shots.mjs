@@ -64,6 +64,9 @@ const CAM = {
   wide: { pos: [0, 6.4, 17.5], target: [0, -0.5, 0] },
   raking: { pos: [-11, 1.9, 12], target: [2, -0.2, -1] },
   overhead: { pos: [0, 12, 8], target: [0, -1, 0] },
+  // The navigation marks: a low eye down the channel, the way a helmsman sees them.
+  marks: { pos: [-6, 2.4, 6], target: [4, 1.6, -4] },
+  marksClose: { pos: [1.5, 2.2, 1.5], target: [-3, 1.6, -4] },
 };
 
 const SEA_CALM = { amplitude: 0.35, steepness: 0.08 };
@@ -151,6 +154,44 @@ for (const genus of ["clear", "cirrus", "cumulus", "stratus", "cumulonimbus"]) {
     add(`g-cloud-${genus}-e${slug(el)}`, { set: REFERENCE_SET, cam: "wide", el, cloud: genus });
   }
 }
+// I -- LIT NAVIGATION MARKS. The only emitter in this world that is not the sun, so this is where
+// "nothing may assume exactly one light" is either true or visibly false. The lanterns are switched by
+// a photocell on the model's own illuminance (~50 lx), so they are dark by day and lit through dusk on
+// their own; the `marksForced` frames override that to photograph a lamp against a sky that is not
+// black. Every rhythm's period divides the frozen clock, so a single frame shows every lamp lit.
+for (const el of [0, -2, -4, -6, -9, -12]) {
+  add(`i-marks-e${slug(el)}`, { set: REFERENCE_SET, cam: "marks", el, rig: false, buoys: true });
+}
+// Close on the port (red) and starboard (green) laterals: does a signal green read as a BLUE-green,
+// and does a lamp light the hull beneath it?
+for (const el of [-4, -9]) {
+  add(`i-marks-close-e${slug(el)}`, { set: REFERENCE_SET, cam: "marksClose", el, rig: false, buoys: true });
+}
+// The lamps forced on in daylight and at sunset: a 3 NM lantern must be nearly invisible against a
+// bright sky, which is exactly why real ones do not bother switching on.
+for (const el of [30, 0]) {
+  add(`i-marks-forced-e${slug(el)}`, {
+    set: REFERENCE_SET,
+    cam: "marks",
+    el,
+    rig: false,
+    buoys: true,
+    forceLamps: true,
+  });
+}
+// A lamp under a thunderhead. The cloud shadow must NOT dim it -- the lantern is below the deck.
+add("i-marks-storm-em4", {
+  set: REFERENCE_SET,
+  cam: "marks",
+  el: -4,
+  rig: false,
+  buoys: true,
+  cloud: "cumulonimbus",
+});
+// And the marks beside the calibration probes, so a reviewer can see the lamp and the grey ball in one
+// frame and say whether the lamp's brightness is credible against a surface of known reflectance.
+add("i-marks-with-rig-em4", { set: REFERENCE_SET, cam: "wide", el: -4, rig: true, buoys: true });
+
 // H -- the rig against the archipelago, so the probes and the terrain are judged in one frame. If the
 // grey ball and the granite disagree about the light, one of them is lying.
 for (const el of [40, 15, 3]) {
@@ -219,6 +260,7 @@ for (const shot of shots) {
       a.resume();
       a.setPlaneSize(5000);
       a.setRigMaterials(c.set);
+      a.setBuoyLights?.(c.forceLamps);
       // The seabed is a finite plane; switching it on puts a tan slab across the horizon. The
       // submerged row does not need it -- it IS the depth the water column is measured against.
       // The nav buoys stand at the world origin, right where the rig does, and they are the
@@ -228,9 +270,9 @@ for (const shot of shots) {
         player: false,
         seabed: false,
         pole: false,
-        buoys: false,
+        buoys: c.buoys,
         island: c.island,
-        rig: true,
+        rig: c.rig,
       });
       a.setShading("full");
       a.setWaterFx(true);
@@ -250,6 +292,9 @@ for (const shot of shots) {
       water: shot.water ?? "Coastal 5",
       cloud: shot.cloud ?? "clear",
       island: shot.island === true,
+      buoys: shot.buoys === true,
+      rig: shot.rig !== false,
+      forceLamps: shot.forceLamps === true,
       t: FREEZE_T,
     },
   );
