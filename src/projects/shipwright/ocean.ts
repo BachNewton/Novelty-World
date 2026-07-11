@@ -135,6 +135,18 @@ export interface Ocean {
    *  near-head-on pixels the march is cheapest to skip and hardest to see, trading grazing SSR for
    *  cost. The lever for the worst-case (grazing) frame + the SSR spikes (E5). */
   setSsrMinFresnel: (value: number) => void;
+  /** SSR march steps (E4): the per-pixel loop of DEPENDENT depth-buffer fetches, which is the most
+   *  expensive single thing on a fetch-starved iGPU. Clamped to the GLSL's compile-time max. */
+  setSsrSteps: (steps: number) => void;
+  /** Newton iterations used to invert the Gerstner horizontal displacement in `sampleHeight` /
+   *  `sampleSurface` (default 4). This is the innermost cost of the frame's #1 CPU system — buoyancy
+   *  calls it per voxel AND per void cell AND per substep — so it is the lever the perf docs point at.
+   *  0 = skip the inversion (evaluate the forward Gerstner straight at the world point).
+   *
+   *  A FIDELITY knob, not a free win: fewer iterations means the sampled waterline drifts from the
+   *  rendered one, so the float feel must be judged before shipping a lower value. Exposed for the
+   *  benchmark to price the trade. */
+  setSampleIterations: (iterations: number) => void;
   /** Render the low-res SSR reflection pass (water only) into `target`. Call each frame
    *  after the scene capture and before the main render. */
   renderSsr: (
@@ -279,10 +291,16 @@ const OCEAN_BEGIN_FLAT = /* glsl */ `
 const SSR_LAYER = 1;
 
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
-const SSR_STEPS = 20; // linear march samples — trimmed from 48 to shave the camera-rotation cost
-// spikes at the eye-level grazing view (open-water rays run the full count on a sky-miss) so we can
-// focus on gameplay. Baked (not a uniform) so the loop compiles tight; open-water reflections just
-// read slightly coarser. See docs/PERFORMANCE.md. Bump back up here if reflection quality matters.
+//
+// The march count is a UNIFORM (`uSsrSteps`, default SSR_STEPS) with a compile-time MAX bound, so it
+// can be swept at runtime (E4) instead of rebuilt per value. GLSL forbids a uniform loop *bound*, but
+// a uniform `break` is legal — and because the branch is warp-coherent (every pixel breaks at the same
+// i) it is a faithful cost proxy for a baked constant: the trend matches, with only a small fixed
+// offset on the absolute ms. Bake the chosen value here once it's picked, to confirm the final number.
+const SSR_STEPS_MAX = 48; // the loop's compile-time bound (the old pre-trim count — the useful ceiling)
+const SSR_STEPS = 20; // DEFAULT linear march samples — trimmed from 48 to shave the camera-rotation
+// cost spikes at the eye-level grazing view (open-water rays run the full count on a sky-miss).
+// See docs/PERFORMANCE.md.
 const SSR_REFINE = 5; // binary-search refinement steps after a hit
 // Two GLSL helpers, split so each shader pulls in only what it uses. The water fragment
 // includes OCEAN_DEPTH_FUNC alone (its refraction reads oceanEyeDist); the dedicated SSR
@@ -310,11 +328,14 @@ const OCEAN_SSR_FUNC = /* glsl */ `
 vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
   vec3 incident = normalize(viewPos);
   vec3 dir = reflect(incident, viewNormal);
-  float stepSize = uSsrMaxDistance / float(${SSR_STEPS});
+  // Stride covers the SAME max distance in fewer/more samples, so uSsrSteps trades march RESOLUTION
+  // for cost — exactly what baking a smaller constant did.
+  float stepSize = uSsrMaxDistance / uSsrSteps;
   vec3 rayPos = viewPos;
   vec2 hitUv = vec2(0.0);
   bool hit = false;
-  for (int i = 0; i < ${SSR_STEPS}; i++) {
+  for (int i = 0; i < ${SSR_STEPS_MAX}; i++) {
+    if (float(i) >= uSsrSteps) break; // uniform break — see SSR_STEPS_MAX
     rayPos += dir * stepSize;
     vec4 clip = uProjection * vec4(rayPos, 1.0);
     if (clip.w <= 0.0) break;
@@ -403,6 +424,7 @@ uniform mat4 uProjection;
 uniform float uSsrMaxDistance;
 uniform float uSsrThickness;
 uniform float uSsrMinFresnel;
+uniform float uSsrSteps;
 varying vec3 vSsrViewPos;
 varying vec3 vSsrViewNormal;
 ${OCEAN_DEPTH_FUNC}
@@ -577,6 +599,8 @@ export function createOcean(): Ocean {
     uSsrMaxDistance: { value: 40 },
     uSsrThickness: { value: 1.5 },
     uSsrMinFresnel: { value: 0.05 },
+    uSsrSteps: { value: SSR_STEPS }, // runtime march count (E4); bounded by SSR_STEPS_MAX in the GLSL
+
     // Output of the low-res SSR pass (bound by scene.ts via setSsrSource); the water
     // shader samples this instead of marching inline.
     uSsrReflection: { value: null as THREE.Texture | null },
@@ -764,6 +788,7 @@ export function createOcean(): Ocean {
       uSsrMaxDistance: uniforms.uSsrMaxDistance,
       uSsrThickness: uniforms.uSsrThickness,
       uSsrMinFresnel: uniforms.uSsrMinFresnel,
+      uSsrSteps: uniforms.uSsrSteps,
     },
     vertexShader: OCEAN_SSR_VERT,
     fragmentShader: OCEAN_SSR_FRAG,
@@ -811,11 +836,15 @@ export function createOcean(): Ocean {
   // convergence (a few steps nail it even at high steepness). Writes the result into the
   // module-scope `invGrid` scratch (consumed immediately by the caller — no allocation).
   const invGrid = { x: 0, z: 0 };
+  // Runtime-settable (benchmark E-lever): the iteration count is the inner cost of the buoyancy hot
+  // loop. `sampleIterations = 0` degenerates to "evaluate the forward Gerstner at the world point" —
+  // the cheapest possible height sample, and the approximation the perf docs propose testing.
+  let sampleIterations = SAMPLE_ITERATIONS;
   const invertToGrid = (x: number, z: number, time: number): void => {
     const speed = uniforms.uSpeed.value;
     let gx = x;
     let gz = z;
-    for (let iter = 0; iter < SAMPLE_ITERATIONS; iter++) {
+    for (let iter = 0; iter < sampleIterations; iter++) {
       let ox = 0;
       let oz = 0;
       let jxx = 0;
@@ -1035,6 +1064,12 @@ export function createOcean(): Ocean {
     isSsrEnabled: () => uniforms.uSsrEnabled.value === true,
     setSsrMinFresnel: (value) => {
       uniforms.uSsrMinFresnel.value = value;
+    },
+    setSsrSteps: (steps) => {
+      uniforms.uSsrSteps.value = Math.max(1, Math.min(SSR_STEPS_MAX, Math.round(steps)));
+    },
+    setSampleIterations: (iterations) => {
+      sampleIterations = Math.max(0, Math.round(iterations));
     },
     renderSsr: (renderer, scene, camera, target) => {
       // Render the water alone (SSR layer) with the SSR-only material into the low-res

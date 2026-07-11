@@ -4,6 +4,28 @@ import * as THREE from "three";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { setupOceanScene } from "../scene";
 
+/**
+ * Benchmark-only overrides for the three options below that are fixed at MOUNT and therefore cannot be
+ * reached by `window.__shipwright.runBenchmark(config)`, which runs long after: MSAA (baked into the
+ * WebGL context at creation), the scene-capture resolution, and the composer target's sample count.
+ * The benchmark passes them as query params instead (`tools/bench.mjs --msaa off --capture-scale 0.5`).
+ *
+ * Absent → the shipped defaults below, so a normal visit is untouched.
+ */
+const benchParam = (name: string): string | null =>
+  typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(name);
+const benchFlag = (name: string, fallback: boolean): boolean => {
+  const v = benchParam(name);
+  if (v === null) return fallback;
+  return !(v === "off" || v === "false" || v === "0");
+};
+const benchNumber = (name: string, fallback: number): number => {
+  const v = benchParam(name);
+  if (v === null) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 /** Root of the Shipwright project: a full-bleed 3D ocean you can look around.
  *  Everything else — islands, voxel ships, multiplayer — builds on top of this. */
 export function Shipwright() {
@@ -26,7 +48,7 @@ export function Shipwright() {
     // march runs per output pixel in its own low-res pass regardless — see
     // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
     // edge-bleed, for only a VRAM/bandwidth cost.
-    sceneCapture: { resolutionScale: 1 },
+    sceneCapture: { resolutionScale: benchNumber("captureScale", 1) },
     // HDR bloom, off at mount. `scene.ts` can switch it live (Environment -> Display) and the
     // tonemap x bloom experiment drives it over the debug API. Strength/radius are the values that
     // survived that experiment; the exposure-tracking threshold + energy clamp live in `scene.ts`.
@@ -41,13 +63,22 @@ export function Shipwright() {
     // 512 MB UMA iGPU) and only 1.2 ms of actual blur. The blur is cheap; the HDR framebuffer is not.
     // Blind review of the 2x2 called bloom a mild win at sunset and neutral at the zenith, so it does
     // not earn 3.6 ms -- but it plausibly earns 1.2. Enable it from the GUI (Environment -> Display).
-    bloom: { enabled: false, strength: 0.12, radius: 0.6, resolutionScale: 0.5, samples: 4 },
+    // NB `samples` is the MSAA count on the COMPOSER's HDR target, and the composer runs whenever bloom
+    // OR the display grade is on — and the grade is on by default. So this 4× target is paid on every
+    // shipped frame, bloom or no bloom. That is measured, not assumed: see docs/PERFORMANCE.md.
+    bloom: {
+      enabled: false,
+      strength: 0.12,
+      radius: 0.6,
+      resolutionScale: 0.5,
+      samples: benchNumber("composerSamples", 4),
+    },
     // MSAA on: even though the device-ratio render scale supersamples, MSAA still
     // visibly cleans up geometry edges (the horizon, object silhouettes) that
     // supersampling alone leaves faintly aliased. It only samples coverage/depth, not
     // the fragment shader, so it doesn't touch the SSR/water bottleneck — the cost is
     // framebuffer bandwidth + a per-frame resolve (watch it on weak/iGPU targets).
-    antialias: true,
+    antialias: benchFlag("msaa", true),
   });
 
   return <div ref={containerRef} className="h-[100dvh] w-full overflow-hidden" />;

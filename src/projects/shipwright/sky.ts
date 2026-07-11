@@ -556,6 +556,37 @@ export interface Daylight {
   setAdaptationFloorLux: (lux: number) => void;
   /** Advance the cloud scroll + re-anchor the sun's shadow frustum on the view. Once per frame. */
   update: (time: number) => void;
+  /** Mark the sun's shadow map for ONE redraw this frame. Must be called once per frame, before the
+   *  first render — see `setShadowCache` for why the scene, not three, decides when it redraws. */
+  requestShadowUpdate: () => void;
+  /**
+   * Redraw the shadow map once per FRAME (true, the default) or once per `renderer.render()` CALL
+   * (false, three's stock behaviour).
+   *
+   * three re-renders every shadow map inside every `renderer.render()` unless `shadowMap.autoUpdate`
+   * is false — and Shipwright renders the scene THREE times a frame (scene capture → SSR pass → main),
+   * so the stock behaviour redraws the sun's 2048² shadow map 3× for one frame's worth of shadows.
+   * The two extra redraws are pure waste: the light and the casters do not move between a frame's
+   * passes. So we take manual control (`autoUpdate = false`) and flag it once per frame.
+   *
+   * `false` restores the 3× behaviour, which exists only so the benchmark can price what this saves.
+   */
+  setShadowCache: (on: boolean) => void;
+  /** Turn the sun's shadow map off entirely (`castShadow` + `shadowMap.enabled`) — a cost-isolation
+   *  probe for universal shadows' share of the frame. Alters the image; not a quality setting. */
+  setShadowsEnabled: (on: boolean) => void;
+  /** Show/hide the sky DOME mesh. The env map and the sun's `DirectionalLight` are untouched, so the
+   *  scene stays lit exactly as before and only the dome's own (large, per-fragment) cost drops —
+   *  which is what makes it a clean subtraction. */
+  setDomeVisible: (on: boolean) => void;
+  /**
+   * Force the cloud-shadow term off: both the 512² cloud-shadow PASS and the per-lit-fragment map
+   * fetch in the global `lights_fragment_begin` override (setting the strength to 0 hits the shader's
+   * own early-out). A benchmark cost probe — it prices the one piece of the lighting overhaul that
+   * touches EVERY lit fragment in the scene, and it is only meaningful under a cloudy sky, since a
+   * clear sky already has `coverage = 0` and pays nothing.
+   */
+  setCloudShadowEnabled: (on: boolean) => void;
   /** Redraw the cloud shadow map. Call inside a GPU-timed span, before the scene's other passes. */
   renderCloudShadow: (renderer: THREE.WebGLRenderer) => void;
   /** Read the cloud shadow map back and report its statistics. The instrument for "is the deck
@@ -576,6 +607,12 @@ export interface Daylight {
 
 export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Daylight => {
   installGlobalLighting();
+
+  // Benchmark cost-isolation only (see `setCloudShadowEnabled`). Forces the cloud-shadow term off
+  // regardless of the sky — which is what lets the bench price it under an OVERCAST sky, where it
+  // actually runs. Under the default CLEAR sky it is already inert (`coverage = 0`), so this changes
+  // nothing there.
+  let cloudShadowEnabled = true;
 
   // --- Sun ------------------------------------------------------------------
   const sunLight = new THREE.DirectionalLight(0xffffff, 0);
@@ -600,6 +637,13 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   renderer.shadowMap.enabled = true;
   // NOT PCFSoftShadowMap — three deprecated it and silently falls back to PCFShadowMap with a warning.
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  // Take manual control of WHEN the shadow map redraws. three's default (`autoUpdate = true`) redraws
+  // it inside EVERY `renderer.render()` call, and this scene renders three times a frame (capture →
+  // SSR → main) — so the sun's 2048² map was being drawn 3× per frame for one frame of shadows.
+  // `scene.ts` now flags it once per frame (`requestShadowUpdate`), before the first pass.
+  // See `setShadowCache`.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
 
   // --- Dome -----------------------------------------------------------------
   const skyUniforms = {
@@ -855,7 +899,11 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     // The cloud shadow pass, and the uniforms every lit material reads.
     const sinH = Math.sin(Math.max(elevation, 0) * DEG);
     const slant = Math.min(1 / Math.max(sinH, 1e-4), 38);
-    const active = cloud.coverage > 0 && cloud.tau > 0 && elevation > CLOUD_SHADOW_MIN_ELEVATION;
+    const active =
+      cloudShadowEnabled &&
+      cloud.coverage > 0 &&
+      cloud.tau > 0 &&
+      elevation > CLOUD_SHADOW_MIN_ELEVATION;
     cloudShadowUniforms.uCloudExtinction.value = cloud.tau * (1 - CLOUD_ASYMMETRY) * slant;
     cloudShadowUniforms.uCloudThreshold.value = threshold;
     cloudShadowUniforms.uCloudEdge.value = cloud.edge;
@@ -926,6 +974,27 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     setAdaptationFloorLux: (lux) => {
       tuning.adaptationFloorLux = lux;
       applyState();
+    },
+    requestShadowUpdate: () => {
+      // No-op when the scene left three in charge (`setShadowCache(false)`) — then every render call
+      // redraws it anyway, and forcing needsUpdate would change nothing.
+      if (!renderer.shadowMap.autoUpdate) renderer.shadowMap.needsUpdate = true;
+    },
+    setShadowCache: (on) => {
+      renderer.shadowMap.autoUpdate = !on;
+      renderer.shadowMap.needsUpdate = true;
+    },
+    setShadowsEnabled: (on) => {
+      sunLight.castShadow = on;
+      renderer.shadowMap.enabled = on;
+      renderer.shadowMap.needsUpdate = true;
+    },
+    setDomeVisible: (on) => {
+      skyMesh.visible = on;
+    },
+    setCloudShadowEnabled: (on) => {
+      cloudShadowEnabled = on;
+      applyState(); // re-derive uCloudShadowStrength through the one seam that owns it
     },
     update: (time) => {
       syncSunShadow();

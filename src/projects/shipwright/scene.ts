@@ -40,6 +40,24 @@ import {
 // The config/sample/result WIRE TYPES live in benchmark.ts (the contract with the CLI); the DRIVER and
 // its live per-run state (BenchmarkRun, below) live here because they need the scene's camera/ocean/
 // renderer/physics. Driven over `window.__shipwright.runBenchmark`.
+
+/**
+ * Whether to publish the debug/benchmark control surface on `window`.
+ *
+ * A dev server is enough for GPU-ms (the GLSL is identical either way) and its CPU numbers agree with
+ * prod inside the noise floor, so dev is the normal target. But a dev server also HOT-RELOADS, and a
+ * Fast Refresh remount mid-flight destroys a run — which makes dev a poor host for a long unattended
+ * sweep, exactly when you least want to babysit it. So the surface is also available in a production
+ * build behind an explicit opt-in:
+ *
+ *     NEXT_PUBLIC_SHIPWRIGHT_BENCH=1 npm run build && npm run start
+ *
+ * Without that env var a production deploy does NOT expose it (Vercel never sets it), so this stays a
+ * dev/CI affordance rather than a live-site debug hole.
+ */
+const BENCH_API_ENABLED =
+  process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_SHIPWRIGHT_BENCH === "1";
+
 interface BenchmarkRun {
   timeline: Timeline;
   /** Flight-time in seconds — advanced by FIXED_DT (headless) or the real delta (headed). */
@@ -61,6 +79,9 @@ interface BenchmarkRun {
   benchPhysics: Physics | null;
   /** How many bodies that world holds (0 when benchPhysics is null) — recorded in the result. */
   benchBodies: number;
+  /** Force the archipelago visible for EVERY segment (`--terrain on`), so its cost can be read as a
+   *  subtraction against the default run. Segments that opt in (`seg.terrain`) show it regardless. */
+  terrain: boolean;
   /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
   prevIndex: number;
   /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
@@ -171,6 +192,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // `renderPrePasses` writes these; `stepBenchmark` resets them per frame and reads them into the sample.
   const prepassCpu = { capture: 0, ssr: 0 };
 
+  // Render census, sampled from the CAPTURE pass. It CANNOT be read after the frame: three resets
+  // `info.render` at the top of every `renderer.render()`, so a post-frame read reports whatever drew
+  // last — and once the display grade landed, the last draw is the composer's final fullscreen quad.
+  // (That is why this census reported `1 draw call · 1 triangle` for a 114-mesh scene.) The capture
+  // pass draws the same scene graph minus the water, so it is the honest number. It also includes the
+  // sun's shadow-map draws, which happen inside that same render call.
+  const census = { calls: 0, triangles: 0 };
+
   // Low-res SSR reflection target: the water renders ONLY its screen-space reflections
   // into this (ocean.renderSsr) at a fraction of the render resolution, then the full-res
   // water shader samples it. This is the "reflection resolution" dial — it decouples the
@@ -214,6 +243,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.mesh.visible = true;
     });
     prepassCpu.capture = globalThis.performance.now() - captureStart;
+    census.calls = renderer.info.render.calls;
+    census.triangles = renderer.info.render.triangles;
     // Skip the whole low-res march when SSR is off (env-map fallback) — so disabling it reclaims the
     // pass cost (the `ssr` GPU-ms then reads ~0), not just the sampling. The uniform is the source of truth.
     if (ocean.isSsrEnabled()) {
@@ -616,6 +647,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       physics.respawn();
       physics.update(0, run.elapsed);
     }
+    // The archipelago is hidden for the legacy open-water segments (so they stay comparable with every
+    // historical run) and shown for the segments that exist to measure it — or whenever the run forces
+    // it on globally (`--terrain on`), which is how terrain's cost is measured by subtraction.
+    island.object.visible = run.terrain || seg.terrain === true;
   };
   const stepBenchmark = (delta: number) => {
     const run = benchmark;
@@ -634,9 +669,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         return;
       }
       benchmark = null;
-      // Census the render BEFORE teardown, while the bench bodies are still in the scene and
-      // renderer.info holds the last main render's draw count (three resets it per render call). Tells
-      // us whether draw-call SUBMISSION is the CPU render-prep driver (thread 1). See BenchmarkResult.
+      // Census the scene graph BEFORE teardown, while the bench bodies are still in it. Draw calls +
+      // triangles come from the CAPTURE pass (sampled in renderPrePasses), NOT from reading
+      // renderer.info here — see the `census` declaration for why a post-frame read is a lie.
+      // Node count is the number that matters most (thread 1): updateMatrixWorld walks hidden nodes.
       let sceneObjects = 0;
       let visibleMeshes = 0;
       scene.traverse((o) => {
@@ -644,8 +680,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         if (o instanceof THREE.Mesh && o.visible) visibleMeshes++;
       });
       const renderInfo = {
-        calls: renderer.info.render.calls,
-        triangles: renderer.info.render.triangles,
+        calls: census.calls,
+        triangles: census.triangles,
         sceneObjects,
         visibleMeshes,
       };
@@ -710,11 +746,22 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         run.lastSunAz = az;
       }
     }
-    // Gerstner CPU field: the ocean uniform update + nav-buoy surface sampling (the CPU wave eval).
+    // Per-system CPU seams. These were ONE column (`ocean`) that silently folded in the nav-buoys, and
+    // `daylight.update` was not called AT ALL — so the benchmark frame was missing a system the real
+    // frame runs (the sun's shadow-frustum re-anchor + the cloud-deck scroll), which both understated
+    // the CPU cost and left the shadow frustum un-anchored on the flight camera. Measured separately
+    // now, and in the same order the interactive loop runs them.
     const oceanStart = globalThis.performance.now();
-    ocean.update(run.elapsed);
-    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux);
+    ocean.update(run.elapsed); // the Gerstner uniform update (3 uniform writes)
     const oceanMs = globalThis.performance.now() - oceanStart;
+
+    const buoysStart = globalThis.performance.now();
+    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux); // kinematic particle-ride
+    const buoysMs = globalThis.performance.now() - buoysStart;
+
+    const daylightStart = globalThis.performance.now();
+    daylight.update(run.elapsed);
+    const daylightMs = globalThis.performance.now() - daylightStart;
     // Step the benchmark's OWN physics world (physics/both modes). One deterministic FIXED_DT step
     // per frame headless (byte-identical); real delta headed (natural-speed). Timed on its own so the
     // report can isolate CPU physics cost. Stepped BEFORE the passes so "both" mode reflects the posed
@@ -741,6 +788,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // never a stale reading; renderPrePasses overwrites them when it runs.
     prepassCpu.capture = 0;
     prepassCpu.ssr = 0;
+    // Flag the sun's shadow map for its ONE redraw this frame (three would otherwise redraw it inside
+    // each of the frame's three render calls — see Daylight.setShadowCache).
+    daylight.requestShadowUpdate();
     if (debug.capture && run.mode !== "physics") renderPrePasses();
     const cpuMs = globalThis.performance.now() - cpuStart;
     // Bare-render probe: the CPU cost of rendering an EMPTY scene to the default framebuffer — the
@@ -769,6 +819,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         // from the PRIOR frame (this frame's main render runs after stepBenchmark returns) — same
         // one-frame-stale convention as the GPU timer readback above.
         oceanMs,
+        buoysMs,
+        daylightMs,
         captureCpuMs: prepassCpu.capture,
         ssrCpuMs: prepassCpu.ssr,
         mainCpuMs: mainRenderMs(),
@@ -798,6 +850,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       syncGui();
     },
     cloudGenera: () => CLOUD_GENUS_NAMES,
+    /** Redraw the sun's shadow map once per FRAME (true — the default) or once per `renderer.render()`
+     *  CALL (false — three's stock behaviour, i.e. 3× a frame here). Exposed so a screenshot A/B can
+     *  prove the two are pixel-identical: if they ever aren't, caching the map is not safe. */
+    setShadowCache: (on: boolean) => daylight.setShadowCache(on),
+    setShadowsEnabled: (on: boolean) => daylight.setShadowsEnabled(on),
+    setTerrainVisible: (on: boolean) => {
+      island.object.visible = on;
+    },
     setCamera: (pos: [number, number, number], target: [number, number, number]) => {
       camera.position.set(...pos);
       controls.target.set(...target);
@@ -990,8 +1050,23 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       if (config.ssrEnabled !== undefined) ocean.setSsrEnabled(config.ssrEnabled);
       if (config.ssrMinFresnel !== undefined) ocean.setSsrMinFresnel(config.ssrMinFresnel); // E5
+      if (config.ssrSteps !== undefined) ocean.setSsrSteps(config.ssrSteps); // E4
       if (config.shading !== undefined) ocean.setShading(config.shading); // isolate main-pass fill vs math
       if (config.waterFx !== undefined) ocean.setWaterFx(config.waterFx); // isolate the composite share
+      // The buoyancy hot loop's inner cost (a FIDELITY probe, not a setting — see setSampleIterations).
+      if (config.sampleIters !== undefined) ocean.setSampleIterations(config.sampleIters);
+
+      // --- Lighting-overhaul cost axes. Each is a SUBTRACTION probe: run with the feature off and diff
+      // against the default. None of these is a quality setting; they exist to attribute the frame.
+      if (config.grade !== undefined) ctx.setGrade({ enabled: config.grade });
+      if (config.shadows !== undefined) daylight.setShadowsEnabled(config.shadows);
+      if (config.shadowCache !== undefined) daylight.setShadowCache(config.shadowCache);
+      if (config.skyDome !== undefined) daylight.setDomeVisible(config.skyDome);
+      if (config.clouds !== undefined) daylight.setCloudGenus(config.clouds);
+      // The cloud-shadow term in the global `lights_fragment_begin` override (one map fetch per LIT
+      // FRAGMENT) plus its 512² pass. Only meaningful together with `--clouds`: under the flight's
+      // default CLEAR sky it is already inert.
+      if (config.cloudShadow !== undefined) daylight.setCloudShadowEnabled(config.cloudShadow);
       // Diagnostic: run with the GpuTimer's queries off to isolate whether the timer's own
       // command-buffer fences inflate the CPU submit time. hasGpuTimer() stays true (the timer still
       // exists), so the tool doesn't abort; the GPU-ms columns just read 0 for the run.
@@ -1007,8 +1082,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       measuringPole.object.visible = false;
       seabed.visible = false;
       materialRig.object.visible = false;
-      island.object.visible = false; // keep the flight comparable to every historical bench run
+      // The archipelago is applied PER SEGMENT (applyBenchSegment): hidden for the legacy open-water
+      // segments so they stay comparable with every historical run, shown for the island/gameplay
+      // segments and whenever `--terrain on` forces it.
       probes.visible = false;
+      navBuoys.object.visible = config.buoys !== false;
       player.object.visible = false;
       physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
       // Physics-only: hide the ocean so the frame's GPU cost is ~0 and the physics-step time is the
@@ -1050,6 +1128,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           mode,
           benchPhysics,
           benchBodies,
+          terrain: config.terrain === true,
           prevIndex: -1,
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",
@@ -1059,10 +1138,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       });
     },
   };
-  // The debug/benchmark control surface (dev only). A dev server is sufficient for the perf suite —
-  // dev-vs-prod agrees within the noise floor (see docs/perf-experiments.md), and GPU-ms is
-  // build-independent (identical GLSL) — so there's no need to leak this into a production build.
-  if (process.env.NODE_ENV !== "production") {
+  if (BENCH_API_ENABLED) {
     (window as unknown as { __shipwright?: typeof debugApi }).__shipwright = debugApi;
   }
 
@@ -1103,6 +1179,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // Re-anchor the sun's shadow frustum and the cloud shadow map on the (now-final) camera, and
       // scroll the cloud deck. Must precede the pre-passes: they render the scene, shadows and all.
       daylight.update(elapsed);
+      // ...and flag the shadow map for its ONE redraw this frame. The scene renders three times per
+      // frame (capture → SSR → main) and three would redraw the 2048² map in each of them.
+      daylight.requestShadowUpdate();
       // Capture the scene (minus the water) into the shared colour+depth target so
       // the water shader can refract/absorb what's behind it. Runs after everything
       // is posed for this frame, before the hook's main render (which runs after
@@ -1117,7 +1196,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       sizeSsrTarget();
     },
     dispose: () => {
-      if (process.env.NODE_ENV !== "production") {
+      if (BENCH_API_ENABLED) {
         delete (window as unknown as { __shipwright?: typeof debugApi }).__shipwright;
       }
       gui.destroy();

@@ -87,6 +87,67 @@ export interface BenchmarkConfig {
   /** Diagnostic: render an empty scene per measured frame and report the CPU ms (bareMs) — the
    *  irreducible per-call renderer.render() floor. Adds one render/frame, so opt-in. Default off. */
   bareProbe?: boolean;
+
+  // --- Lighting-overhaul cost axes (2026-07-12). The perf model in docs/ predates the lighting
+  // overhaul AND the islands, and a re-baseline found the GPU frame had gone 9.5 → 16.5 ms with the
+  // main pass DOUBLED. These knobs decompose that, each by SUBTRACTION (the `--shading` / `--water-fx`
+  // methodology): run with the feature off, diff against the default.
+
+  /** The post-tonemap display GRADE (saturation + contrast, shared hook). Default ON — and because a
+   *  grade or a bloom is what makes `composerActive()` true, leaving it on routes the WHOLE scene
+   *  through an EffectComposer backed by a HalfFloat + MSAA target (RenderPass → OutputPass → grade)
+   *  instead of a direct `renderer.render`. So `--grade off` measures the grade AND the composer path
+   *  it drags in — on a bandwidth-starved iGPU that target is the expensive part, not the shader. */
+  grade?: boolean;
+  /** MSAA samples on the composer's HDR target (the hook's `bloom.samples`, default 4). 0 = no MSAA on
+   *  it. Splits `--grade off`'s saving into "the MSAA resolve of a HalfFloat target" vs "the extra
+   *  fullscreen passes". Applied at mount (the target is built once) — see tools/bench.mjs. */
+  composerSamples?: number;
+  /** MSAA on the DEFAULT framebuffer (WebGL context `antialias`, default true) — E9. Fixed at context
+   *  creation, so the tool passes it as a URL param, not a runtime setter. NB when the composer is
+   *  active the scene draws into the composer's target, so this MSAA only ever antialiases the final
+   *  fullscreen blit — i.e. it is pure cost. Turning it off is one half of that hypothesis. */
+  msaa?: boolean;
+  /** The sun's SHADOW MAP. Off = `castShadow` cleared + `shadowMap.enabled = false`, so no shadow pass
+   *  runs in ANY render call. Measures universal shadows' share of the frame (a lighting-overhaul cost
+   *  that no existing knob isolates). Default on. */
+  shadows?: boolean;
+  /** Render the sun's shadow map ONCE per frame instead of once per `renderer.render()`. three re-renders
+   *  it on EVERY render call unless `shadowMap.autoUpdate` is false — and Shipwright renders the scene
+   *  THREE times a frame (capture → SSR → main), so it is redrawn 3×. The scene now caches it (once per
+   *  frame, the fix); `--shadow-cache off` restores the 3× behaviour to price what the fix saved. */
+  shadowCache?: boolean;
+  /** The global cloud-shadow term in the `lights_fragment_begin` override — one texture fetch + its
+   *  math per LIT FRAGMENT, on every lit material (the water covers most of the screen). Off compiles
+   *  the override out. Default on. */
+  cloudShadow?: boolean;
+  /** Cloud genus to pin for the run (`"Clear"`, `"Stratocumulus"`, `"Nimbostratus"`, …). The default
+   *  flight is CLEAR, so the cloud-shadow PASS is skipped entirely (`cloud` GPU-ms reads 0) and the
+   *  overcast frame — a real gameplay condition — has never been measured. */
+  clouds?: string;
+  /** Show the procedural archipelago (terrain + instanced spruce). The benchmark has always HIDDEN it
+   *  to keep the flight comparable with historical runs, so the islands — real, shipped scene content
+   *  since roadmap #7 — have zero cost attribution. Default off (comparability); the island segments
+   *  opt in per-segment regardless. */
+  terrain?: boolean;
+  /** Show the navigational buoys (kinematic particle-ride floaters + their lanterns). Default on. */
+  buoys?: boolean;
+  /** Draw the sky dome. Off = the dome mesh is hidden (the env map + sun light stay, so lighting is
+   *  unchanged and only the dome's own fragment cost drops). Default on. */
+  skyDome?: boolean;
+  /** SSR march steps (E4) — `uSsrSteps`, the per-pixel dependent-fetch loop count (default 20). The
+   *  GLSL keeps a compile-time MAX bound and `break`s on this uniform: GLSL forbids a uniform loop
+   *  BOUND, but a uniform break is legal and, being warp-coherent, tracks a baked constant's cost. */
+  ssrSteps?: number;
+  /** Newton iterations used to invert the Gerstner horizontal displacement (`SAMPLE_ITERATIONS`,
+   *  default 4) — the CPU buoyancy lever. Each iteration is 4 waves of sin/cos + a Jacobian, run per
+   *  voxel AND per void cell AND per substep, so this is the inner cost of the frame's #1 CPU system.
+   *  0 = skip the inversion entirely (evaluate the forward Gerstner at the world point). A FIDELITY
+   *  probe: fewer iterations = a less exact waterline, so measure the float feel before shipping one. */
+  sampleIters?: number;
+  /** Scene-capture resolution scale (E7) — the colour+depth target refraction/SSR read from (default 1).
+   *  Applied at mount, so the tool passes it as a URL param. */
+  captureScale?: number;
 }
 
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */
@@ -100,14 +161,22 @@ export interface BenchmarkSample {
   capture: number;
   ssr: number;
   main: number;
-  /** CPU seam-timer split of the ~16 ms render-prep (see docs/perf-handoff.md thread 1). All
-   *  wall-clock `performance.now()` spans, so they measure CPU *submission* time, not GPU execution.
-   *  `oceanMs` = the Gerstner uniform update + nav-buoy sampling; `captureCpuMs` = the capture-pass
-   *  draw submission (whole scene, water hidden); `ssrCpuMs` = the low-res SSR pass submission (0 when
-   *  SSR is off — the pass is skipped); `mainCpuMs` = the MAIN scene-render submission (the second full
-   *  draw of the scene, timed in the shared hook — previously counted nowhere). `cpuMs` above spans
-   *  onFrame only (ocean + prepass + physics + misc), so it EXCLUDES `mainCpuMs`. */
+  /** CPU seam-timer split of the render-prep (see docs/perf-handoff.md thread 1). All wall-clock
+   *  `performance.now()` spans, so they measure CPU *submission* time, not GPU execution.
+   *  `oceanMs` = the Gerstner uniform update ALONE (it used to also fold in the nav-buoy sampling,
+   *  which hid a real per-frame system inside a column named after another one — they are split now);
+   *  `buoysMs` = the nav-buoys' kinematic particle-ride; `daylightMs` = `daylight.update` (the sun's
+   *  shadow-frustum re-anchor + the cloud-deck scroll). NB `daylight.update` was NOT CALLED AT ALL by
+   *  the benchmark driver before 2026-07-12 — the whole lighting overhaul's per-frame CPU was both
+   *  unmeasured and unrun, so bench frames were cheaper than real ones and the shadow frustum never
+   *  re-anchored on the flight camera.
+   *  `captureCpuMs` = the capture-pass draw submission (whole scene, water hidden); `ssrCpuMs` = the
+   *  low-res SSR pass submission (0 when SSR is off — the pass is skipped); `mainCpuMs` = the MAIN
+   *  scene-render submission (the second full draw of the scene, timed in the shared hook). `cpuMs`
+   *  above spans onFrame only, so it EXCLUDES `mainCpuMs`. */
   oceanMs: number;
+  buoysMs: number;
+  daylightMs: number;
   captureCpuMs: number;
   ssrCpuMs: number;
   mainCpuMs: number;
@@ -139,9 +208,17 @@ export interface BenchmarkResult {
    *  size = viewport × pixelRatio, plus the low-res SSR pass fraction. */
   render: { width: number; height: number; pixelRatio: number; reflectionRes: number };
   segments: { name: string; description: string; measuredSeconds: number }[];
-  /** A one-shot census of the render at flight's end (the last main pass): draw `calls` + `triangles`
-   *  (three.js resets info.render per render call, so this is the main pass alone), plus the live
-   *  scene-graph size. Diagnoses whether draw-call SUBMISSION drives the CPU render-prep (thread 1). */
+  /** A one-shot census of the render at flight's end: draw `calls` + `triangles`, plus the live
+   *  scene-graph size. Diagnoses whether draw-call SUBMISSION drives the CPU render-prep, and — the
+   *  durable lesson of thread 1 — whether the scene-graph NODE count has crept up (three's
+   *  `updateMatrixWorld` walks hidden nodes too, ×3 passes/frame).
+   *
+   *  Sampled from the CAPTURE pass, not the main pass. three resets `info.render` at the top of every
+   *  `renderer.render()`, so reading it after the frame reports whatever rendered LAST — and once the
+   *  display grade landed, that is the composer's final fullscreen quad. This census read `1 draw call
+   *  · 1 triangle` for a 114-mesh scene until 2026-07-12 for exactly that reason. The capture pass
+   *  draws the same scene graph minus the water, so it is the honest full-scene number (`+1` draw for
+   *  the water is the only difference). */
   renderInfo: { calls: number; triangles: number; sceneObjects: number; visibleMeshes: number };
   samples: BenchmarkSample[];
 }
@@ -190,6 +267,11 @@ export interface BenchSegment {
   plane?: number;
   /** Show the raft (reset to spawn pose, not stepped) as an SSR/fill stressor. */
   raft?: boolean;
+  /** Show the procedural archipelago (terrain + instanced spruce) for this segment. The benchmark
+   *  hides it globally so the legacy open-water segments stay comparable with historical runs; the
+   *  island/gameplay segments below opt in, because a shipped frame with land in it is the one that
+   *  actually decides whether the game is fast enough. */
+  terrain?: boolean;
   /** Sweep the sun `from` → `to` (e.g. noon → sunset) — a VISUAL lighting/colour-shift test, applied
    *  in REAL-TIME (headed) mode only. It EASES OUT (fast near noon, slowing toward the horizon, where
    *  the light is most interesting) over the first `sweepFraction` of the measured window, then HOLDS
@@ -342,6 +424,40 @@ export const FLIGHT: BenchSegment[] = [
     plane: STANDARD_PLANE,
     raft: true,
     camera: orbit(8, 4, 0, 90, [0, 0.5, 0]),
+  },
+  // --- Segments added 2026-07-12. The nine above are all OPEN WATER with the archipelago hidden, so
+  // as of the islands landing (roadmap #7) the benchmark stopped resembling the shipped game: terrain,
+  // instanced spruce, land in the shadow map, and the shoreline shallows had NO cost attribution at
+  // all. These three add the frames a player actually sees. They come BEFORE max-stress so the
+  // heaviest segment stays last (buildTimeline uses it as the warm-up lap).
+  {
+    name: "fp-sail",
+    description: "THE GAMEPLAY FRAME: sailor's eye (1.7 m) on a calm sea, buoys + archipelago in view — what shipping actually has to hit 60 fps on",
+    sea: { amplitude: 0.5, steepness: 0.1 },
+    sun: [25, 135],
+    plane: STANDARD_PLANE,
+    terrain: true,
+    // Eye at the sailor's height, looking north-west across the water toward the landfall island
+    // (peak ~(-30, -235), 13 m) — a slow yaw so land enters and leaves frame.
+    camera: yaw([0, 1.7, -20], [-30, 4, -235], 40),
+  },
+  {
+    name: "island-approach",
+    description: "Sailing in on the landfall island (peak (-30,-235), 13 m) — terrain triangles, instanced spruce, land in the shadow map, and shoreline depth absorption",
+    sea: { amplitude: 0.8, steepness: 0.25 },
+    sun: [20, 135],
+    plane: STANDARD_PLANE,
+    terrain: true,
+    camera: yaw([-30, 3.5, -140], [-30, 3, -235], 30),
+  },
+  {
+    name: "twilight",
+    description: "Civil twilight (sun −6°, BELOW the horizon): no beam, no shadows, the sky is the only source — the lighting model's zero-source path, and a real gameplay condition never benchmarked",
+    sea: { amplitude: 0.8, steepness: 0.25 },
+    sun: [-6, 160],
+    plane: STANDARD_PLANE,
+    terrain: true,
+    camera: yaw([-6, 3.0, 6], [9, 1.9, -9], 25),
   },
   {
     name: "max-stress",
