@@ -338,8 +338,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   //   clamp 1000  high enough that the ORANGE disc out-shines the white aerosol glow beside it (at
   //             clamp 50 the disc was clamped BELOW the sky, so the halo was the sky's, and white);
   //             low enough that the core stays small.
-  //   strength    lives on the pass (shipwright.tsx); 0.15 is the only value that does not wash.
-  const bloomTuning = { strength: 0.15, radius: 0.6, clamp: 1000, knee: 32 };
+  //   strength    lives on the pass (shipwright.tsx); overall glow intensity.
+  //   clamp       caps how much a single bright pixel throws into the glow. THIS is the lever that
+  //               bounds the blinding high-sun disc (its radiance swings ~300x across the day) so noon
+  //               is a bright disc, not a formless blob, while the dim sunset sun still glows gently.
+  const bloomTuning = { strength: 0.12, radius: 0.6, clamp: 300, knee: 32 };
   const applyBloomThreshold = (exposure: number) => {
     const e = Math.max(exposure, 1e-6);
     ctx.setBloomPrefilter({ threshold: bloomTuning.knee / e, clamp: bloomTuning.clamp / e });
@@ -356,7 +359,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.maxPolarAngle = Math.PI * 0.495; // keep the camera above the water
   controls.minDistance = 2;
   controls.maxDistance = 400;
-  controls.target.set(4, 1.5, -4); // toward the sun (azimuth 135°) so the sunset + its reflection frame up
+  controls.target.set(9, 1.5, 9.5); // toward the sun (azimuth 85°, just right of the islands) so the sun + its reflection frame up
   controls.update();
 
   // First-person sailor. Press F to take control (pointer-lock FPS); Esc returns to the orbit
@@ -518,6 +521,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(bloomTuning, "knee", 0.5, 4, 0.05)
     .name("glare knee (x white)")
     .onChange(() => applyBloomThreshold(daylight.state().exposure));
+
+  // Post-tonemap grade (saturation + contrast) — the honest place to put the punch AgX holds off the
+  // highlights. On by default with a gentle push; toggle off for the raw tonemap, or drag to taste.
+  const grade = { enabled: true, saturation: 1.2, contrast: 1.08 };
+  ctx.setGrade(grade);
+  displayFolder.add(grade, "enabled").name("grade").onChange((on: boolean) => ctx.setGrade({ enabled: on }));
+  displayFolder
+    .add(grade, "saturation", 0, 2, 0.01)
+    .onChange((v: number) => ctx.setGrade({ saturation: v }));
+  displayFolder.add(grade, "contrast", 0.5, 2, 0.01).onChange((v: number) => ctx.setGrade({ contrast: v }));
 
   // --- Debug: diagnostics + overlays only -------------------------------------
   debugFolder

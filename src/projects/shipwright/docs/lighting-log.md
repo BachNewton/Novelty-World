@@ -7,6 +7,50 @@ Read `LIGHTING.md` first. Blind reviewer agents are grounded in both.
 
 ---
 
+## Where this settled — the sunset, resolved in the CAMERA (2026-07)
+
+A long interactive session with Kyle (human judge, live scene — not blind agents) closed out the one
+thing the overhaul left open: the washed sunset. The resolution **reverses the recommendation** in the
+old `SUNSET-JOURNEY.md` handoff (now removed, lessons folded here): we did **not** restore the
+pre-overhaul three.js `Sky` dome. We kept the physical system whole and fixed the sunset where the
+problem actually lived — **the camera, not the sky.**
+
+The chain of findings, each confirmed live by Kyle's eye:
+
+- **The washed sky and a "glowing green turbid sea" at sunset were ONE bug: the auto-exposure
+  over-lifts a dark sunset scene.** Lowering the key fixed both at once. `DEFAULT_EXPOSURE_KEY`
+  **`0.125 → 0.09`** — a deliberate ~half-stop art-direction call, judged good at 0° / 10° / 53°. (The
+  0.125 blind-review win was under *earlier* conditions — pre-grade, pre-ozone, ACES.)
+- **AgX's muted highlights were fixed by a display grade, not by reverting to ACES.** A new
+  post-tonemap saturation+contrast **grade** now lives in the shared hook (`use-three-scene.ts`,
+  `ctx.setGrade`); default on, gentle (saturation 1.2, contrast 1.08). AgX + grade beat ACES to Kyle's
+  eye — it keeps AgX's gold sun while restoring the punch. This is the honest "put the look in the
+  **camera**, not the physics" that the whole `pow(1.5)` saga was pointing at all along.
+- **Ozone** landed in the dome (the one physics win carried off the branch): a blue zenith, not cyan.
+- **The reflection "colour bands" on the sea were the env-map sky reflection at too-low roughness**,
+  NOT SSR — proven by toggling SSR off (the sky reflection was unchanged). Water `roughness 0.25 → 0.40`
+  softened it into a natural smear. Roughness is a *sea-state condition*, not a constant.
+- **GUI honesty:** physical constants (ground albedo, the Jerlov water optics) are now shown
+  **read-only** — only *conditions* (sun, turbidity, sea state) and *camera/art* choices (key, grade,
+  bloom) get live sliders. An editable slider must never imply you can dial something the physics fixes.
+
+**The `sunset-aureole` branch had explored the opposite bet — *finishing the physics*** (a real aerosol
+phase, deleting `pow(1.5)`) to restore the beauty. That thesis was **falsified**: corrected
+single-scattering rendered *more* washed (saturation 9.6% vs the pre-overhaul's 53.6%), and a
+per-channel "drama" power distorted hue. Online research also found **nothing available beats three.js
+`Sky`'s sunset** (not HDRI, `@takram`, `sky-cloud-3d`, nor the paid WebGPU Sky Pro). Those dead ends are
+why the fix moved to the camera. The branch and its handoff doc are removed; the lessons are here.
+
+**What this means for "physics vs beauty":** there was never a trade. The beauty was always a *camera*
+decision (exposure + grade + tonemap); applied there — uniformly, at the end of the pipeline — the
+physical world underneath stays correct at every hour and condition. The pre-overhaul dome's `pow(1.5)`
+was a grade baked into the sky; we moved that job to where it belongs.
+
+**Forward note (from the same reviewers):** the **clouds are the real weak point**, not the sky — the
+highest-value *future* look work, separate from this settle.
+
+---
+
 ## What the model is now
 
 One physical model, in three files, with a hard split between what is physics and what is a picture.
@@ -736,14 +780,12 @@ turbidity" as the Preetham failure modes they set out to fix); Bird & Hulstrom (
 Re-ranked after the second pass. Items 1-3 are what four independent blind reviewers, given only images
 and the fidelity docs, kept naming without prompting.
 
-1. **The old build still owns the single hero into-sun sunset.** A three-way blind review put the new
-   meter first overall and first on sunset *plausibility*, and still called the old system's
-   `a-sunward-e00` "the best frame in the whole set". The new one has a white bloom hotspot around the
-   disc and a sea that is a notch less silhouetted. Part of that is unfixable (the disc's core is
-   `E/Omega`), and part is real: our aureole-to-zenith contrast at a 0 degree sun is about 10:1 where
-   the real sky is nearer 50:1, because Preetham's single Henyey-Greenstein lobe at `g = 0.8` is too
-   broad to be an aerosol aureole. A real Mie phase function has a sharp forward diffraction peak. That
-   is the next physics to attack, and it must be A/B'd -- a two-term phase reshapes every frame.
+1. **The old build still owns the single hero into-sun sunset. — RESOLVED (2026-07), in the camera.**
+   See "Where this settled" at the top. The washed sunset was the auto-exposure over-lifting the scene;
+   `key 0.125 → 0.09` plus the display grade closed the gap against the pre-overhaul frame while keeping
+   the physical dome. The disc's clipping core (`E/Omega`) and the broad `g = 0.8` aureole remain — a
+   sharper two-term Mie phase is still the *physics* refinement available if someone wants it — but the
+   frame-level "old build wins" verdict no longer holds.
 2. **Sun glitter is still a smear at mid/high sun.** Named "the top remaining CG tell" by two reviewers
    independently. It needs a microfacet sparkle term with sub-pixel normal variance (`FIDELITY.md`), not
    more light.
@@ -778,6 +820,20 @@ and the fidelity docs, kept naming without prompting.
 13. **The midday zenith is a touch milkier** than the build immediately before the meter change -- the
     honest cost of metering the field instead of the ground, about a third of a stop. Two reviewers
     noticed; both still preferred the new meter overall.
+
+---
+
+## Deferred cleanups (noted 2026-07, not done)
+
+- **Trim the atmosphere dials.** `rayleigh` and `haze (mieCoefficient)` are Preetham *look* multipliers
+  that overlap `turbidity` and clutter the panel; pin them at defaults and hide them, keeping
+  `turbidity` + `sun glow (mieG)` as the two meaningful controls. Do it the "propose the value, don't
+  hand over a slider" way — pick the pinned numbers by eye/reference first.
+- **Bloom still needs work.** Retuned this session (clamp is the high-sun-blowout lever) but left OFF by
+  default; turned on, it's still not right. A camera/lens effect worth finishing, not a blocker.
+- **Collapse sea-state into one wind control** — waves + ripple-normal strength + roughness + whitecaps
+  + turbidity all driven by one "wind / Force N" master. See `FIDELITY.md` "Where clarity meets sea
+  state".
 
 ---
 

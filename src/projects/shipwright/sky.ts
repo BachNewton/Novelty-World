@@ -26,7 +26,7 @@ import {
   sunSkyRatioSunFacing,
   type LightingState,
 } from "./lighting";
-import { DEFAULT_SKY, sunTerms, type Rgb, type SkyParams } from "./sky-model";
+import { DEFAULT_SKY, OZONE_ZENITH_TAU, sunTerms, type Rgb, type SkyParams } from "./sky-model";
 
 /**
  * The sky, and the light it casts. Owns everything that used to be scattered across `scene.ts`:
@@ -287,6 +287,7 @@ varying vec3 vWorldPosition;
 
 uniform vec3 uSunShapeDirection;   // toward the sun, CLAMPED to the horizon (see skyShapeElevation)
 uniform vec3 uSunDiscDirection;    // the true sun direction, which may be below the horizon
+uniform vec3 uOzoneTau; // Chappuis absorption, vertical; the reason the zenith is blue not cyan
 uniform vec3 uBetaR;
 uniform vec3 uBetaM;
 uniform float uSunE;
@@ -342,7 +343,11 @@ void main() {
   float inverse = 1.0 / (cos(zenithAngle) + 0.15 * pow(93.885 - degrees(zenithAngle), -1.253));
   float sR = rayleighZenithLength * inverse;
   float sM = mieZenithLength * inverse;
-  vec3 Fex = exp(-(uBetaR * sR + uBetaM * sM));
+  // Ozone's own thin-shell (~25 km) air mass: bounded (~11) at the horizon, not the sea-level ~38, so
+  // it blues the zenith without over-dimming the warm twilight horizon. Matches sky-model.ts.
+  float ozoneRel2 = pow(6371.0 / 6396.0, 2.0);
+  float ozoneAirMass = 1.0 / sqrt(1.0 - ozoneRel2 * (1.0 - direction.y * direction.y));
+  vec3 Fex = exp(-(uBetaR * sR + uBetaM * sM + uOzoneTau * ozoneAirMass));
 
   float cosTheta = dot(direction, uSunShapeDirection);
   float rPhase = rayleighPhase(cosTheta * 0.5 + 0.5);
@@ -600,6 +605,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   const skyUniforms = {
     uSunShapeDirection: { value: new THREE.Vector3(0, 1, 0) },
     uSunDiscDirection: { value: new THREE.Vector3(0, 1, 0) },
+    uOzoneTau: { value: new THREE.Vector3(...OZONE_ZENITH_TAU) },
     uBetaR: { value: new THREE.Vector3() },
     uBetaM: { value: new THREE.Vector3() },
     uSunE: { value: 0 },
@@ -690,7 +696,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   scene.environmentIntensity = 1; // and it stays 1 — envIntensityForSun is gone
 
   // --- Live parameters -------------------------------------------------------
-  const sunAngles = { elevation: 14, azimuth: 135 };
+  const sunAngles = { elevation: 14, azimuth: 85 };
   const skyParams: SkyParams = { ...DEFAULT_SKY };
   let genusName: CloudGenusName = DEFAULT_GENUS;
   let cloud: CloudState = cloudStateFromGenus(CLOUD_GENERA[DEFAULT_GENUS]);
@@ -1001,7 +1007,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
         .add(tuning, "adaptationFloorLux", 0.001, 1000, 0.001)
         .name("adaptation floor (lx)")
         .onChange(applyState);
-      lightFolder.add(tuning, "groundAlbedo", 0, 0.5, 0.01).name("ground albedo").onChange(applyState);
+      // Read-only: the broadband albedo of what lies below the horizon (mostly sea, a little rock) is a
+      // PHYSICAL CONSTANT, not a tuning knob. Shown so the value is legible, locked so it can't be fudged.
+      lightFolder.add(tuning, "groundAlbedo", 0, 0.5, 0.01).name("ground albedo").disable();
       const readout = {
         get exposure() {
           return Number(state.exposure.toFixed(3));

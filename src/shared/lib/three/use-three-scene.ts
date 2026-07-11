@@ -7,6 +7,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { GpuTimer } from "./gpu-timer";
 
 export interface BloomOptions {
@@ -134,6 +135,14 @@ export interface ThreeSceneContext {
    * `threshold` and `clamp` are display-space numbers divided by the exposure. No-op without bloom.
    */
   setBloomPrefilter: (prefilter: { threshold: number; clamp: number; smoothWidth?: number }) => void;
+  /**
+   * Post-tonemap display grade: saturation + contrast, applied after the tonemap + sRGB encode (where a
+   * grade belongs — it puts back the punch AgX deliberately holds off the highlights). Runs the composer
+   * if needed, like bloom; a neutral grade (saturation 1, contrast 1) is identity. Contrast pivots about
+   * display mid-grey. It is a camera/art operator, not physics — uniform across every frame.
+   */
+  setGrade: (grade: { enabled?: boolean; saturation?: number; contrast?: number }) => void;
+  isGradeEnabled: () => boolean;
   /** Swap the tone-mapping operator. Recompiles materials. */
   setToneMapping: (mode: THREE.ToneMapping) => void;
   /** Present when the `sceneCapture` option is enabled — a colour+depth scene target. */
@@ -215,6 +224,39 @@ const patchBloomPrefilter = (pass: UnrealBloomPass, clamp: number): void => {
 };
 
 /**
+ * A display-space colour grade — saturation + contrast — run AFTER the tonemap + sRGB encode
+ * (`OutputPass`), which is where a grade belongs: the tonemap has already decided highlight roll-off and
+ * (with AgX) desaturated the brights, so this is the honest place to put punch back. Neutral (1 / 1) is
+ * identity. Contrast pivots about display mid-grey (0.5). NOT physics — a camera/art operator, uniform
+ * across every frame, so it stays consistent where a per-elevation sky hack could not.
+ */
+const GRADE_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    uSaturation: { value: 1 },
+    uContrast: { value: 1 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uSaturation;
+    uniform float uContrast;
+    varying vec2 vUv;
+    void main() {
+      vec4 t = texture2D(tDiffuse, vUv);
+      vec3 c = t.rgb;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); // display-space luma (post-tonemap)
+      c = mix(vec3(l), c, uSaturation);               // saturation about luma
+      c = (c - 0.5) * uContrast + 0.5;                // contrast about mid-grey
+      gl_FragColor = vec4(c, t.a);
+    }
+  `,
+};
+
+/**
  * Mounts a vanilla three.js renderer into a container `<div>` and drives its
  * whole lifecycle from React: it creates the `WebGLRenderer` + a
  * `PerspectiveCamera`, runs the animation loop, keeps the drawing buffer sized
@@ -280,6 +322,14 @@ export function useThreeScene(
     const bloomOption = bloomRef.current;
     let composer: EffectComposer | undefined;
     let bloomPass: UnrealBloomPass | undefined;
+    let gradePass: ShaderPass | undefined;
+    let bloomEnabled =
+      bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
+    let gradeEnabled = false;
+    // The composer runs whenever bloom OR grade is active; each pass is individually `.enabled`, so
+    // grade can run without bloom and vice-versa. With both off we skip the composer entirely (a direct
+    // `renderer.render`), so bloom's cost stays honestly measurable.
+    const composerActive = () => bloomEnabled || gradeEnabled;
     const buildComposer = () => {
       if (composer) return;
       const settings = typeof bloomOption === "object" ? bloomOption : {};
@@ -299,16 +349,29 @@ export function useThreeScene(
         settings.threshold ?? 0.9,
       );
       patchBloomPrefilter(bloomPass, settings.clamp ?? Infinity);
+      bloomPass.enabled = bloomEnabled;
+      gradePass = new ShaderPass(GRADE_SHADER);
+      gradePass.enabled = gradeEnabled;
+      // RenderPass → bloom (HDR glow) → OutputPass (tonemap + sRGB) → grade (display-space sat/contrast).
       composer.addPass(new RenderPass(scene, camera));
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
+      composer.addPass(gradePass);
     };
-    let bloomEnabled =
-      bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
-    if (bloomEnabled) buildComposer();
+    if (composerActive()) buildComposer();
     const setBloom = (enabled: boolean) => {
-      if (enabled) buildComposer();
       bloomEnabled = enabled;
+      if (enabled) buildComposer();
+      if (bloomPass) bloomPass.enabled = enabled;
+    };
+    const setGrade = (grade: { enabled?: boolean; saturation?: number; contrast?: number }) => {
+      if (grade.enabled !== undefined) gradeEnabled = grade.enabled;
+      if (gradeEnabled) buildComposer();
+      if (gradePass) {
+        gradePass.enabled = gradeEnabled;
+        if (grade.saturation !== undefined) gradePass.uniforms.uSaturation.value = grade.saturation;
+        if (grade.contrast !== undefined) gradePass.uniforms.uContrast.value = grade.contrast;
+      }
     };
     const setBloomPrefilter = ({
       threshold,
@@ -383,6 +446,8 @@ export function useThreeScene(
       setBloom,
       isBloomEnabled: () => bloomEnabled,
       setBloomPrefilter,
+      setGrade,
+      isGradeEnabled: () => gradeEnabled,
       setToneMapping: (mode) => {
         renderer.toneMapping = mode;
       },
@@ -404,7 +469,7 @@ export function useThreeScene(
     // Uses the Page Visibility API to avoid a huge delta when the tab regains focus.
     timer.connect(document);
     const renderMain = (d: number) => {
-      if (bloomEnabled && composer) composer.render(d);
+      if (composerActive() && composer) composer.render(d);
       else renderer.render(scene, camera);
     };
     // Frame-rate cap: render 1 of every `frameStride` vsync callbacks (even cadence).

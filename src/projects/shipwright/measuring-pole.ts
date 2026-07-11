@@ -73,7 +73,14 @@ export interface MeasuringPole {
 
 export function createMeasuringPole(x = 5, z = -2): MeasuringPole {
   const texture = makeScaleTexture();
-  const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+  // Lit like everything else — matte painted board (dielectric, rough), so it responds to the one
+  // lighting model instead of glowing at full brightness in shadow. The map is its painted albedo.
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    side: THREE.DoubleSide,
+    roughness: 0.9,
+    metalness: 0,
+  });
   const height = ABOVE_M + BELOW_M;
   const geometry = new THREE.PlaneGeometry(0.4, height);
   const root = new THREE.Group();
@@ -81,6 +88,8 @@ export function createMeasuringPole(x = 5, z = -2): MeasuringPole {
     const board = new THREE.Mesh(geometry, material);
     board.position.y = ABOVE_M - height / 2; // top at +ABOVE_M, bottom at −BELOW_M
     board.rotation.y = (i * Math.PI) / 2; // two crossed boards → readable from any angle
+    board.castShadow = true;
+    board.receiveShadow = true;
     root.add(board);
   }
   root.position.set(x, 0, z);

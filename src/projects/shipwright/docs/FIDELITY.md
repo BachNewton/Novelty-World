@@ -199,6 +199,26 @@ they *couple* physically: rougher seas churn up sediment and entrain bubbles, so
 condition scaling the water type's scattering — is a future step; for now they're set
 independently.
 
+### Future: collapse sea-state into ONE wind control
+Wind roughens the water at **every scale at once**, but for rendering we split that into three
+separate representations, each with its own debug dial today — and they overlap in meaning, which is
+confusing (both "ripples" and "roughness" read as "how choppy"):
+
+| scale | representation | current dial |
+|---|---|---|
+| big (m) | Gerstner geometry | wave height / spectrum (`sea-conditions.md`) |
+| fine (sub-m) | ripple normal-map | Surface → **ripples** (normal strength) |
+| sub-pixel | microfacet roughness | Surface → **roughness** |
+
+All three are *conditions* (legitimately live sliders — see the read-only-physical-constants rule in
+`scene.ts`/`ocean.ts`), but they are all **the same cause: wind**. The clean future is a single
+**wind / sea-state master** that drives all three together — plus whitecaps and (per above) turbidity
+— so you set "Force 4" and every scale moves coherently instead of hand-juggling overlapping proxies.
+Roughness in particular is today doing double duty: real capillary roughness *plus* compensating for
+sub-normal-map detail we don't resolve; deriving it from wind is what makes it stop being a feel-it-out
+knob. This is the same weather-coupling seam noted in `LIGHTING.md` (cloud genus ↔ wave spectrum ↔
+turbidity); build it as one system, don't wire the axes independently.
+
 ---
 
 ## Validating looks changes (the review loop)

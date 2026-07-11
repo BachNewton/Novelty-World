@@ -792,7 +792,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   airOverlay.count = 0;
   airOverlay.frustumCulled = false;
   airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
-  airOverlay.visible = true; // on by default — the trapped-air x-ray is the main debugging aid now
+  airOverlay.visible = false; // off by default — a debug aid, toggled on demand (Debug → trapped-air cells)
 
   const clearArrows = () => {
     for (const a of arrows) a.dispose();
@@ -1619,7 +1619,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         });
 
       // Force-vector arrows + trapped-air x-ray are diagnostic overlays, not look controls — Debug.
-      const toggles = { arrows: false, trappedAir: true };
+      const toggles = { arrows: false, trappedAir: false };
       debug
         .add(toggles, "arrows")
         .name("force arrows")

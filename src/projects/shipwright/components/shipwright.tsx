@@ -41,7 +41,7 @@ export function Shipwright() {
     // 512 MB UMA iGPU) and only 1.2 ms of actual blur. The blur is cheap; the HDR framebuffer is not.
     // Blind review of the 2x2 called bloom a mild win at sunset and neutral at the zenith, so it does
     // not earn 3.6 ms -- but it plausibly earns 1.2. Enable it from the GUI (Environment -> Display).
-    bloom: { enabled: false, strength: 0.15, radius: 0.6, resolutionScale: 0.5, samples: 4 },
+    bloom: { enabled: false, strength: 0.12, radius: 0.6, resolutionScale: 0.5, samples: 4 },
     // MSAA on: even though the device-ratio render scale supersamples, MSAA still
     // visibly cleans up geometry edges (the horizon, object silhouettes) that
     // supersampling alone leaves faintly aliased. It only samples coverage/depth, not

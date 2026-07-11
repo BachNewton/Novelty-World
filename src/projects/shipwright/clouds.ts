@@ -146,7 +146,9 @@ export const CLOUD_GENUS_NAMES = Object.keys(GENERA) as CloudGenusName[];
 /** Narrow a string that came in over the debug API or the shot suite. */
 export const isCloudGenus = (name: string): name is CloudGenusName => name in GENERA;
 
-export const DEFAULT_GENUS: CloudGenusName = "cumulus";
+// Clear by default: the scene starts with an unobstructed sky (best for judging the sun/sky/lighting),
+// and cloud genera are opt-in via Environment → Clouds → genus.
+export const DEFAULT_GENUS: CloudGenusName = "clear";
 
 /** The live cloud parameters the sky, the shadow map and the light all read. */
 export interface CloudState {

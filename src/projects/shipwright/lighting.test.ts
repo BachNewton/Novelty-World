@@ -408,13 +408,15 @@ describe("the twilight seam", () => {
       const { towardSun, awayFromSun, zenith } = sample(h);
       // The sun's own horizon always outshines the horizon opposite it...
       expect(towardSun).toBeGreaterThan(awayFromSun);
-      // ...and the sky overhead never runs away from it. Below the horizon the two come within a few
-      // percent, and that is honest rather than ideal: the Mie aureole dies first (scale height
-      // 1.2 km), so the sunset's hot spot broadens into a wide, nearly altitude-uniform twilight
-      // arch. A real arch still favours the horizon. Preetham's frozen shape does not know that, and
-      // that residual is documented rather than papered over. What must never return is the zenith
-      // OUT-shining the sunset by 10x, which is what the fudge floor did.
-      expect(zenith).toBeLessThanOrEqual(towardSun * 1.1);
+      // ...and the sky overhead never runs away from it. Below the horizon the two come within ~1.5x,
+      // and that is honest rather than ideal, for two documented reasons. The Mie aureole dies first
+      // (scale height 1.2 km), so the sunset's hot spot broadens into a wide, nearly altitude-uniform
+      // arch; Preetham's frozen shape does not know a real arch still favours the horizon. And OZONE
+      // now dims the toward-sun HORIZON path more than the zenith (its thin-shell air mass reaches ~11
+      // at the horizon vs ~1 overhead), which nudges the ratio further — the price of the blue zenith,
+      // paid only in deep twilight. What must never return is the zenith OUT-shining the sunset by 10x,
+      // which is what the fudge floor did; 1.5x still catches that by a wide margin.
+      expect(zenith).toBeLessThanOrEqual(towardSun * 1.5);
     }
 
     // With the sun up, the sunset is emphatically a sunset: the glow is on the horizon, and it is on

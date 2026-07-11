@@ -45,6 +45,15 @@ const SUN_STEEPNESS = 1.5;
 const EE = 1000;
 const RAYLEIGH_ZENITH_LENGTH = 8.4e3;
 const MIE_ZENITH_LENGTH = 1.25e3;
+/** Vertical optical depth of the ozone Chappuis band at the sRGB primaries, 300 DU. Absorption only —
+ *  ozone does not scatter toward you, it removes light from the view path. It eats green (0.025) and
+ *  red (0.0395) far more than blue (0.0048), which is what makes a real clear zenith deep BLUE rather
+ *  than the CYAN pure Rayleigh gives. three's `Sky` omits it; the beam (`lighting.ts`) already has it,
+ *  so the dome disagreed with the beam about the same air. Same numbers, one physical column. */
+export const OZONE_ZENITH_TAU: Rgb = [0.0395, 0.025, 0.0048];
+/** `(R / (R + h_ozone))²` for the ozone shell at ~25 km — the thin-shell air-mass constant, so ozone's
+ *  grazing path stays bounded (~11 air masses at the horizon) instead of following the sea-level slant. */
+const OZONE_SHELL_REL2 = Math.pow(6371 / (6371 + 25), 2);
 const THREE_OVER_SIXTEEN_PI = 0.05968310365946075;
 const ONE_OVER_FOUR_PI = 0.07957747154594767;
 
@@ -176,6 +185,11 @@ export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): R
     1 / (Math.cos(zenithAngle) + 0.15 * Math.pow(93.885 - (zenithAngle * 180) / Math.PI, -1.253));
   const sR = RAYLEIGH_ZENITH_LENGTH * inverse;
   const sM = MIE_ZENITH_LENGTH * inverse;
+  // Ozone sits in a THIN SHELL at ~25 km, so its air mass toward the horizon does not diverge like the
+  // sea-level `inverse` (which runs to ~38): a horizontal ray crosses the ozone layer at a bounded
+  // slant. Thin-shell geometry — `sin θ' = (R/(R+h))·sin θ` at the layer — gives a horizon air mass of
+  // ~11, not 38, so ozone stops over-dimming the warm twilight horizon while still bluing the zenith.
+  const ozoneAirMass = 1 / Math.sqrt(1 - OZONE_SHELL_REL2 * (1 - dirY * dirY));
 
   const rPhase = rayleighPhase(cosTheta * 0.5 + 0.5);
   const mPhase = hgPhase(cosTheta, t.g);
@@ -185,8 +199,10 @@ export const clearSkyRadiance = (dirY: number, cosTheta: number, t: SunTerms): R
   for (let i = 0; i < 3; i++) {
     const bR = t.betaR[i];
     const bM = t.betaM[i];
-    // Extinction along the VIEW path — unaffected by where the sun is.
-    const fex = Math.exp(-(bR * sR + bM * sM));
+    // Extinction along the VIEW path — unaffected by where the sun is. Rayleigh + aerosol scatter the
+    // light out; ozone (absorption only, its own thin-shell air mass) removes it, and its red/green
+    // bias is what turns Rayleigh's cyan zenith into a real blue one.
+    const fex = Math.exp(-(bR * sR + bM * sM + OZONE_ZENITH_TAU[i] * ozoneAirMass));
     // In-scattering SOURCE — only the sunlit part of each column contributes. Numerator only: the
     // denominator is the total scattering coefficient, which does not care about the sun.
     const wR = t.litRayleigh * bR * rPhase;

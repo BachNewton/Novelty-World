@@ -141,26 +141,28 @@ export const DEFAULT_ADAPTATION_FLOOR_LUX = 400;
 /**
  * Photographic key: where the meter places the SCENE'S OWN AVERAGE luminance.
  *
- * **0.125, not 0.18.** Those two numbers get conflated constantly and they are not the same thing.
- * `0.18` is the reflectance of a *grey card* — a physical object you hold in the light. `key` here is
- * the calibration of a **reflected-light averaging meter**, and ISO 2720 fixes that through its meter
- * constant `K`, which every manufacturer sets in `[10.6, 13.4]`. The canonical `K = 12.5` puts the
- * metered scene average near **12.5 % of the display range**, not 18 %. A meter has never placed a
- * grey card at middle grey except by coincidence.
+ * **The meter's textbook value is 0.125, not 0.18** — those two get conflated constantly and are not
+ * the same thing. `0.18` is the reflectance of a *grey card* — a physical object you hold in the light.
+ * `key` is the calibration of a **reflected-light averaging meter**, which ISO 2720 fixes through its
+ * meter constant `K ∈ [10.6, 13.4]`. The canonical `K = 12.5` puts the metered scene average near
+ * **12.5 % of the display range**, not 18 %. A meter has never placed a grey card at middle grey except
+ * by coincidence. (An earlier build shipped 0.18 by mistake — the grey-card number carried over from the
+ * old meter — and blind review flagged it "milky … do not ship"; a later review ranked 0.125 over
+ * 0.18/0.15 at both high sun and sunset.)
  *
- * This is not a brightness dial that was turned until the pictures looked nice. It was 0.18 by
- * mistake — the grey-card number, carried over from the old grey-card meter that `fieldLuminance`
- * replaced. Three blind reviewers had independently reported the daylight as "milky" and the midday
- * zenith as "pale". A fourth, given 0.18 / 0.15 / 0.125 with no idea what the variable was, ranked
- * **0.125 first overall, first at high sun, and first at sunset**, and said of 0.18: *"do not ship."*
+ * **Shipped value: 0.09** — a deliberate ~half-stop under the textbook meter, art-directed by Kyle and
+ * judged live across 0° / 10° / 53°. The 0.125 above was picked by a blind reviewer under EARLIER
+ * conditions (pre-grade, pre-ozone, ACES); with the display grade now lifting the picture, the whole
+ * pipeline reads better a touch darker. This darker key is also what lets the sunset sky stay saturated
+ * and the reflective sea settle to a dark surface instead of glowing — one exposure, both fixes.
  *
  * The cost, stated plainly: at −6° the sea and the buoy hulls fall to near-black, leaving the
  * navigation lights and the afterglow band. That is what a sun 6° below the horizon actually looks
  * like, and `DEFAULT_ADAPTATION_FLOOR_LUX` is the knob for anyone who disagrees.
  *
- * Tone-mapper-independent: AgX then decides where 0.125 lands on screen.
+ * Tone-mapper-independent: AgX then decides where this lands on screen.
  */
-export const DEFAULT_EXPOSURE_KEY = 0.125;
+export const DEFAULT_EXPOSURE_KEY = 0.09;
 
 /** Broadband albedo of what lies below the horizon — mostly sea, a little rock. Lights the undersides
  *  of everything, and is why deleting the hemisphere light costs nothing. */

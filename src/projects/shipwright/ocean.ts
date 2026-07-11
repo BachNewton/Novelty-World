@@ -700,7 +700,7 @@ export function createOcean(): Ocean {
   // (A Phong variant was explored for perf; git history has the code if a tier's needed.)
   const material = new THREE.MeshStandardMaterial({
     color: 0x1f4a5a,
-    roughness: 0.25,
+    roughness: 0.4,
     metalness: 0,
     normalMap: detailNormals,
   });
@@ -948,22 +948,24 @@ export function createOcean(): Ocean {
         });
 
       const bodyFolder = sea.addFolder("Water body");
-      // There is no veil-brightness dial any more. The downwelling irradiance the body is lit by is
-      // DERIVED from the sun and the sky (`lighting.ts` -> `setDownwelling`), so there is nothing
-      // here for a human to tune: change the light, and the water follows.
+      // These are the selected Jerlov type's measured optics (absorption + scattering, 1/m) and its
+      // backscatter fraction — PHYSICAL CONSTANTS of the water, not tuning knobs. Shown READ-ONLY so
+      // you can read off what a type loads, but the WATER TYPE dropdown above is the only control:
+      // change the type, not the physics. (The downwelling light the body is lit by is likewise DERIVED
+      // from the sun + sky in `lighting.ts` -> `setDownwelling`; change the light and the water follows.)
       const absorb = uniforms.uAbsorption.value;
       const scatter = uniforms.uScattering.value;
       const backscatter = uniforms.uBackscatter.value;
       tune.push(
-        bodyFolder.add(absorb, "x", 0, 2, 0.005).name("absorb R"),
-        bodyFolder.add(absorb, "y", 0, 2, 0.005).name("absorb G"),
-        bodyFolder.add(absorb, "z", 0, 2, 0.005).name("absorb B"),
-        bodyFolder.add(scatter, "x", 0, 6, 0.01).name("scatter R"),
-        bodyFolder.add(scatter, "y", 0, 6, 0.01).name("scatter G"),
-        bodyFolder.add(scatter, "z", 0, 6, 0.01).name("scatter B"),
-        bodyFolder.add(backscatter, "x", 0, 0.2, 0.001).name("backscatter R"),
-        bodyFolder.add(backscatter, "y", 0, 0.2, 0.001).name("backscatter G"),
-        bodyFolder.add(backscatter, "z", 0, 0.2, 0.001).name("backscatter B"),
+        bodyFolder.add(absorb, "x", 0, 2, 0.005).name("absorb R").disable(),
+        bodyFolder.add(absorb, "y", 0, 2, 0.005).name("absorb G").disable(),
+        bodyFolder.add(absorb, "z", 0, 2, 0.005).name("absorb B").disable(),
+        bodyFolder.add(scatter, "x", 0, 6, 0.01).name("scatter R").disable(),
+        bodyFolder.add(scatter, "y", 0, 6, 0.01).name("scatter G").disable(),
+        bodyFolder.add(scatter, "z", 0, 6, 0.01).name("scatter B").disable(),
+        bodyFolder.add(backscatter, "x", 0, 0.2, 0.001).name("backscatter R").disable(),
+        bodyFolder.add(backscatter, "y", 0, 0.2, 0.001).name("backscatter G").disable(),
+        bodyFolder.add(backscatter, "z", 0, 0.2, 0.001).name("backscatter B").disable(),
       );
       bodyFolder.close();
 

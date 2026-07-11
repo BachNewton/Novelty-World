@@ -198,11 +198,13 @@ code that floats the ship agree on where the surface is.
   - The env map is the water's sky reflection (correct on the displaced surface --
     it reflects per-pixel by the real normal) and the SSR fallback. It is baked
     WITHOUT the sun's disc: the `DirectionalLight` already carries the beam.
-- **The exposure key is 0.125 (ISO 2720), NOT 0.18.** `0.18` is a grey CARD's
-  reflectance; `key` is the calibration of a reflected-light averaging meter, whose
-  ISO 2720 constant `K = 12.5` places the scene average near 12.5 %. A meter has
-  never put a grey card at middle grey except by coincidence. Blind review confirmed:
-  0.125 beat 0.15 and 0.18 at high sun AND at sunset.
+- **The exposure key is 0.09 (art-directed), calibrated from 0.125 (ISO 2720), NOT 0.18.** `0.18` is a
+  grey CARD's reflectance; `key` is the calibration of a reflected-light averaging meter, whose ISO 2720
+  constant `K = 12.5` places the scene average near 12.5 %. A meter has never put a grey card at middle
+  grey except by coincidence. `0.125` won a blind review under *earlier* conditions (pre-grade,
+  pre-ozone, ACES); the shipped value is **0.09**, a deliberate ~half-stop darker, judged live by Kyle
+  across 0°/10°/53° — it kills both the washed sunset sky and the over-lifted "glowing" turbid sea in one
+  number (see `docs/lighting-log.md` "Where this settled").
 - **Exposure meters the SCENE, not the ground.** `exposure = key / L_field`, where
   `L_field = 0.5 * mean sky radiance + 0.5 * sea radiance` -- the scene's own average
   luminance. It is NOT `(0.18/pi) * E_horizontal`; that is an incident meter with a
@@ -236,13 +238,22 @@ code that floats the ship agree on where the surface is.
   here). Signal green is a **blue-green**, not a lime. South cardinal's long flash is
   a safety feature -- six flashes must never be miscountable as three or nine. The
   lanterns switch on a photocell reading the model's own illuminance, not a clock.
-- **Tone mapping is AgX; bloom is built and OFF.** Settled by the 2x2 in
-  `docs/LIGHTING.md`, graded blind. ACES desaturates a highlight *before* it clips,
-  so the 4-degree sun-glitter road renders neutral silver; AgX renders the same pixels
-  gold, for 0.37 ms (noise). Bloom then spreads an already-white pixel into a white
-  halo, and as tuned it washes out the very hero frames it was meant to save -- it
-  costs +3.7 ms with an MSAA HDR target, of which only 1.2 ms is the blur and the rest
-  is the resolve. Live switches: Environment -> Display. See `docs/lighting-log.md`.
+- **Tone mapping is AgX + a display GRADE; bloom is built and OFF.** Settled by the 2x2 in
+  `docs/LIGHTING.md`, graded blind. ACES desaturates a highlight *before* it clips, so the 4-degree
+  sun-glitter road renders neutral silver; AgX renders the same pixels gold, for 0.37 ms (noise). AgX
+  intentionally holds punch off the highlights, so a **post-tonemap grade** (saturation + contrast, in
+  the shared hook `use-three-scene.ts` via `ctx.setGrade`) puts it back — default ON, gentle (sat 1.2,
+  contrast 1.08). AgX + grade beat ACES to Kyle's eye. The grade is a CAMERA/art operator applied
+  uniformly at the end of the pipeline, never physics — it is where the "beauty" of the old `pow(1.5)`
+  sky belongs. Bloom spreads an already-white pixel into a halo, and as tuned it washes the hero frames
+  (+3.7 ms with an MSAA HDR target, only 1.2 ms of it the blur); left OFF and **still needs work** (the
+  `clamp` is the lever for the high-sun blowout). Live switches: Environment -> Display. See
+  `docs/lighting-log.md`.
+- **Physical constants are READ-ONLY in the debug GUI; only conditions + camera/art choices get live
+  sliders.** Ground albedo and the Jerlov water optics (absorb/scatter/backscatter) are shown but
+  `.disable()`d — the water-TYPE dropdown is their control. An editable slider must never imply you can
+  dial a number the physics of the world fixes; conditions (sun, turbidity, sea state) and camera/art
+  (key, grade, bloom) are the legitimately dialable ones.
 - **Debug overlays:** the shared hook takes `{ stats: true }` to show a three.js
   FPS/ms panel. Scene-specific tweakables use a **lil-gui** panel built in
   `scene.ts` (`three/examples/jsm/libs/lil-gui.module.min.js`, typed via
@@ -261,17 +272,20 @@ code that floats the ship agree on where the surface is.
   `sky.ts` draws its own dome and `sky-model.ts` is that dome's CPU twin. Both began
   as a port of the addon's Preetham GLSL, and most of what they inherited has since
   been replaced or deleted: the magnitude (`domeScale` renormalises to Haurwitz), the
-  scalar colour source (`sourceTints`, per scattering species), and the `L0 = 0.1*Fex`
-  floor (deleted -- it peaked at the zenith and drew twilight upside down).
-  - **What remains of Preetham is known to be wrong, and is the next work.** Its
-    scattering coefficients disagree with our own beam's optical depths by ~227x. Its
-    `rayleighPhase(cosTheta * 0.5 + 0.5)` is a bug faithfully ported from three: it
-    gives `p(180) / p(0) = 0.50` where Rayleigh is symmetric and must be 1.00. Its
-    single Henyey-Greenstein aerosol lobe falls off 6.1x between 2 and 20 degrees from
-    the sun where the measured sky falls ~30x -- so it does not dim the sun's glow, it
-    SMEARS it across the whole dome. That smear is the washed sunset. `pow(Lin, 1.5)`
-    and `horizonMix` are admitted look hacks and they entangle the coefficients, which
-    is why the coefficients cannot simply be corrected in place.
+  scalar colour source (`sourceTints`, per scattering species), the `L0 = 0.1*Fex`
+  floor (deleted -- it peaked at the zenith and drew twilight upside down), and **ozone**
+  added to `Fex` (the Chappuis band -- a blue zenith, not Rayleigh's cyan).
+  - **What remains of Preetham is known to be imperfect, but is NO LONGER "the next work."** The washed
+    sunset it was blamed for was resolved in the CAMERA (darker exposure + grade -- see
+    `docs/lighting-log.md` "Where this settled"), NOT by finishing the dome physics; that path was tried
+    on `sunset-aureole` and *falsified* (corrected single-scattering rendered more washed, not less). So
+    the residuals below are an OPTIONAL physics refinement, not the plan: the scattering coefficients
+    disagree with our own beam's optical depths by ~227x; `rayleighPhase(cosTheta * 0.5 + 0.5)` is a bug
+    ported from three (`p(180)/p(0) = 0.50` where Rayleigh is symmetric and must be 1.00); and the single
+    Henyey-Greenstein aerosol lobe is too broad to be an aerosol aureole (falls off 6.1x from 2->20
+    degrees where the real sky falls ~30x). `pow(Lin, 1.5)` and `horizonMix` are admitted look hacks that
+    entangle the coefficients -- which is why they cannot be corrected in place, and why the beauty was
+    moved to the camera grade instead.
   - **The sun:sky ladder is structurally protected while you fix this.** For a clear
     sky `skyIrradiance = clearChroma * clearDhi`, and `clearDhi` comes from Haurwitz,
     not from the dome. The dome supplies distribution and colour; the irradiance model
