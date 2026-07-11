@@ -37,6 +37,12 @@ const commitCount = execSync("git rev-list --count HEAD").toString().trim();
 const emptyStub = "./src/shared/lib/empty-module.ts";
 
 const nextConfig: NextConfig = {
+  // Lets a second build coexist with a running `next dev` instead of fighting it over `.next`.
+  // The Shipwright perf sweep needs a PRODUCTION server (a dev server hot-reloads, and a Fast Refresh
+  // remount destroys an in-flight benchmark run), but the dev server is usually up on 3001 at the same
+  // time. `NEXT_DIST_DIR=.next-bench npm run build` gives that build its own output dir.
+  // Unset — every normal build and deploy — this is exactly `.next`.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   env: {
     APP_VERSION: commitCount,
   },

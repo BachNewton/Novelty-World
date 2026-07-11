@@ -56,3 +56,6 @@ src/projects/monopoly/bots/optimize/*.log
 
 # Shipwright render-cost benchmark results (src/projects/shipwright/tools/bench.mjs)
 **/.bench/
+
+# Isolated dist dir for the Shipwright perf sweep's production server (see next.config.ts distDir)
+.next-bench/
