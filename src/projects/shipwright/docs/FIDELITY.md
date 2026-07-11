@@ -63,6 +63,17 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
   reflection / IBL jittering frame-to-frame), and/or the **auto-exposure / veil** stepping as
   elevation changes. **Parked — noted only, no fix now.**
 
+- **Hard bright horizon seam.** A near-white hairline runs the whole sky↔water join, worst under a flat
+  overcast (`06-lighting/c-cloud/stratus/e10`) and clear at `06-lighting/a-elevation/e00`. It reads as an
+  edge-highlight where the water plane terminates against the sky dome, not a natural horizon. Named the
+  **single worst defect** by the 2026-07 blind artifacts review (see the review loop below). Not
+  diagnosed; first place to look is the water plane's far-edge / horizon fade against the dome. Parked.
+
+- **Finite water-plane edge curls into the frame corners** at high clarity / oblique down-looks (top
+  corners of `02-clarity/*/e12`): the uniform ocean grid runs out and its raised far edge enters the
+  shot. The **camera-following LOD grid** (see "Far-water ripple aliasing" below + `PERFORMANCE.md`) is
+  the real fix; until then keep the plane large enough for the framing. Parked.
+
 ## Tweaks & enhancements (backlog — none are blockers)
 
 ### Refraction offset — dropped; revisit only *with a seabed*
@@ -235,3 +246,40 @@ and the noon fix — git history has the details):
    single holistic pass over the whole suite. Ask for a per-frame verdict (PLAUSIBLE / QUESTIONABLE /
    WRONG / ARTIFACT + physical reason) and a ranked list of what still looks wrong.
 3. **Judge against physics, not the brand palette** — Shipwright is photoreal (see project `CLAUDE.md`).
+
+### The multi-lens blind review (repeatable — used 2026-07 for the lighting settle)
+When you want a critical read on the **whole render** (not just water), dispatch **one subagent per LENS**
+in parallel. Each catches a *different* failure mode, so the lenses don't collapse into one:
+
+- **Photorealism** — "Does it look like a real photograph? What are the exact CG tells?" Frames: the
+  hero/beauty set (`04-beauty/*`, `06-lighting/d-hero/*`) + a few sea-states + islands.
+- **Physical plausibility** — "Is the LIGHT correct? Sun:sky balance (objects hold form, the 0.04 sphere
+  stays black), shadows real + universal, blacks black, highlights not washed, twilight believable?"
+  Frames: the calibration ladder `06-lighting/a-elevation/*` + `b-azimuth/*` + `02-clarity` samples.
+- **Aesthetic beauty** — "Is it beautiful? Would a player stop and screenshot it?" Frames: the sunset /
+  golden-hour heroes.
+- **Artifacts & coherence** — "Find defects (banding, clipping, seams, torn reflections, aliasing) AND
+  check every object looks lit by the SAME sun (no 'two different worlds')." Frames: reflections,
+  islands (objects+land+water together), clouds, rough sea.
+
+Rules that keep it honest, and MUST be in each prompt:
+- **Blind:** the reviewer may read ONLY the `.png` frames — no source, no docs (these docs contain the
+  team's own rationalisations and will bias the verdict). Judge only what is SEEN, against real-world
+  reference.
+- **Told what it should look like** — put the physical/aesthetic target *in the prompt*, not by pointing
+  at these files.
+- **Critical, not kind** — the reviewer's job is to find what's wrong; ask for per-frame verdict + score,
+  a ranked list of what's wrong, and the best/worst frame.
+- Give each lens a **focused frame subset** — the full ~126-frame suite is too much for one agent.
+
+Then **synthesise across lenses**: agreements (2+ reviewers naming the same thing) are the real signal;
+the *split* between the lighting-lenses and the whole-scene-lenses tells you where the work is. First run
+(2026-07, on the settled baseline): photorealism **5**, physical plausibility **7**, beauty **7** (sunset
+**8.5**), artifacts **5.5** — i.e. the **light is the strength; clouds, sun-glare/bloom, water
+micro-detail, and object/island materials are the next work**. Full findings folded into
+`docs/lighting-log.md` and the backlog above.
+
+**Fix these CAPTURE-TOOL bugs before re-running** (they distract reviewers; they are NOT render defects):
+(a) the `06-lighting/d-hero/dappled-sea` frame is mis-framed — the camera is buried under the water; and
+(b) a small **black square leaks into the top-left of every frame** (a debug/HUD stub caught in the
+capture). Both live in `tools/shots.mjs` / the debug surface it drives.

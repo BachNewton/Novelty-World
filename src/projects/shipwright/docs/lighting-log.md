@@ -837,6 +837,31 @@ and the fidelity docs, kept naming without prompting.
 
 ---
 
+## Blind 4-lens review (2026-07) — lighting items surfaced
+
+The whole-render 4-lens blind review (the repeatable process now lives in `FIDELITY.md` → "The
+multi-lens blind review") **validated the settle**: four code-blind agents independently praised the
+sun:sky balance ("objects have genuine form at every elevation, the sky never flattens them"), the
+exposure discipline, the turbidity→water-colour response ("exactly right"), and called the twilight
+sequence "physically excellent — the strongest part of the set" and the hero sunset the "money shot"
+(8.5/10). The lighting-specific *defects* it surfaced, ranked:
+
+1. **Cast shadows read weak/absent, worst at low sun.** Self-shading (terminators, dark undersides) is
+   universal and tracks the sun correctly through elevation AND azimuth — but *projected* shadows barely
+   register (object→object, object→land). Caveat: the **ocean deliberately does NOT receive shadows** (a
+   scope decision — so a low-sun object cannot darken the turbid water's in-scattered glow behind it,
+   which the reviewer correctly missed); that part is by-design. The weak cast shadow on *non-water*
+   receivers at low sun is the real item, and it is the single biggest physical "tell."
+2. **Lifted blacks on the 0.04 calibration sphere.** The darkest sphere reads mid-grey at noon where
+   physics wants near-black — over-filled by sky + water bounce on a curved surface. The model CAN hold
+   black (the black buoy topmarks / cardinal bands render correctly dark), so this is the big curved
+   dielectric being over-lit, not a global black-level failure. Medium severity (some hemispherical
+   sky-fill lift is legitimate).
+3. **Sun disc under-reddened at low elevation** — confirms item 9 above (the disc core clips to white),
+   and adds that at ~8° (air mass ~6) the disc should visibly *redden*, not merely clip.
+
+---
+
 ## The final blind review, for the record
 
 Graded on the last-but-one build (before the airlight and τ = 500 fixes), 21 frames, no code:
