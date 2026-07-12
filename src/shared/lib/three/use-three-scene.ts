@@ -548,6 +548,20 @@ export function useThreeScene(
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+      // The composer MUST be re-told the pixel ratio, not just the size.
+      //
+      // `EffectComposer` sizes its target as `width × height × its own _pixelRatio`, which it only
+      // learns from `setPixelRatio`. Setting size alone reuses the ratio captured when the composer was
+      // BUILT — so after `ctx.setPixelRatio(0.5)` the renderer's backing store halved while the
+      // composer's target stayed full-size. And when a composer runs, the composer's target is where the
+      // SCENE IS ACTUALLY RASTERISED; the default framebuffer only receives the final quad.
+      //
+      // The render-scale slider was therefore a lie: it downscaled the canvas (so the image visibly
+      // blurred, upscaled back to the screen) while the scene kept rendering at full resolution, so it
+      // bought nothing. It only ever shrank the scene-capture and SSR targets, which are sized off the
+      // renderer's drawing buffer — which is exactly why render scale measured "sublinear" and got
+      // written up as a DVFS clock-boost effect. It wasn't. The main pass simply never got smaller.
+      composer?.setPixelRatio(renderer.getPixelRatio());
       composer?.setSize(width, height);
       if (sceneCapture) {
         const db = renderer.getDrawingBufferSize(new THREE.Vector2());
