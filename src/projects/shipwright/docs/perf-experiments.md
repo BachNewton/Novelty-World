@@ -1,5 +1,141 @@
 # Shipwright Render-Cost Experiments
 
+> **⚠ 2026-07-12 — everything below the "2026-07-12 full sweep" section predates the lighting overhaul,
+> the islands, and two fixes worth a third of the frame. The numbers in the older sections are still
+> *true of the frame they were measured on*, but that frame no longer exists. Read the new section, and
+> `PERFORMANCE.md` → "What this doc got wrong", before trusting any older table.**
+>
+> The single most important methodological lesson from the new sweep: **two passes agreeing is not
+> enough.** `--buoys off` read −5.7 ms (−36 % of the frame) across two passes taken 3 h apart, and it
+> **did not reproduce** when A/B'd interleaved against an adjacent baseline (real answer: −1.1 ms). Both
+> passes had simply landed in the same thermal/DVFS regime. Interleave A → B → A, warm, in one session.
+
+---
+
+## 2026-07-12 full sweep — the current measured model
+
+**Setup:** AMD Radeon 780M (Ryzen 7 7840U), headless ANGLE/D3D11, 1600×900, fixed-dt, production server.
+156 runs × 2 passes, ~5.5 h, via `tools/sweep.mjs`; folded with `tools/report.mjs`. **156/156 ok.**
+
+### The frame, before the fixes (baseline 16.0 ms — this is what the sweep measured)
+
+Every row is a **subtraction**: run with the thing off, diff against the baseline next to it in time.
+
+| experiment | GPU total | Δ | reads as |
+|---|---|---|---|
+| **baseline** | **16.0** | — | |
+| `--shading flat` (unlit water) | 8.9 | −7.1 | all PBR shading math |
+| `--ssr off` | 9.4 | −6.6 | SSR, at *this* baseline (see note) |
+| `--grade off` | 11.5 | −4.5 | the grade **and the composer path it drags in** |
+| `--composer-samples 0` | 11.4 | −4.6 | ← the composer's MSAA is ~100 % of that |
+| `--msaa off` | 12.5 | −3.5 | the context's MSAA — **which antialiases nothing** |
+| `--water-fx off` | 13.9 | −2.1 | the screen-space composite |
+| `--sky-dome off` | 14.3 | −1.8 | the dome's own fragment cost |
+| `--shadows off` | 15.0 | −1.0 | the sun's shadow map |
+| `--shadow-cache off` | 16.3 | +0.2 | what the once-a-frame shadow cache saves |
+| `--terrain on` | 21.0 | **+5.0** | the islands (hidden from every previous bench) |
+
+The decisive pair is **`grade off` (11.5) ≈ `composer-samples 0` (11.4)**: removing the composer entirely
+and keeping it but dropping MSAA on its target cost the *same*. So the composer's passes are essentially
+free and **~100 % of the grade's cost was the 4× MSAA resolve on its HalfFloat target** — the same cost
+the project had already measured for bloom and rejected bloom over.
+
+### Interleaved re-verification (the numbers to trust)
+
+Run A → B → A against a stable baseline, one warm session. Baselines: 15.23 / 15.23 / 17.6 / 17.6 / 15.3.
+
+| experiment | GPU total | Δ vs adjacent baseline | reproduced the sweep? |
+|---|---|---|---|
+| `--grade off` | 10.86 | −4.37 (−29 %) | ✅ |
+| `--msaa off` | 11.99 | −3.24 (−21 %) | ✅ |
+| `--quad-size 20` | 7.94 | **−8.5 (−52 %)** | ✅ |
+| `--terrain on` | 21.77 | +4.2 (+24 %) | ✅ |
+| `--ssr off` | 9.06 | −7.4 | ✅ |
+| `--buoys off` | — | **−1.1, not −5.7** | ❌ **did NOT reproduce** |
+
+### E8 — tessellation. **The old model's biggest error.**
+
+| quad size | GPU total | SSR pass | main |
+|---|---|---|---|
+| 2.5 m | **30.4** | 6.9 | 22.6 |
+| 4.9 m (default) | 15.9 | 2.5 | 12.6 |
+| 10 m | 9.1 | 1.1 | 7.5 |
+| 20 m | **8.6** | 0.8 | 7.2 |
+
+The ocean **is** vertex-bound, and heavily. ~1 M vertices × (4 Gerstner waves of sin/cos + analytic
+normals) × 2 draws/frame. Note the SSR pass scales with it too — it renders the same plane.
+
+### The frame, after the fixes (baseline 12.0 ms)
+
+| variant | GPU total | main | SSR | capture |
+|---|---|---|---|---|
+| baseline | 12.03 | 8.78 | 2.21 | 1.03 |
+| `--shading flat` | 9.19 | 5.75 | — | — |
+| `--water-fx off` | 11.29 | 8.39 | — | — |
+| `--ssr off` | 10.22 | 9.15 | 0 | — |
+
+→ **fill 5.8 · PBR shading math 3.0 (of which the composite is only 0.4) · SSR pass 2.2 · capture 1.0.**
+
+**SSR's true share is now 1.8 ms (~15 %)**, not the ~37 % the old docs claim — turning it off gives 0.4 ms
+straight back to the main pass (the env-map fallback picks up the work). The old headline was measured on
+a frame whose bottleneck was different. *A cost model is only valid for the frame it was measured on.*
+
+### GPU levers
+
+**E1 render-scale** — sublinear (DVFS clock-boost): 0.5 → 12.5 · 1.0 → 16.0 · 1.5 → 18.0 · 2.0 → 21.4 ms.
+4× the pixels for ~1.3× the time. At 1600×900 the 780M is *under-loaded*; check anything you'll ship at
+native res.
+
+**E2 reflection-res** (SSR pass ms): 0.1 → 1.7 · **0.25 → 2.5** · 0.5 → 3.6 · 1.0 → 7.7. Sublinear; 0.25
+is a good knee.
+
+**E4 ssr-steps** (SSR pass ms, new runtime knob): 8 → 1.9 · **20 → 2.5** · 32 → 3.2 · 48 → 4.0.
+
+**E5 ssr-cutoff** — **a dead knob.** 0.02 → 16.08 · 0.05 → 15.98 · 0.1 → 15.89 · 0.2 → 15.94. Flat.
+Second time it has measured flat. It discards *near-head-on* pixels; the expensive ones are at grazing.
+
+**E7 capture-scale**: 0.25 → 15.1 (−0.9) · 1.0 → 16.0. Small — capture is only ~1 ms of the frame.
+
+**Clouds** — +1.4 ms, and **flat across genus** (cumulus / stratus / cumulonimbus all ≈ 17.5). The
+cloud-shadow *pass* is 0.14 ms; the per-lit-fragment map fetch in the global `lights_fragment_begin`
+override is ~0.25 ms (`--cloud-shadow off`: 17.50 → 17.25). The default flight is CLEAR, so `cloud`
+GPU-ms reads 0 — that means "untested", not "free".
+
+**Native resolution** (2752×1152, 3.17 MP): visuals **27.8 ms**; `--grade off` there saves **9.4 ms** —
+nearly double its 1600×900 saving, because the MSAA/bandwidth costs scale with pixels. This is exactly
+why a lever must be spot-checked at native res before shipping.
+
+### Tier 4 — physics (CPU)
+
+**Body-count scaling — linear, ~0.3 ms/body.** `phys` crosses the 60 fps budget at ~50 bodies.
+
+| bodies | `phys` | buoyancy | solver |
+|---|---|---|---|
+| 4 | 1.8 | 1.3 | 0.4 |
+| 8 | 2.5 | 1.9 | 0.6 |
+| 16 | 5.1 | 3.8 | 1.1 |
+| 32 | 9.9 | **7.0 (71 %)** | 2.5 (25 %) |
+| 64 | 21.9 | 15.9 | 5.0 |
+
+**`--sample-iters` — the Gerstner Newton inversion, priced at last** (32 bodies):
+
+| Newton iters | `phys` | buoyancy |
+|---|---|---|
+| 0 | 7.1 | 4.1 |
+| 1 | 7.7 | 4.8 |
+| 2 | 8.3 | 5.4 |
+| 3 | 9.1 | 6.2 |
+| **4 (default)** | 10.0 | 7.0 |
+
+~0.7 ms per iteration; the full inversion is **2.9 ms = 42 % of buoyancy**. 4 → 2 saves ~1.7 ms. A
+**fidelity** trade (the sampled waterline drifts from the rendered one) — judge the float feel first.
+
+**`--drag off`**: 8.6 (−1.35, ~14 % of buoyancy). **`--collision off`**: 10.05 — **no change**, because
+the bench hulls are laid out non-overlapping and never touch. A contact-heavy scene is still unmeasured.
+
+---
+
+
 A runnable suite for `tools/bench.mjs` that turns `PERFORMANCE.md`'s **asserted** cost model
 into **measured** numbers: how much does each rendering setting actually move per-pass GPU cost
 on the target hardware (the AMD 780M). Run the whole thing when there's time; each experiment

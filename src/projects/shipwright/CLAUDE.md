@@ -374,13 +374,20 @@ code that floats the ship agree on where the surface is.
   size are debug sliders. The short (48/70 m) waves need this fineness to render without
   their crests faceting — a coarse grid dips the rendered surface below the analytic
   crest, which can read as the CPU-placed cube floating a touch high.
-- **FUTURE IMPROVEMENT — camera-following LOD ocean.** The uniform grid
-  spends detail on far water that doesn't need it. When we build the roaming /
-  sailing camera (or if a weaker device needs it), replace it with a
-  camera-following high-density patch + a coarse far plane for the horizon, so the
-  fine triangles travel with the viewer. Do NOT do this pre-emptively. Tried and
-  rejected: dropping the short waves and faking them with the normal map — looked
-  worse (a repeating "river" of smooth swells).
+- **NEXT PERF PROJECT — camera-following LOD ocean (~8 ms, the biggest single win, and it costs no
+  image quality).** The uniform grid spends detail on far water that doesn't need it: the plane is
+  ~1 M vertices, its vertex shader runs 4 Gerstner waves (sin/cos ×4) + analytic normals **per vertex**,
+  and it is drawn **twice a frame** (SSR pass + main pass). Measured: coarsening the quad from 4.9 m to
+  20 m takes the GPU frame **15.9 → 8.6 ms**. Uniform coarsening isn't shippable (the short 48/70 m waves
+  facet — that's why the fine grid exists), but a camera-following high-density patch + a coarse far
+  plane keeps the near waves identical and reclaims most of it.
+  **This REVERSES the old guidance** ("the ocean is not vertex-bound", "tessellation is the least
+  impactful lever", "do NOT do this pre-emptively"). That came from an experiment that measured
+  render-prep **CPU** — genuinely flat in tessellation — and generalised it to the GPU, which was never
+  tested. See `docs/PERFORMANCE.md` → "What this doc got wrong".
+  Still true: dropping the short waves and faking them with the normal map was **tried and rejected** —
+  it looked worse (a repeating "river" of smooth swells). LOD is a different thing: keep the waves,
+  spend the vertices where the camera is.
 - **Kinematic float works and looks great.** The test cube (and the debug probes)
   ride the water via `ocean.sampleParticle` (forward Gerstner) — real orbital
   motion + tilt, no physics engine. Confirmed the right approach for decorative
