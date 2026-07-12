@@ -127,7 +127,6 @@ try {
         padL(fps(r.frame).toFixed(0), 10),
     );
   }
-  const best = rows[rows.length - 1];
   console.log("-".repeat(74));
   console.log(
     [
