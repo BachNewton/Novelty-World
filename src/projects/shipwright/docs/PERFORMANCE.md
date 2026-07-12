@@ -8,8 +8,17 @@ ANGLE/D3D11, **1600×900**, fixed-dt. That is the deliberate worst case: a small
 iGPU that spills to system RAM. A Pixel 10 Pro XL (tile-based deferred, fast unified memory) runs the
 whole thing smoothly. Every bench JSON stamps the GPU, so re-run any experiment elsewhere and compare.
 
-Instruments: `tools/bench.mjs` (one run), `tools/sweep.mjs` (the whole suite), `tools/report.mjs`
-(fold it into tables).
+Instruments — **and reach for the live ones first, because the bench is not the game** (see "The LIVE
+game is a different scene from the benchmark"):
+
+| tool | asks |
+|---|---|
+| `tools/profile-live.mjs` | what does the **shipped** frame cost, and where does it go? (the pie) |
+| `tools/budget.mjs` | what do the levers cost **stacked**, on the real display? (the roadmap) |
+| `tools/lod-ceiling.mjs` | what can an LOD ocean actually win? (tessellation at a fixed plane size) |
+| `tools/capture-curve.mjs` | what does shrinking the scene capture cost the **image**? |
+| `tools/bench.mjs` · `sweep.mjs` · `report.mjs` | the deterministic scripted flight: one run, the whole suite, the tables |
+| `tools/verify-msaa.mjs` · `verify-shadow-cache.mjs` | pixel-identity guards |
 
 **There are two perf docs, and only two.** This one is the **brief**: what costs what, which levers are
 real, what is still open, and what to do next. `docs/perf-experiments.md` is the **log**: dated raw
@@ -311,10 +320,12 @@ distortion hides the softening.
 The GLSL keeps a compile-time **max** bound and `break`s on a uniform — GLSL forbids a uniform loop
 *bound*, but a uniform break is legal, and being warp-coherent it tracks a baked constant's cost.
 
-### Scene-capture resolution (E7) — small
+### Scene-capture resolution (E7) — **superseded. The old "small" verdict is wrong twice over.**
 
-0.25× saves 0.9 ms. It is only 1.0 ms of the frame to begin with. It buys VRAM/bandwidth and sets
-underwater clarity; it does **not** cut the SSR march, which runs per *output* pixel.
+The old entry read: *"0.25× saves 0.9 ms. It is only 1.0 ms of the frame to begin with."* Both halves are
+now false. The capture is **5.3 ms** of the shipped frame (it grew as a share once the composer left), and
+it is a **quality trade, not a cheap one** — it bleeds silhouettes at the waterline. Measured properly in
+`tools/capture-curve.mjs`; see "Shrinking the scene capture — measured, then REJECTED".
 
 ### Clouds — +1.4 ms, flat across genus
 
@@ -633,6 +644,74 @@ patch + a coarse far plane keeps the near waves exactly as they are and reclaims
 so geometric LOD buys it ~1 ms. Do not design one mechanism for both; that was my assumption and the
 measurement killed it.
 
+### NEXT: merge the duplicate scene pass — **5.3 ms, no quality cost** (spec, not yet built)
+
+*Written to be executable cold. You should not need the conversation that produced it.*
+
+**The defect.** The opaque scene is rasterised **twice every frame**, and nothing needs it to be:
+
+1. `renderPrePasses()` (`scene.ts`) hides the water and renders the whole scene into
+   `ctx.sceneCapture.target` — an HDR colour texture **and** a real `DepthTexture`.
+2. The hook's main render (`renderer.render(scene, camera)`) then draws **the same scene again**, water
+   included, to the default framebuffer.
+
+Every opaque triangle — terrain (500 k), spruce (71 k), buoys, raft, sky dome — is transformed and shaded
+in both. Step 1 exists only so the water can refract, absorb and SSR-march what is behind it.
+
+**The fix.** Render the opaque scene **once**, into the capture. Then put that image on the screen and
+draw only the water on top of it:
+
+1. `renderPrePasses` keeps rendering the water-less scene into `sceneCapture.target` (unchanged — it is
+   already exactly the image the framebuffer wants).
+2. **Blit** the capture's colour **and depth** into the default framebuffer
+   (`gl.blitFramebuffer(..., COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT, NEAREST)`; WebGL2 has it natively and
+   three exposes the raw context via `renderer.getContext()`).
+3. Render **only the ocean mesh** on top, depth-testing against the blitted depth. In three: put the
+   water on its own layer and `camera.layers.set(WATER_LAYER)` for the main pass, with
+   `renderer.autoClear = false` so the blit survives.
+
+**Expected: the entire `capture` column, 5.3 ms of a 24.8 ms frame at 3440×1440.** Confirm with
+`tools/budget.mjs`, which already prices it as a row.
+
+**Why this and not `capture res` (which looks easier and is worse).** Shrinking the capture is a *quality
+trade* — see the rejected section above: it bleeds silhouettes at the waterline, and it has a hard floor
+of ~1.3 ms because scale cuts raster and not vertex work. Merging removes **all** of it, vertex floor
+included, and touches no pixel. Do not "just lower the capture" instead; that is the trap this section
+exists to prevent.
+
+**The things that will bite:**
+
+- **Format match.** `blitFramebuffer` needs compatible formats. The capture is `HalfFloatType` colour +
+  `DepthTexture`; the default framebuffer is 8-bit. A colour blit across that boundary may be rejected or
+  silently clamp. If it is, the fallback is a **fullscreen textured quad** that samples the capture and
+  writes `gl_FragDepth` from its depth texture — one cheap fullscreen pass instead of a whole scene
+  re-render, so the win survives, just smaller. **Try the blit, measure, fall back if the driver refuses.**
+- **Tone mapping.** three applies tone mapping only when the render target is `null`
+  (`WebGLPrograms.getParameters`), so the capture is **linear HDR** and the on-screen pass is
+  **tone-mapped + graded**. Blitting linear-HDR pixels straight to an sRGB framebuffer will look wrong.
+  The blit or quad must therefore run the same tonemap+grade the materials do — which the
+  `CustomToneMapping` patch (`shared/lib/three/display-grade.ts`) makes available to any shader that
+  `#include`s the tonemapping chunks. This is the substantive design question; solve it first.
+- **MSAA.** With no composer, the default framebuffer is multisampled (`antialias: true`). Blitting a
+  single-sample capture into it discards that AA for the opaque geometry — the water would be antialiased
+  and the islands would not. Either render the capture multisampled too, or accept it and re-check
+  `verify-msaa.mjs`. **Do not skip this: geometry AA on the horizon and the spruce is the thing MSAA is
+  there for.**
+- **Sky dome + transparents** draw in the capture already, so they come along for free. Check the debug
+  overlays (`MeshBasicMaterial`), which currently draw in the main pass.
+
+**Verify like the other structural fixes**: the frame must be *pixel-equivalent*. Use the harness in
+`tools/capture-curve.mjs` (freeze once, never resume — `freeze()` rewinds the wave clock but **not** the
+physics bodies, and a drifting raft silently invalidates an A/B). Compare flat interior pixels separately
+from edges, as the grade change did: edges may legitimately move if MSAA changes, interiors may not.
+
+### THEN: the camera-following LOD ocean — **7.8 ms, no quality cost**
+
+Fully measured and specified under "The next perf project" above (`tools/lod-ceiling.mjs` prices the
+ceiling). Independent of the merged pass; either can go first. Together they take the shipped frame from
+**24.8 ms → ~11.7 ms** at native ultrawide 1440p, which is the 60 fps bucket with headroom — and neither
+costs a pixel.
+
 ### Done 2026-07-12 (was "do these first")
 
 1. ~~Drop `TEST_SHAPES` from the live scene~~ — **done.** It was the biggest single cost in the live
@@ -654,23 +733,37 @@ measurement killed it.
 
 ### Open threads
 
-1. **LOD ocean** (above). The frontier.
+1. **The merged scene pass, then the LOD ocean** (both specified above). The frontier.
 2. **Finish the terrain breakdown — 4 runs, ~10 min.** `--terrain-shading flat` (the decisive one: does
    island LOD attack triangles or the shader?) and a closing baseline for the spacing sweep. The
    instrumentation is built and committed; this is time, not work. See "Terrain".
-3. **Terrain generation is 2.5 s on the main thread** and becomes a per-chunk in-play hitch the moment
-   terrain streams. Web Worker. See "Terrain".
+3. **Terrain generation is 715 ms on the main thread** and becomes a per-chunk in-play hitch the moment
+   terrain streams. Web Worker. Less urgent than the old (stale) 2.5 s figure implied — but a 715 ms
+   freeze mid-sail is still a freeze. See "Terrain".
 4. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
    touch*. Crowded/touching ships would surface a real collision cost.
 5. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
    baseline) is the natural next step now the numbers are trustworthy and a sweep is one command.
 6. **Hi-Z / hierarchical SSR marching** — big strides through empty space via a depth mip-chain.
-7. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res down.
+7. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res / capture res
+   down. `capture res` is now a live dial and is a legitimate tier knob (it is just not a free default).
 
 ### How to re-run
 
 ```bash
-# one run
+# the LIVE shipped frame, and the pie chart of what is in it
+node src/projects/shipwright/tools/profile-live.mjs
+
+# the frame budget on the real display: levers STACKED, one warm session (this is the roadmap)
+node src/projects/shipwright/tools/budget.mjs            # defaults to the 3440x1440 ultrawide
+
+# what an LOD ocean can actually win (plane held at 5000 m; only tessellation varies)
+node src/projects/shipwright/tools/lod-ceiling.mjs 1.25
+
+# what shrinking the scene capture costs the IMAGE (clear water + seabed = the honest stress frame)
+node src/projects/shipwright/tools/capture-curve.mjs
+
+# one benchmark run
 node src/projects/shipwright/tools/bench.mjs --label check --url http://localhost:3001/3d-games/shipwright
 
 # the whole suite, unattended (~5.5 h) — against a PRODUCTION server so nothing hot-reloads mid-run
@@ -683,6 +776,9 @@ node src/projects/shipwright/tools/report.mjs            # fold it into tables
 node src/projects/shipwright/tools/verify-msaa.mjs --url http://localhost:3005/3d-games/shipwright
 node src/projects/shipwright/tools/verify-shadow-cache.mjs
 ```
+
+**`?terrain=off` skips terrain GENERATION** (not just its visibility) — ~840 ms off every page load for
+any probe that runs without land. A sweep is hundreds of page loads.
 
 **Check for strays before you trust a number.** On 2026-07-12 an orphaned Claude session was found
 running its own `bench.mjs` loop against the same GPU. It did not corrupt anything (its runs were

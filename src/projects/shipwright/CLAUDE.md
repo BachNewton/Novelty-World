@@ -342,6 +342,12 @@ code that floats the ship agree on where the surface is.
   fill-fraction target math. No THREE/Rapier — just the integer cell list.
 - `shapes.ts` — the voxel-build catalogue: the `Shape` descriptor, the gameplay `RAFT`, and
   the buoyancy-demo `TEST_SHAPES` (+ their builders and densities). Pure content.
+  **`TEST_SHAPES` no longer spawns in the live scene** — it did, and ~30 bodies / ~2,500 voxel colliders
+  of *debug demos* were the single most expensive thing in the shipped frame, on the CPU, where no GPU
+  dial could touch it. Worse, it was superlinear: Rapier's fixed-timestep accumulator answers a slow
+  frame with more substeps, so the testbed made the frame slow and the slow frame made the testbed
+  dearer. The live scene is `createPhysics(ocean, [RAFT])`; the benchmark still builds a testbed world
+  on demand (`--bodies N`) when we want to price buoyancy deliberately. **Debug content does not ship.**
 - `builder.ts` — `createBuilder`, first-person build input (place/break/drop) + the aim dot.
   All world mutation delegates to `physics.ts`.
 - `terrain.ts` — `createTerrain`, the procedural archipelago: the pure seeded bedrock field
@@ -393,20 +399,32 @@ code that floats the ship agree on where the surface is.
   size are debug sliders. The short (48/70 m) waves need this fineness to render without
   their crests faceting — a coarse grid dips the rendered surface below the analytic
   crest, which can read as the CPU-placed cube floating a touch high.
-- **NEXT PERF PROJECT — camera-following LOD ocean (~8 ms, the biggest single win, and it costs no
-  image quality).** The uniform grid spends detail on far water that doesn't need it: the plane is
-  ~1 M vertices, its vertex shader runs 4 Gerstner waves (sin/cos ×4) + analytic normals **per vertex**,
-  and it is drawn **twice a frame** (SSR pass + main pass). Measured: coarsening the quad from 4.9 m to
-  20 m takes the GPU frame **15.9 → 8.6 ms**. Uniform coarsening isn't shippable (the short 48/70 m waves
-  facet — that's why the fine grid exists), but a camera-following high-density patch + a coarse far
-  plane keeps the near waves identical and reclaims most of it.
-  **This REVERSES the old guidance** ("the ocean is not vertex-bound", "tessellation is the least
-  impactful lever", "do NOT do this pre-emptively"). That came from an experiment that measured
-  render-prep **CPU** — genuinely flat in tessellation — and generalised it to the GPU, which was never
-  tested. See `docs/PERFORMANCE.md` → "What this doc got wrong".
+- **THE TWO NEXT PERF PROJECTS — both structural, both worth ~5–8 ms, and NEITHER costs a pixel.**
+  Specced to be picked up cold in `docs/PERFORMANCE.md` → "NEXT: merge the duplicate scene pass" and
+  "The next perf project". Together they take the shipped frame from **24.8 → ~11.7 ms** at native
+  ultrawide 1440p. Do not reach for a *quality* dial before these are done — the last three big wins
+  were all machinery nobody chose, not trades anybody made.
+  1. **Merge the duplicate scene pass (~5.3 ms).** The opaque scene is rasterised **twice every frame**:
+     once water-less into the scene capture, then again to the screen. Draw it once, blit colour+depth,
+     and put only the water on top.
+  2. **Camera-following LOD ocean (~7.8 ms).** The uniform grid spends detail on far water that doesn't
+     need it: ~1 M vertices, 4 Gerstner waves (sin/cos ×4) + analytic normals **per vertex**, drawn
+     **twice a frame** (SSR pass + main pass). The ocean is almost **purely vertex-bound** — at a coarse
+     quad size the main pass costs the same as *having no ocean at all*, so its per-pixel fill is ~0 and
+     every millisecond is vertices (`tools/lod-ceiling.mjs`). Uniform coarsening isn't shippable (the
+     short 48/70 m waves facet — that's why the fine grid exists), but a camera-following high-density
+     patch + a coarse far plane keeps the near waves identical and reclaims most of it.
+     **This REVERSES the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively"),
+     which came from an experiment that measured render-prep **CPU** — genuinely flat in tessellation —
+     and generalised it to the GPU, which was never tested.
   Still true: dropping the short waves and faking them with the normal map was **tried and rejected** —
   it looked worse (a repeating "river" of smooth swells). LOD is a different thing: keep the waves,
   spend the vertices where the camera is.
+- **Do NOT shrink the scene capture to buy frames.** It looks free and isn't: it bleeds silhouettes at
+  the waterline (a blocky halo where an object's outline meets the water), and it has a hard floor,
+  because lowering its resolution cuts raster work and not the **vertex** work of re-rendering the whole
+  scene. `Performance → capture res` is a live dial for a **low-end quality tier**, not a default.
+  Merging the pass (above) removes all of that cost with no artifact. See `docs/PERFORMANCE.md`.
 - **Kinematic float works and looks great.** The test cube (and the debug probes)
   ride the water via `ocean.sampleParticle` (forward Gerstner) — real orbital
   motion + tilt, no physics engine. Confirmed the right approach for decorative
@@ -438,7 +456,8 @@ code that floats the ship agree on where the surface is.
   waterline-correct (capsize → mouth floods; swamp a rim → floods). A **fully sealed** compartment (no
   openings) never floods → keeps its air at ANY depth: seal a hull and it survives underwater. We
   deliberately DON'T model a diving-bell air-trap at a lone submerged hole (not worth it at 0.5 m
-  voxels — a hole below the waterline just floods). Demos in `TEST_SHAPES`: Sealed hull (ρ = 1400),
+  voxels — a hole below the waterline just floods). Demos in `TEST_SHAPES` (a catalogue the BENCHMARK
+  spawns — they are no longer in the live scene, see `shapes.ts`): Sealed hull (ρ = 1400),
   breached / bulkhead / open-bottom edge cases, a 3×5 matrix of **stability buckets** (wall height
   h3→h10 × interior air 3×3/4×4/5×5 → a swamp-vs-bob-back spectrum), a **crown raft** (decorative
   merlons add no air). Debug: a **"trapped-air cells" x-ray** (updates live as shapes roll), an
@@ -451,7 +470,7 @@ code that floats the ship agree on where the surface is.
   face and **left-click breaks**, **right-click places** a voxel on that face, **Q drops** a fresh
   unconnected voxel ahead of you (a seed for a new raft). Creative mode: unlimited blocks, no inventory
   yet (that lands with resource gathering, roadmap #8). It works on **any** voxel body — the raft AND
-  every `TEST_SHAPES` demo — via one general path, not a raft special case. `physics.ts` owns the
+  any `TEST_SHAPES` demo the benchmark spawns — via one general path, not a raft special case. `physics.ts` owns the
   editing: each voxel is its own box collider keyed by cell in a **fixed body-local frame** (retained
   voxels never shift when the ship grows/shrinks — Rapier derives the real COM from the colliders), so
   a place adds one collider + one merged-geometry regen, a break removes one. A break that **disconnects**
