@@ -859,6 +859,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     setTerrainVisible: (on: boolean) => {
       island.object.visible = on;
     },
+    /** Suppress the lantern PointLights while keeping the emissive lens — separates "the lamp lights the
+     *  water" from "the lamp is visible, and SSR reflects it". See NavBuoys.setLightsEnabled. */
+    setBuoyLightsEnabled: (on: boolean) => navBuoys.setLightsEnabled(on),
     setCamera: (pos: [number, number, number], target: [number, number, number]) => {
       camera.position.set(...pos);
       controls.target.set(...target);

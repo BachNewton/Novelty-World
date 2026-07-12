@@ -157,6 +157,13 @@ export interface NavBuoys {
    *  when they are switched off — the behaviour whose removal is worth ~⅓ of the GPU frame. Lets the
    *  saving be A/B'd in ONE warm session instead of across two. Not a gameplay setting. */
   setLightsResident: (resident: boolean) => void;
+  /** Suppress the lantern `PointLight`s entirely — even at night — while leaving the emissive LENS
+   *  untouched. This separates the two things a lit lantern does, which look like one thing and are not:
+   *  the light ILLUMINATES (a pool of colour on the water, and the frame's whole point-light cost), while
+   *  the lens is what you SEE, and what SSR reflects (the reflection is a ray-march of the scene COLOUR
+   *  capture, which the glowing lens is already in — it does not need a light source at all).
+   *  So: is the `PointLight` paying for anything you can see? */
+  setLightsEnabled: (on: boolean) => void;
   dispose: () => void;
 }
 
@@ -327,6 +334,8 @@ export function createNavBuoys(): NavBuoys {
   // the saving can be measured as an INTERLEAVED A/B in one thermal session, which is the only honest
   // way to price it (a hot "before" against a cooled "after" has faked a 23 % win here before).
   let lightsResident = false;
+  // Suppress the PointLights entirely (the lens keeps glowing) — see setLightsEnabled.
+  let lightsEnabled = true;
 
   /** Radiance of a lens emitting `I` over its own projected area. The disc trick, at buoy scale. */
   const lensArea = Math.PI * LENS_RADIUS * LENS_RADIUS;
@@ -371,7 +380,7 @@ export function createNavBuoys(): NavBuoys {
         // count that changes with the blink would force a shader recompile on every flash. `dark` flips
         // once, at dusk — one recompile, where a recompile is already unavoidable. Within the night the
         // count is constant and the rhythm just modulates intensity, which is free.
-        buoy.lantern.light.visible = dark || lightsResident;
+        buoy.lantern.light.visible = lightsEnabled && (dark || lightsResident);
 
         const phase = dark ? rhythmAt(buoy.lantern.spec.rhythm, time) : undefined;
         setLamp(buoy.lantern, phase === true ? buoy.lantern.spec.color : phase);
@@ -382,6 +391,9 @@ export function createNavBuoys(): NavBuoys {
     },
     setLightsResident: (resident) => {
       lightsResident = resident;
+    },
+    setLightsEnabled: (on) => {
+      lightsEnabled = on;
     },
     dispose: () => {
       for (const d of disposables) d.dispose();
