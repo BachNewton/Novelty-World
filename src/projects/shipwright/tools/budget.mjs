@@ -42,19 +42,27 @@ const browser = await chromium.launch({
   args: ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"],
 });
 
+// ONE warm session for every row. Both dials are live now (`setQuadSize`, `setCaptureScale`), so nothing
+// here reloads the page — and it should not: a reload re-JITs, re-compiles every shader and re-heats the
+// GPU, which is precisely the cross-session drift that has faked a 36% "finding" in this project before.
+const page = await browser.newPage({
+  viewport: { width: W, height: H },
+  deviceScaleFactor: DPR,
+});
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => "__shipwright" in window, { timeout: 30000 });
+await page.waitForFunction(() => window.__shipwright.isReady(), { timeout: 30000 });
+await page.waitForTimeout(4000);
+
 const measure = async (captureScale, quad) => {
-  const page = await browser.newPage({
-    viewport: { width: W, height: H },
-    deviceScaleFactor: DPR,
-  });
-  await page.goto(`${BASE}?captureScale=${captureScale}`, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => "__shipwright" in window, { timeout: 30000 });
-  await page.waitForFunction(() => window.__shipwright.isReady(), { timeout: 30000 });
-  await page.waitForTimeout(4000);
-  await page.evaluate((q) => {
-    window.__shipwright.setPlaneSize(5000); // the sea must still reach the horizon
-    window.__shipwright.setQuadSize(q);
-  }, quad);
+  await page.evaluate(
+    ({ q, c }) => {
+      window.__shipwright.setPlaneSize(5000); // the sea must still reach the horizon
+      window.__shipwright.setQuadSize(q);
+      window.__shipwright.setCaptureScale(c);
+    },
+    { q: quad, c: captureScale },
+  );
   await page.waitForTimeout(1800);
 
   const r = await page.evaluate(async () => {
@@ -88,7 +96,6 @@ const measure = async (captureScale, quad) => {
       frame: f.length ? f[Math.floor(f.length / 2)] : 0,
     };
   });
-  await page.close();
   return r;
 };
 
@@ -98,6 +105,9 @@ try {
   rows.push({ label: "+ LOD ocean", ...(await measure(1, 40)) });
   rows.push({ label: "+ capture 0.5", ...(await measure(0.5, 40)) });
   rows.push({ label: "+ capture 0.25", ...(await measure(0.25, 40)) });
+  // Re-baseline: back to the shipped config at the END of the same warm session. If this does not land
+  // on the first row, the machine drifted under us and the whole table is suspect.
+  rows.push({ label: "= SHIPPED again", ...(await measure(1, 4.9)) });
 
   const pad = (s, n) => String(s).padEnd(n);
   const padL = (s, n) => String(s).padStart(n);

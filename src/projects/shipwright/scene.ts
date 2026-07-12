@@ -525,6 +525,21 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(ssrScale, "value", 0.1, 1, 0.05)
     .name("reflection res")
     .onFinishChange(sizeSsrTarget);
+  // Scene-capture resolution — the water's view of the world BEHIND it. The capture is a full extra
+  // render of the scene, so its cost is quadratic here: 0.5 is a quarter of the pixels, and it drags SSR
+  // down with it (the march samples this texture). Measured at 3440x1440: 1.0 → 0.5 is worth 4.5 ms, and
+  // the knee is exactly 0.5 — 0.25 buys nothing more.
+  //
+  // It is the one cost dial that trades IMAGE for milliseconds, so it is a SLIDER, not a constant: watch
+  // the waterline (buoy stems, the raft's edge, rock at the shore) while you drag it, because sharp
+  // silhouettes piercing the surface are the only place a soft capture can show. Everything else the
+  // water does with it is a refracted lookup — already smeared by the wave normal — which is why
+  // softening the source is nearly invisible.
+  const capture = { scale: ctx.getCaptureScale() };
+  performance
+    .add(capture, "scale", 0.25, 1, 0.05)
+    .name("capture res")
+    .onFinishChange((v: number) => ctx.setCaptureScale(v));
   // Tessellation is a density (quad edge length in metres), so changing plane size
   // holds quad size constant and scales the segment count — the grid gets no finer
   // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
@@ -1151,6 +1166,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     setReflectionRes: (scale: number) => {
       ssrScale.value = scale;
       sizeSsrTarget();
+      syncGui();
+    },
+    /** The scene capture's resolution, live — so a tool can sweep it in ONE warm session instead of
+     *  reloading the page per value (a reload re-JITs, re-compiles shaders and re-heats the GPU, which
+     *  is exactly the cross-session drift that has faked a finding here before). */
+    setCaptureScale: (scale: number) => {
+      capture.scale = scale;
+      ctx.setCaptureScale(scale);
       syncGui();
     },
     setSsrEnabled: (on: boolean) => {

@@ -177,6 +177,16 @@ export interface ThreeSceneContext {
   /** Present when the `sceneCapture` option is enabled — a colour+depth scene target. */
   sceneCapture?: SceneCapture;
   /**
+   * Resize the scene capture, live (0.1–1 of the drawing buffer). It is a full extra render of the
+   * scene, so its cost is quadratic in this: 0.5 is a quarter of the pixels. Consumers sample it by
+   * normalised screen UV, so the scale is transparent to their shaders — the image just gets softer.
+   *
+   * A LIVE dial rather than a mount option, because it is the rare cost knob that trades IMAGE for
+   * milliseconds, and the trade is only judgeable by eye against a running frame counter.
+   */
+  setCaptureScale: (scale: number) => void;
+  getCaptureScale: () => number;
+  /**
    * Present when `gpuStats` is enabled. Bracket a scene's own passes with
    * `gpuTimer.span(name, fn)` to break out their GPU cost alongside the hook's `main`
    * render in the panel. Spans must not overlap.
@@ -435,9 +445,22 @@ export function useThreeScene(
     // softer + cheaper). Colour is HalfFloat (HDR-linear); depth is a real
     // DepthTexture so shaders can reconstruct view-space position + compare depth.
     const captureOption = sceneCaptureRef.current;
-    const captureScale =
+    // Live, not baked at mount: this is the one cost lever that trades IMAGE for milliseconds (the
+    // capture is what the water refracts and what SSR marches through), so it has to be judgeable with
+    // your own eyes against a live frame counter — a slider, not a rebuild.
+    let captureScale =
       typeof captureOption === "object" ? (captureOption.resolutionScale ?? 1) : 1;
     let sceneCapture: SceneCapture | undefined;
+    // The target is only ever RESIZED, never rebuilt, so the texture objects keep their identity and
+    // every uniform already pointing at them stays valid.
+    const sizeCapture = () => {
+      if (!sceneCapture) return;
+      const db = renderer.getDrawingBufferSize(new THREE.Vector2());
+      sceneCapture.target.setSize(
+        Math.max(1, Math.round(db.x * captureScale)),
+        Math.max(1, Math.round(db.y * captureScale)),
+      );
+    };
     if (captureOption) {
       const db = renderer.getDrawingBufferSize(new THREE.Vector2());
       const w = Math.max(1, Math.round(db.x * captureScale));
@@ -486,6 +509,14 @@ export function useThreeScene(
       getGrade: () => ({ enabled: gradeEnabled, ...gradeState }),
       setToneMapping: applyToneMapping,
       sceneCapture,
+      // `resize()` re-sizes the capture off the new scale and then calls the scene's `onResize`, which is
+      // where a consumer refreshes whatever it derives from the buffer size — so one call keeps the
+      // capture, the SSR target and the water's screen-space UVs consistent.
+      setCaptureScale: (scale: number) => {
+        captureScale = Math.min(1, Math.max(0.1, scale));
+        applyResize();
+      },
+      getCaptureScale: () => captureScale,
       gpuTimer,
       setPixelRatio,
       setFrameStride,
@@ -543,13 +574,7 @@ export function useThreeScene(
       // written up as a DVFS clock-boost effect. It wasn't. The main pass simply never got smaller.
       composer?.setPixelRatio(renderer.getPixelRatio());
       composer?.setSize(width, height);
-      if (sceneCapture) {
-        const db = renderer.getDrawingBufferSize(new THREE.Vector2());
-        sceneCapture.target.setSize(
-          Math.max(1, Math.round(db.x * captureScale)),
-          Math.max(1, Math.round(db.y * captureScale)),
-        );
-      }
+      sizeCapture();
       handlers.onResize?.(width, height);
     };
     applyResize = resize;
