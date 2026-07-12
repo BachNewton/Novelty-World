@@ -153,6 +153,10 @@ export interface NavBuoys {
   update: (ocean: Ocean, time: number, ambientLux: number) => void;
   /** Force the lamps on regardless of ambient light. Capture tool + GUI only. */
   setPhotocellOverride: (alwaysOn: boolean) => void;
+  /** Benchmark cost probe: keep the lantern `PointLight`s resident in the scene graph even in daylight,
+   *  when they are switched off — the behaviour whose removal is worth ~⅓ of the GPU frame. Lets the
+   *  saving be A/B'd in ONE warm session instead of across two. Not a gameplay setting. */
+  setLightsResident: (resident: boolean) => void;
   dispose: () => void;
 }
 
@@ -318,6 +322,11 @@ export function createNavBuoys(): NavBuoys {
   enableShadows(root);
 
   let photocellOverride = false;
+  // Benchmark only: keep the lantern PointLights in the scene graph even in daylight — i.e. restore the
+  // behaviour that made six switched-OFF lamps the most expensive thing in the GPU frame. It exists so
+  // the saving can be measured as an INTERLEAVED A/B in one thermal session, which is the only honest
+  // way to price it (a hot "before" against a cooled "after" has faked a 23 % win here before).
+  let lightsResident = false;
 
   /** Radiance of a lens emitting `I` over its own projected area. The disc trick, at buoy scale. */
   const lensArea = Math.PI * LENS_RADIUS * LENS_RADIUS;
@@ -349,12 +358,30 @@ export function createNavBuoys(): NavBuoys {
         buoy.object.position.copy(ride.position);
         buoy.object.quaternion.setFromUnitVectors(UP, ride.normal);
 
+        // TAKE THE LAMPS OUT OF THE SCENE IN DAYLIGHT — this is worth 5.7 ms, ~36 % of the GPU frame.
+        //
+        // An unlit lantern used to stay in the graph at `intensity = 0`, which reads as free and is not.
+        // three compiles the light COUNT into every lit material: six point lights in the scene means
+        // `NUM_POINT_LIGHTS 6`, and every fragment of every lit surface runs the point-light BRDF loop
+        // six times — including the ocean, which covers essentially the whole screen. Six lamps that
+        // are switched OFF were the single most expensive thing in the frame, ahead of SSR. An invisible
+        // light is skipped in `projectObject`, so it leaves the count (and the loop) entirely.
+        //
+        // Gate on the PHOTOCELL, not on the flash: `rhythmAt` blinks several times a second, and a light
+        // count that changes with the blink would force a shader recompile on every flash. `dark` flips
+        // once, at dusk — one recompile, where a recompile is already unavoidable. Within the night the
+        // count is constant and the rhythm just modulates intensity, which is free.
+        buoy.lantern.light.visible = dark || lightsResident;
+
         const phase = dark ? rhythmAt(buoy.lantern.spec.rhythm, time) : undefined;
         setLamp(buoy.lantern, phase === true ? buoy.lantern.spec.color : phase);
       }
     },
     setPhotocellOverride: (alwaysOn) => {
       photocellOverride = alwaysOn;
+    },
+    setLightsResident: (resident) => {
+      lightsResident = resident;
     },
     dispose: () => {
       for (const d of disposables) d.dispose();

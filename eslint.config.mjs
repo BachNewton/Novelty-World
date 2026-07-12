@@ -44,7 +44,17 @@ const eslintConfig = defineConfig([
     },
   },
   // `.claude/**` is Claude Code's working area (git worktrees, settings) — never project source to lint.
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "scripts/**", ".claude/**"]),
+  // `.next-bench/**`: build output from an alternate `distDir` (NEXT_DIST_DIR), used to run a production
+  // server for the Shipwright perf sweep alongside the dev server. Same generated code as `.next`.
+  globalIgnores([
+    ".next/**",
+    ".next-bench/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "scripts/**",
+    ".claude/**",
+  ]),
 ]);
 
 export default eslintConfig;

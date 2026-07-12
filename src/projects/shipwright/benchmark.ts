@@ -132,6 +132,12 @@ export interface BenchmarkConfig {
   terrain?: boolean;
   /** Show the navigational buoys (kinematic particle-ride floaters + their lanterns). Default on. */
   buoys?: boolean;
+  /** Keep the six lantern `PointLight`s resident in the scene graph even in DAYLIGHT, when they are
+   *  switched off — i.e. restore the behaviour that made six unlit lamps the single most expensive
+   *  thing in the GPU frame (three compiles the light COUNT into every lit material, so the ocean ran a
+   *  6-light BRDF loop per fragment for lights of zero intensity). Default false (they leave the graph).
+   *  Exists so the saving can be A/B'd in one warm session rather than across two. */
+  buoyLightsResident?: boolean;
   /** Draw the sky dome. Off = the dome mesh is hidden (the env map + sun light stay, so lighting is
    *  unchanged and only the dome's own fragment cost drops). Default on. */
   skyDome?: boolean;

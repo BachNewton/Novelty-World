@@ -1087,6 +1087,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // segments and whenever `--terrain on` forces it.
       probes.visible = false;
       navBuoys.object.visible = config.buoys !== false;
+      navBuoys.setLightsResident(config.buoyLightsResident === true);
       player.object.visible = false;
       physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
       // Physics-only: hide the ocean so the frame's GPU cost is ~0 and the physics-step time is the

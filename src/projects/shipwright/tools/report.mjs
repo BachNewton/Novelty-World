@@ -42,8 +42,10 @@ for (const dir of readdirSync(BENCH_DIR, { withFileTypes: true })) {
   const m = /^p(\d+)-([a-z]+)-(.+)$/.exec(dir.name);
   if (!m) continue;
   const [, pass, tier, name] = m;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only reporting tool; the path is a hardcoded project dir joined with a directory name we just enumerated from it, never external input
   const files = readdirSync(join(BENCH_DIR, dir.name)).filter((f) => f.endsWith(".json"));
   if (files.length === 0) continue;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- see above; same enumerated path
   const json = JSON.parse(readFileSync(join(BENCH_DIR, dir.name, files[0]), "utf8"));
   runs.push({ pass: Number(pass), tier, name, json });
 }
