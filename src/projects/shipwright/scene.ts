@@ -554,9 +554,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .onChange(() => applyBloomThreshold(daylight.state().exposure));
 
   // Post-tonemap grade (saturation + contrast) — the honest place to put the punch AgX holds off the
-  // highlights. On by default with a gentle push; toggle off for the raw tonemap, or drag to taste.
-  const grade = { enabled: true, saturation: 1.2, contrast: 1.08 };
-  ctx.setGrade(grade);
+  // highlights. Its VALUES are declared at mount (components/shipwright.tsx), because whether a composer
+  // runs decides how the WebGL context is created; read them back rather than re-declaring them here,
+  // so the GUI and the mount-time option cannot drift apart.
+  const grade = ctx.getGrade();
   displayFolder.add(grade, "enabled").name("grade").onChange((on: boolean) => ctx.setGrade({ enabled: on }));
   displayFolder
     .add(grade, "saturation", 0, 2, 0.01)

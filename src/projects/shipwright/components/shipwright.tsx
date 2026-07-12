@@ -78,7 +78,17 @@ export function Shipwright() {
     // supersampling alone leaves faintly aliased. It only samples coverage/depth, not
     // the fragment shader, so it doesn't touch the SSR/water bottleneck — the cost is
     // framebuffer bandwidth + a per-frame resolve (watch it on weak/iGPU targets).
+    //
+    // NB the hook IGNORES this while the grade (below) is on, because then the scene is drawn into the
+    // composer's target and the context's MSAA would antialias nothing but the final blit. That was
+    // costing 3.2 ms — 21% of the GPU frame — for no pixels at all. The scene's real geometry AA now
+    // comes from the composer target's `samples`.
     antialias: benchFlag("msaa", true),
+    // The post-tonemap display GRADE. Declared here, not in scene.ts, because whether a composer runs
+    // decides how the WebGL context itself is created (see `antialias`) — which must be known before the
+    // renderer exists. AgX intentionally holds punch off the highlights; this puts it back, uniformly, at
+    // the end of the pipeline, which is where a camera/art operator belongs (never in the physics).
+    grade: { enabled: true, saturation: 1.2, contrast: 1.08 },
   });
 
   return <div ref={containerRef} className="h-[100dvh] w-full overflow-hidden" />;

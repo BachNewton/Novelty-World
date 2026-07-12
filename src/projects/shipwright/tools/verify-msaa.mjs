@@ -17,6 +17,14 @@
 // NB this is a DIFFERENT question from `--composer-samples`, which is the MSAA on the composer's own
 // target. THAT one does antialias the scene, and dropping it is a genuine quality trade.
 //
+// STATUS: answered, and the answer is now enforced. The frames came back byte-identical, so the shared
+// hook (`use-three-scene.ts`) no longer requests a multisampled context when a composer will run — worth
+// 3.2 ms, 21% of the GPU frame, for zero pixels. This script therefore now reads as a REGRESSION GUARD
+// rather than an experiment: it asserts that the `msaa` flag makes no difference to the image, which is
+// the invariant the fix relies on. It would start FAILING if someone made the scene render straight to
+// the default framebuffer again (by removing the grade and bloom) without restoring `antialias` — which
+// is exactly the mistake worth catching.
+//
 // Usage: node src/projects/shipwright/tools/verify-msaa.mjs [--url U] [--keep]
 
 import { chromium } from "playwright";

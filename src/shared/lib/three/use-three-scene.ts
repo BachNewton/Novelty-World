@@ -59,8 +59,22 @@ export interface ThreeSceneOptions {
    * a 4× framebuffer + a per-frame resolve. Set `false` when the scene supersamples
    * (render scale ≥ device ratio), which already antialiases everything — saves
    * bandwidth on weak/iGPU targets. Fixed at mount (WebGL context creation).
+   *
+   * IGNORED when a composer runs (i.e. when `bloom` or `grade` is enabled at mount), and that is not a
+   * subtlety — it was worth 21 % of Shipwright's GPU frame. MSAA belongs to whichever framebuffer the
+   * SCENE is drawn into. With a composer, that is the composer's HDR target (whose MSAA is
+   * `bloom.samples`), and the default framebuffer only ever receives the final fullscreen quad — which
+   * has no interior geometry edges to antialias. So the context's multisampled backbuffer smooths
+   * nothing while still costing a resolve every frame. Measured at 3.2 ms on an AMD 780M and PROVEN
+   * pixel-identical (`shipwright/tools/verify-msaa.mjs`), so the hook now declines to allocate it.
    */
   antialias?: boolean;
+  /**
+   * Post-tonemap display grade (saturation + contrast). Declared HERE, at mount, rather than only via
+   * `ctx.setGrade`, because whether a composer will run decides how the WebGL context itself is created
+   * (see `antialias`) — and that has to be known before the renderer exists, not after the scene sets it.
+   */
+  grade?: GradeOptions;
   /**
    * Render through an HDR bloom pipeline. `true` uses defaults; pass an object to tune. Can also be
    * switched at runtime via `ctx.setBloom` — the composer is built on first enable and reused, and
@@ -117,6 +131,13 @@ export interface SceneCapture {
   depthTexture: THREE.DepthTexture;
 }
 
+/** A post-tonemap display grade. Neutral (saturation 1, contrast 1) is identity. */
+export interface GradeOptions {
+  enabled?: boolean;
+  saturation?: number;
+  contrast?: number;
+}
+
 export interface ThreeSceneContext {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -141,8 +162,11 @@ export interface ThreeSceneContext {
    * if needed, like bloom; a neutral grade (saturation 1, contrast 1) is identity. Contrast pivots about
    * display mid-grey. It is a camera/art operator, not physics — uniform across every frame.
    */
-  setGrade: (grade: { enabled?: boolean; saturation?: number; contrast?: number }) => void;
+  setGrade: (grade: GradeOptions) => void;
   isGradeEnabled: () => boolean;
+  /** The grade's current values, so a scene's debug GUI can bind to them without re-declaring the
+   *  defaults (which would let the GUI and the mount-time option silently drift apart). */
+  getGrade: () => { enabled: boolean; saturation: number; contrast: number };
   /** Swap the tone-mapping operator. Recompiles materials. */
   setToneMapping: (mode: THREE.ToneMapping) => void;
   /** Present when the `sceneCapture` option is enabled — a colour+depth scene target. */
@@ -283,6 +307,9 @@ export function useThreeScene(
   const gpuStatsRef = useRef(options.gpuStats ?? false);
   const antialiasRef = useRef(options.antialias ?? true);
   const bloomRef = useRef(options.bloom ?? false);
+  // Explicitly typed: `useRef(x ?? false)` widens the `false` literal to `boolean`, and then narrowing
+  // on `!== false` leaves `true | GradeOptions` rather than `GradeOptions`.
+  const gradeRef = useRef<GradeOptions | false>(options.grade ?? false);
   const toneMappingRef = useRef(options.toneMapping ?? THREE.ACESFilmicToneMapping);
   const sceneCaptureRef = useRef(options.sceneCapture ?? false);
   const maxPixelRatioRef = useRef(options.maxPixelRatio ?? 2);
@@ -292,11 +319,29 @@ export function useThreeScene(
     if (!container) return;
 
     const maxPixelRatio = maxPixelRatioRef.current;
-    // MSAA (antialias) only smooths geometry edges and costs a 4× framebuffer + a
-    // per-frame resolve. When a scene supersamples (render scale ≥ device ratio) that
-    // already antialiases everything MSAA can't (shader shimmer), so MSAA is mostly
-    // redundant there — opt out to save bandwidth on weak/iGPU targets.
-    const renderer = new THREE.WebGLRenderer({ antialias: antialiasRef.current });
+
+    // Will a composer run? It decides who owns MSAA, and it has to be answered BEFORE the renderer
+    // exists, because the context's `antialias` is baked at creation and can never be changed after.
+    const bloomOption = bloomRef.current;
+    const gradeOption = gradeRef.current;
+    const bloomOn =
+      bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
+    const gradeOn = gradeOption !== false && (gradeOption.enabled ?? true);
+    const composerAtMount = bloomOn || gradeOn;
+
+    // MSAA (antialias) only smooths geometry EDGES, and only in the framebuffer the geometry is drawn
+    // into. Two reasons to decline it:
+    //  - A composer is running → the scene is drawn into the COMPOSER's target (MSAA'd separately via
+    //    `bloom.samples`), and the default framebuffer receives only a fullscreen quad, which has no
+    //    interior edges. The context's MSAA would then antialias NOTHING while still resolving a
+    //    multisampled backbuffer every frame. Measured: 3.2 ms — 21 % of Shipwright's GPU frame — and
+    //    verified pixel-identical with it off. This was live for months, hidden by the fact that
+    //    "antialias: true" reads like an unambiguous good.
+    //  - The scene supersamples (render scale ≥ device ratio), which already antialiases everything
+    //    MSAA can't (shader shimmer) — the caller opts out with `antialias: false`.
+    const renderer = new THREE.WebGLRenderer({
+      antialias: antialiasRef.current && !composerAtMount,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.toneMapping = toneMappingRef.current;
@@ -319,13 +364,17 @@ export function useThreeScene(
     // GPU-cost A/B. NB three renders with NoToneMapping into a render target, so the whole scene
     // arrives at the OutputPass in linear HDR: exactly what bloom needs, and why the water's composite
     // had to move out of display space first.
-    const bloomOption = bloomRef.current;
     let composer: EffectComposer | undefined;
     let bloomPass: UnrealBloomPass | undefined;
     let gradePass: ShaderPass | undefined;
-    let bloomEnabled =
-      bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
-    let gradeEnabled = false;
+    let bloomEnabled = bloomOn;
+    let gradeEnabled = gradeOn;
+    // The grade's live values. Seeded from the mount-time option so the scene's GUI can read them back
+    // (`ctx.getGrade`) instead of re-declaring the defaults and risking the two drifting apart.
+    const gradeState = {
+      saturation: (gradeOption !== false ? gradeOption.saturation : undefined) ?? 1,
+      contrast: (gradeOption !== false ? gradeOption.contrast : undefined) ?? 1,
+    };
     // The composer runs whenever bloom OR grade is active; each pass is individually `.enabled`, so
     // grade can run without bloom and vice-versa. With both off we skip the composer entirely (a direct
     // `renderer.render`), so bloom's cost stays honestly measurable.
@@ -352,6 +401,8 @@ export function useThreeScene(
       bloomPass.enabled = bloomEnabled;
       gradePass = new ShaderPass(GRADE_SHADER);
       gradePass.enabled = gradeEnabled;
+      gradePass.uniforms.uSaturation.value = gradeState.saturation;
+      gradePass.uniforms.uContrast.value = gradeState.contrast;
       // RenderPass → bloom (HDR glow) → OutputPass (tonemap + sRGB) → grade (display-space sat/contrast).
       composer.addPass(new RenderPass(scene, camera));
       composer.addPass(bloomPass);
@@ -364,13 +415,15 @@ export function useThreeScene(
       if (enabled) buildComposer();
       if (bloomPass) bloomPass.enabled = enabled;
     };
-    const setGrade = (grade: { enabled?: boolean; saturation?: number; contrast?: number }) => {
+    const setGrade = (grade: GradeOptions) => {
       if (grade.enabled !== undefined) gradeEnabled = grade.enabled;
+      if (grade.saturation !== undefined) gradeState.saturation = grade.saturation;
+      if (grade.contrast !== undefined) gradeState.contrast = grade.contrast;
       if (gradeEnabled) buildComposer();
       if (gradePass) {
         gradePass.enabled = gradeEnabled;
-        if (grade.saturation !== undefined) gradePass.uniforms.uSaturation.value = grade.saturation;
-        if (grade.contrast !== undefined) gradePass.uniforms.uContrast.value = grade.contrast;
+        gradePass.uniforms.uSaturation.value = gradeState.saturation;
+        gradePass.uniforms.uContrast.value = gradeState.contrast;
       }
     };
     const setBloomPrefilter = ({
@@ -448,6 +501,7 @@ export function useThreeScene(
       setBloomPrefilter,
       setGrade,
       isGradeEnabled: () => gradeEnabled,
+      getGrade: () => ({ enabled: gradeEnabled, ...gradeState }),
       setToneMapping: (mode) => {
         renderer.toneMapping = mode;
       },
