@@ -17,13 +17,26 @@
 // NB this is a DIFFERENT question from `--composer-samples`, which is the MSAA on the composer's own
 // target. THAT one does antialias the scene, and dropping it is a genuine quality trade.
 //
-// STATUS: answered, and the answer is now enforced. The frames came back byte-identical, so the shared
-// hook (`use-three-scene.ts`) no longer requests a multisampled context when a composer will run — worth
-// 3.2 ms, 21% of the GPU frame, for zero pixels. This script therefore now reads as a REGRESSION GUARD
-// rather than an experiment: it asserts that the `msaa` flag makes no difference to the image, which is
-// the invariant the fix relies on. It would start FAILING if someone made the scene render straight to
-// the default framebuffer again (by removing the grade and bloom) without restoring `antialias` — which
-// is exactly the mistake worth catching.
+// STATUS: answered TWICE, and the answer flipped — which is the interesting part, so read this before
+// you trust an old result.
+//
+//   Round 1 (composer always on). The frames came back byte-identical: with a composer running, the
+//   context's MSAA really was antialiasing nothing while resolving a multisampled backbuffer every
+//   frame. The shared hook stopped requesting one. Worth 3.2 ms for zero pixels.
+//
+//   Round 2 (composer gone). The display grade moved into the tone mapper (shared/lib/three/
+//   display-grade.ts), so a scene with bloom off no longer builds a composer AT ALL — and the scene is
+//   drawn straight to the default framebuffer again. The premise of round 1 evaporated: the hook now
+//   asks for the multisampled context, and this script correctly reports DIFFERENT.
+//
+// So there is no single expected answer here; the answer is a FUNCTION of whether a composer runs, and
+// the hook already encodes that (`antialias: antialias && !composerAtMount`). What this script is good
+// for is checking that the two agree:
+//
+//   composer OFF (default) → expect DIFFERENT. The context's MSAA is the scene's only geometry AA, it
+//                            is driver-resolved on the backbuffer, and it is the cheap way to get it.
+//   composer ON  (bloom)   → expect IDENTICAL, and the hook should be declining `antialias` — if you
+//                            see IDENTICAL while it is still asking for one, that is 3 ms of nothing.
 //
 // Usage: node src/projects/shipwright/tools/verify-msaa.mjs [--url U] [--keep]
 
@@ -122,12 +135,15 @@ try {
     console.log(`\ncontext MSAA on  : ${hOnA.slice(0, 16)}  (control reproduced)`);
     console.log(`context MSAA off : ${hOff.slice(0, 16)}`);
     if (hOnA === hOff) {
-      console.log("\nIDENTICAL — the context's MSAA antialiases NOTHING. With the composer active the");
-      console.log("scene never draws to the default framebuffer, so the multisampled backbuffer only ever");
-      console.log("resolves a fullscreen quad. Its cost is pure waste: turn `antialias` off.");
+      console.log("\nIDENTICAL — the context's MSAA antialiases NOTHING. That means a composer is running:");
+      console.log("the scene never draws to the default framebuffer, so the multisampled backbuffer only");
+      console.log("ever resolves a fullscreen quad. The hook must decline `antialias` here, or the frame");
+      console.log("pays a full-resolution resolve for zero pixels (measured: 3.2 ms).");
     } else {
-      console.log("\nDIFFERENT — the context's MSAA is antialiasing something real, so its cost is a");
-      console.log("quality TRADE, not free. Compare the PNGs (--keep) before touching it.");
+      console.log("\nDIFFERENT — the context's MSAA is antialiasing real geometry edges. Expected with no");
+      console.log("composer (the default since the grade moved into the tone mapper): the scene is drawn");
+      console.log("straight to the default framebuffer, and this driver-resolved MSAA is the cheapest AA");
+      console.log("available to it. Compare the PNGs (--keep) if you want to see what it is smoothing.");
     }
   }
 } finally {

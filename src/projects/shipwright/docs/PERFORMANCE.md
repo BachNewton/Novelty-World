@@ -143,11 +143,70 @@ invisible at the call site — nothing about `setGrade` suggests it re-routes th
 grade quietly inherited the exact cost the project had **already measured for bloom and rejected bloom
 over** (+3.64 ms, of which only 1.2 ms was the blur; the rest was this same MSAA'd HDR target).
 
-**The still-open half.** The composer target's *own* MSAA (`bloom.samples`, default 4) is what now
-antialiases the scene, and it costs **~4.5 ms**. Dropping it to 0 is worth that much but is a **real
-quality trade**, not a free win — a decision, not a number to take. See "Decisions waiting for Kyle".
+**The still-open half — since CLOSED, and not by taking the trade.** The composer target's *own* MSAA
+(`bloom.samples`, default 4) became the only thing antialiasing the scene, at **~4.5 ms**. That looked
+like a quality-vs-perf decision. It wasn't: the right move was to ask *why a composer was running at
+all*. See bug 3.
 
 **Combined effect of both fixes: 16.5 → 11.65 ms, 55 → 72 fps.**
+
+### 3. The display grade was dragging an entire HDR pipeline behind three multiplies — **−6 ms, and the same pixels**
+
+A saturation + contrast grade was a `ShaderPass` at the end of an `EffectComposer`. That is the textbook
+place for a grade. It is also what forced the composer to exist — and **a composer means the scene is
+rendered into a HalfFloat + 4×-MSAA offscreen target, resolved and blitted every frame.**
+
+The cost is fill, so it scales with **pixels and never with content**. On an EMPTY frame:
+
+| empty frame — nothing in the scene at all | GPU |
+|---|---|
+| with the composer | 5.9 ms @ render scale 1.0 · **13.1 ms @ 1.5** |
+| without it | **~0.9 ms, flat at every resolution** |
+
+At a 1.5× render scale an empty frame **exceeded a 100 Hz budget on its own**. No scene switch could
+ever reach that, which is exactly how it was found: switching off every object in the scene-cost panel
+still left ~70 fps on a 100 Hz panel.
+
+**The fix is a shader patch, not a trade.** three ships a `CustomToneMapping` stub in
+`tonemapping_pars_fragment` that is *meant* to be replaced. Replace it with "run the operator you asked
+for, then grade", and the grade rides a step every material already runs
+(`shared/lib/three/display-grade.ts`). Then:
+
+- bloom OFF (the default) → **no composer at all**; the scene draws straight to the default framebuffer,
+  which hands back the context's cheap **driver-resolved MSAA** — so the ~4.5 ms "decision" above
+  evaporated rather than being paid;
+- bloom ON → the composer still runs, and `OutputPass` supports `CUSTOM_TONE_MAPPING` natively, so it
+  picks up the identical patched function. **One implementation, both paths, no second copy of the look.**
+
+It grades in sRGB-**encoded** space (encode → grade exactly as the pass did → decode, and let
+`colorspace_fragment` re-encode), so the round trip cancels and the output matches the old pipeline.
+Verified on pixels, not reasoning: on the 84 % of the frame that is flat interior — which excludes edges,
+and therefore excludes the MSAA move — mean |diff| is **0.058/255, max 3**. The grade is unchanged; only
+the edges differ, and they differ because MSAA moved back to the backbuffer.
+
+**The shape of this mistake:** the expensive thing was not the feature, it was the *machinery the feature
+implied*. Nothing at the call site (`setGrade`) suggests it re-routes the entire renderer. It is the same
+family as the other two — **three charges you for things you never chose.**
+
+### 4. Two pre-passes were rendering for a water that wasn't there
+
+`renderPrePasses` runs the scene capture and the SSR march. Both exist **only** to feed the water shader.
+With the water hidden, nothing sampled either one — and the frame still rendered the whole scene a second
+time into the capture target, still marched the reflections, and threw both away. Gated on `waterVisible`.
+
+This also made the water's own cost honest: **10.4 ms, ~72 % of the GPU frame** (mesh + capture + SSR),
+not the 7.9 ms the mesh alone suggested.
+
+### 5. The GPU timer was billing passes that had stopped running
+
+`GpuTimer.values()` returned a persistent map, and a span that stopped being submitted **kept reporting
+its last reading forever**. Anything summing the spans into a frame total therefore billed work that
+never happened. The tell was an "empty" frame reading a flat **6.3 ms at every resolution**, from 0.5 to
+4.7 megapixels — nothing real is both that expensive and that indifferent to pixel count.
+
+`poll()` now zeroes any known span missing from the frame. `scene.ts` had been hand-patching this for SSR
+alone (`isSsrEnabled() ? … : 0`), which is the symptom being treated one pass at a time; that special
+case is gone. **Any floor number measured before 2026-07-12 is inflated by this.**
 
 ---
 
@@ -276,30 +335,44 @@ and the bench reads 72, the bench is not wrong; it is answering a different ques
 `tools/profile-live.mjs` answers the shipped one: it loads the scene exactly as `setupOceanScene` builds
 it, at a real device pixel ratio, then subtracts one thing at a time.
 
-**Live, 1920×1080, devicePixelRatio 2 (i.e. supersampled to 8.3 MP — the default on a high-DPI display):**
+### The pie, after the 2026-07-12 fixes — 1920×1080, DPR 1, **14.3 ms GPU**
 
-| scene | FPS | frame | GPU | main |
-|---|---|---|---|---|
-| **DEFAULT (what a player gets)** | **15** | 68.9 | 51.0 | 36.9 |
-| physics frozen | 16 | 60.4 | — | — |
-| islands hidden | 16 | 62.5 | 46.6 | — |
-| demo bodies hidden (still simulated) | 15 | 70.0 | 51.0 | — |
-| **bare — water + sky only** | **20** | 49.9 | 47.6 | 36.4 |
+Every row is one switch in the GUI: **Performance → "Scene cost (switch it off)"**. `ΔGPU` is what
+removing *just that thing* from the shipped scene gives back. Slices overlap and need not sum.
 
-Three things the bench never showed:
+| switched off | ΔGPU | share |
+|---|---|---|
+| **water** (mesh + its capture + SSR pre-passes) | **10.4** | **72 %** |
+| archipelago (all) | 3.5 | 24 % |
+| sky dome | 1.6 | 11 % |
+| sun shadows | 1.6 | 11 % |
+| ↳ spruce only | 0.4 | 3 % |
+| nav buoys · cloud shadows · bodies | ~0 | — |
+| **FLOOR — an empty frame** | **0.7** | — |
 
-1. **The default supersamples.** `maxPixelRatio: 2` renders 4× the pixels on a high-DPI display. Even
-   with *nothing but water and sky* that is 20 fps. **This is the dominant cost of the shipped frame**,
-   and the render-scale slider that escapes it was broken until 2026-07-12 (see E1 above).
-2. **The live scene ships the entire buoyancy demo TESTBED.** `scene.ts` does
-   `createPhysics(ocean, [RAFT, ...TEST_SHAPES])` — ~30 bodies, ~2,500 voxel colliders of debug demos.
-   Freezing physics is worth ~15 ms at DPR 2. Their *render* cost is ~0 (the merged-mesh work paid off);
-   it is purely the step. `CLAUDE.md` already says to drop back to `[RAFT]` once the demos aren't needed.
-3. **The two MULTIPLY, via the substep spiral.** Physics runs a fixed-timestep accumulator, so a slow
-   frame drags more substeps out of it: at DPR 1 (24 ms frames) physics costs **3.8 ms**; at DPR 2 (74 ms
-   frames) the *same bodies* cost **15.2 ms**. A slow GPU makes the CPU slow, which makes the frame
-   slower still. The docs called this "latent"; it is not latent, it is active. **Fixing the GPU fixes
-   most of the physics cost for free.**
+The floor was **6.4 ms** before (and even that was overstated by the stale-span bug — see bug 5). It is
+now 0.7 ms, because there is no composer. **The water is now the whole game**, and the ocean-LOD project
+below is the only lever of its size.
+
+**What the live scene taught that the bench could not.** Both of these were true and neither was visible
+from `bench.mjs`:
+
+1. **The live scene shipped the entire buoyancy demo TESTBED.** `createPhysics(ocean, [RAFT,
+   ...TEST_SHAPES])` — ~30 bodies, ~2,500 voxel colliders of *debug demos*, in the game. It was the
+   single most expensive thing in the frame, and it was **CPU**, the half no GPU dial can touch.
+   **Removed 2026-07-12** (`[RAFT]` only); `--bodies N` still builds a testbed world on the benchmark
+   when we want to price buoyancy deliberately.
+2. **It multiplied itself, via the substep spiral.** Rapier's fixed-timestep accumulator answers a slow
+   frame with **more substeps**, so the testbed made the frame slow and the slow frame made the testbed
+   dearer: the same bodies measured **17 ms** in one run and **44 ms** in a slower one. Not latent —
+   active, and superlinear. Removing the two GPU costs above collapsed the live frame from **67 ms to
+   vsync**, which is far more than the GPU savings alone: **fixing the GPU fixed most of the CPU for
+   free.**
+
+**Still open: `maxPixelRatio: 2`.** The default render scale is the device pixel ratio, so on a
+display-scaled Windows desktop (125 % → DPR 1.25, 150 % → 1.5) the game renders 1.6–2.3× the pixels these
+numbers were taken at, and *every* fill cost scales with it. Now that the render-scale lever actually
+works (see E1), pick a default that isn't "render everything four times over", and/or ship a quality tier.
 
 ---
 
@@ -419,17 +492,19 @@ per-voxel buoyancy. A **contact-heavy** scene (crowded, touching ships) would di
   a post-frame read reports whatever drew **last** — which, since the grade landed, is the composer's
   fullscreen quad. The census reported `1 draw call · 1 triangle` for a 114-mesh scene for exactly this
   reason. It is now sampled inside the capture pass.
-- **`GpuTimer.values()` carries the last per-span value forward**, so a *skipped* pass reports a stale
-  reading. The bench forces `ssr = 0` when SSR is off. Replicate that guard for any new "skip a pass"
-  experiment.
+- **A "floor" that doesn't move with resolution is not a floor, it is a bug.** Fill cost scales with
+  pixels; anything claiming to be expensive *and* flat across a 9× pixel sweep is lying to you. That is
+  how bug 5 (the stale GPU-timer spans) was caught, after it had quietly inflated every floor number.
+  `GpuTimer.poll()` now zeroes any span not submitted this frame, so this class of error is fixed at the
+  source rather than special-cased per pass — but the sanity check is the durable lesson.
 
 ---
 
 ## Where it stands, and what to do next
 
-The frame is **GPU-bound at ~11.7 ms / ~72 fps** (780M, 1600×900, open water). It was **16.5 ms /
-55 fps** before 2026-07-12. CPU is ~2.8 ms and nearly all driver submission; physics is ~0 with the one
-gameplay raft. **Every remaining lever is on the GPU.**
+The frame is **GPU-bound**, and the shipped 1080p scene is **14.3 ms GPU with a 0.7 ms floor** (down from
+~20 ms with a 6 ms floor). CPU is ~2.8 ms and nearly all driver submission; physics is ~0 now the demo
+testbed is out of the live scene. **Every remaining lever is on the GPU, and the water is 72 % of it.**
 
 ### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
 
@@ -449,23 +524,21 @@ Treat ~8 ms as the **ceiling**, not a promise, until it is built.
 so geometric LOD buys it ~1 ms. Do not design one mechanism for both; that was my assumption and the
 measurement killed it.
 
-### Do these first — they are the shipped frame, not the bench's
+### Done 2026-07-12 (was "do these first")
 
-1. **Drop `TEST_SHAPES` from the live scene** (gate behind a debug toggle). ~15 ms of CPU at load,
-   costs nothing a player would miss — it is a testbed, and `CLAUDE.md` already says to remove it.
-2. **Reconsider `maxPixelRatio: 2`.** Supersampling 4× is the dominant cost of the shipped frame on a
-   high-DPI display. Now that the render-scale lever actually works, pick a default that isn't "render
-   everything four times over" — and/or ship an auto quality tier.
+1. ~~Drop `TEST_SHAPES` from the live scene~~ — **done.** It was the biggest single cost in the live
+   frame, and it was debug content.
+2. ~~The composer target's MSAA, ~4.5 ms — a quality trade~~ — **it was never a trade.** The composer
+   only existed to host the display grade; moving the grade into the tone mapper deleted the composer,
+   its HDR target, and its MSAA together, and handed geometry AA back to the context's cheap
+   driver-resolved backbuffer. See bug 3. *A "decision" is worth one more look at the premise: the best
+   outcome of a perf trade is discovering you don't have to make it.*
 
 ### Decisions waiting for Kyle — trades, not bugs. Measured, not taken.
 
-1. **The composer target's MSAA — ~4.5 ms (≈ 38 % of the current frame).** Now that the context's dead
-   MSAA is gone, the composer's HalfFloat target (`bloom.samples`, default 4) is the **only** thing
-   antialiasing the scene's geometry. Dropping it to 0 buys ~4.5 ms and costs aliased edges — the
-   horizon, spruce silhouettes, buoy rims. Options: keep 4 and buy the perf from the LOD ocean instead;
-   drop to 0 and lean on render-scale supersampling (may be visually free at DPR ≥ 1.5 — wants an A/B by
-   eye at native res); or make it a quality tier. This is the photorealistic sea the project exists for,
-   so it wants your eye, not my guess.
+1. **`maxPixelRatio: 2`.** Every fill cost above scales with the pixel count, and the default render
+   scale is the device pixel ratio — so Windows display scaling at 125/150 % silently renders 1.6–2.3×
+   the pixels these numbers were measured at. Options: cap it lower, or ship an auto quality tier.
 2. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2. A **fidelity** trade: the sampled waterline drifts
    from the rendered one. At the calm gameplay sea horizontal displacement is tiny, so 2 may be
    indistinguishable — but "may be" is a thing to look at, not assume. ~0 with one raft, so not urgent.
