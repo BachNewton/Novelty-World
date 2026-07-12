@@ -508,14 +508,39 @@ testbed is out of the live scene. **Every remaining lever is on the GPU, and the
 
 ### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
 
-Bigger than everything else combined. Coarsening the ocean grid from 4.9 m quads to 20 m takes the GPU
-frame **15.9 → 8.6 ms**: the plane is ~1 M vertices, its vertex shader runs 4 Gerstner waves (sin/cos ×4)
-+ analytic normals *per vertex*, and it is drawn **twice a frame** (SSR pass + main pass).
+Bigger than everything else combined, and now measured *as an LOD ceiling* rather than inferred —
+`tools/lod-ceiling.mjs`, which holds the plane at 5000 m (so screen coverage, fill, capture and SSR are
+unchanged) and varies **only** tessellation density. That is the only honest way to price LOD: an LOD
+ocean still has to reach the horizon, so it can win the **vertex** half and nothing else.
 
-Uniform coarsening is not shippable — the short (48/70 m) waves facet, which is *why* the fine grid
+| plane FIXED at 5000 m | gpuTot | main | ssr | capture |
+|---|---|---|---|---|
+| quad **4.9 m** (shipped) | **15.4** | 9.7 | 2.5 | 3.1 |
+| quad 20 m | 8.3 | 4.4 | 0.8 | 3.1 |
+| quad **40 m** | **7.8** | 3.9 | 0.8 | 3.1 |
+| water OFF entirely | 4.0 | 3.9 | 0.0 | 0.0 |
+
+**The ocean is almost purely VERTEX-bound.** At quad 40 the `main` pass costs 3.9 ms — *the same as with
+no ocean at all*. The water's per-pixel fill is ~0; every millisecond of it is vertices. (The `capture`
+column pinned at 3.1 across every quad size is the control: it draws the scene *without* the water, so it
+must not move, and it doesn't.)
+
+- **Ceiling: 7.6 ms of a 15.4 ms frame** (DPR 1); 8.9 of 23.7 at DPR 1.5. The win is a roughly **fixed
+  number of ms at any resolution** — vertex work doesn't scale with pixels, fill does — so LOD's *share*
+  of the frame shrinks as render scale rises.
+- **SSR falls with quad size too** (2.5 → 0.8): the SSR pass re-renders the ocean mesh, so the vertex
+  bill is paid **twice a frame**.
+- **What LOD cannot touch:** the capture pass (~3 ms) + the SSR march. Those exist to feed the water and
+  stay. That is the floor of "there is a sea", and only a cheaper *per-pixel* water would move it.
+
+**Beware the tempting shortcut.** Shrinking `plane size` to 100 m *looks* like the same experiment and is
+not: it takes the sea off most of the SCREEN, so it removes fill as well as vertices — and it is
+unshippable, because the sea then ends 50 m away. It happens to land on a similar number **only because
+the ocean's fill is ~0**, which is a conclusion, not an assumption. Sweep `quad size` at a fixed plane.
+
+Uniform coarsening is not shippable either — the short (48/70 m) waves facet, which is *why* the fine grid
 exists. But the detail is spent on **far water that doesn't need it**. A camera-following high-density
 patch + a coarse far plane keeps the near waves exactly as they are and reclaims most of the ~8 ms.
-Treat ~8 ms as the **ceiling**, not a promise, until it is built.
 
 **This reverses the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively").
 `CLAUDE.md` is corrected to match.

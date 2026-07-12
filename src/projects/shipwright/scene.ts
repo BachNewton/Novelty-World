@@ -1018,6 +1018,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       applyGrid();
       syncGui();
     },
+    /** The ocean's tessellation DENSITY (quad edge, metres) at a FIXED plane size — which is the only
+     *  honest way to price an LOD ocean. Shrinking the plane instead also takes the water off most of the
+     *  screen, so it hides the vertex saving inside a much bigger fill saving; an LOD ocean still has to
+     *  reach the horizon, so it can only ever win the vertex half. Sweep this, not `setPlaneSize`. */
+    setQuadSize: (metres: number) => {
+      debug.quadSize = metres;
+      applyGrid();
+      syncGui();
+    },
     setShading: (mode: ShadingMode) => {
       ocean.setShading(mode);
     },
