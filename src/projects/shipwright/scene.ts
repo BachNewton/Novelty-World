@@ -757,7 +757,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const oceanMs = globalThis.performance.now() - oceanStart;
 
     const buoysStart = globalThis.performance.now();
-    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux); // kinematic particle-ride
+    navBuoys.update(ocean, run.elapsed, daylight.state().illuminanceLux, camera.position); // kinematic particle-ride
     const buoysMs = globalThis.performance.now() - buoysStart;
 
     const daylightStart = globalThis.performance.now();
@@ -1091,7 +1091,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // segments and whenever `--terrain on` forces it.
       probes.visible = false;
       navBuoys.object.visible = config.buoys !== false;
-      navBuoys.setLightsResident(config.buoyLightsResident === true);
       player.object.visible = false;
       physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
       // Physics-only: hide the ocean so the frame's GPU cost is ~0 and the physics-step time is the
@@ -1171,7 +1170,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
-      navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux);
+      navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux, camera.position);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
       if (probes.visible) updateProbes(elapsed);
       // Pose the sailor at the interpolated physics state (smooth at the render rate, matching the

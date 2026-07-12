@@ -60,6 +60,18 @@ const CARDINAL_RANGE_NM = 5;
 /** The lantern lens: a small emissive dome on the mast head. */
 const LENS_RADIUS = 0.09;
 
+/**
+ * Beyond this range the pooled lamp light stops emitting (metres).
+ *
+ * Not a look tweak — it is where the photometry says the lamp stops mattering. Allard's law puts a 5 NM
+ * cardinal at 77 cd, and illuminance falls as 1/d²: ~3 lux at 5 m (≈ 12× full moonlight), 0.77 lux at
+ * 10 m, 0.031 lux at 50 m — under starlight. And that is the OPTIMISTIC figure: a real lantern is a
+ * catadioptric optic that throws its energy at the HORIZON, because light spilled on the water is range
+ * it did not get. So past ~40 m the lamp illuminates nothing a camera could see, and the lens (which SSR
+ * reflects off the water) is doing all the visible work anyway.
+ */
+const LAMP_LIGHT_RANGE = 40;
+
 type ConeDir = "up" | "down";
 
 interface LanternSpec {
@@ -131,12 +143,15 @@ const CARDINALS: CardinalSpec[] = [
 ];
 
 interface Lantern {
-  light: THREE.PointLight;
+  /** The glowing lens — what you SEE, and what SSR reflects off the water. NOT a light source: the
+   *  reflection is a ray-march of the scene COLOUR capture, which this mesh is already in. */
   lens: THREE.Mesh;
   material: THREE.MeshStandardMaterial;
   spec: LanternSpec;
   /** Peak `PointLight.intensity` per signal colour, precomputed so the frame loop only multiplies. */
   intensity: Record<SignalColor, number>;
+  /** Height of the lamp above the buoy's origin — where the pooled light must sit when it snaps here. */
+  lampY: number;
 }
 
 interface Buoy {
@@ -149,20 +164,15 @@ interface Buoy {
 export interface NavBuoys {
   object: THREE.Object3D;
   /** Ride the buoys on the water at `time` seconds, and run their lamps. Once per frame.
-   *  `ambientLux` drives the photocell: real lanterns are dark all day. */
-  update: (ocean: Ocean, time: number, ambientLux: number) => void;
+   *  `ambientLux` drives the photocell: real lanterns are dark all day. `eye` is the viewer's world
+   *  position — the pooled lamp light snaps to whichever lit lantern is nearest to it (see `lampLight`). */
+  update: (ocean: Ocean, time: number, ambientLux: number, eye: THREE.Vector3) => void;
   /** Force the lamps on regardless of ambient light. Capture tool + GUI only. */
   setPhotocellOverride: (alwaysOn: boolean) => void;
-  /** Benchmark cost probe: keep the lantern `PointLight`s resident in the scene graph even in daylight,
-   *  when they are switched off — the behaviour whose removal is worth ~⅓ of the GPU frame. Lets the
-   *  saving be A/B'd in ONE warm session instead of across two. Not a gameplay setting. */
-  setLightsResident: (resident: boolean) => void;
-  /** Suppress the lantern `PointLight`s entirely — even at night — while leaving the emissive LENS
-   *  untouched. This separates the two things a lit lantern does, which look like one thing and are not:
-   *  the light ILLUMINATES (a pool of colour on the water, and the frame's whole point-light cost), while
-   *  the lens is what you SEE, and what SSR reflects (the reflection is a ray-march of the scene COLOUR
-   *  capture, which the glowing lens is already in — it does not need a light source at all).
-   *  So: is the `PointLight` paying for anything you can see? */
+  /** Cost probe: suppress the pooled lamp light while the lenses keep glowing (and SSR keeps reflecting
+   *  them off the water). Separates what a lantern ILLUMINATES from what a lantern IS — two things that
+   *  switch on together and are easy to mistake for one. Measured at 20 m, suppressing the light changes
+   *  0.19 % of pixels; the reflected streaks are pixel-for-pixel unchanged. Not a gameplay setting. */
   setLightsEnabled: (on: boolean) => void;
   dispose: () => void;
 }
@@ -202,10 +212,13 @@ export function createNavBuoys(): NavBuoys {
   const lensGeometry = track(new THREE.SphereGeometry(LENS_RADIUS, 16, 12));
 
   /**
-   * A lantern. The `PointLight` carries the photometry; the lens carries the LOOK of a lamp you are
-   * staring straight at. Its emissive radiance is `I / A` — the same trick the sun's disc uses, so the
-   * lens integrates to exactly the intensity the light emits, and a 5 cd lamp cannot secretly glow
-   * like a 500 cd one.
+   * A lantern's lens: the LOOK of a lamp you are staring straight at. Its emissive radiance is `I / A`
+   * — the same trick the sun's disc uses, so the lens integrates to exactly the intensity the lamp
+   * emits, and a 5 cd lamp cannot secretly glow like a 500 cd one.
+   *
+   * The lens carries no light of its own. **It doesn't need to**: the reflected streak on the water is
+   * SSR ray-marching the scene COLOUR capture, which this glowing mesh is already in. The illumination
+   * a lamp throws is a separate thing, and it comes from the one pooled `lampLight` below.
    */
   const makeLantern = (spec: LanternSpec, y: number): Lantern => {
     const intensity = Object.fromEntries(
@@ -215,10 +228,6 @@ export function createNavBuoys(): NavBuoys {
       ]),
     ) as Record<SignalColor, number>;
 
-    const light = new THREE.PointLight(0xffffff, 0, 0, 2); // decay 2 = inverse square, i.e. physics
-    light.position.y = y;
-    light.castShadow = false; // a lamp on a mast head shadows nothing that matters, and six shadow
-    // maps for six buoys would cost more than the entire sky
     const material = track(
       new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.25, metalness: 0 }),
     );
@@ -226,11 +235,34 @@ export function createNavBuoys(): NavBuoys {
     lens.position.y = y;
     lens.castShadow = false;
     lens.receiveShadow = false;
-    return { light, lens, material, spec, intensity };
+    return { lens, material, spec, intensity, lampY: y };
   };
 
+  /**
+   * ONE pooled lantern light, for ALL the marks — a light SLOT, re-pointed each frame at the nearest
+   * lamp that is currently flashing, rather than a fixture bolted to each buoy.
+   *
+   * Why pool instead of one light per buoy. three compiles the light COUNT into every lit material's
+   * program: N point lights in the scene means every fragment of every lit surface runs the point-light
+   * BRDF loop N times — and the ocean is a lit surface covering the whole screen. Six per-buoy lanterns
+   * cost ~3.6 ms of a ~12 ms GPU frame, and the cost grows with the buoy field. A pooled slot costs the
+   * same whether the archipelago has six marks or six hundred.
+   *
+   * And a count that CHANGES recompiles every material — so the slot is never added or removed while
+   * lit; when no lamp is near enough to matter it stays in the graph at zero intensity. The only count
+   * change is day↔night (one recompile, at dusk, where one is unavoidable anyway).
+   *
+   * Why keep a light at all, when the measured difference is 0.19 % of pixels: because that measurement
+   * was taken 20 m out. Allard's law puts a 5 NM cardinal at 77 cd, which is ~3 lux at 5 m — about 12×
+   * full moonlight. The player will sail right up to these. Far away the lamp is invisibly dim and the
+   * lens does all the work; close up the light is real, and this is the range where it is real.
+   */
+  const lampLight = new THREE.PointLight(0xffffff, 0, 0, 2); // decay 2 = inverse square, i.e. physics
+  lampLight.castShadow = false; // a lamp on a mast head shadows nothing that matters
+  lampLight.visible = false; // dark all day; the photocell brings it up
+  root.add(lampLight);
+
   const addMark = (group: THREE.Group, spec: MarkSpec, lantern: Lantern) => {
-    group.add(lantern.light);
     group.add(lantern.lens);
     root.add(group);
     buoys.push({ object: group, restX: spec.restX, restZ: spec.restZ, lantern });
@@ -329,20 +361,17 @@ export function createNavBuoys(): NavBuoys {
   enableShadows(root);
 
   let photocellOverride = false;
-  // Benchmark only: keep the lantern PointLights in the scene graph even in daylight — i.e. restore the
-  // behaviour that made six switched-OFF lamps the most expensive thing in the GPU frame. It exists so
-  // the saving can be measured as an INTERLEAVED A/B in one thermal session, which is the only honest
-  // way to price it (a hot "before" against a cooled "after" has faked a 23 % win here before).
-  let lightsResident = false;
-  // Suppress the PointLights entirely (the lens keeps glowing) — see setLightsEnabled.
+  // Cost probe (bench `--buoy-lights off`): suppress the pooled lamp light entirely; the lenses keep
+  // glowing and SSR keeps reflecting them. Measures what the ILLUMINATION is buying, as opposed to the
+  // lamp's visible glow — two things that switch on together and are easy to mistake for one.
   let lightsEnabled = true;
 
   /** Radiance of a lens emitting `I` over its own projected area. The disc trick, at buoy scale. */
   const lensArea = Math.PI * LENS_RADIUS * LENS_RADIUS;
 
-  const setLamp = (lantern: Lantern, lit: SignalColor | undefined) => {
+  /** Sets the LENS's glow only. The illumination is the pooled `lampLight`'s job (see below). */
+  const setLens = (lantern: Lantern, lit: SignalColor | undefined) => {
     if (lit === undefined) {
-      lantern.light.intensity = 0;
       lantern.material.emissiveIntensity = 0;
       lantern.material.emissive.setRGB(0, 0, 0);
       return;
@@ -350,47 +379,61 @@ export function createNavBuoys(): NavBuoys {
     // Destructured, not spread: `SIGNAL_COLORS[lit]` is a UNION of five readonly tuples, and TypeScript
     // will not spread a union into a positional signature.
     const [r, g, b] = SIGNAL_COLORS[lit];
-    lantern.light.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
-    lantern.light.intensity = lantern.intensity[lit];
     // The lens glows at the radiance its own emission implies. Its core will clip to white at any sane
     // exposure, which is exactly what a lantern looks like when you are staring into it.
     lantern.material.emissive.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
     lantern.material.emissiveIntensity = lantern.intensity[lit] / lensArea;
   };
 
+  const lampWorld = new THREE.Vector3();
+
   return {
     object: root,
-    update: (ocean, time, ambientLux) => {
+    update: (ocean, time, ambientLux, eye) => {
       const dark = photocellOverride || ambientLux < PHOTOCELL_SWITCH_ON_LUX;
+
+      // The pooled light is in the scene at night and out of it by day. That is the ONLY light-count
+      // change (one shader recompile, at dusk, where one is unavoidable anyway) — the flash rhythm must
+      // never change the count, or every material would recompile several times a second.
+      lampLight.visible = dark && lightsEnabled;
+
+      // Re-point the single slot at the nearest lamp that is actually flashing right now.
+      let nearestDist = Infinity;
+      let nearest: { lantern: Lantern; color: SignalColor } | undefined;
+
       for (const buoy of buoys) {
         const ride = ocean.sampleParticle(buoy.restX, buoy.restZ, time);
         buoy.object.position.copy(ride.position);
         buoy.object.quaternion.setFromUnitVectors(UP, ride.normal);
 
-        // TAKE THE LAMPS OUT OF THE SCENE IN DAYLIGHT — this is worth 5.7 ms, ~36 % of the GPU frame.
-        //
-        // An unlit lantern used to stay in the graph at `intensity = 0`, which reads as free and is not.
-        // three compiles the light COUNT into every lit material: six point lights in the scene means
-        // `NUM_POINT_LIGHTS 6`, and every fragment of every lit surface runs the point-light BRDF loop
-        // six times — including the ocean, which covers essentially the whole screen. Six lamps that
-        // are switched OFF were the single most expensive thing in the frame, ahead of SSR. An invisible
-        // light is skipped in `projectObject`, so it leaves the count (and the loop) entirely.
-        //
-        // Gate on the PHOTOCELL, not on the flash: `rhythmAt` blinks several times a second, and a light
-        // count that changes with the blink would force a shader recompile on every flash. `dark` flips
-        // once, at dusk — one recompile, where a recompile is already unavoidable. Within the night the
-        // count is constant and the rhythm just modulates intensity, which is free.
-        buoy.lantern.light.visible = lightsEnabled && (dark || lightsResident);
-
         const phase = dark ? rhythmAt(buoy.lantern.spec.rhythm, time) : undefined;
-        setLamp(buoy.lantern, phase === true ? buoy.lantern.spec.color : phase);
+        const lit = phase === true ? buoy.lantern.spec.color : phase;
+        setLens(buoy.lantern, lit);
+
+        if (lit === undefined || !lampLight.visible) continue;
+        lampWorld.copy(ride.position).setY(ride.position.y + buoy.lantern.lampY);
+        const d = lampWorld.distanceTo(eye);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = { lantern: buoy.lantern, color: lit };
+          lampLight.position.copy(lampWorld);
+        }
       }
+
+      if (nearest === undefined || nearestDist > LAMP_LIGHT_RANGE) {
+        // No lamp near enough to light anything. Keep the slot in the graph — removing it would change
+        // the light count and recompile every material — and just stop it emitting.
+        lampLight.intensity = 0;
+        return;
+      }
+      const [r, g, b] = SIGNAL_COLORS[nearest.color];
+      lampLight.color.setRGB(r, g, b, THREE.LinearSRGBColorSpace);
+      // The lamp we snapped to carries its OWN photometry — a 5 NM cardinal is 77 cd, a 3 NM lateral
+      // 15 cd. Reading the intensity off any other buoy would silently relight the sea with the wrong lamp.
+      lampLight.intensity = nearest.lantern.intensity[nearest.color];
     },
     setPhotocellOverride: (alwaysOn) => {
       photocellOverride = alwaysOn;
-    },
-    setLightsResident: (resident) => {
-      lightsResident = resident;
     },
     setLightsEnabled: (on) => {
       lightsEnabled = on;

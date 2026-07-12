@@ -168,10 +168,6 @@ if (args.clouds !== undefined) config.clouds = args.clouds;
 if (args.terrain !== undefined) config.terrain = offFlag(args.terrain);
 // --buoys off: hide the nav buoys (their meshes + lantern point-lights).
 if (args.buoys !== undefined) config.buoys = offFlag(args.buoys);
-// --buoy-lights resident: keep the six lantern PointLights in the scene graph in DAYLIGHT, when they are
-// switched off — the behaviour that made six unlit lamps the most expensive thing in the GPU frame.
-// Restores it so the fix can be priced as an interleaved A/B in one warm session.
-if (args["buoy-lights"] !== undefined) config.buoyLightsResident = args["buoy-lights"] === "resident";
 // --sky-dome off: hide the sky dome mesh. Env map + sun light stay, so lighting is unchanged and only
 // the dome's own per-fragment cost drops — a clean subtraction.
 if (args["sky-dome"] !== undefined) config.skyDome = offFlag(args["sky-dome"]);
@@ -415,7 +411,6 @@ const slug =
     config.clouds !== undefined ? `cl-${config.clouds.toLowerCase().replace(/\s+/g, "-")}` : null,
     config.terrain === true ? "terrain" : null,
     config.buoys === false ? "buoys-off" : null,
-    config.buoyLightsResident === true ? "buoylights-resident" : null,
     config.skyDome === false ? "skydome-off" : null,
     config.ssrSteps !== undefined ? `steps${config.ssrSteps}` : null,
     config.sampleIters !== undefined ? `iters${config.sampleIters}` : null,
