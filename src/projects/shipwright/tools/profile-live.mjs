@@ -103,66 +103,78 @@ try {
   console.log(`(real-time clock: this FPS is the FELT number, not a deterministic A/B)\n`);
 
   const rows = [];
-  const run = async (label, setup, arg) => {
-    await page.evaluate(setup, arg);
-    await page.waitForTimeout(1200); // let the change settle + clocks react
+  const run = async (label, patch) => {
+    // Always start from the SHIPPED scene, then remove exactly one thing. Subtracting from a
+    // progressively-stripped scene would attribute every saving to whatever happened to go last.
+    await page.evaluate((p) => {
+      const sw = window.__shipwright;
+      const all = {};
+      for (const k of sw.costKeys()) all[k] = true;
+      sw.setCost({ ...all, ...p });
+    }, patch);
+    await page.waitForTimeout(1200);
     const s = await sample(SECONDS);
     rows.push({ label, ...s });
     return s;
   };
 
-  // The scene exactly as the game ships it. NB `setVisibility({physics:false})` only stops the bodies
-  // being DRAWN — the sim keeps stepping. `freeze()` is what stops the step. That distinction is the
-  // whole point of this table: it separates the demo testbed's RENDER cost from its PHYSICS cost.
-  const SHIPPED = { physics: true, player: false, seabed: false, pole: false, island: true, rig: false };
-
-  await run("DEFAULT (what you get)", (v) => {
-    window.__shipwright.setVisibility(v);
-    window.__shipwright.resume();
-  }, SHIPPED);
-
-  await run("physics frozen", (v) => {
-    window.__shipwright.setVisibility(v);
-    window.__shipwright.freeze();
-  }, SHIPPED);
-
-  await run("no islands", (v) => {
-    window.__shipwright.setVisibility({ ...v, island: false });
-    window.__shipwright.resume();
-  }, SHIPPED);
-
-  await run("demo bodies hidden (still simulated)", (v) => {
-    window.__shipwright.setVisibility({ ...v, physics: false });
-    window.__shipwright.resume();
-  }, SHIPPED);
-
-  await run("bare: water + sky only", (v) => {
-    window.__shipwright.setVisibility({ ...v, physics: false, island: false });
-    window.__shipwright.freeze();
-  }, SHIPPED);
+  // Each row removes ONE subsystem from the shipped scene. `base − row` is that subsystem's cost.
+  const base = await run("— SHIPPED (nothing off) —", {});
+  await run("water", { water: false });
+  await run("sky dome", { skyDome: false });
+  await run("sun shadows", { sunShadows: false });
+  await run("archipelago (all)", { terrain: false });
+  await run("↳ spruce only", { spruce: false });
+  await run("nav buoys", { buoys: false });
+  await run("demo bodies: DRAW", { demoBodies: false });
+  await run("demo bodies: SIMULATE", { physicsStep: false });
+  await run("EVERYTHING off", {
+    water: false, skyDome: false, sunShadows: false, terrain: false,
+    buoys: false, demoBodies: false, physicsStep: false,
+  });
 
   const pad = (s, n) => String(s).padEnd(n);
   const padL = (s, n) => String(s).padStart(n);
+
+  // Report the GPU delta as the headline, not the wall-clock one. Wall-clock frame time in a REAL-TIME
+  // loop is noisy (vsync quantisation, DVFS, the physics substep accumulator reacting to the very change
+  // you are measuring), so its per-row deltas wobble by whole milliseconds. The GPU timer is measuring
+  // the thing you actually removed. `bodies: SIMULATE` is the row where this inverts: it costs no GPU at
+  // all, and its whole cost is in the frame column — which is the point.
   console.log(
-    pad("scene", 26) + padL("FPS", 7) + padL("frame", 8) + padL("p95", 8) +
-      padL("gpuTot", 8) + padL("main", 7) + padL("ssr", 7) + padL("capt", 7),
+    pad("switched OFF", 24) + padL("gpuTot", 8) + padL("ΔGPU", 8) + padL("share", 7) +
+      padL("FPS", 6) + padL("frame", 8) + padL("Δframe", 9),
   );
-  console.log("-".repeat(78));
+  console.log("-".repeat(70));
   for (const r of rows) {
+    const dg = r === rows[0] ? null : base.gpu.total - r.gpu.total;
+    const df = r === rows[0] ? null : base.frameP50 - r.frameP50;
+    const share = dg === null ? "" : `${((dg / base.gpu.total) * 100).toFixed(0)}%`;
     console.log(
-      pad(r.label, 26) +
-        padL(r.fps.toFixed(0), 7) +
-        padL(r.frameP50.toFixed(1), 8) +
-        padL(r.frameP95.toFixed(1), 8) +
+      pad(r.label, 24) +
         padL(r.gpu.total.toFixed(1), 8) +
-        padL(r.gpu.main.toFixed(1), 7) +
-        padL(r.gpu.ssr.toFixed(1), 7) +
-        padL(r.gpu.capture.toFixed(1), 7),
+        padL(dg === null ? "" : dg.toFixed(1), 8) +
+        padL(share, 7) +
+        padL(r.fps.toFixed(0), 6) +
+        padL(r.frameP50.toFixed(1), 8) +
+        padL(df === null ? "" : df.toFixed(1), 9),
     );
   }
+  const floor = rows[rows.length - 1].gpu.total;
+  console.log("-".repeat(70));
   console.log(
-    "\n(frame = wall-clock ms/frame p50. gpuTot = GPU per-pass sum. If frame >> gpuTot the frame is\n" +
-      " CPU-bound — and with the TEST_SHAPES testbed in the scene, that CPU is the buoyancy loop.)",
+    pad("FLOOR (everything off)", 24) + padL(floor.toFixed(1), 8) +
+      "   <- what remains with an empty scene: the composer's HDR+MSAA target,",
+  );
+  console.log(pad("", 24) + padL("", 8) + "      the grade/output passes, and the capture pass itself.");
+  console.log(
+    [
+      "",
+      "(ΔGPU = GPU ms saved by removing JUST that thing from the SHIPPED scene — the pie slice.",
+      " Slices need not sum to the total: they overlap, and the FLOOR above is paid no matter what.",
+      " `bodies: SIMULATE` is CPU-only — read its Δframe, not its ΔGPU.",
+      ' Every row is a switch you can flick live: Performance → "Scene cost (switch it off)".)',
+    ].join("\n"),
   );
 } finally {
   await browser.close();

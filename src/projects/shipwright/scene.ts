@@ -160,6 +160,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   const ocean = createOcean();
   scene.add(ocean.mesh);
+  // Whether the water is in the frame AT ALL (a cost probe / the physics-only bench mode) — as opposed
+  // to the per-frame hide/show the capture pass does. `renderPrePasses` hides the water to capture the
+  // scene behind it and then restores it, so it MUST restore it to this, not to `true`; otherwise any
+  // "switch the water off" toggle is silently undone on the very next frame. (It was.)
+  let waterVisible = true;
 
   // Gentle-swell sea for the raft/player test. The default sea (~1.7 m primary amplitude) is a
   // rough open-water state; dial it down to a low, long swell the small raft RIDES like a cork
@@ -241,7 +246,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       renderer.setRenderTarget(sceneCapture.target);
       renderer.render(scene, camera);
       renderer.setRenderTarget(null);
-      ocean.mesh.visible = true;
+      ocean.mesh.visible = waterVisible; // NOT `true` — see waterVisible
     });
     prepassCpu.capture = globalThis.performance.now() - captureStart;
     census.calls = renderer.info.render.calls;
@@ -524,6 +529,76 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   performance.add(debug, "capture").name("scene capture");
+
+  // --- Scene cost: switch each PART of the scene off and watch the frame ------------------------
+  // The render-scale dial answers "how many pixels"; this folder answers "what is IN them". Every
+  // subsystem the frame draws or steps gets one switch, so you can click your way down to vsync and see
+  // exactly which thing was holding you there — the live, felt version of the subtraction table the
+  // benchmark builds (docs/PERFORMANCE.md). Order is roughly most-expensive-first.
+  //
+  // These are COST PROBES, not quality settings: several of them (the water, the sky) make the scene
+  // wrong, on purpose. Read the frame counter, then put them back.
+  // NB the on/off switches that already existed elsewhere are NOT duplicated here — a control in two
+  // folders is two sources of truth that desync. The rest of the frame's cost lives in:
+  //   Performance → water FX, scene capture, quad size, reflection res, render scale
+  //   Advanced → Reflection → enabled  (SSR: skips the whole low-res march, not just the sampling)
+  //   Debug → shading (full / flat / wireframe)
+  //   Environment → Display → grade  (which also decides whether a composer runs at all)
+  const cost = {
+    water: true,
+    skyDome: true,
+    sunShadows: true,
+    terrain: true,
+    spruce: true,
+    buoys: true,
+    demoBodies: true,
+    physicsStep: true,
+  };
+  // One handler per switch, shared by the GUI and by `setCost` on the debug API — so `tools/profile-live.mjs`
+  // drives exactly the switches you drive, and the pie chart it prints is the panel you are clicking.
+  const costHandlers: Record<keyof typeof cost, (on: boolean) => void> = {
+    water: (on) => {
+      waterVisible = on;
+      ocean.mesh.visible = on;
+    },
+    // The env map and the sun's DirectionalLight stay: only the dome's own (large, per-fragment) cost drops.
+    skyDome: (on) => daylight.setDomeVisible(on),
+    sunShadows: (on) => daylight.setShadowsEnabled(on),
+    terrain: (on) => {
+      debug.island = on; // still what setVisibility() (the capture tools) reads
+      island.object.visible = on;
+    },
+    spruce: (on) => island.setTreesVisible(on),
+    buoys: (on) => (navBuoys.object.visible = on),
+    // The TEST_SHAPES buoyancy testbed is DEBUG CONTENT that ships in the live scene (see the physics
+    // spawn). Two separate costs, and they are NOT the same size: DRAWING the bodies is ~free (each body
+    // is one merged mesh), while STEPPING them is ~30 bodies / ~2,500 voxel colliders of buoyancy. No
+    // dial separated those before, which is exactly why the testbed's real cost stayed invisible.
+    demoBodies: (on) => (physics.object.visible = on),
+    physicsStep: (on) => (paused = !on),
+  };
+  const setCost = (patch: Partial<typeof cost>) => {
+    for (const [key, on] of Object.entries(patch) as [keyof typeof cost, boolean][]) {
+      cost[key] = on;
+      costHandlers[key](on);
+    }
+  };
+
+  const costFolder = performance.addFolder("Scene cost (switch it off)");
+  const LABELS: Record<keyof typeof cost, string> = {
+    water: "water",
+    skyDome: "sky dome",
+    sunShadows: "sun shadows",
+    terrain: "archipelago",
+    spruce: "↳ spruce only",
+    buoys: "nav buoys",
+    demoBodies: "bodies: draw",
+    physicsStep: "bodies: simulate",
+  };
+  for (const key of Object.keys(cost) as (keyof typeof cost)[]) {
+    costFolder.add(cost, key).name(LABELS[key]).onChange(costHandlers[key]);
+  }
+
   // The tonemap x bloom 2x2 (docs/LIGHTING.md). Both are live so they can be A/B'd in one warm
   // session; switching either recompiles materials, which is fine here and nowhere near a hot path.
   const display: { toneMapping: string; bloom: boolean } = { toneMapping: "AgX", bloom: ctx.isBloomEnabled() };
@@ -578,9 +653,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   debugFolder.add(debug, "probes").onChange((on: boolean) => {
     probes.visible = on;
   });
-  debugFolder.add(debug, "island").onChange((on: boolean) => {
-    island.object.visible = on;
-  });
+  // (the archipelago's on/off moved to Performance → "Scene cost" — it is a cost probe, and having it
+  // in two folders would be two sources of truth)
   debugFolder.add(debug, "seabed").name("sea floor").onChange((on: boolean) => {
     seabed.visible = on;
   });
@@ -866,6 +940,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     setTerrainVisible: (on: boolean) => {
       island.object.visible = on;
     },
+    /** The Performance → "Scene cost" switches, driven from code. Same handlers the GUI runs, so what
+     *  `tools/profile-live.mjs` measures is exactly what the panel does. Cost PROBES, not settings:
+     *  several make the scene wrong on purpose. */
+    setCost,
+    costKeys: () => Object.keys(cost),
     /** Suppress the lantern PointLights while keeping the emissive lens — separates "the lamp lights the
      *  water" from "the lamp is visible, and SSR reflects it". See NavBuoys.setLightsEnabled. */
     setBuoyLightsEnabled: (on: boolean) => navBuoys.setLightsEnabled(on),
@@ -1113,7 +1192,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       physics.object.visible = false; // gameplay bodies are never part of a benchmark scene
       // Physics-only: hide the ocean so the frame's GPU cost is ~0 and the physics-step time is the
       // whole signal. Visuals/both keep it.
-      ocean.mesh.visible = mode !== "physics";
+      waterVisible = mode !== "physics";
+      ocean.mesh.visible = waterVisible;
       paused = false;
       syncGui();
 
