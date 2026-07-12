@@ -365,6 +365,12 @@ code that floats the ship agree on where the surface is.
   photometry, IALA signal chromaticities. Unit-tested. `buoys.ts` renders it.
 - `benchmark.ts` — the render-cost flight schedule + the benchmark **wire types**
   (`BenchmarkConfig`/`Result`/…); the driver that runs a flight lives in `scene.ts`.
+- `tools/map.ts` — charts the bedrock field top-down (no browser, no GPU) and prints the island size
+  distribution + zoning statistic. **Run it whenever you touch the field's spectrum:** the scene renders
+  a 600 m window, which is smaller than the scale an archipelago is organised into, so structural
+  terrain bugs are invisible from inside the game — one shipped. See `docs/MAPS.md`, which also sketches
+  the **in-game nautical chart** this could become (the field is pure + seeded, so a map is nearly free,
+  and `iala.ts` already holds the buoyage as data).
 
 ## Status
 

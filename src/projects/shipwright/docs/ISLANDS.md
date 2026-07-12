@@ -64,6 +64,15 @@ any scale and it must be re-solved, or the new relief simply floods or drains th
 the zoning working. Anything measured about the field's character has to be measured over kilometres —
 one window proves nothing, and two tests that sampled one window had to be rewritten when this landed.
 
+**And it is not finished — the same failure exists ONE LEVEL UP.** Charted at 50 km
+(`npx tsx tools/map.ts wide.png --span 50000 --px 1600 --ss 3`), the world is **statistically
+homogeneous**: the same texture edge to edge, no mainland, no coast, no edge to the archipelago, no
+open Baltic. The largest scale in the field is `SUPER_RELIEF`'s 2100 m, so beyond a couple of km
+nothing organises anything. Whether that matters is a **scope** question and should be settled before
+anyone picks a world size: invisible if the playable world is a few km, felt if players can sail tens
+of km. The fix would have the same shape — a scale *above* `SUPER_RELIEF`, a coastline/basin scale
+that says "here the archipelago ends." See `MAPS.md`, which is also where the tool lives.
+
 ---
 
 ## What it must look like
@@ -227,6 +236,11 @@ Finland is the priority. Do not compromise it to keep a Caribbean lerp cheap.
 ---
 
 ## Validating island changes (the review loop)
+
+**Chart it first.** `npx tsx tools/map.ts out.png --span 3000 --window` renders the field top-down
+and prints the island size distribution + the zoning statistic — no browser, no GPU. Anything about
+the field's *structure* is invisible from inside a 600 m window and obvious on a map; that is how the
+flat-spectrum bug survived. See `MAPS.md`. Then, for anything about light, material or silhouette:
 
 Same loop as the water (see `FIDELITY.md`):
 1. **Capture** `node tools/shots.mjs 05-islands <label>` with the dev server on :3001. Use
