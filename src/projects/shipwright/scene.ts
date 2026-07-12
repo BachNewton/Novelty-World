@@ -605,7 +605,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // is one merged mesh), while STEPPING them is ~30 bodies / ~2,500 voxel colliders of buoyancy. No
     // dial separated those before, which is exactly why the testbed's real cost stayed invisible.
     demoBodies: (on) => (physics.object.visible = on),
-    physicsStep: (on) => (paused = !on),
+    // Skips the Rapier step ONLY. Not `paused` — that stops the world clock, and the sea with it.
+    physicsStep: (on) => (stepPhysics = on),
     // The 512² cloud-shadow pass, plus the map fetch it adds to every LIT FRAGMENT in the scene (a
     // global `lights_fragment_begin` override). Nothing else switched it off, so it was invisible.
     cloudShadow: (on) => daylight.setCloudShadowEnabled(on),
@@ -738,7 +739,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   if (window.innerWidth < 768) gui.close();
 
   let elapsed = 0;
+  // `paused` freezes the WORLD CLOCK (waves, sun, buoy ride, physics — everything in lock-step), which is
+  // what an automated capture wants: a reproducible static image. `stepPhysics` is a different thing and
+  // must stay separate: it skips ONLY the Rapier step, so the cost panel can price the buoyancy sim
+  // without also stopping the sea. Conflating them froze the ocean whenever you probed the physics cost.
   let paused = false;
+  let stepPhysics = true;
 
   // --- Render-cost benchmark driver ------------------------------------------
   // Runs the scripted fixed-dt flight (benchmark.ts) inside the shared animation loop: each
@@ -1320,7 +1326,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         // Step the Rapier buoyancy sim (fixed-timestep internally) and pose its shapes —
         // before the capture below, so they refract like the buoys. Pass `elapsed` (the same
         // clock the ocean is rendered at) so buoyancy samples the exact on-screen water.
-        physics.update(dt, elapsed);
+        // Skipping this leaves the bodies where they are while the SEA KEEPS MOVING — the point is to
+        // price the sim, not to stop the world (that is `paused`).
+        if (stepPhysics) physics.update(dt, elapsed);
       }
       ocean.update(elapsed);
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
