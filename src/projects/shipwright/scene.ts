@@ -108,13 +108,22 @@ const PROBE_SIDE = 15;
 const PROBE_SPACING = 6; // metres between probes
 
 // The archipelago (roadmap #7). One continuous bedrock field, cut by sea level — see terrain.ts and
-// docs/ISLANDS.md. This seed/centre was CHOSEN by searching for a window that reads as an Archipelago
-// Sea skerry field from the raft: ~14 % land, 53 islands, of which 45 are skerries under 120 m², and
-// one 42,000 m² landfall island peaking at 12.8 m off to the south-east. The raft's spawn at the
-// world origin sits in ~9 m of open water with room to sail.
+// docs/ISLANDS.md.
+//
+// The raft, the buoys and the TEST_SHAPES demos are all anchored at the WORLD ORIGIN, and the bedrock
+// field is world-anchored too, so `seed` + `center` are the only levers for framing: the window slides
+// over the world, the raft does not. This pair was CHOSEN by searching both for a window that reads as
+// an Archipelago Sea skerry field FROM THE RAFT: 13.1 % land, 51 islands, of which 44 are skerries
+// under 120 m², a lineated chain running NW–SE about 100 m north of the spawn, and a 3.9 ha landfall
+// island peaking at 16.1 m within easy sail. `center` is kept near the origin on purpose — push it
+// out to ~200 m and the taper drowns the half of the window the raft is looking away from.
+//
+// The spawn is in 15.0 m of open water with 104 m of clear water around it. That depth is not luck:
+// Perlin noise is exactly zero at its lattice points, and the world origin is a lattice point of
+// EVERY octave, so `height(0, 0)` is always exactly `SEA_LEVEL_BIAS`, whatever the seed.
 const ARCHIPELAGO: ArchipelagoProfile = {
-  seed: 8,
-  center: [0, -200],
+  seed: 13,
+  center: [100, -100],
   extent: 600,
   grain: Math.PI / 8, // the glacial grain: islands stretch along it
   deep: -30,
@@ -540,10 +549,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // wrong, on purpose. Read the frame counter, then put them back.
   // NB the on/off switches that already existed elsewhere are NOT duplicated here — a control in two
   // folders is two sources of truth that desync. The rest of the frame's cost lives in:
-  //   Performance → water FX, scene capture, quad size, reflection res, render scale
-  //   Advanced → Reflection → enabled  (SSR: skips the whole low-res march, not just the sampling)
-  //   Debug → shading (full / flat / wireframe)
-  //   Environment → Display → grade  (which also decides whether a composer runs at all)
+  //   Performance → render scale · fps cap · reflection res · quad size (m) · plane size (m) ·
+  //                 water FX · scene capture
+  //   Sea → Reflection → enabled   (SSR: skips the whole low-res march PASS, not just the sampling)
+  //   Debug → shading (full / flat / wireframe) · sea floor · measuring pole · material rig
+  //   Environment → Display → grade   (which also decides whether a composer runs AT ALL — and the
+  //                 composer's HDR + MSAA target is most of the ~6 ms floor an empty scene still pays)
   const cost = {
     water: true,
     skyDome: true,
