@@ -26,6 +26,7 @@ import {
   sunSkyRatioSunFacing,
   type LightingState,
 } from "./lighting";
+import { registerGlobalUniforms } from "@/shared/lib/three/global-material-uniforms";
 import { DEFAULT_SKY, OZONE_ZENITH_TAU, sunTerms, type Rgb, type SkyParams } from "./sky-model";
 
 /**
@@ -130,16 +131,13 @@ const DIR_LIGHT_ANCHOR = "\t\tgetDirectionalLightInfo( directionalLight, directL
 let globalLightingInstalled = false;
 /** How many live `Daylight`s depend on the global patch. The last one out puts the lights back. */
 let globalLightingUsers = 0;
-const USER_HOOK = Symbol("shipwright.onBeforeCompile");
+/** Hands the lighting uniforms back to the shared registry on teardown. */
+let releaseUniforms: (() => void) | undefined;
 /** Written into the prepended declarations so a re-evaluated module can SEE its own prior work.
  *  `globalLightingInstalled` lives in module scope and resets on hot reload; `THREE` does not. */
 const PARS_SENTINEL = "// shipwright-lighting-installed";
 /** The white 1x1 the shadow lookup falls back to. Kept so teardown can point the uniform back at it. */
 let whitePixel: THREE.DataTexture | undefined;
-
-interface HookedMaterial extends THREE.Material {
-  [USER_HOOK]?: (shader: THREE.WebGLProgramParametersWithUniforms, renderer: THREE.WebGLRenderer) => void;
-}
 
 /**
  * Install the project's single global lighting patch. Idempotent.
@@ -151,11 +149,10 @@ interface HookedMaterial extends THREE.Material {
  *    project is cloud-shadowed, with no per-material code anywhere.
  *
  * 2. **The uniforms.** three only binds uniforms a material actually owns, and a `ShaderChunk` cannot
- *    add them. `Material.onBeforeCompile` can — it receives the program parameters and whatever it
- *    puts in `shader.uniforms` becomes `materialProperties.uniforms`. But an *instance* assignment
- *    (`ocean.ts` does one) shadows a prototype method, so a plain prototype override would silently
- *    skip exactly the materials that need it most. Hence the accessor: user hooks are stored aside
- *    and chained, and no material can opt out.
+ *    add them — so the declarations above would read zero without help. `registerGlobalUniforms`
+ *    (shared/lib/three) is that help, and it is now shared: the display grade needs the identical
+ *    trick, and two features each defining `Material.prototype.onBeforeCompile` would clobber one
+ *    another. See that module for why it is an accessor and not an assignment.
  *
  * This mutates the imported `three` module for the whole page. That is the point — but it means the
  * defaults must be inert: `uCloudShadowStrength = 0` short-circuits the lookup, so any other scene
@@ -196,19 +193,7 @@ export const installGlobalLighting = (): void => {
     `${DIR_LIGHT_ANCHOR}\n\t\tdirectLight.color *= shipwrightCloudTransmittance( geometryPosition );`,
   );
 
-  Object.defineProperty(THREE.Material.prototype, "onBeforeCompile", {
-    configurable: true,
-    get(this: HookedMaterial) {
-      const user = this[USER_HOOK];
-      return (shader: THREE.WebGLProgramParametersWithUniforms, renderer: THREE.WebGLRenderer) => {
-        Object.assign(shader.uniforms, LIGHTING_UNIFORMS);
-        user?.(shader, renderer);
-      };
-    },
-    set(this: HookedMaterial, fn: HookedMaterial[typeof USER_HOOK]) {
-      this[USER_HOOK] = fn;
-    },
-  });
+  releaseUniforms = registerGlobalUniforms(LIGHTING_UNIFORMS);
 };
 
 /**
@@ -238,10 +223,8 @@ export const uninstallGlobalLighting = (): void => {
   pristineParsBegin = undefined;
   pristineFragmentBegin = undefined;
 
-  // Restoring the prototype means deleting our accessor: three's `Material` has no own
-  // `onBeforeCompile` on the prototype (it is an instance-assigned no-op in its constructor), so
-  // `delete` is the correct inverse of `defineProperty` here, not a re-definition.
-  delete (THREE.Material.prototype as Partial<THREE.Material>).onBeforeCompile;
+  releaseUniforms?.();
+  releaseUniforms = undefined;
 
   whitePixel?.dispose();
   whitePixel = undefined;

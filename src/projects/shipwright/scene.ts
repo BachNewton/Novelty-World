@@ -14,7 +14,7 @@ import { DEFAULT_PROBE_SET, isMaterialName, type MaterialName } from "./material
 import { CLOUD_GENUS_NAMES } from "./clouds";
 import { createOcean, type ShadingMode } from "./ocean";
 import { createPhysics, type Physics } from "./physics";
-import { RAFT, TEST_SHAPES } from "./shapes";
+import { RAFT } from "./shapes";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
 import { createPlayer } from "./player";
 import { createBuilder } from "./builder";
@@ -287,12 +287,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // dynamic body floated by per-voxel buoyancy sampled from `ocean.sampleSurface`, and owns the
   // shared physics world the player lives in too. Rapier loads async; `init()` is called below
   // once the player exists, so it can be attached to the world in the same step.
-  // The raft is the real gameplay platform; the TEST_SHAPES are TEMPORARY buoyancy demos dropped
-  // in beside it — the tetromino plates topple + self-right, the upright shapes range from
-  // rock-stable to tippy, a scale-reference boat hull, and the Stage-1 "Sealed hull" that floats
-  // on trapped air despite being denser than water (flip the Debug "trapped-air cells" x-ray to
-  // watch its cavity do the lifting). Drop back to just [RAFT] once the demos aren't needed.
-  const physics = createPhysics(ocean, [RAFT, ...TEST_SHAPES]);
+  // Just the raft — the real gameplay platform.
+  //
+  // The TEST_SHAPES buoyancy demos used to spawn here too, and they were the single most expensive
+  // thing in the live frame: ~30 bodies / ~2,500 voxel colliders of buoyancy, and CPU cost, which is the
+  // half of the budget the GPU dials cannot touch. Worse, it is SUPERLINEAR — Rapier's fixed-timestep
+  // accumulator answers a slow frame with more substeps, so the testbed made the frame slow and the slow
+  // frame made the testbed more expensive. Debug content does not ship in the game; `--bodies N` on the
+  // benchmark still builds a testbed world when we want to price buoyancy on purpose (see runBenchmark).
+  const physics = createPhysics(ocean, [RAFT]);
   scene.add(physics.object);
 
   // Debug seabed: a sandy plane tilted into a beach slope that rises from deep
@@ -545,14 +548,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   });
   performance.add(debug, "capture").name("scene capture");
 
-  // Post-tonemap grade (saturation + contrast) — the honest place to put the punch AgX holds off the
-  // highlights. Its VALUES are declared at mount (components/shipwright.tsx), because whether a composer
-  // runs decides how the WebGL context is created; read them back rather than re-declaring them here,
-  // so the GUI and the mount-time option cannot drift apart. Declared HERE, above the cost folder,
-  // because `enabled` is also a COST switch (it is what keeps the composer alive) and both controllers
-  // bind to this one object — one state, two views, rather than two states that drift.
-  const grade = ctx.getGrade();
-
   // --- Scene cost: switch each PART of the scene off and watch the frame ------------------------
   // The render-scale dial answers "how many pixels"; this folder answers "what is IN them". Every
   // subsystem the frame draws or steps gets one switch, so you can click your way down to vsync and see
@@ -562,16 +557,19 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // These are COST PROBES, not quality settings: several of them (the water, the sky) make the scene
   // wrong, on purpose. Read the frame counter, then put them back.
   //
-  // The folder covers the FRAME, not just the scene — that distinction is the whole reason it exists.
-  // Switching off every OBJECT still left ~70 fps on a 100 Hz panel, because a frame that draws nothing
-  // at all is not free: the composer still allocates and resolves a HalfFloat + 4x-MSAA HDR target,
-  // runs the output + grade quads, and the cloud-shadow map still redraws. That is the FLOOR, it is
-  // fullscreen work, and it scales with PIXELS (render scale x devicePixelRatio), never with content.
-  // So the last two switches turn the pipeline itself off; only then does "everything off" mean an
-  // empty frame. The remaining cost dials that ARE quality settings stay in their own homes:
+  // The folder covers the FRAME, not just the scene. Switching off every OBJECT once still left ~70 fps
+  // on a 100 Hz panel, because the frame had a FLOOR that no scene switch could reach: an EffectComposer,
+  // whose HalfFloat + 4x-MSAA target cost ~6 ms at 1080p and ~13 ms at a 1.5x render scale — fullscreen
+  // work, scaling with PIXELS and never with content, on a frame that drew nothing at all. It existed
+  // only because the display grade wanted a pass. The grade now rides three's tone-mapping step instead
+  // (shared/lib/three/display-grade.ts), so there is NO composer unless bloom is on, and the floor is
+  // ~1 ms. If you ever see it come back, that is the thing to look at.
+  //
+  // The remaining cost dials that ARE quality settings stay in their own homes:
   //   Performance → render scale · fps cap · reflection res · quad size (m) · plane size (m) · water FX
   //   Sea → Reflection → enabled   (SSR: skips the whole low-res march PASS, not just the sampling)
   //   Debug → shading (full / flat / wireframe) · sea floor · measuring pole · material rig
+  //   Environment → Display → bloom  (the ONE thing that still builds a composer, and its ~6 ms target)
   const cost = {
     water: true,
     skyDome: true,
@@ -582,7 +580,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     demoBodies: true,
     physicsStep: true,
     cloudShadow: true,
-    postFx: grade.enabled,
   };
   // One handler per switch, shared by the GUI and by `setCost` on the debug API — so `tools/profile-live.mjs`
   // drives exactly the switches you drive, and the pie chart it prints is the panel you are clicking.
@@ -610,15 +607,6 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // The 512² cloud-shadow pass, plus the map fetch it adds to every LIT FRAGMENT in the scene (a
     // global `lights_fragment_begin` override). Nothing else switched it off, so it was invisible.
     cloudShadow: (on) => daylight.setCloudShadowEnabled(on),
-    // The composer, and therefore MOST of the floor. `grade` is the only thing keeping it alive on a
-    // shipped frame (bloom is off by default), and a composer means the scene is drawn into a HalfFloat
-    // 4x-MSAA HDR target that is resolved every frame — expensive on a bandwidth-starved iGPU, and paid
-    // whether the scene contains an archipelago or nothing at all. Shares state with Environment →
-    // Display → grade; both controllers `.listen()`, so flipping either moves both.
-    postFx: (on) => {
-      grade.enabled = on;
-      ctx.setGrade({ enabled: on });
-    },
   };
   const setCost = (patch: Partial<typeof cost>) => {
     for (const [key, on] of Object.entries(patch) as [keyof typeof cost, boolean][]) {
@@ -640,11 +628,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     demoBodies: "bodies: draw",
     physicsStep: "bodies: simulate",
     cloudShadow: "cloud shadows",
-    postFx: "post FX (HDR+MSAA)",
   };
   // `.listen()`: these switches are ALSO driven by `setCost` on the debug API (tools/profile-live.mjs),
-  // and `postFx` is a second view onto the grade state — without it the checkboxes would show stale
-  // values the moment anything but a click moved them.
+  // so without it the checkboxes would show stale values the moment anything but a click moved them.
   for (const key of Object.keys(cost) as (keyof typeof cost)[]) {
     costFolder.add(cost, key).name(LABELS[key]).listen().onChange(costHandlers[key]);
   }
@@ -680,16 +666,16 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .name("glare knee (x white)")
     .onChange(() => applyBloomThreshold(daylight.state().exposure));
 
-  // The second view onto `grade.enabled` (declared up by the cost folder, which owns the other one).
-  // Switching the grade off here also takes the composer down, so it moves the cost switch with it.
+  // Post-tonemap grade (saturation + contrast) — the honest place to put the punch AgX holds off the
+  // highlights. Its VALUES are declared at mount (components/shipwright.tsx); read them back rather than
+  // re-declaring them here, so the GUI and the mount-time option cannot drift apart. It is no longer a
+  // COST control: the grade rides three's tone-mapping step now, so switching it off saves a few
+  // multiplies, not a framebuffer (shared/lib/three/display-grade.ts).
+  const grade = ctx.getGrade();
   displayFolder
     .add(grade, "enabled")
     .name("grade")
-    .listen()
-    .onChange((on: boolean) => {
-      cost.postFx = on;
-      ctx.setGrade({ enabled: on });
-    });
+    .onChange((on: boolean) => ctx.setGrade({ enabled: on }));
   displayFolder
     .add(grade, "saturation", 0, 2, 0.01)
     .onChange((v: number) => ctx.setGrade({ saturation: v }));

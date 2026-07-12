@@ -7,7 +7,12 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import {
+  installDisplayGrade,
+  setGradeToneMapping,
+  setGradeValues,
+  uninstallDisplayGrade,
+} from "./display-grade";
 import { GpuTimer } from "./gpu-timer";
 
 export interface BloomOptions {
@@ -248,39 +253,6 @@ const patchBloomPrefilter = (pass: UnrealBloomPass, clamp: number): void => {
 };
 
 /**
- * A display-space colour grade — saturation + contrast — run AFTER the tonemap + sRGB encode
- * (`OutputPass`), which is where a grade belongs: the tonemap has already decided highlight roll-off and
- * (with AgX) desaturated the brights, so this is the honest place to put punch back. Neutral (1 / 1) is
- * identity. Contrast pivots about display mid-grey (0.5). NOT physics — a camera/art operator, uniform
- * across every frame, so it stays consistent where a per-elevation sky hack could not.
- */
-const GRADE_SHADER = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    uSaturation: { value: 1 },
-    uContrast: { value: 1 },
-  },
-  vertexShader: /* glsl */ `
-    varying vec2 vUv;
-    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-  `,
-  fragmentShader: /* glsl */ `
-    uniform sampler2D tDiffuse;
-    uniform float uSaturation;
-    uniform float uContrast;
-    varying vec2 vUv;
-    void main() {
-      vec4 t = texture2D(tDiffuse, vUv);
-      vec3 c = t.rgb;
-      float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); // display-space luma (post-tonemap)
-      c = mix(vec3(l), c, uSaturation);               // saturation about luma
-      c = (c - 0.5) * uContrast + 0.5;                // contrast about mid-grey
-      gl_FragColor = vec4(c, t.a);
-    }
-  `,
-};
-
-/**
  * Mounts a vanilla three.js renderer into a container `<div>` and drives its
  * whole lifecycle from React: it creates the `WebGLRenderer` + a
  * `PerspectiveCamera`, runs the animation loop, keeps the drawing buffer sized
@@ -327,7 +299,11 @@ export function useThreeScene(
     const bloomOn =
       bloomOption !== false && (typeof bloomOption !== "object" || bloomOption.enabled !== false);
     const gradeOn = gradeOption !== false && (gradeOption.enabled ?? true);
-    const composerAtMount = bloomOn || gradeOn;
+    // BLOOM alone, now. The grade used to force a composer too, and since the grade is on by default
+    // that meant every shipped frame declined the context's MSAA and paid for the composer's instead.
+    // The grade is a tone-mapping patch now (display-grade.ts), so a scene that only wants a grade
+    // renders straight to the default framebuffer — and gets the cheap driver-resolved MSAA back.
+    const composerAtMount = bloomOn;
 
     // MSAA (antialias) only smooths geometry EDGES, and only in the framebuffer the geometry is drawn
     // into. Two reasons to decline it:
@@ -344,7 +320,6 @@ export function useThreeScene(
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.toneMapping = toneMappingRef.current;
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -366,7 +341,6 @@ export function useThreeScene(
     // had to move out of display space first.
     let composer: EffectComposer | undefined;
     let bloomPass: UnrealBloomPass | undefined;
-    let gradePass: ShaderPass | undefined;
     let bloomEnabled = bloomOn;
     let gradeEnabled = gradeOn;
     // The grade's live values. Seeded from the mount-time option so the scene's GUI can read them back
@@ -375,10 +349,20 @@ export function useThreeScene(
       saturation: (gradeOption !== false ? gradeOption.saturation : undefined) ?? 1,
       contrast: (gradeOption !== false ? gradeOption.contrast : undefined) ?? 1,
     };
-    // The composer runs whenever bloom OR grade is active; each pass is individually `.enabled`, so
-    // grade can run without bloom and vice-versa. With both off we skip the composer entirely (a direct
-    // `renderer.render`), so bloom's cost stays honestly measurable.
-    const composerActive = () => bloomEnabled || gradeEnabled;
+    // The grade is NOT a pass. It rides in three's tone-mapping step, which every material already runs
+    // (see display-grade.ts) — so wanting a grade no longer conjures an EffectComposer, and with it a
+    // HalfFloat + MSAA offscreen target that cost ~7 ms of an empty 1080p frame. BLOOM is the only thing
+    // that still needs a composer, because it genuinely needs the scene in HDR before the tonemap.
+    installDisplayGrade();
+    // The renderer's operator slot now belongs to `CustomToneMapping` — which runs the operator the
+    // caller actually asked for, and then grades. So the chosen operator rides a uniform instead, and
+    // switching it is a uniform write rather than a recompile of every shader in the scene.
+    const applyToneMapping = (mode: THREE.ToneMapping) => {
+      renderer.toneMapping = THREE.CustomToneMapping;
+      setGradeToneMapping(mode);
+    };
+    applyToneMapping(toneMappingRef.current);
+    const composerActive = () => bloomEnabled;
     const buildComposer = () => {
       if (composer) return;
       const settings = typeof bloomOption === "object" ? bloomOption : {};
@@ -399,15 +383,12 @@ export function useThreeScene(
       );
       patchBloomPrefilter(bloomPass, settings.clamp ?? Infinity);
       bloomPass.enabled = bloomEnabled;
-      gradePass = new ShaderPass(GRADE_SHADER);
-      gradePass.enabled = gradeEnabled;
-      gradePass.uniforms.uSaturation.value = gradeState.saturation;
-      gradePass.uniforms.uContrast.value = gradeState.contrast;
-      // RenderPass → bloom (HDR glow) → OutputPass (tonemap + sRGB) → grade (display-space sat/contrast).
+      // RenderPass → bloom (HDR glow) → OutputPass, which tonemaps + encodes. No grade pass: OutputPass
+      // supports `CUSTOM_TONE_MAPPING` natively, so it picks up the patched operator — grade included —
+      // and the composer path and the direct path share one implementation.
       composer.addPass(new RenderPass(scene, camera));
       composer.addPass(bloomPass);
       composer.addPass(new OutputPass());
-      composer.addPass(gradePass);
     };
     if (composerActive()) buildComposer();
     const setBloom = (enabled: boolean) => {
@@ -415,17 +396,18 @@ export function useThreeScene(
       if (enabled) buildComposer();
       if (bloomPass) bloomPass.enabled = enabled;
     };
+    // Disabling the grade means grading with IDENTITY values, not tearing anything down — there is no
+    // pass to switch off any more. The scene keeps its `gradeState` so re-enabling restores it.
     const setGrade = (grade: GradeOptions) => {
       if (grade.enabled !== undefined) gradeEnabled = grade.enabled;
       if (grade.saturation !== undefined) gradeState.saturation = grade.saturation;
       if (grade.contrast !== undefined) gradeState.contrast = grade.contrast;
-      if (gradeEnabled) buildComposer();
-      if (gradePass) {
-        gradePass.enabled = gradeEnabled;
-        gradePass.uniforms.uSaturation.value = gradeState.saturation;
-        gradePass.uniforms.uContrast.value = gradeState.contrast;
-      }
+      setGradeValues(
+        gradeEnabled ? gradeState.saturation : 1,
+        gradeEnabled ? gradeState.contrast : 1,
+      );
     };
+    setGrade({});
     const setBloomPrefilter = ({
       threshold,
       clamp,
@@ -502,9 +484,7 @@ export function useThreeScene(
       setGrade,
       isGradeEnabled: () => gradeEnabled,
       getGrade: () => ({ enabled: gradeEnabled, ...gradeState }),
-      setToneMapping: (mode) => {
-        renderer.toneMapping = mode;
-      },
+      setToneMapping: applyToneMapping,
       sceneCapture,
       gpuTimer,
       setPixelRatio,
@@ -588,6 +568,9 @@ export function useThreeScene(
       gpuTimer?.dispose();
       handlers.dispose?.();
       composer?.dispose();
+      // Put three's tone-mapping chunk back: a global mutation you cannot undo is one you have inflicted
+      // on every other scene the page will ever mount.
+      uninstallDisplayGrade();
       sceneCapture?.target.dispose();
       renderer.dispose();
       renderer.domElement.remove();

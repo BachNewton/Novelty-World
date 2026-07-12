@@ -128,10 +128,7 @@ try {
   await run("nav buoys", { buoys: false });
   await run("demo bodies: DRAW", { demoBodies: false });
   await run("demo bodies: SIMULATE", { physicsStep: false });
-  // The PIPELINE, not the scene. These two are fullscreen work that an empty frame still pays, which is
-  // why switching off every object above does NOT reach vsync. They scale with pixels, not content.
   await run("cloud shadows", { cloudShadow: false });
-  await run("post FX (composer)", { postFx: false });
   const costKeys = await page.evaluate(() => window.__shipwright.costKeys());
   await run("EVERYTHING off", Object.fromEntries(costKeys.map((k) => [k, false])));
 
