@@ -132,6 +132,28 @@ export interface BenchmarkConfig {
   terrain?: boolean;
   /** Show the navigational buoys (kinematic particle-ride floaters + their lanterns). Default on. */
   buoys?: boolean;
+
+  // --- Terrain breakdown. `--terrain on` prices the archipelago as a whole; these say WHICH PART.
+  // The answer feeds the LOD design, and the ocean's and the island's LOD are the same problem —
+  // both spend vertices on distance, and both land in the same passes.
+
+  /** Show the instanced spruce (~1,000 trees). One `InstancedMesh` = 1 draw + 1 node, so its cost is
+   *  TRIANGLES, not draw calls — and it is drawn into the shadow map as well as the scene. Default on. */
+  terrainTrees?: boolean;
+  /** Let the terrain CAST into the sun's shadow map (it still receives either way). Separates what the
+   *  archipelago costs as a shadow caster from what it costs as visible geometry — different draws, and
+   *  only one of them is on screen. Default on. */
+  terrainShadows?: boolean;
+  /** Metres between bedrock samples — the terrain's LOD dial, and the direct analogue of the ocean's
+   *  `quadSize`. Default 1.2 m, which over the 600 m window is a 500² grid (~250 k verts / 500 k tris).
+   *  Rebuilds the archipelago at run start, so a run costs an extra ~2.5 s of generation. */
+  terrainSpacing?: number;
+  /** Bedrock shading: "full" (PBR + shadow-receive) or "flat" (unlit, same geometry + vertex colours).
+   *  `full − flat` = the archipelago's SHADING cost; `flat` alone = its raw fill. The ocean's
+   *  `--shading` makes exactly this subtraction for the water. It is the measurement that says whether
+   *  island LOD should attack TRIANGLES or the SHADER — decimating the mesh 16× barely moved the frame,
+   *  so the answer is probably the shader. */
+  terrainShading?: "full" | "flat";
   /** Draw the sky dome. Off = the dome mesh is hidden (the env map + sun light stay, so lighting is
    *  unchanged and only the dome's own fragment cost drops). Default on. */
   skyDome?: boolean;
@@ -161,7 +183,7 @@ export interface BenchmarkSample {
   capture: number;
   ssr: number;
   main: number;
-  /** CPU seam-timer split of the render-prep (see docs/perf-handoff.md thread 1). All wall-clock
+  /** CPU seam-timer split of the render-prep (see docs/PERFORMANCE.md). All wall-clock
    *  `performance.now()` spans, so they measure CPU *submission* time, not GPU execution.
    *  `oceanMs` = the Gerstner uniform update ALONE (it used to also fold in the nav-buoy sampling,
    *  which hid a real per-frame system inside a column named after another one — they are split now);
@@ -219,7 +241,24 @@ export interface BenchmarkResult {
    *  · 1 triangle` for a 114-mesh scene until 2026-07-12 for exactly that reason. The capture pass
    *  draws the same scene graph minus the water, so it is the honest full-scene number (`+1` draw for
    *  the water is the only difference). */
-  renderInfo: { calls: number; triangles: number; sceneObjects: number; visibleMeshes: number };
+  renderInfo: {
+    calls: number;
+    triangles: number;
+    sceneObjects: number;
+    visibleMeshes: number;
+    /** The archipelago's triangle budget, split: the bedrock mesh vs the instanced spruce (one tree's
+     *  triangles × instance count), plus the tree count. Both LOD efforts — ocean and island — are
+     *  arguments about these numbers, so they travel with every run. */
+    terrain: {
+      bedrock: number;
+      trees: number;
+      treeCount?: number;
+      /** Wall-clock ms to GENERATE the window, on the main thread. NOT part of the per-frame cost —
+       *  it runs once, at load, before the first measured frame — but it is a real hang the player
+       *  pays, and it becomes a per-chunk in-play hitch the moment terrain streams. */
+      generationMs?: number;
+    };
+  };
   samples: BenchmarkSample[];
 }
 

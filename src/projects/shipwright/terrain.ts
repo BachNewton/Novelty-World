@@ -39,6 +39,9 @@ export interface ArchipelagoProfile {
   grain: number;
   /** Depth the field is tapered to at the window's edge, so the archipelago sits in open sea. */
   deep: number;
+  /** Metres between bedrock samples — the terrain's LOD dial (default `SAMPLE_SPACING`). Coarser =
+   *  quadratically fewer vertices/triangles, and the skerries start to vanish. Set by the benchmark. */
+  spacing?: number;
 }
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -378,6 +381,39 @@ export interface Terrain {
   /** Add to the scene once. Holds the bedrock mesh + the instanced spruce — three scene-graph nodes
    *  total, regardless of tree count (see docs/PERFORMANCE.md). */
   object: THREE.Object3D;
+  /** Show/hide the instanced spruce alone (the bedrock stays). A cost probe: the forest is one
+   *  `InstancedMesh` (1 draw, 1 node) but ~1,000 instances of a multi-cone tree, so its cost is
+   *  TRIANGLES, not draw calls — and it is drawn into the shadow map as well as the scene. */
+  setTreesVisible: (on: boolean) => void;
+  /** Stop the terrain (bedrock AND spruce) CASTING into the sun's shadow map; it still receives.
+   *  Isolates what the archipelago costs as a shadow caster from what it costs as visible geometry —
+   *  they are separate draws, and only one of them is on screen. */
+  setCastShadow: (on: boolean) => void;
+  /**
+   * Swap the bedrock to an UNLIT material (same geometry, same vertex colours, trivial fragment).
+   * `full − flat` is therefore the archipelago's PBR shading + shadow-receiving cost, and `flat` alone
+   * is its raw fill — the same subtraction `ocean.setShading` makes for the water.
+   *
+   * It exists because decimating the bedrock mesh barely moved the frame, which says the terrain is NOT
+   * vertex-bound (unlike the ocean) and its cost is in shading the pixels it covers. This proves that
+   * rather than inferring it — and it decides whether island LOD should attack triangles or the shader.
+   */
+  setShading: (mode: "full" | "flat") => void;
+  /** Triangles in the bedrock mesh + the spruce (one tree × instance count). The LOD conversation is
+   *  about these two numbers, so they have to be reportable. */
+  triangleCounts: () => { bedrock: number; trees: number };
+  /**
+   * Wall-clock ms this window took to GENERATE — the noise field, the displace/colour passes, and the
+   * forest scatter — on the main thread.
+   *
+   * It is deliberately absent from the per-frame cost model: generation runs once, inside scene setup,
+   * long before the benchmark's first measured frame. But it is NOT free, and it is on a timer. Today
+   * it is a one-off hang at load. The moment terrain STREAMS — which it must, for the world to grow
+   * past this 600 m window — the same work runs again every time the player sails into new water, and a
+   * one-off load cost becomes a recurring in-play hitch. That is the point at which it has to move to a
+   * Web Worker, and this number is how you know how bad the hitch would be.
+   */
+  generationMs: number;
   /** Bedrock height at a world (x, z). The same function the mesh was built from — anything that
    *  needs to ask the terrain a question (wave shoaling, a collider, prop scatter) reads this,
    *  never the triangles. */
@@ -390,7 +426,11 @@ export interface Terrain {
 /** Metres between samples. Skerries are 1–4 m tall and a few metres across, so this has to stay fine
  *  enough to resolve them — coarsen it much and the outer archipelago simply disappears. Generating
  *  the window is ~3 M noise evaluations and runs on the main thread at load; a Web Worker is the
- *  proper home for it once terrain streams (roadmap), at which point this can drop back to 1 m. */
+ *  proper home for it once terrain streams (roadmap), at which point this can drop back to 1 m.
+ *
+ *  It is also the terrain's LOD dial, and the direct analogue of the ocean's quad size: at 1.2 m over a
+ *  600 m window the bedrock is a 500² grid — a quarter of a million vertices, half a million triangles,
+ *  drawn into the scene AND the shadow map. Overridable per-profile so the benchmark can sweep it. */
 const SAMPLE_SPACING = 1.2;
 
 /**
@@ -399,10 +439,13 @@ const SAMPLE_SPACING = 1.2;
  * comes from the normals.
  */
 export function createTerrain(profile: ArchipelagoProfile): Terrain {
+  // Generation is ~3 M noise evaluations on the main thread. Timed, because it is the cost that a
+  // per-FRAME model cannot see and a streaming world will turn into a per-chunk hitch (see generationMs).
+  const genStart = globalThis.performance.now();
   const { height: heightAt, broad: broadAt, sample } = bedrockField(profile);
   const [cx, cz] = profile.center;
 
-  const segments = Math.round(profile.extent / SAMPLE_SPACING);
+  const segments = Math.round(profile.extent / (profile.spacing ?? SAMPLE_SPACING));
   const geometry = new THREE.PlaneGeometry(profile.extent, profile.extent, segments, segments);
   geometry.rotateX(-Math.PI / 2); // lay flat: the plane's local +y becomes world up
 
@@ -442,7 +485,12 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
     metalness: 0,
   });
 
-  const bedrock = new THREE.Mesh(geometry, material);
+  // Unlit twin of the bedrock material: same vertex colours, no BRDF, no shadow lookup. Built lazily —
+  // it is a cost probe, and an unused material should not cost a compile.
+  let flatMaterial: THREE.MeshBasicMaterial | undefined;
+
+  // Typed loosely on the material: the flat probe swaps a MeshBasicMaterial in (see setShading).
+  const bedrock: THREE.Mesh<THREE.BufferGeometry, THREE.Material> = new THREE.Mesh(geometry, material);
   bedrock.position.set(cx, 0, cz);
   bedrock.name = "bedrock";
   bedrock.castShadow = true;
@@ -518,13 +566,39 @@ export function createTerrain(profile: ArchipelagoProfile): Terrain {
   group.name = "archipelago";
   group.add(bedrock, forest);
 
+  const triangleCount = (g: THREE.BufferGeometry) =>
+    g.index ? g.index.count / 3 : g.attributes.position.count / 3;
+
   return {
     object: group,
     heightAt,
     treeCount: sites.length,
+    generationMs: globalThis.performance.now() - genStart,
+    setTreesVisible: (on) => {
+      forest.visible = on;
+    },
+    setCastShadow: (on) => {
+      bedrock.castShadow = on;
+      forest.castShadow = on;
+    },
+    setShading: (mode) => {
+      if (mode === "flat") {
+        flatMaterial ??= new THREE.MeshBasicMaterial({ vertexColors: true });
+        bedrock.material = flatMaterial;
+        bedrock.receiveShadow = false; // an unlit material cannot receive one anyway; be explicit
+      } else {
+        bedrock.material = material;
+        bedrock.receiveShadow = true;
+      }
+    },
+    triangleCounts: () => ({
+      bedrock: triangleCount(geometry),
+      trees: triangleCount(spruceGeometry) * sites.length,
+    }),
     dispose: () => {
       geometry.dispose();
       material.dispose();
+      flatMaterial?.dispose();
       spruceGeometry.dispose();
       spruceMaterial.dispose();
     },

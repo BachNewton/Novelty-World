@@ -79,9 +79,10 @@ interface BenchmarkRun {
   benchPhysics: Physics | null;
   /** How many bodies that world holds (0 when benchPhysics is null) — recorded in the result. */
   benchBodies: number;
-  /** Force the archipelago visible for EVERY segment (`--terrain on`), so its cost can be read as a
-   *  subtraction against the default run. Segments that opt in (`seg.terrain`) show it regardless. */
-  terrain: boolean;
+  /** Explicit `--terrain on|off`, which OVERRIDES the per-segment default in both directions — so the
+   *  same twelve segments can be flown with the archipelago and without it, and the difference is its
+   *  cost. `undefined` = leave it to each segment. */
+  terrain: boolean | undefined;
   /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
   prevIndex: number;
   /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
@@ -187,7 +188,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // real rendered frame instead of sleeping for a guessed number of milliseconds.
   let frameCount = 0;
 
-  // CPU seam timers for the benchmark render-prep split (docs/perf-handoff.md thread 1): the
+  // CPU seam timers for the benchmark render-prep split (docs/PERFORMANCE.md): the
   // wall-clock SUBMISSION cost of each pre-pass, as opposed to `gpuTimer`'s GPU-execution time.
   // `renderPrePasses` writes these; `stepBenchmark` resets them per frame and reads them into the sample.
   const prepassCpu = { capture: 0, ssr: 0 };
@@ -303,7 +304,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // drowned bedrock and shades the shallows with no shader work at all.
   // Visible in the live scene; HIDDEN by default in captures (see `setVisibility`), because adding
   // it to the existing shot groups would invalidate every A/B baseline in .shots/.
-  const island = createTerrain(ARCHIPELAGO);
+  // `let`, because the benchmark can rebuild it at a coarser sample spacing (the terrain's LOD dial).
+  let island = createTerrain(ARCHIPELAGO);
   scene.add(island.object);
 
   // Secchi measuring staff: a metre-numbered board through the surface whose submerged
@@ -648,10 +650,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       physics.respawn();
       physics.update(0, run.elapsed);
     }
-    // The archipelago is hidden for the legacy open-water segments (so they stay comparable with every
-    // historical run) and shown for the segments that exist to measure it — or whenever the run forces
-    // it on globally (`--terrain on`), which is how terrain's cost is measured by subtraction.
-    island.object.visible = run.terrain || seg.terrain === true;
+    // Per SEGMENT by default: hidden for the legacy open-water segments (so they stay comparable with
+    // historical runs), shown for the island/gameplay ones. An EXPLICIT `--terrain on|off` overrides
+    // both, which is what makes terrain's cost a clean subtraction: the same twelve segments, with the
+    // archipelago and without it.
+    island.object.visible = run.terrain ?? seg.terrain === true;
   };
   const stepBenchmark = (delta: number) => {
     const run = benchmark;
@@ -680,11 +683,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         sceneObjects++;
         if (o instanceof THREE.Mesh && o.visible) visibleMeshes++;
       });
+      const terrainTris = island.triangleCounts();
       const renderInfo = {
         calls: census.calls,
         triangles: census.triangles,
         sceneObjects,
         visibleMeshes,
+        // The archipelago's triangle budget, split — this is the LOD conversation, so it has to be a
+        // number in the report and not a thing you have to go and derive.
+        terrain: { ...terrainTris, treeCount: island.treeCount, generationMs: island.generationMs },
       };
       // Tear down the benchmark-owned physics world (if any).
       if (run.benchPhysics) {
@@ -1067,6 +1074,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (config.shadowCache !== undefined) daylight.setShadowCache(config.shadowCache);
       if (config.skyDome !== undefined) daylight.setDomeVisible(config.skyDome);
       if (config.clouds !== undefined) daylight.setCloudGenus(config.clouds);
+      // Terrain breakdown: which PART of the archipelago costs what. Spacing rebuilds the mesh (the LOD
+      // dial), so it happens once here rather than per segment — generation is ~1.6 s on the main thread.
+      if (config.terrainSpacing !== undefined) {
+        scene.remove(island.object);
+        island.dispose();
+        island = createTerrain({ ...ARCHIPELAGO, spacing: config.terrainSpacing });
+        scene.add(island.object); // createTerrain sets its own cast/receiveShadow flags
+      }
+      if (config.terrainTrees !== undefined) island.setTreesVisible(config.terrainTrees);
+      if (config.terrainShadows !== undefined) island.setCastShadow(config.terrainShadows);
+      if (config.terrainShading !== undefined) island.setShading(config.terrainShading);
       // The cloud-shadow term in the global `lights_fragment_begin` override (one map fetch per LIT
       // FRAGMENT) plus its 512² pass. Only meaningful together with `--clouds`: under the flight's
       // default CLEAR sky it is already inert.
@@ -1132,7 +1150,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           mode,
           benchPhysics,
           benchBodies,
-          terrain: config.terrain === true,
+          terrain: config.terrain,
           prevIndex: -1,
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",

@@ -9,8 +9,16 @@ iGPU that spills to system RAM. A Pixel 10 Pro XL (tile-based deferred, fast uni
 whole thing smoothly. Every bench JSON stamps the GPU, so re-run any experiment elsewhere and compare.
 
 Instruments: `tools/bench.mjs` (one run), `tools/sweep.mjs` (the whole suite), `tools/report.mjs`
-(fold it into tables). Measured data + methodology: `docs/perf-experiments.md`. State + open threads:
-`docs/perf-handoff.md`.
+(fold it into tables).
+
+**There are two perf docs, and only two.** This one is the **brief**: what costs what, which levers are
+real, what is still open, and what to do next. `docs/perf-experiments.md` is the **log**: dated raw
+tables, methodology, and what was tried and rejected. (Same split the lighting work uses —
+`LIGHTING.md` / `lighting-log.md` — and for the same reason.) A separate "handoff" doc used to hold the
+state and open threads; it was folded in here on 2026-07-12, because "what we still don't know" is not a
+different document from the cost model — it is the part of the cost model that isn't finished, and
+keeping it apart is how the two drift. This doc drifting is exactly what produced the errors catalogued
+below.
 
 ---
 
@@ -51,7 +59,7 @@ calls are not a problem and never have been; node count is healthy (it was 12,80
 | lever | Δ GPU | free? |
 |---|---|---|
 | **Ocean tessellation** (`--quad-size` 4.9 → 20 m) | **−8.5 ms (−52 %)** | NO — coarse crests facet |
-| **Islands in frame** (`--terrain on`) | **+4.2 ms (+24 %)** | it's the game |
+| **Islands in frame** (`--terrain on`) | **+6.3 ms** | it's the game — see "Terrain" |
 | SSR entirely off | −1.8 ms (−15 %) | NO — no reflections |
 | Sky dome hidden | −1.8 ms (−11 %) | NO — it's the sky |
 | Sun shadow map off | −1.0 ms (−6 %) | NO |
@@ -83,10 +91,32 @@ An invisible light is skipped in three's `projectObject`, so it leaves the count
 - **Gate on the PHOTOCELL, not the flash.** `rhythmAt` blinks the lamps several times a second; a light
   count that changed with the blink would force a **shader recompile on every flash**. `dark` flips
   once, at dusk.
-- **Twilight is unchanged, and should be** — there the lamps are genuinely lit and the cost is real.
-- **The durable rule: `intensity = 0` is not free, and neither is `visible = false` on a *mesh*.** A
-  light you are not using must LEAVE THE GRAPH. Same family as the debug-arrow bug below: three charges
-  you for things you thought were switched off.
+- **The durable rule: `intensity = 0` is not free.** A light you are not using must LEAVE THE GRAPH.
+  Same family as the hidden-debug-node bug below: **three charges you for things you believe are
+  switched off.**
+
+**Then the night was still paying it — so the lamps were POOLED onto one light.** Gating on the
+photocell fixed the *day*; at night six lanterns were still six lights, and the cost scales with the
+buoy field, which is about to fill with channel markers. So there is now **one** `PointLight` — a light
+*slot*, re-pointed each frame at the nearest lantern that is currently flashing.
+
+| twilight (the only segment where lamps are lit) | GPU |
+|---|---|
+| six per-buoy lights | 21.1 ms |
+| **one pooled light** | **18.5 ms** (−2.6 ms) |
+| buoys hidden entirely | 18.2 ms ← the pooled light + all six buoy meshes now cost **0.3 ms** |
+
+The count never changes while lit, so nothing recompiles; six marks and six hundred cost the same.
+
+**Why keep a light at all** — suppressing all six changed only **0.19 % of pixels** (max delta 16/255).
+Because that was measured 20 m out. Allard's law puts a 5 NM cardinal at 77 cd → ~3 lux at 5 m, about
+**12× full moonlight**, and the raft spawns among these marks. `LAMP_LIGHT_RANGE = 40 m` is where the
+photometry says it stops mattering, not a look tweak.
+
+**And the reflection survives, because it never came from the light.** The lovely wave-distorted streak
+on the water is **SSR ray-marching the scene colour capture**, which the glowing emissive lens is
+already in. A lantern does two things that look like one: it *illuminates* (the `PointLight`, the whole
+cost) and it *is visible* (the lens, which SSR reflects). Only the first was expensive.
 
 ### 2. MSAA on a framebuffer nothing was drawn into — **−3.2 ms (−21 %), and pixel-identical**
 
@@ -115,8 +145,7 @@ over** (+3.64 ms, of which only 1.2 ms was the blur; the rest was this same MSAA
 
 **The still-open half.** The composer target's *own* MSAA (`bloom.samples`, default 4) is what now
 antialiases the scene, and it costs **~4.5 ms**. Dropping it to 0 is worth that much but is a **real
-quality trade**, not a free win. That is a decision for Kyle, not a number to take. See
-`perf-handoff.md`.
+quality trade**, not a free win — a decision, not a number to take. See "Decisions waiting for Kyle".
 
 **Combined effect of both fixes: 16.5 → 11.65 ms, 55 → 72 fps.**
 
@@ -233,6 +262,63 @@ so `cloud` GPU-ms reads 0. Don't mistake that 0 for "clouds are free"; it means 
 
 ---
 
+## Terrain — 6.3 ms whenever land is in frame, and it is NOT what you would guess
+
+Land is the game, and until 2026-07-12 the archipelago had **zero cost attribution**: `runBenchmark`
+hid it (`island.object.visible = false`) to keep the flight comparable with historical runs, so it was
+never in a single measured frame. The `fp-sail` / `island-approach` / `twilight` segments now show it,
+and `--terrain on|off` forces it either way for a clean subtraction.
+
+**Budget: bedrock 500,000 tris · spruce 74,296 tris (1,004 trees).** (The capture pass censuses ~1.15 M
+tris ≈ 2× that, because terrain is drawn into the **shadow map and the scene** in the same render call.)
+
+| probe | GPU | reads as |
+|---|---|---|
+| `--terrain off` | 11.5 | — |
+| `--terrain on` | ~17.8 | **+6.3 ms** |
+| `--terrain-trees off` | 17.7 | the ~1,000 spruce cost **~0.2 ms** |
+| `--terrain-shadows off` | 18.2 | terrain as a shadow CASTER costs **~0** |
+
+**The instanced spruce are essentially free.** One `InstancedMesh` = 1 draw call, 1 scene-graph node,
+74 k triangles. The instancing did exactly its job. The thing that *looks* expensive isn't.
+
+**The whole 6.3 ms is the bedrock — and decimating it barely helps:**
+
+| bedrock spacing | tris | GPU |
+|---|---|---|
+| 1.2 m (default) | 500,000 | ~17.8 |
+| 2.4 m | 125,000 | 16.7 |
+| 4.8 m | 31,250 | 17.5 |
+
+**16× fewer triangles buys ~nothing.** Compare the ocean, where 16× fewer vertices *halved* the frame.
+So the bedrock is **NOT vertex-bound** — it is fill/shading-bound: 500 k triangles or 31 k, it covers the
+same pixels and shades them with the same PBR + vertex-colour material.
+
+**This is the key strategic finding, and it splits the two LOD efforts apart:**
+
+- The **ocean** is vertex-bound (1 M heavy Gerstner vertices, drawn twice a frame) → **geometric LOD is
+  exactly right**, ~8 ms available.
+- The **bedrock** is fill-bound → decimating its mesh buys ~1 ms. Its 6.3 ms is in **shading the pixels
+  it covers**, so the lever is the **material/shader**, not the triangle count.
+
+They are *not* the same problem, which is what I assumed before measuring.
+
+**Open — 4 runs, ~10 min** (instrumentation is built and committed, this is time not work):
+1. `--terrain-shading flat` (the **decisive** one, never ran). `full − flat` = terrain's PBR shading +
+   shadow-receive cost; `flat` alone = its raw fill. It decides whether island LOD attacks **triangles**
+   or the **shader** — the spacing result says shader, but that is an inference, not a measurement.
+2. A closing baseline for the spacing sweep (`terrB-on4` failed mid-batch), so 16.7 / 17.5 are bracketed
+   rather than leaning on one opening baseline.
+
+**Not in any of these numbers: generation.** The 600 m window takes **2,483 ms on the main thread** to
+generate. It runs once, inside scene setup, before the first measured frame — so a per-FRAME model
+cannot see it, and it is deliberately excluded. But it is a real hang at load, **and it is on a timer**:
+the moment terrain STREAMS (which it must, for the world to grow past 600 m), the same work runs every
+time the player sails into new water, and a one-off load cost becomes a recurring in-play hitch. That is
+when it has to move to a Web Worker. `Terrain.generationMs` reports it.
+
+---
+
 ## Physics & buoyancy (CPU)
 
 Distinct from the GPU. Rapier (single-threaded WASM, **on the main thread**) + our JS buoyancy, all
@@ -298,20 +384,79 @@ per-voxel buoyancy. A **contact-heavy** scene (crowded, touching ships) would di
 
 ---
 
-## Future levers, ranked by measured value
+## Where it stands, and what to do next
 
-1. **Camera-following LOD ocean — ~8 ms, and it costs no quality.** The uniform grid spends ~1 M
-   trig-heavy vertices on far water that doesn't need them, twice a frame. This is now the **biggest
-   single win available** and the clear next perf project. (Tried and rejected: dropping the short waves
-   and faking them with the normal map — looked worse, a repeating "river" of smooth swells. LOD is a
-   different thing: keep the waves, spend the vertices where the camera is.)
-2. **The composer target's MSAA — ~4.5 ms, but a real quality trade.** Needs a look-vs-cost call.
-3. **Terrain — 4.2 ms whenever land is in frame**, and land is the game. Unoptimised so far: no LOD, no
-   impostors for the ~1,000 instanced spruce, and it lands in both the capture pass and the shadow map.
-4. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2, a fidelity trade (above). Only matters at high
-   body counts.
-5. **Hi-Z / hierarchical SSR marching** — big strides through empty space via a depth mip-chain.
-6. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res down.
+The frame is **GPU-bound at ~11.7 ms / ~72 fps** (780M, 1600×900, open water). It was **16.5 ms /
+55 fps** before 2026-07-12. CPU is ~2.8 ms and nearly all driver submission; physics is ~0 with the one
+gameplay raft. **Every remaining lever is on the GPU.**
+
+### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
+
+Bigger than everything else combined. Coarsening the ocean grid from 4.9 m quads to 20 m takes the GPU
+frame **15.9 → 8.6 ms**: the plane is ~1 M vertices, its vertex shader runs 4 Gerstner waves (sin/cos ×4)
++ analytic normals *per vertex*, and it is drawn **twice a frame** (SSR pass + main pass).
+
+Uniform coarsening is not shippable — the short (48/70 m) waves facet, which is *why* the fine grid
+exists. But the detail is spent on **far water that doesn't need it**. A camera-following high-density
+patch + a coarse far plane keeps the near waves exactly as they are and reclaims most of the ~8 ms.
+Treat ~8 ms as the **ceiling**, not a promise, until it is built.
+
+**This reverses the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively").
+`CLAUDE.md` is corrected to match.
+
+**And terrain LOD is a DIFFERENT problem** — see "Terrain". The bedrock is fill-bound, not vertex-bound,
+so geometric LOD buys it ~1 ms. Do not design one mechanism for both; that was my assumption and the
+measurement killed it.
+
+### Decisions waiting for Kyle — trades, not bugs. Measured, not taken.
+
+1. **The composer target's MSAA — ~4.5 ms (≈ 38 % of the current frame).** Now that the context's dead
+   MSAA is gone, the composer's HalfFloat target (`bloom.samples`, default 4) is the **only** thing
+   antialiasing the scene's geometry. Dropping it to 0 buys ~4.5 ms and costs aliased edges — the
+   horizon, spruce silhouettes, buoy rims. Options: keep 4 and buy the perf from the LOD ocean instead;
+   drop to 0 and lean on render-scale supersampling (may be visually free at DPR ≥ 1.5 — wants an A/B by
+   eye at native res); or make it a quality tier. This is the photorealistic sea the project exists for,
+   so it wants your eye, not my guess.
+2. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2. A **fidelity** trade: the sampled waterline drifts
+   from the rendered one. At the calm gameplay sea horizontal displacement is tiny, so 2 may be
+   indistinguishable — but "may be" is a thing to look at, not assume. ~0 with one raft, so not urgent.
+
+### Open threads
+
+1. **LOD ocean** (above). The frontier.
+2. **Finish the terrain breakdown — 4 runs, ~10 min.** `--terrain-shading flat` (the decisive one: does
+   island LOD attack triangles or the shader?) and a closing baseline for the spacing sweep. The
+   instrumentation is built and committed; this is time, not work. See "Terrain".
+3. **Terrain generation is 2.5 s on the main thread** and becomes a per-chunk in-play hitch the moment
+   terrain streams. Web Worker. See "Terrain".
+4. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
+   touch*. Crowded/touching ships would surface a real collision cost.
+5. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
+   baseline) is the natural next step now the numbers are trustworthy and a sweep is one command.
+6. **Hi-Z / hierarchical SSR marching** — big strides through empty space via a depth mip-chain.
+7. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res down.
+
+### How to re-run
+
+```bash
+# one run
+node src/projects/shipwright/tools/bench.mjs --label check --url http://localhost:3001/3d-games/shipwright
+
+# the whole suite, unattended (~5.5 h) — against a PRODUCTION server so nothing hot-reloads mid-run
+NEXT_DIST_DIR=.next-bench NEXT_PUBLIC_SHIPWRIGHT_BENCH=1 npx next build
+NEXT_DIST_DIR=.next-bench NEXT_PUBLIC_SHIPWRIGHT_BENCH=1 npx next start -p 3005 &
+node src/projects/shipwright/tools/sweep.mjs --url http://localhost:3005/3d-games/shipwright --passes 2
+node src/projects/shipwright/tools/report.mjs            # fold it into tables
+
+# the two pixel-identity guards
+node src/projects/shipwright/tools/verify-msaa.mjs --url http://localhost:3005/3d-games/shipwright
+node src/projects/shipwright/tools/verify-shadow-cache.mjs
+```
+
+**Check for strays before you trust a number.** On 2026-07-12 an orphaned Claude session was found
+running its own `bench.mjs` loop against the same GPU. It did not corrupt anything (its runs were
+timestamped after the last clean one, and it used its own labels), but only because that was checkable.
+If a number looks wrong, list the processes before you believe it.
 
 ## Tried and rejected
 

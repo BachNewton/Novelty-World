@@ -216,7 +216,7 @@ and the player controller (both small; absent or trivial in the bench world).
 
 ## 2026-07-09 session — render-prep RESOLVED + CPU seam timers + physics split
 
-The big result of this session (full narrative in `perf-handoff.md`): **the "~16 ms render-prep"
+The big result of this session (full narrative in `PERFORMANCE.md`): **the "~16 ms render-prep"
 that was the top open thread was scene-graph TRAVERSAL over ~12,800 hidden force-arrow debug nodes**,
 not draw calls, pixels, or vertices. Fixed by building the arrow overlay lazily. New instruments +
 knobs landed: CPU seam timers (`ocean`/`captureCpu`/`ssrCpu`/`mainCpu` + `mainRenderMs()` on the

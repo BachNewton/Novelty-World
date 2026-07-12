@@ -238,6 +238,19 @@ code that floats the ship agree on where the surface is.
   here). Signal green is a **blue-green**, not a lime. South cardinal's long flash is
   a safety feature -- six flashes must never be miscountable as three or nine. The
   lanterns switch on a photocell reading the model's own illuminance, not a clock.
+  - **ONE pooled light serves every mark.** three compiles the light COUNT into every lit material, so
+    N point lights means every fragment of every lit surface -- including the ocean, which covers the
+    whole screen -- runs the point-light BRDF loop N times. Six per-buoy lanterns cost ~3.6 ms of a
+    ~12 ms frame, and the cost grows with the buoy field. So `buoys.ts` keeps a single `PointLight`
+    SLOT, re-pointed each frame at the nearest lantern that is currently flashing: constant light count
+    (nothing recompiles), constant cost (six marks or six hundred). In daylight it leaves the graph
+    entirely -- `intensity = 0` is NOT free.
+  - **The lens is not the light.** What a lantern *is* (the emissive lens, which SSR reflects off the
+    water as that lovely wave-distorted streak) is separate from what it *illuminates*. The reflection
+    is a ray-march of the scene COLOUR capture, which the glowing lens is already in -- it needs no
+    light source. Suppressing all six `PointLight`s changed 0.19 % of pixels. The light is kept only
+    because Allard's law says a 5 NM cardinal throws ~3 lux at 5 m (~12x full moonlight) and the raft
+    spawns among these marks; past `LAMP_LIGHT_RANGE` (40 m) it illuminates nothing a camera can see.
 - **Tone mapping is AgX + a display GRADE; bloom is built and OFF.** Settled by the 2x2 in
   `docs/LIGHTING.md`, graded blind. ACES desaturates a highlight *before* it clips, so the 4-degree
   sun-glitter road renders neutral silver; AgX renders the same pixels gold, for 0.37 ms (noise). AgX

@@ -803,7 +803,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // ArrowHelper (a Group + line + cone = ~3 Object3D) per buoyancy point. Built LAZILY: created only
   // while the "force arrows" debug toggle is on, because thousands of them (all bodies' voxels) bloat
   // the scene graph, and three.js' updateMatrixWorld traverses even hidden nodes on EVERY render call
-  // (capture + SSR + main = 3×/frame) — the dominant CPU render-prep cost (see docs/perf-handoff.md).
+  // (capture + SSR + main = 3×/frame) — the dominant CPU render-prep cost (see docs/PERFORMANCE.md).
   const rebuildArrows = () => {
     clearArrows();
     const addArrow = (color: number) => {

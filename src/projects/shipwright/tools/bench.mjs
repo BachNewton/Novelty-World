@@ -166,8 +166,22 @@ if (args.clouds !== undefined) config.clouds = args.clouds;
 // --terrain on: show the archipelago in EVERY segment. The bench has always hidden it (to keep the
 // legacy segments comparable), so the islands have had zero cost attribution since they shipped.
 if (args.terrain !== undefined) config.terrain = offFlag(args.terrain);
-// --buoys off: hide the nav buoys (their meshes + lantern point-lights).
+// --buoys off: hide the nav buoys (their meshes + the pooled lantern light).
 if (args.buoys !== undefined) config.buoys = offFlag(args.buoys);
+// Terrain BREAKDOWN (use with --terrain on, or with the island/gameplay segments that show it anyway).
+// --terrain-trees off: hide the ~1,000 instanced spruce (1 draw, 1 node — its cost is TRIANGLES).
+if (args["terrain-trees"] !== undefined) config.terrainTrees = offFlag(args["terrain-trees"]);
+// --terrain-shadows off: stop terrain CASTING into the sun's shadow map (it still receives) — separates
+// its cost as a shadow caster from its cost as visible geometry. Different draws; only one is on screen.
+if (args["terrain-shadows"] !== undefined) config.terrainShadows = offFlag(args["terrain-shadows"]);
+// --terrain-spacing M: metres between bedrock samples — the terrain's LOD dial, and the direct analogue
+// of the ocean's --quad-size. Default 1.2 m = a 500² grid over the 600 m window (~500 k tris). Rebuilds
+// the archipelago at run start (~1.6 s of generation).
+if (args["terrain-spacing"] !== undefined) config.terrainSpacing = Number(args["terrain-spacing"]);
+// --terrain-shading flat: unlit bedrock (same geometry + vertex colours). full − flat = the
+// archipelago's PBR shading + shadow-receive cost; flat alone = its raw fill. The measurement that says
+// whether island LOD should attack triangles or the shader.
+if (args["terrain-shading"] !== undefined) config.terrainShading = args["terrain-shading"];
 // --sky-dome off: hide the sky dome mesh. Env map + sun light stay, so lighting is unchanged and only
 // the dome's own per-fragment cost drops — a clean subtraction.
 if (args["sky-dome"] !== undefined) config.skyDome = offFlag(args["sky-dome"]);
@@ -410,6 +424,10 @@ const slug =
     config.cloudShadow === false ? "cloudshadow-off" : null,
     config.clouds !== undefined ? `cl-${config.clouds.toLowerCase().replace(/\s+/g, "-")}` : null,
     config.terrain === true ? "terrain" : null,
+    config.terrainTrees === false ? "notrees" : null,
+    config.terrainShadows === false ? "noterrainshadow" : null,
+    config.terrainSpacing !== undefined ? `sp${config.terrainSpacing}` : null,
+    config.terrainShading === "flat" ? "terrflat" : null,
     config.buoys === false ? "buoys-off" : null,
     config.skyDome === false ? "skydome-off" : null,
     config.ssrSteps !== undefined ? `steps${config.ssrSteps}` : null,
@@ -441,7 +459,20 @@ const testLabel = report.meta.bodies > 0 ? `${report.meta.testMode} (${report.me
 console.log(`clock: ${report.meta.clock}   test: ${testLabel}   render: ${r.width}×${r.height} (pixelRatio ${r.pixelRatio}, SSR ${r.reflectionRes}×)`);
 console.log(`config: ${Object.keys(config).length ? JSON.stringify(config) : "scene defaults"}   url: ${URL}`);
 const ri = result.renderInfo;
-if (ri) console.log(`render census (main pass): ${ri.calls} draw calls · ${ri.triangles.toLocaleString()} tris · ${ri.sceneObjects} scene objects (${ri.visibleMeshes} visible meshes)`);
+if (ri) {
+  console.log(
+    `render census (capture pass): ${ri.calls} draw calls · ${ri.triangles.toLocaleString()} tris · ` +
+      `${ri.sceneObjects} scene objects (${ri.visibleMeshes} visible meshes)`,
+  );
+  if (ri.terrain) {
+    console.log(
+      `terrain budget: bedrock ${Math.round(ri.terrain.bedrock).toLocaleString()} tris · ` +
+        `spruce ${Math.round(ri.terrain.trees).toLocaleString()} tris (${ri.terrain.treeCount} trees) · ` +
+        `generated in ${Math.round(ri.terrain.generationMs ?? 0)} ms ON THE MAIN THREAD ` +
+        `(a LOAD cost, not a frame cost — but a per-chunk hitch once terrain streams)`,
+    );
+  }
+}
 console.log(
   "\n" +
     pad("segment", 16) +
