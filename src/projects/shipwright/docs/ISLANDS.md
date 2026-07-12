@@ -34,6 +34,36 @@ distribution, because that is how the real ones formed.
 A pleasant side effect: the underwater shelf stops being a separate "beach slope" primitive. It is
 the same rock, continuing down.
 
+### The spectrum rule: an archipelago needs a scale ABOVE the island
+
+Cutting a continuous field with sea level is necessary but **not sufficient**. What the field's
+*amplitude spectrum* looks like decides whether you get an archipelago or a gravel field, and the
+failure is invisible from inside a small window.
+
+The first field's largest scale was 520 m — *smaller than the structures an archipelago is organised
+into*. Nothing modulated land on and off across kilometres, so it produced noise-cap islands at
+uniform density forever. Measured over 9 km²: **1,568 islands, not one above 10 ha**, largest 9 ha,
+and every 500 m tile holding 11–13 % land. No open basins. No dense inner archipelago. No landfall
+worth sailing toward, and — critically — **no exposure gradient for any of the zoning rules below to
+hang on**, because every part of the world was equally exposed.
+
+> A real archipelago has a **size hierarchy** and **zoning**. Both come from spectral power at a scale
+> *above* the island scale. `SUPER_RELIEF` (35 m at 2100 × 1250 m) is that scale, and it is what makes
+> a region be inner archipelago, outer skerry field, or open basin.
+
+At 35 m the same 9 km² yields 3 islands over 10 ha (largest 50 ha), 9 of 25 tiles open water and 6
+dense — while the skerry fringe survives. At 50 m the mid-size class collapses and the count halves:
+the archipelago stops being Finnish. `terrain.test.ts` pins the zoning, so a regression to the flat
+spectrum fails a test instead of quietly looking boring.
+
+**Corollary, and it bites:** `SEA_LEVEL_BIAS` is **solved against the field, not chosen**. Add power at
+any scale and it must be re-solved, or the new relief simply floods or drains the world. It moved
+−8.8 → −15.0 when `SUPER_RELIEF` landed, for *no change* in land fraction.
+
+**Second corollary:** a single 600 m window may now legitimately contain **no land at all**. That is
+the zoning working. Anything measured about the field's character has to be measured over kilometres —
+one window proves nothing, and two tests that sampled one window had to be rewritten when this landed.
+
 ---
 
 ## What it must look like
@@ -158,6 +188,27 @@ Islands are the seabed that three parked items were waiting for:
   cheerfully agree with the shader that it should.
 
 ---
+
+## The realism-vs-gameplay tension (OPEN — a design choice, not a bug)
+
+`SUPER_RELIEF` is where realism and playability may actually pull against each other, and it is worth
+being honest that this is **a design decision, not a technical one**.
+
+- **`SUPER_RELIEF = 35` (shipped).** Accurate: main islands with scattered skerries around them, dense
+  inner archipelago, open basins between. Matches the real Archipelago Sea. But it means the world is
+  **uneven** — some regions are rich and some are empty water, and a player can sail into a basin with
+  nothing in it.
+- **`SUPER_RELIEF = 0` (the old field).** Inaccurate — no size hierarchy, no zoning — but the islands
+  come out evenly sized and roughly evenly spaced, which may make for **more consistent gameplay**: a
+  steadier drip of landfalls, gathering sites, and things to do, wherever the player goes.
+
+Kyle raised this and it is genuinely open. The mitigations if realism wins (dense regions being
+*worth* sailing to; basins being short; nav marks and charts making the emptiness legible rather than
+frustrating) are gameplay work, not terrain work — so this cannot be settled from inside `terrain.ts`.
+
+The saving grace: it is **one constant**, so the choice stays cheap and reversible right up until
+resource gathering (roadmap #8) tells us how empty water actually feels to play. Don't let it calcify
+into a fork.
 
 ## The Caribbean tension (a fork, not a slider)
 

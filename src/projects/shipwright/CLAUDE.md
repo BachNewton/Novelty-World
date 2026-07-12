@@ -469,20 +469,35 @@ code that floats the ship agree on where the surface is.
   coherent thing (the Rapier buoyancy/voxel engine). *Not* split further: `ocean.ts` (GLSL + CPU
   `sampleSurface` are locked adjacent) and the voxel-editor (shares the engine's closure — would add
   indirection until `createPhysics` becomes a class).
-- **Procedural archipelago — first pass (step 7).** `terrain.ts` generates ONE continuous, seeded,
-  world-anchored bedrock field (anisotropic fBm stretched along a glacial grain) and lets **sea level
-  cut it**; there is no per-island primitive. A radial falloff mask was tried first and cannot produce a
-  lineated chain of skerries — it always reads as a muffin. The 600 m window holds 53 islands, 45 of
-  them skerries under 120 m², around one 4.2 ha landfall island peaking at 12.8 m — a size distribution
-  that matches the real Archipelago Sea, where only 257 of ~50,000 islands exceed 1 km². Surface colour
-  is an **exposure** gradient (bare rock at the water → pale lichen ring → grey-brown undergrowth →
-  spruce), NOT an elevation one: ramping lichen up with height is a snow-line function and rendered the
-  islands as snow-capped peaks. Vegetation is gated on **shelter** (`broad`, the field with metre-scale
-  detail removed) rather than height, so skerries stay bare while island interiors forest up. ~1,000
-  instanced spruce, clumped into stands. The whole archipelago + forest is **3 scene-graph nodes**.
-  Target + review loop in `docs/ISLANDS.md`. Deferred: roche-moutonnée asymmetry, boulders, rock
-  micro-detail, chunking/streaming (needed before the window can grow past ~600 m; generation is
-  currently ~1.65 s on the main thread and wants a Web Worker).
+- **Procedural archipelago (step 7).** `terrain.ts` generates ONE continuous, seeded, world-anchored
+  bedrock field (anisotropic fBm stretched along a glacial grain) and lets **sea level cut it**; there
+  is no per-island primitive. A radial falloff mask was tried first and cannot produce a lineated chain
+  of skerries — it always reads as a muffin. Surface colour is an **exposure** gradient (bare rock at
+  the water → pale lichen ring → grey-brown undergrowth → spruce), NOT an elevation one: ramping lichen
+  up with height is a snow-line function and rendered the islands as snow-capped peaks. Vegetation is
+  gated on **shelter** (`broad`, the field with metre-scale detail removed) rather than height, so
+  skerries stay bare while island interiors forest up — measured, tiny islands sit at a median `broad`
+  of ≈ −1 m while big-island interiors sit at 8–13 m. ~1,000 instanced spruce, clumped into stands. The
+  whole archipelago + forest is **3 scene-graph nodes**. Target + review loop in `docs/ISLANDS.md`.
+- **The field needs a scale ABOVE the island scale, or it is not an archipelago (`SUPER_RELIEF`).**
+  Cutting a continuous field is necessary but NOT sufficient — the *amplitude spectrum* decides whether
+  you get an archipelago or a gravel field, and the failure is invisible inside a 600 m window. With the
+  largest scale at 520 m the field was spectrally flat and splattered same-sized islands at uniform
+  density: measured over 9 km², **1,568 islands and not one above 10 ha**, every 500 m tile holding
+  11–13 % land — no basins, no dense inner archipelago, nothing to sail toward, and no exposure gradient
+  for the zoning rules to hang on. `SUPER_RELIEF` (35 m at 2100 × 1250 m) is that missing scale.
+  `SEA_LEVEL_BIAS` is **solved against the field, not chosen** (−8.8 → −15.0 when it landed, for no
+  change in land fraction) — add power at any scale and it must be re-solved. Consequence: a single
+  600 m window may now legitimately hold NO land, so anything about the field's character must be
+  measured over kilometres; two tests that sampled one window were rewritten for this.
+  **OPEN DESIGN QUESTION, not a bug:** realism (`35` — main islands + skerries, but uneven, with empty
+  basins) vs consistent gameplay (`0` — evenly sized, evenly spaced islands everywhere). One constant,
+  so it stays cheap to flip until resource gathering says how empty water plays. See `docs/ISLANDS.md`.
+- **Still deferred on islands:** roche-moutonnée asymmetry, boulders, rock micro-detail, and
+  chunking/streaming — needed before the window can grow past ~600 m, and it is now the thing blocking
+  the LOOK and not just the scale, because an archipelago only reads as one when several islands and
+  the chains behind them are visible at once (2–3 km). Generation is ~1.65 s on the main thread and
+  wants a Web Worker.
 - **Lighting overhaul — SHIPPED.** The sun:sky balance was inverted ~1:21; it is now **10.3:1 at the
   zenith, 1:1 at ~7 degrees, and exactly 0 below the horizon**, MEASURED on the real GPU with each
   source isolated (`tools/probe.mjs`). Every per-material lighting exception is gone, `hemiLight` is

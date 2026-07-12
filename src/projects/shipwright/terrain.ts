@@ -103,11 +103,13 @@ export const fbm2 = (x: number, z: number, seed: number, octaves: number): numbe
 };
 
 // --- The bedrock field -------------------------------------------------------
-// Three superposed scales, all sampled in a frame rotated to the glacial grain and STRETCHED along
+// Four superposed scales, all sampled in a frame rotated to the glacial grain and STRETCHED along
 // it. The stretch is what lineates the archipelago — islands and sounds run parallel, which is the
 // single most diagnostic silhouette cue separating a Baltic skerry field from a tropical cay field.
 
-/** Wavelengths along / across the grain, in metres. The ~3:1 ratio is the lineation. */
+/** Wavelengths along / across the grain, in metres. The stretch ratio is the lineation. */
+const SUPER_ALONG = 2100;
+const SUPER_ACROSS = 1250;
 const REGIONAL_ALONG = 520;
 const REGIONAL_ACROSS = 300;
 const ISLAND_ALONG = 165;
@@ -120,15 +122,29 @@ const DETAIL_ACROSS = 14;
 // regional+island sum has std ≈ 0.15 and a practical range of about ±0.5. Sizing `RELIEF` against
 // the nominal ±1 range drowns the entire archipelago — which is exactly what happened first.
 
+/** Metres of relief on the SUPER-REGIONAL scale — the one that decides whether a region is dense
+ *  inner archipelago, thin outer skerry field, or open basin.
+ *
+ *  Without it the field is spectrally FLAT below 520 m, and a flat spectrum splatters same-sized
+ *  islands at uniform density forever: measured over 9 km² with this term at 0, the field produced
+ *  1,568 islands and NOT ONE above 10 ha, with every 500 m tile holding 11–13 % land. That is a
+ *  gravel field, not an archipelago — there is no landfall to sail toward and no exposure zoning for
+ *  `ISLANDS.md`'s inner/outer gradient to hang on. At 35 m the same 9 km² yields 3 islands over 10 ha
+ *  (largest 50 ha), 9 of 25 tiles open water, and 6 dense — while the skerries survive. Push it to
+ *  50 m and the mid-size class collapses (the count halves): the archipelago stops being Finnish. */
+const SUPER_RELIEF = 35;
 /** Metres of relief the regional + island scales share. Its ±0.5 practical range maps to ±23 m. */
 const RELIEF = 46;
 /** Roughness right at the cut, in metres (practical range ~±4.5 m). This is what shatters the coast
  *  into skerries and makes islands multi-summited; without it the sea-level contour is a few smooth
  *  blobs, which is the muffin failure in a different costume. */
 const DETAIL = 7;
-/** Sea level sits near the 85th percentile of the summed field, so ~15 % of the window is land and
- *  the rest is sea — an archipelago, not a continent with lakes. Raise it to drown more skerries. */
-const SEA_LEVEL_BIAS = -8.8;
+/** Sea level sits near the 88th percentile of the summed field, so ~12 % of the world is land and the
+ *  rest is sea — an archipelago, not a continent with lakes. Raise it to drown more skerries.
+ *  It is SOLVED against the field, not chosen: add power at any scale and this must be re-solved, or
+ *  the extra relief simply floods or drains the world. (It moved -8.8 → -15.0 when `SUPER_RELIEF`
+ *  landed, for no change in land fraction.) */
+const SEA_LEVEL_BIAS = -15;
 
 /** Surface height and the shelter proxy at one point. Reused across the mesher's hot loop. */
 export interface FieldSample {
@@ -141,7 +157,7 @@ export interface FieldSample {
  *
  * `height` is the surface: world (x, z) → metres, sea level = 0.
  *
- * `broad` is the SAME field with the metre-scale detail removed — the regional + island scales only.
+ * `broad` is the SAME field with the metre-scale detail removed — every scale above the detail one.
  * It is the **shelter proxy**, and it is the reason skerries stay bare while island interiors grow
  * forest. A skerry is a place where `broad` sits near or below sea level and only `detail` pokes it
  * above the water; a big island's interior is where `broad` itself is high. Gating soil and
@@ -175,6 +191,7 @@ export const bedrockField = (profile: ArchipelagoProfile) => {
 
   const rawBroad = (u: number, v: number) =>
     SEA_LEVEL_BIAS +
+    SUPER_RELIEF * fbm2(u / SUPER_ALONG, v / SUPER_ACROSS, seed + 3, 2) +
     RELIEF *
       (0.55 * fbm2(u / REGIONAL_ALONG, v / REGIONAL_ACROSS, seed, 2) +
         0.45 * fbm2(u / ISLAND_ALONG, v / ISLAND_ACROSS, seed + 31, 4));

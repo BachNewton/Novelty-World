@@ -19,6 +19,16 @@ const sampleCore = (height: (x: number, z: number) => number, step = 5) => {
   return out;
 };
 
+/** Sample 3 km of the world. Anything about the field's CHARACTER has to be measured out here: one
+ *  600 m window is smaller than the scale the archipelago is organised into, so it proves nothing. */
+const sampleWide = (height: (x: number, z: number) => number, step = 15) => {
+  const out: number[] = [];
+  for (let x = -1500; x <= 1500; x += step) {
+    for (let z = -1500; z <= 1500; z += step) out.push(height(x, z));
+  }
+  return out;
+};
+
 describe("noise2", () => {
   it("is deterministic for the same (x, z, seed)", () => {
     expect(noise2(12.5, -3.25, 7)).toBe(noise2(12.5, -3.25, 7));
@@ -66,20 +76,49 @@ describe("bedrockHeight", () => {
   });
 
   it("puts some land above sea level", () => {
-    expect(Math.max(...sampleCore(height))).toBeGreaterThan(0);
+    // Measured WIDE, not over one window: since the super-regional scale landed, a single 600 m
+    // window may legitimately be an open basin with no land in it at all — that is the zoning
+    // working, not a broken field. The property is that the FIELD makes land.
+    expect(Math.max(...sampleWide(bedrockHeight({ ...PROFILE, extent: 8000 })))).toBeGreaterThan(0);
   });
 
   it("is mostly sea — land is the exception, so it reads as an archipelago", () => {
-    // Measured over a WIDE area, not one window: any single 600 m window may legitimately land on
-    // open sea. What must hold is the field's global character — land is a minority everywhere.
-    const wide = bedrockHeight({ ...PROFILE, extent: 8000 });
-    const heights: number[] = [];
-    for (let x = -1500; x <= 1500; x += 15) {
-      for (let z = -1500; z <= 1500; z += 15) heights.push(wide(x, z));
-    }
+    const heights = sampleWide(bedrockHeight({ ...PROFILE, extent: 8000 }));
     const land = heights.filter((h) => h > 0).length / heights.length;
     expect(land).toBeGreaterThan(0.05);
     expect(land).toBeLessThan(0.35);
+  });
+
+  it("zones the world: dense archipelago in some regions, open basin in others", () => {
+    // The reason SUPER_RELIEF exists. Without a scale ABOVE the island scale the field is spectrally
+    // flat, and a flat spectrum splatters same-sized islands at uniform density forever — measured,
+    // that gave 1,568 islands over 9 km² with NOT ONE above 10 ha and every 500 m tile holding
+    // 11-13 % land. There is no inner/outer archipelago for docs/ISLANDS.md's exposure gradient to
+    // hang on, and nothing to sail toward. So: land fraction per 500 m tile must VARY a lot.
+    const wide = bedrockHeight({ ...PROFILE, extent: 8000 });
+    const TILE = 500;
+    const fractions: number[] = [];
+    for (let tz = -1500; tz < 1500; tz += TILE) {
+      for (let tx = -1500; tx < 1500; tx += TILE) {
+        let land = 0;
+        let n = 0;
+        for (let x = tx; x < tx + TILE; x += 5) {
+          for (let z = tz; z < tz + TILE; z += 5) {
+            n++;
+            if (wide(x, z) > 0) land++;
+          }
+        }
+        fractions.push(land / n);
+      }
+    }
+    const mean = fractions.reduce((a, b) => a + b, 0) / fractions.length;
+    const sd = Math.sqrt(fractions.reduce((a, b) => a + (b - mean) ** 2, 0) / fractions.length);
+
+    // Spread must dwarf a flat splatter's (relative sd measured at 0.49 with the term off, 1.6 with
+    // it on), and the extremes must actually be reached: real open water, real dense archipelago.
+    expect(sd / mean).toBeGreaterThan(0.8);
+    expect(Math.min(...fractions)).toBeLessThan(0.02);
+    expect(Math.max(...fractions)).toBeGreaterThan(0.25);
   });
 
   it("keeps land relief low, in the Archipelago Sea's range", () => {
@@ -118,22 +157,70 @@ describe("bedrockHeight", () => {
     expect(roughness(broad)).toBeLessThan(roughness(h));
   });
 
-  it("keeps skerries unsheltered — their `broad` sits at or below sea level", () => {
-    // A skerry is a place the METRE-SCALE detail pokes above water while the broad field does not.
+  it("keeps SKERRIES unsheltered and ISLAND INTERIORS sheltered — the gate vegetation hangs on", () => {
     // This is what lets vegetation be gated on shelter instead of height: gate on height and every
-    // 4 m rock in the sea grows spruce. Sweep the window for land and check the small stuff.
-    const { height: h, broad } = bedrockField(PROFILE);
-    const skerries: number[] = [];
-    for (let x = -280; x <= 280; x += 3) {
-      for (let z = -480; z <= 80; z += 3) {
-        const surface = h(x, z);
-        if (surface > 0 && surface < 3) skerries.push(broad(x, z));
-      }
+    // 4 m rock in the sea grows spruce. The invariant is about island SIZE, so it is measured by
+    // island (connected components of land), not by sampling "low land" — low land also includes the
+    // long, low, SHELTERED shoreline of a big island, which would muddy the signal.
+    const { height: h, broad } = bedrockField({ ...PROFILE, extent: 8000 });
+    const STEP = 3;
+    const SPAN = 1500;
+    const N = SPAN / STEP;
+    const world = (i: number) => -SPAN / 2 + i * STEP;
+
+    const land = new Float32Array(N * N);
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) land[j * N + i] = h(world(i), world(j));
     }
-    expect(skerries.length).toBeGreaterThan(50);
-    // The great majority of low land is detail poking through an unsheltered broad field.
-    const unsheltered = skerries.filter((b) => b < 1).length / skerries.length;
-    expect(unsheltered).toBeGreaterThan(0.5);
+
+    // Flood-fill the land into islands.
+    const label = new Int32Array(N * N).fill(-1);
+    const islands: number[][] = [];
+    const stack: number[] = [];
+    for (let s = 0; s < N * N; s++) {
+      if (land[s] <= 0 || label[s] !== -1) continue;
+      const id = islands.length;
+      const cells: number[] = [];
+      stack.push(s);
+      label[s] = id;
+      while (stack.length) {
+        const p = stack.pop()!;
+        cells.push(p);
+        const pi = p % N;
+        const pj = (p / N) | 0;
+        const push = (q: number) => {
+          if (land[q] > 0 && label[q] === -1) {
+            label[q] = id;
+            stack.push(q);
+          }
+        };
+        if (pi > 0) push(p - 1);
+        if (pi < N - 1) push(p + 1);
+        if (pj > 0) push(p - N);
+        if (pj < N - 1) push(p + N);
+      }
+      islands.push(cells);
+    }
+
+    const area = (cells: number[]) => cells.length * STEP * STEP;
+    const shelterOf = (p: number) => broad(world(p % N), world((p / N) | 0));
+
+    const skerries = islands.filter((cells) => area(cells) < 200).flatMap((cells) => cells.map(shelterOf));
+    expect(skerries.length).toBeGreaterThan(200);
+    // A skerry is DETAIL poking through a broad field that never left the water.
+    expect(skerries.filter((b) => b < 1).length / skerries.length).toBeGreaterThan(0.9);
+
+    // ...while the interior of a real island (its top quartile of shelter) is well clear of it, or
+    // there is nowhere for soil, undergrowth and spruce to gate ON.
+    const interiors = islands
+      .filter((cells) => area(cells) > 10_000)
+      .flatMap((cells) => {
+        const sorted = cells.map(shelterOf).sort((a, b) => b - a);
+        return sorted.slice(0, Math.max(1, sorted.length >> 2));
+      });
+    expect(interiors.length).toBeGreaterThan(0);
+    const median = interiors.sort((a, b) => a - b)[interiors.length >> 1];
+    expect(median).toBeGreaterThan(4);
   });
 
   it("lineates the terrain along the glacial grain", () => {
