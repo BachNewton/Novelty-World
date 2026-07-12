@@ -506,6 +506,40 @@ The frame is **GPU-bound**, and the shipped 1080p scene is **14.3 ms GPU with a 
 ~20 ms with a 6 ms floor). CPU is ~2.8 ms and nearly all driver submission; physics is ~0 now the demo
 testbed is out of the live scene. **Every remaining lever is on the GPU, and the water is 72 % of it.**
 
+### The budget, on the real display — `tools/budget.mjs`
+
+Quoting levers one at a time invites the wrong conclusion ("LOD only gets us to 43 fps, so this can't be
+a game"). No single lever ships it; the question is what they cost **stacked**. The dev machine is a
+**3440×1440 ultrawide at 125 % scaling** — a CSS viewport of 2752×1152 at DPR 1.25, i.e. a 3440×1440
+drawing buffer, **5.0 Mpx**. Note that render scale 1.25 is **native panel resolution, not
+supersampling**: dropping below it renders under-native and upscales. **Render scale is not a free lever
+here.** The remaining levers have to be structural.
+
+| cumulative | GPU ms | GPU fps | main | capture | ssr |
+|---|---|---|---|---|---|
+| **shipped today** | 24.8 | **40** | 15.5 | 5.3 | 3.9 |
+| + LOD ocean | 17.0 | **59** | 9.2 | 5.2 | 2.2 |
+| + capture at 0.5 | 12.5 | **80** | 9.1 | 2.4 | 1.0 |
+| + merged scene pass *(not built)* | **~10.0** | **~100** | — | — | — |
+
+**60 fps = 16.7 ms · 100 fps = 10.0 ms · 144 fps = 6.9 ms.** So native ultrawide 1440p at ~100 fps on a
+780M iGPU is reachable — and **none of the three big levers costs image quality.**
+
+1. **LOD ocean — 7.8 ms, no quality cost.** The ocean is purely vertex-bound (above).
+2. **Scene capture at 0.5 — 4.5 ms, ~no quality cost.** Bigger than the old E7 number, because the
+   capture is a much larger share of a frame that no longer has a composer in it. It also **halves SSR**
+   (2.2 → 1.0), since the march samples the capture. **The knee is exactly 0.5 — 0.25 buys nothing
+   more.** A/B'd by eye at a low sun over open water (refraction + glitter + buoy reflections, where it
+   would show if anywhere): indistinguishable. Refraction through a moving surface is already a blur, so
+   softening its *source* is close to invisible. One-line mount option; awaiting Kyle's eye.
+3. **Merge the duplicate scene pass — ~2.5 ms, no quality cost, STRUCTURAL.** *The scene is rasterised
+   twice every frame.* `renderPrePasses` draws it **without** the water into the capture target; the main
+   pass then draws it **again** with the water. Every opaque triangle — terrain, spruce, buoys, raft, sky
+   — is shaded twice. Draw the opaque scene **once** into the capture (colour + depth), blit it to the
+   framebuffer, then draw only the water on top. The duplicate disappears, and its price is exactly the
+   `capture` column. This is the natural successor to the LOD ocean and it is the same *kind* of finding
+   as the composer: **the cost was never the feature, it was the machinery the feature implied.**
+
 ### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
 
 Bigger than everything else combined, and now measured *as an LOD ceiling* rather than inferred —
