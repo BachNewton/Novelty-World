@@ -440,6 +440,28 @@ export interface Terrain {
   dispose: () => void;
 }
 
+/**
+ * An archipelago that isn't there — same interface, no generation.
+ *
+ * Meshing the window is ~3 M noise evaluations on the main thread and costs SECONDS at load. A
+ * benchmark or probe that switches the islands OFF was paying every one of those seconds to build
+ * geometry it then immediately hid, on every page load, and the sweep does hundreds of them. Hiding a
+ * thing is not the same as not making it, and the difference here is the slowest step in the harness.
+ *
+ * `heightAt` answers "deep water", which is what "no islands" means to anything that asks.
+ */
+export const createEmptyTerrain = (): Terrain => ({
+  object: new THREE.Group(),
+  setTreesVisible: () => {},
+  setCastShadow: () => {},
+  setShading: () => {},
+  triangleCounts: () => ({ bedrock: 0, trees: 0 }),
+  generationMs: 0,
+  heightAt: () => -100,
+  treeCount: 0,
+  dispose: () => {},
+});
+
 /** Metres between samples. Skerries are 1–4 m tall and a few metres across, so this has to stay fine
  *  enough to resolve them — coarsen it much and the outer archipelago simply disappears. Generating
  *  the window is ~3 M noise evaluations and runs on the main thread at load; a Web Worker is the

@@ -20,7 +20,7 @@ import { createPlayer } from "./player";
 import { createBuilder } from "./builder";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
-import { createTerrain, type ArchipelagoProfile } from "./terrain";
+import { createEmptyTerrain, createTerrain, type ArchipelagoProfile } from "./terrain";
 import {
   FLIGHT,
   FIXED_DT,
@@ -57,6 +57,20 @@ import {
  */
 const BENCH_API_ENABLED =
   process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_SHIPWRIGHT_BENCH === "1";
+
+/**
+ * `?terrain=off` — skip GENERATING the archipelago, not merely hide it.
+ *
+ * Meshing the window is ~3 M noise evaluations on the main thread, and it is the single slowest step in
+ * bringing the scene up. A probe or a bench segment that runs with the islands switched off was paying
+ * all of it and then hiding the result, on every page load — and an unattended sweep is hundreds of page
+ * loads. Only honoured where the bench API is (never on a live deploy), and only worth reaching for when
+ * the run genuinely has no land in it: with this on, `--terrain on` has nothing to show.
+ */
+const TERRAIN_GEN_ENABLED =
+  !BENCH_API_ENABLED ||
+  typeof window === "undefined" ||
+  new URLSearchParams(window.location.search).get("terrain") !== "off";
 
 interface BenchmarkRun {
   timeline: Timeline;
@@ -328,7 +342,8 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // Visible in the live scene; HIDDEN by default in captures (see `setVisibility`), because adding
   // it to the existing shot groups would invalidate every A/B baseline in .shots/.
   // `let`, because the benchmark can rebuild it at a coarser sample spacing (the terrain's LOD dial).
-  let island = createTerrain(ARCHIPELAGO);
+  // `?terrain=off` skips the generation entirely rather than hiding the result — see TERRAIN_GEN_ENABLED.
+  let island = TERRAIN_GEN_ENABLED ? createTerrain(ARCHIPELAGO) : createEmptyTerrain();
   scene.add(island.object);
 
   // Secchi measuring staff: a metre-numbered board through the surface whose submerged
@@ -1193,6 +1208,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     /** Statistics of the cloud shadow map, straight off the GPU. `min`/`max` far apart means a real
      *  dappled field; `min == max` means a uniform deck (or a bug). */
     cloudShadowStats: () => daylight.cloudShadowStats(renderer),
+    /** The archipelago's triangle budget and what it cost to MESH. `generationMs` was buried inside a
+     *  benchmark result, so the one number the "move terrain to a Web Worker" argument rests on could
+     *  not simply be asked for — and a figure nobody can re-check is a figure that goes stale. */
+    terrainStats: () => ({
+      ...island.triangleCounts(),
+      treeCount: island.treeCount,
+      generationMs: island.generationMs,
+    }),
     /** Last per-pass GPU times, ms. `total` is the sum of the passes this scene runs. Used by the
      *  tonemap x bloom experiment to price each cell of the 2x2 in one warm session. */
     // A pass that stops running now reads 0 straight from the timer (it zeroes any span not submitted

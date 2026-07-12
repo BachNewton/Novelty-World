@@ -424,12 +424,23 @@ They are *not* the same problem, which is what I assumed before measuring.
 2. A closing baseline for the spacing sweep (`terrB-on4` failed mid-batch), so 16.7 / 17.5 are bracketed
    rather than leaning on one opening baseline.
 
-**Not in any of these numbers: generation.** The 600 m window takes **2,483 ms on the main thread** to
-generate. It runs once, inside scene setup, before the first measured frame — so a per-FRAME model
-cannot see it, and it is deliberately excluded. But it is a real hang at load, **and it is on a timer**:
-the moment terrain STREAMS (which it must, for the world to grow past 600 m), the same work runs every
-time the player sails into new water, and a one-off load cost becomes a recurring in-play hitch. That is
-when it has to move to a Web Worker. `Terrain.generationMs` reports it.
+**Not in any of these numbers: generation.** It runs once, inside scene setup, before the first measured
+frame, so a per-FRAME model cannot see it.
+
+**Re-measured 2026-07-12: 715 ms** (500,000 bedrock tris · 966 spruce). The old figure here was
+**2,483 ms** — stale by 3.5×, because the terrain's generation properties changed after it was recorded
+and nobody re-ran it. Ask for it with `__shipwright.terrainStats()`; it used to be reachable only inside
+a benchmark result, which is how it rotted. **A number nobody can cheaply re-check is a number that will
+be wrong.**
+
+It is still a real hang at load, and still **on a timer**: the moment terrain STREAMS (which it must, for
+the world to grow past 600 m) the same work runs each time the player sails into new water, and a
+one-off load cost becomes a recurring in-play hitch. A 715 ms stall is less alarming than 2.5 s, so the
+Web Worker is less *urgent* than the old number implied — but a 715 ms freeze mid-sail is still a freeze.
+
+**`?terrain=off` skips the generation** rather than hiding the result (see `TERRAIN_GEN_ENABLED`). Worth
+**~840 ms per page load** to any probe or bench segment that runs without land — and an unattended sweep
+is hundreds of page loads. Hiding a thing is not the same as not making it.
 
 ---
 
@@ -526,19 +537,58 @@ here.** The remaining levers have to be structural.
 780M iGPU is reachable — and **none of the three big levers costs image quality.**
 
 1. **LOD ocean — 7.8 ms, no quality cost.** The ocean is purely vertex-bound (above).
-2. **Scene capture at 0.5 — 4.5 ms, ~no quality cost.** Bigger than the old E7 number, because the
-   capture is a much larger share of a frame that no longer has a composer in it. It also **halves SSR**
-   (2.2 → 1.0), since the march samples the capture. **The knee is exactly 0.5 — 0.25 buys nothing
-   more.** A/B'd by eye at a low sun over open water (refraction + glitter + buoy reflections, where it
-   would show if anywhere): indistinguishable. Refraction through a moving surface is already a blur, so
-   softening its *source* is close to invisible. One-line mount option; awaiting Kyle's eye.
-3. **Merge the duplicate scene pass — ~2.5 ms, no quality cost, STRUCTURAL.** *The scene is rasterised
-   twice every frame.* `renderPrePasses` draws it **without** the water into the capture target; the main
-   pass then draws it **again** with the water. Every opaque triangle — terrain, spruce, buoys, raft, sky
-   — is shaded twice. Draw the opaque scene **once** into the capture (colour + depth), blit it to the
-   framebuffer, then draw only the water on top. The duplicate disappears, and its price is exactly the
-   `capture` column. This is the natural successor to the LOD ocean and it is the same *kind* of finding
-   as the composer: **the cost was never the feature, it was the machinery the feature implied.**
+2. **Merge the duplicate scene pass — the whole `capture` column (5.3 ms shipped), no quality cost,
+   STRUCTURAL.** *The scene is rasterised twice every frame.* `renderPrePasses` draws it **without** the
+   water into the capture target; the main pass then draws it **again** with the water. Every opaque
+   triangle — terrain, spruce, buoys, raft, sky — is shaded twice. Draw the opaque scene **once** into
+   the capture (colour + depth), blit it to the framebuffer, then draw only the water on top. Same
+   *kind* of finding as the composer: **the cost was never the feature, it was the machinery the feature
+   implied.**
+3. **Scene capture resolution — a live dial (`Performance → capture res`), but NOT the default. See
+   below: it is the lever that looked free and isn't.**
+
+### Shrinking the scene capture — measured, then REJECTED (and why the rejection is the point)
+
+The capture is a full re-render of the scene, so its raster cost falls with the square of its scale. It
+looked like 4.5 ms for nothing. It is not, and the way that came out is worth keeping.
+
+**First, it had to be tested in water you can see through.** The default is Jerlov **Coastal 5** — Baltic
+green, ~3 m Secchi — which absorbs the refracted image almost immediately: whatever resolution the
+capture is, there is nothing left to see through the water. Judging the lever there is rigging the test.
+`tools/capture-curve.mjs` therefore runs the stress case: **Oceanic I** (~40 m Secchi), the **seabed
+slope** (which exists precisely as a Secchi gauge), and a high sun putting light on the sand.
+
+| scale | Mpx | capture ms | marginal | img mean Δ | img max Δ | pixels >2/255 |
+|---|---|---|---|---|---|---|
+| 1.0 | 4.95 | 7.55 | — | ref | ref | ref |
+| 0.75 | 2.79 | 4.61 | 3.5 | — | — | — |
+| 0.5 | 1.24 | 2.75 | 2.2 | 0.11 | **98** | 0.3 % |
+| 0.25 | 0.31 | 1.67 | 0.4 | 0.22 | **113** | 0.6 % |
+| 0.1 | 0.05 | 1.30 | ~0 | 0.45 | **111** | 1.4 % |
+
+Two things kill it:
+
+- **A hard floor at ~1.3 ms.** At 1 % of the pixels the pass *still* costs 1.3 ms, because lowering the
+  resolution cuts RASTER and not **VERTEX** work: every triangle of terrain, spruce, buoys and sky is
+  still transformed, into a texture nobody can see. Shrinking can never delete this pass. Merging it can.
+- **The mean is a liar; the max is the truth.** Mean Δ is a rounding error, but max Δ is ~100/255 — and
+  Kyle located it by eye immediately: **a blocky, pixelated halo behind each buoy, exactly where the
+  object's outline meets the water, worse the lower the scale.** That is **silhouette edge-bleed** — the
+  refracted lookup sampling across an object's outline in a chunky capture. Everything *under* the water
+  is genuinely indistinguishable even at 0.1, because a refracted lookup through a moving surface hides
+  softness arbitrarily well. The bleed is at the waterline, and only there.
+
+`components/shipwright.tsx` **already said this**: *"full res sharpens refraction/depth and avoids
+silhouette edge-bleed, for only a VRAM/bandwidth cost."* The choice had been made, deliberately, and
+written down. It went unread.
+
+**So the default stays 1.0, and the lever is the merged pass instead** — which returns the capture's
+*entire* cost (all 5.3 ms, vertex floor included) with **no** artifact, because the capture then simply
+*is* the full-resolution scene render the frame was already doing. Strictly more milliseconds than any
+capture scale could buy, and no trade at all.
+
+The dial stays live in the GUI: it is a real knob for a **low-end quality tier**, where a halo at the
+waterline is a fair price for 4.5 ms. It is not a free win, and it should never have been sold as one.
 
 ### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
 
