@@ -206,24 +206,28 @@ switched off.** Hidden nodes still cost matrix updates; zero-intensity lights st
 
 ## The levers, measured
 
-### Render scale (E1) — sublinear, because the GPU is under-loaded
+### Render scale (E1) — **RETRACTED. The lever was broken; the numbers measured the bug.**
 
-| scale | MP | GPU total |
-|---|---|---|
-| 0.5 | 0.36 | 12.5 |
-| 1.0 | 1.44 | 16.0 |
-| 1.5 | 3.24 | 18.0 |
-| 2.0 | 5.76 | 21.4 |
+The old table here showed 4× the pixels costing only ~1.3× the time, and explained it as a "DVFS
+clock-boost signature — the 780M is under-loaded at 1600×900."
 
-4× the pixels costs only ~1.3× the time. **This is a DVFS clock-boost signature**, not a cheap fill
-path: at 1600×900 the 780M is under-loaded and clocked down. Consequence — **a per-pixel delta measured
-at 1600×900 under-represents the shipped game at native res.** Spot-check anything you intend to ship
-at `--width 2752 --height 1152`. (Render scale caps at 2× via `maxPixelRatio`; to go past 5.76 MP use a
-bigger viewport, not a bigger scale.)
+**That was wrong.** `ctx.setPixelRatio` did not resize the composer's target, and **the composer's target
+is where the scene is rasterised** (the default framebuffer only receives the final quad — see the MSAA
+bug above). So the sweep never shrank the **main pass** at all; it only shrank the scene-capture and SSR
+targets, which are sized off the renderer's drawing buffer. The sublinearity *was the bug*.
 
-At native resolution (2752×1152, 3.17 MP) the visuals frame is **27.8 ms** — and `--grade off` there is
-worth **9.4 ms**, nearly double its 1600×900 saving. The MSAA/bandwidth costs scale with pixels; that is
-exactly why they must be checked at native res.
+Fixed in `use-three-scene.ts` (`resize()` now re-applies the pixel ratio to the composer, not just the
+size). On the live scene at 1920×1080 / DPR 2, render scale 0.5 went from **18 → 59 fps**, GPU total
+41.7 → 10.9 ms, main pass 35.4 → 7.0 ms. Render scale is now the strong, roughly-quadratic fill lever it
+always claimed to be.
+
+**E1 must be re-run**, and anything that leaned on "GPU cost is sublinear in resolution" is suspect —
+including the advice to spot-check levers at native res *because* the low-res delta under-reports. The
+underlying caution (check at native res) is still sound; the reason given for it was not.
+
+**How this hid for months:** `bench.mjs` renders at pixelRatio 1 and sweeps `--render-scale` through the
+same broken setter, so the harness never exercised a correct one. It took the live game
+(`tools/profile-live.mjs`) to surface it — the bench was measuring a scene the game does not run.
 
 ### Reflection resolution (E2) — the SSR pixel dial
 
@@ -259,6 +263,43 @@ Cumulus, stratus, and cumulonimbus all cost the same (~+1.4 ms): the cloud-shado
 and the per-lit-fragment map fetch in the global `lights_fragment_begin` override is ~0.25 ms. The rest
 is the dome's own shading. **Cheap, and the default flight never sees it** — the default sky is clear,
 so `cloud` GPU-ms reads 0. Don't mistake that 0 for "clouds are free"; it means "no clouds were tested".
+
+---
+
+## The LIVE game is a different scene from the benchmark — measure it with `tools/profile-live.mjs`
+
+**The bench is not the game.** `runBenchmark` hides the gameplay bodies (`physics.object.visible =
+false`), hides the archipelago, and renders at pixelRatio 1. That makes it a good A/B instrument and a
+**bad model of the shipped frame** — and the gap is where two real bugs hid. When the game reads 20 fps
+and the bench reads 72, the bench is not wrong; it is answering a different question.
+
+`tools/profile-live.mjs` answers the shipped one: it loads the scene exactly as `setupOceanScene` builds
+it, at a real device pixel ratio, then subtracts one thing at a time.
+
+**Live, 1920×1080, devicePixelRatio 2 (i.e. supersampled to 8.3 MP — the default on a high-DPI display):**
+
+| scene | FPS | frame | GPU | main |
+|---|---|---|---|---|
+| **DEFAULT (what a player gets)** | **15** | 68.9 | 51.0 | 36.9 |
+| physics frozen | 16 | 60.4 | — | — |
+| islands hidden | 16 | 62.5 | 46.6 | — |
+| demo bodies hidden (still simulated) | 15 | 70.0 | 51.0 | — |
+| **bare — water + sky only** | **20** | 49.9 | 47.6 | 36.4 |
+
+Three things the bench never showed:
+
+1. **The default supersamples.** `maxPixelRatio: 2` renders 4× the pixels on a high-DPI display. Even
+   with *nothing but water and sky* that is 20 fps. **This is the dominant cost of the shipped frame**,
+   and the render-scale slider that escapes it was broken until 2026-07-12 (see E1 above).
+2. **The live scene ships the entire buoyancy demo TESTBED.** `scene.ts` does
+   `createPhysics(ocean, [RAFT, ...TEST_SHAPES])` — ~30 bodies, ~2,500 voxel colliders of debug demos.
+   Freezing physics is worth ~15 ms at DPR 2. Their *render* cost is ~0 (the merged-mesh work paid off);
+   it is purely the step. `CLAUDE.md` already says to drop back to `[RAFT]` once the demos aren't needed.
+3. **The two MULTIPLY, via the substep spiral.** Physics runs a fixed-timestep accumulator, so a slow
+   frame drags more substeps out of it: at DPR 1 (24 ms frames) physics costs **3.8 ms**; at DPR 2 (74 ms
+   frames) the *same bodies* cost **15.2 ms**. A slow GPU makes the CPU slow, which makes the frame
+   slower still. The docs called this "latent"; it is not latent, it is active. **Fixing the GPU fixes
+   most of the physics cost for free.**
 
 ---
 
@@ -407,6 +448,14 @@ Treat ~8 ms as the **ceiling**, not a promise, until it is built.
 **And terrain LOD is a DIFFERENT problem** — see "Terrain". The bedrock is fill-bound, not vertex-bound,
 so geometric LOD buys it ~1 ms. Do not design one mechanism for both; that was my assumption and the
 measurement killed it.
+
+### Do these first — they are the shipped frame, not the bench's
+
+1. **Drop `TEST_SHAPES` from the live scene** (gate behind a debug toggle). ~15 ms of CPU at load,
+   costs nothing a player would miss — it is a testbed, and `CLAUDE.md` already says to remove it.
+2. **Reconsider `maxPixelRatio: 2`.** Supersampling 4× is the dominant cost of the shipped frame on a
+   high-DPI display. Now that the render-scale lever actually works, pick a default that isn't "render
+   everything four times over" — and/or ship an auto quality tier.
 
 ### Decisions waiting for Kyle — trades, not bugs. Measured, not taken.
 
