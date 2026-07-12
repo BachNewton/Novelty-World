@@ -120,7 +120,7 @@ try {
 
   // Each row removes ONE subsystem from the shipped scene. `base − row` is that subsystem's cost.
   const base = await run("— SHIPPED (nothing off) —", {});
-  await run("water", { water: false });
+  await run("water (+pre-passes)", { water: false });
   await run("sky dome", { skyDome: false });
   await run("sun shadows", { sunShadows: false });
   await run("archipelago (all)", { terrain: false });
@@ -128,10 +128,12 @@ try {
   await run("nav buoys", { buoys: false });
   await run("demo bodies: DRAW", { demoBodies: false });
   await run("demo bodies: SIMULATE", { physicsStep: false });
-  await run("EVERYTHING off", {
-    water: false, skyDome: false, sunShadows: false, terrain: false,
-    buoys: false, demoBodies: false, physicsStep: false,
-  });
+  // The PIPELINE, not the scene. These two are fullscreen work that an empty frame still pays, which is
+  // why switching off every object above does NOT reach vsync. They scale with pixels, not content.
+  await run("cloud shadows", { cloudShadow: false });
+  await run("post FX (composer)", { postFx: false });
+  const costKeys = await page.evaluate(() => window.__shipwright.costKeys());
+  await run("EVERYTHING off", Object.fromEntries(costKeys.map((k) => [k, false])));
 
   const pad = (s, n) => String(s).padEnd(n);
   const padL = (s, n) => String(s).padStart(n);
@@ -160,13 +162,17 @@ try {
         padL(df === null ? "" : df.toFixed(1), 9),
     );
   }
-  const floor = rows[rows.length - 1].gpu.total;
+  const floorRow = rows[rows.length - 1];
+  const floor = floorRow.gpu.total;
   console.log("-".repeat(70));
   console.log(
-    pad("FLOOR (everything off)", 24) + padL(floor.toFixed(1), 8) +
-      "   <- what remains with an empty scene: the composer's HDR+MSAA target,",
+    pad("FLOOR (everything off)", 24) + padL(floor.toFixed(1), 8) + padL("", 15) +
+      padL(floorRow.fps.toFixed(0), 6) + padL(floorRow.frameP50.toFixed(1), 8),
   );
-  console.log(pad("", 24) + padL("", 8) + "      the grade/output passes, and the capture pass itself.");
+  console.log(
+    pad("", 24) + "  <- an EMPTY frame. If this is not at vsync, no scene switch can get you there:",
+  );
+  console.log(pad("", 24) + "     it is fullscreen work, and it scales with PIXELS, not with content.");
   console.log(
     [
       "",

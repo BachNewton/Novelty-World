@@ -58,6 +58,9 @@ export class GpuTimer {
   private readonly pool: WebGLQuery[] = [];
   private inFlight: InFlight[] = [];
   private readonly latest = new Map<string, number>();
+  // Span names submitted during the frame currently being built. `poll()` zeroes every KNOWN span that
+  // is missing from it, so a switched-off pass reads 0 instead of its last value (see `poll`).
+  private readonly submitted = new Set<string>();
   private readonly views = new Map<string, SpanView>();
   private readonly order: string[] = [];
   private readonly dpr = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio)));
@@ -98,6 +101,7 @@ export class GpuTimer {
     this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
     this.active = false;
     if (!this.order.includes(name)) this.order.push(name);
+    this.submitted.add(name);
     this.inFlight.push({ name, query });
   }
 
@@ -135,6 +139,16 @@ export class GpuTimer {
       this.pool.push(item.query);
     }
     this.inFlight = still;
+    // A span that STOPPED being submitted must fall to zero, not keep reporting its last reading
+    // forever. `latest` is a persistent map, so a pass that is switched off (the SSR march, the scene
+    // capture) would otherwise hold its final value for the rest of the session — and any caller summing
+    // the spans into a frame total then bills a pass that never ran. That is not a hypothetical: it made
+    // an EMPTY frame read ~6 ms of GPU work, flat across every resolution, which is what exposed it.
+    // Cheap to get right here, and it removes the need for callers to special-case each switchable pass.
+    for (const name of this.order) {
+      if (!this.submitted.has(name)) this.latest.set(name, 0);
+    }
+    this.submitted.clear();
     this.advance();
   }
 
