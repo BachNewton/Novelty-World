@@ -75,6 +75,98 @@ that says "here the archipelago ends." See `MAPS.md`, which is also where the to
 
 ---
 
+## How big is the world? — island spacing, sight range, and the two radii
+
+This begins to settle the **scope question** the section above flags: how far you can see, how far apart
+the islands actually are, and therefore how big the water plane and the generated archipelago need to be.
+Everything here is measured off the field or derived from geometry — **redo it if the spectrum changes**.
+
+### What the field actually produces (measured)
+
+Charted with `tools/map.ts` (seed 13) over a **10 km window (100 km²)**: **6,695 islands, 8.4 % land,
+largest 49.5 ha**. "How far apart" depends entirely on what you count as an island — the distribution is
+steeply skewed to skerries:
+
+| Class | ~ per km² | Nearest-neighbour spacing* |
+|---|---|---|
+| Skerries & rocks (< 0.1 ha) | ~63 | **~30–60 m** (tighter inside a chain) |
+| Small islands (≥ 0.1 ha) | ~4.3 | **~240 m** |
+| Substantial islands (≥ 1 ha) | ~1.0 | **~500 m** |
+| Landmark islands (≥ 10 ha) | ~0.18 | **~1.2 km** |
+| Open (zoning) basins | — | **2–4 km** of nothing |
+
+\*mean NN ≈ `0.5/√density`; clustering tightens within-chain gaps and widens the basins.
+
+### Is that realistic? (spacing yes, size no)
+
+Real Archipelago Sea: **~40,000–50,000 islands over ~8,000 km², of which ~2,000 km² (≈25 %) is land**.
+Two verdicts:
+
+- **Skerry-to-small-island spacing (tens to a few hundred metres) is accurate** for the inner/middle
+  archipelago — which is exactly the texture this field makes.
+- **Two gaps, and both ARE the "one level up" problem above:** (1) **no large islands / no mainland** —
+  the field tops out at ~50 ha in 100 km² where the real sea has islands into the hundreds of km²;
+  (2) **land fraction ~8–10 % vs the real ~25 %**, so the sim is *skerrier and more fragmented* than the
+  real average. A scale above `SUPER_RELIEF` fixes both at once.
+
+### How far a sailor sees (the horizon math)
+
+Refraction-corrected geographic range: `d_km ≈ 3.8·√(height_m)`; range to an object of height `H` from
+eye height `h` is `3.8·(√h + √H)`. For a standing sailor on the raft (**eye ≈ 2 m**):
+
+| Target | Good-day range | Limited by |
+|---|---|---|
+| The sea itself (water → sky horizon) | **~5.4 km** | eye height — hard geometric limit |
+| Low skerry (~2 m) | ~11 km geometric, but **lost to haze/contrast within a few km** | height + haze |
+| Forested main island (~15–25 m: rock + ~7 m spruce) | **~20–22 km** | height |
+| High ridge (~50 m, if ever generated) | ~30 km | height |
+| Åland-scale tops (~130 m, rare) | ~45–50 km | height |
+
+Meteorological cap: a genuinely clear Baltic day is **30–40+ km**, so for normal islands **geometry, not
+haze, is the limit** (you'd see them all); typical summer haze is 10–20 km; advection **sea-fog** (esp.
+spring) drops it below 1–2 km. Low skerries stay horizon-limited to a few km no matter how clear it is —
+which is why the real archipelago is so heavily buoyed.
+
+### The two radii — do NOT size the plane and the archipelago the same
+
+> Water is **horizon-limited**; land is **silhouette-limited**. Different distances — sizing them together
+> wastes most of the larger one.
+
+- **Water plane: ~5–6 km radius.** Beyond the sea horizon you see *no water at all*, only tall land over
+  the line, so a bigger water disc is pure waste. (It is **already** a 2.5 km-radius disc —
+  `scene.ts` `debug.planeSize = 5000`, slider to 10 km — the water side is essentially done.)
+- **Land (archipelago): out to ~20 km**, where forested islands still crest the horizon. Most of the
+  water *under* that far land is never drawn.
+
+### Two target world sizes
+
+| Goal | Land window | Water | What it needs |
+|---|---|---|---|
+| **See your adjacent islands** from the one you're on | **~3 km** (~1.5 km radius) | ~5.4 km disc (have it) | a **one-shot Web Worker** generate (gen is ~40 s @1.2 m on the main thread), + a coarser far-LOD |
+| **Max reasonable good day** | **~20 km** land radius (≈40 km window); 30–50 km only if big ridges get added | ~6 km disc | terrain LOD **+ chunk streaming +** the LOD ocean — ~1.1 B verts @1.2 m, **infeasible as a slider** |
+
+The **~3 km "see the neighbours"** size converges with this doc's own aesthetic threshold — the
+archipelago only reads as one when several islands and the chains behind them are visible at once
+(**2–3 km**). Navigation requirement and looks requirement land on the *same* number; that is the target
+worth building toward first.
+
+### The binding constraint today is the WINDOW, not the geography
+
+The spacing already supports eye-navigation between main islands (substantial islands every ~250–500 m,
+all well inside a ~5 km horizon with a 20–40× margin). What stops it is the **~600 m render window**
+(`ARCHIPELAGO.extent`): you see ~600 m where a real sailor sees 5+ km of stacked chains. **So growing the
+world is a rendering/streaming job, not a terrain-tuning one.**
+
+Mechanics for whoever picks this up: the **rebuild path already exists** — `scene.ts` disposes and
+regenerates the island on the benchmark's spacing sweep, the same three lines with `extent` changed.
+Generation scales with **area**: ~1.6 s @600 m → ~15 s @3 km/2 m → ~40 s @3 km/1.2 m. That main-thread
+**freeze** is why the Web Worker is the real gate, and why a **GUI toggle (not a default flip)** is the
+right home for experimenting — a 3 km default would freeze every hot-reload. (A temporary default flip to
+3 km/2 m was used once to eyeball it, then reverted; the freeze on load confirmed the worker is the
+prerequisite, not an optimization.)
+
+---
+
 ## What it must look like
 
 - **Never a broad light sand beach.** Rock meets water directly. No sediment supply, no tide to sort
