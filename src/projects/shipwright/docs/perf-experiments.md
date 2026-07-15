@@ -54,6 +54,18 @@ is soft in the MSAA'd classic frame and sharp in the merged one, so a reference-
 exactly those pixels): interiors match at **mean 0.012–0.022/255**, every >2/255 pixel traces a
 silhouette on the emitted heatmaps. Edges differ by AA provenance only.
 
+### Terrain shading — the deferred decisive run, finally taken (ab.mjs, island segments, merged on)
+
+| A/B | fp-sail | island-approach | twilight |
+|---|---|---|---|
+| `terrainShading` full − flat | −0.94 | −1.00 | −1.28 |
+| `terrain` on − off | −1.41 | **−0.04** | −1.40 |
+
+The bedrock's shading math is **~1.0–1.3 ms** (the cheaper-material ceiling), and terrain is partly
+free via **occlusion**: on island-approach, hiding the island changed the frame by 0.04 ms, because
+every hidden pixel became a water pixel of about the same price. The old "+6.3 ms whenever land is in
+frame" was the pre-merge, pre-re-anchor regime.
+
 ### Two findings about the INSTRUMENTS
 
 1. **The 2026-07-12 absolutes did not reproduce.** budget.mjs read 24.8 ms then and 10.5–11.0 now for
@@ -61,12 +73,16 @@ silhouette on the emitted heatmaps. Edges differ by AA provenance only.
    suspect: thermal/DVFS regime. Corollary: interleaved same-session DELTAS are the only trustworthy
    unit; re-anchor baselines in-session. (Checked for strays per the doc's rule: one process at ~3 %
    GPU, nothing material.)
-2. **A segment's cost depends on its flight CONTEXT.** island-approach reads ~8.8 ms inside the full
-   flight (terrain already up two segments) and ~10.8 ms in a 4-segment subset where terrain pops on at
-   its own boundary — same config, same session. So `tools/ab.mjs` subset runs compare only against
-   subset runs, and its ±drift column says when a delta is noise. (ab.mjs exists because the full
-   flight is a scenic tour for the human eye — right for watching, slow for iterating: subset A/B ≈
-   70 s for 5 runs vs ~6 min for 3 full-flight runs.)
+2. **`runBenchmark` state PERSISTS between runs in one session, and it faked a finding before the
+   session was over.** ab.mjs's first outing used `--a '{}' --b '{"merged":false}'`: every A after the
+   first inherited B's `merged:false` (configs apply only the keys they carry), so the "A/B" read
+   merged ≈ 0 on a change the full flight had measured at −2.3 ms — and the contradiction was briefly
+   blamed on segment context (a claim now RETRACTED; the ~2 ms "context effect" on island-approach was
+   the leak itself). The ±drift column caught it: the one honest A disagreed with the contaminated As
+   by exactly the effect size. ab.mjs now refuses asymmetric configs — both sides must pin every key
+   either touches. Re-run correctly, the subset A/B reproduces the full flight. (ab.mjs exists because
+   the full flight is a scenic tour for the human eye — right for watching, slow for iterating: subset
+   A/B ≈ 70 s for 5 runs vs ~6 min for 3 full-flight runs.)
 
 ---
 

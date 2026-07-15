@@ -429,12 +429,24 @@ same pixels and shades them with the same PBR + vertex-colour material.
 
 They are *not* the same problem, which is what I assumed before measuring.
 
-**Open — 4 runs, ~10 min** (instrumentation is built and committed, this is time not work):
-1. `--terrain-shading flat` (the **decisive** one, never ran). `full − flat` = terrain's PBR shading +
-   shadow-receive cost; `flat` alone = its raw fill. It decides whether island LOD attacks **triangles**
-   or the **shader** — the spacing result says shader, but that is an inference, not a measurement.
-2. A closing baseline for the spacing sweep (`terrB-on4` failed mid-batch), so 16.7 / 17.5 are bracketed
-   rather than leaning on one opening baseline.
+**The decisive run — DONE 2026-07-15** (`ab.mjs`, interleaved, island segments, 1600×900, merged pass on):
+
+| A/B | fp-sail | island-approach | twilight |
+|---|---|---|---|
+| full − flat shading | −0.94 | −1.00 | −1.28 |
+| terrain on − off | −1.41 | **−0.04** | −1.40 |
+
+1. **The bedrock's PBR shading + shadow-receive is worth ~1.0–1.3 ms** (scales with fill, so more at
+   native res). That is the ceiling of the "cheaper terrain material" project — real, but not the old
+   6.3 ms headline, which was measured in the pre-merge, pre-re-anchor regime.
+2. **Terrain is partly FREE via occlusion — removing it can cost ~nothing.** On island-approach,
+   hiding the island entirely changed the frame by 0.04 ms: every hidden terrain pixel became a WATER
+   pixel (composite + SSR coverage), which costs about what the terrain did. Land that occludes water
+   pays for itself; land against sky (fp-sail/twilight camera angles) costs its full ~1.4 ms. Any
+   future "terrain is expensive" claim must say what the pixels would otherwise be.
+
+Still open from before: a closing baseline for the old spacing sweep (17.8-era numbers are bracketed
+rather than re-anchored — low value now the regime shifted anyway).
 
 **Not in any of these numbers: generation.** It runs once, inside scene setup, before the first measured
 frame, so a per-FRAME model cannot see it.
@@ -780,9 +792,9 @@ into the 100 fps bucket — and it costs no pixel.
 ```bash
 # THE ITERATION TOOL — is config B cheaper than config A? One page, one warm session, interleaved
 # A→B→A with a drift column, ~1-3 min. Configs are BenchmarkConfig JSON (runtime knobs only).
-node src/projects/shipwright/tools/ab.mjs --b '{"merged":false}'
+# BOTH configs must pin every key either one touches (state persists between runs; the tool enforces it).
+node src/projects/shipwright/tools/ab.mjs --a '{"merged":true}' --b '{"merged":false}'
 node src/projects/shipwright/tools/ab.mjs --a '{"quadSize":4.9}' --b '{"quadSize":40}' --passes 3
-# NB a segment's absolute cost depends on its flight context — compare subset runs only to subset runs.
 
 # the merged-pass pixel-identity guard (interior/edge split diff + heatmaps)
 node src/projects/shipwright/tools/verify-merged-pass.mjs

@@ -19,13 +19,13 @@
 // knobs belong here — mount-time knobs (msaa, captureScale as a mount param) need a page reload and
 // therefore the full bench.mjs.
 //
-// CAVEAT — a segment's cost depends on its CONTEXT, so compare subset runs only with subset runs.
-// Measured 2026-07-15: island-approach read ~8.8 ms GPU inside the full flight (terrain already up for
-// two segments) and ~10.8 ms in a 4-segment subset where the terrain pops on at its own boundary —
-// 2 ms apart for the same segment, same config, same session. A subset A/B is internally honest (both
-// sides share the context), but its absolute numbers do NOT transfer to the full flight, and a
-// segment whose ±drift column is large (island-approach in small subsets) needs more --passes or the
-// full bench to resolve small deltas.
+// CONFIGS MUST NAME THE SAME KEYS, and the tool enforces it. `runBenchmark` applies only the keys a
+// config carries and the page's state PERSISTS between runs — so `--a '{}' --b '{"merged":false}'`
+// silently runs every A after the first with B's setting still applied, and the A/B measures nothing.
+// Not hypothetical: this tool's first session did exactly that, read "merged ≈ 0" on a change the
+// full flight had measured at −2.3 ms, and the contradiction got blamed on segment context before the
+// state leak was found. The ±drift column is what caught it (the first, honest A disagreed with the
+// contaminated later As by exactly the effect size) — read that column.
 //
 // Usage:
 //   node src/projects/shipwright/tools/ab.mjs --b '{"merged":false}'
@@ -49,6 +49,19 @@ const A = JSON.parse(args.a ?? "{}");
 const B = JSON.parse(args.b ?? "null");
 if (B === null) {
   console.error('need --b \'{"…"}\' (a BenchmarkConfig JSON; --a defaults to {})');
+  process.exit(1);
+}
+// Both configs must pin every key either one touches — see the header. Erroring beats guessing,
+// because this tool cannot know a knob's default to restore it.
+const asymmetric = [...new Set([...Object.keys(A), ...Object.keys(B)])].filter(
+  (k) => !(k in A) || !(k in B),
+);
+if (asymmetric.length > 0) {
+  console.error(
+    `configs are asymmetric on: ${asymmetric.join(", ")}\n` +
+      `runBenchmark state persists between runs in one session, so a key B sets and A omits stays\n` +
+      `applied during A — set it EXPLICITLY in both (e.g. --a '{"merged":true}' --b '{"merged":false}').`,
+  );
   process.exit(1);
 }
 const PASSES = Number(args.passes ?? 2);
