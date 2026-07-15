@@ -769,22 +769,36 @@ into the 100 fps bucket — and it costs no pixel.
    from the rendered one. At the calm gameplay sea horizontal displacement is tiny, so 2 may be
    indistinguishable — but "may be" is a thing to look at, not assume. ~0 with one raft, so not urgent.
 
-### Open threads
+### Open threads — RANKED. A new session starts at #1.
 
-1. ~~The merged scene pass~~ — **done 2026-07-15** (see the DONE section). **The LOD ocean is the
-   frontier**, and `tools/ab.mjs` makes iterating on it minutes instead of hours.
-2. **Finish the terrain breakdown — 4 runs, ~10 min.** `--terrain-shading flat` (the decisive one: does
-   island LOD attack triangles or the shader?) and a closing baseline for the spacing sweep. The
-   instrumentation is built and committed; this is time, not work. See "Terrain".
-3. **Terrain generation is 715 ms on the main thread** and becomes a per-chunk in-play hitch the moment
+1. **The camera-following LOD ocean — the frontier, and the only lever of its size (~3 ms at
+   1600×900, more at native; Kyle's live upper bound read −2.8 ms).** Fully specified in "NEXT: the
+   camera-following LOD ocean" above; `tools/lod-ceiling.mjs` prices the ceiling (re-anchor it
+   in-session first), `tools/ab.mjs` makes each iteration ~90 s, and the `verify-merged-pass.mjs`
+   harness pattern is how to prove the near-field waves identical.
+2. **SSR fade-cull — cheap, and pixel-identical BY CONSTRUCTION (unbuilt, unmeasured).** The main
+   shader multiplies the SSR sample by a fade that reaches zero beyond 2–4× `uSsrMaxDistance` and at
+   extreme grazing (see the `ssrFade` note in `ocean.ts`) — but the SSR PASS still marches those
+   pixels, and far-grazing rays are the expensive kind (full-count sky misses). Apply the same test
+   pass-side, with a conservative margin for the ripple-offset resample, and the discarded work is
+   exactly the work whose output was multiplied by zero. Verify on pixels with the merged-pass
+   harness. Bigger sibling: **Hi-Z / hierarchical marching** (same hits, fewer samples — also the only
+   lever for the grazing worst case, which E6 proved SSR-off cannot fix).
+3. **A cheaper terrain material — ceiling ~1.0–1.3 ms at 1600×900, DOWNGRADED from the old 6.3 ms
+   headline.** The decisive probe ran 2026-07-15 (see "Terrain"): the bedrock's shading+shadow-receive
+   is ~1 ms, and terrain is partly free via occlusion (land that hides water costs ~nothing net).
+   Worth having; not worth doing before #1 and #2.
+4. **Terrain generation is 715 ms on the main thread** and becomes a per-chunk in-play hitch the moment
    terrain streams. Web Worker. Less urgent than the old (stale) 2.5 s figure implied — but a 715 ms
    freeze mid-sail is still a freeze. See "Terrain".
-4. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
+5. **The smoothness tail (felt quality, not avg fps):** a ~2–3 % frame-hitch rate, uniform across
+   segments (per-frame allocation/GC suspicion), and 1 %-lows at ~half the average. If the game ever
+   FEELS worse than its fps says, hunt here first.
+6. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
    touch*. Crowded/touching ships would surface a real collision cost.
-5. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
+7. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
    baseline) is the natural next step now the numbers are trustworthy and a sweep is one command.
-6. **Hi-Z / hierarchical SSR marching** — big strides through empty space via a depth mip-chain.
-7. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res / capture res
+8. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res / capture res
    down. `capture res` is now a live dial and is a legitimate tier knob (it is just not a free default).
 
 ### How to re-run
