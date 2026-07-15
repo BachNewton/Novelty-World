@@ -9,19 +9,22 @@
 // (GPU-ms, so the vsync cap can't flatter the result. The frame also carries CPU; see the CPU column.)
 //
 // The levers, and which kind each one is:
+//   merged scene pass  STRUCTURAL, no quality cost — BUILT (present-pass.ts + scene.ts routeMainPass)
+//                      and measured here as a live A/B. The classic path rasterises the scene TWICE per
+//                      frame: `renderPrePasses` draws it without the water into the capture target,
+//                      then the main pass draws it all again WITH the water. Merged, the capture IS the
+//                      frame (a fullscreen quad presents it) and the main pass draws only the water.
+//                      The first row measures the OLD path so the delta to row two is the duplicate
+//                      scene pass's real price.
+//   capture MSAA       QUALITY DIAL of the merged pass: with the capture presented as the frame, opaque
+//                      geometry's edge AA has to come from the capture target's own `samples` (the
+//                      backbuffer's MSAA can no longer see those edges). This row prices restoring it.
 //   LOD ocean          STRUCTURAL, no quality cost. Proxied here by a uniformly coarse grid at a FIXED
 //                      plane size — an LOD ocean cannot beat that, so it is the honest ceiling
 //                      (tools/lod-ceiling.mjs). The ocean is ~purely vertex-bound.
-//   capture scale      QUALITY TRADE, and a mild one: the capture is what the water REFRACTS. Refraction
-//                      through a moving surface is already a blur, so softening its source is close to
-//                      invisible. This is the cheap, today-available version of the next row.
-//   merged scene pass  STRUCTURAL, no quality cost, NOT IMPLEMENTED — priced here, not measured. The
-//                      scene is currently rasterised TWICE per frame: `renderPrePasses` draws it without
-//                      the water into the capture target, then the main pass draws it again WITH the
-//                      water. Every opaque triangle — terrain, spruce, buoys, raft, sky — is shaded
-//                      twice. Draw the opaque scene ONCE into the capture (colour+depth), blit it to the
-//                      framebuffer, then draw only the water on top, and the duplicate disappears. Its
-//                      price is exactly the `capture` column, which is why that column is reported.
+//   capture scale      QUALITY TRADE — and under the merged pass a BIGGER one than it was: the capture
+//                      is now also the presented opaque image, so this behaves like a render scale that
+//                      spares only the water. A low-end-tier knob, not a default.
 //
 // Usage: node src/projects/shipwright/tools/budget.mjs [dpr] [cssWidth] [cssHeight]
 //
@@ -54,14 +57,16 @@ await page.waitForFunction(() => "__shipwright" in window, { timeout: 30000 });
 await page.waitForFunction(() => window.__shipwright.isReady(), { timeout: 30000 });
 await page.waitForTimeout(4000);
 
-const measure = async (captureScale, quad) => {
+const measure = async (captureScale, quad, merged, captureSamples) => {
   await page.evaluate(
-    ({ q, c }) => {
+    ({ q, c, m, s }) => {
       window.__shipwright.setPlaneSize(5000); // the sea must still reach the horizon
       window.__shipwright.setQuadSize(q);
       window.__shipwright.setCaptureScale(c);
+      window.__shipwright.setMergedPass(m);
+      window.__shipwright.setCaptureSamples(s);
     },
-    { q: quad, c: captureScale },
+    { q: quad, c: captureScale, m: merged, s: captureSamples },
   );
   await page.waitForTimeout(1800);
 
@@ -101,13 +106,14 @@ const measure = async (captureScale, quad) => {
 
 try {
   const rows = [];
-  rows.push({ label: "SHIPPED today", ...(await measure(1, 4.9)) });
-  rows.push({ label: "+ LOD ocean", ...(await measure(1, 40)) });
-  rows.push({ label: "+ capture 0.5", ...(await measure(0.5, 40)) });
-  rows.push({ label: "+ capture 0.25", ...(await measure(0.25, 40)) });
-  // Re-baseline: back to the shipped config at the END of the same warm session. If this does not land
-  // on the first row, the machine drifted under us and the whole table is suspect.
-  rows.push({ label: "= SHIPPED again", ...(await measure(1, 4.9)) });
+  rows.push({ label: "CLASSIC (2-pass)", ...(await measure(1, 4.9, false, 0)) });
+  rows.push({ label: "MERGED main pass", ...(await measure(1, 4.9, true, 0)) });
+  rows.push({ label: "+ capture MSAA 4x", ...(await measure(1, 4.9, true, 4)) });
+  rows.push({ label: "+ LOD ocean", ...(await measure(1, 40, true, 4)) });
+  rows.push({ label: "+ capture 0.5", ...(await measure(0.5, 40, true, 4)) });
+  // Re-baseline: back to the first row's config at the END of the same warm session. If this does not
+  // land on the first row, the machine drifted under us and the whole table is suspect.
+  rows.push({ label: "= CLASSIC again", ...(await measure(1, 4.9, false, 0)) });
 
   const pad = (s, n) => String(s).padEnd(n);
   const padL = (s, n) => String(s).padStart(n);
@@ -141,9 +147,9 @@ try {
   console.log(
     [
       "",
-      `MERGED SCENE PASS (not built): the scene is drawn TWICE — capture, then main. Draw the`,
-      `opaque scene once and the duplicate is worth its whole 'capture' column.`,
-      `  after LOD + capture 0.5 :  ${rows[2].total.toFixed(1)} ms  ->  ${(rows[2].total - rows[2].capture).toFixed(1)} ms  (${fps(rows[2].total - rows[2].capture).toFixed(0)} fps)`,
+      `row 1 → row 2 is the duplicate scene pass's real price (the merged main pass is the shipped`,
+      `default; row 1 measures the old path). Row 3 prices restoring opaque-geometry AA via the`,
+      `capture target's own MSAA — the backbuffer's MSAA cannot see edges baked into the capture.`,
       "",
       `budget lines:  60 fps = 16.7 ms    100 fps = 10.0 ms    144 fps = 6.9 ms`,
       `(frame/real fps include CPU and are vsync-capped at 60 in headless — read the GPU columns.)`,

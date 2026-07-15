@@ -13,12 +13,13 @@ game is a different scene from the benchmark"):
 
 | tool | asks |
 |---|---|
+| `tools/ab.mjs` | is B cheaper than A? **THE ITERATION TOOL** — interleaved A→B→A on a segment subset, one warm session, ~1–3 min, with a built-in drift column that says when the answer is noise |
 | `tools/profile-live.mjs` | what does the **shipped** frame cost, and where does it go? (the pie) |
 | `tools/budget.mjs` | what do the levers cost **stacked**, on the real display? (the roadmap) |
 | `tools/lod-ceiling.mjs` | what can an LOD ocean actually win? (tessellation at a fixed plane size) |
 | `tools/capture-curve.mjs` | what does shrinking the scene capture cost the **image**? |
-| `tools/bench.mjs` · `sweep.mjs` · `report.mjs` | the deterministic scripted flight: one run, the whole suite, the tables |
-| `tools/verify-msaa.mjs` · `verify-shadow-cache.mjs` | pixel-identity guards |
+| `tools/bench.mjs` · `sweep.mjs` · `report.mjs` | the deterministic scripted flight: one run, the whole suite, the tables (`--segments` flies a subset) |
+| `tools/verify-msaa.mjs` · `verify-shadow-cache.mjs` · `verify-merged-pass.mjs` | pixel-identity guards |
 
 **There are two perf docs, and only two.** This one is the **brief**: what costs what, which levers are
 real, what is still open, and what to do next. `docs/perf-experiments.md` is the **log**: dated raw
@@ -524,9 +525,15 @@ per-voxel buoyancy. A **contact-heavy** scene (crowded, touching ships) would di
 
 ## Where it stands, and what to do next
 
-The frame is **GPU-bound**, and the shipped 1080p scene is **14.3 ms GPU with a 0.7 ms floor** (down from
-~20 ms with a 6 ms floor). CPU is ~2.8 ms and nearly all driver submission; physics is ~0 now the demo
-testbed is out of the live scene. **Every remaining lever is on the GPU, and the water is 72 % of it.**
+The frame is **GPU-bound**; CPU is ~2.8 ms and nearly all driver submission; physics is ~0 now the demo
+testbed is out of the live scene. **Every remaining lever is on the GPU, and the water is most of it.**
+As of 2026-07-15 the **merged main pass** is shipped (the opaque scene is rasterised once per frame, not
+twice — see the DONE section below), and the LOD ocean is the one remaining lever of its size.
+
+(⚠ Do not quote this doc's older ABSOLUTE milliseconds — "14.3 ms shipped", "24.8 ms at ultrawide" —
+against fresh runs: the 2026-07-12 absolutes did not reproduce on 2026-07-15 on the same machine and
+commit (~2× apart; thermal/DVFS regime is the prime suspect). Interleaved same-session deltas are the
+trustworthy unit; re-anchor a baseline in-session before comparing anything.)
 
 ### The budget, on the real display — `tools/budget.mjs`
 
@@ -537,26 +544,34 @@ drawing buffer, **5.0 Mpx**. Note that render scale 1.25 is **native panel resol
 supersampling**: dropping below it renders under-native and upscales. **Render scale is not a free lever
 here.** The remaining levers have to be structural.
 
+Re-measured **2026-07-15**, after the merged main pass landed (rows are cumulative, one warm session):
+
 | cumulative | GPU ms | GPU fps | main | capture | ssr |
 |---|---|---|---|---|---|
-| **shipped today** | 24.8 | **40** | 15.5 | 5.3 | 3.9 |
-| + LOD ocean | 17.0 | **59** | 9.2 | 5.2 | 2.2 |
-| + capture at 0.5 | 12.5 | **80** | 9.1 | 2.4 | 1.0 |
-| + merged scene pass *(not built)* | **~10.0** | **~100** | — | — | — |
+| CLASSIC (2-pass, the old path) | 10.5–11.0 | **~93** | 6.4 | 2.7 | 1.5 |
+| **MERGED main pass (shipped)** | **9.9** | **101** | 5.3 | 2.5 | 1.8 |
+| + capture MSAA 4× | 17.0 | 59 | 5.4 | **9.5** | 1.9 |
+| + LOD ocean (still with MSAA 4×) | 13.4 | 74 | 3.1 | 9.3 | 1.1 |
+| + capture at 0.5 | 8.8 | 114 | 4.6 | 3.3 | 0.8 |
 
-**60 fps = 16.7 ms · 100 fps = 10.0 ms · 144 fps = 6.9 ms.** So native ultrawide 1440p at ~100 fps on a
-780M iGPU is reachable — and **none of the three big levers costs image quality.**
+**⚠ The old table here claimed "shipped today = 24.8 ms". That did NOT reproduce** — the same tool, the
+same machine, the same commit reads **10.5–11.0 ms** for the same classic config three days later, and
+`profile-live` moved 14.3 → ~10 the same way. Nothing in the code explains a 2.2× shift, which leaves
+the machine's own regime (thermal state / power profile / DVFS clocks) as the prime suspect — the doc's
+own "a cost model is only valid for the frame it was measured on" lesson, now with a corollary: **it is
+only valid for the thermal regime it was measured in, so re-anchor the baseline in the same session
+before quoting any historical absolute.** Deltas measured interleaved remain trustworthy; absolutes
+across sessions do not.
 
-1. **LOD ocean — 7.8 ms, no quality cost.** The ocean is purely vertex-bound (above).
-2. **Merge the duplicate scene pass — the whole `capture` column (5.3 ms shipped), no quality cost,
-   STRUCTURAL.** *The scene is rasterised twice every frame.* `renderPrePasses` draws it **without** the
-   water into the capture target; the main pass then draws it **again** with the water. Every opaque
-   triangle — terrain, spruce, buoys, raft, sky — is shaded twice. Draw the opaque scene **once** into
-   the capture (colour + depth), blit it to the framebuffer, then draw only the water on top. Same
-   *kind* of finding as the composer: **the cost was never the feature, it was the machinery the feature
-   implied.**
-3. **Scene capture resolution — a live dial (`Performance → capture res`), but NOT the default. See
-   below: it is the lever that looked free and isn't.**
+1. **Merged scene pass — SHIPPED, see the DONE section below.** Its budget-table win on this open-water
+   default view is ~1 ms; its real value is in the frames that were worst (island approach −2.3 ms,
+   max-stress −2.6 ms at 1600×900).
+2. **LOD ocean — the next project, and now the only one of its size.** The ocean is purely vertex-bound
+   (above).
+3. **Scene capture resolution — a live dial (`Performance → capture res`), but NOT the default.** And
+   NB: with the merged pass the capture IS the presented opaque image, so this dial now behaves like a
+   render scale that spares only the water — a stronger quality trade than it was, and still a low-end
+   tier knob only.
 
 ### Shrinking the scene capture — measured, then REJECTED (and why the rejection is the point)
 
@@ -593,13 +608,16 @@ Two things kill it:
 silhouette edge-bleed, for only a VRAM/bandwidth cost."* The choice had been made, deliberately, and
 written down. It went unread.
 
-**So the default stays 1.0, and the lever is the merged pass instead** — which returns the capture's
-*entire* cost (all 5.3 ms, vertex floor included) with **no** artifact, because the capture then simply
-*is* the full-resolution scene render the frame was already doing. Strictly more milliseconds than any
-capture scale could buy, and no trade at all.
+**So the default stays 1.0, and the lever is the merged pass instead** — the capture simply *is* the
+full-resolution scene render the frame was already doing, so presenting it deletes the duplicate with
+**no** artifact. (Built 2026-07-15 — see the DONE section below. NB the win is the *main pass's*
+duplicate share, not the capture column this paragraph once promised; the capture pass itself still
+runs, because the water still needs it.)
 
 The dial stays live in the GUI: it is a real knob for a **low-end quality tier**, where a halo at the
-waterline is a fair price for 4.5 ms. It is not a free win, and it should never have been sold as one.
+waterline is a fair price for 4.5 ms. It is not a free win, and it should never have been sold as one —
+and under the merged pass it is a bigger trade still, because the capture is now also the presented
+opaque image (the dial behaves like a render scale that spares only the water).
 
 ### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
 
@@ -644,73 +662,77 @@ patch + a coarse far plane keeps the near waves exactly as they are and reclaims
 so geometric LOD buys it ~1 ms. Do not design one mechanism for both; that was my assumption and the
 measurement killed it.
 
-### NEXT: merge the duplicate scene pass — **5.3 ms, no quality cost** (spec, not yet built)
+### DONE 2026-07-15: the merged main pass — the duplicate scene rasterisation is gone
 
-*Written to be executable cold. You should not need the conversation that produced it.*
+*(This section replaces the "NEXT: merge the duplicate scene pass" spec, which is executed. What
+follows is what the spec got right, what it got wrong, and what the measurement actually says.)*
 
-**The defect.** The opaque scene is rasterised **twice every frame**, and nothing needs it to be:
+**What shipped** (`present-pass.ts` + `scene.ts` `routeMainPass` + `layers.ts`, default ON, live switch
+at `Performance → merged main pass`): `renderPrePasses` still renders the water-less scene into the
+capture; a fullscreen **present quad** then puts that capture on screen (tonemap + grade via the
+`CustomToneMapping` chunks, so both paths share one display transform by construction), and the main
+render draws **only** the quad + the water — `routeMainPass` points the camera at `MAIN_PASS_LAYER`
+alone. Any frame whose pre-passes didn't run (capture probe off, water off, physics-only bench) falls
+back to the classic full-scene render automatically. three layer-filters **lights** too, so the sun and
+the pooled lantern explicitly enable `MAIN_PASS_LAYER` — a light left on layer 0 alone silently stops
+lighting the merged pass (that is a trap for every future light; `layers.ts` documents it).
 
-1. `renderPrePasses()` (`scene.ts`) hides the water and renders the whole scene into
-   `ctx.sceneCapture.target` — an HDR colour texture **and** a real `DepthTexture`.
-2. The hook's main render (`renderer.render(scene, camera)`) then draws **the same scene again**, water
-   included, to the default framebuffer.
+**The spec's blit was impossible, as it half-suspected**: the default framebuffer is multisampled and
+GL ES 3.0 forbids blitting INTO a multisampled draw buffer — and a blit can't tonemap anyway. The quad
+fallback is the primary path.
 
-Every opaque triangle — terrain (500 k), spruce (71 k), buoys, raft, sky dome — is transformed and shaded
-in both. Step 1 exists only so the water can refract, absorb and SSR-march what is behind it.
+**The finding the spec missed: the quad's DEPTH write was worth more than everything else in the
+section.** The first build had the quad write the capture's depth via `gl_FragDepth` so the water could
+depth-test against the presented scene. That one line made the quad cost roughly what the duplicate
+scene pass had cost — writing `gl_FragDepth` disables early-z, and into a 4×-multisampled backbuffer it
+forces per-sample colour+depth writes for 5 Mpx — so the merged pass measured **net ~0**. The fix:
+nobody needs that depth. The only consumer was the water's depth test, and the water shader **already
+samples the capture's depth texture** — so in merged mode it discards its own occluded fragments
+(`uMergedOcclusion`, first statement of the fragment), and the quad is a colour-only present with
+`depthTest`/`depthWrite` off. *The lesson generalises: a fullscreen pass is cheap until it touches
+depth; auditing what a pass writes matters as much as what it reads.*
 
-**The fix.** Render the opaque scene **once**, into the capture. Then put that image on the screen and
-draw only the water on top of it:
+**Measured** (780M; full-flight interleaved A→B→A at 1600×900, drift ≤ 0.2 ms):
 
-1. `renderPrePasses` keeps rendering the water-less scene into `sceneCapture.target` (unchanged — it is
-   already exactly the image the framebuffer wants).
-2. **Blit** the capture's colour **and depth** into the default framebuffer
-   (`gl.blitFramebuffer(..., COLOR_BUFFER_BIT | DEPTH_BUFFER_BIT, NEAREST)`; WebGL2 has it natively and
-   three exposes the raw context via `renderer.getContext()`).
-3. Render **only the ocean mesh** on top, depth-testing against the blitted depth. In three: put the
-   water on its own layer and `camera.layers.set(WATER_LAYER)` for the main pass, with
-   `renderer.autoClear = false` so the blit survives.
+| segment | merged | classic | win |
+|---|---|---|---|
+| overall (12-segment mean) | 8.9 | 9.6 | **−0.78 ms (−8 %)** |
+| island-approach | 8.8 | 11.0 | **−2.3 ms (−21 %)** |
+| max-stress | 10.4 | 13.0 | **−2.6 ms (−20 %)** |
+| open-water segments | — | — | −0.2…−0.7 ms |
 
-**Expected: the entire `capture` column, 5.3 ms of a 24.8 ms frame at 3440×1440.** Confirm with
-`tools/budget.mjs`, which already prices it as a row.
+At native 3440×1440 the budget's open-water default view wins ~1 ms (10.5–11.0 → 9.9). CPU main-render
+submit also fell 0.4 → 0.1 ms (fewer draws). **The win lands exactly where the frame was worst** — the
+duplicate cost scaled with the opaque scene, so the terrain-heavy and stress frames improve ~20 % while
+an empty sea barely moves. It is smaller than the spec's "5.3 ms" because that figure equated the win
+with the whole capture column; the true win is the opaque scene's *main-pass* share minus the quad, and
+because on a cool, under-loaded 780M DVFS masks work-reduction (clocks drop, milliseconds stay flat —
+the E1 lesson again). On a loaded GPU — the case that matters — removing real work shows.
 
-**Why this and not `capture res` (which looks easier and is worse).** Shrinking the capture is a *quality
-trade* — see the rejected section above: it bleeds silhouettes at the waterline, and it has a hard floor
-of ~1.3 ms because scale cuts raster and not vertex work. Merging removes **all** of it, vertex floor
-included, and touches no pixel. Do not "just lower the capture" instead; that is the trap this section
-exists to prevent.
+**Verified pixel-equivalent** — `tools/verify-merged-pass.mjs`, the freeze-once harness with an
+interior/edge split diff: interiors match to **0.01–0.03/255 mean** (fp16 quantisation); every pixel
+over 2/255 traces a silhouette on the heatmap the tool writes. Edges differ by **AA provenance**,
+which is the one real trade:
 
-**The things that will bite:**
+- **Opaque geometry loses the backbuffer's MSAA** (its edges are baked into the single-sample capture;
+  the context's MSAA can only smooth the water now). Spruce and island rims alias where they used to be
+  smoothed.
+- **Capture MSAA (`Performance → capture MSAA`, `ctx.setCaptureSamples`) restores it and is DEAD as a
+  default: +7 ms at 3440×1440** (a multisampled HalfFloat raster + resolve — the same cost family as
+  the composer target that bug 3 deleted). It stays as a live dial for strong GPUs.
+- The backbuffer MSAA itself is now only smoothing water edges: declining it (`?msaa=off`) saves a
+  further ~0.5 ms at 1600×900 — a tier knob, left ON by default for the horizon line.
 
-- **Format match.** `blitFramebuffer` needs compatible formats. The capture is `HalfFloatType` colour +
-  `DepthTexture`; the default framebuffer is 8-bit. A colour blit across that boundary may be rejected or
-  silently clamp. If it is, the fallback is a **fullscreen textured quad** that samples the capture and
-  writes `gl_FragDepth` from its depth texture — one cheap fullscreen pass instead of a whole scene
-  re-render, so the win survives, just smaller. **Try the blit, measure, fall back if the driver refuses.**
-- **Tone mapping.** three applies tone mapping only when the render target is `null`
-  (`WebGLPrograms.getParameters`), so the capture is **linear HDR** and the on-screen pass is
-  **tone-mapped + graded**. Blitting linear-HDR pixels straight to an sRGB framebuffer will look wrong.
-  The blit or quad must therefore run the same tonemap+grade the materials do — which the
-  `CustomToneMapping` patch (`shared/lib/three/display-grade.ts`) makes available to any shader that
-  `#include`s the tonemapping chunks. This is the substantive design question; solve it first.
-- **MSAA.** With no composer, the default framebuffer is multisampled (`antialias: true`). Blitting a
-  single-sample capture into it discards that AA for the opaque geometry — the water would be antialiased
-  and the islands would not. Either render the capture multisampled too, or accept it and re-check
-  `verify-msaa.mjs`. **Do not skip this: geometry AA on the horizon and the spruce is the thing MSAA is
-  there for.**
-- **Sky dome + transparents** draw in the capture already, so they come along for free. Check the debug
-  overlays (`MeshBasicMaterial`), which currently draw in the main pass.
+**Decision left open for Kyle:** whether the opaque-edge aliasing at the shipped default (merged ON,
+capture MSAA off) is acceptable to the eye in the live game — flip `Performance → merged main pass`
+live to compare. Everything else about the merged pass is strictly better or equal.
 
-**Verify like the other structural fixes**: the frame must be *pixel-equivalent*. Use the harness in
-`tools/capture-curve.mjs` (freeze once, never resume — `freeze()` rewinds the wave clock but **not** the
-physics bodies, and a drifting raft silently invalidates an A/B). Compare flat interior pixels separately
-from edges, as the grade change did: edges may legitimately move if MSAA changes, interiors may not.
-
-### THEN: the camera-following LOD ocean — **7.8 ms, no quality cost**
+### NEXT: the camera-following LOD ocean — **7.8 ms, no quality cost**
 
 Fully measured and specified under "The next perf project" above (`tools/lod-ceiling.mjs` prices the
-ceiling). Independent of the merged pass; either can go first. Together they take the shipped frame from
-**24.8 ms → ~11.7 ms** at native ultrawide 1440p, which is the 60 fps bucket with headroom — and neither
-costs a pixel.
+ceiling). With the merged pass shipped, this is the frontier: at the re-anchored native-ultrawide
+baseline (~10 ms GPU), a ~4–8 ms vertex win (it scales with tessellation, not pixels) puts the frame
+into the 100 fps bucket — and it costs no pixel.
 
 ### Done 2026-07-12 (was "do these first")
 
@@ -724,16 +746,21 @@ costs a pixel.
 
 ### Decisions waiting for Kyle — trades, not bugs. Measured, not taken.
 
-1. **`maxPixelRatio: 2`.** Every fill cost above scales with the pixel count, and the default render
+1. **Opaque-edge AA under the merged pass.** The shipped default (merged ON, capture MSAA off) trades
+   the spruce/rim edge smoothing for the merged pass's win — my recommendation, since capture MSAA
+   costs +7 ms at native ultrawide and the win lands in the worst frames. Judge it by eye in the live
+   game: flip `Performance → merged main pass` (and `capture MSAA`) live. See the DONE section.
+2. **`maxPixelRatio: 2`.** Every fill cost above scales with the pixel count, and the default render
    scale is the device pixel ratio — so Windows display scaling at 125/150 % silently renders 1.6–2.3×
    the pixels these numbers were measured at. Options: cap it lower, or ship an auto quality tier.
-2. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2. A **fidelity** trade: the sampled waterline drifts
+3. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2. A **fidelity** trade: the sampled waterline drifts
    from the rendered one. At the calm gameplay sea horizontal displacement is tiny, so 2 may be
    indistinguishable — but "may be" is a thing to look at, not assume. ~0 with one raft, so not urgent.
 
 ### Open threads
 
-1. **The merged scene pass, then the LOD ocean** (both specified above). The frontier.
+1. ~~The merged scene pass~~ — **done 2026-07-15** (see the DONE section). **The LOD ocean is the
+   frontier**, and `tools/ab.mjs` makes iterating on it minutes instead of hours.
 2. **Finish the terrain breakdown — 4 runs, ~10 min.** `--terrain-shading flat` (the decisive one: does
    island LOD attack triangles or the shader?) and a closing baseline for the spacing sweep. The
    instrumentation is built and committed; this is time, not work. See "Terrain".
@@ -751,6 +778,15 @@ costs a pixel.
 ### How to re-run
 
 ```bash
+# THE ITERATION TOOL — is config B cheaper than config A? One page, one warm session, interleaved
+# A→B→A with a drift column, ~1-3 min. Configs are BenchmarkConfig JSON (runtime knobs only).
+node src/projects/shipwright/tools/ab.mjs --b '{"merged":false}'
+node src/projects/shipwright/tools/ab.mjs --a '{"quadSize":4.9}' --b '{"quadSize":40}' --passes 3
+# NB a segment's absolute cost depends on its flight context — compare subset runs only to subset runs.
+
+# the merged-pass pixel-identity guard (interior/edge split diff + heatmaps)
+node src/projects/shipwright/tools/verify-merged-pass.mjs
+
 # the LIVE shipped frame, and the pie chart of what is in it
 node src/projects/shipwright/tools/profile-live.mjs
 

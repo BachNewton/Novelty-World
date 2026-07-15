@@ -124,9 +124,12 @@ export interface SceneCaptureOptions {
   /** Render the capture at this fraction of the drawing buffer (default 1). */
   resolutionScale?: number;
   /**
-   * MSAA samples on the composer's HDR target (default 4). On a bandwidth-starved iGPU this, and NOT
-   * the blur, is what "adding bloom" actually costs: a 1080p HalfFloat 4x target is ~66 MB to write
-   * and resolve every frame. Set 0 when the scene already supersamples via its render scale.
+   * MSAA samples on the capture target itself (default 0). Irrelevant while the capture only feeds
+   * refraction/SSR lookups — those smear their samples anyway. It matters the moment the capture is
+   * PRESENTED as the frame (a merged main pass draws the opaque scene once, into the capture, and puts
+   * that image on screen): then this is the opaque geometry's only MSAA, because the context's
+   * multisampled backbuffer can't smooth edges that were baked into a single-sample texture.
+   * Costs a multisampled HalfFloat raster + resolve — measure it. Live via `ctx.setCaptureSamples`.
    */
   samples?: number;
 }
@@ -186,6 +189,13 @@ export interface ThreeSceneContext {
    */
   setCaptureScale: (scale: number) => void;
   getCaptureScale: () => number;
+  /**
+   * MSAA sample count on the scene-capture target, live (see `SceneCaptureOptions.samples`). Reallocates
+   * the target's GL storage; the `THREE.Texture` identities survive, so uniforms bound to the capture
+   * stay valid. No-op without a capture.
+   */
+  setCaptureSamples: (samples: number) => void;
+  getCaptureSamples: () => number;
   /**
    * Present when `gpuStats` is enabled. Bracket a scene's own passes with
    * `gpuTimer.span(name, fn)` to break out their GPU cost alongside the hook's `main`
@@ -469,6 +479,7 @@ export function useThreeScene(
       const target = new THREE.WebGLRenderTarget(w, h, {
         type: THREE.HalfFloatType,
         depthTexture,
+        samples: typeof captureOption === "object" ? (captureOption.samples ?? 0) : 0,
       });
       sceneCapture = { target, depthTexture };
     }
@@ -517,6 +528,16 @@ export function useThreeScene(
         applyResize();
       },
       getCaptureScale: () => captureScale,
+      // `samples` lives on the target, but its GL storage is allocated lazily: dispose() drops the GL
+      // objects and the next bind rebuilds them at the new count, while the THREE.Texture wrappers keep
+      // their identity — so every uniform already pointing at the capture stays valid (same contract as
+      // sizeCapture's "resized, never rebuilt").
+      setCaptureSamples: (samples: number) => {
+        if (!sceneCapture) return;
+        sceneCapture.target.samples = Math.max(0, Math.floor(samples));
+        sceneCapture.target.dispose();
+      },
+      getCaptureSamples: () => sceneCapture?.target.samples ?? 0,
       gpuTimer,
       setPixelRatio,
       setFrameStride,

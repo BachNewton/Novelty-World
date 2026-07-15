@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { MAIN_PASS_LAYER } from "./layers";
 import type { Physics, VoxelHit } from "./physics";
 
 /**
@@ -70,6 +71,9 @@ export function createBuilder(
   aimDot.renderOrder = 1000;
   aimDot.frustumCulled = false;
   aimDot.visible = false;
+  // Main pass only: the dot is HUD, so it must draw over the water and never land in the scene
+  // capture, where the water would refract it and SSR would reflect it (see layers.ts).
+  aimDot.layers.set(MAIN_PASS_LAYER);
 
   const forward = new THREE.Vector3();
   const probe = new THREE.Object3D(); // scratch, posed to the place cell for the suffocation check

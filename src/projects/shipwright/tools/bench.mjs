@@ -192,6 +192,16 @@ if (args["ssr-steps"] !== undefined) config.ssrSteps = Number(args["ssr-steps"])
 // of the frame's #1 CPU system (buoyancy calls it per voxel, per void cell, per substep). 0 = skip the
 // inversion. A FIDELITY probe: fewer iterations = a less exact waterline.
 if (args["sample-iters"] !== undefined) config.sampleIters = Number(args["sample-iters"]);
+// --segments "a,b,c": fly only these flight segments (names, comma-separated) — the fast-iteration
+// knob. An A/B needs the cost archetypes it is probing, not the whole 12-segment scenic tour.
+if (args.segments !== undefined) config.segments = args.segments.split(",").map((s) => s.trim());
+// --merged off: disable the MERGED main pass, restoring the classic path that rasterises the whole
+// opaque scene a SECOND time after the capture already did. The on/off delta is the duplicate scene
+// pass's cost. Runtime, so a sweep interleaves it warm.
+if (args.merged !== undefined) config.merged = offFlag(args.merged);
+// --capture-samples N: MSAA on the capture target — with the merged pass, the presented opaque image's
+// only geometry AA. Runtime (the target reallocates live).
+if (args["capture-samples"] !== undefined) config.captureSamples = Number(args["capture-samples"]);
 
 // Mount-time knobs. These are baked when the scene mounts (the WebGL context's MSAA, the capture
 // target, the composer target), long before runBenchmark is called — so they travel as URL params, not
@@ -435,6 +445,8 @@ const slug =
     config.msaa === false ? "msaa-off" : null,
     config.captureScale !== undefined ? `cap${config.captureScale}` : null,
     config.composerSamples !== undefined ? `cs${config.composerSamples}` : null,
+    config.merged === false ? "merged-off" : null,
+    config.captureSamples !== undefined ? `capms${config.captureSamples}` : null,
   ]
     .filter(Boolean)
     .join("-") || "default";

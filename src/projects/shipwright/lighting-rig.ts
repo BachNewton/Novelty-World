@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { PROBE_LAYER } from "./layers";
 import { luminance, type Rgb } from "./sky-model";
 
 /**
@@ -67,10 +68,9 @@ const PROBE_SIZE = 8;
  *  aimed straight at it. */
 const PROBE_ORIGIN = new THREE.Vector3(0, 500, 0);
 
-/** The card and the probe camera live on their own render layer, so a probe renders ONE quad rather
- *  than the whole scene six times. Directional lights are layer-filtered too (three skips a light the
- *  camera cannot see), so `measure` temporarily enables the layer on each of them. */
-const PROBE_LAYER = 2;
+// The card and the probe camera live on their own render layer (PROBE_LAYER, see layers.ts), so a
+// probe renders ONE quad rather than the whole scene six times. Directional lights are layer-filtered
+// too (three skips a light the camera cannot see), so `measure` temporarily enables the layer on each.
 
 export const createLightingRig = (): LightingRig => {
   // --- The probe -------------------------------------------------------------

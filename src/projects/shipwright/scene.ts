@@ -13,6 +13,8 @@ import { ALL_MATERIAL_NAMES, createMaterialRig, type RowName } from "./material-
 import { DEFAULT_PROBE_SET, isMaterialName, type MaterialName } from "./materials";
 import { CLOUD_GENUS_NAMES } from "./clouds";
 import { createOcean, type ShadingMode } from "./ocean";
+import { createPresentPass } from "./present-pass";
+import { MAIN_PASS_LAYER } from "./layers";
 import { createPhysics, type Physics } from "./physics";
 import { RAFT } from "./shapes";
 import { BENCH_SHAPES, benchShapesForCount } from "./bench-shapes";
@@ -97,6 +99,8 @@ interface BenchmarkRun {
    *  same twelve segments can be flown with the archipelago and without it, and the difference is its
    *  cost. `undefined` = leave it to each segment. */
   terrain: boolean | undefined;
+  /** The segments this run flies — the full FLIGHT, or the `config.segments` subset (fast A/B). */
+  flight: BenchSegment[];
   /** Last segment index applied, so the driver can detect a segment change and set its scene state. */
   prevIndex: number;
   /** Water type a segment reverts to when it doesn't set its own (the run's configured/default). */
@@ -206,6 +210,20 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setViewParams(camera, db.x, db.y);
   }
 
+  // The MERGED main pass (docs/PERFORMANCE.md "merge the duplicate scene pass"). The capture above
+  // already rasterises the entire opaque scene every frame; the classic main render then rasterised it
+  // all AGAIN, water on top — every terrain/spruce/buoy/sky triangle transformed and shaded twice. Now
+  // the capture IS the frame: this fullscreen quad presents it (tonemap + grade + depth, see
+  // present-pass.ts), and the main render draws only the quad + the water (`routeMainPass` points the
+  // camera at MAIN_PASS_LAYER alone). Falls back to the classic full-scene render on any frame the
+  // pre-passes didn't run (capture probe off, water off, physics-only bench) — the toggle is live so
+  // one warm session can A/B the duplicate pass's cost.
+  const presentPass = sceneCapture ? createPresentPass(sceneCapture.target.texture) : null;
+  if (presentPass) scene.add(presentPass.mesh);
+  // Did THIS frame's pre-passes run to completion? Presenting a stale capture would be showing an old
+  // frame (the camera has moved since), so any frame without a fresh capture falls back.
+  let prePassesRan = false;
+
   // Break out this scene's pre-passes in the GPU-time panel (the hook times `main`).
   const timeSpan = (name: string, fn: () => void) => {
     if (gpuTimer) gpuTimer.span(name, fn);
@@ -260,6 +278,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // capture target wasn't allocated.
   const renderPrePasses = () => {
     if (!sceneCapture) return;
+    // The main render may have left the camera on MAIN_PASS_LAYER (see routeMainPass); the capture
+    // renders the WORLD, layer 0.
+    camera.layers.set(0);
     // FIRST: the cloud shadow map. Every lit material samples it, including the ones drawn into the
     // capture below, so it has to be current before any of them run.
     timeSpan("cloud", () => daylight.renderCloudShadow(renderer));
@@ -286,6 +307,27 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       const ssrStart = globalThis.performance.now();
       timeSpan("ssr", () => ocean.renderSsr(renderer, scene, camera, ssrTarget));
       prepassCpu.ssr = globalThis.performance.now() - ssrStart;
+    }
+    prePassesRan = true;
+  };
+
+  // Decide what the shared hook's main render (which runs after onFrame) will draw. Merged: the opaque
+  // scene was already rasterised into the capture this frame, so the main pass draws ONLY the present
+  // quad + the water (+ the HUD overlays that share MAIN_PASS_LAYER) — rendering the full scene again
+  // would rasterise every opaque triangle a second time for identical pixels. Fallback (merged pass
+  // switched off, capture probe off, water off, physics-only bench): the classic full-scene render,
+  // with the overlay layer enabled alongside so the aim dot / x-ray still draw.
+  const routeMainPass = () => {
+    const merged = presentPass !== null && debug.mergedPass && prePassesRan;
+    if (presentPass) presentPass.mesh.visible = merged;
+    // The quad writes no depth (that made it expensive — see present-pass.ts), so in merged mode the
+    // water occludes itself against the capture depth instead of the framebuffer's.
+    ocean.setMergedOcclusion(merged);
+    if (merged) {
+      camera.layers.set(MAIN_PASS_LAYER);
+    } else {
+      camera.layers.set(0);
+      camera.layers.enable(MAIN_PASS_LAYER);
     }
   };
 
@@ -503,6 +545,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     rig: false,
     waterFx: true,
     capture: true,
+    mergedPass: true,
     planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
     quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
     simSpeed: 1, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
@@ -550,6 +593,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // silhouettes piercing the surface are the only place a soft capture can show. Everything else the
   // water does with it is a refracted lookup — already smeared by the wave normal — which is why
   // softening the source is nearly invisible.
+  //
+  // NB with the MERGED main pass (below) the capture is also the presented opaque image, so this dial
+  // now scales the whole above-water scene too — it behaves like a render scale that spares the water.
   const capture = { scale: ctx.getCaptureScale() };
   performance
     .add(capture, "scale", 0.25, 1, 0.05)
@@ -577,6 +623,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     ocean.setWaterFx(on);
   });
   performance.add(debug, "capture").name("scene capture");
+  // The merged main pass (routeMainPass reads this each frame). OFF = the classic path, which
+  // rasterises the whole opaque scene a second time — so this switch's frametime delta IS the
+  // duplicate scene pass's cost, A/B-able in one warm session.
+  performance.add(debug, "mergedPass").name("merged main pass").listen();
+  // MSAA on the capture target. Only meaningful with the merged pass, where the capture is the
+  // presented opaque image and this is its only geometry-edge AA (the backbuffer's MSAA can't smooth
+  // edges baked into a single-sample texture). A quality-vs-ms dial — watch the horizon and the spruce.
+  const captureMsaa = { samples: ctx.getCaptureSamples() };
+  performance
+    .add(captureMsaa, "samples", { off: 0, "4×": 4 })
+    .name("capture MSAA")
+    .onChange((n: number) => ctx.setCaptureSamples(n));
 
   // --- Scene cost: switch each PART of the scene off and watch the frame ------------------------
   // The render-scale dial answers "how many pixels"; this folder answers "what is IN them". Every
@@ -869,7 +927,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           pixelRatio: renderer.getPixelRatio(),
           reflectionRes: ssrScale.value,
         },
-        segments: FLIGHT.map((seg) => ({
+        segments: run.flight.map((seg) => ({
           name: seg.name,
           description: seg.description,
           measuredSeconds: seg.measuredSeconds ?? DEFAULT_MEASURED_SECONDS,
@@ -1195,6 +1253,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       ocean.setSsrEnabled(on);
       syncGui();
     },
+    /** The merged main pass, live (Performance → "merged main pass") — so a tool can A/B the duplicate
+     *  scene pass's cost, or verify the two paths pixel-equivalent, in ONE warm session. */
+    setMergedPass: (on: boolean) => {
+      debug.mergedPass = on;
+      syncGui();
+    },
+    /** MSAA samples on the scene-capture target, live — the merged pass's opaque-geometry AA dial. */
+    setCaptureSamples: (samples: number) => {
+      captureMsaa.samples = samples;
+      ctx.setCaptureSamples(samples);
+      syncGui();
+    },
     /** True once everything an automated capture depends on has settled: the async ripple normal map
      *  has decoded. (The PMREM sky bake is synchronous inside `daylight.setSun`, which runs during
      *  setup before `__shipwright` is published, and the Rapier bodies are hidden for capture — so
@@ -1280,6 +1350,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         applyGrid(); // rebuild the ocean plane at the coarser tessellation (E8 vertex-cost isolation)
       }
       if (config.water !== undefined) ocean.setWaterType(config.water);
+      // The merged main pass + the capture target's MSAA — both runtime, so a sweep interleaves them
+      // in one warm session (docs/PERFORMANCE.md: two passes agreeing across sessions is not enough).
+      if (config.merged !== undefined) debug.mergedPass = config.merged;
+      if (config.captureSamples !== undefined) ctx.setCaptureSamples(config.captureSamples);
       ctx.setFrameStride(1); // always render every frame; headed pacing comes from the real-time clock
       const mode = config.mode ?? "visuals";
 
@@ -1319,10 +1393,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       }
       const benchBodies = benchPhysics ? shapes.length : 0;
 
+      // `config.segments` flies a SUBSET of the flight — the fast-iteration knob (see the config doc).
+      // Filtering FLIGHT keeps flight order and every segment's own scene state; unknown names simply
+      // match nothing, so a typo shows up as a missing segment in the report rather than a crash.
+      const segmentFilter = config.segments;
+      const flight = segmentFilter
+        ? FLIGHT.filter((seg) => segmentFilter.includes(seg.name))
+        : FLIGHT;
+
       return new Promise<BenchmarkResult>((resolve) => {
         benchmark = {
           // Warm-up lap kept in both modes; headed just plays it at real-time (a few seconds).
-          timeline: buildTimeline(FLIGHT, true),
+          timeline: buildTimeline(flight, true),
           elapsed: 0,
           holdElapsed: 0,
           endHoldSeconds: config.endHoldSeconds ?? DEFAULT_END_HOLD_SECONDS,
@@ -1334,6 +1416,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           benchPhysics,
           benchBodies,
           terrain: config.terrain,
+          flight,
           prevIndex: -1,
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",
@@ -1350,11 +1433,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   return {
     onFrame: (delta) => {
       frameCount++;
+      // Every frame re-earns the merged main pass: routeMainPass (at the bottom) only presents the
+      // capture if THIS frame's pre-passes refreshed it.
+      prePassesRan = false;
       // The benchmark drives its own deterministic clock/camera/passes — hand it the frame and
       // skip the normal interactive path entirely (see stepBenchmark). The shared hook still
       // runs the `main` render + gpuTimer.poll() after this returns.
       if (benchmark) {
         stepBenchmark(delta);
+        routeMainPass();
         return;
       }
       // `paused` (debug freeze) holds the wave field + physics on one frame so an automated
@@ -1394,6 +1481,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // is posed for this frame, before the hook's main render (which runs after
       // onFrame and draws the water sampling this capture).
       if (debug.capture) renderPrePasses();
+      routeMainPass();
     },
     onResize: () => {
       // The hook resizes the capture target itself; just refresh the shader's copy
@@ -1410,6 +1498,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       player.dispose();
       builder.dispose();
       controls.dispose();
+      presentPass?.dispose();
       ssrTarget.dispose();
       daylight.dispose();
       lightingRig.dispose();

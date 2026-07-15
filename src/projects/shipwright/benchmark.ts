@@ -170,6 +170,20 @@ export interface BenchmarkConfig {
   /** Scene-capture resolution scale (E7) — the colour+depth target refraction/SSR read from (default 1).
    *  Applied at mount, so the tool passes it as a URL param. */
   captureScale?: number;
+  /** Fly only these segments (by name), in flight order — the fast-iteration knob. The full flight is
+   *  a 12-segment scenic tour built for the human eye; an A/B needs only the cost ARCHETYPES it is
+   *  probing (e.g. down-calm = fill, grazing-storm = SSR, island-approach = opaque scene, max-stress).
+   *  Undefined = the whole flight. See tools/ab.mjs, which interleaves A/B on a subset in one session. */
+  segments?: string[];
+  /** The MERGED main pass (default on): the opaque scene is rasterised ONCE, into the capture, which a
+   *  fullscreen quad then presents (tonemap + grade + depth) with only the water drawn on top. Off =
+   *  the classic path, where the main render rasterises the whole scene a second time. The A/B is the
+   *  duplicate scene pass's cost. Runtime, so one warm session can interleave both. */
+  merged?: boolean;
+  /** MSAA sample count on the scene-capture target (default 0). With the merged pass the capture IS the
+   *  presented opaque image, so this is the opaque geometry's only edge AA (the context's multisampled
+   *  backbuffer can't smooth edges baked into a single-sample texture). A quality-vs-ms dial. */
+  captureSamples?: number;
 }
 
 /** One recorded frame: CPU prep ms, the physics-step ms, and the raw per-pass GPU ms from the timer. */

@@ -399,32 +399,39 @@ code that floats the ship agree on where the surface is.
   size are debug sliders. The short (48/70 m) waves need this fineness to render without
   their crests faceting — a coarse grid dips the rendered surface below the analytic
   crest, which can read as the CPU-placed cube floating a touch high.
-- **THE TWO NEXT PERF PROJECTS — both structural, both worth ~5–8 ms, and NEITHER costs a pixel.**
-  Specced to be picked up cold in `docs/PERFORMANCE.md` → "NEXT: merge the duplicate scene pass" and
-  "The next perf project". Together they take the shipped frame from **24.8 → ~11.7 ms** at native
-  ultrawide 1440p. Do not reach for a *quality* dial before these are done — the last three big wins
-  were all machinery nobody chose, not trades anybody made.
-  1. **Merge the duplicate scene pass (~5.3 ms).** The opaque scene is rasterised **twice every frame**:
-     once water-less into the scene capture, then again to the screen. Draw it once, blit colour+depth,
-     and put only the water on top.
-  2. **Camera-following LOD ocean (~7.8 ms).** The uniform grid spends detail on far water that doesn't
-     need it: ~1 M vertices, 4 Gerstner waves (sin/cos ×4) + analytic normals **per vertex**, drawn
-     **twice a frame** (SSR pass + main pass). The ocean is almost **purely vertex-bound** — at a coarse
-     quad size the main pass costs the same as *having no ocean at all*, so its per-pixel fill is ~0 and
-     every millisecond is vertices (`tools/lod-ceiling.mjs`). Uniform coarsening isn't shippable (the
-     short 48/70 m waves facet — that's why the fine grid exists), but a camera-following high-density
-     patch + a coarse far plane keeps the near waves identical and reclaims most of it.
-     **This REVERSES the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively"),
-     which came from an experiment that measured render-prep **CPU** — genuinely flat in tessellation —
-     and generalised it to the GPU, which was never tested.
+- **Merged main pass — SHIPPED (2026-07-15).** The opaque scene used to be rasterised **twice every
+  frame** (once water-less into the scene capture, then again to the screen); now the capture IS the
+  frame — a fullscreen present quad puts it on screen (tonemap + grade via the `CustomToneMapping`
+  chunks) and the main render draws only the quad + the water (`layers.ts` `MAIN_PASS_LAYER`,
+  `scene.ts` `routeMainPass`, `present-pass.ts`). Verified pixel-equivalent
+  (`tools/verify-merged-pass.mjs`); measured interleaved: **−8 % GPU overall, −21 % on
+  island-approach, −20 % on max-stress** — the win tracks the opaque scene, so it lands in the worst
+  frames. Two traps its implementation documents: the present quad must NOT write depth (the water
+  discards its own occluded fragments against the capture depth instead — `uMergedOcclusion`), and
+  three layer-filters **lights**, so every light must enable `MAIN_PASS_LAYER` or it silently stops
+  lighting the merged pass. The trade: opaque geometry's edge AA now comes from the capture target
+  (`Performance → capture MSAA`, default off — 4× costs +7 ms at native ultrawide), not the backbuffer.
+  Live A/B switch: `Performance → merged main pass`; fast iteration via `tools/ab.mjs`.
+- **THE NEXT PERF PROJECT — camera-following LOD ocean (~4–8 ms, costs no pixel).** The uniform grid
+  spends detail on far water that doesn't need it: ~1 M vertices, 4 Gerstner waves (sin/cos ×4) +
+  analytic normals **per vertex**, drawn **twice a frame** (SSR pass + main pass). The ocean is almost
+  **purely vertex-bound** — at a coarse quad size the main pass costs the same as *having no ocean at
+  all*, so its per-pixel fill is ~0 and every millisecond is vertices (`tools/lod-ceiling.mjs`).
+  Uniform coarsening isn't shippable (the short 48/70 m waves facet — that's why the fine grid exists),
+  but a camera-following high-density patch + a coarse far plane keeps the near waves identical and
+  reclaims most of it.
+  **This REVERSES the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively"),
+  which came from an experiment that measured render-prep **CPU** — genuinely flat in tessellation —
+  and generalised it to the GPU, which was never tested.
   Still true: dropping the short waves and faking them with the normal map was **tried and rejected** —
   it looked worse (a repeating "river" of smooth swells). LOD is a different thing: keep the waves,
   spend the vertices where the camera is.
 - **Do NOT shrink the scene capture to buy frames.** It looks free and isn't: it bleeds silhouettes at
   the waterline (a blocky halo where an object's outline meets the water), and it has a hard floor,
   because lowering its resolution cuts raster work and not the **vertex** work of re-rendering the whole
-  scene. `Performance → capture res` is a live dial for a **low-end quality tier**, not a default.
-  Merging the pass (above) removes all of that cost with no artifact. See `docs/PERFORMANCE.md`.
+  scene. `Performance → capture res` is a live dial for a **low-end quality tier**, not a default — and
+  with the merged main pass the capture is also the PRESENTED opaque image, so the dial now behaves
+  like a render scale that spares only the water (an even bigger trade). See `docs/PERFORMANCE.md`.
 - **Kinematic float works and looks great.** The test cube (and the debug probes)
   ride the water via `ocean.sampleParticle` (forward Gerstner) — real orbital
   motion + tilt, no physics engine. Confirmed the right approach for decorative

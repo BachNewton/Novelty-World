@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { enableShadows } from "./sky";
+import { MAIN_PASS_LAYER } from "./layers";
 import type { Ocean } from "./ocean";
 import {
   PHOTOCELL_SWITCH_ON_LUX,
@@ -258,6 +259,9 @@ export function createNavBuoys(): NavBuoys {
    * lens does all the work; close up the light is real, and this is the range where it is real.
    */
   const lampLight = new THREE.PointLight(0xffffff, 0, 0, 2); // decay 2 = inverse square, i.e. physics
+  // three layer-filters lights: without this the lantern would not light the water in the merged main
+  // pass, which renders MAIN_PASS_LAYER alone (scene.ts routeMainPass).
+  lampLight.layers.enable(MAIN_PASS_LAYER);
   lampLight.castShadow = false; // a lamp on a mast head shadows nothing that matters
   lampLight.visible = false; // dark all day; the photocell brings it up
   root.add(lampLight);

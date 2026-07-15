@@ -48,7 +48,11 @@ export function Shipwright() {
     // march runs per output pixel in its own low-res pass regardless — see
     // docs/PERFORMANCE.md); full res sharpens refraction/depth and avoids silhouette
     // edge-bleed, for only a VRAM/bandwidth cost.
-    sceneCapture: { resolutionScale: benchNumber("captureScale", 1) },
+    // `samples` is the capture target's own MSAA. It matters because the MERGED main pass presents the
+    // capture as the frame (see scene.ts routeMainPass), making this the opaque geometry's only edge
+    // AA. Default 0 pending the cost measurement (docs/PERFORMANCE.md); live via Performance → capture
+    // MSAA either way.
+    sceneCapture: { resolutionScale: benchNumber("captureScale", 1), samples: benchNumber("captureSamples", 0) },
     // HDR bloom, off at mount. `scene.ts` can switch it live (Environment -> Display) and the
     // tonemap x bloom experiment drives it over the debug API. Strength/radius are the values that
     // survived that experiment; the exposure-tracking threshold + energy clamp live in `scene.ts`.

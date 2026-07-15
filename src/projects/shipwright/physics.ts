@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import RAPIER from "@dimforge/rapier3d-compat";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 import type { Ocean } from "./ocean";
+import { MAIN_PASS_LAYER } from "./layers";
 import { analyzeBuildVoids, groupCompartments, compartmentTargetFill } from "./flooding";
 import { type Shape, RAFT, RAFT_DENSITY } from "./shapes";
 
@@ -793,6 +794,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   airOverlay.frustumCulled = false;
   airOverlay.renderOrder = 999; // draw last so the transparent x-ray composites over the scene
   airOverlay.visible = false; // off by default — a debug aid, toggled on demand (Debug → trapped-air cells)
+  // Main pass only: an x-ray drawn depthTest-off ON TOP of the frame is HUD, not world — it must not
+  // land in the scene capture, where the water would refract/reflect it (see layers.ts).
+  airOverlay.layers.set(MAIN_PASS_LAYER);
 
   const clearArrows = () => {
     for (const a of arrows) a.dispose();
@@ -847,6 +851,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     airOverlay.count = 0;
     airOverlay.frustumCulled = false;
     airOverlay.renderOrder = 999;
+    airOverlay.layers.set(MAIN_PASS_LAYER); // HUD overlay, main pass only — same as at construction
     airOverlay.visible = wasVisible;
     group.add(airOverlay);
   };

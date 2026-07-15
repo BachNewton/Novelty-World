@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
+import { MAIN_PASS_LAYER } from "./layers";
 import {
   CLOUD_ASYMMETRY,
   CLOUD_FIELD_GLSL,
@@ -599,6 +600,9 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
 
   // --- Sun ------------------------------------------------------------------
   const sunLight = new THREE.DirectionalLight(0xffffff, 0);
+  // three layer-filters lights: the merged main pass renders MAIN_PASS_LAYER alone (scene.ts
+  // routeMainPass), and without this the sun would silently stop lighting the water there.
+  sunLight.layers.enable(MAIN_PASS_LAYER);
   sunLight.castShadow = true;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 1;

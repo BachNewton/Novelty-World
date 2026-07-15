@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
+import { MAIN_PASS_LAYER, SSR_LAYER } from "./layers";
 
 /**
  * The analytic Gerstner ocean — the single source of truth for the water
@@ -93,6 +94,10 @@ export interface Ocean {
   sampleParticle: (restX: number, restZ: number, time: number) => ParticleSample;
   /** Bind the scene colour + depth capture the water refracts/absorbs (call once). */
   setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => void;
+  /** MERGED-main-pass occlusion (scene.ts routeMainPass): the present quad writes no depth, so the
+   *  water discards its own behind-opaque fragments against the capture depth instead of depth-testing.
+   *  Must be ON exactly when the merged pass is presenting, OFF on the classic path. */
+  setMergedOcclusion: (on: boolean) => void;
   /** Debug: gate the whole see-through/depth/SSR composite (isolate its cost). */
   setWaterFx: (on: boolean) => void;
   /**
@@ -285,11 +290,6 @@ const OCEAN_BEGIN_FLAT = /* glsl */ `
   vec3 transformed = gDisplaced;
 `;
 
-// The render layer the ocean surface is ALSO drawn on (besides layer 0, the main
-// render), so the dedicated SSR pass can point the camera at this layer alone and
-// render the water by itself into the low-res reflection target. See `renderSsr`.
-const SSR_LAYER = 1;
-
 // Fragment-side declarations + helpers for the refraction / depth / SSR composite.
 //
 // The march count is a UNIFORM (`uSsrSteps`, default SSR_STEPS) with a compile-time MAX bound, so it
@@ -369,6 +369,7 @@ vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
 
 const OCEAN_FRAG_PARS = /* glsl */ `
 uniform bool uWaterFx;
+uniform bool uMergedOcclusion;
 uniform sampler2D uSceneColor;
 uniform sampler2D uSceneDepth;
 uniform vec2 uResolution;
@@ -391,6 +392,26 @@ varying vec3 vWorldNormal;
 varying vec3 vWorldPos;
 varying vec2 vRippleUv;
 ${OCEAN_DEPTH_FUNC}
+`;
+
+// Occlusion for the MERGED main pass (scene.ts routeMainPass), injected at the very TOP of the
+// fragment so an occluded pixel discards before any of the PBR/composite work runs.
+//
+// In the merged pass the present quad is a pure colour blit — it writes NO depth (writing gl_FragDepth
+// from a fullscreen quad disabled early-z and forced per-sample writes into the multisampled
+// backbuffer; measured, it cost most of what merging saved — see present-pass.ts). So there is nothing
+// in the depth buffer for the water to depth-test against, and the classic test's job moves HERE: the
+// shader already knows the scene's depth (it samples the capture for refraction), so a fragment whose
+// scene depth is NEARER than the water surface is behind land/hull and discards itself. The classic
+// path keeps the real depth test and `uMergedOcclusion` stays false.
+//
+// (The flat/wireframe debug materials skip this: they are open-water cost probes, and with the merged
+// pass on they will draw over an island — a debug shading mode being wrong about occlusion is fine.)
+const OCEAN_FRAG_OCCLUSION = /* glsl */ `
+  if (uMergedOcclusion) {
+    vec2 occlUv = gl_FragCoord.xy / uResolution;
+    if (oceanEyeDist(texture2D(uSceneDepth, occlUv).x) < vViewPosition.z) discard;
+  }
 `;
 
 // --- Dedicated SSR reflection pass -----------------------------------------
@@ -567,6 +588,10 @@ export function createOcean(): Ocean {
     // through (no lateral refraction offset — see OCEAN_FRAG_WATER) to see behind the water.
     // Beer–Lambert absorption tints the water column and fades submerged objects with depth.
     uWaterFx: { value: true }, // debug: gate the whole see-through/depth/SSR composite
+    // Merged main pass only (scene.ts routeMainPass → setMergedOcclusion): the water discards its own
+    // behind-opaque fragments against the capture depth, replacing the depth test the classic path got
+    // from the framebuffer. See OCEAN_FRAG_OCCLUSION.
+    uMergedOcclusion: { value: false },
     uSceneColor: { value: null as THREE.Texture | null },
     uSceneDepth: { value: null as THREE.Texture | null },
     uResolution: { value: new THREE.Vector2(1, 1) },
@@ -746,6 +771,11 @@ export function createOcean(): Ocean {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${OCEAN_FRAG_PARS}`)
+      // First statement of main(): the merged-pass occlusion discard, before any shading work.
+      .replace(
+        "#include <clipping_planes_fragment>",
+        `#include <clipping_planes_fragment>\n${OCEAN_FRAG_OCCLUSION}`,
+      )
       // BEFORE the tonemap: the composite runs in linear HDR (see OCEAN_FRAG_WATER).
       .replace(
         "#include <tonemapping_fragment>",
@@ -798,8 +828,11 @@ export function createOcean(): Ocean {
   // Typed as the base Mesh so mesh.material can swap between the PBR and debug-flat
   // materials (setShading); the concrete `material` var is still used for tuning.
   const mesh: THREE.Mesh = new THREE.Mesh(geometry, material);
-  // Also draw the surface on the SSR layer so the reflection pass can render it alone.
+  // Besides layer 0 (the world), the surface is also drawn on the SSR layer (so the reflection pass
+  // can render it alone) and the main-pass layer (so the merged main render — quad + water only —
+  // still sees it; see layers.ts).
   mesh.layers.enable(SSR_LAYER);
+  mesh.layers.enable(MAIN_PASS_LAYER);
   let normalMapOn = true; // debug toggle (setNormalMap); wireframe strips it regardless
 
   // Evaluate the Gerstner sum for a grid point: its horizontal displacement
@@ -917,6 +950,9 @@ export function createOcean(): Ocean {
     setSceneCapture: (color: THREE.Texture, depth: THREE.Texture) => {
       uniforms.uSceneColor.value = color;
       uniforms.uSceneDepth.value = depth;
+    },
+    setMergedOcclusion: (on: boolean) => {
+      uniforms.uMergedOcclusion.value = on;
     },
     setWaterFx: (on: boolean) => {
       uniforms.uWaterFx.value = on;

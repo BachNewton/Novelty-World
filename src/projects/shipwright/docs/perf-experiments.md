@@ -12,6 +12,64 @@
 
 ---
 
+## 2026-07-15 — the merged main pass: built, verified, measured (and the baseline re-anchored)
+
+**Setup:** AMD 780M, headless ANGLE/D3D11, dev server, runtime A/B toggles (`--merged`,
+`--capture-samples`), so every comparison is interleaved in ONE warm session.
+
+### The headline A→B→A (full 12-segment flight, 1600×900, A/A2 agree ≤ 0.2 ms)
+
+| segment | A merged | B classic | A2 merged | win |
+|---|---|---|---|---|
+| down-calm | 6.89 | 7.51 | 6.81 | 0.66 |
+| grazing-storm | 9.70 | 10.14 | 9.80 | 0.39 |
+| fp-sail | 9.45 | 10.01 | 9.26 | 0.66 |
+| **island-approach** | **8.81** | **10.99** | **8.61** | **2.28** |
+| twilight | 10.01 | 10.61 | 10.02 | 0.59 |
+| **max-stress** | **10.43** | **13.00** | **10.31** | **2.63** |
+| 12-segment mean | 8.89 | 9.63 | 8.82 | **0.78 (−8 %)** |
+
+The win tracks the opaque scene's share of the frame — biggest exactly in the frames that were worst.
+`main` p50 on island-approach: 6.60 → 3.07 ms. CPU main-render submit: 0.4 → 0.1 ms.
+
+### The depth-write detour (why the first build measured net ~0)
+
+First build: the present quad wrote `gl_FragDepth` from the capture depth so the water could
+depth-test. Measured net ≈ 0 — the quad cost what the merge saved (no early-z + per-sample writes into
+the 4×-MSAA backbuffer at 5 Mpx). Fix: the water discards its own occluded fragments against the
+capture depth it already samples (`uMergedOcclusion`); the quad is colour-only. Same flight after:
+the table above.
+
+### Capture MSAA (the opaque-AA restore) — measured, and dead as a default
+
+budget.mjs, 3440×1440, one warm session, cumulative: classic 10.5–11.0 → merged 9.9 → **merged +
+capture-samples 4 = 17.0 ms (+7.1)** — a multisampled HalfFloat raster+resolve, the bug-3 composer cost
+family. Backbuffer MSAA (now smoothing only water edges): `--msaa off` on the merged flight reads
+8.32 vs 8.85 overall, ~0.5 ms — a tier knob, left on for the horizon.
+
+### Pixel equivalence (`tools/verify-merged-pass.mjs`)
+
+Freeze-once harness, interior/edge split (edge mask unioned from BOTH images — a sub-pixel spruce twig
+is soft in the MSAA'd classic frame and sharp in the merged one, so a reference-only mask mis-files
+exactly those pixels): interiors match at **mean 0.012–0.022/255**, every >2/255 pixel traces a
+silhouette on the emitted heatmaps. Edges differ by AA provenance only.
+
+### Two findings about the INSTRUMENTS
+
+1. **The 2026-07-12 absolutes did not reproduce.** budget.mjs read 24.8 ms then and 10.5–11.0 now for
+   the same classic config, machine, and commit; profile-live moved 14.3 → ~10 the same way. Prime
+   suspect: thermal/DVFS regime. Corollary: interleaved same-session DELTAS are the only trustworthy
+   unit; re-anchor baselines in-session. (Checked for strays per the doc's rule: one process at ~3 %
+   GPU, nothing material.)
+2. **A segment's cost depends on its flight CONTEXT.** island-approach reads ~8.8 ms inside the full
+   flight (terrain already up two segments) and ~10.8 ms in a 4-segment subset where terrain pops on at
+   its own boundary — same config, same session. So `tools/ab.mjs` subset runs compare only against
+   subset runs, and its ±drift column says when a delta is noise. (ab.mjs exists because the full
+   flight is a scenic tour for the human eye — right for watching, slow for iterating: subset A/B ≈
+   70 s for 5 runs vs ~6 min for 3 full-flight runs.)
+
+---
+
 ## 2026-07-12 full sweep — the current measured model
 
 **Setup:** AMD Radeon 780M (Ryzen 7 7840U), headless ANGLE/D3D11, 1600×900, fixed-dt, production server.
