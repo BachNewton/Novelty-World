@@ -376,21 +376,29 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // public/shipwright/; load them async and attach on success, so a missing or slow file
   // just leaves the wood-brown base colour rather than rendering the raft black.
   const texLoader = new THREE.TextureLoader();
-  const woodMaterial = new THREE.MeshPhysicalMaterial({
+  const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0x6b4f3a, // wood-brown FALLBACK; reset to white once the diffuse map loads (below),
     // so the map shows its true colour instead of being tinted darker by this multiplier.
-    roughness: 0.85, // matte deck timber
+    // 1.0 so the roughnessMap IS the effective roughness (three multiplies base × map.g). The map
+    // is authored to a mean of ~0.85 — real weathered/unfinished timber, matching the DRIFTWOOD spec
+    // in materials.ts — with per-plank variation preserved. A lower base would pull the whole deck
+    // glossier than bare wood and put a milky sun-sheen back on it. See the roughness note in
+    // materials.ts: wood's gloss is its FINISH, and a raft deck is unfinished.
+    roughness: 1,
     metalness: 0,
     // A zeroed specular and a per-material env scale used to live here. Both were the buoy/island
     // seam in another costume: the deck went white not because dry wood is non-reflective (it isn't —
     // every dielectric has F0 ≈ 0.04) but because the sky env out-lit the sun ~21:1, so a broad
-    // white sheen sat on top of everything. With the light balanced, wood is allowed to be wood.
-    // Restore a physical dielectric: full specular, no env exception. See docs/LIGHTING.md.
-    specularIntensity: 1,
-    // Strong normal + an AO map are what stop the deck reading as a flat brown decal: normal
-    // relief needs a raking sun to show (a flat deck lit from overhead shows little), so lean on
-    // it hard; AO darkens the plank seams/crevices in AMBIENT light, giving depth at ANY sun angle.
-    normalScale: new THREE.Vector2(2.5, 2.5),
+    // white sheen sat on top of everything. With the light balanced, wood is allowed to be wood — a
+    // plain Standard dielectric (F0 ≈ 0.04 from ior 1.5), like every other surface. (This was a
+    // MeshPhysicalMaterial only to hold that now-deleted `specularIntensity: 0`; nothing else here
+    // needs Physical's clearcoat/sheen/ior, and Standard's default specular is already full.)
+    // The normal map carries the plank-seam grooves + grain relief, so this stays at the physical
+    // 1.0 — the map does the work, the sun rakes it, and the AO darkens the seams in ambient light
+    // for depth at any sun angle. (It was 2.5 to fake relief out of an earlier map that had almost
+    // none baked in; over-scaling a near-flat map just smeared the bright sky into a milky haze
+    // instead of adding depth. A matched map with real relief needs no exaggeration.)
+    normalScale: new THREE.Vector2(1, 1),
   });
   const woodTextures: THREE.Texture[] = [];
   const loadWood = (
@@ -408,16 +416,17 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     });
   };
   loadWood(
-    "wood_planks_diff.jpg",
+    "weathered_brown_planks_diff_1k.jpg",
     (t) => {
       woodMaterial.map = t;
       woodMaterial.color.setHex(0xffffff); // drop the brown fallback tint now the real map is here
     },
     true,
   );
-  loadWood("wood_planks_nor.jpg", (t) => (woodMaterial.normalMap = t), false);
-  loadWood("wood_planks_rough.jpg", (t) => (woodMaterial.roughnessMap = t), false);
-  loadWood("wood_planks_ao.jpg", (t) => (woodMaterial.aoMap = t), false);
+  // nor_gl: OpenGL-convention normal (+Y green), which three expects — no channel flip needed.
+  loadWood("weathered_brown_planks_nor_gl_1k.png", (t) => (woodMaterial.normalMap = t), false);
+  loadWood("weathered_brown_planks_rough_1k.jpg", (t) => (woodMaterial.roughnessMap = t), false);
+  loadWood("weathered_brown_planks_ao_1k.jpg", (t) => (woodMaterial.aoMap = t), false);
 
   // Reused scratch objects — the per-frame loops must not allocate.
   const tmpQuat = new THREE.Quaternion();
@@ -1609,7 +1618,6 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       // tileable), lower values enlarge the planks but reveal a per-voxel seam.
       const wood = objects.addFolder("Raft wood");
       wood.add(woodMaterial, "roughness", 0, 1, 0.01);
-      wood.add(woodMaterial, "specularIntensity", 0, 1, 0.01).name("specular");
       wood.add(woodMaterial, "aoMapIntensity", 0, 2, 0.05).name("ao"); // crevice depth, any sun angle
       const woodProxy = { normalDepth: woodMaterial.normalScale.x, tile: 1 };
       wood
