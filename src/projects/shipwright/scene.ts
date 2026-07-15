@@ -661,7 +661,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   const cost = {
     water: true,
     skyDome: true,
-    sunShadows: true,
+    sunShadows: false, // PARKED: sun geometry shadows disabled by default (see sky.ts) — toggle on to A/B
     terrain: true,
     spruce: true,
     buoys: true,

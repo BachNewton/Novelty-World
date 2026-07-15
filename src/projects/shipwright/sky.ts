@@ -603,7 +603,12 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   // three layer-filters lights: the merged main pass renders MAIN_PASS_LAYER alone (scene.ts
   // routeMainPass), and without this the sun would silently stop lighting the water there.
   sunLight.layers.enable(MAIN_PASS_LAYER);
-  sunLight.castShadow = true;
+  // PARKED: sun geometry shadows are disabled for now — they need a focused pass, not a patch. On a
+  // bobbing raft the edges CRAWL; the known first fix is texel-snapping this light's camera-following
+  // frustum (snap the focus to whole texels in the LIGHT's view plane, since the low sun's texels are
+  // not ground-aligned — see the cloud map's XZ snap for the top-down analogue). Higher res only
+  // softens the blockiness, not the crawl. Re-enable by flipping this and `shadowMap.enabled` below.
+  sunLight.castShadow = false;
   sunLight.shadow.mapSize.set(2048, 2048);
   sunLight.shadow.camera.near = 1;
   sunLight.shadow.camera.far = 1200;
@@ -621,7 +626,7 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
   scene.add(sunLight);
   scene.add(sunLight.target);
 
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false; // PARKED with sunLight.castShadow above — no shadow pass renders.
   // NOT PCFSoftShadowMap — three deprecated it and silently falls back to PCFShadowMap with a warning.
   renderer.shadowMap.type = THREE.PCFShadowMap;
   // Take manual control of WHEN the shadow map redraws. three's default (`autoUpdate = true`) redraws

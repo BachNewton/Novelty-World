@@ -1217,6 +1217,85 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     }
   };
 
+  // --- Solver-trap diagnostic (TEMPORARY) -------------------------------------------------------
+  // world.step() traps ("unreachable") when Rapier integrates a non-finite body transform, and the
+  // runaway clamp above is meant to make that impossible — yet it still fires in NORMAL play (a camera
+  // flip on a calm sea, no edits). That means the sim is producing bad state we don't yet understand,
+  // so instead of widening the clamp we record every body's state and dump it at the instant of a trap.
+  // We snapshot the PRE-step inputs (right before world.step) rather than reading in the catch, because
+  // a trap poisons the WASM instance: body.translation() afterward would itself throw "recursive use"
+  // (the same reason raycastVoxel bails on simFailed). The snapshot is plain JS numbers, so it's safe to
+  // read post-trap. It names the offender (player vs a voxel body, position vs velocity) and `steps ==
+  // MAX_SUBSTEPS` confirms/denies the frame-hitch → catch-up theory. Remove once the cause is found.
+  const TRAP_STRIDE = 13; // per body: pos(3) rot(4) linvel(3) angvel(3)
+  const TRAP_MAX_BODIES = 64;
+  const trapSnap = new Float32Array(TRAP_MAX_BODIES * TRAP_STRIDE);
+  let trapSnapPlayerPresent = false; // slot 0 is the player when true (see capture/dump order)
+  const snapshotBody = (slot: number, body: RAPIER.RigidBody) => {
+    const o = slot * TRAP_STRIDE;
+    const t = body.translation();
+    const r = body.rotation();
+    const lv = body.linvel();
+    const av = body.angvel();
+    trapSnap[o] = t.x;
+    trapSnap[o + 1] = t.y;
+    trapSnap[o + 2] = t.z;
+    trapSnap[o + 3] = r.x;
+    trapSnap[o + 4] = r.y;
+    trapSnap[o + 5] = r.z;
+    trapSnap[o + 6] = r.w;
+    trapSnap[o + 7] = lv.x;
+    trapSnap[o + 8] = lv.y;
+    trapSnap[o + 9] = lv.z;
+    trapSnap[o + 10] = av.x;
+    trapSnap[o + 11] = av.y;
+    trapSnap[o + 12] = av.z;
+  };
+  // Fixed order [player, ...visuals] so the catch can re-derive each slot's label without storing it.
+  const captureTrapSnapshot = () => {
+    const playerBody = excludedCollider?.parent() ?? null;
+    trapSnapPlayerPresent = playerBody !== null;
+    let slot = 0;
+    if (playerBody) snapshotBody(slot++, playerBody);
+    for (const v of visuals) {
+      if (v.body && slot < TRAP_MAX_BODIES) snapshotBody(slot++, v.body);
+    }
+  };
+  const dumpTrapSlot = (slot: number, label: string) => {
+    const o = slot * TRAP_STRIDE;
+    const pos = [trapSnap[o], trapSnap[o + 1], trapSnap[o + 2]];
+    const rot = [trapSnap[o + 3], trapSnap[o + 4], trapSnap[o + 5], trapSnap[o + 6]];
+    const linvel = [trapSnap[o + 7], trapSnap[o + 8], trapSnap[o + 9]];
+    const angvel = [trapSnap[o + 10], trapSnap[o + 11], trapSnap[o + 12]];
+    const finite = (n: number) => Number.isFinite(n);
+    const bad: string[] = [];
+    if (!pos.every(finite)) bad.push("pos");
+    if (!rot.every(finite)) bad.push("rot");
+    if (!linvel.every(finite)) bad.push("linvel");
+    if (!angvel.every(finite)) bad.push("angvel");
+    console.warn(`  ${label}${bad.length > 0 ? ` — NON-FINITE: ${bad.join(", ")}` : ""}`, {
+      pos,
+      linSpeed: Math.hypot(linvel[0], linvel[1], linvel[2]),
+      angSpeed: Math.hypot(angvel[0], angvel[1], angvel[2]),
+      linvel,
+      angvel,
+      rot,
+    });
+  };
+  const logSolverTrap = (delta: number, steps: number) => {
+    console.warn(
+      `Shipwright solver trap — delta=${delta.toFixed(4)}s steps=${steps}/${MAX_SUBSTEPS} ` +
+        `accumulator=${accumulator.toFixed(4)}s` +
+        (steps === MAX_SUBSTEPS ? " (hit substep cap ⇒ a frame hitch drove catch-up)" : ""),
+    );
+    let slot = 0;
+    if (trapSnapPlayerPresent) dumpTrapSlot(slot++, "player");
+    else console.warn("  player — no body attached");
+    for (let i = 0; i < visuals.length; i++) {
+      if (visuals[i].body) dumpTrapSlot(slot++, `voxel-body[${i}] (${visuals[i].cells.length} voxels)`);
+    }
+  };
+
   // --- Voxel editing (place / break / drop) ---------------------------------------------------
   // Scratch for the edit ops — these run once per click / once per frame (the highlight raycast), not
   // per-voxel, so a little allocation is fine, but keep the hot-ish ray + pose reused.
@@ -1532,6 +1611,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
             editQueue.length = 0;
             rebuildDiagnostics();
           }
+          captureTrapSnapshot(); // TEMPORARY: record pre-step inputs so a trap can name the offender
           const solverStart = globalThis.performance.now();
           world.step();
           lastSolverMs += globalThis.performance.now() - solverStart;
@@ -1556,9 +1636,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       } catch (err) {
         simFailed = true;
         // A WASM trap poisons the instance — stop stepping (raycastVoxel also bails on simFailed, so we
-        // don't spawn the follow-on "recursive use" errors). Freezing beats hard-crashing; if this ever
-        // fires again, re-adding the diagnostic throws pinpoints the trapping call.
+        // don't spawn the follow-on "recursive use" errors). Freezing beats hard-crashing.
         console.warn("Shipwright physics halted after a solver error; freezing bodies.", err);
+        logSolverTrap(delta, steps); // TEMPORARY: dump the pre-step body states to pinpoint the trap
         return;
       }
       if (steps === MAX_SUBSTEPS) accumulator = 0; // drop backlog past the cap
