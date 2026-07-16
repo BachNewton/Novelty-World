@@ -50,6 +50,7 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
   { name: "Trade", prefix: "trade-v" },
   { name: "Search", prefix: "search-v" },
   { name: "Opt", prefix: "opt-v" },
+  { name: "Fable", prefix: "fable-v" },
   { name: "Kyle", prefix: "kyle-v" },
 ];
 

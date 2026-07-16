@@ -203,8 +203,8 @@ plus a registry entry. Current strategies:
 - **Version policies (the archive)** — every other bot a seat can field is a
   concrete **version label** in the archive (`bots/versions/index.ts` `VERSIONS`),
   organized into **LINEAGES** (bot families, namespaced by label prefix —
-  `claude-vN`, `jane-vN`, `gemini-vN`, `trade-vN`). A prefix names **either an
-  authoring machine** (Claude, Jane, Gemini, any future ChatGPT) **or a PARADIGM** a
+  `claude-vN`, `jane-vN`, `gemini-vN`, `trade-vN`, `fable-vN`). A prefix names **either an
+  authoring machine** (Claude, Jane, Gemini, Fable, any future ChatGPT) **or a PARADIGM** a
   line of versions explores (`trade-v` — an asymmetric-valuation trade engine,
   authored on Jane but filed under the idea it's about).
   `Player.botStrategy` stores the **exact label** it plays (or
@@ -400,7 +400,7 @@ bots/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove para
 bots/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
 bots/ratings.ts       GENERATED strength ladder (BOT_RATINGS, claude-v2=0); the lobby derives from this; see bots/CLAUDE.md "Lobby strength ratings"
 bots/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
-bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN
+bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN, fable-vN
 bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (versions left unrated → deprecated, e.g. claude-v1, gemini-v1)
 bots/versions/claude-v1/     claude-v1 snapshot: original champion, frozen — archived, EXCLUDED from the default field (stalls games); claude-v2 is the floor
 bots/versions/claude-v2/     claude-v2 snapshot (rival-threat pricing) + its tests

@@ -113,6 +113,14 @@ import { optV3Bot } from "./opt-v3";
 // opt-v4: maximin ES vs the COMPLETED 8-panel (adds jane-v4, the bot opt-v3
 // counter-overfit against) — pressured to beat opt-v2 AND jane-v4. See `versions/opt-v4/`.
 import { optV4Bot } from "./opt-v4";
+// Fable lineage — authored by Fable (Anthropic's flagship model, driving
+// Claude Code). fable-v1 = the claude-v45 factory + vector borrowed wholesale,
+// extended with the FLOW paradigm the archive lacks: exact 2d6 next-roll
+// landing EV (danger-aware liquidity floor, EV jail rule, tempo build order),
+// a trade-pricing overhaul (bounded survival credit, recipient-standing-scaled
+// rival threat, rail/utility synergy threat, heads-up multiplier, liquidity
+// guard), and a ring-proof transfer memory. See fable-v1/PHILOSOPHY.md.
+import { fableV1Bot } from "./fable-v1";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -198,6 +206,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v2": optV2Bot,
   "opt-v3": optV3Bot,
   "opt-v4": optV4Bot,
+  "fable-v1": fableV1Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
@@ -325,14 +334,21 @@ export const RATING_PANEL: readonly string[] = [
   // train / 62.4% holdout) AND every panel member, ZERO regressions. Kept as a strong
   // distinct vector and the crown base of the current champion.
   "claude-v41",
-  // claude-v41 is the panel CEILING. The top of the ladder — claude-v45 and now its
-  // better-tuned twin claude-v46 — are deliberately NOT in the panel: they are
-  // near-identical 31-param vectors (v46 is v45 re-optimized under the same pinned
-  // lockstep), so each would add ~30 new vs-twin pairings for ~zero new ranking
-  // signal. They join the panel at the next `--full` recalibration. For the v46 crown
-  // gate, claude-v45 was added to the field TRANSIENTLY (the gauntlet needs the base
-  // in the field) and the gauntlet logs hold that measurement; the panel itself stays
-  // at the v41 ceiling here so a default `sim:ratings` regen is cheap.
+  // claude-v45 and its better-tuned twin claude-v46 are deliberately NOT in the
+  // panel: they are near-identical 31-param vectors (v46 is v45 re-optimized under
+  // the same pinned lockstep), so each would add ~30 new vs-twin pairings for ~zero
+  // new ranking signal. They join the panel at the next `--full` recalibration. For
+  // the v46 and fable-v1 crown gates, claude-v45 was added to the field TRANSIENTLY
+  // (the gauntlet needs the base in the field) and the gauntlet logs hold those
+  // measurements.
+  // fable-v1 — the CROWNED champion (2026-07-17): SPRT BETTER vs base claude-v45 on
+  // BOTH streams (56.4% train / 61.1% holdout) AND vs every panel member
+  // (55.2–71.7%), zero regressions, clean out-of-panel sweep (7 more bots, incl. a
+  // 50.2% tie with the strong twin claude-v46). Added per "when you crown a new
+  // champion, add it here" — the first confident SPRT crown since claude-v41, and a
+  // structurally distinct strategy (the flow/extraction paradigm; see
+  // fable-v1/PHILOSOPHY.md), which is exactly the panel's membership rule.
+  "fable-v1",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
