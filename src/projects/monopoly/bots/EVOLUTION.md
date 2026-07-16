@@ -1003,6 +1003,10 @@ trade volume) for zero win share.
 |---|---|---|---|
 | **train** | **BETTER 56.4%** (296–229) | **BETTER all 10** (56.0–67.1%) | none |
 | **holdout** | **BETTER 61.1%** (162–103) | **BETTER all 10** (55.2–71.7%) | none |
+| **confirm** (3rd stream) | **BETTER 57.2%** (254–190) | **BETTER all 10** (61.2–71.7%) | none |
+
+(The third stream's own joint Elo fit also put fable-v1 on top: +7.2 over
+claude-v45 — the −12/−13 in the first two streams was itself within-fit noise.)
 
 Plus 2×1500 fresh-stream versus (57.5% / 56.6%), and a clean out-of-panel sweep
 (claude-v46 **50.2%** — dead even with the strong twin, claude-v47 57.6%,
@@ -1041,6 +1045,18 @@ BEATS v45 confidently, v46 ≈ fable. The crown gate doesn't field v46 (not a
 panel member — exactly how v46's own gate was run), so the crown stands, but
 the honest summary is: fable-v1 confidently beats the champion and the entire
 panel; its one non-win in the archive is the champion's own retuned twin.
+
+**The 1-vs-3 lobby configuration (new instrument):** one candidate seat vs
+THREE champion seats, seat rotating, null = 25% — the geometry a bot actually
+meets in a mixed lobby, which neither the 2+2 versus nor the panel measures.
+400 games each: **fable-v1 alone vs 3× claude-v45 = 30.8%** (+2.6σ over its
+fair share — extraction monetizes a majority of counterparties); **claude-v46
+alone vs 3× claude-v45 = 17.8%** (−3.3σ — the "equal twin" collapses when
+outnumbered; its ES-tuned edge appears to need symmetric conditions). The two
+top-of-ladder bots are NOT interchangeable products: fable overperforms
+outnumbered, v46 underperforms. Worth adding to the standard evaluation kit
+alongside mirror-churn (scratch script: rotate one seat through a 1v3 roster
+over seeds).
 
 **Three post-crown hypotheses tried the same night, all NULL — logged so they
 aren't re-walked (each mechanistically diagnosed, not just "washed"):**
