@@ -343,11 +343,12 @@ export const RATING_PANEL: readonly string[] = [
   // measurements.
   // fable-v1 — the CROWNED champion (2026-07-17): SPRT BETTER vs base claude-v45 on
   // BOTH streams (56.4% train / 61.1% holdout) AND vs every panel member
-  // (55.2–71.7%), zero regressions, clean out-of-panel sweep (7 more bots, incl. a
-  // 50.2% tie with the strong twin claude-v46). Added per "when you crown a new
-  // champion, add it here" — the first confident SPRT crown since claude-v41, and a
-  // structurally distinct strategy (the flow/extraction paradigm; see
-  // fable-v1/PHILOSOPHY.md), which is exactly the panel's membership rule.
+  // (55.2–71.7%), zero regressions, clean out-of-panel sweep (its one non-win in
+  // the archive is a statistical tie with the champion's retuned twin claude-v46,
+  // 48.2% @ 1500). Added per "when you crown a new champion, add it here" — the
+  // first confident SPRT crown since claude-v41, and a structurally distinct
+  // strategy (the flow/extraction paradigm; see fable-v1/PHILOSOPHY.md), which is
+  // exactly the panel's membership rule.
   "fable-v1",
 ];
 

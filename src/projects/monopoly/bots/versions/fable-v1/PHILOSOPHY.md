@@ -202,4 +202,7 @@ fresh streams (54.4% / 55.5% pre-floor-tune). Crown gate: `sim:gauntlet --
 fable-v1 --base claude-v45 --panel` on both streams + the out-of-panel
 anti-overfit sweep; ring/termination checked via self-play mirror trade volume
 (the v45 lesson: win share alone cannot see degenerate churn) — fable mirrors
-run 5–8 trades/game, same as v45, all decisive.
+run 5–8 trades/game, same as v45, all decisive. The one non-win in the
+archive: a statistical tie with claude-v46, the champion's retuned twin
+(48.2% at 1500 games — the same summit texture as v46-vs-v45's inconclusive
+51.5–52.2%).

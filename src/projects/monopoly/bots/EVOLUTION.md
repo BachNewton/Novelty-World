@@ -1033,6 +1033,41 @@ calibration idea) — the top lead for fable-v2. (Also noted: fable×claude-v5
 pairings show ~130 trades/game — that churn is claude-v5's own pre-v35 ring,
 reproduced at ~101/game in claude-v5×claude-v45 too; not fable-induced.)
 
+**The claude-v46 caveat (post-crown, 1500 games):** vs the strong non-panel
+twin claude-v46, fable-v1 reads **48.2%** (722–777; pooled with the earlier
+400-game 50.2% ≈ 48.6%, ~1.2σ below even) — a statistical tie leaning v46.
+Same summit texture as before: v46 ties v45 (51.5–52.2% inconclusive), fable
+BEATS v45 confidently, v46 ≈ fable. The crown gate doesn't field v46 (not a
+panel member — exactly how v46's own gate was run), so the crown stands, but
+the honest summary is: fable-v1 confidently beats the champion and the entire
+panel; its one non-win in the archive is the champion's own retuned twin.
+
+**Three post-crown hypotheses tried the same night, all NULL — logged so they
+aren't re-walked (each mechanistically diagnosed, not just "washed"):**
+
+1. **Self-lead defense** (`selfLeadGain` — "a dominant leader stops selling
+   sets"): +2 vs claude-v45 but −2.5 vs claude-v2 and −2 vs claude-v5 (800
+   each). Against most of the field, extraction stays +EV even from the lead —
+   a weak rival handed a set still can't out-earn the premium. Lever shipped
+   as a documented no-op in fable-v1.
+2. **The fish gate** (opponent-quality-adaptive defense off observed overpay
+   history, the surgical version of trade-v1's calibration): FLAT at every
+   threshold (57.2/57.2/57.4/57.2 vs claude-v2). Diagnosis: the overpay
+   evidence only accumulates AFTER the first extraction sale — by the time a
+   fish is provably a fish, it's already been eaten. Within-game behavioral
+   adaptation has a signal-TIMING problem; a useful opponent model needs a
+   PRIOR, which in-game evidence can't provide at T0. (Prototype deleted; no
+   version.)
+3. **The broker engine** (mutual-completion swaps between two OTHER players,
+   both sides' surplus skimmed by the non-party proposer — the engine allows
+   it; no bot has ever used it): a PERFECT null (480–320 with and without;
+   +1 trade in 800 games). Diagnosis: the mutual-cycle geometry is consumed
+   instantly by the PARTIES' own bilateral swap constructors — every bot in
+   the field detects its own cycles at the same turn boundary, so the
+   third-party niche is empty. Extraction (F4) worked precisely because the
+   sell-side shape existed in NOBODY's constructor. (Prototype deleted; no
+   version.)
+
 **Methodology lessons.** (1) An early 100-game read said 56%; the first honest
 1500-game read said 48.7% — single-stream screens under ~800 games misled twice
 (a favorable "tune" stream, an unfavorable "sg"). Everything above was
@@ -1191,7 +1226,7 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
-| fable-v1 | 2026-07-17 | **New FABLE lineage — the flow/extraction paradigm** (`versions/fable-v1/`, see PHILOSOPHY.md + the session section above): claude-v45's factory + vector wholesale, plus (a) an EXTRACTION engine — proactively sell held completers / railroads to the one-short rival at their closed-form solved premium, and price every 2-party proposal to the margin in BOTH directions (`chargeSurplus`); (b) a flow layer — exact 2d6 next-roll landing EV driving a danger-aware liquidity floor and a tempo build order; (c) a trade-pricing overhaul — bounded survival credit, recipient-standing-scaled threat (floored at 1), rail/utility synergy threat, heads-up multiplier, trade liquidity guard; (d) a ring-proof transfer memory. Evidence base: the six stored human-beats-v45 games. EV jail rule and buy-to-scalp tried and measured OUT. | **CROWN GATE (field = panel + claude-v45), BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base claude-v45 (56.4% train / 61.1% holdout) AND every panel member (train 56.0–67.1%, holdout 55.2–71.7%), **zero regressions**; 2×1500 fresh-stream versus 57.5%/56.6%; out-of-panel clean (7 bots, incl. 50.2% vs the twin claude-v46). Mirror churn clean (5–8 trades/game, all decisive). | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; first confident SPRT crown since claude-v41).** Wins by selling well against strong, cash-rich opponents; the weak-field margins are smaller than v45's (see the non-transitivity note). |
+| fable-v1 | 2026-07-17 | **New FABLE lineage — the flow/extraction paradigm** (`versions/fable-v1/`, see PHILOSOPHY.md + the session section above): claude-v45's factory + vector wholesale, plus (a) an EXTRACTION engine — proactively sell held completers / railroads to the one-short rival at their closed-form solved premium, and price every 2-party proposal to the margin in BOTH directions (`chargeSurplus`); (b) a flow layer — exact 2d6 next-roll landing EV driving a danger-aware liquidity floor and a tempo build order; (c) a trade-pricing overhaul — bounded survival credit, recipient-standing-scaled threat (floored at 1), rail/utility synergy threat, heads-up multiplier, trade liquidity guard; (d) a ring-proof transfer memory. Evidence base: the six stored human-beats-v45 games. EV jail rule and buy-to-scalp tried and measured OUT. | **CROWN GATE (field = panel + claude-v45), BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base claude-v45 (56.4% train / 61.1% holdout) AND every panel member (train 56.0–67.1%, holdout 55.2–71.7%), **zero regressions**; 2×1500 fresh-stream versus 57.5%/56.6%; out-of-panel clean except a statistical tie with the twin claude-v46 (48.2% @ 1500). Mirror churn clean (5–8 trades/game, all decisive). | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; first confident SPRT crown since claude-v41).** Wins by selling well against strong, cash-rich opponents; the weak-field margins are smaller than v45's (see the non-transitivity note). |
 | claude-v41 | 2026-06-23 | **Seller-side trade pricing — Refinement #3 (b)+(c)** (`versions/claude-v41/`, PR #1): the claude-v39 substrate (opt-v4 vector + restored `denialPositionCost`) plus Kyle's thesis "don't gift a monopoly for spendable-on-nothing cash." Two changes: **(b)** decouple `rivalThreatFactor` from `denyFactor` and set it to **0.4** (was pinned to ~0.317), so the bot prices its OWN harm in handing a rival a set nearer to what the rival gains; **(c)** a **`deployabilityDiscount` (0.5)** on incoming cash in a set-handover trade — a safe seat with no outlet values that cash below face. PR also shipped `claude-v40` (same idea at `rivalThreatFactor=0.6`, the author's failed intermediate — too aggressive, refuses balanced trades). Re-measured from current `main` (PR was NOT stale this time — merge-base = HEAD). | **CROWN GATE `--base opt-v4 --panel`, BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base opt-v4 (55.7% train / 62.4% holdout) AND every panel member — claude-v2 65.7/67.5, claude-v5 72.0/76.7, claude-v17 71.7/74.8, claude-v35 67.7/70.3, jane-v2 55.4/55.0, claude-v36 54.8/52.7, opt-v2 54.4/53.5, jane-v4 53.9/56.0 — **9/9 BETTER, ZERO regressions on both streams.** Ladder Elo **+194.1** (top of the Claude family). PR's own claim REPRODUCED exactly. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate, supersedes opt-v4).** First crown that addresses the *root* of the hot-potato (bots too willing to SELL completers) rather than the symptom (denial pricing the buy/hold side). NON-TRANSITIVITY NOTE: claude-v41 sits **#4 on the panel-graph Elo ladder** (behind opt-v3 +210.7 / opt-v4 +204.2 / opt-v2 +201.1) despite BEATING opt-v4 (56%) and opt-v2 (59%) HEAD-TO-HEAD — the opt trio crush the low floor slightly harder, so the global least-squares fit can't fully credit v41's direct edge (~6-Elo panel-fit noise). The crown is the head-to-head SPRT vs the field, NOT the global Elo rank — so it's the champion but NOT the lobby's Strongest/default (opt-v3 still tops the ladder). Added to RATING_PANEL. claude-v40 RECORDED at +125.5 (mid-pack — confirms 0.6 over-aggression). |
 | claude-v39 | 2026-06-23 | **Restore the holder-side denial price on the opt base** (`versions/claude-v39/`): the opt-v4 champion factory + `denialPositionCost` (the v35 symmetric-pricing fix the v36→opt line dropped), opt-v4 vector unchanged — ONE logical change. Motivated by real human-vs-bot games `514j43` + `16043u`, where two opt/claude bots hot-potatoed one completer 18–24× (the strong-set ring the `rivalCanAcquire` phantom gate doesn't catch) while the human just developed and won. | **Ring collapses** — one lot's hops 15–99 → 1–6 in the accumulator config (pinned in `policy.test.ts`). Gauntlet `--base opt-v4 --panel`: **EVEN vs opt-v4 (50.1%, ~2k games)**, **BETTER vs all 8 other panel members** (57–68%), **zero regressions**. Confirmed EVEN across 3 seed streams (50/52/54%). | **RECORDED, not crowned** — EVEN vs base (a clean non-regression, not a strict win), so a player-default-eligible ladder peer of the opt trio, not a crown. Value: removes a human-exploitable degenerate behavior at no measured cost; the clean substrate for Refinement-target #3 (seller-side trade pricing). NOTE: the deny-knob is NOT the Bot-2 lever — sweeping `denyFactor` down regressed (42–45% vs opt-v4), up plateaued then deadlocked; see Refinement-target #3 for the decoupled seller-side direction. |
 | opt-v4 | 2026-06-23 | **Maximin ES vs the COMPLETED 8-panel** (`versions/opt-v4/`): the opt-v3 fix in action — add jane-v4 (the bot opt-v3 counter-overfit against) to the panel, so the maximin search must beat opt-v2 AND jane-v4. A distinct robust vector (denial 0.317, hotelCushion 300→0, bonusScale 16.4k→22k). | **CROWN GATE vs base opt-v2, BOTH STREAMS: ✅ ACCEPT.** SPRT BETTER vs opt-v2 (57.1% train / 59.3% holdout), vs jane-v4 (58.1/57.7%), and vs every panel member; NO regressions. **Out-of-panel: NO regressions either** (jane-v3 56%, claude-v38 52%, claude-v30 80%, claude-v21 70%) — unlike opt-v3, it holds EVERYWHERE. | **ACCEPTED — NEW ROBUST CROWNED CHAMPION (crown + substrate, supersedes opt-v2).** Validates the methodology end-to-end: COMPLETING the panel (adding the counter's nemesis jane-v4) turned opt-v3's overfit-counter trap into a genuine robust improvement. The maximin loop + panel-completion + out-of-panel check is productively self-improving. Added to RATING_PANEL. |
@@ -1252,12 +1287,18 @@ section + version-log row). The proven win shape it adds to the "asymmetric +
 underpriced transfers" family: **exercise the held-completer option** — sell the
 completer/railroad to the one-short rival at their closed-form solved surplus,
 instead of holding the option passively (the whole archive) or buying it
-overpriced (buy-to-scalp, measured out). Leads for a future fable-v2: the
-extraction engine + claude-v3's archived N-way search (extraction IS the
-asymmetry lever N-way was waiting for); an ES re-tune of the 13 fable levers
-(hand-picked tonight, only 5 constants swept); and the anti-human defensive
-stack's value is UNMEASURED vs actual humans — the six-game review pattern
-(`game:review`) is the instrument to re-run once real fable-v1 games exist.
+overpriced (buy-to-scalp, measured out). Leads for a future fable-v2, updated after
+three same-night nulls (self-lead defense, the fish gate, the broker engine —
+see the fable-v1 session section for each diagnosis): (1) an **ES re-tune of
+the full fable factory** (47 dims; the 13 fable levers were hand-picked, only
+5 constants swept — the optimize/ harness needs rebinding to the fable
+factory); (2) **opponent-quality PRIORS** — the fish gate proved within-game
+evidence arrives too late, so quality estimation needs a prior (a learned
+value/opponent model, the RL-DESIGN.md direction); (3) the anti-human
+defensive stack's value is UNMEASURED vs actual humans — the six-game review
+pattern (`game:review`) is the instrument to re-run once real fable-v1 games
+exist; (4) separating from claude-v46 (fable's one non-win, 48.2% @ 1500)
+likely needs one of the above, not another hand lever.
 
 **Two independent tracks — don't conflate them:**
 
