@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type GUI from "three/examples/jsm/libs/lil-gui.module.min.js";
 import { MAIN_PASS_LAYER, SSR_LAYER } from "./layers";
+import { buildLodGrid, snapToLattice, type LodGridOptions } from "./ocean-lod";
 
 /**
  * The analytic Gerstner ocean — the single source of truth for the water
@@ -30,9 +31,20 @@ const PLANE_SIZE = 10000; // 10 km of sea — the far edge sits at the horizon
 // which can make the CPU-placed cube read as floating a touch high. Accepted for
 // now to ease the vertex load — ~1 M vertices vs. ~4 M at 2048² — and the cube's
 // placement becomes a Rapier buoyancy concern (roadmap #6) rather than a pure
-// render-alignment one. 2048² removes the faceting; a camera-following LOD grid
-// (see CLAUDE.md) is the real fix when far water shouldn't cost full detail.
+// render-alignment one. These uniform-grid constants remain as the A/B BASELINE;
+// the shipped default is the camera-following LOD grid below (ocean-lod.ts).
 const PLANE_SEGMENTS = 1024;
+// Camera-following LOD grid defaults (ocean-lod.ts; measured in docs/PERFORMANCE.md).
+// The dense ~512 m patch keeps the shipped ~4.9 m quads under the camera; five
+// doubling rings reach a ~16 km sea — past the ~5.4 km optical horizon from deck
+// height (docs/ISLANDS.md) — for ~52k vertices vs ~1.05 M uniform at the same
+// near density. The vertex bill is paid twice a frame (SSR pass + main pass),
+// which is why this is the single largest GPU lever the project has measured.
+const LOD_DEFAULTS: LodGridOptions = {
+  baseQuad: PLANE_SIZE / 2048, // ≈4.88 m — the shipped uniform-grid density
+  nearExtent: 512,
+  extent: 16384,
+};
 const GRAVITY = 9.81;
 const TWO_PI = Math.PI * 2;
 const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
@@ -162,8 +174,30 @@ export interface Ocean {
   ) => void;
   /** Rebuild the surface mesh at a new plane size (m) + tessellation (segments/side).
    *  Debug: the GUI holds quad size (density) constant, so plane size and vertex
-   *  count scale together rather than the grid getting finer as the sea shrinks. */
+   *  count scale together rather than the grid getting finer as the sea shrinks.
+   *  This is the UNIFORM-grid path (lod-ceiling.mjs sweeps it); calling it
+   *  disables the camera-following LOD grid. */
   setGrid: (size: number, segments: number) => void;
+  /** Camera-following LOD grid (default ON): a dense near patch + concentric rings
+   *  of doubling quad size, one welded mesh (ocean-lod.ts). Off = the uniform grid. */
+  setLodEnabled: (on: boolean) => void;
+  isLodEnabled: () => boolean;
+  /** Rebuild the LOD grid with new parameters (near-patch quad/size, total extent). */
+  setLodParams: (opts: Partial<LodGridOptions>) => void;
+  /** Per frame, before the pre-passes: snap the LOD mesh to the camera on the
+   *  coarsest-quad lattice and hand the offset to the shader, which evaluates the
+   *  waves in WORLD space — so every vertex lands on a fixed world lattice and the
+   *  follow is invisible (no swimming, no pop). No-op when the LOD grid is off. */
+  followCamera: (camera: THREE.Camera) => void;
+  /** The current LOD grid's real numbers (for the GUI readout + tools). */
+  lodStats: () => {
+    enabled: boolean;
+    vertices: number;
+    triangles: number;
+    extent: number;
+    nearExtent: number;
+    levels: number;
+  };
   dispose: () => void;
 }
 
@@ -235,6 +269,11 @@ varying vec3 vWorldNormal;
 uniform float uRippleMeters;
 uniform vec2 uRippleOffset;
 varying vec2 vRippleUv;
+// Camera-follow offset (m): the LOD mesh translates with the camera, so the vertex
+// shaders add the mesh's world xz back before evaluating the waves — the wave field
+// must be sampled in WORLD space or the sea would ride along with the viewer. Zero
+// whenever the LOD grid is off (the uniform mesh stays fixed at the origin).
+uniform vec2 uWorldOffset;
 
 void gerstner(vec2 p, out vec3 displaced, out vec3 gnormal) {
   vec3 pos = vec3(p.x, 0.0, p.y);
@@ -266,18 +305,26 @@ void gerstner(vec2 p, out vec3 displaced, out vec3 gnormal) {
 const OCEAN_BEGINNORMAL = /* glsl */ `
   vec3 gDisplaced;
   vec3 gNormal;
-  gerstner(position.xz, gDisplaced, gNormal);
+  // Evaluate the waves at the WORLD position: gerstner() returns a displaced
+  // POSITION, so subtract the camera-follow offset back out afterwards — the
+  // modelViewMatrix re-adds the mesh translation. (With the LOD grid off the
+  // offset is zero and this is the old origin-anchored evaluation.)
+  vec2 gWorldXz = position.xz + uWorldOffset;
+  gerstner(gWorldXz, gDisplaced, gNormal);
+  gDisplaced.xz -= uWorldOffset;
   vec3 objectNormal = gNormal;
   #ifdef USE_TANGENT
   vec3 objectTangent = vec3(tangent.xyz);
   #endif
-  // The mesh is world-aligned and untransformed, so the Gerstner object normal is
-  // the world normal — handed to the fragment shader to wobble the refraction with
-  // (its xz is 0 on flat water → no distortion, and grows with the waves).
+  // The mesh is world-aligned (rotation baked, translation follow-only), so the
+  // Gerstner object normal is the world normal — handed to the fragment shader to
+  // wobble the refraction with (its xz is 0 on flat water → no distortion, and
+  // grows with the waves).
   vWorldNormal = gNormal;
-  // World-space ripple UV (matches the detail normal map's tiling + scroll) so the
-  // fragment can distort the sampled reflection by the same ripples the surface shows.
-  vRippleUv = position.xz / uRippleMeters + uRippleOffset;
+  // World-space ripple UV (tiling + scroll) — world-anchored so the ripples stay
+  // put as the LOD mesh follows the camera. Also the UV the normal map itself is
+  // sampled at (see the normal_fragment_* patches in onBeforeCompile).
+  vRippleUv = gWorldXz / uRippleMeters + uRippleOffset;
 `;
 
 // Vertex displacement ONLY (no normal), for the debug unlit MeshBasicMaterial. Same
@@ -286,7 +333,9 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
 const OCEAN_BEGIN_FLAT = /* glsl */ `
   vec3 gDisplaced;
   vec3 gFlatNormal;
-  gerstner(position.xz, gDisplaced, gFlatNormal);
+  vec2 gWorldXz = position.xz + uWorldOffset;
+  gerstner(gWorldXz, gDisplaced, gFlatNormal);
+  gDisplaced.xz -= uWorldOffset;
   vec3 transformed = gDisplaced;
 `;
 
@@ -428,7 +477,11 @@ varying vec3 vSsrViewNormal;
 void main() {
   vec3 gDisplaced;
   vec3 gNormal;
-  gerstner(position.xz, gDisplaced, gNormal);
+  // Same world-space evaluation as OCEAN_BEGINNORMAL — the SSR pass renders the
+  // same camera-following mesh, so its surface must match the visible one exactly.
+  vec2 gWorldXz = position.xz + uWorldOffset;
+  gerstner(gWorldXz, gDisplaced, gNormal);
+  gDisplaced.xz -= uWorldOffset;
   vec4 mvPosition = modelViewMatrix * vec4(gDisplaced, 1.0);
   vSsrViewPos = mvPosition.xyz;
   vSsrViewNormal = normalMatrix * gNormal;
@@ -640,6 +693,9 @@ export function createOcean(): Ocean {
     uReflectDistort: { value: 0.03 },
     uRippleMeters: { value: DETAIL_RIPPLE_METERS },
     uRippleOffset: { value: new THREE.Vector2(0, 0) },
+    // Camera-follow offset for the LOD grid — see the OCEAN_PARS declaration.
+    // Written per frame by followCamera; stays (0,0) on the uniform grid.
+    uWorldOffset: { value: new THREE.Vector2(0, 0) },
   };
 
   // Load a water type's optical coefficients into the uniforms. Colour + clarity derive
@@ -699,7 +755,32 @@ export function createOcean(): Ocean {
     geo.rotateX(-Math.PI / 2);
     return geo;
   };
-  const geometry = buildGeometry();
+
+  // --- Camera-following LOD grid (default ON) --------------------------------
+  // One welded mesh: dense near patch + rings of doubling quad size (ocean-lod.ts).
+  // followCamera snaps the mesh to the camera on the coarsest-quad lattice, so
+  // every vertex of every ring lands on a fixed set of world positions — the
+  // sampled wave field is bitwise-stable across snaps (no swimming, no pop).
+  let lodEnabled = true;
+  const lodParams: LodGridOptions = { ...LOD_DEFAULTS };
+  let lodCoarsestQuad = LOD_DEFAULTS.baseQuad;
+  let lodInfo = { vertices: 0, triangles: 0, extent: 0, nearExtent: 0, levels: 0 };
+  const buildLodGeometry = () => {
+    const grid = buildLodGrid(lodParams);
+    lodCoarsestQuad = grid.coarsestQuad;
+    lodInfo = {
+      vertices: grid.vertexCount,
+      triangles: grid.triangleCount,
+      extent: grid.extent,
+      nearExtent: grid.nearExtent,
+      levels: grid.levels,
+    };
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(grid.positions, 3));
+    geo.setIndex(new THREE.BufferAttribute(grid.index, 1));
+    return geo;
+  };
+  const geometry = buildLodGeometry(); // LOD is the default; setLodEnabled(false) swaps to the uniform grid
 
   // The ripple map loads asynchronously, and the water renders visibly differently before it
   // arrives. Anything that wants a settled frame (the screenshot suite) must WAIT ON THIS, not on a
@@ -712,16 +793,19 @@ export function createOcean(): Ocean {
   detailNormals.wrapT = THREE.RepeatWrapping;
   // Max anisotropy: the ripple normal map is sampled at a hard grazing angle across the far
   // water, where low anisotropy minifies it into faint diagonal streaks (the scroll direction
-  // aliasing). 16× (clamped to the GPU's max) resolves the grazing minification. The real fix
-  // for the far field is the camera-following LOD grid (see CLAUDE.md); this is the cheap win.
+  // aliasing). 16× (clamped to the GPU's max) resolves the grazing minification. NB the LOD
+  // grid shipped and did NOT change this (verified pixel-identical far glitter) — the residual
+  // moiré is per-pixel map minification; the remaining fix is dual-scale normals or a distance
+  // fade of ripple strength (docs/FIDELITY.md).
   detailNormals.anisotropy = 16;
-  // Ripple tiling is derived from the plane size so the ripple world-scale is fixed
-  // regardless of plane size (kept in lock-step by setGrid + the GUI ripple control).
   uniforms.uReflectRipple.value = detailNormals; // reuse the ripple map for reflection distortion
   let rippleMeters = DETAIL_RIPPLE_METERS;
   const applyRipple = () => {
-    const tiles = planeSize / rippleMeters;
-    detailNormals.repeat.set(tiles, tiles);
+    // The ripple mapping lives entirely in the shader (vRippleUv = world.xz /
+    // uRippleMeters + scroll) — WORLD-anchored, not geometry-uv based, so the
+    // camera-following LOD mesh doesn't carry the ripples with it. The texture's
+    // own repeat/offset transform is deliberately unused (see the
+    // normal_fragment_* patches in onBeforeCompile).
     uniforms.uRippleMeters.value = rippleMeters;
   };
   applyRipple();
@@ -767,6 +851,17 @@ export function createOcean(): Ocean {
   // No per-material env scale. The IBL from `scene.environment` is the physically-scaled sky dome,
   // at `scene.environmentIntensity = 1`, exactly like every other material in the project. That is
   // the whole thesis: one lighting model, no per-material exceptions.
+  // The fine-ripple normal map must be sampled in WORLD space: the stock
+  // vNormalMapUv is geometry-uv based (mesh-local), so on the camera-following
+  // LOD mesh the ripples would ride along and jump at every snap. vRippleUv is
+  // the same tiling + scroll mapping, world-anchored — swap it into three's
+  // resolved chunks: the tangent frame (normal_fragment_begin) AND the sample
+  // (normal_fragment_maps). Splicing the installed version's own chunk text
+  // keeps this robust to chunk-content changes, and it means the LOD geometry
+  // needs no uv attribute at all. The #ifdef guards travel with the text, so
+  // the no-normal-map modes (wireframe / setNormalMap(false)) stay correct.
+  const worldAnchoredNormalChunk = (chunk: string) =>
+    chunk.replaceAll("vNormalMapUv", "vRippleUv");
   material.onBeforeCompile = (shader) => {
     patchGerstnerVertex(shader);
     shader.fragmentShader = shader.fragmentShader
@@ -775,6 +870,14 @@ export function createOcean(): Ocean {
       .replace(
         "#include <clipping_planes_fragment>",
         `#include <clipping_planes_fragment>\n${OCEAN_FRAG_OCCLUSION}`,
+      )
+      .replace(
+        "#include <normal_fragment_begin>",
+        worldAnchoredNormalChunk(THREE.ShaderChunk.normal_fragment_begin),
+      )
+      .replace(
+        "#include <normal_fragment_maps>",
+        worldAnchoredNormalChunk(THREE.ShaderChunk.normal_fragment_maps),
       )
       // BEFORE the tonemap: the composite runs in linear HDR (see OCEAN_FRAG_WATER).
       .replace(
@@ -819,6 +922,10 @@ export function createOcean(): Ocean {
       uSsrThickness: uniforms.uSsrThickness,
       uSsrMinFresnel: uniforms.uSsrMinFresnel,
       uSsrSteps: uniforms.uSsrSteps,
+      // Shared BY REFERENCE with the main material, but a ShaderMaterial only
+      // uploads the keys listed here — forget one and the SSR surface silently
+      // diverges from the visible water.
+      uWorldOffset: uniforms.uWorldOffset,
     },
     vertexShader: OCEAN_SSR_VERT,
     fragmentShader: OCEAN_SSR_FRAG,
@@ -935,8 +1042,9 @@ export function createOcean(): Ocean {
     update: (time) => {
       uniforms.uTime.value = time;
       // Scroll the ripple layers diagonally so the surface never looks static.
-      detailNormals.offset.set(time * 0.03, time * 0.015);
-      uniforms.uRippleOffset.value.copy(detailNormals.offset); // keep reflection distortion in sync
+      // The scroll lives in the vRippleUv uniform — the texture's own transform
+      // is unused now the map is sampled at the world-anchored UV (applyRipple).
+      uniforms.uRippleOffset.value.set(time * 0.03, time * 0.015);
     },
     sampleSurface,
     sampleHeight,
@@ -1123,12 +1231,47 @@ export function createOcean(): Ocean {
       mesh.material = prevMat;
     },
     setGrid: (size, segments) => {
+      // Explicitly requesting the uniform grid switches the LOD grid off — the
+      // two are mutually exclusive shapes of the one mesh. The follow offset must
+      // go back to zero with it, or the fixed plane would sample shifted waves.
+      lodEnabled = false;
+      mesh.position.set(0, 0, 0);
+      uniforms.uWorldOffset.value.set(0, 0);
       planeSize = size;
       planeSegments = segments;
       mesh.geometry.dispose();
       mesh.geometry = buildGeometry();
-      applyRipple(); // hold the ripple world-scale constant across plane-size changes
     },
+    setLodEnabled: (on) => {
+      if (on === lodEnabled) return;
+      lodEnabled = on;
+      mesh.geometry.dispose();
+      if (on) {
+        mesh.geometry = buildLodGeometry();
+        // followCamera snaps into place on the next frame.
+      } else {
+        mesh.position.set(0, 0, 0);
+        uniforms.uWorldOffset.value.set(0, 0);
+        mesh.geometry = buildGeometry();
+      }
+    },
+    isLodEnabled: () => lodEnabled,
+    setLodParams: (opts) => {
+      Object.assign(lodParams, opts);
+      if (!lodEnabled) return; // picked up on the next setLodEnabled(true)
+      mesh.geometry.dispose();
+      mesh.geometry = buildLodGeometry();
+    },
+    followCamera: (camera) => {
+      if (!lodEnabled) return;
+      // Snap on the coarsest-quad lattice: every ring's quad size divides it, so
+      // all vertices land back on the identical world lattice after any snap.
+      const sx = snapToLattice(camera.position.x, lodCoarsestQuad);
+      const sz = snapToLattice(camera.position.z, lodCoarsestQuad);
+      mesh.position.set(sx, 0, sz);
+      uniforms.uWorldOffset.value.set(sx, sz);
+    },
+    lodStats: () => ({ enabled: lodEnabled, ...lodInfo }),
     dispose: () => {
       mesh.geometry.dispose();
       material.dispose();

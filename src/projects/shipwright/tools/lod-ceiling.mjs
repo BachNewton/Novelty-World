@@ -86,6 +86,7 @@ try {
         const all = {};
         for (const k of sw.costKeys()) all[k] = true;
         sw.setCost({ ...all, water: w });
+        sw.setOceanLod(false); // this tool prices the UNIFORM grid the LOD ocean replaces
         sw.setPlaneSize(5000); // FIXED. The sea must still reach the horizon.
         sw.setQuadSize(q);
       },

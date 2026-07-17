@@ -57,16 +57,19 @@ await page.waitForFunction(() => "__shipwright" in window, { timeout: 30000 });
 await page.waitForFunction(() => window.__shipwright.isReady(), { timeout: 30000 });
 await page.waitForTimeout(4000);
 
-const measure = async (captureScale, quad, merged, captureSamples) => {
+const measure = async (captureScale, quad, merged, captureSamples, lod = false) => {
   await page.evaluate(
-    ({ q, c, m, s }) => {
-      window.__shipwright.setPlaneSize(5000); // the sea must still reach the horizon
+    ({ q, c, m, s, l }) => {
+      // LOD first: setPlaneSize/setQuadSize dispatch on it (LOD on ignores the plane size —
+      // the rings set their own ~16 km reach; quad then means the near-patch density).
+      window.__shipwright.setOceanLod(l);
+      window.__shipwright.setPlaneSize(5000); // uniform path: the sea must still reach the horizon
       window.__shipwright.setQuadSize(q);
       window.__shipwright.setCaptureScale(c);
       window.__shipwright.setMergedPass(m);
       window.__shipwright.setCaptureSamples(s);
     },
-    { q: quad, c: captureScale, m: merged, s: captureSamples },
+    { q: quad, c: captureScale, m: merged, s: captureSamples, l: lod },
   );
   await page.waitForTimeout(1800);
 
@@ -106,11 +109,13 @@ const measure = async (captureScale, quad, merged, captureSamples) => {
 
 try {
   const rows = [];
+  // The stack now builds toward the SHIPPED config: merged pass + the real LOD ocean (row 3 —
+  // previously simulated with a uniform quad-40 plane), then the optional dials on top.
   rows.push({ label: "CLASSIC (2-pass)", ...(await measure(1, 4.9, false, 0)) });
   rows.push({ label: "MERGED main pass", ...(await measure(1, 4.9, true, 0)) });
-  rows.push({ label: "+ capture MSAA 4x", ...(await measure(1, 4.9, true, 4)) });
-  rows.push({ label: "+ LOD ocean", ...(await measure(1, 40, true, 4)) });
-  rows.push({ label: "+ capture 0.5", ...(await measure(0.5, 40, true, 4)) });
+  rows.push({ label: "+ LOD ocean", ...(await measure(1, 4.9, true, 0, true)) });
+  rows.push({ label: "+ capture MSAA 4x", ...(await measure(1, 4.9, true, 4, true)) });
+  rows.push({ label: "+ capture 0.5", ...(await measure(0.5, 4.9, true, 4, true)) });
   // Re-baseline: back to the first row's config at the END of the same warm session. If this does not
   // land on the first row, the machine drifted under us and the whole table is suspect.
   rows.push({ label: "= CLASSIC again", ...(await measure(1, 4.9, false, 0)) });
@@ -148,8 +153,9 @@ try {
     [
       "",
       `row 1 → row 2 is the duplicate scene pass's real price (the merged main pass is the shipped`,
-      `default; row 1 measures the old path). Row 3 prices restoring opaque-geometry AA via the`,
-      `capture target's own MSAA — the backbuffer's MSAA cannot see edges baked into the capture.`,
+      `default; row 1 measures the old path). Row 3 is the REAL camera-following LOD ocean (also`,
+      `shipped-default). Row 4 prices restoring opaque-geometry AA via the capture target's own`,
+      `MSAA — the backbuffer's MSAA cannot see edges baked into the capture.`,
       "",
       `budget lines:  60 fps = 16.7 ms    100 fps = 10.0 ms    144 fps = 6.9 ms`,
       `(frame/real fps include CPU and are vsync-capped at 60 in headless — read the GPU columns.)`,
