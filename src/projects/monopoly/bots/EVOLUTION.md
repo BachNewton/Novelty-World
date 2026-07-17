@@ -912,6 +912,32 @@ summit spread (fable-v5 162.8 > fable-v6 161.8 > fable-v3 161.7 > fable-v2
 which the doctrine accepts (crown ≠ default; the direct v5↔v6 evidence is
 the equity dim's pooled 1800-game screen, 52.0% lean-v6 — a twin gap).
 
+**The 1v3 caveat (the kit ran, and tempered itself).** First 400-game
+stream vs 3× claude-v45 read as a cliff: fable-v6 23.0% vs fable-v1's
+recorded 30.8% / fable-v2's 29.5%. A fresh second stream shrank it —
+fable-v2 itself read 25.1% there (its 29.5% was partly stream luck; the
+metric misleads by ±4 points on single 400-game streams). Pooled @ 800:
+**v2 ≈27.3, v5 ≈26.9, v3 ≈24.8, v6 ≈23.8** — a suggestive ~2–3.5-point
+outnumbered cost (~1.6σ), concentrated by ablation in the RAIL charge
+(v2→v3) and the EQUITY scaling (v5→v6), with the auction cap POSITIVE
+(v4→v5 +3). Mechanistically coherent: both costly dims refuse deals a lone
+seat vs a bot coalition could safely take — they are calibrated for human
+tables. Within the claude-v46 precedent (17.8% on this axis as a 2+2
+near-equal), so a caveat + lead (geometry-aware equity moderation — e.g.
+equity vs the median rather than strongest opponent), not a crown-blocker.
+The check is now a first-class tool: **`npm run sim:1v3`** (L6's
+first-milestone-lite; pool two prefixes before trusting a read).
+
+**The human reservation prior (first fit from the corpus).** Among
+bot→human CASH-FOR-PROPERTY asks in the DB: the only accepts are two
+distress bargains at **0.58× and 0.61× book**; every ask from 1.77× to 10×
+book was declined (n=16). Real humans do not buy premium-priced completers
+for cash — the extraction ask constructor (premium solved up to the
+buyer's wallet) converts ~0% against them and leaks information doing it
+(the wallet-peg + decline-walk-down tells, probe game 2). The
+human-counterparty model's first rule is now empirical: to a human, an
+ask above ~book is noise; property-shaped offers are the channel.
+
 ## Version log
 
 The running record of bot versions and how each fared against the field — **both
