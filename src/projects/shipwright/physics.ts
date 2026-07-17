@@ -1227,6 +1227,26 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   // (the same reason raycastVoxel bails on simFailed). The snapshot is plain JS numbers, so it's safe to
   // read post-trap. It names the offender (player vs a voxel body, position vs velocity) and `steps ==
   // MAX_SUBSTEPS` confirms/denies the frame-hitch → catch-up theory. Remove once the cause is found.
+  //
+  // The first capture (2026-07-17) REFUTED both standing theories: steps=0 (no catch-up) and every
+  // body finite, in pristine free-fall 5 steps after spawn, trapping in resetForces — a world that
+  // had done nothing wrong. That is an ECHO on an already-poisoned instance (see rapierHealth); the
+  // primal trap — the first one on a clean instance — is still uncaptured.
+  //
+  // rapierHealth (TEMPORARY, same package): rapier3d-compat's WASM module is a singleton — one
+  // instance, one linear memory, shared by every World and surviving scene remounts, HMR, and
+  // client-side navigation until a full page load. A Rust panic ("unreachable") leaves it in
+  // undefined state, so every world created afterward runs on corrupted memory and can trap on an
+  // innocuous call. Tracked on globalThis (module state resets when this file itself hot-reloads)
+  // so each trap dump can tag itself PRIMAL (worth studying) or an echo (discard; reload the page).
+  const rapierHealth = () => {
+    const g = globalThis as unknown as {
+      __shipwrightRapierHealth?: { worlds: number; poisonedAtWorld: number | null };
+    };
+    g.__shipwrightRapierHealth ??= { worlds: 0, poisonedAtWorld: null };
+    return g.__shipwrightRapierHealth;
+  };
+  let worldNumber = 0; // page-wide ordinal of this instance's world (assigned in init)
   const TRAP_STRIDE = 13; // per body: pos(3) rot(4) linvel(3) angvel(3)
   const TRAP_MAX_BODIES = 64;
   const trapSnap = new Float32Array(TRAP_MAX_BODIES * TRAP_STRIDE);
@@ -1283,10 +1303,18 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     });
   };
   const logSolverTrap = (delta: number, steps: number) => {
+    const health = rapierHealth();
+    const poisonedAt = health.poisonedAtWorld;
+    if (poisonedAt === null) health.poisonedAtWorld = worldNumber;
     console.warn(
       `Shipwright solver trap — delta=${delta.toFixed(4)}s steps=${steps}/${MAX_SUBSTEPS} ` +
         `accumulator=${accumulator.toFixed(4)}s` +
         (steps === MAX_SUBSTEPS ? " (hit substep cap ⇒ a frame hitch drove catch-up)" : ""),
+    );
+    console.warn(
+      poisonedAt === null
+        ? `  instance CLEAN → PRIMAL trap in world #${worldNumber} — this capture is the one worth studying`
+        : `  instance POISONED since a trap in world #${poisonedAt} → world #${worldNumber}'s trap is an ECHO — discard it and reload the page`,
     );
     let slot = 0;
     if (trapSnapPlayerPresent) dumpTrapSlot(slot++, "player");
@@ -1575,6 +1603,18 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       await RAPIER.init();
       const w = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
       w.timestep = FIXED_DT;
+      const health = rapierHealth();
+      health.worlds += 1;
+      worldNumber = health.worlds;
+      // Diagnosis only, no behavior change: a world built after a trap runs on corrupted memory,
+      // so say so NOW — the echo trap it will eventually report is then already explained.
+      if (health.poisonedAtWorld !== null) {
+        console.warn(
+          `Shipwright: Rapier's singleton WASM instance was poisoned by a trap in world ` +
+            `#${health.poisonedAtWorld}; world #${worldNumber} is built on corrupted memory and ` +
+            `any trap it reports is an echo. Reload the page for a clean instance.`,
+        );
+      }
       world = w; // set before createBody so it can create colliders on the world
       for (const v of visuals) createBody(v, v.spawnPos, v.spawnQuat);
     },
