@@ -22,11 +22,27 @@ fresh start: it rebuilds the KNOWLEDGE from data while keeping the proven
 plumbing (engine, judge, policy shell). It costs days and gates the entire ML
 program — see L1 below for why.
 
+**Scope, stated plainly: Stage A is NOT reinforcement learning.** It is
+supervised outcome prediction — states from logged games in, "who actually
+won" as the label — i.e. a MEASUREMENT of whether the hand value leaves
+predictive signal on the table. It borrows exactly two artifacts from the
+learned-bot scaffolding: the `features.ts` state encoder (a pure function) and
+the sim harnesses for data generation. The RL program proper (self-play
+policy iteration, MCTS — RL-DESIGN §3) is Stage C/L2 and is only reached if
+this gate and Stage B's both pass. Note also what has and hasn't been tried:
+the `monopoly-search-paradigm` branch explored SEARCH (rollout lookahead,
+washed) and ES optimization (landed) — no model has ever been TRAINED in this
+repo; the `value-*` files are untrained scaffolding wired to a hand-written
+stand-in. This probe is unwalked ground.
+
 **The Stage A recipe, cold-start executable:**
 
-1. **Read first:** `RL-DESIGN.md` §2 (what's built: `features.ts` encoder,
-   `simulate.ts` self-play, `parallel.ts` worker pool) and §4.B; `EVOLUTION.md`
-   "Measurement" for the seed-stream discipline.
+1. **Read first:** the file-layout notes for `features.ts` / `candidates.ts` /
+   `simulate.ts` / `parallel.ts` in `monopoly/CLAUDE.md` (the built, tested
+   substrate this borrows), and `EVOLUTION.md` "Measurement" for the
+   seed-stream discipline. `RL-DESIGN.md` is background for Stages B/C — skim
+   its §2/§4.B for the encoder's known gap, but do not build anything from it
+   at this stage.
 2. **Fix per-opponent ownership in `features.ts`** (RL-DESIGN §4.B): each
    square's owner as a seat-relative one-hot, replacing the pooled mine/opp
    encoding. Update `features.test.ts`. Small and isolated, but every
