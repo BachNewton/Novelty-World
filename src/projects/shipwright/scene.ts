@@ -22,7 +22,21 @@ import { createPlayer } from "./player";
 import { createBuilder } from "./builder";
 import { createNavBuoys } from "./buoys";
 import { createMeasuringPole } from "./measuring-pole";
-import { createEmptyTerrain, createTerrain, type ArchipelagoProfile } from "./terrain";
+import {
+  createEmptyTerrain,
+  createTerrainTileFactory,
+  SAMPLE_SPACING,
+  type ArchipelagoProfile,
+  type Terrain,
+  type TerrainTileFactory,
+} from "./terrain";
+import {
+  createSyncTerrainGenerator,
+  createTerrainGenerator,
+  createTerrainStream,
+  type TerrainGenerator,
+  type TerrainStream,
+} from "./terrain-stream";
 import {
   FLIGHT,
   FIXED_DT,
@@ -73,6 +87,16 @@ const TERRAIN_GEN_ENABLED =
   !BENCH_API_ENABLED ||
   typeof window === "undefined" ||
   new URLSearchParams(window.location.search).get("terrain") !== "off";
+
+/**
+ * `?terrainWorker=off` — generate the archipelago SYNCHRONOUSLY on the main thread instead of in
+ * the Web Worker. The escape hatch for a broken worker bundle (dev-server insurance) and the
+ * reference the worker path is pixel-diffed against: both routes run the identical
+ * `generateChunk`, so their output is byte-identical by construction.
+ */
+const TERRAIN_WORKER_ENABLED =
+  typeof window === "undefined" ||
+  new URLSearchParams(window.location.search).get("terrainWorker") !== "off";
 
 interface BenchmarkRun {
   timeline: Timeline;
@@ -277,6 +301,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // output runs afterwards in the shared hook. Guards on `sceneCapture` so it's a no-op if the
   // capture target wasn't allocated.
   const renderPrePasses = () => {
+    // The LOD ocean follows the camera in coarse-lattice snaps. Before ANY pass
+    // renders, so capture, SSR and main all see the same mesh placement this frame.
+    ocean.followCamera(camera);
     if (!sceneCapture) return;
     // The main render may have left the camera on MAIN_PASS_LAYER (see routeMainPass); the capture
     // renders the WORLD, layer 0.
@@ -318,6 +345,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // switched off, capture probe off, water off, physics-only bench): the classic full-scene render,
   // with the overlay layer enabled alongside so the aim dot / x-ray still draw.
   const routeMainPass = () => {
+    // Idempotent camera-follow, covering frames whose pre-passes bailed early
+    // (capture probe off, water hidden, physics-only bench).
+    ocean.followCamera(camera);
     const merged = presentPass !== null && debug.mergedPass && prePassesRan;
     if (presentPass) presentPass.mesh.visible = merged;
     // The quad writes no depth (that made it expensive — see present-pass.ts), so in merged mode the
@@ -378,14 +408,69 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   enableShadows(seabed);
   scene.add(seabed);
 
-  // The procedural archipelago (see terrain.ts). It's ordinary opaque scene geometry on layer 0, so
-  // it lands in the scene-capture pass automatically — the water's Beer-Lambert absorption reads the
-  // drowned bedrock and shades the shallows with no shader work at all.
-  // Visible in the live scene; HIDDEN by default in captures (see `setVisibility`), because adding
-  // it to the existing shot groups would invalidate every A/B baseline in .shots/.
-  // `let`, because the benchmark can rebuild it at a coarser sample spacing (the terrain's LOD dial).
-  // `?terrain=off` skips the generation entirely rather than hiding the result — see TERRAIN_GEN_ENABLED.
-  let island = TERRAIN_GEN_ENABLED ? createTerrain(ARCHIPELAGO) : createEmptyTerrain();
+  // The procedural archipelago — STREAMED (terrain-stream.ts): a quadtree of worker-generated
+  // tiles follows the viewer, full 1.2 m detail near the raft, coarser rings out to the land
+  // radius (~12 km default — past it, everything this field can generate is sub-pixel). The game
+  // is playable from frame 1; the near tiers land nearest-first over the first seconds and the
+  // far world fills in behind, off-thread. Tiles are ordinary opaque layer-0 geometry, so they
+  // land in the scene-capture pass automatically — the water's Beer-Lambert absorption reads the
+  // drowned bedrock and shades the shallows with no shader work at all. HIDDEN by default in
+  // captures (see `setVisibility`) to keep the .shots baselines honest.
+  // `?terrain=off` skips generation entirely (TERRAIN_GEN_ENABLED). `?terrainWorker=off` builds
+  // the SAME tiles on the main thread — the explicit escape hatch for a broken worker bundle;
+  // a worker failure otherwise FAILS LOUDLY (the stream stops and `isReady()` stays false).
+  // Anything that must SEE land (captures, the benchmark) waits on `islandReady`/`isReady()`,
+  // which gate on the near tiers (≤ NEAR_READY_TIER, ~2.2 km — a superset of the old window).
+  const landCfg = { radius: 12000, tierScale: 1 };
+  let islandPending = false;
+  let islandReady: Promise<void> = Promise.resolve();
+  let stream: TerrainStream | null = null;
+  let terrainGenerator: TerrainGenerator | null = null;
+  let tileFactory: TerrainTileFactory | null = null;
+  let island: Terrain;
+  if (TERRAIN_GEN_ENABLED) {
+    terrainGenerator = TERRAIN_WORKER_ENABLED
+      ? createTerrainGenerator()
+      : createSyncTerrainGenerator();
+    tileFactory = createTerrainTileFactory();
+    const s = createTerrainStream({
+      seed: ARCHIPELAGO.seed,
+      grain: ARCHIPELAGO.grain,
+      deep: ARCHIPELAGO.deep,
+      radius: landCfg.radius,
+      tierScale: landCfg.tierScale,
+      generator: terrainGenerator,
+      factory: tileFactory,
+    });
+    stream = s;
+    s.update(camera.position.x, camera.position.z); // the initial plan — nearest tiles first
+    islandPending = true;
+    // The FULL radius, not just the near tiers: `isReady()` promises "everything a capture
+    // depends on has settled", and with a streamed world the far tiles are part of that —
+    // a tile landing between two A/B shots would read as harness nondeterminism.
+    islandReady = s.settle().then(() => {
+      islandPending = false;
+    });
+    // The Terrain-shaped view of the stream, so the ~12 existing call sites (cost switches,
+    // visibility toggles, terrainStats, bench knobs) don't care that the island became tiles.
+    island = {
+      object: s.object,
+      setTreesVisible: s.setTreesVisible,
+      setCastShadow: s.setCastShadow,
+      setShading: s.setShading,
+      triangleCounts: s.triangleCounts,
+      get generationMs() {
+        return s.stats().avgGenMs; // per-tile average — the streaming-hitch budget
+      },
+      heightAt: s.heightAt,
+      get treeCount() {
+        return s.treeCount();
+      },
+      dispose: s.dispose,
+    };
+  } else {
+    island = createEmptyTerrain();
+  }
   scene.add(island.object);
 
   // Secchi measuring staff: a metre-numbered board through the surface whose submerged
@@ -471,7 +556,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   controls.enableDamping = true;
   controls.maxPolarAngle = Math.PI * 0.495; // keep the camera above the water
   controls.minDistance = 2;
-  controls.maxDistance = 400;
+  // 4 km of zoom-out: enough to read the archipelago's structure (and the LOD tint view)
+  // from altitude now the world streams to 12 km — while staying well inside the far plane.
+  controls.maxDistance = 4000;
   controls.target.set(9, 1.5, 9.5); // toward the sun (azimuth 85°, just right of the islands) so the sun + its reflection frame up
   controls.update();
 
@@ -546,8 +633,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     waterFx: true,
     capture: true,
     mergedPass: true,
-    planeSize: 5000, // far edge ~2.5 km out for a clean horizon (synced to the mesh at startup below)
-    quadSize: 10000 / 2048, // ~4.9 m quad edge (halved from /1024): finer waves, less peak faceting
+    planeSize: 5000, // UNIFORM-grid path only: far edge ~2.5 km out (LOD covers ~16 km on its own)
+    quadSize: 10000 / 2048, // ~4.9 m quad edge — the near-patch density under LOD, the whole plane without
+    // The camera-following LOD ocean (ocean-lod.ts): dense near patch + rings of doubling quad
+    // size, ONE welded mesh snapped to the camera. Default ON — it is the measured ~4-8 ms GPU
+    // win (docs/PERFORMANCE.md). OFF = the uniform grid at planeSize/quadSize (the E8 sweep path).
+    oceanLod: true,
+    lodNear: 512, // dense-patch width (m)
+    lodExtent: 16384, // total grid width (m) — reaches past the ~5.4 km sea horizon
     simSpeed: 1, // scales the whole sim clock (0 = pause, <1 = slow-mo) for inspecting fast events
   };
 
@@ -601,23 +694,50 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(capture, "scale", 0.25, 1, 0.05)
     .name("capture res")
     .onFinishChange((v: number) => ctx.setCaptureScale(v));
-  // Tessellation is a density (quad edge length in metres), so changing plane size
-  // holds quad size constant and scales the segment count — the grid gets no finer
-  // as the sea shrinks. Segments are clamped so an extreme combo can't blow the
-  // vertex budget (density gives at the limit).
-  const applyGrid = () => {
-    const segments = Math.min(2048, Math.max(8, Math.round(debug.planeSize / debug.quadSize)));
-    ocean.setGrid(debug.planeSize, segments);
+  // One dispatcher rebuilds whichever ocean grid is active, so the GUI, the debug
+  // API and the benchmark all route through the same lines. LOD on: quad size is
+  // the near-patch density and lodNear/lodExtent shape the rings (plane size is
+  // ignored — the rings set their own reach). LOD off: the classic uniform grid —
+  // tessellation is a density, so plane size scales the segment count (clamped so
+  // an extreme combo can't blow the vertex budget).
+  const oceanInfo = { grid: "" };
+  const applyOceanGeometry = () => {
+    if (debug.oceanLod) {
+      // Params first (no rebuild while disabled), then enable — exactly one rebuild
+      // whether the LOD grid was already on or is being switched on.
+      ocean.setLodParams({
+        baseQuad: debug.quadSize,
+        nearExtent: debug.lodNear,
+        extent: debug.lodExtent,
+      });
+      ocean.setLodEnabled(true);
+      const s = ocean.lodStats();
+      oceanInfo.grid = `${Math.round(s.vertices / 1000)}k verts · ${s.levels} rings · ${(s.extent / 1000).toFixed(1)} km`;
+    } else {
+      const segments = Math.min(2048, Math.max(8, Math.round(debug.planeSize / debug.quadSize)));
+      ocean.setGrid(debug.planeSize, segments);
+      oceanInfo.grid = `${Math.round((segments + 1) ** 2 / 1000)}k verts · uniform · ${(debug.planeSize / 1000).toFixed(1)} km`;
+    }
   };
+  performance.add(debug, "oceanLod").name("ocean LOD").listen().onChange(applyOceanGeometry);
   performance
     .add(debug, "quadSize", 2, 40, 0.5)
     .name("quad size (m)")
-    .onFinishChange(applyGrid);
+    .onFinishChange(applyOceanGeometry);
+  performance
+    .add(debug, "lodNear", 128, 1024, 64)
+    .name("LOD near (m)")
+    .onFinishChange(applyOceanGeometry);
+  performance
+    .add(debug, "lodExtent", 4096, 24576, 2048)
+    .name("LOD extent (m)")
+    .onFinishChange(applyOceanGeometry);
   performance
     .add(debug, "planeSize", 100, 10000, 100)
     .name("plane size (m)")
-    .onFinishChange(applyGrid);
-  applyGrid(); // sync the mesh to the slider defaults (default plane < PLANE_SIZE)
+    .onFinishChange(applyOceanGeometry);
+  performance.add(oceanInfo, "grid").name("ocean grid").disable().listen();
+  applyOceanGeometry(); // sync the mesh to the slider defaults
   // Perf isolation: turn each pass off to read its frametime cost.
   performance.add(debug, "waterFx").name("water FX").onChange((on: boolean) => {
     ocean.setWaterFx(on);
@@ -635,6 +755,33 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(captureMsaa, "samples", { off: 0, "4×": 4 })
     .name("capture MSAA")
     .onChange((n: number) => ctx.setCaptureSamples(n));
+  // --- Land streaming dials (terrain-stream.ts). The radius is optics-derived — ~12 km is
+  // where everything this field can generate goes sub-pixel — and tier scale multiplies every
+  // LOD boundary at once (the single fidelity-vs-memory lever). The readout is the live budget.
+  const landInfo = { status: TERRAIN_GEN_ENABLED ? "planning…" : "off (?terrain=off)" };
+  performance
+    .add(landCfg, "radius", 2000, 15000, 500)
+    .name("land radius (m)")
+    .onFinishChange((r: number) => stream?.setRadius(r));
+  performance
+    .add(landCfg, "tierScale", 0.5, 2, 0.05)
+    .name("land tier scale")
+    .onFinishChange((s: number) => stream?.setTierScale(s));
+  performance.add(landInfo, "status").name("land").disable().listen();
+  // The LOD debug view: paint each tile a loud flat colour by tier, so promotions,
+  // hysteresis and swap-on-ready are watchable live while sailing.
+  const lodDebug = { tintByTier: false, showLoading: true };
+  debugFolder
+    .add(lodDebug, "tintByTier")
+    .name("tint land by LOD")
+    .onChange((on: boolean) => stream?.setTintByTier(on));
+  // Wireframe boxes over tiles still queued (blue) / generating right now (orange), so
+  // "no land here yet" is distinguishable from open water while panning into ungenerated
+  // world. Self-hiding once settled, and captures gate on settle — so it defaults ON.
+  debugFolder
+    .add(lodDebug, "showLoading")
+    .name("show loading tiles")
+    .onChange((on: boolean) => stream?.setShowPending(on));
 
   // --- Scene cost: switch each PART of the scene off and watch the frame ------------------------
   // The render-scale dial answers "how many pixels"; this folder answers "what is IN them". Every
@@ -842,7 +989,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     const plane = seg.plane ?? 5000;
     if (plane !== debug.planeSize) {
       debug.planeSize = plane;
-      applyGrid();
+      applyOceanGeometry(); // uniform path only — under LOD the rings set their own reach
     }
     const [el, az] = seg.sunSweep ? seg.sunSweep.from : seg.sun;
     daylight.setSun(el, az); // one PMREM re-bake, in the segment's (discarded) warmup
@@ -1089,9 +1236,14 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     freeze: (t?: number) => {
       if (t !== undefined) elapsed = t;
       paused = true;
+      // "Freeze" means "make the scene deterministic for capture" — which now includes
+      // retiling: a camera jump between shots must not swap terrain tiles mid-suite.
+      // (Every area already holds distance-appropriate tiles from the initial full plan.)
+      stream?.setFrozen(true);
     },
     resume: () => {
       paused = false;
+      stream?.setFrozen(false);
     },
     setWaterType: (name: string) => {
       ocean.setWaterType(name);
@@ -1103,18 +1255,37 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     },
     setPlaneSize: (size: number) => {
       debug.planeSize = size;
-      applyGrid();
+      applyOceanGeometry();
       syncGui();
     },
     /** The ocean's tessellation DENSITY (quad edge, metres) at a FIXED plane size — which is the only
      *  honest way to price an LOD ocean. Shrinking the plane instead also takes the water off most of the
      *  screen, so it hides the vertex saving inside a much bigger fill saving; an LOD ocean still has to
-     *  reach the horizon, so it can only ever win the vertex half. Sweep this, not `setPlaneSize`. */
+     *  reach the horizon, so it can only ever win the vertex half. Sweep this, not `setPlaneSize`.
+     *  NB: with the LOD grid on (the default) this sets the NEAR-PATCH density — a uniform-grid sweep
+     *  (E8 / lod-ceiling.mjs) must call `setOceanLod(false)` first. */
     setQuadSize: (metres: number) => {
       debug.quadSize = metres;
-      applyGrid();
+      applyOceanGeometry();
       syncGui();
     },
+    /** The camera-following LOD ocean (default ON). OFF = the uniform grid at planeSize/quadSize —
+     *  the shape every pre-LOD measurement was taken on, and the A/B baseline. */
+    setOceanLod: (on: boolean) => {
+      debug.oceanLod = on;
+      applyOceanGeometry();
+      syncGui();
+    },
+    /** The active LOD grid's real numbers (enabled, vertices, rings, extent). */
+    oceanLodStats: () => ocean.lodStats(),
+    /** Live terrain-streaming stats (null with ?terrain=off): tiles, pending, vertices, gen ms. */
+    streamStats: () => stream?.stats() ?? null,
+    /** The LOD debug view — tiles painted flat per-tier colours (Debug → tint land by LOD). */
+    setLandTint: (on: boolean) => {
+      stream?.setTintByTier(on);
+    },
+    /** three's live GPU resource census — the memory side of the streaming budget. */
+    rendererMemory: () => ({ ...renderer.info.memory }),
     setShading: (mode: ShadingMode) => {
       ocean.setShading(mode);
     },
@@ -1266,10 +1437,12 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       syncGui();
     },
     /** True once everything an automated capture depends on has settled: the async ripple normal map
-     *  has decoded. (The PMREM sky bake is synchronous inside `daylight.setSun`, which runs during
-     *  setup before `__shipwright` is published, and the Rapier bodies are hidden for capture — so
-     *  neither needs waiting on.) Replaces a hardcoded sleep in `tools/shots.mjs`. */
-    isReady: () => ocean.isReady(),
+     *  has decoded AND the worker-generated island has landed (it streams in ~1 s after load — a
+     *  capture that didn't wait would shoot an empty sea). (The PMREM sky bake is synchronous inside
+     *  `daylight.setSun`, which runs during setup before `__shipwright` is published, and the Rapier
+     *  bodies are hidden for capture — so neither needs waiting on.) Replaces a hardcoded sleep in
+     *  `tools/shots.mjs`. */
+    isReady: () => ocean.isReady() && !islandPending,
     /** Frames rendered since setup. A capture applies its scene state, then waits for this to advance,
      *  which is the real event it needs — a rendered frame — rather than a guessed number of ms. */
     frameCount: () => frameCount,
@@ -1303,6 +1476,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     // Applies the run's global cost settings, forces stride 1 (never skip a flight frame), and
     // hides non-flight objects for a clean, consistent scene. See tools/bench.mjs.
     runBenchmark: async (config: BenchmarkConfig): Promise<BenchmarkResult> => {
+      // The island generates in a worker at load; a flight that started before it landed would
+      // measure (and screenshot) a different scene. Settled long before any real run starts.
+      await islandReady;
       if (config.renderScale !== undefined) {
         perf.renderScale = config.renderScale;
         ctx.setPixelRatio(config.renderScale);
@@ -1326,13 +1502,24 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (config.shadowCache !== undefined) daylight.setShadowCache(config.shadowCache);
       if (config.skyDome !== undefined) daylight.setDomeVisible(config.skyDome);
       if (config.clouds !== undefined) daylight.setCloudGenus(config.clouds);
-      // Terrain breakdown: which PART of the archipelago costs what. Spacing rebuilds the mesh (the LOD
-      // dial), so it happens once here rather than per segment — generation is ~1.6 s on the main thread.
+      // Terrain breakdown: which PART of the archipelago costs what. The streaming knobs apply
+      // first; then — unless `terrainStreaming: true` explicitly asks to measure in-flight
+      // streaming hitches — the flight is made deterministic: wait for every planned tile,
+      // then FREEZE retiling for the run (unfrozen when the run resolves).
+      if (config.terrainStreamRadius !== undefined) stream?.setRadius(config.terrainStreamRadius);
+      if (config.terrainTierScale !== undefined) stream?.setTierScale(config.terrainTierScale);
+      // Spacing scales ALL tiers proportionally (1.2 m = the shipped T0 density) — the streamed
+      // analogue of the old single-window rebuild, worker-side and cached per scale.
       if (config.terrainSpacing !== undefined) {
-        scene.remove(island.object);
-        island.dispose();
-        island = createTerrain({ ...ARCHIPELAGO, spacing: config.terrainSpacing });
-        scene.add(island.object); // createTerrain sets its own cast/receiveShadow flags
+        stream?.setSpacingScale(config.terrainSpacing / SAMPLE_SPACING);
+      }
+      if (stream) {
+        if (config.terrainStreaming === true) {
+          stream.setFrozen(false);
+        } else {
+          await stream.settle();
+          stream.setFrozen(true);
+        }
       }
       if (config.terrainTrees !== undefined) island.setTreesVisible(config.terrainTrees);
       if (config.terrainShadows !== undefined) island.setCastShadow(config.terrainShadows);
@@ -1345,9 +1532,18 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // command-buffer fences inflate the CPU submit time. hasGpuTimer() stays true (the timer still
       // exists), so the tool doesn't abort; the GPU-ms columns just read 0 for the run.
       gpuTimer?.setEnabled(config.gpuTimer !== false);
-      if (config.quadSize !== undefined) {
-        debug.quadSize = config.quadSize;
-        applyGrid(); // rebuild the ocean plane at the coarser tessellation (E8 vertex-cost isolation)
+      // Ocean grid knobs, applied in one rebuild: `oceanLod` picks the shape (LOD rings vs the
+      // uniform plane — an E8/lod-ceiling sweep must pin it false), `quadSize` the density,
+      // `oceanLodNear` the dense-patch width. ab.mjs interleaves them runtime, no reload.
+      if (
+        config.oceanLod !== undefined ||
+        config.quadSize !== undefined ||
+        config.oceanLodNear !== undefined
+      ) {
+        if (config.oceanLod !== undefined) debug.oceanLod = config.oceanLod;
+        if (config.quadSize !== undefined) debug.quadSize = config.quadSize;
+        if (config.oceanLodNear !== undefined) debug.lodNear = config.oceanLodNear;
+        applyOceanGeometry();
       }
       if (config.water !== undefined) ocean.setWaterType(config.water);
       // The merged main pass + the capture target's MSAA — both runtime, so a sweep interleaves them
@@ -1421,7 +1617,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
           // Segments without their own `water` revert to this — the run's override or the scene default.
           baseWater: config.water ?? "Coastal 5",
           samples: [],
-          resolve,
+          resolve: (result) => {
+            stream?.setFrozen(false); // the flight froze retiling for determinism — hand it back
+            resolve(result);
+          },
         };
       });
     },
@@ -1459,6 +1658,19 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
         if (stepPhysics) physics.update(dt, elapsed);
       }
       ocean.update(elapsed);
+      // Stream the archipelago around the viewer (re-plans only after ~32 m of movement;
+      // frozen during benchmark flights). The anchor is the point being LOOKED AROUND —
+      // the sailor's eye in first person, the orbit PIVOT otherwise: the camera itself
+      // swings up to 2×maxDistance on a plain orbit rotation, and anchoring on it made
+      // every rotation re-tier finished tiles. The readout refreshes at a human cadence.
+      if (player.isActive()) stream?.update(camera.position.x, camera.position.z);
+      else stream?.update(controls.target.x, controls.target.z);
+      if (stream && frameCount % 30 === 0) {
+        const s = stream.stats();
+        landInfo.status =
+          `${s.tilesLoaded} tiles · ${(s.vertices / 1e6).toFixed(2)} M verts` +
+          (s.tilesPending > 0 ? ` · ${s.tilesPending} pending` : "");
+      }
       // Ride the nav-mark buoys on the water (kinematic particle-ride).
       navBuoys.update(ocean, elapsed, daylight.state().illuminanceLux, camera.position);
       // Debug overlay — skip its 15×15 Gerstner evals + instance-buffer upload when hidden.
@@ -1509,7 +1721,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       measuringPole.dispose();
       seabedGeometry.dispose();
       seabedMaterial.dispose();
-      island.dispose();
+      terrainGenerator?.dispose(); // rejects in-flight generation; the stream drops the results
+      island.dispose(); // = stream.dispose(): removes + frees every live tile
+      tileFactory?.dispose(); // the shared materials + spruce geometry, after the tiles
       probes.dispose();
       probeGeometry.dispose();
       probeMaterial.dispose();

@@ -76,10 +76,18 @@ export interface BenchmarkConfig {
    *  (undamped) — a COST probe, not a gameplay setting. Default (undefined) = drag on. */
   dragEnabled?: boolean;
   /** Ocean tessellation quad edge in metres (E8): larger = a coarser plane (fewer segments/vertices).
-   *  The segment count is `planeSize / quadSize`, clamped to [8, 2048]. The scene default is ~4.9 m
-   *  (~1024² segments ≈ 1 M verts). Raise it (e.g. 625 → 8 segments, a near-flat plane) to isolate the
-   *  ocean plane's VERTEX cost from the fixed per-render-call submission overhead. See tools/bench.mjs. */
+   *  With the LOD grid on (the default, see `oceanLod`) this is the NEAR-PATCH density; with it off,
+   *  the whole uniform plane's — segment count `planeSize / quadSize`, clamped to [8, 2048]. A
+   *  historical E8-style uniform sweep must therefore pin `oceanLod: false`. See tools/bench.mjs. */
   quadSize?: number;
+  /** The camera-following LOD ocean (ocean-lod.ts): dense near patch + concentric rings of doubling
+   *  quad size, one welded mesh snapped to the camera, ~52k verts reaching ~16 km. Default (shipped)
+   *  ON — pin `false` for the classic uniform grid, which is every pre-LOD run's shape and the A/B
+   *  baseline (`ab.mjs --a '{"oceanLod":false}' --b '{"oceanLod":true}'`, both pinning `quadSize`). */
+  oceanLod?: boolean;
+  /** LOD dense-patch width in metres (default 512): the radius of full `quadSize` sampling around
+   *  the camera before the rings start doubling. The quality dial of the LOD ocean. */
+  oceanLodNear?: number;
   /** Disable the GpuTimer's TIME_ELAPSED queries for the run (still measures wall-clock CPU). The
    *  per-span queries force ANGLE to fence/flush the command buffer, which may inflate the CPU submit
    *  time; turning them off isolates that overhead. GPU-ms columns read 0. Default (undefined) = on. */
@@ -144,10 +152,21 @@ export interface BenchmarkConfig {
    *  archipelago costs as a shadow caster from what it costs as visible geometry — different draws, and
    *  only one of them is on screen. Default on. */
   terrainShadows?: boolean;
-  /** Metres between bedrock samples — the terrain's LOD dial, and the direct analogue of the ocean's
-   *  `quadSize`. Default 1.2 m, which over the 600 m window is a 500² grid (~250 k verts / 500 k tris).
-   *  Rebuilds the archipelago at run start, so a run costs an extra ~2.5 s of generation. */
+  /** Metres between T0 bedrock samples — the terrain's LOD dial, and the direct analogue of the
+   *  ocean's `quadSize`. Default 1.2 m (the shipped density). With the STREAMED terrain every tier's
+   *  spacing scales proportionally (the value is normalised by 1.2), and the retile happens at run
+   *  start, worker-side, cached per scale. */
   terrainSpacing?: number;
+  /** Streaming radius (m) for the tiled archipelago (default 12000 — the optics-derived cap). The
+   *  land-content knob: a bigger world is more tiles, more vertices, more memory. */
+  terrainStreamRadius?: number;
+  /** Multiplies every LOD tier's outer radius (default 1) — the fidelity-vs-memory lever
+   *  (`Performance → land tier scale`). */
+  terrainTierScale?: number;
+  /** DEFAULT (undefined/false): the flight is deterministic — the run WAITS for every planned tile,
+   *  then freezes retiling until the run resolves. `true` leaves streaming live so the flight
+   *  measures in-play streaming hitches on purpose (frames are then load-order dependent). */
+  terrainStreaming?: boolean;
   /** Bedrock shading: "full" (PBR + shadow-receive) or "flat" (unlit, same geometry + vertex colours).
    *  `full − flat` = the archipelago's SHADING cost; `flat` alone = its raw fill. The ocean's
    *  `--shading` makes exactly this subtraction for the water. It is the measurement that says whether
