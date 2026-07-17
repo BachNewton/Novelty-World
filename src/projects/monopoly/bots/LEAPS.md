@@ -9,6 +9,60 @@ measurement process and the full experimental record).
 
 ---
 
+## START HERE — the standing recommendation (owner-approved, 2026-07-17)
+
+**The clear next step is L1 Stage A: the value-prediction probe.** Kyle asked
+"fresh start, or keep cloning and tweaking?" and this is the considered answer
+to both: clone-and-tweak is measurably out of gas (constants plateaued at the
+v45 tier across three ES campaigns; the fable-v2 ES produced a twin of its own
+base), and from-scratch rule bots are 0-for-4 in this archive (trade-v1 −140
+Elo, gemini-v1, kyle-v1/v2/v3) because a fresh bot starts from priors while the
+incumbent embodies ~50 generations of measurements. Stage A is the principled
+fresh start: it rebuilds the KNOWLEDGE from data while keeping the proven
+plumbing (engine, judge, policy shell). It costs days and gates the entire ML
+program — see L1 below for why.
+
+**The Stage A recipe, cold-start executable:**
+
+1. **Read first:** `RL-DESIGN.md` §2 (what's built: `features.ts` encoder,
+   `simulate.ts` self-play, `parallel.ts` worker pool) and §4.B; `EVOLUTION.md`
+   "Measurement" for the seed-stream discipline.
+2. **Fix per-opponent ownership in `features.ts`** (RL-DESIGN §4.B): each
+   square's owner as a seat-relative one-hot, replacing the pooled mine/opp
+   encoding. Update `features.test.ts`. Small and isolated, but every
+   downstream net needs it.
+3. **Generate labeled data** with a scratch harness over `simulateGame` (the
+   `one-v-three`/`fable-tune` scratch scripts from the fable sessions show the
+   import pattern): rosters = fable-v2 mirrors PLUS mixed fields (fable-v2 with
+   panel bots — distribution diversity matters; pure mirrors under-sample
+   losing shapes). Many seeds, deterministic. At every pre-roll, record
+   `encode(state, seat)` for each live seat; at game end, label each record
+   with win/loss (or final rank). Target ≥10⁵ state records (~5–10k games —
+   the engine runs ~40+ games/s/core; this is under an hour on the pool).
+   Data files go to a gitignored dir or the session scratchpad, NOT the repo.
+4. **Train small, compare honestly:** a logistic-regression baseline FIRST,
+   then a small MLP (tfjs-node, or hand-rolled SGD in TS — offline training is
+   not bound by the bot determinism rule; seed it anyway for reproducibility).
+   Split by GAME (never by state — states within a game are correlated), on
+   held-out SEEDS.
+5. **The one number that decides:** on held-out games, compare the model
+   against the hand value at predicting outcomes. Baseline predictor = each
+   seat's `positionValue` share (fable-v2's own valuation, softmax over live
+   seats → win probability); model predictor = the net's output. Compare
+   log-loss and rank correlation with the actual winner, at several game
+   stages (early/mid/late — the hand value is likely strongest late; the
+   interesting gap is EARLY/MID).
+6. **The gate:** if the trained model cannot out-predict the hand value, the
+   L1/L2 ML program is dead — record the finding and the prediction-gap
+   numbers as a full EVOLUTION.md entry (a first-class negative result), and
+   promote L3/L5 to the head of this doc. If it wins, proceed to L1 Stage B
+   (the `positionValue` transplant) with the measured gap as your prize
+   estimate — and record that too.
+
+Everything below is the wider map this recommendation was chosen from.
+
+---
+
 ## 0. Epistemic charter — read this before trusting anything below
 
 Every conclusion in this repo's bot docs — including this one — was produced by
