@@ -53,14 +53,14 @@ function makeProgressReporter(): (p: GauntletProgress) => void {
  *  by seed: same args reproduce the same table.
  *
  *  Usage:
- *    npm run sim:gauntlet -- claude-v3                # candidate claude-v3 vs the field
- *    npm run sim:gauntlet -- claude-v3 --base claude-v2   # must beat claude-v2 specifically
- *    npm run sim:gauntlet -- claude-v3 --field claude-v1,claude-v2  # explicit field
- *    npm run sim:gauntlet -- jane-v3 --base claude-v36 --panel   # CROWN GATE: field = anchor panel
- *    npm run sim:gauntlet -- claude-v8 --with-v1      # add the claude-v1 floor audit back
- *    npm run sim:gauntlet -- claude-v3 --prefix holdout   # held-out seed stream
- *    npm run sim:gauntlet -- claude-v3 --margin 20 --alpha 0.05 --beta 0.05
- *    npm run sim:gauntlet -- claude-v3 --max 4000 --workers 14
+ *    npm run sim:gauntlet -- fable-v2                     # candidate vs the field
+ *    npm run sim:gauntlet -- fable-v2 --base claude-v45   # must beat this base specifically
+ *    npm run sim:gauntlet -- fable-v2 --field claude-v2,claude-v5  # explicit field
+ *    npm run sim:gauntlet -- fable-v2 --base fable-v1 --panel  # CROWN GATE: field = anchor panel
+ *    npm run sim:gauntlet -- fable-v2 --with-v1           # add the claude-v1 floor audit back
+ *    npm run sim:gauntlet -- fable-v2 --prefix holdout    # held-out seed stream
+ *    npm run sim:gauntlet -- fable-v2 --margin 20 --alpha 0.05 --beta 0.05
+ *    npm run sim:gauntlet -- fable-v2 --max 4000 --workers 14
  *
  *  The field defaults to every known version except `dumb` (a null stub — never
  *  gauntleted), `claude-v1` (the floor — dominated and slow; opt back in with

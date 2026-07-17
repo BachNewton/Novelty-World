@@ -2,58 +2,18 @@ import type { Bot } from "../decision";
 import { dumbBot } from "../dumb";
 import { claudeV1Bot } from "./claude-v1";
 import { claudeV2Bot } from "./claude-v2";
-import { claudeV3Bot } from "./claude-v3";
-import { claudeV4Bot } from "./claude-v4";
 import { claudeV5Bot } from "./claude-v5";
-import { claudeV6Bot } from "./claude-v6";
-import { claudeV7Bot } from "./claude-v7";
-import { claudeV8Bot } from "./claude-v8";
-import { claudeV9Bot } from "./claude-v9";
-import { claudeV10Bot } from "./claude-v10";
-import { claudeV11Bot } from "./claude-v11";
-import { claudeV12Bot } from "./claude-v12";
-import { claudeV13Bot } from "./claude-v13";
-import { claudeV14Bot } from "./claude-v14";
-import { claudeV15Bot } from "./claude-v15";
-import { claudeV16Bot } from "./claude-v16";
 import { claudeV17Bot } from "./claude-v17";
-import { claudeV18Bot } from "./claude-v18";
-import { claudeV19Bot } from "./claude-v19";
-import { claudeV20Bot } from "./claude-v20";
-import { claudeV21Bot } from "./claude-v21";
-import { claudeV22Bot } from "./claude-v22";
-import { claudeV23Bot } from "./claude-v23";
-import { claudeV24Bot } from "./claude-v24";
-import { claudeV25Bot } from "./claude-v25";
-import { claudeV26Bot } from "./claude-v26";
-import { claudeV27Bot } from "./claude-v27";
-import { claudeV28Bot } from "./claude-v28";
-import { claudeV29Bot } from "./claude-v29";
-import { claudeV30Bot } from "./claude-v30";
-import { claudeV31Bot } from "./claude-v31";
-import { claudeV32Bot } from "./claude-v32";
-import { claudeV33Bot } from "./claude-v33";
-import { claudeV34Bot } from "./claude-v34";
 import { claudeV35Bot } from "./claude-v35";
 import { claudeV36Bot } from "./claude-v36";
 import { claudeV38Bot } from "./claude-v38";
-import { claudeV39Bot } from "./claude-v39";
-import { claudeV40Bot } from "./claude-v40";
 import { claudeV41Bot } from "./claude-v41";
-// claude-v42 / claude-v43 — substrate-swap candidates: claude-v41's seller-side
-// trade logic bound to the opt-v3 (ladder leader) and opt-v2 (robust ex-crown)
-// base vectors respectively, chasing "champion AND top Elo." See each `index.ts`.
-import { claudeV42Bot } from "./claude-v42";
-import { claudeV43Bot } from "./claude-v43";
-// claude-v44 — the COMBINED-SPACE maximin ES champion candidate: the 31-param
-// factory (claude-v38 base + claude-v41's three seller-side trade levers) with
-// EVERY dim co-tuned jointly (the coupling claude-v42/v43's hand swaps couldn't
-// respect). Lifted the worst panel matchup 35.4% → 69.7%. See its `index.ts`.
-import { claudeV44Bot } from "./claude-v44";
-// claude-v45 — claude-v44's combined-space ES vector with the ONE broken lever
-// corrected: `holderDenialFrac` pinned 0.461 → 1.0 (buyer/holder denial-pricing
-// lockstep). Kills the held-completer hot-potato the ES re-opened (live in
-// game:review 2b6y55). Smallest coherent change; every other dim verbatim v44.
+// claude-v45 — the COMBINED-SPACE maximin ES vector on the 31-param factory
+// (claude-v38 base + claude-v41's three seller-side trade levers, every dim
+// co-tuned jointly), with `holderDenialFrac` pinned to the 1.0 buyer/holder
+// denial-pricing lockstep. The pin is what kills the held-completer hot-potato an
+// unconstrained ES re-opens (caught live in game:review 2b6y55) — see
+// bots/CLAUDE.md "Denial is a premium game". See its `index.ts` + EVOLUTION.md.
 import { claudeV45Bot } from "./claude-v45";
 // claude-v46 — a WARM-START maximin ES re-optimization of claude-v45's vector with
 // `holderDenialFrac` PINNED at the 1.0 lockstep (out of the search). A measured
@@ -73,9 +33,7 @@ import { claudeV47Bot } from "./claude-v47";
 // Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
-import { janeV1Bot } from "./jane-v1";
 import { janeV2Bot } from "./jane-v2";
-import { janeV3Bot } from "./jane-v3";
 import { janeV4Bot } from "./jane-v4";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
@@ -90,28 +48,22 @@ import { tradeV1Bot } from "./trade-v1";
 // SYSTEM its versions explore — TRUNCATED-ROLLOUT / lookahead search (the first
 // non-greedy bot in the archive) — not by the authoring machine. Authored by
 // Claude Code, filed under the paradigm. See EVOLUTION.md "Bot lineages".
-import { searchV1Bot } from "./search-v1";
-// search-v2 — the same rollout-search machinery on the TUNED champion (claude-v45)
-// instead of search-v1's untuned claude-v38 base. See search-v2/index.ts.
-import { searchV2Bot } from "./search-v2";
-// search-v3 — search-v2 + AUCTION & JAIL search (the deferred-payoff decisions a
-// 1-ply tuned eval is blind to). See search-v3/index.ts.
+// search-v3 — the rollout-search machinery on the tuned claude-v45 base, extended
+// to AUCTION & JAIL (the deferred-payoff decisions a 1-ply tuned eval is blind to).
+// See search-v3/index.ts.
 import { searchV3Bot } from "./search-v3";
 // Opt lineage — a PARADIGM-named family (like trade-v / search-v): namespaced by
-// the METHOD that produced it, not an authoring machine. opt-v1 is claude-v38's
-// policy VERBATIM with its full 15-constant tuning vector JOINTLY optimized by an
-// Evolutionary Strategy (SNES) — the breakout the hand-tuned archive never did
-// (every prior version moved one or two constants at a time, SPRT-gated). The
-// winning vector is baked back in as plain static numbers. See `versions/opt-v1/`.
-import { optV1Bot } from "./opt-v1";
-// opt-v2: same ES paradigm, but a CROWN-ALIGNED MAXIMIN fitness (lift the WORST
-// per-member matchup rather than aggregate win-share). See `versions/opt-v2/`.
+// the METHOD that produced it, not an authoring machine. An opt version is
+// claude-v38's policy VERBATIM with its full 15-constant tuning vector JOINTLY
+// optimized by an Evolutionary Strategy (SNES) — the breakout the hand-tuned
+// archive never did (every prior version moved one or two constants at a time,
+// SPRT-gated). The winning vector is baked back in as plain static numbers.
+// opt-v2: the CROWN-ALIGNED MAXIMIN fitness (lift the WORST per-member matchup
+// rather than aggregate win-share). See `versions/opt-v2/`.
 import { optV2Bot } from "./opt-v2";
-// opt-v3: the maximin ES re-run with opt-v2 ITSELF in the 7-member panel, so the
-// search had to beat the champion. A distinct aggressive vector. See `versions/opt-v3/`.
-import { optV3Bot } from "./opt-v3";
-// opt-v4: maximin ES vs the COMPLETED 8-panel (adds jane-v4, the bot opt-v3
-// counter-overfit against) — pressured to beat opt-v2 AND jane-v4. See `versions/opt-v4/`.
+// opt-v4: maximin ES vs the COMPLETED 8-panel (adds jane-v4) — pressured to beat
+// opt-v2 AND jane-v4, closing the counter-overfit hole a panel missing jane-v4
+// leaves open (see EVOLUTION.md). See `versions/opt-v4/`.
 import { optV4Bot } from "./opt-v4";
 // Fable lineage — authored by Fable (Anthropic's flagship model, driving
 // Claude Code). fable-v1 = the claude-v45 factory + vector borrowed wholesale,
@@ -154,62 +106,21 @@ import { kyleV3Bot } from "./kyle-v3";
 export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v1": claudeV1Bot,
   "claude-v2": claudeV2Bot,
-  "claude-v3": claudeV3Bot,
-  "claude-v4": claudeV4Bot,
   "claude-v5": claudeV5Bot,
-  "claude-v6": claudeV6Bot,
-  "claude-v7": claudeV7Bot,
-  "claude-v8": claudeV8Bot,
-  "claude-v9": claudeV9Bot,
-  "claude-v10": claudeV10Bot,
-  "claude-v11": claudeV11Bot,
-  "claude-v12": claudeV12Bot,
-  "claude-v13": claudeV13Bot,
-  "claude-v14": claudeV14Bot,
-  "claude-v15": claudeV15Bot,
-  "claude-v16": claudeV16Bot,
   "claude-v17": claudeV17Bot,
-  "claude-v18": claudeV18Bot,
-  "claude-v19": claudeV19Bot,
-  "claude-v20": claudeV20Bot,
-  "claude-v21": claudeV21Bot,
-  "claude-v22": claudeV22Bot,
-  "claude-v23": claudeV23Bot,
-  "claude-v24": claudeV24Bot,
-  "claude-v25": claudeV25Bot,
-  "claude-v26": claudeV26Bot,
-  "claude-v27": claudeV27Bot,
-  "claude-v28": claudeV28Bot,
-  "claude-v29": claudeV29Bot,
-  "claude-v30": claudeV30Bot,
-  "claude-v31": claudeV31Bot,
-  "claude-v32": claudeV32Bot,
-  "claude-v33": claudeV33Bot,
-  "claude-v34": claudeV34Bot,
   "claude-v35": claudeV35Bot,
   "claude-v36": claudeV36Bot,
   "claude-v38": claudeV38Bot,
-  "claude-v39": claudeV39Bot,
-  "claude-v40": claudeV40Bot,
   "claude-v41": claudeV41Bot,
-  "claude-v42": claudeV42Bot,
-  "claude-v43": claudeV43Bot,
-  "claude-v44": claudeV44Bot,
   "claude-v45": claudeV45Bot,
   "claude-v46": claudeV46Bot,
   "claude-v47": claudeV47Bot,
-  "jane-v1": janeV1Bot,
   "jane-v2": janeV2Bot,
-  "jane-v3": janeV3Bot,
   "jane-v4": janeV4Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
-  "search-v1": searchV1Bot,
-  "search-v2": searchV2Bot,
   "search-v3": searchV3Bot,
-  "opt-v1": optV1Bot,
   "opt-v2": optV2Bot,
-  "opt-v3": optV3Bot,
   "opt-v4": optV4Bot,
   "fable-v1": fableV1Bot,
   "fable-v2": fableV2Bot,
@@ -229,17 +140,17 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
  *      AND the capped-game bottleneck, so its pairings are ~6-min slogs that swamp
  *      any ratings/gauntlet run for near-zero signal. It is the sole Gemini version,
  *      so excluding it deprecates the whole Gemini family in the lobby (intended).
- *    - `search-v1` — NOT weak (mid-ladder, ~119 Elo when last rated — a real,
- *      legal rollout/lookahead paradigm). Excluded purely for COST: it is the only
- *      non-greedy bot, so a single 400-game panel pairing runs truncated rollouts
- *      (R×horizon per decision) and takes MINUTES while every greedy pairing takes
- *      seconds — it dominated a ratings run's wall-clock (one `search-v1 × claude-v41`
- *      pairing alone ran >6 min). It is the sole `search` version, so excluding it
- *      deprecates the whole `search` family in the lobby (intended). REVERSAL
- *      CONDITION: re-include `search-v` if a future version posts a competitive Elo —
- *      then the lookahead paradigm earns its rating cost. (Like the two above, it
- *      stays in `VERSIONS`, fully runnable; only its rating/default-field
- *      participation is dropped — field it explicitly via `--field` if ever needed.)
+ *    - `search-v3` — NOT weak (a real, legal rollout/lookahead paradigm). Excluded
+ *      purely for COST: it is the only non-greedy bot, so a single 400-game panel
+ *      pairing runs truncated rollouts (R×horizon per decision) and takes MINUTES
+ *      while every greedy pairing takes seconds — it dominated a ratings run's
+ *      wall-clock. Measured by direct SPRT vs its claude-v45 base instead. It is the
+ *      sole `search` version, so excluding it deprecates the whole `search` family in
+ *      the lobby (intended). REVERSAL CONDITION: re-include `search-v` if a future
+ *      version posts a competitive Elo — then the lookahead paradigm earns its rating
+ *      cost. (Like the two above, it stays in `VERSIONS`, fully runnable; only its
+ *      rating/default-field participation is dropped — field it explicitly via
+ *      `--field` if ever needed.)
  *    - `kyle-v2` — NOT (yet) a strong bot, but excluded for COST, not weakness: it
  *      buys aggressively and completes monopolies but never BUILDS houses, so it can't
  *      close games out — ~40% of its pairings stalemate to the 2000-turn cap (e.g.
@@ -254,23 +165,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
  *  rating-policy knob, and it stays tiny. `dumb` is excluded separately (it's a
  *  null stub, not a real bot). */
 export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
-  // claude-v44 — excluded for SUPERSESSION, not cost (the one non-cost member). It is
-  // strictly dominated by its clean twin claude-v45: identical vector but for
-  // `holderDenialFrac` (0.461 → 1.0), statistically EVEN in strength, but v44 carries
-  // the held-completer hot-potato (game:review 2b6y55) that v45 fixes. Rating it would
-  // keep it ~tied at the ladder top (it was +245.6 vs v45's +242.1) and thus the lobby
-  // DEFAULT — shipping the defect. Deprecated so v45 is the player-facing Strongest; the
-  // snapshot stays in VERSIONS, fully runnable, and is fielded explicitly via `--field`.
-  // REVERSAL: drop this line (and restore it to RATING_PANEL) to re-rate it.
-  "claude-v44",
   "claude-v1",
   "gemini-v1",
-  "search-v1",
-  // search-v2 / search-v3 — same COST exclusion as search-v1: truncated-rollout
-  // search makes each game ~hundreds of times slower, dominating a ratings run's
-  // wall-clock. Measured by direct SPRT vs their claude-v45 base instead. REVERSAL:
-  // re-include search-v if a version posts a competitive Elo worth the rating cost.
-  "search-v2",
   "search-v3",
   "kyle-v2",
   // kyle-v3 — same COST exclusion as kyle-v2: it adds trading but still never

@@ -18,7 +18,7 @@ import { Worker } from "node:worker_threads";
 export interface GameSpec {
   index: number;
   seed: string;
-  /** Version label per seat (e.g. ["claude-v3","claude-v2","claude-v3","claude-v2"]); repeats are fine —
+  /** Version label per seat (e.g. ["fable-v2","claude-v2","fable-v2","claude-v2"]); repeats are fine —
    *  the worker resolves each through `versionBot`. */
   labels: readonly string[];
   maxTurns: number;

@@ -13,8 +13,8 @@ import { versionBot } from "./versions";
  *
  *  Usage:
  *    npm run sim:verify -- claude-v2 claude-v1            # 60 games each way (default)
- *    npm run sim:verify -- claude-v3 claude-v2 --seeds 120
- *    npm run sim:verify -- claude-v3 claude-v1 --turns 2000 --workers 14 */
+ *    npm run sim:verify -- fable-v2 claude-v2 --seeds 120
+ *    npm run sim:verify -- fable-v2 claude-v1 --turns 2000 --workers 14 */
 
 interface Args {
   a: string;

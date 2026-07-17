@@ -28,7 +28,7 @@ import {
 // Pipeline: SNES samples candidates in normalized [0,1] space → mapped to real
 // params via PARAM_BOUNDS → win-share vs the panel over a fixed TRAIN seed set
 // (common random numbers) → natural-gradient update. The best vector is printed
-// (and written to optimize/best-vector.json) for freezing into versions/opt-v1.
+// (and written to optimize/best-vector.json) for freezing into a new opt-v version.
 //
 // Fitness modes (`--fitness`):
 //   aggregate (default)  win-share over a MIXED two-member field (the original

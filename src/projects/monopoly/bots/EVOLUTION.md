@@ -1318,6 +1318,20 @@ the accepted champions and the rejected attempts** (a hypothesis that didn't bea
 its predecessor is logged with status `rejected` so it isn't re-walked). v1 = the
 bot as of this doc.
 
+> **Snapshot cull (2026-07-17).** The archive was reduced from 64 registered
+> snapshots to 23: what survives is the anchor panel, the crown/substrate, the live
+> frontier, the terminal survivor of each lineage, and the Kyle family. **These rows
+> are unaffected — they are the record, and the record is the point.** What a culled
+> version *knew* was always its hypothesis + measurement, which is this table; the
+> code was a redundant copy of its ancestors' mechanisms (snapshots are
+> self-contained, so the newest survivor of a line already contains every mechanism
+> that ever won). A row whose `versions/<label>/` path no longer resolves is
+> **history, not rot**: every culled snapshot is recoverable verbatim at the
+> `bot-archive-full` tag —
+> `git show bot-archive-full:src/projects/monopoly/bots/versions/<label>/<file>`.
+> Deleting a snapshot needs the same care as adding one: check nothing still *runs*
+> it (a panel slot, a fidelity test, a lineage's only survivor).
+
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
 | fable-v2 | 2026-07-17 | **Combined-space ES over the fable factory, blended** (`versions/fable-v2/`, see the session section above): the optimize/ harness rebound to the fable-v1 factory (47 dims), aggregate-fitness SNES warm-started from fable-v1 vs a 13-member field, degenerate-behavior guards pinned. The raw winner (71.12% in-sample) was a summit counter (beat everything incl. claude-v46 but 44.8% vs base); fable-v2 = the α=0.5 LINE-SEARCH midpoint between fable-v1 and the winner, which dissolves the counter-structure. | **Gate (panel + both claude twins, base fable-v1):** train ✅ 13/13 BETTER (base 54.3%); holdout 12/13 BETTER but base INCONCLUSIVE (51.2% @ 4000-cap) → **twin of base, NOT crowned**. SPRT BETTER vs **claude-v45 AND claude-v46 on BOTH streams** (56.5/59.3 and 58.2/53.9) — the only bot in the archive to do so. Out-of-panel 58.0–73.9% vs 6 more (v47, v38, v39, opt-v3, jane-v3, v30). Mirrors clean; 1v3 vs v45 = 29.5%. Ladder (after the summit-tier panel fix): **222.0, STRICT TOP** (v46 211.9, v45 191.9). | **RECORDED — STRONGEST / LOBBY DEFAULT (`DEFAULT_BOT_VERSION`), and the substrate by deliberate call.** Crown remains fable-v1 (twin verdict vs base). |

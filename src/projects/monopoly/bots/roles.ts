@@ -70,7 +70,7 @@ export function ratingFor(version: string): number | null {
 }
 
 /** True iff `label` belongs to `prefix`'s family — the remainder after the prefix
- *  must be a bare number (`claude-v17`, `jane-v1`), so a prefix can't swallow a
+ *  must be a bare number (`claude-v17`, `jane-v2`), so a prefix can't swallow a
  *  longer one (e.g. `claude-v` must not match a future `claude-va…` label). */
 function versionIndex(label: string, prefix: string): number | null {
   if (!label.startsWith(prefix)) return null;

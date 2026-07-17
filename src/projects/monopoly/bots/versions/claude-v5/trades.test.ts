@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../../mocks";
 import type { GameState } from "../../../types";
-import { proposeBestTrade as v3Propose } from "../claude-v3/trades";
 import { proposeBestTrade as v5Propose } from "./trades";
 
 // v5's one hypothesis: extend trade CONSTRUCTION to TRADE-TO-DENY — block a rival
 // who is one lot short of a set by buying the completer lot from a third-party
-// holdout, even though it doesn't complete my own set. v3 (the base) only ever
-// constructs deals that complete MY sets, so on a pure-denial board it proposes
-// nothing; v5 surfaces the block. `evaluateTrade` is unchanged, so completion and
-// incoming-vote behavior is identical to v3. Oranges = {16, 18, 19}; pinks =
-// {11, 13, 14}; freshGame seats p1..p4.
+// holdout, even though it doesn't complete my own set. The base it forked from only
+// ever constructs deals that complete MY sets, so a pure-denial board is exactly
+// where the two diverge: v5 surfaces a block where a completion-only proposer finds
+// nothing. `evaluateTrade` is unchanged, so completion and incoming-vote behavior is
+// inherited as-is. Oranges = {16, 18, 19}; pinks = {11, 13, 14}; seats p1..p4.
 
 const base = freshGame();
 
@@ -19,17 +18,15 @@ function setCash(state: GameState, id: string, cash: number): GameState {
 }
 
 describe("v5 proposeBestTrade — trade-to-deny", () => {
-  it("buys a rival's completer from a holdout to deny, where v3 proposes nothing", () => {
+  it("buys a rival's completer from a holdout to deny, holding none of the set itself", () => {
     // p2 is one orange short (owns 16, 18); p3 (a third-party holdout) holds the
-    // last orange (19). p1 owns nothing of the set, so it has nothing to complete:
-    // v3 proposes nothing; v5 buys 19 from p3 to block p2.
+    // last orange (19). p1 owns NOTHING of the set, so this deal cannot be a
+    // completion — the only thing it can be is the denial.
     const state = setCash(
       { ...base, ownership: { 16: "p2", 18: "p2", 19: "p3" } },
       "p1",
       3000,
     );
-    expect(v3Propose(state, "p1")).toBeNull();
-
     const proposal = v5Propose(state, "p1");
     expect(proposal).not.toBeNull();
     if (!proposal) return;
@@ -54,17 +51,23 @@ describe("v5 proposeBestTrade — trade-to-deny", () => {
     expect(v5Propose(state, "p1")).toBeNull();
   });
 
-  it("adds no denial when I already hold the rival's completer (matches v3)", () => {
+  it("adds no denial when I already hold the rival's completer — only the inherited completion", () => {
     // I (p1) hold the last orange (19); p2 owns the other two. The rival is already
-    // blocked, so there's no denial to construct — but p1 now has a one-short
-    // stake itself, so v3's inherited completion (buy 16, 18 from p2) still fires.
-    // v5 must propose EXACTLY what v3 does here: denial changes nothing.
+    // blocked, so there's no denial to construct — but p1 now has a one-short stake
+    // itself, so the inherited completion (buy 16, 18 from p2) is what fires, priced
+    // as a plain cash purchase with no denial premium layered on.
     const state = setCash(
       { ...base, ownership: { 16: "p2", 18: "p2", 19: "p1" } },
       "p1",
       3000,
     );
-    expect(v5Propose(state, "p1")).toEqual(v3Propose(state, "p1"));
+    const proposal = v5Propose(state, "p1");
+    expect(proposal).not.toBeNull();
+    if (!proposal) return;
+    expect(proposal.terms.propertyTo).toEqual({ 16: "p1", 18: "p1" });
+    expect(proposal.terms.cashDelta["p2"] ?? 0).toBeGreaterThan(0);
+    expect(proposal.reason).toContain("complete the monopoly");
+    expect(proposal.reason).not.toContain("deny");
   });
 
   it("won't construct a denial it can't fund in cash (no mortgage-to-fund)", () => {

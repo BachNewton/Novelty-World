@@ -7,7 +7,8 @@ import { DEFAULT_PARAMS } from "./params";
 // FIDELITY: the parameterized bot built from DEFAULT_PARAMS must be byte-identical
 // to claude-v38 — same decisions, so the same game unfolds move-for-move. This is
 // what makes the ES's optimization faithful: it tunes the REAL bot, and the frozen
-// winner (versions/opt-v1) is claude-v38 with different constants, nothing else.
+// winner frozen into an opt-v version is claude-v38 with different constants,
+// nothing else.
 //
 // We assert it by playing identical 4-seat games (same seed, same seating) — one
 // seated with claude-v38, one with the default param bot — and requiring every
