@@ -1381,11 +1381,16 @@ summit-aware panel graph; `DEFAULT_BOT_VERSION` follows it) and **fable-v2 is
 the substrate by deliberate call**; the strict SPRT **crown remains
 `fable-v1`** (fable-v2 is its statistical twin — BETTER on train, INCONCLUSIVE
 at the 4000-game holdout cap). fable-v2 SPRT-beats every other bot in the
-archive on both streams, including both claude twins. Leads for fable-v3: a
-maximin ES leg warm-started from fable-v2 (lift the fable-v1 mirror above the
-SPRT bar → unify crown and default in one bot); opponent-quality PRIORS
-(RL-DESIGN.md); and the standing anti-human re-measure once real fable games
-exist in the DB. The earlier fable-v1 note below stands as history.
+archive on both streams, including both claude twins. **The forward roadmap now
+lives in `LEAPS.md`** — the large-jump leads (learned value with staged kill
+gates, MCTS, opponent priors, league self-play, the human-data loop, judge
+leaps), plus the epistemic charter for re-litigating this archive's closed
+conclusions (they are point-measurements by earlier models, not laws — several
+were overturned this week when conditions changed). Incremental fable-v3 leads:
+a maximin ES leg warm-started from fable-v2 (lift the fable-v1 mirror above the
+SPRT bar → unify crown and default in one bot); and the standing anti-human
+re-measure once real fable games exist in the DB. The earlier fable-v1 note
+below stands as history.
 
 **As of 2026-07-17 (morning):** the crown + substrate was **`fable-v1`** —
 the first confident SPRT crown since claude-v41 (BETTER vs base claude-v45 AND
