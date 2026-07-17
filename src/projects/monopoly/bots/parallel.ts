@@ -2,7 +2,7 @@ import os from "node:os";
 import { Worker } from "node:worker_threads";
 
 // ---------------------------------------------------------------------------
-// CPU parallelism for the evaluation loop (see EVOLUTION.md "Measurement"). A
+// CPU parallelism for the evaluation loop (see METHOD.md "Measurement"). A
 // simulated game is a PURE, deterministic function of (seed, seating) — see
 // `simulate.ts` — so games are embarrassingly parallel: distribute them across a
 // pool of worker threads and the result is bit-identical regardless of which

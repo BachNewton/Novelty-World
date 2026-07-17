@@ -1,4 +1,4 @@
-// jane-v4 — the fourth version of the JANE lineage (see EVOLUTION.md "Bot
+// jane-v4 — the fourth version of the JANE lineage (see METHOD.md "Bot
 // lineages"). The current champion, branched from jane-v2 with three
 // improvements that make it decisively beat claude-v35 (the Claude lineage's
 // strongest version).

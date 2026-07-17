@@ -18,7 +18,7 @@ import {
 // candidate in a generation plays the EXACT same games (common random numbers) —
 // the variance-reduction that lets the ES rank candidates on a few hundred games.
 //
-// NON-TRANSITIVITY GUARD (EVOLUTION.md "the jane-v3 RPS cycle"): the opponent
+// NON-TRANSITIVITY GUARD (METHOD.md "the jane-v3 RPS cycle"): the opponent
 // field is the diverse RATING_PANEL, not a single opponent — so the ES optimizes
 // general strength, not a counter to one bot. The frozen winner is then validated
 // by the real crown gauntlet (`--panel`, both streams).

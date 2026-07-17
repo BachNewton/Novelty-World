@@ -30,7 +30,7 @@ import { claudeV46Bot } from "./claude-v46";
 // maximin (55%) did NOT beat the risk-NEUTRAL re-tune claude-v46 (57%) — risk-
 // awareness WASHED. Recorded as the idea-#2 result. See its `index.ts` + EVOLUTION.md.
 import { claudeV47Bot } from "./claude-v47";
-// Jane lineage — a bot family distinct from Claude (see EVOLUTION.md "Bot
+// Jane lineage — a bot family distinct from Claude (see METHOD.md "Bot
 // lineages"). Every lineage is namespaced by label prefix — `claude-vN`,
 // `jane-vN`, `gemini-vN`.
 import { janeV2Bot } from "./jane-v2";
@@ -41,13 +41,13 @@ import { geminiV1Bot } from "./gemini-v1";
 // Trade lineage — the first PARADIGM-named family: namespaced by the SYSTEM its
 // versions explore (an asymmetric-valuation TRADE engine), not by the authoring
 // machine. A lineage prefix can mark either a machine (claude/jane/gemini) or an
-// idea under exploration; see EVOLUTION.md "Bot lineages". (trade-v1 was authored
+// idea under exploration; see METHOD.md "Bot lineages". (trade-v1 was authored
 // on Jane but lives under `trade-v` because the trade paradigm is what it's about.)
 import { tradeV1Bot } from "./trade-v1";
 // Search lineage — a PARADIGM-named family (like trade-v): namespaced by the
 // SYSTEM its versions explore — TRUNCATED-ROLLOUT / lookahead search (the first
 // non-greedy bot in the archive) — not by the authoring machine. Authored by
-// Claude Code, filed under the paradigm. See EVOLUTION.md "Bot lineages".
+// Claude Code, filed under the paradigm. See METHOD.md "Bot lineages".
 // search-v3 — the rollout-search machinery on the tuned claude-v45 base, extended
 // to AUCTION & JAIL (the deferred-payoff decisions a 1-ply tuned eval is blind to).
 // See search-v3/index.ts.
@@ -91,7 +91,7 @@ import { kyleV3Bot } from "./kyle-v3";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
-// head-to-head A/B (see EVOLUTION.md "Coexistence & promotion"). Every entry is
+// head-to-head A/B (see METHOD.md "Coexistence & promotion"). Every entry is
 // a self-contained frozen SNAPSHOT — so a label always means that exact version.
 // What the lobby fields is DERIVED from this archive + the Elo ladder
 // (`ratings.ts` → `roles.ts`), not a curated pointer, so registering a version is
@@ -133,7 +133,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
 /** Versions deliberately LEFT OUT of the Elo ladder — the rater skips them, so
  *  they never earn a rating, and the gauntlet drops them from its default field.
  *  Every member is a real, runnable snapshot kept for the archive; they're excluded
- *  purely as a COST optimization (see EVOLUTION.md Decision 8 + the gemini-v1 note):
+ *  purely as a COST optimization (see METHOD.md Decision 8 + the gemini-v1 note):
  *    - `claude-v1` — the original champion; its trade-veto deadlock caps too many
  *      games to the turn limit (slow + least-informative).
  *    - `gemini-v1` — the weakest bot by a wide margin (~ −150 Elo below the field)
@@ -184,7 +184,7 @@ export const RATING_EXCLUDED: ReadonlySet<string> = new Set([
  *    - `sim:gauntlet --panel` uses it as the crown-gate FIELD: a version is crowned
  *      only if it BEATS its base AND regresses against NO panel member — so a bot that
  *      merely COUNTERS the champion (non-transitively) can't steal the crown (see
- *      EVOLUTION.md "Non-transitivity & the crown" — the jane-v3 RPS cycle).
+ *      METHOD.md "Non-transitivity & the crown" — the jane-v3 RPS cycle).
  *  The SECOND hand-maintained eval knob alongside `RATING_EXCLUDED`; keep it small and
  *  deliberate. Membership rule: span the Elo range AND the distinct strategies, not the
  *  dense middle of washed siblings. Current roster and why each earns its slot:

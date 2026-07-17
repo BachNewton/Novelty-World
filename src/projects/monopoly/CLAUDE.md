@@ -197,7 +197,7 @@ plus a registry entry. Current strategies:
   decision phases and never initiates. Returns note-less decisions. Not offered
   in the lobby UI. **It is NEVER an evaluation opponent** — a null stub measures
   nothing about strength, so the gauntlet and `sim:versus` both hard-reject it
-  (the field floor is `claude-v2`; see EVOLUTION.md "Never gauntlet against dumb"). It
+  (the field floor is `claude-v2`; both CLIs hard-reject it). It
   exists only as a wiring/pacing baseline (e.g. `pacing.test.ts`) and for `sim`
   playback.
 - **Version policies (the archive)** — every other bot a seat can field is a
@@ -218,8 +218,9 @@ plus a registry entry. Current strategies:
   not-yet-rated — `RATING_EXCLUDED`, e.g. `claude-v1`, `gemini-v1`) renders **deprecated**
   (struck-through, disabled). The lobby is **Elo-only** — it shows the *strongest*
   bot, never a "champion": crowning a champion and picking an evolution *substrate*
-  are separate, confidence-gated decisions that live in `bots/EVOLUTION.md`, not the
-  player UI (see "Two bests"). **Adding a lineage** is one row in `FAMILY_SPECS`
+  are separate, confidence-gated decisions that live in `bots/champion.ts` and
+  `bots/METHOD.md`, not the player UI (see METHOD.md "Two bests"). **Adding a
+  lineage** is one row in `FAMILY_SPECS`
   (`bots/roles.ts`) plus its snapshots under `versions/<prefix>N/`; **adding a
   version** is just registering it in `versions/index.ts` — both need **no UI
   change** (the lobby re-derives) and **no pointer bump** (run `npm run sim:ratings`
@@ -400,23 +401,21 @@ bots/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove para
 bots/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
 bots/ratings.ts       GENERATED strength ladder (BOT_RATINGS, claude-v2=0); the lobby derives from this; see bots/CLAUDE.md "Lobby strength ratings"
 bots/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
-bots/versions/        version archive (EVOLUTION.md): self-contained bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage: claude-vN, jane-vN, gemini-vN, fable-vN
-bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (versions left unrated → deprecated, e.g. claude-v1, gemini-v1)
-bots/versions/claude-v1/     claude-v1 snapshot: original champion, frozen — archived, EXCLUDED from the default field (stalls games); claude-v2 is the floor
-bots/versions/claude-v2/     claude-v2 snapshot (rival-threat pricing) + its tests
-bots/versions/claude-v3/     claude-v3 snapshot (N-way trades) — accepted as substrate (win-neutral vs claude-v2)
-bots/versions/claude-v4/     claude-v4 snapshot (mortgage-funded build tempo) — rejected, win-neutral; archived
-bots/versions/claude-v5/     claude-v5 snapshot (trade-to-deny) — loop CHAMPION
-bots/versions/claude-v6/     claude-v6 snapshot (deny-via-swap) — rejected, win-neutral; archived
-bots/versions/claude-v7/     claude-v7 snapshot (two-short denial) — rejected, regression; archived
-bots/versions/claude-v8/     claude-v8 snapshot (denial + tempo) — rejected, overfit (even on holdout); archived
-(which version is "best" is whatever tops the Elo ladder in bots/ratings.ts — measured, not a product call; see EVOLUTION.md)
+bots/champion.ts      CROWN / SUBSTRATE — the evolution loop's mutable state, as code so a stale label fails loudly (NOT the player-facing default; see METHOD.md "Two bests")
+bots/METHOD.md        the RULES of the evolution loop — how a version is proposed, measured, and promoted; the crown/substrate bar; the locked decisions. Read before running a version step
+bots/EVOLUTION.md     the RECORD — append-only: every version's hypothesis + what it measured, plus the paradigm-shift session narratives. Search it before re-walking an idea
+bots/versions/        version archive: self-contained frozen bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage (claude-vN, jane-vN, fable-vN, …) — a prefix names an authoring machine OR a paradigm
+bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (unrated → deprecated) + RATING_PANEL (the anchor panel: the rater's graph AND the crown gate's field)
+bots/versions/conformance.test.ts  the archive-wide Bot contract, table-driven over VERSIONS: determinism + legality at every decision phase. A new snapshot is covered the moment it's registered
+bots/versions/<label>/  one frozen snapshot + its own tests. Which exist is `VERSIONS`, not a list here — read the registry. Culled snapshots are recoverable at the `bot-archive-full` tag
+(which version is "best" is whatever tops the Elo ladder in bots/ratings.ts — measured, not a product call)
 components/           React board + lobby/seat UI
 ```
 
-The Claude-bot **evolution** process (how versions are proposed, isolated, and
-A/B-tested to a locked-in champion) lives in `bots/EVOLUTION.md`; read it before
-adding a version or touching the simulator/tournament.
+The **rules** of the bot-evolution loop (how versions are proposed, isolated, and
+A/B-tested to a crowned champion) live in `bots/METHOD.md` — read it before adding
+a version or touching the simulator/tournament. What each version actually tried
+and measured is the record in `bots/EVOLUTION.md`.
 
 ## Testing
 

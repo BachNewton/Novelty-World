@@ -32,7 +32,7 @@ describe("bot strength ratings coverage", () => {
 // BOTH tools — the rater fits the ladder over the panel graph, and `sim:gauntlet
 // --panel` uses it as the crown-gate field. A typo, a dropped anchor, or an excluded
 // member would silently corrupt the ladder AND the crown gate, so pin the invariants.
-// See `bots/CLAUDE.md` "The ANCHOR PANEL" and EVOLUTION.md "Non-transitivity & the crown".
+// See `bots/CLAUDE.md` "The ANCHOR PANEL" and METHOD.md "Non-transitivity & the crown".
 describe("anchor panel invariants", () => {
   const ANCHOR = "claude-v2"; // the permanent Elo anchor; must be in the panel
 

@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Elo rating from a field of pairwise results (see EVOLUTION.md "Measurement").
+// Elo rating from a field of pairwise results (see METHOD.md "Measurement").
 // Strategy strength is NON-TRANSITIVE — A can beat B, B beat C, yet A lose to C
 // — so "beat the last guy" is not a robust definition of champion. Instead
 // every version earns an Elo against the whole field, and the champion is the

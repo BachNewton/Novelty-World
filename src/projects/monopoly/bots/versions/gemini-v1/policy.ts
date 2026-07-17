@@ -1,6 +1,6 @@
 // ===========================================================================
 // gemini-v1 SNAPSHOT — the first version of the GEMINI lineage (a bot family
-// distinct from Claude and Jane; see EVOLUTION.md "Bot lineages"). Authored by
+// distinct from Claude and Jane; see METHOD.md "Bot lineages"). Authored by
 // Gemini and wired into our `Bot` contract. Every change from the delivered
 // source is WIRING or a BEHAVIOR-PRESERVING correction — Gemini's strategy (its
 // valuations, priorities, thresholds, and per-phase decisions) is intact:

@@ -19,8 +19,8 @@ import { versionBot } from "./versions";
  *  (rejected below, exactly as the gauntlet rejects it): it is a null/reactive
  *  stub, not a strategy — it initiates nothing, so "beating dumb" measures
  *  nothing about strength. The floor of the real field is `claude-v2` (`claude-v1` is
- *  archived but excluded by default — its bad logic stalls games). See EVOLUTION.md
- *  "Never gauntlet against dumb". */
+ *  archived but excluded by default — its bad logic stalls games). `sim:gauntlet`
+ *  and `sim:ratings` both hard-reject it for the same reason. */
 
 interface Args {
   aLabel: string;
@@ -68,7 +68,7 @@ function parseArgs(argv: readonly string[]): Args {
   }
   // `dumb` is a null stub, not a strategy — never an evaluation opponent (the
   // gauntlet hard-rejects it too). Measuring against it tells you nothing; the
-  // real field's floor is v2. See EVOLUTION.md "Never gauntlet against dumb".
+  // real field's floor is claude-v2.
   for (const label of positional) {
     if (label === "dumb") {
       throw new Error(

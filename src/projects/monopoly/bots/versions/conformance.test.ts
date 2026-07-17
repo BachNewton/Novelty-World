@@ -27,7 +27,7 @@ import { VERSIONS } from "./index";
 //     injected RNG, never `Math.random` (see bots/CLAUDE.md "Randomness & the RNG
 //     seam"). Repeated calls on one state must agree.
 //   - LEGALITY. A bot may only emit intents the engine validates — this is what
-//     makes it "structurally incapable of cheating" (EVOLUTION.md "The core idea").
+//     makes it "structurally incapable of cheating" (METHOD.md "The core idea").
 //     Every non-null decision must be legal on the state it was handed.
 
 const base = freshGame("conformance");

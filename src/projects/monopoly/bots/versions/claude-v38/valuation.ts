@@ -1,6 +1,6 @@
 // ===========================================================================
 // claude-v38 SNAPSHOT — fork of the champion claude-v36 (top of the Elo ladder;
-// substrate per EVOLUTION.md "Two bests").
+// substrate per METHOD.md "Two bests").
 //
 // SINGLE (STRUCTURAL) CHANGE vs claude-v36: monopolyBonus is no longer
 // SET_TOTAL_PRICE × GROUP_WEIGHT (hand-tuned fudge factors). It is now derived

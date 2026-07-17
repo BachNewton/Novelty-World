@@ -1,5 +1,5 @@
 // claude-v36 — Claude lineage, authored by Claude Code. Branched from the
-// cross-lineage champion jane-v2 (EVOLUTION.md "Two bests": the substrate is the
+// cross-lineage champion jane-v2 (METHOD.md "Two bests": the substrate is the
 // best base regardless of family; borrowing across lineages is free). This is the
 // first Claude version to adopt the Jane base — the Claude line's own v35 sits
 // behind jane-v2.

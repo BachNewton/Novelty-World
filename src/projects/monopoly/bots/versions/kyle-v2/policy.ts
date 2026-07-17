@@ -2,7 +2,7 @@
 // kyle-v2 SNAPSHOT — the first KYLE version with real logic, branched from the
 // kyle-v1 blank baseline (which deferred to engine defaults everywhere). The
 // KYLE lineage is a bot family authored by Kyle, distinct from claude / jane /
-// gemini and the paradigm lines (see EVOLUTION.md "Bot lineages"). Plain-language
+// gemini and the paradigm lines (see METHOD.md "Bot lineages"). Plain-language
 // strategy is in this folder's PHILOSOPHY.md; this file is the wiring of that
 // strategy into our `Bot` contract (see ../../decision.ts). Everything kyle-v2
 // doesn't have an opinion on (jail, trades) returns `null`, which the pacer

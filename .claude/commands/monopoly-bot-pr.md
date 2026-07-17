@@ -70,7 +70,7 @@ user. Run every command from the repo root.
      rather than editing the submitted logic yourself.
 
    **Keep three decisions separate — record / strongest-default / crown — they are
-   independent (see EVOLUTION.md "Two bests"). Steps 5–7 measure each.**
+   independent (see METHOD.md "Two bests"). Steps 5–7 measure each.**
 
 5. **Rate it on the ladder → the player-facing Strongest/default (NOT the crown).**
    Run:
@@ -96,7 +96,7 @@ user. Run every command from the repo root.
    `<CHAMPION>` (the base) AND regressing against **NO panel member**. Beating the
    champion alone is NOT enough: strength is non-transitive, so a bot can *counter* the
    champion yet lose to the rest of the field (the **jane-v3 RPS cycle** — see
-   EVOLUTION.md "Non-transitivity & the crown"). The panel field is the guard, and any
+   METHOD.md "Non-transitivity & the crown"). The panel field is the guard, and any
    single regression is a REJECT (this is the complexity-ratchet guard too — a
    one-stream or EVEN-vs-base result is also not a crown). Report win share / Elo / SPRT
    per opponent for each stream, and note where it disagrees with the ladder (a
@@ -114,7 +114,7 @@ user. Run every command from the repo root.
      (`versions/index.ts`) so the panel's ceiling stays current (you may retire a
      now-redundant member); it becomes the new default substrate (the next evolution
      branches from the champion regardless of lineage — lineages are provenance, not
-     silos; see EVOLUTION.md "Two bests"). If NOT crowned, say so plainly and note any
+     silos; see METHOD.md "Two bests"). If NOT crowned, say so plainly and note any
      subsystem worth keeping as an **archived building block** (recorded, available to
      borrow later, but not the substrate).
    - Compare against the PR's own (stale) claim.

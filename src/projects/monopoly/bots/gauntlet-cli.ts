@@ -49,7 +49,7 @@ function makeProgressReporter(): (p: GauntletProgress) => void {
 
 /** `npm run sim:gauntlet` — play a candidate against the whole FIELD on the
  *  parallel worker pool, decide each pairing by SPRT, fit Elo across the field,
- *  and print the promotion verdict (see EVOLUTION.md "Measurement"). Deterministic
+ *  and print the promotion verdict (see METHOD.md "Measurement"). Deterministic
  *  by seed: same args reproduce the same table.
  *
  *  Usage:
@@ -64,11 +64,11 @@ function makeProgressReporter(): (p: GauntletProgress) => void {
  *
  *  The field defaults to every known version except `dumb` (a null stub — never
  *  gauntleted), `claude-v1` (the floor — dominated and slow; opt back in with
- *  `--with-v1`, see EVOLUTION.md Decision 8), and the candidate; base defaults to
+ *  `--with-v1`, see METHOD.md Decision 8), and the candidate; base defaults to
  *  the latest. `--panel` sets the field to the ANCHOR PANEL (`RATING_PANEL`) — the
  *  CROWN GATE: a candidate is accepted only if it beats its base AND regresses
  *  against no panel member, so a non-transitive COUNTER to the champion can't steal
- *  the crown (see EVOLUTION.md "Non-transitivity & the crown"). `--field` overrides. */
+ *  the crown (see METHOD.md "Non-transitivity & the crown"). `--field` overrides. */
 
 interface Args {
   candidate: string;

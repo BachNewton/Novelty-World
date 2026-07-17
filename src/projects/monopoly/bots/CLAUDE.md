@@ -6,7 +6,7 @@ Read this before touching any version's `policy.ts`, `valuation.ts`, or
 A seat fields a **concrete version label** (`Player.botStrategy`); the lobby's
 "best" picks are simply the **highest-Elo** labels, derived from the measured
 ladder (`bots/ratings.ts` → `bots/roles.ts`), not hand-picked pointers (see
-"Lobby strength ratings" below and EVOLUTION.md "Coexistence & promotion"). The
+"Lobby strength ratings" below and METHOD.md "Coexistence & promotion"). The
 main
 `monopoly/CLAUDE.md` "Bots" section owns the shared **infrastructure** (the `Bot`
 contract, the registry, BOT-note mechanics, and how the pacer drives proactive
@@ -39,7 +39,7 @@ this bot should be the best work we can produce.
   stealing a rival lineage's idea wholesale to make a version stronger is encouraged
   — "winning is the only loyalty" applies to the code as much as to in-game play.
   When you evolve, look across ALL families and branch from whatever base you can
-  most improve (see EVOLUTION.md "Two bests").
+  most improve (see METHOD.md "Two bests").
 - **Proactive across the full surface.** It buys, trades, mortgages *and*
   unmortgages at the strategic moment — it does not sit on a winning position.
 - **Transparency serves insight, never at the cost of winning.** Every decision
@@ -272,7 +272,8 @@ Ordered by impact. Each is a place the *current* policy leaves value on the tabl
 
 1. **N-way trade construction.** Construction searches only 2-way deals
    (mutual-completion swaps + cash). The engine and `positionValue` model are both
-   N-way-ready; the *search* isn't. **Tried in claude-v3 (`versions/claude-v3/`, see EVOLUTION.md)
+   N-way-ready; the *search* isn't. **Tried in claude-v3 (see EVOLUTION.md; the
+   snapshot itself was culled — `git show bot-archive-full:…/versions/claude-v3/`)
    and found WIN-NEUTRAL:** it *eliminates the turn-cap deadlock* (0% draws) but
    does not beat claude-v2 head-to-head, because the residual deadlock cost *draws, not
    losses* — completing sets symmetrically is a wash. The claude-v3 work (N-way search +
@@ -282,14 +283,14 @@ Ordered by impact. Each is a place the *current* policy leaves value on the tabl
 2. **Mortgage-to-fund a build / sweetener.** Raise-to-*buy* is wired, and
    redeploy mortgages-then-builds an idle set, but a *fresh* build/sweetener is
    still cash-funded only. A pro will mortgage a back-burner lot to hotel a prime
-   set a turn sooner. **The BUILD half was tried in claude-v4 (`versions/claude-v4/valuation.ts`,
-   see EVOLUTION.md) and found WIN-NEUTRAL:** `planBuild` now mortgages idle
+   set a turn sooner. **The BUILD half was tried in claude-v4 (see EVOLUTION.md;
+   snapshot culled) and found WIN-NEUTRAL:** `planBuild` now mortgages idle
    non-monopoly lots to develop a prize set a level sooner, but the one-level tempo
    nudge bought no win share even against opponents that lacked it (leverage cost ≈
    tempo gain). Like claude-v3's N-way, it's a win-safe, archived building block — the win
    only comes paired with an *asymmetry* lever (denial). **The sweetener half
-   (mortgage to fund a *trade's* cash) was tried in claude-v32 (`versions/claude-v32/`, see
-   EVOLUTION.md) and found WIN-NEUTRAL** — even hard-gated to the proven distress
+   (mortgage to fund a *trade's* cash) was tried in claude-v32 (see EVOLUTION.md;
+   snapshot culled) and found WIN-NEUTRAL** — even hard-gated to the proven distress
    completion (mortgage an idle lot to fund a below-fair completer off a distressed
    seller the bot can't pay for in cash). It is in-machinery (cross-turn: arm a
    mortgage-only `manage`, then propose next turn — no engine change), fires cleanly,

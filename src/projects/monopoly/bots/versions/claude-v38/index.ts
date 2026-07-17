@@ -1,6 +1,6 @@
 // claude-v38 — Claude lineage, authored by Claude Code. Branched from the
 // current champion claude-v36 (top of the Elo ladder; the substrate per
-// EVOLUTION.md "Two bests").
+// METHOD.md "Two bests").
 //
 // SINGLE (STRUCTURAL) CHANGE vs claude-v36: the monopoly valuation is rebuilt
 // from first principles. claude-v36 priced a completed set as

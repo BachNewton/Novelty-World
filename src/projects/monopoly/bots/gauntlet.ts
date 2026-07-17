@@ -7,7 +7,7 @@ import { walkGauntletSprt, type GauntletSprtConfig, type GauntletVerdict } from 
 // "Measurement"). A candidate doesn't just face its predecessor; it plays the
 // whole FIELD (the past champions — NEVER `dumb`, a null stub that measures
 // nothing). v1 is the published floor but is excluded from the DEFAULT field as a
-// dominated, slow pairing (EVOLUTION.md Decision 8); the CLI re-adds it with
+// dominated, slow pairing (METHOD.md Decision 8); the CLI re-adds it with
 // `--with-v1`. When v1 is absent the Elo fit anchors at the base instead of v1=0.
 // Each candidate-vs-opponent pairing is decided by SPRT, so
 // strong edges resolve in dozens of games and marginal ones play long or are
@@ -113,7 +113,7 @@ export interface GauntletReport {
   elo: Record<string, number>;
   /** The label pinned to 0 Elo: `claude-v1` (the published floor) when it's in the
    *  field, else the base — so a floor-less field stays interpretable (ratings are
-   *  relative to the base). See EVOLUTION.md Decision 8. */
+   *  relative to the base). See METHOD.md Decision 8. */
   anchor: string;
   /** Highest-Elo label — the field's champion. */
   champion: string;

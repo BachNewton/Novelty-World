@@ -169,7 +169,7 @@ vs claude-v2: the defensive stack costs ~6 points there, additively across the
 levers, while earning more than that back against strong opponents). So the
 Bradley–Terry ladder — a margins average — ranks fable-v1 BELOW v45 (+172.5 vs
 +220.1) even though the SPRT crown gate passed on both streams. The crown and
-the lobby default therefore diverge (see EVOLUTION.md "Two bests" and the
+the lobby default therefore diverge (see METHOD.md "Two bests" and the
 fable-v1 session entry): fable-v1 is the crowned champion; claude-v45 remains
 the ladder-top lobby default. The fable-v2 lead that resolves it is
 opponent-quality modeling (defend against sharks, punish fish — trade-v1's

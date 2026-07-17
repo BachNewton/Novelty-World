@@ -1,4 +1,4 @@
-// jane-v2 — the second version of the JANE lineage (see EVOLUTION.md "Bot
+// jane-v2 — the second version of the JANE lineage (see METHOD.md "Bot
 // lineages"). Branched from jane-v1, adds four parameter discoveries that make
 // the Jane lineage decisively beat Claude's champion v29 for the first time.
 //
