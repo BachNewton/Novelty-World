@@ -19,6 +19,7 @@
     "sim:ratings": "tsx src/projects/monopoly/bots/ratings-cli.ts",
     "sim:optimize": "tsx src/projects/monopoly/bots/optimize-cli.ts",
     "game:review": "tsx src/projects/monopoly/bots/review-cli.ts",
+    "game:offers": "tsx src/projects/monopoly/bots/offers-cli.ts",
     "bot-brief": "node src/projects/monopoly/bots/bot-brief-cli.mjs",
     "bench": "vitest bench --run",
     "test:e2e": "playwright test",
