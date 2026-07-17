@@ -1,78 +1,68 @@
 // ===========================================================================
 // OFFLINE OPTIMIZATION TOOLING — the tunable parameter vector for a
-// claude-v38-shaped bot.
+// FABLE-v1-shaped bot (the flow/extraction factory in `./bot.ts`).
 //
-// This is NOT a registry bot and NOT a frozen version. It exists only so the
-// Evolutionary Strategy (`snes.ts`) can jointly optimize claude-v38's tuning
-// constants — something the hand-tuned archive never did (every prior version
-// moved ONE or TWO constants at a time, gated by SPRT). The ES produces a new
-// constants VECTOR; the WINNER is then frozen back into a normal static rule
-// bot (`versions/opt-v1/`) with no config indirection.
+// 47 dims: the 31 claude-v45-era base dims (claude-v38's constants + the v41
+// seller-side trade levers + the extended color/rail/distress dims) PLUS the
+// 16 fable levers (flow floor, jail EV, build tempo, trade-pricing overhaul,
+// transfer memory, extraction, scalp, self-lead). The washed v47 standing-
+// POSTURE dims (`standingFloorGain`/`standingAuctionGain`) were dropped in
+// this rebind — they measured as a wash/regression (EVOLUTION.md claude-v47)
+// and the fable factory never carried them. Saved vectors from the previous
+// 33-dim claude layout are NOT loadable (see the PARAM_KEYS note).
 //
-// INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY. `param-fidelity.test.ts`
-// pins this (a game with the default vector is byte-identical to claude-v38), so
-// the parameterization is faithful and the ES is optimizing the real bot. The
-// claude-v41 seller-side trade levers (`rivalThreatFactor`, `holderDenialFrac`,
-// `deployabilityDiscount`) are appended at the END and default to a NO-OP
-// (rivalThreatFactor = denyFactor; holder price + discount = 0), so the invariant
-// still holds — they only change behavior once the ES turns them on.
+// INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY — base dims at v38
+// values, every v41 + fable lever at its NO-OP — pinned by
+// `param-fidelity.test.ts`, so the ES optimizes the real bot.
+//
+// INVARIANT PINS (pass via `--pin`; they are NOT safe free levers — the v45
+// lesson is that a win-share ES is structurally blind to the net-zero
+// degenerate behaviors these levers guard against):
+//   holderDenialFrac=1     the buyer/holder denial-pricing LOCKSTEP.
+//   survivalBounded=1      the bounded survival credit (the fire-sale leak).
+//   transferMemoryTurns=10 the ring-proof transfer memory.
+//   extractionOn=1         the family's engine; turning it off just re-tunes
+//                          claude-v45 (already done: claude-v46, a twin).
 // ===========================================================================
 
-/** The tunable constants of a claude-v38-shaped bot. Each field corresponds to a
- *  hand-tuned constant in claude-v38's valuation/policy/trades; the defaults
- *  below are claude-v38 verbatim. The ES optimizes these jointly. */
+/** The tunable constants of a fable-v1-shaped bot. Base dims are claude-v38
+ *  verbatim at their defaults; every lever appended after them defaults to a
+ *  NO-OP. Field-by-field rationale lives in `versions/fable-v1/bot.ts` (the
+ *  factory `./bot.ts` copies) and `versions/fable-v1/PHILOSOPHY.md`. */
 export interface ParamVector {
-  /** Denial premium as a fraction of the rival set's monopoly bonus
-   *  (`DENY_FACTOR`). Also drives the SELLER-side `RIVAL_THREAT_FACTOR` (kept in
-   *  lockstep per bots/CLAUDE.md "price BOTH sides of denial"). v38 = 0.15. */
+  /** Denial premium as a fraction of the rival set's monopoly bonus. v38 = 0.15. */
   denyFactor: number;
-  /** Scales the from-first-principles monopoly bonus (`BONUS_SCALE`). v38 pins
-   *  orange to 560; this scales ALL set bonuses together, so it scales the whole
-   *  monopoly-vs-cash tradeoff. v38 = 16489. */
+  /** Scales the from-first-principles monopoly bonus. v38 = 16489. */
   bonusScale: number;
-  /** Multiplier on the railroad synergy table [0,0,70,180,380] (`RAIL_SYNERGY`).
-   *  1.0 = v38. */
+  /** Multiplier on the railroad synergy table. 1.0 = v38. */
   railSynergyScale: number;
-  /** Both-utilities pair bonus (`UTIL_PAIR_BONUS`). v38 = 40. */
+  /** Both-utilities pair bonus. v38 = 40. */
   utilPairBonus: number;
-  /** Bare voluntary-spend reserve floor (`BASE_FLOOR`). v38 = 60. */
+  /** Bare voluntary-spend reserve floor. v38 = 60. */
   baseFloor: number;
-  /** Fraction of worst board rent kept as voluntary-spend reserve
-   *  (`FLOOR_RENT_FRACTION`). v38 = 0.3. */
+  /** Fraction of worst board rent kept as voluntary-spend reserve. v38 = 0.3. */
   floorRentFraction: number;
-  /** Cap on the rent-fraction reserve (`FLOOR_CAP`). v38 = 300. */
+  /** Cap on the rent-fraction reserve. v38 = 300. */
   floorCap: number;
-  /** Spare cash above the floor that signals "flush" → push to hotels
-   *  (`HOTEL_CUSHION`). v38 = 300. */
+  /** Spare cash above the floor that signals "flush" → push to hotels. v38 = 300. */
   hotelCushion: number;
-  /** House-bank level below which houses are hoarded (`HOUSE_SCARCE`). v38 = 6. */
+  /** House-bank level below which houses are hoarded. v38 = 6. */
   houseScarce: number;
-  /** Opponent rent that marks the board dangerous enough to sit in jail
-   *  (`JAIL_DANGER_RENT`). v38 = 350. */
+  /** Opponent rent that marks the board dangerous enough to sit in jail. v38 = 350. */
   jailDangerRent: number;
-  /** Cushion (in opponent position-value) past break-even when sweetening a trade
-   *  (`ACCEPT_MARGIN`). v38 = 30. */
+  /** Cushion past break-even when sweetening a trade. v38 = 30. */
   acceptMargin: number;
-  /** Extra value per dollar of cash to a fully-distressed seller
-   *  (`SURVIVAL_FACTOR`). v38 = 1.5. */
+  /** Extra value per dollar of cash to a fully-distressed seller. v38 = 1.5. */
   survivalFactor: number;
-  /** A cash-negative trade is only stomached for a gain this large
-   *  (`LIQUIDITY_RISK_GAIN`). v38 = 250. */
+  /** A cash-negative trade is only stomached for a gain this large. v38 = 250. */
   liquidityRiskGain: number;
-  /** Worth/price multiple to dip below the reserve for a buy (`DIP_WORTH_MULT`).
-   *  v38 = 1.4. */
+  /** Worth/price multiple to dip below the reserve for a buy. v38 = 1.4. */
   dipWorthMult: number;
-  /** Worth/price multiple to MORTGAGE to fund a buy (`RAISE_WORTH_MULT`).
-   *  v38 = 1.25. */
+  /** Worth/price multiple to MORTGAGE to fund a buy. v38 = 1.25. */
   raiseWorthMult: number;
 
-  // --- EXTENDED dimensions (appended at the END so older saved vectors still
-  //     unpack the original 15 correctly). All default to a NO-CHANGE value so
-  //     DEFAULT_PARAMS still reproduces claude-v38 exactly. ---
-
-  /** Per-color MULTIPLIER on that set's first-principles `MONOPOLY_BONUS`. Lets
-   *  the ES RE-SHAPE the set-value ranking (the strategic axis hand-tuning barely
-   *  touched). 1.0 = v38 (no change). One field per color. */
+  /** Per-color MULTIPLIER on that set's first-principles monopoly bonus — lets
+   *  the ES re-shape the set-value ranking. 1.0 = v38 (no change). */
   monoMultOrange: number;
   monoMultRed: number;
   monoMultLightBlue: number;
@@ -82,74 +72,72 @@ export interface ParamVector {
   monoMultGreen: number;
   monoMultBrown: number;
 
-  /** Per-count railroad synergy values (`RAIL_SYNERGY[2..4]`), giving the ES
-   *  freedom over the synergy SHAPE that the single `railSynergyScale` could only
-   *  scale uniformly. Still multiplied by `railSynergyScale`. Defaults are the
-   *  v38 table: [70, 180, 380]. */
+  /** Per-count railroad synergy values (`RAIL_SYNERGY[2..4]`), still multiplied
+   *  by `railSynergyScale`. Defaults are the v38 table: [70, 180, 380]. */
   railSynergy2: number;
   railSynergy3: number;
   railSynergy4: number;
 
-  /** Liquid-to-worst-rent ratio at which `sellerDistress` reaches 0 (the "safe"
-   *  cushion above worst rent). v38 = 1.5. Shaping the distress ramp tunes how
-   *  much survival cash a distressed seller will pay for. */
+  /** Liquid-to-worst-rent ratio at which `sellerDistress` reaches 0. v38 = 1.5. */
   distressSafeRatio: number;
-
-  /** The develop-floor every monopoly is brought to first in `planBuild`
-   *  (`SPREAD_FLOOR`). v38 = 3 (the best rent-per-dollar jump). */
+  /** The develop-floor every monopoly is brought to first in `planBuild`. v38 = 3. */
   spreadFloor: number;
 
-  // --- v41 SELLER-SIDE TRADE PRICING (Kyle's thesis, bots/CLAUDE.md Refinement
-  //     #3). Three dims that default to a NO-OP so DEFAULT_PARAMS still reproduces
-  //     claude-v38. Folded into the ES space so the base vector and the trade
-  //     levers are CO-tuned — claude-v42/v43 proved a fixed-param base swap onto a
-  //     different opt vector REGRESSES (they are coupled: denialPositionCost is
-  //     keyed off denyFactor, and the trade params were tuned on opt-v4). ---
-
-  /** Seller-side rival-threat factor (`RIVAL_THREAT_FACTOR`), DECOUPLED from
-   *  `denyFactor` (claude-v41 #3b). Prices the harm of handing a rival a monopoly;
-   *  the only term that penalised it was pinned to denyFactor, so the bot sold
-   *  completers too cheap. v38 pinned the two together, so default 0.15 (= the v38
-   *  denyFactor) reproduces v38. Higher = more reluctant to sell completers; ≳1.0
-   *  deadlocks games to the turn cap (bounded safely below that). */
+  /** Seller-side rival-threat factor, DECOUPLED from `denyFactor` (claude-v41).
+   *  Default 0.15 (= the v38 denyFactor) reproduces v38; ≳1.0 deadlocks games. */
   rivalThreatFactor: number;
-  /** Holder-side denial price as a FRACTION of the buyer-side `denyFactor × bonus`
-   *  premium (`denialPositionCost`, claude-v35/v39). 0 = no holder price (the v38/
-   *  v36 hot-potato ring); 1.0 = the exact buyer/holder LOCKSTEP (bots/CLAUDE.md
-   *  "price BOTH sides of denial"). Default 0 keeps v38 fidelity; the ES is expected
-   *  to find ~1 (the ring only loses its fuel when buyer and holder prices move
-   *  together). Still keyed off `denyFactor`, so raising denial raises both sides. */
+  /** Holder-side denial price as a FRACTION of the buyer-side premium
+   *  (claude-v35/v39). INVARIANT: pin at 1.0 (the lockstep). Default 0 = v38. */
   holderDenialFrac: number;
-  /** Fractional discount on incoming cash in a set-handover-to-a-rival trade when
-   *  the bot has no productive outlet for it (`deployabilityDiscount`, claude-v41
-   *  #3c). 0 = cash valued at face (v38); 0.5 = idle cash worth half. Scopes ONLY to
-   *  cash received in a rival-enabling handover (gated on the rival-threat term), so
-   *  own-set acquisition is untouched. Default 0 = v38. */
+  /** Deployability discount on incoming set-handover cash (claude-v41).
+   *  0 = cash at face (v38). */
   deployabilityDiscount: number;
 
-  // --- RISK-AWARE / PLAY-TO-STANDING (a genuinely different lever — positionValue
-  //     is risk-NEUTRAL, but a pro modulates VARIANCE by rank: a leader banks/de-
-  //     risks, a laggard takes +EV gambles). Each scales a lever by a STANDING RATIO
-  //     s = myPositionValue / mean(active-opponent positionValue) — s>1 leading, s<1
-  //     trailing — via a factor clamped to [0.4, 2.5]. Both default 0 = NO-OP (factor
-  //     ≡ 1), preserving claude-v38 fidelity; the ES turns them on and picks the sign.
-  //     CAUTION (bots/CLAUDE.md "Considered and rejected"): this is NOT cash-scaled
-  //     monopoly value — it scales liquidity/auction POSTURE, never a set's worth — and
-  //     may wash vs the risk-neutral monoculture (a recorded finding either way). ---
+  // --- fable levers (all NO-OP by default; see versions/fable-v1/bot.ts) ---
 
-  /** Standing-scaled voluntary RESERVE: liquidityFloor is multiplied by
-   *  clamp(1 + g*(s-1), 0.4, 2.5). Positive g => a leader keeps a fatter cash buffer
-   *  (de-risk) while a laggard thins it to deploy hard. 0 = flat reserve (v38). */
-  standingFloorGain: number;
-  /** Standing-scaled AUCTION aggression: the acquisition-value cap is multiplied by
-   *  clamp(1 + g*(s-1), 0.4, 2.5) before the net-worth cap. NEGATIVE g => a laggard
-   *  (s<1) bids past book value to gamble back into contention while a leader bids
-   *  tight; the ES is free to pick the sign. 0 = v38 (bid to acquisitionValue). */
-  standingAuctionGain: number;
+  /** F1a — flow floor: frac × expected next-roll outgo. 0 = the legacy static
+   *  floor path (`floorRentFraction`/`floorCap`). */
+  flowFloorFrac: number;
+  /** F1a — weight on the worst single next-roll hit (the tail a mean hides). */
+  flowTailFrac: number;
+  /** F1a — cap on the flow floor (only read when the flow floor is on). */
+  flowFloorCap: number;
+  /** F1 — fraction of a second convolved roll blended into outgo estimates. */
+  flowSecondRollFrac: number;
+  /** F1b — EV jail rule threshold; 0 = v45's static `jailDangerRent` rule. */
+  jailStayThreshold: number;
+  /** F1 — probability a jailed opponent moves next roll (flow scaling). */
+  jailExitProb: number;
+  /** F1c — >0: order buildable monopolies by opponent landing mass. 0 = the
+   *  static tier order. */
+  buildTempo: number;
+  /** F2a — >0: bound survival credit at the cash that erases distress.
+   *  INVARIANT: pin at 1 (the fire-sale / ring-reopening leak). 0 = v45. */
+  survivalBounded: number;
+  /** F2b — rival-threat scaling by the RECIPIENT's standing (floored at 1). */
+  standingThreatGain: number;
+  /** F2c — fraction of rail/utility synergy delta priced into rival threat. */
+  synergyThreatFrac: number;
+  /** F2d — threat multiplier when only two players are live. 1 = v45 (no-op). */
+  headsUpThreatMult: number;
+  /** F2e — voluntary-trade liquidity guard as a fraction of the floor. 0 = off. */
+  liqGuardFrac: number;
+  /** F3 — ring-proof transfer memory in turn groups. INVARIANT: pin at 10. */
+  transferMemoryTurns: number;
+  /** F4 — >0: the extraction engine (sell held completers/rails at the rival's
+   *  solved premium; charge swap surplus to the margin). INVARIANT: pin at 1. */
+  extractionOn: number;
+  /** F5 — buy-to-scalp fraction of the future harvest. Hand-measured −5pts at
+   *  every swept value on the fable stack; the ES may re-explore. 0 = off. */
+  scalpFrac: number;
+  /** F2f — threat scaling by MY OWN standing. Hand-measured mixed (+2 vs v45,
+   *  −2.5 vs the weak field); the ES may re-explore. 0 = off. */
+  selfLeadGain: number;
 }
 
-/** The DEFAULT vector — claude-v38 verbatim. The parameterized bot built from
- *  this must be byte-identical to claude-v38 (pinned by param-fidelity.test.ts). */
+/** The DEFAULT vector — claude-v38 verbatim (every lever at its no-op). The
+ *  parameterized bot built from this must be byte-identical to claude-v38
+ *  (pinned by param-fidelity.test.ts). */
 export const DEFAULT_PARAMS: ParamVector = {
   denyFactor: 0.15,
   bonusScale: 16489,
@@ -184,33 +172,46 @@ export const DEFAULT_PARAMS: ParamVector = {
   rivalThreatFactor: 0.15,
   holderDenialFrac: 0,
   deployabilityDiscount: 0,
-  // risk-aware standing levers OFF (no-op — reproduce claude-v38):
-  standingFloorGain: 0,
-  standingAuctionGain: 0,
+  // fable levers all at their NO-OP (reproduce claude-v38):
+  flowFloorFrac: 0,
+  flowTailFrac: 0,
+  flowFloorCap: 0,
+  flowSecondRollFrac: 0,
+  jailStayThreshold: 0,
+  jailExitProb: 0,
+  buildTempo: 0,
+  survivalBounded: 0,
+  standingThreatGain: 0,
+  synergyThreatFrac: 0,
+  headsUpThreatMult: 1,
+  liqGuardFrac: 0,
+  transferMemoryTurns: 0,
+  extractionOn: 0,
+  scalpFrac: 0,
+  selfLeadGain: 0,
 };
 
 /** Inclusive [min, max] bounds for each parameter — SANE ranges the ES respects.
- *  Bounds bracket the v38 default with room to move in both directions, staying
- *  within behavior the bot's logic was designed for (e.g. a fraction stays a
- *  fraction; a reserve stays a moderate buffer, not the full worst-case rent). */
+ *  Bounds bracket the known-good vectors (v38 defaults AND the fable-v1/v44
+ *  winners) with room to move in both directions. Where 0 disables a lever, the
+ *  lower bound includes it so the ES can choose OFF; multiplicative levers floor
+ *  at their no-op value. */
 export const PARAM_BOUNDS: Readonly<Record<keyof ParamVector, readonly [number, number]>> = {
-  denyFactor: [0.0, 0.6], // 0 (no denial) … 0.6 (claude-v5's denial-maximizer)
-  bonusScale: [8000, 28000], // ~half … ~1.7× the v38 monopoly weight
-  railSynergyScale: [0.4, 2.0],
+  denyFactor: [0.0, 0.7],
+  bonusScale: [4000, 40000],
+  railSynergyScale: [0.3, 2.5],
   utilPairBonus: [0, 120],
   baseFloor: [0, 200],
-  floorRentFraction: [0.1, 0.8], // aggressive … cautious reserve
+  floorRentFraction: [0.1, 0.8],
   floorCap: [100, 700],
   hotelCushion: [0, 700],
-  houseScarce: [0, 16], // 0 (never hoard) … half the 32-house bank
+  houseScarce: [0, 16],
   jailDangerRent: [150, 700],
   acceptMargin: [5, 120],
   survivalFactor: [0.0, 3.0],
   liquidityRiskGain: [50, 600],
   dipWorthMult: [1.0, 2.5],
   raiseWorthMult: [1.0, 2.5],
-  // Per-color bonus multipliers: 0.3 (heavily discount a set) … 3.0 (treble it),
-  // wide enough to fully re-rank the eight sets in either direction.
   monoMultOrange: [0.3, 3.0],
   monoMultRed: [0.3, 3.0],
   monoMultLightBlue: [0.3, 3.0],
@@ -219,28 +220,36 @@ export const PARAM_BOUNDS: Readonly<Record<keyof ParamVector, readonly [number, 
   monoMultDarkBlue: [0.3, 3.0],
   monoMultGreen: [0.3, 3.0],
   monoMultBrown: [0.3, 3.0],
-  // Rail synergy values, bracketing the v38 table [70,180,380] with room to grow
-  // the compounding either way, kept monotone-friendly by overlapping ranges.
   railSynergy2: [0, 200],
   railSynergy3: [40, 450],
   railSynergy4: [100, 800],
-  distressSafeRatio: [1.0, 3.0], // 1.0 (no safe cushion) … 3.0 (very cautious)
-  spreadFloor: [2, 4], // 2 (lean) … 4 (push every set higher before spreading)
-  // v41 trade levers (thesis #3). rivalThreatFactor capped well under the ~1.0
-  // trade-deadlock cliff; holderDenialFrac spans off→lockstep→over; discount [0,1].
+  distressSafeRatio: [1.0, 3.0],
+  spreadFloor: [2, 4],
   rivalThreatFactor: [0.0, 0.8],
   holderDenialFrac: [0.0, 1.5],
   deployabilityDiscount: [0.0, 1.0],
-  // Standing gains span both signs so the ES can pick the risk DIRECTION (leader
-  // banks vs laggard gambles); the per-lever factor is clamped to [0.4, 2.5] in
-  // bot.ts regardless, so a wide gain just saturates rather than going wild.
-  standingFloorGain: [-1.5, 2.0],
-  standingAuctionGain: [-1.5, 2.0],
+  flowFloorFrac: [0.0, 1.6],
+  flowTailFrac: [0.0, 0.8],
+  flowFloorCap: [100, 700],
+  flowSecondRollFrac: [0.0, 1.0],
+  jailStayThreshold: [0, 250],
+  jailExitProb: [0.1, 0.6],
+  buildTempo: [0, 1],
+  survivalBounded: [0, 1],
+  standingThreatGain: [0.0, 3.0],
+  synergyThreatFrac: [0.0, 2.0],
+  headsUpThreatMult: [1.0, 3.0],
+  liqGuardFrac: [0.0, 2.0],
+  transferMemoryTurns: [0, 16],
+  extractionOn: [0, 1],
+  scalpFrac: [0.0, 0.9],
+  selfLeadGain: [0.0, 2.0],
 };
 
 /** The parameter names in a FIXED order — the canonical vector layout the ES
  *  packs/unpacks and the worker serializes. Never reorder (it would silently
- *  remap a saved mean/sigma). */
+ *  remap a saved mean/sigma). NOTE: this layout CHANGED at the fable rebind —
+ *  saved vectors from the previous 33-dim claude layout are NOT loadable. */
 export const PARAM_KEYS: readonly (keyof ParamVector)[] = [
   "denyFactor",
   "bonusScale",
@@ -273,8 +282,22 @@ export const PARAM_KEYS: readonly (keyof ParamVector)[] = [
   "rivalThreatFactor",
   "holderDenialFrac",
   "deployabilityDiscount",
-  "standingFloorGain",
-  "standingAuctionGain",
+  "flowFloorFrac",
+  "flowTailFrac",
+  "flowFloorCap",
+  "flowSecondRollFrac",
+  "jailStayThreshold",
+  "jailExitProb",
+  "buildTempo",
+  "survivalBounded",
+  "standingThreatGain",
+  "synergyThreatFrac",
+  "headsUpThreatMult",
+  "liqGuardFrac",
+  "transferMemoryTurns",
+  "extractionOn",
+  "scalpFrac",
+  "selfLeadGain",
 ];
 
 /** Pack a vector into the fixed-order number array the ES operates on. */

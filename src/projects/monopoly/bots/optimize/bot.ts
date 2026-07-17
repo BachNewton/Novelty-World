@@ -1,21 +1,19 @@
 // ===========================================================================
-// OFFLINE OPTIMIZATION TOOLING — a claude-v38-shaped bot whose tuning constants
-// are READ FROM A ParamVector instead of being hardcoded module constants, PLUS
-// claude-v41's seller-side trade pricing exposed as three ES-tunable params.
+// OFFLINE OPTIMIZATION TOOLING — the parameterized FABLE-v1-shaped bot.
 //
-// This is a faithful, parameterized copy of claude-v38's
-// valuation.ts + trades.ts + policy.ts, with claude-v41's trade mechanisms
-// (decoupled `rivalThreatFactor`, holder-side `denialPositionCost`, and the
-// `deployabilityDiscount`) added. Every piece of LOGIC is verbatim; the ONLY
-// change is that the tuned constants are looked up from `p`. With `DEFAULT_PARAMS`
-// it is byte-identical to claude-v38 (pinned by param-fidelity.test.ts) — the v41
-// levers default to a NO-OP (rivalThreatFactor = denyFactor; holder price = 0;
-// discount = 0). The ES CO-tunes the base vector and these trade levers jointly,
-// which claude-v42/v43 showed is necessary: a fixed-param base swap regresses
-// because the trade pricing and the vector are coupled (see EVOLUTION.md).
+// This is NOT a registry bot and NOT a frozen version: it is a SELF-CONTAINED
+// copy of `versions/fable-v1/bot.ts` (the flow/extraction factory — itself the
+// claude-v45 31-param factory plus the fable levers) with the `ParamVector`
+// type imported from `./params` so the ES (`snes.ts`) can jointly optimize the
+// FULL 47-dim vector. The ES produces a constants VECTOR; the winner is frozen
+// back into a normal static snapshot (`versions/fable-vN/`).
 //
-// NOT a registry bot. The ES fields it via the Contender API; the winning vector
-// is frozen back into a static `versions/<label>/` with the numbers hardcoded.
+// INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY (the fable levers
+// all default to a NO-OP, and the base dims default to v38) — pinned by
+// `param-fidelity.test.ts`, so the parameterization is faithful end-to-end.
+// The v47 standing-POSTURE dims (`standingFloorGain`/`standingAuctionGain`)
+// were dropped in this rebind: they measured as a wash/regression (see
+// EVOLUTION.md claude-v47) and the fable factory never carried them.
 // ===========================================================================
 import { HOUSE_COST, SPACES } from "../../data";
 import {
@@ -88,6 +86,16 @@ const LANDING_PROB: Readonly<Record<number, number>> = {
 };
 
 const ACCEPT_MIN = 1;
+
+/** Exact 2d6 probability mass, indexed by roll total 2..12 (F1 flow engine). */
+const DICE_PMF: Readonly<Record<number, number>> = {
+  2: 1 / 36, 3: 2 / 36, 4: 3 / 36, 5: 4 / 36, 6: 5 / 36, 7: 6 / 36,
+  8: 5 / 36, 9: 4 / 36, 10: 3 / 36, 11: 2 / 36, 12: 1 / 36,
+};
+
+/** Standing-ratio ceiling for F2b (recipient PV / mean live PV); the floor is
+ *  1 by construction — the mult only ever amplifies, never discounts. */
+const STANDING_CLAMP_HI = 2.5;
 
 function rent3House(pos: number): number {
   const s = SPACES[pos];
@@ -180,7 +188,13 @@ export function makeParamBot(p: ParamVector): Bot {
     return { ...state, ownership: { ...state.ownership, [pos]: pid } };
   }
 
-  function acquisitionValue(state: GameState, pid: string, pos: number): number {
+  /** `scalp` (F5, fable-v1) is passed ONLY from my own buy/auction decisions:
+   *  a lot a one-short rival needs is a premium-extraction OPTION (the v35
+   *  finding: the rival caves ~86% of the time and pays ~book+bonus), so I may
+   *  bid toward that future harvest, not just the flat deny premium. It stays
+   *  OFF in counterparty modeling (`rivalCanAcquire`) — the field doesn't
+   *  price options. */
+  function acquisitionValue(state: GameState, pid: string, pos: number, scalp = false): number {
     const mine = positionValue(withOwner(state, pos, pid), pid) - positionValue(state, pid);
     let deny = 0;
     const color = colorAt(pos);
@@ -189,6 +203,10 @@ export function makeParamBot(p: ParamVector): Bot {
       for (const opp of activeOpponents(state, pid)) {
         if (ownedInColor(state, opp.id, color) === total - 1) {
           deny = Math.max(deny, Math.round(monopolyBonus(color) * p.denyFactor));
+          if (scalp && p.scalpFrac > 0) {
+            const harvest = monopolyBonus(color) + (ownablePrice(pos) ?? 0);
+            deny = Math.max(deny, Math.round(harvest * p.scalpFrac));
+          }
         }
       }
     }
@@ -201,37 +219,28 @@ export function makeParamBot(p: ParamVector): Bot {
     return display.kind === "dollars" ? display.amount : display.multiplier * 7;
   }
 
-  /** Standing ratio s = my positionValue / mean active-opponent positionValue.
-   *  >1 leading, <1 trailing, 1 even. Used only by the risk-aware standing levers
-   *  (default off), so it is never computed on the claude-v38 no-op path. */
-  function standingRatio(state: GameState, pid: string): number {
-    const opps = activeOpponents(state, pid);
-    if (opps.length === 0) return 1;
-    let sum = 0;
-    for (const o of opps) sum += positionValue(state, o.id);
-    const mean = sum / opps.length;
-    if (mean <= 0) return 1;
-    return positionValue(state, pid) / mean;
-  }
-
-  /** A standing-scaled multiplier `clamp(1 + gain·(s−1), 0.4, 2.5)`. `gain === 0`
-   *  short-circuits to exactly 1 (no standingRatio call), so a no-op lever is
-   *  byte-identical to claude-v38 — what `param-fidelity.test.ts` pins. */
-  function standingFactor(state: GameState, pid: string, gain: number): number {
-    if (gain === 0) return 1;
-    const s = standingRatio(state, pid);
-    return Math.min(2.5, Math.max(0.4, 1 + gain * (s - 1)));
-  }
-
   function liquidityFloor(state: GameState, pid: string): number {
+    // F1a — danger-aware flow floor: reserve against what MY token actually
+    // faces over the next roll(s), not a static fraction of the board's worst
+    // rent. Small when the geometry is safe (threats behind me, owners jailed),
+    // large exactly when a hit looms — same aggression, timed.
+    if (p.flowFloorFrac > 0) {
+      const player = state.players.find((q) => q.id === pid);
+      if (player) {
+        // While jailed my token doesn't walk, so next-roll exposure is scaled
+        // by the chance of leaving (doubles / choosing to pay).
+        const cost = walkCost(state, pid, player.position);
+        const scale = player.inJail ? p.jailExitProb : 1;
+        const need = scale * (p.flowFloorFrac * cost.expected + p.flowTailFrac * cost.worst);
+        return Math.min(p.flowFloorCap, Math.max(p.baseFloor, Math.round(need)));
+      }
+    }
     let worst = 0;
     for (const posStr in state.ownership) {
       if (state.ownership[posStr] === pid) continue;
       worst = Math.max(worst, rentEstimateAt(state, Number(posStr)));
     }
-    const base = Math.min(p.floorCap, Math.max(p.baseFloor, Math.round(worst * p.floorRentFraction)));
-    if (p.standingFloorGain === 0) return base;
-    return Math.round(base * standingFactor(state, pid, p.standingFloorGain));
+    return Math.min(p.floorCap, Math.max(p.baseFloor, Math.round(worst * p.floorRentFraction)));
   }
 
   function mortgageableTotal(state: GameState, pid: string): number {
@@ -246,20 +255,119 @@ export function makeParamBot(p: ParamVector): Bot {
     return total;
   }
 
-  function sellerDistress(state: GameState, pid: string): number {
+  /** Graded distress plus the cash that would erase it (`needToSafe`) — the
+   *  latter is what F2a bounds the survival credit by: survival is a liquidity
+   *  story, so cash beyond the amount that reaches safety earns no premium. */
+  function distressDetail(state: GameState, pid: string): { distress: number; needToSafe: number } {
     const player = state.players.find((q) => q.id === pid);
-    if (!player) return 0;
+    if (!player) return { distress: 0, needToSafe: 0 };
     const liquid = player.cash + mortgageableTotal(state, pid);
     let worstRent = 0;
     for (const posStr in state.ownership) {
       if (state.ownership[posStr] === pid) continue;
       worstRent = Math.max(worstRent, rentEstimateAt(state, Number(posStr)));
     }
-    if (worstRent === 0) return 0;
+    if (worstRent === 0) return { distress: 0, needToSafe: 0 };
     const safe = worstRent * p.distressSafeRatio;
-    if (liquid >= safe) return 0;
-    if (liquid <= worstRent) return 1;
-    return (safe - liquid) / (safe - worstRent);
+    if (liquid >= safe) return { distress: 0, needToSafe: 0 };
+    const needToSafe = Math.round(safe - liquid);
+    if (liquid <= worstRent) return { distress: 1, needToSafe };
+    return { distress: (safe - liquid) / (safe - worstRent), needToSafe };
+  }
+
+  function sellerDistress(state: GameState, pid: string): number {
+    return distressDetail(state, pid).distress;
+  }
+
+  // --- F1: the flow engine — exact 2d6 next-roll expectations (fable-v1) ---
+
+  /** What landing on `pos` costs `pid` right now: rent owed to another player
+   *  (mortgaged/own/unowned = $0), or the tax amount. Go-To-Jail and card
+   *  squares are $0 — jail is free to enter, and card EV is ~small and roughly
+   *  position-independent. */
+  function landingCost(state: GameState, pid: string, pos: number): number {
+    const s = SPACES[pos];
+    if (s.kind === "tax") return s.amount;
+    if (!(pos in state.ownership) || state.ownership[pos] === pid) return 0;
+    if (state.mortgaged[pos]) return 0;
+    return rentEstimateAt(state, pos);
+  }
+
+  interface RollCost {
+    /** Probability-weighted payment over the 11 dice outcomes. */
+    expected: number;
+    /** The worst single outcome (the tail a mean hides). */
+    worst: number;
+    /** Probability-weighted GO salary collected by passing/landing on GO. */
+    goCredit: number;
+  }
+
+  /** Exact one-roll cost distribution for a token at `from`. */
+  function rollCost(state: GameState, pid: string, from: number): RollCost {
+    let expected = 0;
+    let worst = 0;
+    let goCredit = 0;
+    for (let roll = 2; roll <= 12; roll++) {
+      const prob = DICE_PMF[roll];
+      const dest = (from + roll) % 40;
+      if (from + roll >= 40) goCredit += prob * 200;
+      const cost = landingCost(state, pid, dest);
+      expected += prob * cost;
+      if (cost > worst) worst = cost;
+    }
+    return { expected: Math.round(expected), worst, goCredit: Math.round(goCredit) };
+  }
+
+  /** One roll plus `flowSecondRollFrac` of the convolved second roll — the
+   *  short deferral horizon used by the flow floor and the jail EV. */
+  function walkCost(state: GameState, pid: string, from: number): RollCost {
+    const first = rollCost(state, pid, from);
+    if (p.flowSecondRollFrac <= 0) return first;
+    let expected2 = 0;
+    let goCredit2 = 0;
+    for (let roll = 2; roll <= 12; roll++) {
+      const prob = DICE_PMF[roll];
+      const dest = (from + roll) % 40;
+      // A first-roll Go-To-Jail landing ends movement; the second roll never happens.
+      if (SPACES[dest].kind === "go-to-jail") continue;
+      const second = rollCost(state, pid, dest);
+      expected2 += prob * second.expected;
+      goCredit2 += prob * second.goCredit;
+    }
+    return {
+      expected: Math.round(first.expected + p.flowSecondRollFrac * expected2),
+      worst: first.worst,
+      goCredit: Math.round(first.goCredit + p.flowSecondRollFrac * goCredit2),
+    };
+  }
+
+  /** Next-2-roll probability mass of live opponents landing on `positions`,
+   *  weighted by the rent uplift proxy `rentOf(pos)` — the F1c tempo score for
+   *  ordering builds. Jailed opponents are scaled by `jailExitProb`. */
+  function opponentApproachScore(
+    state: GameState,
+    pid: string,
+    positions: readonly number[],
+    rentOf: (pos: number) => number,
+  ): number {
+    const wanted = new Set(positions);
+    let score = 0;
+    for (const opp of activeOpponents(state, pid)) {
+      const scale = opp.inJail ? p.jailExitProb : 1;
+      for (let roll = 2; roll <= 12; roll++) {
+        const prob = DICE_PMF[roll];
+        const dest = (opp.position + roll) % 40;
+        if (wanted.has(dest)) score += scale * prob * rentOf(dest);
+        if (p.flowSecondRollFrac <= 0 || SPACES[dest].kind === "go-to-jail") continue;
+        for (let roll2 = 2; roll2 <= 12; roll2++) {
+          const dest2 = (dest + roll2) % 40;
+          if (wanted.has(dest2)) {
+            score += scale * prob * DICE_PMF[roll2] * p.flowSecondRollFrac * rentOf(dest2);
+          }
+        }
+      }
+    }
+    return score;
   }
 
   // --- build planning (claude-v38 verbatim, constants from `p`) ---
@@ -372,6 +480,19 @@ export function makeParamBot(p: ParamVector): Bot {
       if (locked && !flush) continue;
       const floorOf = maxLevelInSet(state, color);
       myMonopolies.push({ color, positions, mortgagedMembers, locked, floorOf });
+    }
+    if (p.buildTempo > 0 && myMonopolies.length > 1) {
+      // F1c — fund the set the tokens are actually approaching first: order by
+      // next-2-roll opponent landing mass × 3-house rent, static tier as the
+      // tiebreak. Stable sort keeps the v45 order when scores tie (all far).
+      const tempoScore = new Map<PropertyColor, number>();
+      for (const m of myMonopolies) {
+        tempoScore.set(
+          m.color,
+          opponentApproachScore(state, pid, m.positions, (pos) => rent3House(pos)),
+        );
+      }
+      myMonopolies.sort((a, b) => (tempoScore.get(b.color) ?? 0) - (tempoScore.get(a.color) ?? 0));
     }
 
     const SPREAD_FLOOR = p.spreadFloor;
@@ -495,6 +616,13 @@ export function makeParamBot(p: ParamVector): Bot {
     return false;
   }
 
+  /** F1b — the real cost of walking out of jail: expected payments over the
+   *  next roll(s) from just-visiting, net of the GO salary I'd collect. */
+  function jailWalkCost(state: GameState, pid: string): number {
+    const cost = walkCost(state, pid, 10);
+    return cost.expected - cost.goCredit;
+  }
+
   function jailChoice(
     state: GameState,
     pid: string,
@@ -502,7 +630,17 @@ export function makeParamBot(p: ParamVector): Bot {
   ): { intent: Intent | null; reason: string } {
     const player = state.players.find((q) => q.id === pid);
     const cash = player?.cash ?? 0;
-    if (boardIsDangerous(state, pid)) {
+    if (p.jailStayThreshold > 0) {
+      // EV rule: only the rents actually REACHABLE from jail matter, not
+      // whether a developed lot exists somewhere on the board (v45's rule).
+      const walk = jailWalkCost(state, pid);
+      if (walk > p.jailStayThreshold) {
+        return {
+          intent: null,
+          reason: `Staying in jail — walking out costs ~$${Math.round(walk).toString()} in expected rent, so I'll sit, collect, and roll for doubles.`,
+        };
+      }
+    } else if (boardIsDangerous(state, pid)) {
       return {
         intent: null,
         reason:
@@ -547,11 +685,89 @@ export function makeParamBot(p: ParamVector): Bot {
     return gain;
   }
 
+  /** F2b — how much MORE a set in this recipient's hands hurts: their position
+   *  value relative to the mean live player, clamped. 1 at parity and below —
+   *  the mult only ever AMPLIFIES a leader's threat, never discounts a
+   *  laggard's below the flat v45 price (a laggard discount turned out to fuel
+   *  asset churn: the proposer starts feeding cheap sets downhill). Gain 0 =
+   *  flat v45 pricing. */
+  /** A player's position value relative to the live-player mean, clamped. */
+  function standingRatio(state: GameState, pid: string): number {
+    const live = state.players.filter((q) => !q.bankrupt);
+    if (live.length < 2) return 1;
+    let total = 0;
+    for (const q of live) total += positionValue(state, q.id);
+    const mean = total / live.length;
+    if (mean <= 0) return 1;
+    return Math.min(STANDING_CLAMP_HI, positionValue(state, pid) / mean);
+  }
+
+  function standingMult(state: GameState, oppId: string): number {
+    if (p.standingThreatGain <= 0) return 1;
+    return Math.max(1, 1 + p.standingThreatGain * (standingRatio(state, oppId) - 1));
+  }
+
+  /** F2f — MY dominance scales the threat of arming ANY rival: a leader
+   *  converting a locked win into premium-cash-plus-variance is pure downside,
+   *  so the price of handing out a set rises with my own standing. Runs through
+   *  the same threat term, so it governs both extraction PROPOSALS (the
+   *  candidate dies at `mine.accept`) and passive ACCEPTS of a rival's offer. */
+  function leadDefenseMult(state: GameState, pid: string): number {
+    if (p.selfLeadGain <= 0) return 1;
+    return Math.max(1, 1 + p.selfLeadGain * (standingRatio(state, pid) - 1));
+  }
+
+  /** F2c — the rail/utility SYNERGY delta a trade hands `oppId`, apportioned by
+   *  my contribution (mirrors the color-set apportioning below). v45 prices only
+   *  color-set completions; the 3rd/4th railroad rode along free. */
+  function synergyThreatShare(
+    state: GameState,
+    after: GameState,
+    pid: string,
+    oppId: string,
+    terms: TradeTerms,
+  ): number {
+    if (p.synergyThreatFrac <= 0) return 0;
+    let railsBefore = 0;
+    let railsAfter = 0;
+    let utilsBefore = 0;
+    let utilsAfter = 0;
+    const count = (st: GameState, into: (kind: string) => void): void => {
+      for (const posStr in st.ownership) {
+        if (st.ownership[posStr] !== oppId) continue;
+        into(SPACES[Number(posStr)].kind);
+      }
+    };
+    count(state, (k) => {
+      if (k === "railroad") railsBefore += 1;
+      else if (k === "utility") utilsBefore += 1;
+    });
+    count(after, (k) => {
+      if (k === "railroad") railsAfter += 1;
+      else if (k === "utility") utilsAfter += 1;
+    });
+    let received = 0;
+    let fromPid = 0;
+    for (const [posStr, to] of Object.entries(terms.propertyTo)) {
+      const pos = Number(posStr);
+      const kind = SPACES[pos].kind;
+      if (to !== oppId || (kind !== "railroad" && kind !== "utility")) continue;
+      received += 1;
+      if (state.ownership[pos] === pid) fromPid += 1;
+    }
+    if (received === 0) return 0;
+    let gain = railSynergy[Math.min(railsAfter, 4)] - railSynergy[Math.min(railsBefore, 4)];
+    if (utilsAfter === 2 && utilsBefore < 2) gain += p.utilPairBonus;
+    if (gain <= 0) return 0;
+    return gain * RIVAL_THREAT_FACTOR * p.synergyThreatFrac * (fromPid / received);
+  }
+
   function rivalThreatCost(
     state: GameState,
     after: GameState,
     pid: string,
     terms: TradeTerms,
+    selfView: boolean,
   ): number {
     let worst = 0;
     for (const opp of activeOpponents(state, pid)) {
@@ -569,7 +785,16 @@ export function makeParamBot(p: ParamVector): Bot {
         if (received === 0) continue;
         share += monopolyBonus(color) * RIVAL_THREAT_FACTOR * (fromPid / received);
       }
+      if (selfView) {
+        share += synergyThreatShare(state, after, pid, opp.id, terms);
+        share *= standingMult(state, opp.id) * leadDefenseMult(state, pid);
+      }
       worst = Math.max(worst, share);
+    }
+    // F2d — heads-up the game is zero-sum: anything that strengthens the only
+    // rival strengthens the only person who can beat me.
+    if (selfView && p.headsUpThreatMult > 1 && activeOpponents(state, pid).length === 1) {
+      worst *= p.headsUpThreatMult;
     }
     return Math.round(worst);
   }
@@ -634,13 +859,65 @@ export function makeParamBot(p: ParamVector): Bot {
     reason: string;
   }
 
-  function evaluateTrade(state: GameState, pid: string, terms: TradeTerms): TradeVerdict {
+  // --- F3: the ring-proof transfer memory (fable-v1) ---
+
+  /** True iff `pos` moved in an EXECUTED trade within the last
+   *  `transferMemoryTurns` turn groups. Auction/bankruptcy transfers don't
+   *  count — the hot-potato is a trade phenomenon. */
+  function recentlyTraded(state: GameState, pos: number): boolean {
+    if (p.transferMemoryTurns <= 0) return false;
+    const from = Math.max(0, state.turns.length - p.transferMemoryTurns);
+    for (let i = state.turns.length - 1; i >= from; i--) {
+      for (const e of state.turns[i].events) {
+        if (e.kind === "trade" && pos in e.propertyTo) return true;
+      }
+    }
+    return false;
+  }
+
+  /** True iff `to` receiving `pos` completes the color set for them — the
+   *  legitimate cash-out a recently-traded lot may still make. */
+  function completesSetFor(state: GameState, to: string, pos: number): boolean {
+    const color = colorAt(pos);
+    if (color === null) return false;
+    return ownedInColor(state, to, color) === groupPositions(color).length - 1;
+  }
+
+  /** F3 — a lot that just changed hands may only move again to the completing
+   *  rival. Whatever pricing leak a tuner re-opens, A→B→A dies here: the second
+   *  hop is inside the memory window and completes nothing. */
+  function violatesTransferMemory(state: GameState, terms: TradeTerms): boolean {
+    if (p.transferMemoryTurns <= 0) return false;
+    for (const [posStr, to] of Object.entries(terms.propertyTo)) {
+      const pos = Number(posStr);
+      if (!recentlyTraded(state, pos)) continue;
+      if (!completesSetFor(state, to, pos)) return true;
+    }
+    return false;
+  }
+
+  function evaluateTrade(
+    state: GameState,
+    pid: string,
+    terms: TradeTerms,
+    selfView = true,
+  ): TradeVerdict {
+    // F3 — my own hard veto on churning a just-traded lot (counterparties are
+    // modeled WITHOUT fable levers: the field consensus is v45-shaped).
+    if (selfView && violatesTransferMemory(state, terms)) {
+      return {
+        accept: false,
+        delta: 0,
+        reason: "that lot just changed hands — I'm not churning it back",
+      };
+    }
+
     const after = postTradeState(state, terms);
     const rawDelta = positionValue(after, pid) - positionValue(state, pid);
     const postCash = after.players.find((q) => q.id === pid)?.cash ?? 0;
 
     const myMono = monopolyGain(state, after, pid);
-    const threatCost = rivalThreatCost(state, after, pid, terms);
+    const threatCost = rivalThreatCost(state, after, pid, terms, selfView);
     // v41: forfeiting a held completer to a NON-rival gives up the denial premium —
     // priced symmetrically with the buyer side, scaled by holderDenialFrac (0 at
     // default → this term vanishes and we are back to v38).
@@ -654,8 +931,15 @@ export function makeParamBot(p: ParamVector): Bot {
       p.deployabilityDiscount > 0 && cashIn > 0 && threatCost > 0 && !hasProductiveOutlet(after, pid)
         ? Math.round(cashIn * p.deployabilityDiscount)
         : 0;
+    // F2a — survival is a liquidity story: only the cash that actually ERASES my
+    // distress earns the survival premium. v45 credited the full check
+    // (cashIn × distress × survivalFactor, unbounded in cashIn) — the leak that
+    // priced a complete Park+Boardwalk handover at $250 and re-opened the
+    // hot-potato clearing band on any developed board.
+    const { distress, needToSafe } = distressDetail(state, pid);
+    const survivalBase = selfView && p.survivalBounded > 0 ? Math.min(cashIn, needToSafe) : cashIn;
     const effectiveDelta = cashIn > 0
-      ? delta + Math.round(cashIn * sellerDistress(state, pid) * p.survivalFactor) - deployabilityPenalty
+      ? delta + Math.round(survivalBase * distress * p.survivalFactor) - deployabilityPenalty
       : delta;
 
     if (effectiveDelta <= ACCEPT_MIN) {
@@ -672,6 +956,21 @@ export function makeParamBot(p: ParamVector): Bot {
     }
     if (postCash < 0 && effectiveDelta < p.liquidityRiskGain) {
       return { accept: false, delta: effectiveDelta, reason: "it would leave me short of cash" };
+    }
+    // F2e — the completer-scalp guard: a voluntary trade that leaves me too thin
+    // to develop what I bought needs a transformative gain (extends the
+    // postCash<0 veto above; v45 happily paid $500 premiums down to pocket change).
+    if (
+      selfView &&
+      p.liqGuardFrac > 0 &&
+      postCash < liquidityFloor(state, pid) * p.liqGuardFrac &&
+      effectiveDelta < p.liquidityRiskGain
+    ) {
+      return {
+        accept: false,
+        delta: effectiveDelta,
+        reason: "it would leave me too thin to develop what I get",
+      };
     }
     const reason =
       myMono > 0
@@ -725,13 +1024,43 @@ export function makeParamBot(p: ParamVector): Bot {
     oppId: string,
     base: TradeTerms,
   ): TradeTerms | null {
-    const oppDelta = evaluateTrade(state, oppId, base).delta;
+    const oppDelta = evaluateTrade(state, oppId, base, false).delta;
     if (oppDelta >= p.acceptMargin) return base;
     const relief = 1 + sellerDistress(state, oppId) * p.survivalFactor;
     const cash = Math.ceil((p.acceptMargin - oppDelta) / relief);
     const myCash = state.players.find((q) => q.id === pid)?.cash ?? 0;
     if (myCash - cash < 0) return null;
     return { ...base, cashDelta: { [pid]: -cash, [oppId]: cash } };
+  }
+
+  /** F4 (generalized) — price a 2-party proposal TO THE MARGIN in the other
+   *  direction: when the counterparty's surplus exceeds the accept margin,
+   *  charge the excess as cash to me (bounded by their cash — their delta is
+   *  linear in it). v45 only ever solves the sweetener I PAY; a swap that
+   *  completes their set was leaving their whole surplus on the table. No-op
+   *  when the sweetener path already priced them to ~margin. */
+  function chargeSurplus(
+    state: GameState,
+    pid: string,
+    oppId: string,
+    terms: TradeTerms,
+  ): TradeTerms {
+    if (p.extractionOn <= 0) return terms;
+    const oppDelta = evaluateTrade(state, oppId, terms, false).delta;
+    const excess = Math.floor(oppDelta - p.acceptMargin);
+    if (excess <= 0) return terms;
+    const oppCash =
+      (state.players.find((q) => q.id === oppId)?.cash ?? 0) + (terms.cashDelta[oppId] ?? 0);
+    const charge = Math.min(excess, oppCash);
+    if (charge <= 0) return terms;
+    return {
+      ...terms,
+      cashDelta: {
+        ...terms.cashDelta,
+        [pid]: (terms.cashDelta[pid] ?? 0) + charge,
+        [oppId]: (terms.cashDelta[oppId] ?? 0) - charge,
+      },
+    };
   }
 
   function sweetenForAll(
@@ -743,7 +1072,7 @@ export function makeParamBot(p: ParamVector): Bot {
     const sweeteners: Record<string, number> = {};
     let total = 0;
     for (const sId of sellers) {
-      const delta = evaluateTrade(state, sId, base).delta;
+      const delta = evaluateTrade(state, sId, base, false).delta;
       if (delta >= p.acceptMargin) continue;
       const relief = 1 + sellerDistress(state, sId) * p.survivalFactor;
       const cash = Math.ceil((p.acceptMargin - delta) / relief);
@@ -779,7 +1108,7 @@ export function makeParamBot(p: ParamVector): Bot {
 
   function rivalCanAcquire(state: GameState, rivalId: string, pos: number, holder: string): boolean {
     const giveToRival: TradeTerms = { propertyTo: { [pos]: rivalId }, gojfTo: {}, cashDelta: {} };
-    const holderDelta = evaluateTrade(state, holder, giveToRival).delta;
+    const holderDelta = evaluateTrade(state, holder, giveToRival, false).delta;
     const need = Math.ceil(p.acceptMargin - holderDelta);
     const rival = state.players.find((q) => q.id === rivalId);
     if ((rival?.cash ?? 0) < need) return false;
@@ -839,7 +1168,7 @@ export function makeParamBot(p: ParamVector): Bot {
           );
           if (swap !== null) {
             candidates.push({
-              terms: swap,
+              terms: chargeSurplus(state, pid, oppId, swap),
               delta: 0,
               reason: `Proposing a swap — my ${colorName(d)} lot for ${spaceName(single.pos)}, so we each complete a monopoly.`,
             });
@@ -889,17 +1218,81 @@ export function makeParamBot(p: ParamVector): Bot {
           reason: `Buying ${spaceName(pos)} from ${holderName} to deny ${opp.name} the ${colorName(color)} monopoly.`,
         });
       }
+
+      // F4 — the EXTRACTION engine (fable-v1): proactively SELL a completer I
+      // hold to the one-short rival at the highest cash they'll pay. The v35
+      // finding: the rival caves and pays a premium ~86% of the time — but the
+      // archive only ever waits for the rival to propose. A held completer is an
+      // option; this is the exercise. Their evaluator values completion at
+      // monopolyBonus + book, and their delta is linear in the cash, so the
+      // premium solves in closed form (no search): X = their surplus − margin,
+      // capped by their cash. My own evaluator (threat- and standing-priced)
+      // then decides whether that X clears MY side — a poor rival's small X is
+      // rejected there, so this can never fire-sale a completer downhill.
+      if (p.extractionOn > 0) {
+        for (const color of COLORS_BY_WEIGHT) {
+          const positions = groupPositions(color);
+          if (ownedInColor(state, opp.id, color) !== positions.length - 1) continue;
+          const missing = positions.filter((q) => state.ownership[q] !== opp.id);
+          if (missing.length !== 1 || state.ownership[missing[0]] !== pid) continue;
+          const pos = missing[0];
+          if (builtLotsInGroup(pos, (q) => developmentLevel(state, q)).length > 0) continue;
+          const bare: TradeTerms = { propertyTo: { [pos]: opp.id }, gojfTo: {}, cashDelta: {} };
+          const surplus = evaluateTrade(state, opp.id, bare, false).delta;
+          const premium = Math.min(opp.cash, Math.floor(surplus - p.acceptMargin));
+          if (premium <= 0) continue;
+          candidates.push({
+            terms: {
+              ...bare,
+              cashDelta: { [pid]: premium, [opp.id]: -premium },
+            },
+            delta: 0,
+            reason: `Selling ${spaceName(pos)} to ${opp.name} — completing the ${colorName(color)} set is worth a $${premium.toString()} premium to them.`,
+          });
+        }
+
+        // F4b — RAIL extraction: railroads compound ($25→$200 by count), so a
+        // 2-3-rail holder pays synergy + book for one of mine — and no bot in
+        // the archive constructs rail trades at all, so the surplus just sits
+        // there. My own evaluator (synergy-threat- and standing-priced) still
+        // arbitrates the sale.
+        let oppRails = 0;
+        for (const posStr in state.ownership) {
+          if (state.ownership[posStr] === opp.id && SPACES[Number(posStr)].kind === "railroad") {
+            oppRails += 1;
+          }
+        }
+        if (oppRails >= 2 && oppRails <= 3) {
+          for (const posStr in state.ownership) {
+            if (state.ownership[posStr] !== pid) continue;
+            const pos = Number(posStr);
+            if (SPACES[pos].kind !== "railroad") continue;
+            const bare: TradeTerms = { propertyTo: { [pos]: opp.id }, gojfTo: {}, cashDelta: {} };
+            const surplus = evaluateTrade(state, opp.id, bare, false).delta;
+            const premium = Math.min(opp.cash, Math.floor(surplus - p.acceptMargin));
+            if (premium <= 0) continue;
+            candidates.push({
+              terms: { ...bare, cashDelta: { [pid]: premium, [opp.id]: -premium } },
+              delta: 0,
+              reason: `Selling ${spaceName(pos)} to ${opp.name} — a ${(oppRails + 1).toString()}-railroad network is worth a $${premium.toString()} premium to them.`,
+            });
+          }
+        }
+      }
     }
 
     let best: { cand: Candidate; effective: number } | null = null;
     for (const cand of candidates) {
       if (!isProposable(state, cand.terms)) continue;
+      // F3 — never PROPOSE churning a just-traded lot either (the deny-buy path
+      // below bypasses `mine.accept`, so the veto must sit here explicitly).
+      if (violatesTransferMemory(state, cand.terms)) continue;
       const mine = evaluateTrade(state, pid, cand.terms);
       const denyBonus = cand.denyBonus ?? 0;
       const effective = mine.delta + denyBonus;
       if (denyBonus > 0 ? effective <= ACCEPT_MIN : !mine.accept) continue;
       const others = [...tradeParticipants(state, cand.terms)].filter((id) => id !== pid);
-      if (!others.every((id) => evaluateTrade(state, id, cand.terms).accept)) continue;
+      if (!others.every((id) => evaluateTrade(state, id, cand.terms, false).accept)) continue;
       if (declinedWithoutImprovement(state, pid, cand.terms)) continue;
       if (best === null || effective > best.effective) {
         best = { cand, effective };
@@ -955,7 +1348,7 @@ export function makeParamBot(p: ParamVector): Bot {
     const player = state.players.find((q) => q.id === pid);
     if (price === null || !player) return null;
 
-    const worth = acquisitionValue(state, pid, pos);
+    const worth = acquisitionValue(state, pid, pos, true);
     const floor = liquidityFloor(state, pid);
     const context = buyContext(state, pid, pos);
     const name = spaceName(pos);
@@ -1024,14 +1417,7 @@ export function makeParamBot(p: ParamVector): Bot {
     const a = state.turn.auction;
     if (!a || !a.active.includes(pid) || a.leaderId === pid) return null;
     const next = a.highBid + BID_INCREMENT;
-    const worth =
-      p.standingAuctionGain === 0
-        ? acquisitionValue(state, pid, a.position)
-        : Math.round(
-            acquisitionValue(state, pid, a.position) *
-              standingFactor(state, pid, p.standingAuctionGain),
-          );
-    const cap = Math.min(worth, auctionBidCap(state, pid));
+    const cap = Math.min(acquisitionValue(state, pid, a.position, true), auctionBidCap(state, pid));
     if (next <= cap) {
       return { intent: { kind: "bid", playerId: pid, amount: next } };
     }
