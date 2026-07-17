@@ -69,14 +69,19 @@ looks / how to make it look better" doc — the visual model plus a backlog of e
   **single worst defect** by the 2026-07 blind artifacts review (see the review loop below). Not
   diagnosed; first place to look is the water plane's far-edge / horizon fade against the dome. Parked.
 
-- **Finite water-plane edge curls into the frame corners** at high clarity / oblique down-looks (top
-  corners of `02-clarity/*/e12`): the uniform ocean grid runs out and its raised far edge enters the
-  shot. The **camera-following LOD grid** (see "Far-water ripple aliasing" below + `PERFORMANCE.md`) is
-  the real fix; until then keep the plane large enough for the framing. Parked.
+- **Finite water-plane edge curls into the frame corners — RESOLVED 2026-07-17** by the shipped
+  camera-following LOD grid: the sea is now one welded mesh reaching **16.25 km, centred on the camera**
+  (`ocean-lod.ts`), so its far edge sits beyond the horizon from any deck-height framing. Only relevant
+  again if a debug camera flies kilometres up, or with `Performance → ocean LOD` switched OFF (the old
+  uniform plane, kept as the A/B baseline).
 
 ## Tweaks & enhancements (backlog — none are blockers)
 
-### Refraction offset — dropped; revisit only *with a seabed*
+### Refraction offset — dropped; revisit only *with a seabed* (which EXISTS now — 2026-07-17)
+
+> The precondition below has flipped: chunk streaming ships continuous drowned bedrock under
+> every stretch of water (docs/ISLANDS.md), so the parked seabed-aware offset — and shoreline
+> foam — are genuinely revisitable.
 The lateral see-through offset was **removed** (see "The look today"). Both prior backlog ideas
 here — driving the offset by the **full perturbed normal** for underwater shimmer, and a
 **Snell-correct direction** (`refract(viewDir, normal, 1.0/1.33)`, folding in view angle + IOR) —
@@ -154,11 +159,14 @@ was rejected — it becomes a weak dot.
 - **Clearest-water shallows rim glows hot near-white-cyan at noon** (`02-clarity/1-oceanic-i/e90`):
   the sunlit-sand fringe over the shallowest water is slightly over-bright. Cap it if it bothers.
 
-### Far-water ripple aliasing (mitigated) → LOD grid is the real fix
+### Far-water ripple aliasing (mitigated) — and the LOD grid was NOT its fix
 Faint diagonal streaks in mid-far water at grazing angle were the ripple normal map minified with
 too little anisotropic filtering; bumped `detailNormals.anisotropy` to 16 (real GPUs). Note the
 SwiftShader capture tool ignores anisotropy (its max ≈ 1), so shot-suite frames still show it — judge
-on a real GPU. The proper far-field fix is the camera-following **LOD grid** (root `CLAUDE.md`).
+on a real GPU. This entry used to name the camera-following LOD grid as "the proper far-field fix";
+the LOD grid shipped 2026-07-17 and the far-glitter dotted moiré is **pixel-identical with it on and
+off** — the aliasing is per-pixel normal-map minification and never cared about vertex density. The
+real remaining fixes are **dual-scale normals** (below) and/or a distance fade of ripple strength.
 
 ### Dual-scale normals
 Finer + coarser ripple-normal layers (feeds the sparkle term above; also breaks up the current

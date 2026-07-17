@@ -12,6 +12,98 @@
 
 ---
 
+## 2026-07-17 — the camera-following LOD ocean: built, verified, measured
+
+**Setup:** AMD 780M, headless ANGLE/D3D11, dev server, runtime A/B (`ab.mjs`, `{"oceanLod":false}` vs
+`{"oceanLod":true}`, both pinning `quadSize: 4.8828125`), interleaved 3×A / 2×B in one warm session.
+
+**What it is** (`ocean-lod.ts` + `ocean.ts`): ONE welded mesh — a ~512 m dense patch at the shipped
+~4.9 m quads + five concentric rings of doubling quad size, T-junctions stitched at build time — ~52k
+verts reaching 16.25 km, vs ~1.05 M uniform at 5 km. The mesh snaps to the camera on the coarsest-quad
+(156.25 m) lattice; `uWorldOffset` re-anchors the Gerstner evaluation in world space in all three
+vertex shaders (main, flat-debug, SSR), and the ripple normal map is sampled at the world-anchored
+`vRippleUv` in both paths. Default ON; `Performance → ocean LOD` is the live A/B switch.
+
+### The headline (GPU-ms p50, 1600×900, drift ≤ 0.53)
+
+| segment | A uniform | B LOD | win |
+|---|---|---|---|
+| down-calm | 6.06 | 3.18 | −2.88 |
+| grazing-storm | 8.88 | 3.97 | −4.91 |
+| island-approach | 6.74 | 3.68 | −3.06 |
+| **max-stress** | **10.88** | **3.75** | **−7.13 (−66 %)** |
+| 4-segment mean | 8.14 | 3.65 | **−4.49 (−55 %)** |
+
+The win is vertex work — a roughly fixed ms at any resolution — and it lands hardest in the frames
+that were worst (steep-wave segments, where the SSR pass's re-render of the plane billed the vertex
+work a second time). The sea also grew 2.5 km → ~8 km radius in the same move, for free.
+
+### Verified on pixels — the near field is BYTE-identical
+
+`tools/verify-ocean-lod.mjs` (freeze-frame harness, real GPU): LOD vs uniform near-field crop reads
+**max diff 0** — at a camera near the origin AND at a camera forcing a non-zero (312.5 m) snap. The
+non-zero-snap identity is the load-bearing one: it proves the world-offset math in every shader and
+that snap steps cannot pop (the surface is a pure function of world position). Exactness is by
+construction: both grids' vertices sit on the same base-quad world lattice, and `ocean-lod.ts` copies
+`PlaneGeometry`'s anti-diagonal cell split so the shared region rasterises identically. The far field
+differs by design (whole-frame mean 0.26/255, 1.5 % over 2/255 — coarser rings + 3× the sea).
+
+Also checked: the dotted moiré in the far glitter zone is **identical in both A and B** — it is the
+known ripple-map minification aliasing (FIDELITY.md), NOT an LOD artifact. Geometry density was never
+its cause, so the LOD grid was never going to be its fix; FIDELITY.md is corrected accordingly.
+
+### Traps for the next person
+
+- **A ShaderMaterial only uploads the uniforms LISTED in its `uniforms` map** — sharing the objects by
+  reference is not enough. `uWorldOffset` had to be added to the SSR material's list explicitly, or
+  the SSR surface silently diverges from the visible water.
+- **`setPlaneSize`/`setQuadSize` now dispatch on the LOD flag.** A uniform-grid sweep (E8-style,
+  `lod-ceiling.mjs`) must pin `setOceanLod(false)` / `{"oceanLod":false}` first — both tools are
+  updated, and `budget.mjs`'s `+ LOD ocean` row now measures the real grid instead of the quad-40 proxy.
+
+### Same day — chunk streaming to 12 km: +1.9 ms GPU, ~100 MB, and a budget lesson
+
+The tiled archipelago (quadtree LOD tiers, `terrain-stream.ts`) replaced the 600 m window. Interleaved
+`ab.mjs` `{"terrain":true}` vs `{"terrain":false}` (1600×900, drift ≤ 0.09):
+
+| segment | land | no land | cost |
+|---|---|---|---|
+| down-calm | 5.18 | 3.11 | +2.07 |
+| grazing-storm | 6.21 | 3.87 | +2.34 |
+| island-approach | 4.82 | 4.29 | **+0.53** |
+| max-stress | 6.13 | 3.61 | +2.52 |
+| mean | 5.59 | 3.72 | **+1.86** |
+
+**+1.9 ms for a 12 km land radius** — 20× the old window's reach for ~+0.5 ms over its old ~1.4 ms
+cost: the terrain-is-fill-bound finding held at scale (and island-approach's +0.5 is the
+land-occludes-water effect again). Budget: ~76 tiles ≈ 2.1 M verts ≈ ~100 MB (Float32 attrs +
+per-tile Uint16 indices); full settle ~6 s of background worker time at ~70 ms/tile.
+
+**The budget lesson: measure the PLAN, not the band areas.** The first tier table (radii
+448/1000/2200/5000/8000, spacing doubling) penciled out at 2.6 M verts from annulus areas and
+MEASURED at **6.7 M / ~400 MB** — tile-granular refinement promotes every tile whose nearest point
+touches a band, overshooting each band's area by ~1.8×, at every tier. Tuned by measuring
+(`planTiles` is pure, so the whole budget is computable in Node): radii trimmed
+(320/800/1.8k/4k/7k — the old window was only a ~300 m radius of full detail, so T0 320 m concedes
+nothing) and far spacings growing ×2.5 from T2 (silhouette land; verts ∝ 1/spacing²).
+
+### Same day — terrain generation moved to a Web Worker (load-time, not frame-time)
+
+Not a frame-cost change (generation never ran inside a measured frame): `generateChunk` now runs in a
+Web Worker and the island lands ~1 s after load as transferred buffers, so time-to-playable no longer
+contains the ~530 ms main-thread generation. Verified pixel-identical to the sync path
+(`tools/verify-terrain-worker.mjs`, control-guarded; `?terrainWorker=off` is the reference). Captures
+must wait on `isReady()` — it now includes the island's arrival — and `runBenchmark` awaits it.
+
+**Harness methodology (repo rule, added this session): wait for EVENTS, never a fixed sleep.** The
+first run of the new tool "failed" with 0.23 % of pixels differing — the live Stats/GPU-timer overlay
+sparklines, not the terrain. Hide the overlays and gate every shot on `frameCount()` advancing (the
+real event a screenshot needs); a control shot (same page twice, must be byte-identical) decides
+whether the harness can decide anything. Both new verify tools carry zero `waitForTimeout`s; the older
+perf tools still do (flagged refactor target, not a pattern to copy).
+
+---
+
 ## 2026-07-15 — the merged main pass: built, verified, measured (and the baseline re-anchored)
 
 **Setup:** AMD 780M, headless ANGLE/D3D11, dev server, runtime A/B toggles (`--merged`,

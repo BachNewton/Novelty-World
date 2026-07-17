@@ -457,10 +457,11 @@ and nobody re-ran it. Ask for it with `__shipwright.terrainStats()`; it used to 
 a benchmark result, which is how it rotted. **A number nobody can cheaply re-check is a number that will
 be wrong.**
 
-It is still a real hang at load, and still **on a timer**: the moment terrain STREAMS (which it must, for
-the world to grow past 600 m) the same work runs each time the player sails into new water, and a
-one-off load cost becomes a recurring in-play hitch. A 715 ms stall is less alarming than 2.5 s, so the
-Web Worker is less *urgent* than the old number implied — but a 715 ms freeze mid-sail is still a freeze.
+**No longer a hang — the worker landed 2026-07-17** (ranked list #2): generation runs off-thread, the
+game starts on open water immediately, and the island arrives ~1 s later as transferred buffers. The
+per-chunk number (~530 ms for the 600 m window at 1.2 m, reported by `terrainStats().generationMs` and
+`tools/verify-terrain-worker.mjs`) is now the STREAMING budget — how long a chunk takes to arrive after
+the player sails toward it — not a freeze.
 
 **`?terrain=off` skips the generation** rather than hiding the result (see `TERRAIN_GEN_ENABLED`). Worth
 **~840 ms per page load** to any probe or bench segment that runs without land — and an unattended sweep
@@ -538,9 +539,11 @@ per-voxel buoyancy. A **contact-heavy** scene (crowded, touching ships) would di
 ## Where it stands, and what to do next
 
 The frame is **GPU-bound**; CPU is ~2.8 ms and nearly all driver submission; physics is ~0 now the demo
-testbed is out of the live scene. **Every remaining lever is on the GPU, and the water is most of it.**
-As of 2026-07-15 the **merged main pass** is shipped (the opaque scene is rasterised once per frame, not
-twice — see the DONE section below), and the LOD ocean is the one remaining lever of its size.
+testbed is out of the live scene. **Every remaining lever is on the GPU.** As of 2026-07-15 the
+**merged main pass** is shipped (the opaque scene is rasterised once per frame, not twice), and as of
+2026-07-17 the **LOD ocean** is too — **−4.5 ms mean, −7.1 ms on max-stress at 1600×900** (see its DONE
+section below). No remaining lever approaches that size; the frontier is now the smaller SSR and
+terrain-material items in the ranked list.
 
 (⚠ Do not quote this doc's older ABSOLUTE milliseconds — "14.3 ms shipped", "24.8 ms at ultrawide" —
 against fresh runs: the 2026-07-12 absolutes did not reproduce on 2026-07-15 on the same machine and
@@ -578,8 +581,10 @@ across sessions do not.
 1. **Merged scene pass — SHIPPED, see the DONE section below.** Its budget-table win on this open-water
    default view is ~1 ms; its real value is in the frames that were worst (island approach −2.3 ms,
    max-stress −2.6 ms at 1600×900).
-2. **LOD ocean — the next project, and now the only one of its size.** The ocean is purely vertex-bound
-   (above).
+2. **LOD ocean — SHIPPED 2026-07-17** (see the DONE section below). NB the budget table above predates
+   it and its `+ LOD ocean` row was a quad-40 *proxy*; `budget.mjs` now measures the real grid (and its
+   row order changed: LOD lands right after the merged pass, matching the shipped stack) — re-run for
+   fresh stacked numbers.
 3. **Scene capture resolution — a live dial (`Performance → capture res`), but NOT the default.** And
    NB: with the merged pass the capture IS the presented opaque image, so this dial now behaves like a
    render scale that spares only the water — a stronger quality trade than it was, and still a low-end
@@ -631,9 +636,9 @@ waterline is a fair price for 4.5 ms. It is not a free win, and it should never 
 and under the merged pass it is a bigger trade still, because the capture is now also the presented
 opaque image (the dial behaves like a render scale that spares only the water).
 
-### The next perf project: the camera-following LOD ocean — **~8 ms, and it costs no quality**
+### The LOD-ocean ceiling — the pricing that justified the build (SHIPPED 2026-07-17, see the DONE section)
 
-Bigger than everything else combined, and now measured *as an LOD ceiling* rather than inferred —
+Bigger than everything else combined, and measured *as an LOD ceiling* rather than inferred —
 `tools/lod-ceiling.mjs`, which holds the plane at 5000 m (so screen coverage, fill, capture and SSR are
 unchanged) and varies **only** tessellation density. That is the only honest way to price LOD: an LOD
 ocean still has to reach the horizon, so it can win the **vertex** half and nothing else.
@@ -739,12 +744,48 @@ which is the one real trade:
 capture MSAA off) is acceptable to the eye in the live game — flip `Performance → merged main pass`
 live to compare. Everything else about the merged pass is strictly better or equal.
 
-### NEXT: the camera-following LOD ocean — **7.8 ms, no quality cost**
+### DONE 2026-07-17: the camera-following LOD ocean — **−4.5 ms mean, −7.1 ms max-stress, near field BYTE-identical**
 
-Fully measured and specified under "The next perf project" above (`tools/lod-ceiling.mjs` prices the
-ceiling). With the merged pass shipped, this is the frontier: at the re-anchored native-ultrawide
-baseline (~10 ms GPU), a ~4–8 ms vertex win (it scales with tessellation, not pixels) puts the frame
-into the 100 fps bucket — and it costs no pixel.
+*(Replaces the "NEXT: the camera-following LOD ocean" spec, which is executed. Full log entry with the
+A/B table: `perf-experiments.md` 2026-07-17.)*
+
+**What shipped** (`ocean-lod.ts` — pure, unit-tested — + `ocean.ts` + `scene.ts`, default ON, live
+dials at `Performance → ocean LOD / quad size / LOD near / LOD extent` + an `ocean grid` readout):
+**ONE welded mesh** — a ~512 m dense patch at the shipped ~4.9 m quads plus five concentric rings of
+doubling quad size, T-junctions stitched at build time (2:1 fans per coarse cell, L-fans at corners) —
+**~52k vertices reaching 16.25 km**, vs ~1.05 M uniform at 5 km. Because it is one mesh, `renderSsr`'s
+material swap, the `waterVisible` toggles, layer memberships and the shared-uniform model all carried
+over untouched. Per frame the mesh snaps to the camera on the coarsest-quad (156.25 m) lattice and
+`uWorldOffset` re-anchors the Gerstner evaluation in **world** space in all three vertex shaders
+(main, flat-debug, SSR); every ring's quad divides the snap step, so all vertices land on one fixed
+world lattice — the sampled field is bitwise-stable across snaps. The ripple normal map now samples
+the world-anchored `vRippleUv` (three's `normal_fragment_begin`/`normal_fragment_maps` chunks spliced
+with the UV swapped) in BOTH paths, since geometry-uv sampling would ride the following mesh. CPU
+`sampleSurface` needed **no change** — it was already world-space, so the GPU/CPU lock-step contract
+held by construction.
+
+**Measured** (`ab.mjs` interleaved, 1600×900, drift ≤ 0.53): down-calm −2.9, grazing-storm −4.9,
+island-approach −3.1, **max-stress −7.1 (−66 %)**, **mean −4.5 ms (−55 %)**. The win is vertex work —
+a roughly fixed ms at any resolution — and lands hardest in the steep-wave frames, where the SSR pass
+billed the plane's vertices a second time. The sea also grew 2.5 → ~8 km radius in the same move,
+past the ~5.4 km deck-height optical horizon (the FIDELITY.md corner-curl defect went with it).
+
+**Verified on pixels** (`tools/verify-ocean-lod.mjs`, freeze-frame): the near field is **byte-identical
+(max diff 0)** to the uniform grid — at the origin AND at a camera forcing a non-zero (312.5 m) snap,
+which is the load-bearing case: it proves the world-offset math in every shader and that snaps cannot
+pop. Exactness is by construction (`ocean-lod.ts` copies `PlaneGeometry`'s anti-diagonal cell split, so
+the shared lattice rasterises identically). The far field differs by design.
+
+**Traps documented:** a `ShaderMaterial` only uploads uniforms LISTED in its `uniforms` map — sharing
+by reference is not enough (`uWorldOffset` had to be added to the SSR material's list or its surface
+silently diverges). And `setPlaneSize`/`setQuadSize`/bench `quadSize` now dispatch on the LOD flag —
+a uniform-grid sweep (E8-style, `lod-ceiling.mjs`) must pin `setOceanLod(false)` first; `lod-ceiling.mjs`
+and `budget.mjs` are updated.
+
+**Not fixed, on purpose:** the far-glitter dotted moiré is identical with LOD on and off — it is
+ripple-map minification aliasing (per-pixel, indifferent to vertex density). FIDELITY.md's old claim
+that the LOD grid was "the real fix" for it is corrected; the real fix is dual-scale normals / a
+distance fade of ripple strength.
 
 ### Done 2026-07-12 (was "do these first")
 
@@ -771,12 +812,7 @@ into the 100 fps bucket — and it costs no pixel.
 
 ### Open threads — RANKED. A new session starts at #1.
 
-1. **The camera-following LOD ocean — the frontier, and the only lever of its size (~3 ms at
-   1600×900, more at native; Kyle's live upper bound read −2.8 ms).** Fully specified in "NEXT: the
-   camera-following LOD ocean" above; `tools/lod-ceiling.mjs` prices the ceiling (re-anchor it
-   in-session first), `tools/ab.mjs` makes each iteration ~90 s, and the `verify-merged-pass.mjs`
-   harness pattern is how to prove the near-field waves identical.
-2. **SSR fade-cull — cheap, and pixel-identical BY CONSTRUCTION (unbuilt, unmeasured).** The main
+1. **SSR fade-cull — cheap, and pixel-identical BY CONSTRUCTION (unbuilt, unmeasured).** The main
    shader multiplies the SSR sample by a fade that reaches zero beyond 2–4× `uSsrMaxDistance` and at
    extreme grazing (see the `ssrFade` note in `ocean.ts`) — but the SSR PASS still marches those
    pixels, and far-grazing rays are the expensive kind (full-count sky misses). Apply the same test
@@ -784,21 +820,26 @@ into the 100 fps bucket — and it costs no pixel.
    exactly the work whose output was multiplied by zero. Verify on pixels with the merged-pass
    harness. Bigger sibling: **Hi-Z / hierarchical marching** (same hits, fewer samples — also the only
    lever for the grazing worst case, which E6 proved SSR-off cannot fix).
+2. **Terrain worker + CHUNK STREAMING — both DONE 2026-07-17.** `generateChunk` runs in a Web
+   Worker, and `terrain-stream.ts` tiles the world to a **12 km radius** in LOD tiers (quadtree,
+   hysteresis, swap-on-ready). Measured: ~76 tiles ≈ 2.1 M verts ≈ ~100 MB GPU, full settle ~6 s
+   background (~70 ms/tile), and the whole archipelago costs **+1.9 ms GPU** at 1600×900
+   (`ab.mjs` terrain on/off — fill-bound held at 20× the old land radius; island-approach is
+   +0.5 ms, the land-occludes-water effect again). The bench freezes retiling per run
+   (`terrainStreaming` knob measures hitches on purpose); `tools/verify-stream.mjs` is the settle
+   + budget + hole check. See "Terrain" and docs/ISLANDS.md for the architecture.
 3. **A cheaper terrain material — ceiling ~1.0–1.3 ms at 1600×900, DOWNGRADED from the old 6.3 ms
    headline.** The decisive probe ran 2026-07-15 (see "Terrain"): the bedrock's shading+shadow-receive
    is ~1 ms, and terrain is partly free via occlusion (land that hides water costs ~nothing net).
    Worth having; not worth doing before #1 and #2.
-4. **Terrain generation is 715 ms on the main thread** and becomes a per-chunk in-play hitch the moment
-   terrain streams. Web Worker. Less urgent than the old (stale) 2.5 s figure implied — but a 715 ms
-   freeze mid-sail is still a freeze. See "Terrain".
-5. **The smoothness tail (felt quality, not avg fps):** a ~2–3 % frame-hitch rate, uniform across
+4. **The smoothness tail (felt quality, not avg fps):** a ~2–3 % frame-hitch rate, uniform across
    segments (per-frame allocation/GC suspicion), and 1 %-lows at ~half the average. If the game ever
    FEELS worse than its fps says, hunt here first.
-6. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
+5. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
    touch*. Crowded/touching ships would surface a real collision cost.
-7. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
+6. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
    baseline) is the natural next step now the numbers are trustworthy and a sweep is one command.
-8. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res / capture res
+7. **Auto quality tiers** — detect a weak GPU and default render scale / reflection res / capture res
    down. `capture res` is now a live dial and is a legitimate tier knob (it is just not a free default).
 
 ### How to re-run
@@ -812,6 +853,18 @@ node src/projects/shipwright/tools/ab.mjs --a '{"quadSize":4.9}' --b '{"quadSize
 
 # the merged-pass pixel-identity guard (interior/edge split diff + heatmaps)
 node src/projects/shipwright/tools/verify-merged-pass.mjs
+
+# the LOD-ocean pixel-identity guard (near-field crop must be BYTE-identical, incl. at a non-zero snap)
+node src/projects/shipwright/tools/verify-ocean-lod.mjs
+
+# the terrain-worker guard (worker vs sync path must be pixel-identical; also times the per-chunk cost)
+node src/projects/shipwright/tools/verify-terrain-worker.mjs
+
+# streaming sanity: settle time, tile/vertex/memory budget, tint-by-LOD + deck-height frames
+node src/projects/shipwright/tools/verify-stream.mjs
+
+# the shipped LOD ocean vs the uniform grid, interleaved (the 2026-07-17 headline table)
+node src/projects/shipwright/tools/ab.mjs --a '{"oceanLod":false,"quadSize":4.8828125}' --b '{"oceanLod":true,"quadSize":4.8828125}'
 
 # the LIVE shipped frame, and the pie chart of what is in it
 node src/projects/shipwright/tools/profile-live.mjs

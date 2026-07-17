@@ -918,11 +918,16 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
     renderer.toneMappingExposure = state.exposure;
 
     // Bake the env map WITHOUT the disc: the DirectionalLight already carries the beam.
+    // And bake from the dome's own centre: the live dome rides the camera (see `update`),
+    // but PMREM's cube camera sits at the envScene origin — an offset dome would skew
+    // every baked direction once the camera is far from the world origin.
     skyUniforms.uShowSunDisc.value = 0;
     envScene.add(skyMesh);
+    skyMesh.position.set(0, 0, 0);
     envTarget?.dispose();
     envTarget = pmrem.fromScene(envScene);
     scene.add(skyMesh);
+    skyMesh.position.copy(camera.position); // back onto the live camera immediately
     skyUniforms.uShowSunDisc.value = 1;
     scene.environment = envTarget.texture;
 
@@ -989,6 +994,12 @@ export const createDaylight = ({ scene, renderer, camera }: DaylightOptions): Da
       applyState(); // re-derive uCloudShadowStrength through the one seam that owns it
     },
     update: (time) => {
+      // The dome rides the camera. Its shading is already camera-relative
+      // (`direction = normalize(vWorldPosition - cameraPosition)`), so this changes no
+      // pixel — it only keeps the camera INSIDE the box: the dome was sized for the old
+      // 2.5 km world, and once the world streamed to 12 km you could sail (or pan) out
+      // of it and watch the sky fall off the edge to clear-colour black.
+      skyMesh.position.copy(camera.position);
       syncSunShadow();
       syncCloudShadowOrigin();
       // Scroll the deck. The offset is in NOISE units, the same space the CPU twin reads, so the

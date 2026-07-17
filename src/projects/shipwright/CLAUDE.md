@@ -332,6 +332,10 @@ code that floats the ship agree on where the surface is.
   fragment-side **refraction / depth absorption / reflection** composite, the dedicated
   **low-res SSR pass** (`renderSsr`), their uniforms, and the Water/wave/reflection GUI +
   debug toggles. Single source of truth for the surface — buoyancy reads `sampleSurface`.
+- `ocean-lod.ts` — the camera-following LOD grid's pure geometry (no three.js): `buildLodGrid`
+  (dense near patch + doubling rings, T-junctions stitched, one welded index) and `snapToLattice`
+  (the camera-follow snap). Unit-tested in `ocean-lod.test.ts` (watertightness by edge-counting,
+  exact-coverage area, lattice alignment). `ocean.ts` wraps it into the one water mesh.
 - `physics.ts` — `createPhysics`, the Rapier buoyancy + voxel-editing engine: per-voxel
   compound colliders, the force-based buoyancy/drag hot loop, compartment-flooding
   integration, render interpolation, and the runtime voxel editor (place/break/split/drop,
@@ -350,9 +354,28 @@ code that floats the ship agree on where the surface is.
   on demand (`--bodies N`) when we want to price buoyancy deliberately. **Debug content does not ship.**
 - `builder.ts` — `createBuilder`, first-person build input (place/break/drop) + the aim dot.
   All world mutation delegates to `physics.ts`.
-- `terrain.ts` — `createTerrain`, the procedural archipelago: the pure seeded bedrock field
-  (`bedrockField` → `height` + the `broad` shelter proxy), the exposure-gradient surface colouring, and
-  the instanced spruce. Pure noise helpers are unit-tested in `terrain.test.ts`. See `docs/ISLANDS.md`.
+- `terrain-gen.ts` — the archipelago GENERATOR, deliberately import-free (no three.js) so the identical
+  code runs on the main thread, in the Web Worker, and headless in Node: the pure seeded bedrock field
+  (`bedrockField` → `height` + the `broad` shelter proxy), the exposure-gradient surface colouring
+  (colours converted sRGB→linear exactly as `THREE.Color` does — a test pins the match), the
+  WORLD-anchored tree scatter (candidates hash world lattice cells, so adjacent chunks grow the same
+  forest — `terrain-gen.test.ts` proves a window equals its quadrant chunks byte-for-byte), and
+  `generateChunk` (apron-sampled central-difference normals → chunk edges shade seamlessly).
+  `GEN_VERSION` keys every future chunk cache. Field helpers unit-tested in `terrain.test.ts`.
+- `terrain.worker.ts` — the Web Worker wrapper: one message in (`ChunkRequest`), one payload out,
+  buffers TRANSFERRED. The family-tree `layout.worker.ts` pattern; bundles under webpack + Turbopack
+  via `new Worker(new URL(...), {type:"module"})` with no next.config changes.
+- `terrain-stream.ts` — terrain streaming: the worker client (`createTerrainGenerator` + the
+  `createSyncTerrainGenerator` escape hatch), the PURE tile-planning math (`TIERS`, `planTiles` —
+  quadtree LOD tiers with ±10 % hysteresis, unit-tested in `terrain-stream.test.ts`), and the
+  manager (`createTerrainStream`): nearest-first worker queue, swap-on-ready retiling (never a
+  hole), LRU payload cache keyed on `GEN_VERSION`, settle promises (the `isReady()` gate), and the
+  Terrain-compatible surface scene.ts adapts. Budget notes + tier table reasoning: docs/ISLANDS.md.
+- `terrain.ts` — the three.js half: `terrainFromPayload` (buffers → bedrock mesh + instanced spruce;
+  the ONE place payloads become meshes, shared by the worker path and the sync path so they are
+  identical by construction — `tools/verify-terrain-worker.mjs` proves pixel-identity), the `Terrain`
+  interface, and the synchronous `createTerrain` (the `?terrainWorker=off` escape hatch + bench/test
+  path). Re-exports the field API from `terrain-gen.ts`. See `docs/ISLANDS.md`.
 - `lighting.ts` — the physical light model, PURE (no three.js), unit-tested. Air mass, the direct beam
   and its colour, diffuse skylight, twilight, cloud optics, exposure. One `computeLighting` that
   everything downstream reads. Nothing else may invent light.
@@ -412,20 +435,27 @@ code that floats the ship agree on where the surface is.
   lighting the merged pass. The trade: opaque geometry's edge AA now comes from the capture target
   (`Performance → capture MSAA`, default off — 4× costs +7 ms at native ultrawide), not the backbuffer.
   Live A/B switch: `Performance → merged main pass`; fast iteration via `tools/ab.mjs`.
-- **THE NEXT PERF PROJECT — camera-following LOD ocean (~4–8 ms, costs no pixel).** The uniform grid
-  spends detail on far water that doesn't need it: ~1 M vertices, 4 Gerstner waves (sin/cos ×4) +
-  analytic normals **per vertex**, drawn **twice a frame** (SSR pass + main pass). The ocean is almost
-  **purely vertex-bound** — at a coarse quad size the main pass costs the same as *having no ocean at
-  all*, so its per-pixel fill is ~0 and every millisecond is vertices (`tools/lod-ceiling.mjs`).
-  Uniform coarsening isn't shippable (the short 48/70 m waves facet — that's why the fine grid exists),
-  but a camera-following high-density patch + a coarse far plane keeps the near waves identical and
-  reclaims most of it.
-  **This REVERSES the old guidance** ("the ocean is not vertex-bound", "do NOT do this pre-emptively"),
-  which came from an experiment that measured render-prep **CPU** — genuinely flat in tessellation —
-  and generalised it to the GPU, which was never tested.
+- **Camera-following LOD ocean — SHIPPED (2026-07-17).** The uniform grid spent ~1 M trig-heavy
+  Gerstner vertices on far water, drawn **twice a frame** (SSR pass + main pass), and the ocean is
+  almost purely vertex-bound. Now the sea is **ONE welded mesh** (`ocean-lod.ts`, pure + unit-tested):
+  a dense ~512 m patch at the shipped ~4.9 m quads plus five concentric rings of doubling quad size,
+  T-junctions stitched at build time — **~52k vertices reaching 16.25 km**, past the ~5.4 km
+  deck-height optical horizon. Per frame the mesh snaps to the camera on the coarsest-quad (156.25 m)
+  lattice and `uWorldOffset` re-anchors the wave evaluation in **WORLD space** in all three vertex
+  shaders (main / flat-debug / SSR); every ring's quad divides the snap step, so vertices land on one
+  fixed world lattice and snaps cannot pop. The ripple normal map now samples the world-anchored
+  `vRippleUv` in both paths (three's `normal_fragment_*` chunks are spliced with the UV swapped) —
+  geometry-uv sampling would ride the following mesh. CPU `sampleSurface` needed **no change** (already
+  world-space; the lock-step contract held by construction). Measured interleaved (`ab.mjs`, 1600×900):
+  **−4.5 ms GPU mean, −7.1 ms max-stress (−55 %/−66 %)**; near field proven **byte-identical** to the
+  uniform grid at zero AND non-zero snaps (`tools/verify-ocean-lod.mjs`). Live dials:
+  `Performance → ocean LOD / quad size / LOD near / LOD extent`. Two traps: a `ShaderMaterial` only
+  uploads uniforms LISTED in its map (`uWorldOffset` had to be added to the SSR material's list), and
+  `setPlaneSize`/`setQuadSize`/bench `quadSize` dispatch on the LOD flag — uniform-grid sweeps
+  (E8 / `lod-ceiling.mjs`) must pin `setOceanLod(false)` / `{"oceanLod":false}`.
   Still true: dropping the short waves and faking them with the normal map was **tried and rejected** —
-  it looked worse (a repeating "river" of smooth swells). LOD is a different thing: keep the waves,
-  spend the vertices where the camera is.
+  it looked worse (a repeating "river" of smooth swells). LOD keeps the waves and spends the vertices
+  where the camera is.
 - **Do NOT shrink the scene capture to buy frames.** It looks free and isn't: it bleeds silhouettes at
   the waterline (a blocky halo where an object's outline meets the water), and it has a hard floor,
   because lowering its resolution cuts raster work and not the **vertex** work of re-rendering the whole
@@ -525,11 +555,34 @@ code that floats the ship agree on where the surface is.
   **OPEN DESIGN QUESTION, not a bug:** realism (`35` — main islands + skerries, but uneven, with empty
   basins) vs consistent gameplay (`0` — evenly sized, evenly spaced islands everywhere). One constant,
   so it stays cheap to flip until resource gathering says how empty water plays. See `docs/ISLANDS.md`.
-- **Still deferred on islands:** roche-moutonnée asymmetry, boulders, rock micro-detail, and
-  chunking/streaming — needed before the window can grow past ~600 m, and it is now the thing blocking
-  the LOOK and not just the scale, because an archipelago only reads as one when several islands and
-  the chains behind them are visible at once (2–3 km). Generation is ~1.65 s on the main thread and
-  wants a Web Worker.
+- **Terrain generation moved off the main thread — SHIPPED (2026-07-17).** The generator was extracted
+  into import-free `terrain-gen.ts` and runs in a Web Worker (`terrain.worker.ts` +
+  `terrain-stream.ts`): the game is playable from frame 1 and the island lands ~1 s later as
+  transferred buffers, instead of freezing setup for the same duration. Worker and sync paths run the
+  identical `generateChunk`, proven pixel-identical (`tools/verify-terrain-worker.mjs`); captures wait
+  on `isReady()` (which now includes the island) and the benchmark awaits the landing. Three
+  chunk-readiness properties landed with it, each pinned by `terrain-gen.test.ts`: **world-anchored
+  trees** (candidates hash world lattice cells — a window grows the byte-identical forest to its
+  quadrant chunks; NB this deterministically reshuffled the shipped forest once), **apron normals**
+  (central differences over a one-sample apron — chunk edges shade seamlessly), and **the taper as
+  explicit opt-in** (`edgeTaper` — streamed chunks omit it; the legacy window keeps it).
+  `?terrainWorker=off` forces the sync path.
+- **Chunk streaming to 12 km — SHIPPED (2026-07-17).** The fixed 600 m window is gone: the world is
+  a quadtree of worker-generated LOD tiles following the viewer (`terrain-stream.ts` — tier table,
+  hysteresis, swap-on-ready so retiling never opens a hole; skirts + apron normals keep tier borders
+  seamless). Measured: ~76 tiles ≈ 2.1 M verts ≈ ~100 MB GPU, full 12 km settles in ~6 s of
+  background worker time, and the whole archipelago costs **+1.9 ms GPU** at 1600×900 (fill-bound
+  held at 20× the old land radius). The archipelago finally READS — several islands and the chains
+  behind them visible at once. The benchmark awaits settle + freezes retiling per run
+  (`terrainStreaming` measures hitches on purpose); `freeze()` also freezes retiling so captures
+  stay deterministic. Dials: `Performance → land radius / land tier scale` (+ live budget readout),
+  `Debug → tint land by LOD`. Budget lesson recorded in docs/ISLANDS.md: tile-granular refinement
+  overshoots band areas ~1.8×, so tier tables must be budgeted by measuring `planTiles`, not by
+  annulus arithmetic — the first draft measured 6.7 M verts against a 2.6 M estimate.
+- **Still deferred on islands:** roche-moutonnée asymmetry, boulders, rock micro-detail; a
+  coastline/basin scale above `SUPER_RELIEF` (the world is statistically homogeneous past ~2 km —
+  now VISIBLE from a raft, see docs/MAPS.md); wave shoaling; and aerial-perspective haze for the
+  far silhouettes.
 - **Lighting overhaul — SHIPPED.** The sun:sky balance was inverted ~1:21; it is now **10.3:1 at the
   zenith, 1:1 at ~7 degrees, and exactly 0 below the horizon**, MEASURED on the real GPU with each
   source isolated (`tools/probe.mjs`). Every per-material lighting exception is gone, `hemiLight` is

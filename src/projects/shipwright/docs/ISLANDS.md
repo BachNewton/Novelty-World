@@ -159,11 +159,50 @@ world is a rendering/streaming job, not a terrain-tuning one.**
 
 Mechanics for whoever picks this up: the **rebuild path already exists** — `scene.ts` disposes and
 regenerates the island on the benchmark's spacing sweep, the same three lines with `extent` changed.
-Generation scales with **area**: ~1.6 s @600 m → ~15 s @3 km/2 m → ~40 s @3 km/1.2 m. That main-thread
-**freeze** is why the Web Worker is the real gate, and why a **GUI toggle (not a default flip)** is the
-right home for experimenting — a 3 km default would freeze every hot-reload. (A temporary default flip to
-3 km/2 m was used once to eyeball it, then reverted; the freeze on load confirmed the worker is the
-prerequisite, not an optimization.)
+Generation scales with **area**: ~0.6 s @600 m → ~15 s @3 km/2 m → ~40 s @3 km/1.2 m.
+
+**The Web Worker gate is OPEN and STREAMING SHIPPED (2026-07-17).** Generation runs off-thread
+(`terrain-gen.ts` + `terrain.worker.ts`), and `terrain-stream.ts` keeps the world tiled around the
+viewer — the fixed 600 m window is gone. The architecture, measured on the dev machine:
+
+- **A quadtree of LOD tiers** (tile size doubles per tier, so one coarse tile is exactly four finer
+  ones). Shipped table (`TIERS`): T0 1.2 m/256 m tiles to 320 m · T1 2.4 m/512 m to 800 m (both with
+  trees) · T2 6 m/1 km to 1.8 km · T3 15 m/2 km to 4 km · T4 37.5 m/4 km to 7 km · T5 90 m/8 km to
+  the **12 km streaming radius** (optics-derived: everything this field generates is sub-pixel past
+  it). A tile refines when its nearest point enters the finer tier's radius, with ±10 % hysteresis so
+  hovering on a boundary never flaps, and **swap-on-ready**: a superseded tile keeps rendering until
+  every replacement over its area is built — retiling can never open a hole.
+- **Budget, measured live:** ~76 tiles ≈ **2.1 M verts ≈ ~100 MB GPU** (Float32 attrs + Uint16
+  per-tile indices); full 12 km settles in **~6 s** of background worker time (~70 ms/tile, worst
+  ~220 ms); the whole archipelago costs **+1.9 ms GPU** at 1600×900 (`ab.mjs --terrain` A/B) — the
+  fill-bound prediction held at 20× the old land radius. NB the first draft's radii/spacings hit
+  6.7 M verts / ~400 MB: tile-granular refinement overshoots each band by ~1.8× in area, so budget
+  numbers must be measured on the PLAN, not derived from band areas (`terrain-stream.test.ts` +
+  `tools/verify-stream.mjs`).
+- **Chunk-readiness trio** (each pinned by `terrain-gen.test.ts`): trees hash **world** lattice
+  cells (a window grows the byte-identical forest to its quadrant chunks, and a tile promotion
+  re-grows the identical trees); normals come from an apron-sampled central difference (chunk edges
+  shade seamlessly); **skirts** (perimeter dropped ~2×spacing, wearing the edge's colour + normal)
+  hide the sliver cracks where tiers abut. The window edge-taper became an explicit opt-in that
+  streamed tiles omit — the world no longer ends.
+- **Canopy CLUMPS on the far tiers** — because *vegetation is the island's visual mass* (above):
+  cutting trees at the near tiers made every far island bald, which is this doc's snow-cap failure
+  at range. Far tiers scatter on a coarser lattice (T2 5 m → T5 40 m), each accepted site one
+  cell-wide, true-height clump (a single 14-tri cone vs the near spruce's 74) driven by the SAME
+  world-anchored stand fields — so sailing in reads as clumps *resolving into trees*, not forest
+  appearing. Nearly free to generate: clump candidates interpolate the tile's own height/shelter
+  grids instead of evaluating the field (~70 k clumps world-wide, ~1 M extra triangles).
+- **Session cache, no persistence:** payloads cache in memory keyed
+  `(tier, cx, cz, spacingScale, GEN_VERSION)` — Minecraft persists chunks because players MUTATE
+  them; ours are pure functions of the seed, so a durable store could only save regeneration time
+  while gen params churn. The version-aware key means IndexedDB/Supabase can bolt on later without
+  rework (revisit when gathering makes islands mutable).
+- **Dials:** `Performance → land radius / land tier scale` + the live budget readout;
+  `Debug → tint land by LOD` paints tiles per-tier to watch promotions while sailing;
+  `Debug → show loading tiles` (default ON) outlines tiles still queued (blue) or generating
+  (orange), so "no land here yet" is distinguishable from open water — self-hiding once settled,
+  and switching it off builds ZERO nodes (the debug-arrows lesson: hidden ≠ free).
+  `?terrain=off` skips it all; `?terrainWorker=off` streams the same tiles on the main thread.
 
 ---
 
