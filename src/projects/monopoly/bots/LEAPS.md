@@ -333,8 +333,21 @@ still work? Which fable guard actually fired, which never did? (The defensive
 stack has literally never been measured against the opponents it was built
 for.)
 
-**Kill criterion:** none — this is an instrument, not a hypothesis. It can't
-wash; it can only be neglected.
+**Status (2026-07-18): the first fable-era iteration RAN, and paid again.**
+The `4q3y6i` review (first real human-vs-fable-v2 game) + two new instruments:
+`npm run game:offers` sweeps every stored game into an offer-outcome corpus
+(37 games, 1,237 proposals: bot→bot 97.9% accepted, bot→human **10.6%**,
+human→bot **57.8%** — the own-evaluator counterparty model is an order of
+magnitude miscalibrated against humans), and `bots/played-cli.ts` lets a MODEL
+play a seat against the bots turn-by-turn (the L5 bottleneck — human games
+arrive at human speed — removed; two annotated probe games ran the same
+night, one of which live-validated a fix and found its two distress-channel
+bypasses). Product of the iteration: fable-v3 (rail-handover pricing, the
+corpus's most-repeated exploit) + the tail-guard / auction-discipline /
+comeback-equity versions, all evidence-first. The top open L5/L3 lead is the
+**human-counterparty model** gated on `botStrategy === null` — reservation
+priors fit from the offers corpus; structurally gauntlet-safe; validated by
+corpus backtest + live conversion, not SPRT.
 
 ### L6 — Judge leaps (change what "better" means, carefully)
 

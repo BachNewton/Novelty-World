@@ -115,7 +115,11 @@ returns an intent + note. The shape to preserve:
   lots to buy* something worth owning (`RAISE_WORTH_MULT`). This is the one
   raise-to-spend path that exists today.
 - **auction** — bid to `min(acquisitionValue, auctionBidCap)`; bids silent, the
-  drop-out carries the note.
+  drop-out carries the note. Since fable-v5, voluntary bids are additionally
+  capped at LIQUID capacity (cash + own mortgageable equity − flow floor): a
+  developed set inflates the net-worth cap while contributing zero liquidity,
+  which made cash-poor bots ratchet lowballs to face and then liquidate the
+  prize to settle — a winner's curse a Fable-played probe game caught live.
 - **must-raise-cash** — value-preserving liquidation (`raiseCashStep`):
   least-essential building-free lot mortgaged first, monopolies and their houses
   protected; sell down the *weakest developed* set only when nothing's left to
@@ -125,7 +129,12 @@ returns an intent + note. The shape to preserve:
   commit** — reclaiming idle capital a set can't earn while mortgaged. Gated on
   being comfortably above the rent reserve (unmortgaging pays 10% interest); a
   locked set is worth reclaiming even bare (level 0), which restores its monopoly
-  double-rent and unfreezes it for later building.
+  double-rent and unfreezes it for later building. Since fable-v4, every
+  voluntary `planBuild` spend also clears a TAIL guard — post-spend cash must
+  survive the worst single next-roll landing, uncapped — because the capped
+  flow floor reserves a $950 hotel hit at ~$134, which let a bot redeploy $506
+  three turns before dying to a $118 charge (game 4q3y6i). A danger gate, not
+  a wall: acquisition is never gated, and safe boards develop identically.
 - **trade-building / trade-pending** — propose the best constructed trade; vote via
   `evaluateTrade`.
 - **jail** — leave on safe boards (card → cash → roll); **sit as a haven** when a
@@ -252,6 +261,39 @@ changes, both in `evaluateTrade` (vector overrides in `claude-v41/index.ts`):
 
 The free side effect: a completer the bot would never sell cheaply is simply never
 proposed into the ring, so the hot-potato loses its fuel at the source.
+
+### Rail networks are priced like sets — the handover charge (fable-v3)
+
+Color sets got the seller-side treatment in claude-v41; railroads didn't, and the
+`game:offers` corpus shows humans farming exactly that gap (railroads bought from
+bots at ~book+$50 across many stored games, funding the winner's rent engine —
+the 4q3y6i review is the type specimen). fable-v3 closes it: the rail/utility
+synergy delta a trade hands an opponent is charged at a **0.65 net fraction**
+(`synergyThreatFrac × rivalThreatFactor`), up from ~0.31, and `railSynergy2` is
+restored to its v38 value after a combined-space ES drifted it to ~free (a dim
+mirror fitness can't see — bots almost never trade toward rail networks in
+self-play, so the sweep read EVEN at every strength; the evidence lives in real
+games, not the harness). **Why 0.65 and not the full delta:** the extraction
+engine's rail channel sells rails to 2–3-rail holders at nearly their full solved
+surplus; a 1.0 self-charge would cancel that margin and silence the channel —
+0.65 flips the observed human-facing blunders while keeping the sale profitable.
+Known residual (probe game 2): the charge holds on the accept path against a
+HEALTHY bot, but the distress/survival channel can still clear underpriced rail
+sales from a beaten seat — which is what the comeback-equity lever closes.
+
+### Survival cash is worth its comeback equity (fable-v6)
+
+The F2a survival credit prices incoming cash at up to ~2.5× face for a
+distressed seat, unconditionally — which let beaten bots fire-sell completers
+and railroads to the very seat about to win (the $55 States handover in
+4q3y6i; both probe games' distress rail sales). fable-v6 scales that credit by
+the seat's positionValue share of the STRONGEST live opponent (clamped [0,1]):
+survival cash is worth the win probability it preserves. At parity the full
+premium survives (distress-shedding between peers stays protective — the v35
+lesson); a beaten seat's premium decays smoothly to nothing, and with it the
+fire-sales. Forced liquidation (`must-raise-cash`) is untouched. This is the
+lever that turned the defect stack into the crown: fable-v6 is the first bot
+to SPRT-beat fable-v1, on both streams, with zero regressions.
 
 ## Randomness & the RNG seam
 

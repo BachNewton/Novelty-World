@@ -93,6 +93,21 @@ import { fableV3Bot } from "./fable-v3";
 // greens three turns before dying to a $118 charge behind a $447-capped flow
 // floor that reserved a $950 tail at ~$134. See its index.ts + EVOLUTION.md.
 import { fableV4Bot } from "./fable-v4";
+// fable-v5 — AUCTION LIQUIDITY DISCIPLINE on the fable-v4 substrate: voluntary
+// auction bids additionally capped at liquid capacity (cash + own mortgageable
+// equity − flow floor), so winning never forces liquidating the prize. The
+// first version motivated by a FABLE-PLAYED probe game (played-cli.ts): a
+// fable-v2 seat at $166 cash ratcheted a lowball to face, won, and mortgaged
+// the won lot to settle. Screen: +3.3 over the mirror null @ 1800 games. See
+// its index.ts + EVOLUTION.md.
+import { fableV5Bot } from "./fable-v5";
+// fable-v6 — COMEBACK-EQUITY SURVIVAL on the fable-v5 substrate: the F2a
+// survival credit is scaled by positionValue share vs the strongest live
+// opponent, so a beaten seat stops fire-selling (the 4q3y6i $55 States
+// handover; both probe games' distress rail sales at ~book+$50 — the distress
+// bypass of fable-v3's rail charge). Peer-parity shedding stays protective.
+// See its index.ts + EVOLUTION.md.
+import { fableV6Bot } from "./fable-v6";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -141,6 +156,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v2": fableV2Bot,
   "fable-v3": fableV3Bot,
   "fable-v4": fableV4Bot,
+  "fable-v5": fableV5Bot,
+  "fable-v6": fableV6Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
@@ -281,6 +298,15 @@ export const RATING_PANEL: readonly string[] = [
   // membership rule ("span the Elo range"), deliberately NOT contingent on which
   // bot it favors.
   "claude-v45",
+  // fable-v6 — the CROWNED champion (2026-07-18): SPRT BETTER vs the previous
+  // crown fable-v1 on BOTH streams (53.1% train / 52.4% holdout — the first bot
+  // in the archive to confidently beat it) AND vs every panel member on both
+  // streams, zero regressions; vs its immediate base fable-v3 it reads EVEN
+  // train / BETTER holdout. Added per "when you crown a new champion, add it
+  // here" — it also carries the three defect-removal levers (voluntary-spend
+  // tail guard, auction liquidity cap, comeback-equity survival), a strategy
+  // surface the panel didn't represent.
+  "fable-v6",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —

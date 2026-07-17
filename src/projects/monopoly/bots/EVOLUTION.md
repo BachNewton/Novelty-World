@@ -849,8 +849,68 @@ fable-v2). Record — yes. Crown — no (twin of base). Substrate — fable-v3
 by the same deliberate-call logic as claude-v39: the fable-v2 basin with
 two human-exploited defects removed at zero measured cost.
 
-(Session continues: fable-v4 = the voluntary-spend tail guard from the
-T219 death, and the maximin ES leg — results appended as they land.)
+**The Fable-played probe games (the new instrument, exercised the same
+night).** Game 1 (vs 3× fable-v2): the model player executed the human
+playbook (reds + all four rails) and **LOST at T91** — every other completed
+set came from a bot selling a completer for cash, including handing the
+runaway leader his second set while another bot's own note said "deny Sam."
+New discoveries: the auction **+$10 ratchet / winner's curse** (a $166-cash
+bot counter-bid a lowball to face, won, and mortgaged the prize to settle)
+and the **wallet-peg tell** (three consecutive sale asks priced at exactly
+100% of the buyer's visible cash — `min(opp.cash, …)` in the F4 constructor
+— with re-asks DROPPING after declines, a walk-down a human farms). Game 2
+(vs 3× fable-v3): **the rail fix HELD on the accept path** (3rd rail refused
+to book+$150, vs v2's book+$50) **but was bypassed twice through distress**
+— a distressed seat sold the network-completing 4th rail at book+$50, and an
+extraction ask cleared its own evaluator the same way. Diagnosis: the F2a
+survival credit (cash × distress × 2.53) swamps any correctly-priced threat
+charge — the same mechanism as 4q3y6i's $55 States fire-sale.
+
+**The maximin ES leg — WASHED (stopped at gen 6/16).** Warm-started from
+fable-v3, guards + both rail dims pinned, 14-member maximin fitness.
+allTimeBest stagnated at 50.67% (within eval noise of the 48.0% warm-start
+floor) from gen 2; the population mean never rose above baseline. The
+diagnosis is structural, not budgetary: the maximin floor is the fable-v1
+MIRROR — a statistical twin, and a twin cannot be SPRT-beaten, so "lift the
+mirror above the bar" was an impossible mission statement. The unification
+the lead wanted arrived instead through the defect stack (below).
+
+**fable-v4 / fable-v5 / fable-v6 — the defect-removal stack, and the CROWN.**
+Three factory revisions, each one dim, each pinned red/green against its
+parent, each screened EVEN-to-lean-positive (600–1800 games, the surfaces
+are mostly self-play-invisible): **fable-v4** — the voluntary-spend tail
+guard (`voluntaryTailFrac`: discretionary build/redeploy spends must survive
+the worst single next-roll landing, uncapped; from Mark's T219 $506
+unmortgage three turns before dying to $118); **fable-v5** — the auction
+liquidity cap (`auctionLiquidCap`: voluntary bids capped at cash +
+mortgageable equity − flow floor; from probe game 1's winner's curse; the
+one positive screen, ~+3.3 over the mirror null @ 1800); **fable-v6** — the
+comeback-equity survival scaling (`survivalEquityGain`: the F2a survival
+credit × positionValue share vs the strongest live opponent; from the
+distress bypasses; peer-parity shedding stays protective, pinned).
+
+**The stack-tip gate (field = panel + both claude twins + fable-v2 +
+fable-v3, base = fable-v3):** train — BETTER vs 13/15 **including SPRT
+BETTER vs the reigning crown fable-v1 (53.1%)**, INCONCLUSIVE-lean-+ vs
+fable-v2 (51.7% @ 4000), EVEN vs base (50.4%); holdout — **BETTER vs ALL
+15** (base 53.3%, fable-v2 53.3%, **fable-v1 52.4%**), zero regressions on
+either stream. **fable-v6 is the first bot in the archive to SPRT-beat
+fable-v1 at all — and it does so on BOTH streams.**
+
+**The crown call — stated honestly, both framings.** By the letter of the
+gate-vs-own-base rule, fable-v6 is EVEN-train/BETTER-holdout vs fable-v3 —
+not a strict two-stream win over its parent (the parent is its twin
+everywhere the defects don't fire). By the rule's substance — displace the
+CHAMPION: SPRT BETTER vs fable-v1 on both streams, BETTER vs every panel
+member on both streams, zero regressions anywhere — the crown gate is
+passed with the reigning champion as the base, which is how every prior
+crown was actually run (claude-v41 gated vs champion opt-v4, fable-v1 vs
+champion claude-v45). **CROWNED: fable-v6 (crown + substrate); added to
+RATING_PANEL per the crown rule.** Ladder after the panel regen: a 2.3-Elo
+summit spread (fable-v5 162.8 > fable-v6 161.8 > fable-v3 161.7 > fable-v2
+160.5) — the derived Strongest/default lands on fable-v5 within noise,
+which the doctrine accepts (crown ≠ default; the direct v5↔v6 evidence is
+the equity dim's pooled 1800-game screen, 52.0% lean-v6 — a twin gap).
 
 ## Version log
 
@@ -875,6 +935,10 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| fable-v6 | 2026-07-18 | **Comeback-equity survival** (`versions/fable-v6/`, session section above): the fable-v5 factory + `survivalEquityGain` — the F2a survival credit scaled by positionValue share vs the strongest live opponent (clamped [0,1]). Survival cash is worth the win probability it preserves; a beaten seat stops fire-selling to finance the winner, peer-parity distress-shedding stays protective (pinned red/green in `policy.test.ts`). Evidence: 4q3y6i's $55 States handover + both probe games' distress rail sales bypassing fable-v3's rail charge through the survival credit. Screen: EVEN pooled (52.0% lean @ 1800, single-stream leans both directions — the screens-mislead lesson again). Carries the whole 4q3y6i-night stack (v4 tail guard + v5 auction cap). | **Gate (panel + both claude twins + fable-v2 + fable-v3, base fable-v3):** train BETTER vs 13/15 incl. **SPRT BETTER vs crown fable-v1 (53.1%)**, EVEN vs base; holdout **BETTER vs ALL 15** (base 53.3%, fable-v2 53.3%, fable-v1 52.4%); **zero regressions on both streams.** First bot in the archive to SPRT-beat fable-v1 — on both streams. Ladder (panel regen): 161.8, summit within 2.3 Elo of fable-v5/v3/v2. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; see the session section's dual-framing note: EVEN-train vs its twin parent, crowned on displacing champion fable-v1 with zero regressions — the gate every prior crown actually ran). Added to RATING_PANEL.** Default remains ladder-derived (fable-v5, within noise). |
+| fable-v5 | 2026-07-18 | **Auction liquidity discipline** (`versions/fable-v5/`): the fable-v4 factory + `auctionLiquidCap` — voluntary auction bids additionally capped at liquid capacity (cash + own mortgageable equity − flow floor), so winning never forces liquidating the prize. The first version motivated by a FABLE-PLAYED probe game (`played-cli.ts`): a fable-v2 seat at $166 cash counter-bid +$10 to a face-value win, then mortgaged the won lot to settle; humans win any contested auction at face+ε while bots bleed liquidation costs. Winner's-curse geometry (developed set inflating the net-worth cap with zero liquid capacity) pinned red/green vs fable-v4. | Screen: **the night's one positive lean — ~+3.3 over the mirror null @ 1800 games** (53.2% / 51.4% on two fresh streams). Gated inside the fable-v6 stack (no separate two-stream gauntlet); ladder 162.8 — nominal summit top, within noise of v6/v3/v2. | **RECORDED — ships inside the crowned fable-v6 stack; nominal ladder top → the derived lobby Strongest/default.** Its own dim rides in every fable-v6 measurement. |
+| fable-v4 | 2026-07-18 | **Voluntary-spend tail guard** (`versions/fable-v4/`): the fable-v3 factory + `voluntaryTailFrac` — a discretionary `planBuild` spend (build / redeploy / unmortgage) must leave cash ≥ the WORST single next-roll landing, uncapped (the flow floor caps at $447 and weights the tail at 0.14 — a $950 hit is reserved at ~$134). Evidence: 4q3y6i T219→T222, a fable-v2 seat spending $506 unmortgaging bare greens three turns before dying to $118, plus the same game's build→half-price-sell whipsaw. Danger-gate-not-wall pinned red/green (safe board still redeploys). | Screen: EVEN at every swept value (48.0–49.7% vs mirror 48.3% @ 600) — self-play boards develop symmetrically, so the guard rarely binds there. Gated inside the fable-v6 stack; ladder 154.1. | **RECORDED — ships inside the crowned fable-v6 stack.** |
+| — | 2026-07-18 | **Maximin ES leg, warm-started from fable-v3** (no snapshot): 14-member maximin fitness, guards + both rail dims pinned (the drift lesson applied ex ante), pop 20 × 16 gens planned. The standing "unify crown and default" lead. | **WASHED — stopped at gen 6/16:** allTimeBest 50.67% stagnant from gen 2 (within eval noise of the 48.0% warm-start floor); population mean never rose above baseline. | **finding.** The maximin floor is the fable-v1 MIRROR — a statistical twin, and a twin can't be SPRT-beaten, so the mission premise was structurally impossible. The unification arrived through the defect stack instead (fable-v6 beats fable-v1 by PLAYING BETTER where defects fire, not by re-tuning the shared surface). |
 | fable-v3 | 2026-07-18 | **Honest rail-network pricing** (`versions/fable-v3/`, see the session section above): fable-v2's factory verbatim, two dims moved as one hypothesis — net rail/utility synergy handover charge 0.31→**0.65 × delta** (`synergyThreatFrac` 2.2109) and **`railSynergy2` ≈3→70** (ES-drift restore). Evidence: real game `4q3y6i` (two fable-v2 seats handed the human winner his 3rd/4th railroads for ~$60–170 of priced threat vs ~$2,400 realized) + the `game:offers` corpus (the book+$50 rail vacuum repeats across ≥5 human games). 600-game screen: EVEN at every swept value — the surface is invisible to mirror self-play (that IS the finding). T89 repro pinned red/green in `policy.test.ts`. | **Gate (panel + claude-v46 + base fable-v2), BOTH streams: 12/13 BETTER** (train 55.0–73.5%, holdout 56.0–80.7%, incl. claude-v45 AND claude-v46 on both), **EVEN vs base** (50.8/50.0%), fable-v1 INCONCLUSIVE-lean-+ train (52.0% @ 4000) / EVEN holdout (50.3%), **zero regressions**. Ladder: 170.9, within-noise of fable-v2's 172.3 (default stays fable-v2). | **RECORDED — NEW SUBSTRATE (deliberate call, the claude-v39 defect-removal shape).** Not crowned (twin of base); crown stays fable-v1. Removes the corpus's most-repeated human exploit at zero measured self-play cost. |
 | fable-v2 | 2026-07-17 | **Combined-space ES over the fable factory, blended** (`versions/fable-v2/`, see the session section above): the optimize/ harness rebound to the fable-v1 factory (47 dims), aggregate-fitness SNES warm-started from fable-v1 vs a 13-member field, degenerate-behavior guards pinned. The raw winner (71.12% in-sample) was a summit counter (beat everything incl. claude-v46 but 44.8% vs base); fable-v2 = the α=0.5 LINE-SEARCH midpoint between fable-v1 and the winner, which dissolves the counter-structure. | **Gate (panel + both claude twins, base fable-v1):** train ✅ 13/13 BETTER (base 54.3%); holdout 12/13 BETTER but base INCONCLUSIVE (51.2% @ 4000-cap) → **twin of base, NOT crowned**. SPRT BETTER vs **claude-v45 AND claude-v46 on BOTH streams** (56.5/59.3 and 58.2/53.9) — the only bot in the archive to do so. Out-of-panel 58.0–73.9% vs 6 more (v47, v38, v39, opt-v3, jane-v3, v30). Mirrors clean; 1v3 vs v45 = 29.5%. Ladder (after the summit-tier panel fix): **222.0, STRICT TOP** (v46 211.9, v45 191.9). | **RECORDED — STRONGEST / LOBBY DEFAULT (`DEFAULT_BOT_VERSION`), and the substrate by deliberate call.** Crown remains fable-v1 (twin verdict vs base). |
 | fable-v1 | 2026-07-17 | **New FABLE lineage — the flow/extraction paradigm** (`versions/fable-v1/`, see PHILOSOPHY.md + the session section above): claude-v45's factory + vector wholesale, plus (a) an EXTRACTION engine — proactively sell held completers / railroads to the one-short rival at their closed-form solved premium, and price every 2-party proposal to the margin in BOTH directions (`chargeSurplus`); (b) a flow layer — exact 2d6 next-roll landing EV driving a danger-aware liquidity floor and a tempo build order; (c) a trade-pricing overhaul — bounded survival credit, recipient-standing-scaled threat (floored at 1), rail/utility synergy threat, heads-up multiplier, trade liquidity guard; (d) a ring-proof transfer memory. Evidence base: the six stored human-beats-v45 games. EV jail rule and buy-to-scalp tried and measured OUT. | **CROWN GATE (field = panel + claude-v45), BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base claude-v45 (56.4% train / 61.1% holdout) AND every panel member (train 56.0–67.1%, holdout 55.2–71.7%), **zero regressions**; 2×1500 fresh-stream versus 57.5%/56.6%; out-of-panel clean except a statistical tie with the twin claude-v46 (48.2% @ 1500). Mirror churn clean (5–8 trades/game, all decisive). | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; first confident SPRT crown since claude-v41).** Wins by selling well against strong, cash-rich opponents; the weak-field margins are smaller than v45's (see the non-transitivity note). |
@@ -953,6 +1017,27 @@ exactly what this section used to do (it published a hand-typed Elo that the
 
 Read those, not a date-stamped paragraph. Why the three are distinct — and why
 collapsing them is the single biggest trap in this model — is METHOD.md "Two bests".
+
+**As of 2026-07-18 (the 4q3y6i night):** the crown + substrate is **`fable-v6`**
+— the defect-removal stack (honest rail pricing → voluntary-spend tail guard →
+auction liquidity cap → comeback-equity survival), the first bot to SPRT-beat
+`fable-v1` at all, and it does so on both streams with zero regressions against
+a 15-member field (see the session section's dual-framing crown note). The
+derived Strongest/default is `fable-v5` (2.3-Elo summit spread — within noise).
+The night's other products: the `game:offers` corpus instrument (bot→human
+conversion 10.6% vs bot→bot 97.9% — the human-counterparty model's calibration
+base), the `played-cli.ts` Fable-played probe instrument (two annotated games;
+one live-validated fable-v3's fix and found its distress bypasses), and the
+maximin-ES wash with the twin-floor diagnosis. **Top leads for the next
+session:** (1) the human-counterparty model (LEAPS L3-for-humans; gate on
+`botStrategy === null`, priors from the offers corpus — structurally
+gauntlet-safe, validated by corpus backtest + live conversion); (2) the
+wallet-peg + decline-walk-down tells in the F4 ask constructor (a human can
+read the ask as a cash X-ray and farm declines for discounts — repricing needs
+the human model, or asks rounded/anchored to asset value); (3) probe game 3+
+vs fable-v6 to re-measure the closed exploits; (4) L1 Stage A stands as the
+owner-approved big bet (LEAPS.md) — untouched tonight, still next in line for
+a long session. The earlier notes below stand as history.
 
 **As of 2026-07-17 evening:** `fable-v1` holds the crown (the first confident
 SPRT crown since `claude-v41`); `fable-v2` is the substrate by deliberate call
