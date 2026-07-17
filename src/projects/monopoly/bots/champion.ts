@@ -30,6 +30,8 @@ export const CROWN = "fable-v1";
  *  the crown is the default prior, but you are free to branch from any family or
  *  start fresh (survey all of them — "winning is the only loyalty"). It differs from
  *  CROWN whenever a deliberate call says the better base is not the confirmed best
- *  bot: today fable-v2 is a statistical twin of the crown that SPRT-beats every other
- *  bot in the archive, so it is the more useful base to build on. */
-export const SUBSTRATE = "fable-v2";
+ *  bot: today fable-v3 — fable-v2's basin (the twin that SPRT-beats every other bot
+ *  in the archive) with the 4q3y6i rail-handover defect removed at zero measured
+ *  cost (EVEN vs fable-v2 on both streams, 12/13 BETTER, no regressions — the
+ *  claude-v39 defect-removal shape; see EVOLUTION.md "the 4q3y6i night"). */
+export const SUBSTRATE = "fable-v3";

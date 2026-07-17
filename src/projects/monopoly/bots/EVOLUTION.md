@@ -795,6 +795,63 @@ member in the panel. (3) The pinned-guards discipline worked: no ring, no
 churn, no fire-sale regressions anywhere in the ES output — constraints, not
 fitness, carry product invariants.
 
+## fable-v3 + the anti-human instruments — the 4q3y6i night (2026-07-18)
+
+An overnight autonomous session (Fable driving Claude Code, at Kyle's
+direction: start at fable-v3 and keep going). The evidence base was the
+`game:review 4q3y6i` session earlier that evening — the FIRST real
+human-vs-fable-v2 game reviewed (L5's standing lead), where a human (Papa)
+bankrupted two fable-v2 seats and both humans, running the same system the
+claude-era Papa games ran: vacuum the railroads from the bots at ~book,
+complete the killer set via human-to-human trade, hotel it.
+
+**The corpus instrument (`npm run game:offers`, L5).** The review's n=1
+asymmetry generalizes to the whole DB (37 games, 1,237 proposals):
+**bot→bot 97.9% accepted; bot→human 10.6%; human→bot 57.8%** (per-human:
+Papa answers 15.2% of bot offers, Kyle 9.2%). The accepted human→bot dump
+shows Papa buying railroads at book+$50 in at least five separate games —
+the single most repeated human exploit in the corpus. Diagnosis (from the
+4q3y6i session): the trade engine models its counterparty WITH ITS OWN
+EVALUATOR + a $9 accept margin — exactly right against bots (97.9%), an
+order of magnitude wrong against humans. The human-counterparty model
+(gate on `botStrategy === null`; fit reservation priors from this corpus)
+is the top standing lead — it is structurally gauntlet-safe (bot-vs-bot
+play unchanged by construction), and its validation is corpus backtest +
+live conversion, NOT SPRT.
+
+**The played-seat instrument (`bots/played-cli.ts`, Kyle's directive).** A
+stepped game runner that lets a MODEL play one seat against bot opponents
+with the exact decision surface a bot policy has (sentinel bot pauses the
+sim drive loop; state persisted between invocations; reasoning rides as
+bot-notes). Human-SHAPED adversarial games on demand — the L5 bottleneck
+(human games arrive at human speed) removed. Probe games run against
+fable-v2 the same night; the player is instructed NOT to read policy code
+(discover exploits behaviorally, like a human).
+
+**fable-v3 — honest rail-network pricing (defect-removal, the claude-v39
+shape).** In 4q3y6i the two fable-v2 seats handed Papa his 3rd and 4th
+railroads (T89: two rails for $500 after correctly declining $450; T95:
+Reading for Boardwalk) — charge ~$60–170 vs ~$2,400 realized. Two dims,
+one hypothesis: net the rail/utility synergy handover charge to **0.65 ×
+delta** (`synergyThreatFrac` 1.057 → 2.2109; 0.65 flips the observed
+accepts while keeping the extraction rail channel's sale margin alive —
+1.0 would cancel it) and restore **`railSynergy2` ≈3 → 70** (ES drift on a
+dim mirror fitness can't see: a second railroad was priced FREE). Screen:
+600-game sweep, every config 49.5–51.2% — the surface is invisible to
+self-play, which is the finding. **Gate (field = panel + claude-v46 +
+base fable-v2), BOTH streams: 12/13 BETTER (train 55.0–73.5%, holdout
+56.0–80.7%), EVEN vs base fable-v2 (50.8% / 50.0%), fable-v1
+INCONCLUSIVE-lean-positive train (52.0% @ 4000) / EVEN holdout (50.3%),
+ZERO regressions anywhere.** T89 defect pinned red/green in
+`fable-v3/policy.test.ts`. Ladder after regen: fable-v2 172.3 > fable-v3
+170.9 > fable-v4 165.8 (within-noise summit; default honestly stays
+fable-v2). Record — yes. Crown — no (twin of base). Substrate — fable-v3
+by the same deliberate-call logic as claude-v39: the fable-v2 basin with
+two human-exploited defects removed at zero measured cost.
+
+(Session continues: fable-v4 = the voluntary-spend tail guard from the
+T219 death, and the maximin ES leg — results appended as they land.)
+
 ## Version log
 
 The running record of bot versions and how each fared against the field — **both
@@ -818,6 +875,7 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| fable-v3 | 2026-07-18 | **Honest rail-network pricing** (`versions/fable-v3/`, see the session section above): fable-v2's factory verbatim, two dims moved as one hypothesis — net rail/utility synergy handover charge 0.31→**0.65 × delta** (`synergyThreatFrac` 2.2109) and **`railSynergy2` ≈3→70** (ES-drift restore). Evidence: real game `4q3y6i` (two fable-v2 seats handed the human winner his 3rd/4th railroads for ~$60–170 of priced threat vs ~$2,400 realized) + the `game:offers` corpus (the book+$50 rail vacuum repeats across ≥5 human games). 600-game screen: EVEN at every swept value — the surface is invisible to mirror self-play (that IS the finding). T89 repro pinned red/green in `policy.test.ts`. | **Gate (panel + claude-v46 + base fable-v2), BOTH streams: 12/13 BETTER** (train 55.0–73.5%, holdout 56.0–80.7%, incl. claude-v45 AND claude-v46 on both), **EVEN vs base** (50.8/50.0%), fable-v1 INCONCLUSIVE-lean-+ train (52.0% @ 4000) / EVEN holdout (50.3%), **zero regressions**. Ladder: 170.9, within-noise of fable-v2's 172.3 (default stays fable-v2). | **RECORDED — NEW SUBSTRATE (deliberate call, the claude-v39 defect-removal shape).** Not crowned (twin of base); crown stays fable-v1. Removes the corpus's most-repeated human exploit at zero measured self-play cost. |
 | fable-v2 | 2026-07-17 | **Combined-space ES over the fable factory, blended** (`versions/fable-v2/`, see the session section above): the optimize/ harness rebound to the fable-v1 factory (47 dims), aggregate-fitness SNES warm-started from fable-v1 vs a 13-member field, degenerate-behavior guards pinned. The raw winner (71.12% in-sample) was a summit counter (beat everything incl. claude-v46 but 44.8% vs base); fable-v2 = the α=0.5 LINE-SEARCH midpoint between fable-v1 and the winner, which dissolves the counter-structure. | **Gate (panel + both claude twins, base fable-v1):** train ✅ 13/13 BETTER (base 54.3%); holdout 12/13 BETTER but base INCONCLUSIVE (51.2% @ 4000-cap) → **twin of base, NOT crowned**. SPRT BETTER vs **claude-v45 AND claude-v46 on BOTH streams** (56.5/59.3 and 58.2/53.9) — the only bot in the archive to do so. Out-of-panel 58.0–73.9% vs 6 more (v47, v38, v39, opt-v3, jane-v3, v30). Mirrors clean; 1v3 vs v45 = 29.5%. Ladder (after the summit-tier panel fix): **222.0, STRICT TOP** (v46 211.9, v45 191.9). | **RECORDED — STRONGEST / LOBBY DEFAULT (`DEFAULT_BOT_VERSION`), and the substrate by deliberate call.** Crown remains fable-v1 (twin verdict vs base). |
 | fable-v1 | 2026-07-17 | **New FABLE lineage — the flow/extraction paradigm** (`versions/fable-v1/`, see PHILOSOPHY.md + the session section above): claude-v45's factory + vector wholesale, plus (a) an EXTRACTION engine — proactively sell held completers / railroads to the one-short rival at their closed-form solved premium, and price every 2-party proposal to the margin in BOTH directions (`chargeSurplus`); (b) a flow layer — exact 2d6 next-roll landing EV driving a danger-aware liquidity floor and a tempo build order; (c) a trade-pricing overhaul — bounded survival credit, recipient-standing-scaled threat (floored at 1), rail/utility synergy threat, heads-up multiplier, trade liquidity guard; (d) a ring-proof transfer memory. Evidence base: the six stored human-beats-v45 games. EV jail rule and buy-to-scalp tried and measured OUT. | **CROWN GATE (field = panel + claude-v45), BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base claude-v45 (56.4% train / 61.1% holdout) AND every panel member (train 56.0–67.1%, holdout 55.2–71.7%), **zero regressions**; 2×1500 fresh-stream versus 57.5%/56.6%; out-of-panel clean except a statistical tie with the twin claude-v46 (48.2% @ 1500). Mirror churn clean (5–8 trades/game, all decisive). | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; first confident SPRT crown since claude-v41).** Wins by selling well against strong, cash-rich opponents; the weak-field margins are smaller than v45's (see the non-transitivity note). |
 | claude-v41 | 2026-06-23 | **Seller-side trade pricing — Refinement #3 (b)+(c)** (`versions/claude-v41/`, PR #1): the claude-v39 substrate (opt-v4 vector + restored `denialPositionCost`) plus Kyle's thesis "don't gift a monopoly for spendable-on-nothing cash." Two changes: **(b)** decouple `rivalThreatFactor` from `denyFactor` and set it to **0.4** (was pinned to ~0.317), so the bot prices its OWN harm in handing a rival a set nearer to what the rival gains; **(c)** a **`deployabilityDiscount` (0.5)** on incoming cash in a set-handover trade — a safe seat with no outlet values that cash below face. PR also shipped `claude-v40` (same idea at `rivalThreatFactor=0.6`, the author's failed intermediate — too aggressive, refuses balanced trades). Re-measured from current `main` (PR was NOT stale this time — merge-base = HEAD). | **CROWN GATE `--base opt-v4 --panel`, BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base opt-v4 (55.7% train / 62.4% holdout) AND every panel member — claude-v2 65.7/67.5, claude-v5 72.0/76.7, claude-v17 71.7/74.8, claude-v35 67.7/70.3, jane-v2 55.4/55.0, claude-v36 54.8/52.7, opt-v2 54.4/53.5, jane-v4 53.9/56.0 — **9/9 BETTER, ZERO regressions on both streams.** Ladder Elo **+194.1** (top of the Claude family). PR's own claim REPRODUCED exactly. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate, supersedes opt-v4).** First crown that addresses the *root* of the hot-potato (bots too willing to SELL completers) rather than the symptom (denial pricing the buy/hold side). NON-TRANSITIVITY NOTE: claude-v41 sits **#4 on the panel-graph Elo ladder** (behind opt-v3 +210.7 / opt-v4 +204.2 / opt-v2 +201.1) despite BEATING opt-v4 (56%) and opt-v2 (59%) HEAD-TO-HEAD — the opt trio crush the low floor slightly harder, so the global least-squares fit can't fully credit v41's direct edge (~6-Elo panel-fit noise). The crown is the head-to-head SPRT vs the field, NOT the global Elo rank — so it's the champion but NOT the lobby's Strongest/default (opt-v3 still tops the ladder). Added to RATING_PANEL. claude-v40 RECORDED at +125.5 (mid-pack — confirms 0.6 over-aggression). |

@@ -78,6 +78,21 @@ import { fableV1Bot } from "./fable-v1";
 // guards pinned). Re-prices the board for the extraction era. See its
 // index.ts + EVOLUTION.md.
 import { fableV2Bot } from "./fable-v2";
+// fable-v3 — honest rail-network pricing on the fable-v2 substrate: a
+// defect-removal version from real-game evidence (game:review 4q3y6i — two
+// fable-v2 seats handed the human winner his 3rd/4th railroads for a ~31%-of-
+// delta charge). Nets a 0.65 × synergy-delta handover charge + restores the
+// ES-drifted railSynergy2 (≈3 → 70). EVEN across the sweep (the surface is
+// invisible to mirror self-play — that's the finding). See its index.ts +
+// EVOLUTION.md.
+import { fableV3Bot } from "./fable-v3";
+// fable-v4 — the voluntary-spend TAIL GUARD on the fable-v3 substrate (factory
+// revision, one new dim `voluntaryTailFrac`): a discretionary build/redeploy
+// spend must survive the worst single next-roll landing, uncapped. From
+// game:review 4q3y6i T219→T222 — a fable-v2 seat spent $506 unmortgaging bare
+// greens three turns before dying to a $118 charge behind a $447-capped flow
+// floor that reserved a $950 tail at ~$134. See its index.ts + EVOLUTION.md.
+import { fableV4Bot } from "./fable-v4";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -124,6 +139,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v4": optV4Bot,
   "fable-v1": fableV1Bot,
   "fable-v2": fableV2Bot,
+  "fable-v3": fableV3Bot,
+  "fable-v4": fableV4Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
