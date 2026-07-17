@@ -27,7 +27,7 @@ E2E tests (Playwright) expect the dev server on port 3001 and a WS relay on port
 ## Principles
 
 - **Simplicity first.** Keep code clean and straightforward. Complexity needs a good justification.
-- **Code is its own documentation.** Good code is obvious by reading it. Only add comments when the *why* isn't clear from the code itself.
+- **Code is its own documentation.** Good code is obvious by reading it. Only add comments when the *why* isn't clear from the code itself — workarounds for framework bugs, environment quirks, or browser behavior are the main case: the reason lives outside the codebase, so it always needs the comment.
 - **Share code aggressively.** This platform has many projects and will keep growing. When patterns repeat across projects, refactor them into `src/shared/`. Look for reuse opportunities proactively.
 - **Responsive everywhere.** All layouts must work from 360px wide (the practical floor — ~5-year-old Android devices like Galaxy S21/S22 report 360px CSS width in portrait) through ultrawide desktop. Use a single fluid layout when possible, or build distinct mobile/desktop layouts when the UX demands it.
 - **Sanity-check the approach.** If a request or direction is far outside industry-standard practice, or if there's a significantly simpler way to achieve the same result, flag it before implementing. Push back with a brief explanation — don't just go along with an overcomplicated approach.
@@ -87,6 +87,6 @@ Tailwind CSS v4. Novelty World's visual identity is colorful, bold, fun, and qui
 
 **Rule: Suppressing a lint rule (`eslint-disable`, `// @ts-expect-error`, etc.) requires strong justification and an inline `--` description explaining it.** Suppression is a last resort, not a shortcut. Only suppress when you've concluded the rule genuinely does not apply to this specific case (e.g. `<img>` inside `next/og`'s `ImageResponse`, which Satori requires) — and write *why* directly next to the disable comment in the form `// eslint-disable-next-line some-rule -- reason here`. "Lint was noisy" is not a justification. This is mechanically enforced by `@eslint-community/eslint-comments/require-description` — an undescribed disable will fail lint.
 
-### Non-obvious workarounds need comments
+### Fail loudly — don't guard around bugs you don't understand
 
-When code exists to work around a framework bug, environment quirk, browser-specific behavior, or other non-obvious reason, add a comment explaining **why** it's needed. The code should be readable on its own — if someone would look at a line and wonder "why is this here?", it needs a comment. This is the main exception to "code is its own documentation": workarounds aren't self-explaining, because the reason lives outside the codebase.
+**Rule: never add a guard, catch, or fallback that mitigates an issue whose root cause isn't fully understood.** Mitigation written on partial understanding is how sloppy code accumulates: it mutes the signal, hides the bug from the next investigation, and outlives its justification once the real cause is fixed. When something breaks, do one of two things: **fail loudly**, or add **diagnosis tooling** (targeted logging, state capture, tagging) that isolates the root cause — then land the proper fix and clean the diagnostics up once you're confident the issue is solved. Never ship the workaround to the user (e.g. "reload the page" for a bug in our code) — a broken experience caused by our code is ours to fix, not the user's to route around.
