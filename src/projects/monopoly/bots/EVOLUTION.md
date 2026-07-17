@@ -1094,6 +1094,84 @@ ablation harness (bind the factory to variant vectors, leave-one-out + solo +
 sweep, ~40 games/s single-threaded) was the session's workhorse — worth
 formalizing if the fable line continues.
 
+## fable-v2 — the ES-tuned blend. STRONGEST / LOBBY DEFAULT (2026-07-17)
+
+The day-after session, at Kyle's directive: "a better bot that is also the new
+lobby default." fable-v1 was the SPRT crown but rank 8 on the ladder (its
+defensive stack costs weak-field margin), so the mission was precisely the
+combined-space ES the previous session queued as its top lead.
+
+**The campaign.** `optimize/` was rebound from the claude factory to the fable
+factory (47 dims — commit `1aedb17`; the washed v47 standing dims dropped;
+`param-fidelity` still pins claude-v38 byte-for-byte at the no-op defaults).
+Aggregate fitness (mean win-share — deliberately chosen because the LADDER is a
+margins average, making the documented "aggregate misalignment" exactly the
+objective), 13-member fitness field = the anchor panel (which contains
+fable-v1) + claude-v45 + claude-v46, warm-started from fable-v1, degenerate-
+behavior guards PINNED (`holderDenialFrac=1`, `survivalBounded=1`,
+`transferMemoryTurns=10`, `extractionOn=1` — the v45 lesson, applied ex ante).
+Pop 22 × 20 gens × 1200 games/eval ≈ 2.6h on 14 workers: baseline 65.14% →
+best **71.12%** in-sample.
+
+**The raw winner was a summit COUNTER** — the trap the process is built to
+catch. On fresh streams it beat everything in the archive including claude-v46
+(54.8%) but lost to its own base fable-v1 (44.8%). Instead of another
+campaign, a **LINE-SEARCH between the two vectors** (α ∈ {0.25…0.75}, 600–1000
+seed probes, guards pinned) found the counter-structure dissolves mid-line —
+**fable-v2 = the α=0.5 midpoint**: the ES's board re-pricing at half strength
+(cheap/mid sets up: orange 2.58 / light-blue 2.82 / pink 1.91; harder leader
+defense 2.19; leaner cushions; buy-to-scalp partially re-opened at 0.196 —
+washed at every hand-swept value on the OLD vector, pays co-tuned: the
+claude-v42/v43 coupling lesson in positive form).
+
+**Gate (field = panel + claude-v45 + claude-v46, base = fable-v1):**
+
+| | vs base fable-v1 | vs the other 12 | regressions |
+|---|---|---|---|
+| **train** | **BETTER 54.3%** (491–413) | **BETTER all 12** (56.5–81.4%) | none |
+| **holdout** | INCONCLUSIVE 51.2% (4000-game cap) | **BETTER all 12** (53.9–73.9%) | none |
+
+**NOT a strict crown** (needs BETTER vs base on both streams) — fable-v2 is a
+statistical TWIN of fable-v1, exactly the v45↔v44 / v46↔v45 shape. The crown
+stays with fable-v1. But fable-v2 SPRT-beats **claude-v45 on both streams**
+(56.5/59.3%) and **claude-v46 on both streams** (58.2/53.9%) — the twin
+fable-v1 could only tie — plus every panel member, with zero regressions
+anywhere, clean mirrors (6–7 trades/game, all decisive), and 1v3 vs claude-v45
+at 29.5% (above the 25% fair share). Out-of-panel sweep: see the version-log
+row.
+
+**The ladder fix that made the default honest.** First regen: claude-v45
+217.5 vs fable-v2 216.1 — a 1.4-Elo noise gap keeping v45 the default. Root
+cause: the whole 210–220 summit tier was NON-panel, so none of its internal
+pairings entered the panel-graph fit — the ladder ordered the summit by
+transitive inference while direct SPRT evidence said otherwise. Fix (a
+measurement-quality change under the panel's "span the Elo range" rule,
+deliberately made without knowing which bot it would favor): **claude-v45
+added to `RATING_PANEL`**, giving every rated version a direct column against
+it. Regen with direct summit pairings: **fable-v2 222.0 > claude-v46 211.9 >
+claude-v45 191.9** — v45 −25 Elo once its fable-v2/v46 losses are measured
+rather than inferred. **`DEFAULT_BOT_VERSION` = fable-v2.** Direct evidence
+and the ladder now agree.
+
+**The call — by "Two bests":** Record — yes. Crown — **no** (twin of base;
+stays fable-v1). Strongest/default — **fable-v2** (strict ladder top on the
+best-measured graph to date). Substrate — **fable-v2, as a deliberate call**
+(the doctrine's default prior is the crown, but fable-v2 dominates the rest of
+the archive strictly more broadly than fable-v1 — the only bot to SPRT-beat
+both claude twins — and sits in the ES-explored basin; deviations must be
+stated, this is one).
+
+**Durable lessons.** (1) An aggregate-fitness ES on a warm start WILL trade
+away the base matchup for field margins — but the base⇄winner LINE contains
+the repair: the α=0.5 blend kept ~all the field gains and returned the mirror
+to even-plus. Line-search between a parent and an ES child is a cheap, strong
+post-processing step — consider it standard. (2) A panel that under-represents
+the live summit tier silently degrades the player-facing default into a
+transitive guess; when a tier's ordering starts to matter, put its reference
+member in the panel. (3) The pinned-guards discipline worked: no ring, no
+churn, no fire-sale regressions anywhere in the ES output — constraints, not
+fitness, carry product invariants.
+
 ## Coexistence & promotion
 
 A seat fields a **concrete version label** (`Player.botStrategy`), resolved by
@@ -1242,6 +1320,7 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| fable-v2 | 2026-07-17 | **Combined-space ES over the fable factory, blended** (`versions/fable-v2/`, see the session section above): the optimize/ harness rebound to the fable-v1 factory (47 dims), aggregate-fitness SNES warm-started from fable-v1 vs a 13-member field, degenerate-behavior guards pinned. The raw winner (71.12% in-sample) was a summit counter (beat everything incl. claude-v46 but 44.8% vs base); fable-v2 = the α=0.5 LINE-SEARCH midpoint between fable-v1 and the winner, which dissolves the counter-structure. | **Gate (panel + both claude twins, base fable-v1):** train ✅ 13/13 BETTER (base 54.3%); holdout 12/13 BETTER but base INCONCLUSIVE (51.2% @ 4000-cap) → **twin of base, NOT crowned**. SPRT BETTER vs **claude-v45 AND claude-v46 on BOTH streams** (56.5/59.3 and 58.2/53.9) — the only bot in the archive to do so. Out-of-panel 58.0–73.9% vs 6 more (v47, v38, v39, opt-v3, jane-v3, v30). Mirrors clean; 1v3 vs v45 = 29.5%. Ladder (after the summit-tier panel fix): **222.0, STRICT TOP** (v46 211.9, v45 191.9). | **RECORDED — STRONGEST / LOBBY DEFAULT (`DEFAULT_BOT_VERSION`), and the substrate by deliberate call.** Crown remains fable-v1 (twin verdict vs base). |
 | fable-v1 | 2026-07-17 | **New FABLE lineage — the flow/extraction paradigm** (`versions/fable-v1/`, see PHILOSOPHY.md + the session section above): claude-v45's factory + vector wholesale, plus (a) an EXTRACTION engine — proactively sell held completers / railroads to the one-short rival at their closed-form solved premium, and price every 2-party proposal to the margin in BOTH directions (`chargeSurplus`); (b) a flow layer — exact 2d6 next-roll landing EV driving a danger-aware liquidity floor and a tempo build order; (c) a trade-pricing overhaul — bounded survival credit, recipient-standing-scaled threat (floored at 1), rail/utility synergy threat, heads-up multiplier, trade liquidity guard; (d) a ring-proof transfer memory. Evidence base: the six stored human-beats-v45 games. EV jail rule and buy-to-scalp tried and measured OUT. | **CROWN GATE (field = panel + claude-v45), BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base claude-v45 (56.4% train / 61.1% holdout) AND every panel member (train 56.0–67.1%, holdout 55.2–71.7%), **zero regressions**; 2×1500 fresh-stream versus 57.5%/56.6%; out-of-panel clean except a statistical tie with the twin claude-v46 (48.2% @ 1500). Mirror churn clean (5–8 trades/game, all decisive). | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; first confident SPRT crown since claude-v41).** Wins by selling well against strong, cash-rich opponents; the weak-field margins are smaller than v45's (see the non-transitivity note). |
 | claude-v41 | 2026-06-23 | **Seller-side trade pricing — Refinement #3 (b)+(c)** (`versions/claude-v41/`, PR #1): the claude-v39 substrate (opt-v4 vector + restored `denialPositionCost`) plus Kyle's thesis "don't gift a monopoly for spendable-on-nothing cash." Two changes: **(b)** decouple `rivalThreatFactor` from `denyFactor` and set it to **0.4** (was pinned to ~0.317), so the bot prices its OWN harm in handing a rival a set nearer to what the rival gains; **(c)** a **`deployabilityDiscount` (0.5)** on incoming cash in a set-handover trade — a safe seat with no outlet values that cash below face. PR also shipped `claude-v40` (same idea at `rivalThreatFactor=0.6`, the author's failed intermediate — too aggressive, refuses balanced trades). Re-measured from current `main` (PR was NOT stale this time — merge-base = HEAD). | **CROWN GATE `--base opt-v4 --panel`, BOTH streams: ✅ ACCEPT.** SPRT BETTER vs base opt-v4 (55.7% train / 62.4% holdout) AND every panel member — claude-v2 65.7/67.5, claude-v5 72.0/76.7, claude-v17 71.7/74.8, claude-v35 67.7/70.3, jane-v2 55.4/55.0, claude-v36 54.8/52.7, opt-v2 54.4/53.5, jane-v4 53.9/56.0 — **9/9 BETTER, ZERO regressions on both streams.** Ladder Elo **+194.1** (top of the Claude family). PR's own claim REPRODUCED exactly. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate, supersedes opt-v4).** First crown that addresses the *root* of the hot-potato (bots too willing to SELL completers) rather than the symptom (denial pricing the buy/hold side). NON-TRANSITIVITY NOTE: claude-v41 sits **#4 on the panel-graph Elo ladder** (behind opt-v3 +210.7 / opt-v4 +204.2 / opt-v2 +201.1) despite BEATING opt-v4 (56%) and opt-v2 (59%) HEAD-TO-HEAD — the opt trio crush the low floor slightly harder, so the global least-squares fit can't fully credit v41's direct edge (~6-Elo panel-fit noise). The crown is the head-to-head SPRT vs the field, NOT the global Elo rank — so it's the champion but NOT the lobby's Strongest/default (opt-v3 still tops the ladder). Added to RATING_PANEL. claude-v40 RECORDED at +125.5 (mid-pack — confirms 0.6 over-aggression). |
 | claude-v39 | 2026-06-23 | **Restore the holder-side denial price on the opt base** (`versions/claude-v39/`): the opt-v4 champion factory + `denialPositionCost` (the v35 symmetric-pricing fix the v36→opt line dropped), opt-v4 vector unchanged — ONE logical change. Motivated by real human-vs-bot games `514j43` + `16043u`, where two opt/claude bots hot-potatoed one completer 18–24× (the strong-set ring the `rivalCanAcquire` phantom gate doesn't catch) while the human just developed and won. | **Ring collapses** — one lot's hops 15–99 → 1–6 in the accumulator config (pinned in `policy.test.ts`). Gauntlet `--base opt-v4 --panel`: **EVEN vs opt-v4 (50.1%, ~2k games)**, **BETTER vs all 8 other panel members** (57–68%), **zero regressions**. Confirmed EVEN across 3 seed streams (50/52/54%). | **RECORDED, not crowned** — EVEN vs base (a clean non-regression, not a strict win), so a player-default-eligible ladder peer of the opt trio, not a crown. Value: removes a human-exploitable degenerate behavior at no measured cost; the clean substrate for Refinement-target #3 (seller-side trade pricing). NOTE: the deny-knob is NOT the Bot-2 lever — sweeping `denyFactor` down regressed (42–45% vs opt-v4), up plateaued then deadlocked; see Refinement-target #3 for the decoupled seller-side direction. |
@@ -1296,7 +1375,19 @@ bot as of this doc.
 
 ## Status & next step
 
-**As of 2026-07-17 (authoritative):** the crown + substrate is **`fable-v1`** —
+**As of 2026-07-17 evening (authoritative):** the player-facing
+**Strongest/default is `fable-v2`** (ladder 222.0, strict top on the
+summit-aware panel graph; `DEFAULT_BOT_VERSION` follows it) and **fable-v2 is
+the substrate by deliberate call**; the strict SPRT **crown remains
+`fable-v1`** (fable-v2 is its statistical twin — BETTER on train, INCONCLUSIVE
+at the 4000-game holdout cap). fable-v2 SPRT-beats every other bot in the
+archive on both streams, including both claude twins. Leads for fable-v3: a
+maximin ES leg warm-started from fable-v2 (lift the fable-v1 mirror above the
+SPRT bar → unify crown and default in one bot); opponent-quality PRIORS
+(RL-DESIGN.md); and the standing anti-human re-measure once real fable games
+exist in the DB. The earlier fable-v1 note below stands as history.
+
+**As of 2026-07-17 (morning):** the crown + substrate was **`fable-v1`** —
 the first confident SPRT crown since claude-v41 (BETTER vs base claude-v45 AND
 all 10 panel members on BOTH streams, zero regressions; see the fable-v1 session
 section + version-log row). The proven win shape it adds to the "asymmetric +

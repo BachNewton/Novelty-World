@@ -121,6 +121,11 @@ import { optV4Bot } from "./opt-v4";
 // rival threat, rail/utility synergy threat, heads-up multiplier, liquidity
 // guard), and a ring-proof transfer memory. See fable-v1/PHILOSOPHY.md.
 import { fableV1Bot } from "./fable-v1";
+// fable-v2 — the combined-space ES winner over the fable-v1 factory (all 47
+// dims co-tuned jointly, warm-started from fable-v1, degenerate-behavior
+// guards pinned). Re-prices the board for the extraction era. See its
+// index.ts + EVOLUTION.md.
+import { fableV2Bot } from "./fable-v2";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -207,6 +212,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "opt-v3": optV3Bot,
   "opt-v4": optV4Bot,
   "fable-v1": fableV1Bot,
+  "fable-v2": fableV2Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
@@ -350,6 +356,18 @@ export const RATING_PANEL: readonly string[] = [
   // strategy (the flow/extraction paradigm; see fable-v1/PHILOSOPHY.md), which is
   // exactly the panel's membership rule.
   "fable-v1",
+  // claude-v45 — added 2026-07-17 to REPRESENT THE SUMMIT TIER in the panel graph.
+  // The 210–220 tier (claude-v45/claude-v46/fable-v2, all within ratings SE of each
+  // other) decides the player-facing default, but with all of them non-panel, NONE
+  // of the tier's internal pairings entered the fit — the ladder was ordering the
+  // summit by TRANSITIVE inference while direct SPRT evidence existed (fable-v2
+  // BETTER vs claude-v45 on both gauntlet streams). Adding claude-v45 (the tier's
+  // longest-standing member and ex-champion) makes every rated version — including
+  // fable-v2 and claude-v46 — carry a DIRECT column against it, so the summit
+  // ordering is measured, not inferred. This is a measurement-quality fix under the
+  // membership rule ("span the Elo range"), deliberately NOT contingent on which
+  // bot it favors.
+  "claude-v45",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
