@@ -1140,7 +1140,17 @@ to the seller's wallet, not the set's value to the buyer** (the
 game-winning red set cost $870 and returned ~$5,500; a non-completing
 piece went at 1.14× face while a same-color completer was held at 3.3×) —
 price the SECOND piece of a set a rival is accumulating, and anchor
-completer reserves to buyer-side monopoly value; (4) L1 Stage A stands as
+completer reserves to buyer-side monopoly value; (4) **probe game 7 ran as a CASUAL-archetype game vs fable-v10**
+(behavior-diversity for the human-model priors): the casual player
+accepted 3 of 8 bot offers (expert ≈ 0; real humans 9–15% per the corpus)
+— the acceptance spectrum for the reservation model is now bracketed. The
+casual LED for ~120 turns on a buy-everything toll network and lost to
+hotel-alley concentration + a zero-reserve wallet, never to trade
+sharpness; bot pricing was exploitable in both directions by naive play
+(a $256 completion sale handed the bots the game; the same engine
+overpaid the casual's rail network and sold a completer under book).
+Completion-premium-only pricing that ignores the cash flow handed back is
+the human model's third calibration target; (5) L1 Stage A stands as
 the owner-approved big bet (LEAPS.md) — untouched tonight, still next in
 line for a long session. The earlier notes below stand as history.
 
