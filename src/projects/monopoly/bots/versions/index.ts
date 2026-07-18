@@ -293,12 +293,11 @@ export const RATING_PANEL: readonly string[] = [
   "claude-v35",
   "jane-v2",
   "claude-v36",
-  // opt-v2 — the CHAMPION (crown base): the ES-optimized hyper-aggressive regime,
-  // robust (beats the whole archive out-of-panel, no losses). Added per "when you
-  // crown a champion, add it here." NOTE: opt-v3 SPRT-beat opt-v2 on the panel but
-  // REGRESSES vs jane-v4 (38%) — a panel-overfit counter, NOT crowned; so opt-v2 is
-  // the champion-in-panel.
-  "opt-v2",
+  // opt-v2 — RETIRED from the panel 2026-07-18 (the first prune): opt-v4 is the
+  // same paradigm's strictly-superseding vector (SPRT BETTER vs opt-v2 on both
+  // streams at its own gate) and keeps the opt axis represented, so opt-v2's
+  // column was paying k pairings per new version for near-duplicate signal.
+  // Still registered + rated (a panel retiree keeps its Elo via its own column).
   // jane-v4 — added per the opt-v3 lesson (see EVOLUTION.md "opt-v3"): it is the
   // strong bot the maximin ES counter-overfit AGAINST when it was omitted. Putting
   // it in the panel both (a) makes the ladder price opt-v3's jane-v4 weakness and
@@ -311,14 +310,11 @@ export const RATING_PANEL: readonly string[] = [
   // panel OR out-of-panel regressions — the robust improvement opt-v3 wasn't. Kept as
   // the crown base claude-v41 was measured against and a strong distinct opt vector.
   "opt-v4",
-  // claude-v41 — the PRIOR crowned champion (the base claude-v44 was measured
-  // against). claude-v39 substrate (opt-v4 vector + restored denialPositionCost) +
-  // Kyle's seller-side trade pricing (Refinement #3): rivalThreatFactor decoupled from
-  // denyFactor to 0.4 + a 0.5 deployability discount on incoming set-handover cash.
-  // CROWN GATE `--base opt-v4 --panel`, BOTH streams: SPRT BETTER vs opt-v4 (55.7%
-  // train / 62.4% holdout) AND every panel member, ZERO regressions. Kept as a strong
-  // distinct vector and the crown base of the current champion.
-  "claude-v41",
+  // claude-v41 — RETIRED from the panel 2026-07-18 (the first prune): its
+  // defining axis (seller-side trade pricing — decoupled rivalThreatFactor +
+  // deployability discount) is embodied downstream in claude-v45 and the whole
+  // fable line, so its column duplicated the mid-strong band claude-v45 already
+  // brackets. Still registered + rated.
   // claude-v45 and its better-tuned twin claude-v46 are deliberately NOT in the
   // panel: they are near-identical 31-param vectors (v46 is v45 re-optimized under
   // the same pinned lockstep), so each would add ~30 new vs-twin pairings for ~zero
@@ -347,15 +343,11 @@ export const RATING_PANEL: readonly string[] = [
   // membership rule ("span the Elo range"), deliberately NOT contingent on which
   // bot it favors.
   "claude-v45",
-  // fable-v6 — the CROWNED champion (2026-07-18): SPRT BETTER vs the previous
-  // crown fable-v1 on BOTH streams (53.1% train / 52.4% holdout — the first bot
-  // in the archive to confidently beat it) AND vs every panel member on both
-  // streams, zero regressions; vs its immediate base fable-v3 it reads EVEN
-  // train / BETTER holdout. Added per "when you crown a new champion, add it
-  // here" — it also carries the three defect-removal levers (voluntary-spend
-  // tail guard, auction liquidity cap, comeback-equity survival), a strategy
-  // surface the panel didn't represent.
-  "fable-v6",
+  // fable-v6 — crowned-for-an-hour on 2026-07-18, RETIRED from the panel the
+  // same day (the first prune): the fable defect-stack surface it represented
+  // is fully spanned by fable-v7 (its strict-crown successor, one dim up) and
+  // fable-v8 (one dim further), both panel members — a twin sandwich whose
+  // middle column added ~zero ranking signal. Still registered + rated.
   // fable-v7 — the CROWNED champion (2026-07-18, superseding fable-v6 the same
   // night): the trade-outflow tail guard on the fable-v6 substrate, and a
   // STRICT crown — SPRT BETTER vs its own base on BOTH streams and BETTER in

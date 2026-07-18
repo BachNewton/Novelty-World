@@ -1087,6 +1087,30 @@ exactly what this section used to do (it published a hand-typed Elo that the
 Read those, not a date-stamped paragraph. Why the three are distinct — and why
 collapsing them is the single biggest trap in this model — is METHOD.md "Two bests".
 
+**As of 2026-07-18 (the extended morning block):** the HUMAN-COUNTERPARTY
+MODEL shipped in two live-validated iterations — **`fable-v11`** (no premium
+asks or surplus riders vs human seats; $75 margin on human-proposed trades)
+and **`fable-v12`** (2× threat multiplier when arming a human) — both
+provably identical to `fable-v8` in every bot-vs-bot game (pinned + 40/40
+seeded-game demonstrations), each validated in a live probe game with a
+truly human-marked seat (`played-cli --human`): zero premium asks, the $75
+margin boundary measured at book+$60/+$110, completer prices to humans
+moved from ~1.3–2.3× book to declines through 3–6× at healthy wealth with
+distress still clearing, no over-caution. **SUBSTRATE = fable-v12; crown
+stays fable-v7.** The first panel PRUNE also landed (16 → 13: opt-v2,
+claude-v41, fable-v6 retired with reasons in `versions/index.ts`), giving a
+saner summit (v8 144.7 > v7 143.3 > v11 142.9 > v10 140.8). **Sharpest new
+lead — the twin default tie-break:** the ladder is bots-only and cannot see
+human dims, so among bot-play-identical twins it ranks by noise — and the
+derived lobby default landed on fable-v8, the one twin WITHOUT the human
+model, though the default seat is exactly what humans face. Deciding the
+tie-break rule (e.g. the lobby derivation preferring the human-validated
+member of a pinned-identical twin set) needs a fresh session and a
+deliberate doctrine note, not a hack. Second lead: per-human reservation
+priors (the corpus now brackets casual ≈38% / real humans 9–15% / expert ≈0
+offer acceptance) to bind inside the fable-v11/v12 gates. The night session
+note below stands.
+
 **As of 2026-07-18 (the 4q3y6i night):** the crown + substrate + derived
 lobby default are **UNIFIED at `fable-v7`** — the defect-removal stack (honest
 rail pricing → voluntary-spend tail guard → auction liquidity cap →

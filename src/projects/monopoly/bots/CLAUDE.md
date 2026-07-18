@@ -295,6 +295,39 @@ fire-sales. Forced liquidation (`must-raise-cash`) is untouched. This is the
 lever that turned the defect stack into the crown: fable-v6 is the first bot
 to SPRT-beat fable-v1, on both streams, with zero regressions.
 
+### The human-counterparty model (fable-v11/v12) — model the seat you actually face
+
+The trade engine's counterparty model is its own evaluator — exactly right
+against bots (97.9% bot→bot offer conversion in the `game:offers` corpus) and
+an order of magnitude wrong against humans (10.6% conversion; humans convert
+57.8% the other way, and those accepts built every corpus winner's engine).
+Two hard-won constraints shaped the fix: the shared evaluator must NOT change
+(two attempts to fix human-facing behaviors there — fable-v9/v10 — were
+REJECTED on holdout: the "degenerate" churn is load-bearing in self-play),
+and validation cannot be SPRT (a human-gated change is provably identical to
+its base in every all-bot game — the pinned-identity + 40-seeded-games check
+in each version's tests is what makes the gauntlet vacuous, and the honest
+gate is a LIVE probe game with a human-marked seat, `played-cli --human`).
+
+The model, three dims, all gated on the modeled seat's `botStrategy === null`:
+- **No premium asks or surplus riders against humans** (`humanAskOff`): the
+  fitted reservation prior says humans accept cash-for-property only at
+  ≤0.61× book; every 1.77×–10× ask in the corpus was declined — and asks
+  priced `min(opp.cash, …)` are a wallet X-ray whose re-asks walk down on
+  declines. Cash may still flow TOWARD a human (sweeteners are not a tell).
+- **A real margin on human-proposed trades** (`humanProposalMargin`, $75):
+  humans probe the transparent ~$9 accept bar (the 4q3y6i rails: $450
+  declined, $500 accepted). Set completions clear the margin untouched.
+- **Arming a human costs double** (`humanThreatMult`, 2): humans convert
+  handed sets/networks into wins far better than the bot-calibrated
+  `rivalThreatFactor` prices (corpus rails ~14× under-charged; probe
+  completers at 1.3–1.4× book returned 5×+). Composes with the standing
+  machinery, so the premium is wealth-sensitive and completer-specific.
+
+The gate discipline is the invariant: human-facing pricing lives HERE, never
+in the shared evaluator. When the corpus grows enough for per-human priors
+(reservation curves per named player), this is where they bind.
+
 ## Randomness & the RNG seam
 
 The bot is a pure function `(state, playerId) => BotDecision | null` today — no
