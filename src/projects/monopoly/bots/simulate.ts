@@ -270,6 +270,14 @@ export function simulateGame(opts: SimOptions = {}): SimResult {
   let state = initial;
   let steps = 0;
   let reason = "game-over";
+  // TURN-STALL guard. The step cap (200k) only catches a within-turn loop after
+  // minutes at MCTS speed (~16ms/step) — effectively a hang. A weak learned bot can
+  // cycle decisions that never advance the TURN counter (so the turn cap never
+  // fires); detect that directly. A real turn resolves in well under maxStallSteps
+  // mechanical+decision steps, so a rule bot never trips this.
+  let lastTurn = state.turns[state.turns.length - 1].turn;
+  let stallSteps = 0;
+  const maxStallSteps = 1500;
 
   while (state.status === "active") {
     const turnNo = state.turns[state.turns.length - 1].turn;
@@ -279,6 +287,13 @@ export function simulateGame(opts: SimOptions = {}): SimResult {
     }
     if (steps >= maxSteps) {
       reason = `step cap (${maxSteps}) exceeded`;
+      break;
+    }
+    if (turnNo > lastTurn) {
+      lastTurn = turnNo;
+      stallSteps = 0;
+    } else if (stallSteps > maxStallSteps) {
+      reason = `stalled: turn ${turnNo.toString()} did not advance in ${maxStallSteps.toString()} steps`;
       break;
     }
     const op = driveOp(state, true, null, botFor);
@@ -295,6 +310,7 @@ export function simulateGame(opts: SimOptions = {}): SimResult {
     }
     state = next;
     steps++;
+    stallSteps++;
   }
 
   const events = allEvents(state);

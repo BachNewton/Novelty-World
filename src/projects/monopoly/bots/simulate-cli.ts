@@ -9,6 +9,7 @@ import {
 import { DEFAULT_BOT_VERSION } from "./roles";
 import { valueNetStubBot } from "./value-net-stub";
 import { valuePolicyStubBot } from "./value-policy";
+import { tokenStubBot } from "./token-bot";
 import { VERSIONS } from "./versions";
 import { renderHighlight } from "./render-log";
 
@@ -19,6 +20,13 @@ import { renderHighlight } from "./render-log";
  *  - `value-policy`: the full-capability agent (`value-policy.ts`). */
 const VALUE_STUB_TOKEN = "value-stub";
 const VALUE_POLICY_TOKEN = "value-policy";
+/** `token-stub`: the atomic-vocabulary greedy bot (`token-bot.ts`) — the Phase-3
+ *  wiring proof that the fixed action vocabulary drives a full legal game. */
+const TOKEN_STUB_TOKEN = "token-stub";
+/** `rl-net:<checkpoint-dir>`: the LEARNED bot — MCTS over a trained net loaded
+ *  from a `train:rl` checkpoint. Lazily loaded (tfjs only when actually fielded),
+ *  so a normal sim stays fast. */
+const RL_NET_PREFIX = "rl-net:";
 
 /** `npm run sim` — an on-demand script that plays a full, headless Monopoly game
  *  between bots and prints the outcome. No UI, pure CPU, deterministic by seed.
@@ -73,14 +81,16 @@ function parseArgs(argv: readonly string[]): Args {
       arg === "dumb" ||
       arg === VALUE_STUB_TOKEN ||
       arg === VALUE_POLICY_TOKEN ||
+      arg === TOKEN_STUB_TOKEN ||
+      arg.startsWith(RL_NET_PREFIX) ||
       arg in VERSIONS
     ) {
       seats.push(arg);
     } else {
       throw new Error(
         `unknown argument "${arg}" (expected dumb, ${VALUE_STUB_TOKEN}, ` +
-          `${VALUE_POLICY_TOKEN}, a version label like claude-v35, or ` +
-          `--seed | --turns | --log)`,
+          `${VALUE_POLICY_TOKEN}, ${TOKEN_STUB_TOKEN}, ${RL_NET_PREFIX}<dir>, a ` +
+          `version label like claude-v35, or --seed | --turns | --log)`,
       );
     }
   }
@@ -109,10 +119,25 @@ function toContender(token: string): Contender {
   if (token === VALUE_POLICY_TOKEN) {
     return { label: VALUE_POLICY_TOKEN, bot: valuePolicyStubBot };
   }
+  if (token === TOKEN_STUB_TOKEN) return { label: TOKEN_STUB_TOKEN, bot: tokenStubBot };
   return { label: token, bot: botFor(token) };
 }
 
-function main(): void {
+/** Resolve a seat token, loading a learned-bot checkpoint for `rl-net:<dir>`. The
+ *  net + MCTS (and the heavy tfjs-node runtime) are imported LAZILY here, so a
+ *  normal sim never pays for tfjs. */
+async function toContenderAsync(token: string): Promise<Contender> {
+  if (!token.startsWith(RL_NET_PREFIX)) return toContender(token);
+  const dir = token.slice(RL_NET_PREFIX.length);
+  // tfjs-node's node-pre-gyp parses process.argv at import (nopt abbreviation-
+  // matches our flags, e.g. --turns); args are already parsed, so shield them.
+  process.argv = process.argv.slice(0, 2);
+  const [{ MonoNet }, { mctsBot }] = await Promise.all([import("./net"), import("./mcts")]);
+  const net = await MonoNet.load(dir);
+  return { label: token, bot: mctsBot(net) };
+}
+
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const count = args.seats.length;
   if (count !== 2 && count !== 4 && count !== 8) {
@@ -133,7 +158,7 @@ function main(): void {
   // value-stub prototype share one code path.
   const opts: SimOptions = {
     seed: args.seed,
-    seats: args.seats.map(toContender),
+    seats: await Promise.all(args.seats.map(toContenderAsync)),
     maxTurns: args.maxTurns,
     includeLog: args.log,
   };
@@ -151,4 +176,7 @@ function main(): void {
   console.log("");
 }
 
-main();
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exit(1);
+});
