@@ -1106,16 +1106,24 @@ The night's other products: the `game:offers` corpus instrument (bot→human
 conversion 10.6% vs bot→bot 97.9% — the human-counterparty model's calibration
 base), the `played-cli.ts` Fable-played probe instrument (two annotated games;
 one live-validated fable-v3's fix and found its distress bypasses), and the
-maximin-ES wash with the twin-floor diagnosis. **Top leads for the next
+maximin-ES wash with the twin-floor diagnosis. **Final session tally:** seven versions built, five promoted in some role
+(v3 substrate → v6 crown-for-an-hour → v7 STRICT CROWN → v8 substrate), one
+EVEN-twin shipped inside the stack (v4), one positive-lean rider (v5), one
+REJECTED by the gate (v9 — the re-pitch step, WORSE vs base on holdout: the
+churn was load-bearing negotiation, the v33/v34 lesson on a new channel);
+plus one washed ES leg with a structural diagnosis, three instruments
+(`game:offers`, `played-cli`, `sim:1v3`), four annotated probe games, and
+the first fitted human reservation prior. **Top leads for the next
 session:** (1) the human-counterparty model (LEAPS L3-for-humans; gate on
 `botStrategy === null`, priors from the offers corpus — structurally
-gauntlet-safe, validated by corpus backtest + live conversion); (2) the
-wallet-peg + decline-walk-down tells in the F4 ask constructor (a human can
-read the ask as a cash X-ray and farm declines for discounts — repricing needs
-the human model, or asks rounded/anchored to asset value); (3) probe game 3+
-vs fable-v6 to re-measure the closed exploits; (4) L1 Stage A stands as the
-owner-approved big bet (LEAPS.md) — untouched tonight, still next in line for
-a long session. The earlier notes below stand as history.
+gauntlet-safe, validated by corpus backtest + live conversion; the
+wallet-peg ask tell and decline-walk-down farming are its first targets —
+fable-v9's rejection shows step-size tweaks are NOT the fix); (2) probe
+game 5+ vs fable-v8 (each probe has produced the next version's evidence);
+(3) the panel is 15 members — prune redundant columns with a re-validated
+graph; (4) L1 Stage A stands as the owner-approved big bet (LEAPS.md) —
+untouched tonight, still next in line for a long session. The earlier
+notes below stand as history.
 
 **As of 2026-07-17 evening:** `fable-v1` holds the crown (the first confident
 SPRT crown since `claude-v41`); `fable-v2` is the substrate by deliberate call
