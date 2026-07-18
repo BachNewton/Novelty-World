@@ -95,7 +95,20 @@ function drive(
       throw e;
     }
     if (op === null) {
-      return { state, paused: true, stalled: `no drive op at phase "${state.turn.phase}"` };
+      // A null drive op is the HUMAN-marked seat's decision point (driveOp
+      // doesn't proxy a null-marker seat). "pass" plays the mechanical beat
+      // the human's own client would drive (roll / jail roll) via autoStep.
+      if (allowPass) {
+        allowPass = false;
+        const next = autoStep(state).state;
+        if (next === state) {
+          return { state, paused: true, stalled: `no-op step at phase "${state.turn.phase}"` };
+        }
+        state = next;
+        steps++;
+        continue;
+      }
+      return { state, paused: true, stalled: null };
     }
     if (op.kind === "step") {
       const next = autoStep(state).state;
@@ -216,11 +229,21 @@ function printContext(game: SavedGame, stalled: string | null): void {
 function main(): void {
   const [cmd, file, ...rest] = process.argv.slice(2);
   if (cmd === "new") {
-    const seed = rest[0] ?? `played-${Math.floor(Date.now() / 1000).toString()}`;
-    const oppLabel = rest[1] ?? "fable-v2";
+    // --human marks the played seat as a REAL human (`botStrategy: null`), so
+    // policies with human-counterparty gates (fable-v11+) treat it as one.
+    // Without it the seat carries a bot marker (the pre-v11 probe behavior).
+    // A null-marker seat is not proxied by driveOp, so the runner pauses on
+    // the null drive op instead of the sentinel throw — same surface.
+    const human = rest.includes("--human");
+    const args = rest.filter((a) => a !== "--human");
+    const seed = args[0] ?? `played-${Math.floor(Date.now() / 1000).toString()}`;
+    const oppLabel = args[1] ?? "fable-v2";
     versionBot(oppLabel); // fail loud on a typo before creating the file
     const base = freshGame(seed, undefined, 4);
-    const players = base.players.map((p) => ({ ...p, botStrategy: oppLabel }));
+    const players = base.players.map((p, i) => ({
+      ...p,
+      botStrategy: human && i === 0 ? null : oppLabel,
+    }));
     const game: SavedGame = {
       playedId: players[0].id,
       oppLabel,

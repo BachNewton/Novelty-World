@@ -136,6 +136,14 @@ import { fableV9Bot } from "./fable-v9";
 // completer trades ~47 turns while a seat died set-less. Big drains still
 // blocked. See its index.ts + EVOLUTION.md.
 import { fableV10Bot } from "./fable-v10";
+// fable-v11 — the HUMAN-COUNTERPARTY MODEL on the fable-v8 substrate: premium
+// cash asks are not constructed against human seats (corpus: ~0% conversion,
+// wallet-peg tell), and human-PROPOSED trades need a $75 margin instead of
+// the ~$9 bar humans probe for. Fires ONLY when the modeled seat has
+// botStrategy === null, so bot-vs-bot play — and the whole gauntlet/ratings
+// apparatus — is unchanged by construction (identity pinned in its tests).
+// See its index.ts + EVOLUTION.md.
+import { fableV11Bot } from "./fable-v11";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -190,6 +198,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v8": fableV8Bot,
   "fable-v9": fableV9Bot,
   "fable-v10": fableV10Bot,
+  "fable-v11": fableV11Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
