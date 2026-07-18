@@ -52,6 +52,12 @@ import { janeV7Bot } from "./jane-v7";
 // levels and allocates capital more efficiently. A structural change to the
 // decision process, not a parameter tweak. See versions/jane-v10/index.ts.
 import { janeV10Bot } from "./jane-v10";
+// jane-v11 — jane-v10 + OPPONENT-AWARE EVALUATION: adds income flow (expected
+// monopoly rent from actual opponent positions) and threat exposure (expected
+// outgo on next roll) to positionValue — the core eval function that hasn't
+// been touched since the lineage began. A structural change to the EVALUATION
+// FUNCTION, not the decision process. See versions/jane-v11/index.ts.
+import { janeV11Bot } from "./jane-v11";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -219,6 +225,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v6": janeV6Bot,
   "jane-v7": janeV7Bot,
   "jane-v10": janeV10Bot,
+  "jane-v11": janeV11Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
