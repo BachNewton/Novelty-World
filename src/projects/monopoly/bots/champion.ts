@@ -24,15 +24,14 @@
  *  any anchor-panel member). Elo PROPOSES, SPRT CONFIRMS: a ladder-topper that is
  *  only EVEN under SPRT is recorded and may be the player default, but is not
  *  crowned. Advancing this needs no human greenlight — only the measurement. */
-export const CROWN = "fable-v6";
+export const CROWN = "fable-v7";
 
 /** The SUBSTRATE — what the next version is evolved FROM. A JUDGMENT, not a rule:
  *  the crown is the default prior, but you are free to branch from any family or
  *  start fresh (survey all of them — "winning is the only loyalty"). Today it is
- *  the crown, fable-v6: the 4q3y6i-night defect-removal stack (honest rail
- *  pricing → voluntary-spend tail guard → auction liquidity cap →
- *  comeback-equity survival) that SPRT-beats the previous crown fable-v1 on
- *  both streams with zero regressions anywhere (see EVOLUTION.md "the 4q3y6i
- *  night" for the crown-framing note: vs its immediate base fable-v3 it reads
- *  EVEN train / BETTER holdout; the crown call rests on displacing fable-v1). */
-export const SUBSTRATE = "fable-v6";
+ *  the crown, fable-v7: the 4q3y6i-night defect-removal stack capped by the
+ *  trade-outflow tail guard — a STRICT crown (SPRT BETTER vs its own base
+ *  fable-v6 on BOTH streams, BETTER in all 32 pairings of a 16-member field,
+ *  zero regressions — the cleanest gate result in the archive; see EVOLUTION.md
+ *  "the 4q3y6i night"). */
+export const SUBSTRATE = "fable-v7";

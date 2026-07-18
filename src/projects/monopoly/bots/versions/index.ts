@@ -108,6 +108,14 @@ import { fableV5Bot } from "./fable-v5";
 // bypass of fable-v3's rail charge). Peer-parity shedding stays protective.
 // See its index.ts + EVOLUTION.md.
 import { fableV6Bot } from "./fable-v6";
+// fable-v7 — TRADE-OUTFLOW TAIL GUARD on the fable-v6 substrate: a voluntary
+// trade spending cash must leave half the board's worst single hit, position-
+// independent (F2e's danger-aware floor is next-roll-myopic while a trade's
+// cash state persists). From the crown's own first probe game: a fable-v6
+// seat paid a wallet-pegged $735 for a marginal 4th rail down to $38 under a
+// 3-house board and died on the landing. Set-completion boldness exempt.
+// See its index.ts + EVOLUTION.md.
+import { fableV7Bot } from "./fable-v7";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -158,6 +166,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v4": fableV4Bot,
   "fable-v5": fableV5Bot,
   "fable-v6": fableV6Bot,
+  "fable-v7": fableV7Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
@@ -307,6 +316,14 @@ export const RATING_PANEL: readonly string[] = [
   // tail guard, auction liquidity cap, comeback-equity survival), a strategy
   // surface the panel didn't represent.
   "fable-v6",
+  // fable-v7 — the CROWNED champion (2026-07-18, superseding fable-v6 the same
+  // night): the trade-outflow tail guard on the fable-v6 substrate, and a
+  // STRICT crown — SPRT BETTER vs its own base on BOTH streams and BETTER in
+  // all 32 pairings of the 16-member gate field, zero regressions. Added per
+  // the crown rule. NOTE: the panel is now 15 members — pruning redundant
+  // members (each costs k pairings per new version) is a flagged lead, left
+  // for a session that can re-validate the graph after removal.
+  "fable-v7",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
