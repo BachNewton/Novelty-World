@@ -41,6 +41,18 @@ import { janeV4Bot } from "./jane-v4";
 // builds from liquid cash, leaving capital stranded in idle singletons.
 // See versions/jane-v6/index.ts.
 import { janeV6Bot } from "./jane-v6";
+// jane-v7 — jane-v6 + AUCTION DENIAL BIDDING: when a property at auction
+// would complete an opponent's monopoly, amplify the deny premium (4x) so
+// the bot either wins the blocking property or forces the completing
+// opponent to overpay. See versions/jane-v7/index.ts.
+import { janeV7Bot } from "./jane-v7";
+// jane-v8 — jane-v6 + OFFENSIVE JAIL VALUE: the existing jail logic only
+// computed the DEFENSIVE value of staying (avoiding rent). jane-v8 adds the
+// OFFENSIVE value — expected rent INCOME from opponents landing on the bot's
+// developed properties while it sits in jail. When income exceeds the leave
+// cost (fee + walking risk), the bot stays, collecting pure income. The
+// classic late-game Monopoly power move. See versions/jane-v8/index.ts.
+import { janeV8Bot } from "./jane-v8";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -206,6 +218,8 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v2": janeV2Bot,
   "jane-v4": janeV4Bot,
   "jane-v6": janeV6Bot,
+  "jane-v7": janeV7Bot,
+  "jane-v8": janeV8Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
@@ -382,6 +396,12 @@ export const RATING_PANEL: readonly string[] = [
   // lobby default. With the column, the summit ordering is measured. The panel
   // is now 16 members — the prune lead stands.
   "fable-v8",
+  // jane-v6 — the CROWNED champion (2026-07-18, +18.8 Elo over fable-v8):
+  // collateralized development on the fable-v8 factory. SPRT BETTER vs all 12
+  // panel members, zero regressions. Added per the crown rule — structurally
+  // distinct (capital reallocation via singleton mortgaging), and now the
+  // summit of the ladder.
+  "jane-v6",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
