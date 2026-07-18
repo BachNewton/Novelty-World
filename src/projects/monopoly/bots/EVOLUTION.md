@@ -998,6 +998,8 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| fable-v14 | 2026-07-18 | **The AUCTION TRANSFORM-TAIL guard** (`versions/fable-v14/`, on the fable-v12 substrate — found by the probe fleet, agent 2 "auction warfare"): `auctionTailFrac` (0.25). F6's auction liquid cap guarantees a completer win is SETTLEABLE (via mortgageable equity) but not SURVIVABLE — for a completer that equity counts the prize's OWN set-mates, so bidding to the F6 cap can force mortgaging them to settle (the F9 complete-into-illiquidity defect, via the auction door instead of the trade door). A human baited exactly this 2/2 (bid a near-broke bot up to win its completer → it self-cripples). The fix ports F9's reserve to `auction()`: on a lot that COMPLETES the bot's own set, additionally cap the bid so paying from CASH ALONE leaves `0.25 × board-wide worstHit`. 0.25 = `tradeTailFrac 0.5 × transformTailFrac 0.5` — the identical reserve a transformative TRADE must leave, so the illiquidity price matches across acquisition channels. Scoped to completer auctions ONLY, so non-completer auctions are byte-identical to v12 — deliberately NARROW to avoid fable-v13's board-wide passivity tax (a completer win is rare; a build is every flush turn). Red/green pinned in `policy.test.ts`; conformance 426/426. | **Gauntlet vs base fable-v12 (13-member field):** BETTER vs 10/13 incl. the crown fable-v7 (58.2%) and every non-fable member, **ZERO regressions**; EVEN vs fable-v8 (49.7%, 2305 decisive); INCONCLUSIVE-not-worse vs base fable-v12 (51.4% at the 4000-game cap, regr LLR −13.19 firmly rejects "worse", impr −0.06 at the fence). Full-ladder regen: **fable-v14 134.6 — above base fable-v12 (130.9, +3.7), below fable-v8 (143.0)**. sim:versus was a noisy 62%/50 (not the verdict; the gauntlet is). | **RECORDED — PROMOTED on defect-removal + equal-or-better strength** (the fable-v8 / claude-v45 precedent: EVEN/INCONCLUSIVE vs base, zero regressions, a real human-baitable defect removed). NOT the strict crown gate (needs SPRT-BETTER-vs-base). Registered + rated; **not crowned** (crown stays fable-v7); **not made substrate** (stays fable-v12 — but a clean next-substrate candidate for a deliberate call). Does NOT become the derived default (fable-v8 stays ladder top). |
+| fable-v13 | 2026-07-18 | **The DURABLE-BUILD tail guard** (on the fable-v12 substrate — found by the probe fleet, agent 5 "endgame"): `buildTailFrac` (0.35). F5's build guard reserves only `voluntaryTailFrac × walkCost(player.position).worst` — the worst NEXT-ROLL hit from the bot's CURRENT position (position-myopic). A build is durable/multi-turn, so this green-lights a build while the board's big hotel is >12 squares away, then a later lap lands on it and forces a 50%-refund fire-sale of the just-built houses (agent 5: "build→firesale churn" in ≤4 turns, 3/3 games). The fix ports the F8 trade guard's board-wide `worstHit` to `planBuild` at a REDUCED fraction (a build is more recoverable than a one-shot trade outflow). | **Gauntlet vs base fable-v12:** ❌ WORSE (44.6% win share, 288–358), WORSE vs fable-v7 (45.5%), WORSE vs fable-v8 (47.4%); **Elo −20.6 vs base**, zero improvements. (sim:versus at 0.5 read 47.3%; 0.35 read a noisy 46–51% — the gauntlet is decisive.) | **REJECTED — reverted, not shipped.** LESSON: the build→firesale churn is NOT a self-play defect — the myopic F5 guard is near-optimal, because preventing the churn requires build-passivity that costs MORE tempo than the occasional refund it avoids. `buildTailFrac → 0` IS fable-v12, and every positive fraction only taxes tempo → no winning setting. This is the claude-v4 build-tempo-wash / fable-v9-v10 load-bearing-churn lesson on a new path; the churn is human-legibility noise, human-gated-cosmetic only if ever. |
 | fable-v12 | 2026-07-18 | **The HUMAN THREAT MULTIPLIER** (`versions/fable-v12/`, on the fable-v11 substrate — human-model iteration 2): `humanThreatMult` (2) — the selfView `rivalThreatCost` share doubles when the armed opponent is a HUMAN seat. Evidence: the "sets sold to humans too cheap" thread measured three ways — corpus rails ~14× under-charged ($60–170 vs ~$2,400 realized), probe-6 completers at 1.3–1.4× book returning 5×+, probe-7's $256 completion sale deciding the game. Humans convert handed sets into wins far better than the bot-calibrated 0.29 factor prices; 2 is deliberately conservative vs the measured 5–14× gaps. Human-gated; probe boundary moved graded-not-walled (strong set ~$800→~$1,500+, floored yellow only $450→$550). | **Validation:** identity with fable-v8 across the whole human stack — **40/40 identical seeded games**; LIVE probe game 9 (human-marked seat): strong-set completers declined through **3–6× book at healthy bot wealth** (old boundary ~$800/2.3×), clearing only in genuine distress (2× when cash-starved — the premium composes with the standing machinery, wealth-sensitive as designed); **non-completer control still cleared at 1.5×** (completer-specific ✓); the v11 swap-rider fix held across ~15 bot-initiated offers (every rider flowed TOWARD the human); v11's ask-suppression + $75 margin re-verified; **no over-caution** (the only absolute veto was a whole intact monopoly — defensible). Ladder 140.3 (panel-column noise; identity says its true self-play strength IS fable-v8's). | **RECORDED — NEW SUBSTRATE (the fable-v11 argument, one dim deeper). Not crowned; crown stays fable-v7.** The human model now has three live-validated dims. |
 | fable-v11 | 2026-07-18 | **The HUMAN-COUNTERPARTY MODEL** (`versions/fable-v11/`, on the fable-v8 substrate — the extended-session build of the night's top lead): three human-gated behaviors, one hypothesis ("model the counterparty you actually face"). `humanAskOff` (1) — the F4/F4b premium cash-ask channels AND the F4 `chargeSurplus` swap riders are not constructed against seats with `botStrategy === null` (corpus: ~0% conversion at 1.77×–10× book; asks and riders priced `min(opp.cash, …)` are a literal wallet X-ray — probe 8 caught the rider leak after the pure-ask fix). `humanProposalMargin` (75) — accepting a human-PROPOSED trade needs delta ≥ $75, not the ~$9 bar humans probe for. Cash may still flow TOWARD humans (sweeteners fine). Bot-vs-bot play is UNCHANGED BY CONSTRUCTION: identity with fable-v8 pinned in `policy.test.ts` and demonstrated over 40 full seeded games (40/40 identical event streams) — which makes an SPRT gate vacuous by design. | **Validation (the non-SPRT kind, stated plainly):** (1) identity proof, above; (2) LIVE probe game 8 with a genuinely human-marked seat (`played-cli --human`): **zero premium asks all game** (baseline: several, wallet-pegged), the proposal-margin boundary measured **between book+$60 (decline) and book+$110 (accept)** — consistent with the $75 bar — generous offers still transact, **no over-suppression** (4 bot-initiated offers, mutual swaps priced up not refused); the one leak found (swap riders pegging a human wallet twice) was closed and pinned the same session. Probe 8's suspected engine bug was investigated and is a **verified NON-bug** (the "$33 shortfall" was `estateCash` = building refund − the creditor's $33 of inherited-mortgage interest; the debt was a 4-rail $200 vs $184 max liquidation — the engine was exactly right). Ladder 151.7 (≡ v8 noise, as identity predicts). | **RECORDED — NEW SUBSTRATE (deliberate call: it IS fable-v8 in self-play, plus the validated human model). Not crowned (cannot beat what it is identical to); crown stays fable-v7.** The derived default now sits on the human-aware line — the first time the bot humans face models THEM. |
 | fable-v10 | 2026-07-18 | **Price-aware reserve** (`versions/fable-v10/`, branched from the SUBSTRATE fable-v8, not the rejected v9): the F8/F9 required reserve capped at `spendReserveMult (2) × cash spent` — a seat cannot become meaningfully less safe by spending $8. Evidence: probe game 5 (which VALIDATED fable-v8's fix — drain acceptance boundary moved from 97% to ~4% of wallet) found the flat floor price-blind: an already-thin seat refused an $8 mutual-monopoly swap five turns before dying set-less, and a $400-face completer at $60; bot-to-bot completer trades froze for ~47 endgame turns. Cheap-completer red/green pinned; the $430 drain stays blocked. | **Gate (18-member field, base fable-v8): train EVEN vs base (49.4%) + BETTER vs fable-v7 (54.2%); holdout WORSE vs base (46.4%, confident regression).** | **rejected.** Second holdout-stream rejection of a quality-motivated follow-up in one night (with fable-v9) — the endgame trade freeze, like the re-pitch churn, is apparently load-bearing in self-play. The lesson compounds: human-facing quality fixes that alter bot-to-bot trade flow keep costing win share; route them through the HUMAN-COUNTERPARTY model (which cannot touch self-play by construction) instead of the shared evaluator. Archived + rated. |
@@ -1086,6 +1088,107 @@ exactly what this section used to do (it published a hand-typed Elo that the
 
 Read those, not a date-stamped paragraph. Why the three are distinct — and why
 collapsing them is the single biggest trap in this model — is METHOD.md "Two bests".
+
+**As of 2026-07-18 (the probe fleet — 11 lenses × 3 games vs the lobby default):**
+An 11-agent probe fleet (`/monopoly-probe`, distinct attack lenses, `played-cli
+--human`) red-teamed **fable-v8** — the derived lobby default humans actually
+face, and the twin WITHOUT the human-counterparty model (that's fable-v11/v12).
+Two candidate versions were built from the findings and screened.
+
+**Fleet scoreboard / benchmark.** fable-v8 is GENUINELY HARD but BEATABLE by
+skilled human play, not a walkover. The four agents that played to WIN (not the
+passive auto-play several fell into after collecting probe data) went **7W–5L
+(~58%)**: trade-extraction 2–1, liquidity-siege 2–1, buy-vs-auction 2–1,
+black-box 1–2. Losses were self-inflicted over-leverage into a thin reserve vs a
+hoteled leader or pure dice variance (a $1,400 Boardwalk landing), never the bot
+out-playing the human. Record this as the tracked benchmark vs **fable-v8**:
+**skilled-human ≈ 55–60%; passive play loses ~0/3.**
+
+**What shipped and what died (the THEME-1 test — "port the trade guards to the
+other voluntary-spend paths").** The fleet's strongest structural theme: the
+trade path got protective tail/transform guards (F5 board-wide worst-hit, F8/F9
+transform-tail) but the BUILD and AUCTION paths never did. Both halves were built
+and gauntleted:
+- **`fable-v14` — SHIPPED** (auction transform-tail, `auctionTailFrac` 0.25).
+  Closes the complete-into-illiquidity defect a human baited 2/2. BETTER vs 10/13
+  incl. the crown fable-v7, ZERO regressions, EVEN vs fable-v8, not-worse vs base;
+  promoted on the fable-v8/claude-v45 defect-removal precedent. See its version row.
+- **`fable-v13` — REJECTED** (durable-build tail guard). WORSE vs base, −20 Elo.
+  **The build→firesale churn is NOT a self-play defect** — the myopic F5 build
+  guard is near-optimal, because preventing the churn needs build-passivity that
+  costs more tempo than the occasional 50%-refund. `buildTailFrac→0` IS fable-v12;
+  every positive fraction only taxes tempo. The claude-v4 / fable-v9-v10
+  load-bearing-behavior lesson on a new path. See its version row.
+
+**THE HEADLINE (best-supported finding, 7 agents; needs NO new bot).** The
+dominant exploitable surface against the lobby default is not a shared-policy bug
+— it is that **fable-v8 lacks the human model.** Confirmed WHITE-BOX (exact solves:
+completer reservation `= book + monopolyBonus·0.294·(fromMe/received)·standingMult
++ margin`, the bot answers a human's buy-proposal at exactly `book+$2` = ACCEPT_MIN,
+and the ask is a literal wallet X-ray `min(opp.cash, surplus−margin)`), AND —
+decisively — behaviorally by the BLACK-BOX agent that read no code (a bot
+proactively asked $1,208 for a $120 completer ≈ its wallet, accepted $500 on a
+counter). Any observant human discovers this. **RECOMMENDATION #1: fix the derived
+lobby-default tie-break so it prefers the human-validated twin `fable-v12` over the
+bot-play-identical-but-human-blind `fable-v8`** — the ladder is bots-only and ranks
+pinned-identical twins by noise, landing the default on the one seat that is exactly
+what humans face yet models them least. This is EVOLUTION.md's standing "twin default
+tie-break" lead; a `roles.ts` derivation + doctrine-note decision, not a hack.
+(Strategic caveat from the white-box + black-box agents: countering the cash leak
+does NOT by itself flip games — fable-v8's runaway-monopolist dynamic beats a human
+whether they deny (can't develop) or complete (arm a rival); the human model is
+about fair pricing/legibility, not a win-rate emergency.)
+
+**Ranked residual findings.**
+1. **F7 comeback-equity leak — CONFIRMED by 4 agents (white-box a3/a7/a10 +
+   behavioral a9), PROPOSE-ONLY.** A distressed-but-competitive seller (equity
+   0.2–0.7 vs the leader) still arms the leader BELOW book (Kentucky 0.55×, rails
+   0.64–1.55×, pink 2/3 for $500 while the buyer LED). F7's `equityMult` only
+   collapses the arming-harm near bankruptcy (<~0.15). Fix idea: measure equity vs
+   the RECIPIENT with a hard floor when a trade completes a set for a stronger
+   opponent. **CAUTION: this is the load-bearing v6/v35 survival machinery — high
+   regression risk (the v13 lesson) and low human-win-impact ("too late to matter").
+   Red/green a `distress.test.ts` fixture, screen hard, expect it may wash/regress.**
+2. **Auction cap is table-blind — PROPOSE-ONLY (validates the "auctions look
+   simplistic" hypothesis).** `auction()` bids every lone lot to full printed FACE
+   and every completer to its private-value cap, modeling nothing about the table
+   (no second-price, no desperation-read) — baitable to its max on demand (a bot
+   forced to +40% and mortgaged to $8). No cheap-snipe gap on a LIQUID table (all
+   clear at face); the gap is on illiquid tables + the monoMult asymmetry (low-
+   monoMult red/DB/yellow complete ~face, orange ~2.5×). The `buyDecision` floor is
+   fine; the CAP is the hole. Fix (model the table in the auction cap) is a big
+   game-theoretic change and likely self-play-neutral (a2: the face/liquid cap is
+   already near-optimal defensively) — a research lead, not a quick guard.
+3. **Idle-capital hoarding on the ASSEMBLE side (a9).** Net leaders sat on $1,000+
+   with no monopoly for 20+ turns — a buy/assemble-side redeploy gap distinct from
+   the redeploy work already done on the develop side.
+4. **Jail over-caution (a6, human-facing).** The whole fable line ships
+   `jailStayThreshold: 0`, disabling the authored reachability-aware `jailWalkCost`
+   rule in favor of the blunt board-wide scan, so the bot over-sits when the
+   dominant developed set is unreachable-from-jail (browns/greens/dark-blues). One-
+   sided (costs tempo, never rent). Likely self-play-invisible → a human-gated or
+   carefully-screened tweak, not a naive flip.
+
+**CLOSED-list re-verification.** Honest rail pricing (0.65) HOLDS vs healthy sellers
+(breaks only via the F7 distress channel); auction liquidity cap HOLDS as a
+bankruptcy-preventer (but did NOT stop complete-into-illiquidity — now closed by
+fable-v14); trade-outflow tail guard HOLDS; completer wallet-drain HOLDS on the
+trade path (the auction re-open is the fable-v14 fix); the **denialPositionCost
+hot-potato ring is PROVABLY DEAD** (0 bot→bot rotations across the fleet, JSON-
+verified; `holderDenialFrac=1`, `transferMemoryTurns=10` confirmed on). Only
+**comeback-equity (F7) is BROKEN for the common case** (finding 1).
+
+**Keep-levers (do not weaken in any human-model work).** The **F2b leader
+standing-tax** already inflates a LEADING human's extractions (the one lever that
+resists a leading human); the **deployability wall** (correctly prices no-outlet
+completers ~4–12× book); **denialPositionCost** (ring suppression). All measured
+as correct defenses, not over-caution.
+
+**Next steps for a fresh session.** (1) The lobby-default tie-break doctrine
+(RECOMMENDATION #1) — the highest-value change and it needs no bot. (2) fable-v14
+is a clean next-SUBSTRATE candidate (fable-v12 + the auction fix) for a deliberate
+call. (3) The F7 recipient-equity floor as a screened hypothesis (expect a wash).
+The 33 game JSONs are kept as L1 training data + analysis material.
 
 **As of 2026-07-18 (the extended morning block):** the HUMAN-COUNTERPARTY
 MODEL shipped in two live-validated iterations — **`fable-v11`** (no premium
