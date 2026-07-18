@@ -396,6 +396,8 @@ bots/simulate.ts      headless self-play driver (per-seat Contenders / strategie
 bots/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
 bots/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review
 bots/review-cli.ts    `npm run game:review` — pull a REAL (human+bot) game from the DB and print its play-by-play / standings / holdings / money-flow for analysis (read-only, anon key). See the `/monopoly-game-review` command
+bots/adversary.ts     PURE human-facing LEAKAGE scorer — probeLeakage(label) runs a version's policy on hand-built exploit boards (wallet X-ray ask, complete-into-illiquidity auction, distress fire-sale) and returns a per-scenario leak score (higher = more exploitable by a human). Turns the recurring hand-played probe exploits into a deterministic regression number; no RNG, no game played
+bots/probe-gate-cli.ts  `npm run sim:probe-gate -- <labels…>` — the human-facing leakage SCOREBOARD over adversary.ts. A candidate must not raise its total leakage above its base's; the automated complement to the hand-played `/monopoly-probe` fleet
 bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
 bots/versus-cli.ts    `npm run sim:versus -- claude-v2 claude-v1` — run the A/B over many seeds
 bots/parallel.ts      worker_threads pool: pure games distributed across cores

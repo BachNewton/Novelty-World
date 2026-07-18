@@ -61,6 +61,16 @@ repo root.
 5. **Report.** Lead with the outcome (who won, finish order, humans-vs-bots), then
    the 2–4 highest-leverage lessons, each tied to a concrete spot in the log and a
    concrete policy lever. End with a recommendation: which lesson (if any) is worth
-   pursuing as a `claude-vN+1` evolution — and note that a real refinement goes
-   through the gauntlet + SPRT (`EVOLUTION.md`), not a hunch. **Do not edit any bot
-   code from this command** — it is read-and-analyze only; propose, don't implement.
+   pursuing as a `claude-vN+1` evolution. A game review is the **discover** step of
+   the loop (`bots/METHOD.md`); a real refinement then runs hypothesis →
+   self-contained snapshot → red/green `policy.test` → screen (`sim:versus`) →
+   gauntlet gate (SPRT `BETTER`-vs-base on **both** streams + no panel regression)
+   **plus the `sim:probe-gate` human-leakage check** → promote — never a hunch. **Two
+   caveats that bite here specifically:** (a) this is a REAL game with humans, so the
+   lesson is often a **human-facing** one — such fixes are gated on
+   `botStrategy === null`, are **invisible to self-play/SPRT**, and must be validated
+   through the human gate (`played-cli --human`) + `sim:probe-gate`, **never** the
+   shared evaluator (see `bots/CLAUDE.md` "The human-counterparty model"); (b) an ugly
+   bot behavior may be **load-bearing** in self-play and screen EVEN/WORSE when
+   "fixed" — flag it, don't assume it's a bug. **Do not edit any bot code from this
+   command** — it is read-and-analyze only; propose, don't implement.

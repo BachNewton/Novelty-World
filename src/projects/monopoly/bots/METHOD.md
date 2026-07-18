@@ -303,6 +303,16 @@ the single biggest trap in this whole model. Keep them apart:
    can COUNTER the champion while losing to the rest of the field, so "beat the last
    guy" would just rotate the crown around a cycle (see "Non-transitivity & the
    crown"). The panel field is what stops such a counter from stealing the crown.
+   **Plus a human-facing non-regression: `npm run sim:probe-gate`.** SPRT and the
+   panel gauntlet only measure ALL-BOT games, so they are **structurally blind to
+   human-facing changes** — a fix gated on `botStrategy === null` is provably
+   identical to its base in every self-play game (that's why the human-model versions
+   validate by live probe, not SPRT). The `probe-gate` scoreboard (`adversary.ts`)
+   scores a version's exploitability by a human across the recurring probe scenarios
+   (wallet X-ray, complete-into-illiquidity, distress fire-sale); a candidate **must
+   not raise its total leakage above its base's**. It's the automated regression
+   complement to the hand-played `/monopoly-probe` fleet — cheap to run, and it
+   catches the human-facing surface the shared evaluator can't see.
 3. **Substrate** — what do we EVOLVE the next bot FROM? **A judgment, not a rule.**
    Survey ALL versions across ALL families and pick the base you can most improve —
    usually the current champion, so that's the default prior, but nothing confines
