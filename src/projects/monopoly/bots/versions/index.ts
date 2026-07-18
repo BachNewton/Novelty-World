@@ -35,6 +35,12 @@ import { claudeV47Bot } from "./claude-v47";
 // `jane-vN`, `gemini-vN`.
 import { janeV2Bot } from "./jane-v2";
 import { janeV4Bot } from "./jane-v4";
+// jane-v6 — the Jane lineage's first bot on the Fable 47-param factory.
+// Structural innovation: COLLATERALIZED DEVELOPMENT — mortgages non-monopoly
+// singletons to fund house construction on monopolies. Fable's planBuild only
+// builds from liquid cash, leaving capital stranded in idle singletons.
+// See versions/jane-v6/index.ts.
+import { janeV6Bot } from "./jane-v6";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -190,6 +196,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v47": claudeV47Bot,
   "jane-v2": janeV2Bot,
   "jane-v4": janeV4Bot,
+  "jane-v6": janeV6Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
