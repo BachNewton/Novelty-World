@@ -971,7 +971,9 @@ fable-v1, and the cleanest gate result in the archive.** Ladder after the
 panel regen: **fable-v7 166.5, a clear 7.7-Elo strict top — crown,
 substrate, and the derived lobby Strongest/default UNIFIED in one bot**
 (the washed ES leg's mission, achieved by removing defects instead of
-re-tuning the shared surface).
+re-tuning the shared surface). 1v3 kit (pooled two prefixes @ 800):
+**24.1%** vs 3× claude-v45 and **25.6%** vs 3× fable-v6 — at the 25% null,
+outnumbered-neutral (the v6-era ~1-point deficit recovered).
 
 ## Version log
 
@@ -996,6 +998,7 @@ bot as of this doc.
 
 | Version | Date | Hypothesis / change | Result vs. field | Status |
 |---------|------|---------------------|------------------|--------|
+| fable-v8 | 2026-07-18 | **Transformative-trade reserve** (`versions/fable-v8/`): the fable-v7 factory + `transformTailFrac` (0.5) — the F8 set-completion exemption must still leave half the normal reserve. Evidence: probe game 4 vs the crowned fable-v7 (which WON the game, and whose guard validated live by refusing the v6 death trade three times) — a seat paid **$430 of a $442 wallet** for a light-blue completer through the exemption, kept $7, never afforded one $50 house on the set it just completed, and died 30 turns later; the v6-era $220-of-$221 buy was the same mechanism. A floor on the PRICE PAID for a set, never a discount on set value (the rejected cash-scaled-monopoly-value idea stays rejected). Death shape pinned red/green; liquid completer buys unchanged. | **Gate (17-member field, base fable-v7): EVEN vs base on BOTH streams (50.7% / 49.9%), BETTER vs the other 16 on both, zero regressions.** Ladder: 151.1, summit tier. | **RECORDED — NEW SUBSTRATE (deliberate call, the fable-v3 pattern). Not crowned; crown stays fable-v7.** |
 | fable-v7 | 2026-07-18 | **Trade-outflow tail guard** (`versions/fable-v7/`, session section above): the fable-v6 factory + `tradeTailFrac` (0.5) — a voluntary trade SPENDING cash must leave ≥ half the worst single rent on the board, position-independent (F2e's danger-aware floor is next-roll-myopic; a trade's cash state persists). Transformative gains exempt (set-completion boldness intact; 1.0 probed and over-corrects). Plus the probe-game-3 miswired decline-note fix. Evidence: the crown's own first probe game — a fable-v6 seat paid a wallet-pegged $735 for a marginal 4th rail down to $38 under a 3-house board and died on the landing, merging its estate into the winner. Death shape pinned red/green. | **Gate (16-member field incl. every fable + both claude twins, base fable-v6): BETTER vs ALL 16 on BOTH streams — 32/32 pairings** (base 53.7/53.8%, fable-v1 55.7/54.0%, fable-v2 53.8/55.1%, fable-v3 53.6/60.5%), **zero regressions. The first STRICT crown since fable-v1; the cleanest gate in the archive.** Ladder (panel regen): **166.5, strict top by 7.7** — crown + substrate + derived default UNIFIED. 1v3 kit: see session section. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate + lobby Strongest/default). Added to RATING_PANEL.** |
 | fable-v6 | 2026-07-18 | **Comeback-equity survival** (`versions/fable-v6/`, session section above): the fable-v5 factory + `survivalEquityGain` — the F2a survival credit scaled by positionValue share vs the strongest live opponent (clamped [0,1]). Survival cash is worth the win probability it preserves; a beaten seat stops fire-selling to finance the winner, peer-parity distress-shedding stays protective (pinned red/green in `policy.test.ts`). Evidence: 4q3y6i's $55 States handover + both probe games' distress rail sales bypassing fable-v3's rail charge through the survival credit. Screen: EVEN pooled (52.0% lean @ 1800, single-stream leans both directions — the screens-mislead lesson again). Carries the whole 4q3y6i-night stack (v4 tail guard + v5 auction cap). | **Gate (panel + both claude twins + fable-v2 + fable-v3, base fable-v3):** train BETTER vs 13/15 incl. **SPRT BETTER vs crown fable-v1 (53.1%)**, EVEN vs base; holdout **BETTER vs ALL 15** (base 53.3%, fable-v2 53.3%, fable-v1 52.4%); **zero regressions on both streams.** First bot in the archive to SPRT-beat fable-v1 — on both streams. Ladder (panel regen): 161.8, summit within 2.3 Elo of fable-v5/v3/v2. | **ACCEPTED — NEW CROWNED CHAMPION (crown + substrate; see the session section's dual-framing note: EVEN-train vs its twin parent, crowned on displacing champion fable-v1 with zero regressions — the gate every prior crown actually ran). Added to RATING_PANEL.** Default remains ladder-derived (fable-v5, within noise). |
 | fable-v5 | 2026-07-18 | **Auction liquidity discipline** (`versions/fable-v5/`): the fable-v4 factory + `auctionLiquidCap` — voluntary auction bids additionally capped at liquid capacity (cash + own mortgageable equity − flow floor), so winning never forces liquidating the prize. The first version motivated by a FABLE-PLAYED probe game (`played-cli.ts`): a fable-v2 seat at $166 cash counter-bid +$10 to a face-value win, then mortgaged the won lot to settle; humans win any contested auction at face+ε while bots bleed liquidation costs. Winner's-curse geometry (developed set inflating the net-worth cap with zero liquid capacity) pinned red/green vs fable-v4. | Screen: **the night's one positive lean — ~+3.3 over the mirror null @ 1800 games** (53.2% / 51.4% on two fresh streams). Gated inside the fable-v6 stack (no separate two-stream gauntlet); ladder 162.8 — nominal summit top, within noise of v6/v3/v2. | **RECORDED — ships inside the crowned fable-v6 stack; nominal ladder top → the derived lobby Strongest/default.** Its own dim rides in every fable-v6 measurement. |
@@ -1088,7 +1091,16 @@ BETTER vs its own base on both streams and in all 32 pairings of a 16-member
 field, zero regressions, ladder top by a clear 7.7 Elo. En route, `fable-v6`
 held the crown for ~an hour (the first bot ever to SPRT-beat `fable-v1`,
 crowned on the displace-the-champion framing) before its own probe game
-surfaced the trade-outflow gap that became fable-v7.
+surfaced the trade-outflow gap that became fable-v7 — and fable-v7's OWN
+probe game then surfaced the completer wallet-drain that became
+**`fable-v8` (the new substrate**, EVEN-twin of the crown with the drain
+removed; the probe→fix→gate loop closed five defects in one night, each
+found by playing the newest bot). Probe game 4's remaining leads: the
+wallet-pegged ask tell (asks readable as a cash X-ray; ~60% discounts by
+negotiating cash-poor — human-model territory), proposal spam (7 re-pitches
+of one swap with cosmetic repricing), the build/sell half-price thrash
+(F1a's soft-floor trade-off), and auction overreach at 135% of face funded
+by mortgaging rent-producing assets (an F6 calibration nuance).
 The night's other products: the `game:offers` corpus instrument (bot→human
 conversion 10.6% vs bot→bot 97.9% — the human-counterparty model's calibration
 base), the `played-cli.ts` Fable-played probe instrument (two annotated games;

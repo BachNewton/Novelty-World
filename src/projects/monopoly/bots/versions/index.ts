@@ -116,6 +116,13 @@ import { fableV6Bot } from "./fable-v6";
 // 3-house board and died on the landing. Set-completion boldness exempt.
 // See its index.ts + EVOLUTION.md.
 import { fableV7Bot } from "./fable-v7";
+// fable-v8 — TRANSFORMATIVE-TRADE RESERVE on the fable-v7 substrate: the F8
+// set-completion exemption must still leave half the normal reserve. From
+// probe game 4 (vs the crowned fable-v7): a seat paid $430 of a $442 wallet
+// for a completer through the exemption, kept $7, never built on the set,
+// and died. A floor on the price paid, never a discount on set value.
+// See its index.ts + EVOLUTION.md.
+import { fableV8Bot } from "./fable-v8";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -167,6 +174,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v5": fableV5Bot,
   "fable-v6": fableV6Bot,
   "fable-v7": fableV7Bot,
+  "fable-v8": fableV8Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,

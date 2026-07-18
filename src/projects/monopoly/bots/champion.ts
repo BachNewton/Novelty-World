@@ -29,9 +29,8 @@ export const CROWN = "fable-v7";
 /** The SUBSTRATE — what the next version is evolved FROM. A JUDGMENT, not a rule:
  *  the crown is the default prior, but you are free to branch from any family or
  *  start fresh (survey all of them — "winning is the only loyalty"). Today it is
- *  the crown, fable-v7: the 4q3y6i-night defect-removal stack capped by the
- *  trade-outflow tail guard — a STRICT crown (SPRT BETTER vs its own base
- *  fable-v6 on BOTH streams, BETTER in all 32 pairings of a 16-member field,
- *  zero regressions — the cleanest gate result in the archive; see EVOLUTION.md
- *  "the 4q3y6i night"). */
-export const SUBSTRATE = "fable-v7";
+ *  fable-v8, a deliberate call (the fable-v3 pattern): the crown fable-v7's
+ *  basin with probe game 4's completer wallet-drain removed at zero measured
+ *  cost — EVEN vs fable-v7 on both streams, BETTER vs the other 16 field
+ *  members on both, zero regressions (see EVOLUTION.md "the 4q3y6i night"). */
+export const SUBSTRATE = "fable-v8";
