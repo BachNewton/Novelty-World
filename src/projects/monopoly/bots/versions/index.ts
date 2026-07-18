@@ -123,6 +123,12 @@ import { fableV7Bot } from "./fable-v7";
 // and died. A floor on the price paid, never a discount on set value.
 // See its index.ts + EVOLUTION.md.
 import { fableV8Bot } from "./fable-v8";
+// fable-v9 — RE-PITCH MINIMUM STEP on the fable-v8 substrate: a declined trade
+// may be re-proposed only with ≥$50 more for the decliner (the old rule
+// unblocked on any $1, and the ask constructor re-solves slightly different
+// prices every turn — probe games logged 5 and 7 re-pitches of one identical
+// swap with cosmetic repricing). See its index.ts + EVOLUTION.md.
+import { fableV9Bot } from "./fable-v9";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -175,6 +181,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v6": fableV6Bot,
   "fable-v7": fableV7Bot,
   "fable-v8": fableV8Bot,
+  "fable-v9": fableV9Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
