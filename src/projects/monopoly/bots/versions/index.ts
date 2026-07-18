@@ -46,12 +46,6 @@ import { janeV6Bot } from "./jane-v6";
 // the bot either wins the blocking property or forces the completing
 // opponent to overpay. See versions/jane-v7/index.ts.
 import { janeV7Bot } from "./jane-v7";
-// jane-v9 — jane-v6 + DYNAMIC HOUSE HOARDING: replaces the static houseScarce
-// threshold (3.29) with a dynamic one based on how many houses opponents NEED
-// to build their monopolies. When bank supply ≤ opponent demand × hoardRatio,
-// the bot holds at 4 houses instead of upgrading to hotels, starving opponents.
-// This fires every build turn, not just in rare situations. See versions/jane-v9/index.ts.
-import { janeV9Bot } from "./jane-v9";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -218,7 +212,6 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v4": janeV4Bot,
   "jane-v6": janeV6Bot,
   "jane-v7": janeV7Bot,
-  "jane-v9": janeV9Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,

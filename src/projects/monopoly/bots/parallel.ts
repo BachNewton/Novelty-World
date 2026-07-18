@@ -61,7 +61,26 @@ export class WorkerPool {
     this.size = Math.max(1, size);
     this.workers = Array.from(
       { length: this.size },
-      () => new Worker(new URL("./worker.ts", import.meta.url)),
+      () => {
+        // tsx's execArgv includes --eval (the main script body) which breaks
+        // worker threads. Keep only --require/--import loader flags.
+        const loaderArgv = process.execArgv.filter((a) =>
+          a === "--require" || a === "--import" || a.startsWith("--require=") || a.startsWith("--import="));
+        // Also include the value following a bare --require/--import flag.
+        const filtered: string[] = [];
+        for (let i = 0; i < process.execArgv.length; i++) {
+          const a = process.execArgv[i];
+          if (a === "--require" || a === "--import") {
+            filtered.push(a, process.execArgv[i + 1]);
+            i++;
+          } else if (a.startsWith("--require=") || a.startsWith("--import=")) {
+            filtered.push(a);
+          }
+        }
+        return new Worker(new URL("./worker.mjs", import.meta.url), {
+          execArgv: filtered.length > 0 ? filtered : ["--import", require.resolve("tsx")],
+        });
+      },
     );
   }
 
