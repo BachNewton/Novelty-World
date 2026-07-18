@@ -151,6 +151,15 @@ import { fableV11Bot } from "./fable-v11";
 // 1.3–1.4× book returning 5×+). Human-gated; bot-vs-bot identical to v11.
 // See its index.ts + EVOLUTION.md.
 import { fableV12Bot } from "./fable-v12";
+// fable-v14 — the AUCTION TRANSFORM-TAIL RESERVE on the fable-v12 substrate: the
+// F9 completer guard, ported to the auction path. `auction()`'s F6 liquid cap
+// guarantees a win is SETTLEABLE, not survivable — for a completer, its
+// mortgageable equity counts the prize's OWN set-mates, so winning at the cap can
+// force mortgaging them (complete-into-illiquidity; a human baited this 2/2). New
+// dim `auctionTailFrac` (0.25) caps completer bids to leave a cash reserve against
+// the worst board hit; NARROW — binds only on completers, so ordinary auctions
+// are untouched (avoiding fable-v13's board-wide passivity). See its index.ts.
+import { fableV14Bot } from "./fable-v14";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -207,6 +216,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v10": fableV10Bot,
   "fable-v11": fableV11Bot,
   "fable-v12": fableV12Bot,
+  "fable-v14": fableV14Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
