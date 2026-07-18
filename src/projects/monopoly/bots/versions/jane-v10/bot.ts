@@ -689,9 +689,7 @@ export function makeParamBot(p: ParamVector): Bot {
       floorOf: number;
     }[],
   ): BuildPlan | null {
-    const build: Record<number, number> = {};
     const mortgage: Record<number, boolean> = {};
-    const reasons: string[] = [];
 
     // First, handle locked (mortgaged) monopolies: unmortgage them if flush.
     for (const m of myMonopolies) {
@@ -700,36 +698,29 @@ export function makeParamBot(p: ParamVector): Bot {
       }
     }
 
-    // Track current level per monopoly (starts at existing dev level, or 0 if
-    // just unmortgaged).
+    // Track current level per monopoly — the SINGLE SOURCE OF TRUTH.
+    // build{} is regenerated from this at the end, never modified incrementally.
     const currentLevels = new Map<PropertyColor, number>();
     for (const m of myMonopolies) {
       currentLevels.set(m.color, m.locked ? 0 : m.floorOf);
     }
 
-    // Compute opponent landing probability mass per position — how much rent
-    // each position collects per opponent turn, weighted by dice probability.
-    // This is the same approach as opponentApproachScore but gives us per-pos.
+    // Compute opponent landing probability mass per position.
     function landingMass(pos: number): number {
       let mass = (LANDING_PROB[pos] ?? 0) / 100;
-      // Scale by opponent presence: jailed opponents contribute less.
       for (const opp of activeOpponents(state, pid)) {
         const scale = opp.inJail ? p.jailExitProb : 1;
-        // Direct next-roll landing
         for (let roll = 2; roll <= 12; roll++) {
-          const dest = (opp.position + roll) % 40;
-          if (dest === pos) {
+          if ((opp.position + roll) % 40 === pos) {
             mass += scale * DICE_PMF[roll];
           }
         }
-        // Second-roll contribution
         if (p.flowSecondRollFrac > 0) {
           for (let roll1 = 2; roll1 <= 12; roll1++) {
             const mid = (opp.position + roll1) % 40;
             if (SPACES[mid].kind === "go-to-jail") continue;
             for (let roll2 = 2; roll2 <= 12; roll2++) {
-              const dest2 = (mid + roll2) % 40;
-              if (dest2 === pos) {
+              if ((mid + roll2) % 40 === pos) {
                 mass += scale * DICE_PMF[roll1] * DICE_PMF[roll2] * p.flowSecondRollFrac;
               }
             }
@@ -739,24 +730,41 @@ export function makeParamBot(p: ParamVector): Bot {
       return mass;
     }
 
-    // Pre-compute landing mass per position (static for this game state).
     const landingMassCache = new Map<number, number>();
     for (const m of myMonopolies) {
       for (const pos of m.positions) {
-        if (!landingMassCache.has(pos)) {
-          landingMassCache.set(pos, landingMass(pos));
-        }
+        if (!landingMassCache.has(pos)) landingMassCache.set(pos, landingMass(pos));
       }
     }
 
-    // Greedy loop: pick the best single-level upgrade, apply, repeat.
-    const maxLevel = want; // respect desiredLevel cap (3, 4, or 5)
+    // Helper: regenerate build{} from currentLevels.
+    function buildFromLevels(): Record<number, number> {
+      const b: Record<number, number> = {};
+      for (const m of myMonopolies) {
+        const lvl = currentLevels.get(m.color) ?? 0;
+        if (lvl > 0) for (const pos of m.positions) b[pos] = lvl;
+      }
+      return b;
+    }
+
+    // Helper: validate a tentative state (levels + mortgages) against floor.
+    function canAfford(tentativeLevels: Map<PropertyColor, number>, tentativeMortgage: Record<number, boolean>): boolean {
+      const b: Record<number, number> = {};
+      for (const m of myMonopolies) {
+        const lvl = tentativeLevels.get(m.color) ?? 0;
+        if (lvl > 0) for (const pos of m.positions) b[pos] = lvl;
+      }
+      const summary = manageSummary(state, pid, { build: b, mortgage: tentativeMortgage });
+      return summary.ok && playerCash + summary.netCash >= floor;
+    }
+
+    const maxLevel = want;
+
+    // --- Phase 1: Greedy loop with cash only ---
     let improved = true;
     while (improved) {
       improved = false;
-      let bestScore = -1;
-      let bestMono: typeof myMonopolies[number] | null = null;
-      let bestNewLevel = 0;
+      const candidates: { mono: typeof myMonopolies[number]; newLevel: number; score: number }[] = [];
 
       for (const m of myMonopolies) {
         if (m.locked && !flush) continue;
@@ -764,80 +772,30 @@ export function makeParamBot(p: ParamVector): Bot {
         if (curLevel >= maxLevel) continue;
         const newLevel = curLevel + 1;
 
-        // Marginal rent gain: sum over positions in this monopoly.
         let marginalRent = 0;
         for (const pos of m.positions) {
           const lm = landingMassCache.get(pos) ?? 0;
-          const oldRent = rentAtLevel(pos, curLevel);
-          const newRent = rentAtLevel(pos, newLevel);
-          marginalRent += (newRent - oldRent) * lm;
+          marginalRent += (rentAtLevel(pos, curLevel + 1) - rentAtLevel(pos, curLevel)) * lm;
         }
-
-        // Cost: one house per position at this color's house cost.
-        const houseCost = HOUSE_COST[m.color];
-        const cost = m.positions.length * houseCost;
-
+        const cost = m.positions.length * HOUSE_COST[m.color];
         if (cost <= 0) continue;
 
-        // EV score: marginal expected rent per dollar spent.
-        const score = marginalRent / cost;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestMono = m;
-          bestNewLevel = newLevel;
-        }
+        candidates.push({ mono: m, newLevel, score: marginalRent / cost });
       }
+      candidates.sort((a, b) => b.score - a.score);
 
-      if (bestMono && bestScore >= 0) {
-        // Try to build this upgrade: check via manageSummary.
-        currentLevels.set(bestMono.color, bestNewLevel);
-        if (bestNewLevel > 0) {
-          for (const pos of bestMono.positions) build[pos] = bestNewLevel;
+      for (const c of candidates) {
+        const tentative = new Map(currentLevels);
+        tentative.set(c.mono.color, c.newLevel);
+        if (canAfford(tentative, mortgage)) {
+          currentLevels.set(c.mono.color, c.newLevel);
+          improved = true;
+          break; // restart outer loop with updated state
         }
-        if (bestMono.locked) {
-          for (const pos of bestMono.mortgagedMembers) mortgage[pos] = false;
-        }
-
-        // Validate: does this full plan leave us above the floor?
-        const summary = manageSummary(state, pid, { build: { ...build }, mortgage: { ...mortgage } });
-        if (!summary.ok || playerCash + summary.netCash < floor) {
-          // Can't afford this — revert and stop.
-          currentLevels.set(bestMono.color, (currentLevels.get(bestMono.color) ?? 1) - 1);
-          if (bestNewLevel > 0) {
-            for (const pos of bestMono.positions) {
-              if (build[pos] === bestNewLevel) delete build[pos];
-            }
-          }
-          if (bestMono.locked) {
-            for (const pos of bestMono.mortgagedMembers) {
-              if (mortgage[pos] === false) delete mortgage[pos];
-            }
-          }
-          break; // stop greedy loop — can't afford more
-        }
-        improved = true;
       }
     }
 
-    // Generate reason strings from final build state.
-    for (const m of myMonopolies) {
-      const targetLevel = currentLevels.get(m.color) ?? 0;
-      const existingLevel = m.floorOf;
-      if (m.locked && (mortgage as any)[m.positions[0]] !== undefined) {
-        reasons.push(
-          `${colorName(m.color)} to ${levelPhrase(targetLevel)} (unmortgaged + greedy EV build)`,
-        );
-      } else if (targetLevel > existingLevel) {
-        reasons.push(
-          `${colorName(m.color)} to ${levelPhrase(targetLevel)} (greedy EV-optimal)`,
-        );
-      }
-    }
-
-    // J1 — collateralized development: try to fund more greedy upgrades by
-    // mortgaging idle singletons. This extends jane-v6's collateral logic into
-    // the greedy optimizer.
+    // --- Phase 2: Collateralized development (mortgage singletons for more builds) ---
     if (p.collateralDev > 0) {
       const collateral: number[] = [];
       for (const posStr in state.ownership) {
@@ -853,13 +811,10 @@ export function makeParamBot(p: ParamVector): Bot {
       collateral.sort((a, b) => assetBase(state, a) - assetBase(state, b));
 
       if (collateral.length > 0) {
-        // Try more greedy upgrades with collateral.
         let collateralImproved = true;
         while (collateralImproved) {
           collateralImproved = false;
-          let bestScore = -1;
-          let bestMono: typeof myMonopolies[number] | null = null;
-          let bestNewLevel = 0;
+          const candidates: { mono: typeof myMonopolies[number]; newLevel: number; score: number }[] = [];
 
           for (const m of myMonopolies) {
             if (m.locked) continue;
@@ -870,58 +825,51 @@ export function makeParamBot(p: ParamVector): Bot {
             let marginalRent = 0;
             for (const pos of m.positions) {
               const lm = landingMassCache.get(pos) ?? 0;
-              const oldRent = rentAtLevel(pos, curLevel);
-              const newRent = rentAtLevel(pos, newLevel);
-              marginalRent += (newRent - oldRent) * lm;
+              marginalRent += (rentAtLevel(pos, curLevel + 1) - rentAtLevel(pos, curLevel)) * lm;
             }
-
-            const houseCost = HOUSE_COST[m.color];
-            const cost = m.positions.length * houseCost;
+            const cost = m.positions.length * HOUSE_COST[m.color];
             if (cost <= 0) continue;
 
-            const score = marginalRent / cost;
-            if (score > bestScore) {
-              bestScore = score;
-              bestMono = m;
-              bestNewLevel = newLevel;
-            }
+            candidates.push({ mono: m, newLevel, score: marginalRent / cost });
           }
+          candidates.sort((a, b) => b.score - a.score);
 
-          if (bestMono && bestScore >= 0) {
-            currentLevels.set(bestMono.color, bestNewLevel);
-            for (const pos of bestMono.positions) build[pos] = bestNewLevel;
-
-            // Greedily add collateral until affordable.
-            const candidateMortgage: Record<number, boolean> = { ...mortgage };
-            let foundPlan = false;
+          for (const c of candidates) {
+            const tentative = new Map(currentLevels);
+            tentative.set(c.mono.color, c.newLevel);
+            // Try progressively adding collateral until affordable.
+            const tentativeMortgage: Record<number, boolean> = { ...mortgage };
             for (const cpos of collateral) {
-              if (cpos in candidateMortgage) continue;
-              candidateMortgage[cpos] = true;
-              const summary = manageSummary(state, pid, {
-                build: { ...build },
-                mortgage: { ...candidateMortgage },
-              });
-              if (summary.ok && playerCash + summary.netCash >= floor) {
-                Object.assign(mortgage, candidateMortgage);
-                foundPlan = true;
+              if (cpos in tentativeMortgage) continue;
+              tentativeMortgage[cpos] = true;
+              if (canAfford(tentative, tentativeMortgage)) {
+                currentLevels.set(c.mono.color, c.newLevel);
+                Object.assign(mortgage, tentativeMortgage);
+                collateralImproved = true;
                 break;
               }
             }
-            if (!foundPlan) {
-              // Revert
-              currentLevels.set(bestMono.color, (currentLevels.get(bestMono.color) ?? 1) - 1);
-              for (const pos of bestMono.positions) {
-                if (build[pos] === bestNewLevel) delete build[pos];
-              }
-              break;
-            }
-            collateralImproved = true;
+            if (collateralImproved) break;
           }
         }
       }
     }
 
-    // Build final output: only positions where the level changed from current.
+    // --- Generate output from currentLevels ---
+    const build = buildFromLevels();
+    const reasons: string[] = [];
+    for (const m of myMonopolies) {
+      const targetLevel = currentLevels.get(m.color) ?? 0;
+      const existingLevel = m.floorOf;
+      if (m.locked && m.mortgagedMembers.some((pos) => mortgage[pos] === false)) {
+        reasons.push(
+          `${colorName(m.color)} to ${levelPhrase(targetLevel)} (unmortgaged + greedy EV build)`,
+        );
+      } else if (targetLevel > existingLevel) {
+        reasons.push(`${colorName(m.color)} to ${levelPhrase(targetLevel)} (greedy EV-optimal)`);
+      }
+    }
+
     const finalBuild: Record<number, number> = {};
     for (const [posStr, level] of Object.entries(build)) {
       const pos = Number(posStr);
