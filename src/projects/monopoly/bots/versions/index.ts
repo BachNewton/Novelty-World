@@ -46,13 +46,6 @@ import { janeV6Bot } from "./jane-v6";
 // the bot either wins the blocking property or forces the completing
 // opponent to overpay. See versions/jane-v7/index.ts.
 import { janeV7Bot } from "./jane-v7";
-// jane-v8 — jane-v6 + OFFENSIVE JAIL VALUE: the existing jail logic only
-// computed the DEFENSIVE value of staying (avoiding rent). jane-v8 adds the
-// OFFENSIVE value — expected rent INCOME from opponents landing on the bot's
-// developed properties while it sits in jail. When income exceeds the leave
-// cost (fee + walking risk), the bot stays, collecting pure income. The
-// classic late-game Monopoly power move. See versions/jane-v8/index.ts.
-import { janeV8Bot } from "./jane-v8";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -219,7 +212,6 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v4": janeV4Bot,
   "jane-v6": janeV6Bot,
   "jane-v7": janeV7Bot,
-  "jane-v8": janeV8Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
