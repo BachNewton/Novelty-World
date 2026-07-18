@@ -160,6 +160,17 @@ import { fableV12Bot } from "./fable-v12";
 // the worst board hit; NARROW — binds only on completers, so ordinary auctions
 // are untouched (avoiding fable-v13's board-wide passivity). See its index.ts.
 import { fableV14Bot } from "./fable-v14";
+// fable-v15 — a CONSTRAINED-ES RE-TUNE on the fable-v12 factory. PROMOTED (registered
+// + rated) as a strong-but-INTRANSITIVE vector (2026-07-19), NOT crowned, NOT the
+// default. The `--panel` crown gate (train) ACCEPTs it — BETTER vs base fable-v12 +
+// BETTER-or-EVEN vs all 12 panel members incl. the diverse jane/opt/claude bots and
+// the prior top fable-v8, zero regressions — so it is NOT counter-overfit. But the
+// ladder rates it 119.7, BELOW base fable-v12 (129.8): its head-to-head wins are
+// intransitive (beats the summit, only ~62% vs the weak floor), which a 1-D Elo
+// compresses. The generated ladder keeps fable-v8 as the derived default. Kept as a
+// recorded strong vector (jailStayThreshold 0 → ~4.9 corroborates the probe jail
+// finding). See its index.ts + EVOLUTION.md.
+import { fableV15Bot } from "./fable-v15";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -217,6 +228,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v11": fableV11Bot,
   "fable-v12": fableV12Bot,
   "fable-v14": fableV14Bot,
+  "fable-v15": fableV15Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
