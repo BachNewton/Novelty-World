@@ -1129,10 +1129,20 @@ fable-v7 150.0 (SE ±17) — so the derived default legitimately sits on
 fable-v10, a rejected-vs-base but summit-peer version; the crown record
 (fable-v7) carries the confidence, exactly the two-bests separation. The
 panel is 16 members; the prune lead stands. Distinguishing 2.7 Elo via
-ratings games would cost ~40× compute (METHOD's own warning) — don't; (3) probe
-game 6+ (each probe produced the next version's evidence); (4) L1 Stage A
-stands as the owner-approved big bet (LEAPS.md) — untouched tonight, still
-next in line for a long session. The earlier notes below stand as history.
+ratings games would cost ~40× compute (METHOD's own warning) — don't; (3) **probe game 6 ran as the product acceptance test vs fable-v10** (the
+derived default): the model player WON at T280 — the first player win in
+six probes, and not a walkover (a bot's light-blue hotel rush led for ~95
+turns). Product verdict: genuinely hard for a casual player, respectable
+vs a skilled one; the skilled recipe is "refuse every bot ask, assemble
+via non-completing pieces near face, buy the completer from the poorest
+bot." New precise lead for the human model: **completer pricing is keyed
+to the seller's wallet, not the set's value to the buyer** (the
+game-winning red set cost $870 and returned ~$5,500; a non-completing
+piece went at 1.14× face while a same-color completer was held at 3.3×) —
+price the SECOND piece of a set a rival is accumulating, and anchor
+completer reserves to buyer-side monopoly value; (4) L1 Stage A stands as
+the owner-approved big bet (LEAPS.md) — untouched tonight, still next in
+line for a long session. The earlier notes below stand as history.
 
 **As of 2026-07-17 evening:** `fable-v1` holds the crown (the first confident
 SPRT crown since `claude-v41`); `fable-v2` is the substrate by deliberate call
