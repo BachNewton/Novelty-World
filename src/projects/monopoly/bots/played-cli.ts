@@ -7,7 +7,9 @@
 // reads like a reviewed game (`game:review` style).
 //
 // This is an L5 instrument (see bots/LEAPS.md): it generates human-SHAPED
-// adversarial games on demand — a probe, not a training-data generator.
+// adversarial games on demand — a probe, not a training-data generator. The
+// full probe METHODOLOGY (the lessons of probe games 1–9, the player-agent
+// prompt template, the triage discipline) is the `/monopoly-probe` command.
 //
 // Usage (state lives in a JSON file you pass around):
 //   npx tsx src/projects/monopoly/bots/played-cli.ts new  <file> [seed] [oppLabel]
