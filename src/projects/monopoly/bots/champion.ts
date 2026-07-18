@@ -29,10 +29,11 @@ export const CROWN = "fable-v7";
 /** The SUBSTRATE — what the next version is evolved FROM. A JUDGMENT, not a rule:
  *  the crown is the default prior, but you are free to branch from any family or
  *  start fresh (survey all of them — "winning is the only loyalty"). Today it is
- *  fable-v11, a deliberate call with an unusually clean argument: it IS the
- *  prior substrate fable-v8 in every bot-vs-bot game (identity pinned in its
- *  tests and demonstrated over 40 full seeded games), plus the human-
- *  counterparty model (no premium asks or surplus riders against human seats;
- *  a $75 margin on human-proposed trades), live-validated in a human-marked
- *  probe game (see EVOLUTION.md "the 4q3y6i night", fable-v11). */
-export const SUBSTRATE = "fable-v11";
+ *  fable-v12, a deliberate call with an unusually clean argument: it IS the
+ *  prior substrate fable-v8 in every bot-vs-bot game (identity pinned and
+ *  demonstrated over 40 full seeded games), plus the two-iteration human-
+ *  counterparty model — no premium asks or surplus riders against human
+ *  seats, a $75 margin on human-proposed trades, and a 2× threat multiplier
+ *  when arming a human — each dim live-validated in a human-marked probe game
+ *  (see EVOLUTION.md "the 4q3y6i night", fable-v11/fable-v12). */
+export const SUBSTRATE = "fable-v12";

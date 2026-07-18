@@ -144,6 +144,13 @@ import { fableV10Bot } from "./fable-v10";
 // apparatus — is unchanged by construction (identity pinned in its tests).
 // See its index.ts + EVOLUTION.md.
 import { fableV11Bot } from "./fable-v11";
+// fable-v12 — the HUMAN THREAT MULTIPLIER on the fable-v11 substrate: the
+// selfView rivalThreatCost doubles when the armed seat is human — humans
+// convert handed sets/networks into wins far better than the bot-calibrated
+// factor prices (corpus rails ~14× under-charged; probe-6 completers at
+// 1.3–1.4× book returning 5×+). Human-gated; bot-vs-bot identical to v11.
+// See its index.ts + EVOLUTION.md.
+import { fableV12Bot } from "./fable-v12";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -199,6 +206,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v9": fableV9Bot,
   "fable-v10": fableV10Bot,
   "fable-v11": fableV11Bot,
+  "fable-v12": fableV12Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
