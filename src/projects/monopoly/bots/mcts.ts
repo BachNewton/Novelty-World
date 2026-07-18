@@ -1,4 +1,4 @@
-import { autoStep, createRng, firstNegativePlayer, netWorth } from "../engine";
+import { autoStep, createRng, firstNegativePlayer, netWorth, type Rng } from "../engine";
 import type { GameState } from "../types";
 import { encode, MAX_SEATS } from "./features";
 import { applyCandidate, legalActions, type Action } from "./actions";
@@ -28,9 +28,11 @@ import type { Bot } from "./decision";
 // DETERMINISM (non-negotiable, RL-DESIGN.md §3.2 + §6): every seed derives from
 // the root `state.rngState`, and the played move is the most-visited action
 // (greedy, no exploration noise at inference). So the move is a pure function of
-// (state, net) — replay-safe, a proper `Bot`. Stochastic exploration (Dirichlet
-// noise, sampling) belongs to TRAINING only and is injected by the self-play
-// driver, not here.
+// (state, net) — replay-safe, a proper `Bot`. Exploration (Dirichlet ROOT NOISE,
+// visit sampling) belongs to TRAINING only: the `dirichlet` option below is OFF by
+// default, so the `Bot` / eval path (which never sets it) stays greedy and pure;
+// self-play turns it on. Even on, the noise is seeded FROM `state.rngState`, so a
+// self-play game stays reproducible in (state, net, seed).
 //
 // N-PLAYER CREDIT. The net's value head is a seat-relative win-probability vector
 // (slot 0 = the node's mover). At expansion it's mapped into an ABSOLUTE frame
@@ -54,6 +56,14 @@ const DRIVE_GUARD = 2000;
 export interface MctsOptions {
   simulations?: number;
   cPuct?: number;
+  /** TRAINING-ONLY root exploration (RL-DESIGN.md §8 review #3). When set, the
+   *  root priors are mixed with symmetric Dirichlet(`alpha`) noise at weight
+   *  `epsilon`, so search visits (and self-play can therefore discover) moves the
+   *  current net underrates — the AlphaZero fix for the "self-play only ever
+   *  reinforces what the net already prefers" collapse. Seeded from
+   *  `state.rngState`, so it does NOT break self-play reproducibility. Leave unset
+   *  for a pure, greedy `Bot`. */
+  dirichlet?: { epsilon: number; alpha: number };
 }
 
 /** The player who owns the decision at `state`, by phase — cheap (no
@@ -251,10 +261,58 @@ function simulate(node: Node, net: MonoNet, cPuct: number): Float32Array {
   return v;
 }
 
+/** One standard normal via Box–Muller from a seeded uniform stream. */
+function nextNormal(rng: Rng): number {
+  const u1 = Math.max(rng.next(), 1e-12);
+  const u2 = rng.next();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+/** A Gamma(`alpha`, 1) draw (Marsaglia–Tsang), seeded. `alpha < 1` uses the
+ *  standard boost `Gamma(a) = Gamma(a+1)·U^(1/a)`. */
+function sampleGamma(alpha: number, rng: Rng): number {
+  if (alpha < 1) {
+    const u = Math.max(rng.next(), 1e-12);
+    return sampleGamma(alpha + 1, rng) * u ** (1 / alpha);
+  }
+  const d = alpha - 1 / 3;
+  const c = 1 / Math.sqrt(9 * d);
+  for (;;) {
+    let x: number;
+    let v: number;
+    do {
+      x = nextNormal(rng);
+      v = 1 + c * x;
+    } while (v <= 0);
+    v = v * v * v;
+    const u = rng.next();
+    if (u < 1 - 0.0331 * x * x * x * x) return d * v;
+    if (Math.log(Math.max(u, 1e-12)) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+
+/** A symmetric Dirichlet(`alpha`) sample over `k` categories, seeded. */
+function sampleDirichlet(k: number, alpha: number, rng: Rng): Float32Array {
+  const out = new Float32Array(k);
+  let sum = 0;
+  for (let i = 0; i < k; i++) {
+    const g = sampleGamma(alpha, rng);
+    out[i] = g;
+    sum += g;
+  }
+  if (sum <= 0) {
+    out.fill(1 / k);
+    return out;
+  }
+  for (let i = 0; i < k; i++) out[i] /= sum;
+  return out;
+}
+
 /** Build the root, run `sims` simulations, and return the expanded root — or null
  *  when `me` owes no decision. Pure in (state, net): every seed derives from
- *  `state.rngState`. The root is expanded against ME's own action set (not
- *  `decisionOwner`), so the bot searches its own move — including an off-turn arm. */
+ *  `state.rngState` (including the optional root Dirichlet noise). The root is
+ *  expanded against ME's own action set (not `decisionOwner`), so the bot searches
+ *  its own move — including an off-turn arm. */
 function runSearch(
   state: GameState,
   me: string,
@@ -267,6 +325,17 @@ function runSearch(
   const moverIdx = state.players.findIndex((p) => p.id === me);
   const root = new Node(state, moverIdx < 0 ? 0 : moverIdx, state.rngState >>> 0);
   expand(root, net);
+  // TRAINING-ONLY: mix Dirichlet noise into the root priors so self-play explores
+  // beyond the net's current preferences (off by default — see MctsOptions). Seeded
+  // distinctly from the chance-edge stream so the two don't correlate.
+  if (opts.dirichlet && root.actions.length > 1) {
+    const { epsilon, alpha } = opts.dirichlet;
+    const noiseRng = createRng((state.rngState ^ 0x9e3779b9) >>> 0);
+    const noise = sampleDirichlet(root.actions.length, alpha, noiseRng);
+    for (let i = 0; i < root.priors.length; i++) {
+      root.priors[i] = (1 - epsilon) * root.priors[i] + epsilon * noise[i];
+    }
+  }
   for (let i = 0; i < sims; i++) simulate(root, net, cPuct);
   return { root, sims };
 }

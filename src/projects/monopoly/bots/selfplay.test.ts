@@ -24,8 +24,8 @@ describe.skipIf(!tfjsUsable)("self-play recorder + bootstrap", () => {
       expect(s.encoding.length).toBe(FEATURE_COUNT);
       expect(s.policyTarget.length).toBe(ACTION_COUNT);
       expect(s.valueTarget.length).toBe(MAX_SEATS);
-      // Policy target is a visit distribution (sums to 1); value is a one-hot
-      // outcome (sums to 1) — or 0 in the degenerate empty-table case.
+      // Policy target is a visit distribution (sums to 1); value is a discounted
+      // outcome distribution (also sums to 1) — or 0 in the degenerate empty case.
       expect(sumsToOneOrZero(s.policyTarget)).toBe(true);
       expect(sumsToOneOrZero(s.valueTarget)).toBe(true);
     }

@@ -49,24 +49,44 @@ function hashSeed(seed: string): number {
   return h >>> 0;
 }
 
-/** The winning seat index: the sole survivor if the game finished, else (a draw
- *  at the turn cap) the current net-worth leader — a noisy-but-directional label
- *  for an unfinished game. Returns -1 if the table is empty. */
-function winnerIndex(state: GameState): number {
+/** Per-turn discount pulling a state's value target toward the neutral 1/n prior
+ *  (RL-DESIGN.md §8 review #4 — the high-variance value target). A state `d` turns
+ *  before the game ends trusts the eventual outcome with weight `γ^d` and is 1−γ^d
+ *  toward "a coin-flip among the seats". Rationale: an early-game position genuinely
+ *  IS close to even — hard-labeling it with the full noise of a 300-turns-later
+ *  winner is the single biggest source of value-target variance. At γ=0.99 a state
+ *  ~70 turns from the end still trusts the outcome ≥50%; a very early state washes
+ *  toward 1/n (true, low-variance). The lever if the value head under/over-commits. */
+const VALUE_DISCOUNT_PER_TURN = 0.99;
+
+/** The ABSOLUTE (by-player-index) outcome distribution used as the value signal.
+ *  A FINISHED game (a sole survivor) is a one-hot win for that seat. A TRUNCATED
+ *  game (turn cap / non-progress stall — the game is NOT decided) must NOT be
+ *  hard-labeled by the net-worth leader (RL-DESIGN.md §8 review #4): who leads on
+ *  paper at the cap is not who would have won. Instead it's a SOFT distribution —
+ *  each survivor's share of the total positive net worth — an honest "these seats
+ *  are ahead in proportion to their lead", not a fabricated winner. */
+function outcomeDistribution(state: GameState, finished: boolean): Float32Array {
+  const n = state.players.length;
+  const dist = new Float32Array(n);
   const survivors = state.players
     .map((p, i) => ({ i, p }))
     .filter((x) => !x.p.bankrupt);
-  if (survivors.length === 1) return survivors[0].i;
-  let best = -1;
-  let bestWorth = -Infinity;
-  for (const { i, p } of survivors.length > 0 ? survivors : state.players.map((p, i) => ({ i, p }))) {
-    const w = netWorth(state, p.id);
-    if (w > bestWorth) {
-      bestWorth = w;
-      best = i;
-    }
+  if (finished && survivors.length === 1) {
+    dist[survivors[0].i] = 1;
+    return dist;
   }
-  return best;
+  // Undecided (truncated, or a defensive multi-survivor finish): net-worth share.
+  const pool = survivors.length > 0 ? survivors : state.players.map((p, i) => ({ i, p }));
+  const worths = pool.map(({ p }) => Math.max(0, netWorth(state, p.id)));
+  const total = worths.reduce((a, b) => a + b, 0);
+  if (total <= 0) {
+    const u = 1 / pool.length;
+    for (const { i } of pool) dist[i] = u;
+  } else {
+    pool.forEach(({ i }, k) => (dist[i] = worths[k] / total));
+  }
+  return dist;
 }
 
 /** Sample an index in proportion to visit counts (exploration). Falls back to a
@@ -82,14 +102,23 @@ function sampleByVisits(visits: readonly number[], rng: Rng): number {
   return visits.length - 1;
 }
 
-/** The seat-relative outcome one-hot for a record taken by `moverIdx` in an
- *  `n`-player game won by `winnerIdx`. Slot 0 = the mover; the winner lands at
- *  `(winnerIdx - moverIdx) mod n`. */
-function valueTargetFor(winnerIdx: number, moverIdx: number, n: number): Float32Array {
+/** The seat-relative value target for a record taken by `moverIdx`, `turnsToEnd`
+ *  turns before the game ended, given the ABSOLUTE outcome distribution. The
+ *  outcome is discounted toward the neutral 1/n prior by `γ^turnsToEnd`
+ *  (`VALUE_DISCOUNT_PER_TURN`), then rotated so slot 0 = the mover
+ *  (`(i − moverIdx) mod n`). */
+function valueTargetFor(
+  outcome: Float32Array,
+  moverIdx: number,
+  n: number,
+  turnsToEnd: number,
+): Float32Array {
   const v = new Float32Array(MAX_SEATS);
-  if (winnerIdx >= 0) {
-    const slot = ((winnerIdx - moverIdx) % n + n) % n;
-    if (slot < MAX_SEATS) v[slot] = 1;
+  const w = VALUE_DISCOUNT_PER_TURN ** Math.max(0, turnsToEnd);
+  const floor = (1 - w) / n; // the neutral 1/n prior, shared across all seats
+  for (let i = 0; i < n; i++) {
+    const slot = ((i - moverIdx) % n + n) % n;
+    if (slot < MAX_SEATS) v[slot] = w * outcome[i] + floor;
   }
   return v;
 }
@@ -98,6 +127,7 @@ interface Record {
   encoding: Float32Array;
   policyTarget: Float32Array;
   moverIdx: number;
+  turn: number;
 }
 
 /** Play one self-play game with MCTS-over-`net`, returning the labelled training
@@ -110,6 +140,13 @@ export function playSelfPlayGame(
   const players = opts.players ?? 4;
   const maxTurns = opts.maxTurns ?? 1000;
   const explorationMoves = opts.explorationMoves ?? 20;
+  // Root exploration is ON for self-play (RL-DESIGN.md §8 review #3): default
+  // AlphaZero noise (ε=0.25, α=0.3) unless the caller overrides. Seeded from
+  // `state.rngState` inside MCTS, so the game stays reproducible in (net, seed).
+  const mctsOpts: MctsOptions = {
+    ...opts.mcts,
+    dirichlet: opts.mcts?.dirichlet ?? { epsilon: 0.25, alpha: 0.3 },
+  };
   const rng = createRng(hashSeed(seed));
   let state = freshGame(seed, undefined, players);
   const recs: Record[] = [];
@@ -134,7 +171,7 @@ export function playSelfPlayGame(
       state = next;
       continue;
     }
-    const full = mctsSearchFull(state, owner, net, opts.mcts);
+    const full = mctsSearchFull(state, owner, net, mctsOpts);
     if (full === null) break;
     const moverIdx = state.players.findIndex((p) => p.id === owner);
 
@@ -146,7 +183,12 @@ export function playSelfPlayGame(
       const u = 1 / full.actions.length;
       full.actions.forEach((a) => (policyTarget[a.token] = u));
     }
-    recs.push({ encoding: encode(state, owner), policyTarget, moverIdx });
+    recs.push({
+      encoding: encode(state, owner),
+      policyTarget,
+      moverIdx,
+      turn: state.turns[state.turns.length - 1].turn,
+    });
 
     const choice = plies < explorationMoves ? sampleByVisits(full.visits, rng) : full.best;
     const next = applyCandidate(state, full.actions[choice].op);
@@ -163,11 +205,13 @@ export function playSelfPlayGame(
     }
   }
 
-  const winner = winnerIndex(state);
+  const finished = state.status !== "active";
+  const outcome = outcomeDistribution(state, finished);
+  const finalTurn = state.turns[state.turns.length - 1].turn;
   return recs.map((r) => ({
     encoding: r.encoding,
     policyTarget: r.policyTarget,
-    valueTarget: valueTargetFor(winner, r.moverIdx, players),
+    valueTarget: valueTargetFor(outcome, r.moverIdx, players, finalTurn - r.turn),
   }));
 }
 
@@ -191,7 +235,12 @@ export function collectRuleGame(
     ...base,
     players: base.players.map((p) => ({ ...p, botStrategy: ruleLabel })),
   };
-  const recs: { encoding: Float32Array; legalTokens: number[]; moverIdx: number }[] = [];
+  const recs: {
+    encoding: Float32Array;
+    legalTokens: number[];
+    moverIdx: number;
+    turn: number;
+  }[] = [];
 
   for (let i = 0; i < 200_000 && state.status === "active"; i++) {
     if (state.turns[state.turns.length - 1].turn > maxTurns) break;
@@ -203,6 +252,7 @@ export function collectRuleGame(
           encoding: encode(state, owner),
           legalTokens: acts.map((a) => a.token),
           moverIdx: state.players.findIndex((p) => p.id === owner),
+          turn: state.turns[state.turns.length - 1].turn,
         });
       }
     }
@@ -216,7 +266,9 @@ export function collectRuleGame(
     state = next;
   }
 
-  const winner = winnerIndex(state);
+  const finished = state.status !== "active";
+  const outcome = outcomeDistribution(state, finished);
+  const finalTurn = state.turns[state.turns.length - 1].turn;
   return recs.map((r) => {
     const policyTarget = new Float32Array(ACTION_COUNT);
     const u = 1 / r.legalTokens.length;
@@ -224,7 +276,7 @@ export function collectRuleGame(
     return {
       encoding: r.encoding,
       policyTarget,
-      valueTarget: valueTargetFor(winner, r.moverIdx, players),
+      valueTarget: valueTargetFor(outcome, r.moverIdx, players, finalTurn - r.turn),
     };
   });
 }

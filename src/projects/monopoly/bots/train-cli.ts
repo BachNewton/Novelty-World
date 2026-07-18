@@ -56,6 +56,13 @@ interface Args {
 interface Meta {
   iteration: number;
   totalSelfPlayGames: number;
+  /** KEEP-BEST (RL-DESIGN.md §8 review #1b): the highest eval win-rate seen so far
+   *  and the iteration that produced it. The net that scored it is saved under
+   *  `<dir>/best`. RL is non-monotone — a bad training cycle must not destroy a good
+   *  net, so we retain the best-by-eval separately from the always-overwritten
+   *  latest. Optional so an older checkpoint's meta.json still loads. */
+  bestScore?: number;
+  bestIteration?: number;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -146,15 +153,31 @@ async function main(): Promise<void> {
   mkdirSync(a.dir, { recursive: true });
   const netDir = join(a.dir, "net");
 
+  const bestDir = join(a.dir, "best");
   let net: MonoNet;
   let iteration = 0;
   let totalGames = 0;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestIteration = 0;
+
+  // The latest (iteration, totals) plus the retained keep-best, written together so
+  // no writer drops the best fields (they persist across a resume).
+  const saveMeta = (): void =>
+    writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames, bestScore, bestIteration });
 
   if (existsSync(join(netDir, "model.json"))) {
     net = await MonoNet.load(netDir);
     const meta = readMeta(a.dir);
     iteration = meta?.iteration ?? 0;
     totalGames = meta?.totalSelfPlayGames ?? 0;
+    // A never-yet-evaluated bestScore is NEGATIVE_INFINITY, which JSON writes as
+    // `null` — so `?? ` wouldn't restore the sentinel (null is not undefined).
+    // Treat any non-finite/absent value as "no best yet".
+    bestScore =
+      typeof meta?.bestScore === "number" && Number.isFinite(meta.bestScore)
+        ? meta.bestScore
+        : Number.NEGATIVE_INFINITY;
+    bestIteration = meta?.bestIteration ?? 0;
     console.log(`Resumed from ${netDir} at iteration ${iteration} (${totalGames} self-play games).`);
   } else {
     net = MonoNet.create();
@@ -171,7 +194,7 @@ async function main(): Promise<void> {
       }
     }
     await net.save(netDir);
-    writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames });
+    saveMeta();
     console.log(`Bootstrapped net saved to ${netDir}.`);
   }
 
@@ -218,7 +241,7 @@ async function main(): Promise<void> {
 
       const loss = await net.train(buffer);
       await net.save(netDir);
-      writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames });
+      saveMeta();
 
       console.log(
         `iter ${iteration} — ${a.games} games (${totalGames} total) in ${secs(genMs)} self-play, ` +
@@ -228,8 +251,19 @@ async function main(): Promise<void> {
       if (a.evalEvery > 0 && iteration % a.evalEvery === 0) {
         const t1 = now();
         const winRate = evaluate(net, a);
+        let tag = "";
+        // KEEP-BEST: retain the highest-eval net under `<dir>/best`. `>=` so the
+        // most RECENT net wins ties — later nets have seen more experience.
+        if (winRate >= bestScore) {
+          bestScore = winRate;
+          bestIteration = iteration;
+          await net.save(bestDir);
+          saveMeta();
+          tag = "  ← new best (saved to best/)";
+        }
         console.log(
-          `  eval — net vs ${a.rule}: ${(winRate * 100).toFixed(1)}% over ${a.evalGames} games (${secs(now() - t1)})`,
+          `  eval — net vs ${a.rule}: ${(winRate * 100).toFixed(1)}% over ${a.evalGames} games ` +
+            `(${secs(now() - t1)})${tag}`,
         );
       }
     }
@@ -238,8 +272,12 @@ async function main(): Promise<void> {
   }
 
   await net.save(netDir);
-  writeMeta(a.dir, { iteration, totalSelfPlayGames: totalGames });
-  console.log(`Saved. Stopped at iteration ${iteration}. Re-run to resume.`);
+  saveMeta();
+  const bestNote =
+    bestIteration > 0
+      ? ` Best eval ${(bestScore * 100).toFixed(1)}% at iter ${bestIteration} (in best/).`
+      : "";
+  console.log(`Saved. Stopped at iteration ${iteration}. Re-run to resume.${bestNote}`);
 }
 
 main().catch((err: unknown) => {

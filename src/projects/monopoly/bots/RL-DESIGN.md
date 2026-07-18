@@ -459,23 +459,51 @@ The earlier draft of this list opened with THROUGHPUT; the review demoted it. Se
 throughput is step 5, not step 1: growing search/compute before the loop provably
 learns just scales a collapse. The concrete work, in order:
 
-1. **Measure-first — the gate on everything now.** (a) **Frozen-`Contender` judge:**
-   snapshot a trained net as a fieldable version so the real Elo/SPRT gauntlet
-   (`sim:gauntlet`, `sim:ratings`) rates it against the archive, not just the built-in
-   `claude-v2` win-rate eval (the field FLOOR). (b) **Keep-best:** retain the
-   highest-eval checkpoint each cycle instead of overwriting the latest — RL is
-   non-monotone, a bad cycle must not destroy a good net. Until strength is observable
-   and monotone, every change below is flying blind.
-2. **Imitation policy warm-start** (not just value bootstrap): map rule-bot moves onto
-   atomic tokens so gen-0 has a competent policy prior, not uniform-legal noise.
-3. **Exploration:** Dirichlet root noise + temperature-sampled self-play moves — without
-   it the loop only reinforces the current net's preferences and can't discover.
-4. **Value-target fix:** discount / bootstrap from V instead of the raw final-winner
-   one-hot, and stop labeling truncated games by net-worth leader.
+> **STATUS (2026-07-19 overnight leg).** Three of the review's fixes landed — **keep-best
+> (#1b), Dirichlet exploration (#3), and the value-target fix (#4)** — all typecheck +
+> lint clean and covered by the RL unit tests. Then the FIRST measured run
+> (`rl-checkpoints/measured-0719`, gitignored; 30 iters, 6 games/iter, 24 sims).
+> **Measured result — plainly:** the loop RUNS end-to-end (bootstrap → self-play → train
+> → eval → keep-best all functioning) and the training loss falls (2.90 → 2.40), but it
+> does **NOT** learn to beat the floor — **eval win-rate vs claude-v2 was 0.0% at every
+> one of the 6 eval points (iters 5/10/…/30).** The cause is measured, not guessed: gen-0
+> self-play is SHALLOW. The uniform-legal policy + MCTS keeps picking a non-progressing
+> atomic token (`applyCandidate` returns the same state → the game is abandoned), so a
+> self-play "game" records only ~6 samples before it dies at turn ~1–2. The net trains,
+> but on almost no strategic trajectory — so it can't beat a 35-gen floor bot. This is
+> exactly what **imitation policy warm-start (#2, still open)** fixes: a competent gen-0
+> policy plays full games, the precondition for the value/exploration fixes to have deep
+> trajectories to bite on. **#2 is now the highest-leverage open item, not #1a.** Also
+> observed: **`evaluate()` runs its games SERIALLY on the main thread** (not the
+> `SelfPlayPool`) — each 6-game eval took ~95s while a whole self-play iter took ~0.3s,
+> so EVAL, not self-play, dominates wall-clock; parallelizing it (or cutting
+> `--eval-games`) is a cheap throughput win folded into #5.
+
+1. **Measure-first.** (a) **Frozen-`Contender` judge — STILL OPEN:** snapshot a trained
+   net as a fieldable version so the real Elo/SPRT gauntlet (`sim:gauntlet`,
+   `sim:ratings`) rates it against the archive, not just the built-in `claude-v2`
+   win-rate eval (the field FLOOR). (b) **Keep-best — ✅ DONE (2026-07-19):** the trainer
+   now retains the highest-eval net under `<dir>/best` (separate from the always-
+   overwritten `<dir>/net` latest), tracked in `meta.json` (`bestScore`/`bestIteration`),
+   restored on resume. See `train-cli.ts`.
+2. **Imitation policy warm-start — STILL OPEN, now the top lever** (see STATUS): map
+   rule-bot moves onto atomic tokens so gen-0 has a competent policy prior, not uniform-
+   legal noise. The measured run shows why this is #1 now: without it, gen-0 self-play
+   abandons games at ~6 samples, so there is almost no trajectory for #3/#4 to learn from.
+3. **Exploration — ✅ DONE (2026-07-19):** Dirichlet root noise (ε=0.25, α=0.3) mixed into
+   the MCTS root priors, TRAINING-ONLY (off by default so the `Bot`/eval path stays pure &
+   greedy), seeded from `state.rngState` so self-play stays reproducible. Visit-proportional
+   sampling of the first `explorationMoves` plies was already present. See `mcts.ts`
+   (`MctsOptions.dirichlet`) + `selfplay.ts`.
+4. **Value-target fix — ✅ DONE (2026-07-19):** every recorded state's value target is now
+   discounted toward the neutral 1/n prior by `γ^(turns-to-end)` (γ=0.99), and TRUNCATED
+   (turn-cap / stall) games are labeled by net-worth SHARE (a soft distribution), not a
+   fabricated net-worth-leader one-hot. See `selfplay.ts` (`outcomeDistribution` +
+   `valueTargetFor`).
 5. **THEN lift search depth / throughput:** batch leaf net evals across the tree and
    across parallel self-play games (`selfplay-parallel.ts` / `selfplay-worker.ts`),
-   memoize `legalActions` per node, cache chance children. Only **grow the net** if you
-   observe underfitting *after* steps 1–4. This is where the eGPU earns its keep
-   (batched throughput), not before.
+   memoize `legalActions` per node, cache chance children, and PARALLELIZE `evaluate()`
+   (currently serial — see STATUS). Only **grow the net** if you observe underfitting
+   *after* steps 1–4. This is where the eGPU earns its keep (batched throughput), not before.
 6. **Off-turn trade arming in self-play** (the capability exists; the self-play
    driver only explores on-turn decisions today).
