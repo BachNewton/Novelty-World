@@ -21,6 +21,7 @@
     "game:review": "tsx src/projects/monopoly/bots/review-cli.ts",
     "game:offers": "tsx src/projects/monopoly/bots/offers-cli.ts",
     "sim:1v3": "tsx src/projects/monopoly/bots/one-v-three-cli.ts",
+    "sim:probe-gate": "tsx src/projects/monopoly/bots/probe-gate-cli.ts",
     "bot-brief": "node src/projects/monopoly/bots/bot-brief-cli.mjs",
     "bench": "vitest bench --run",
     "test:e2e": "playwright test",
