@@ -3,13 +3,14 @@ import { FEATURE_COUNT, MAX_SEATS } from "./features";
 import { ACTION_COUNT } from "./actions";
 import { MonoNet } from "./net";
 import { collectRuleGame, playSelfPlayGame } from "./selfplay";
+import { tfjsUsable } from "./tfjs-usable";
 
 const sumsToOneOrZero = (a: Float32Array): boolean => {
   const s = a.reduce((x, v) => x + v, 0);
   return Math.abs(s - 1) < 1e-3 || s === 0;
 };
 
-describe("self-play recorder + bootstrap", () => {
+describe.skipIf(!tfjsUsable)("self-play recorder + bootstrap", () => {
   it("self-play produces well-formed training samples", () => {
     const net = MonoNet.create();
     const samples = playSelfPlayGame(net, "sp-1", {

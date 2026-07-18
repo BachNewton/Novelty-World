@@ -4,8 +4,9 @@ import { simulateGame } from "./simulate";
 import { legalActions } from "./actions";
 import { MonoNet } from "./net";
 import { mctsBot, mctsSearch } from "./mcts";
+import { tfjsUsable } from "./tfjs-usable";
 
-describe("MCTS over the policy+value net", () => {
+describe.skipIf(!tfjsUsable)("MCTS over the policy+value net", () => {
   it("is a pure function of (state, net): same inputs → same chosen action", () => {
     const net = MonoNet.create();
     const state = freshGame("mcts-det", undefined, 4);

@@ -6,12 +6,13 @@ import { freshGame } from "../mocks";
 import { encode, FEATURE_COUNT, MAX_SEATS } from "./features";
 import { ACTION_COUNT, legalActions } from "./actions";
 import { MonoNet, maskPolicy, type TrainSample } from "./net";
+import { tfjsUsable } from "./tfjs-usable";
 
 const close = (x: number, target: number, eps = 1e-3): boolean =>
   Math.abs(x - target) < eps;
 const sum = (a: Float32Array): number => a.reduce((s, v) => s + v, 0);
 
-describe("policy+value net", () => {
+describe.skipIf(!tfjsUsable)("policy+value net", () => {
   it("predicts well-formed policy + value heads, batched", () => {
     const net = MonoNet.create();
     const state = freshGame("net-1", undefined, 4);
