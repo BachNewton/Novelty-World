@@ -129,6 +129,13 @@ import { fableV8Bot } from "./fable-v8";
 // prices every turn — probe games logged 5 and 7 re-pitches of one identical
 // swap with cosmetic repricing). See its index.ts + EVOLUTION.md.
 import { fableV9Bot } from "./fable-v9";
+// fable-v10 — PRICE-AWARE RESERVE on the fable-v8 substrate (branched from
+// v8, not the rejected v9): required reserve = min(flat floor,
+// spendReserveMult × cash spent). From probe game 5: the flat floor refused
+// an $8 mutual-monopoly swap and a $60 completer, freezing bot-to-bot
+// completer trades ~47 turns while a seat died set-less. Big drains still
+// blocked. See its index.ts + EVOLUTION.md.
+import { fableV10Bot } from "./fable-v10";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -182,6 +189,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v7": fableV7Bot,
   "fable-v8": fableV8Bot,
   "fable-v9": fableV9Bot,
+  "fable-v10": fableV10Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
