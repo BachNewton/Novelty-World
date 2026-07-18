@@ -478,6 +478,24 @@ learns just scales a collapse. The concrete work, in order:
 > `SelfPlayPool`) — each 6-game eval took ~95s while a whole self-play iter took ~0.3s,
 > so EVAL, not self-play, dominates wall-clock; parallelizing it (or cutting
 > `--eval-games`) is a cheap throughput win folded into #5.
+>
+> **THEN #2 landed too — imitation policy warm-start (`collectRuleGame`).** Each rule-bot
+> decision's policy target now imitates the rule bot's move where it maps 1:1 to a single
+> atomic token (a smoothed one-hot, `IMITATE_WEIGHT` 0.9), else uniform-over-legal —
+> covering the common reactive decisions (roll/buy/jail/votes/arm; bucketed bids and
+> multi-step trade/manage stay uniform). **It works, measured:** the same 30-iter run
+> (`rl-checkpoints/measured-0719-imit`) went from ~6 samples/self-play-game to
+> **~130–380** — the competent gen-0 policy plays FULL games instead of abandoning at
+> turn 1, so the shallow-trajectory blocker is GONE. **But eval vs claude-v2 was still
+> 0.0% at all 6 points.** That is now an HONEST scale/resolution result, not a structural
+> one: (a) 30 iters = 180 games is nowhere near enough to surpass a 35-generation SPRT-
+> tuned bot; (b) the imitated policy is a LOSSY copy (atomic-token approximation + a small
+> MLP + 24-sim MCTS), so gen-0 starts *below* its claude-v2 teacher and must be TRAINED
+> up; (c) the 6-game eval's 16.7% granularity can't even see sub-floor learning. **So the
+> frontier is now exactly what the review's tail predicted: SCALE (many more iters, the
+> throughput/#5 + eGPU levers) measured by a FINER judge (#1a frozen-`Contender` gauntlet,
+> or at minimum more eval games).** The structural work is done; what remains is compute
+> and a sharper ruler.
 
 1. **Measure-first.** (a) **Frozen-`Contender` judge — STILL OPEN:** snapshot a trained
    net as a fieldable version so the real Elo/SPRT gauntlet (`sim:gauntlet`,
@@ -486,10 +504,13 @@ learns just scales a collapse. The concrete work, in order:
    now retains the highest-eval net under `<dir>/best` (separate from the always-
    overwritten `<dir>/net` latest), tracked in `meta.json` (`bestScore`/`bestIteration`),
    restored on resume. See `train-cli.ts`.
-2. **Imitation policy warm-start — STILL OPEN, now the top lever** (see STATUS): map
-   rule-bot moves onto atomic tokens so gen-0 has a competent policy prior, not uniform-
-   legal noise. The measured run shows why this is #1 now: without it, gen-0 self-play
-   abandons games at ~6 samples, so there is almost no trajectory for #3/#4 to learn from.
+2. **Imitation policy warm-start — ✅ DONE (2026-07-19):** each `collectRuleGame` decision's
+   policy target imitates the rule bot's move where it maps 1:1 to a single atomic token
+   (smoothed one-hot, `IMITATE_WEIGHT` 0.9), else uniform-over-legal. MEASURED to lift
+   self-play depth from ~6 to ~130–380 samples/game (gen-0 plays full games) — the
+   shallow-trajectory blocker is gone. Eval still 0% at 30 iters: the remaining gap is
+   SCALE + eval RESOLUTION (see STATUS), i.e. items #1a and #5, not policy quality.
+   See `selfplay.ts` (`imitationToken` + the imitative branch of `collectRuleGame`).
 3. **Exploration — ✅ DONE (2026-07-19):** Dirichlet root noise (ε=0.25, α=0.3) mixed into
    the MCTS root priors, TRAINING-ONLY (off by default so the `Bot`/eval path stays pure &
    greedy), seeded from `state.rngState` so self-play stays reproducible. Visit-proportional

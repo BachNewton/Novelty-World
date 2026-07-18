@@ -1,9 +1,9 @@
 import { autoStep, createRng, netWorth, type Rng } from "../engine";
 import { freshGame } from "../mocks";
-import { driveOp } from "../pacing";
+import { driveOp, type DriveOp } from "../pacing";
 import type { GameState, PlayerCount } from "../types";
 import { encode, MAX_SEATS } from "./features";
-import { ACTION_COUNT, applyCandidate, legalActions } from "./actions";
+import { type Action, ACTION_COUNT, applyCandidate, legalActions } from "./actions";
 import type { MonoNet, TrainSample } from "./net";
 import { decisionOwner, mctsSearchFull, type MctsOptions } from "./mcts";
 
@@ -20,11 +20,13 @@ import { decisionOwner, mctsSearchFull, type MctsOptions } from "./mcts";
 //     so games vary, which is what self-play needs to discover strategy.
 //
 //   - `collectRuleGame`: plays a rule-bot game and records (state → outcome) for
-//     the VALUE warm-start. The policy target is uniform-over-legal — the rule
-//     bot's whole-action moves don't map cleanly onto atomic tokens, but its
-//     OUTCOMES are exactly the value signal that keeps gen-0 from being random
-//     (RL-DESIGN.md §3.4 step 5: "bootstrap … states→outcomes for value"). Policy
-//     imitation is a later enhancement.
+//     the VALUE warm-start AND (state → rule-bot move) for the POLICY IMITATION
+//     warm-start. Where the rule bot's move maps 1:1 to a single atomic token
+//     (buy/roll/jail/votes/arm — the common reactive decisions), the policy target
+//     is a smoothed one-hot on it; where it doesn't (bucketed bids, multi-step
+//     trade/manage assembly), it falls back to uniform-over-legal. So gen-0 has a
+//     COMPETENT policy prior on the bulk of decisions, not uniform noise — the
+//     precondition for self-play to play full games instead of abandoning at turn 1.
 //
 // DETERMINISM: a game is reproducible from its seed — the MCTS internals seed from
 // `state.rngState`, and the exploration sampler is a single seeded `Rng`. Two runs
@@ -220,8 +222,43 @@ export interface RuleGameOptions {
   maxTurns?: number;
 }
 
+/** Order-independent canonical serialization, so two structurally-equal intents
+ *  compare equal regardless of object-key order. */
+function canon(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(canon).join(",")}]`;
+  const obj = v as { [k: string]: unknown };
+  return `{${Object.keys(obj)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${canon(obj[k])}`)
+    .join(",")}}`;
+}
+
+/** The atomic token whose op EQUALS the rule bot's chosen `op`, or null when the
+ *  rule bot's whole-action doesn't correspond 1:1 to a single atomic token
+ *  (IMITATION policy warm-start, RL-DESIGN.md §8 #2). A ROLL/step matches the step
+ *  token; an intent matches the legal action carrying the identical intent. Flat
+ *  reactive moves (buy/decline/jail/votes/arm) match; bucketed bids and multi-step
+ *  trade/manage assembly do NOT (the atomic layer expresses them as token
+ *  SEQUENCES) → null, and the caller falls back to a uniform-over-legal target.
+ *  Matching by identical intent (not by resulting state) can only MISS, never
+ *  mis-map — a false negative just costs coverage, never a wrong label. */
+function imitationToken(acts: readonly Action[], op: DriveOp): number | null {
+  if (op.kind === "step") return acts.find((a) => a.op.kind === "step")?.token ?? null;
+  const target = canon(op.intent);
+  const match = acts.find((a) => a.op.kind === "intent" && canon(a.op.intent) === target);
+  return match?.token ?? null;
+}
+
+/** Imitation label weight: the rule bot's move gets `IMITATE_WEIGHT`, the rest of
+ *  the legal mass is spread uniformly — a smoothed target, not a hard one-hot, so
+ *  gen-0 has a competent-but-not-brittle prior that self-play/MCTS then refines. */
+const IMITATE_WEIGHT = 0.9;
+
 /** Play one rule-bot game (every seat `ruleLabel`) and record (state → outcome)
- *  for the VALUE warm-start. Policy targets are uniform-over-legal. */
+ *  for the value warm-start AND the POLICY imitation warm-start (RL-DESIGN.md §8
+ *  #2): each decision's policy target imitates the rule bot's move where it maps to
+ *  a single atomic token (a smoothed one-hot), else falls back to uniform-over-legal. */
 export function collectRuleGame(
   seed: string,
   ruleLabel: string,
@@ -240,24 +277,26 @@ export function collectRuleGame(
     legalTokens: number[];
     moverIdx: number;
     turn: number;
+    imitateToken: number | null;
   }[] = [];
 
   for (let i = 0; i < 200_000 && state.status === "active"; i++) {
     if (state.turns[state.turns.length - 1].turn > maxTurns) break;
     const owner = decisionOwner(state);
-    if (owner !== null) {
-      const acts = legalActions(state, owner);
-      if (acts.length > 0) {
-        recs.push({
-          encoding: encode(state, owner),
-          legalTokens: acts.map((a) => a.token),
-          moverIdx: state.players.findIndex((p) => p.id === owner),
-          turn: state.turns[state.turns.length - 1].turn,
-        });
-      }
-    }
+    const acts = owner !== null ? legalActions(state, owner) : [];
+    // The op is the rule bot's chosen move at THIS decision (owner's, when there is
+    // one) — computed before recording so its atomic token is the imitation target.
     const op = driveOp(state, true, null);
     if (op === null) break;
+    if (owner !== null && acts.length > 0) {
+      recs.push({
+        encoding: encode(state, owner),
+        legalTokens: acts.map((a) => a.token),
+        moverIdx: state.players.findIndex((p) => p.id === owner),
+        turn: state.turns[state.turns.length - 1].turn,
+        imitateToken: imitationToken(acts, op),
+      });
+    }
     const next = applyCandidate(
       state,
       op.kind === "step" ? { kind: "step" } : { kind: "intent", intent: op.intent },
@@ -271,8 +310,17 @@ export function collectRuleGame(
   const finalTurn = state.turns[state.turns.length - 1].turn;
   return recs.map((r) => {
     const policyTarget = new Float32Array(ACTION_COUNT);
-    const u = 1 / r.legalTokens.length;
-    for (const t of r.legalTokens) policyTarget[t] = u;
+    if (r.imitateToken !== null) {
+      // IMITATION target: IMITATE_WEIGHT on the rule bot's move, the rest spread
+      // uniformly over legal tokens (sums to 1 — a smoothed one-hot).
+      const spread = (1 - IMITATE_WEIGHT) / r.legalTokens.length;
+      for (const t of r.legalTokens) policyTarget[t] = spread;
+      policyTarget[r.imitateToken] += IMITATE_WEIGHT;
+    } else {
+      // No 1:1 atomic token for the rule bot's whole-action → uniform-over-legal.
+      const u = 1 / r.legalTokens.length;
+      for (const t of r.legalTokens) policyTarget[t] = u;
+    }
     return {
       encoding: r.encoding,
       policyTarget,

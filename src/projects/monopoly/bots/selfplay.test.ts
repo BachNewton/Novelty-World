@@ -43,4 +43,26 @@ describe.skipIf(!tfjsUsable)("self-play recorder + bootstrap", () => {
     const loss = await net.train(samples);
     expect(Number.isFinite(loss)).toBe(true);
   }, 120_000);
+
+  it("imitation warm-start: a substantial fraction of policy targets are peaked", () => {
+    const samples = collectRuleGame("imit-1", "claude-v2", { players: 4, maxTurns: 200 });
+    expect(samples.length).toBeGreaterThan(0);
+    let peaked = 0;
+    for (const s of samples) {
+      // Every target still sums to 1 (imitative smoothed-one-hot OR uniform).
+      expect(sumsToOneOrZero(s.policyTarget)).toBe(true);
+      const max = s.policyTarget.reduce((m, v) => Math.max(m, v), 0);
+      // An imitated target carries IMITATE_WEIGHT (0.9) on one legal token; a
+      // uniform fallback peaks at 1/k. 0.5 cleanly separates the two.
+      if (max > 0.5) {
+        peaked += 1;
+        // The peak sits on a legal token whose mass is the imitation weight.
+        expect(max).toBeGreaterThan(0.85);
+      }
+    }
+    // The mapping must actually FIRE (roll/buy/jail/votes/arm all map 1:1), not
+    // silently fall back to uniform everywhere — else the warm-start does nothing.
+    const coverage = peaked / samples.length;
+    expect(coverage).toBeGreaterThan(0.2);
+  }, 120_000);
 });
