@@ -1,132 +1,138 @@
 ---
-description: Play a Monopoly probe game as a human-style seat vs the bots — find exploits, validate fixes, and propose the next bot evolution
-argument-hint: "[version to probe — default: the newest registered fable] [archetype: expert|casual|<custom>] [optional focus]"
+description: Red-team the current best Monopoly bot with a fleet of pro-level player agents — find exploits, measure repeatability, and report where the bots should go next
+argument-hint: "[fleet as NxM agents x games-each — default 3x3] [version to probe — default: the lobby default] [optional focus]"
 allowed-tools: Bash, Read, Write, Grep, Glob, Agent
 ---
 
-Run a **Fable-played probe game**: a model-driven player takes one seat against
-three bot opponents through the stepped-game CLI (`bots/played-cli.ts`), plays a
-full game turn-by-turn, and turns what it sees into evidence for the bot
-evolution loop. Target/archetype/focus from the user: **$ARGUMENTS**
+Run a **probe fleet**: N player agents, each playing M full Monopoly games
+against three bot opponents through the stepped-game CLI
+(`bots/played-cli.ts`), every agent playing **to win at the highest
+professional level — anything legal goes, including reading the bot code to
+solve its thresholds exactly**. The fleet reports back; you (the main agent)
+synthesize a direction report for the bot evolution loop. User input:
+**$ARGUMENTS**
 
-This methodology is the archive's proven discovery engine: probe games 1–9
-(2026-07-18, "the 4q3y6i night" + the extended block in `bots/EVOLUTION.md`)
-produced the decisive evidence for fable-v5, v7, v8, v11, and v12 — including a
-strict crown — and live-validated every fix the same day it shipped. Its edge
-is exactly what self-play cannot do: it exercises the trade/auction surfaces
-mirror games never touch, and it **measures boundaries** instead of observing
-single data points. Run every command from the repo root.
+Why this exists: single probe games (1–9, "the 4q3y6i night" in
+`bots/EVOLUTION.md`) were the archive's discovery engine — they produced the
+decisive evidence for five shipped versions including a strict crown. The
+fleet generalizes it: real-time adversarial play finds what abstract
+rule-reasoning misses, white-box play measures the exploitability CEILING
+(the bot code is public — a motivated human can read it too), and
+multi-game-per-agent play measures **repeatability**, which no single game
+can. Run every command from the repo root.
+
+## Cost — state it before launching
+
+One game ≈ 150–500k subagent tokens, ~30–45 min. Agents run in parallel;
+each agent's M games run sequentially. So `3x3` ≈ 9 games ≈ 2–4M tokens,
+~2h wall-clock; `10x10` ≈ 100 games ≈ 15–50M tokens, ~6h. Default to **3x3**
+unless the user sized the fleet themselves; if the requested fleet implies
+>10M tokens and the user didn't give explicit numbers, confirm before
+launching.
 
 ## Steps
 
-1. **Load the state.** Read `bots/champion.ts` (crown/substrate),
-   the newest "As of" status block in `bots/EVOLUTION.md` (which carries the
-   CLOSED-exploit list and standing leads), and `bots/CLAUDE.md`'s
-   "human-counterparty model" section. Pick the target version: the user's
-   choice, else **the newest registered fable version** (`versions/index.ts`) —
-   lesson one below explains why newest.
+1. **Load the state.** `bots/champion.ts` (crown/substrate), the newest
+   "As of" status block in `bots/EVOLUTION.md` (the CLOSED-exploit list +
+   standing leads), `bots/CLAUDE.md` (the strategic model + the
+   human-counterparty section). Target version: the user's choice, else the
+   **derived lobby default** (top of `bots/ratings.ts`, i.e. what real humans
+   face — resolve it, don't guess).
 
-2. **Create the game** (state persists in a JSON file; keep it for later
-   analysis — it is also L1 training data):
+2. **Assign each agent a distinct ATTACK LENS** — the fleet's value is
+   coverage, not repetition. Draw from (and extend as the target's known
+   surfaces suggest): trade extraction & counter-negotiation · auction
+   warfare · liquidity siege (rent-pressure timing) · denial & blocking ·
+   endgame heads-up play · jail/tempo economics · rail & utility networks ·
+   **white-box threshold-solving** (read the policy, compute exact accept
+   boundaries, play them) · **black-box naturalistic** (exactly one agent
+   plays WITHOUT reading bot code, so behaviorally-discoverable findings stay
+   separable from white-box-only ones). Every lens plays full-strength to
+   win; a lens is a search direction, not a persona.
 
-       npx tsx src/projects/monopoly/bots/played-cli.ts new <scratchpad>/probe-<n>.json probe-<n> <version> --human
+3. **Launch the fleet in parallel** (background agents). Each agent gets the
+   prompt template below with: its lens, the CLOSED list, M, and its own
+   file paths. Each game is created fresh:
 
-   **Always `--human`**: since fable-v11 the bots carry human-gated behavior
-   (`botStrategy === null`) — without the flag the human-counterparty model
-   never fires and the probe measures the wrong bot. Caveat: a human-marked
-   seat's `bot-note` annotations are engine no-ops, so the player's reasoning
-   lives in the findings file, not the transcript.
+       npx tsx src/projects/monopoly/bots/played-cli.ts new <scratchpad>/probe-<agent>-<game>.json probe-<agent>-<game> <version> --human
 
-3. **Spawn the player as a background agent** (a full game runs ~100–330 turns,
-   ~30–45 minutes, ~150–500k subagent tokens — run it in the background and do
-   other work; the completion notification brings the verdict). Build its
-   prompt from the template below, filling in the CLOSED list and the focus.
+   **Always `--human`** — the bots carry human-gated behavior
+   (`botStrategy === null`); without the flag the fleet measures the wrong
+   bot. (A human-marked seat's `bot-note`s are engine no-ops; reasoning goes
+   in the findings file.) Keep the game JSONs — they are analysis material
+   and L1 training data.
 
-4. **On completion, triage the findings** (this is the point):
-   - **Suspected engine bugs: verify before believing.** The player reads
-     events, not internals, and has been confidently wrong (the `estateCash`
-     "bug" of probe 8 was the engine being exactly right about inherited-
-     mortgage interest). Re-derive the claim from the saved game JSON
-     (`state.turns` has every event) before it goes anywhere near the record.
-   - **New defects** become version hypotheses: frame each in the policy's own
-     terms (`bots/CLAUDE.md`), check "Considered and rejected" first, then
-     propose the smallest coherent dim with a red/green fixture idea.
-   - **Closed-exploit regressions** and **fix validations** update the CLOSED
-     list in the EVOLUTION status.
-   - **Behavioral data** (offer ladders, acceptance rates) feeds the
-     human-model priors (`npm run game:offers` is the corpus authority).
+4. **Synthesize when the fleet reports.** This is the point:
+   - **Dedupe and rank findings across agents** by repeatability (how many
+     independent agents/games hit it) × impact (did it decide games?) ×
+     tag (**white-box** — needed code knowledge — vs **behavioral** — the
+     black-box agent or ladder-probing found it; behavioral findings are the
+     more urgent fixes, white-box findings bound the worst case).
+   - **Compute the fleet scoreboard**: wins/losses per agent and overall
+     fleet win rate vs the target — the tracked benchmark future versions get
+     measured against (record it with the target version's label).
+   - **Verify any suspected engine bug against the saved game JSON before it
+     enters the record** — agents read events, not internals, and have been
+     confidently wrong (probe 8's `estateCash` false alarm; the engine was
+     right).
+   - **Check every proposal against the record** — `bots/CLAUDE.md`
+     "Considered and rejected", the EVOLUTION version log (fable-v9/v10 were
+     REJECTED because their probe-motivated fixes broke load-bearing
+     self-play behavior), and the standing invariant: human-facing pricing
+     fixes live behind the human gate, never in the shared evaluator.
 
-5. **Report and propose.** Outcome first (who won, how), then per-item
-   verdicts with turn evidence, then the ranked proposals. **This command is
-   play-and-propose** — building a version afterwards is a separate decision
-   that goes through `bots/METHOD.md` (hypothesis → snapshot → red/green tests
-   → screen → gauntlet/identity-proof), never straight from a probe story.
+5. **Write the direction report.** Fleet scoreboard first, then the ranked
+   findings (each with turn-stamped evidence, repeatability count, and a
+   one-line policy lever framed in `positionValue`/constants terms), the
+   CLOSED-list re-verification results, over-caution observations, and
+   finally: **where the bots should go next** — 1–3 proposed version
+   hypotheses, each with a red/green fixture idea. **This command is
+   play-and-report** — building versions afterwards goes through
+   `bots/METHOD.md` (hypothesis → snapshot → red/green → screen →
+   gauntlet/identity-proof); expect probe-found surfaces to screen EVEN in
+   self-play (that invisibility is itself the finding) and expect the gate to
+   reject some proposals — it arbitrates, the fleet only proposes.
 
-## The distilled lessons (read these into the player prompt and your triage)
+## Distilled lessons (bake these into the agent prompts and your synthesis)
 
-1. **Probe the newest bot.** Every probe of a freshly-shipped version found the
-   *next* version's evidence — the loop is probe → fix → gate → probe. Probing
-   an old version re-finds fixed defects.
-2. **The player must not read policy source** (nothing under
-   `bots/versions/`). Discovery must be behavioral, like a human's — the
-   author's knowledge of the code biases what gets found (Papa found the rail
-   exploit with no code access). `types.ts` and `data.ts` are allowed (any
-   human effectively knows the board and the move surface).
-3. **Ladders, not single offers.** The unique capability over real human games
-   is boundary measurement: offer the same asset at 1.0×/1.5×/2×/2.5×/3× book
-   and record every verdict. That is how the rail floor (~book+$130), the
-   drain boundary (97%→4% of wallet), and the $75 human margin
-   (book+$60 decline / +$110 accept) were pinned. A human never gives you five
-   price points on one asset.
-4. **Carry the CLOSED list forward.** Every probe re-verifies previously
-   closed exploits (regression-testing behavior in live play) *and* free-hunts
-   for what is not on the list. The current list lives in the newest EVOLUTION
-   status block.
-5. **Watch both failure directions.** Exploitability is one defect class;
-   **over-caution is the other** — stacked guards can compound into passivity
-   (hoarding, undeveloped monopolies, refusing all commerce). Give the player
-   an explicit over-correction watch; "no over-caution observed" is a finding.
-6. **Findings are hypotheses, not verdicts.** Expect probe-found surfaces to
-   screen EVEN in self-play (mirrors never exercise them — that invisibility
-   IS the finding, and the defect-removal promotion pattern covers it). And
-   expect some obvious-looking fixes to be **REJECTED** at the gate: fable-v9
-   (re-pitch spam step) and fable-v10 (price-blind reserve) both died on the
-   holdout stream because the "degenerate" churn was load-bearing in
-   self-play. The gate arbitrates; the probe only proposes. Human-facing fixes
-   belong behind the human gate (the `bots/CLAUDE.md` invariant), where
-   validation is identity-proof (pinned + N seeded identical games) plus a
-   live `--human` probe — not SPRT, and say so plainly in the record.
-7. **Vary the archetype deliberately.** Expert play finds exploits; a CASUAL
-   archetype (buy everything, accept "feels fair" trades, no reserve, no
-   ask-refusal discipline) brackets the human-model priors — the corpus
-   acceptance spectrum (casual ≈38% / real humans 9–15% / expert ≈0) came from
-   exactly that contrast. State the archetype in the player prompt and keep it
-   in character.
-8. **Mechanics that keep the game moving:** work from the repo root; `pass` at
-   pre-roll rolls (and at jail-decision rolls for doubles); a REJECTED intent
-   does not advance — read the reason and retry; batch through trivial pauses
-   fast and spend reasoning on trades/auctions/development; trades are
-   arm (`set-queue`) → `update-trade-draft` → `propose-trade`, with `cashDelta`
-   netting to zero; if the same pause repeats unfixably, stop and record it.
-9. **Findings file discipline:** the player appends findings AS IT PLAYS
-   (`<scratchpad>/probe-<n>-findings.md`) — outcome, per-probe-item verdicts
-   with turn numbers and exact prices, then ranked new findings each with a
-   one-line policy implication. The final agent reply is a compact summary;
-   the file is the evidence.
+1. **Probe the current best** — each probe of a freshly-shipped version found
+   the next version's evidence; probing old versions re-finds fixed defects.
+2. **Ladders, not single offers** — boundary measurement is the capability
+   real human games never give: same asset at 1.0×/1.5×/2×/2.5×/3× book,
+   record every rung (this pinned the rail floor, the wallet-drain boundary,
+   and the $75 human margin).
+3. **Carry the CLOSED list** — every game re-verifies prior fixes in live
+   play and free-hunts beyond them.
+4. **Over-caution is a defect class of its own** — stacked guards can
+   compound into passivity (hoarding, undeveloped monopolies, refusing all
+   commerce); "none observed" is a finding.
+5. **Repeatability beats anecdote** — an agent must re-attempt its game-1
+   exploits in games 2..M and report the hit rate; a 3/3 exploit outranks
+   any single-game story.
+6. **Mechanics:** repo root; `pass` at pre-roll rolls (jail-decision: rolls
+   for doubles); a REJECTED intent does not advance — read the reason,
+   retry; trades are arm (`set-queue`) → `update-trade-draft` →
+   `propose-trade` with `cashDelta` netting to zero; batch trivial pauses,
+   spend reasoning on trades/auctions/development; if a pause repeats
+   unfixably, record it and stop that game.
 
 ## Player-agent prompt template
 
-> You are playing a full game of Monopoly against three <version> bot opponents
-> through a stepped-game CLI, with your seat marked as a REAL human. Mission:
-> (1) play the <archetype> archetype to win; (2) re-verify the CLOSED exploit
-> list: <list from EVOLUTION status>; (3) probe agenda: <focus, plus offer
-> ladders on completers/rails/blockers>; (4) watch for over-caution as its own
-> defect class. CONSTRAINT: do not read any bot policy source (nothing under
-> src/projects/monopoly/bots/versions/); you may read types.ts and data.ts.
-> Commands (from repo root): show / act '<intent JSON>' / pass, on
-> <game file>. Record every bot offer with exact terms; run price ladders and
-> record every rung. Append findings to <findings file> as you play. Play to
-> completion (game-over or ~turn 250). Do not modify any repo source files.
-
-Fill every `<placeholder>` concretely — the CLOSED list and the archetype are
-what make the probe cumulative rather than repetitive.
+> You are agent <k> of a probe fleet red-teaming <version>, the current best
+> Monopoly bot. You will play <M> full games (files listed below), one after
+> another, EACH to win at the highest professional level — anything legal
+> goes. Your assigned attack lens: <lens>. <If white-box: you may read the
+> bot's policy code under src/projects/monopoly/bots/versions/<version>/ and
+> compute its exact thresholds; exploit them explicitly.> <If black-box lens:
+> do NOT read any bot policy source; discover behavior from play only.>
+> Re-verify the CLOSED exploit list each game: <list>. Run price LADDERS on
+> completers/rails/blockers and record every rung. Carry your exploit
+> notebook between games and RE-ATTEMPT each exploit — report per-exploit hit
+> rates across your games. Watch for over-caution as its own defect class.
+> Commands (from repo root): show / act '<intent JSON>' / pass on the game
+> file. Append findings as you play to <findings file>: per-game outcome,
+> offer log with exact terms, ladder results, exploit notebook with hit
+> rates, each finding tagged WHITE-BOX or BEHAVIORAL with a one-line policy
+> implication. Final reply: compact summary — W/L record, top 3 exploits
+> with hit rates, over-caution verdict. Play each game to completion
+> (game-over or ~turn 250). Do not modify any repo source files.
