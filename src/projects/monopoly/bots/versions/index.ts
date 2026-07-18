@@ -46,6 +46,12 @@ import { janeV6Bot } from "./jane-v6";
 // the bot either wins the blocking property or forces the completing
 // opponent to overpay. See versions/jane-v7/index.ts.
 import { janeV7Bot } from "./jane-v7";
+// jane-v10 — jane-v6 + GREEDY MARGINAL-EV BUILD OPTIMIZER: replaces the static
+// spread+push heuristic with a greedy optimizer that picks the highest
+// expected-rent-per-dollar upgrade each step. Produces non-uniform final
+// levels and allocates capital more efficiently. A structural change to the
+// decision process, not a parameter tweak. See versions/jane-v10/index.ts.
+import { janeV10Bot } from "./jane-v10";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -212,6 +218,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v4": janeV4Bot,
   "jane-v6": janeV6Bot,
   "jane-v7": janeV7Bot,
+  "jane-v10": janeV10Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
