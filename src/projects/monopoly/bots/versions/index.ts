@@ -58,6 +58,12 @@ import { janeV10Bot } from "./jane-v10";
 // been touched since the lineage began. A structural change to the EVALUATION
 // FUNCTION, not the decision process. See versions/jane-v11/index.ts.
 import { janeV11Bot } from "./jane-v11";
+// jane-v12 — jane-v6 + MONTE CARLO SEARCH at build and trade-accept/deny.
+// The first architectural departure from the jane-v6 evaluation framework.
+// Instead of heuristic-only decisions, MC forward-simulates candidate build
+// plans and trade votes. Everything else uses jane-v6 unchanged. See
+// versions/jane-v12/index.ts.
+import { janeV12Bot } from "./jane-v12";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -226,6 +232,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v7": janeV7Bot,
   "jane-v10": janeV10Bot,
   "jane-v11": janeV11Bot,
+  "jane-v12": janeV12Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
