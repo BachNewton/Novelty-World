@@ -16,7 +16,6 @@ import { FABLE_V11_PARAMS, fableV11Bot } from "./index";
 // accepted; (4) determinism.
 
 const MEDITERRANEAN = 1;
-const READING = 5;
 const ST_JAMES = 16;
 const TENNESSEE = 18;
 const NEW_YORK = 19;

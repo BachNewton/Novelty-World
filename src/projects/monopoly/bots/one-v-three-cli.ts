@@ -11,9 +11,10 @@
 import { simulateGame } from "./simulate";
 import { versionBot } from "./versions";
 
-const [cand, baseLabel, gamesArg, prefixArg] = process.argv.slice(2);
-const GAMES = Number(gamesArg ?? "400");
-const PREFIX = prefixArg ?? "1v3";
+const args = process.argv.slice(2);
+const [cand, baseLabel] = args;
+const GAMES = Number(args.at(2) ?? "400");
+const PREFIX = args.at(3) ?? "1v3";
 const candidate = { label: cand, bot: versionBot(cand) };
 const base = { label: baseLabel, bot: versionBot(baseLabel) };
 
