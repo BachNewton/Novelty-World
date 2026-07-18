@@ -1121,13 +1121,15 @@ gauntlet-safe, validated by corpus backtest + live conversion; the
 wallet-peg ask tell and decline-walk-down farming are its first targets —
 the fable-v9 AND fable-v10 holdout rejections show shared-evaluator quality
 fixes keep costing self-play win share, so route human-facing fixes through
-the human model); (2) **the summit measurement**: the final regen's
-panel-graph top is fable-v10 (153.2) — a REJECTED-vs-base version whose
-panel column happens to include its counter-win over fable-v7, while its
-confirmed deficit vs the non-panel fable-v8 is invisible to the fit; the
-derived lobby default follows the ladder per doctrine (v10 is a
-summit-noise peer, players aren't harmed), but the panel needs fable-v8's
-column and a prune before the summit ordering means anything; (3) probe
+the human model); (2) **the summit measurement — fix applied, outcome honest**: fable-v8 was
+added to the panel (the claude-v45 precedent, decided on principle), giving
+every version a direct column vs the substrate. Result: the summit is a
+genuine 2.7-Elo noise cluster — fable-v10 152.7 > fable-v8 150.6 >
+fable-v7 150.0 (SE ±17) — so the derived default legitimately sits on
+fable-v10, a rejected-vs-base but summit-peer version; the crown record
+(fable-v7) carries the confidence, exactly the two-bests separation. The
+panel is 16 members; the prune lead stands. Distinguishing 2.7 Elo via
+ratings games would cost ~40× compute (METHOD's own warning) — don't; (3) probe
 game 6+ (each probe produced the next version's evidence); (4) L1 Stage A
 stands as the owner-approved big bet (LEAPS.md) — untouched tonight, still
 next in line for a long session. The earlier notes below stand as history.

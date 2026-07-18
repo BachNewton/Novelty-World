@@ -347,6 +347,15 @@ export const RATING_PANEL: readonly string[] = [
   // members (each costs k pairings per new version) is a flagged lead, left
   // for a session that can re-validate the graph after removal.
   "fable-v7",
+  // fable-v8 — added 2026-07-18 as a MEASUREMENT-QUALITY fix (the claude-v45
+  // precedent: summit representation, decided on principle rather than on whom
+  // it favors). fable-v8 is the SUBSTRATE and the base fable-v9/v10 were
+  // rejected against — without its column, fable-v10 topped the panel graph on
+  // its counter-win over fable-v7 while its confirmed holdout deficit vs
+  // fable-v8 was invisible to the fit, deriving a REJECTED version into the
+  // lobby default. With the column, the summit ordering is measured. The panel
+  // is now 16 members — the prune lead stands.
+  "fable-v8",
 ];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
