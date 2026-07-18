@@ -2,14 +2,19 @@
 // OFFLINE OPTIMIZATION TOOLING — the tunable parameter vector for a
 // FABLE-v1-shaped bot (the flow/extraction factory in `./bot.ts`).
 //
-// 47 dims: the 31 claude-v45-era base dims (claude-v38's constants + the v41
+// 55 dims: the 31 claude-v45-era base dims (claude-v38's constants + the v41
 // seller-side trade levers + the extended color/rail/distress dims) PLUS the
-// 16 fable levers (flow floor, jail EV, build tempo, trade-pricing overhaul,
-// transfer memory, extraction, scalp, self-lead). The washed v47 standing-
-// POSTURE dims (`standingFloorGain`/`standingAuctionGain`) were dropped in
-// this rebind — they measured as a wash/regression (EVOLUTION.md claude-v47)
-// and the fable factory never carried them. Saved vectors from the previous
-// 33-dim claude layout are NOT loadable (see the PARAM_KEYS note).
+// full fable lever stack through fable-v12 — the 16 fable-v1 levers (flow
+// floor, jail EV, build tempo, trade-pricing overhaul, transfer memory,
+// extraction, scalp, self-lead) AND the 8 later levers added in fable-v4..v12
+// (voluntaryTailFrac, auctionLiquidCap, survivalEquityGain, tradeTailFrac,
+// transformTailFrac, humanAskOff, humanProposalMargin, humanThreatMult). The
+// harness was REBOUND from the fable-v1 factory (47 dims) to the fable-v12
+// factory so the ES optimizes the real fable-v12 substrate, not a weaker
+// fable-v1-shaped approximation. The washed v47 standing-POSTURE dims
+// (`standingFloorGain`/`standingAuctionGain`) are still absent (EVOLUTION.md
+// claude-v47). Saved vectors from an earlier layout are NOT loadable by index
+// (`--init` reads by KEY, so a fable-v12 vector JSON loads fine).
 //
 // INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY — base dims at v38
 // values, every v41 + fable lever at its NO-OP — pinned by
@@ -23,6 +28,16 @@
 //   transferMemoryTurns=10 the ring-proof transfer memory.
 //   extractionOn=1         the family's engine; turning it off just re-tunes
 //                          claude-v45 (already done: claude-v46, a twin).
+//   survivalEquityGain=1   the fable-v6 comeback-equity fix (fire-sale leak).
+//   auctionLiquidCap=1     the fable-v5 auction winner's-curse guard.
+//   voluntaryTailFrac / tradeTailFrac / transformTailFrac  the fable-v4/v7/v8
+//                          illiquidity tail guards (a spend/trade must survive
+//                          the worst next hit) — narrow safety floors, not free
+//                          weights.
+//   humanAskOff / humanProposalMargin / humanThreatMult  the fable-v11/v12
+//                          human-counterparty model — human-gated, invisible to
+//                          the all-bot self-play fitness, so the ES must not
+//                          move them (validation is a LIVE probe, not SPRT).
 // ===========================================================================
 
 /** The tunable constants of a fable-v1-shaped bot. Base dims are claude-v38
@@ -133,6 +148,39 @@ export interface ParamVector {
   /** F2f — threat scaling by MY OWN standing. Hand-measured mixed (+2 vs v45,
    *  −2.5 vs the weak field); the ES may re-explore. 0 = off. */
   selfLeadGain: number;
+
+  // --- fable-v4..v12 levers (added in the fable-v12 rebind; all NO-OP by
+  //     default). See versions/fable-v12/bot.ts for the field-by-field rationale. ---
+
+  /** F5 (fable-v4) — voluntary-spend TAIL GUARD: a discretionary build/redeploy/
+   *  unmortgage must leave cash ≥ this fraction of the worst single next-roll
+   *  landing, UNCAPPED. 0 disables (= fable-v3). INVARIANT: pin. */
+  voluntaryTailFrac: number;
+  /** F6 (fable-v5) — 1 = cap voluntary auction bids at liquid capacity so winning
+   *  never forces liquidating the prize itself. 0 disables (= fable-v4). INVARIANT: pin. */
+  auctionLiquidCap: number;
+  /** F7 (fable-v6) — scale the survival credit by my positionValue share of the
+   *  strongest live opponent, so a beaten seat stops fire-selling to the leader.
+   *  0 disables (= fable-v5's unconditional credit). INVARIANT: pin. */
+  survivalEquityGain: number;
+  /** F8 (fable-v7) — TRADE-OUTFLOW tail guard: a voluntary trade spending cash must
+   *  leave ≥ this fraction of the worst single board hit; transformative gains
+   *  exempt. 0 disables (= fable-v6). INVARIANT: pin. */
+  tradeTailFrac: number;
+  /** F9 (fable-v8) — fraction of the F8 reserve a TRANSFORMATIVE trade must still
+   *  leave (a completer bought into total illiquidity strands its own bonus).
+   *  0 = fable-v7's full exemption. INVARIANT: pin. */
+  transformTailFrac: number;
+  /** F12a (fable-v11) — 1 = do not construct premium cash asks against a HUMAN
+   *  (`botStrategy === null`). Human-gated; bot-vs-bot identical. 0 = fable-v8.
+   *  INVARIANT: pin (invisible to self-play fitness). */
+  humanAskOff: number;
+  /** F12b (fable-v11) — minimum evaluator delta to ACCEPT a HUMAN-proposed trade
+   *  (0 = the ordinary ≈$9 margin). Human-gated. INVARIANT: pin. */
+  humanProposalMargin: number;
+  /** F13 (fable-v12) — multiplier on `rivalThreatCost` when the ARMED seat is a
+   *  HUMAN. 1 disables (= fable-v11). Human-gated. INVARIANT: pin. */
+  humanThreatMult: number;
 }
 
 /** The DEFAULT vector — claude-v38 verbatim (every lever at its no-op). The
@@ -189,6 +237,15 @@ export const DEFAULT_PARAMS: ParamVector = {
   extractionOn: 0,
   scalpFrac: 0,
   selfLeadGain: 0,
+  // fable-v4..v12 levers at their NO-OP (reproduce claude-v38):
+  voluntaryTailFrac: 0,
+  auctionLiquidCap: 0,
+  survivalEquityGain: 0,
+  tradeTailFrac: 0,
+  transformTailFrac: 0,
+  humanAskOff: 0,
+  humanProposalMargin: 0,
+  humanThreatMult: 1,
 };
 
 /** Inclusive [min, max] bounds for each parameter — SANE ranges the ES respects.
@@ -244,6 +301,14 @@ export const PARAM_BOUNDS: Readonly<Record<keyof ParamVector, readonly [number, 
   extractionOn: [0, 1],
   scalpFrac: [0.0, 0.9],
   selfLeadGain: [0.0, 2.0],
+  voluntaryTailFrac: [0.0, 2.0],
+  auctionLiquidCap: [0, 1],
+  survivalEquityGain: [0.0, 1.5],
+  tradeTailFrac: [0.0, 1.0],
+  transformTailFrac: [0.0, 1.0],
+  humanAskOff: [0, 1],
+  humanProposalMargin: [0, 200],
+  humanThreatMult: [1.0, 4.0],
 };
 
 /** The parameter names in a FIXED order — the canonical vector layout the ES
@@ -298,6 +363,14 @@ export const PARAM_KEYS: readonly (keyof ParamVector)[] = [
   "extractionOn",
   "scalpFrac",
   "selfLeadGain",
+  "voluntaryTailFrac",
+  "auctionLiquidCap",
+  "survivalEquityGain",
+  "tradeTailFrac",
+  "transformTailFrac",
+  "humanAskOff",
+  "humanProposalMargin",
+  "humanThreatMult",
 ];
 
 /** Pack a vector into the fixed-order number array the ES operates on. */

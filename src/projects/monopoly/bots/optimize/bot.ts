@@ -1,19 +1,24 @@
 // ===========================================================================
-// OFFLINE OPTIMIZATION TOOLING — the parameterized FABLE-v1-shaped bot.
+// OFFLINE OPTIMIZATION TOOLING — the parameterized FABLE-v12-shaped bot.
 //
 // This is NOT a registry bot and NOT a frozen version: it is a SELF-CONTAINED
-// copy of `versions/fable-v1/bot.ts` (the flow/extraction factory — itself the
-// claude-v45 31-param factory plus the fable levers) with the `ParamVector`
-// type imported from `./params` so the ES (`snes.ts`) can jointly optimize the
-// FULL 47-dim vector. The ES produces a constants VECTOR; the winner is frozen
-// back into a normal static snapshot (`versions/fable-vN/`).
+// copy of `versions/fable-v12/bot.ts` (the flow/extraction/human-model factory —
+// the claude-v45 31-param factory plus the full fable lever stack through
+// fable-v12) with the `ParamVector` type imported from `./params` so the ES
+// (`snes.ts`) can jointly optimize the FULL 55-dim vector. The ES produces a
+// constants VECTOR; the winner is frozen back into a normal static snapshot
+// (`versions/fable-vN/`).
 //
-// INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY (the fable levers
-// all default to a NO-OP, and the base dims default to v38) — pinned by
+// REBOUND (post-fable-v12): the harness was previously bound to the fable-v1
+// factory (47 dims). It now carries the 8 additional fable levers added in
+// fable-v4..v12 (voluntaryTailFrac, auctionLiquidCap, survivalEquityGain,
+// tradeTailFrac, transformTailFrac, humanAskOff, humanProposalMargin,
+// humanThreatMult), so the ES optimizes the REAL fable-v12 substrate, not a
+// weaker fable-v1-shaped approximation of it.
+//
+// INVARIANT: `DEFAULT_PARAMS` reproduces claude-v38 EXACTLY (every fable lever
+// defaults to a NO-OP, and the base dims default to v38) — pinned by
 // `param-fidelity.test.ts`, so the parameterization is faithful end-to-end.
-// The v47 standing-POSTURE dims (`standingFloorGain`/`standingAuctionGain`)
-// were dropped in this rebind: they measured as a wash/regression (see
-// EVOLUTION.md claude-v47) and the fable factory never carried them.
 // ===========================================================================
 import { HOUSE_COST, SPACES } from "../../data";
 import {
@@ -48,6 +53,7 @@ import type {
 } from "../../types";
 import type { Bot, BotDecision } from "../decision";
 import type { ParamVector } from "./params";
+
 
 // Static, non-tuned data carried verbatim from claude-v38.
 const GROUP_WEIGHT: Readonly<Record<PropertyColor, number>> = {
@@ -436,7 +442,17 @@ export function makeParamBot(p: ParamVector): Bot {
     const player = state.players.find((q) => q.id === pid);
     if (!player) return null;
     const playerCash = player.cash;
-    const floor = liquidityFloor(state, pid);
+    // F5 — voluntary spends clear BOTH the blended flow floor AND the tail
+    // guard (worst single next-roll hit, scaled by jail mobility, uncapped).
+    const tailNeed =
+      p.voluntaryTailFrac > 0
+        ? Math.round(
+            p.voluntaryTailFrac *
+              walkCost(state, pid, player.position).worst *
+              (player.inJail ? p.jailExitProb : 1),
+          )
+        : 0;
+    const floor = Math.max(liquidityFloor(state, pid), tailNeed);
     const flush = playerCash > floor + p.hotelCushion;
     const { level: want, why } = desiredLevel(state, pid);
     const build: Record<number, number> = {};
@@ -788,6 +804,16 @@ export function makeParamBot(p: ParamVector): Bot {
       if (selfView) {
         share += synergyThreatShare(state, after, pid, opp.id, terms);
         share *= standingMult(state, opp.id) * leadDefenseMult(state, pid);
+        // F13 (fable-v12) — arming a HUMAN costs more than arming a bot: every
+        // realized-value measurement of the night says humans convert handed
+        // sets into wins far better than the bot-calibrated 0.29 threat factor
+        // prices (the corpus rails: ~$60–170 charged vs ~$2,400 realized;
+        // probes 6/7: completers sold at 1.3–1.4× book that returned 5×+).
+        // Human-gated, so bot-vs-bot pricing — and the whole self-play
+        // apparatus — is untouched.
+        if (p.humanThreatMult > 1 && opp.botStrategy === null) {
+          share *= p.humanThreatMult;
+        }
       }
       worst = Math.max(worst, share);
     }
@@ -938,8 +964,24 @@ export function makeParamBot(p: ParamVector): Bot {
     // hot-potato clearing band on any developed board.
     const { distress, needToSafe } = distressDetail(state, pid);
     const survivalBase = selfView && p.survivalBounded > 0 ? Math.min(cashIn, needToSafe) : cashIn;
+    // F7 — survival cash is worth its COMEBACK EQUITY, not its face: a beaten
+    // seat "surviving" by feeding the board's strongest position is not
+    // surviving, it is financing its own loss (three observed fire-sales:
+    // 4q3y6i's $55 States handover, and both probe games' distress rail
+    // sales). Scale the premium by my position-value share of the strongest
+    // live opponent, clamped to [0,1]; gain 0 disables (= the prior credit).
+    let equityMult = 1;
+    if (selfView && p.survivalEquityGain > 0 && distress > 0) {
+      const myPV = positionValue(state, pid);
+      let bestOpp = 0;
+      for (const opp of activeOpponents(state, pid)) {
+        bestOpp = Math.max(bestOpp, positionValue(state, opp.id));
+      }
+      const equity = bestOpp > 0 ? Math.min(1, myPV / bestOpp) : 1;
+      equityMult = 1 - p.survivalEquityGain * (1 - equity);
+    }
     const effectiveDelta = cashIn > 0
-      ? delta + Math.round(survivalBase * distress * p.survivalFactor) - deployabilityPenalty
+      ? delta + Math.round(survivalBase * distress * p.survivalFactor * equityMult) - deployabilityPenalty
       : delta;
 
     if (effectiveDelta <= ACCEPT_MIN) {
@@ -969,8 +1011,49 @@ export function makeParamBot(p: ParamVector): Bot {
       return {
         accept: false,
         delta: effectiveDelta,
-        reason: "it would leave me too thin to develop what I get",
+        // Note tracks the cash direction (a cash-RECEIVING decline saying
+        // "develop what I get" was the probe-game-3 miswired-rationale defect).
+        reason:
+          cashIn > 0
+            ? "even with the cash I'd stay too thin to be safe"
+            : "it would leave me too thin to develop what I get",
       };
+    }
+    // F8 (fable-v7) — TRADE-OUTFLOW tail guard: a voluntary trade SPENDING cash
+    // must leave enough to survive the worst single hit ON THE BOARD, position-
+    // independent. F2e uses the danger-aware flow floor, which reads ~zero when
+    // the threat is outside the CURRENT roll window — but a trade's cash state
+    // persists across many rolls (probe game 3: a seat paid a wallet-pegged
+    // $735 for a marginal 4th rail down to $38 under a 3-house board it wasn't
+    // yet facing, and died on the landing). The transformative exception
+    // (delta ≥ liquidityRiskGain) keeps set-completion boldness intact.
+    if (selfView && p.tradeTailFrac > 0) {
+      // F9 (fable-v8) — a TRANSFORMATIVE trade (delta ≥ liquidityRiskGain, the
+      // F8 exemption) keeps its acquisition boldness but must still leave a
+      // REDUCED reserve (`transformTailFrac` × the F8 reserve): probe game 4
+      // watched a seat pay $430 of a $442 wallet for a completer through the
+      // exemption, keep $7, never afford a single house on the set it just
+      // completed, and die — the POINT of completing is developing, and a
+      // completer bought into total illiquidity strands its own bonus. This is
+      // a floor on the PRICE PAID, not a discount on what a set is worth — the
+      // rejected cash-scaled-monopoly-value idea stays rejected (bots/CLAUDE.md).
+      const transformative = effectiveDelta >= p.liquidityRiskGain;
+      const reserveFrac = transformative ? p.tradeTailFrac * p.transformTailFrac : p.tradeTailFrac;
+      const cashOut = (terms.cashDelta[pid] ?? 0) < 0 ? -(terms.cashDelta[pid] ?? 0) : 0;
+      if (cashOut > 0 && reserveFrac > 0) {
+        let worstHit = 0;
+        for (const posStr in state.ownership) {
+          if (state.ownership[posStr] === pid) continue;
+          worstHit = Math.max(worstHit, rentEstimateAt(state, Number(posStr)));
+        }
+        if (postCash < Math.round(reserveFrac * worstHit)) {
+          return {
+            accept: false,
+            delta: effectiveDelta,
+            reason: "it would leave me too thin to survive a big hit",
+          };
+        }
+      }
     }
     const reason =
       myMono > 0
@@ -1046,6 +1129,16 @@ export function makeParamBot(p: ParamVector): Bot {
     terms: TradeTerms,
   ): TradeTerms {
     if (p.extractionOn <= 0) return terms;
+    // F12a (fable-v11) — the surplus charge is `min(excess, oppCash)`: against
+    // a HUMAN that is the same wallet X-ray as the pure premium ask, leaked
+    // through the swap-rider door (probe game 8 caught two swap offers whose
+    // cash riders equalled the human's wallet to the dollar). Swaps to humans
+    // go un-charged — they may still be SWEETENED (paying the human is not a
+    // tell), and bots are priced exactly as before.
+    if (p.humanAskOff > 0) {
+      const opp = state.players.find((q) => q.id === oppId);
+      if (opp && opp.botStrategy === null) return terms;
+    }
     const oppDelta = evaluateTrade(state, oppId, terms, false).delta;
     const excess = Math.floor(oppDelta - p.acceptMargin);
     if (excess <= 0) return terms;
@@ -1229,7 +1322,18 @@ export function makeParamBot(p: ParamVector): Bot {
       // capped by their cash. My own evaluator (threat- and standing-priced)
       // then decides whether that X clears MY side — a poor rival's small X is
       // rejected there, so this can never fire-sale a completer downhill.
-      if (p.extractionOn > 0) {
+      // F12a (fable-v11) — the HUMAN-COUNTERPARTY gate on premium cash asks:
+      // the offers corpus (game:offers) shows premium sale asks convert 97.9%
+      // against bots and ~0% against humans (real humans accepted
+      // cash-for-property only at ≤0.61× book; every 1.77×–10× ask was
+      // declined) — and the `min(opp.cash, …)` pricing reads to a human as a
+      // wallet X-ray whose re-asks walk DOWN on declines (probe games 2–6).
+      // Against a human the ask channel is pure information leak, so it is
+      // simply not constructed. Bots are priced exactly as before, so
+      // bot-vs-bot play is unchanged BY CONSTRUCTION (every simulator seat
+      // carries a bot marker).
+      const oppIsHuman = opp.botStrategy === null;
+      if (p.extractionOn > 0 && !(p.humanAskOff > 0 && oppIsHuman)) {
         for (const color of COLORS_BY_WEIGHT) {
           const positions = groupPositions(color);
           if (ownedInColor(state, opp.id, color) !== positions.length - 1) continue;
@@ -1417,7 +1521,19 @@ export function makeParamBot(p: ParamVector): Bot {
     const a = state.turn.auction;
     if (!a || !a.active.includes(pid) || a.leaderId === pid) return null;
     const next = a.highBid + BID_INCREMENT;
-    const cap = Math.min(acquisitionValue(state, pid, a.position, true), auctionBidCap(state, pid));
+    let cap = Math.min(acquisitionValue(state, pid, a.position, true), auctionBidCap(state, pid));
+    // F6 — never bid past what I can settle WITHOUT liquidating the prize:
+    // cash plus my own mortgageable equity, less the flow floor.
+    if (p.auctionLiquidCap > 0) {
+      const player = state.players.find((q) => q.id === pid);
+      if (player) {
+        const liquid = Math.max(
+          0,
+          player.cash + mortgageableTotal(state, pid) - liquidityFloor(state, pid),
+        );
+        cap = Math.min(cap, liquid);
+      }
+    }
     if (next <= cap) {
       return { intent: { kind: "bid", playerId: pid, amount: next } };
     }
@@ -1456,7 +1572,25 @@ export function makeParamBot(p: ParamVector): Bot {
   function tradePending(state: GameState, pid: string): BotDecision | null {
     const pending = state.turn.pendingTrade;
     if (!pending || !(pid in pending.approvals) || pending.approvals[pid]) return null;
-    const verdict = evaluateTrade(state, pid, pending);
+    let verdict = evaluateTrade(state, pid, pending);
+    // F12b (fable-v11) — the HUMAN-PROPOSAL margin: a trade proposed BY a
+    // human must clear a real margin, not the ~$9 accept margin the bot's own
+    // transparent evaluator uses. The corpus shows humans converting 57.8% of
+    // their offers against bots and probing for the exact boundary (the 4q3y6i
+    // rails: $450 declined, $500 accepted — a $9-thin bar a human walks up
+    // to). A thin deal a human constructed is priced better for them than the
+    // evaluator can see. Set-completions and other big-delta accepts clear the
+    // margin untouched.
+    if (verdict.accept && p.humanProposalMargin > 0 && pending.proposerId !== pid) {
+      const proposer = state.players.find((q) => q.id === pending.proposerId);
+      if (proposer && proposer.botStrategy === null && verdict.delta < p.humanProposalMargin) {
+        verdict = {
+          accept: false,
+          delta: verdict.delta,
+          reason: "a deal this thin from a human is likely better for them than it looks",
+        };
+      }
+    }
     return verdict.accept
       ? {
           intent: { kind: "accept-trade", playerId: pid, tradeId: pending.id },
