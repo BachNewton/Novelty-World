@@ -2,8 +2,11 @@
 // addon (lib/napi-v8/tfjs_binding.node) resolves its dependent DLL from its OWN
 // directory — so without a copy next to the binding, loading the addon fails with
 // "The specified module could not be found". This idempotent copy fixes that.
-// Runs before `train:rl`. Off Windows (or without tfjs-node installed) the guard
-// below makes it a pure no-op, so it never affects a plain install or CI.
+// Runs as a `postinstall` hook (so a fresh `npm ci` leaves the RL/tfjs tests
+// runnable) AND is re-invoked before `train:rl` as belt-and-suspenders. Off
+// Windows (Vercel/CI Linux) OR without tfjs-node installed (production installs
+// omit the devDependency) the guard below makes it a pure no-op, so it never
+// affects a plain install, a Vercel build, or CI.
 import { existsSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 
