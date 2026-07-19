@@ -1330,6 +1330,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       rig?: boolean;
       player?: boolean;
       buoys?: boolean;
+      raft?: boolean;
     }) => {
       // The nav buoys sit at the world origin, which is exactly where the material rig stands. They
       // are also the flat-painted objects the rig exists to replace as a fidelity reference.
@@ -1342,6 +1343,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
       if (opts.rig !== undefined) materialRig.object.visible = opts.rig;
+      // Show the gameplay raft STATICALLY as a deterministic wood subject (RAFT spawns level, just
+      // above its waterline — spawnOverride). respawn() + a dt=0 update poses it without stepping, the
+      // same recipe the benchmark's visuals mode uses, so the frozen frame is reproducible. Handled
+      // last so `raft` wins over any `physics` flag in the same call.
+      if (opts.raft !== undefined) {
+        physics.object.visible = opts.raft;
+        if (opts.raft) {
+          physics.respawn();
+          physics.update(0, elapsed);
+        }
+      }
     },
     // Force the buoy lanterns on in daylight. The photocell is physical (they light below ~50 lx), so
     // the capture tool needs a way to photograph a lamp against a sky that is not black.
