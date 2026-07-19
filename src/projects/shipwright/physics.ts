@@ -277,6 +277,9 @@ export interface Physics {
    *  (matches the drawn mesh, including the hull's heel). The builder poses the selection highlight
    *  with this so the outline sits squarely on the aimed voxel. */
   poseVoxel: (target: THREE.Object3D, visual: Visual, cell: [number, number, number]) => void;
+  /** Is a solid voxel present at this build cell? Read-only — the builder uses it to refuse placing a
+   *  fixture whose footprint would overlap existing hull. */
+  hasVoxel: (visual: Visual, cell: [number, number, number]) => boolean;
   /** Render-interpolation factor in [0, 1]: how far the leftover accumulator sits between the last
    *  two fixed steps. Interpolate any body riding the sim (the player) by this so it moves smoothly
    *  at the render rate, matching the interpolated raft. Valid after `update`. */
@@ -1698,6 +1701,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     removeVoxel,
     dropVoxel,
     poseVoxel,
+    hasVoxel: (v, cell) => v.colliders.has(cellKey(cell[0], cell[1], cell[2])),
     setPlayerCollider: (collider) => {
       excludedCollider = collider;
     },

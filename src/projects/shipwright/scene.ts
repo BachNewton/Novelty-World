@@ -630,6 +630,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     island: true,
     pole: true,
     rig: false,
+    fixtureCells: false,
     waterFx: true,
     capture: true,
     mergedPass: true,
@@ -940,6 +941,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // the other for light. Both make a frame readable instead of arguable.
   debugFolder.add(debug, "rig").name("material rig").onChange((on: boolean) => {
     materialRig.object.visible = on;
+  });
+  // The grid cells a placed/previewed helm or engine occupies (its placement footprint — see builder.ts).
+  debugFolder.add(debug, "fixtureCells").name("fixture cells").onChange((on: boolean) => {
+    builder.setOccupancyDebug(on);
   });
   // Slow-mo / pause the whole sim (waves + physics stay in lock-step) to study a fast event like a
   // bucket dropping in and shipping water. 0 pauses; 0.1–0.3 is a good crawl for watching the entry.

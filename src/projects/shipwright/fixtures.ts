@@ -129,10 +129,11 @@ const createHelm = (): Fixture => {
   head.position.y = HELM_PEDESTAL_HEIGHT;
   object.add(head);
 
-  // The wheel is a child transform sat just forward of the column head, spinning about local Z (its
-  // axle). TorusGeometry lies in the XY plane with its axis on Z, so the disc faces the helmsman.
+  // The wheel is a child transform sat on the AFT (−Z) side of the column head, spinning about local Z
+  // (its axle). The helmsman stands aft and grips the rungs (which project further −Z), so the binnacle
+  // column is on the far side of the wheel from them — the bow side. Torus lies in XY, axis Z.
   const wheel = new THREE.Group();
-  wheel.position.set(0, HELM_PEDESTAL_HEIGHT + 0.02, 0.08);
+  wheel.position.set(0, HELM_PEDESTAL_HEIGHT + 0.02, -0.08);
   object.add(wheel);
 
   wheel.add(new THREE.Mesh(d.geometry(new THREE.TorusGeometry(HELM_WHEEL_RADIUS, HELM_WHEEL_TUBE, 12, 32)), wood));
@@ -155,8 +156,8 @@ const createHelm = (): Fixture => {
     wheel.add(spoke);
 
     const handle = new THREE.Mesh(handleGeo, wood);
-    handle.position.set(cos * HELM_WHEEL_RADIUS, sin * HELM_WHEEL_RADIUS, HELM_HANDLE_OVERHANG / 2);
-    handle.rotation.x = Math.PI / 2; // grip projects from one face of the rim only (the helmsman's side) — the iconic knobs
+    handle.position.set(cos * HELM_WHEEL_RADIUS, sin * HELM_WHEEL_RADIUS, -HELM_HANDLE_OVERHANG / 2);
+    handle.rotation.x = Math.PI / 2; // grips project toward −Z (the helmsman, aft of the +Z-facing wheel) — the iconic knobs
     wheel.add(handle);
   }
 
@@ -183,52 +184,46 @@ const createEngine = (): Fixture => {
   const metal = d.material(ALUMINIUM); // bracket, shaft, pod, prop
 
   // Fixed to the hull: a transom mount PLATE that bolts flat to a vertical face, and the swivel PIN the
-  // motor turns on. This is the mounting hardware — no gas-engine cowling — and the on-deck placement
-  // gesture hooks the plate over the transom lip. The plate sits inboard (−Z, against the hull); the pin
-  // stands just outboard of it, and the whole motor swings about the pin.
-  const mountPlate = new THREE.Mesh(d.geometry(new THREE.BoxGeometry(0.14, 0.22, 0.035)), metal);
-  mountPlate.position.set(0, -0.02, -0.015);
-  object.add(mountPlate);
-  const swivelPin = new THREE.Mesh(d.geometry(new THREE.CylinderGeometry(0.028, 0.028, 0.2, 12)), metal);
-  swivelPin.position.set(0, -0.06, 0.03);
+  // motor turns on. This is the mounting hardware — no gas-engine cowling. The ORIGIN is the clamp point,
+  // placed at the CENTRE of the mount voxel's outboard face, so the plate is CENTRED on the 0.5 m voxel
+  // (spanning ±0.11 of ±0.25) rather than hooking its top lip; it sits just outboard of the face (+z) to
+  // grip the outer surface. A single clamp bracket grabs the transom face and reaches out to the swivel
+  // pin; the motor hangs as one straight column below it. Kept deliberately simple — it's a game prop.
+  const motorZ = 0.12; // how far outboard the swivel axis (and the motor under it) stands off the hull
+  const bracket = new THREE.Mesh(d.geometry(new THREE.BoxGeometry(0.12, 0.18, motorZ + 0.08)), metal);
+  bracket.position.set(0, 0, (motorZ + 0.08) / 2);
+  object.add(bracket);
+  const swivelPin = new THREE.Mesh(d.geometry(new THREE.CylinderGeometry(0.03, 0.03, 0.16, 12)), metal);
+  swivelPin.position.set(0, 0, 0.03 + motorZ);
   object.add(swivelPin);
 
-  // Everything below the pin yaws about local Y to steer. The powerhead hangs from the pin's bottom
-  // (motorTop) so the mount hardware sits above it, not driven through it.
+  // Everything below the pin yaws about local Y to steer. (A dedicated above-water heading cue is
+  // deferred — the honest indicator is the pod visibly turning, which arrives when the engine steers.)
   const steer = new THREE.Group();
-  steer.position.set(0, 0, 0.03);
+  steer.position.set(0, 0, 0.03 + motorZ);
   object.add(steer);
-
-  // The powerhead sits OUTBOARD of the swivel axis (motorZ) so its fat cowling clears the hull the mount
-  // plate bolts to; a short bracket arm bridges the pin to it. It all yaws about the pin with `steer`.
-  const motorZ = 0.12;
-  const motorTop = -0.16; // = the swivel pin's lower end; the powerhead hangs from here down
-
-  const arm = new THREE.Mesh(d.geometry(new THREE.BoxGeometry(0.05, 0.05, motorZ)), metal);
-  arm.position.set(0, motorTop, motorZ / 2);
-  steer.add(arm);
 
   const housing = new THREE.Mesh(
     d.geometry(new THREE.CylinderGeometry(0.09, 0.11, ENGINE_HOUSING_HEIGHT, 20)),
     white,
   );
-  housing.position.set(0, motorTop - ENGINE_HOUSING_HEIGHT / 2, motorZ);
+  housing.position.y = -0.04 - ENGINE_HOUSING_HEIGHT / 2; // hangs just below the pin
   steer.add(housing);
 
-  const shaftTop = motorTop - ENGINE_HOUSING_HEIGHT;
+  const shaftTop = -0.04 - ENGINE_HOUSING_HEIGHT;
   const shaft = new THREE.Mesh(d.geometry(new THREE.CylinderGeometry(0.035, 0.035, ENGINE_SHAFT_LENGTH, 12)), metal);
-  shaft.position.set(0, shaftTop - ENGINE_SHAFT_LENGTH / 2, motorZ);
+  shaft.position.y = shaftTop - ENGINE_SHAFT_LENGTH / 2;
   steer.add(shaft);
 
   const podY = shaftTop - ENGINE_SHAFT_LENGTH;
   const pod = new THREE.Mesh(d.geometry(new THREE.CapsuleGeometry(ENGINE_POD_RADIUS, ENGINE_POD_LENGTH, 8, 16)), metal);
   pod.rotation.x = Math.PI / 2; // capsule axis Y → Z, so the torpedo lies fore-aft
-  pod.position.set(0, podY, motorZ - 0.02);
+  pod.position.set(0, podY, -0.02);
   steer.add(pod);
 
   // Propeller at the aft end of the pod, spinning about local Z under power.
   const prop = new THREE.Group();
-  prop.position.set(0, podY, motorZ + ENGINE_POD_LENGTH / 2 + 0.03);
+  prop.position.set(0, podY, ENGINE_POD_LENGTH / 2 + 0.03);
   steer.add(prop);
   const bladeGeo = d.geometry(new THREE.BoxGeometry(0.02, ENGINE_PROP_RADIUS, ENGINE_PROP_CHORD));
   for (let i = 0; i < ENGINE_PROP_BLADES; i++) {
