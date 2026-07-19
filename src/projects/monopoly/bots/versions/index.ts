@@ -389,6 +389,23 @@ export const RATING_PANEL: readonly string[] = [
   "fable-v8",
 ];
 
+/** The HUMAN-COUNTERPARTY MODEL twin chain — the THIRD hand-maintained eval knob,
+ *  alongside `RATING_EXCLUDED` and `RATING_PANEL`, and for the same reason: the Elo
+ *  ladder cannot derive it. These `twins` are pinned IDENTICAL to `base` in every
+ *  bot-vs-bot game (they diverge only when the counterparty is human,
+ *  `botStrategy === null` — see `bots/CLAUDE.md` "The human-counterparty model"), so
+ *  the bots-only ladder ranks them vs `base` by pure NOISE and would seat a human
+ *  against `base` — the one twin that models humans LEAST. The lobby's human-facing
+ *  DEFAULT therefore prefers the FULLEST twin (last entry) over `base` when `base`
+ *  tops the ladder (`roles.ts` `DEFAULT_BOT_VERSION`). This is NOT the Elo "Strongest"
+ *  display — that stays honestly `base`; only the seat a human actually plays changes.
+ *  Update when a stronger human-model twin lands, or when a new champion supersedes
+ *  `base` in real strength (then build its human-aware twin and re-point here). */
+export const HUMAN_MODEL_TWINS: { readonly base: string; readonly twins: readonly string[] } = {
+  base: "fable-v8",
+  twins: ["fable-v11", "fable-v12"],
+};
+
 /** Resolve a version label to its policy, or throw with the known set listed —
  *  a typo on the CLI should fail loud, not silently field the wrong bot. */
 export function versionBot(label: string): Bot {
