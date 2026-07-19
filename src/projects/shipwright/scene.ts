@@ -564,7 +564,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   // First-person sailor. Press F to take control (pointer-lock FPS); Esc returns to the orbit
   // debug camera. While in first-person the player drives the camera and OrbitControls is off.
+  // The builder (below) owns helm control; the player must suspend WASD while the sailor holds the
+  // wheel. builder is declared after player, so route the query through this forward holder.
+  let isSteeringHelm = () => false;
   const player = createPlayer(camera, renderer.domElement, {
+    controlLocked: () => isSteeringHelm(),
     onActiveChange: (fp) => {
       controls.enabled = !fp;
       if (!fp) {
@@ -588,6 +592,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     () => player.isActive(),
     () => player.velocity(),
   );
+  isSteeringHelm = () => builder.isSteering();
   scene.add(builder.object);
 
   // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy), and
@@ -603,6 +608,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (w) {
         player.attach(w);
         physics.setPlayerCollider(player.collider()); // exclude the capsule from the build aim ray
+      }
+      // Seed the raft's default helm + engine so you can steer the moment the game loads. The raft is
+      // visuals()[0]; cells are its 9×9 deck (y=0) + y=1 perimeter wall (see shapes.ts RAFT). Helm sits
+      // mid-deck facing −Z (the bow); the outboard clamps to the +Z stern gunwale, facing outward.
+      const bodies = physics.visuals();
+      if (bodies.length > 0) {
+        const raft = bodies[0];
+        builder.placeFixture("helm", raft, [4, 0, 2], 2);
+        builder.placeFixture("engine", raft, [4, 1, 8], 0);
       }
     })
     .catch((err: unknown) => {
@@ -1684,8 +1698,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // interpolated raft); in first person that also drives the eye camera, otherwise the orbit
       // debug camera runs.
       player.syncCamera(physics.alpha());
-      // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person.
-      builder.update();
+      // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person. `delta`
+      // (real render seconds) drives the hold-to-turn helm steering.
+      builder.update(delta);
       if (!player.isActive()) controls.update();
       // Re-anchor the sun's shadow frustum and the cloud shadow map on the (now-final) camera, and
       // scroll the cloud deck. Must precede the pre-passes: they render the scene, shadows and all.

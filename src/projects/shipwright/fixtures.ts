@@ -145,20 +145,30 @@ const createHelm = (): Fixture => {
   // One geometry each, reused across the spokes/handles so dispose frees them once.
   const spokeGeo = d.geometry(new THREE.CylinderGeometry(0.012, 0.012, HELM_WHEEL_RADIUS, 8));
   const handleGeo = d.geometry(new THREE.CylinderGeometry(0.02, 0.02, HELM_HANDLE_OVERHANG, 8));
+  const kingKnobGeo = d.geometry(new THREE.SphereGeometry(0.035, 12, 10));
   for (let i = 0; i < HELM_SPOKES; i++) {
-    const angle = (i / HELM_SPOKES) * Math.PI * 2;
+    // Offset so spoke 0 points STRAIGHT UP at rest: it's the KING SPOKE, the real-helm convention for
+    // reading "wheel centred" at a glance. It carries a brass grip + knob so it stands out from the rest.
+    const angle = Math.PI / 2 + (i / HELM_SPOKES) * Math.PI * 2;
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
+    const isKing = i === 0;
 
     const spoke = new THREE.Mesh(spokeGeo, wood);
     spoke.position.set((cos * HELM_WHEEL_RADIUS) / 2, (sin * HELM_WHEEL_RADIUS) / 2, 0);
     spoke.rotation.z = angle - Math.PI / 2; // cylinder's +Y axis → the radial direction
     wheel.add(spoke);
 
-    const handle = new THREE.Mesh(handleGeo, wood);
+    const handle = new THREE.Mesh(handleGeo, isKing ? brass : wood);
     handle.position.set(cos * HELM_WHEEL_RADIUS, sin * HELM_WHEEL_RADIUS, -HELM_HANDLE_OVERHANG / 2);
     handle.rotation.x = Math.PI / 2; // grips project toward −Z (the helmsman, aft of the +Z-facing wheel) — the iconic knobs
     wheel.add(handle);
+
+    if (isKing) {
+      const knob = new THREE.Mesh(kingKnobGeo, brass);
+      knob.position.set(cos * HELM_WHEEL_RADIUS, sin * HELM_WHEEL_RADIUS, -HELM_HANDLE_OVERHANG);
+      wheel.add(knob);
+    }
   }
 
   enableShadows(object);

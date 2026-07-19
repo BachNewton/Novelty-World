@@ -280,6 +280,9 @@ export interface Physics {
   /** Is a solid voxel present at this build cell? Read-only — the builder uses it to refuse placing a
    *  fixture whose footprint would overlap existing hull. */
   hasVoxel: (visual: Visual, cell: [number, number, number]) => boolean;
+  /** The current voxel-body visuals (read-only snapshot). Lets startup code seed a fixture onto the raft
+   *  (`visuals()[0]`) without a raycast. */
+  visuals: () => Visual[];
   /** Render-interpolation factor in [0, 1]: how far the leftover accumulator sits between the last
    *  two fixed steps. Interpolate any body riding the sim (the player) by this so it moves smoothly
    *  at the render rate, matching the interpolated raft. Valid after `update`. */
@@ -1702,6 +1705,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     dropVoxel,
     poseVoxel,
     hasVoxel: (v, cell) => v.colliders.has(cellKey(cell[0], cell[1], cell[2])),
+    visuals: () => visuals.slice(),
     setPlayerCollider: (collider) => {
       excludedCollider = collider;
     },

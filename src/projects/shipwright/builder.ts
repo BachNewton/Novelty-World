@@ -32,6 +32,14 @@ import type { Physics, VoxelHit } from "./physics";
  * or another fixture (so an engine can't be driven into the boat). RIGHT click commits a real fixture
  * (same button as placing a voxel); it rides the hull. Voxel placement is refused into a fixture's cells.
  *
+ * ## Helm control — steering the ship
+ *
+ * Aim at a committed helm and press E to take the wheel; A/D turn it, and the angle HOLDS (no auto-centre,
+ * like a real helm — the king spoke tells you when it's back at centre). The steering angle is per BODY,
+ * so every helm on that hull shows it and every engine yaws its pod to match (twin wheels / twin engines
+ * stay in sync — the list-first model). Walking is suspended while you hold the wheel (see player.ts
+ * `controlLocked`); press E again, or leave first person, to let go. Thrust/propulsion is a later step.
+ *
  * Committed fixtures currently ride via `poseVoxel` each frame (the same mechanism as the selection
  * highlight) and carry no mass. Making them physics-owned — mass/buoyancy, removal with their cell, the
  * "side is exposed" + "pod reaches water" validity checks, and the wheel→engine steering linkage — is the
@@ -51,6 +59,15 @@ const AIM_OPACITY_BLOCKED = 0.55;
 // The ghost reuses the dot's white/grey language at lower opacity, since it's a whole translucent solid.
 const GHOST_OPACITY_PLACEABLE = 0.5;
 const GHOST_OPACITY_BLOCKED = 0.3;
+
+// Steering: A/D at a helm move a per-body angle that HOLDS (no auto-centre). The wheel spins
+// WHEEL_TURN_RATIO× the pod's yaw, kept under π so "king spoke straight up" unambiguously reads as centred.
+const MAX_STEER = 0.6; // rad — full-lock pod yaw (~34°)
+const WHEEL_TURN_RATIO = 4;
+const STEER_RATE = 0.8; // rad/s — how fast A/D move the steering while held
+const HELM_HIGHLIGHT = 0x3a2c14; // warm emissive on a helm you're aiming at within reach — "press E"
+const HELM_REACH = 1.5; // m — how close the sailor must be to a helm to take the wheel (right at it)
+const HELM_REACH_COS = 0.6; // and looking within ~53° of it — a generous cone, not a precise mesh hit
 
 // Player capsule (mirror of player.ts HEIGHT/RADIUS) for the anti-suffocation guard, so a placed
 // voxel can't land inside the sailor. Kept in step with player.ts — the camera in first person sits
@@ -95,8 +112,14 @@ interface Placed {
 export interface Builder {
   /** The builder's scene node (aim dot + ghost + committed fixtures) — add to the scene once. */
   object: THREE.Object3D;
-  /** Per frame (after the camera is posed): re-aim the dot / ghost and ride the committed fixtures. */
-  update: () => void;
+  /** Per frame (after the camera is posed): re-aim the dot / ghost, ride the committed fixtures, and
+   *  advance steering. `dt` is the render delta in seconds (for the hold-to-turn rate). */
+  update: (dt: number) => void;
+  /** True while the sailor is holding a helm (A/D steer; walking is suspended). */
+  isSteering: () => boolean;
+  /** Place a fixture programmatically (e.g. seeding the raft's default helm + engine at load), skipping
+   *  the ghost/validity flow. `cardinal` indexes the ship cardinals (0:+Z, 1:+X, 2:−Z, 3:−X). */
+  placeFixture: (kind: FixtureKind, visual: VoxelHit["visual"], cell: [number, number, number], cardinal: number) => void;
   /** Toggle the debug overlay drawing the grid cells each committed / previewed fixture occupies. */
   setOccupancyDebug: (on: boolean) => void;
   dispose: () => void;
@@ -133,6 +156,8 @@ export function createBuilder(
   const forward = new THREE.Vector3();
   const lookFlat = new THREE.Vector3();
   const scratchDir = new THREE.Vector3();
+  const helmPos = new THREE.Vector3();
+  const toHelm = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const probe = new THREE.Object3D(); // scratch, posed to the place cell for the suffocation check
   let currentHit: VoxelHit | null = null;
@@ -143,6 +168,10 @@ export function createBuilder(
   let ghostCardinal = 0; // the cardinal the ghost is currently showing — snapshotted on commit
   let ghostPlaceable = false; // is the ghost on a legal mount (a top face)?
   const placed: Placed[] = [];
+
+  const steering = new Map<VoxelHit["visual"], number>(); // per body: the held pod-yaw angle (rad)
+  const heldKeys = new Set<string>();
+  let controlledHelm: Placed | null = null; // the helm the sailor is currently steering, or null
 
   // Debug overlay: a wireframe box on each grid cell a fixture occupies (see occupiedCells), so the
   // T-shaped helm footprint / the engine's outboard cell are visible. Toggled from the scene Debug GUI.
@@ -326,21 +355,24 @@ export function createBuilder(
     mode = next;
   };
 
-  const commitFixture = (): void => {
-    if (!ghost || !currentHit || !ghostPlaceable) return;
-    const fixture = createFixture(ghost.kind);
+  const placeFixture = (
+    kind: FixtureKind,
+    visual: VoxelHit["visual"],
+    cell: [number, number, number],
+    cardinal: number,
+  ): void => {
+    const fixture = createFixture(kind);
     const anchor = new THREE.Group();
     anchor.add(fixture.object);
-    applyMountPose(fixture.object, ghost.kind, ghostCardinal);
-    physics.poseVoxel(anchor, currentHit.visual, currentHit.cell);
+    applyMountPose(fixture.object, kind, cardinal);
+    physics.poseVoxel(anchor, visual, cell);
     root.add(anchor);
-    placed.push({
-      visual: currentHit.visual,
-      cell: currentHit.cell,
-      anchor,
-      fixture,
-      occupied: occupiedCells(ghost.kind, currentHit.cell, ghostCardinal),
-    });
+    placed.push({ visual, cell, anchor, fixture, occupied: occupiedCells(kind, cell, cardinal) });
+  };
+
+  const commitFixture = (): void => {
+    if (!ghost || !currentHit || !ghostPlaceable) return;
+    placeFixture(ghost.kind, currentHit.visual, currentHit.cell, ghostCardinal);
   };
 
   // Remove a committed fixture the sailor is aiming at, if it's nearer than `maxDist` (so you can't
@@ -361,13 +393,52 @@ export function createBuilder(
     });
     if (idx === -1) return false;
     const [entry] = placed.splice(idx, 1);
+    if (entry === highlightedHelm) highlightedHelm = null; // it's about to be disposed
     root.remove(entry.anchor);
     entry.fixture.dispose();
     return true;
   };
 
+  // Diegetic "you can take this wheel" cue: the helm the sailor is aiming at glows warm. No HUD prompt —
+  // the object itself lights up under your gaze, the same way the aim dot signals a buildable face.
+  let highlightedHelm: Placed | null = null;
+  const setHelmEmissive = (p: Placed, hex: number): void => {
+    p.fixture.object.traverse((o) => {
+      if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial) {
+        o.material.emissive.setHex(hex);
+      }
+    });
+  };
+  const highlightHelm = (p: Placed | null): void => {
+    if (p === highlightedHelm) return;
+    if (highlightedHelm) setHelmEmissive(highlightedHelm, 0x000000);
+    highlightedHelm = p;
+    if (p) setHelmEmissive(p, HELM_HIGHLIGHT);
+  };
+
+  // The committed helm the sailor can take the wheel of: the one they're close enough to AND looking
+  // toward. Distance + facing, NOT a precise mesh hit — aiming at the wheel's open centre still counts.
+  const aimedHelm = (): Placed | null => {
+    let best: Placed | null = null;
+    let bestFacing = HELM_REACH_COS;
+    for (const p of placed) {
+      const wheel = p.fixture.wheel;
+      if (!wheel) continue; // helms only (an engine has no wheel)
+      wheel.getWorldPosition(helmPos);
+      toHelm.copy(helmPos).sub(camera.position);
+      const dist = toHelm.length();
+      if (dist > HELM_REACH || dist < 1e-4) continue;
+      const facing = toHelm.dot(forward) / dist; // cos(angle between look dir and dir-to-wheel)
+      if (facing > bestFacing) {
+        bestFacing = facing;
+        best = p;
+      }
+    }
+    return best;
+  };
+
   const onMouseDown = (e: MouseEvent) => {
-    if (!isActive()) return;
+    if (!isActive() || controlledHelm) return; // holding the wheel — no build clicks
     if (mode !== "voxel") {
       if (e.button === 2) commitFixture(); // right-click places, the same button as placing a voxel
       else if (e.button === 0) {
@@ -394,6 +465,21 @@ export function createBuilder(
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (!isActive()) return;
+    heldKeys.add(e.code);
+    if (e.code === "KeyE") {
+      // Take / release the helm the sailor is aiming at (taking it leaves any placement mode).
+      if (controlledHelm) controlledHelm = null;
+      else {
+        camera.getWorldDirection(forward);
+        const helm = aimedHelm();
+        if (helm) {
+          setMode("voxel");
+          controlledHelm = helm;
+        }
+      }
+      return;
+    }
+    if (controlledHelm) return; // holding the wheel — build keys are suspended
     if (e.code === "Digit1") setMode("helm");
     else if (e.code === "Digit2") setMode("engine");
     else if (e.code === "KeyQ" && mode === "voxel") {
@@ -401,12 +487,16 @@ export function createBuilder(
       physics.dropVoxel(camera.position, forward, playerVelocity());
     }
   };
+  const onKeyUp = (e: KeyboardEvent) => {
+    heldKeys.delete(e.code);
+  };
 
   // Right-click is the place button (voxel and fixture), so suppress the browser context menu.
   const onContextMenu = (e: Event) => e.preventDefault();
 
   window.addEventListener("mousedown", onMouseDown);
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
   domElement.addEventListener("contextmenu", onContextMenu);
 
   const updateAimDot = (): void => {
@@ -464,30 +554,54 @@ export function createBuilder(
 
   return {
     object: root,
-    update: () => {
-      // Committed fixtures ride the hull whether or not the sailor is in first person.
-      for (const p of placed) physics.poseVoxel(p.anchor, p.visual, p.cell);
+    update: (dt: number) => {
+      if (controlledHelm && !isActive()) controlledHelm = null; // dropped control on leaving first person
+      if (!isActive()) heldKeys.clear();
 
-      if (!isActive()) {
+      // At the helm: A/D move the held steering angle (no auto-centre — it stays where you leave it).
+      if (controlledHelm) {
+        const v = controlledHelm.visual;
+        let s = steering.get(v) ?? 0;
+        if (heldKeys.has("KeyA")) s -= STEER_RATE * dt;
+        if (heldKeys.has("KeyD")) s += STEER_RATE * dt;
+        steering.set(v, THREE.MathUtils.clamp(s, -MAX_STEER, MAX_STEER));
+      }
+
+      // Committed fixtures ride the hull and show their steering: a helm spins its wheel, an engine yaws
+      // its pod. Every fixture on one body reads the SAME angle, so multiple helms/engines stay in sync.
+      for (const p of placed) {
+        physics.poseVoxel(p.anchor, p.visual, p.cell);
+        const s = steering.get(p.visual) ?? 0;
+        if (p.fixture.wheel) p.fixture.wheel.rotation.z = s * WHEEL_TURN_RATIO;
+        if (p.fixture.steer) p.fixture.steer.rotation.y = s;
+      }
+
+      if (!isActive() || controlledHelm) {
         aimDot.visible = false;
         if (ghost) ghost.anchor.visible = false;
         currentHit = null;
         canPlace = false;
+        highlightHelm(null);
       } else if (mode === "voxel") {
         if (ghost) ghost.anchor.visible = false;
         updateAimDot();
+        highlightHelm(aimedHelm()); // glow the helm under the crosshair (updateAimDot set `forward`)
       } else {
         aimDot.visible = false;
         updateGhost();
+        highlightHelm(null);
       }
       updateOccupancyDebug();
     },
+    isSteering: () => controlledHelm !== null,
+    placeFixture,
     setOccupancyDebug: (on: boolean) => {
       occDebug = on;
     },
     dispose: () => {
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
       domElement.removeEventListener("contextmenu", onContextMenu);
       disposeGhost();
       for (const p of placed) p.fixture.dispose();
