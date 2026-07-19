@@ -280,6 +280,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // softening so ¼ reads ~the same as full for ~4× fewer marched pixels. Raise it via the GUI for
   // beauty shots on a strong GPU.
   const ssrScale = { value: 0.25 };
+  const ssrSteps = { value: 31 }; // mirrors ocean's SSR_STEPS default; the GUI dial lives with reflection res
   // HalfFloat, not the default UnsignedByte: the SSR pass samples the linear-HDR scene capture, and
   // an 8-bit target would clamp every reflected highlight to 1.0 before the water ever saw it — the
   // sun's reflection off a wave crest would come back as flat white. Matters now that the water
@@ -691,6 +692,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(ssrScale, "value", 0.1, 1, 0.05)
     .name("reflection res")
     .onFinishChange(sizeSsrTarget);
+  performance
+    // Max is SSR_STEPS_MAX (31) in ocean.ts — the SSR march loop's COMPILE-TIME bound, deliberately
+    // baked down to the shipped run value so the loop carries no uniform-break overhead. This dial can
+    // therefore only REDUCE steps at runtime; to allow more, raise SSR_STEPS_MAX in ocean.ts + recompile.
+    .add(ssrSteps, "value", 1, 31, 1)
+    .name("march steps")
+    .onChange((v: number) => ocean.setSsrSteps(v));
   // Scene-capture resolution — the water's view of the world BEHIND it. The capture is a full extra
   // render of the scene, so its cost is quadratic here: 0.5 is a quarter of the pixels, and it drags SSR
   // down with it (the march samples this texture). Measured at 3440x1440: 1.0 → 0.5 is worth 4.5 ms, and

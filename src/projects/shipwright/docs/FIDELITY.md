@@ -168,9 +168,28 @@ the LOD grid shipped 2026-07-17 and the far-glitter dotted moiré is **pixel-ide
 off** — the aliasing is per-pixel normal-map minification and never cared about vertex density. The
 real remaining fixes are **dual-scale normals** (below) and/or a distance fade of ripple strength.
 
-### Dual-scale normals
-Finer + coarser ripple-normal layers (feeds the sparkle term above; also breaks up the current
-single-scale normal map, which reads faintly repetitive/"scratchy" up close at the rough end).
+### Procedural ripple normal — PROTOTYPED (WIP, behind the `procedural ripples` toggle, default on)
+Replaces the sampled `waternormals.jpg` with a per-fragment **procedural** normal (`OCEAN_RIPPLE_PROC`
+in `ocean.ts`): analytic gradient noise (the slope, hence the normal, is exact — no extra taps),
+**dual-scale** (a fine ~0.35 m capillary layer leading, a ~0.16 m glint octave, a ~1.8 m undulation),
+**animated** (layers scroll different directions → shimmer, not a sliding sheet), **seamless by
+construction** (no tile → no seam ever), and **uniform-scale** (no baked photo perspective). It won a
+blind-eye A/B over the crumpled JPG, the OGA sea photos, AND the three.js default. *Why the photos
+lost:* the JPG was crumpled-foil crinkle (not water, with a seam + chop-scale features); the OGA sea
+normals bake in camera perspective (near waves big, far small) so they don't tile as a flat surface.
+Far-field aliasing (procedural normals have no mip-map, so distant/zoomed-out fine noise point-samples
+into "static") is handled by a **Nyquist fade** keyed off `fwidth` — each layer dies once a pixel
+spans its wavelength; keys off pixel-footprint not distance, so it tracks zoom, and fading capillaries
+at distance is physically right anyway.
+
+**Perf cost is unmeasured** — it trades a texture fetch for per-fragment noise over full-screen water.
+Tracked (with how to measure it) in `PERFORMANCE.md` "Open threads"; measure before this ships.
+
+**Also still open on it:** the SSR reflection distortion still samples the old texture (`uReflectRipple`)
+— switch it to the procedural slope for consistency if this ships; fading ripples flat at distance
+re-raises the far **mirror** (the parked `uFarRough` distance→roughness ramp is its ready partner — a
+matte far field, physically the "lost ripple detail → roughness" pairing); and this field is what a
+future **microfacet sun-glitter** term should sample for the discrete-sparkle "diamonds."
 
 ### Hull interiors — mask the sea out, and render flooded water in
 The buoyancy/flooding **simulation** is complete (`physics.ts`: dense hulls float on enclosed air,

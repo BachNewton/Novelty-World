@@ -863,6 +863,15 @@ distance fade of ripple strength.
 
 ### Open threads — RANKED. A new session starts at #1.
 
+**NEW, unmeasured → UNRANKED (2026-07-19): procedural ripple normal fragment cost.** The prototyped
+procedural ripple normal (`uProcRipple`, default ON — see docs/FIDELITY.md "Procedural ripple normal")
+trades one texture fetch for **~3 analytic-gradient-noise evals (4 hashes each) per fragment**, over
+water that can fill the screen. This doc's hard-won lesson is that the ocean is **fill/vertex-bound**,
+so a full-screen fragment add is exactly where it could bite on a weak iGPU. It can't be ranked until
+it's a number — A/B `uProcRipple` on/off with `tools/ab.mjs` (or the GUI toggle) on the real display,
+then slot it into the list below and decide whether it needs a quality-tier gate. It is a live cost
+being paid right now (default on).
+
 1. **SSR fade-cull — cheap, and pixel-identical BY CONSTRUCTION (unbuilt, unmeasured).** The main
    shader multiplies the SSR sample by a fade that reaches zero beyond 2–4× `uSsrMaxDistance` and at
    extreme grazing (see the `ssrFade` note in `ocean.ts`) — but the SSR PASS still marches those
