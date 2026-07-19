@@ -60,6 +60,20 @@ const HALF = VOXEL / 2;
 const VOXEL_VOLUME = VOXEL * VOXEL * VOXEL;
 const GRAVITY = 9.81;
 
+// The six axis-aligned voxel faces: outward normal = the neighbour-cell offset across that face. A face
+// is EXPOSED (wetted → it drags) only when no voxel occupies the neighbour cell. Hydrodynamic form drag
+// acts per exposed face, projected onto the face normal (see applyBuoyancy), so drag becomes ANISOTROPIC:
+// a hull's leading surface carries it, its buried interior does not, and a long thin hull shows little
+// frontal area moving ahead but its whole flank moving sideways — lateral resistance emerges from shape.
+const FACE_NORMALS: readonly [number, number, number][] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
 // Densities in kg/m³. Wood-like density sets weight + waterline: a shape settles at
 // ~60% submerged (equilibrium submerged fraction = VOXEL_DENSITY / water).
 const WATER_DENSITY = 1000;
@@ -95,14 +109,17 @@ const MAX_ANGVEL = 20; // rad/s
 const LINEAR_DAMPING = 0;
 const ANGULAR_DAMPING = 0.1;
 
-// Per-voxel hydrodynamic drag toward the local water velocity, gated (like buoyancy)
-// by the submerged fraction, so both fade to zero as a voxel leaves the water. The
-// QUADRATIC term ½·ρ·Cd·A·|v|·v (Cd ≈ 1.1 for a cube face, A = one voxel face) is real
-// form drag and dominates at speed. The small LINEAR term is a near-equilibrium
-// radiation/viscous damper — form drag vanishes as v → 0, so a linear floor prevents
-// undamped micro-ringing — sized for a LIGHT heave ζ ≈ 0.2, like a real small floater
-// that bobs a couple of times and settles. Both are relative to the water, so they
-// track the orbital motion and only resist DEVIATION from it. This stays stable at
+// Hydrodynamic drag toward the local water velocity, gated (like buoyancy) by the submerged fraction,
+// so it fades to zero as a voxel leaves the water. It has two parts with DIFFERENT geometry:
+//   - The QUADRATIC form drag ½·ρ·Cd·A·(u·n)² (Cd ≈ 1.1 for a flat face, A = one voxel face) is applied
+//     per EXPOSED FACE, projected onto that face's normal, on windward faces only (see FACE_NORMALS +
+//     applyBuoyancy). This is what makes hull drag DIRECTIONAL — a pointed bow presents few windward
+//     faces, a broadside flank presents many, so shape decides how a hull tracks and turns. It dominates
+//     at speed.
+//   - The small LINEAR term is a near-equilibrium radiation/viscous damper, kept ISOTROPIC and applied at
+//     the voxel centre — form drag vanishes as v → 0, so a linear floor prevents undamped micro-ringing —
+//     sized for a LIGHT heave ζ ≈ 0.2, like a real small floater that bobs a couple of times and settles.
+// Both are relative to the water, so they track the orbital motion and only resist DEVIATION from it. This stays stable at
 // light damping because the wave forcing (ω ≈ 0.6 rad/s) is far below heave resonance
 // (ω_n ≈ 5.7 rad/s) AND the sea can never out-accelerate gravity (ω²·a ≈ 0.6 ≪ 9.81
 // m/s²), so waves physically cannot throw a float off the surface — no launch pump to
@@ -179,6 +196,11 @@ export interface Visual {
   body: RAPIER.RigidBody | null;
   /** Local voxel-centre offsets (metres), centred on the shape's centroid. */
   offsets: THREE.Vector3[];
+  /** Exposed-face table (see facesFor) for the anisotropic form drag: `faceDir` is a flat list of face
+   *  directions (0..5 → FACE_NORMALS), `faceStart[j]..faceStart[j+1]` slices it to voxel j's wetted
+   *  faces. Rebuilt with `offsets` on every edit; walked in step with the buoyancy loop. */
+  faceStart: Uint32Array;
+  faceDir: Uint8Array;
   /** Local centres (metres) of the build's empty interior cells (voids), SAME body frame as
    *  `offsets`. Each step the compartment water levels split these into trapped air (buoyancy at zero
    *  mass — no collider, no mesh) and flooded (water weight). */
@@ -301,6 +323,16 @@ export interface Physics {
    *  `--drag off` cost knob. Buoyancy up-force stays; only the drag/damping (and its evals) drop.
    *  Default enabled. Alters dynamics (undamped), so it's a COST probe, not a gameplay setting. */
   setDragEnabled: (on: boolean) => void;
+  /** Add a world-space force at a world point to a body, for the CURRENT fixed step only. Call it from
+   *  an `onFixedStep` callback (those run after the buoyancy pass that resets each body's forces), so the
+   *  force persists into the following `world.step()` and is cleared before the next substep's buoyancy.
+   *  No-op if the body isn't built yet. Used by the builder's debug engine thrust (a temporary way to
+   *  feel the drag before real propulsion — see builder.ts). */
+  addBodyForce: (
+    visual: Visual,
+    force: { x: number; y: number; z: number },
+    point: { x: number; y: number; z: number },
+  ) => void;
   /** Wall-clock ms of the LAST update()'s two hot phases, SUMMED across substeps: `buoyancy` = the
    *  per-voxel flood-fill + trapped-air force loop (applyBuoyancy), `solver` = Rapier's world.step().
    *  Lets the benchmark split the physics step into its two systems (thread 5). Both 0 before the
@@ -438,6 +470,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   const tmpQuat = new THREE.Quaternion();
   const tmpPos = new THREE.Vector3();
   const tmpVec = new THREE.Vector3();
+  const tmpNormal = new THREE.Vector3(); // scratch for a face's world-space normal in the drag loop
   const wvOut = new THREE.Vector3();
   const dummy = new THREE.Object3D();
 
@@ -499,6 +532,28 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     cells: [number, number, number][],
     centroid: THREE.Vector3,
   ): THREE.Vector3[] => cells.map(([x, y, z]) => offsetOf(x, y, z, centroid));
+
+  // Exposed-face table for a build, for the per-face form drag. `faceDir` lists a direction (0..5 into
+  // FACE_NORMALS) for every voxel face with no neighbouring voxel; `faceStart` slices it per voxel, so
+  // voxel j owns faces [faceStart[j], faceStart[j+1]) — a contiguous range the buoyancy loop walks in
+  // step with `offsets`. Only wetted faces appear, so a buried voxel contributes no drag (anisotropy).
+  const facesFor = (
+    cells: [number, number, number][],
+  ): { faceStart: Uint32Array; faceDir: Uint8Array } => {
+    const present = new Set(cells.map(([x, y, z]) => cellKey(x, y, z)));
+    const faceStart = new Uint32Array(cells.length + 1);
+    const faceDir: number[] = [];
+    for (let j = 0; j < cells.length; j++) {
+      faceStart[j] = faceDir.length;
+      const [x, y, z] = cells[j];
+      for (let d = 0; d < 6; d++) {
+        const n = FACE_NORMALS[d];
+        if (!present.has(cellKey(x + n[0], y + n[1], z + n[2]))) faceDir.push(d);
+      }
+    }
+    faceStart[cells.length] = faceDir.length;
+    return { faceStart, faceDir: new Uint8Array(faceDir) };
+  };
 
   // The void/compartment buoyancy data for a build, in the body-local frame about `centroid` (same
   // frame as the material offsets). A pure recompute of the cell list — see analyzeBuildVoids.
@@ -626,6 +681,7 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
   ): Visual => {
     const centroid = centroidOverride ? centroidOverride.clone() : centroidOf(cells);
     const offsets = offsetsFor(cells, centroid);
+    const faces = facesFor(cells);
     const vd = buildVoidData(cells, centroid);
     const voidCount = vd.voidOffsets.length;
     const nComp = vd.compartmentCells.length;
@@ -641,6 +697,8 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
       textured: opts.textured,
       body: null,
       offsets,
+      faceStart: faces.faceStart,
+      faceDir: faces.faceDir,
       voidOffsets: vd.voidOffsets,
       voidEnclosed: vd.voidEnclosed,
       voidCompartment: vd.voidCompartment,
@@ -686,11 +744,14 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     const oldWater = v.compartmentWater;
 
     const offsets = offsetsFor(v.cells, centroid);
+    const faces = facesFor(v.cells);
     const vd = buildVoidData(v.cells, centroid);
     const voidCount = vd.voidOffsets.length;
     const nComp = vd.compartmentCells.length;
 
     v.offsets = offsets;
+    v.faceStart = faces.faceStart;
+    v.faceDir = faces.faceDir;
     v.voidOffsets = vd.voidOffsets;
     v.voidEnclosed = vd.voidEnclosed;
     v.voidCompartment = vd.voidCompartment;
@@ -987,18 +1048,20 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
         // Archimedes: up-force = weight of displaced water = ρ·g·(submerged vol).
         const buoyancy = WATER_DENSITY * GRAVITY * submerged * VOXEL_VOLUME;
 
-        // Hydrodynamic drag toward the local water velocity. Point velocity of this
-        // voxel is linvel + angvel × r (r from the centre of mass), so the drag
-        // resists both translation and spin — damping toward the orbit, not toward
-        // rest. The coefficient is linear + quadratic in the relative speed (the
-        // quadratic term is the real ½·ρ·Cd·A·v² water resistance), scaled by how
-        // submerged the voxel is and the user's drag multiplier.
-        // `dragEnabled` gates the whole drag term — including its TWO `sampleParticle` evals
-        // (waterVelocity) — so `--drag off` isolates the drag/water-velocity share of the buoyancy
-        // hot loop (a cost-isolation knob like `--collision off`; default on = unchanged).
-        let fx = 0;
-        let fy = buoyancy;
-        let fz = 0;
+        // Voxel-centre force: buoyancy (up) + the LINEAR low-speed damper (isotropic, toward the water
+        // velocity). Point velocity of the voxel is linvel + angvel × r (r from the COM), so the damper
+        // resists both translation and spin — toward the orbit, not toward rest. The QUADRATIC form drag
+        // is applied per exposed FACE below (so it can be directional); this centre force carries only the
+        // near-equilibrium linear floor + buoyancy.
+        // `dragEnabled` gates the whole drag term — including its `waterVelocity` (2 `sampleParticle`)
+        // evals — so `--drag off` isolates the drag/water-velocity share (default on = unchanged).
+        let cx = 0;
+        let cy = buoyancy;
+        let cz = 0;
+        // Net force accumulator for this voxel's debug arrow: the centre force + this voxel's face drag.
+        let nfx = 0;
+        let nfy = buoyancy;
+        let nfz = 0;
         if (dragEnabled) {
           const wv = waterVelocity(wx, wz, time);
           const rx = wx - com.x;
@@ -1007,28 +1070,66 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
           let relx = wv.x - (lin.x + (ang.y * rz - ang.z * ry));
           let rely = wv.y - (lin.y + (ang.z * rx - ang.x * rz));
           let relz = wv.z - (lin.z + (ang.x * ry - ang.y * rx));
-          // Cap the relative velocity the drag sees. Form drag grows with v², so a body that gets fast (a
-          // bad contact from a runtime edit) generates a drag impulse larger than its own momentum in one
-          // step → it overshoots, oscillates, and can diverge to Inf INSIDE world.step(), before any post-
-          // step guard runs (this was the real solver-trap trigger). Clamping the whole relative-velocity
-          // vector keeps the damping strong but bounded so it can't overshoot. Inert in normal floating
-          // (relative speed ≪ the cap); only bites the pathological high-speed case.
-          let relSpeed = Math.hypot(relx, rely, relz);
+          // Cap the relative flow the drag sees. Form drag grows with v², so a body that gets fast (a bad
+          // contact from a runtime edit) generates a drag impulse larger than its own momentum in one step
+          // → it overshoots, oscillates, and can diverge to Inf INSIDE world.step(), before any post-step
+          // guard runs (the real solver-trap trigger). Clamping the relative-flow magnitude keeps every
+          // face impulse bounded so it can't overshoot. Inert in normal floating (relative speed ≪ the
+          // cap); only bites the pathological high-speed case.
+          const relSpeed = Math.hypot(relx, rely, relz);
           if (relSpeed > DRAG_MAX_REL_SPEED) {
             const s = DRAG_MAX_REL_SPEED / relSpeed;
             relx *= s;
             rely *= s;
             relz *= s;
-            relSpeed = DRAG_MAX_REL_SPEED;
           }
-          const dc = (DRAG_LINEAR + DRAG_QUADRATIC * relSpeed) * submerged * params.drag;
-          fx = relx * dc;
-          fy = buoyancy + rely * dc;
-          fz = relz * dc;
+          const lc = DRAG_LINEAR * submerged * params.drag;
+          cx = relx * lc;
+          cy = buoyancy + rely * lc;
+          cz = relz * lc;
+          nfx = cx;
+          nfy = cy;
+          nfz = cz;
+
+          // Per-exposed-face QUADRATIC form drag: ½·ρ·Cd·A·(u·n)² along −n, on windward faces only (u·n<0,
+          // flow pushing into the outer face). u is the water-relative flow AT the face centre, so a wide
+          // flank moving broadside stacks many windward faces (strong lateral resistance) while a pointed
+          // bow shows few (it goes). Applied at the face centre for the right turning moment. Faces of
+          // voxel j are the contiguous slice faceStart[j]..faceStart[j+1] (see facesFor), walked in step.
+          for (let f = v.faceStart[j]; f < v.faceStart[j + 1]; f++) {
+            const n = FACE_NORMALS[v.faceDir[f]];
+            tmpNormal.set(n[0], n[1], n[2]).applyQuaternion(tmpQuat);
+            const nx = tmpNormal.x;
+            const ny = tmpNormal.y;
+            const nz = tmpNormal.z;
+            const fcx = wx + HALF * nx;
+            const fcy = wy + HALF * ny;
+            const fcz = wz + HALF * nz;
+            let ux = wv.x - (lin.x + (ang.y * (fcz - com.z) - ang.z * (fcy - com.y)));
+            let uy = wv.y - (lin.y + (ang.z * (fcx - com.x) - ang.x * (fcz - com.z)));
+            let uz = wv.z - (lin.z + (ang.x * (fcy - com.y) - ang.y * (fcx - com.x)));
+            const uSpeed = Math.hypot(ux, uy, uz);
+            if (uSpeed > DRAG_MAX_REL_SPEED) {
+              const s = DRAG_MAX_REL_SPEED / uSpeed;
+              ux *= s;
+              uy *= s;
+              uz *= s;
+            }
+            const vn = ux * nx + uy * ny + uz * nz;
+            if (vn >= 0) continue; // leeward — the flow leaves this face, no pressure drag
+            const mag = DRAG_QUADRATIC * vn * vn * submerged * params.drag;
+            const ffx = -mag * nx;
+            const ffy = -mag * ny;
+            const ffz = -mag * nz;
+            body.addForceAtPoint({ x: ffx, y: ffy, z: ffz }, { x: fcx, y: fcy, z: fcz }, true);
+            nfx += ffx;
+            nfy += ffy;
+            nfz += ffz;
+          }
         }
 
-        forceArr[gi].set(fx, fy, fz);
-        body.addForceAtPoint({ x: fx, y: fy, z: fz }, { x: wx, y: wy, z: wz }, true);
+        forceArr[gi].set(nfx, nfy, nfz);
+        body.addForceAtPoint({ x: cx, y: cy, z: cz }, { x: wx, y: wy, z: wz }, true);
       }
 
       // COMPARTMENT FLOODING (Stage 3b, orientation-correct — see the module header). Three passes:
@@ -1714,6 +1815,9 @@ export function createPhysics(ocean: Ocean, shapes: Shape[] = [RAFT]): Physics {
     stepTiming: () => ({ buoyancy: lastBuoyancyMs, solver: lastSolverMs }),
     setDragEnabled: (on: boolean) => {
       dragEnabled = on;
+    },
+    addBodyForce: (visual, force, point) => {
+      visual.body?.addForceAtPoint(force, point, true);
     },
     setCollisionEnabled: (on: boolean) => {
       if (!world) return;

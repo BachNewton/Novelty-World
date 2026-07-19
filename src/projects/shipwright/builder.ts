@@ -38,7 +38,9 @@ import type { Physics, VoxelHit } from "./physics";
  * like a real helm — the king spoke tells you when it's back at centre). The steering angle is per BODY,
  * so every helm on that hull shows it and every engine yaws its pod to match (twin wheels / twin engines
  * stay in sync — the list-first model). Walking is suspended while you hold the wheel (see player.ts
- * `controlLocked`); press E again, or leave first person, to let go. Thrust/propulsion is a later step.
+ * `controlLocked`); press E again, or leave first person, to let go. W/S throttle the hull forward/reverse
+ * (a TEMPORARY debug thrust — see THRUST_DEBUG_N / applyDebugThrust — to feel the hull drag before the
+ * real engine model lands).
  *
  * Committed fixtures currently ride via `poseVoxel` each frame (the same mechanism as the selection
  * highlight) and carry no mass. Making them physics-owned — mass/buoyancy, removal with their cell, the
@@ -68,6 +70,14 @@ const STEER_RATE = 0.8; // rad/s — how fast A/D move the steering while held
 const HELM_HIGHLIGHT = 0x3a2c14; // warm emissive on a helm you're aiming at within reach — "press E"
 const HELM_REACH = 1.5; // m — how close the sailor must be to a helm to take the wheel (right at it)
 const HELM_REACH_COS = 0.6; // and looking within ~53° of it — a generous cone, not a precise mesh hit
+
+// DEBUG thrust (temporary): at the helm, W/S drive each engine on the hull forward/reverse so we can FEEL
+// the anisotropic hull drag (physics.ts) before real propulsion lands. Thrust is applied along each pod's
+// facing (so steering vectors it) at the prop, opposite the wash. This magnitude is a feel value, not a
+// realistic outboard's — sized so the ~5.6 t raft is drivable (a ≈ 1.4 m/s², cruises ~2 m/s) and its
+// vectored-thrust turn is clearly visible. Replaced by the real engine model (submersion-scaled, throttle
+// control) in the next step; delete this and its onFixedStep hook then.
+const THRUST_DEBUG_N = 8000; // newtons per engine at full throttle
 
 // Player capsule (mirror of player.ts HEIGHT/RADIUS) for the anti-suffocation guard, so a placed
 // voxel can't land inside the sailor. Kept in step with player.ts — the camera in first person sits
@@ -158,6 +168,8 @@ export function createBuilder(
   const scratchDir = new THREE.Vector3();
   const helmPos = new THREE.Vector3();
   const toHelm = new THREE.Vector3();
+  const thrustDir = new THREE.Vector3(); // scratch: an engine's world thrust vector (debug thrust)
+  const thrustPoint = new THREE.Vector3(); // scratch: where that thrust is applied (the prop)
   const raycaster = new THREE.Raycaster();
   const probe = new THREE.Object3D(); // scratch, posed to the place cell for the suffocation check
   let currentHit: VoxelHit | null = null;
@@ -498,6 +510,28 @@ export function createBuilder(
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   domElement.addEventListener("contextmenu", onContextMenu);
+
+  // DEBUG engine thrust (temporary — see THRUST_DEBUG_N): run inside the fixed step (physics.onFixedStep
+  // fires AFTER the buoyancy pass that resets each body's forces, so this force survives into world.step).
+  // While steering, W/S throttle the hull forward/reverse: every engine on the steered body pushes along
+  // its pod facing (opposite the wash) at the prop, so A/D steering vectors the thrust and turns the boat.
+  const applyDebugThrust = (): void => {
+    if (!controlledHelm) return;
+    let throttle = 0;
+    if (heldKeys.has("KeyW")) throttle += 1;
+    if (heldKeys.has("KeyS")) throttle -= 1;
+    if (throttle === 0) return;
+    const body = controlledHelm.visual;
+    for (const p of placed) {
+      const steer = p.fixture.steer;
+      if (p.visual !== body || !steer) continue; // engines on the steered hull only (a helm has no `steer`)
+      steer.getWorldDirection(thrustDir); // +Z = the pod's wash / outward direction
+      thrustDir.multiplyScalar(-throttle * THRUST_DEBUG_N); // hull thrust is opposite the wash
+      (p.fixture.prop ?? steer).getWorldPosition(thrustPoint);
+      physics.addBodyForce(p.visual, thrustDir, thrustPoint);
+    }
+  };
+  physics.onFixedStep(applyDebugThrust);
 
   const updateAimDot = (): void => {
     camera.getWorldDirection(forward);

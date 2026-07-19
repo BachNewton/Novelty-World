@@ -1,4 +1,4 @@
-# Handoff: helm + engine fixtures — VISUALS/PLACEMENT/STEERING done, PROPULSION + MASS next
+# Handoff: helm + engine fixtures — VISUALS/PLACEMENT/STEERING + anisotropic hull drag done, PROPULSION + MASS next
 
 **Goal.** Let a player build and *sail* a voxel ship. Two functional parts: a **helm** (a ship's wheel
 that turns) and an **electric outboard engine** whose pod steers with the wheel and, eventually, drives
@@ -48,25 +48,101 @@ lifecycle.** Steering yaws the pod but does **nothing physical** — the boat do
 
 ---
 
-## NEXT — propulsion + physics-ownership (one connected step)
+## NEXT — the agreed ordering (a design pass narrowed the plan; see "Hydrodynamics" below)
 
-1. **Fixture mass into the Rapier body/COM.** A helm/engine has weight. Add it so `body.recomputeMass…`
-   folds it into the COM — an engine is heavy and mounts *low* (ballast), a helm's weight rides *high*
-   (tippier). This is the shipwright tension Kyle wants; it's why mass matters before thrust.
-2. **Engine thrust.** Apply a force to the hull in the pod's facing (fixture facing ± steering angle),
-   at the engine's location, so the boat accelerates and steers. Add a throttle control (forward/reverse).
-   The engine's `steer.rotation.y` already IS the physical yaw to push along.
-3. **Make fixtures physics-owned.** Move the reserved cells + fixture lifecycle into `physics.ts` so they
+Steps in the order we settled on. **The load-bearing decision is #1** — everything else is judged
+against how the hull feels once drag has direction.
+
+**Where we paused (this session).** Step 1 (anisotropic face drag) is landed and the debug thrust is
+wired; Kyle drove the raft and **validated it by feel** — control + turning feel natural (so the debug
+thrust's turn sign is good), and the two "off" feelings are both physically *correct*, not bugs:
+- the engine feels a touch **underpowered** → right for an electric outboard on a 5.6 t barge;
+- the boat **stops fast** when the throttle cuts → the square raft's high wetted-face-count drag vs. its
+  low momentum. A sleeker hull would coast, and only *then* does the skeg have way-on to bite — so we
+  can't really feel skeg-without-thrust on this hull, and that's the honest result.
+
+**Open before he's fully confident:** see it across **different engine powers** and **different hull
+shapes** (his words). The next move was put to him but **left undecided** when we stopped — resume by
+picking one: **(a)** a directional *default* hull to drive + a quick engine-power debug knob (serves both
+variables cheaply — NB a *separately* spawned boat is unreachable, the sailor can't swim to it, so
+"different shape" means changing the default platform or extending the raft by placing voxels); **(b)** the
+full engine model (step 4 below); **(c)** fixture mass → COM first (step 3). Nothing decided; nothing
+committed to git yet either.
+
+1. **Anisotropic face drag (DONE — landed + felt good, validated via the debug thrust).** The foundation.
+   Was: per-voxel drag **isotropic** — one
+   coefficient applied to the relative-velocity vector in all axes (`physics.ts` `applyBuoyancy`), so a
+   voxel resists forward motion exactly as much as sideways. That gives hulls **zero directional
+   behaviour**: thrust would just shove the hull in the pod's direction and it would crab and spin. Fix:
+   drag per **exposed voxel face**, projected onto the face normal (`½ρ·Cd·A·(u·n)²` along −n on windward
+   faces only). Anisotropy then falls out of geometry *for free* — a long thin hull shows little frontal
+   area moving ahead (few windward faces at the bow) but its whole flank moving sideways (lateral
+   resistance = an emergent keel). A square raft stays symmetric → handles like a barge, which is
+   *correct*. Angled faces (the future wedge voxel) deflect flow and generate lift under the same model.
+2. **Lighter default platform.** The raft is a 5.6 t solid-timber barge (see Mass below) — a small
+   outboard pushes it at ~0.1 m/s², barge-sluggish. Pick a lighter default (smaller footprint, or partly
+   hollow like the `TEST_SHAPES` boat) so the *first* engine experience feels like a boat, before we tune
+   thrust. Do NOT lower `RAFT_DENSITY` — 400 kg/m³ is honest; shape is the lever.
+3. **Fixture mass into the Rapier body/COM.** A helm/engine has weight; fold it into the COM via
+   `recomputeMass…`. Low-drama for the raft (GM ≈ 6 m, near-untippable), but it matters for **trim**
+   (stern squat) and for future **narrow/tippy hulls** where a high engine genuinely can capsize.
+4. **Engine thrust + throttle + skeg.** Apply thrust along the pod's yaw (`steer.rotation.y` IS the
+   physical yaw), at the engine's location, so it drives AND turns (off-COM force). Add a throttle
+   (fwd/reverse). **Add a skeg to the engine mesh** and give the pod+skeg aft lateral drag area: it becomes
+   an emergent rudder (turns with the pod) + weathervane, from the same physics-owned-fixture setup — no
+   special rudder code. **Scale thrust and steering by prop/skeg submersion** (one `ocean.sampleHeight` at
+   the prop, ~free, same machinery as buoyancy) so a prop lifted out by a wave / bad mount / heel stops
+   biting. It's diegetically visible (you SEE the prop thrash in air), so it teaches placement without a
+   HUD. Model this from the start — an airborne prop that still drives looks broken.
+5. **Make fixtures physics-owned.** Move the reserved cells + fixture lifecycle into `physics.ts` so they
    survive hull splits and so occupancy/removal/steering stop being a builder stopgap. Today, breaking the
    voxel under a fixture is unhandled (stale `visual` ref → `poseVoxel` on a dead cell) — this fixes it.
-4. **Buoyancy participation.** AGREED model: a fixture's cells stay **VOID (air + floodable)**, NOT solid
+6. **Buoyancy participation.** AGREED model: a fixture's cells stay **VOID (air + floodable)**, NOT solid
    — a helm on a deck *inside the boat's side walls* is already enclosed buoyant air (see
    `../../flooding.ts` / `analyzeBuildVoids`); the fixture contributes only **mass**. **Open question Kyle
    raised:** the flood model today only fills *enclosed* compartments, so a helm open on deck wouldn't
    flood when submerged — extend flooding to fill any air-capable cell that goes underwater (open or
    enclosed) so a rolled-under helm space fills. Decide this when wiring buoyancy.
 
+**Deferred (agreed, not dropped):** the **wedge voxel** (angled hulls — needed, but its whole payoff is
+through the drag model, so build that first; orientation likely look-snap-to-cardinal + a scroll-cycle
+fallback, and note building a hull from *on* the deck may be awkward — "feel it out"); **engine trim**
+(pitch about the mount, same mechanism as yaw-steer on another axis — feeds the submersion model and
+enables a shallow-water "trim up to clear the bottom" mechanic against the terrain heightfield; cheaply
+reachable once submersion-scaling exists); **prop ventilation** subtlety (thrust dropping off *before* the
+prop fully clears) as polish on the linear submersion floor; **materials of varied mass** (wood is just the
+base test material — steel/etc. come with the material system).
+
 ---
+
+## Mass & hydrodynamics — the design pass (numbers, so nobody re-derives them)
+
+**Mass reality (the raft is a barge, and that's fine).** 113 voxels (81 deck + 32 rim) × 0.125 m³ =
+14.125 m³ of softwood at `RAFT_DENSITY` 400 → **~5,650 kg**. That is *not* a bug: 400 kg/m³ is correct dry
+softwood and the arithmetic is right — it's just that a voxel can't be thinner than 0.5 m or gappy, so the
+"raft" is a **solid half-metre timber slab**, ~2–3× the wood of a real lashed-log raft (thinner, cylindrical,
+air between). Consequences that DO matter: reserve buoyancy before the deck goes awash ≈ **4,475 kg** (you'd
+pile four tonnes on it to sink it); roll stiffness is enormous (flat 4.5×4.5 m waterplane → **GM ≈ 6 m**), so
+a realistic **15–40 kg** outboard heels it ~0.15° — **mass will NOT flip or sink the raft**. Mass matters for
+trim and for future narrow hulls, not for the raft. Wood is the **base test material**; other materials bring
+other masses later. (Don't fudge density down to make it lighter — that breaks the honest-freeboard math; use
+shape.)
+
+**Why anisotropic face drag is the answer to "voxel creativity vs. hydrodynamic realism."** You don't ask the
+player to design a hydrodynamic hull — you make *water reward hull shape*, so even a blocky boat behaves
+plausibly (badly if boxy, better if pointed) and real hull design is the skill ceiling. Confirmed in code that
+today's drag has no directional preference (isotropic). Face-normal drag makes the whole thing emergent:
+lateral resistance, tracking, and (with the wedge) lift all come from the geometry the player builds.
+**Planing / lifting strakes / hydrofoils are deferred** — a nonlinear lift regime that needs this drag
+foundation underneath it anyway; displacement-mode hulls with a soft hull-speed drag wall first.
+
+**Skeg + engine = both steering mechanisms, from one setup.** Thrust vectoring (prop pushes along the pod
+yaw, works at **zero boat speed** — prop wash) AND skeg-as-rudder (aft lateral area, needs **flow** over it —
+works underway, and holds the bow straight when centred) both fall out of "physics-owned fixture with a
+thrust vector + submerged lateral area." The pod yaws when you steer, so the skeg turns with it = a real
+outboard skeg. The skeg must actually be **underwater** to act — verify the shaft length puts pod+skeg below
+the waterline for the mount (true today on the flat-water raft; not guaranteed for a bad mount / big wave /
+heel — which is exactly why thrust & steering scale with submersion, step 4).
 
 ## Decisions made — do NOT relitigate
 
@@ -89,6 +165,16 @@ lifecycle.** Steering yaws the pod but does **nothing physical** — the boat do
   above the deck is never enclosed air — it is, if it's inside the hull's rim.)
 
 ## Gotchas / constraints
+
+- **Anisotropic face drag is LANDED** (`physics.ts`: `FACE_NORMALS`, `facesFor`, the per-face form drag in
+  `applyBuoyancy`; the linear damper stayed isotropic at the voxel centre). Typecheck/lint/157 tests green.
+  It's hard to *feel* on the calm, **square** raft (symmetric → no forward/side contrast, and nothing
+  drives it), so a **TEMPORARY debug thrust** is wired to exercise it: at the helm, **W/S** throttle the
+  hull fwd/reverse (`builder.ts` `applyDebugThrust` + `THRUST_DEBUG_N` 8000 N/engine, via `physics.onFixedStep`
+  and the new `physics.addBodyForce`). **Delete the debug thrust when step 4 (real engine model) lands.** To
+  feel the *anisotropy* specifically, extend the raft into a long rectangle (place voxels) and note it tracks
+  straighter along its length than across its beam. Face drag ~doubles force-application calls in the hot
+  loop — accumulating one force+torque per body is an easy follow-up if the benchmark shows it.
 
 - **Tunables (`builder.ts` consts):** `MAX_STEER` (0.6 rad), `WHEEL_TURN_RATIO` (4), `STEER_RATE`
   (0.8 rad/s), `HELM_REACH` (1.5 m), `HELM_REACH_COS` (0.6 ≈ 53°), `HELM_HIGHLIGHT` (glow colour).
