@@ -548,7 +548,54 @@ terrain-material items in the ranked list.
 (⚠ Do not quote this doc's older ABSOLUTE milliseconds — "14.3 ms shipped", "24.8 ms at ultrawide" —
 against fresh runs: the 2026-07-12 absolutes did not reproduce on 2026-07-15 on the same machine and
 commit (~2× apart; thermal/DVFS regime is the prime suspect). Interleaved same-session deltas are the
-trustworthy unit; re-anchor a baseline in-session before comparing anything.)
+trustworthy unit; re-anchor a baseline in-session before comparing anything. The same regime is
+visible in plain GAMEPLAY: the live game settles from ~100 to ~80 fps over the first minutes of play
+as the APU drops from cold-boost to sustained clocks — adopted 2026-07-19 as the working explanation;
+what that *felt* like and the fix are in "Frame pacing" below.)
+
+### Frame pacing, vsync, and VRR — why 80 fps FELT broken, and the fix (2026-07-19)
+
+The symptom: fresh boot → ~100 fps, mouse-look smooth; after minutes of play the thermal regime
+settles to ~80 fps and mouse-look turned laggy and juddery — far worse than "20 % fewer frames"
+should feel, with no frame-time spikes to blame. The mechanism is the DISPLAY, not the renderer:
+
+- **A browser is always vsync-on.** Chrome composites on the panel's refresh; rAF is that clock, and
+  there is no tearing/uncapped mode to reach for. Native-game intuition ("vsync off unless tearing
+  bothers you") has no browser equivalent.
+- **Under fixed-refresh vsync, evenness beats average.** Frames display for whole multiples of the
+  refresh period (10 ms on the 100 Hz dev panel), so 80 fps = three frames shown 10 ms + one held
+  20 ms — twenty hitches per second — plus compositor queue latency once frame time exceeds the
+  budget. "Anything above 60 is smooth" is false under vsync; 80 on a 100 Hz panel paces worse than
+  a locked 50. Mouse-look exposes it hardest because a mouse is *position* control (hand position ↔
+  camera angle, so lag is directly visible); a stick is *rate* control and hides the same latency.
+- **The transition is a cliff, not a slope.** At ≤10 ms frame time the game is synced 1:1 — even
+  pacing, minimal queue. At 10.1 ms it drops into the judder + queue regime all at once. A frame
+  tuned to ~10 ms on a COLD gpu lives on the wrong side of that cliff once the clocks settle.
+
+**The fix on the dev display is VRR — enabled and confirmed by feel 2026-07-19.** The dev monitor
+(Samsung ViewFinity S5 34″ ultrawide, DisplayPort) supports FreeSync 48–100 Hz with LFC; its OSD
+FreeSync toggle + Windows' variable-refresh-rate setting were switched on, and the warm ~80 fps
+regime immediately stopped feeling laggy. VRR shows each frame when it arrives, so an *organic*
+~12.5 ms frame paces evenly at low latency. (80 still reads slightly less fluid than 100 — that
+residual is honest temporal resolution, and only frame-time headroom moves it. Chrome's VRR path is
+most reliable fullscreen.)
+
+Consequences, recorded so they aren't re-derived:
+
+- **The stride FPS cap (`Performance → fps cap`) is the only cap a browser can implement, and the
+  fraction form is correct — do NOT replace it with preset numbers.** A page can only render-or-skip
+  each rAF tick, so the achievable *even* rates are refresh/N — the strides — on every panel,
+  automatically. A "cap at 60" on a 100 Hz panel means rendering 3 of every 5 ticks: uneven source
+  pacing, **and VRR does not repair it** — adaptive sync follows the frames it is given, so an
+  unevenly-submitted stream paces unevenly on any display. (The organic 80 fps case paces evenly
+  under VRR precisely because nothing skips; every frame simply takes ~12.5 ms.)
+- The ½-rate stride was judged live: pacing looks even, but the laggy mouse feel remains — expected,
+  since a cap fixes pacing while slightly *lengthening* latency. It is the graceful-degrade tier for
+  fixed-refresh displays, not a smoothness fix.
+- **Perf targets: the cliff still exists for everyone else.** The dev display no longer has one, but
+  every fixed-refresh/non-VRR player does, and there is no web API to detect whether VRR is active —
+  so the number that matters is the SUSTAINED-regime (warm-clock) frame time clearing the panel
+  budget. Cold-boot measurements overstate the headroom.
 
 ### The budget, on the real display — `tools/budget.mjs`
 
@@ -805,7 +852,11 @@ distance fade of ripple strength.
    game: flip `Performance → merged main pass` (and `capture MSAA`) live. See the DONE section.
 2. **`maxPixelRatio: 2`.** Every fill cost above scales with the pixel count, and the default render
    scale is the device pixel ratio — so Windows display scaling at 125/150 % silently renders 1.6–2.3×
-   the pixels these numbers were measured at. Options: cap it lower, or ship an auto quality tier.
+   the pixels these numbers were measured at. **Kyle's call so far (2026-07-19): resolution is the
+   most powerful fidelity lever and under-native rendering reads blurry — don't spend it if
+   avoidable.** That rules out "cap it lower" as the dev-display answer and leaves an auto quality
+   tier for weak GPUs; the dev display's own budget pressure is softened now VRR absorbs the sub-100
+   regime (see "Frame pacing"), and headroom there comes from the ranked structural work.
 3. **Buoyancy Newton iterations — ~1.7 ms** at 4 → 2. A **fidelity** trade: the sampled waterline drifts
    from the rendered one. At the calm gameplay sea horizontal displacement is tiny, so 2 may be
    indistinguishable — but "may be" is a thing to look at, not assume. ~0 with one raft, so not urgent.
@@ -833,8 +884,10 @@ distance fade of ripple strength.
    is ~1 ms, and terrain is partly free via occlusion (land that hides water costs ~nothing net).
    Worth having; not worth doing before #1 and #2.
 4. **The smoothness tail (felt quality, not avg fps):** a ~2–3 % frame-hitch rate, uniform across
-   segments (per-frame allocation/GC suspicion), and 1 %-lows at ~half the average. If the game ever
-   FEELS worse than its fps says, hunt here first.
+   segments (per-frame allocation/GC suspicion), and 1 %-lows at ~half the average. NB the biggest
+   "feels worse than its fps says" case turned out to be the DISPLAY, not the frame — vsync
+   quantization at a warm-regime 80 fps on the 100 Hz panel, solved by VRR (see "Frame pacing").
+   The hitch tail is still real and still unexplained; hunt here once pacing is ruled out.
 5. **Contact-heavy physics is unmeasured.** `--collision off` is free *because the bench hulls never
    touch*. Crowded/touching ships would surface a real collision cost.
 6. **No regression gate.** Bench JSON is keyed by git SHA; a gate (fail if p95 rises >X % vs a stored
