@@ -459,6 +459,27 @@ The earlier draft of this list opened with THROUGHPUT; the review demoted it. Se
 throughput is step 5, not step 1: growing search/compute before the loop provably
 learns just scales a collapse. The concrete work, in order:
 
+> **⇒ THE PLAN FROM HERE (the short version — read the STATUS + numbered list below for
+> the why).** The four measure-first fixes + imitation warm-start are DONE, and the
+> structural blocker (shallow gen-0 self-play) is FIXED: the loop provably trains on full
+> games. It does NOT yet beat the floor, and the coarse eval can't even SEE sub-floor
+> progress. So the next steps, strictly in this order — **a sharper ruler before more
+> compute, and code/CPU before hardware:**
+>   1. **A finer JUDGE (#1a)** — a frozen-`Contender` snapshot so the real Elo/SPRT
+>      gauntlet rates the net against the archive (at minimum, many more eval games than 6).
+>      You cannot steer training without a ruler that resolves sub-floor progress.
+>   2. **Parallelize `evaluate()`** onto the `SelfPlayPool` — it runs SERIALLY on the main
+>      thread today and dominates wall-clock. Cheap, unblocks everything downstream.
+>   3. **Batch inference (#5)** across the search tree and across parallel self-play games.
+>      This is the real throughput unlock AND the precondition for any GPU to help.
+>   4. **THEN scale** — many more iters/games on CPU, watched by the finer judge.
+>   5. **eGPU LAST, and only after #3.** It is a throughput accelerator for BATCHED
+>      inference, not a brain; single-sample tiny-net inference (today's shape) is its
+>      WORST case, so adding it before #3 runs *slower*, not faster. Serious GPU training
+>      would mean a Python/PyTorch path fed by TS self-play — a separate architecture call.
+> Honest caveat: even at scale, beating the 35-gen SPRT-tuned archive via self-play is
+> genuinely uncertain — the structural caps are removed, the rest is training reality.
+
 > **STATUS (2026-07-19 overnight leg).** Three of the review's fixes landed — **keep-best
 > (#1b), Dirichlet exploration (#3), and the value-target fix (#4)** — all typecheck +
 > lint clean and covered by the RL unit tests. Then the FIRST measured run
@@ -487,8 +508,10 @@ learns just scales a collapse. The concrete work, in order:
 > (`rl-checkpoints/measured-0719-imit`) went from ~6 samples/self-play-game to
 > **~130–380** — the competent gen-0 policy plays FULL games instead of abandoning at
 > turn 1, so the shallow-trajectory blocker is GONE. **But eval vs claude-v2 was still
-> 0.0% at all 6 points.** That is now an HONEST scale/resolution result, not a structural
-> one: (a) 30 iters = 180 games is nowhere near enough to surpass a 35-generation SPRT-
+> 0.0% at all 6 points** — and a longer walk-away run confirmed the wall holds well past
+> 30 iters (`rl-checkpoints/walkaway-0719`: 400 iters / 2400 games, all 8 evals 0.0% at
+> the finer 16-game resolution, loss plateaued ~2.13). That is now an HONEST
+> scale/resolution result, not a structural one: (a) 30 iters = 180 games is nowhere near enough to surpass a 35-generation SPRT-
 > tuned bot; (b) the imitated policy is a LOSSY copy (atomic-token approximation + a small
 > MLP + 24-sim MCTS), so gen-0 starts *below* its claude-v2 teacher and must be TRAINED
 > up; (c) the 6-game eval's 16.7% granularity can't even see sub-floor learning. **So the
