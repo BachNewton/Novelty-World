@@ -64,6 +64,12 @@ import { janeV11Bot } from "./jane-v11";
 // plans and trade votes. Everything else uses jane-v6 unchanged. See
 // versions/jane-v12/index.ts.
 import { janeV12Bot } from "./jane-v12";
+// jane-v13 — jane-v11 + INCOME AMORTIZATION HORIZON: the incomeFlow term
+// (opponent-aware expected rent) is multiplied by a game-phase-aware horizon
+// (1× early to 3× late game), correcting the single-turn undervaluation of
+// developed monopolies. Fully deterministic, no MC. See
+// versions/jane-v13/index.ts.
+import { janeV13Bot } from "./jane-v13";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -233,6 +239,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v10": janeV10Bot,
   "jane-v11": janeV11Bot,
   "jane-v12": janeV12Bot,
+  "jane-v13": janeV13Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
