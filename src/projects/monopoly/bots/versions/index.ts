@@ -70,6 +70,12 @@ import { janeV12Bot } from "./jane-v12";
 // developed monopolies. Fully deterministic, no MC. See
 // versions/jane-v13/index.ts.
 import { janeV13Bot } from "./jane-v13";
+// jane-v14 — jane-v13 + THREAT EXPOSURE AMORTIZATION HORIZON: the symmetric
+// counterpart to J5. threatExposure now scales by the same game-phase-aware
+// horizon (1× early → 3× late), correctly modeling that being positioned near
+// developed opponent monopolies is a persistent recurring threat in late game,
+// not a one-time cost. See versions/jane-v14/index.ts.
+import { janeV14Bot } from "./jane-v14";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -240,6 +246,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v11": janeV11Bot,
   "jane-v12": janeV12Bot,
   "jane-v13": janeV13Bot,
+  "jane-v14": janeV14Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
