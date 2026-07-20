@@ -88,6 +88,11 @@ import { janeV15Bot } from "./jane-v15";
 // assets on bankruptcy. Completely orthogonal to horizon/amortization.
 // See versions/jane-v16/index.ts.
 import { janeV16Bot } from "./jane-v16";
+// jane-v17 — RIVAL DEPLOYABILITY (J8): trade evaluation improvement on
+// jane-v13 substrate. Scales rivalThreatCost by opponent's post-trade ability
+// to develop the completed monopoly. NOT a positionValue change.
+// See versions/jane-v17/index.ts.
+import { janeV17Bot } from "./jane-v17";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -261,6 +266,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v14": janeV14Bot,
   "jane-v15": janeV15Bot,
   "jane-v16": janeV16Bot,
+  "jane-v17": janeV17Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
