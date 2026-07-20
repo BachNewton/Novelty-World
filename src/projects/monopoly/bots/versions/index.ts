@@ -76,6 +76,12 @@ import { janeV13Bot } from "./jane-v13";
 // developed opponent monopolies is a persistent recurring threat in late game,
 // not a one-time cost. See versions/jane-v14/index.ts.
 import { janeV14Bot } from "./jane-v14";
+// jane-v15 — jane-v13 + ASYMMETRIC AMORTIZATION: incomeHorizon at full
+// strength (1.0) but threatHorizon at half (0.5). Threats are more volatile
+// than guaranteed income — they're mitigable via trades/mortgages/dev.
+// Captures v14's fable-v8 improvement without sacrificing aggression.
+// See versions/jane-v15/index.ts.
+import { janeV15Bot } from "./jane-v15";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -247,6 +253,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v12": janeV12Bot,
   "jane-v13": janeV13Bot,
   "jane-v14": janeV14Bot,
+  "jane-v15": janeV15Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
