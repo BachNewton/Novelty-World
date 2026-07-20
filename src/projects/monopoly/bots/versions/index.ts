@@ -82,6 +82,12 @@ import { janeV14Bot } from "./jane-v14";
 // Captures v14's fable-v8 improvement without sacrificing aggression.
 // See versions/jane-v15/index.ts.
 import { janeV15Bot } from "./jane-v15";
+// jane-v16 — BANKRUPTCY PRESSURE (J7): new evaluation axis on jane-v13
+// substrate. Adds a positionValue bonus when opponents are in financial
+// distress — they can't develop, will liquidate cheap, and I inherit their
+// assets on bankruptcy. Completely orthogonal to horizon/amortization.
+// See versions/jane-v16/index.ts.
+import { janeV16Bot } from "./jane-v16";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -254,6 +260,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v13": janeV13Bot,
   "jane-v14": janeV14Bot,
   "jane-v15": janeV15Bot,
+  "jane-v16": janeV16Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
