@@ -35,6 +35,64 @@ import { claudeV47Bot } from "./claude-v47";
 // `jane-vN`, `gemini-vN`.
 import { janeV2Bot } from "./jane-v2";
 import { janeV4Bot } from "./jane-v4";
+// jane-v6 — the Jane lineage's first bot on the Fable 47-param factory.
+// Structural innovation: COLLATERALIZED DEVELOPMENT — mortgages non-monopoly
+// singletons to fund house construction on monopolies. Fable's planBuild only
+// builds from liquid cash, leaving capital stranded in idle singletons.
+// See versions/jane-v6/index.ts.
+import { janeV6Bot } from "./jane-v6";
+// jane-v7 — jane-v6 + AUCTION DENIAL BIDDING: when a property at auction
+// would complete an opponent's monopoly, amplify the deny premium (4x) so
+// the bot either wins the blocking property or forces the completing
+// opponent to overpay. See versions/jane-v7/index.ts.
+import { janeV7Bot } from "./jane-v7";
+// jane-v10 — jane-v6 + GREEDY MARGINAL-EV BUILD OPTIMIZER: replaces the static
+// spread+push heuristic with a greedy optimizer that picks the highest
+// expected-rent-per-dollar upgrade each step. Produces non-uniform final
+// levels and allocates capital more efficiently. A structural change to the
+// decision process, not a parameter tweak. See versions/jane-v10/index.ts.
+import { janeV10Bot } from "./jane-v10";
+// jane-v11 — jane-v10 + OPPONENT-AWARE EVALUATION: adds income flow (expected
+// monopoly rent from actual opponent positions) and threat exposure (expected
+// outgo on next roll) to positionValue — the core eval function that hasn't
+// been touched since the lineage began. A structural change to the EVALUATION
+// FUNCTION, not the decision process. See versions/jane-v11/index.ts.
+import { janeV11Bot } from "./jane-v11";
+// jane-v12 — jane-v6 + MONTE CARLO SEARCH at build and trade-accept/deny.
+// The first architectural departure from the jane-v6 evaluation framework.
+// Instead of heuristic-only decisions, MC forward-simulates candidate build
+// plans and trade votes. Everything else uses jane-v6 unchanged. See
+// versions/jane-v12/index.ts.
+import { janeV12Bot } from "./jane-v12";
+// jane-v13 — jane-v11 + INCOME AMORTIZATION HORIZON: the incomeFlow term
+// (opponent-aware expected rent) is multiplied by a game-phase-aware horizon
+// (1× early to 3× late game), correcting the single-turn undervaluation of
+// developed monopolies. Fully deterministic, no MC. See
+// versions/jane-v13/index.ts.
+import { janeV13Bot } from "./jane-v13";
+// jane-v14 — jane-v13 + THREAT EXPOSURE AMORTIZATION HORIZON: the symmetric
+// counterpart to J5. threatExposure now scales by the same game-phase-aware
+// horizon (1× early → 3× late), correctly modeling that being positioned near
+// developed opponent monopolies is a persistent recurring threat in late game,
+// not a one-time cost. See versions/jane-v14/index.ts.
+import { janeV14Bot } from "./jane-v14";
+// jane-v15 — jane-v13 + ASYMMETRIC AMORTIZATION: incomeHorizon at full
+// strength (1.0) but threatHorizon at half (0.5). Threats are more volatile
+// than guaranteed income — they're mitigable via trades/mortgages/dev.
+// Captures v14's fable-v8 improvement without sacrificing aggression.
+// See versions/jane-v15/index.ts.
+import { janeV15Bot } from "./jane-v15";
+// jane-v16 — BANKRUPTCY PRESSURE (J7): new evaluation axis on jane-v13
+// substrate. Adds a positionValue bonus when opponents are in financial
+// distress — they can't develop, will liquidate cheap, and I inherit their
+// assets on bankruptcy. Completely orthogonal to horizon/amortization.
+// See versions/jane-v16/index.ts.
+import { janeV16Bot } from "./jane-v16";
+// jane-v17 — RIVAL DEPLOYABILITY (J8): trade evaluation improvement on
+// jane-v13 substrate. Scales rivalThreatCost by opponent's post-trade ability
+// to develop the completed monopoly. NOT a positionValue change.
+// See versions/jane-v17/index.ts.
+import { janeV17Bot } from "./jane-v17";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -160,17 +218,6 @@ import { fableV12Bot } from "./fable-v12";
 // the worst board hit; NARROW — binds only on completers, so ordinary auctions
 // are untouched (avoiding fable-v13's board-wide passivity). See its index.ts.
 import { fableV14Bot } from "./fable-v14";
-// fable-v15 — a CONSTRAINED-ES RE-TUNE on the fable-v12 factory. PROMOTED (registered
-// + rated) as a strong-but-INTRANSITIVE vector (2026-07-19), NOT crowned, NOT the
-// default. The `--panel` crown gate (train) ACCEPTs it — BETTER vs base fable-v12 +
-// BETTER-or-EVEN vs all 12 panel members incl. the diverse jane/opt/claude bots and
-// the prior top fable-v8, zero regressions — so it is NOT counter-overfit. But the
-// ladder rates it 119.7, BELOW base fable-v12 (129.8): its head-to-head wins are
-// intransitive (beats the summit, only ~62% vs the weak floor), which a 1-D Elo
-// compresses. The generated ladder keeps fable-v8 as the derived default. Kept as a
-// recorded strong vector (jailStayThreshold 0 → ~4.9 corroborates the probe jail
-// finding). See its index.ts + EVOLUTION.md.
-import { fableV15Bot } from "./fable-v15";
 // Kyle lineage — a new bot family authored by Kyle, distinct from claude / jane
 // / gemini and the paradigm lines (trade / search / opt). Labels namespaced
 // `kyle-vN`. kyle-v1 is a from-scratch baseline that defers to engine defaults.
@@ -210,6 +257,16 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "claude-v47": claudeV47Bot,
   "jane-v2": janeV2Bot,
   "jane-v4": janeV4Bot,
+  "jane-v6": janeV6Bot,
+  "jane-v7": janeV7Bot,
+  "jane-v10": janeV10Bot,
+  "jane-v11": janeV11Bot,
+  "jane-v12": janeV12Bot,
+  "jane-v13": janeV13Bot,
+  "jane-v14": janeV14Bot,
+  "jane-v15": janeV15Bot,
+  "jane-v16": janeV16Bot,
+  "jane-v17": janeV17Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
@@ -228,7 +285,6 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "fable-v11": fableV11Bot,
   "fable-v12": fableV12Bot,
   "fable-v14": fableV14Bot,
-  "fable-v15": fableV15Bot,
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
@@ -387,24 +443,13 @@ export const RATING_PANEL: readonly string[] = [
   // lobby default. With the column, the summit ordering is measured. The panel
   // is now 16 members — the prune lead stands.
   "fable-v8",
+  // jane-v6 — the CROWNED champion (2026-07-18, +18.8 Elo over fable-v8):
+  // collateralized development on the fable-v8 factory. SPRT BETTER vs all 12
+  // panel members, zero regressions. Added per the crown rule — structurally
+  // distinct (capital reallocation via singleton mortgaging), and now the
+  // summit of the ladder.
+  "jane-v6",
 ];
-
-/** The HUMAN-COUNTERPARTY MODEL twin chain — the THIRD hand-maintained eval knob,
- *  alongside `RATING_EXCLUDED` and `RATING_PANEL`, and for the same reason: the Elo
- *  ladder cannot derive it. These `twins` are pinned IDENTICAL to `base` in every
- *  bot-vs-bot game (they diverge only when the counterparty is human,
- *  `botStrategy === null` — see `bots/CLAUDE.md` "The human-counterparty model"), so
- *  the bots-only ladder ranks them vs `base` by pure NOISE and would seat a human
- *  against `base` — the one twin that models humans LEAST. The lobby's human-facing
- *  DEFAULT therefore prefers the FULLEST twin (last entry) over `base` when `base`
- *  tops the ladder (`roles.ts` `DEFAULT_BOT_VERSION`). This is NOT the Elo "Strongest"
- *  display — that stays honestly `base`; only the seat a human actually plays changes.
- *  Update when a stronger human-model twin lands, or when a new champion supersedes
- *  `base` in real strength (then build its human-aware twin and re-point here). */
-export const HUMAN_MODEL_TWINS: { readonly base: string; readonly twins: readonly string[] } = {
-  base: "fable-v8",
-  twins: ["fable-v11", "fable-v12"],
-};
 
 /** Resolve a version label to its policy, or throw with the known set listed —
  *  a typo on the CLI should fail loud, not silently field the wrong bot. */
