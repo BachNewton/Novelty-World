@@ -93,6 +93,11 @@ import { janeV16Bot } from "./jane-v16";
 // to develop the completed monopoly. NOT a positionValue change.
 // See versions/jane-v17/index.ts.
 import { janeV17Bot } from "./jane-v17";
+// jane-v18 — SELF-DEPLOYABILITY DISCOUNT (J9): self-side mirror of J8 in trade
+// evaluation. Discounts monopoly bonus when I complete a set but can't afford
+// to develop it post-trade.
+// See versions/jane-v18/index.ts.
+import { janeV18Bot } from "./jane-v18";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -267,6 +272,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v15": janeV15Bot,
   "jane-v16": janeV16Bot,
   "jane-v17": janeV17Bot,
+  "jane-v18": janeV18Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
