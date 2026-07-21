@@ -24,16 +24,32 @@
  *  any anchor-panel member). Elo PROPOSES, SPRT CONFIRMS: a ladder-topper that is
  *  only EVEN under SPRT is recorded and may be the player default, but is not
  *  crowned. Advancing this needs no human greenlight — only the measurement. */
-export const CROWN = "fable-v7";
+export const CROWN = "jane-v20";
 
 /** The SUBSTRATE — what the next version is evolved FROM. A JUDGMENT, not a rule:
  *  the crown is the default prior, but you are free to branch from any family or
- *  start fresh (survey all of them — "winning is the only loyalty"). Today it is
- *  fable-v12, a deliberate call with an unusually clean argument: it IS the
- *  prior substrate fable-v8 in every bot-vs-bot game (identity pinned and
- *  demonstrated over 40 full seeded games), plus the two-iteration human-
- *  counterparty model — no premium asks or surplus riders against human
- *  seats, a $75 margin on human-proposed trades, and a 2× threat multiplier
- *  when arming a human — each dim live-validated in a human-marked probe game
- *  (see EVOLUTION.md "the 4q3y6i night", fable-v11/fable-v12). */
+ *  start fresh (survey all of them — "winning is the only loyalty").
+ *
+ *  It deliberately does NOT follow the crown right now, which is rare enough to
+ *  spell out. jane-v20 took the crown on the all-bot axis (SPRT BETTER vs fable-v7
+ *  and every panel member, both streams) but carries NO human-counterparty model —
+ *  its lineage forked from fable-v8, before that work landed — and probe-gate puts
+ *  its human leakage at 4× fable-v12's ($530 vs $130). Handing it the substrate
+ *  would propagate its codebase and quietly ORPHAN the human model out of the line
+ *  of descent, because the substrate rule carries code, not just strength. That is
+ *  a real failure mode of this loop, not a hypothetical: the all-bot gate cannot
+ *  see the human axis (human-gated dims are SPRT-vacuous by construction), so
+ *  promotion on measured strength can silently delete unmeasured progress.
+ *
+ *  So the substrate stays fable-v12 — fable-v8 in every bot-vs-bot game (identity
+ *  pinned over 40 full seeded games) plus the two-iteration human-counterparty
+ *  model: no premium asks or surplus riders against human seats, a $75 margin on
+ *  human-proposed trades, and a 2× threat multiplier when arming a human, each
+ *  live-validated in a human-marked probe game (EVOLUTION.md "the 4q3y6i night").
+ *
+ *  The resolution is a MERGE, and it is unusually clean: jane-v20 and fable-v12
+ *  share fable-v8 as an exact common ancestor and their deltas are disjoint —
+ *  jane-v20 = fable-v8's 52 params verbatim + 10 J-stack levers, fable-v12 =
+ *  fable-v8 + 3 human dims, with zero overlap. The union is the next version, and
+ *  it is what should hold crown and substrate together. */
 export const SUBSTRATE = "fable-v12";

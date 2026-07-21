@@ -1,5 +1,5 @@
 import { BOT_RATINGS } from "./ratings";
-import { HUMAN_MODEL_TWINS, VERSIONS } from "./versions";
+import { HUMAN_MODEL_VERSIONS, VERSIONS } from "./versions";
 
 // ---------------------------------------------------------------------------
 // The PLAYER-FACING lobby offering — ENTIRELY DERIVED, not hand-curated. This is
@@ -149,22 +149,20 @@ export const LOBBY_BOTS: LobbyBots = (() => {
  *  opponent a HUMAN actually faces. This is NOT simply the top of the Elo ladder:
  *  Elo is measured bot-vs-bot, and the archive's human-facing refinement (the fable
  *  human-counterparty model) is pinned IDENTICAL to its base in bot play, so the
- *  ladder can't see it and would seat a human against the human-BLIND twin. So when
- *  the Elo-strongest bot is the human-model base (or one of its twins), we seat the
- *  FULLEST human-aware twin instead — same bot strength, strictly less exploitable by
- *  humans (see `bots/CLAUDE.md` "The human-counterparty model" and `HUMAN_MODEL_TWINS`).
- *  The Elo-derived "Strongest" DISPLAY (`LOBBY_BOTS.overallBest`) is unchanged — this
- *  moves only the default SEAT. Falls back to the newest registered version when
- *  nothing is rated yet, so a seat is ALWAYS a real, playable bot. */
+ *  ladder can't see it and would seat a human against a human-BLIND bot. So whenever
+ *  the Elo-strongest bot does not itself carry the model, we seat the FULLEST version
+ *  that does (see `bots/CLAUDE.md` "The human-counterparty model" and
+ *  `HUMAN_MODEL_VERSIONS`). The Elo-derived "Strongest" DISPLAY
+ *  (`LOBBY_BOTS.overallBest`) is unchanged — this moves only the default SEAT. Falls
+ *  back to the newest registered version when nothing is rated yet, so a seat is
+ *  ALWAYS a real, playable bot. */
 export const DEFAULT_BOT_VERSION: string = humanFacingDefault();
 
 function humanFacingDefault(): string {
   const eloBest = LOBBY_BOTS.overallBest?.version ?? newestRegisteredVersion();
-  const { base, twins } = HUMAN_MODEL_TWINS;
-  if (eloBest === base || twins.includes(eloBest)) {
-    const fullest = twins.at(-1);
-    if (fullest !== undefined && fullest in VERSIONS) return fullest;
-  }
+  if (HUMAN_MODEL_VERSIONS.includes(eloBest)) return eloBest;
+  const fullest = HUMAN_MODEL_VERSIONS.at(-1);
+  if (fullest !== undefined && fullest in VERSIONS) return fullest;
   return eloBest;
 }
 
