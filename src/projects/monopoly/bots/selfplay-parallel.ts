@@ -35,6 +35,10 @@ export interface ParallelSelfPlayOptions {
 export interface EvalPoolOptions {
   netDir: string;
   rule: string;
+  /** When set, opponent is another MCTS net from this dir (self-play eval). */
+  oppNetDir?: string;
+  /** Label for the opponent seat (defaults to `rule`). */
+  oppLabel?: string;
   rlLabel: string;
   seeds: string[];
   players: PlayerCount;
@@ -149,6 +153,8 @@ export class SelfPlayPool {
           kind: "eval",
           netDir: opts.netDir,
           rule: opts.rule,
+          oppNetDir: opts.oppNetDir,
+          oppLabel: opts.oppLabel,
           rlLabel: opts.rlLabel,
           seeds: chunk,
           players: opts.players,

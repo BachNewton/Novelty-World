@@ -78,7 +78,7 @@ function parseArgs(argv: readonly string[]): Args {
     players: 4,
     maxTurns: 800,
     bootstrapGames: 30,
-    rule: "claude-v2",
+    rule: "jane-v20",
     evalEvery: 5,
     evalGames: 12,
     evalMargin: 30, // SPRT Elo margin (0 = fixed win-rate eval)
@@ -104,6 +104,7 @@ function parseArgs(argv: readonly string[]): Args {
       case "--turns": a.maxTurns = Number(next()); break;
       case "--bootstrap": a.bootstrapGames = Number(next()); break;
       case "--rule": a.rule = next(); break;
+      case "--eval-opponent": a.rule = next(); break; // alias for clarity
       case "--eval-every": a.evalEvery = Number(next()); break;
       case "--eval-games": a.evalGames = Number(next()); break;
       case "--eval-margin": a.evalMargin = Number(next()); break;
@@ -248,6 +249,42 @@ async function evaluate(netDir: string, pool: SelfPlayPool, a: Args): Promise<Ev
   };
 }
 
+// Self-play eval: play current net vs the retained best net (if any).
+// Returns the raw win-rate — a learning signal independent of the external-opponent eval.
+// If no best net exists yet, returns null (first eval has nothing to compare against).
+async function evaluateSelfPlay(netDir: string, bestDir: string, pool: SelfPlayPool, a: Args, iter: number): Promise<EvalResult | null> {
+  if (!existsSync(join(bestDir, "model.json"))) return null;
+  const players: PlayerCount = 2;
+  const seeds = Array.from({ length: a.evalGames }, (_, i) => `${a.seed}-selfeval-${iter}-${i}`);
+  const results = await pool.evalGames({
+    netDir,
+    rule: "prev-best",
+    oppNetDir: bestDir,
+    oppLabel: "prev-best",
+    rlLabel: RL_LABEL,
+    seeds,
+    players,
+    maxTurns: a.maxTurns,
+    sims: a.sims,
+  });
+  let wins = 0;
+  let losses = 0;
+  for (const r of results) {
+    if (r.rlWon === true) wins++;
+    else if (r.rlWon === false) losses++;
+  }
+  const decisive = wins + losses;
+  return {
+    verdict: "fixed",
+    winRate: decisive > 0 ? wins / decisive : 0,
+    wins,
+    losses,
+    decisive,
+    llrImprove: 0,
+    llrRegress: 0,
+  };
+}
+
 async function main(): Promise<void> {
   const a = parseArgs(cliArgv);
   mkdirSync(a.dir, { recursive: true });
@@ -366,6 +403,20 @@ async function main(): Promise<void> {
             `SPRT=${er.verdict} [LLR +${er.llrImprove.toFixed(2)}/${er.llrRegress.toFixed(2)}] ` +
             `(${secs(now() - t1)})${tag}`,
         );
+
+        // SELF-PLAY EVAL: current net vs retained best net.
+        // Independent learning signal — even before the net can beat external
+        // opponents, we can see if it's improving vs its own past versions.
+        const t2 = now();
+        const sp = await evaluateSelfPlay(netDir, bestDir, pool, a, iteration);
+        if (sp !== null) {
+          console.log(
+            `  self  — net vs prev-best: ${(sp.winRate * 100).toFixed(1)}% (${sp.wins}W/${sp.losses}L of ${sp.decisive} decisive) ` +
+              `(${secs(now() - t2)})`,
+          );
+        } else {
+          console.log(`  self  — net vs prev-best: (no best net yet)`);
+        }
       }
     }
   } finally {

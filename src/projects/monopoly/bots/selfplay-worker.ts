@@ -48,8 +48,12 @@ export interface EvalTask {
   kind: "eval";
   /** Checkpoint dir to load the net from. Never null for eval (always a real net). */
   netDir: string;
-  /** Rule bot label (registry name, e.g. "claude-v2"). */
+  /** Rule bot label (registry name, e.g. "jane-v20"). Ignored when oppNetDir is set. */
   rule: string;
+  /** When set, the opponent is another MCTS net loaded from this dir (self-play eval). */
+  oppNetDir?: string;
+  /** Label for the opponent seat (defaults to `rule`). */
+  oppLabel?: string;
   /** Label for the net's seat — the winner is reported by this label. */
   rlLabel: string;
   seeds: string[];
@@ -110,14 +114,22 @@ async function runSelfPlayTask(task: SelfPlayTask): Promise<TrainSample[]> {
 async function runEvalTask(task: EvalTask): Promise<EvalGameResult[]> {
   const net = await MonoNet.load(task.netDir);
   const bot = mctsBot(net, { simulations: task.sims });
-  const rule = botFor(task.rule);
+  let oppNet: MonoNet | null = null;
+  let opponent: ReturnType<typeof botFor> | ReturnType<typeof mctsBot>;
+  const oppLabel = task.oppLabel ?? task.rule;
+  if (task.oppNetDir) {
+    oppNet = await MonoNet.load(task.oppNetDir);
+    opponent = mctsBot(oppNet, { simulations: task.sims });
+  } else {
+    opponent = botFor(task.rule);
+  }
   const results: EvalGameResult[] = [];
   for (const seed of task.seeds) {
     const result = simulateGame({
       seed,
       seats: [
         { label: task.rlLabel, bot },
-        { label: task.rule, bot: rule },
+        { label: oppLabel, bot: opponent },
       ],
       maxTurns: task.maxTurns,
     });
@@ -133,5 +145,6 @@ async function runEvalTask(task: EvalTask): Promise<EvalGameResult[]> {
     results.push({ seed, rlWon });
   }
   net.dispose();
+  if (oppNet) oppNet.dispose();
   return results;
 }
