@@ -1,30 +1,20 @@
-// jane-v20 — BOUNDED SURVIVAL CREDIT IN OPPONENT MODEL (J11) on jane-v19 substrate.
+// jane-v21 — EQUITY-WEIGHTED LIFELINE PENALTY (J12) on jane-v20 substrate.
 //
-// jane-v19 passed the crown gate: 35 BETTER, 3 INCONCLUSIVE, 3 EVEN, 0 WORSE
-// across 41 pairings. J10 added the rival survival lifeline penalty on the
-// accept/reject side.
+// jane-v20 passed: 35 BETTER, 3 INCONCLUSIVE, 3 EVEN, 0 WORSE across 41 pairings.
+// J11 bounded survival credit in the opponent model.
 //
-// J11 fixes the OPPONENT MODEL side of survival credit. F2a (survivalBounded)
-// fixed the leak for self-view: survivalBase = min(cashIn, needToSafe) instead
-// of unbounded cashIn. But when selfView=false (modeling opponents in
-// sweetenFor/chargeSurplus), survivalBase was STILL unbounded (= cashIn).
+// J12 equity-weights the J10 lifeline penalty. J10 penalizes cash paid to a
+// distressed rival at face value. But if the rival has no comeback path (low PV
+// relative to the strongest player), the lifeline cash is wasted — they'll die
+// anyway. J12 scales the penalty by the rival's comeback equity, mirroring F7's
+// self-side survivalEquityGain. This makes the bot more willing to buy fire-sale
+// properties from dying opponents rather than refusing to pay them cash.
 //
-// This causes:
-//   - chargeSurplus: inflated oppDelta → over-extraction from distressed opponents
-//     → proposed trades rejected that should be acceptable
-//   - sweetenFor: the opponent's relief already divides by (1 + distress × SF),
-//     but the delta estimate feeding the sweetener is inflated, so we may
-//     under-pay distressed opponents (trade rejected by the opp model)
-//
-// Since the fable field (our main competition) has F2a, modeling them with
-// unbounded survival credit is systematically inaccurate. J11 applies the same
-// bound when selfView=false.
-//
-// Vector: jane-v19's verbatim + oppSurvivalBounded 1.0.
-import { type ParamVector, makeParamBot } from "./bot";
+// Vector: jane-v20's verbatim + lifelineEquityGain 1.0.
+import { type ParamVector, makeParamBot } from "../jane-v20/bot";
 
-/** jane-v19's vector verbatim + bounded survival credit in opponent model (J11). */
-export const JANE_V20_PARAMS: ParamVector = {
+/** jane-v20's vector verbatim + equity-weighted lifeline penalty (J12). */
+export const JANE_V21_PARAMS: ParamVector = {
   denyFactor: 0.12384655676923122,
   bonusScale: 13640.754394663116,
   railSynergyScale: 1.0463402203744872,
@@ -95,9 +85,9 @@ export const JANE_V20_PARAMS: ParamVector = {
   rivalSurvivalPenalty: 1.0,
   // J11 — bound survival credit in opponent model too (F2a was self-only).
   oppSurvivalBounded: 1.0,
-  // J12 — equity-weighted lifeline penalty (disabled in v20; enabled in v21).
-  lifelineEquityGain: 0,
+  // J12 — equity-weighted lifeline penalty (scales J10 by rival comeback equity).
+  lifelineEquityGain: 1.0,
 };
 
-/** The frozen bot: jane-v19's vector + bounded survival credit in opponent model (J11). */
-export const janeV20Bot = makeParamBot(JANE_V20_PARAMS);
+/** The frozen bot: jane-v20's vector + equity-weighted lifeline penalty (J12). */
+export const janeV21Bot = makeParamBot(JANE_V21_PARAMS);

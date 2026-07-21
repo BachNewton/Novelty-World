@@ -107,6 +107,10 @@ import { janeV19Bot } from "./jane-v19";
 // survival credit bound to the opponent model (selfView=false path).
 // See versions/jane-v20/index.ts.
 import { janeV20Bot } from "./jane-v20";
+// jane-v21 — EQUITY-WEIGHTED LIFELINE PENALTY (J12): scales J10's lifeline
+// penalty by the rival's comeback equity (mirrors F7 self-side logic).
+// See versions/jane-v21/index.ts.
+import { janeV21Bot } from "./jane-v21";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -284,6 +288,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v18": janeV18Bot,
   "jane-v19": janeV19Bot,
   "jane-v20": janeV20Bot,
+  "jane-v21": janeV21Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,

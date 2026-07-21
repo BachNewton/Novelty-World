@@ -327,6 +327,13 @@ export interface ParamVector {
    *  distressed opponents (inflated oppDelta → trades rejected) and underpayment
    *  to them. gain=0 disables (= jane-v19 behavior); 1.0 = full bound. */
   oppSurvivalBounded: number;
+  /** J12 — equity-weighted lifeline penalty. J10 penalizes cash paid to a
+   *  distressed rival at face value, but if the rival has no comeback path
+   *  (low PV relative to the strongest player), the lifeline cash is wasted —
+   *  they'll die anyway. This scales the J10 penalty by the rival's comeback
+   *  equity (mirroring F7's self-side survivalEquityGain). gain=0 disables
+   *  (= jane-v20 behavior); 1.0 = full equity weighting. */
+  lifelineEquityGain: number;
 }
 
 // Static, non-tuned data carried verbatim from claude-v38.
@@ -1501,7 +1508,22 @@ export function makeParamBot(p: ParamVector): Bot {
       if (distress <= 0 || needToSafe <= 0) continue;
       // Only the cash that actually erases their distress is a lifeline.
       const lifelineCash = Math.min(cashReceived, needToSafe);
-      totalPenalty += lifelineCash * distress * p.survivalFactor;
+      // J12 — equity-weight the lifeline: if the rival has no comeback path
+      // (low PV relative to the strongest player), the lifeline cash is wasted
+      // — they'll die anyway. Scale the penalty by comeback equity (mirrors
+      // F7's self-side survivalEquityGain). gain=0 → face value (= jane-v20).
+      let equityMult = 1;
+      if (p.lifelineEquityGain > 0) {
+        const oppPV = positionValue(state, opp.id);
+        let bestPlayer = 0;
+        for (const q of state.players) {
+          if (q.id === opp.id || q.bankrupt) continue;
+          bestPlayer = Math.max(bestPlayer, positionValue(state, q.id));
+        }
+        const equity = bestPlayer > 0 ? Math.min(1, oppPV / bestPlayer) : 1;
+        equityMult = 1 - p.lifelineEquityGain * (1 - equity);
+      }
+      totalPenalty += lifelineCash * distress * p.survivalFactor * equityMult;
     }
     return Math.round(totalPenalty * p.rivalSurvivalPenalty);
   }
