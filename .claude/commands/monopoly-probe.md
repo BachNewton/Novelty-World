@@ -21,6 +21,14 @@ rule-reasoning misses, white-box play measures the exploitability CEILING
 multi-game-per-agent play measures **repeatability**, which no single game
 can. Run every command from the repo root.
 
+**Its automated complement is `npm run sim:probe-gate`** (`bots/adversary.ts`):
+the recurring hand-played exploits — the wallet-pegged ask, the
+complete-into-illiquidity auction bid, the distress fire-sale — are each a pure
+decision on a hand-built board, so it scores them without playing a game and
+turns "field a probe" into a **regression number**. Hand-play discovers new
+surfaces; the gate keeps the fixed ones fixed. A candidate must not raise its
+total leakage above its base's (see `bots/METHOD.md` crown gate).
+
 ## Cost — state it before launching
 
 One game ≈ 150–500k subagent tokens, ~30–45 min. Agents run in parallel;
@@ -87,11 +95,17 @@ launching.
    CLOSED-list re-verification results, over-caution observations, and
    finally: **where the bots should go next** — 1–3 proposed version
    hypotheses, each with a red/green fixture idea. **This command is
-   play-and-report** — building versions afterwards goes through
-   `bots/METHOD.md` (hypothesis → snapshot → red/green → screen →
-   gauntlet/identity-proof); expect probe-found surfaces to screen EVEN in
-   self-play (that invisibility is itself the finding) and expect the gate to
-   reject some proposals — it arbitrates, the fleet only proposes.
+   play-and-report** — building versions afterwards goes through the full loop
+   in `bots/METHOD.md`: **discover** (this probe / `game:review` / the
+   `game:offers` corpus) → **hypothesis** → **self-contained snapshot** →
+   **red/green `policy.test`** → **screen** (`sim:versus`) → **gauntlet gate**
+   (SPRT `BETTER`-vs-base on **both** seed streams + no panel regression) **plus
+   the `sim:probe-gate` human-leakage check** (the candidate must not increase
+   total leakage vs base) → **promote**, minding the two-bests separation
+   (strongest/Elo-default vs SPRT-crown vs substrate — `champion.ts`). Expect
+   probe-found surfaces to screen EVEN — or WORSE — in self-play (that
+   invisibility is itself the finding) and expect the gate to reject some
+   proposals — it arbitrates, the fleet only proposes.
 
 ## Distilled lessons (bake these into the agent prompts and your synthesis)
 
@@ -115,6 +129,24 @@ launching.
    `propose-trade` with `cashDelta` netting to zero; batch trivial pauses,
    spend reasoning on trades/auctions/development; if a pause repeats
    unfixably, record it and stop that game.
+7. **A probe-found "defect" is often LOAD-BEARING — screen honestly, expect
+   washes.** Not every ugly behavior is a bug: the churn a probe flags may be
+   doing real work in self-play. fable-v13's build-tail change screened at
+   **−20 Elo** — the "defect" wasn't one. Screen every proposed fix on
+   `sim:versus` before believing it, and report the wash as the finding when it
+   comes.
+8. **Human-facing fixes are INVISIBLE to self-play.** A change gated on a human
+   seat (`botStrategy === null`) is provably identical to its base in every
+   all-bot game, so the shared evaluator and SPRT can't see it. Route such fixes
+   through the **human gate** (a live `played-cli --human` probe) and
+   **`sim:probe-gate`**, never through the shared evaluator (two attempts to fix
+   human-facing behavior there — fable-v9/v10 — were REJECTED for breaking
+   load-bearing self-play behavior).
+9. **The biggest surface against the lobby default is the human-model gap.** The
+   bot's counterparty model is its own evaluator — near-perfect against bots,
+   an order of magnitude miscalibrated against humans (the `game:offers` corpus:
+   97.9% bot→bot vs 10.6% bot→human conversion). Probe THAT gap first; it's where
+   a real human wins.
 
 ## Player-agent prompt template
 

@@ -65,6 +65,12 @@ const CAMERAS = {
   dapple: { pos: [-900, 1500, 1400], target: [100, 0, -200] },
   // Low, looking up at the tower. A squall is a thing you stand under.
   squallCam: { pos: [-6, 3, 9], target: [4, 11, -8] },
+  // Wood group. Look ACROSS the raft's deck toward the sun (heading az135), low enough that the deck
+  // planks catch the sun's grazing specular — that grazing angle is exactly where the milky
+  // washed-white sheen appears on the wood. `raftDeck` frames the whole deck + a wall; `raftClose`
+  // fills the frame with plank grain so the texture + its sheen read at full detail.
+  raftDeck: { pos: [-5, 2.2, 5], target: [1.5, 0.6, -1.5] },
+  raftClose: { pos: [-3.2, 1.8, 3.2], target: [0.5, 0.4, -0.5] },
 };
 
 const DEFAULTS = {
@@ -77,6 +83,9 @@ const DEFAULTS = {
   // frames would invalidate every one of them. Group 05 opts in.
   island: false,
   rig: false,
+  // Off by default: the raft is gameplay content that would invalidate the frozen open-water,
+  // clarity, sea-state and lighting baselines. The wood group (07-wood) opts in.
+  raft: false,
   // Clear sky by default. Groups 01–05 test water clarity, sea state and land — a cloud deck (which
   // now casts real shadows) would confound every one of them. Group 06-lighting/C opts in per genus.
   cloud: "clear",
@@ -272,6 +281,28 @@ scenarios.push({ group: "06-lighting/d-hero", name: "dappled-sea", camera: "dapp
 // the same cloud is backlit and shows its silver lining, which is beautiful and is not a squall.
 scenarios.push({ group: "06-lighting/d-hero", name: "squall", camera: "squallCam", cloud: "cumulonimbus", sea: { amplitude: 1.4, steepness: 0.45 }, sun: [25, 315], plane: 5000 });
 
+// Group 07 — the raft's WOOD, across the sun. The gameplay raft shown statically (setVisibility
+// raft:true → respawn to a level pose just above the waterline) so the shared wood-plank PBR
+// material is judged directly. The whole point is the SUN-FACING deck: at a grazing sun the planks
+// wash to a milky white (the defect), so the ladder walks the sun UP from sunset (where a warm smear
+// is correct but ours over-does it + mis-colours) through mid elevations (where it should break into
+// glitter, not smear). Calm Baltic water, heading az135 so the glitter road sits beyond the deck.
+const WOOD_SEA = { amplitude: 0.4, steepness: 0.1 };
+const WOOD_WATER = "Coastal 5";
+for (const el of [4, 12, 25, 50]) {
+  scenarios.push({
+    group: "07-wood",
+    name: `e${String(el).padStart(2, "0")}`,
+    camera: "raftDeck",
+    raft: true,
+    water: WOOD_WATER,
+    sea: WOOD_SEA,
+    sun: [el, 135],
+  });
+}
+// Plank-grain detail: fill the frame with deck so the texture + its grazing sheen read at full res.
+scenarios.push({ group: "07-wood", name: "detail-e20", camera: "raftClose", raft: true, water: WOOD_WATER, sea: WOOD_SEA, sun: [20, 135] });
+
 // ---------------------------------------------------------------------------
 
 // Renders on the REAL GPU (ANGLE/D3D11; confirmed on an AMD Radeon 780M) by default. Set
@@ -345,6 +376,7 @@ for (const s of selected) {
     pole: s.pole ?? DEFAULTS.pole,
     island: s.island ?? DEFAULTS.island,
     rig: s.rig ?? DEFAULTS.rig,
+    raft: s.raft ?? DEFAULTS.raft,
     cloud: s.cloud ?? DEFAULTS.cloud,
     plane,
     setPlane: plane !== appliedPlane, // rebuild the (heavy) mesh only when the size actually changes
@@ -361,7 +393,7 @@ for (const s of selected) {
     const api = window.__shipwright;
     api.resume();
     if (c.setPlane) api.setPlaneSize(c.plane); // rebuild only when the plane size changes (see above)
-    api.setVisibility({ physics: false, player: false, seabed: c.seabed, pole: c.pole, island: c.island, rig: c.rig });
+    api.setVisibility({ physics: false, player: false, seabed: c.seabed, pole: c.pole, island: c.island, rig: c.rig, raft: c.raft });
     api.setShading(c.shading);
     api.setWaterFx(c.waterFx);
     api.setWaterType(c.water);

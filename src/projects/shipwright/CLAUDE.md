@@ -471,7 +471,9 @@ code that floats the ship agree on where the surface is.
   walks, rides, edge-tips, and jumps on a buoyant voxel raft (`player.ts` + `physics.ts`);
   the sea is dialled calm for it. Corner-push (momentum-conserving foot reaction +
   all-contact wall projection), fixed-timestep render interpolation (raft + camera), and a
-  vsync-stride FPS cap are all in. *Optional future improvement (deferred):* a rough-sea
+  vsync-stride FPS cap are all in (the stride/fraction form is load-bearing — a browser can only
+  render-or-skip rAF ticks, so refresh/N are the only evenly-paced rates; preset-number caps would
+  judder, and VRR doesn't repair a skip pattern — see docs/PERFORMANCE.md "Frame pacing"). *Optional future improvement (deferred):* a rough-sea
   **balance-loss** state machine (footed↔thrown) so storms can actually throw the sailor —
   it adds stakes + rewards stable hull design, and the dynamic body already supports it; it
   was parked because the current glued-on feel is good and it's gameplay polish, not a bug.

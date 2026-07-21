@@ -59,3 +59,6 @@ src/projects/monopoly/bots/optimize/*.log
 
 # Isolated dist dir for the Shipwright perf sweep's production server (see next.config.ts distDir)
 .next-bench/
+
+# learned-bot (RL) training checkpoints — generated net weights + meta
+rl-checkpoints/

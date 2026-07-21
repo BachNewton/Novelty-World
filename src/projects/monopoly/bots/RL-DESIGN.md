@@ -1,10 +1,15 @@
 # Learned Monopoly Bot — Design & Handoff
 
-Read this before touching the `value-*`, `features`, `candidates`, or `trade-search`
-modules, or starting any ML/training work. It is the **single source of truth for
-the learned-bot effort** and is written so a fresh session with no prior context
-can pick up the work. It captures the *why*, the architecture decision, what's
-already built, and the exact next steps.
+Read this before touching the `value-*`, `features`, `candidates`, `actions`,
+`net`, `mcts`, `selfplay`, or `trade-search` modules, or starting any ML/training
+work. It is the **single source of truth for the learned-bot effort** and is
+written so a fresh session with no prior context can pick up the work. It captures
+the *why*, the architecture decision, what's built, and what's next.
+
+> **⚡ THE LEARNER IS BUILT (all 7 phases). If you're picking this up fresh, read
+> §8 FIRST** — it's the current state, how to run/resume the trainer, and the
+> prioritized next work. §§1–7 below are the original design (still accurate as the
+> *why*); §5's "next steps" are now DONE.
 
 Companion docs: `monopoly/CLAUDE.md` ("Bots" — the `Bot` contract, registry,
 pacer, engine entry points) and `bots/CLAUDE.md` (the rule-based `claude` policy
@@ -244,6 +249,9 @@ define what it can do. Either way, these gaps must close:
 
 ## 5. START HERE — next concrete steps, in order
 
+> **✅ DONE.** Every step below was built — see §8 for the modules and status. Kept
+> here as the rationale for the build order.
+
 The foundation both the net and MCTS build on is the **atomic action layer**. Do
 this before any ML.
 
@@ -320,3 +328,226 @@ in step 2 rather than extending the whole-action generators separately.
 - **tfjs-node-gpu vs Python training.** All-TS is the default; revisit only if GPU
   training maturity becomes a real blocker (TS rollouts + Python training is the
   hybrid).
+
+---
+
+## 8. STATUS — the learner was BUILT (merged to main 2026-07-18)
+
+The §5 roadmap was executed end-to-end as an all-TypeScript, CPU-trained learner
+(Kyle's call: full capability, "turn it on and walk away"), built on the
+`monopoly-rl-bot` branch and **merged to `main` on 2026-07-18** (branch deleted,
+local + remote). Each phase is runnable, tested (vitest), typecheck-clean, and
+lint-clean. The pieces:
+
+| Phase | Module(s) | What it is |
+|---|---|---|
+| 1 | `features.ts` | Per-opponent ownership: a seat-relative owner one-hot per square (replaces the pooled mine/opp bit). |
+| 2 | `actions.ts` | The **atomic action vocabulary** + `legalActions`/`legalMask`: a fixed token set (ROLL/BUY/bid buckets/jail/votes/arm, build-to-level, per-lot mortgage/unmortgage, per-lot/seat trade ASSIGN, cash buckets, propose). Mask sound by construction (`isLegal === apply().ok`). Full capability — proven by a complete atomic trade assembly in `actions.test.ts`. |
+| 3 | `token-bot.ts` | Greedy-over-`heuristicValue` bot on the atomic layer (sim token `token-stub`) — the wiring proof. |
+| 4 | `net.ts` | `MonoNet`: tfjs-node MLP → softmax policy head (vocabulary) + softmax value head (`MAX_SEATS` seat-relative win-probs). Batched `predict`, `train`, disk save/load, `maskPolicy`. |
+| 5 | `mcts.ts` | PUCT MCTS over `applyCandidate`; deterministic intent edges (cached) + chance ROLL edges that reseed dice per visit; N-player backup in an absolute frame. Pure in (state, net) → replay-safe `mctsBot`. |
+| 6 | `selfplay.ts`, `train-cli.ts` | Self-play recorder (visit-distribution policy targets, seat-relative outcome value targets) + value bootstrap on rule-bot games + the **`npm run train:rl`** loop: self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. |
+| 7 | `simulate-cli.ts` | Field a checkpoint via the `rl-net:<dir>` sim token (lazy tfjs load). `train:rl` also self-evaluates vs a rule bot each cycle. |
+
+**Stack / how to run.** All-TS on tfjs-node (CPU). The repo pins **Node 22**
+(`.node-version`, now on main) because tfjs-node 4.22 calls `util.isNullOrUndefined`, removed in
+Node 23+. `scripts/fix-tfjs-windows.mjs` (postinstall) + `tfjs-setup.ts` place the
+Windows `tensorflow.dll` next to the native binding and shield `process.argv` from
+node-pre-gyp's nopt. Run: `npm run train:rl -- --dir rl-checkpoints/run1`. Resume by
+re-running the same `--dir`. The eGPU (RTX 4070) is an OPTIONAL later accelerator
+(`tfjs-node-gpu`) — CPU self-play is the bottleneck, not the net.
+
+**What remains / known limits (honest):**
+- **Throughput is the lever.** Correctness-first MCTS: one net eval per expansion
+  (not batched across the tree) and `legalActions` recomputed per node (~hundreds
+  of `apply`s). Batching leaf evals + memoizing the mask is the biggest speedup, and
+  self-play speed is what gates "enough time to beat the bots."
+- **Bootstrap is VALUE-only.** Rule-bot outcomes warm-start the value head; policy
+  starts uniform-legal (rule-bot whole-actions don't map 1:1 to atomic tokens).
+  Policy imitation is a future add.
+- **Self-play models on-turn decisions only** (off-turn trade arming isn't explored
+  in self-play, though the bot CAN arm on its own turn and the capability exists).
+- **Gauntlet/ratings fielding** (a frozen `Contender`) isn't wired — the net is a
+  live checkpoint, not a frozen version. `rl-net:<dir>` in `npm run sim` +
+  `train:rl`'s built-in win-rate eval are the judges for now.
+- **Capability ≠ a win.** Beating the SPRT-tuned archive via self-play is the
+  genuinely uncertain part; the wiring is complete and fully capable, the rest is
+  training reality (and throughput).
+
+### Expert ML review (2026-07-18) — the honest as-built assessment
+
+A focused ML review of the merged learner, before any real training run. The
+headline: **current strength is UNMEASURED.** No checkpoint survives, no training
+run completed, and the net is not wired into the SPRT/Elo judge — the only
+intended eval faced `claude-v2`, the field floor. So "does it learn?" has no
+answer yet, and the design has three defects that make **collapse to reactive,
+trade-averse play the likely default** if you just turn it on:
+
+1. **No exploration.** MCTS descends on the raw root policy priors — **no Dirichlet
+   root noise, no temperature sampling** of the played move. Self-play then only
+   ever reinforces what the current net already prefers; the policy can't discover
+   a move it doesn't already rate. This is the classic AlphaZero-without-noise
+   collapse.
+2. **Search too shallow to see trades pay.** ~40 sims per decision and the subtree
+   is **discarded every dice roll** (chance node), so search never reaches the
+   multi-ply payoff of a trade (arm → draft → propose → the developed board two
+   turns later). The value target then teaches the net that **"trading is
+   worthless"** — the single most damaging thing it could learn in this game.
+3. **High-variance value target.** Every state is labeled with the **final winner
+   as a one-hot** — no discounting, no bootstrap from V — so an early-game state
+   inherits the full noise of the eventual outcome. Worse, **turn-capped (truncated)
+   games are mislabeled by net-worth leader**, which is not the same as who would
+   have won.
+
+Two accelerators are also **left on the table**:
+- **Policy warm-start is uniform**, not imitative. The bootstrap warms only the
+  VALUE head from rule-bot outcomes; the policy head starts uniform-legal. It should
+  **imitate the heuristic archive** (map rule-bot moves onto atomic tokens) so gen-0
+  plays like a competent bot, not noise, against 35-gen opponents.
+- **No keep-best.** The training loop **overwrites the latest checkpoint** each
+  cycle; a cycle that regresses can destroy a good net with no way back. RL is
+  non-monotone — you must retain the best net by an eval, not the last one.
+
+**Priority order — the key insight of this review (measure BEFORE you scale):**
+
+1. **Measure-first.** Wire the net into the real judge (frozen `Contender` →
+   `sim:gauntlet` / `sim:ratings`) and add **keep-best** (retain the highest-eval
+   checkpoint). Until strength is observable and monotone, every other change is
+   flying blind.
+2. **Imitation warm-start** the policy head from the heuristic archive.
+3. **Exploration:** Dirichlet root noise + temperature sampling in self-play.
+4. **Value-target fix:** discount / bootstrap from V instead of raw final-winner
+   one-hot; stop mislabeling truncated games by net-worth.
+5. **THEN lift search depth** — batched leaf eval, more sims, chance-node caching.
+   Only **grow the network** if you see underfitting *after* steps 1–4.
+
+**Hardware note (RTX 4070 eGPU).** Network SIZE is **not** the constraint at this
+scale — ~368 features / 356 actions is amply served by a small MLP. The bot is
+**CPU-bound on the JS game engine + un-batched tiny inference**, and single-sample
+tiny-net inference is the **worst case** for a GPU (kernel-launch overhead dwarfs
+the math). The GPU's real value is **step-5 THROUGHPUT** — batched self-play
+inference feeding deeper search and more games — not "brains", and only once the
+loop *provably learns*. Serious GPU training would mean a **Python/PyTorch path fed
+by TS self-play data** (vs the current tfjs-node(-gpu)); that's a step-5 decision,
+not a now decision.
+
+### Fresh session: where the work is + run mechanics
+
+- **It lives on `main`** (merged 2026-07-18; the `monopoly-rl-bot` branch and its
+  worktree are gone). The modules are `features.ts`, `actions.ts`, `token-bot.ts`,
+  `net.ts`, `mcts.ts`, `selfplay.ts`, `train-cli.ts`, `tfjs-setup.ts`,
+  `tfjs-usable.ts` (plus the throughput scaffolding `selfplay-parallel.ts`,
+  `selfplay-worker.ts`, `bench-selfplay.ts`). The `.node-version` (Node 22) is on main.
+- **Node 22 is mandatory here** (see above). On this machine Node is managed by
+  **fnm**, default 24. Two gotchas, learned the hard way:
+  - Run things under 22 with `fnm exec --using=22 <cmd>`. But **`fnm exec` can't
+    spawn `.cmd` shims** (`npx`, the `npm`/`vitest` wrappers) — call the JS entry
+    through `node` instead, e.g.
+    `fnm exec --using=22 node node_modules/vitest/vitest.mjs run <file>`,
+    `fnm exec --using=22 node node_modules/typescript/bin/tsc --noEmit`,
+    `fnm exec --using=22 node node_modules/eslint/bin/eslint.js <files>`.
+  - `npm run train:rl` / `npm run sim` go through npm, which resolves Node via the
+    `.node-version` + the fnm shell hook, so those Just Work from the repo root.
+- **Verify green:** the RL tests are `features|actions|token-bot|net|mcts|selfplay`
+  `.test.ts` (24 tests). `tsc --noEmit` and `eslint` must stay zero-warning.
+- **Watch it play / measure:** `npm run sim -- rl-net:rl-checkpoints/run1 claude-v2 claude-v2 claude-v2 --log`.
+
+### Prioritized next work (highest leverage first)
+
+**Follow the "Expert ML review" priority order above — measure BEFORE you scale.**
+The earlier draft of this list opened with THROUGHPUT; the review demoted it. Search
+throughput is step 5, not step 1: growing search/compute before the loop provably
+learns just scales a collapse. The concrete work, in order:
+
+> **⇒ THE PLAN FROM HERE (the short version — read the STATUS + numbered list below for
+> the why).** The four measure-first fixes + imitation warm-start are DONE, and the
+> structural blocker (shallow gen-0 self-play) is FIXED: the loop provably trains on full
+> games. It does NOT yet beat the floor, and the coarse eval can't even SEE sub-floor
+> progress. So the next steps, strictly in this order — **a sharper ruler before more
+> compute, and code/CPU before hardware:**
+>   1. **A finer JUDGE (#1a)** — a frozen-`Contender` snapshot so the real Elo/SPRT
+>      gauntlet rates the net against the archive (at minimum, many more eval games than 6).
+>      You cannot steer training without a ruler that resolves sub-floor progress.
+>   2. **Parallelize `evaluate()`** onto the `SelfPlayPool` — it runs SERIALLY on the main
+>      thread today and dominates wall-clock. Cheap, unblocks everything downstream.
+>   3. **Batch inference (#5)** across the search tree and across parallel self-play games.
+>      This is the real throughput unlock AND the precondition for any GPU to help.
+>   4. **THEN scale** — many more iters/games on CPU, watched by the finer judge.
+>   5. **eGPU LAST, and only after #3.** It is a throughput accelerator for BATCHED
+>      inference, not a brain; single-sample tiny-net inference (today's shape) is its
+>      WORST case, so adding it before #3 runs *slower*, not faster. Serious GPU training
+>      would mean a Python/PyTorch path fed by TS self-play — a separate architecture call.
+> Honest caveat: even at scale, beating the 35-gen SPRT-tuned archive via self-play is
+> genuinely uncertain — the structural caps are removed, the rest is training reality.
+
+> **STATUS (2026-07-19 overnight leg).** Three of the review's fixes landed — **keep-best
+> (#1b), Dirichlet exploration (#3), and the value-target fix (#4)** — all typecheck +
+> lint clean and covered by the RL unit tests. Then the FIRST measured run
+> (`rl-checkpoints/measured-0719`, gitignored; 30 iters, 6 games/iter, 24 sims).
+> **Measured result — plainly:** the loop RUNS end-to-end (bootstrap → self-play → train
+> → eval → keep-best all functioning) and the training loss falls (2.90 → 2.40), but it
+> does **NOT** learn to beat the floor — **eval win-rate vs claude-v2 was 0.0% at every
+> one of the 6 eval points (iters 5/10/…/30).** The cause is measured, not guessed: gen-0
+> self-play is SHALLOW. The uniform-legal policy + MCTS keeps picking a non-progressing
+> atomic token (`applyCandidate` returns the same state → the game is abandoned), so a
+> self-play "game" records only ~6 samples before it dies at turn ~1–2. The net trains,
+> but on almost no strategic trajectory — so it can't beat a 35-gen floor bot. This is
+> exactly what **imitation policy warm-start (#2, still open)** fixes: a competent gen-0
+> policy plays full games, the precondition for the value/exploration fixes to have deep
+> trajectories to bite on. **#2 is now the highest-leverage open item, not #1a.** Also
+> observed: **`evaluate()` runs its games SERIALLY on the main thread** (not the
+> `SelfPlayPool`) — each 6-game eval took ~95s while a whole self-play iter took ~0.3s,
+> so EVAL, not self-play, dominates wall-clock; parallelizing it (or cutting
+> `--eval-games`) is a cheap throughput win folded into #5.
+>
+> **THEN #2 landed too — imitation policy warm-start (`collectRuleGame`).** Each rule-bot
+> decision's policy target now imitates the rule bot's move where it maps 1:1 to a single
+> atomic token (a smoothed one-hot, `IMITATE_WEIGHT` 0.9), else uniform-over-legal —
+> covering the common reactive decisions (roll/buy/jail/votes/arm; bucketed bids and
+> multi-step trade/manage stay uniform). **It works, measured:** the same 30-iter run
+> (`rl-checkpoints/measured-0719-imit`) went from ~6 samples/self-play-game to
+> **~130–380** — the competent gen-0 policy plays FULL games instead of abandoning at
+> turn 1, so the shallow-trajectory blocker is GONE. **But eval vs claude-v2 was still
+> 0.0% at all 6 points** — and a longer walk-away run confirmed the wall holds well past
+> 30 iters (`rl-checkpoints/walkaway-0719`: 400 iters / 2400 games, all 8 evals 0.0% at
+> the finer 16-game resolution, loss plateaued ~2.13). That is now an HONEST
+> scale/resolution result, not a structural one: (a) 30 iters = 180 games is nowhere near enough to surpass a 35-generation SPRT-
+> tuned bot; (b) the imitated policy is a LOSSY copy (atomic-token approximation + a small
+> MLP + 24-sim MCTS), so gen-0 starts *below* its claude-v2 teacher and must be TRAINED
+> up; (c) the 6-game eval's 16.7% granularity can't even see sub-floor learning. **So the
+> frontier is now exactly what the review's tail predicted: SCALE (many more iters, the
+> throughput/#5 + eGPU levers) measured by a FINER judge (#1a frozen-`Contender` gauntlet,
+> or at minimum more eval games).** The structural work is done; what remains is compute
+> and a sharper ruler.
+
+1. **Measure-first.** (a) **Frozen-`Contender` judge — STILL OPEN:** snapshot a trained
+   net as a fieldable version so the real Elo/SPRT gauntlet (`sim:gauntlet`,
+   `sim:ratings`) rates it against the archive, not just the built-in `claude-v2`
+   win-rate eval (the field FLOOR). (b) **Keep-best — ✅ DONE (2026-07-19):** the trainer
+   now retains the highest-eval net under `<dir>/best` (separate from the always-
+   overwritten `<dir>/net` latest), tracked in `meta.json` (`bestScore`/`bestIteration`),
+   restored on resume. See `train-cli.ts`.
+2. **Imitation policy warm-start — ✅ DONE (2026-07-19):** each `collectRuleGame` decision's
+   policy target imitates the rule bot's move where it maps 1:1 to a single atomic token
+   (smoothed one-hot, `IMITATE_WEIGHT` 0.9), else uniform-over-legal. MEASURED to lift
+   self-play depth from ~6 to ~130–380 samples/game (gen-0 plays full games) — the
+   shallow-trajectory blocker is gone. Eval still 0% at 30 iters: the remaining gap is
+   SCALE + eval RESOLUTION (see STATUS), i.e. items #1a and #5, not policy quality.
+   See `selfplay.ts` (`imitationToken` + the imitative branch of `collectRuleGame`).
+3. **Exploration — ✅ DONE (2026-07-19):** Dirichlet root noise (ε=0.25, α=0.3) mixed into
+   the MCTS root priors, TRAINING-ONLY (off by default so the `Bot`/eval path stays pure &
+   greedy), seeded from `state.rngState` so self-play stays reproducible. Visit-proportional
+   sampling of the first `explorationMoves` plies was already present. See `mcts.ts`
+   (`MctsOptions.dirichlet`) + `selfplay.ts`.
+4. **Value-target fix — ✅ DONE (2026-07-19):** every recorded state's value target is now
+   discounted toward the neutral 1/n prior by `γ^(turns-to-end)` (γ=0.99), and TRUNCATED
+   (turn-cap / stall) games are labeled by net-worth SHARE (a soft distribution), not a
+   fabricated net-worth-leader one-hot. See `selfplay.ts` (`outcomeDistribution` +
+   `valueTargetFor`).
+5. **THEN lift search depth / throughput:** batch leaf net evals across the tree and
+   across parallel self-play games (`selfplay-parallel.ts` / `selfplay-worker.ts`),
+   memoize `legalActions` per node, cache chance children, and PARALLELIZE `evaluate()`
+   (currently serial — see STATUS). Only **grow the net** if you observe underfitting
+   *after* steps 1–4. This is where the eGPU earns its keep (batched throughput), not before.
+6. **Off-turn trade arming in self-play** (the capability exists; the self-play
+   driver only explores on-turn decisions today).

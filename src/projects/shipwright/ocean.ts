@@ -49,14 +49,9 @@ const GRAVITY = 9.81;
 const TWO_PI = Math.PI * 2;
 const SAMPLE_ITERATIONS = 4; // Newton steps to invert horizontal displacement
 
-// A scrolling normal map adds the fine ripples the geometry waves can't — it's
-// what reads as "water" rather than smooth glass. Division of labour: geometry
-// = swells/silhouette (tens of metres), this normal map = everything smaller.
-const DETAIL_NORMALS_URL = "/shipwright/waternormals.jpg";
-// World size of one ripple-map tile. The texture's `repeat` is DERIVED from this
-// (planeSize / DETAIL_RIPPLE_METERS) rather than being a fixed tile count, so the
-// ripple scale — and the water's look — stays constant as the plane grows or
-// shrinks. See `applyRipple`. (A fixed count made ripples finer as the plane shrank.)
+// World size of one ripple tile. Sets the world-anchored UV (vRippleUv = world.xz / this) that three
+// builds the (procedural) normal's tangent FRAME from — world-anchored so ripples stay put as the LOD
+// mesh follows the camera. No texture is sampled at this UV; the ripple normal is procedural.
 const DETAIL_RIPPLE_METERS = 10;
 
 interface WaveDef {
@@ -266,9 +261,10 @@ varying vec3 vWorldNormal;
 // Ripple-map UV (world-space tiling + scroll) for the fragment's reflection distortion.
 // Written only by the main surface (OCEAN_BEGINNORMAL); the SSR/flat debug materials
 // include OCEAN_PARS too but leave it unwritten (harmless — their fragments don't read it).
-uniform float uRippleMeters;
+uniform vec2 uRippleMeters;
 uniform vec2 uRippleOffset;
 varying vec2 vRippleUv;
+varying vec2 vRippleWorld; // world-anchored XZ (m) handed to the fragment's procedural ripple field
 // Camera-follow offset (m): the LOD mesh translates with the camera, so the vertex
 // shaders add the mesh's world xz back before evaluating the waves — the wave field
 // must be sampled in WORLD space or the sea would ride along with the viewer. Zero
@@ -325,6 +321,7 @@ const OCEAN_BEGINNORMAL = /* glsl */ `
   // put as the LOD mesh follows the camera. Also the UV the normal map itself is
   // sampled at (see the normal_fragment_* patches in onBeforeCompile).
   vRippleUv = gWorldXz / uRippleMeters + uRippleOffset;
+  vRippleWorld = gWorldXz;
 `;
 
 // Vertex displacement ONLY (no normal), for the debug unlit MeshBasicMaterial. Same
@@ -346,9 +343,11 @@ const OCEAN_BEGIN_FLAT = /* glsl */ `
 // a uniform `break` is legal — and because the branch is warp-coherent (every pixel breaks at the same
 // i) it is a faithful cost proxy for a baked constant: the trend matches, with only a small fixed
 // offset on the absolute ms. Bake the chosen value here once it's picked, to confirm the final number.
-const SSR_STEPS_MAX = 48; // the loop's compile-time bound (the old pre-trim count — the useful ceiling)
-const SSR_STEPS = 20; // DEFAULT linear march samples — trimmed from 48 to shave the camera-rotation
-// cost spikes at the eye-level grazing view (open-water rays run the full count on a sky-miss).
+const SSR_STEPS_MAX = 31; // the SSR march loop's COMPILE-TIME bound. BAKED to the shipped run value so
+// the loop runs exactly this with no uniform-break overhead (reclaims the small fixed offset); the
+// runtime "march steps" dial can therefore only go DOWN from here. To allow more, raise this + recompile.
+const SSR_STEPS = 31; // DEFAULT linear march samples — 31, chosen by Kyle's eye for reflection-shape
+// fidelity, now == SSR_STEPS_MAX (baked). Lower it at runtime via the "march steps" dial.
 // See docs/PERFORMANCE.md.
 const SSR_REFINE = 5; // binary-search refinement steps after a hit
 // Two GLSL helpers, split so each shader pulls in only what it uses. The water fragment
@@ -416,6 +415,66 @@ vec4 oceanSsr(vec3 viewPos, vec3 viewNormal) {
 }
 `;
 
+// Procedural ripple normal — replaces the sampled normal map (docs/FIDELITY.md: the shipped JPG was
+// crumpled-foil crinkle, not water, with a baked seam and chop-scale features). Seamless by
+// construction (no tile → no seam), uniform-scale (no baked photo perspective), animated, and
+// dual-scale. Analytic gradient noise yields the slope (∂h/∂x, ∂h/∂z) directly, so the tangent-space
+// normal is exact — no finite differences, no extra texture taps.
+const OCEAN_RIPPLE_PROC = /* glsl */ `
+// Hash → gradient in [-1,1]^2. mod() first keeps the domain small so float precision holds as the
+// world-anchored coordinate roams to the km scale (a raw sin-hash bands out there). Hoskins hash.
+vec2 rippleHash(vec2 p) {
+  p = mod(p, 289.0);
+  vec3 p3 = fract(p.xyx * vec3(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.xx + p3.yz) * p3.zy) * 2.0 - 1.0;
+}
+
+// Inigo Quilez analytic gradient noise: returns (value, d/dx, d/dy).
+vec3 rippleNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  vec2 du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+  vec2 ga = rippleHash(i + vec2(0.0, 0.0));
+  vec2 gb = rippleHash(i + vec2(1.0, 0.0));
+  vec2 gc = rippleHash(i + vec2(0.0, 1.0));
+  vec2 gd = rippleHash(i + vec2(1.0, 1.0));
+  float va = dot(ga, f - vec2(0.0, 0.0));
+  float vb = dot(gb, f - vec2(1.0, 0.0));
+  float vc = dot(gc, f - vec2(0.0, 1.0));
+  float vd = dot(gd, f - vec2(1.0, 1.0));
+  float value = va + u.x * (vb - va) + u.y * (vc - va) + u.x * u.y * (va - vb - vc + vd);
+  vec2 deriv = ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd)
+             + du * (vec2(u.y, u.x) * (va - vb - vc + vd) + vec2(vb, vc) - va);
+  return vec3(value, deriv);
+}
+
+// Per-layer Nyquist fade (analytic antialiasing). px = how many world metres one screen pixel spans
+// (from fwidth). Once a pixel is wider than a layer's wavelength, that layer can't be resolved and
+// point-sampling turns it into static — so fade it out there. This also removes ALL capillary detail
+// far out, which is physically correct (no visible ripples at distance), and it keys off px, not raw
+// distance, so it tracks ZOOM too (zooming out grows px at the same distance).
+float rippleAA(float px, float freq) {
+  float wavelength = 1.0 / freq;
+  return 1.0 - smoothstep(wavelength * 0.5, wavelength * 1.5, px);
+}
+
+// Sum of ripple layers → combined surface slope. Frequencies are 1/wavelength in metres; each layer
+// scrolls in a different direction so the surface shimmers (layer decorrelation) instead of sliding
+// as one sheet. Picks (not sliders — see the propose-don't-dial memory): a fine ~0.35 m layer LEADS
+// (the capillary detail the crumpled texture never had), a ~0.16 m octave feeds glints, and a
+// ~1.8 m layer adds gentle underlying undulation so it isn't uniformly fine. Each layer is
+// Nyquist-faded by px so it dies before it aliases (the coarse layer survives furthest — natural).
+vec2 rippleSlope(vec2 world, float t, float px) {
+  vec2 g = vec2(0.0);
+  g += rippleNoise(world * 2.90 + vec2( 0.9,  0.4) * t * 0.50).yz * 0.40 * rippleAA(px, 2.90);
+  g += rippleNoise(world * 6.30 + vec2(-0.6,  0.8) * t * 0.80).yz * 0.22 * rippleAA(px, 6.30);
+  g += rippleNoise(world * 0.55 + vec2( 0.3, -0.6) * t * 0.12).yz * 0.30 * rippleAA(px, 0.55);
+  return g;
+}
+`;
+
 const OCEAN_FRAG_PARS = /* glsl */ `
 uniform bool uWaterFx;
 uniform bool uMergedOcclusion;
@@ -424,7 +483,6 @@ uniform sampler2D uSceneDepth;
 uniform vec2 uResolution;
 uniform float uNear;
 uniform float uFar;
-uniform float uReflectWaveStrength; // wave-slope smear of the reflection (see the SSR composite)
 uniform vec3 uAbsorption;
 uniform vec3 uScattering;
 uniform vec3 uBackscatter;
@@ -435,11 +493,18 @@ uniform float uReflectionStrength;
 uniform float uReflectMin;
 uniform float uSsrMaxDistance; // for the distance fade that kills the SSR horizon seam
 uniform sampler2D uSsrReflection; // the low-res SSR pass output this shader samples
-uniform sampler2D uReflectRipple; // detail normal map, reused to distort the reflection
 uniform float uReflectDistort;
+uniform bool uFarRough;       // distance→roughness ramp on/off (kills the far-water mirror)
+uniform float uFarRoughStart; // view distance (m) where the ramp begins
+uniform float uFarRoughEnd;   // view distance (m) where it reaches uFarRoughMax
+uniform float uFarRoughMax;   // roughness far water converges to
 varying vec3 vWorldNormal;
 varying vec3 vWorldPos;
 varying vec2 vRippleUv;
+uniform float uTime;
+uniform bool uProcRipple;  // procedural ripple normal (true) vs the sampled normal map (false)
+varying vec2 vRippleWorld; // world-anchored XZ in metres — the procedural ripple field's domain
+${OCEAN_RIPPLE_PROC}
 ${OCEAN_DEPTH_FUNC}
 `;
 
@@ -504,6 +569,9 @@ varying vec3 vSsrViewNormal;
 ${OCEAN_DEPTH_FUNC}
 ${OCEAN_SSR_FUNC}
 void main() {
+  // March off the smooth WAVE normal only — a coherent base reflection. Fine ripple is added back as
+  // a screen-space perturbation in the main shader (uReflectDistort); marching off the fine ripple
+  // normal shatters coherent object reflections into noise (tried + rejected). See OCEAN_FRAG_WATER.
   vec3 n = normalize(vSsrViewNormal);
   // Same Fresnel cutoff the inline march used — skip where the reflection is invisible.
   float fresnelGeo = pow(1.0 - clamp(dot(normalize(-vSsrViewPos), n), 0.0, 1.0), 5.0);
@@ -591,11 +659,20 @@ const OCEAN_FRAG_WATER = /* glsl */ `
     // Where SSR hit real geometry it overrides the env sky; a miss (mask 0) keeps the sky.
     vec3 reflective = gl_FragColor.rgb;
     if (uSsrEnabled) {
-      // Distort the sample by the FULL-RES ripple normal (+ the analytic swell) so the
-      // smooth low-res reflection gets the fine normal-map blur back — restoring the
-      // ripple look AND masking the pass's low-res blockiness.
-      vec2 ripple = texture2D(uReflectRipple, vRippleUv).xy * 2.0 - 1.0;
-      vec2 ssrUv = screenUv + vWorldNormal.xz * uReflectWaveStrength + ripple * uReflectDistort;
+      // The base reflection is marched off the smooth WAVE normal (coherent — see OCEAN_SSR_FRAG), and
+      // here we jitter the sample by the fine ripple slope to add rippled waviness on top. Marching off
+      // the fine ripple normal instead was tried and shatters coherent reflections into noise, so this
+      // screen-space perturbation is the right tool. Wave tilt is NOT re-applied (the march already did
+      // it — the old "wave smear" double-counted and is gone).
+      vec2 ripple;
+      if (uProcRipple) {
+        float ripplePx = max(fwidth(vRippleWorld.x), fwidth(vRippleWorld.y));
+        vec2 rSlope = rippleSlope(vRippleWorld, uTime, ripplePx);
+        ripple = normalize(vec3(-rSlope.x, -rSlope.y, 1.0)).xy;
+      } else {
+        ripple = vec2(0.0); // procedural ripple off → flat reflection
+      }
+      vec2 ssrUv = screenUv + ripple * uReflectDistort;
       vec4 ssr = texture2D(uSsrReflection, ssrUv);
       // SSR degenerates in two places, both false-hitting the dark below-horizon sky (a black seam
       // at the horizon AND black edges on grazing wave-crest faces at a low camera; confirmed — SSR
@@ -682,16 +759,24 @@ export function createOcean(): Ocean {
     // Output of the low-res SSR pass (bound by scene.ts via setSsrSource); the water
     // shader samples this instead of marching inline.
     uSsrReflection: { value: null as THREE.Texture | null },
-    // Ripple distortion of the reflection, applied at FULL res when sampling the low-res
-    // SSR texture — restores the fine normal-map blur the smooth pass lacks AND masks its
-    // low-res blockiness. Reuses the detail normal map (bound below); uRippleMeters +
-    // uRippleOffset reproduce its world-space tiling + scroll (see OCEAN_BEGINNORMAL).
-    uReflectRipple: { value: null as THREE.Texture | null },
-    // Smear the sampled reflection by the analytic wave slope (world normal xz) — the coarse-swell
-    // companion to uReflectDistort's fine ripple smear, so the reflection scatters with the waves.
-    uReflectWaveStrength: { value: 0.04 },
-    uReflectDistort: { value: 0.03 },
-    uRippleMeters: { value: DETAIL_RIPPLE_METERS },
+    // Screen-space ripple "blur" of the reflection: the base reflection is marched off the smooth
+    // WAVE normal (coherent), and this jitters the sample by the fine ripple slope to add rippled
+    // waviness on top. Marching off the fine normal instead shatters coherent reflections into noise
+    // (tried + rejected), so this screen-space perturbation is the right tool. Gentle by design.
+    uReflectDistort: { value: 0.012 },
+    // Distance→roughness ramp (see the roughnessmap_fragment splice). OFF by default: it removes the
+    // far mirror but also flattens the sun-glitter path (the very thing we want to ADD), so uniform
+    // roughness is the wrong lever until a proper microfacet glitter term exists — then this becomes
+    // its far-field companion. Values kept conservative for when it's revisited (softens the horizon
+    // mirror, preserves the sun path). See docs/FIDELITY.md.
+    uFarRough: { value: false },
+    uFarRoughStart: { value: 200 },
+    uFarRoughEnd: { value: 2500 },
+    uFarRoughMax: { value: 0.7 },
+    // Procedural ripple normal vs the sampled map. Default ON — the procedural field is the fix; the
+    // sampled map (and its switcher) stay as the A/B baseline. See OCEAN_RIPPLE_PROC.
+    uProcRipple: { value: true },
+    uRippleMeters: { value: new THREE.Vector2(DETAIL_RIPPLE_METERS, DETAIL_RIPPLE_METERS) },
     uRippleOffset: { value: new THREE.Vector2(0, 0) },
     // Camera-follow offset for the LOD grid — see the OCEAN_PARS declaration.
     // Written per frame by followCamera; stays (0,0) on the uniform grid.
@@ -782,31 +867,24 @@ export function createOcean(): Ocean {
   };
   const geometry = buildLodGeometry(); // LOD is the default; setLodEnabled(false) swaps to the uniform grid
 
-  // The ripple map loads asynchronously, and the water renders visibly differently before it
-  // arrives. Anything that wants a settled frame (the screenshot suite) must WAIT ON THIS, not on a
-  // guessed timeout.
-  let detailNormalsLoaded = false;
-  const detailNormals = new THREE.TextureLoader().load(DETAIL_NORMALS_URL, () => {
-    detailNormalsLoaded = true;
-  });
-  detailNormals.wrapS = THREE.RepeatWrapping;
-  detailNormals.wrapT = THREE.RepeatWrapping;
-  // Max anisotropy: the ripple normal map is sampled at a hard grazing angle across the far
-  // water, where low anisotropy minifies it into faint diagonal streaks (the scroll direction
-  // aliasing). 16× (clamped to the GPU's max) resolves the grazing minification. NB the LOD
-  // grid shipped and did NOT change this (verified pixel-identical far glitter) — the residual
-  // moiré is per-pixel map minification; the remaining fix is dual-scale normals or a distance
-  // fade of ripple strength (docs/FIDELITY.md).
-  detailNormals.anisotropy = 16;
-  uniforms.uReflectRipple.value = detailNormals; // reuse the ripple map for reflection distortion
-  let rippleMeters = DETAIL_RIPPLE_METERS;
+  // The ripple normal is PROCEDURAL (OCEAN_RIPPLE_PROC) — NO texture is sampled. But three only emits
+  // the tangent-space normal chunk we splice the procedural normal into (and the tangent frame it needs)
+  // when a normalMap is BOUND. So bind a 1×1 "straight up" dummy normal purely to keep that machinery
+  // on; it is never read. (Framework quirk — the alternative is re-authoring the normal path by hand.)
+  const dummyNormal = new THREE.DataTexture(
+    new Uint8Array([128, 128, 255, 255]), // tangent-space (0,0,1)
+    1,
+    1,
+    THREE.RGBAFormat,
+  );
+  dummyNormal.needsUpdate = true;
+
+  const rippleMeters = DETAIL_RIPPLE_METERS;
   const applyRipple = () => {
-    // The ripple mapping lives entirely in the shader (vRippleUv = world.xz /
-    // uRippleMeters + scroll) — WORLD-anchored, not geometry-uv based, so the
-    // camera-following LOD mesh doesn't carry the ripples with it. The texture's
-    // own repeat/offset transform is deliberately unused (see the
-    // normal_fragment_* patches in onBeforeCompile).
-    uniforms.uRippleMeters.value = rippleMeters;
+    // vRippleUv = world.xz / uRippleMeters feeds the tangent FRAME three builds for the normal chunk
+    // (screen-space derivatives of this UV) — still needed though no texture is sampled at it. Square,
+    // so x and z share one metric scale.
+    uniforms.uRippleMeters.value.set(rippleMeters, rippleMeters);
   };
   applyRipple();
 
@@ -835,7 +913,7 @@ export function createOcean(): Ocean {
     color: 0x1f4a5a,
     roughness: 0.4,
     metalness: 0,
-    normalMap: detailNormals,
+    normalMap: dummyNormal,
   });
   // Fine-ripple (capillary chop) strength scales with the sea state: a glassy calm is a
   // near-mirror (WMO-0), while a building wind sea grows fine texture. `baseRippleStrength`
@@ -848,6 +926,7 @@ export function createOcean(): Ocean {
     material.normalScale.set(baseRippleStrength * seaFactor, baseRippleStrength * seaFactor);
   };
   applyRippleStrength();
+
   // No per-material env scale. The IBL from `scene.environment` is the physically-scaled sky dome,
   // at `scene.environmentIntensity = 1`, exactly like every other material in the project. That is
   // the whole thesis: one lighting model, no per-material exceptions.
@@ -877,7 +956,32 @@ export function createOcean(): Ocean {
       )
       .replace(
         "#include <normal_fragment_maps>",
-        worldAnchoredNormalChunk(THREE.ShaderChunk.normal_fragment_maps),
+        worldAnchoredNormalChunk(THREE.ShaderChunk.normal_fragment_maps).replace(
+          "vec3 mapN = texture2D( normalMap, vRippleUv ).xyz * 2.0 - 1.0;",
+          `vec3 mapN;
+          if (uProcRipple) {
+            float ripplePx = max(fwidth(vRippleWorld.x), fwidth(vRippleWorld.y));
+            vec2 rSlope = rippleSlope(vRippleWorld, uTime, ripplePx);
+            mapN = normalize(vec3(-rSlope.x, -rSlope.y, 1.0));
+          } else {
+            mapN = vec3(0.0, 0.0, 1.0); // procedural ripple off → flat surface
+          }`,
+        ),
+      )
+      // Distance → roughness. The fine ripple normal map mip-flattens toward (0,0,1) with distance
+      // (its sub-pixel slope variance is averaged away), which would leave far water a mirror.
+      // Physically that lost variance becomes ROUGHNESS — unresolved capillary ripples scatter the
+      // sun/sky into a matte sheen, so distant water reads as sea, not glass. Recover it here, BEFORE
+      // the env reflection is computed from roughnessFactor, so the far sky reflection blurs. Near
+      // water is untouched (ramp starts past uFarRoughStart). Toggle + range live in the Surface GUI
+      // for A/B. This is the "convert lost normal detail to roughness" fix in docs/FIDELITY.md.
+      .replace(
+        "#include <roughnessmap_fragment>",
+        `#include <roughnessmap_fragment>
+        if (uFarRough) {
+          float farRoughT = smoothstep(uFarRoughStart, uFarRoughEnd, vViewPosition.z);
+          roughnessFactor = mix(roughnessFactor, uFarRoughMax, farRoughT);
+        }`,
       )
       // BEFORE the tonemap: the composite runs in linear HDR (see OCEAN_FRAG_WATER).
       .replace(
@@ -1038,7 +1142,7 @@ export function createOcean(): Ocean {
 
   return {
     mesh,
-    isReady: () => detailNormalsLoaded,
+    isReady: () => true, // procedural ripple + dummy normal are synchronous — nothing to wait on
     update: (time) => {
       uniforms.uTime.value = time;
       // Scroll the ripple layers diagonally so the surface never looks static.
@@ -1143,24 +1247,19 @@ export function createOcean(): Ocean {
       bodyFolder.close();
 
       // Surface material + fine ripple detail — rarely touched once dialled, so collapsed.
-      const detail = { strength: baseRippleStrength, ripple: rippleMeters };
+      const detail = { strength: baseRippleStrength };
       const surface = sea.addFolder("Surface");
+      surface.add(uniforms.uProcRipple, "value").name("procedural ripples");
       surface.addColor(material, "color");
       surface.add(material, "roughness", 0, 1, 0.01);
       surface.add(material, "metalness", 0, 1, 0.01);
+      surface.add(uniforms.uFarRough, "value").name("far roughness (WIP)");
       surface
         .add(detail, "strength", 0, 1, 0.01)
         .name("ripples")
         .onChange(() => {
           baseRippleStrength = detail.strength;
           applyRippleStrength(); // re-apply through the current sea-state factor
-        });
-      surface
-        .add(detail, "ripple", 2, 40, 0.5)
-        .name("ripple size (m)")
-        .onChange(() => {
-          rippleMeters = detail.ripple;
-          applyRipple();
         });
       surface.close();
 
@@ -1174,11 +1273,8 @@ export function createOcean(): Ocean {
         .add(uniforms.uSsrMinFresnel, "value", 0.02, 0.5, 0.01)
         .name("cutoff (perf)");
       reflFolder
-        .add(uniforms.uReflectDistort, "value", 0, 0.15, 0.005)
+        .add(uniforms.uReflectDistort, "value", 0, 0.05, 0.001)
         .name("ripple blur");
-      reflFolder
-        .add(uniforms.uReflectWaveStrength, "value", 0, 0.2, 0.002)
-        .name("wave smear");
       reflFolder.close();
     },
     setShading: (mode) => {
@@ -1189,13 +1285,13 @@ export function createOcean(): Ocean {
       mesh.material = material;
       material.wireframe = mode === "wireframe";
       // Wireframe always strips the map; otherwise honour the normal-map debug toggle.
-      material.normalMap = mode === "wireframe" || !normalMapOn ? null : detailNormals;
+      material.normalMap = mode === "wireframe" || !normalMapOn ? null : dummyNormal;
       material.needsUpdate = true;
     },
     setNormalMap: (on) => {
       normalMapOn = on;
       if (!material.wireframe) {
-        material.normalMap = on ? detailNormals : null;
+        material.normalMap = on ? dummyNormal : null;
         material.needsUpdate = true;
       }
     },
@@ -1277,7 +1373,7 @@ export function createOcean(): Ocean {
       material.dispose();
       basicMaterial.dispose();
       ssrMaterial.dispose();
-      detailNormals.dispose();
+      dummyNormal.dispose();
     },
   };
 }

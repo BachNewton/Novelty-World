@@ -29,34 +29,33 @@ predictive signal on the table. The RL program proper (self-play policy
 iteration, MCTS — RL-DESIGN §3) is Stage C/L2 and is only reached if this gate
 and Stage B's both pass.
 
-**What has and hasn't been walked (corrected 2026-07-17 after inspecting
-`monopoly-rl-bot`):** the RL INFRASTRUCTURE is fully built — branch
-`monopoly-rl-bot` (2026-06-28, unmerged) executed all 7 RL-DESIGN phases:
-per-opponent features, the atomic action vocabulary, the tfjs policy+value
-net, MCTS, a resumable `train:rl` self-play loop, Windows tfjs fixes, a Node
-22 pin (its RL-DESIGN §8 has the run mechanics and honest limits). What was
-NEVER produced is a **strength or prediction result**: no checkpoints survive,
-no gauntlet wiring exists, and the branch's own #1 blocker is self-play
-throughput (a net in every rollout loop). The branch built the moonshot's
-launchpad and stopped where the compute bill starts — **it skipped the cheap
-supervised probe on the way to the expensive loop.** Stage A is that probe,
-and it sidesteps the throughput wall entirely: labeled data comes from
+**What has and hasn't been walked (corrected 2026-07-17 after inspecting the
+learner; merged to main 2026-07-18):** the RL INFRASTRUCTURE is fully built —
+the learner (`features.ts`, `actions.ts`, `net.ts`, `mcts.ts`, `selfplay.ts`,
+`train-cli.ts`, `tfjs-setup.ts`) executed all 7 RL-DESIGN phases: per-opponent
+features, the atomic action vocabulary, the tfjs policy+value net, MCTS, a
+resumable `train:rl` self-play loop, Windows tfjs fixes, a Node 22 pin
+(RL-DESIGN §8 — now on main — has the run mechanics and honest limits). What
+was NEVER produced is a **strength or prediction result**: no checkpoints
+survive, no gauntlet wiring exists, and the learner's own #1 blocker is
+self-play throughput (a net in every rollout loop). The learner built the
+moonshot's launchpad and stopped where the compute bill starts — **it skipped
+the cheap supervised probe on the way to the expensive loop.** Stage A is that
+probe, and it sidesteps the throughput wall entirely: labeled data comes from
 RULE-BOT games (the pure engine at full speed, no net in the loop). Reuse the
-branch's parts rather than rebuilding: the features fix (its phase 1), the
-value-bootstrap-on-rule-bot-games recorder in its `selfplay.ts`, and `net.ts`
+merged parts rather than rebuilding: the features fix (phase 1), the
+value-bootstrap-on-rule-bot-games recorder in `selfplay.ts`, and `net.ts`
 save/load. (The `monopoly-search-paradigm` branch is a different, concluded
 effort: rollout search washed, ES landed.)
 
 **The Stage A recipe, cold-start executable:**
 
-1. **Read first:** `monopoly-rl-bot`'s RL-DESIGN §8 (`git show
-   monopoly-rl-bot:src/projects/monopoly/bots/RL-DESIGN.md` — run mechanics,
-   Node 22 / fnm gotchas, tfjs Windows setup), then `EVOLUTION.md`
-   "Measurement" for the seed-stream discipline.
-2. **Get the per-opponent features fix** — already written: branch from
-   `monopoly-rl-bot` or cherry-pick its phase-1 commit (`b02e27b`) rather than
-   re-implementing. Bring `net.ts`/`tfjs-setup.ts` and the bootstrap recorder
-   along the same way.
+1. **Read first:** RL-DESIGN §8 (on main — run mechanics, Node 22 / fnm
+   gotchas, tfjs Windows setup), then `EVOLUTION.md` "Measurement" for the
+   seed-stream discipline.
+2. **Get the per-opponent features fix** — already on main in `features.ts`
+   (RL phase 1); use it directly rather than re-implementing. `net.ts`,
+   `tfjs-setup.ts`, and the bootstrap recorder (`selfplay.ts`) are on main too.
 3. **Generate labeled data** with the pure engine at full speed (no net in any
    loop): rosters = fable-v2 mirrors PLUS mixed fields (fable-v2 with panel
    bots — distribution diversity matters; pure mirrors under-sample losing
@@ -64,11 +63,11 @@ effort: rollout search washed, ES landed.)
    `encode(state, seat)` for each live seat; at game end, label each record
    with win/loss (or final rank). Target ≥10⁵ state records (~5–10k games —
    the engine runs ~40+ games/s/core; under an hour on the pool). NOTE the
-   branch predates fable — its bootstrap referenced the claude-era bots; point
+   bootstrap code predates fable — it referenced the claude-era bots; point
    it at fable-v2. Data files go to a gitignored dir or the session
    scratchpad, NOT the repo.
 4. **Train small, compare honestly:** a logistic-regression baseline FIRST,
-   then the branch's MLP value head (offline training is not bound by the bot
+   then `net.ts`'s MLP value head (offline training is not bound by the bot
    determinism rule; seed it anyway for reproducibility). Split by GAME (never
    by state — states within a game are correlated), on held-out SEEDS.
 5. **The one number that decides:** on held-out games, compare the model
@@ -214,10 +213,10 @@ shell, stop before Stage C.**
 **Stage C — the full RL-DESIGN path** (only after A and B pay): the 1-ply
 `valueNetBot`, then L2.
 
-**What changed since RL-DESIGN.md (main) was written:** (a) the **entire
-learner was built** on branch `monopoly-rl-bot` — all 7 phases, runnable and
-tested; read THAT branch's RL-DESIGN §8, not main's §5, for current state —
-but no strength/prediction result was ever recorded (throughput-gated);
+**What changed since RL-DESIGN.md's §§1–7 were written:** (a) the **entire
+learner was built and merged to main** (2026-07-18) — all 7 phases, runnable
+and tested; read RL-DESIGN §8, not §5, for current state — but no
+strength/prediction result was ever recorded (throughput-gated);
 (b) fable-v2 exists — a far stronger data generator and bootstrap target than
 the claude-v2-era prototypes the doc mentions; (c) extraction changed the
 trade-state distribution any net must train on.

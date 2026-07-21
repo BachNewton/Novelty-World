@@ -74,7 +74,12 @@ export interface Player {
 export function createPlayer(
   camera: THREE.PerspectiveCamera,
   domElement: HTMLElement,
-  opts: { onActiveChange?: (active: boolean) => void } = {},
+  opts: {
+    onActiveChange?: (active: boolean) => void;
+    /** When true, WASD movement + jump are suspended (e.g. the sailor is at the helm steering with A/D).
+     *  Mouse-look and deck-riding stay live; he just can't walk or hop while holding the wheel. */
+    controlLocked?: () => boolean;
+  } = {},
 ): Player {
   // Visual capsule — seen from the orbit/debug camera; hidden in first-person so it doesn't wrap the
   // eye. CapsuleGeometry(radius, cylinderLength, ...) → total height = length + 2·radius.
@@ -91,7 +96,7 @@ export function createPlayer(
   let body: RAPIER.RigidBody | null = null;
   let collider: RAPIER.Collider | null = null;
 
-  let yaw = Math.PI; // face -Z to start (across the water, matching the scene's framing)
+  let yaw = 0; // look down −Z at start: toward the bow, where the helm sits
   let pitch = 0;
   let active = false;
   let jumpQueued = false; // one-shot: set on Space keydown, consumed when grounded
@@ -107,7 +112,7 @@ export function createPlayer(
       else domElement.requestPointerLock();
     } else if (e.code === "KeyF" && !active) {
       domElement.requestPointerLock();
-    } else if (e.code === "Space" && active) {
+    } else if (e.code === "Space" && active && opts.controlLocked?.() !== true) {
       jumpQueued = true;
     }
   };
@@ -185,7 +190,7 @@ export function createPlayer(
 
       // World-space unit move direction from WASD + look yaw (shared by ground + air control).
       dir.set(0, 0, 0);
-      if (active) {
+      if (active && opts.controlLocked?.() !== true) {
         if (keys.has("KeyW")) dir.z -= 1;
         if (keys.has("KeyS")) dir.z += 1;
         if (keys.has("KeyA")) dir.x -= 1;

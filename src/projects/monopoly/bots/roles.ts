@@ -1,5 +1,5 @@
 import { BOT_RATINGS } from "./ratings";
-import { VERSIONS } from "./versions";
+import { HUMAN_MODEL_TWINS, VERSIONS } from "./versions";
 
 // ---------------------------------------------------------------------------
 // The PLAYER-FACING lobby offering — ENTIRELY DERIVED, not hand-curated. This is
@@ -145,12 +145,28 @@ export const LOBBY_BOTS: LobbyBots = (() => {
   return { overallBest, families };
 })();
 
-/** The version a fresh bot seat plays by default (`addBot`, `freshGame`): the
- *  current overall best. Falls back to the newest registered version when nothing
- *  is rated yet (the transient pre-`sim:ratings` state), so a seat is ALWAYS a
- *  real, playable bot even before the ladder exists. */
-export const DEFAULT_BOT_VERSION: string =
-  LOBBY_BOTS.overallBest?.version ?? newestRegisteredVersion();
+/** The version a fresh bot seat plays by default (`addBot`, `freshGame`) — the
+ *  opponent a HUMAN actually faces. This is NOT simply the top of the Elo ladder:
+ *  Elo is measured bot-vs-bot, and the archive's human-facing refinement (the fable
+ *  human-counterparty model) is pinned IDENTICAL to its base in bot play, so the
+ *  ladder can't see it and would seat a human against the human-BLIND twin. So when
+ *  the Elo-strongest bot is the human-model base (or one of its twins), we seat the
+ *  FULLEST human-aware twin instead — same bot strength, strictly less exploitable by
+ *  humans (see `bots/CLAUDE.md` "The human-counterparty model" and `HUMAN_MODEL_TWINS`).
+ *  The Elo-derived "Strongest" DISPLAY (`LOBBY_BOTS.overallBest`) is unchanged — this
+ *  moves only the default SEAT. Falls back to the newest registered version when
+ *  nothing is rated yet, so a seat is ALWAYS a real, playable bot. */
+export const DEFAULT_BOT_VERSION: string = humanFacingDefault();
+
+function humanFacingDefault(): string {
+  const eloBest = LOBBY_BOTS.overallBest?.version ?? newestRegisteredVersion();
+  const { base, twins } = HUMAN_MODEL_TWINS;
+  if (eloBest === base || twins.includes(eloBest)) {
+    const fullest = twins.at(-1);
+    if (fullest !== undefined && fullest in VERSIONS) return fullest;
+  }
+  return eloBest;
+}
 
 /** Newest version label by family order then index — the safety fallback for
  *  `DEFAULT_BOT_VERSION` before any ratings exist. */

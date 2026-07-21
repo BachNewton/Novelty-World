@@ -280,6 +280,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // softening so ¼ reads ~the same as full for ~4× fewer marched pixels. Raise it via the GUI for
   // beauty shots on a strong GPU.
   const ssrScale = { value: 0.25 };
+  const ssrSteps = { value: 31 }; // mirrors ocean's SSR_STEPS default; the GUI dial lives with reflection res
   // HalfFloat, not the default UnsignedByte: the SSR pass samples the linear-HDR scene capture, and
   // an 8-bit target would clamp every reflected highlight to 1.0 before the water ever saw it — the
   // sun's reflection off a wave crest would come back as flat white. Matters now that the water
@@ -564,7 +565,11 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
 
   // First-person sailor. Press F to take control (pointer-lock FPS); Esc returns to the orbit
   // debug camera. While in first-person the player drives the camera and OrbitControls is off.
+  // The builder (below) owns helm control; the player must suspend WASD while the sailor holds the
+  // wheel. builder is declared after player, so route the query through this forward holder.
+  let isSteeringHelm = () => false;
   const player = createPlayer(camera, renderer.domElement, {
+    controlLocked: () => isSteeringHelm(),
     onActiveChange: (fp) => {
       controls.enabled = !fp;
       if (!fp) {
@@ -588,6 +593,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     () => player.isActive(),
     () => player.velocity(),
   );
+  isSteeringHelm = () => builder.isSteering();
   scene.add(builder.object);
 
   // Move the sailor inside the sim's fixed loop (deterministic + in-phase with buoyancy), and
@@ -603,6 +609,15 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (w) {
         player.attach(w);
         physics.setPlayerCollider(player.collider()); // exclude the capsule from the build aim ray
+      }
+      // Seed the raft's default helm + engine so you can steer the moment the game loads. The raft is
+      // visuals()[0]; cells are its 9×9 deck (y=0) + y=1 perimeter wall (see shapes.ts RAFT). Helm sits
+      // mid-deck facing −Z (the bow); the outboard clamps to the +Z stern gunwale, facing outward.
+      const bodies = physics.visuals();
+      if (bodies.length > 0) {
+        const raft = bodies[0];
+        builder.placeFixture("helm", raft, [4, 0, 2], 2);
+        builder.placeFixture("engine", raft, [4, 1, 8], 0);
       }
     })
     .catch((err: unknown) => {
@@ -630,6 +645,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     island: true,
     pole: true,
     rig: false,
+    fixtureCells: false,
     waterFx: true,
     capture: true,
     mergedPass: true,
@@ -676,6 +692,13 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
     .add(ssrScale, "value", 0.1, 1, 0.05)
     .name("reflection res")
     .onFinishChange(sizeSsrTarget);
+  performance
+    // Max is SSR_STEPS_MAX (31) in ocean.ts — the SSR march loop's COMPILE-TIME bound, deliberately
+    // baked down to the shipped run value so the loop carries no uniform-break overhead. This dial can
+    // therefore only REDUCE steps at runtime; to allow more, raise SSR_STEPS_MAX in ocean.ts + recompile.
+    .add(ssrSteps, "value", 1, 31, 1)
+    .name("march steps")
+    .onChange((v: number) => ocean.setSsrSteps(v));
   // Scene-capture resolution — the water's view of the world BEHIND it. The capture is a full extra
   // render of the scene, so its cost is quadratic here: 0.5 is a quarter of the pixels, and it drags SSR
   // down with it (the march samples this texture). Measured at 3440x1440: 1.0 → 0.5 is worth 4.5 ms, and
@@ -940,6 +963,10 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
   // the other for light. Both make a frame readable instead of arguable.
   debugFolder.add(debug, "rig").name("material rig").onChange((on: boolean) => {
     materialRig.object.visible = on;
+  });
+  // The grid cells a placed/previewed helm or engine occupies (its placement footprint — see builder.ts).
+  debugFolder.add(debug, "fixtureCells").name("fixture cells").onChange((on: boolean) => {
+    builder.setOccupancyDebug(on);
   });
   // Slow-mo / pause the whole sim (waves + physics stay in lock-step) to study a fast event like a
   // bucket dropping in and shipping water. 0 pauses; 0.1–0.3 is a good crawl for watching the entry.
@@ -1303,6 +1330,7 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       rig?: boolean;
       player?: boolean;
       buoys?: boolean;
+      raft?: boolean;
     }) => {
       // The nav buoys sit at the world origin, which is exactly where the material rig stands. They
       // are also the flat-painted objects the rig exists to replace as a fidelity reference.
@@ -1315,6 +1343,17 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       if (opts.seabed !== undefined) seabed.visible = opts.seabed;
       if (opts.island !== undefined) island.object.visible = opts.island;
       if (opts.rig !== undefined) materialRig.object.visible = opts.rig;
+      // Show the gameplay raft STATICALLY as a deterministic wood subject (RAFT spawns level, just
+      // above its waterline — spawnOverride). respawn() + a dt=0 update poses it without stepping, the
+      // same recipe the benchmark's visuals mode uses, so the frozen frame is reproducible. Handled
+      // last so `raft` wins over any `physics` flag in the same call.
+      if (opts.raft !== undefined) {
+        physics.object.visible = opts.raft;
+        if (opts.raft) {
+          physics.respawn();
+          physics.update(0, elapsed);
+        }
+      }
     },
     // Force the buoy lanterns on in daylight. The photocell is physical (they light below ~50 lx), so
     // the capture tool needs a way to photograph a lamp against a sky that is not black.
@@ -1679,8 +1718,9 @@ export function setupOceanScene(ctx: ThreeSceneContext): ThreeSceneHandlers {
       // interpolated raft); in first person that also drives the eye camera, otherwise the orbit
       // debug camera runs.
       player.syncCamera(physics.alpha());
-      // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person.
-      builder.update();
+      // Aim the voxel-build highlight from the (now-posed) eye — only shows in first person. `delta`
+      // (real render seconds) drives the hold-to-turn helm steering.
+      builder.update(delta);
       if (!player.isActive()) controls.update();
       // Re-anchor the sun's shadow frustum and the cloud shadow map on the (now-final) camera, and
       // scroll the cloud deck. Must precede the pre-passes: they render the scene, shadows and all.

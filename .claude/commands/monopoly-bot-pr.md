@@ -103,13 +103,24 @@ user. Run every command from the repo root.
    ladder-topper that's only EVEN, or a counter that regresses, is the player default
    at most but stays uncrowned).
 
+   **Also run the human-leakage gate** (`bots/adversary.ts`) — the gauntlet is blind
+   to human-facing behavior (all-bot games):
+
+       npm run sim:probe-gate -- <label> <CHAMPION>
+
+   The candidate must **not** raise its total leakage above `<CHAMPION>`'s. A higher
+   total means the submission is more exploitable by a human at the table than the
+   current champion — a regression on the player-facing axis even if the all-bot SPRT
+   passes. Report the per-scenario scores next to the gauntlet result.
+
 7. **Verdict + recommendation.** Summarize the three decisions explicitly:
    - **Legality:** pass/fail (determinism + self-contained results).
    - **Record** (always, if legal): the register + regenerated `ratings.ts` /
      `ratings-cache.json`. It joins its family list with its Elo regardless.
    - **Strongest / player default:** does it top the ladder? (auto, ungated.)
    - **Crown:** only if the `--panel` gauntlet ACCEPTS on both streams (`BETTER` vs the
-     base AND no panel-member regression). If crowned, record an `EVOLUTION.md` champion
+     base AND no panel-member regression) AND `sim:probe-gate` shows no human-leakage
+     regression vs the champion. If crowned, record an `EVOLUTION.md` champion
      update + version-log row, AND add the new champion to `RATING_PANEL`
      (`versions/index.ts`) so the panel's ceiling stays current (you may retire a
      now-redundant member); it becomes the new default substrate (the next evolution

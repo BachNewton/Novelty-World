@@ -441,12 +441,25 @@ touching `roles.ts`, `ratings-cli.ts`, or `ratings.ts`.
 
 What the ladder drives (all in `roles.ts` `LOBBY_BOTS`, recomputed from the
 generated `BOT_RATINGS`):
-- **Strongest** — highest Elo across all families. The lobby default and the
-  `addBot`/`freshGame` seat (`DEFAULT_BOT_VERSION`). **No confidence gate** — it
-  just follows the top of the ladder, so a within-noise tie may flip the label
-  (fine: two bots within noise are genuinely ~equally hard).
+- **Strongest** — highest Elo across all families (the DISPLAY label). **No
+  confidence gate** — it just follows the top of the ladder, so a within-noise tie
+  may flip the label (fine: two bots within noise are genuinely ~equally hard).
 - **Each family's best** — highest Elo within that family.
 - **Deprecated** — any version with **no Elo** (struck through, "???", disabled).
+- **The default SEAT is human-aware, and deliberately splits from "Strongest".**
+  `DEFAULT_BOT_VERSION` (the `addBot`/`freshGame` opponent a human actually plays) is
+  NOT simply the Elo top. Elo is measured **bot-vs-bot**, and the human-counterparty
+  model (fable-v11/v12) is pinned IDENTICAL to its base in bot play — so the ladder
+  **cannot see** the one thing that most affects beating a human, and would seat them
+  against the human-BLIND twin (fable-v8) purely by noise. So when the Elo top is the
+  human-model base or a twin, the seat is the **fullest human-aware twin**
+  (`HUMAN_MODEL_TWINS` in `versions/index.ts` → `roles.ts` `humanFacingDefault`). Same
+  bot strength, strictly less exploitable by a human's trades. The *display* stays
+  honest Elo (fable-v8); only the seat moves. This is a fair-pricing/legibility win,
+  **not** a win-rate flip — a caveat worth keeping in mind (see EVOLUTION.md's 7-agent
+  probe headline). The deeper fix — one policy that models any counterparty rather
+  than branching on an is-human bit — is the learned bot's job (RL-DESIGN.md), not the
+  heuristics'.
 
 Mechanics:
 - **Generated, never hand-typed.** `npm run sim:ratings` (`ratings-cli.ts`) fits one

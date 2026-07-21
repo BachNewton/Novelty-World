@@ -33,11 +33,13 @@ import type { GameState, PropertyColor, TurnPhase } from "../types";
 //
 // This is intentionally a STARTING feature set, not a final one — it captures
 // cash / net worth / board position / ownership / development / set structure,
-// which is enough to train a first value net. Likely enrichments later: dice /
-// rent exposure ("how much do I owe if I land where?"), per-opponent set threat
-// (today opponents are pooled into a single "owned by an opponent" bit per
-// square plus a best-opponent fraction per group), trade-draft contents, and
-// deck composition. Keep new features seat-relative and pure.
+// which is enough to train a first value net. Ownership is encoded PER OPPONENT:
+// each square carries a seat-relative owner one-hot (slot 0 = me, slots 1…7 =
+// opponents in seat order, all-zero = unowned), so the net can tell WHICH rival
+// holds what — the information needed to value threats and target trades. Likely
+// enrichments later: dice / rent exposure ("how much do I owe if I land where?"),
+// trade-draft contents, and deck composition. Keep new features seat-relative and
+// pure.
 // ---------------------------------------------------------------------------
 
 /** Cash / net-worth scale: dollars are divided by this so a typical balance
@@ -48,8 +50,9 @@ import type { GameState, PropertyColor, TurnPhase } from "../types";
 const MONEY_SCALE = 1000;
 
 /** Seat slots the vector always reserves — the 8-hue player cap. A 2- or
- *  4-player game leaves the trailing slots zeroed (`present` = 0). */
-const MAX_SEATS = 8;
+ *  4-player game leaves the trailing slots zeroed (`present` = 0). Exported so the
+ *  value net's per-seat win-probability head is the same fixed length. */
+export const MAX_SEATS = 8;
 
 /** All turn phases, in a fixed order, for the phase one-hot. Mirrors the
  *  `TurnPhase` union; a phase added there must be added here (the
@@ -142,6 +145,9 @@ interface Ctx {
   pendingPrice: number;
   activeIsMe: number;
   iAmDebtor: number;
+  /** Seat-relative slot (0 = me, 1…n-1 = opponents in seat order) for every
+   *  player id, so a square's owner maps to a one-hot owner slot. */
+  slotOf: ReadonlyMap<string, number>;
   seats: readonly SeatInfo[];
   groups: readonly GroupInfo[];
 }
@@ -166,6 +172,22 @@ function groupInfo(state: GameState, meId: string, group: Group): GroupInfo {
     bestOppFrac: bestOpp / size,
     myMonopoly: mine === size ? 1 : 0,
   };
+}
+
+/** Seat-relative slot for every player id: 0 = the encoded seat, then opponents
+ *  in seat order. The same rotation `makeSeats` uses, exposed as an id→slot map so
+ *  a square's owner can be encoded as a one-hot over slots. Players past the
+ *  `MAX_SEATS` cap (impossible at 8 hues, but guarded) are omitted. */
+function seatSlots(state: GameState, meId: string): Map<string, number> {
+  const players = state.players;
+  const myIndex = players.findIndex((p) => p.id === meId);
+  const n = players.length;
+  const map = new Map<string, number>();
+  for (let i = 0; i < n; i++) {
+    const slot = (i - myIndex + n) % n;
+    if (slot < MAX_SEATS) map.set(players[i].id, slot);
+  }
+  return map;
 }
 
 /** Rotate seats so `meId` is slot 0 and opponents follow in seat order, then
@@ -209,6 +231,7 @@ function makeCtx(state: GameState, meId: string): Ctx {
       pending !== undefined ? (ownablePrice(pending) ?? 0) / 400 : 0,
     activeIsMe: state.turn.playerId === meId ? 1 : 0,
     iAmDebtor: debtor === meId ? 1 : 0,
+    slotOf: seatSlots(state, meId),
     seats: makeSeats(state, meId),
     groups: GROUPS.map((g) => groupInfo(state, meId, g)),
   };
@@ -239,19 +262,20 @@ function buildLayout(): FeatureSpec[] {
   layout.push({ name: "active:isMe", get: (c) => c.activeIsMe });
   layout.push({ name: "debtor:isMe", get: (c) => c.iAmDebtor });
 
-  // Per ownable square (board order): ownership relative to me + state.
+  // Per ownable square (board order): a SEAT-RELATIVE owner one-hot (slot 0 = me,
+  // slots 1…7 = opponents in seat order; all-zero = unowned), plus mortgage and
+  // development. The per-opponent one-hot is what lets the net see WHICH rival
+  // holds a square, not just "an opponent" — needed to value threats and trades.
   OWNABLE_POSITIONS.forEach((pos) => {
-    layout.push({
-      name: `sq${pos}:mine`,
-      get: (c) => (c.state.ownership[pos] === c.meId ? 1 : 0),
-    });
-    layout.push({
-      name: `sq${pos}:opp`,
-      get: (c) => {
-        const owner = c.state.ownership[pos];
-        return owner && owner !== c.meId ? 1 : 0;
-      },
-    });
+    for (let slot = 0; slot < MAX_SEATS; slot++) {
+      layout.push({
+        name: `sq${pos}:owner${slot}`,
+        get: (c) => {
+          const owner = c.state.ownership[pos];
+          return owner && c.slotOf.get(owner) === slot ? 1 : 0;
+        },
+      });
+    }
     layout.push({
       name: `sq${pos}:mortgaged`,
       get: (c) => (c.state.mortgaged[pos] === true ? 1 : 0),
