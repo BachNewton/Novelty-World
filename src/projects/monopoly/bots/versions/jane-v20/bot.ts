@@ -334,6 +334,15 @@ export interface ParamVector {
    *  equity (mirroring F7's self-side survivalEquityGain). gain=0 disables
    *  (= jane-v20 behavior); 1.0 = full equity weighting. */
   lifelineEquityGain: number;
+  /** J13 — game-phase cash discount. positionValue credits cash at face value,
+   *  but J5's horizon multiplier amplifies property income up to 3× in late
+   *  game. This asymmetry overvalues idle cash in the endgame — cash generates
+   *  nothing while income compounds. J13 linearly discounts cash's contribution
+   *  to positionValue by game phase (measured by total developed properties):
+   *  0 discount at phase=0 (early game, cash at face), up to `cashPhaseDiscount`
+   *  at phase=1 (fully developed endgame). discount=0 disables (= jane-v20
+   *  behavior); 0.3 = 30% discount at max development. */
+  cashPhaseDiscount: number;
 }
 
 // Static, non-tuned data carried verbatim from claude-v38.
@@ -462,7 +471,18 @@ export function makeParamBot(p: ParamVector): Bot {
   function positionValue(state: GameState, pid: string): number {
     const player = state.players.find((q) => q.id === pid);
     if (!player) return 0;
-    let value = player.cash;
+    // J13 — Compute game phase early (total developed properties / 40, clamped
+    // to [0,1]). Used both for cash discount and the J5 income horizon.
+    let totalDev = 0;
+    for (let dpos = 0; dpos < 40; dpos++) {
+      totalDev += developmentLevel(state, dpos);
+    }
+    const phase = Math.min(1, totalDev / 40);
+    // J13 — Discount idle cash by game phase: cash generates nothing, while J5
+    // amplifies property income up to 3× in late game. So face-value cash
+    // overstates a player's position in the endgame.
+    const cashMult = p.cashPhaseDiscount > 0 ? 1 - p.cashPhaseDiscount * phase : 1;
+    let value = player.cash * cashMult;
     let rails = 0;
     let utils = 0;
     for (const posStr in state.ownership) {
@@ -500,13 +520,8 @@ export function makeParamBot(p: ParamVector): Bot {
       }
       let horizonMult = 1;
       if (p.incomeHorizon > 0) {
-        let totalDev = 0;
-        for (let dpos = 0; dpos < 40; dpos++) {
-          totalDev += developmentLevel(state, dpos);
-        }
-        // totalDev ranges 0 (start) to ~40+ (fully developed endgame).
+        // phase and totalDev computed at top of positionValue (J13).
         // Scale horizon: 1× at totalDev=0, 3× at totalDev=40, linear between.
-        const phase = Math.min(1, totalDev / 40);
         horizonMult = 1 + 2 * phase;
       }
       value += inflow * p.incomeFlow * horizonMult;

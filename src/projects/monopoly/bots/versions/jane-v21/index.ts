@@ -87,6 +87,8 @@ export const JANE_V21_PARAMS: ParamVector = {
   oppSurvivalBounded: 1.0,
   // J12 — equity-weighted lifeline penalty (scales J10 by rival comeback equity).
   lifelineEquityGain: 1.0,
+  // J13 — game-phase cash discount (disabled in v21; enabled in v22).
+  cashPhaseDiscount: 0,
 };
 
 /** The frozen bot: jane-v20's vector + equity-weighted lifeline penalty (J12). */

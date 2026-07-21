@@ -111,6 +111,11 @@ import { janeV20Bot } from "./jane-v20";
 // penalty by the rival's comeback equity (mirrors F7 self-side logic).
 // See versions/jane-v21/index.ts.
 import { janeV21Bot } from "./jane-v21";
+// jane-v22 — GAME-PHASE CASH DISCOUNT (J13): discounts idle cash's contribution
+// to positionValue by game phase (up to 30% at full development), correcting the
+// asymmetry where J5 amplifies property income but cash stays at face value.
+// See versions/jane-v22/index.ts.
+import { janeV22Bot } from "./jane-v22";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -289,6 +294,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v19": janeV19Bot,
   "jane-v20": janeV20Bot,
   "jane-v21": janeV21Bot,
+  "jane-v22": janeV22Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,

@@ -1,30 +1,25 @@
-// jane-v20 — BOUNDED SURVIVAL CREDIT IN OPPONENT MODEL (J11) on jane-v19 substrate.
+// jane-v22 — GAME-PHASE CASH DISCOUNT (J13) on jane-v20 substrate.
 //
-// jane-v19 passed the crown gate: 35 BETTER, 3 INCONCLUSIVE, 3 EVEN, 0 WORSE
-// across 41 pairings. J10 added the rival survival lifeline penalty on the
-// accept/reject side.
+// jane-v20 passed: 35 BETTER, 3 INCONCLUSIVE, 3 EVEN, 0 WORSE across 41 pairings.
+// J11 bounded survival credit in the opponent model.
+// jane-v21 (J12 equity-weighted lifeline penalty) was REJECTED: 36 BETTER, 3
+// INCONCLUSIVE, 2 EVEN, 1 WORSE vs jane-v20 base mirror (46.4%).
 //
-// J11 fixes the OPPONENT MODEL side of survival credit. F2a (survivalBounded)
-// fixed the leak for self-view: survivalBase = min(cashIn, needToSafe) instead
-// of unbounded cashIn. But when selfView=false (modeling opponents in
-// sweetenFor/chargeSurplus), survivalBase was STILL unbounded (= cashIn).
+// J13 discounts idle cash's contribution to positionValue by game phase.
+// Currently positionValue credits cash at strict face value (value = player.cash),
+// while J5's income horizon multiplier amplifies property income up to 3× in
+// late game. This asymmetry overvalues idle cash in the endgame — cash generates
+// nothing while income compounds. J13 linearly discounts cash by game phase
+// (measured by total developed properties / 40): 0% discount at game start,
+// up to `cashPhaseDiscount` (30%) at full development. This makes the bot more
+// willing to deploy capital (build, trade cash for properties) in late game
+// rather than hoarding.
 //
-// This causes:
-//   - chargeSurplus: inflated oppDelta → over-extraction from distressed opponents
-//     → proposed trades rejected that should be acceptable
-//   - sweetenFor: the opponent's relief already divides by (1 + distress × SF),
-//     but the delta estimate feeding the sweetener is inflated, so we may
-//     under-pay distressed opponents (trade rejected by the opp model)
-//
-// Since the fable field (our main competition) has F2a, modeling them with
-// unbounded survival credit is systematically inaccurate. J11 applies the same
-// bound when selfView=false.
-//
-// Vector: jane-v19's verbatim + oppSurvivalBounded 1.0.
-import { type ParamVector, makeParamBot } from "./bot";
+// Vector: jane-v20's verbatim + cashPhaseDiscount 0.3.
+import { type ParamVector, makeParamBot } from "../jane-v20/bot";
 
-/** jane-v19's vector verbatim + bounded survival credit in opponent model (J11). */
-export const JANE_V20_PARAMS: ParamVector = {
+/** jane-v20's vector verbatim + game-phase cash discount (J13). */
+export const JANE_V22_PARAMS: ParamVector = {
   denyFactor: 0.12384655676923122,
   bonusScale: 13640.754394663116,
   railSynergyScale: 1.0463402203744872,
@@ -95,11 +90,11 @@ export const JANE_V20_PARAMS: ParamVector = {
   rivalSurvivalPenalty: 1.0,
   // J11 — bound survival credit in opponent model too (F2a was self-only).
   oppSurvivalBounded: 1.0,
-  // J12 — equity-weighted lifeline penalty (disabled in v20; enabled in v21).
+  // J12 — equity-weighted lifeline penalty (disabled; J12 was rejected in v21).
   lifelineEquityGain: 0,
-  // J13 — game-phase cash discount (disabled in v20; enabled in v22).
-  cashPhaseDiscount: 0,
+  // J13 — game-phase cash discount: 30% at max development.
+  cashPhaseDiscount: 0.3,
 };
 
-/** The frozen bot: jane-v19's vector + bounded survival credit in opponent model (J11). */
-export const janeV20Bot = makeParamBot(JANE_V20_PARAMS);
+/** The frozen bot: jane-v20's vector + game-phase cash discount (J13). */
+export const janeV22Bot = makeParamBot(JANE_V22_PARAMS);
