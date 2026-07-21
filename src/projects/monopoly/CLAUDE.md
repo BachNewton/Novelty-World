@@ -416,6 +416,7 @@ bots/eval/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gaunt
 bots/eval/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
 bots/eval/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
 bots/ratings.ts       GENERATED strength ladder (BOT_RATINGS, claude-v2=0); the lobby derives from this; see bots/CLAUDE.md "Lobby strength ratings"
+bots/eval/probe-games/  SAVED /monopoly-probe transcripts — finished played-cli games (human-marked seat vs bots) + the fleet scoreboard that is the tracked benchmark. Evidence you can re-read after the agent summaries are gone; see its README
 bots/eval/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
 bots/champion.ts      CROWN / SUBSTRATE — the evolution loop's mutable state, as code so a stale label fails loudly (NOT the player-facing default; see METHOD.md "Two bests")
 bots/docs/METHOD.md        the RULES of the evolution loop — how a version is proposed, measured, and promoted; the crown/substrate bar; the locked decisions. Read before running a version step
