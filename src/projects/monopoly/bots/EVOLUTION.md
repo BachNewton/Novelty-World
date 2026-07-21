@@ -102,6 +102,10 @@ base policy's greedy move is always a candidate (`searchBest` tie-break), so it 
   env knobs (default to the production 12/30) for fast screening — cutting *samples* is unbiased
   variance reduction (~14× faster reproduced the verdict); cutting *horizon* biases the leaf (myopia),
   so keep it near 30. (commit `98610b2`.)
+- **Independently re-derived by an external PR.** `monte-carlo-v1` (PR #9, Jane lineage) proposed
+  this exact paradigm *earlier* and arrived at the same four decision points from scratch — see
+  "PR #9 / #10 closed unmeasured" below for why it was closed rather than measured, and for the one
+  leaf variant it used that the search-v line never ran.
 
 ### `opt-v1` — ES-optimized parameter vector (ML tooling boosting the rule bot). RECORDED, not crowned.
 
@@ -974,6 +978,71 @@ substrate, and the derived lobby Strongest/default UNIFIED in one bot**
 re-tuning the shared surface). 1v3 kit (pooled two prefixes @ 800):
 **24.1%** vs 3× claude-v45 and **25.6%** vs 3× fable-v6 — at the 25% null,
 outnumbered-neutral (the v6-era ~1-point deficit recovered).
+
+## PR #9 / #10 closed unmeasured — the staleness floor (2026-07-21)
+
+Two external Jane-lineage submissions from 2026-06-22, triaged and **closed without
+grafting, rating, or a gauntlet**. Both were *legal* (deterministic, self-contained, no
+cross-version imports), so the letter of the submission process would rate them; the
+deliberate call was to document the ideas and skip the archive slot. This is the first
+time a legal submission was closed on the record rather than on a measurement, so the
+reasoning is written down as precedent.
+
+**Why not measure.** Both branch from a `main` that is ~260 commits gone — before the ES
+line, before the fable lineage, before the current champion. The decisive argument is that
+the decision was **insensitive to the result**: the crown gate would have had to overturn a
+substrate gap far larger than either delta could plausibly cover, and *even a passing
+number* would not have crowned a 250-commit-stale fork — it would have meant "rebuild the
+mechanism on the tuned substrate," which is what documenting it as a lead already says.
+Same next action either way, so the CPU bought nothing. **The residual uncertainty is
+real and is recorded as such:** these are unmeasured judgements, not measured negatives.
+
+**`monte-carlo-v1` (PR #9)** — truncated rollout at buy / jail / auction / trade-vote, all
+seats on the rollout policy, pick the highest expected win rate. This is the search-v
+paradigm, proposed independently and *earlier*, and the search-v line already answered it
+on far better substrate: search-v1 over an untuned base beat it, search-v2/v3 over the
+ES-tuned champion **washed**, and the standing finding is that rollout policy improvement
+diminishes as the base approaches optimality. Its rollout policy (`jane-v3`) has since been
+culled from the archive entirely. The reusable engine already exists in the search-v folders.
+
+- **The one untried knob it carries:** a **terminal win/loss leaf at a long horizon**
+  (net-worth fallback only at the cap), where the search-v line uses a position-share leaf
+  at a short horizon. The documented ceiling of that line is precisely the *myopia* of the
+  short-horizon leaf — so an actual-outcome leaf is the variant the horizon finding points
+  at and nobody ran. Cost is the reason it stayed unrun (the author's own estimate is tens
+  of seconds per game), and a learned value at the leaf is the cheaper answer to the same
+  problem. Recorded as a lead, not a plan.
+
+**`trade-v2` (PR #10)** — the PR body and the code disagree, which is itself the lesson:
+the folder's own header describes an observation-based opponent model that **is not in the
+folder**, and its trade and policy modules are byte-identical to the `claude-v36` it forked.
+The real delta is one function in the valuation module. Two parts, opposite signs:
+
+- **Keep the mechanism — position-adaptive denial.** It replaces the flat denial constant
+  with a ramp on *own position value ÷ average opponent position value*: deny harder when
+  ahead, develop instead when behind. **Every denial-side parameter in the champion is a
+  flat scalar**, so state-conditioning them is genuinely absent from the archive. It is
+  also **distinct from the standing "mixed / opponent-adaptive denial" lead** — that one
+  answers the RPS cycle by randomizing against *who you face*; this conditions on *how the
+  game is going*. Cheaper, orthogonal, untried. **If built: learn the ramp inside the ES
+  vector rather than hand-setting endpoints, and apply it on the trade side too** (the
+  submission ramps only the acquisition call site and leaves trades on the flat midpoint,
+  which is half a mechanism).
+- **Discard the packaging.** The endpoints are hand-set around a hand-era constant that no
+  longer exists as such — the champion's denial knob is one ES-tuned entry coupled to
+  several others, so a small wiggle calibrated for the old scalar is meaningless in that
+  vector. The snapshot also predates the hot-loop optimization and reintroduces per-call
+  allocation and redundant ownership scans into `positionValue`, then calls it once per
+  player per acquisition valuation — an N+1 blowup of the hottest function in the policy,
+  paid for the ramp.
+
+**Precedent this sets.** A submission's shelf life is bounded by its substrate, not by its
+idea: past roughly a champion generation, re-measuring a stale fork tests the *packaging*
+(a dead base plus drift) rather than the *mechanism*, and the mechanism is the only part
+worth keeping. Triage should extract the mechanism into a lead and close, reserving the
+gate for submissions whose base still exists. The counterweight — and the reason this is
+written as a judgement rather than a rule — is that closing unmeasured can only ever be
+argued, never confirmed.
 
 ## Version log
 

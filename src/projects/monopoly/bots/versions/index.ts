@@ -405,11 +405,15 @@ export const RATING_PANEL: readonly string[] = [
 
 /** The versions carrying the HUMAN-COUNTERPARTY MODEL, in increasing fullness — the
  *  THIRD hand-maintained eval knob, alongside `RATING_EXCLUDED` and `RATING_PANEL`,
- *  and for the same reason: the Elo ladder cannot derive it. Every entry is pinned
- *  IDENTICAL to its base in bot-vs-bot play (the dims are gated on the counterparty
- *  being human, `botStrategy === null` — see `bots/CLAUDE.md` "The human-counterparty
- *  model"), so the bots-only ladder ranks them by pure NOISE and can never propose
- *  one on strength.
+ *  and for the same reason: the Elo ladder cannot derive it. The human DIMS are gated
+ *  on the counterparty being human (`botStrategy === null` — see `bots/CLAUDE.md` "The
+ *  human-counterparty model"), so they contribute nothing to bot-vs-bot play and the
+ *  ladder can never propose an entry on the strength of them.
+ *
+ *  Entries need not be bot-play-identical to each other: fable-v11/v12 are pinned
+ *  twins of fable-v8, but fable-v14 adds `auctionTailFrac` — a NON-gated guard that
+ *  does change bot play (and rates above v12 because of it). Membership means "carries
+ *  the human model", not "is a pinned twin".
  *
  *  INVARIANT: the seat a human actually plays must carry the model. `roles.ts`
  *  `DEFAULT_BOT_VERSION` therefore seats the FULLEST entry (last) whenever the Elo
@@ -426,7 +430,7 @@ export const RATING_PANEL: readonly string[] = [
  *  Extend when a fuller human-model version lands. When a new champion supersedes
  *  these in real strength, the fix is to build its human-aware version and add it
  *  here — not to relax the rule. */
-export const HUMAN_MODEL_VERSIONS: readonly string[] = ["fable-v11", "fable-v12"];
+export const HUMAN_MODEL_VERSIONS: readonly string[] = ["fable-v11", "fable-v12", "fable-v14"];
 
 /** Resolve a version label to its policy, or throw with the known set listed —
  *  a typo on the CLI should fail loud, not silently field the wrong bot. */

@@ -83,7 +83,12 @@ describe("probeLeakage — determinism & shape", () => {
 
   it("reports every scenario, in the published order", () => {
     expect(V8.scenarios.map((s) => s.name)).toEqual([...SCENARIO_NAMES]);
-    expect(SCENARIO_NAMES).toEqual(["wallet-xray", "auction-illiquidity", "distress-firesale"]);
+    expect(SCENARIO_NAMES).toEqual([
+      "wallet-xray",
+      "auction-illiquidity",
+      "distress-firesale",
+      "set-handover",
+    ]);
   });
 
   it("the total is the sum of the scenario leaks", () => {

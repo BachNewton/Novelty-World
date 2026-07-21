@@ -390,7 +390,9 @@ counter can clear the base but never clears the whole field.
 Two lasting lessons: (1) **the denial knob has no global optimum** — below claude-v36's
 0.15 it stops being a gradient and becomes matchup-dependent, so more win share must come
 from a *different axis* or from a **mixed / opponent-adaptive** denial (the game-theoretic
-answer to a cycle: a pure strategy is always counterable, a mixed one isn't); (2) **the
+answer to a cycle: a pure strategy is always counterable, a mixed one isn't) — or, a cheaper
+sibling nobody has run, a **position-adaptive** denial that conditions on how the game is
+going rather than on who you face (see EVOLUTION's "PR #9 / #10 closed unmeasured"); (2) **the
 player-facing ladder was right all along** — Bradley–Terry handles non-transitivity, so
 "rank 4" was the honest read; only the crown *rule* needed the field.
 

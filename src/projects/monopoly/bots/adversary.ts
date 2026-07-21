@@ -253,6 +253,80 @@ function distressFireSale(bot: Resolve): { leak: number; detail: string } {
 }
 
 // ---------------------------------------------------------------------------
+// SET HANDOVER — a HUMAN buys a COMPLETE monopoly outright for cash.
+//
+// Reproduces game 53400q T59: a fable-v12 seat accepted a human's $550 for the
+// whole yellow set ("the cash outweighs the monopoly I'm handing over"), and the
+// human developed it into $5,850 of rent and the win. The threat charge DID fire
+// (`humanThreatMult` applies — the recipient is `botStrategy === null`), it was
+// just far too small: `rivalThreatCost` scales with `monopolyBonus(color)`, and
+// the ES tuned `monoMultYellow/Green/DarkBlue` to the 0.3 FLOOR because those
+// sets are weak in SELF-PLAY. Doubling a floor is still a floor — so the three
+// sets a human converts best are the cheapest to buy off a bot.
+//
+// Distinct from `distress-firesale`: that scenario is a DISTRESSED seat selling a
+// single completer below book. Here the seat is HEALTHY, the price is ABOVE book
+// ($550 vs $520 unmortgaged), and it still hands over a finished monopoly — so it
+// isolates the threat-PRICING gap rather than the survival-credit one.
+const ATLANTIC = 26;
+const VENTNOR = 27;
+const MARVIN = 29;
+/** Sum of the yellow lots' printed prices — the "book" the handover clears above. */
+const YELLOW_BOOK = 800;
+const HANDOVER_PRICE = 550;
+
+function setHandoverBoard(price: number): GameState {
+  const base = freshGame("adversary-handover", undefined, 4);
+  const pending = {
+    id: "t-handover",
+    proposerId: HUMAN,
+    propertyTo: { [ATLANTIC]: HUMAN, [VENTNOR]: HUMAN, [MARVIN]: HUMAN },
+    gojfTo: {},
+    cashDelta: { [CAND]: price, [HUMAN]: -price },
+    approvals: { [CAND]: false, [HUMAN]: true },
+  };
+  return {
+    ...base,
+    ownership: {
+      // Candidate (p2): the complete yellow set, undeveloped, plus a rail for
+      // position value. Nothing is mortgaged and cash is healthy, so neither the
+      // survival credit nor a distress discount can explain an accept.
+      [ATLANTIC]: CAND,
+      [VENTNOR]: CAND,
+      [MARVIN]: CAND,
+      [ST_JAMES]: CAND,
+      // The human (p1) owns nothing in yellow — they are buying the whole set.
+      [ORIENTAL]: HUMAN,
+    },
+    // Two of the three lots are MORTGAGED, exactly as in 53400q T59 (the seat had
+    // acquired them still-mortgaged at T48). This is load-bearing: `assetBase`
+    // halves a mortgaged lot, so the set is cheap to GIVE UP while the recipient
+    // can simply unmortgage and develop — which is what the human did at T63.
+    mortgaged: { [ATLANTIC]: true, [VENTNOR]: true },
+    houses: {},
+    players: base.players.map((q) => {
+      if (q.id === CAND) return { ...q, cash: 700 };
+      if (q.id === HUMAN) return { ...q, cash: 1200, botStrategy: null };
+      return { ...q, cash: 400 };
+    }),
+    turn: { ...base.turn, phase: "trade-pending", pendingTrade: pending },
+  };
+}
+
+function humanSetHandover(bot: Resolve): { leak: number; detail: string } {
+  const decision = bot(setHandoverBoard(HANDOVER_PRICE), CAND);
+  const accepted = decision?.intent.kind === "accept-trade";
+  return {
+    // A finished monopoly is worth far more than its lots' book; charging the
+    // shortfall against book is the CONSERVATIVE floor on what the handover cost.
+    leak: accepted ? YELLOW_BOOK - HANDOVER_PRICE : 0,
+    detail: accepted
+      ? `ACCEPTED $${HANDOVER_PRICE.toString()} for a complete yellow monopoly ($${YELLOW_BOOK.toString()} book) from a HUMAN`
+      : `declined the $${HANDOVER_PRICE.toString()} whole-set handover`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 
 export interface ScenarioLeak {
   name: string;
@@ -269,6 +343,7 @@ const SCENARIOS: { name: string; run: (bot: Resolve) => { leak: number; detail: 
   { name: "wallet-xray", run: walletXray },
   { name: "auction-illiquidity", run: completeIntoIlliquidity },
   { name: "distress-firesale", run: distressFireSale },
+  { name: "set-handover", run: humanSetHandover },
 ];
 
 /** The human-facing leakage report for one version label: a leak score per
