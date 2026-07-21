@@ -10,9 +10,7 @@ import type { PlayerCount } from "../types";
 import { MonoNet, type TrainSample } from "./net";
 import { collectRuleGame } from "./selfplay";
 import { SelfPlayPool } from "./selfplay-parallel";
-import { mctsBot } from "./mcts";
-import { simulateGame } from "./simulate";
-import { botFor } from "./registry"; // safe after tfjs-setup: registry pulls no tfjs.
+import { walkGauntletSprt, type GauntletSprtConfig, type GauntletWalk } from "./sprt";
 
 // ---------------------------------------------------------------------------
 // `npm run train:rl` — the SELF-PLAY TRAINING LOOP (RL-DESIGN.md §3.4 / §5 step
@@ -48,6 +46,12 @@ interface Args {
   rule: string;
   evalEvery: number;
   evalGames: number;
+  /** SPRT indifference margin E (Elo). 0 disables SPRT and falls back to fixed-N
+   *  win-rate eval. When >0, the eval uses the dual one-sided SPRT (same test the
+   *  gauntlet uses) for a statistically meaningful better/even/worse verdict. */
+  evalMargin: number;
+  /** Max decisive games for the SPRT eval before declaring inconclusive. */
+  evalMaxDecisive: number;
   bufferCap: number;
   seed: string;
   workers: number;
@@ -77,6 +81,8 @@ function parseArgs(argv: readonly string[]): Args {
     rule: "claude-v2",
     evalEvery: 5,
     evalGames: 12,
+    evalMargin: 30, // SPRT Elo margin (0 = fixed win-rate eval)
+    evalMaxDecisive: 100,
     bufferCap: 60_000,
     seed: "rl",
     workers: 0, // 0 ⇒ pool default (cores − 2)
@@ -100,6 +106,8 @@ function parseArgs(argv: readonly string[]): Args {
       case "--rule": a.rule = next(); break;
       case "--eval-every": a.evalEvery = Number(next()); break;
       case "--eval-games": a.evalGames = Number(next()); break;
+      case "--eval-margin": a.evalMargin = Number(next()); break;
+      case "--eval-max-decisive": a.evalMaxDecisive = Number(next()); break;
       case "--buffer": a.bufferCap = Number(next()); break;
       case "--seed": a.seed = next(); break;
       case "--workers": a.workers = Number(next()); break;
@@ -125,27 +133,119 @@ function writeMeta(dir: string, meta: Meta): void {
   writeFileSync(join(dir, "meta.json"), JSON.stringify(meta, null, 2));
 }
 
-/** Play `evalGames` net-vs-rule games and return the net's win rate (the net is
- *  the "rl"-labelled seat; the other seat is the rule bot). A quick, noisy
- *  strength gauge logged each eval — the rigorous measure is the existing Elo/SPRT
- *  gauntlet (phase 7). */
-function evaluate(net: MonoNet, a: Args): number {
-  const bot = mctsBot(net, { simulations: a.sims });
-  const rule = botFor(a.rule);
-  let wins = 0;
-  for (let g = 0; g < a.evalGames; g++) {
-    const result = simulateGame({
-      seed: `${a.seed}-eval-${g}`,
-      seats: [
-        { label: "rl", bot },
-        { label: a.rule, bot: rule },
-      ],
-      maxTurns: a.maxTurns,
-    });
-    const rlId = result.standings.find((s) => s.name === "rl")?.id ?? null;
-    if (result.winnerId !== null && result.winnerId === rlId) wins += 1;
+/** The result of an SPRT evaluation (RL-DESIGN.md §8 #1a/#2). Replaces the old
+ *  raw win-rate number with a statistically meaningful verdict. */
+interface EvalResult {
+  /** "better" / "even" / "worse" / "inconclusive" from the dual one-sided SPRT,
+   *  or "fixed" when SPRT is disabled (evalMargin=0) and raw win-rate is used. */
+  verdict: string;
+  /** Win rate over decisive games — the keep-best signal. Higher is better. */
+  winRate: number;
+  /** Candidate wins in decisive games. */
+  wins: number;
+  /** Candidate losses in decisive games. */
+  losses: number;
+  /** Decisive game count (draws/caps excluded). */
+  decisive: number;
+  /** LLR of the improvement test (0 if SPRT disabled). */
+  llrImprove: number;
+  /** LLR of the regression test (0 if SPRT disabled). */
+  llrRegress: number;
+}
+
+const RL_LABEL = "rl";
+
+/** Evaluate the net's strength vs a rule bot using the parallel worker pool.
+ *
+ *  Two modes (RL-DESIGN.md §8 #2):
+ *  - SPRT mode (evalMargin > 0): plays games in batches, feeding each decisive
+ *    outcome into `walkGauntletSprt`. Stops the instant the dual one-sided test
+ *    crosses a boundary (better/even/worse) or hits evalMaxDecisive. This is the
+ *    same statistical test the gauntlet uses — the finer judge the expert review
+ *    called for (#1a).
+ *  - Fixed mode (evalMargin = 0): plays exactly evalGames and returns the raw
+ *    win rate (the legacy behavior, kept as a fallback).
+ *
+ *  Parallelization (#2): eval games run across the SelfPlayPool workers instead
+ *  of sequentially on the main thread. Determinism is preserved — each game is a
+ *  pure function of (net checkpoint, seed), so worker assignment never changes a
+ *  result, only the wall-clock. */
+async function evaluate(netDir: string, pool: SelfPlayPool, a: Args): Promise<EvalResult> {
+  const players: PlayerCount = 2; // head-to-head: 1 net seat vs 1 rule seat
+
+  if (a.evalMargin > 0) {
+    // SPRT mode: batched generation feeding the dual one-sided test.
+    const cfg: GauntletSprtConfig = {
+      margin: a.evalMargin,
+      alpha: 0.05,
+      beta: 0.05,
+    };
+    const aWon: boolean[] = [];
+    let generated = 0;
+    const hardCap = a.evalMaxDecisive * 3 + 100; // safety net for all-draws
+    let walk: GauntletWalk = walkGauntletSprt(aWon, cfg, a.evalMaxDecisive);
+
+    while (walk.verdict === "need-more") {
+      const batchSize = Math.min(a.evalGames, hardCap - generated);
+      if (batchSize <= 0) break;
+      const seeds = Array.from({ length: batchSize }, (_, i) => `${a.seed}-eval-${generated + i}`);
+      generated += batchSize;
+      const results = await pool.evalGames({
+        netDir,
+        rule: a.rule,
+        rlLabel: RL_LABEL,
+        seeds,
+        players,
+        maxTurns: a.maxTurns,
+        sims: a.sims,
+      });
+      for (const r of results) {
+        if (r.rlWon === true) aWon.push(true);
+        else if (r.rlWon === false) aWon.push(false);
+        // null (draw/cap) is discarded — no SPRT information
+      }
+      walk = walkGauntletSprt(aWon, cfg, a.evalMaxDecisive);
+      if (walk.verdict === "need-more" && generated >= hardCap) break;
+    }
+
+    return {
+      verdict: walk.verdict,
+      winRate: walk.decisive > 0 ? walk.wins / walk.decisive : 0,
+      wins: walk.wins,
+      losses: walk.losses,
+      decisive: walk.decisive,
+      llrImprove: walk.llrImprove,
+      llrRegress: walk.llrRegress,
+    };
   }
-  return wins / Math.max(1, a.evalGames);
+
+  // Fixed mode: legacy raw win-rate over a fixed number of games (still parallel).
+  const seeds = Array.from({ length: a.evalGames }, (_, i) => `${a.seed}-eval-${i}`);
+  const results = await pool.evalGames({
+    netDir,
+    rule: a.rule,
+    rlLabel: RL_LABEL,
+    seeds,
+    players,
+    maxTurns: a.maxTurns,
+    sims: a.sims,
+  });
+  let wins = 0;
+  let losses = 0;
+  for (const r of results) {
+    if (r.rlWon === true) wins++;
+    else if (r.rlWon === false) losses++;
+  }
+  const decisive = wins + losses;
+  return {
+    verdict: "fixed",
+    winRate: decisive > 0 ? wins / decisive : 0,
+    wins,
+    losses,
+    decisive,
+    llrImprove: 0,
+    llrRegress: 0,
+  };
 }
 
 async function main(): Promise<void> {
@@ -250,19 +350,20 @@ async function main(): Promise<void> {
 
       if (a.evalEvery > 0 && iteration % a.evalEvery === 0) {
         const t1 = now();
-        const winRate = evaluate(net, a);
+        const er = await evaluate(netDir, pool, a);
         let tag = "";
         // KEEP-BEST: retain the highest-eval net under `<dir>/best`. `>=` so the
         // most RECENT net wins ties — later nets have seen more experience.
-        if (winRate >= bestScore) {
-          bestScore = winRate;
+        if (er.winRate >= bestScore) {
+          bestScore = er.winRate;
           bestIteration = iteration;
           await net.save(bestDir);
           saveMeta();
           tag = "  ← new best (saved to best/)";
         }
         console.log(
-          `  eval — net vs ${a.rule}: ${(winRate * 100).toFixed(1)}% over ${a.evalGames} games ` +
+          `  eval — net vs ${a.rule}: ${(er.winRate * 100).toFixed(1)}% (${er.wins}W/${er.losses}L of ${er.decisive} decisive) ` +
+            `SPRT=${er.verdict} [LLR +${er.llrImprove.toFixed(2)}/${er.llrRegress.toFixed(2)}] ` +
             `(${secs(now() - t1)})${tag}`,
         );
       }

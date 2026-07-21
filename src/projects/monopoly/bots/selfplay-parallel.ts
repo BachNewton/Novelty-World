@@ -2,7 +2,7 @@ import os from "node:os";
 import { Worker } from "node:worker_threads";
 import type { PlayerCount } from "../types";
 import type { TrainSample } from "./net";
-import type { SelfPlayTask } from "./selfplay-worker";
+import type { SelfPlayTask, EvalTask, EvalGameResult } from "./selfplay-worker";
 
 // ---------------------------------------------------------------------------
 // PARALLEL self-play generation — the throughput fix RL-DESIGN.md §8 calls the gate
@@ -24,6 +24,18 @@ export function defaultSelfPlayWorkers(): number {
 
 export interface ParallelSelfPlayOptions {
   netDir: string | null;
+  seeds: string[];
+  players: PlayerCount;
+  maxTurns: number;
+  sims: number;
+}
+
+/** Options for parallel eval games (net vs rule bot). Used by the SPRT-based
+ *  strength gauge in train-cli.ts (RL-DESIGN.md §8 #2 — parallelize evaluate()). */
+export interface EvalPoolOptions {
+  netDir: string;
+  rule: string;
+  rlLabel: string;
   seeds: string[];
   players: PlayerCount;
   maxTurns: number;
@@ -86,7 +98,58 @@ export class SelfPlayPool {
         w.on("message", onMessage);
         w.on("error", onError);
         const task: SelfPlayTask = {
+          kind: "selfplay",
           netDir: opts.netDir,
+          seeds: chunk,
+          players: opts.players,
+          maxTurns: opts.maxTurns,
+          sims: opts.sims,
+        };
+        w.postMessage(task);
+      });
+    });
+  }
+
+  /** Play eval games (net vs rule bot) across the pool — the parallel replacement
+   *  for train-cli's sequential `evaluate()`. Each worker plays its share of games
+   *  and posts back per-game outcomes. The caller feeds these into the SPRT walker
+   *  (`walkGauntletSprt`) for a statistically meaningful strength verdict. */
+  evalGames(opts: EvalPoolOptions): Promise<EvalGameResult[]> {
+    const { seeds } = opts;
+    if (seeds.length === 0) return Promise.resolve([]);
+    const nChunks = Math.min(this.size, seeds.length);
+    const per = Math.ceil(seeds.length / nChunks);
+    const chunks: string[][] = [];
+    for (let i = 0; i < seeds.length; i += per) chunks.push(seeds.slice(i, i + per));
+
+    return new Promise<EvalGameResult[]>((resolve, reject) => {
+      const out: EvalGameResult[] = [];
+      let done = 0;
+      chunks.forEach((chunk, ci) => {
+        const w = this.workers[ci];
+        const onMessage = (msg: { results: EvalGameResult[]; error?: string }): void => {
+          w.off("message", onMessage);
+          w.off("error", onError);
+          if (msg.error !== undefined) {
+            reject(new Error(`eval worker failed: ${msg.error}`));
+            return;
+          }
+          out.push(...msg.results);
+          done += 1;
+          if (done === chunks.length) resolve(out);
+        };
+        const onError = (err: Error): void => {
+          w.off("message", onMessage);
+          w.off("error", onError);
+          reject(err);
+        };
+        w.on("message", onMessage);
+        w.on("error", onError);
+        const task: EvalTask = {
+          kind: "eval",
+          netDir: opts.netDir,
+          rule: opts.rule,
+          rlLabel: opts.rlLabel,
           seeds: chunk,
           players: opts.players,
           maxTurns: opts.maxTurns,

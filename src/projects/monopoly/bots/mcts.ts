@@ -2,7 +2,7 @@ import { autoStep, createRng, firstNegativePlayer, netWorth, type Rng } from "..
 import type { GameState } from "../types";
 import { encode, MAX_SEATS } from "./features";
 import { applyCandidate, legalActions, type Action } from "./actions";
-import { maskPolicy, type MonoNet } from "./net";
+import { maskPolicy, type MonoNet, type Prediction } from "./net";
 import type { Bot } from "./decision";
 
 // ---------------------------------------------------------------------------
@@ -39,10 +39,12 @@ import type { Bot } from "./decision";
 // (by player index, fixed for the game), so backup can credit each node's own
 // mover regardless of whose turn the leaf was — the correct multi-player update.
 //
-// PERF NOTE: this is a correctness-first MCTS — one net eval per expansion (not
-// yet batched across the tree) and `legalActions` recomputed per node. Both are
-// the obvious throughput levers (batch leaf evals; memoize the action mask) when
-// self-play speed becomes the bottleneck. Keep `simulations` modest until then.
+// PERF: Leaf evaluation is BATCHED (RL-DESIGN.md §8 #5) — simulations are grouped
+// into batches, each collecting all unique leaf states for one net.predict() call.
+// Virtual loss decorrelates same-batch simulations so they explore different
+// branches. Still TODO: memoize `legalActions` per node and cache chance children
+// when self-play speed becomes the bottleneck again. Keep `simulations` modest
+// until then.
 // ---------------------------------------------------------------------------
 
 /** Exploration constant in PUCT — higher widens the search toward the prior. */
@@ -52,10 +54,25 @@ const DEFAULT_C_PUCT = 1.5;
 const DEFAULT_SIMULATIONS = 40;
 /** Safety bound on the mechanical drive between decisions. */
 const DRIVE_GUARD = 2000;
+/** Default batch size for leaf evaluation (RL-DESIGN.md §8 #5). Each batch collects
+ *  up to this many leaf states and evaluates them in a single net.predict() call —
+ *  the throughput unlock that makes CPU self-play viable and is the precondition
+ *  for any GPU to help (single-sample inference is a GPU's worst case). */
+const DEFAULT_BATCH_SIZE = 8;
+/** Virtual loss applied to edges during batched selection. Temporarily penalizes
+ *  visited edges so other simulations in the same batch explore different branches.
+ *  Undone during backup; the net effect on final statistics is zero. */
+const VIRTUAL_LOSS = 1;
 
 export interface MctsOptions {
   simulations?: number;
   cPuct?: number;
+  /** Batch size for leaf evaluation (RL-DESIGN.md §8 #5). Simulations are grouped
+   *  into batches of this size; each batch collects all unique unexpanded leaves
+   *  and evaluates them in ONE net.predict() call (virtual loss decorrelates
+   *  same-batch simulations). Larger = fewer predict calls but staler statistics.
+   *  Determinism is preserved for any fixed batch size. */
+  batchSize?: number;
   /** TRAINING-ONLY root exploration (RL-DESIGN.md §8 review #3). When set, the
    *  root priors are mixed with symmetric Dirichlet(`alpha`) noise at weight
    *  `epsilon`, so search visits (and self-play can therefore discover) moves the
@@ -185,11 +202,12 @@ class Node {
   ) {}
 }
 
-function expand(node: Node, net: MonoNet): void {
+/** Expand a node using a pre-computed prediction (from batched or single eval).
+ *  Fills actions, priors, value, and visit accumulators. */
+function expandWithPrediction(node: Node, pred: Prediction): void {
   const n = node.state.players.length;
   const me = node.state.players[node.moverIdx].id;
   node.actions = legalActions(node.state, me);
-  const pred = net.predict([encode(node.state, me)])[0];
   node.valueAbs = valueToAbsolute(pred.value, node.moverIdx, n);
   const k = node.actions.length;
   node.priors = new Float32Array(k);
@@ -201,6 +219,13 @@ function expand(node: Node, net: MonoNet): void {
   node.W = new Float64Array(k);
   node.children = new Array<Node | null>(k).fill(null);
   node.expanded = true;
+}
+
+/** Expand a single node with a fresh net eval (used for root expansion). */
+function expand(node: Node, net: MonoNet): void {
+  const me = node.state.players[node.moverIdx].id;
+  const pred = net.predict([encode(node.state, me)])[0];
+  expandWithPrediction(node, pred);
 }
 
 /** PUCT-select the child index of an expanded node with ≥1 action. */
@@ -230,35 +255,112 @@ function nodeAt(state: GameState, seed: number): Node {
   return new Node(advanced, moverIdx < 0 ? 0 : moverIdx, seed);
 }
 
-/** One MCTS simulation from `node`. Returns the absolute value vector backed up. */
-function simulate(node: Node, net: MonoNet, cPuct: number): Float32Array {
-  if (node.state.status !== "active") return terminalValue(node.state);
-  if (!node.expanded) {
-    expand(node, net);
-    return node.valueAbs;
-  }
-  if (node.actions.length === 0) return node.valueAbs; // owner owed nothing
+/** One path from root to leaf during batched selection — the edges traversed
+ *  (for backup) and the leaf node reached. */
+interface SimPath {
+  edges: Array<{ node: Node; actionIdx: number }>;
+  leaf: Node;
+  terminal: boolean;
+}
 
-  const a = selectChild(node, cPuct);
-  const action = node.actions[a];
-  let v: Float32Array;
-  if (action.op.kind === "step") {
-    // Chance edge: reseed the dice, evaluate the fresh post-roll state (resampled
-    // every visit, so the edge's value averages over dice). Not cached.
-    const childSeed = mixSeed(node.seed, a, node.N[a]);
-    const rolled = autoStep({ ...node.state, rngState: childSeed }).state;
-    v = simulate(nodeAt(rolled, childSeed), net, cPuct);
-  } else {
-    let child = node.children[a];
-    if (child === null) {
-      child = nodeAt(applyCandidate(node.state, action.op), node.seed);
-      node.children[a] = child;
+/** Run `sims` MCTS simulations in batches of `batchSize` (RL-DESIGN.md §8 #5).
+ *
+ *  Each batch has three phases:
+ *  1. SELECT: traverse from root to leaf for each simulation in the batch,
+ *     applying VIRTUAL LOSS to each traversed edge. This decorrelates same-batch
+ *     simulations — without it, every sim would follow the same path (same PUCT
+ *     scores, same statistics) and the batch would be wasted.
+ *  2. EVALUATE: collect all unique unexpanded leaves, batch them into ONE
+ *     net.predict() call. This replaces N per-leaf predict calls with ~1 per batch.
+ *  3. BACKUP: for each simulation, undo the virtual loss and apply the real visit
+ *     + value. The net effect of virtual loss on final statistics is exactly zero.
+ *
+ *  Determinism is preserved: for a fixed batch size, the virtual-loss sequence is
+ *  fully determined by (state, net), so the search tree — and hence the chosen
+ *  move — is reproducible. The result DIFFERS from the old sequential simulate()
+ *  (virtual loss changes which branches same-batch sims explore), but is still a
+ *  pure function of (state, net, batchSize). */
+function runBatchedSims(
+  root: Node,
+  net: MonoNet,
+  sims: number,
+  cPuct: number,
+  batchSize: number,
+): void {
+  for (let start = 0; start < sims; start += batchSize) {
+    const batch = Math.min(batchSize, sims - start);
+
+    // Phase 1: Select — collect leaf paths with virtual loss.
+    const paths: SimPath[] = [];
+    for (let s = 0; s < batch; s++) {
+      const edges: Array<{ node: Node; actionIdx: number }> = [];
+      let node = root;
+      while (
+        node.state.status === "active" &&
+        node.expanded &&
+        node.actions.length > 0
+      ) {
+        const a = selectChild(node, cPuct);
+        // Virtual loss: temporarily penalize this edge.
+        node.N[a] += VIRTUAL_LOSS;
+        node.W[a] -= VIRTUAL_LOSS;
+        edges.push({ node, actionIdx: a });
+
+        const action = node.actions[a];
+        if (action.op.kind === "step") {
+          // Chance edge: sample a fresh dice outcome (not cached).
+          const childSeed = mixSeed(node.seed, a, node.N[a]);
+          const rolled = autoStep({ ...node.state, rngState: childSeed }).state;
+          node = nodeAt(rolled, childSeed);
+        } else {
+          let child = node.children[a];
+          if (child === null) {
+            child = nodeAt(applyCandidate(node.state, action.op), node.seed);
+            node.children[a] = child;
+          }
+          node = child;
+        }
+      }
+      paths.push({
+        edges,
+        leaf: node,
+        terminal: node.state.status !== "active",
+      });
     }
-    v = simulate(child, net, cPuct);
+
+    // Phase 2: Evaluate — batch-expand unique unexpanded leaves.
+    const toEval: Node[] = [];
+    const seen = new Set<Node>();
+    for (const p of paths) {
+      if (!p.terminal && !p.leaf.expanded && !seen.has(p.leaf)) {
+        seen.add(p.leaf);
+        toEval.push(p.leaf);
+      }
+    }
+    if (toEval.length > 0) {
+      const encodings = toEval.map((n) => {
+        const me = n.state.players[n.moverIdx].id;
+        return encode(n.state, me);
+      });
+      const preds = net.predict(encodings);
+      for (let i = 0; i < toEval.length; i++) {
+        expandWithPrediction(toEval[i], preds[i]);
+      }
+    }
+
+    // Phase 3: Backup — undo virtual loss, apply real visit + value.
+    for (const p of paths) {
+      const v = p.terminal
+        ? terminalValue(p.leaf.state)
+        : p.leaf.valueAbs; // freshly expanded or owe-nothing
+      for (const { node, actionIdx } of p.edges) {
+        node.N[actionIdx] -= VIRTUAL_LOSS;
+        node.W[actionIdx] += VIRTUAL_LOSS;
+        node.N[actionIdx] += 1;
+        node.W[actionIdx] += v[node.moverIdx];
+      }
+    }
   }
-  node.N[a] += 1;
-  node.W[a] += v[node.moverIdx];
-  return v;
 }
 
 /** One standard normal via Box–Muller from a seeded uniform stream. */
@@ -336,7 +438,8 @@ function runSearch(
       root.priors[i] = (1 - epsilon) * root.priors[i] + epsilon * noise[i];
     }
   }
-  for (let i = 0; i < sims; i++) simulate(root, net, cPuct);
+  const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
+  runBatchedSims(root, net, sims, cPuct, batchSize);
   return { root, sims };
 }
 
