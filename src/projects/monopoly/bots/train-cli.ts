@@ -407,6 +407,8 @@ async function main(): Promise<void> {
         // SELF-PLAY EVAL: current net vs retained best net.
         // Independent learning signal — even before the net can beat external
         // opponents, we can see if it's improving vs its own past versions.
+        // Skip until iter 25+ — early nets haven't diverged from saved best.
+        if (iteration >= 25) {
         const t2 = now();
         const sp = await evaluateSelfPlay(netDir, bestDir, pool, a, iteration);
         if (sp !== null) {
@@ -416,6 +418,7 @@ async function main(): Promise<void> {
           );
         } else {
           console.log(`  self  — net vs prev-best: (no best net yet)`);
+        }
         }
       }
     }
