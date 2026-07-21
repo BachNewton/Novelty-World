@@ -98,6 +98,11 @@ import { janeV17Bot } from "./jane-v17";
 // to develop it post-trade.
 // See versions/jane-v18/index.ts.
 import { janeV18Bot } from "./jane-v18";
+// jane-v19 — RIVAL SURVIVAL LIFELINE PENALTY (J10): trade evaluation improvement
+// on jane-v18 substrate. Penalizes cash paid to distressed opponents — the
+// survival credit's mirror. NOT a positionValue change.
+// See versions/jane-v19/index.ts.
+import { janeV19Bot } from "./jane-v19";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -273,6 +278,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v16": janeV16Bot,
   "jane-v17": janeV17Bot,
   "jane-v18": janeV18Bot,
+  "jane-v19": janeV19Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
