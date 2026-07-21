@@ -76,8 +76,18 @@ launching.
      tag (**white-box** — needed code knowledge — vs **behavioral** — the
      black-box agent or ladder-probing found it; behavioral findings are the
      more urgent fixes, white-box findings bound the worst case).
-   - **Compute the fleet scoreboard**: wins/losses per agent and overall
-     fleet win rate vs the target — the tracked benchmark future versions get
+   - **Compute the fleet scoreboard FIRST, and calibrate every finding against it**:
+     wins/losses per agent and overall fleet win rate vs the target. **The
+     four-player baseline is 25% — a fleet at or below that has NOT beaten the
+     bot, however many exploits it lists.** The 2026-07-21 fleet went 2–7 (22.2%)
+     against jane-v20 with two of three agents reading the source, while
+     documenting a wallet X-ray at slope 1.00, completers at 0.43–2.2× book, and a
+     77% discount from a $100 throw-in. Both things are true: the leaks are real
+     and repeatable, and they **did not convert**. Lead the report with that
+     tension — a page of exploits above a losing record is a fair-pricing and
+     legibility finding, not a win-rate claim, and writing it up as the latter is
+     the single easiest way for this command to mislead the next session — the
+     tracked benchmark future versions get
      measured against (record it with the target version's label).
    - **Verify any suspected engine bug against the saved game JSON before it
      enters the record** — agents read events, not internals, and have been

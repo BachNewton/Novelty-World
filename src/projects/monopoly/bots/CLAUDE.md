@@ -328,6 +328,38 @@ The gate discipline is the invariant: human-facing pricing lives HERE, never
 in the shared evaluator. When the corpus grows enough for per-human priors
 (reservation curves per named player), this is where they bind.
 
+## Dual-use parameters — the trap that has now bitten three times
+
+**Rule: before an optimizer is allowed to move a parameter, ask what ELSE that
+parameter feeds. If any consumer sits outside the fitness function, PIN or FLOOR it
+for that consumer — do not hope the search will respect it.**
+
+A win-share ES optimizes the one number you gave it. A parameter that does two jobs
+gets tuned for whichever job the fitness can see, and the other job is silently
+corrupted — invisibly, because by construction the metric does not move. Three
+independent instances, all found the same way (a real game or a probe, never the
+harness):
+
+- **`holderDenialFrac`** (claude-v44 → v45): job 1 = the buyer/holder denial lockstep;
+  job 2 = keeping the hot-potato ring dead. The ES settled it at 0.461, reopening a
+  clearing band on every held-completer hop. Cost ~0 win share (net-zero cash on the
+  weakest set) and inflated self-play trade volume ~65%.
+- **`railSynergy2`** (fable-v3): job 1 = rail valuation; job 2 = what you charge to
+  hand a rival a network. The ES drifted it to ~free — a dim a mirror fitness cannot
+  see, because bots almost never trade toward rail networks in self-play.
+- **`monoMult{Yellow,Green,DarkBlue}`** (found 2026-07-21, four instruments): job 1 =
+  how much *I* value owning that set (genuinely weak in self-play → ES drove all three
+  to the 0.30 floor); job 2 = **the base of `rivalThreatCost`**, i.e. what I charge
+  myself to arm a rival. Flooring job 1 made the three sets a HUMAN converts best the
+  cheapest on the board to buy off a bot — the charge for handing a human Boardwalk is
+  ~$40. Note the compounding: `humanThreatMult` doubles it, but **doubling a floor is
+  still a floor.**
+
+The generalizable shape: **valuation levers and threat-pricing levers look like one
+number and are not.** What a set is worth to *me* is a self-preference the ES may tune;
+what handing it to an *opponent* costs me is closer to objective rent potential and
+must not inherit my preference. When you add a lever, write down its consumers.
+
 ## Randomness & the RNG seam
 
 The bot is a pure function `(state, playerId) => BotDecision | null` today — no
@@ -449,17 +481,24 @@ generated `BOT_RATINGS`):
 - **The default SEAT is human-aware, and deliberately splits from "Strongest".**
   `DEFAULT_BOT_VERSION` (the `addBot`/`freshGame` opponent a human actually plays) is
   NOT simply the Elo top. Elo is measured **bot-vs-bot**, and the human-counterparty
-  model (fable-v11/v12) is pinned IDENTICAL to its base in bot play — so the ladder
-  **cannot see** the one thing that most affects beating a human, and would seat them
-  against the human-BLIND twin (fable-v8) purely by noise. So when the Elo top is the
-  human-model base or a twin, the seat is the **fullest human-aware twin**
-  (`HUMAN_MODEL_TWINS` in `versions/index.ts` → `roles.ts` `humanFacingDefault`). Same
-  bot strength, strictly less exploitable by a human's trades. The *display* stays
-  honest Elo (fable-v8); only the seat moves. This is a fair-pricing/legibility win,
-  **not** a win-rate flip — a caveat worth keeping in mind (see EVOLUTION.md's 7-agent
-  probe headline). The deeper fix — one policy that models any counterparty rather
-  than branching on an is-human bit — is the learned bot's job (RL-DESIGN.md), not the
+  model's dims are gated on `botStrategy === null` — so the ladder **cannot see** the
+  one thing that most affects beating a human, and left alone would seat them against
+  a human-BLIND bot. So whenever the Elo top does **not itself carry the model**, the
+  seat becomes the fullest version that does (`HUMAN_MODEL_VERSIONS` in
+  `versions/index.ts` → `roles.ts` `humanFacingDefault`). Strictly less exploitable by
+  a human's trades. The *display* stays honest Elo; only the seat moves. This is a
+  fair-pricing/legibility win, **not** a win-rate flip — a caveat the 2026-07-21 probe
+  fleet re-confirmed hard (fleet record 2–7 against a human-blind crown, at/below the
+  25% four-player baseline: the pricing leaks were real, repeatable, and mostly did
+  not convert). The deeper fix — one policy that models any counterparty rather than
+  branching on an is-human bit — is the learned bot's job (RL-DESIGN.md), not the
   heuristics'.
+  **Why the rule is "the topper lacks the model" and not "the topper is one specific
+  base":** it used to key off a single base + its pinned twins, which silently stopped
+  protecting the moment a bot from another lineage topped the ladder. jane-v20 (PR #11)
+  is exactly that case — a human-blind crown at 4× the leakage — and the old predicate
+  would have seated it. **A guard defined relative to a moving reference eventually
+  measures nothing**; see the same failure in `probe-gate` below.
 
 Mechanics:
 - **Generated, never hand-typed.** `npm run sim:ratings` (`ratings-cli.ts`) fits one

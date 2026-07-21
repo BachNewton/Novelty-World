@@ -1261,6 +1261,118 @@ is a clean next-SUBSTRATE candidate (fable-v12 + the auction fix) for a delibera
 call. (3) The F7 recipient-equity floor as a screened hypothesis (expect a wash).
 The 33 game JSONs are kept as L1 training data + analysis material.
 
+**As of 2026-07-21 (the jane-v20 crown + the first three-instrument session):**
+the crown is **`jane-v20`** (PR #11, external Jane lineage), the human-facing
+default seat is **`fable-v14`**, and the substrate is **held at `fable-v12`** —
+three different labels, the widest that split has ever been, each for a measured
+reason. The session's product is less the new champion than the discovery that
+**the loop had a strength ratchet but no human-facing ratchet.**
+
+**What happened.** jane-v20 cleared the crown gate against fable-v7 on both seed
+streams (24/24 BETTER, zero regressions) and tops the ladder at +170.6, ~32 Elo
+clear of fable-v8, beating every version in the archive. It is structurally
+`fable-v8` + 10 J-stack levers: it carries all 52 fable-v8 params VERBATIM and
+adds opponent-modeling machinery (collateralized development, greedy marginal-EV
+build, opponent-aware positionValue, rival survival lifeline). It therefore
+carries **no human-counterparty model** — its lineage forked before fable-v11 —
+and `sim:probe-gate` scored its leakage at **$530 vs fable-v12's $130**.
+
+**The loop defect, in three parts.**
+1. **The crown gate is all-bot, and human-gated dims are SPRT-vacuous**, so the
+   loop's main engine can never propose or improve them. They only accrete
+   through hand-played probe games.
+2. **`probe-gate` scored leakage RELATIVE to the champion** — and the champion
+   (fable-v7) was itself pre-human-model, so the yardstick had already decayed.
+   The gate reported PASS on a bot leaking 4x the archive's best. A guard defined
+   against a moving reference eventually measures nothing.
+3. **The substrate rule propagates CODE, not just strength.** Handing jane-v20
+   the substrate would have ORPHANED the human model out of the line of descent —
+   promotion on the well-measured axis silently deleting unmeasured progress.
+
+**Fixes landed.** `HUMAN_MODEL_TWINS` (base + twins) became `HUMAN_MODEL_VERSIONS`
+(the versions carrying the model): the human seat is now the fullest such version
+**whenever the Elo topper lacks the model**, instead of only when one specific
+lineage topped the ladder — the old predicate stopped protecting the moment a
+non-fable bot won, which is exactly what happened. This also closes the "twin
+default tie-break" lead the 2026-07-18 block flagged as needing a doctrine call.
+Substrate held at fable-v12. Default moved v12 → **fable-v14** (a strict param
+superset of v12 — same vector plus `auctionTailFrac`, full human model, and it
+rates ABOVE v12), taking total leakage **$130 → $70**.
+
+**game:review 53400q** (Papa human vs two fable-v12 seats; both bots died first,
+Papa won on $5,850 of rent) produced the auction finding that motivated the v14
+move: at T47 a seat DECLINED Park Place at its $350 list ("not worth liquidating
+for") then won the auction at **$480** and mortgaged five lots ($495) to settle —
+the very liquidation it had just refused. Two code paths priced one asset
+differently in one turn. It cascaded: the forced mortgaging made its own yellows
+cheap to sell, a rival bought them for $308 and sold the finished set to the
+HUMAN for $550, who developed it into the win. Also measured: **$800 destroyed**
+in two dark-blue build/sell half-price round trips.
+
+**The 3-agent probe fleet vs jane-v20 (9 games).** Fleet record **2–7 (22.2%)** —
+at or below the 25% four-player baseline, with two of three agents reading the
+source. **Calibration that matters: the pricing leaks below are real and
+repeatable but largely DID NOT CONVERT TO WINS.** Treat the human model as
+fair-pricing/legibility work, not an assumed win-rate flip (the 7-agent probe
+headline again).
+
+- **Comeback-equity survival is PARTIALLY REOPENED (3/3)** — the one CLOSED-list
+  regression, and the session's most urgent item. Bare/mortgaged lots come off a
+  seat under `liquid ≤ worstBoardRent` at **0.18–0.33× book** (Pacific $300 →
+  $60; Kentucky $220 → $40). `survivalEquityGain = 1` narrows but does not close
+  it. NOT human-gated, so it screens and gates normally.
+- **Completer/set-handover underpricing — FOUR independent instruments** (the T59
+  review, a black-box agent, a white-box agent, the ladder data). Completers to a
+  human at **0.43–2.2× book** where fable-v11/v12 decline through 3–6×. Mechanism
+  confirmed arithmetically: `rivalThreatCost` scales with `monopolyBonus`, and the
+  ES floored `monoMult{Yellow,Green,DarkBlue}` at 0.30, so those bonuses sit at
+  176/153/134 and the charge for handing a human Boardwalk is **~$40**. The
+  black-box agent found it blind: *"flat in dollars, not proportional to set power
+  — so the strongest sets are the cheapest to pry loose."*
+- **Outlet flip (NEW)** — `deployabilityDiscount` is gated on a BINARY outlet
+  predicate the counterparty controls for free. Boardwalk pure-cash break-even
+  **$1,508**; add a $100 junk lot that makes the seller 2-of-3 in a color and it
+  accepts **$350**. A **77% discount for $100**. Over-caution and leak are the
+  SAME lever.
+- **Wallet X-ray confirmed live at slope 1.00** ($578 cash → $578 ask; true
+  reservation $420). **Decline-and-reprice walk-up (3 agents)**: declining is free
+  and monotone in the human's favor (+24%/+38%/+48%). **Distress-divisor mirror**:
+  a human who never mortgages is paid ~3–7.6× more for the same asset.
+- **A hypothesis REFUTED, worth recording.** The session predicted the J-stack's
+  opponent-model levers would be the new human-facing hole, and that a merge would
+  need them human-gated. The white-box agent tested it directly: spoofing
+  `rivalDeployability` / `threatExposure` / `selfDeployability` moves prices by
+  **tens of dollars** (~$22 on a $420 completer). The exploitable machinery is
+  **upstream and older** — `min(oppCash, …)` ask construction, the transparent
+  ~$9.30 accept bar, the un-equity-capped survival credit. **This SIMPLIFIES the
+  merge back to the naive disjoint union.**
+- Over-caution: the agents DISAGREE (none / present-but-minor / one instance). The
+  reconciling read is the white-box agent's: jane-v20 is too **willing**, not too
+  passive — *"her own asks sit systematically below her own reservations."*
+- **UNVERIFIED, deliberately not recorded as fact:** one agent reports the trade
+  boundary can be re-armed unlimited times inside one pre-roll (free infinite
+  offers per turn). That is an ENGINE claim, and the probe-8 `estateCash` false
+  alarm is why it must be checked against a saved game JSON before anyone acts.
+
+**Standing leads, in priority order.**
+1. **The survival-credit reopening** — a regression of a fix believed closed since
+   fable-v6 outranks new discoveries. Red/green: the Pacific-at-$60 board.
+2. **`rivalThreatCost` book floor** — `max(bonus × rivalThreatFactor, k ×
+   ownablePrice)`, so an ES that de-weights a color's `monoMult` cannot turn that
+   whole set into a giveaway. Shared evaluator: expect a wash or worse
+   (fable-v9/v10 precedent).
+3. **Smooth the outlet predicate** and exclude outlets CREATED BY THE SAME TRADE —
+   the buyer chose them. Structural, not a constant.
+4. **The merge** — jane-v20 and fable-v12 share fable-v8 as an EXACT common
+   ancestor with DISJOINT deltas (10 J levers vs 3 human dims, zero overlap). The
+   union should hold crown and substrate together.
+5. **Make `probe-gate` an ABSOLUTE ratchet** (vs best-ever archive leakage, not vs
+   the champion) and keep widening `adversary.ts` — the new `set-handover`
+   scenario currently does NOT discriminate (every version declines the hand-built
+   board, including the fable-v12 that accepted the real thing at T59), so the
+   honest next step there is replaying against the STORED T59 state rather than a
+   reconstruction.
+
 **As of 2026-07-18 (the extended morning block):** the HUMAN-COUNTERPARTY
 MODEL shipped in two live-validated iterations — **`fable-v11`** (no premium
 asks or surplus riders vs human seats; $75 margin on human-proposed trades)

@@ -309,10 +309,28 @@ the single biggest trap in this whole model. Keep them apart:
    identical to its base in every self-play game (that's why the human-model versions
    validate by live probe, not SPRT). The `probe-gate` scoreboard (`adversary.ts`)
    scores a version's exploitability by a human across the recurring probe scenarios
-   (wallet X-ray, complete-into-illiquidity, distress fire-sale); a candidate **must
-   not raise its total leakage above its base's**. It's the automated regression
-   complement to the hand-played `/monopoly-probe` fleet — cheap to run, and it
-   catches the human-facing surface the shared evaluator can't see.
+   (wallet X-ray, complete-into-illiquidity, distress fire-sale, set-handover); a
+   candidate **must not raise its total leakage above its base's**. It's the automated
+   regression complement to the hand-played `/monopoly-probe` fleet — cheap to run, and
+   it catches the human-facing surface the shared evaluator can't see.
+
+   **KNOWN WEAKNESS — read before trusting a probe-gate PASS.** The check is
+   **relative to the base**, so it only preserves whatever the base happened to have.
+   When the base is itself weak on an axis, the bar has already decayed and a PASS
+   means nothing. This bit for real on 2026-07-21: jane-v20 was gated against crown
+   `fable-v7`, scored an identical $530, and PASSED — while the archive's best was
+   $130, because fable-v7 predates the human model. **A guard defined against a moving
+   reference eventually measures nothing.** Until the gate is reworked to an ABSOLUTE
+   ratchet (vs best-ever archive leakage, a standing lead in EVOLUTION.md), always run
+   `probe-gate` with the archive's *best* version alongside the base — it accepts
+   several labels — and read the spread, not just the delta.
+
+   **And a PASS is only as wide as the scenario list.** Across five versions, two of
+   the three original scenarios returned byte-identical scores — only `wallet-xray`
+   discriminated. A near-empty instrument reads exactly like a clean bill of health.
+   Widening `adversary.ts` from probe-fleet findings is ongoing work, not a finished
+   job; the `set-handover` scenario added 2026-07-21 does **not** yet discriminate
+   (see EVOLUTION.md).
 3. **Substrate** — what do we EVOLVE the next bot FROM? **A judgment, not a rule.**
    Survey ALL versions across ALL families and pick the base you can most improve —
    usually the current champion, so that's the default prior, but nothing confines
@@ -323,6 +341,18 @@ the single biggest trap in this whole model. Keep them apart:
    starting from scratch for fresh ideas — is the smart move. The one guard: *default*
    to the confirmed champion, never an automatic jump to a within-noise ladder-topper
    (see the ratchet, below); deviating is fine when it's a deliberate call.
+
+   **The substrate carries CODE, not just strength — so it can DELETE progress.**
+   The next version inherits the substrate's whole codebase, including everything the
+   crown gate never measured. So promoting on the well-measured all-bot axis can
+   silently orphan unmeasured work out of the line of descent. Concretely, 2026-07-21:
+   jane-v20 took the crown outright but forked from `fable-v8`, *before* the
+   human-counterparty model — handing it the substrate would have dropped the entire
+   fable-v11/v12 human effort from every future version, with nothing in the loop
+   flagging it. The crown advanced; the substrate was deliberately held at fable-v12
+   and the resolution recorded as a MERGE. **When a crown arrives from a lineage that
+   forked before a body of work, check what its codebase is missing before you hand it
+   the substrate** — and prefer merging the disjoint deltas over choosing a side.
 
 ### Why substrate (and crown) are SPRT-gated: the complexity ratchet
 
