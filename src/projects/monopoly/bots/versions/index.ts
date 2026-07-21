@@ -103,6 +103,10 @@ import { janeV18Bot } from "./jane-v18";
 // survival credit's mirror. NOT a positionValue change.
 // See versions/jane-v19/index.ts.
 import { janeV19Bot } from "./jane-v19";
+// jane-v20 — BOUNDED SURVIVAL CREDIT IN OPPONENT MODEL (J11): extends F2a's
+// survival credit bound to the opponent model (selfView=false path).
+// See versions/jane-v20/index.ts.
+import { janeV20Bot } from "./jane-v20";
 // Gemini lineage — a third bot family, authored by Gemini. Labels namespaced
 // `gemini-vN`.
 import { geminiV1Bot } from "./gemini-v1";
@@ -279,6 +283,7 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "jane-v17": janeV17Bot,
   "jane-v18": janeV18Bot,
   "jane-v19": janeV19Bot,
+  "jane-v20": janeV20Bot,
   "gemini-v1": geminiV1Bot,
   "trade-v1": tradeV1Bot,
   "search-v3": searchV3Bot,
