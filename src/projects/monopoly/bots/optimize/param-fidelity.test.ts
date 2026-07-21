@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { claudeV38Bot } from "../versions/claude-v38";
-import { simulateGame, type Contender } from "../simulate";
+import { simulateGame, type Contender } from "../eval/simulate";
 import { makeParamBot } from "./bot";
 import { DEFAULT_PARAMS } from "./params";
 

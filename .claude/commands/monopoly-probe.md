@@ -6,14 +6,14 @@ allowed-tools: Bash, Read, Write, Grep, Glob, Agent
 
 Run a **probe fleet**: N player agents, each playing M full Monopoly games
 against three bot opponents through the stepped-game CLI
-(`bots/played-cli.ts`), every agent playing **to win at the highest
+(`bots/eval/played-cli.ts`), every agent playing **to win at the highest
 professional level — anything legal goes, including reading the bot code to
 solve its thresholds exactly**. The fleet reports back; you (the main agent)
 synthesize a direction report for the bot evolution loop. User input:
 **$ARGUMENTS**
 
 Why this exists: single probe games (1–9, "the 4q3y6i night" in
-`bots/EVOLUTION.md`) were the archive's discovery engine — they produced the
+`bots/docs/EVOLUTION.md`) were the archive's discovery engine — they produced the
 decisive evidence for five shipped versions including a strict crown. The
 fleet generalizes it: real-time adversarial play finds what abstract
 rule-reasoning misses, white-box play measures the exploitability CEILING
@@ -21,13 +21,13 @@ rule-reasoning misses, white-box play measures the exploitability CEILING
 multi-game-per-agent play measures **repeatability**, which no single game
 can. Run every command from the repo root.
 
-**Its automated complement is `npm run sim:probe-gate`** (`bots/adversary.ts`):
+**Its automated complement is `npm run sim:probe-gate`** (`bots/eval/adversary.ts`):
 the recurring hand-played exploits — the wallet-pegged ask, the
 complete-into-illiquidity auction bid, the distress fire-sale — are each a pure
 decision on a hand-built board, so it scores them without playing a game and
 turns "field a probe" into a **regression number**. Hand-play discovers new
 surfaces; the gate keeps the fixed ones fixed. A candidate must not raise its
-total leakage above its base's (see `bots/METHOD.md` crown gate).
+total leakage above its base's (see `bots/docs/METHOD.md` crown gate).
 
 ## Cost — state it before launching
 
@@ -41,7 +41,7 @@ launching.
 ## Steps
 
 1. **Load the state.** `bots/champion.ts` (crown/substrate), the newest
-   "As of" status block in `bots/EVOLUTION.md` (the CLOSED-exploit list +
+   "As of" status block in `bots/docs/EVOLUTION.md` (the CLOSED-exploit list +
    standing leads), `bots/CLAUDE.md` (the strategic model + the
    human-counterparty section). Target version: the user's choice, else the
    **derived lobby default** (top of `bots/ratings.ts`, i.e. what real humans
@@ -62,7 +62,7 @@ launching.
    prompt template below with: its lens, the CLOSED list, M, and its own
    file paths. Each game is created fresh:
 
-       npx tsx src/projects/monopoly/bots/played-cli.ts new <scratchpad>/probe-<agent>-<game>.json probe-<agent>-<game> <version> --human
+       npx tsx src/projects/monopoly/bots/eval/played-cli.ts new <scratchpad>/probe-<agent>-<game>.json probe-<agent>-<game> <version> --human
 
    **Always `--human`** — the bots carry human-gated behavior
    (`botStrategy === null`); without the flag the fleet measures the wrong
@@ -106,7 +106,7 @@ launching.
    finally: **where the bots should go next** — 1–3 proposed version
    hypotheses, each with a red/green fixture idea. **This command is
    play-and-report** — building versions afterwards goes through the full loop
-   in `bots/METHOD.md`: **discover** (this probe / `game:review` / the
+   in `bots/docs/METHOD.md`: **discover** (this probe / `game:review` / the
    `game:offers` corpus) → **hypothesis** → **self-contained snapshot** →
    **red/green `policy.test`** → **screen** (`sim:versus`) → **gauntlet gate**
    (SPRT `BETTER`-vs-base on **both** seed streams + no panel regression) **plus

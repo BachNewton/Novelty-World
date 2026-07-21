@@ -27,7 +27,7 @@ import { BID_INCREMENT, isLegal } from "../../../engine";
 import { heldJailCard, ownablePrice } from "../../../logic";
 import type { GameState, Intent } from "../../../types";
 import type { BotDecision } from "../../decision";
-import { applyCandidate } from "../../candidates";
+import { applyCandidate } from "../../rl/candidates";
 import { baseBot, spaceName } from "./base";
 import {
   searchBest,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dumbBot } from "./dumb";
 import type { Bot } from "./registry";
-import { simulateGame } from "./simulate";
+import { simulateGame } from "./eval/simulate";
 
 // A pathological policy that exercises the boundary loop directly: it tries to
 // (re)arm a trade at EVERY pre-roll, and the moment its trade intermission opens

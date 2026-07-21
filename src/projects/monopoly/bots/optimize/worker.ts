@@ -1,5 +1,5 @@
 import { parentPort } from "node:worker_threads";
-import { simulateGame, type Contender } from "../simulate";
+import { simulateGame, type Contender } from "../eval/simulate";
 import { versionBot } from "../versions";
 import type { Bot } from "../decision";
 import { makeParamBot } from "./bot";

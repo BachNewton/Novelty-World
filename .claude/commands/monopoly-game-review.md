@@ -62,7 +62,7 @@ repo root.
    the 2–4 highest-leverage lessons, each tied to a concrete spot in the log and a
    concrete policy lever. End with a recommendation: which lesson (if any) is worth
    pursuing as a `claude-vN+1` evolution. A game review is the **discover** step of
-   the loop (`bots/METHOD.md`); a real refinement then runs hypothesis →
+   the loop (`bots/docs/METHOD.md`); a real refinement then runs hypothesis →
    self-contained snapshot → red/green `policy.test` → screen (`sim:versus`) →
    gauntlet gate (SPRT `BETTER`-vs-base on **both** streams + no panel regression)
    **plus the `sim:probe-gate` human-leakage check** → promote — never a hunch. **Two

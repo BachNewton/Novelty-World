@@ -117,7 +117,7 @@ user. Run every command from the repo root.
    ladder-topper that's only EVEN, or a counter that regresses, is the player default
    at most but stays uncrowned).
 
-   **Also run the human-leakage gate** (`bots/adversary.ts`) — the gauntlet is blind
+   **Also run the human-leakage gate** (`bots/eval/adversary.ts`) — the gauntlet is blind
    to human-facing behavior (all-bot games):
 
        npm run sim:probe-gate -- <label> <CHAMPION> <best-leakage-version>

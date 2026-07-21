@@ -219,7 +219,7 @@ plus a registry entry. Current strategies:
   (struck-through, disabled). The lobby is **Elo-only** — it shows the *strongest*
   bot, never a "champion": crowning a champion and picking an evolution *substrate*
   are separate, confidence-gated decisions that live in `bots/champion.ts` and
-  `bots/METHOD.md`, not the player UI (see METHOD.md "Two bests"). **Adding a
+  `bots/docs/METHOD.md`, not the player UI (see METHOD.md "Two bests"). **Adding a
   lineage** is one row in `FAMILY_SPECS`
   (`bots/roles.ts`) plus its snapshots under `versions/<prefix>N/`; **adding a
   version** is just registering it in `versions/index.ts` — both need **no UI
@@ -375,44 +375,51 @@ reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox
 store.ts      Zustand store, "use client", route client + playback pump
 mocks.ts      MOCK_STATE fixture + freshGame seed
 dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
+bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the contract,
+                      the registry, the lobby derivation, the crown pointer, the
+                      generated ladder) plus versions/ and optimize/. bots/eval/ =
+                      how we MEASURE bots (sim, tournament, SPRT/Elo, gauntlet,
+                      ratings, leakage, the CLIs). bots/rl/ = the LEARNED-BOT
+                      experiment, self-contained. bots/docs/ = the loop docs.
+                      CLAUDE.md files stay at their directory root (auto-loaded).
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
-bots/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
-bots/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype
-bots/value-policy.ts  the full-capability agent — valuePolicyBot(value) = valueNetBot + opening intermissions: arm `trade` (drive trade-search → propose) and `manage` (develop monopolies), preferring trade-then-build in one turn-group. Field via the `value-policy` sim token. Next slices: raise-to-buy/auction willingness
-bots/trade-search.ts  value-guided TRADE CONSTRUCTION — bestTrade(state, pid, value) builds the best monopoly-completing draft the counterparty would accept (mutual-completion swap / cash purchase, sweetener solved by binary search on the opponent's value). Same search the rule-based bots do, scored by any ValueFn
-bots/RL-DESIGN.md     LEARNED-BOT design & handoff — the goal (ML bot to beat the rule-based archive), the target architecture (policy+value+MCTS, factored atomic action vocabulary), what's built vs needed, and the ordered next steps. READ THIS before any learned-bot/ML/training work (it's self-contained for a fresh session). §8 records the BUILT learner (below)
-bots/actions.ts       ATOMIC ACTION VOCABULARY (RL phase 2) — fixed token set + legalActions/legalMask. The capability core: every legal move is one masked token; complex actions are token SEQUENCES across the engine's intermissions. Mask sound by construction (isLegal === apply().ok)
-bots/token-bot.ts     greedy-over-heuristicValue bot on the atomic layer (RL phase 3 wiring proof). Sim token `token-stub`
-bots/net.ts           MonoNet — tfjs-node policy+value net (RL phase 4): softmax policy head over the vocabulary + softmax value head over MAX_SEATS seat-relative win-probs. Batched predict, train, disk save/load, maskPolicy
-bots/mcts.ts          MCTS over applyCandidate guided by the net (RL phase 5): deterministic intent edges + chance ROLL edges (reseed dice per visit), N-player backup. Pure in (state,net) → replay-safe mctsBot
-bots/selfplay.ts      self-play recorder + value bootstrap (RL phase 6): playSelfPlayGame (visit-dist policy + outcome value targets) and collectRuleGame (warm-start)
-bots/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22 (worktree .node-version)
-bots/tfjs-setup.ts    side-effect import (FIRST, before tfjs loads): places the Windows tensorflow.dll next to the binding + shields process.argv from tfjs-node's node-pre-gyp
+bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
+bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
+bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype
+bots/rl/value-policy.ts  the full-capability agent — valuePolicyBot(value) = valueNetBot + opening intermissions: arm `trade` (drive trade-search → propose) and `manage` (develop monopolies), preferring trade-then-build in one turn-group. Field via the `value-policy` sim token. Next slices: raise-to-buy/auction willingness
+bots/rl/trade-search.ts  value-guided TRADE CONSTRUCTION — bestTrade(state, pid, value) builds the best monopoly-completing draft the counterparty would accept (mutual-completion swap / cash purchase, sweetener solved by binary search on the opponent's value). Same search the rule-based bots do, scored by any ValueFn
+bots/docs/RL-DESIGN.md     LEARNED-BOT design & handoff — the goal (ML bot to beat the rule-based archive), the target architecture (policy+value+MCTS, factored atomic action vocabulary), what's built vs needed, and the ordered next steps. READ THIS before any learned-bot/ML/training work (it's self-contained for a fresh session). §8 records the BUILT learner (below)
+bots/rl/actions.ts       ATOMIC ACTION VOCABULARY (RL phase 2) — fixed token set + legalActions/legalMask. The capability core: every legal move is one masked token; complex actions are token SEQUENCES across the engine's intermissions. Mask sound by construction (isLegal === apply().ok)
+bots/rl/token-bot.ts     greedy-over-heuristicValue bot on the atomic layer (RL phase 3 wiring proof). Sim token `token-stub`
+bots/rl/net.ts           MonoNet — tfjs-node policy+value net (RL phase 4): softmax policy head over the vocabulary + softmax value head over MAX_SEATS seat-relative win-probs. Batched predict, train, disk save/load, maskPolicy
+bots/rl/mcts.ts          MCTS over applyCandidate guided by the net (RL phase 5): deterministic intent edges + chance ROLL edges (reseed dice per visit), N-player backup. Pure in (state,net) → replay-safe mctsBot
+bots/rl/selfplay.ts      self-play recorder + value bootstrap (RL phase 6): playSelfPlayGame (visit-dist policy + outcome value targets) and collectRuleGame (warm-start)
+bots/rl/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22 (worktree .node-version)
+bots/rl/tfjs-setup.ts    side-effect import (FIRST, before tfjs loads): places the Windows tensorflow.dll next to the binding + shields process.argv from tfjs-node's node-pre-gyp
 bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation) + DEFAULT_BOT_VERSION; only hand-maintained data is FAMILY_SPECS
-bots/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
-bots/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
-bots/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review
-bots/review-cli.ts    `npm run game:review` — pull a REAL (human+bot) game from the DB and print its play-by-play / standings / holdings / money-flow for analysis (read-only, anon key). See the `/monopoly-game-review` command
-bots/adversary.ts     PURE human-facing LEAKAGE scorer — probeLeakage(label) runs a version's policy on hand-built exploit boards (wallet X-ray ask, complete-into-illiquidity auction, distress fire-sale) and returns a per-scenario leak score (higher = more exploitable by a human). Turns the recurring hand-played probe exploits into a deterministic regression number; no RNG, no game played
-bots/probe-gate-cli.ts  `npm run sim:probe-gate -- <labels…>` — the human-facing leakage SCOREBOARD over adversary.ts. A candidate must not raise its total leakage above its base's; the automated complement to the hand-played `/monopoly-probe` fleet
-bots/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
-bots/versus-cli.ts    `npm run sim:versus -- claude-v2 claude-v1` — run the A/B over many seeds
-bots/parallel.ts      worker_threads pool: pure games distributed across cores
-bots/worker.ts        worker entry — runs simulateGame, posts back compact results
-bots/sprt.ts          SPRT in Elo (dual one-sided fishtest test) — pure, tested
-bots/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
-bots/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
-bots/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gauntlet on the pool
-bots/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
-bots/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
+bots/eval/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
+bots/eval/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
+bots/eval/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review
+bots/eval/review-cli.ts    `npm run game:review` — pull a REAL (human+bot) game from the DB and print its play-by-play / standings / holdings / money-flow for analysis (read-only, anon key). See the `/monopoly-game-review` command
+bots/eval/adversary.ts     PURE human-facing LEAKAGE scorer — probeLeakage(label) runs a version's policy on hand-built exploit boards (wallet X-ray ask, complete-into-illiquidity auction, distress fire-sale) and returns a per-scenario leak score (higher = more exploitable by a human). Turns the recurring hand-played probe exploits into a deterministic regression number; no RNG, no game played
+bots/eval/probe-gate-cli.ts  `npm run sim:probe-gate -- <labels…>` — the human-facing leakage SCOREBOARD over adversary.ts. A candidate must not raise its total leakage above its base's; the automated complement to the hand-played `/monopoly-probe` fleet
+bots/eval/tournament.ts    head-to-head A/B between versions: win share vs the 50% null
+bots/eval/versus-cli.ts    `npm run sim:versus -- claude-v2 claude-v1` — run the A/B over many seeds
+bots/eval/parallel.ts      worker_threads pool: pure games distributed across cores
+bots/eval/worker.ts        worker entry — runs simulateGame, posts back compact results
+bots/eval/sprt.ts          SPRT in Elo (dual one-sided fishtest test) — pure, tested
+bots/eval/elo.ts           Bradley–Terry Elo fit across the field — pure, tested
+bots/eval/gauntlet.ts      candidate-vs-field gauntlet: parallel + SPRT + Elo + verdict
+bots/eval/gauntlet-cli.ts  `npm run sim:gauntlet -- claude-v3` — run the gauntlet on the pool
+bots/eval/verify-cli.ts    `npm run sim:verify -- claude-v2 claude-v1` — prove parallel == single
+bots/eval/ratings-cli.ts   `npm run sim:ratings` — cached round-robin Elo over the whole archive → writes ratings.ts
 bots/ratings.ts       GENERATED strength ladder (BOT_RATINGS, claude-v2=0); the lobby derives from this; see bots/CLAUDE.md "Lobby strength ratings"
-bots/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
+bots/eval/ratings-cache.json  GENERATED pairwise-result cache for sim:ratings (so each new version only plays its own column)
 bots/champion.ts      CROWN / SUBSTRATE — the evolution loop's mutable state, as code so a stale label fails loudly (NOT the player-facing default; see METHOD.md "Two bests")
-bots/METHOD.md        the RULES of the evolution loop — how a version is proposed, measured, and promoted; the crown/substrate bar; the locked decisions. Read before running a version step
-bots/EVOLUTION.md     the RECORD — append-only: every version's hypothesis + what it measured, plus the paradigm-shift session narratives. Search it before re-walking an idea
+bots/docs/METHOD.md        the RULES of the evolution loop — how a version is proposed, measured, and promoted; the crown/substrate bar; the locked decisions. Read before running a version step
+bots/docs/EVOLUTION.md     the RECORD — append-only: every version's hypothesis + what it measured, plus the paradigm-shift session narratives. Search it before re-walking an idea
 bots/versions/        version archive: self-contained frozen bot snapshots; the source of truth for all policy code. Labels are namespaced per lineage (claude-vN, jane-vN, fable-vN, …) — a prefix names an authoring machine OR a paradigm
 bots/versions/index.ts  VERSIONS map + versionBot() + RATING_EXCLUDED (unrated → deprecated) + RATING_PANEL (the anchor panel: the rater's graph AND the crown gate's field)
 bots/versions/conformance.test.ts  the archive-wide Bot contract, table-driven over VERSIONS: determinism + legality at every decision phase. A new snapshot is covered the moment it's registered
@@ -422,9 +429,9 @@ components/           React board + lobby/seat UI
 ```
 
 The **rules** of the bot-evolution loop (how versions are proposed, isolated, and
-A/B-tested to a crowned champion) live in `bots/METHOD.md` — read it before adding
+A/B-tested to a crowned champion) live in `bots/docs/METHOD.md` — read it before adding
 a version or touching the simulator/tournament. What each version actually tried
-and measured is the record in `bots/EVOLUTION.md`.
+and measured is the record in `bots/docs/EVOLUTION.md`.
 
 ## Testing
 
