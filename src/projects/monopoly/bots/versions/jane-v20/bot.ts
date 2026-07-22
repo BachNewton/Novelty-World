@@ -402,6 +402,15 @@ function rentAtLevel(pos: number, level: number): number {
 /** Build a parameterized claude-v38-shaped bot. All tuning constants come from
  *  `p`; everything else is claude-v38 verbatim. */
 export function makeParamBot(p: ParamVector): Bot {
+  // --- Scoped positionValue cache: GameState objects are immutable (created
+  //     fresh each turn; post-trade/post-build states are new objects via
+  //     spread). Within a single proposeBestTrade invocation the base state
+  //     reference is constant, so positionValue(state, pid) returns the same
+  //     value on every call. This WeakMap caches by state identity + playerId,
+  //     eliminating redundant recomputation. Entries are GC'd when states are
+  //     no longer referenced — no manual invalidation needed.
+  const pvCache = new WeakMap<GameState, Map<string, number>>();
+
   // --- monopolyBonus, derived from the tunable BONUS_SCALE (claude-v38's ROI
   //     formula) — memoized once per bot since the inputs are static given `p`. ---
   // Rail synergy: the per-count values [2..4], each still scaled uniformly by
@@ -460,6 +469,22 @@ export function makeParamBot(p: ParamVector): Bot {
   }
 
   function positionValue(state: GameState, pid: string): number {
+    const inner = pvCache.get(state);
+    if (inner) {
+      const cached = inner.get(pid);
+      if (cached !== undefined) return cached;
+    }
+    const result = _positionValueImpl(state, pid);
+    let cache = inner;
+    if (!cache) {
+      cache = new Map();
+      pvCache.set(state, cache);
+    }
+    cache.set(pid, result);
+    return result;
+  }
+
+  function _positionValueImpl(state: GameState, pid: string): number {
     const player = state.players.find((q) => q.id === pid);
     if (!player) return 0;
     let value = player.cash;
