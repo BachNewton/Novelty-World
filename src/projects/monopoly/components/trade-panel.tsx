@@ -6,6 +6,12 @@ import { projectTrade, tradeParticipants } from "../engine";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import type { CardSource, GameState, Player, TradeTerms } from "../types";
+
+type TradeViewTerms = TradeTerms & {
+  proposerId: string;
+  parentId?: string;
+  chainDepth?: number;
+};
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
 import { Money } from "./money";
 
@@ -35,10 +41,11 @@ export function TradePanel({ state }: Props) {
   const cancelTrade = useMonopolyStore((s) => s.cancelTrade);
   const acceptTrade = useMonopolyStore((s) => s.acceptTrade);
   const declineTrade = useMonopolyStore((s) => s.declineTrade);
+  const counterTrade = useMonopolyStore((s) => s.counterTrade);
 
   const turn = state.turn;
   const isPending = turn.phase === "trade-pending";
-  const terms: (TradeTerms & { proposerId: string }) | undefined = isPending
+  const terms: TradeViewTerms | undefined = isPending
     ? turn.pendingTrade
     : turn.tradeDraft;
   if (!terms) return null;
@@ -82,6 +89,7 @@ export function TradePanel({ state }: Props) {
           isPending={isPending}
           isProposer={isProposer}
           proposerName={proposer?.name ?? "Someone"}
+          chainDepth={terms.chainDepth}
         />
 
         <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
@@ -165,6 +173,12 @@ export function TradePanel({ state }: Props) {
               }}
             />
             <PanelButton
+              label="Counter"
+              onClick={() => {
+                counterTrade();
+              }}
+            />
+            <PanelButton
               label="Approve"
               variant="primary"
               onClick={() => {
@@ -188,15 +202,18 @@ function Heading({
   isPending,
   isProposer,
   proposerName,
+  chainDepth,
 }: {
   isPending: boolean;
   isProposer: boolean;
   proposerName: string;
+  chainDepth?: number;
 }) {
   let text: string;
-  if (isPending) text = `Proposed by ${proposerName} — vote`;
-  else if (isProposer) text = "Trade — tap squares to reassign";
-  else text = `${proposerName} is building a trade`;
+  const counterLabel = chainDepth && chainDepth > 0 ? ` (counter #${chainDepth})` : "";
+  if (isPending) text = `Proposed by ${proposerName} — vote${counterLabel}`;
+  else if (isProposer) text = chainDepth && chainDepth > 0 ? `Counter-offer${counterLabel} — tap squares to reassign` : "Trade — tap squares to reassign";
+  else text = `${proposerName} is building a trade${counterLabel}`;
   return (
     <span className="truncate font-semibold uppercase tracking-wide">
       {text}

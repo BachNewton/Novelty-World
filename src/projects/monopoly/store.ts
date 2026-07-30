@@ -138,6 +138,10 @@ interface MonopolyActions {
    *  named party). All approvals execute it; any decline cancels it. */
   acceptTrade: () => void;
   declineTrade: () => void;
+  /** Counter the pending proposal as the local player (must be a named
+   *  party). Transitions to trade-building with the pending terms pre-filled
+   *  and the counterer as the new proposer. */
+  counterTrade: () => void;
 
   /** Submit a local UI intent **optimistically**: apply it to the display head
    *  at once for instant feedback, then POST it to the route. The authoritative
@@ -805,6 +809,13 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const pending = state.turn.pendingTrade;
       if (!myPlayerId || !pending) return;
       predict({ kind: "decline-trade", playerId: myPlayerId, tradeId: pending.id });
+    },
+
+    counterTrade: () => {
+      const { state, myPlayerId } = get();
+      const pending = state.turn.pendingTrade;
+      if (!myPlayerId || !pending) return;
+      predict({ kind: "counter-trade", playerId: myPlayerId, tradeId: pending.id });
     },
 
     submit: (intent) => predict(intent),

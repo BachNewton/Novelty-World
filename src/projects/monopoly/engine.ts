@@ -35,6 +35,7 @@ import type {
   PendingTrade,
   Player,
   RaiseCashResume,
+  TradeDraft,
   TradeMoves,
   TradeTerms,
   TurnGroup,
@@ -148,6 +149,7 @@ export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "propose-trade") return applyProposeTrade(state, intent);
   if (intent.kind === "accept-trade") return applyAcceptTrade(state, intent);
   if (intent.kind === "decline-trade") return applyDeclineTrade(state, intent);
+  if (intent.kind === "counter-trade") return applyCounterTrade(state, intent);
   if (intent.kind === "pay-to-leave-jail") {
     return applyPayToLeaveJail(state, intent);
   }
@@ -1555,6 +1557,7 @@ function tryEnterBoundary(state: GameState): GameState | null {
           propertyTo: {},
           gojfTo: {},
           cashDelta: {},
+          chainDepth: 0,
         },
         boundaryServed,
       },
@@ -1688,6 +1691,8 @@ function applyUpdateTradeDraft(
     propertyTo: intent.terms.propertyTo,
     gojfTo: intent.terms.gojfTo,
     cashDelta: intent.terms.cashDelta,
+    parentId: state.turn.tradeDraft.parentId,
+    chainDepth: state.turn.tradeDraft.chainDepth,
   };
   return {
     ok: true,
@@ -1749,6 +1754,8 @@ function applyProposeTrade(
     gojfTo: terms.gojfTo,
     cashDelta: terms.cashDelta,
     approvals,
+    parentId: draft.parentId,
+    chainDepth: draft.chainDepth,
   };
   return {
     ok: true,
@@ -1859,6 +1866,44 @@ function applyDeclineTrade(
     ok: true,
     state: returnToPreRoll({ ...state, turns }),
     newEvents: [declinedEvent],
+  };
+}
+
+function applyCounterTrade(
+  state: GameState,
+  intent: Extract<Intent, { kind: "counter-trade" }>,
+): ApplyResult {
+  const pending = state.turn.pendingTrade;
+  if (state.turn.phase !== "trade-pending" || !pending) {
+    return { ok: false, reason: "no trade to counter" };
+  }
+  if (intent.tradeId !== pending.id) return { ok: false, reason: "stale trade" };
+  if (!(intent.playerId in pending.approvals)) {
+    return { ok: false, reason: "not a party to this trade" };
+  }
+  // The counterer becomes the new proposer. Transition to trade-building
+  // with the pending terms pre-filled as the draft, so they can tweak and
+  // re-propose. The chain link (parentId + chainDepth) is carried forward.
+  const tradeDraft: TradeDraft = {
+    proposerId: intent.playerId,
+    propertyTo: pending.propertyTo,
+    gojfTo: pending.gojfTo,
+    cashDelta: pending.cashDelta,
+    parentId: pending.id,
+    chainDepth: (pending.chainDepth ?? 0) + 1,
+  };
+  return {
+    ok: true,
+    state: {
+      ...state,
+      turn: {
+        ...state.turn,
+        phase: "trade-building",
+        pendingTrade: undefined,
+        tradeDraft,
+      },
+    },
+    newEvents: [],
   };
 }
 

@@ -166,6 +166,14 @@ export interface TradeTerms {
  *  `ManageStaged`. */
 export interface TradeDraft extends TradeTerms {
   proposerId: string;
+  /** Present when this draft is a COUNTER-offer (a named party modified a
+   *  pending proposal instead of accepting or declining). Links to the
+   *  prior proposal's chain so the negotiation back-and-forth stays
+   *  traceable. Carried into the PendingTrade on re-proposal. */
+  parentId?: string;
+  /** Depth in the negotiation chain (0 for a fresh proposal, 1 for the
+   *  first counter, 2 for a counter-counter, etc.). Defaults to 0. */
+  chainDepth?: number;
 }
 
 /** A manage intermission's staged changes — the build levels and mortgage flags
@@ -426,15 +434,24 @@ export interface AuctionState {
 
 /** A finalized trade proposal awaiting approval. Every NAMED participant
  *  (anyone who gives or receives a property, card, or cash) must approve
- *  before it executes; a single decline cancels it. Counters aren't built yet
- *  — a player who dislikes a proposal declines and someone proposes afresh;
- *  see the `counter-trade` TODO on `Intent`. */
+ *  before it executes; a single decline cancels it. A named party who dislikes
+ *  the terms may COUNTER instead of declining — the proposal flips back to
+ *  `trade-building` with them as the new proposer and the pending terms
+ *  pre-filled as a starting point. Each counter links to its parent via
+ *  `parentId`, forming a negotiation chain. */
 export interface PendingTrade extends TradeTerms {
   id: string;
   proposerId: string;
   /** player id -> approved, keyed by every named participant. The proposer is
    *  seeded `true` iff they're named. All true -> the trade executes. */
   approvals: Readonly<Record<string, boolean>>;
+  /** The id of the prior proposal this one counters, if any. Absent on a
+   *  fresh proposal. Links the negotiation chain so the back-and-forth is
+   *  traceable in the log and UI. */
+  parentId?: string;
+  /** Depth in the negotiation chain (0 for a fresh proposal, 1 for the first
+   *  counter, etc.). Defaults to 0. */
+  chainDepth?: number;
 }
 
 /** Active-turn block. The single source of truth for whose turn it is,
@@ -579,9 +596,12 @@ export type Intent =
   | { kind: "propose-trade"; playerId: string }
   | { kind: "accept-trade"; playerId: string; tradeId: string }
   | { kind: "decline-trade"; playerId: string; tradeId: string }
-  // TODO(counter-trade): let a named party edit a pending proposal and
-  // re-submit it, re-opening approval for everyone. Deferred for now; the
-  // TradeTerms model + update-trade-draft are shaped to support it later.
+  /** A named party counters a pending proposal: transitions back to
+   *  `trade-building` with the pending terms pre-filled as the draft and the
+   *  counterer as the new proposer. They edit using the normal draft
+   *  machinery, then `propose-trade` re-submits with fresh approvals. The
+   *  counter links to the prior proposal via `parentId`, forming a chain. */
+  | { kind: "counter-trade"; playerId: string; tradeId: string }
   | { kind: "pay-to-leave-jail"; playerId: string }
   | { kind: "use-jail-card"; playerId: string }
   /** Record a bot's reasoning as a `bot-note` log event (no board change). The
