@@ -62,3 +62,10 @@ src/projects/monopoly/bots/optimize/*.log
 
 # learned-bot (RL) training checkpoints — generated net weights + meta
 rl-checkpoints/
+
+# PPO scratch (bots/ppo) — a developer's own bundle/fixture tree: candidate
+# checkpoints, uncompressed recorder output, symlinks into a training rig.
+# The bundles the bots actually play are COMMITTED under public/bundles/, and
+# the parity fixtures under bots/ppo/fixtures/; `PPO_BUNDLE_DIR` and
+# `PPO_ASSETS_DIR` point at this scratch tree instead when it exists.
+.ppo-assets/

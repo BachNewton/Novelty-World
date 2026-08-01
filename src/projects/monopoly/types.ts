@@ -634,7 +634,10 @@ export interface GameState {
    *  the pile while held (tracked in `jailFreeCards`) and returns to the back
    *  when used. Seeded-shuffled once at game start for deterministic replay. */
   decks: Readonly<{ chance: readonly number[]; communityChest: readonly number[] }>;
-  /** Chronological play log, grouped by turn. Newest turn last. */
+  /** Chronological play log, grouped by turn. Newest turn last, append-only. Bot
+   *  policies read arbitrarily far back into it — opt-v4 scans every group for a
+   *  trade bundle the opponent already declined so it never re-pitches one — so
+   *  windowing or truncating it changes what the opponent plays. */
   turns: readonly TurnGroup[];
   /** Whose turn it is and what we're waiting on. */
   turn: TurnState;

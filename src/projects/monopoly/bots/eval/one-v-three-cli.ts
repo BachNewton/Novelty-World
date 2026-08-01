@@ -9,6 +9,9 @@
 // ±4 points (fable-v2 read 29.5% then 25.1%).
 // Run: npm run sim:1v3 -- <candidate> <base> [games] [seedPrefix]
 import { simulateGame } from "./simulate";
+// Offline-only: honours PPO_EXECUTOR (see bots/ppo/offline.ts). A no-op unless
+// it is set — nothing under bots/eval/ is reachable from a browser build.
+import "../ppo/offline-ort";
 import { versionBot } from "../versions";
 
 const args = process.argv.slice(2);

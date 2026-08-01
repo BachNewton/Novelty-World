@@ -215,6 +215,36 @@ function makeSeats(state: GameState, meId: string): SeatInfo[] {
   return seats;
 }
 
+/** Seat-relative ownership of `position`, as the seat slot (0 = `meId`, then
+ *  opponents in seat order) that owns it, or `-1` if it is unowned (or owned by a
+ *  bankrupt / absent seat). This is the per-opponent ownership signal the pooled
+ *  `encode` lacks — `sqN:opp` only says "some opponent owns it", losing WHICH
+ *  rival is assembling a set. The RL observation builder (`encode-rl.ts`) turns
+ *  this into a per-seat one-hot so the net can attribute a threat to a specific
+ *  opponent. Seat-symmetric and pure, matching the rest of this module's
+ *  conventions; the rotation mirrors `makeSeats`.
+ *
+ *  Lives here rather than beside its only caller because `bots/ppo/core/` is a
+ *  verbatim extraction of the training environment's own modules — a helper
+ *  authored there would stop being an extraction — and because this is where the
+ *  seat-relative encoding convention it has to agree with is defined. */
+export function ownerSeatSlot(
+  state: GameState,
+  meId: string,
+  position: number,
+): number {
+  const owner = state.ownership[position];
+  if (!owner) return -1;
+  const players = state.players;
+  const n = players.length;
+  const myIndex = players.findIndex((p) => p.id === meId);
+  for (let slot = 0; slot < n; slot++) {
+    const player = players[(myIndex + slot) % n];
+    if (player.id === owner) return player.bankrupt ? -1 : slot;
+  }
+  return -1;
+}
+
 function makeCtx(state: GameState, meId: string): Ctx {
   const supply = bankSupply(state);
   const pending = state.turn.pendingBuy;

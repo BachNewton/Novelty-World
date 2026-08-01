@@ -1,4 +1,7 @@
 import process from "node:process";
+// Offline-only: honours PPO_EXECUTOR (see bots/ppo/offline.ts). A no-op unless
+// it is set — nothing under bots/eval/ is reachable from a browser build.
+import "../ppo/offline-ort";
 import { botFor } from "../registry";
 import {
   formatResult,

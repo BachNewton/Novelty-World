@@ -3,3 +3,7 @@
 # line-ending churn when something writes CRLF on Windows. Binary files are
 # auto-detected and left untouched.
 * text=auto eol=lf
+
+# Trained-policy artifacts are binary; never let eol normalization touch them.
+*.onnx binary
+*.gz binary

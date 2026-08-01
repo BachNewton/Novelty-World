@@ -186,6 +186,14 @@ import { kyleV2Bot } from "./kyle-v2";
 // kyle-v3 — kyle-v2 + a MATCH_VALUE-driven TRADE engine (accept any N-way,
 // propose best-first mutual-completion cycles; see kyle-v3/PHILOSOPHY.md).
 import { kyleV3Bot } from "./kyle-v3";
+// Landon lineage — the first LEARNED bots in the archive: PPO policies trained by
+// self-play in an AlphaStar-style league, shipped as ONNX bundles and executed by
+// a synchronous pure-TypeScript interpreter. `landon-v1` is the league's main
+// agent; `landon-exploiter-v1` is its main-exploiter, a separately-trained policy
+// whose whole objective was to beat it. Named for the lineage's author, matching
+// the claude/jane/gemini convention rather than the paradigm one.
+import { LANDON_V1_BUNDLE, landonV1Bot } from "./landon-v1";
+import { LANDON_EXPLOITER_V1_BUNDLE, landonExploiterV1Bot } from "./landon-exploiter-v1";
 
 // ---------------------------------------------------------------------------
 // The version archive. Every bot snapshot the simulator can field by name, for
@@ -238,7 +246,27 @@ export const VERSIONS: Readonly<Record<string, Bot>> = {
   "kyle-v1": kyleV1Bot,
   "kyle-v2": kyleV2Bot,
   "kyle-v3": kyleV3Bot,
+  "landon-v1": landonV1Bot,
+  "landon-exploiter-v1": landonExploiterV1Bot,
   dumb: dumbBot,
+};
+
+/**
+ * The labels whose policy is WEIGHTS rather than code, and the bundle each one
+ * downloads.
+ *
+ * Every other version in the archive is pure TypeScript and is simply THERE the
+ * moment the page is. These two are ~13.6 MB of ONNX served out of `public/` and
+ * fetched over HTTP, and a browser seat set to one plays phase defaults until it
+ * lands (see
+ * `ppo/landon.ts`). The lobby uses this map to start the download when the seat is
+ * TAKEN, so the wait falls on lobby time instead of the opening turns. Keyed off
+ * each version's own exported bundle constant rather than a repeated string
+ * literal, so the prefetch cannot address a bundle the bot does not request.
+ */
+export const LEARNED_BUNDLES: Readonly<Record<string, string>> = {
+  "landon-v1": LANDON_V1_BUNDLE,
+  "landon-exploiter-v1": LANDON_EXPLOITER_V1_BUNDLE,
 };
 
 /** Versions deliberately LEFT OUT of the Elo ladder — the rater skips them, so

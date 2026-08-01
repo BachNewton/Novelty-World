@@ -375,12 +375,16 @@ reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox
 store.ts      Zustand store, "use client", route client + playback pump
 mocks.ts      MOCK_STATE fixture + freshGame seed
 dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
-bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the contract,
+bots/                 FOUR GROUPS. Flat top level = what a SEAT PLAYS (the contract,
                       the registry, the lobby derivation, the crown pointer, the
                       generated ladder) plus versions/ and optimize/. bots/eval/ =
                       how we MEASURE bots (sim, tournament, SPRT/Elo, gauntlet,
-                      ratings, leakage, the CLIs). bots/rl/ = the LEARNED-BOT
-                      experiment, self-contained. bots/docs/ = the loop docs.
+                      ratings, leakage, the CLIs). bots/rl/ = the tfjs LEARNED-BOT
+                      experiment (value/policy nets + MCTS), self-contained and NOT
+                      registered. bots/ppo/ = the learned bots that DO ship
+                      (landon-v1, landon-exploiter-v1): ONNX bundle loading, a
+                      synchronous interpreter, and the encoder the weights were
+                      trained against. bots/docs/ = the loop docs.
                       CLAUDE.md files stay at their directory root (auto-loaded).
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
@@ -398,6 +402,21 @@ bots/rl/mcts.ts          MCTS over applyCandidate guided by the net (RL phase 5)
 bots/rl/selfplay.ts      self-play recorder + value bootstrap (RL phase 6): playSelfPlayGame (visit-dist policy + outcome value targets) and collectRuleGame (warm-start)
 bots/rl/train-cli.ts     `npm run train:rl` — the self-play training loop (RL phase 6): self-play → train → checkpoint → eval, resumable, Ctrl-C-safe. All-CPU tfjs-node; eGPU optional. Needs Node 22 (worktree .node-version)
 bots/rl/tfjs-setup.ts    side-effect import (FIRST, before tfjs loads): places the Windows tensorflow.dll next to the binding + shields process.argv from tfjs-node's node-pre-gyp
+bots/ppo/index.ts        public surface of the manifest-driven policy runner (the layering, bottom-up, is in its header)
+bots/ppo/landon.ts       the SHIPPED learned bots — the process-wide bundle cache plus landonBot() / prefetchLandonBundle(); the ONE module that knows the executor is the pure-TypeScript one
+bots/ppo/bot.ts          the trained policy as a `Bot` — reconciles what the trainer calls a decision with what the pacer does (composites spread over several consultations)
+bots/ppo/session.ts      feed assembly + one forward pass. Runtime-agnostic: takes an ExecutorFactory, never imports an ONNX implementation
+bots/ppo/heads.ts        the four head primitives + the masking semantics a consumer must reproduce bit-for-bit with the trainer. Manifest-driven; names no game
+bots/ppo/greedy.ts       argmax, the ONLY decode. The bot executes the policy's selection; forbidding an action is the legality mask's job, never a draw
+bots/ppo/bundle.ts       bundle load + VERIFY (sha256 of every manifest entry) + cache: a synchronous fs read under Node, fetch → IndexedDB in the browser
+bots/ppo/manifest.ts     `unknown` in, a fully typed description of a MODEL out. Names no game — a net with a different head set needs a different manifest, not different code
+bots/ppo/fixture.ts      parity fixtures: recorded observations paired with the reference distributions the trainer's own code produced for them
+bots/ppo/README.md       what a bundle IS, why the shipped weights are float32 (the exported artifact itself), and why float16 was measured and rejected
+bots/ppo/assets.ts       the ONE place the suite touches the filesystem — the committed bundles (public/bundles/) and gzipped parity fixtures (bots/ppo/fixtures/). Test-only; nothing in the shipped runner imports it
+bots/ppo/synthetic.ts    a model for a game that does not exist — the control on model-agnosticism
+bots/ppo/parity.testkit.ts  the parity measurement itself, split from its callers so the same numbers can be produced in more than one host
+bots/ppo/onnx/           a dependency-free SYNCHRONOUS ONNX engine (protobuf wire reader, opset-18 kernels, dense row-major tensor, graph decode, session). Forced: `Bot` is synchronous and every onnxruntime JS backend's run() returns a Promise
+bots/ppo/core/           the observation encoder, action space, trade-candidate generator and decision predicate. EXTRACTED VERBATIM from the training environment — the weights and the game must read the same source or play silently drifts from training
 bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo ladder (overall best, per-family best, full lists, deprecation) + DEFAULT_BOT_VERSION; only hand-maintained data is FAMILY_SPECS
 bots/eval/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
 bots/eval/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)

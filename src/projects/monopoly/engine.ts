@@ -241,6 +241,8 @@ function advanceToNextPlayer(
       playerId: candidate.id,
       events: [],
     };
+    // The sole growth point of `turns`, and it only ever APPENDS: bot policies
+    // read arbitrarily far back into the log, so truncating it changes decisions.
     return {
       ...state,
       turns: [...state.turns, nextTurnGroup],
@@ -499,6 +501,8 @@ function goBankrupt(
     return p;
   });
 
+  // The engine's ONLY end condition — a sole survivor: Monopoly has no turn limit
+  // and no draw state, so nothing here caps or forfeits a long game.
   const gameOver = players.filter((p) => !p.bankrupt).length === 1;
   // Auction the estate only when it's a bank bust, the game continues, and
   // there's actually something to sell. Otherwise the estate is freed clean.
@@ -1462,8 +1466,10 @@ function validateTradeAssets(state: GameState, terms: TradeTerms): string | null
 /** Full validity of a proposal: structurally sound, moves something, names at
  *  least two parties, cash nets to zero, and — after simulated execution —
  *  every player left in the red can climb back to ≥ 0 by mortgaging (the same
- *  raisable test the rent path uses). Returns an error reason or null. */
-function validateTradeProposal(
+ *  raisable test the rent path uses). Returns an error reason or null.
+ *  Phase-agnostic; exported so a bot's trade-candidate generator can vet offers
+ *  with the engine's own rules instead of re-deriving them. */
+export function validateTradeProposal(
   state: GameState,
   terms: TradeTerms,
 ): string | null {
