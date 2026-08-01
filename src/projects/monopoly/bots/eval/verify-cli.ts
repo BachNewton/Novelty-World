@@ -1,6 +1,9 @@
 import process from "node:process";
 import { pairingSpecs, WorkerPool } from "./parallel";
 import { runHeadToHead } from "./tournament";
+// Offline-only: honours PPO_EXECUTOR (see bots/ppo/offline.ts). A no-op unless
+// it is set — nothing under bots/eval/ is reachable from a browser build.
+import "../ppo/offline-ort";
 import { versionBot } from "../versions";
 
 /** `npm run sim:verify` — prove the parallel worker pool produces BIT-IDENTICAL

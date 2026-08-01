@@ -22,6 +22,9 @@
 // runner pauses again and asks for a real intent. A rejected intent does NOT
 // advance the game — the reason is printed and the same decision reprompts.
 import { readFileSync, writeFileSync } from "node:fs";
+// Offline-only: honours PPO_EXECUTOR (see bots/ppo/offline.ts). A no-op unless
+// it is set — nothing under bots/eval/ is reachable from a browser build.
+import "../ppo/offline-ort";
 import { apply, autoStep, netWorth } from "../../engine";
 import { spaceName } from "../../logic";
 import { freshGame } from "../../mocks";

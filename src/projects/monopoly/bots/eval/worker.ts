@@ -1,4 +1,7 @@
 import { parentPort } from "node:worker_threads";
+// Offline-only: honours PPO_EXECUTOR (see bots/ppo/offline.ts). A no-op unless
+// it is set — nothing under bots/eval/ is reachable from a browser build.
+import "../ppo/offline-ort";
 import { simulateGame, type Contender } from "./simulate";
 import { versionBot } from "../versions";
 import type { GameResult, GameSpec } from "./parallel";

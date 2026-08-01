@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, ChevronDown, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
+import { prefetchLandonBundle } from "../bots/ppo/landon";
 import { LOBBY_BOTS, type BotOption } from "../bots/roles";
+import { LEARNED_BUNDLES } from "../bots/versions";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
 import { useMonopolyStore } from "../store";
@@ -49,6 +51,19 @@ export function SeatRoom({ gameId, onExit }: Props) {
     const mine = players.find((p) => p.id === myPlayerId);
     if (mine && mine.name !== profileName) setName(myPlayerId, profileName);
   }, [myPlayerId, players, profileName, setName]);
+
+  // The learned bots are ~13 MB of weights fetched over HTTP, and a seat set to
+  // one plays phase defaults until they are resident. Starting the download the
+  // moment the seat is TAKEN spends the lobby on it rather than the opening
+  // turns. Fire-and-forget on purpose: `prefetchLandonBundle` reports failure by
+  // resolving `false` instead of rejecting, there is nothing useful for a lobby
+  // to do about it, and a miss only costs the game's first few decisions.
+  useEffect(() => {
+    for (const p of players) {
+      const bundle = p.botStrategy === null ? undefined : LEARNED_BUNDLES[p.botStrategy];
+      if (bundle !== undefined) void prefetchLandonBundle({ bundle });
+    }
+  }, [players]);
 
   function handleLeave() {
     if (myPlayerId) removePlayer(myPlayerId);

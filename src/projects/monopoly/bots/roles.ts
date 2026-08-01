@@ -52,6 +52,13 @@ const FAMILY_SPECS: readonly FamilySpec[] = [
   { name: "Opt", prefix: "opt-v" },
   { name: "Fable", prefix: "fable-v" },
   { name: "Kyle", prefix: "kyle-v" },
+  // The two LEARNED bots. They need SEPARATE rows, not one: `versionIndex`
+  // requires the remainder after a prefix to be a bare number, so
+  // `landon-exploiter-v1` does not belong to `landon-v` (its remainder would be
+  // `exploiter-v1`) and would be silently absent from the lobby with only the
+  // first row. Neither prefix swallows the other, so ordering here is cosmetic.
+  { name: "Landon", prefix: "landon-v" },
+  { name: "Landon Exploiter", prefix: "landon-exploiter-v" },
 ];
 
 /** Display offset so the anchor (`claude-v2`, raw Elo 0) reads as a friendly,

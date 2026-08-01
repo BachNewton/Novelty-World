@@ -522,6 +522,16 @@ Mechanics:
   the panel when a STRUCTURALLY different lineage lands** (e.g. the learned bot):
   parameter siblings are ~transitive so a small panel suffices, but a genuinely new
   engine can expose a matchup the panel doesn't represent.
+  - **Re-examined for the LANDON lineage (the PPO bots) — panel deliberately UNCHANGED.**
+    That trigger fired and the answer was no. `landon-v1` / `landon-exploiter-v1` are
+    SPRT `WORSE` against all 8 panel members they were measured on, so they extend the
+    ladder BELOW the anchor `claude-v2` rather than spanning a region the panel misses:
+    a member that loses to everything discriminates nothing the existing floor already
+    doesn't. The reason to ADD a member is crowning a champion (a new top the rest must
+    be measured against), and there is no crown here. Revisit if a later learned
+    snapshot beats a panel member, or beats one the rest of the panel loses to — a
+    non-transitive result is exactly the matchup a parameter-sibling panel can't
+    represent.
 - **Cached, and now cheap by default.** Games are deterministic in (versions, seed,
   count, turn-cap) and versions are frozen, so each pairing's tally is persisted to
   `ratings-cache.json` and reused. With the panel as the default, a no-arg
