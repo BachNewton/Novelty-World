@@ -32,6 +32,9 @@ yarn-error.log*
 !.claude/skills/
 !.claude/commands/
 
+# opencode agent worktrees
+.opencode/worktrees/
+
 # vercel
 .vercel
 
