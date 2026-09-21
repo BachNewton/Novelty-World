@@ -20,6 +20,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   "open-world-test": dynamic(() =>
     import("@/projects/open-world-test").then((m) => ({ default: m.OpenWorldTest })),
   ),
+  rpg: dynamic(() =>
+    import("@/projects/rpg").then((m) => ({ default: m.RpgGame })),
+  ),
   halo: dynamic(() =>
     import("@/projects/halo").then((m) => ({ default: m.HaloMapTrivia })),
   ),
