@@ -1,11 +1,15 @@
-"""Generate src/projects/rpg/tiles.ts manifest from public/rpg/tiles PNGs."""
+"""Generate src/projects/rpg/tiles.ts manifest from public/rpg/tiles PNGs.
+
+Usage (from anywhere): python src/projects/rpg/scripts/gen-tile-manifest.py
+"""
 from PIL import Image
 from pathlib import Path
 
-root = Path("public/rpg/tiles")
+ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+root = ROOT / "public" / "rpg" / "tiles"
 lines = []
 for p in sorted(root.rglob("*.png")):
-    rel = p.relative_to("public")
+    rel = p.relative_to(ROOT / "public")
     url = "/" + rel.as_posix()
     parts = rel.parts
     category = parts[2] if len(parts) == 4 else "Misc"
@@ -34,7 +38,7 @@ out = (
     + "\n".join(lines)
     + "\n];\n"
 )
-dest = Path("src/projects/rpg/tiles.ts")
+dest = ROOT / "src" / "projects" / "rpg" / "tiles.ts"
 dest.parent.mkdir(parents=True, exist_ok=True)
 dest.write_text(out)
 print(f"wrote {len(lines)} sheets")
