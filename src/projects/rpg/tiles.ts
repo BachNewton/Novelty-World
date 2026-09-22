@@ -1,9 +1,17 @@
+export interface TileAnim {
+  frames: number;
+  frameW: number;
+  mode: "loop" | "pingpong";
+  fps: number;
+}
+
 export interface TileSheet {
   src: string;
   name: string;
   category: string;
   cols: number;
   rows: number;
+  anim?: TileAnim;
 }
 
 export const CELL_PX = 16;
@@ -31,65 +39,40 @@ export const TILE_SHEETS: TileSheet[] = [
   { src: "/rpg/tiles/Cave/Cave_Wall_Support.png", name: "Cave_Wall_Support", category: "Cave", cols: 5, rows: 2 },
   { src: "/rpg/tiles/Cave/Cave_Walls.png", name: "Cave_Walls", category: "Cave", cols: 7, rows: 8 },
   { src: "/rpg/tiles/Cave/Cave_Water.png", name: "Cave_Water", category: "Cave", cols: 7, rows: 5 },
-  { src: "/rpg/tiles/Cave/Cave_Water_Animation.png", name: "Cave_Water_Animation", category: "Cave", cols: 56, rows: 5 },
+  { src: "/rpg/tiles/Cave/Cave_Water_Animation.png", name: "Cave_Water_Animation", category: "Cave", cols: 56, rows: 5, anim: { frames: 8, frameW: 7, mode: "pingpong", fps: 8 } },
   { src: "/rpg/tiles/Cave/Rails.png", name: "Rails", category: "Cave", cols: 7, rows: 3 },
   { src: "/rpg/tiles/Cliff/Cave_Entrance.png", name: "Cave_Entrance", category: "Cliff", cols: 2, rows: 3 },
   { src: "/rpg/tiles/Cliff/Stone_Cliff_1_Cave_Entrance.png", name: "Stone_Cliff_1_Cave_Entrance", category: "Cliff", cols: 3, rows: 3 },
   { src: "/rpg/tiles/Cliff/Stone_Cliff_1_Tile.png", name: "Stone_Cliff_1_Tile", category: "Cliff", cols: 14, rows: 6 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_2_Cave_Entrance.png", name: "Stone_Cliff_2_Cave_Entrance", category: "Cliff", cols: 3, rows: 3 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_2_Tile.png", name: "Stone_Cliff_2_Tile", category: "Cliff", cols: 14, rows: 6 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_3_Cave_Entrance.png", name: "Stone_Cliff_3_Cave_Entrance", category: "Cliff", cols: 3, rows: 3 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_3_Tile.png", name: "Stone_Cliff_3_Tile", category: "Cliff", cols: 14, rows: 6 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_4_Cave_Entrance.png", name: "Stone_Cliff_4_Cave_Entrance", category: "Cliff", cols: 3, rows: 3 },
-  { src: "/rpg/tiles/Cliff/Stone_Cliff_4_Tile.png", name: "Stone_Cliff_4_Tile", category: "Cliff", cols: 14, rows: 6 },
   { src: "/rpg/tiles/Cobble_Road/Cobble_Road_1.png", name: "Cobble_Road_1", category: "Cobble_Road", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Cobble_Road/Cobble_Road_2.png", name: "Cobble_Road_2", category: "Cobble_Road", cols: 3, rows: 5 },
   { src: "/rpg/tiles/FarmLand/FarmLand_Tile.png", name: "FarmLand_Tile", category: "FarmLand", cols: 7, rows: 8 },
   { src: "/rpg/tiles/FarmLand/FarmLand_Wet_Tile.png", name: "FarmLand_Wet_Tile", category: "FarmLand", cols: 7, rows: 8 },
   { src: "/rpg/tiles/Grass/Grass_1_Middle.png", name: "Grass_1_Middle", category: "Grass", cols: 1, rows: 1 },
-  { src: "/rpg/tiles/Grass/Grass_2_Middle.png", name: "Grass_2_Middle", category: "Grass", cols: 1, rows: 1 },
-  { src: "/rpg/tiles/Grass/Grass_3_Middle.png", name: "Grass_3_Middle", category: "Grass", cols: 1, rows: 1 },
-  { src: "/rpg/tiles/Grass/Grass_4_Middle.png", name: "Grass_4_Middle", category: "Grass", cols: 1, rows: 1 },
   { src: "/rpg/tiles/Grass/Grass_Tiles_1.png", name: "Grass_Tiles_1", category: "Grass", cols: 16, rows: 10 },
   { src: "/rpg/tiles/Grass/Grass_Tiles_1_Blob_TEST.png", name: "Grass_Tiles_1_Blob_TEST", category: "Grass", cols: 7, rows: 7 },
   { src: "/rpg/tiles/Grass/Grass_Tiles_1_Blob_TEST_1.png", name: "Grass_Tiles_1_Blob_TEST_1", category: "Grass", cols: 7, rows: 7 },
-  { src: "/rpg/tiles/Grass/Grass_Tiles_2.png", name: "Grass_Tiles_2", category: "Grass", cols: 16, rows: 10 },
-  { src: "/rpg/tiles/Grass/Grass_Tiles_3.png", name: "Grass_Tiles_3", category: "Grass", cols: 16, rows: 10 },
-  { src: "/rpg/tiles/Grass/Grass_Tiles_4.png", name: "Grass_Tiles_4", category: "Grass", cols: 16, rows: 10 },
   { src: "/rpg/tiles/Grass/Path_Decoration.png", name: "Path_Decoration", category: "Grass", cols: 3, rows: 1 },
   { src: "/rpg/tiles/Grass/Path_Middle.png", name: "Path_Middle", category: "Grass", cols: 1, rows: 1 },
   { src: "/rpg/tiles/Hedge_Tiles.png", name: "Hedge_Tiles", category: "Misc", cols: 4, rows: 4 },
   { src: "/rpg/tiles/Pavement_Tiles.png", name: "Pavement_Tiles", category: "Misc", cols: 9, rows: 8 },
   { src: "/rpg/tiles/Picnic_Blankets.png", name: "Picnic_Blankets", category: "Misc", cols: 6, rows: 6 },
-  { src: "/rpg/tiles/Water/Fish_Animated_Tile.png", name: "Fish_Animated_Tile", category: "Water", cols: 16, rows: 1 },
+  { src: "/rpg/tiles/Water/Fish_Animated_Tile.png", name: "Fish_Animated_Tile", category: "Water", cols: 16, rows: 1, anim: { frames: 16, frameW: 1, mode: "loop", fps: 8 } },
   { src: "/rpg/tiles/Water/Water_Decoration.png", name: "Water_Decoration", category: "Water", cols: 3, rows: 1 },
-  { src: "/rpg/tiles/Water/Water_Foam_Animation.png", name: "Water_Foam_Animation", category: "Water", cols: 20, rows: 3 },
+  { src: "/rpg/tiles/Water/Water_Foam_Animation.png", name: "Water_Foam_Animation", category: "Water", cols: 20, rows: 3, anim: { frames: 4, frameW: 5, mode: "loop", fps: 6 } },
   { src: "/rpg/tiles/Water/Water_Middle.png", name: "Water_Middle", category: "Water", cols: 1, rows: 1 },
-  { src: "/rpg/tiles/Water/Water_Middle_Anim_1.png", name: "Water_Middle_Anim_1", category: "Water", cols: 8, rows: 1 },
-  { src: "/rpg/tiles/Water/Water_Middle_Anim_2.png", name: "Water_Middle_Anim_2", category: "Water", cols: 14, rows: 1 },
+  { src: "/rpg/tiles/Water/Water_Middle_Anim_1.png", name: "Water_Middle_Anim_1", category: "Water", cols: 8, rows: 1, anim: { frames: 8, frameW: 1, mode: "loop", fps: 6 } },
+  { src: "/rpg/tiles/Water/Water_Middle_Anim_2.png", name: "Water_Middle_Anim_2", category: "Water", cols: 14, rows: 1, anim: { frames: 14, frameW: 1, mode: "loop", fps: 6 } },
   { src: "/rpg/tiles/Water/Water_Stone_Tile_1.png", name: "Water_Stone_Tile_1", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_1_Anim.png", name: "Water_Stone_Tile_1_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_2.png", name: "Water_Stone_Tile_2", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_2_Anim.png", name: "Water_Stone_Tile_2_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_3.png", name: "Water_Stone_Tile_3", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_3_Anim.png", name: "Water_Stone_Tile_3_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_4.png", name: "Water_Stone_Tile_4", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Stone_Tile_4_Anim.png", name: "Water_Stone_Tile_4_Anim", category: "Water", cols: 24, rows: 5 },
+  { src: "/rpg/tiles/Water/Water_Stone_Tile_1_Anim.png", name: "Water_Stone_Tile_1_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Stone_Tile_2_Anim.png", name: "Water_Stone_Tile_2_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Stone_Tile_3_Anim.png", name: "Water_Stone_Tile_3_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Stone_Tile_4_Anim.png", name: "Water_Stone_Tile_4_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
   { src: "/rpg/tiles/Water/Water_Tile_1.png", name: "Water_Tile_1", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_1_Anim.png", name: "Water_Tile_1_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_2.png", name: "Water_Tile_2", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_2_Anim.png", name: "Water_Tile_2_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_3.png", name: "Water_Tile_3", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_3_Anim.png", name: "Water_Tile_3_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_4.png", name: "Water_Tile_4", category: "Water", cols: 3, rows: 5 },
-  { src: "/rpg/tiles/Water/Water_Tile_4_Anim.png", name: "Water_Tile_4_Anim", category: "Water", cols: 24, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_1.png", name: "Waterfall_1", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_2.png", name: "Waterfall_2", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_3.png", name: "Waterfall_3", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_4.png", name: "Waterfall_4", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_5.png", name: "Waterfall_5", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_6.png", name: "Waterfall_6", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_7.png", name: "Waterfall_7", category: "Waterfall", cols: 18, rows: 5 },
-  { src: "/rpg/tiles/Waterfall/Waterfall_8.png", name: "Waterfall_8", category: "Waterfall", cols: 18, rows: 5 },
+  { src: "/rpg/tiles/Water/Water_Tile_1_Anim.png", name: "Water_Tile_1_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Tile_2_Anim.png", name: "Water_Tile_2_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Tile_3_Anim.png", name: "Water_Tile_3_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Water/Water_Tile_4_Anim.png", name: "Water_Tile_4_Anim", category: "Water", cols: 24, rows: 5, anim: { frames: 8, frameW: 3, mode: "pingpong", fps: 8 } },
+  { src: "/rpg/tiles/Waterfall/Waterfall_1.png", name: "Waterfall_1", category: "Waterfall", cols: 18, rows: 5, anim: { frames: 6, frameW: 3, mode: "loop", fps: 10 } },
+  { src: "/rpg/tiles/Waterfall/Waterfall_5.png", name: "Waterfall_5", category: "Waterfall", cols: 18, rows: 5, anim: { frames: 6, frameW: 3, mode: "loop", fps: 10 } },
   { src: "/rpg/tiles/Wooden_Deck_Tiles.png", name: "Wooden_Deck_Tiles", category: "Misc", cols: 5, rows: 6 },
 ];

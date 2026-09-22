@@ -2,6 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CELL_PX, TILE_SHEETS, migrateTileSrc, type TileSheet } from "./tiles";
+import {
+  animFrameIndex,
+  animSrcCol,
+  foldAnimSx,
+  sheetForTileSrc,
+} from "./tile-anim";
+import {
+  canonicalSwatchCss,
+  familyDisplayName,
+  getTileImage,
+  isVariantSrc,
+  variantSrcsFor,
+  variantSwatchCss,
+} from "./tile-variants";
 
 export const MAP_COLS = 40;
 export const MAP_ROWS = 28;
@@ -21,6 +35,8 @@ interface SelectedTile {
   sheet: TileSheet;
   sx: number;
   sy: number;
+  /** Paint URL: the canonical sheet src, or a synthesized variant src. */
+  src: string;
 }
 
 function createEmptyGrid(): MapGrid {
@@ -61,18 +77,58 @@ function loadGrid(): MapGrid {
   }
 }
 
+function SwatchDot({
+  label,
+  color,
+  active,
+  src,
+  onSelect,
+}: {
+  label: string;
+  color: string;
+  active: boolean;
+  src: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      data-testid="variant-swatch"
+      data-src={src}
+      onClick={onSelect}
+      className={`rounded-full border p-0 ${
+        active
+          ? "border-brand-orange"
+          : "border-border-default hover:border-border-hover"
+      }`}
+      style={{ width: 20, height: 20, backgroundColor: color }}
+    />
+  );
+}
+
 function SheetSection({
   sheet,
   defaultOpen,
   selected,
+  activeVariant,
   onSelect,
+  onVariantSelect,
 }: {
   sheet: TileSheet;
   defaultOpen: boolean;
   selected: SelectedTile | null;
+  /** Chosen variant src for this family, or null for the canonical sheet. */
+  activeVariant: string | null;
   onSelect: (tile: SelectedTile) => void;
+  onVariantSelect: (src: string | null) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const variantSrcs = useMemo(() => variantSrcsFor(sheet.src), [sheet.src]);
+  const familyName = useMemo(() => familyDisplayName(sheet.src), [sheet.src]);
+  const displayName = familyName ?? sheet.name;
+  const previewSrc = activeVariant ?? sheet.src;
   const cells = useMemo(() => {
     if (!open) return [];
     const list: { sx: number; sy: number }[] = [];
@@ -89,13 +145,36 @@ function SheetSection({
       className="w-max max-w-none rounded-md border border-border-default bg-surface-tertiary"
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
+      data-testid="palette-section"
+      data-sheet={sheet.src}
     >
       <summary className="cursor-pointer px-2 py-1.5 text-sm text-text-secondary hover:text-text-primary">
-        {sheet.name}{" "}
+        {displayName}{" "}
         <span className="text-text-muted">
           ({sheet.cols}×{sheet.rows})
         </span>
       </summary>
+      {variantSrcs.length > 0 && (
+        <div className="flex items-center gap-1.5 px-2 pt-1">
+          <SwatchDot
+            label={`${sheet.name} canonical`}
+            color={canonicalSwatchCss(sheet.src)}
+            active={activeVariant === null}
+            src={sheet.src}
+            onSelect={() => onVariantSelect(null)}
+          />
+          {variantSrcs.map((variantSrc) => (
+            <SwatchDot
+              key={variantSrc}
+              label={variantSrc.split("/").pop() ?? variantSrc}
+              color={variantSwatchCss(variantSrc)}
+              active={activeVariant === variantSrc}
+              src={variantSrc}
+              onSelect={() => onVariantSelect(variantSrc)}
+            />
+          ))}
+        </div>
+      )}
       <div
         className="grid w-fit gap-1 p-2"
         style={{ gridTemplateColumns: `repeat(${sheet.cols}, ${PALETTE_PX}px)` }}
@@ -110,13 +189,15 @@ function SheetSection({
             <button
               key={`${sx}-${sy}`}
               type="button"
-              title={`${sheet.name} (${sx}, ${sy})`}
-              aria-label={`${sheet.name} cell ${sx},${sy}`}
+              title={`${displayName} (${sx}, ${sy})`}
+              aria-label={`${displayName} cell ${sx},${sy}`}
               data-testid="palette-cell"
               data-src={sheet.src}
               data-sx={sx}
               data-sy={sy}
-              onClick={() => onSelect({ sheet, sx, sy })}
+              onClick={() =>
+                onSelect({ sheet, sx, sy, src: activeVariant ?? sheet.src })
+              }
               className={`overflow-hidden rounded-sm border p-0 ${
                 isActive
                   ? "border-brand-orange"
@@ -124,18 +205,12 @@ function SheetSection({
               }`}
               style={{ width: PALETTE_PX, height: PALETTE_PX }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- sprite-sheet cell previews need raw offsets that next/image cannot express */}
-              <img
-                src={sheet.src}
-                alt=""
-                draggable={false}
-                className="block max-w-none"
-                style={{
-                  width: sheet.cols * PALETTE_PX,
-                  height: sheet.rows * PALETTE_PX,
-                  marginLeft: -sx * PALETTE_PX,
-                  marginTop: -sy * PALETTE_PX,
-                }}
+              <CellPreview
+                src={previewSrc}
+                width={sheet.cols * PALETTE_PX}
+                height={sheet.rows * PALETTE_PX}
+                offsetX={-sx * PALETTE_PX}
+                offsetY={-sy * PALETTE_PX}
               />
             </button>
           );
@@ -145,11 +220,65 @@ function SheetSection({
   );
 }
 
+/** Image URL for a palette cell, following synthesized variants (async). */
+function useTileImageUrl(src: string): string {
+  const [url, setUrl] = useState(() => (isVariantSrc(src) ? "" : src));
+  useEffect(() => {
+    if (!isVariantSrc(src)) {
+      setUrl(src);
+      return;
+    }
+    let live = true;
+    const img = getTileImage(src);
+    const update = () => {
+      if (live && img.complete && img.naturalWidth > 0) setUrl(img.src);
+    };
+    update();
+    img.addEventListener("load", update);
+    return () => {
+      live = false;
+      img.removeEventListener("load", update);
+    };
+  }, [src]);
+  return url;
+}
+
+function CellPreview({
+  src,
+  width,
+  height,
+  offsetX,
+  offsetY,
+}: {
+  src: string;
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+}) {
+  const url = useTileImageUrl(src);
+  if (url === "") return <span className="block" style={{ width, height }} />;
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element -- sprite-sheet cell previews need raw offsets that next/image cannot express */
+    <img
+      src={url}
+      alt=""
+      draggable={false}
+      className="block max-w-none"
+      style={{ width, height, marginLeft: offsetX, marginTop: offsetY }}
+    />
+  );
+}
+
 export function MapEditor() {
   const [grid, setGrid] = useState<MapGrid>(() =>
     typeof window === "undefined" ? createEmptyGrid() : loadGrid(),
   );
   const [selected, setSelected] = useState<SelectedTile | null>(null);
+  /** Per-family paint variant: canonical sheet src -> chosen variant src. */
+  const [variantChoice, setVariantChoice] = useState<Map<string, string>>(
+    () => new Map(),
+  );
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -179,13 +308,6 @@ export function MapEditor() {
 
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
-
-    const images = new Map<string, HTMLImageElement>();
-    for (const sheet of TILE_SHEETS) {
-      const img = new Image();
-      img.src = sheet.src;
-      images.set(sheet.src, img);
-    }
 
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
@@ -219,7 +341,7 @@ export function MapEditor() {
     window.addEventListener("resize", resize);
 
     let rafId = 0;
-    const drawFrame = () => {
+    const drawFrame = (now: number) => {
       rafId = requestAnimationFrame(drawFrame);
       const { width, height } = sizeRef.current;
       const scale = scaleRef.current;
@@ -235,16 +357,16 @@ export function MapEditor() {
         for (let c = 0; c < MAP_COLS; c += 1) {
           const tile = current[r][c];
           if (tile === null) continue;
-          const img = images.get(tile.src);
-          if (
-            img === undefined ||
-            !img.complete ||
-            img.naturalWidth === 0
-          )
-            continue;
+          const img = getTileImage(tile.src);
+          if (!img.complete || img.naturalWidth === 0) continue;
+          const sheet = sheetForTileSrc(tile.src);
+          const srcCol =
+            sheet?.anim === undefined
+              ? tile.sx
+              : animSrcCol(sheet, tile.sx, now, c, r);
           ctx.drawImage(
             img,
-            tile.sx * CELL_PX,
+            srcCol * CELL_PX,
             tile.sy * CELL_PX,
             CELL_PX,
             CELL_PX,
@@ -313,7 +435,7 @@ export function MapEditor() {
         if (
           existing !== null &&
           sel !== null &&
-          existing.src === sel.sheet.src &&
+          existing.src === sel.src &&
           existing.sx === sel.sx &&
           existing.sy === sel.sy
         ) {
@@ -323,7 +445,7 @@ export function MapEditor() {
         next[r]![c] =
           sel === null
             ? null
-            : { src: sel.sheet.src, sx: sel.sx, sy: sel.sy };
+            : { src: sel.src, sx: sel.sx, sy: sel.sy };
         return next;
       });
     },
@@ -355,6 +477,33 @@ export function MapEditor() {
     setGrid(createEmptyGrid());
   }, []);
 
+  const handleVariantSelect = useCallback(
+    (canonicalSrc: string, src: string | null) => {
+      setVariantChoice((prev) => {
+        const next = new Map(prev);
+        if (src === null) {
+          next.delete(canonicalSrc);
+        } else {
+          next.set(canonicalSrc, src);
+        }
+        return next;
+      });
+      setSelected((prev) =>
+        prev !== null && prev.sheet.src === canonicalSrc
+          ? { ...prev, src: src ?? canonicalSrc }
+          : prev,
+      );
+    },
+    [],
+  );
+
+  const selectedName =
+    selected === null
+      ? null
+      : selected.src === selected.sheet.src
+        ? (familyDisplayName(selected.sheet.src) ?? selected.sheet.name)
+        : (selected.src.split("/").pop()?.replace(/\.png$/, "") ??
+          selected.sheet.name);
   const categories = useMemo(() => {
     const order: string[] = [];
     const groups = new Map<string, TileSheet[]>();
@@ -385,9 +534,9 @@ export function MapEditor() {
             data-testid="selected-tile"
             className="text-sm text-text-secondary"
           >
-            {selected === null
+            {selected === null || selectedName === null
               ? "No tile selected"
-              : `${selected.sheet.name} (${selected.sx}, ${selected.sy})`}
+              : `${selectedName} (${selected.sx}, ${selected.sy})`}
           </span>
           <button
             type="button"
@@ -426,7 +575,11 @@ export function MapEditor() {
                     sheet={sheet}
                     defaultOpen={category === categories[0]?.category && sheetIndex === 0}
                     selected={selected}
+                    activeVariant={variantChoice.get(sheet.src) ?? null}
                     onSelect={setSelected}
+                    onVariantSelect={(src) =>
+                      handleVariantSelect(sheet.src, src)
+                    }
                   />
                 ))}
               </div>

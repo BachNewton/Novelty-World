@@ -9,6 +9,8 @@
 
 import { useEffect, useRef } from 'react';
 import { CELL_PX, migrateTileSrc } from './tiles';
+import { animSrcCol, foldAnimSx, sheetForTileSrc } from './tile-anim';
+import { getTileImage } from './tile-variants';
 import { MAP_COLS, MAP_ROWS, STORAGE_KEY } from './map-editor';
 import type { MapGrid, PlacedTile } from './map-editor';
 
@@ -55,7 +57,12 @@ function loadMap(): MapGrid {
     if (!Array.isArray(parsed) || parsed.length !== MAP_ROWS) return empty;
     return parsed.map((row: unknown) => {
       if (!Array.isArray(row) || row.length !== MAP_COLS) return Array.from({ length: MAP_COLS }, () => null);
-      return row.map((cell: unknown) => (isPlacedTile(cell) ? { ...cell, src: migrateTileSrc(cell.src) } : null));
+      return row.map((cell: unknown) => {
+        if (!isPlacedTile(cell)) return null;
+        const src = migrateTileSrc(cell.src);
+        // Back-compat: cells picked from later animation frames fold into frame 0.
+        return { ...cell, src, sx: foldAnimSx(sheetForTileSrc(src), cell.sx) };
+      });
     });
   } catch {
     return empty;
@@ -97,7 +104,6 @@ export default function GameWorld() {
   const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
   const lastTimeRef = useRef<number | null>(null);
   const mapRef = useRef<MapGrid>([]);
-  const tileImgsRef = useRef(new Map<string, HTMLImageElement>());
   const animRef = useRef({ key: 'front:idle', t0: 0 });
 
   useEffect(() => {
@@ -117,15 +123,6 @@ export default function GameWorld() {
 
     const refreshMap = () => {
       mapRef.current = loadMap();
-      for (const row of mapRef.current) {
-        for (const cell of row) {
-          if (cell !== null && !tileImgsRef.current.has(cell.src)) {
-            const img = new Image();
-            img.src = cell.src;
-            tileImgsRef.current.set(cell.src, img);
-          }
-        }
-      }
     };
     refreshMap();
 
@@ -198,7 +195,7 @@ export default function GameWorld() {
       }
     };
 
-    const drawTiles = (camX: number, camY: number, scale: number) => {
+    const drawTiles = (camX: number, camY: number, scale: number, now: number) => {
       const { width, height } = sizeRef.current;
       const c0 = Math.max(0, Math.floor((camX - width / 2 / scale) / CELL_PX));
       const c1 = Math.min(MAP_COLS - 1, Math.ceil((camX + width / 2 / scale) / CELL_PX));
@@ -211,11 +208,16 @@ export default function GameWorld() {
         for (let c = c0; c <= c1; c += 1) {
           const cell = row.at(c);
           if (cell === undefined || cell === null) continue;
-          const img = tileImgsRef.current.get(cell.src);
-          if (img === undefined || !img.complete || img.naturalWidth === 0) continue;
+          const img = getTileImage(cell.src);
+          if (!img.complete || img.naturalWidth === 0) continue;
+          const sheet = sheetForTileSrc(cell.src);
+          const srcCol =
+            sheet?.anim === undefined
+              ? cell.sx
+              : animSrcCol(sheet, cell.sx, now, c, r);
           ctx.drawImage(
             img,
-            cell.sx * CELL_PX,
+            srcCol * CELL_PX,
             cell.sy * CELL_PX,
             CELL_PX,
             CELL_PX,
@@ -261,7 +263,7 @@ export default function GameWorld() {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
       drawGrid(posRef.current.x, posRef.current.y, scale);
-      drawTiles(posRef.current.x, posRef.current.y, scale);
+      drawTiles(posRef.current.x, posRef.current.y, scale, now);
 
       const key = `${dir}:${moving ? 'walk' : 'idle'}`;
       if (animRef.current.key !== key) animRef.current = { key, t0: now };

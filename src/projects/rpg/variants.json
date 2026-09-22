@@ -1,0 +1,177 @@
+{
+  "grass-tiles": {
+    "canonical": "/rpg/tiles/Grass/Grass_Tiles_1.png",
+    "variants": {
+      "/rpg/tiles/Grass/Grass_Tiles_2.png": {
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Grass/Grass_Tiles_3.png": {
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#2a8953ff": "#678128ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Grass/Grass_Tiles_4.png": {
+        "#265c42ff": "#37625bff",
+        "#2a8953ff": "#37765dff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "stone-cliff-tile": {
+    "canonical": "/rpg/tiles/Cliff/Stone_Cliff_1_Tile.png",
+    "variants": {
+      "/rpg/tiles/Cliff/Stone_Cliff_2_Tile.png": {
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Cliff/Stone_Cliff_3_Tile.png": {
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Cliff/Stone_Cliff_4_Tile.png": {
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "stone-cliff-cave-entrance": {
+    "canonical": "/rpg/tiles/Cliff/Stone_Cliff_1_Cave_Entrance.png",
+    "variants": {
+      "/rpg/tiles/Cliff/Stone_Cliff_2_Cave_Entrance.png": {
+        "#26542cff": "#33984bff",
+        "#265c42ff": "#1e6f50ff"
+      },
+      "/rpg/tiles/Cliff/Stone_Cliff_3_Cave_Entrance.png": {
+        "#26542cff": "#7c963cff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Cliff/Stone_Cliff_4_Cave_Entrance.png": {
+        "#26542cff": "#3f886cff",
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "water-tile": {
+    "canonical": "/rpg/tiles/Water/Water_Tile_1.png",
+    "variants": {
+      "/rpg/tiles/Water/Water_Tile_2.png": {
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Water/Water_Tile_3.png": {
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Water/Water_Tile_4.png": {
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "water-stone-tile": {
+    "canonical": "/rpg/tiles/Water/Water_Stone_Tile_1.png",
+    "variants": {
+      "/rpg/tiles/Water/Water_Stone_Tile_2.png": {
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Water/Water_Stone_Tile_3.png": {
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Water/Water_Stone_Tile_4.png": {
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "cobble-road": {
+    "canonical": "/rpg/tiles/Cobble_Road/Cobble_Road_1.png",
+    "variants": {
+      "/rpg/tiles/Cobble_Road/Cobble_Road_2.png": {
+        "#525f7aff": "#b86f50ff",
+        "#6c7c9dff": "#e4a672ff",
+        "#8394afff": "#f6ca9fff"
+      }
+    }
+  },
+  "grass-middle": {
+    "canonical": "/rpg/tiles/Grass/Grass_1_Middle.png",
+    "variants": {
+      "/rpg/tiles/Grass/Grass_2_Middle.png": {
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Grass/Grass_3_Middle.png": {
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Grass/Grass_4_Middle.png": {
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "waterfall": {
+    "canonical": "/rpg/tiles/Waterfall/Waterfall_1.png",
+    "variants": {
+      "/rpg/tiles/Waterfall/Waterfall_2.png": {
+        "#163335ff": "#114141ff",
+        "#193c3eff": "#134c4cff",
+        "#214e38ff": "#1a5e44ff",
+        "#265c42ff": "#1e6f50ff",
+        "#35743dff": "#2b8140ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Waterfall/Waterfall_3.png": {
+        "#163335ff": "#2d351aff",
+        "#193c3eff": "#353e1eff",
+        "#214e38ff": "#54652aff",
+        "#265c42ff": "#637731ff",
+        "#35743dff": "#697f33ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Waterfall/Waterfall_4.png": {
+        "#214e38ff": "#2f534dff",
+        "#265c42ff": "#37625bff",
+        "#35743dff": "#36735cff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "waterfall-brown-rock": {
+    "canonical": "/rpg/tiles/Waterfall/Waterfall_5.png",
+    "variants": {
+      "/rpg/tiles/Waterfall/Waterfall_6.png": {
+        "#163335ff": "#114141ff",
+        "#193c3eff": "#134c4cff",
+        "#214e38ff": "#1a5e44ff",
+        "#265c42ff": "#1e6f50ff",
+        "#35743dff": "#2b8140ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Waterfall/Waterfall_7.png": {
+        "#163335ff": "#2d351aff",
+        "#193c3eff": "#353e1eff",
+        "#214e38ff": "#54652aff",
+        "#265c42ff": "#637731ff",
+        "#35743dff": "#697f33ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Waterfall/Waterfall_8.png": {
+        "#214e38ff": "#2f534dff",
+        "#265c42ff": "#37625bff",
+        "#35743dff": "#36735cff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  }
+}
