@@ -40,10 +40,10 @@ const KEY_DIR: Record<string, Dir | undefined> = {
   KeyD: 'side',
 };
 
-/** Idle rows face right natively (row 1); walk rows face left (row 4). */
-function facingFor(code: string, moving: boolean): Facing {
+/** Side rows face right natively (rows 1 and 4); flip for left. */
+function facingFor(code: string): Facing {
   const dir = KEY_DIR[code] ?? 'front';
-  const flip = dir === 'side' && (moving ? code === 'KeyD' : code === 'KeyA');
+  const flip = dir === 'side' && code === 'KeyA';
   return { dir, flip };
 }
 
@@ -117,7 +117,7 @@ export default function FarmerIdleCanvas() {
       const pressed = pressedRef.current;
       const moving = pressed.length > 0;
       const code = moving ? (pressed[pressed.length - 1] ?? 'KeyS') : lastCodeRef.current;
-      const { dir, flip } = facingFor(code, moving);
+      const { dir, flip } = facingFor(code);
       const strips = moving ? WALK_STRIPS : IDLE_STRIPS;
       const img = imgs[strips[dir]];
       if (img === undefined || !img.complete || img.naturalWidth === 0) return;
