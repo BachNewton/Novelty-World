@@ -65,3 +65,6 @@ src/projects/monopoly/bots/optimize/*.log
 
 # learned-bot (RL) training checkpoints — generated net weights + meta
 rl-checkpoints/
+
+# Python bytecode cache (regenerates automatically; never commit)
+__pycache__/
