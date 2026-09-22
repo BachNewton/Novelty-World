@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CELL_PX, TILE_SHEETS, type TileSheet } from "./tiles";
+import { CELL_PX, TILE_SHEETS, migrateTileSrc, type TileSheet } from "./tiles";
 
 export const MAP_COLS = 40;
 export const MAP_ROWS = 28;
@@ -51,7 +51,7 @@ function loadGrid(): MapGrid {
       if (!Array.isArray(row) || row.length !== MAP_COLS) return empty;
       for (let c = 0; c < MAP_COLS; c += 1) {
         const cell: unknown = row[c];
-        empty[r][c] = cell === null || cell === undefined ? null : isPlacedTile(cell) ? cell : null;
+        empty[r][c] = cell === null || cell === undefined ? null : isPlacedTile(cell) ? { ...cell, src: migrateTileSrc(cell.src) } : null;
         if (cell !== null && cell !== undefined && !isPlacedTile(cell)) return createEmptyGrid();
       }
     }

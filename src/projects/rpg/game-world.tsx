@@ -1,5 +1,5 @@
 /**
- * Farmer — fullscreen canvas world.
+ * Farmer game world — fullscreen canvas.
  * Walks the tile map stored by the map editor (localStorage
  * `map-editor-v1`, 40x28 cells of 16px). Hold WASD to walk that way
  * (camera follows); release to idle facing it. Player stays centered
@@ -8,25 +8,20 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import {
-  CELL_PX,
-  MAP_COLS,
-  MAP_ROWS,
-  STORAGE_KEY,
-  type MapGrid,
-  type PlacedTile,
-} from '@/projects/map-editor';
+import { CELL_PX, migrateTileSrc } from './tiles';
+import { MAP_COLS, MAP_ROWS, STORAGE_KEY } from './map-editor';
+import type { MapGrid, PlacedTile } from './map-editor';
 
 const IDLE_STRIPS = {
-  front: '/sprites/farmer/front-idle.png',
-  side: '/sprites/farmer/side-idle.png',
-  back: '/sprites/farmer/back-idle.png',
+  front: '/rpg/sprites/farmer/front-idle.png',
+  side: '/rpg/sprites/farmer/side-idle.png',
+  back: '/rpg/sprites/farmer/back-idle.png',
 } as const;
 
 const WALK_STRIPS = {
-  front: '/sprites/farmer/front-walk.png',
-  side: '/sprites/farmer/side-walk.png',
-  back: '/sprites/farmer/back-walk.png',
+  front: '/rpg/sprites/farmer/front-walk.png',
+  side: '/rpg/sprites/farmer/side-walk.png',
+  back: '/rpg/sprites/farmer/back-walk.png',
 } as const;
 
 type Dir = keyof typeof IDLE_STRIPS;
@@ -60,7 +55,7 @@ function loadMap(): MapGrid {
     if (!Array.isArray(parsed) || parsed.length !== MAP_ROWS) return empty;
     return parsed.map((row: unknown) => {
       if (!Array.isArray(row) || row.length !== MAP_COLS) return Array.from({ length: MAP_COLS }, () => null);
-      return row.map((cell: unknown) => (isPlacedTile(cell) ? cell : null));
+      return row.map((cell: unknown) => (isPlacedTile(cell) ? { ...cell, src: migrateTileSrc(cell.src) } : null));
     });
   } catch {
     return empty;
@@ -93,7 +88,7 @@ function facingFor(code: string): Facing {
   return { dir, flip };
 }
 
-export default function FarmerIdleCanvas() {
+export default function GameWorld() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
