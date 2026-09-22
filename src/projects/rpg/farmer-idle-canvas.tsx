@@ -1,38 +1,59 @@
 /**
- * Farmer Idle — fullscreen canvas.
- * Plays the 6-frame idle strip for the faced direction (sheet rows:
- * front 0, side 3/4-right 1, back 2; left mirrors side) centered on
- * screen via requestAnimationFrame. WASD switches direction.
+ * Farmer — fullscreen canvas.
+ * Hold WASD to play the walking animation for that direction;
+ * release to idle facing it. Rows: front 0/3, side 1/4 (faces left,
+ * flipped for right), back 2/5. Centered via requestAnimationFrame.
  * Auto-resizes with the window.
  */
 'use client';
 
 import { useEffect, useRef } from 'react';
 
-const STRIPS = {
+const IDLE_STRIPS = {
   front: '/sprites/farmer/front-idle-strip.png',
   side: '/sprites/farmer/side-idle-strip.png',
   back: '/sprites/farmer/back-idle-strip.png',
 } as const;
 
-type Dir = keyof typeof STRIPS;
+const WALK_STRIPS = {
+  front: '/sprites/farmer/front-walk-strip.png',
+  side: '/sprites/farmer/side-walk-strip.png',
+  back: '/sprites/farmer/back-walk-strip.png',
+} as const;
+
+type Dir = keyof typeof IDLE_STRIPS;
 
 const FRAME_SIZE = 256;
 const FRAME_COUNT = 6;
-const FRAME_MS = 200;
+const IDLE_FRAME_MS = 200;
+const WALK_FRAME_MS = 120;
 
-const KEY_DIR: Record<string, { dir: Dir; flip: boolean } | undefined> = {
-  KeyW: { dir: 'back', flip: false },
-  KeyS: { dir: 'front', flip: false },
-  KeyA: { dir: 'side', flip: true },
-  KeyD: { dir: 'side', flip: false },
+interface Facing {
+  dir: Dir;
+  flip: boolean;
+}
+
+const KEY_DIR: Record<string, Dir | undefined> = {
+  KeyW: 'back',
+  KeyS: 'front',
+  KeyA: 'side',
+  KeyD: 'side',
 };
+
+/** Idle rows face right natively (row 1); walk rows face left (row 4). */
+function facingFor(code: string, moving: boolean): Facing {
+  const dir = KEY_DIR[code] ?? 'front';
+  const flip = dir === 'side' && (moving ? code === 'KeyD' : code === 'KeyA');
+  return { dir, flip };
+}
 
 export default function FarmerIdleCanvas() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
-  const dirRef = useRef<{ dir: Dir; flip: boolean }>({ dir: 'front', flip: false });
+  const pressedRef = useRef<string[]>([]);
+  const lastCodeRef = useRef<string>('KeyS');
+  const animRef = useRef({ key: 'front:idle', t0: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,15 +63,12 @@ export default function FarmerIdleCanvas() {
     const ctx = canvas.getContext('2d');
     if (ctx === null) return;
 
-    const imgs = (Object.keys(STRIPS) as Dir[]).reduce(
-      (acc, dir) => {
-        const img = new Image();
-        img.src = STRIPS[dir];
-        acc[dir] = img;
-        return acc;
-      },
-      {} as Record<Dir, HTMLImageElement>,
-    );
+    const imgs: Record<string, HTMLImageElement | undefined> = {};
+    for (const src of [...Object.values(IDLE_STRIPS), ...Object.values(WALK_STRIPS)]) {
+      const img = new Image();
+      img.src = src;
+      imgs[src] = img;
+    }
 
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
@@ -72,24 +90,42 @@ export default function FarmerIdleCanvas() {
     resizeObserver.observe(wrapper);
     window.addEventListener('resize', resize);
 
+    const press = (code: string) => {
+      pressedRef.current = [...pressedRef.current.filter((c) => c !== code), code];
+      lastCodeRef.current = code;
+    };
+
+    const release = (code: string) => {
+      pressedRef.current = pressedRef.current.filter((c) => c !== code);
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
-      const mapped = KEY_DIR[e.code];
-      if (mapped !== undefined) dirRef.current = mapped;
+      if (KEY_DIR[e.code] !== undefined) press(e.code);
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (KEY_DIR[e.code] !== undefined) release(e.code);
     };
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
 
     let rafId = 0;
-    const startTime = performance.now();
 
     const drawFrame = (now: number) => {
       rafId = requestAnimationFrame(drawFrame);
       const { width, height } = sizeRef.current;
       ctx.clearRect(0, 0, width, height);
-      const { dir, flip } = dirRef.current;
-      const img = imgs[dir];
-      if (!img.complete || img.naturalWidth === 0) return;
+      const pressed = pressedRef.current;
+      const moving = pressed.length > 0;
+      const code = moving ? (pressed[pressed.length - 1] ?? 'KeyS') : lastCodeRef.current;
+      const { dir, flip } = facingFor(code, moving);
+      const strips = moving ? WALK_STRIPS : IDLE_STRIPS;
+      const img = imgs[strips[dir]];
+      if (img === undefined || !img.complete || img.naturalWidth === 0) return;
 
-      const frame = Math.floor((now - startTime) / FRAME_MS) % FRAME_COUNT;
+      const key = `${dir}:${moving ? 'walk' : 'idle'}`;
+      if (animRef.current.key !== key) animRef.current = { key, t0: now };
+      const frameMs = moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
+      const f = Math.floor((now - animRef.current.t0) / frameMs) % FRAME_COUNT;
 
       const scale = Math.max(1, Math.floor(Math.min(width, height) / FRAME_SIZE));
       const dw = FRAME_SIZE * scale;
@@ -101,7 +137,7 @@ export default function FarmerIdleCanvas() {
         ctx.translate(width, 0);
         ctx.scale(-1, 1);
       }
-      ctx.drawImage(img, frame * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, dx, dy, dw, dh);
+      ctx.drawImage(img, f * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, dx, dy, dw, dh);
       if (flip) ctx.restore();
     };
 
@@ -112,6 +148,7 @@ export default function FarmerIdleCanvas() {
       resizeObserver.disconnect();
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     };
   }, []);
 
