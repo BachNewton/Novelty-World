@@ -1,14 +1,14 @@
-"""Generate src/projects/map-editor/tiles.ts manifest from public/tiles PNGs."""
+"""Generate src/projects/rpg/tiles.ts manifest from public/rpg/tiles PNGs."""
 from PIL import Image
 from pathlib import Path
 
-root = Path("public/tiles")
+root = Path("public/rpg/tiles")
 lines = []
 for p in sorted(root.rglob("*.png")):
     rel = p.relative_to("public")
     url = "/" + rel.as_posix()
     parts = rel.parts
-    category = parts[1] if len(parts) == 3 else "Misc"
+    category = parts[2] if len(parts) == 4 else "Misc"
     with Image.open(p) as im:
         w, h = im.size
     assert w % 16 == 0 and h % 16 == 0, (url, w, h)
@@ -26,11 +26,15 @@ out = (
     "  rows: number;\n"
     "}\n"
     "\nexport const CELL_PX = 16;\n"
+    "\n/** Rewrite pre-move `/tiles/...` stored paths to their `/rpg/tiles/...` home. */\n"
+    "export function migrateTileSrc(src: string): string {\n"
+    "  return src.startsWith('/tiles/') ? `/rpg${src}` : src;\n"
+    "}\n"
     "\nexport const TILE_SHEETS: TileSheet[] = [\n"
     + "\n".join(lines)
     + "\n];\n"
 )
-dest = Path("src/projects/map-editor/tiles.ts")
+dest = Path("src/projects/rpg/tiles.ts")
 dest.parent.mkdir(parents=True, exist_ok=True)
 dest.write_text(out)
 print(f"wrote {len(lines)} sheets")
