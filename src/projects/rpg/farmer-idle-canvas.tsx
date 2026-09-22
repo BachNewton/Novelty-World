@@ -1,34 +1,71 @@
 /**
  * Farmer — fullscreen canvas world.
- * Hold WASD to walk that way (camera follows, grid scrolls);
- * release to idle facing it. Rows: front 0/3, side 1/4 (face right
- * natively, flipped for left), back 2/5. Player stays centered via
- * requestAnimationFrame. Auto-resizes with the window.
+ * Walks the tile map stored by the map editor (localStorage
+ * `map-editor-v1`, 40x28 cells of 16px). Hold WASD to walk that way
+ * (camera follows); release to idle facing it. Player stays centered
+ * via requestAnimationFrame. Auto-resizes with the window.
  */
 'use client';
 
 import { useEffect, useRef } from 'react';
+import {
+  CELL_PX,
+  MAP_COLS,
+  MAP_ROWS,
+  STORAGE_KEY,
+  type MapGrid,
+  type PlacedTile,
+} from '@/projects/map-editor';
 
 const IDLE_STRIPS = {
-  front: '/sprites/farmer/front-idle-strip.png',
-  side: '/sprites/farmer/side-idle-strip.png',
-  back: '/sprites/farmer/back-idle-strip.png',
+  front: '/sprites/farmer/front-idle.png',
+  side: '/sprites/farmer/side-idle.png',
+  back: '/sprites/farmer/back-idle.png',
 } as const;
 
 const WALK_STRIPS = {
-  front: '/sprites/farmer/front-walk-strip.png',
-  side: '/sprites/farmer/side-walk-strip.png',
-  back: '/sprites/farmer/back-walk-strip.png',
+  front: '/sprites/farmer/front-walk.png',
+  side: '/sprites/farmer/side-walk.png',
+  back: '/sprites/farmer/back-walk.png',
 } as const;
 
 type Dir = keyof typeof IDLE_STRIPS;
 
-const FRAME_SIZE = 256;
+const FRAME_SIZE = 64;
 const FRAME_COUNT = 6;
 const IDLE_FRAME_MS = 200;
 const WALK_FRAME_MS = 120;
-const SPEED_PX_S = 200;
-const GRID_PX = 64;
+const SPEED_PX_S = 60;
+/** Target visible cells on the shorter viewport side; world and sprites share 1x-art-px units. */
+const VISIBLE_CELLS = 15;
+
+function isPlacedTile(value: unknown): value is PlacedTile {
+  if (typeof value !== 'object' || value === null) return false;
+  const t = value as Record<string, unknown>;
+  return (
+    typeof t.src === 'string' &&
+    typeof t.sx === 'number' &&
+    typeof t.sy === 'number'
+  );
+}
+
+function loadMap(): MapGrid {
+  const empty: MapGrid = Array.from({ length: MAP_ROWS }, () =>
+    Array.from({ length: MAP_COLS }, () => null),
+  );
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return empty;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length !== MAP_ROWS) return empty;
+    return parsed.map((row: unknown) => {
+      if (!Array.isArray(row) || row.length !== MAP_COLS) return Array.from({ length: MAP_COLS }, () => null);
+      return row.map((cell: unknown) => (isPlacedTile(cell) ? cell : null));
+    });
+  } catch {
+    return empty;
+  }
+}
 
 interface Facing {
   dir: Dir;
@@ -62,8 +99,10 @@ export default function FarmerIdleCanvas() {
   const sizeRef = useRef({ width: 1, height: 1 });
   const pressedRef = useRef<string[]>([]);
   const lastCodeRef = useRef<string>('KeyS');
-  const posRef = useRef({ x: 0, y: 0 });
+  const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
   const lastTimeRef = useRef<number | null>(null);
+  const mapRef = useRef<MapGrid>([]);
+  const tileImgsRef = useRef(new Map<string, HTMLImageElement>());
   const animRef = useRef({ key: 'front:idle', t0: 0 });
 
   useEffect(() => {
@@ -80,6 +119,20 @@ export default function FarmerIdleCanvas() {
       img.src = src;
       imgs[src] = img;
     }
+
+    const refreshMap = () => {
+      mapRef.current = loadMap();
+      for (const row of mapRef.current) {
+        for (const cell of row) {
+          if (cell !== null && !tileImgsRef.current.has(cell.src)) {
+            const img = new Image();
+            img.src = cell.src;
+            tileImgsRef.current.set(cell.src, img);
+          }
+        }
+      }
+    };
+    refreshMap();
 
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
@@ -119,30 +172,64 @@ export default function FarmerIdleCanvas() {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
+    const onMapChange = () => refreshMap();
+    window.addEventListener('storage', onMapChange);
+    window.addEventListener('focus', onMapChange);
+
     let rafId = 0;
 
     const drawGrid = (camX: number, camY: number, scale: number) => {
       const { width, height } = sizeRef.current;
       const toX = (wx: number) => width / 2 + (wx - camX) * scale;
       const toY = (wy: number) => height / 2 + (wy - camY) * scale;
-      const kMinX = Math.floor((camX - width / 2 / scale) / GRID_PX);
-      const kMaxX = Math.ceil((camX + width / 2 / scale) / GRID_PX);
-      const kMinY = Math.floor((camY - height / 2 / scale) / GRID_PX);
-      const kMaxY = Math.ceil((camY + height / 2 / scale) / GRID_PX);
+      const kMinX = Math.floor((camX - width / 2 / scale) / CELL_PX);
+      const kMaxX = Math.ceil((camX + width / 2 / scale) / CELL_PX);
+      const kMinY = Math.floor((camY - height / 2 / scale) / CELL_PX);
+      const kMaxY = Math.ceil((camY + height / 2 / scale) / CELL_PX);
       ctx.lineWidth = 1;
       for (let k = kMinX; k <= kMaxX; k += 1) {
         ctx.strokeStyle = k === 0 ? '#475569' : '#1e293b';
         ctx.beginPath();
-        ctx.moveTo(toX(k * GRID_PX), 0);
-        ctx.lineTo(toX(k * GRID_PX), height);
+        ctx.moveTo(toX(k * CELL_PX), 0);
+        ctx.lineTo(toX(k * CELL_PX), height);
         ctx.stroke();
       }
       for (let k = kMinY; k <= kMaxY; k += 1) {
         ctx.strokeStyle = k === 0 ? '#475569' : '#1e293b';
         ctx.beginPath();
-        ctx.moveTo(0, toY(k * GRID_PX));
-        ctx.lineTo(width, toY(k * GRID_PX));
+        ctx.moveTo(0, toY(k * CELL_PX));
+        ctx.lineTo(width, toY(k * CELL_PX));
         ctx.stroke();
+      }
+    };
+
+    const drawTiles = (camX: number, camY: number, scale: number) => {
+      const { width, height } = sizeRef.current;
+      const c0 = Math.max(0, Math.floor((camX - width / 2 / scale) / CELL_PX));
+      const c1 = Math.min(MAP_COLS - 1, Math.ceil((camX + width / 2 / scale) / CELL_PX));
+      const r0 = Math.max(0, Math.floor((camY - height / 2 / scale) / CELL_PX));
+      const r1 = Math.min(MAP_ROWS - 1, Math.ceil((camY + height / 2 / scale) / CELL_PX));
+      const s = CELL_PX * scale;
+      for (let r = r0; r <= r1; r += 1) {
+        const row = mapRef.current.at(r);
+        if (row === undefined) continue;
+        for (let c = c0; c <= c1; c += 1) {
+          const cell = row.at(c);
+          if (cell === undefined || cell === null) continue;
+          const img = tileImgsRef.current.get(cell.src);
+          if (img === undefined || !img.complete || img.naturalWidth === 0) continue;
+          ctx.drawImage(
+            img,
+            cell.sx * CELL_PX,
+            cell.sy * CELL_PX,
+            CELL_PX,
+            CELL_PX,
+            width / 2 + (c * CELL_PX - camX) * scale,
+            height / 2 + (r * CELL_PX - camY) * scale,
+            s,
+            s,
+          );
+        }
       }
     };
 
@@ -174,11 +261,12 @@ export default function FarmerIdleCanvas() {
       const img = imgs[strips[dir]];
       if (img === undefined || !img.complete || img.naturalWidth === 0) return;
 
-      const scale = Math.max(1, Math.floor(Math.min(width, height) / FRAME_SIZE));
+      const scale = Math.max(1, Math.floor(Math.min(width, height) / (VISIBLE_CELLS * CELL_PX)));
 
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
       drawGrid(posRef.current.x, posRef.current.y, scale);
+      drawTiles(posRef.current.x, posRef.current.y, scale);
 
       const key = `${dir}:${moving ? 'walk' : 'idle'}`;
       if (animRef.current.key !== key) animRef.current = { key, t0: now };
@@ -206,6 +294,8 @@ export default function FarmerIdleCanvas() {
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('storage', onMapChange);
+      window.removeEventListener('focus', onMapChange);
     };
   }, []);
 

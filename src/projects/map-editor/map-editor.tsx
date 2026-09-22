@@ -86,7 +86,7 @@ function SheetSection({
 
   return (
     <details
-      className="rounded-md border border-border-default bg-surface-tertiary"
+      className="w-max max-w-none rounded-md border border-border-default bg-surface-tertiary"
       open={open}
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
@@ -156,6 +156,8 @@ export function MapEditor() {
   const gridRef = useRef<MapGrid>(grid);
   const selectedRef = useRef<SelectedTile | null>(selected);
   const scaleRef = useRef(1);
+  const sizeRef = useRef({ width: 1, height: 1 });
+  const offsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     gridRef.current = grid;
@@ -188,18 +190,21 @@ export function MapEditor() {
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(1, Math.floor(rect.width));
+      const cssHeight = Math.max(1, Math.floor(rect.height));
+      sizeRef.current = { width: cssWidth, height: cssHeight };
       const scale = Math.max(
-        1,
-        Math.floor(
-          Math.min(
-            rect.width / (MAP_COLS * CELL_PX),
-            rect.height / (MAP_ROWS * CELL_PX),
-          ),
+        0.25,
+        Math.min(
+          cssWidth / (MAP_COLS * CELL_PX),
+          cssHeight / (MAP_ROWS * CELL_PX),
         ),
       );
       scaleRef.current = scale;
-      const cssWidth = MAP_COLS * CELL_PX * scale;
-      const cssHeight = MAP_ROWS * CELL_PX * scale;
+      offsetRef.current = {
+        x: Math.max(0, Math.floor((cssWidth - MAP_COLS * CELL_PX * scale) / 2)),
+        y: Math.max(0, Math.floor((cssHeight - MAP_ROWS * CELL_PX * scale) / 2)),
+      };
       canvas.width = Math.floor(cssWidth * dpr);
       canvas.height = Math.floor(cssHeight * dpr);
       canvas.style.width = `${cssWidth}px`;
@@ -216,9 +221,11 @@ export function MapEditor() {
     let rafId = 0;
     const drawFrame = () => {
       rafId = requestAnimationFrame(drawFrame);
+      const { width, height } = sizeRef.current;
       const scale = scaleRef.current;
-      const width = MAP_COLS * CELL_PX * scale;
-      const height = MAP_ROWS * CELL_PX * scale;
+      const { x: offsetX, y: offsetY } = offsetRef.current;
+      const mapWidth = MAP_COLS * CELL_PX * scale;
+      const mapHeight = MAP_ROWS * CELL_PX * scale;
 
       ctx.fillStyle = "#0a0a0a";
       ctx.fillRect(0, 0, width, height);
@@ -241,8 +248,8 @@ export function MapEditor() {
             tile.sy * CELL_PX,
             CELL_PX,
             CELL_PX,
-            c * CELL_PX * scale,
-            r * CELL_PX * scale,
+            offsetX + c * CELL_PX * scale,
+            offsetY + r * CELL_PX * scale,
             CELL_PX * scale,
             CELL_PX * scale,
           );
@@ -253,14 +260,14 @@ export function MapEditor() {
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let c = 0; c <= MAP_COLS; c += 1) {
-        const x = c * CELL_PX * scale + 0.5;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        const x = offsetX + c * CELL_PX * scale + 0.5;
+        ctx.moveTo(x, offsetY);
+        ctx.lineTo(x, offsetY + mapHeight);
       }
       for (let r = 0; r <= MAP_ROWS; r += 1) {
-        const y = r * CELL_PX * scale + 0.5;
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        const y = offsetY + r * CELL_PX * scale + 0.5;
+        ctx.moveTo(offsetX, y);
+        ctx.lineTo(offsetX + mapWidth, y);
       }
       ctx.stroke();
     };
@@ -278,9 +285,15 @@ export function MapEditor() {
     const canvas = canvasRef.current;
     if (canvas === null) return null;
     const rect = canvas.getBoundingClientRect();
+    const size = sizeRef.current;
     const scale = scaleRef.current;
-    const c = Math.floor((e.clientX - rect.left) / (CELL_PX * scale));
-    const r = Math.floor((e.clientY - rect.top) / (CELL_PX * scale));
+    const { x: offsetX, y: offsetY } = offsetRef.current;
+    const scaleX = size.width <= 0 ? 1 : rect.width / size.width;
+    const scaleY = size.height <= 0 ? 1 : rect.height / size.height;
+    const x = (e.clientX - rect.left) / scaleX - offsetX;
+    const y = (e.clientY - rect.top) / scaleY - offsetY;
+    const c = Math.floor(x / (CELL_PX * scale));
+    const r = Math.floor(y / (CELL_PX * scale));
     if (c < 0 || c >= MAP_COLS || r < 0 || r >= MAP_ROWS) return null;
     return { c, r };
   }, []);
@@ -388,25 +401,25 @@ export function MapEditor() {
       <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row">
         <div
           ref={wrapperRef}
-          className="flex min-h-[50dvh] flex-1 items-center justify-center overflow-hidden rounded-lg border border-border-default bg-surface-secondary"
+          className="relative flex min-h-[50dvh] min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-border-default bg-surface-secondary"
         >
           <canvas
             ref={canvasRef}
             data-testid="map-canvas"
-            className="block cursor-crosshair"
+            className="absolute inset-0 block cursor-crosshair"
             style={{ imageRendering: "pixelated" }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onContextMenu={(e) => e.preventDefault()}
           />
         </div>
-        <aside className="flex w-full flex-col gap-3 overflow-y-auto lg:max-h-[calc(100dvh-120px)] lg:w-96">
+        <aside className="flex w-max max-w-none shrink-0 flex-col gap-3 overflow-y-auto lg:max-h-[calc(100dvh-120px)]">
           {categories.map(({ category, sheets }) => (
-            <section key={category}>
+            <section key={category} className="w-max max-w-none">
               <h2 className="mb-1 text-sm font-bold tracking-wide text-text-secondary uppercase">
                 {category}
               </h2>
-              <div className="flex flex-col gap-2">
+              <div className="flex w-max max-w-none flex-col gap-2">
                 {sheets.map((sheet, sheetIndex) => (
                   <SheetSection
                     key={sheet.src}
