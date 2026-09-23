@@ -29,14 +29,14 @@ cycles (A-B-C-C-B-A); rows 3/4/5 are 6 distinct phases.
 
 ## Unused rows (frame 0)
 
-- **6–15** — sword/tool swings with white slash arcs (front/side/back,
+- **6–15** — tool swings with white slash arcs (front/side/back,
   4-frame anims each, verified animated not static).
 - **16–19** — wider 8-col action sequences.
 - **20–22** — single-frame pickup/hold poses (1 col each).
 - **23–25** — carry cycles (5 cols).
 - **26–28** — second idle/walk set.
 - **29** — swim.
-- **30–31** — walk with bow-like tool: row 30 side (draws it in frames
+- **30–31** — walk with bow: row 30 side (draws it in frames
   0–2, carries at side in 3–5), row 31 back (held overhead); 6 distinct
   striding phases each.
 - **32–40** — hoe attacks side/front/back with arcs + overhead chop.
