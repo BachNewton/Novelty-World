@@ -86,6 +86,210 @@ export function canonicalSwatchCss(canonicalSrc: string): string {
   return CANONICAL_SWATCHES.get(canonicalSrc) ?? "#888888";
 }
 
+// ---------------------------------------------------------------------------
+// Matrix families: two-axis variant pickers (bank tint x rock style).
+// A matrix folds several canonical sheets into ONE palette section with one
+// swatch row per axis. Every cell is an explicitly allowlisted paint src
+// (row-major over the axes); no combination is inferred from filenames.
+// The rock recolor is position-dependent (only 356 shading pixels differ
+// between Waterfall_1 and Waterfall_5, the shared rock tones stay put), so
+// no global rock LUT exists — each cell reuses an already-registered src
+// whose synthesis path (plain sheet or variants.json LUT) is unchanged.
+// ---------------------------------------------------------------------------
+
+export interface TileMatrixAxis {
+  key: string;
+  label: string;
+  /** Option paint srcs; options[0] is the axis resting state. */
+  options: string[];
+  /** Pinned display colors per option; options without an entry fall back
+   * to the green-tone variant/canonical swatch helpers. */
+  swatches?: Record<string, string>;
+}
+
+export interface TileMatrix {
+  key: string;
+  /** Primary sheet: owns the palette section and its cell geometry. */
+  canonical: string;
+  /** Extra member sheets folded into the primary section (no section of
+   * their own). Same dims/anim as the primary. */
+  members: string[];
+  axes: TileMatrixAxis[];
+  /** Paint src per combination, row-major over axes. */
+  cells: string[];
+}
+
+const MATRICES: TileMatrix[] = [
+  {
+    key: "waterfall",
+    canonical: "/rpg/tiles/Waterfall/Waterfall_1.png",
+    members: ["/rpg/tiles/Waterfall/Waterfall_5.png"],
+    axes: [
+      {
+        key: "bank",
+        label: "Bank",
+        options: [
+          "/rpg/tiles/Waterfall/Waterfall_1.png",
+          "/rpg/tiles/Waterfall/Waterfall_2.png",
+          "/rpg/tiles/Waterfall/Waterfall_3.png",
+          "/rpg/tiles/Waterfall/Waterfall_4.png",
+        ],
+      },
+      {
+        key: "rock",
+        label: "Rock",
+        options: [
+          "/rpg/tiles/Waterfall/Waterfall_1.png",
+          "/rpg/tiles/Waterfall/Waterfall_5.png",
+        ],
+        // Rock-face tones from the artist's own WF1->WF5 recolor pair
+        // (#6c7c9d -> #9c6754, 48 px); the green-tone helpers would show
+        // bank grass here instead of rock.
+        swatches: {
+          "/rpg/tiles/Waterfall/Waterfall_1.png": "#6c7c9d",
+          "/rpg/tiles/Waterfall/Waterfall_5.png": "#9c6754",
+        },
+      },
+    ],
+    cells: [
+      "/rpg/tiles/Waterfall/Waterfall_1.png",
+      "/rpg/tiles/Waterfall/Waterfall_5.png",
+      "/rpg/tiles/Waterfall/Waterfall_2.png",
+      "/rpg/tiles/Waterfall/Waterfall_6.png",
+      "/rpg/tiles/Waterfall/Waterfall_3.png",
+      "/rpg/tiles/Waterfall/Waterfall_7.png",
+      "/rpg/tiles/Waterfall/Waterfall_4.png",
+      "/rpg/tiles/Waterfall/Waterfall_8.png",
+    ],
+  },
+];
+
+/** Swatch color for a matrix option: a pinned per-axis color when the
+ * axis defines one, else the green-tone variant/canonical helpers. */
+export function matrixSwatchCss(matrix: TileMatrix, axisKey: string, optionSrc: string): string {
+  const axis = matrix.axes.find((a) => a.key === axisKey);
+  if (axis === undefined) return "#888888";
+  const pinned = axis.swatches?.[optionSrc];
+  if (pinned !== undefined) return pinned;
+  const variant = variantSwatchCss(optionSrc);
+  if (variant !== "#888888") return variant;
+  return canonicalSwatchCss(optionSrc);
+}
+
+// ---------------------------------------------------------------------------
+// Nested singles: 1x1 sheets that paint from a small row inside their
+// parent family section instead of owning a standalone section. Explicit
+// allowlist of sheet srcs; the palette resolves them to manifest sheets.
+// ---------------------------------------------------------------------------
+
+export interface TileNest {
+  parent: string;
+  children: string[];
+}
+
+const NESTS: TileNest[] = [
+  {
+    parent: "/rpg/tiles/Grass/Grass_Tiles_1.png",
+    children: [
+      "/rpg/tiles/Grass/Grass_1_Middle.png",
+      "/rpg/tiles/Grass/Path_Middle.png",
+    ],
+  },
+  {
+    parent: "/rpg/tiles/Water/Water_Tile_1.png",
+    children: ["/rpg/tiles/Water/Water_Middle.png"],
+  },
+  {
+    parent: "/rpg/tiles/Cave/Cave_Floor_1.png",
+    children: [
+      "/rpg/tiles/Cave/Cave_Floor_Middle.png",
+      "/rpg/tiles/Cave/Cave_Floor_Ladder.png",
+    ],
+  },
+];
+
+const NEST_BY_PARENT = new Map<string, string[]>(
+  NESTS.map((nest) => [nest.parent, nest.children]),
+);
+const NESTED_SINGLES = new Set(NESTS.flatMap((nest) => nest.children));
+
+/** 1x1 child srcs nested in this parent sheet's section. */
+export function nestedSingleSrcsFor(parentSrc: string): string[] {
+  return NEST_BY_PARENT.get(parentSrc) ?? [];
+}
+
+/** Whether this sheet paints from a nested row, not its own section. */
+export function isNestedSingle(src: string): boolean {
+  return NESTED_SINGLES.has(src);
+}
+
+const MATRIX_BY_PRIMARY = new Map<string, TileMatrix>(
+  MATRICES.map((m) => [m.canonical, m]),
+);
+const MATRIX_MEMBER_TO_PRIMARY = new Map<string, string>();
+for (const m of MATRICES) {
+  for (const member of m.members) MATRIX_MEMBER_TO_PRIMARY.set(member, m.canonical);
+}
+
+function matrixCellCount(matrix: TileMatrix): number {
+  return matrix.axes.reduce((n, axis) => n * axis.options.length, 1);
+}
+
+for (const m of MATRICES) {
+  if (m.cells.length !== matrixCellCount(m)) {
+    throw new Error(`tile-variants: matrix ${m.key} cells mismatch axes`);
+  }
+  const paintable = new Set([
+    m.canonical,
+    ...m.members,
+    ...m.axes.flatMap((axis) => axis.options),
+  ]);
+  for (const cell of m.cells) {
+    if (!paintable.has(cell) && !isVariantSrc(cell)) {
+      throw new Error(`tile-variants: matrix ${m.key} cell ${cell} is not paintable`);
+    }
+  }
+}
+
+/** Matrix owned by this primary sheet src, or null. */
+export function matrixFor(canonicalSrc: string): TileMatrix | null {
+  return MATRIX_BY_PRIMARY.get(canonicalSrc) ?? null;
+}
+
+/** Whether this sheet is folded into another sheet's matrix section. */
+export function isMatrixMember(src: string): boolean {
+  return MATRIX_MEMBER_TO_PRIMARY.has(src);
+}
+
+/** Axis indices for a combination; row-major over axes. */
+export function matrixIndicesFor(
+  matrix: TileMatrix,
+  paintSrc: string,
+): number[] | null {
+  const flat = matrix.cells.indexOf(paintSrc);
+  if (flat < 0) return null;
+  const indices = new Array<number>(matrix.axes.length);
+  let rest = flat;
+  for (let a = matrix.axes.length - 1; a >= 0; a -= 1) {
+    const axis = matrix.axes[a] as TileMatrixAxis;
+    indices[a] = rest % axis.options.length;
+    rest = Math.floor(rest / axis.options.length);
+  }
+  return indices;
+}
+
+/** Paint src for axis indices (out-of-range axes rest at 0). */
+export function matrixPaintSrc(matrix: TileMatrix, indices: number[]): string {
+  let flat = 0;
+  for (let a = 0; a < matrix.axes.length; a += 1) {
+    const axis = matrix.axes[a] as TileMatrixAxis;
+    const raw = indices[a] ?? 0;
+    const pick = Math.min(Math.max(raw, 0), axis.options.length - 1);
+    flat = flat * axis.options.length + pick;
+  }
+  return matrix.cells[flat] ?? matrix.canonical;
+}
+
 /** Whether this URL is a synthesized variant (no PNG on disk). */
 export function isVariantSrc(src: string): boolean {
   return SPECS.has(src);

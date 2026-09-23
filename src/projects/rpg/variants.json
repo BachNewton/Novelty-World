@@ -173,5 +173,46 @@
         "#3e8948ff": "#3f886cff"
       }
     }
+  },
+  "water-tile-anim": {
+    "canonical": "/rpg/tiles/Water/Water_Tile_1_Anim.png",
+    "variants": {
+      "/rpg/tiles/Water/Water_Tile_2_Anim.png": {
+        "#0b99c3ff": "#1a89a7ff",
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Water/Water_Tile_3_Anim.png": {
+        "#0b99c3ff": "#1a89a7ff",
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Water/Water_Tile_4_Anim.png": {
+        "#0b99c3ff": "#1a89a7ff",
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
+  },
+  "water-stone-tile-anim": {
+    "canonical": "/rpg/tiles/Water/Water_Stone_Tile_1_Anim.png",
+    "variants": {
+      "/rpg/tiles/Water/Water_Stone_Tile_2_Anim.png": {
+        "#193c3eff": "#134c4cff",
+        "#265c42ff": "#1e6f50ff",
+        "#3e8948ff": "#33984bff"
+      },
+      "/rpg/tiles/Water/Water_Stone_Tile_3_Anim.png": {
+        "#193c3eff": "#353e1eff",
+        "#265c42ff": "#637731ff",
+        "#3e8948ff": "#7c963cff"
+      },
+      "/rpg/tiles/Water/Water_Stone_Tile_4_Anim.png": {
+        "#265c42ff": "#37625bff",
+        "#3e8948ff": "#3f886cff"
+      }
+    }
   }
 }

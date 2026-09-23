@@ -40,16 +40,14 @@ WATERFALL_FPS = 10
 # playback mode, fps). Frame dims cannot be inferred from sheet dims alone
 # (e.g. an 18-wide sheet may hold 6 frames of 3 cells, not 9 of 2), so every
 # animated sheet is pinned here and generate() asserts stem coverage.
+# Only sheets with a PNG on disk are listed: tint-duplicate strips
+# (Water_Tile_{2,3,4}_Anim, Water_Stone_Tile_{2,3,4}_Anim) are synthesized
+# at runtime from their canonical + the LUT in variants.json, so they own
+# no manifest entry and resolve to the canonical's spec (see below).
 ANIM_SPECS: dict[str, tuple[int, int, str, int]] = {}
 for _stem in [
     "Water_Tile_1_Anim",
-    "Water_Tile_2_Anim",
-    "Water_Tile_3_Anim",
-    "Water_Tile_4_Anim",
     "Water_Stone_Tile_1_Anim",
-    "Water_Stone_Tile_2_Anim",
-    "Water_Stone_Tile_3_Anim",
-    "Water_Stone_Tile_4_Anim",
 ]:
     ANIM_SPECS[_stem] = (8, 3, "pingpong", WATER_FPS)
 ANIM_SPECS["Cave_Water_Animation"] = (8, 7, "pingpong", CAVE_FPS)
@@ -60,6 +58,27 @@ ANIM_SPECS["Water_Foam_Animation"] = (4, 5, "loop", FOAM_FPS)
 ANIM_SPECS["Waterfall_1"] = (6, 3, "loop", WATERFALL_FPS)
 ANIM_SPECS["Waterfall_5"] = (6, 3, "loop", WATERFALL_FPS)
 del _stem
+
+# Tint-duplicate anim strips synthesized at runtime: variant stem ->
+# canonical stem whose ANIM_SPECS entry (and LUT family in variants.json)
+# covers it. These stems must NOT be on disk and MUST be registered as
+# variants of their canonical; generate() asserts both.
+VARIANT_ANIM_PARENTS: dict[str, str] = {}
+for _v, _c in [
+    ("Water_Tile_2_Anim", "Water_Tile_1_Anim"),
+    ("Water_Tile_3_Anim", "Water_Tile_1_Anim"),
+    ("Water_Tile_4_Anim", "Water_Tile_1_Anim"),
+    ("Water_Stone_Tile_2_Anim", "Water_Stone_Tile_1_Anim"),
+    ("Water_Stone_Tile_3_Anim", "Water_Stone_Tile_1_Anim"),
+    ("Water_Stone_Tile_4_Anim", "Water_Stone_Tile_1_Anim"),
+]:
+    VARIANT_ANIM_PARENTS[_v] = _c
+del _v, _c
+
+# Variant families whose sheets animate (canonical is an on-disk anim
+# strip; its variants are synthesized, never on disk). verify() allows
+# "Anim" names exactly for these families.
+ANIM_FAMILIES = {"water-tile-anim", "water-stone-tile-anim"}
 
 
 def rgba_hex(px: tuple[int, int, int, int]) -> str:
@@ -75,14 +94,24 @@ def verify() -> None:
         canonical = entry["canonical"]
         canon_path = ROOT / "public" / canonical.lstrip("/")
         assert canon_path.is_file(), f"{family}: canonical missing: {canonical}"
-        assert "Anim" not in canonical, f"{family}: animated sheet in table"
+        allow_anim = family in ANIM_FAMILIES
+        assert ("Anim" not in canonical) or allow_anim, (
+            f"{family}: animated sheet in table"
+        )
         with Image.open(canon_path) as im:
             canon_px = [rgba_hex(px) for px in im.convert("RGBA").getdata()]
         canon_set = set(canon_px)
         width, height = Image.open(canon_path).size
+        if allow_anim:
+            canon_stem = Path(canonical).stem
+            assert canon_stem in ANIM_SPECS, (
+                f"{family}: canonical {canon_stem} needs an ANIM_SPECS entry"
+            )
         for variant_src, lut in sorted(entry["variants"].items()):
             assert isinstance(lut, dict) and lut, f"{variant_src}: empty LUT"
-            assert "Anim" not in variant_src, f"animated sheet in table: {variant_src}"
+            assert ("Anim" not in variant_src) or allow_anim, (
+                f"animated sheet in table: {variant_src}"
+            )
             for old, new in lut.items():
                 assert (
                     len(old) == 9 and old.startswith("#") and len(new) == 9 and new.startswith("#")
@@ -118,6 +147,8 @@ def generate() -> None:
     lines = []
     seen_anim_stems = set()
     for p in sorted(TILE_DIR.rglob("*.png")):
+        if "TEST" in p.stem:
+            continue
         rel = p.relative_to(ROOT / "public")
         url = "/" + rel.as_posix()
         parts = rel.parts
@@ -149,6 +180,22 @@ def generate() -> None:
     assert seen_anim_stems == set(ANIM_SPECS), (
         f"ANIM_SPECS stems missing from disk: {sorted(set(ANIM_SPECS) - seen_anim_stems)}"
     )
+    table = json.loads(VARIANTS_JSON.read_text())
+    registered = {
+        variant_src
+        for entry in table.values()
+        for variant_src in entry["variants"]
+    }
+    for variant_stem, parent_stem in sorted(VARIANT_ANIM_PARENTS.items()):
+        assert parent_stem in ANIM_SPECS, (variant_stem, parent_stem)
+        variant_src = f"/rpg/tiles/Water/{variant_stem}.png"
+        assert variant_src in registered, (
+            f"{variant_stem}: not registered in variants.json"
+        )
+        assert not (TILE_DIR / "Water" / f"{variant_stem}.png").is_file(), (
+            f"{variant_stem}: PNG on disk; delete it so runtime synthesis "
+            f"from {parent_stem} is the single source of truth"
+        )
     out = (
         "export interface TileAnim {\n"
         "  frames: number;\n"

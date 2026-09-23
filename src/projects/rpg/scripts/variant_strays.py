@@ -11,6 +11,11 @@ canonical CANNOT reproduce the variant:
 - Stone_Cliff_2_Cave_Entrance: a single grass pixel at (42, 31) remapped
   while its 11 siblings stayed put, so the LUT leaves that green alone
   (variants 3 and 4 remap it fully and are pure).
+- Water_Tile_{2,3,4}_Anim: ten foam-shadow pixels in frames 2-6 (cell-local
+  (5,69) and (26,69) per frame) where three slate blues became #3f2832
+  while hundreds of siblings stayed put (2156/84/120 vs 2/4/4). Identical
+  positions and colors in all three tints; the shared foam sparkle
+  #0b99c3 -> #1a89a7 (36 px, no stayers) is a regular LUT entry.
 
 `derive-variants.py` rediscovers these on every run and fails if they move;
 `gen-tile-manifest.py --verify` asserts regeneration mismatches equal
@@ -45,3 +50,11 @@ KNOWN_STRAYS: dict[str, list[list[int]]] = {
     ],
     "/rpg/tiles/Cliff/Stone_Cliff_2_Cave_Entrance.png": [[42, 31]],
 }
+
+_ANIM_WATER_STRAYS = [
+    [101, 69], [122, 69], [149, 69], [170, 69], [197, 69],
+    [218, 69], [245, 69], [266, 69], [293, 69], [314, 69],
+]
+KNOWN_STRAYS["/rpg/tiles/Water/Water_Tile_2_Anim.png"] = _ANIM_WATER_STRAYS
+KNOWN_STRAYS["/rpg/tiles/Water/Water_Tile_3_Anim.png"] = _ANIM_WATER_STRAYS
+KNOWN_STRAYS["/rpg/tiles/Water/Water_Tile_4_Anim.png"] = _ANIM_WATER_STRAYS

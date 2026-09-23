@@ -19,15 +19,19 @@ Note: derivation reads every variant PNG, so it only runs while those
 files exist on disk (before deletion). Afterwards variants.json is the
 record and gen-tile-manifest.py --verify guards it.
 
-Out of scope (never merged): anything with Anim/Animation in the name,
-Cave_Floor_1-2, FarmLand_Tile vs _Wet_Tile, Bridge_Wood vs _1,
-Cave_Support_1-2, Grass_Tiles_1_Blob_TEST*.
+Animated duplicate strips (Water_Tile_{2,3,4}_Anim,
+Water_Stone_Tile_{2,3,4}_Anim) are derived exactly like statics, against
+their _1_Anim canonical: the LUT remaps the whole strip and the runtime
+animates through the synthesis. "Animation" (Cave_Water_Animation, foam)
+and TEST sheets stay out of scope, as do Cave_Floor_1-2,
+FarmLand_Tile vs _Wet_Tile, Bridge_Wood vs _1, Cave_Support_1-2.
 
 Waterfall ships TWO on-disk canonicals: Waterfall_1 (gray rock) covers
 variants 2-4 (pure grass-bank remaps), Waterfall_5 (brown rock) covers
 variants 6-8. A single global rock LUT would miscolor ~4k shared rock
 pixels per sheet, so the rock split stays as real files.
 """
+import argparse
 import json
 import sys
 from collections import Counter
@@ -83,6 +87,22 @@ FAMILIES: dict[str, tuple[str, list[str]]] = {
             "Water/Water_Tile_4.png",
         ],
     ),
+    "water-tile-anim": (
+        "Water/Water_Tile_1_Anim.png",
+        [
+            "Water/Water_Tile_2_Anim.png",
+            "Water/Water_Tile_3_Anim.png",
+            "Water/Water_Tile_4_Anim.png",
+        ],
+    ),
+    "water-stone-tile-anim": (
+        "Water/Water_Stone_Tile_1_Anim.png",
+        [
+            "Water/Water_Stone_Tile_2_Anim.png",
+            "Water/Water_Stone_Tile_3_Anim.png",
+            "Water/Water_Stone_Tile_4_Anim.png",
+        ],
+    ),
     "water-stone-tile": (
         "Water/Water_Stone_Tile_1.png",
         [
@@ -121,7 +141,7 @@ FAMILIES: dict[str, tuple[str, list[str]]] = {
     ),
 }
 
-FORBIDDEN_SUBSTRINGS = ("Anim", "TEST")
+FORBIDDEN_SUBSTRINGS = ("Animation", "TEST")
 
 
 def derive(canonical: str, variant: str) -> dict[str, str]:
@@ -192,9 +212,26 @@ def derive(canonical: str, variant: str) -> dict[str, str]:
 
 
 def main() -> None:
-    out: dict[str, dict] = {}
+    parser_ap = argparse.ArgumentParser()
+    parser_ap.add_argument(
+        "--families",
+        default="",
+        help="comma-separated subset of FAMILIES to (re)derive and merge "
+        "into variants.json; default derives every family (needs all "
+        "variant PNGs on disk, i.e. pre-deletion only)",
+    )
+    args = parser_ap.parse_args()
+    wanted = (
+        [f.strip() for f in args.families.split(",") if f.strip()]
+        or list(FAMILIES)
+    )
+    unknown = sorted(set(wanted) - set(FAMILIES))
+    assert not unknown, f"unknown families: {unknown}"
+    dest = ROOT / "src" / "projects" / "rpg" / "variants.json"
+    out: dict[str, dict] = json.loads(dest.read_text())
     total = 0
-    for family, (canonical, variants) in FAMILIES.items():
+    for family in wanted:
+        canonical, variants = FAMILIES[family]
         entry: dict[str, dict[str, dict[str, str]]] = {
             "canonical": url(canonical),
             "variants": {},
@@ -206,9 +243,8 @@ def main() -> None:
             total += 1
             print(f"{family}: {variant} ({len(lut)} colors)")
         out[family] = entry
-    dest = ROOT / "src" / "projects" / "rpg" / "variants.json"
     dest.write_text(json.dumps(out, indent=2) + "\n")
-    print(f"wrote {len(out)} families, {total} variants -> {dest}")
+    print(f"wrote {len(out)} families, rederived {total} variants -> {dest}")
 
 
 if __name__ == "__main__":

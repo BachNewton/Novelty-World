@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CELL_PX, TILE_SHEETS, migrateTileSrc, type TileSheet } from "./tiles";
 import {
-  animFrameIndex,
   animSrcCol,
   foldAnimSx,
   sheetForTileSrc,
@@ -12,9 +11,16 @@ import {
   canonicalSwatchCss,
   familyDisplayName,
   getTileImage,
+  isMatrixMember,
+  isNestedSingle,
   isVariantSrc,
+  matrixFor,
+  matrixPaintSrc,
+  matrixSwatchCss,
+  nestedSingleSrcsFor,
   variantSrcsFor,
   variantSwatchCss,
+  type TileMatrix,
 } from "./tile-variants";
 
 export const MAP_COLS = 40;
@@ -27,6 +33,20 @@ export interface PlacedTile {
   src: string;
   sx: number;
   sy: number;
+}
+
+const SHEET_BY_SRC = new Map<string, TileSheet>(
+  TILE_SHEETS.map((sheet) => [sheet.src, sheet]),
+);
+
+/** Manifest sheets nested as singles rows in this parent's section. */
+function nestedSheetsFor(parentSrc: string): TileSheet[] {
+  const out: TileSheet[] = [];
+  for (const src of nestedSingleSrcsFor(parentSrc)) {
+    const sheet = SHEET_BY_SRC.get(src);
+    if (sheet !== undefined) out.push(sheet);
+  }
+  return out;
 }
 
 export type MapGrid = (PlacedTile | null)[][];
@@ -67,8 +87,15 @@ function loadGrid(): MapGrid {
       if (!Array.isArray(row) || row.length !== MAP_COLS) return empty;
       for (let c = 0; c < MAP_COLS; c += 1) {
         const cell: unknown = row[c];
-        empty[r][c] = cell === null || cell === undefined ? null : isPlacedTile(cell) ? { ...cell, src: migrateTileSrc(cell.src) } : null;
-        if (cell !== null && cell !== undefined && !isPlacedTile(cell)) return createEmptyGrid();
+        if (cell === null || cell === undefined) {
+          empty[r][c] = null;
+        } else if (!isPlacedTile(cell)) {
+          return createEmptyGrid();
+        } else {
+          const src = migrateTileSrc(cell.src);
+          // Back-compat: cells picked from later animation frames fold into frame 0.
+          empty[r][c] = { ...cell, src, sx: foldAnimSx(sheetForTileSrc(src), cell.sx) };
+        }
       }
     }
     return empty;
@@ -108,37 +135,69 @@ function SwatchDot({
   );
 }
 
+/** Ticker driving animated palette cells; idle when the section is closed. */
+function useAnimTick(active: boolean, fps: number): number {
+  const [now, setNow] = useState(() => performance.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = window.setInterval(() => setNow(performance.now()), 1000 / fps);
+    return () => window.clearInterval(id);
+  }, [active, fps]);
+  return now;
+}
+
 function SheetSection({
   sheet,
   defaultOpen,
   selected,
   activeVariant,
+  matrix,
+  matrixIndices,
+  nested,
+  nestedVariants,
   onSelect,
   onVariantSelect,
+  onMatrixSelect,
 }: {
   sheet: TileSheet;
   defaultOpen: boolean;
   selected: SelectedTile | null;
   /** Chosen variant src for this family, or null for the canonical sheet. */
   activeVariant: string | null;
+  /** Two-axis picker folding several sheets into this section, if any. */
+  matrix: TileMatrix | null;
+  /** Chosen option index per matrix axis. */
+  matrixIndices: number[];
+  /** 1x1 sheets painting from a nested row in this section. */
+  nested: TileSheet[];
+  /** Chosen variant src per canonical sheet src (covers nested singles). */
+  nestedVariants: Map<string, string>;
   onSelect: (tile: SelectedTile) => void;
-  onVariantSelect: (src: string | null) => void;
+  onVariantSelect: (canonicalSrc: string, src: string | null) => void;
+  onMatrixSelect: (axisIdx: number, optIdx: number) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const variantSrcs = useMemo(() => variantSrcsFor(sheet.src), [sheet.src]);
   const familyName = useMemo(() => familyDisplayName(sheet.src), [sheet.src]);
   const displayName = familyName ?? sheet.name;
-  const previewSrc = activeVariant ?? sheet.src;
+  const previewSrc =
+    matrix === null ? (activeVariant ?? sheet.src) : matrixPaintSrc(matrix, matrixIndices);
+  const anim = sheet.anim;
+  /** Animated sheets offer only frame-0 cells; stored sx stays frame-0-relative. */
+  const paletteCols = anim?.frameW ?? sheet.cols;
+  /** Cells cycle their own frames on the global clock (per-cell phase, the
+   * same math the game canvas uses); the strip sprite shifts per tick. */
+  const now = useAnimTick(open && anim !== undefined, anim?.fps ?? 1);
   const cells = useMemo(() => {
     if (!open) return [];
     const list: { sx: number; sy: number }[] = [];
     for (let sy = 0; sy < sheet.rows; sy += 1) {
-      for (let sx = 0; sx < sheet.cols; sx += 1) {
+      for (let sx = 0; sx < paletteCols; sx += 1) {
         list.push({ sx, sy });
       }
     }
     return list;
-  }, [open, sheet]);
+  }, [open, sheet, paletteCols]);
 
   return (
     <details
@@ -153,31 +212,59 @@ function SheetSection({
         <span className="text-text-muted">
           ({sheet.cols}×{sheet.rows})
         </span>
+        {anim !== undefined && (
+          <span
+            data-testid="anim-badge"
+            className="ml-1.5 rounded-sm border border-border-default px-1 py-px text-xs text-text-muted"
+          >
+            {anim.frames}f {anim.mode === "pingpong" ? "ping-pong" : anim.mode} · {anim.fps}fps
+          </span>
+        )}
       </summary>
-      {variantSrcs.length > 0 && (
-        <div className="flex items-center gap-1.5 px-2 pt-1">
-          <SwatchDot
-            label={`${sheet.name} canonical`}
-            color={canonicalSwatchCss(sheet.src)}
-            active={activeVariant === null}
-            src={sheet.src}
-            onSelect={() => onVariantSelect(null)}
-          />
-          {variantSrcs.map((variantSrc) => (
-            <SwatchDot
-              key={variantSrc}
-              label={variantSrc.split("/").pop() ?? variantSrc}
-              color={variantSwatchCss(variantSrc)}
-              active={activeVariant === variantSrc}
-              src={variantSrc}
-              onSelect={() => onVariantSelect(variantSrc)}
-            />
+      {matrix !== null ? (
+        <div className="flex flex-col gap-1 px-2 pt-1">
+          {matrix.axes.map((axis, axisIdx) => (
+            <div key={axis.key} className="flex items-center gap-1.5">
+              <span className="w-9 text-xs text-text-muted">{axis.label}</span>
+              {axis.options.map((optionSrc, optIdx) => (
+                <SwatchDot
+                  key={optionSrc}
+                  label={optionSrc.split("/").pop() ?? optionSrc}
+                  color={matrixSwatchCss(matrix, axis.key, optionSrc)}
+                  active={(matrixIndices[axisIdx] ?? 0) === optIdx}
+                  src={optionSrc}
+                  onSelect={() => onMatrixSelect(axisIdx, optIdx)}
+                />
+              ))}
+            </div>
           ))}
         </div>
+      ) : (
+        variantSrcs.length > 0 && (
+          <div className="flex items-center gap-1.5 px-2 pt-1">
+            <SwatchDot
+              label={`${sheet.name} canonical`}
+              color={canonicalSwatchCss(sheet.src)}
+              active={activeVariant === null}
+              src={sheet.src}
+              onSelect={() => onVariantSelect(sheet.src, null)}
+            />
+            {variantSrcs.map((variantSrc) => (
+              <SwatchDot
+                key={variantSrc}
+                label={variantSrc.split("/").pop() ?? variantSrc}
+                color={variantSwatchCss(variantSrc)}
+                active={activeVariant === variantSrc}
+                src={variantSrc}
+                onSelect={() => onVariantSelect(sheet.src, variantSrc)}
+              />
+            ))}
+          </div>
+        )
       )}
       <div
-        className="grid w-fit gap-1 p-2"
-        style={{ gridTemplateColumns: `repeat(${sheet.cols}, ${PALETTE_PX}px)` }}
+        className="grid w-fit gap-px p-2"
+        style={{ gridTemplateColumns: `repeat(${paletteCols}, ${PALETTE_PX}px)` }}
       >
         {cells.map(({ sx, sy }) => {
           const isActive =
@@ -185,6 +272,11 @@ function SheetSection({
             selected.sheet.src === sheet.src &&
             selected.sx === sx &&
             selected.sy === sy;
+          // Animated cells show their current frame by shifting the
+          // full-strip sprite; static cells sit at frame 0. The stored sx
+          // stays frame-0-relative either way.
+          const srcCol =
+            anim === undefined ? sx : animSrcCol(sheet, sx, now, sx, sy);
           return (
             <button
               key={`${sx}-${sy}`}
@@ -195,9 +287,7 @@ function SheetSection({
               data-src={sheet.src}
               data-sx={sx}
               data-sy={sy}
-              onClick={() =>
-                onSelect({ sheet, sx, sy, src: activeVariant ?? sheet.src })
-              }
+              onClick={() => onSelect({ sheet, sx, sy, src: previewSrc })}
               className={`overflow-hidden rounded-sm border p-0 ${
                 isActive
                   ? "border-brand-orange"
@@ -209,25 +299,115 @@ function SheetSection({
                 src={previewSrc}
                 width={sheet.cols * PALETTE_PX}
                 height={sheet.rows * PALETTE_PX}
-                offsetX={-sx * PALETTE_PX}
+                offsetX={-srcCol * PALETTE_PX}
                 offsetY={-sy * PALETTE_PX}
               />
             </button>
           );
         })}
       </div>
+      {open &&
+        nested.map((child) => (
+          <SinglesRow
+            key={child.src}
+            sheet={child}
+            selected={selected}
+            activeVariant={nestedVariants.get(child.src) ?? null}
+            onSelect={onSelect}
+            onVariantSelect={onVariantSelect}
+          />
+        ))}
     </details>
+  );
+}
+
+/** One paintable 1x1 sheet nested inside its parent family section. */
+function SinglesRow({
+  sheet,
+  selected,
+  activeVariant,
+  onSelect,
+  onVariantSelect,
+}: {
+  sheet: TileSheet;
+  selected: SelectedTile | null;
+  activeVariant: string | null;
+  onSelect: (tile: SelectedTile) => void;
+  onVariantSelect: (canonicalSrc: string, src: string | null) => void;
+}) {
+  const variantSrcs = variantSrcsFor(sheet.src);
+  const displayName = familyDisplayName(sheet.src) ?? sheet.name;
+  const previewSrc = activeVariant ?? sheet.src;
+  const isActive =
+    selected !== null &&
+    selected.sheet.src === sheet.src &&
+    selected.sx === 0 &&
+    selected.sy === 0;
+  return (
+    <div className="flex items-center gap-1.5 px-2 pb-2">
+      <span className="text-xs text-text-muted">{displayName}</span>
+      {variantSrcs.length > 0 && (
+        <>
+          <SwatchDot
+            label={`${sheet.name} canonical`}
+            color={canonicalSwatchCss(sheet.src)}
+            active={activeVariant === null}
+            src={sheet.src}
+            onSelect={() => onVariantSelect(sheet.src, null)}
+          />
+          {variantSrcs.map((variantSrc) => (
+            <SwatchDot
+              key={variantSrc}
+              label={variantSrc.split("/").pop() ?? variantSrc}
+              color={variantSwatchCss(variantSrc)}
+              active={activeVariant === variantSrc}
+              src={variantSrc}
+              onSelect={() => onVariantSelect(sheet.src, variantSrc)}
+            />
+          ))}
+        </>
+      )}
+      <button
+        type="button"
+        title={`${displayName} (0, 0)`}
+        aria-label={`${displayName} cell 0,0`}
+        data-testid="palette-cell"
+        data-src={sheet.src}
+        data-sx={0}
+        data-sy={0}
+        onClick={() => onSelect({ sheet, sx: 0, sy: 0, src: previewSrc })}
+        className={`overflow-hidden rounded-sm border p-0 ${
+          isActive
+            ? "border-brand-orange"
+            : "border-border-default hover:border-border-hover"
+        }`}
+        style={{ width: PALETTE_PX, height: PALETTE_PX }}
+      >
+        <CellPreview
+          src={previewSrc}
+          width={sheet.cols * PALETTE_PX}
+          height={sheet.rows * PALETTE_PX}
+          offsetX={0}
+          offsetY={0}
+        />
+      </button>
+    </div>
   );
 }
 
 /** Image URL for a palette cell, following synthesized variants (async). */
 function useTileImageUrl(src: string): string {
+  const [prevSrc, setPrevSrc] = useState(src);
   const [url, setUrl] = useState(() => (isVariantSrc(src) ? "" : src));
+  // Plain sheets resolve synchronously during render (the documented
+  // render-time state adjustment, not an effect cascade); variant sheets
+  // resolve async via the effect below.
+  if (prevSrc !== src) {
+    setPrevSrc(src);
+    setUrl(isVariantSrc(src) ? "" : src);
+  }
   useEffect(() => {
-    if (!isVariantSrc(src)) {
-      setUrl(src);
-      return;
-    }
+    if (!isVariantSrc(src)) return;
     let live = true;
     const img = getTileImage(src);
     const update = () => {
@@ -279,6 +459,13 @@ export function MapEditor() {
   const [variantChoice, setVariantChoice] = useState<Map<string, string>>(
     () => new Map(),
   );
+  /** Per-matrix paint variant: primary sheet src -> chosen option per axis. */
+  const [matrixChoice, setMatrixChoice] = useState<Map<string, number[]>>(
+    () => new Map(),
+  );
+  /** Ref mirror of matrixChoice so rapid per-axis clicks compose instead of
+   * clobbering (each click reads the latest indices, not a stale closure). */
+  const matrixChoiceRef = useRef<Map<string, number[]>>(matrixChoice);
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -477,6 +664,27 @@ export function MapEditor() {
     setGrid(createEmptyGrid());
   }, []);
 
+  const handleMatrixSelect = useCallback(
+    (primarySrc: string, matrix: TileMatrix, axisIdx: number, optIdx: number) => {
+      const stored = matrixChoiceRef.current.get(primarySrc);
+      const indices = matrix.axes.map((_, a) =>
+        a === axisIdx ? optIdx : (stored?.[a] ?? 0),
+      );
+      matrixChoiceRef.current = new Map(matrixChoiceRef.current).set(
+        primarySrc,
+        indices,
+      );
+      setMatrixChoice(matrixChoiceRef.current);
+      const next = matrixPaintSrc(matrix, indices);
+      setSelected((prev) =>
+        prev !== null && prev.sheet.src === primarySrc
+          ? { ...prev, src: next }
+          : prev,
+      );
+    },
+    [],
+  );
+
   const handleVariantSelect = useCallback(
     (canonicalSrc: string, src: string | null) => {
       setVariantChoice((prev) => {
@@ -505,6 +713,19 @@ export function MapEditor() {
         : (selected.src.split("/").pop()?.replace(/\.png$/, "") ??
           selected.sheet.name);
   const categories = useMemo(() => {
+    /** Most-reached-for ground tiles first; props and special cases last. */
+    const CATEGORY_ORDER = [
+      "Grass",
+      "Water",
+      "Beach",
+      "Cobble_Road",
+      "FarmLand",
+      "Bridge",
+      "Cliff",
+      "Cave",
+      "Waterfall",
+      "Misc",
+    ];
     const order: string[] = [];
     const groups = new Map<string, TileSheet[]>();
     for (const sheet of TILE_SHEETS) {
@@ -516,6 +737,15 @@ export function MapEditor() {
         list.push(sheet);
       }
     }
+    order.sort(
+      (a, b) =>
+        (CATEGORY_ORDER.indexOf(a) === -1
+          ? CATEGORY_ORDER.length
+          : CATEGORY_ORDER.indexOf(a)) -
+        (CATEGORY_ORDER.indexOf(b) === -1
+          ? CATEGORY_ORDER.length
+          : CATEGORY_ORDER.indexOf(b)),
+    );
     return order.map((category) => ({
       category,
       sheets: groups.get(category) ?? [],
@@ -569,19 +799,41 @@ export function MapEditor() {
                 {category}
               </h2>
               <div className="flex w-max max-w-none flex-col gap-2">
-                {sheets.map((sheet, sheetIndex) => (
-                  <SheetSection
-                    key={sheet.src}
-                    sheet={sheet}
-                    defaultOpen={category === categories[0]?.category && sheetIndex === 0}
-                    selected={selected}
-                    activeVariant={variantChoice.get(sheet.src) ?? null}
-                    onSelect={setSelected}
-                    onVariantSelect={(src) =>
-                      handleVariantSelect(sheet.src, src)
-                    }
-                  />
-                ))}
+                {sheets.map((sheet, sheetIndex) => {
+                  // Matrix members paint from the primary's section, nested
+                  // singles from a row in their parent's section.
+                  if (isMatrixMember(sheet.src) || isNestedSingle(sheet.src)) {
+                    return null;
+                  }
+                  const matrix = matrixFor(sheet.src);
+                  return (
+                    <SheetSection
+                      key={sheet.src}
+                      sheet={sheet}
+                      defaultOpen={category === categories[0]?.category && sheetIndex === 0}
+                      selected={selected}
+                      activeVariant={variantChoice.get(sheet.src) ?? null}
+                      matrix={matrix}
+                      matrixIndices={
+                        matrix === null
+                          ? []
+                          : (matrixChoice.get(sheet.src) ??
+                            matrix.axes.map(() => 0))
+                      }
+                      nested={nestedSheetsFor(sheet.src)}
+                      nestedVariants={variantChoice}
+                      onSelect={setSelected}
+                      onVariantSelect={(canonicalSrc, src) =>
+                        handleVariantSelect(canonicalSrc, src)
+                      }
+                      onMatrixSelect={(axisIdx, optIdx) => {
+                        if (matrix !== null) {
+                          handleMatrixSelect(sheet.src, matrix, axisIdx, optIdx);
+                        }
+                      }}
+                    />
+                  );
+                })}
               </div>
             </section>
           ))}
