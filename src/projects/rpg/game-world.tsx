@@ -170,31 +170,6 @@ export default function GameWorld() {
 
     let rafId = 0;
 
-    const drawGrid = (camX: number, camY: number, scale: number) => {
-      const { width, height } = sizeRef.current;
-      const toX = (wx: number) => width / 2 + (wx - camX) * scale;
-      const toY = (wy: number) => height / 2 + (wy - camY) * scale;
-      const kMinX = Math.floor((camX - width / 2 / scale) / CELL_PX);
-      const kMaxX = Math.ceil((camX + width / 2 / scale) / CELL_PX);
-      const kMinY = Math.floor((camY - height / 2 / scale) / CELL_PX);
-      const kMaxY = Math.ceil((camY + height / 2 / scale) / CELL_PX);
-      ctx.lineWidth = 1;
-      for (let k = kMinX; k <= kMaxX; k += 1) {
-        ctx.strokeStyle = k === 0 ? '#475569' : '#1e293b';
-        ctx.beginPath();
-        ctx.moveTo(toX(k * CELL_PX), 0);
-        ctx.lineTo(toX(k * CELL_PX), height);
-        ctx.stroke();
-      }
-      for (let k = kMinY; k <= kMaxY; k += 1) {
-        ctx.strokeStyle = k === 0 ? '#475569' : '#1e293b';
-        ctx.beginPath();
-        ctx.moveTo(0, toY(k * CELL_PX));
-        ctx.lineTo(width, toY(k * CELL_PX));
-        ctx.stroke();
-      }
-    };
-
     const drawTiles = (camX: number, camY: number, scale: number, now: number) => {
       const { width, height } = sizeRef.current;
       const c0 = Math.max(0, Math.floor((camX - width / 2 / scale) / CELL_PX));
@@ -262,7 +237,6 @@ export default function GameWorld() {
 
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
-      drawGrid(posRef.current.x, posRef.current.y, scale);
       drawTiles(posRef.current.x, posRef.current.y, scale, now);
 
       const key = `${dir}:${moving ? 'walk' : 'idle'}`;
