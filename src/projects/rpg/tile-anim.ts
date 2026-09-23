@@ -47,8 +47,8 @@ export function animFrameIndex(
   r: number,
 ): number {
   if (anim.frames <= 0) return 0;
-  const step =
-    Math.floor(nowMs / (1000 / anim.fps)) + animPhase(c, r, anim.frames);
+  const phase = anim.sync === true ? 0 : animPhase(c, r, anim.frames);
+  const step = Math.floor(nowMs / (1000 / anim.fps)) + phase;
   if (anim.mode === "loop" || anim.frames <= 1) {
     return ((step % anim.frames) + anim.frames) % anim.frames;
   }

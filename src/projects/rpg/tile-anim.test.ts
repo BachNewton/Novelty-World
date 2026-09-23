@@ -43,6 +43,16 @@ describe("tile animation math", () => {
     expect(animPhase(3, 5, 8)).toBe(animPhase(3, 5, 8));
   });
 
+  it("sync sheets advance all cells in lockstep", () => {
+    const anim = { frames: 6, frameW: 5, mode: "loop", fps: 6, sync: true } as const;
+    for (const now of [0, 100, 500, 1234, 9999]) {
+      const a = animFrameIndex(anim, now, 0, 0);
+      expect(animFrameIndex(anim, now, 1, 0)).toBe(a);
+      expect(animFrameIndex(anim, now, 0, 1)).toBe(a);
+      expect(animFrameIndex(anim, now, 37, 12)).toBe(a);
+    }
+  });
+
   it("maps frame + frame-0 sx to a source column, leaving sy alone", () => {
     const sheet = sheetWithAnim({ ...PINGPONG_8 });
     expect(animSrcCol(sheet, 1, 0, 0, 0)).toBe(1);

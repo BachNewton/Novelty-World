@@ -34,6 +34,7 @@ CAVE_FPS = 8
 MIDDLE_FPS = 6
 FISH_FPS = 8
 FOAM_FPS = 6
+BEACH_FPS = 6
 WATERFALL_FPS = 10
 
 # Explicit animation table: file stem -> (frames, frameW cells per frame,
@@ -55,9 +56,15 @@ ANIM_SPECS["Water_Middle_Anim_1"] = (8, 1, "loop", MIDDLE_FPS)
 ANIM_SPECS["Water_Middle_Anim_2"] = (14, 1, "loop", MIDDLE_FPS)
 ANIM_SPECS["Fish_Animated_Tile"] = (16, 1, "loop", FISH_FPS)
 ANIM_SPECS["Water_Foam_Animation"] = (4, 5, "loop", FOAM_FPS)
+ANIM_SPECS["Beach_Tiles"] = (6, 5, "loop", BEACH_FPS)
 ANIM_SPECS["Waterfall_1"] = (6, 3, "loop", WATERFALL_FPS)
 ANIM_SPECS["Waterfall_5"] = (6, 3, "loop", WATERFALL_FPS)
 del _stem
+
+# Anim sheets whose cells must advance in lockstep (no per-cell phase
+# offset): multi-cell scenes whose frames only line up when every cell
+# shows the same frame. Explicit stems, like ANIM_SPECS.
+SYNC_ANIM_STEMS = {"Beach_Tiles"}
 
 # Tint-duplicate anim strips synthesized at runtime: variant stem ->
 # canonical stem whose ANIM_SPECS entry (and LUT family in variants.json)
@@ -170,7 +177,9 @@ def generate() -> None:
             )
             anim_field = (
                 f', anim: {{ frames: {frames}, frameW: {frame_w}, '
-                f'mode: "{mode}", fps: {fps} }}'
+                f'mode: "{mode}", fps: {fps}'
+                + (", sync: true" if name in SYNC_ANIM_STEMS else "")
+                + f" }}"
             )
             seen_anim_stems.add(name)
         lines.append(
@@ -179,6 +188,9 @@ def generate() -> None:
         )
     assert seen_anim_stems == set(ANIM_SPECS), (
         f"ANIM_SPECS stems missing from disk: {sorted(set(ANIM_SPECS) - seen_anim_stems)}"
+    )
+    assert SYNC_ANIM_STEMS <= set(ANIM_SPECS), (
+        f"SYNC stems without ANIM_SPECS: {sorted(SYNC_ANIM_STEMS - set(ANIM_SPECS))}"
     )
     table = json.loads(VARIANTS_JSON.read_text())
     registered = {
@@ -202,6 +214,7 @@ def generate() -> None:
         "  frameW: number;\n"
         '  mode: "loop" | "pingpong";\n'
         "  fps: number;\n"
+        "  sync?: boolean;\n"
         "}\n"
         "\nexport interface TileSheet {\n"
         "  src: string;\n"

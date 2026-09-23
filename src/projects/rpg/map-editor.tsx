@@ -8,9 +8,11 @@ import {
   sheetForTileSrc,
 } from "./tile-anim";
 import {
+  animFor,
   canonicalSwatchCss,
   familyDisplayName,
   getTileImage,
+  isAnimSheet,
   isMatrixMember,
   isNestedSingle,
   isVariantSrc,
@@ -18,6 +20,9 @@ import {
   matrixPaintSrc,
   matrixSwatchCss,
   nestedSingleSrcsFor,
+  pickerSrcsFor,
+  staticFor,
+  syncKeyFor,
   variantSrcsFor,
   variantSwatchCss,
   type TileMatrix,
@@ -150,39 +155,52 @@ function SheetSection({
   sheet,
   defaultOpen,
   selected,
-  activeVariant,
+  activeVariantFor,
+  animated,
   matrix,
   matrixIndices,
   nested,
-  nestedVariants,
   onSelect,
   onVariantSelect,
   onMatrixSelect,
+  onAnimToggle,
 }: {
   sheet: TileSheet;
   defaultOpen: boolean;
   selected: SelectedTile | null;
-  /** Chosen variant src for this family, or null for the canonical sheet. */
-  activeVariant: string | null;
+  /** Chosen variant paint src per canonical (null for canonical); synced
+   * canonicals resolve through one shared picker index. */
+  activeVariantFor: (canonicalSrc: string) => string | null;
+  /** Static+anim pair toggle state for this section. */
+  animated: boolean;
   /** Two-axis picker folding several sheets into this section, if any. */
   matrix: TileMatrix | null;
   /** Chosen option index per matrix axis. */
   matrixIndices: number[];
   /** 1x1 sheets painting from a nested row in this section. */
   nested: TileSheet[];
-  /** Chosen variant src per canonical sheet src (covers nested singles). */
-  nestedVariants: Map<string, string>;
   onSelect: (tile: SelectedTile) => void;
   onVariantSelect: (canonicalSrc: string, src: string | null) => void;
   onMatrixSelect: (axisIdx: number, optIdx: number) => void;
+  onAnimToggle: (primarySrc: string, next: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const variantSrcs = useMemo(() => variantSrcsFor(sheet.src), [sheet.src]);
+  const activeVariant = activeVariantFor(sheet.src);
   const familyName = useMemo(() => familyDisplayName(sheet.src), [sheet.src]);
-  const displayName = familyName ?? sheet.name;
-  const previewSrc =
+  const displayName = matrix?.name ?? familyName ?? sheet.name;
+  const basePreview =
     matrix === null ? (activeVariant ?? sheet.src) : matrixPaintSrc(matrix, matrixIndices);
-  const anim = sheet.anim;
+  // Static+anim pair toggle: offered only when every paintable src of this
+  // section owns an explicit animated counterpart.
+  const toggleStatics = matrix === null ? pickerSrcsFor(sheet.src) : matrix.cells;
+  const canAnimate =
+    toggleStatics.length > 0 && toggleStatics.every((src) => animFor(src) !== null);
+  const paintSrc = animated ? (animFor(basePreview) ?? basePreview) : basePreview;
+  /** Manifest sheet behind the paint src (follows synthesized variants to
+   * their canonical strip) — drives preview geometry and cell playback. */
+  const paintSheet = sheetForTileSrc(paintSrc) ?? sheet;
+  const anim = paintSheet.anim;
   /** Animated sheets offer only frame-0 cells; stored sx stays frame-0-relative. */
   const paletteCols = anim?.frameW ?? sheet.cols;
   /** Cells cycle their own frames on the global clock (per-cell phase, the
@@ -262,6 +280,17 @@ function SheetSection({
           </div>
         )
       )}
+      {canAnimate && (
+        <label className="flex cursor-pointer items-center gap-1.5 px-2 pt-1 text-xs text-text-muted">
+          <input
+            type="checkbox"
+            data-testid="anim-toggle"
+            checked={animated}
+            onChange={(e) => onAnimToggle(sheet.src, e.target.checked)}
+          />
+          Animated
+        </label>
+      )}
       <div
         className="grid w-fit gap-px p-2"
         style={{ gridTemplateColumns: `repeat(${paletteCols}, ${PALETTE_PX}px)` }}
@@ -276,7 +305,7 @@ function SheetSection({
           // full-strip sprite; static cells sit at frame 0. The stored sx
           // stays frame-0-relative either way.
           const srcCol =
-            anim === undefined ? sx : animSrcCol(sheet, sx, now, sx, sy);
+            anim === undefined ? sx : animSrcCol(paintSheet, sx, now, sx, sy);
           return (
             <button
               key={`${sx}-${sy}`}
@@ -285,9 +314,10 @@ function SheetSection({
               aria-label={`${displayName} cell ${sx},${sy}`}
               data-testid="palette-cell"
               data-src={sheet.src}
+              data-paint={paintSrc}
               data-sx={sx}
               data-sy={sy}
-              onClick={() => onSelect({ sheet, sx, sy, src: previewSrc })}
+              onClick={() => onSelect({ sheet, sx, sy, src: paintSrc })}
               className={`overflow-hidden rounded-sm border p-0 ${
                 isActive
                   ? "border-brand-orange"
@@ -296,9 +326,9 @@ function SheetSection({
               style={{ width: PALETTE_PX, height: PALETTE_PX }}
             >
               <CellPreview
-                src={previewSrc}
-                width={sheet.cols * PALETTE_PX}
-                height={sheet.rows * PALETTE_PX}
+                src={paintSrc}
+                width={paintSheet.cols * PALETTE_PX}
+                height={paintSheet.rows * PALETTE_PX}
                 offsetX={-srcCol * PALETTE_PX}
                 offsetY={-sy * PALETTE_PX}
               />
@@ -312,7 +342,8 @@ function SheetSection({
             key={child.src}
             sheet={child}
             selected={selected}
-            activeVariant={nestedVariants.get(child.src) ?? null}
+            activeVariant={activeVariantFor(child.src)}
+            sharedPicker={syncKeyFor(child.src) === syncKeyFor(sheet.src)}
             onSelect={onSelect}
             onVariantSelect={onVariantSelect}
           />
@@ -321,17 +352,21 @@ function SheetSection({
   );
 }
 
-/** One paintable 1x1 sheet nested inside its parent family section. */
+/** One paintable 1x1 sheet nested inside its parent family section.
+ * A child sharing its parent's variant sync group paints from the section's
+ * single picker row (sharedPicker) instead of rendering a duplicate row. */
 function SinglesRow({
   sheet,
   selected,
   activeVariant,
+  sharedPicker,
   onSelect,
   onVariantSelect,
 }: {
   sheet: TileSheet;
   selected: SelectedTile | null;
   activeVariant: string | null;
+  sharedPicker: boolean;
   onSelect: (tile: SelectedTile) => void;
   onVariantSelect: (canonicalSrc: string, src: string | null) => void;
 }) {
@@ -346,7 +381,7 @@ function SinglesRow({
   return (
     <div className="flex items-center gap-1.5 px-2 pb-2">
       <span className="text-xs text-text-muted">{displayName}</span>
-      {variantSrcs.length > 0 && (
+      {!sharedPicker && variantSrcs.length > 0 && (
         <>
           <SwatchDot
             label={`${sheet.name} canonical`}
@@ -450,15 +485,27 @@ function CellPreview({
   );
 }
 
+/** Static paint src through a section's anim toggle (identity when off). */
+function animPaintFor(animated: boolean, paint: string): string {
+  return animated ? (animFor(paint) ?? paint) : paint;
+}
+
 export function MapEditor() {
   const [grid, setGrid] = useState<MapGrid>(() =>
     typeof window === "undefined" ? createEmptyGrid() : loadGrid(),
   );
   const [selected, setSelected] = useState<SelectedTile | null>(null);
-  /** Per-family paint variant: canonical sheet src -> chosen variant src. */
-  const [variantChoice, setVariantChoice] = useState<Map<string, string>>(
+  /** Per-group paint variant index into pickerSrcsFor (0 = canonical).
+   * Keyed by sync-group primary so synced canonicals share one selection. */
+  const [variantChoice, setVariantChoice] = useState<Map<string, number>>(
     () => new Map(),
   );
+  /** Per-section static+anim pair toggle, keyed by section primary src. */
+  const [animChoice, setAnimChoice] = useState<Map<string, boolean>>(
+    () => new Map(),
+  );
+  /** Ref mirror of animChoice so swatch handlers read the latest toggle. */
+  const animChoiceRef = useRef<Map<string, boolean>>(animChoice);
   /** Per-matrix paint variant: primary sheet src -> chosen option per axis. */
   const [matrixChoice, setMatrixChoice] = useState<Map<string, number[]>>(
     () => new Map(),
@@ -675,10 +722,14 @@ export function MapEditor() {
         indices,
       );
       setMatrixChoice(matrixChoiceRef.current);
-      const next = matrixPaintSrc(matrix, indices);
+      const base = matrixPaintSrc(matrix, indices);
+      const paint = animPaintFor(
+        animChoiceRef.current.get(primarySrc) ?? false,
+        base,
+      );
       setSelected((prev) =>
         prev !== null && prev.sheet.src === primarySrc
-          ? { ...prev, src: next }
+          ? { ...prev, src: paint }
           : prev,
       );
     },
@@ -687,22 +738,50 @@ export function MapEditor() {
 
   const handleVariantSelect = useCallback(
     (canonicalSrc: string, src: string | null) => {
-      setVariantChoice((prev) => {
-        const next = new Map(prev);
-        if (src === null) {
-          next.delete(canonicalSrc);
-        } else {
-          next.set(canonicalSrc, src);
-        }
-        return next;
+      const key = syncKeyFor(canonicalSrc);
+      const choices = pickerSrcsFor(canonicalSrc);
+      const index = src === null ? 0 : choices.indexOf(src);
+      setVariantChoice((prev) => new Map(prev).set(key, index));
+      setSelected((prev) => {
+        if (prev === null || syncKeyFor(prev.sheet.src) !== key) return prev;
+        const paint =
+          pickerSrcsFor(prev.sheet.src)[index] ?? prev.sheet.src;
+        return {
+          ...prev,
+          src: animPaintFor(
+            animChoiceRef.current.get(prev.sheet.src) ?? false,
+            paint,
+          ),
+        };
       });
-      setSelected((prev) =>
-        prev !== null && prev.sheet.src === canonicalSrc
-          ? { ...prev, src: src ?? canonicalSrc }
-          : prev,
-      );
     },
     [],
+  );
+
+  const handleAnimToggle = useCallback(
+    (primarySrc: string, next: boolean) => {
+      animChoiceRef.current = new Map(animChoiceRef.current).set(
+        primarySrc,
+        next,
+      );
+      setAnimChoice(animChoiceRef.current);
+      setSelected((prev) => {
+        if (prev === null || prev.sheet.src !== primarySrc) return prev;
+        const remapped = next ? animFor(prev.src) : staticFor(prev.src);
+        return remapped === null ? prev : { ...prev, src: remapped };
+      });
+    },
+    [],
+  );
+
+  /** Chosen variant paint src for a canonical (null = canonical sheet). */
+  const activeVariantFor = useCallback(
+    (canonicalSrc: string): string | null => {
+      const index = variantChoice.get(syncKeyFor(canonicalSrc)) ?? 0;
+      if (index <= 0) return null;
+      return pickerSrcsFor(canonicalSrc)[index] ?? null;
+    },
+    [variantChoice],
   );
 
   const selectedName =
@@ -800,9 +879,14 @@ export function MapEditor() {
               </h2>
               <div className="flex w-max max-w-none flex-col gap-2">
                 {sheets.map((sheet, sheetIndex) => {
-                  // Matrix members paint from the primary's section, nested
-                  // singles from a row in their parent's section.
-                  if (isMatrixMember(sheet.src) || isNestedSingle(sheet.src)) {
+                  // Matrix members and anim-pair anim sides paint from
+                  // another section; nested singles from a row in their
+                  // parent's section.
+                  if (
+                    isMatrixMember(sheet.src) ||
+                    isNestedSingle(sheet.src) ||
+                    isAnimSheet(sheet.src)
+                  ) {
                     return null;
                   }
                   const matrix = matrixFor(sheet.src);
@@ -812,7 +896,8 @@ export function MapEditor() {
                       sheet={sheet}
                       defaultOpen={category === categories[0]?.category && sheetIndex === 0}
                       selected={selected}
-                      activeVariant={variantChoice.get(sheet.src) ?? null}
+                      activeVariantFor={activeVariantFor}
+                      animated={animChoice.get(sheet.src) ?? false}
                       matrix={matrix}
                       matrixIndices={
                         matrix === null
@@ -821,7 +906,6 @@ export function MapEditor() {
                             matrix.axes.map(() => 0))
                       }
                       nested={nestedSheetsFor(sheet.src)}
-                      nestedVariants={variantChoice}
                       onSelect={setSelected}
                       onVariantSelect={(canonicalSrc, src) =>
                         handleVariantSelect(canonicalSrc, src)
@@ -831,6 +915,7 @@ export function MapEditor() {
                           handleMatrixSelect(sheet.src, matrix, axisIdx, optIdx);
                         }
                       }}
+                      onAnimToggle={handleAnimToggle}
                     />
                   );
                 })}

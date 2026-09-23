@@ -3,6 +3,7 @@ export interface TileAnim {
   frameW: number;
   mode: "loop" | "pingpong";
   fps: number;
+  sync?: boolean;
 }
 
 export interface TileSheet {
@@ -23,7 +24,7 @@ export function migrateTileSrc(src: string): string {
 
 export const TILE_SHEETS: TileSheet[] = [
   { src: "/rpg/tiles/Beach/Beach_Decor_Tiles.png", name: "Beach_Decor_Tiles", category: "Beach", cols: 2, rows: 2 },
-  { src: "/rpg/tiles/Beach/Beach_Tiles.png", name: "Beach_Tiles", category: "Beach", cols: 30, rows: 3 },
+  { src: "/rpg/tiles/Beach/Beach_Tiles.png", name: "Beach_Tiles", category: "Beach", cols: 30, rows: 3, anim: { frames: 6, frameW: 5, mode: "loop", fps: 6, sync: true } },
   { src: "/rpg/tiles/Bridge/Bridge_Stone_Horizontal.png", name: "Bridge_Stone_Horizontal", category: "Bridge", cols: 12, rows: 7 },
   { src: "/rpg/tiles/Bridge/Bridge_Stone_Vertical.png", name: "Bridge_Stone_Vertical", category: "Bridge", cols: 4, rows: 6 },
   { src: "/rpg/tiles/Bridge/Bridge_Wood.png", name: "Bridge_Wood", category: "Bridge", cols: 9, rows: 4 },

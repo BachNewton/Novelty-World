@@ -87,6 +87,61 @@ export function canonicalSwatchCss(canonicalSrc: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Synced variant pickers: canonical sheets whose variant rows share ONE
+// picker state (a single selected index paints every member) AND one picker
+// row in the palette (non-primary members nest as picker-less rows in the
+// primary's section). Members must stay index-aligned: same variant count
+// with matching primary-tone targets per index (Grass_Tiles_N and
+// Grass_N_Middle recolor the same grass tone per N), enforced below so a
+// drift fails loudly at load.
+// ---------------------------------------------------------------------------
+
+const VARIANT_SYNC_GROUPS: string[][] = [
+  [
+    "/rpg/tiles/Grass/Grass_Tiles_1.png",
+    "/rpg/tiles/Grass/Grass_1_Middle.png",
+  ],
+];
+
+/** Paint srcs for a canonical in picker order: [canonical, ...variants]. */
+export function pickerSrcsFor(canonicalSrc: string): string[] {
+  return [canonicalSrc, ...variantSrcsFor(canonicalSrc)];
+}
+
+/** Ordered member canonicals sharing one picker (primary first), or null. */
+export function syncGroupFor(canonicalSrc: string): string[] | null {
+  for (const group of VARIANT_SYNC_GROUPS) {
+    if (group.includes(canonicalSrc)) return group;
+  }
+  return null;
+}
+
+/** Group key for variant picker state: the group's primary, else self. */
+export function syncKeyFor(canonicalSrc: string): string {
+  return syncGroupFor(canonicalSrc)?.[0] ?? canonicalSrc;
+}
+
+for (const group of VARIANT_SYNC_GROUPS) {
+  const [primary, ...rest] = group as [string, ...string[]];
+  const refTargets = pickerSrcsFor(primary)
+    .slice(1)
+    .map((src) => SPECS.get(src)?.swatch);
+  for (const member of rest) {
+    const targets = pickerSrcsFor(member)
+      .slice(1)
+      .map((src) => SPECS.get(src)?.swatch);
+    if (
+      targets.length !== refTargets.length ||
+      targets.some((target, i) => target !== refTargets[i])
+    ) {
+      throw new Error(
+        `tile-variants: sync group ${primary} + ${member} out of alignment`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Matrix families: two-axis variant pickers (bank tint x rock style).
 // A matrix folds several canonical sheets into ONE palette section with one
 // swatch row per axis. Every cell is an explicitly allowlisted paint src
@@ -111,6 +166,8 @@ export interface TileMatrix {
   key: string;
   /** Primary sheet: owns the palette section and its cell geometry. */
   canonical: string;
+  /** Section title override; defaults to the primary's family name. */
+  name?: string;
   /** Extra member sheets folded into the primary section (no section of
    * their own). Same dims/anim as the primary. */
   members: string[];
@@ -120,6 +177,50 @@ export interface TileMatrix {
 }
 
 const MATRICES: TileMatrix[] = [
+  {
+    key: "water",
+    name: "Water Tiles",
+    canonical: "/rpg/tiles/Water/Water_Stone_Tile_1.png",
+    members: ["/rpg/tiles/Water/Water_Tile_1.png"],
+    axes: [
+      {
+        key: "tint",
+        label: "Tint",
+        options: [
+          "/rpg/tiles/Water/Water_Stone_Tile_1.png",
+          "/rpg/tiles/Water/Water_Stone_Tile_2.png",
+          "/rpg/tiles/Water/Water_Stone_Tile_3.png",
+          "/rpg/tiles/Water/Water_Stone_Tile_4.png",
+        ],
+      },
+      {
+        key: "rim",
+        label: "Rim",
+        options: [
+          "/rpg/tiles/Water/Water_Stone_Tile_1.png",
+          "/rpg/tiles/Water/Water_Tile_1.png",
+        ],
+        // Dirt-vs-stone rim tones from the Water_Tile_1 ->
+        // Water_Stone_Tile_1 derivation (a clean 1:1 LUT over 354 rim
+        // pixels: #9c6754 -> #6c7c9d); the green-tone helpers would show
+        // rim grass here instead of the rim itself.
+        swatches: {
+          "/rpg/tiles/Water/Water_Stone_Tile_1.png": "#6c7c9d",
+          "/rpg/tiles/Water/Water_Tile_1.png": "#9c6754",
+        },
+      },
+    ],
+    cells: [
+      "/rpg/tiles/Water/Water_Stone_Tile_1.png",
+      "/rpg/tiles/Water/Water_Tile_1.png",
+      "/rpg/tiles/Water/Water_Stone_Tile_2.png",
+      "/rpg/tiles/Water/Water_Tile_2.png",
+      "/rpg/tiles/Water/Water_Stone_Tile_3.png",
+      "/rpg/tiles/Water/Water_Tile_3.png",
+      "/rpg/tiles/Water/Water_Stone_Tile_4.png",
+      "/rpg/tiles/Water/Water_Tile_4.png",
+    ],
+  },
   {
     key: "waterfall",
     canonical: "/rpg/tiles/Waterfall/Waterfall_1.png",
@@ -196,7 +297,7 @@ const NESTS: TileNest[] = [
     ],
   },
   {
-    parent: "/rpg/tiles/Water/Water_Tile_1.png",
+    parent: "/rpg/tiles/Water/Water_Stone_Tile_1.png",
     children: ["/rpg/tiles/Water/Water_Middle.png"],
   },
   {
@@ -213,14 +314,78 @@ const NEST_BY_PARENT = new Map<string, string[]>(
 );
 const NESTED_SINGLES = new Set(NESTS.flatMap((nest) => nest.children));
 
+// Single-picker invariant: every non-primary sync-group member must nest
+// as a row in its primary's section, so the group exposes exactly one
+// picker row. A member with its own section would render a duplicate row.
+for (const group of VARIANT_SYNC_GROUPS) {
+  const [primary, ...rest] = group as [string, ...string[]];
+  const children = NEST_BY_PARENT.get(primary) ?? [];
+  for (const member of rest) {
+    if (!children.includes(member)) {
+      throw new Error(
+        `tile-variants: sync group member ${member} must nest under ${primary} for a single shared picker`,
+      );
+    }
+  }
+}
+
 /** 1x1 child srcs nested in this parent sheet's section. */
 export function nestedSingleSrcsFor(parentSrc: string): string[] {
   return NEST_BY_PARENT.get(parentSrc) ?? [];
 }
-
 /** Whether this sheet paints from a nested row, not its own section. */
 export function isNestedSingle(src: string): boolean {
   return NESTED_SINGLES.has(src);
+}
+
+// ---------------------------------------------------------------------------
+// Static + animated pairs: one palette section paints both, flipped by an
+// "Animated" toggle. Every pair side is explicit (no filename inference);
+// the anim side owns no section of its own. Frame-0 geometry must match
+// (static cols == anim frameW, same rows) so stored {src, sx, sy} cells stay
+// valid either way — pinned by unit tests against the manifest.
+// ---------------------------------------------------------------------------
+
+export interface TileAnimPair {
+  static: string;
+  anim: string;
+}
+
+const ANIM_PAIRS: TileAnimPair[] = [
+  { static: "/rpg/tiles/Water/Water_Stone_Tile_1.png", anim: "/rpg/tiles/Water/Water_Stone_Tile_1_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Stone_Tile_2.png", anim: "/rpg/tiles/Water/Water_Stone_Tile_2_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Stone_Tile_3.png", anim: "/rpg/tiles/Water/Water_Stone_Tile_3_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Stone_Tile_4.png", anim: "/rpg/tiles/Water/Water_Stone_Tile_4_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Tile_1.png", anim: "/rpg/tiles/Water/Water_Tile_1_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Tile_2.png", anim: "/rpg/tiles/Water/Water_Tile_2_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Tile_3.png", anim: "/rpg/tiles/Water/Water_Tile_3_Anim.png" },
+  { static: "/rpg/tiles/Water/Water_Tile_4.png", anim: "/rpg/tiles/Water/Water_Tile_4_Anim.png" },
+  { static: "/rpg/tiles/Cave/Cave_Water.png", anim: "/rpg/tiles/Cave/Cave_Water_Animation.png" },
+];
+
+const ANIM_FOR = new Map<string, string>();
+const STATIC_FOR = new Map<string, string>();
+for (const pair of ANIM_PAIRS) {
+  if (pair.static === pair.anim || ANIM_FOR.has(pair.static) || STATIC_FOR.has(pair.anim)) {
+    throw new Error(`tile-variants: bad anim pair ${pair.static} <-> ${pair.anim}`);
+  }
+  ANIM_FOR.set(pair.static, pair.anim);
+  STATIC_FOR.set(pair.anim, pair.static);
+}
+
+/** Animated counterpart of a static paint src, or null. */
+export function animFor(staticSrc: string): string | null {
+  return ANIM_FOR.get(staticSrc) ?? null;
+}
+
+/** Static counterpart of an animated paint src, or null. */
+export function staticFor(animSrc: string): string | null {
+  return STATIC_FOR.get(animSrc) ?? null;
+}
+
+/** Whether this sheet is the anim side of a pair (no section of its own). */
+export function isAnimSheet(src: string): boolean {
+  return STATIC_FOR.has(src);
 }
 
 const MATRIX_BY_PRIMARY = new Map<string, TileMatrix>(
