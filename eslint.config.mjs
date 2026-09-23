@@ -54,6 +54,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "scripts/**",
     ".claude/**",
+    ".opencode/worktrees/**",
   ]),
 ]);
 
