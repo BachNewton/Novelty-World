@@ -13,6 +13,6 @@ export default defineConfig({
     // `.claude/**` is excluded so the agent scratch worktrees under
     // `.claude/worktrees/` (gitignored, may hold stale generated files like an
     // out-of-date ratings.ts) are never picked up by the test glob.
-    exclude: ["e2e/**", "node_modules/**", "**/*.slow.test.ts", ".claude/**"],
+    exclude: ["e2e/**", "node_modules/**", "**/*.slow.test.ts", ".claude/**", ".opencode/worktrees/**"],
   },
 });
