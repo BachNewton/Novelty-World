@@ -99,6 +99,7 @@ export default function GameWorld() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sizeRef = useRef({ width: 1, height: 1 });
+  const dprRef = useRef(1);
   const pressedRef = useRef<string[]>([]);
   const lastCodeRef = useRef<string>('KeyS');
   const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
@@ -132,6 +133,7 @@ export default function GameWorld() {
       const cssWidth = Math.max(1, Math.floor(rect.width));
       const cssHeight = Math.max(1, Math.floor(rect.height));
       sizeRef.current = { width: cssWidth, height: cssHeight };
+      dprRef.current = dpr;
       canvas.width = Math.floor(cssWidth * dpr);
       canvas.height = Math.floor(cssHeight * dpr);
       canvas.style.width = `${cssWidth}px`;
@@ -172,6 +174,11 @@ export default function GameWorld() {
 
     const drawTiles = (camX: number, camY: number, scale: number, now: number) => {
       const { width, height } = sizeRef.current;
+      const dpr = dprRef.current;
+      // Quantize the camera to whole device pixels so tile edges align
+      // exactly and the background can't bleed through seams.
+      const baseX = Math.round((width / 2 - camX * scale) * dpr) / dpr;
+      const baseY = Math.round((height / 2 - camY * scale) * dpr) / dpr;
       const c0 = Math.max(0, Math.floor((camX - width / 2 / scale) / CELL_PX));
       const c1 = Math.min(MAP_COLS - 1, Math.ceil((camX + width / 2 / scale) / CELL_PX));
       const r0 = Math.max(0, Math.floor((camY - height / 2 / scale) / CELL_PX));
@@ -196,8 +203,8 @@ export default function GameWorld() {
             cell.sy * CELL_PX,
             CELL_PX,
             CELL_PX,
-            width / 2 + (c * CELL_PX - camX) * scale,
-            height / 2 + (r * CELL_PX - camY) * scale,
+            baseX + c * CELL_PX * scale,
+            baseY + r * CELL_PX * scale,
             s,
             s,
           );
@@ -246,8 +253,9 @@ export default function GameWorld() {
 
       const dw = FRAME_SIZE * scale;
       const dh = FRAME_SIZE * scale;
-      const dx = (width - dw) / 2;
-      const dy = (height - dh) / 2;
+      const pdpr = dprRef.current;
+      const dx = Math.round(((width - dw) / 2) * pdpr) / pdpr;
+      const dy = Math.round(((height - dh) / 2) * pdpr) / pdpr;
       if (flip) {
         ctx.save();
         ctx.translate(width, 0);
