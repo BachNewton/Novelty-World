@@ -777,7 +777,7 @@ export function MapEditor() {
   // into one tiles message per frame, inbound tiles/snapshot/clear merge
   // through the same setGrid updater + LWW seq map. This persistence effect
   // stays the single localStorage writer (the seq map is never persisted).
-  const mapSync = useEditorMapSync({ gridRef, setGrid, roomId: coopRoom });
+  const mapSync = useEditorMapSync(gridRef, setGrid, coopRoom);
 
   useEffect(() => {
     selectedRef.current = selected;

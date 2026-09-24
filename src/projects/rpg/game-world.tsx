@@ -152,6 +152,7 @@ export default function GameWorld() {
     flip: false,
     moving: false,
     characterId: DEFAULT_CHARACTER_ID,
+    timestamp: 0,
   });
   /** Playable sprite directory (`P` cycles the roster). A ref because the
    * rAF loop reads it every frame; `characterBadge` mirrors it for E2E. */
@@ -424,6 +425,7 @@ export default function GameWorld() {
         flip,
         moving,
         characterId: characterRef.current,
+        timestamp: now,
       };
       const character = characterRef.current;
       ensureStrips(character);
