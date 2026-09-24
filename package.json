@@ -39,6 +39,7 @@
     "lucide-react": "^1.7.0",
     "msedge-tts": "^2.0.5",
     "next": "^16.2.2",
+    "peerjs": "^1.5.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwind-merge": "^3.5.0",

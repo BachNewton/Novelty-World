@@ -9,7 +9,7 @@ Layers: `horse`, `tool_under`, `base`, `shoes`, `pants`, `shirt`, `hair`,
 `accesory` (sic), `hands` (hidden flag), `tool_top`. Everything shipped so
 far is flattened composite; no layer has been isolated except implicitly.
 
-## Used in game (`public/rpg/sprites/farmer/`)
+## Used in game (`public/rpg/sprites/farmer-bob/`)
 
 Rows 0–5, frame 0 (farmer outfit), sliced to six 384×64 strips
 (6 frames × 64px cells):

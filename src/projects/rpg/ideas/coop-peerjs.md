@@ -1,91 +1,48 @@
-# Online Co-op via PeerJS (2–4 players)
+# Online Co-op via PeerJS (2–4 players) — remaining work
 
-Status: idea / not implemented.
-Date: 2026-09-22.
+Status: core implemented / E2E written, not yet green.
+Date: 2026-09-24 (revised; original idea 2026-09-22).
 
-## Goal
+Done and out of scope for this doc: PeerJS transport (claim-or-join
+`novelty-rpg-world`, star rebroadcast, event-chained re-election),
+presence + lerp avatars both directions (play ↔ edit), LWW map sync +
+clear broadcast + sparse join snapshot, shared-transport singleton,
+`?coop-room=` isolation for testing. Implementation lives in
+`src/projects/rpg/coop/` with unit tests (`transport`, `presence`,
+`map-sync`); no waits/timers in coop networking or tests by rule.
 
-2–4 players share one RPG session: everyone plays on the same map and edits
-it together in real time (play mode + edit mode, toggled with `~`).
+Production rule: one global room, no codes/lobby/invites. `?coop-room=`
+exists for testing/dev isolation only.
 
-## Decision
+## 1. E2E green (`e2e/rpg-coop.spec.ts`, 8 tests, serial)
 
-Use **PeerJS**, not the repo's home-grown multiplayer framework
-(`src/shared/lib/multiplayer`, `src/shared/lib/webrtc`). The existing stack
-works, but it is a from-scratch lobby/mesh/signaling system with its own
-operational surface (Supabase Realtime signaling, no host migration). PeerJS
-gives us managed handshake + WebRTC connections for free, which is all this
-game needs at 2–4 peers.
+Cases: join/move/leave, edit→play live, play→edit live, same-cell
+convergence, Clear All no-resurrection, late-joiner snapshot, host-close
+re-elect, 4-player smoke. Run: `npx playwright test e2e/rpg-coop.spec.ts`.
 
-## Transport
+Status: test 1 passes; tests 2–8 blocked until the in-flight character
+stream (`characters.ts`, per-character sprites, `characterId` on the pos
+wire) lands and the tree is quiet — the last run raced Turbopack HMR
+mid-test. Rerun on a quiet tree, then keep green.
 
-- One global room for all users — no room codes, no lobby, no invites.
-- Fixed PeerJS ID, e.g. `novelty-rpg-world`. Join flow: try to claim it;
-  whoever holds it is the host. `ID-taken` error means a host exists, so
-  connect to it as guest. Claim-or-join doubles as host election for free.
-- Star topology: guests hold one connection to the host; the host
-  rebroadcasts.
-- No signaling server to operate (PeerJS cloud). No extra API keys today.
-- NAT caveat: PeerJS cloud defaults to Google STUN only, so symmetric-NAT
-  home networks (~10–20%) may fail to connect. Fix if it bites: add a TURN
-  provider (e.g. Metered free tier) through PeerJS `config` — one-line
-  change, no architecture impact.
+## 2. Visible "reconnecting…" indicator
 
-## Player sync
+Transport already publishes `reconnecting` (asserted via hidden
+`coop-status` testid). Still missing: user-visible indicator in both
+`game-world.tsx` and `map-editor.tsx`. Accept: host tab closes →
+survivors show the indicator until re-elect completes, then it clears.
 
-- Local sim stays 60 Hz rAF, untouched.
-- Send position only when dirty (moved > 2px or facing/anim changed) at
-  ~12 Hz, plus a 1 Hz heartbeat.
-- Message ≈ `{x, y, dir, flip, moving}`, ~140 bytes → ~1.7 KB/s up per
-  client at 4 players. Noise-level for a DataConnection.
-- Remote avatars render with lerp (`render += (net - render) * min(1, dt*10)`),
-  which hides 66–100 ms update granularity. No dead reckoning needed.
-- Join: host sends current spawn positions of all peers.
-- Leave: despawn the avatar. Camera stays local per peer.
+## 3. Names/colors on avatars
 
-## Shared map editing
+Polish item, not implemented. Coordinate with the character stream:
+decide whether coop identity rides on `characterId` (already on the wire)
+or needs a separate name/color field, then render it on remote avatars in
+both play and edit overlay. Accept: each remote avatar is identifiable
+at a glance in both modes.
 
-- Map is 40×28 cells of `{src, sx, sy}` (see `STORAGE_KEY` in
-  `src/projects/rpg/map-editor.tsx`).
-- Conflict resolution: **cell-level last-write-wins** with a `(seq, peerId)`
-  tiebreak. Each client keeps a monotonic seq; every paint carries
-  `{c, r, tile|null, seq, author}`. Receivers apply iff the incoming
-  `(seq, author)` beats the stored one per cell. Concurrent paints to
-  different cells never conflict; same-cell races resolve identically on
-  all peers. No CRDT library justified at 1120 cells.
-- Drag paints batch into one array message per frame (~100 B + ~15 B/cell).
-- Join snapshot: sparse list of non-null cells (a few KB typical) sent
-  point-to-point; chunk at ~16 KB if ever large.
-- `Clear All` must broadcast (otherwise LWW resurrects old cells on peers).
-- Trust peers, validate bounds: `0 ≤ c < 40`, `0 ≤ r < 28`, `tile.src`
-  against the `TILE_SHEETS` manifest, finite clamped positions. Friends-only
-  room codes; no anti-cheat beyond that.
+## 4. TURN verdict
 
-## Host leaves
-
-With one global room, host loss just triggers re-election: every guest
-retries claiming the fixed ID; whoever wins becomes host and the rest
-reconnect to it. Peers already hold the merged map (LWW state), so nothing
-is lost — the only gap is a brief reconnect window. Show a small
-"reconnecting…" indicator while no host is reachable. No separate
-migration protocol needed beyond claim-or-join retry.
-
-## Touchpoints (when implemented)
-
-- `src/projects/rpg/game-world.tsx` — 12 Hz pos sampler beside the rAF
-  loop; remote-avatar render pass reusing the existing strips; incoming
-  `tiles` batches feed the same grid store `refreshMap` reads.
-- `src/projects/rpg/map-editor.tsx` — `paintAt` emits tile batches;
-  remote batches apply through the same `setGrid` updater + seq map;
-  persistence effect stays the single writer.
-- New `src/projects/rpg/coop/` module — PeerJS wiring, wire types,
-  seq map, snapshot logic.
-- E2E in the repo's Playwright style: join + move + leave, concurrent
-  paint convergence, joiner snapshot, 4-player smoke.
-
-## Sequencing
-
-1. Presence + remote avatars (12 Hz pos + lerp) + join/leave.
-2. Map sync (LWW edits, clear broadcast, join snapshot).
-3. Hardening (4-player e2e, TURN evaluation if connects fail).
-4. Polish (names/colors on avatars, reconnecting indicator).
+PeerJS cloud is STUN-only; symmetric-NAT users (~10–20%) may fail to
+connect. Fix if it bites (one-line TURN provider via PeerJS `config`,
+no architecture impact). Accept: record the decision once E2E is green —
+either "STUN sufficient, verified by passing E2E" or add the TURN config.

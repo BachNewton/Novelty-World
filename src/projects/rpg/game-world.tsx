@@ -9,10 +9,11 @@
  */
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CELL_PX, migrateTileSrc } from './tiles';
 import { animSrcCol, foldAnimSx, sheetForTileSrc } from './tile-anim';
 import { getTileImage } from './tile-variants';
+import { getCoopRoomId, getSharedCoopTransport, usePlayMapSync } from './coop/map-sync';
 import { MAP_COLS, MAP_ROWS, STORAGE_KEY } from './map-editor';
 import type { MapGrid, PlacedTile } from './map-editor';
 import {
@@ -21,20 +22,22 @@ import {
   stickDeflection,
   stickToKeys,
 } from './virtual-stick';
+import {
+  PRESENCE_LERP_RATE,
+  advanceRemoteRender,
+  usePresence,
+} from './coop/presence';
+import type { AvatarDir, PosPayload } from './coop/types';
+import {
+  DEFAULT_CHARACTER_ID,
+  idleStripsFor,
+  nextCharacterId,
+  sanitizeCharacterId,
+  walkStripsFor,
+  type CharacterId,
+} from './characters';
 
-const IDLE_STRIPS = {
-  front: '/rpg/sprites/farmer/front-idle.png',
-  side: '/rpg/sprites/farmer/side-idle.png',
-  back: '/rpg/sprites/farmer/back-idle.png',
-} as const;
-
-const WALK_STRIPS = {
-  front: '/rpg/sprites/farmer/front-walk.png',
-  side: '/rpg/sprites/farmer/side-walk.png',
-  back: '/rpg/sprites/farmer/back-walk.png',
-} as const;
-
-type Dir = keyof typeof IDLE_STRIPS;
+type Dir = AvatarDir;
 
 const FRAME_SIZE = 64;
 const FRAME_COUNT = 6;
@@ -43,6 +46,21 @@ const WALK_FRAME_MS = 120;
 const SPEED_PX_S = 60;
 /** Target visible cells on the shorter viewport side; world and sprites share 1x-art-px units. */
 const VISIBLE_CELLS = 15;
+
+/**
+ * Visually-hidden style for the co-op state badges (`coop-status`,
+ * `coop-role`, `coop-peer-count`, `coop-remote-count`). They expose live
+ * `usePresence` state to E2E (condition-based waits) without affecting the
+ * play canvas pixels.
+ */
+const COOP_BADGE_STYLE: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+};
 
 function isPlacedTile(value: unknown): value is PlacedTile {
   if (typeof value !== 'object' || value === null) return false;
@@ -125,9 +143,66 @@ export default function GameWorld() {
     knobY: number;
   } | null>(null);
   const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
+  // --- CO-OP CHUNK 1: local snapshot read by the 12 Hz pos sampler, plus the
+  // remote-avatar map rendered (lerped) in the pass below. Camera stays local.
+  const localPosRef = useRef<PosPayload>({
+    x: (MAP_COLS * CELL_PX) / 2,
+    y: (MAP_ROWS * CELL_PX) / 2,
+    dir: 'front',
+    flip: false,
+    moving: false,
+    characterId: DEFAULT_CHARACTER_ID,
+  });
+  /** Playable sprite directory (`P` cycles the roster). A ref because the
+   * rAF loop reads it every frame; `characterBadge` mirrors it for E2E. */
+  const characterRef = useRef<CharacterId>(DEFAULT_CHARACTER_ID);
+  const [characterBadge, setCharacterBadge] = useState<CharacterId>(DEFAULT_CHARACTER_ID);
+  const getLocalPos = useCallback((): PosPayload => localPosRef.current, []);
+  // Page's co-op room (`?coop-room=`, default room when absent). Resolved
+  // per render (client read, SSR-safe default); the URL is stable for the
+  // page lifetime so presence and map-sync always agree on one room.
+  const coopRoom = getCoopRoomId();
+  const getRoomTransport = useCallback(
+    () => getSharedCoopTransport(coopRoom),
+    [coopRoom],
+  );
+  // Share one transport with the map-sync binding below: one PeerJS peer per
+  // tab. Presence unsubscribes without destroying it (caller-owned), so the
+  // `~` edit/play toggle keeps the same peer id and host.
+  const presence = usePresence(getLocalPos, {
+    createTransport: getRoomTransport,
+  });
+  const { remotesRef: remoteAvatarsRef, state: coopState } = presence;
+  /**
+   * Mount gate for the coop badges below: server HTML and the first client
+   * render emit identical static placeholders (`idle` / `""` / `0`), and the
+   * live hook state only renders after this event-driven flip — so the
+   * transport's async `connecting`/`reconnecting` transitions can never
+   * produce a hydration mismatch. Allowed: `useEffect`-gated `setState`,
+   * no timers.
+   */
+  const [coopMounted, setCoopMounted] = useState(false);
+  useEffect(() => {
+    // Intentional hydration gate (static placeholders pre-mount, no timers).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-gated badge placeholders must flip post-mount
+    setCoopMounted(true);
+  }, []);
+  /**
+   * Mirrors the live remote-avatar count into the `coop-remote-count` badge
+   * once per frame (direct DOM write inside the existing rAF loop: 12 Hz net
+   * traffic never re-renders React, and no new subscription or timer is added).
+   */
+  const remoteCountRef = useRef<HTMLSpanElement>(null);
   const lastTimeRef = useRef<number | null>(null);
   const mapRef = useRef<MapGrid>([]);
   const animRef = useRef({ key: 'front:idle', t0: 0 });
+
+  // [coop-map-sync] Chunk 2 live edit→play: inbound tiles/snapshot/clear
+  // merge into mapRef through the LWW seq map. The rAF loop below reads
+  // mapRef every frame, so remote edits appear live with no reload. Never
+  // writes localStorage (the editor persistence effect is the single writer);
+  // the existing storage/focus refresh below is untouched.
+  usePlayMapSync(mapRef, coopRoom);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -138,11 +213,17 @@ export default function GameWorld() {
     if (ctx === null) return;
 
     const imgs: Record<string, HTMLImageElement | undefined> = {};
-    for (const src of [...Object.values(IDLE_STRIPS), ...Object.values(WALK_STRIPS)]) {
-      const img = new Image();
-      img.src = src;
-      imgs[src] = img;
-    }
+    /** Preload one character's strips on demand; the browser cache makes
+     * repeat visits cheap. Unknown ids never reach here (sanitized first). */
+    const ensureStrips = (id: CharacterId) => {
+      for (const src of [...Object.values(idleStripsFor(id)), ...Object.values(walkStripsFor(id))]) {
+        if (imgs[src] !== undefined) continue;
+        const img = new Image();
+        img.src = src;
+        imgs[src] = img;
+      }
+    };
+    ensureStrips(DEFAULT_CHARACTER_ID);
 
     const refreshMap = () => {
       mapRef.current = loadMap();
@@ -250,6 +331,13 @@ export default function GameWorld() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (KEY_DIR[e.code] !== undefined) press(e.code);
+      // `P` cycles the playable character once per press (repeat guard).
+      // No text inputs exist on this page, and WASD/`~` are untouched.
+      if (e.code === 'KeyP' && !e.repeat) {
+        const next = nextCharacterId(characterRef.current);
+        characterRef.current = next;
+        setCharacterBadge(next);
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (KEY_DIR[e.code] !== undefined) release(e.code);
@@ -328,7 +416,18 @@ export default function GameWorld() {
       }
       const code = moving ? (pressed[pressed.length - 1] ?? 'KeyS') : lastCodeRef.current;
       const { dir, flip } = facingFor(code);
-      const strips = moving ? WALK_STRIPS : IDLE_STRIPS;
+      // --- CO-OP CHUNK 1: publish the local snapshot for the 12 Hz sampler.
+      localPosRef.current = {
+        x: posRef.current.x,
+        y: posRef.current.y,
+        dir,
+        flip,
+        moving,
+        characterId: characterRef.current,
+      };
+      const character = characterRef.current;
+      ensureStrips(character);
+      const strips = moving ? walkStripsFor(character) : idleStripsFor(character);
       const img = imgs[strips[dir]];
       if (img === undefined || !img.complete || img.naturalWidth === 0) return;
 
@@ -338,7 +437,7 @@ export default function GameWorld() {
       ctx.fillRect(0, 0, width, height);
       drawTiles(posRef.current.x, posRef.current.y, scale, now);
 
-      const key = `${dir}:${moving ? 'walk' : 'idle'}`;
+      const key = `${character}:${dir}:${moving ? 'walk' : 'idle'}`;
       if (animRef.current.key !== key) animRef.current = { key, t0: now };
       const frameMs = moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
       const f = Math.floor((now - animRef.current.t0) / frameMs) % FRAME_COUNT;
@@ -355,6 +454,37 @@ export default function GameWorld() {
       }
       ctx.drawImage(img, f * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, dx, dy, dw, dh);
       if (flip) ctx.restore();
+
+      // --- CO-OP CHUNK 1: remote-avatar render pass. Each avatar renders
+      // with the sender's character strips (preloaded on demand above);
+      // render positions lerp toward net state so 12 Hz updates look smooth.
+      // Camera stays local (centered on posRef).
+      for (const avatar of remoteAvatarsRef.current.values()) {
+        advanceRemoteRender(avatar, dt, PRESENCE_LERP_RATE);
+        const remoteId = sanitizeCharacterId(avatar.characterId);
+        ensureStrips(remoteId);
+        const remoteStrips = avatar.moving ? walkStripsFor(remoteId) : idleStripsFor(remoteId);
+        const remoteImg = imgs[remoteStrips[avatar.dir]];
+        if (remoteImg === undefined || !remoteImg.complete || remoteImg.naturalWidth === 0) continue;
+        const remoteFrameMs = avatar.moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
+        const rf = Math.floor(now / remoteFrameMs) % FRAME_COUNT;
+        const centerX = width / 2 + (avatar.renderX - posRef.current.x) * scale;
+        const centerY = height / 2 + (avatar.renderY - posRef.current.y) * scale;
+        const rdx = Math.round((centerX - dw / 2) * pdpr) / pdpr;
+        const rdy = Math.round((centerY - dh / 2) * pdpr) / pdpr;
+        if (avatar.flip) {
+          ctx.save();
+          ctx.translate(2 * centerX, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(remoteImg, rf * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, rdx, rdy, dw, dh);
+        if (avatar.flip) ctx.restore();
+      }
+      const badge = remoteCountRef.current;
+      if (badge !== null) {
+        const n = String(remoteAvatarsRef.current.size);
+        if (badge.textContent !== n) badge.textContent = n;
+      }
 
       const stick = stickRef.current;
       if (stick !== null) {
@@ -387,11 +517,18 @@ export default function GameWorld() {
       window.removeEventListener('storage', onMapChange);
       window.removeEventListener('focus', onMapChange);
     };
-  }, []);
+    // remoteAvatarsRef is a stable presence-hook ref: listed for
+    // exhaustive-deps, never re-runs the loop.
+  }, [remoteAvatarsRef]);
 
   return (
     <div ref={wrapperRef} className="h-dvh w-screen overflow-hidden bg-black">
-      <canvas ref={canvasRef} className="block touch-none select-none" style={{ imageRendering: 'pixelated' }} />
+      <canvas ref={canvasRef} data-testid="play-canvas" className="block touch-none select-none" style={{ imageRendering: 'pixelated' }} />
+      <span data-testid="coop-status" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.status : 'idle'}</span>
+      <span data-testid="coop-role" style={COOP_BADGE_STYLE}>{coopMounted ? (coopState.role ?? '') : ''}</span>
+      <span data-testid="coop-peer-count" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.peers.length : 0}</span>
+      <span data-testid="coop-remote-count" ref={remoteCountRef} style={COOP_BADGE_STYLE}>0</span>
+      <span data-testid="player-character" style={COOP_BADGE_STYLE}>{characterBadge}</span>
     </div>
   );
 }
