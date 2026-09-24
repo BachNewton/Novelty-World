@@ -18,5 +18,12 @@ export function RpgGame() {
   }, []);
 
   if (mode === 'edit') return <MapEditor />;
-  return <GameWorld />;
+  // Fixed positioning keeps play mode exactly viewport-sized: h-dvh/w-screen
+  // can exceed by a pixel (fractional dvh) or by scrollbar width (100vw),
+  // either of which summons page scrollbars.
+  return (
+    <div className="fixed inset-0 overflow-hidden bg-black">
+      <GameWorld />
+    </div>
+  );
 }
