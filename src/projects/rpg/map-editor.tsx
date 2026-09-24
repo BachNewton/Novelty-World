@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CELL_PX, TILE_SHEETS, migrateTileSrc, type TileSheet } from "./tiles";
 import {
   animSrcCol,
@@ -9,6 +9,7 @@ import {
 } from "./tile-anim";
 import {
   animFor,
+  canonicalSrcFor,
   canonicalSwatchCss,
   familyDisplayName,
   getTileImage,
@@ -17,7 +18,9 @@ import {
   isNestedSingle,
   isVariantSrc,
   matrixFor,
+  matrixIndicesFor,
   matrixPaintSrc,
+  matrixPrimaryFor,
   matrixSwatchCss,
   nestedSingleSrcsFor,
   pickerSrcsFor,
@@ -27,10 +30,41 @@ import {
   variantSwatchCss,
   type TileMatrix,
 } from "./tile-variants";
+import { getCoopRoomId, getSharedCoopTransport, useEditorMapSync } from "./coop/map-sync";
+import { advanceRemoteRender, usePresence } from "./coop/presence";
+import {
+  DEFAULT_CHARACTER_ID,
+  idleStripsFor,
+  sanitizeCharacterId,
+  walkStripsFor,
+  type CharacterId,
+} from "./characters";
 
 export const MAP_COLS = 40;
 export const MAP_ROWS = 28;
 export const STORAGE_KEY = "map-editor-v1";
+/**
+ * Visually-hidden style for the co-op state badges (`coop-status`,
+ * `coop-role`, `coop-peer-count`, `coop-remote-count`). They expose live
+ * `usePresence` state to E2E (condition-based waits) without affecting the
+ * editor layout.
+ */
+const COOP_BADGE_STYLE: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0 0 0 0)",
+  whiteSpace: "nowrap",
+};
+// --- CO-OP CHUNK 1: playing-peer avatar overlay. Each peer renders with
+// its own character strips (preloaded on demand in the canvas effect);
+// frame constants mirror the play canvas. Remotes cycle continuously off
+// `now` instead of resetting on idle/walk switches.
+const AVATAR_FRAME = 64;
+const AVATAR_FRAMES = 6;
+const AVATAR_IDLE_MS = 200;
+const AVATAR_WALK_MS = 120;
 const PALETTE_SCALE = 2;
 const PALETTE_PX = CELL_PX * PALETTE_SCALE;
 
@@ -62,6 +96,142 @@ interface SelectedTile {
   sy: number;
   /** Paint URL: the canonical sheet src, or a synthesized variant src. */
   src: string;
+}
+
+export type MapMouseDownIntent = "pick" | "paint" | "erase" | "ignore";
+export type MapMouseMoveIntent = "pick" | "paint" | "erase" | "none";
+
+/** Left-click intent: Alt turns the brush into an eyedropper. Right-button
+ * erase is never modified by Alt. */
+export function resolveMouseDownIntent(
+  button: number,
+  altKey: boolean,
+): MapMouseDownIntent {
+  if (button === 2) return "erase";
+  if (button !== 0) return "ignore";
+  return altKey ? "pick" : "paint";
+}
+
+/** Drag intent, keeping mousedown's left-before-right button priority. */
+export function resolveMouseMoveIntent(
+  buttons: number,
+  altKey: boolean,
+): MapMouseMoveIntent {
+  if ((buttons & 1) === 1) return altKey ? "pick" : "paint";
+  if ((buttons & 2) === 2) return "erase";
+  return "none";
+}
+
+/** Physical Alt keys only — `code`-based so §/AltGr layouts never match a
+ * bare `key === "Alt"` read. */
+export function isAltModifierCode(code: string): boolean {
+  return code === "AltLeft" || code === "AltRight";
+}
+
+/** Eyedropper cursor state: plain Alt only. Ctrl/Meta/AltGraph held alongside
+ * (notably AltGr, which reports as Ctrl+Alt) keep the normal brush cursor. */
+export function resolveEyedropperActive(opts: {
+  alt: boolean;
+  ctrl?: boolean;
+  meta?: boolean;
+  altGraph?: boolean;
+}): boolean {
+  return (
+    opts.alt &&
+    (opts.ctrl ?? false) === false &&
+    (opts.meta ?? false) === false &&
+    (opts.altGraph ?? false) === false
+  );
+}
+
+/** Pure hover math shared by hit-testing and unit tests: canvas-CSS point →
+ * map cell, honouring the fractional fit-scale and centering offsets. */
+export function cellFromPoint(
+  x: number,
+  y: number,
+  scale: number,
+  offsetX: number,
+  offsetY: number,
+): { c: number; r: number } | null {
+  const c = Math.floor((x - offsetX) / (CELL_PX * scale));
+  const r = Math.floor((y - offsetY) / (CELL_PX * scale));
+  if (c < 0 || c >= MAP_COLS || r < 0 || r >= MAP_ROWS) return null;
+  return { c, r };
+}
+
+/** Eyedropper cursor: inline SVG data-URI (no new asset files) with a
+ * `crosshair` fallback. Hotspot (4 20) sits on the drop tip. */
+export const EYEDROPPER_CURSOR =
+  `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E` +
+  `%3Cg transform='rotate(45 12 12)'%3E` +
+  `%3Crect x='10.5' y='1' width='3' height='7' rx='1' fill='%23f97316' stroke='white'/%3E` +
+  `%3Crect x='10.5' y='9' width='3' height='8' fill='%23e2e8f0' stroke='white'/%3E` +
+  `%3Cpath d='M10.5 17h3L12 21z' fill='%2338bdf8' stroke='white'/%3E` +
+  `%3C/g%3E` +
+  `%3Ccircle cx='5' cy='19' r='2.5' fill='%2338bdf8' stroke='white' stroke-width='1.2'/%3E` +
+  `%3C/svg%3E") 4 20, crosshair`;
+
+export interface PickedSelection {
+  /** Manifest sheet src backing the selection — the matrix primary for
+   * matrix-member picks, so the owning section highlights. */
+  sheetSrc: string;
+  /** Paint src, kept as stored so repaints reproduce the picked cell. */
+  src: string;
+  sx: number;
+  sy: number;
+  /** Variant picker sync (group key + index), or null when no picker owns it. */
+  variant: { key: string; index: number } | null;
+  /** Matrix picker sync, or null for non-matrix picks and unknown combos. */
+  matrix: { primary: string; indices: number[] } | null;
+  /** Anim-toggle sync for the section owner, or null for nested singles
+   * (they paint from a parent row with no toggle of their own). */
+  anim: { primary: string; animated: boolean } | null;
+}
+
+/** Resolve an eyedropper pick to a selection plus the picker states that
+ * must sync (variant dots, matrix dots, anim toggle). Returns null for
+ * srcs with no manifest sheet, which the caller treats as "clear". */
+export function resolvePickedTile(tile: PlacedTile): PickedSelection | null {
+  const staticSide = staticFor(tile.src);
+  const animated = staticSide !== null;
+  const staticSrc = staticSide ?? tile.src;
+  let canonical = canonicalSrcFor(staticSrc);
+  if (isAnimSheet(canonical)) {
+    const folded = staticFor(canonical);
+    if (folded !== null) canonical = folded;
+  }
+  const primary =
+    matrixFor(canonical) === null ? null : canonical;
+  const matrixPrimary = primary ?? matrixPrimaryFor(canonical);
+  if (matrixPrimary !== null) {
+    const matrix = matrixFor(matrixPrimary);
+    if (matrix === null || !SHEET_BY_SRC.has(matrixPrimary)) return null;
+    const indices = matrixIndicesFor(matrix, staticSrc);
+    return {
+      sheetSrc: matrixPrimary,
+      src: tile.src,
+      sx: tile.sx,
+      sy: tile.sy,
+      variant: null,
+      matrix: indices === null ? null : { primary: matrixPrimary, indices },
+      anim: { primary: matrixPrimary, animated },
+    };
+  }
+  if (!SHEET_BY_SRC.has(canonical)) return null;
+  const choices = pickerSrcsFor(canonical);
+  const index = choices.indexOf(staticSrc);
+  return {
+    sheetSrc: canonical,
+    src: tile.src,
+    sx: tile.sx,
+    sy: tile.sy,
+    variant:
+      index < 0 ? null : { key: syncKeyFor(canonical), index },
+    matrix: null,
+    anim: isNestedSingle(canonical)
+      ? null
+      : { primary: canonical, animated },
+  };
 }
 
 function createEmptyGrid(): MapGrid {
@@ -490,6 +660,37 @@ function animPaintFor(animated: boolean, paint: string): string {
   return animated ? (animFor(paint) ?? paint) : paint;
 }
 
+/** Header selected-tile preview; cycles frames when the selected src is an
+ * animated sheet (same global-clock math as the palette cells). */
+function SelectedPreview({
+  selected,
+  sheet,
+}: {
+  selected: { src: string; sx: number; sy: number };
+  sheet: TileSheet;
+}) {
+  const anim = sheet.anim;
+  const now = useAnimTick(anim !== undefined, anim?.fps ?? 1);
+  const srcCol =
+    anim === undefined
+      ? selected.sx
+      : animSrcCol(sheet, selected.sx, now, selected.sx, selected.sy);
+  return (
+    <span
+      className="block overflow-hidden rounded-sm border border-brand-orange"
+      style={{ width: 32, height: 32 }}
+    >
+      <CellPreview
+        src={selected.src}
+        width={sheet.cols * 32}
+        height={sheet.rows * 32}
+        offsetX={-srcCol * 32}
+        offsetY={-selected.sy * 32}
+      />
+    </span>
+  );
+}
+
 export function MapEditor() {
   const [grid, setGrid] = useState<MapGrid>(() =>
     typeof window === "undefined" ? createEmptyGrid() : loadGrid(),
@@ -518,9 +719,50 @@ export function MapEditor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gridRef = useRef<MapGrid>(grid);
   const selectedRef = useRef<SelectedTile | null>(selected);
+  /** Hovered map cell for the 1-cell highlight, written by mouse handlers and
+   * read by the rAF loop (ref, not state: hover must never re-render). */
+  const hoverRef = useRef<{ c: number; r: number } | null>(null);
+  /** Alt-held eyedropper indicator state; drives the canvas cursor only. */
+  const [altHeld, setAltHeld] = useState(false);
   const scaleRef = useRef(1);
   const sizeRef = useRef({ width: 1, height: 1 });
   const offsetRef = useRef({ x: 0, y: 0 });
+  // --- CO-OP CHUNK 1: receive-only presence — the edit canvas shows playing
+  // peers live (bidirectional requirement). This hook never sends pos.
+  // Shares one transport with the map-sync binding below (one PeerJS peer
+  // per tab, caller-owned so the `~` toggle keeps the peer id and host).
+  // Page's co-op room (`?coop-room=`, default room when absent): resolved
+  // per render (client read, SSR-safe default); the URL is stable for the
+  // page lifetime so presence and map-sync always agree on one room.
+  const coopRoom = getCoopRoomId();
+  const getRoomTransport = useCallback(
+    () => getSharedCoopTransport(coopRoom),
+    [coopRoom],
+  );
+  const presence = usePresence(undefined, {
+    createTransport: getRoomTransport,
+  });
+  const { remotesRef: remoteAvatarsRef, state: coopState } = presence;
+  /**
+   * Mount gate for the coop badges: server HTML and the first client render
+   * emit identical static placeholders (`idle` / `""` / `0`), and the live
+   * hook state only renders after this event-driven flip — so the
+   * transport's async `connecting`/`reconnecting` transitions can never
+   * produce a hydration mismatch. Allowed: `useEffect`-gated `setState`,
+   * no timers.
+   */
+  const [coopMounted, setCoopMounted] = useState(false);
+  useEffect(() => {
+    // Intentional hydration gate (static placeholders pre-mount, no timers).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-gated badge placeholders must flip post-mount
+    setCoopMounted(true);
+  }, []);
+  /**
+   * Mirrors the live remote-avatar count into the `coop-remote-count` badge
+   * once per frame (direct DOM write inside the existing rAF loop: net
+   * traffic never re-renders React, and no new subscription or timer is added).
+   */
+  const remoteCountRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     gridRef.current = grid;
@@ -531,9 +773,54 @@ export function MapEditor() {
     }
   }, [grid]);
 
+  // [coop-map-sync] Chunk 2 shared live map editing: outbound paints batch
+  // into one tiles message per frame, inbound tiles/snapshot/clear merge
+  // through the same setGrid updater + LWW seq map. This persistence effect
+  // stays the single localStorage writer (the seq map is never persisted).
+  const mapSync = useEditorMapSync({ gridRef, setGrid, roomId: coopRoom });
+
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
+
+  // Alt hygiene: the eyedropper cursor follows the physical Alt keys only
+  // (`code`-based; AltGr reports Ctrl+Alt and must not trigger it). Alt
+  // keydown is swallowed so the browser never focuses the menu bar, and blur
+  // clears a stuck Alt when the key is released outside the window.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isAltModifierCode(e.code)) return;
+      e.preventDefault();
+      setAltHeld(
+        resolveEyedropperActive({
+          alt: e.getModifierState("Alt"),
+          ctrl: e.getModifierState("Control") || e.ctrlKey,
+          meta: e.getModifierState("Meta") || e.metaKey,
+          altGraph: e.getModifierState("AltGraph"),
+        }),
+      );
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (!isAltModifierCode(e.code)) return;
+      setAltHeld(
+        resolveEyedropperActive({
+          alt: e.getModifierState("Alt"),
+          ctrl: e.getModifierState("Control") || e.ctrlKey,
+          meta: e.getModifierState("Meta") || e.metaKey,
+          altGraph: e.getModifierState("AltGraph"),
+        }),
+      );
+    };
+    const onBlur = () => setAltHeld(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -542,6 +829,21 @@ export function MapEditor() {
 
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
+
+    // --- CO-OP CHUNK 1: avatar strips for the playing-peer overlay.
+    const avatarImgs: Record<string, HTMLImageElement | undefined> = {};
+    const ensureAvatarStrips = (id: CharacterId) => {
+      for (const src of [
+        ...Object.values(idleStripsFor(id)),
+        ...Object.values(walkStripsFor(id)),
+      ]) {
+        if (avatarImgs[src] !== undefined) continue;
+        const img = new Image();
+        img.src = src;
+        avatarImgs[src] = img;
+      }
+    };
+    ensureAvatarStrips(DEFAULT_CHARACTER_ID);
 
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
@@ -575,8 +877,12 @@ export function MapEditor() {
     window.addEventListener("resize", resize);
 
     let rafId = 0;
+    let coopLast: number | null = null;
     const drawFrame = (now: number) => {
       rafId = requestAnimationFrame(drawFrame);
+      const coopDt =
+        coopLast === null ? 0 : Math.min((now - coopLast) / 1000, 0.05);
+      coopLast = now;
       const { width, height } = sizeRef.current;
       const scale = scaleRef.current;
       const { x: offsetX, y: offsetY } = offsetRef.current;
@@ -626,6 +932,77 @@ export function MapEditor() {
         ctx.lineTo(offsetX + mapWidth, y);
       }
       ctx.stroke();
+
+      // Hover highlight: a subtle 1-cell border tracking the mouse, drawn
+      // from the handler-written ref so it works in every mode (paint, erase,
+      // pick) without touching hit-testing or persistence.
+      const hover = hoverRef.current;
+      if (hover !== null) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          offsetX + hover.c * CELL_PX * scale + 0.5,
+          offsetY + hover.r * CELL_PX * scale + 0.5,
+          CELL_PX * scale - 1,
+          CELL_PX * scale - 1,
+        );
+      }
+
+      // --- CO-OP CHUNK 1: playing-peer avatar overlay. World px map to the
+      // canvas via the same offset/scale as tiles; positions lerp like the
+      // play canvas. An orange dot stands in until the strips load.
+      for (const avatar of remoteAvatarsRef.current.values()) {
+        advanceRemoteRender(avatar, coopDt);
+        const centerX = offsetX + avatar.renderX * scale;
+        const centerY = offsetY + avatar.renderY * scale;
+        const avatarId = sanitizeCharacterId(avatar.characterId);
+        ensureAvatarStrips(avatarId);
+        const strips = avatar.moving ? walkStripsFor(avatarId) : idleStripsFor(avatarId);
+        const img = avatarImgs[strips[avatar.dir]];
+        if (img !== undefined && img.complete && img.naturalWidth > 0) {
+          const frameMs = avatar.moving ? AVATAR_WALK_MS : AVATAR_IDLE_MS;
+          const rf = Math.floor(now / frameMs) % AVATAR_FRAMES;
+          const adw = AVATAR_FRAME * scale;
+          const adx = centerX - adw / 2;
+          const ady = centerY - adw / 2;
+          if (avatar.flip) {
+            ctx.save();
+            ctx.translate(2 * centerX, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(
+            img,
+            rf * AVATAR_FRAME,
+            0,
+            AVATAR_FRAME,
+            AVATAR_FRAME,
+            adx,
+            ady,
+            adw,
+            adw,
+          );
+          if (avatar.flip) ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.fillStyle = "#f97316";
+          ctx.arc(
+            centerX,
+            centerY,
+            Math.max(3, CELL_PX * scale * 0.75),
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      const remoteBadge = remoteCountRef.current;
+      if (remoteBadge !== null) {
+        const n = String(remoteAvatarsRef.current.size);
+        if (remoteBadge.textContent !== n) remoteBadge.textContent = n;
+      }
     };
 
     rafId = requestAnimationFrame(drawFrame);
@@ -635,7 +1012,9 @@ export function MapEditor() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
     };
-  }, []);
+    // remoteAvatarsRef is a stable presence-hook ref: listed for
+    // exhaustive-deps, never re-runs the loop.
+  }, [remoteAvatarsRef]);
 
   const cellFromEvent = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -646,18 +1025,32 @@ export function MapEditor() {
     const { x: offsetX, y: offsetY } = offsetRef.current;
     const scaleX = size.width <= 0 ? 1 : rect.width / size.width;
     const scaleY = size.height <= 0 ? 1 : rect.height / size.height;
-    const x = (e.clientX - rect.left) / scaleX - offsetX;
-    const y = (e.clientY - rect.top) / scaleY - offsetY;
-    const c = Math.floor(x / (CELL_PX * scale));
-    const r = Math.floor(y / (CELL_PX * scale));
-    if (c < 0 || c >= MAP_COLS || r < 0 || r >= MAP_ROWS) return null;
-    return { c, r };
+    const x = (e.clientX - rect.left) / scaleX;
+    const y = (e.clientY - rect.top) / scaleY;
+    return cellFromPoint(x, y, scale, offsetX, offsetY);
   }, []);
 
   const paintAt = useCallback(
     (c: number, r: number, erase: boolean) => {
       const sel = selectedRef.current;
       if (!erase && sel === null) return;
+      // [coop-map-sync] Pre-check against the mirrored grid so only real
+      // changes queue a network batch (keeps the setGrid updater pure).
+      // A stale mirror can only cause a redundant send, never a lost paint:
+      // skipping requires the mirror to already equal the new tile.
+      const current = gridRef.current.at(r)?.at(c);
+      if (erase) {
+        if (current === null || current === undefined) return;
+      } else if (
+        sel !== null &&
+        current !== null &&
+        current !== undefined &&
+        current.src === sel.src &&
+        current.sx === sel.sx &&
+        current.sy === sel.sy
+      ) {
+        return;
+      }
       setGrid((prev) => {
         const existing = prev[r][c];
         if (erase) {
@@ -682,34 +1075,118 @@ export function MapEditor() {
             : { src: sel.src, sx: sel.sx, sy: sel.sy };
         return next;
       });
+      // [coop-map-sync] Emit the paint; the hook batches drag paints into one
+      // tiles message per animation frame.
+      mapSync.queueLocalPaint(
+        c,
+        r,
+        erase || sel === null
+          ? null
+          : { src: sel.src, sx: sel.sx, sy: sel.sy },
+      );
     },
-    [],
+    [mapSync],
   );
+
+  const applyPick = useCallback((tile: PlacedTile | null) => {
+    if (tile === null) {
+      setSelected(null);
+      return;
+    }
+    const resolved = resolvePickedTile(tile);
+    const sheet =
+      resolved === null ? undefined : SHEET_BY_SRC.get(resolved.sheetSrc);
+    if (resolved === null || sheet === undefined) {
+      setSelected(null);
+      return;
+    }
+    const variant = resolved.variant;
+    if (variant !== null) {
+      setVariantChoice((prev) => new Map(prev).set(variant.key, variant.index));
+    }
+    const matrix = resolved.matrix;
+    if (matrix !== null) {
+      matrixChoiceRef.current = new Map(matrixChoiceRef.current).set(
+        matrix.primary,
+        matrix.indices,
+      );
+      setMatrixChoice(matrixChoiceRef.current);
+    }
+    const anim = resolved.anim;
+    if (anim !== null) {
+      animChoiceRef.current = new Map(animChoiceRef.current).set(
+        anim.primary,
+        anim.animated,
+      );
+      setAnimChoice(animChoiceRef.current);
+    }
+    setSelected({ sheet, sx: tile.sx, sy: tile.sy, src: tile.src });
+  }, []);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (e.button === 1) return;
+      hoverRef.current = cellFromEvent(e);
+      // Covers Alt pressed before the window focused (no keydown seen).
+      const eyedropper = resolveEyedropperActive({
+        alt: e.altKey,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        altGraph: e.getModifierState("AltGraph"),
+      });
+      setAltHeld((prev) => (prev === eyedropper ? prev : eyedropper));
+      const intent = resolveMouseDownIntent(e.button, e.altKey);
+      if (intent === "ignore") return;
       const cell = cellFromEvent(e);
       if (cell === null) return;
-      paintAt(cell.c, cell.r, e.button === 2);
+      if (intent === "pick") {
+        // Alt+click can steal menu focus or start a drag in some
+        // browsers — swallow it so picking never paints.
+        e.preventDefault();
+        applyPick(gridRef.current[cell.r]?.[cell.c] ?? null);
+        return;
+      }
+      paintAt(cell.c, cell.r, intent === "erase");
     },
-    [cellFromEvent, paintAt],
+    [cellFromEvent, paintAt, applyPick],
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (e.buttons === 0) return;
+      // Hover tracks on every move — including button-free moves — so the
+      // highlight works in all modes and never gates painting.
+      hoverRef.current = cellFromEvent(e);
+      const eyedropper = resolveEyedropperActive({
+        alt: e.altKey,
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        altGraph: e.getModifierState("AltGraph"),
+      });
+      setAltHeld((prev) => (prev === eyedropper ? prev : eyedropper));
+      const intent = resolveMouseMoveIntent(e.buttons, e.altKey);
+      if (intent === "none") return;
       const cell = cellFromEvent(e);
       if (cell === null) return;
-      if ((e.buttons & 1) === 1) paintAt(cell.c, cell.r, false);
-      else if ((e.buttons & 2) === 2) paintAt(cell.c, cell.r, true);
+      if (intent === "pick") {
+        // Alt+drag would otherwise select text or start a native drag.
+        e.preventDefault();
+        applyPick(gridRef.current[cell.r]?.[cell.c] ?? null);
+        return;
+      }
+      paintAt(cell.c, cell.r, intent === "erase");
     },
-    [cellFromEvent, paintAt],
+    [cellFromEvent, paintAt, applyPick],
   );
 
-  const handleClear = useCallback(() => {
-    setGrid(createEmptyGrid());
+  const handleMouseLeave = useCallback(() => {
+    hoverRef.current = null;
   }, []);
+
+  // [coop-map-sync] Clear All broadcasts clear {seq} (LWW alone would let
+  // peers' old cells resurrect the map); the hook also stamps the local seq
+  // map so the clear converges identically on all peers.
+  const handleClear = useCallback(() => {
+    mapSync.broadcastClear();
+  }, [mapSync]);
 
   const handleMatrixSelect = useCallback(
     (primarySrc: string, matrix: TileMatrix, axisIdx: number, optIdx: number) => {
@@ -791,6 +1268,12 @@ export function MapEditor() {
         ? (familyDisplayName(selected.sheet.src) ?? selected.sheet.name)
         : (selected.src.split("/").pop()?.replace(/\.png$/, "") ??
           selected.sheet.name);
+  /** Manifest sheet behind the selected paint src (follows synthesized
+   * variants to their canonical strip) — drives the header preview geometry. */
+  const selectedPaintSheet =
+    selected === null
+      ? null
+      : (sheetForTileSrc(selected.src) ?? selected.sheet);
   const categories = useMemo(() => {
     /** Most-reached-for ground tiles first; props and special cases last. */
     const CATEGORY_ORDER = [
@@ -836,9 +1319,33 @@ export function MapEditor() {
       <header className="flex flex-wrap items-center gap-3 border-b border-border-default px-4 py-3">
         <h1 className="text-xl font-bold">Tile Map Editor</h1>
         <span className="text-sm text-text-muted">
-          {MAP_COLS}×{MAP_ROWS} cells · left-click paints · right-click erases
+          {MAP_COLS}×{MAP_ROWS} cells · left-click paints · Alt+click picks · right-click erases
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <span
+            data-testid="selected-preview"
+            className="flex items-center"
+            title={
+              selected === null || selectedName === null
+                ? "No tile selected"
+                : `${selectedName} (${selected.sx}, ${selected.sy})`
+            }
+          >
+            {selected === null ||
+            selectedPaintSheet === null ||
+            selectedName === null ? (
+              <span
+                data-testid="selected-preview-empty"
+                aria-label="No tile selected"
+                className="flex items-center justify-center rounded-sm border border-dashed border-border-default text-sm text-text-muted"
+                style={{ width: 32, height: 32 }}
+              >
+                –
+              </span>
+            ) : (
+              <SelectedPreview selected={selected} sheet={selectedPaintSheet} />
+            )}
+          </span>
           <span
             data-testid="selected-tile"
             className="text-sm text-text-secondary"
@@ -847,6 +1354,10 @@ export function MapEditor() {
               ? "No tile selected"
               : `${selectedName} (${selected.sx}, ${selected.sy})`}
           </span>
+          <span data-testid="coop-status" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.status : "idle"}</span>
+          <span data-testid="coop-role" style={COOP_BADGE_STYLE}>{coopMounted ? (coopState.role ?? "") : ""}</span>
+          <span data-testid="coop-peer-count" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.peers.length : 0}</span>
+          <span data-testid="coop-remote-count" ref={remoteCountRef} style={COOP_BADGE_STYLE}>0</span>
           <button
             type="button"
             onClick={handleClear}
@@ -864,10 +1375,15 @@ export function MapEditor() {
           <canvas
             ref={canvasRef}
             data-testid="map-canvas"
-            className="absolute inset-0 block cursor-crosshair"
-            style={{ imageRendering: "pixelated" }}
+            data-alt-held={altHeld ? "true" : "false"}
+            className="absolute inset-0 block"
+            style={{
+              imageRendering: "pixelated",
+              cursor: altHeld ? EYEDROPPER_CURSOR : "crosshair",
+            }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
             onContextMenu={(e) => e.preventDefault()}
           />
         </div>

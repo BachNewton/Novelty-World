@@ -421,6 +421,11 @@ export function matrixFor(canonicalSrc: string): TileMatrix | null {
   return MATRIX_BY_PRIMARY.get(canonicalSrc) ?? null;
 }
 
+/** Primary sheet src of the matrix folding this member src, or null. */
+export function matrixPrimaryFor(src: string): string | null {
+  return MATRIX_MEMBER_TO_PRIMARY.get(src) ?? null;
+}
+
 /** Whether this sheet is folded into another sheet's matrix section. */
 export function isMatrixMember(src: string): boolean {
   return MATRIX_MEMBER_TO_PRIMARY.has(src);
