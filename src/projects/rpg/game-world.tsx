@@ -2,7 +2,9 @@
  * Farmer game world — fullscreen canvas.
  * Walks the tile map stored by the map editor (localStorage
  * `map-editor-v1`, 40x28 cells of 16px). Hold WASD to walk that way
- * (camera follows); release to idle facing it. Player stays centered
+ * (camera follows); release to idle facing it. On touch screens a
+ * floating-origin analog stick appears where the thumb lands and feeds the
+ * same movement keys. Player stays centered
  * via requestAnimationFrame. Auto-resizes with the window.
  */
 'use client';
@@ -13,6 +15,12 @@ import { animSrcCol, foldAnimSx, sheetForTileSrc } from './tile-anim';
 import { getTileImage } from './tile-variants';
 import { MAP_COLS, MAP_ROWS, STORAGE_KEY } from './map-editor';
 import type { MapGrid, PlacedTile } from './map-editor';
+import {
+  STICK_KNOB_PX,
+  STICK_RADIUS_PX,
+  stickDeflection,
+  stickToKeys,
+} from './virtual-stick';
 
 const IDLE_STRIPS = {
   front: '/rpg/sprites/farmer/front-idle.png',
@@ -102,6 +110,20 @@ export default function GameWorld() {
   const dprRef = useRef(1);
   const pressedRef = useRef<string[]>([]);
   const lastCodeRef = useRef<string>('KeyS');
+  /** Physically-held keyboard codes; merged with touch codes into pressedRef. */
+  const kbHeldRef = useRef<string[]>([]);
+  /** Synthetic codes derived from the analog stick. */
+  const touchCodesRef = useRef<string[]>([]);
+  /** Touch tilt magnitude (1 for keyboard-only movement). */
+  const speedScaleRef = useRef(1);
+  /** Active floating-origin stick in CSS px relative to the canvas. */
+  const stickRef = useRef<{
+    pointerId: number;
+    originX: number;
+    originY: number;
+    knobX: number;
+    knobY: number;
+  } | null>(null);
   const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
   const lastTimeRef = useRef<number | null>(null);
   const mapRef = useRef<MapGrid>([]);
@@ -148,14 +170,83 @@ export default function GameWorld() {
     resizeObserver.observe(wrapper);
     window.addEventListener('resize', resize);
 
+    const rebuildPressed = () => {
+      pressedRef.current = [
+        ...kbHeldRef.current,
+        ...touchCodesRef.current.filter((c) => !kbHeldRef.current.includes(c)),
+      ];
+    };
+
     const press = (code: string) => {
-      pressedRef.current = [...pressedRef.current.filter((c) => c !== code), code];
+      kbHeldRef.current = [...kbHeldRef.current.filter((c) => c !== code), code];
+      rebuildPressed();
       lastCodeRef.current = code;
     };
 
     const release = (code: string) => {
-      pressedRef.current = pressedRef.current.filter((c) => c !== code);
+      kbHeldRef.current = kbHeldRef.current.filter((c) => c !== code);
+      rebuildPressed();
     };
+
+    /** Merge stick-derived codes without clobbering physically-held keys. */
+    const syncTouch = (codes: string[], mag: number) => {
+      touchCodesRef.current = codes;
+      speedScaleRef.current = codes.length > 0 ? mag : 1;
+      rebuildPressed();
+      const dominant = codes.at(-1);
+      if (dominant !== undefined) lastCodeRef.current = dominant;
+    };
+
+    const updateStick = (clientX: number, clientY: number) => {
+      const stick = stickRef.current;
+      if (stick === null) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const dx = x - stick.originX;
+      const dy = y - stick.originY;
+      const len = Math.hypot(dx, dy);
+      const clamped = len > STICK_RADIUS_PX ? STICK_RADIUS_PX / len : 1;
+      stick.knobX = stick.originX + dx * clamped;
+      stick.knobY = stick.originY + dy * clamped;
+      const defl = stickDeflection(dx, dy, STICK_RADIUS_PX);
+      syncTouch(stickToKeys(defl), defl.mag);
+    };
+
+    const endStick = (pointerId: number) => {
+      if (stickRef.current?.pointerId !== pointerId) return;
+      stickRef.current = null;
+      syncTouch([], 1);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      // Touch only: mouse/pen must never summon the stick. First touch owns it.
+      if (e.pointerType !== 'touch' || stickRef.current !== null) return;
+      const rect = canvas.getBoundingClientRect();
+      stickRef.current = {
+        pointerId: e.pointerId,
+        originX: e.clientX - rect.left,
+        originY: e.clientY - rect.top,
+        knobX: e.clientX - rect.left,
+        knobY: e.clientY - rect.top,
+      };
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Pointer already released; pointerup/cancel will clean up.
+      }
+      updateStick(e.clientX, e.clientY);
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (stickRef.current?.pointerId !== e.pointerId) return;
+      updateStick(e.clientX, e.clientY);
+    };
+    const onPointerUp = (e: PointerEvent) => endStick(e.pointerId);
+    const onPointerCancel = (e: PointerEvent) => endStick(e.pointerId);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerCancel);
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (KEY_DIR[e.code] !== undefined) press(e.code);
@@ -231,8 +322,9 @@ export default function GameWorld() {
       }
       const len = Math.hypot(vx, vy);
       if (len > 0) {
-        posRef.current.x += (vx / len) * SPEED_PX_S * dt;
-        posRef.current.y += (vy / len) * SPEED_PX_S * dt;
+        const step = SPEED_PX_S * speedScaleRef.current * dt;
+        posRef.current.x += (vx / len) * step;
+        posRef.current.y += (vy / len) * step;
       }
       const code = moving ? (pressed[pressed.length - 1] ?? 'KeyS') : lastCodeRef.current;
       const { dir, flip } = facingFor(code);
@@ -263,6 +355,21 @@ export default function GameWorld() {
       }
       ctx.drawImage(img, f * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, dx, dy, dw, dh);
       if (flip) ctx.restore();
+
+      const stick = stickRef.current;
+      if (stick !== null) {
+        const q = (v: number) => Math.round(v * pdpr) / pdpr;
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(q(stick.originX), q(stick.originY), STICK_RADIUS_PX, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.5;
+        ctx.beginPath();
+        ctx.arc(q(stick.knobX), q(stick.knobY), STICK_KNOB_PX, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     };
 
     rafId = requestAnimationFrame(drawFrame);
@@ -270,6 +377,10 @@ export default function GameWorld() {
     return () => {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerCancel);
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -280,7 +391,7 @@ export default function GameWorld() {
 
   return (
     <div ref={wrapperRef} className="h-dvh w-screen overflow-hidden bg-black">
-      <canvas ref={canvasRef} className="block" style={{ imageRendering: 'pixelated' }} />
+      <canvas ref={canvasRef} className="block touch-none select-none" style={{ imageRendering: 'pixelated' }} />
     </div>
   );
 }
