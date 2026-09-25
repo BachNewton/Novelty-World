@@ -1,328 +1,338 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isCoopMessage, isTileCell } from "./types";
-import type { CoopMessage } from "./types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TransportEvents, TransportState } from "./transport";
 
-const { FakeConn, FakePeer, peers } = vi.hoisted(() => {
-  class FakeConn {
-    open = true;
-    sent: unknown[] = [];
-    handlers = new Map<string, Array<(arg?: never) => void>>();
-    constructor(public peer: string) {}
-    on(event: string, cb: (arg?: never) => void): this {
-      const list = this.handlers.get(event) ?? [];
-      list.push(cb);
-      this.handlers.set(event, list);
+const { FakePeer } = vi.hoisted(() => {
+  type Handler = (...args: never[]) => void;
+
+  class Emitter {
+    private handlers = new Map<string, Handler[]>();
+    on(event: string, handler: Handler): this {
+      this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
       return this;
     }
-    emit(event: string, arg?: never): void {
-      for (const cb of this.handlers.get(event) ?? []) cb(arg);
+    emit(event: string, ...args: unknown[]): void {
+      for (const handler of this.handlers.get(event) ?? []) (handler as (...a: unknown[]) => void)(...args);
+    }
+  }
+
+  /** Mirrors PeerJS: `close` fires only for a channel that was open. */
+  class FakeConn extends Emitter {
+    open = false;
+    sent: unknown[] = [];
+    constructor(public peer: string) {
+      super();
     }
     send(data: unknown): void {
       this.sent.push(data);
     }
+    accept(): void {
+      this.open = true;
+      this.emit("open");
+    }
     close(): void {
+      if (!this.open) return;
       this.open = false;
       this.emit("close");
     }
   }
 
-  class FakePeer {
-    static instances: FakePeer[] = [];
-    id?: string;
+  /** Mirrors PeerJS: `destroy` closes every connection it owns. */
+  class FakePeer extends Emitter {
+    static all: FakePeer[] = [];
+    conns: FakeConn[] = [];
     destroyed = false;
-    handlers = new Map<string, Array<(arg?: never) => void>>();
-    lastConnect: FakeConn | null = null;
-    constructor(id?: string) {
-      this.id = id;
-      FakePeer.instances.push(this);
+    reconnects = 0;
+    requestedId?: string;
+    constructor(idOrOptions?: unknown) {
+      super();
+      if (typeof idOrOptions === "string") this.requestedId = idOrOptions;
+      FakePeer.all.push(this);
     }
-    on(event: string, cb: (arg?: never) => void): this {
-      const list = this.handlers.get(event) ?? [];
-      list.push(cb);
-      this.handlers.set(event, list);
-      return this;
-    }
-    emit(event: string, arg?: never): void {
-      for (const cb of this.handlers.get(event) ?? []) cb(arg);
-    }
-    connect(_hostId: string): FakeConn {
-      const conn = new FakeConn("guest-conn");
-      this.lastConnect = conn;
+    connect(id: string): FakeConn {
+      const conn = new FakeConn(id);
+      this.conns.push(conn);
       return conn;
     }
-    reconnect(): void {}
+    /** A guest dials in. */
+    incoming(id: string): FakeConn {
+      const conn = new FakeConn(id);
+      this.conns.push(conn);
+      this.emit("connection", conn);
+      return conn;
+    }
+    reconnect(): void {
+      this.reconnects += 1;
+    }
     destroy(): void {
       this.destroyed = true;
+      for (const conn of this.conns) conn.close();
+      this.emit("close");
     }
   }
 
-  return { FakeConn, FakePeer, peers: FakePeer.instances };
+  return { FakePeer };
 });
 
 vi.mock("peerjs", () => ({ Peer: FakePeer }));
 
-import { createCoopTransport } from "./transport";
+import { createTransport } from "./transport";
 
-beforeEach(() => {
-  peers.length = 0;
-});
+const ROOM = "room";
 
 function lastPeer(): InstanceType<typeof FakePeer> {
-  const peer = peers.at(-1);
-  if (!peer) throw new Error("expected a Peer instance");
+  const peer = FakePeer.all.at(-1);
+  if (peer === undefined) throw new Error("no peer created");
   return peer;
 }
 
-/** Flush pending promise continuations without any clock. The fake peers
- * emit synchronously, so a few microtask turns settle every `claimOrJoin`
- * continuation — no timer mocks involved. */
-async function flush(times = 10): Promise<void> {
-  for (let i = 0; i < times; i += 1) await Promise.resolve();
+function harness() {
+  const states: TransportState[] = [];
+  const log: string[] = [];
+  const events: TransportEvents = {
+    onState: (s) => states.push(s),
+    onGuestJoined: (id) => log.push(`joined ${id}`),
+    onGuestLeft: (id) => log.push(`left ${id}`),
+    onData: (from, data) => log.push(`data ${from} ${JSON.stringify(data)}`),
+  };
+  const transport = createTransport(ROOM, events);
+  return {
+    transport,
+    log,
+    state: () => states.at(-1),
+    states,
+  };
 }
 
-async function becomeHost(hostId = "test-host") {
-  const transport = createCoopTransport({ hostId, reelectRetryMs: 10 });
-  transport.start();
-  lastPeer().emit("open", hostId as never);
-  await flush();
-  expect(transport.getState().role).toBe("host");
-  return transport;
+function startAsHost() {
+  const h = harness();
+  h.transport.start();
+  lastPeer().emit("open", ROOM);
+  return h;
 }
 
-async function becomeGuest(hostId = "test-host", guestId = "guest-a") {
-  const transport = createCoopTransport({ hostId });
-  transport.start();
-  lastPeer().emit("error", { type: "unavailable-id" } as never);
-  await flush();
-  lastPeer().emit("open", guestId as never);
-  await flush();
-  expect(transport.getState().role).toBe("guest");
-  return transport;
+function startAsGuest(guestId = "g1") {
+  const h = harness();
+  h.transport.start();
+  lastPeer().emit("error", { type: "unavailable-id" });
+  const guestPeer = lastPeer();
+  guestPeer.emit("open", guestId);
+  const hostConn = guestPeer.conns[0];
+  hostConn.accept();
+  return { ...h, guestPeer, hostConn };
 }
 
-describe("coop wire message validation", () => {
-  it("accepts a pos message", () => {
-    expect(
-      isCoopMessage({
-        kind: "pos",
-        from: "peer-a",
-        pos: { x: 10, y: 20, dir: "side", flip: true, moving: false, timestamp: 1000 },
-      }),
-    ).toBe(true);
-  });
-
-  it("rejects pos with bad facing or non-finite coords", () => {
-    expect(
-      isCoopMessage({
-        kind: "pos",
-        from: "peer-a",
-        pos: { x: Number.NaN, y: 0, dir: "side", flip: false, moving: true },
-      }),
-    ).toBe(false);
-    expect(
-      isCoopMessage({
-        kind: "pos",
-        from: "peer-a",
-        pos: { x: 0, y: 0, dir: "up", flip: false, moving: true },
-      }),
-    ).toBe(false);
-  });
-
-  it("accepts tile batches and snapshots, rejects empty batches", () => {
-    const cell = { c: 3, r: 5, tile: { src: "/s.png", sx: 1, sy: 2 }, seq: 7, author: "a" };
-    expect(isCoopMessage({ kind: "tiles", from: "a", cells: [cell] })).toBe(true);
-    expect(isCoopMessage({ kind: "snapshot", from: "a", cells: [] })).toBe(true);
-    expect(isCoopMessage({ kind: "tiles", from: "a", cells: [] })).toBe(false);
-  });
-
-  it("accepts clear / snapshot-request / peer-left, rejects unknown kinds", () => {
-    expect(isCoopMessage({ kind: "clear", from: "a", seq: 4 })).toBe(true);
-    expect(isCoopMessage({ kind: "snapshot-request", from: "a" })).toBe(true);
-    expect(
-      isCoopMessage({ kind: "peer-left", from: "test-host", peerId: "guest-a" }),
-    ).toBe(true);
-    expect(isCoopMessage({ kind: "peer-left", from: "a" })).toBe(false);
-    expect(isCoopMessage({ kind: "hello", from: "a" })).toBe(false);
-    expect(isCoopMessage({ kind: "bye", from: "a" })).toBe(false);
-    expect(isCoopMessage({ kind: "heartbeat", from: "a" })).toBe(false);
-    expect(isCoopMessage({ kind: "teleport", from: "a" })).toBe(false);
-    expect(isCoopMessage({ kind: "pos", from: "" })).toBe(false);
-  });
+beforeEach(() => {
+  FakePeer.all = [];
+  vi.stubGlobal("window", new EventTarget());
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
-describe("coop tile cell bounds", () => {
-  const base = { tile: null, seq: 1, author: "a" };
-
-  it("accepts in-bounds cells including erases", () => {
-    expect(isTileCell({ ...base, c: 0, r: 0 })).toBe(true);
-    expect(isTileCell({ ...base, c: 39, r: 27 })).toBe(true);
-  });
-
-  it("rejects out-of-bounds cells and bad seq/author", () => {
-    expect(isTileCell({ ...base, c: 40, r: 0 })).toBe(false);
-    expect(isTileCell({ ...base, c: 0, r: 28 })).toBe(false);
-    expect(isTileCell({ ...base, c: -1, r: 0 })).toBe(false);
-    expect(isTileCell({ ...base, c: 0, r: 0, seq: -1 })).toBe(false);
-    expect(isTileCell({ ...base, c: 0, r: 0, author: "" })).toBe(false);
-    expect(isTileCell({ ...base, c: 0, r: 0, tile: { src: "", sx: 0, sy: 0 } })).toBe(false);
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
-describe("coop host rebroadcast fan-out", () => {
-  it("delivers a guest message locally and to every other guest only", async () => {
-    const transport = await becomeHost();
-    const received: CoopMessage[] = [];
-    transport.onMessage((msg) => received.push(msg));
-
-    const connA = new FakeConn("guest-a");
-    const connB = new FakeConn("guest-b");
-    lastPeer().emit("connection", connA as never);
-    lastPeer().emit("connection", connB as never);
-    expect(transport.getState().peers).toEqual(["guest-a", "guest-b"]);
-
-    const pos = {
-      kind: "pos",
-      from: "guest-a",
-      pos: { x: 1, y: 2, dir: "side", flip: false, moving: true, timestamp: 1000 },
-    };
-    connA.emit("data", pos as never);
-
-    expect(received).toEqual([pos]);
-    expect(connA.sent).toEqual([]);
-    expect(connB.sent).toEqual([pos]);
-    transport.destroy();
+describe("claiming the room", () => {
+  it("claims the room id and hosts when granted", () => {
+    const h = harness();
+    h.transport.start();
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()?.status).toBe("connecting");
+    lastPeer().emit("open", ROOM);
+    expect(h.state()).toEqual({ status: "connected", role: "host", selfId: ROOM, peerCount: 0 });
   });
 
-  it("synthesizes peer-left on guest disconnect and fans it out", async () => {
-    const transport = await becomeHost();
-    const received: CoopMessage[] = [];
-    transport.onMessage((msg) => received.push(msg));
-
-    const connA = new FakeConn("guest-a");
-    const connB = new FakeConn("guest-b");
-    lastPeer().emit("connection", connA as never);
-    lastPeer().emit("connection", connB as never);
-    connA.close();
-
-    expect(transport.getState().peers).toEqual(["guest-b"]);
-    expect(received).toEqual([
-      { kind: "peer-left", from: "test-host", peerId: "guest-a" },
-    ]);
-    expect(connB.sent).toEqual([
-      { kind: "peer-left", from: "test-host", peerId: "guest-a" },
-    ]);
-    transport.destroy();
-  });
-
-  it("drops spoofed peer-left messages arriving off the wire", async () => {
-    const transport = await becomeHost();
-    const received: CoopMessage[] = [];
-    transport.onMessage((msg) => received.push(msg));
-
-    const connA = new FakeConn("guest-a");
-    const connB = new FakeConn("guest-b");
-    lastPeer().emit("connection", connA as never);
-    lastPeer().emit("connection", connB as never);
-    connA.emit("data", {
-      kind: "peer-left",
-      from: "guest-a",
-      peerId: "guest-b",
-    } as never);
-
-    expect(received).toEqual([]);
-    expect(connB.sent).toEqual([]);
-    transport.destroy();
-  });
-
-  it("host send broadcasts to all guests", async () => {
-    const transport = await becomeHost();
-    const connA = new FakeConn("guest-a");
-    lastPeer().emit("connection", connA as never);
-    transport.send({ kind: "snapshot-request" });
-    expect(connA.sent).toEqual([
-      { kind: "snapshot-request", from: "test-host" },
-    ]);
-    transport.destroy();
-  });
-});
-
-describe("event-chained re-election (no timers)", () => {
-  it("host peer close chains a fresh claim synchronously", async () => {
-    const transport = await becomeHost();
-    const claims = peers.length;
-    lastPeer().emit("close");
-    // No awaiting: the re-claim is chained synchronously off the event, and
-    // `reconnecting` is published before the chain starts.
-    expect(peers.length).toBe(claims + 1);
-    expect(transport.getState().status).toBe("reconnecting");
-    expect(transport.getState().role).toBeNull();
-    // The new claimant wins the fixed id → host again.
-    lastPeer().emit("open", "test-host" as never);
-    await flush();
-    expect(transport.getState()).toMatchObject({
-      role: "host",
-      status: "connected",
-    });
-    transport.destroy();
-  });
-
-  it("disconnected and peer-unavailable chain a claim; other errors do not", async () => {
-    const transport = await becomeHost();
-    const claims = peers.length;
-    lastPeer().emit("error", { type: "network" } as never);
-    expect(peers.length).toBe(claims);
-    expect(transport.getState().status).toBe("connected");
-    lastPeer().emit("disconnected");
-    expect(peers.length).toBe(claims + 1);
-    expect(transport.getState().status).toBe("reconnecting");
-    transport.destroy();
-  });
-
-  it("concurrent close/error/disconnected events stack only one claim", async () => {
-    const transport = await becomeHost();
-    const claims = peers.length;
-    const peer = lastPeer();
-    peer.emit("close");
-    peer.emit("error", { type: "unavailable-id" } as never);
-    peer.emit("disconnected");
-    expect(peers.length).toBe(claims + 1);
-    transport.destroy();
-  });
-
-  it("guest host-conn close re-elects synchronously and can rejoin", async () => {
-    const transport = await becomeGuest();
+  it("joins the holder as a guest when the id is taken", () => {
+    const h = harness();
+    h.transport.start();
+    const claimant = lastPeer();
+    claimant.emit("error", { type: "unavailable-id" });
+    expect(claimant.destroyed).toBe(true);
     const guestPeer = lastPeer();
-    const conn = guestPeer.lastConnect;
-    if (!conn) throw new Error("expected a host connection");
-    const claims = peers.length;
-    conn.emit("close");
-    expect(peers.length).toBe(claims + 1);
-    expect(transport.getState().status).toBe("reconnecting");
-    // Loses the claim race → guest again under a fresh id.
-    lastPeer().emit("error", { type: "unavailable-id" } as never);
-    await flush();
-    lastPeer().emit("open", "guest-b" as never);
-    await flush();
-    expect(transport.getState().role).toBe("guest");
-    expect(transport.getState().status).toBe("connected");
-    transport.destroy();
+    expect(guestPeer.requestedId).toBeUndefined();
+    guestPeer.emit("open", "g1");
+    expect(guestPeer.conns.map((c) => c.peer)).toEqual([ROOM]);
+    expect(h.state()?.status).toBe("connecting");
+    guestPeer.conns[0].accept();
+    expect(h.state()).toEqual({ status: "connected", role: "guest", selfId: "g1", peerCount: 1 });
   });
 
-  it("destroyed transports ignore peer events", async () => {
-    const transport = await becomeHost();
-    const claims = peers.length;
-    transport.destroy();
-    lastPeer().emit("close");
-    lastPeer().emit("error", { type: "unavailable-id" } as never);
-    expect(peers.length).toBe(claims);
+  it("retries a failed attempt at once, then waits for the browser to come back online", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const h = harness();
+    h.transport.start();
+    lastPeer().emit("error", { type: "network" });
+    expect(h.state()?.status).toBe("reconnecting");
+    lastPeer().emit("error", { type: "server-error" });
+    expect(h.state()?.status).toBe("reconnecting");
+    expect(warn).toHaveBeenCalledTimes(2);
+    const last = lastPeer();
+    last.emit("error", { type: "network" });
+    expect(last.destroyed).toBe(true);
+    expect(h.state()?.status).toBe("offline");
+    expect(console.error).toHaveBeenCalledOnce();
+
+    const peersBefore = FakePeer.all.length;
+    window.dispatchEvent(new Event("online"));
+    expect(FakePeer.all.length).toBe(peersBefore + 1);
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()?.status).toBe("reconnecting");
   });
 
-  it("failed claims publish reconnecting for the next event to chain", async () => {
-    const transport = createCoopTransport({ hostId: "test-host" });
-    transport.start();
-    lastPeer().emit("error", { type: "boom" } as never);
-    await flush();
-    expect(transport.getState().status).toBe("reconnecting");
-    transport.destroy();
+  it("a successful connection resets the retry budget", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const h = harness();
+    h.transport.start();
+    lastPeer().emit("error", { type: "network" });
+    lastPeer().emit("error", { type: "network" });
+    lastPeer().emit("open", ROOM);
+    lastPeer().emit("disconnected");
+    lastPeer().emit("disconnected"); // fails, but with a fresh budget
+    expect(h.state()?.status).toBe("reconnecting");
+  });
+});
+
+describe("hosting", () => {
+  it("tracks guests and routes their data", () => {
+    const h = startAsHost();
+    const conn = lastPeer().incoming("g1");
+    expect(h.log).toEqual([]);
+    conn.accept();
+    expect(h.log).toEqual(["joined g1"]);
+    expect(h.state()?.peerCount).toBe(1);
+    conn.emit("data", { hi: 1 });
+    expect(h.log.at(-1)).toBe('data g1 {"hi":1}');
+    conn.close();
+    expect(h.log.at(-1)).toBe("left g1");
+    expect(h.state()?.peerCount).toBe(0);
+  });
+
+  it("broadcasts to every guest but the excluded one, and sends to one", () => {
+    const h = startAsHost();
+    const a = lastPeer().incoming("a");
+    const b = lastPeer().incoming("b");
+    a.accept();
+    b.accept();
+    h.transport.broadcast("all");
+    h.transport.broadcast("not-a", "a");
+    h.transport.sendTo("b", "just-b");
+    expect(a.sent).toEqual(["all"]);
+    expect(b.sent).toEqual(["all", "not-a", "just-b"]);
+  });
+
+  it("re-registers with the signalling server once, then re-claims the room", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const h = startAsHost();
+    const peer = lastPeer();
+    peer.emit("disconnected");
+    expect(peer.reconnects).toBe(1);
+    expect(h.state()?.status).toBe("connected");
+    peer.emit("open", ROOM); // re-registered
+    peer.emit("disconnected");
+    expect(peer.reconnects).toBe(2);
+    peer.emit("disconnected"); // lost again before re-registering
+    expect(peer.destroyed).toBe(true);
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()?.status).toBe("reconnecting");
+  });
+
+  it("yields to a rival host that took the room while signalling was down", () => {
+    const h = startAsHost();
+    const peer = lastPeer();
+    peer.emit("disconnected");
+    peer.emit("error", { type: "unavailable-id" });
+    expect(peer.destroyed).toBe(true);
+    expect(lastPeer().requestedId).toBeUndefined();
+    expect(h.state()?.role).toBeNull();
+  });
+});
+
+describe("guest", () => {
+  it("routes host data and sends upstream", () => {
+    const h = startAsGuest();
+    h.hostConn.emit("data", "hello");
+    expect(h.log).toEqual([`data ${ROOM} "hello"`]);
+    h.transport.sendToHost("up");
+    expect(h.hostConn.sent).toEqual(["up"]);
+  });
+
+  it("re-claims the room when the host leaves", () => {
+    const h = startAsGuest();
+    h.hostConn.close();
+    expect(h.guestPeer.destroyed).toBe(true);
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()).toEqual({ status: "reconnecting", role: null, selfId: null, peerCount: 0 });
+    lastPeer().emit("open", ROOM);
+    expect(h.state()?.role).toBe("host");
+  });
+
+  it("re-claims when the host vanished before our dial landed", () => {
+    const h = harness();
+    h.transport.start();
+    lastPeer().emit("error", { type: "unavailable-id" });
+    lastPeer().emit("open", "g1");
+    lastPeer().emit("error", { type: "peer-unavailable" });
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()?.status).toBe("reconnecting");
+  });
+
+  it("re-claims when the channel to the host can't be negotiated", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const h = harness();
+    h.transport.start();
+    lastPeer().emit("error", { type: "unavailable-id" });
+    const guestPeer = lastPeer();
+    guestPeer.emit("open", "g1");
+    guestPeer.conns[0].emit("error", { type: "negotiation-failed" });
+    expect(guestPeer.destroyed).toBe(true);
+    expect(lastPeer().requestedId).toBe(ROOM);
+    expect(h.state()?.status).toBe("reconnecting");
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("ignores signalling errors once the channel is up", () => {
+    const h = startAsGuest();
+    h.guestPeer.emit("error", { type: "network" });
+    expect(h.state()?.status).toBe("connected");
+    expect(h.guestPeer.destroyed).toBe(false);
+  });
+
+  it("refuses to send when not linked to a host", () => {
+    const h = harness();
+    h.transport.start();
+    expect(() => h.transport.sendToHost("x")).toThrow(/not connected/);
+  });
+});
+
+describe("teardown", () => {
+  it("stop destroys the peer without firing stale re-election", () => {
+    const h = startAsGuest();
+    const peers = FakePeer.all.length;
+    h.transport.stop();
+    expect(h.guestPeer.destroyed).toBe(true);
+    expect(FakePeer.all.length).toBe(peers);
+    expect(h.state()?.status).toBe("idle");
+    // Late events from the dead peer are ignored.
+    h.guestPeer.emit("error", { type: "peer-unavailable" });
+    expect(FakePeer.all.length).toBe(peers);
+  });
+
+  it("events from a replaced peer are ignored", () => {
+    const h = startAsGuest();
+    const oldConn = h.hostConn;
+    oldConn.close(); // re-election starts a new claim
+    const statesBefore = h.states.length;
+    oldConn.emit("data", "late");
+    h.guestPeer.emit("open", "late-id");
+    expect(h.states.length).toBe(statesBefore);
+    expect(h.log).toEqual([]);
+  });
+
+  it("can start again after stop (React StrictMode remount)", () => {
+    const h = startAsHost();
+    h.transport.stop();
+    h.transport.start();
+    lastPeer().emit("open", ROOM);
+    expect(h.state()).toMatchObject({ status: "connected", role: "host" });
   });
 });

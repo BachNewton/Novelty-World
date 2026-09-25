@@ -1,14 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useProfile } from "@/shared/lib/profile";
+import { useHydrated } from "@/shared/lib/use-hydrated";
 import { Pencil } from "lucide-react";
-
-const subscribe = () => () => {};
 
 export function ProfileEditor() {
   const { name, setName } = useProfile();
-  const mounted = useSyncExternalStore(subscribe, () => true, () => false);
+  const mounted = useHydrated();
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);

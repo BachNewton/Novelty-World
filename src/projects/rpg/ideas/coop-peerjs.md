@@ -1,48 +1,51 @@
-# Online Co-op via PeerJS (2–4 players) — remaining work
+# Online Co-op via PeerJS (2–4 players)
 
-Status: core implemented / E2E written, not yet green.
-Date: 2026-09-24 (revised; original idea 2026-09-22).
-
-Done and out of scope for this doc: PeerJS transport (claim-or-join
-`novelty-rpg-world`, star rebroadcast, event-chained re-election),
-presence + lerp avatars both directions (play ↔ edit), LWW map sync +
-clear broadcast + sparse join snapshot, shared-transport singleton,
-`?coop-room=` isolation for testing. Implementation lives in
-`src/projects/rpg/coop/` with unit tests (`transport`, `presence`,
-`map-sync`); no waits/timers in coop networking or tests by rule.
+Status: implemented; unit tests and `e2e/rpg-coop.spec.ts` green.
 
 Production rule: one global room, no codes/lobby/invites. `?coop-room=`
-exists for testing/dev isolation only.
+exists for testing/dev isolation only; `?coop-signal=local` points PeerJS at
+the e2e suite's local PeerServer.
 
-## 1. E2E green (`e2e/rpg-coop.spec.ts`, 8 tests, serial)
+## Design
 
-Cases: join/move/leave, edit→play live, play→edit live, same-cell
-convergence, Clear All no-resurrection, late-joiner snapshot, host-close
-re-elect, 4-player smoke. Run: `npx playwright test e2e/rpg-coop.spec.ts`.
+- **Transport** (`coop/transport.ts`): a PeerJS star. Every tab claims the
+  room's fixed peer id; the server grants it to one tab (the host) and
+  refuses the rest, who join the host as guests. When the host leaves, its
+  guests race to claim the id again, so re-election is the same path as the
+  first join. Everything is event-driven — no timers, no polling. Handlers
+  are bound to the Peer/connection they were registered on and ignore
+  events once it has been replaced; that is what keeps teardown and
+  re-election race-free.
+- **Session** (`coop/session.ts`): one per page, shared by play and edit
+  mode, owning the map store, remote avatars and the local avatar. The host
+  is authoritative: guests apply their own paints optimistically, the host
+  applies ops in arrival order and echoes them to every guest, so all peers
+  converge on the host's op order. A joiner receives one `welcome` holding
+  the host's map and avatar table, which replaces its own map — the room
+  shares one world.
+- **Protocol** (`coop/protocol.ts`): guest→host and host→guest message
+  unions; every inbound payload is parsed before use.
+- **Map** (`world-map.ts`): the one store both canvases read, persisted to
+  localStorage on every change.
 
-Status: test 1 passes; tests 2–8 blocked until the in-flight character
-stream (`characters.ts`, per-character sprites, `characterId` on the pos
-wire) lands and the tree is quiet — the last run raced Turbopack HMR
-mid-test. Rerun on a quiet tree, then keep green.
+## Known limits
 
-## 2. Visible "reconnecting…" indicator
+- **Unclean host loss.** A tab that closes normally tells its peers at once
+  (`pagehide` stops the session). A host that crashes or drops off the
+  network is noticed only when WebRTC gives up on the channel (~30 s). A
+  guest re-claiming during that window may dial a host id the signalling
+  server hasn't expired yet; if the offer is never answered, PeerJS emits
+  nothing and the guest sits in `reconnecting`. Fixing that needs a
+  connect timeout — the one timer this design would admit.
+- **Public PeerJS cloud.** It rate-limits per IP (HTTP 429 for about an hour
+  after bursts of connections) and is STUN-only, so symmetric-NAT users
+  (~10–20%) may fail to connect. A self-hosted PeerServer (the `peer`
+  package, already used by e2e) and a TURN entry in the PeerJS `config` fix
+  both without touching the architecture.
 
-Transport already publishes `reconnecting` (asserted via hidden
-`coop-status` testid). Still missing: user-visible indicator in both
-`game-world.tsx` and `map-editor.tsx`. Accept: host tab closes →
-survivors show the indicator until re-elect completes, then it clears.
+## Remaining work
 
-## 3. Names/colors on avatars
-
-Polish item, not implemented. Coordinate with the character stream:
-decide whether coop identity rides on `characterId` (already on the wire)
-or needs a separate name/color field, then render it on remote avatars in
-both play and edit overlay. Accept: each remote avatar is identifiable
-at a glance in both modes.
-
-## 4. TURN verdict
-
-PeerJS cloud is STUN-only; symmetric-NAT users (~10–20%) may fail to
-connect. Fix if it bites (one-line TURN provider via PeerJS `config`,
-no architecture impact). Accept: record the decision once E2E is green —
-either "STUN sufficient, verified by passing E2E" or add the TURN config.
+1. **Visible "reconnecting…" indicator** in play and edit mode. The session
+   snapshot already carries `status`; only hidden e2e badges render it.
+2. **Names/colours on avatars** so each remote player is identifiable at a
+   glance. Decide whether identity rides on `characterId` or a new field.

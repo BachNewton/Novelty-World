@@ -5,8 +5,6 @@
  * roster entries are playable with zero per-character code.
  */
 
-import type { AvatarDir } from "./coop/types";
-
 export const PLAYABLE_CHARACTER_IDS = [
   "bartender-bruno",
   "bartender-katy",
@@ -45,6 +43,9 @@ export function nextCharacterId(current: unknown): CharacterId {
   if (next === undefined) throw new Error("character roster is empty");
   return next;
 }
+
+/** Sprite row facing; side strips face right natively (flip for left). */
+export type AvatarDir = "front" | "side" | "back";
 
 export type CharacterStrips = Record<AvatarDir, string>;
 

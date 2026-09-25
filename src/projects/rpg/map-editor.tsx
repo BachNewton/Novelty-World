@@ -1,12 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { CELL_PX, TILE_SHEETS, migrateTileSrc, type TileSheet } from "./tiles";
-import {
-  animSrcCol,
-  foldAnimSx,
-  sheetForTileSrc,
-} from "./tile-anim";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CELL_PX, TILE_SHEETS, type TileSheet } from "./tiles";
+import { animSrcCol, sheetForTileSrc } from "./tile-anim";
 import {
   animFor,
   canonicalSrcFor,
@@ -30,49 +26,12 @@ import {
   variantSwatchCss,
   type TileMatrix,
 } from "./tile-variants";
-import { getCoopRoomId, getSharedCoopTransport, useEditorMapSync } from "./coop/map-sync";
-import { advanceRemoteRender, usePresence } from "./coop/presence";
-import {
-  DEFAULT_CHARACTER_ID,
-  idleStripsFor,
-  sanitizeCharacterId,
-  walkStripsFor,
-  type CharacterId,
-} from "./characters";
+import { MAP_COLS, MAP_ROWS, type PlacedTile } from "./world-map";
+import { AVATAR_FRAME_PX, drawAvatar, drawTile } from "./draw";
+import { advanceRemoteRender, type CoopSession } from "./coop/session";
 
-export const MAP_COLS = 40;
-export const MAP_ROWS = 28;
-export const STORAGE_KEY = "map-editor-v1";
-/**
- * Visually-hidden style for the co-op state badges (`coop-status`,
- * `coop-role`, `coop-peer-count`, `coop-remote-count`). They expose live
- * `usePresence` state to E2E (condition-based waits) without affecting the
- * editor layout.
- */
-const COOP_BADGE_STYLE: CSSProperties = {
-  position: "absolute",
-  width: 1,
-  height: 1,
-  overflow: "hidden",
-  clip: "rect(0 0 0 0)",
-  whiteSpace: "nowrap",
-};
-// --- CO-OP CHUNK 1: playing-peer avatar overlay. Each peer renders with
-// its own character strips (preloaded on demand in the canvas effect);
-// frame constants mirror the play canvas. Remotes cycle continuously off
-// `now` instead of resetting on idle/walk switches.
-const AVATAR_FRAME = 64;
-const AVATAR_FRAMES = 6;
-const AVATAR_IDLE_MS = 200;
-const AVATAR_WALK_MS = 120;
 const PALETTE_SCALE = 2;
 const PALETTE_PX = CELL_PX * PALETTE_SCALE;
-
-export interface PlacedTile {
-  src: string;
-  sx: number;
-  sy: number;
-}
 
 const SHEET_BY_SRC = new Map<string, TileSheet>(
   TILE_SHEETS.map((sheet) => [sheet.src, sheet]),
@@ -87,8 +46,6 @@ function nestedSheetsFor(parentSrc: string): TileSheet[] {
   }
   return out;
 }
-
-export type MapGrid = (PlacedTile | null)[][];
 
 interface SelectedTile {
   sheet: TileSheet;
@@ -232,51 +189,6 @@ export function resolvePickedTile(tile: PlacedTile): PickedSelection | null {
       ? null
       : { primary: canonical, animated },
   };
-}
-
-function createEmptyGrid(): MapGrid {
-  return Array.from({ length: MAP_ROWS }, () =>
-    Array.from({ length: MAP_COLS }, () => null),
-  );
-}
-
-function isPlacedTile(value: unknown): value is PlacedTile {
-  if (typeof value !== "object" || value === null) return false;
-  const tile = value as Record<string, unknown>;
-  return (
-    typeof tile.src === "string" &&
-    typeof tile.sx === "number" &&
-    typeof tile.sy === "number"
-  );
-}
-
-function loadGrid(): MapGrid {
-  const empty = createEmptyGrid();
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return empty;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length !== MAP_ROWS) return empty;
-    for (let r = 0; r < MAP_ROWS; r += 1) {
-      const row: unknown = parsed[r];
-      if (!Array.isArray(row) || row.length !== MAP_COLS) return empty;
-      for (let c = 0; c < MAP_COLS; c += 1) {
-        const cell: unknown = row[c];
-        if (cell === null || cell === undefined) {
-          empty[r][c] = null;
-        } else if (!isPlacedTile(cell)) {
-          return createEmptyGrid();
-        } else {
-          const src = migrateTileSrc(cell.src);
-          // Back-compat: cells picked from later animation frames fold into frame 0.
-          empty[r][c] = { ...cell, src, sx: foldAnimSx(sheetForTileSrc(src), cell.sx) };
-        }
-      }
-    }
-    return empty;
-  } catch {
-    return empty;
-  }
 }
 
 function SwatchDot({
@@ -691,10 +603,7 @@ function SelectedPreview({
   );
 }
 
-export function MapEditor() {
-  const [grid, setGrid] = useState<MapGrid>(() =>
-    typeof window === "undefined" ? createEmptyGrid() : loadGrid(),
-  );
+export function MapEditor({ session }: { session: CoopSession }) {
   const [selected, setSelected] = useState<SelectedTile | null>(null);
   /** Per-group paint variant index into pickerSrcsFor (0 = canonical).
    * Keyed by sync-group primary so synced canonicals share one selection. */
@@ -717,7 +626,6 @@ export function MapEditor() {
 
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gridRef = useRef<MapGrid>(grid);
   const selectedRef = useRef<SelectedTile | null>(selected);
   /** Hovered map cell for the 1-cell highlight, written by mouse handlers and
    * read by the rAF loop (ref, not state: hover must never re-render). */
@@ -727,57 +635,6 @@ export function MapEditor() {
   const scaleRef = useRef(1);
   const sizeRef = useRef({ width: 1, height: 1 });
   const offsetRef = useRef({ x: 0, y: 0 });
-  // --- CO-OP CHUNK 1: receive-only presence — the edit canvas shows playing
-  // peers live (bidirectional requirement). This hook never sends pos.
-  // Shares one transport with the map-sync binding below (one PeerJS peer
-  // per tab, caller-owned so the `~` toggle keeps the peer id and host).
-  // Page's co-op room (`?coop-room=`, default room when absent): resolved
-  // per render (client read, SSR-safe default); the URL is stable for the
-  // page lifetime so presence and map-sync always agree on one room.
-  const coopRoom = getCoopRoomId();
-  const getRoomTransport = useCallback(
-    () => getSharedCoopTransport(coopRoom),
-    [coopRoom],
-  );
-  const presence = usePresence(undefined, {
-    createTransport: getRoomTransport,
-  });
-  const { remotesRef: remoteAvatarsRef, state: coopState } = presence;
-  /**
-   * Mount gate for the coop badges: server HTML and the first client render
-   * emit identical static placeholders (`idle` / `""` / `0`), and the live
-   * hook state only renders after this event-driven flip — so the
-   * transport's async `connecting`/`reconnecting` transitions can never
-   * produce a hydration mismatch. Allowed: `useEffect`-gated `setState`,
-   * no timers.
-   */
-  const [coopMounted, setCoopMounted] = useState(false);
-  useEffect(() => {
-    // Intentional hydration gate (static placeholders pre-mount, no timers).
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-gated badge placeholders must flip post-mount
-    setCoopMounted(true);
-  }, []);
-  /**
-   * Mirrors the live remote-avatar count into the `coop-remote-count` badge
-   * once per frame (direct DOM write inside the existing rAF loop: net
-   * traffic never re-renders React, and no new subscription or timer is added).
-   */
-  const remoteCountRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    gridRef.current = grid;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
-    } catch {
-      // Storage full or unavailable — the map still works in memory.
-    }
-  }, [grid]);
-
-  // [coop-map-sync] Chunk 2 shared live map editing: outbound paints batch
-  // into one tiles message per frame, inbound tiles/snapshot/clear merge
-  // through the same setGrid updater + LWW seq map. This persistence effect
-  // stays the single localStorage writer (the seq map is never persisted).
-  const mapSync = useEditorMapSync(gridRef, setGrid, coopRoom);
 
   useEffect(() => {
     selectedRef.current = selected;
@@ -830,21 +687,6 @@ export function MapEditor() {
     const ctx = canvas.getContext("2d");
     if (ctx === null) return;
 
-    // --- CO-OP CHUNK 1: avatar strips for the playing-peer overlay.
-    const avatarImgs: Record<string, HTMLImageElement | undefined> = {};
-    const ensureAvatarStrips = (id: CharacterId) => {
-      for (const src of [
-        ...Object.values(idleStripsFor(id)),
-        ...Object.values(walkStripsFor(id)),
-      ]) {
-        if (avatarImgs[src] !== undefined) continue;
-        const img = new Image();
-        img.src = src;
-        avatarImgs[src] = img;
-      }
-    };
-    ensureAvatarStrips(DEFAULT_CHARACTER_ID);
-
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -877,12 +719,11 @@ export function MapEditor() {
     window.addEventListener("resize", resize);
 
     let rafId = 0;
-    let coopLast: number | null = null;
+    let lastTime: number | null = null;
     const drawFrame = (now: number) => {
       rafId = requestAnimationFrame(drawFrame);
-      const coopDt =
-        coopLast === null ? 0 : Math.min((now - coopLast) / 1000, 0.05);
-      coopLast = now;
+      const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
       const { width, height } = sizeRef.current;
       const scale = scaleRef.current;
       const { x: offsetX, y: offsetY } = offsetRef.current;
@@ -892,29 +733,14 @@ export function MapEditor() {
       ctx.fillStyle = "#0a0a0a";
       ctx.fillRect(0, 0, width, height);
 
-      const current = gridRef.current;
+      const grid = session.map.grid();
+      const cellSize = CELL_PX * scale;
       for (let r = 0; r < MAP_ROWS; r += 1) {
         for (let c = 0; c < MAP_COLS; c += 1) {
-          const tile = current[r][c];
-          if (tile === null) continue;
-          const img = getTileImage(tile.src);
-          if (!img.complete || img.naturalWidth === 0) continue;
-          const sheet = sheetForTileSrc(tile.src);
-          const srcCol =
-            sheet?.anim === undefined
-              ? tile.sx
-              : animSrcCol(sheet, tile.sx, now, c, r);
-          ctx.drawImage(
-            img,
-            srcCol * CELL_PX,
-            tile.sy * CELL_PX,
-            CELL_PX,
-            CELL_PX,
-            offsetX + c * CELL_PX * scale,
-            offsetY + r * CELL_PX * scale,
-            CELL_PX * scale,
-            CELL_PX * scale,
-          );
+          const tile = grid[r][c];
+          if (tile !== null) {
+            drawTile(ctx, tile, c, r, offsetX + c * cellSize, offsetY + r * cellSize, cellSize, now);
+          }
         }
       }
 
@@ -948,60 +774,13 @@ export function MapEditor() {
         );
       }
 
-      // --- CO-OP CHUNK 1: playing-peer avatar overlay. World px map to the
-      // canvas via the same offset/scale as tiles; positions lerp like the
-      // play canvas. An orange dot stands in until the strips load.
-      for (const avatar of remoteAvatarsRef.current.values()) {
-        advanceRemoteRender(avatar, coopDt);
-        const centerX = offsetX + avatar.renderX * scale;
-        const centerY = offsetY + avatar.renderY * scale;
-        const avatarId = sanitizeCharacterId(avatar.characterId);
-        ensureAvatarStrips(avatarId);
-        const strips = avatar.moving ? walkStripsFor(avatarId) : idleStripsFor(avatarId);
-        const img = avatarImgs[strips[avatar.dir]];
-        if (img !== undefined && img.complete && img.naturalWidth > 0) {
-          const frameMs = avatar.moving ? AVATAR_WALK_MS : AVATAR_IDLE_MS;
-          const rf = Math.floor(now / frameMs) % AVATAR_FRAMES;
-          const adw = AVATAR_FRAME * scale;
-          const adx = centerX - adw / 2;
-          const ady = centerY - adw / 2;
-          if (avatar.flip) {
-            ctx.save();
-            ctx.translate(2 * centerX, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.drawImage(
-            img,
-            rf * AVATAR_FRAME,
-            0,
-            AVATAR_FRAME,
-            AVATAR_FRAME,
-            adx,
-            ady,
-            adw,
-            adw,
-          );
-          if (avatar.flip) ctx.restore();
-        } else {
-          ctx.beginPath();
-          ctx.fillStyle = "#f97316";
-          ctx.arc(
-            centerX,
-            centerY,
-            Math.max(3, CELL_PX * scale * 0.75),
-            0,
-            Math.PI * 2,
-          );
-          ctx.fill();
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      }
-      const remoteBadge = remoteCountRef.current;
-      if (remoteBadge !== null) {
-        const n = String(remoteAvatarsRef.current.size);
-        if (remoteBadge.textContent !== n) remoteBadge.textContent = n;
+      // Every player's avatar, ours included, at its world position.
+      const avatarSize = AVATAR_FRAME_PX * scale;
+      const local = session.localAvatar();
+      drawAvatar(ctx, local, offsetX + local.x * scale, offsetY + local.y * scale, avatarSize, now);
+      for (const avatar of session.remotes.values()) {
+        advanceRemoteRender(avatar, dt);
+        drawAvatar(ctx, avatar, offsetX + avatar.renderX * scale, offsetY + avatar.renderY * scale, avatarSize, now);
       }
     };
 
@@ -1012,9 +791,7 @@ export function MapEditor() {
       resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
     };
-    // remoteAvatarsRef is a stable presence-hook ref: listed for
-    // exhaustive-deps, never re-runs the loop.
-  }, [remoteAvatarsRef]);
+  }, [session]);
 
   const cellFromEvent = useCallback((e: React.MouseEvent) => {
     const canvas = canvasRef.current;
@@ -1033,59 +810,13 @@ export function MapEditor() {
   const paintAt = useCallback(
     (c: number, r: number, erase: boolean) => {
       const sel = selectedRef.current;
-      if (!erase && sel === null) return;
-      // [coop-map-sync] Pre-check against the mirrored grid so only real
-      // changes queue a network batch (keeps the setGrid updater pure).
-      // A stale mirror can only cause a redundant send, never a lost paint:
-      // skipping requires the mirror to already equal the new tile.
-      const current = gridRef.current.at(r)?.at(c);
       if (erase) {
-        if (current === null || current === undefined) return;
-      } else if (
-        sel !== null &&
-        current !== null &&
-        current !== undefined &&
-        current.src === sel.src &&
-        current.sx === sel.sx &&
-        current.sy === sel.sy
-      ) {
-        return;
+        session.paint([{ c, r, tile: null }]);
+      } else if (sel !== null) {
+        session.paint([{ c, r, tile: { src: sel.src, sx: sel.sx, sy: sel.sy } }]);
       }
-      setGrid((prev) => {
-        const existing = prev[r][c];
-        if (erase) {
-          if (existing === null) return prev;
-          const next = prev.map((row) => row.slice());
-          next[r]![c] = null;
-          return next;
-        }
-        if (
-          existing !== null &&
-          sel !== null &&
-          existing.src === sel.src &&
-          existing.sx === sel.sx &&
-          existing.sy === sel.sy
-        ) {
-          return prev;
-        }
-        const next = prev.map((row) => row.slice());
-        next[r]![c] =
-          sel === null
-            ? null
-            : { src: sel.src, sx: sel.sx, sy: sel.sy };
-        return next;
-      });
-      // [coop-map-sync] Emit the paint; the hook batches drag paints into one
-      // tiles message per animation frame.
-      mapSync.queueLocalPaint(
-        c,
-        r,
-        erase || sel === null
-          ? null
-          : { src: sel.src, sx: sel.sx, sy: sel.sy },
-      );
     },
-    [mapSync],
+    [session],
   );
 
   const applyPick = useCallback((tile: PlacedTile | null) => {
@@ -1142,12 +873,12 @@ export function MapEditor() {
         // Alt+click can steal menu focus or start a drag in some
         // browsers — swallow it so picking never paints.
         e.preventDefault();
-        applyPick(gridRef.current[cell.r]?.[cell.c] ?? null);
+        applyPick(session.map.grid()[cell.r][cell.c]);
         return;
       }
       paintAt(cell.c, cell.r, intent === "erase");
     },
-    [cellFromEvent, paintAt, applyPick],
+    [cellFromEvent, paintAt, applyPick, session],
   );
 
   const handleMouseMove = useCallback(
@@ -1169,24 +900,21 @@ export function MapEditor() {
       if (intent === "pick") {
         // Alt+drag would otherwise select text or start a native drag.
         e.preventDefault();
-        applyPick(gridRef.current[cell.r]?.[cell.c] ?? null);
+        applyPick(session.map.grid()[cell.r][cell.c]);
         return;
       }
       paintAt(cell.c, cell.r, intent === "erase");
     },
-    [cellFromEvent, paintAt, applyPick],
+    [cellFromEvent, paintAt, applyPick, session],
   );
 
   const handleMouseLeave = useCallback(() => {
     hoverRef.current = null;
   }, []);
 
-  // [coop-map-sync] Clear All broadcasts clear {seq} (LWW alone would let
-  // peers' old cells resurrect the map); the hook also stamps the local seq
-  // map so the clear converges identically on all peers.
   const handleClear = useCallback(() => {
-    mapSync.broadcastClear();
-  }, [mapSync]);
+    session.clear();
+  }, [session]);
 
   const handleMatrixSelect = useCallback(
     (primarySrc: string, matrix: TileMatrix, axisIdx: number, optIdx: number) => {
@@ -1308,9 +1036,13 @@ export function MapEditor() {
           ? CATEGORY_ORDER.length
           : CATEGORY_ORDER.indexOf(b)),
     );
+    // Matrix members and anim-pair anim sides paint from another section;
+    // nested singles from a row in their parent's section.
+    const ownsSection = (sheet: TileSheet) =>
+      !isMatrixMember(sheet.src) && !isNestedSingle(sheet.src) && !isAnimSheet(sheet.src);
     return order.map((category) => ({
       category,
-      sheets: groups.get(category) ?? [],
+      sheets: (groups.get(category) ?? []).filter(ownsSection),
     }));
   }, []);
 
@@ -1354,10 +1086,6 @@ export function MapEditor() {
               ? "No tile selected"
               : `${selectedName} (${selected.sx}, ${selected.sy})`}
           </span>
-          <span data-testid="coop-status" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.status : "idle"}</span>
-          <span data-testid="coop-role" style={COOP_BADGE_STYLE}>{coopMounted ? (coopState.role ?? "") : ""}</span>
-          <span data-testid="coop-peer-count" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.peers.length : 0}</span>
-          <span data-testid="coop-remote-count" ref={remoteCountRef} style={COOP_BADGE_STYLE}>0</span>
           <button
             type="button"
             onClick={handleClear}
@@ -1395,16 +1123,6 @@ export function MapEditor() {
               </h2>
               <div className="flex w-max max-w-none flex-col gap-2">
                 {sheets.map((sheet, sheetIndex) => {
-                  // Matrix members and anim-pair anim sides paint from
-                  // another section; nested singles from a row in their
-                  // parent's section.
-                  if (
-                    isMatrixMember(sheet.src) ||
-                    isNestedSingle(sheet.src) ||
-                    isAnimSheet(sheet.src)
-                  ) {
-                    return null;
-                  }
                   const matrix = matrixFor(sheet.src);
                   return (
                     <SheetSection

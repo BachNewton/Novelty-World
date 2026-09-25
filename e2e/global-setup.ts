@@ -1,37 +1,45 @@
-import { spawn, type ChildProcess } from "child_process";
+import { spawn } from "child_process";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-let wsProcess: ChildProcess;
-
-export default async function globalSetup() {
-  // Start the WS relay server for mock signaling
-  wsProcess = spawn("npx", ["tsx", resolve(__dirname, "ws-relay.ts")], {
+/** Start a local test service and resolve once it logs "listening". */
+async function startService(script: string): Promise<number> {
+  const child = spawn("npx", ["tsx", resolve(__dirname, script)], {
     stdio: "pipe",
     shell: true,
   });
 
-  // Wait for it to be ready
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("WS relay startup timeout")), 5000);
-    wsProcess.stdout?.on("data", (data: Buffer) => {
+    const timeout = setTimeout(() => reject(new Error(`${script} startup timeout`)), 5000);
+    child.stdout.on("data", (data: Buffer) => {
       if (data.toString().includes("listening")) {
         clearTimeout(timeout);
         resolve();
       }
     });
-    wsProcess.stderr?.on("data", (data: Buffer) => {
-      console.error("WS relay error:", data.toString());
+    child.stderr.on("data", (data: Buffer) => {
+      console.error(`${script} error:`, data.toString());
     });
-    wsProcess.on("error", (err) => {
+    child.on("error", (err) => {
       clearTimeout(timeout);
       reject(err);
     });
   });
 
-  // Store PID for teardown
-  process.env.WS_RELAY_PID = String(wsProcess.pid);
+  if (child.pid === undefined) throw new Error(`${script} has no pid`);
+  return child.pid;
+}
+
+export default async function globalSetup() {
+  const pids = await Promise.all([
+    // Mock signaling + presence for the shared multiplayer lib.
+    startService("ws-relay.ts"),
+    // PeerJS signalling for the RPG co-op suite.
+    startService("peer-server.ts"),
+  ]);
+  // Stored for teardown.
+  process.env.E2E_SERVICE_PIDS = pids.join(",");
 }

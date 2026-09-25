@@ -1,30 +1,34 @@
 import { execSync } from "child_process";
 
 /**
- * Kills the WS relay spawned by global-setup. The relay is spawned with
- * `shell:true`, so the recorded PID is the shell — not the relay itself —
- * and a bare `process.kill(pid)` only kills the shell, leaking the relay as
- * a stale listener on port 3002 (`EADDRINUSE` on the next run). Kill the
+ * Kills the services spawned by global-setup. They are spawned with
+ * `shell:true`, so each recorded PID is the shell — not the service itself —
+ * and a bare `process.kill(pid)` only kills the shell, leaking the service as
+ * a stale listener on its port (`EADDRINUSE` on the next run). Kill the
  * whole process TREE instead. Dependency-free (node builtins only).
  */
-export default async function globalTeardown() {
-  const pid = process.env.WS_RELAY_PID;
-  if (!pid) return;
-  const pidNum = Number(pid);
-  if (!Number.isFinite(pidNum) || pidNum <= 0) return;
+function killTree(pid: number): void {
   try {
     if (process.platform === "win32") {
-      execSync(`taskkill /PID ${pidNum} /T /F`, { stdio: "ignore" });
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
     } else {
-      process.kill(pidNum);
+      process.kill(pid);
     }
   } catch {
-    // taskkill may fail if the shell already exited while the relay lives
-    // on — fall back to a direct kill so a survivor never leaks port 3002.
+    // taskkill may fail if the shell already exited while the service lives
+    // on — fall back to a direct kill so a survivor never leaks its port.
     try {
-      process.kill(pidNum);
+      process.kill(pid);
     } catch {
       // Process is already gone.
     }
   }
+}
+
+export default async function globalTeardown() {
+  const pids = (process.env.E2E_SERVICE_PIDS ?? "")
+    .split(",")
+    .map(Number)
+    .filter((pid) => Number.isFinite(pid) && pid > 0);
+  for (const pid of pids) killTree(pid);
 }

@@ -2,6 +2,7 @@
 
 import { useDeferredValue, useMemo, useState, useSyncExternalStore } from "react";
 import { shuffleArray } from "@/shared/lib/utils";
+import { useHydrated } from "@/shared/lib/use-hydrated";
 import { applySearch, topicHaystack } from "../filters";
 import { TOPICS } from "../topics";
 import type { Topic } from "../types";
@@ -18,8 +19,6 @@ const getClientTopics = (): readonly Topic[] => {
 };
 const getServerTopics = (): readonly Topic[] => TOPICS;
 const subscribeNoop = () => () => {};
-const getTrue = () => true;
-const getFalse = () => false;
 
 export function TopicsLanding({ basePath }: { basePath: string }) {
   const [query, setQuery] = useState("");
@@ -32,7 +31,7 @@ export function TopicsLanding({ basePath }: { basePath: string }) {
     getClientTopics,
     getServerTopics,
   );
-  const isHydrated = useSyncExternalStore(subscribeNoop, getTrue, getFalse);
+  const isHydrated = useHydrated();
 
   const visibleTopics = useMemo(
     () => applySearch(orderedTopics, deferredQuery, topicHaystack),

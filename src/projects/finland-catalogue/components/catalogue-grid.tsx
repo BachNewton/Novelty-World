@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpen, SlidersHorizontal, Star } from "lucide-react";
 import { cn, shuffleArray } from "@/shared/lib/utils";
+import { useHydrated } from "@/shared/lib/use-hydrated";
 import { IDEAS } from "../ideas";
 import type { Idea } from "../types";
 import {
@@ -36,8 +37,6 @@ const getClientIdeas = (): readonly Idea[] => {
 };
 const getServerIdeas = (): readonly Idea[] => IDEAS;
 const subscribeNoop = () => () => {};
-const getTrue = () => true;
-const getFalse = () => false;
 
 export function CatalogueGrid({
   basePath,
@@ -56,7 +55,7 @@ export function CatalogueGrid({
     getClientIdeas,
     getServerIdeas,
   );
-  const isHydrated = useSyncExternalStore(subscribeNoop, getTrue, getFalse);
+  const isHydrated = useHydrated();
 
   // Re-rendering the grid (50+ IdeaCards with images) on every keystroke
   // makes typing feel sluggish. useDeferredValue lets React interrupt the

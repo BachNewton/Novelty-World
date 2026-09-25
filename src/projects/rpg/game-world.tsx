@@ -1,106 +1,31 @@
 /**
  * Farmer game world — fullscreen canvas.
- * Walks the tile map stored by the map editor (localStorage
- * `map-editor-v1`, 40x28 cells of 16px). Hold WASD to walk that way
- * (camera follows); release to idle facing it. On touch screens a
+ * Walks the shared tile map (40x28 cells of 16px). Hold WASD to walk that
+ * way (camera follows); release to idle facing it. On touch screens a
  * floating-origin analog stick appears where the thumb lands and feeds the
- * same movement keys. Player stays centered
- * via requestAnimationFrame. Auto-resizes with the window.
+ * same movement keys. `P` cycles the playable character. Other co-op
+ * players draw at their eased network positions.
  */
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { CELL_PX, migrateTileSrc } from './tiles';
-import { animSrcCol, foldAnimSx, sheetForTileSrc } from './tile-anim';
-import { getTileImage } from './tile-variants';
-import { getCoopRoomId, getSharedCoopTransport, usePlayMapSync } from './coop/map-sync';
-import { MAP_COLS, MAP_ROWS, STORAGE_KEY } from './map-editor';
-import type { MapGrid, PlacedTile } from './map-editor';
+import { useEffect, useRef, type CSSProperties } from 'react';
+import { CELL_PX } from './tiles';
+import { MAP_COLS, MAP_ROWS } from './world-map';
+import { AVATAR_FRAME_PX, drawAvatar, drawTile } from './draw';
 import {
   STICK_KNOB_PX,
   STICK_RADIUS_PX,
   stickDeflection,
   stickToKeys,
 } from './virtual-stick';
-import {
-  PRESENCE_LERP_RATE,
-  advanceRemoteRender,
-  usePresence,
-} from './coop/presence';
-import type { AvatarDir, PosPayload } from './coop/types';
-import {
-  DEFAULT_CHARACTER_ID,
-  idleStripsFor,
-  nextCharacterId,
-  sanitizeCharacterId,
-  walkStripsFor,
-  type CharacterId,
-} from './characters';
+import { nextCharacterId, type AvatarDir, type CharacterId } from './characters';
+import { advanceRemoteRender, type CoopSession } from './coop/session';
 
-type Dir = AvatarDir;
-
-const FRAME_SIZE = 64;
-const FRAME_COUNT = 6;
-const IDLE_FRAME_MS = 200;
-const WALK_FRAME_MS = 120;
 const SPEED_PX_S = 60;
 /** Target visible cells on the shorter viewport side; world and sprites share 1x-art-px units. */
 const VISIBLE_CELLS = 15;
 
-/**
- * Visually-hidden style for the co-op state badges (`coop-status`,
- * `coop-role`, `coop-peer-count`, `coop-remote-count`). They expose live
- * `usePresence` state to E2E (condition-based waits) without affecting the
- * play canvas pixels.
- */
-const COOP_BADGE_STYLE: CSSProperties = {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-};
-
-function isPlacedTile(value: unknown): value is PlacedTile {
-  if (typeof value !== 'object' || value === null) return false;
-  const t = value as Record<string, unknown>;
-  return (
-    typeof t.src === 'string' &&
-    typeof t.sx === 'number' &&
-    typeof t.sy === 'number'
-  );
-}
-
-function loadMap(): MapGrid {
-  const empty: MapGrid = Array.from({ length: MAP_ROWS }, () =>
-    Array.from({ length: MAP_COLS }, () => null),
-  );
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return empty;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length !== MAP_ROWS) return empty;
-    return parsed.map((row: unknown) => {
-      if (!Array.isArray(row) || row.length !== MAP_COLS) return Array.from({ length: MAP_COLS }, () => null);
-      return row.map((cell: unknown) => {
-        if (!isPlacedTile(cell)) return null;
-        const src = migrateTileSrc(cell.src);
-        // Back-compat: cells picked from later animation frames fold into frame 0.
-        return { ...cell, src, sx: foldAnimSx(sheetForTileSrc(src), cell.sx) };
-      });
-    });
-  } catch {
-    return empty;
-  }
-}
-
-interface Facing {
-  dir: Dir;
-  flip: boolean;
-}
-
-const KEY_DIR: Record<string, Dir | undefined> = {
+const KEY_DIR: Record<string, AvatarDir | undefined> = {
   KeyW: 'back',
   KeyS: 'front',
   KeyA: 'side',
@@ -114,292 +39,164 @@ const KEY_VEC: Record<string, { x: number; y: number } | undefined> = {
   KeyD: { x: 1, y: 0 },
 };
 
-/** Side rows face right natively (rows 1 and 4); flip for left. */
-function facingFor(code: string): Facing {
+/** Side rows face right natively; flip for left. */
+function facingFor(code: string): { dir: AvatarDir; flip: boolean } {
   const dir = KEY_DIR[code] ?? 'front';
   const flip = dir === 'side' && code === 'KeyA';
   return { dir, flip };
 }
 
-export default function GameWorld() {
+/** The key whose facing reproduces a stored pose. */
+function codeForFacing(dir: AvatarDir, flip: boolean): string {
+  if (dir === 'back') return 'KeyW';
+  if (dir === 'side') return flip ? 'KeyA' : 'KeyD';
+  return 'KeyS';
+}
+
+interface Stick {
+  pointerId: number;
+  originX: number;
+  originY: number;
+  knobX: number;
+  knobY: number;
+}
+
+const PIXELATED: CSSProperties = { imageRendering: 'pixelated' };
+
+export default function GameWorld({ session }: { session: CoopSession }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sizeRef = useRef({ width: 1, height: 1 });
-  const dprRef = useRef(1);
-  const pressedRef = useRef<string[]>([]);
-  const lastCodeRef = useRef<string>('KeyS');
-  /** Physically-held keyboard codes; merged with touch codes into pressedRef. */
-  const kbHeldRef = useRef<string[]>([]);
-  /** Synthetic codes derived from the analog stick. */
-  const touchCodesRef = useRef<string[]>([]);
-  /** Touch tilt magnitude (1 for keyboard-only movement). */
-  const speedScaleRef = useRef(1);
-  /** Active floating-origin stick in CSS px relative to the canvas. */
-  const stickRef = useRef<{
-    pointerId: number;
-    originX: number;
-    originY: number;
-    knobX: number;
-    knobY: number;
-  } | null>(null);
-  const posRef = useRef({ x: (MAP_COLS * CELL_PX) / 2, y: (MAP_ROWS * CELL_PX) / 2 });
-  // --- CO-OP CHUNK 1: local snapshot read by the 12 Hz pos sampler, plus the
-  // remote-avatar map rendered (lerped) in the pass below. Camera stays local.
-  const localPosRef = useRef<PosPayload>({
-    x: (MAP_COLS * CELL_PX) / 2,
-    y: (MAP_ROWS * CELL_PX) / 2,
-    dir: 'front',
-    flip: false,
-    moving: false,
-    characterId: DEFAULT_CHARACTER_ID,
-    timestamp: 0,
-  });
-  /** Playable sprite directory (`P` cycles the roster). A ref because the
-   * rAF loop reads it every frame; `characterBadge` mirrors it for E2E. */
-  const characterRef = useRef<CharacterId>(DEFAULT_CHARACTER_ID);
-  const [characterBadge, setCharacterBadge] = useState<CharacterId>(DEFAULT_CHARACTER_ID);
-  const getLocalPos = useCallback((): PosPayload => localPosRef.current, []);
-  // Page's co-op room (`?coop-room=`, default room when absent). Resolved
-  // per render (client read, SSR-safe default); the URL is stable for the
-  // page lifetime so presence and map-sync always agree on one room.
-  const coopRoom = getCoopRoomId();
-  const getRoomTransport = useCallback(
-    () => getSharedCoopTransport(coopRoom),
-    [coopRoom],
-  );
-  // Share one transport with the map-sync binding below: one PeerJS peer per
-  // tab. Presence unsubscribes without destroying it (caller-owned), so the
-  // `~` edit/play toggle keeps the same peer id and host.
-  const presence = usePresence(getLocalPos, {
-    createTransport: getRoomTransport,
-  });
-  const { remotesRef: remoteAvatarsRef, state: coopState } = presence;
-  /**
-   * Mount gate for the coop badges below: server HTML and the first client
-   * render emit identical static placeholders (`idle` / `""` / `0`), and the
-   * live hook state only renders after this event-driven flip — so the
-   * transport's async `connecting`/`reconnecting` transitions can never
-   * produce a hydration mismatch. Allowed: `useEffect`-gated `setState`,
-   * no timers.
-   */
-  const [coopMounted, setCoopMounted] = useState(false);
-  useEffect(() => {
-    // Intentional hydration gate (static placeholders pre-mount, no timers).
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-gated badge placeholders must flip post-mount
-    setCoopMounted(true);
-  }, []);
-  /**
-   * Mirrors the live remote-avatar count into the `coop-remote-count` badge
-   * once per frame (direct DOM write inside the existing rAF loop: 12 Hz net
-   * traffic never re-renders React, and no new subscription or timer is added).
-   */
-  const remoteCountRef = useRef<HTMLSpanElement>(null);
-  const lastTimeRef = useRef<number | null>(null);
-  const mapRef = useRef<MapGrid>([]);
-  const animRef = useRef({ key: 'front:idle', t0: 0 });
-
-  // [coop-map-sync] Chunk 2 live edit→play: inbound tiles/snapshot/clear
-  // merge into mapRef through the LWW seq map. The rAF loop below reads
-  // mapRef every frame, so remote edits appear live with no reload. Never
-  // writes localStorage (the editor persistence effect is the single writer);
-  // the existing storage/focus refresh below is untouched.
-  usePlayMapSync(mapRef, coopRoom);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrapper = wrapperRef.current;
     if (canvas === null || wrapper === null) return;
-
     const ctx = canvas.getContext('2d');
     if (ctx === null) return;
 
-    const imgs: Record<string, HTMLImageElement | undefined> = {};
-    /** Preload one character's strips on demand; the browser cache makes
-     * repeat visits cheap. Unknown ids never reach here (sanitized first). */
-    const ensureStrips = (id: CharacterId) => {
-      for (const src of [...Object.values(idleStripsFor(id)), ...Object.values(walkStripsFor(id))]) {
-        if (imgs[src] !== undefined) continue;
-        const img = new Image();
-        img.src = src;
-        imgs[src] = img;
-      }
-    };
-    ensureStrips(DEFAULT_CHARACTER_ID);
-
-    const refreshMap = () => {
-      mapRef.current = loadMap();
-    };
-    refreshMap();
+    let width = 1;
+    let height = 1;
+    let dpr = 1;
+    // Resume where the player stood before the last mode toggle.
+    const resume = session.localAvatar();
+    const pos = { x: resume.x, y: resume.y };
+    let characterId: CharacterId = resume.characterId;
+    let lastCode = codeForFacing(resume.dir, resume.flip);
+    /** Held codes, newest last: physical keys merged with stick-derived keys. */
+    let kbHeld: string[] = [];
+    let touchCodes: string[] = [];
+    let pressed: string[] = [];
+    /** Touch tilt magnitude (1 for keyboard-only movement). */
+    let speedScale = 1;
+    /** Active floating-origin stick in CSS px relative to the canvas. */
+    let stick: Stick | null = null;
+    let lastTime: number | null = null;
+    let anim = { key: '', t0: 0 };
 
     const resize = () => {
       const rect = wrapper.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const cssWidth = Math.max(1, Math.floor(rect.width));
-      const cssHeight = Math.max(1, Math.floor(rect.height));
-      sizeRef.current = { width: cssWidth, height: cssHeight };
-      dprRef.current = dpr;
-      canvas.width = Math.floor(cssWidth * dpr);
-      canvas.height = Math.floor(cssHeight * dpr);
-      canvas.style.width = `${cssWidth}px`;
-      canvas.style.height = `${cssHeight}px`;
+      dpr = window.devicePixelRatio || 1;
+      width = Math.max(1, Math.floor(rect.width));
+      height = Math.max(1, Math.floor(rect.height));
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.imageSmoothingEnabled = false;
     };
-
     resize();
-
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(wrapper);
     window.addEventListener('resize', resize);
 
     const rebuildPressed = () => {
-      pressedRef.current = [
-        ...kbHeldRef.current,
-        ...touchCodesRef.current.filter((c) => !kbHeldRef.current.includes(c)),
-      ];
+      pressed = [...kbHeld, ...touchCodes.filter((c) => !kbHeld.includes(c))];
     };
 
-    const press = (code: string) => {
-      kbHeldRef.current = [...kbHeldRef.current.filter((c) => c !== code), code];
-      rebuildPressed();
-      lastCodeRef.current = code;
-    };
-
-    const release = (code: string) => {
-      kbHeldRef.current = kbHeldRef.current.filter((c) => c !== code);
-      rebuildPressed();
-    };
-
-    /** Merge stick-derived codes without clobbering physically-held keys. */
     const syncTouch = (codes: string[], mag: number) => {
-      touchCodesRef.current = codes;
-      speedScaleRef.current = codes.length > 0 ? mag : 1;
+      touchCodes = codes;
+      speedScale = codes.length > 0 ? mag : 1;
       rebuildPressed();
       const dominant = codes.at(-1);
-      if (dominant !== undefined) lastCodeRef.current = dominant;
+      if (dominant !== undefined) lastCode = dominant;
     };
 
-    const updateStick = (clientX: number, clientY: number) => {
-      const stick = stickRef.current;
-      if (stick === null) return;
+    const updateStick = (s: Stick, clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect();
-      const x = clientX - rect.left;
-      const y = clientY - rect.top;
-      const dx = x - stick.originX;
-      const dy = y - stick.originY;
+      const dx = clientX - rect.left - s.originX;
+      const dy = clientY - rect.top - s.originY;
       const len = Math.hypot(dx, dy);
       const clamped = len > STICK_RADIUS_PX ? STICK_RADIUS_PX / len : 1;
-      stick.knobX = stick.originX + dx * clamped;
-      stick.knobY = stick.originY + dy * clamped;
+      s.knobX = s.originX + dx * clamped;
+      s.knobY = s.originY + dy * clamped;
       const defl = stickDeflection(dx, dy, STICK_RADIUS_PX);
       syncTouch(stickToKeys(defl), defl.mag);
     };
 
-    const endStick = (pointerId: number) => {
-      if (stickRef.current?.pointerId !== pointerId) return;
-      stickRef.current = null;
-      syncTouch([], 1);
-    };
-
     const onPointerDown = (e: PointerEvent) => {
       // Touch only: mouse/pen must never summon the stick. First touch owns it.
-      if (e.pointerType !== 'touch' || stickRef.current !== null) return;
+      if (e.pointerType !== 'touch' || stick !== null) return;
       const rect = canvas.getBoundingClientRect();
-      stickRef.current = {
-        pointerId: e.pointerId,
-        originX: e.clientX - rect.left,
-        originY: e.clientY - rect.top,
-        knobX: e.clientX - rect.left,
-        knobY: e.clientY - rect.top,
-      };
-      try {
-        canvas.setPointerCapture(e.pointerId);
-      } catch {
-        // Pointer already released; pointerup/cancel will clean up.
-      }
-      updateStick(e.clientX, e.clientY);
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      stick = { pointerId: e.pointerId, originX: x, originY: y, knobX: x, knobY: y };
+      canvas.setPointerCapture(e.pointerId);
+      updateStick(stick, e.clientX, e.clientY);
     };
     const onPointerMove = (e: PointerEvent) => {
-      if (stickRef.current?.pointerId !== e.pointerId) return;
-      updateStick(e.clientX, e.clientY);
+      if (stick?.pointerId === e.pointerId) updateStick(stick, e.clientX, e.clientY);
     };
-    const onPointerUp = (e: PointerEvent) => endStick(e.pointerId);
-    const onPointerCancel = (e: PointerEvent) => endStick(e.pointerId);
+    const onPointerEnd = (e: PointerEvent) => {
+      if (stick?.pointerId !== e.pointerId) return;
+      stick = null;
+      syncTouch([], 1);
+    };
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
-    canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointercancel', onPointerCancel);
+    canvas.addEventListener('pointerup', onPointerEnd);
+    canvas.addEventListener('pointercancel', onPointerEnd);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (KEY_DIR[e.code] !== undefined) press(e.code);
-      // `P` cycles the playable character once per press (repeat guard).
-      // No text inputs exist on this page, and WASD/`~` are untouched.
-      if (e.code === 'KeyP' && !e.repeat) {
-        const next = nextCharacterId(characterRef.current);
-        characterRef.current = next;
-        setCharacterBadge(next);
+      if (KEY_DIR[e.code] !== undefined) {
+        kbHeld = [...kbHeld.filter((c) => c !== e.code), e.code];
+        rebuildPressed();
+        lastCode = e.code;
       }
+      if (e.code === 'KeyP' && !e.repeat) characterId = nextCharacterId(characterId);
     };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (KEY_DIR[e.code] !== undefined) release(e.code);
+      if (KEY_DIR[e.code] === undefined) return;
+      kbHeld = kbHeld.filter((c) => c !== e.code);
+      rebuildPressed();
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
-    const onMapChange = () => refreshMap();
-    window.addEventListener('storage', onMapChange);
-    window.addEventListener('focus', onMapChange);
-
-    let rafId = 0;
-
-    const drawTiles = (camX: number, camY: number, scale: number, now: number) => {
-      const { width, height } = sizeRef.current;
-      const dpr = dprRef.current;
+    const drawTiles = (scale: number, now: number) => {
       // Quantize the camera to whole device pixels so tile edges align
       // exactly and the background can't bleed through seams.
-      const baseX = Math.round((width / 2 - camX * scale) * dpr) / dpr;
-      const baseY = Math.round((height / 2 - camY * scale) * dpr) / dpr;
-      const c0 = Math.max(0, Math.floor((camX - width / 2 / scale) / CELL_PX));
-      const c1 = Math.min(MAP_COLS - 1, Math.ceil((camX + width / 2 / scale) / CELL_PX));
-      const r0 = Math.max(0, Math.floor((camY - height / 2 / scale) / CELL_PX));
-      const r1 = Math.min(MAP_ROWS - 1, Math.ceil((camY + height / 2 / scale) / CELL_PX));
-      const s = CELL_PX * scale;
+      const baseX = Math.round((width / 2 - pos.x * scale) * dpr) / dpr;
+      const baseY = Math.round((height / 2 - pos.y * scale) * dpr) / dpr;
+      const c0 = Math.max(0, Math.floor((pos.x - width / 2 / scale) / CELL_PX));
+      const c1 = Math.min(MAP_COLS - 1, Math.ceil((pos.x + width / 2 / scale) / CELL_PX));
+      const r0 = Math.max(0, Math.floor((pos.y - height / 2 / scale) / CELL_PX));
+      const r1 = Math.min(MAP_ROWS - 1, Math.ceil((pos.y + height / 2 / scale) / CELL_PX));
+      const size = CELL_PX * scale;
+      const grid = session.map.grid();
       for (let r = r0; r <= r1; r += 1) {
-        const row = mapRef.current.at(r);
-        if (row === undefined) continue;
         for (let c = c0; c <= c1; c += 1) {
-          const cell = row.at(c);
-          if (cell === undefined || cell === null) continue;
-          const img = getTileImage(cell.src);
-          if (!img.complete || img.naturalWidth === 0) continue;
-          const sheet = sheetForTileSrc(cell.src);
-          const srcCol =
-            sheet?.anim === undefined
-              ? cell.sx
-              : animSrcCol(sheet, cell.sx, now, c, r);
-          ctx.drawImage(
-            img,
-            srcCol * CELL_PX,
-            cell.sy * CELL_PX,
-            CELL_PX,
-            CELL_PX,
-            baseX + c * CELL_PX * scale,
-            baseY + r * CELL_PX * scale,
-            s,
-            s,
-          );
+          const tile = grid[r][c];
+          if (tile !== null) drawTile(ctx, tile, c, r, baseX + c * size, baseY + r * size, size, now);
         }
       }
     };
 
     const drawFrame = (now: number) => {
       rafId = requestAnimationFrame(drawFrame);
-      const { width, height } = sizeRef.current;
-      const last = lastTimeRef.current;
-      lastTimeRef.current = now;
-      const dt = last === null ? 0 : Math.min((now - last) / 1000, 0.05);
-      const pressed = pressedRef.current;
-      const moving = pressed.length > 0;
+      const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
       let vx = 0;
       let vy = 0;
       for (const code of pressed) {
@@ -411,86 +208,36 @@ export default function GameWorld() {
       }
       const len = Math.hypot(vx, vy);
       if (len > 0) {
-        const step = SPEED_PX_S * speedScaleRef.current * dt;
-        posRef.current.x += (vx / len) * step;
-        posRef.current.y += (vy / len) * step;
+        const step = SPEED_PX_S * speedScale * dt;
+        pos.x += (vx / len) * step;
+        pos.y += (vy / len) * step;
       }
-      const code = moving ? (pressed[pressed.length - 1] ?? 'KeyS') : lastCodeRef.current;
-      const { dir, flip } = facingFor(code);
-      // --- CO-OP CHUNK 1: publish the local snapshot for the 12 Hz sampler.
-      localPosRef.current = {
-        x: posRef.current.x,
-        y: posRef.current.y,
-        dir,
-        flip,
-        moving,
-        characterId: characterRef.current,
-        timestamp: now,
-      };
-      const character = characterRef.current;
-      ensureStrips(character);
-      const strips = moving ? walkStripsFor(character) : idleStripsFor(character);
-      const img = imgs[strips[dir]];
-      if (img === undefined || !img.complete || img.naturalWidth === 0) return;
+      const moving = pressed.length > 0;
+      const { dir, flip } = facingFor(pressed.at(-1) ?? lastCode);
+      const local = { x: pos.x, y: pos.y, dir, flip, moving, characterId };
+      session.setLocalAvatar(local);
 
       const scale = Math.max(1, Math.floor(Math.min(width, height) / (VISIBLE_CELLS * CELL_PX)));
+      const avatarSize = AVATAR_FRAME_PX * scale;
 
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
-      drawTiles(posRef.current.x, posRef.current.y, scale, now);
+      drawTiles(scale, now);
 
-      const key = `${character}:${dir}:${moving ? 'walk' : 'idle'}`;
-      if (animRef.current.key !== key) animRef.current = { key, t0: now };
-      const frameMs = moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
-      const f = Math.floor((now - animRef.current.t0) / frameMs) % FRAME_COUNT;
+      const key = `${characterId}:${dir}:${moving ? 'walk' : 'idle'}`;
+      if (anim.key !== key) anim = { key, t0: now };
+      drawAvatar(ctx, local, width / 2, height / 2, avatarSize, now - anim.t0);
 
-      const dw = FRAME_SIZE * scale;
-      const dh = FRAME_SIZE * scale;
-      const pdpr = dprRef.current;
-      const dx = Math.round(((width - dw) / 2) * pdpr) / pdpr;
-      const dy = Math.round(((height - dh) / 2) * pdpr) / pdpr;
-      if (flip) {
-        ctx.save();
-        ctx.translate(width, 0);
-        ctx.scale(-1, 1);
-      }
-      ctx.drawImage(img, f * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, dx, dy, dw, dh);
-      if (flip) ctx.restore();
-
-      // --- CO-OP CHUNK 1: remote-avatar render pass. Each avatar renders
-      // with the sender's character strips (preloaded on demand above);
-      // render positions lerp toward net state so 12 Hz updates look smooth.
-      // Camera stays local (centered on posRef).
-      for (const avatar of remoteAvatarsRef.current.values()) {
-        advanceRemoteRender(avatar, dt, PRESENCE_LERP_RATE);
-        const remoteId = sanitizeCharacterId(avatar.characterId);
-        ensureStrips(remoteId);
-        const remoteStrips = avatar.moving ? walkStripsFor(remoteId) : idleStripsFor(remoteId);
-        const remoteImg = imgs[remoteStrips[avatar.dir]];
-        if (remoteImg === undefined || !remoteImg.complete || remoteImg.naturalWidth === 0) continue;
-        const remoteFrameMs = avatar.moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
-        const rf = Math.floor(now / remoteFrameMs) % FRAME_COUNT;
-        const centerX = width / 2 + (avatar.renderX - posRef.current.x) * scale;
-        const centerY = height / 2 + (avatar.renderY - posRef.current.y) * scale;
-        const rdx = Math.round((centerX - dw / 2) * pdpr) / pdpr;
-        const rdy = Math.round((centerY - dh / 2) * pdpr) / pdpr;
-        if (avatar.flip) {
-          ctx.save();
-          ctx.translate(2 * centerX, 0);
-          ctx.scale(-1, 1);
-        }
-        ctx.drawImage(remoteImg, rf * FRAME_SIZE, 0, FRAME_SIZE, FRAME_SIZE, rdx, rdy, dw, dh);
-        if (avatar.flip) ctx.restore();
-      }
-      const badge = remoteCountRef.current;
-      if (badge !== null) {
-        const n = String(remoteAvatarsRef.current.size);
-        if (badge.textContent !== n) badge.textContent = n;
+      // The camera follows the local player; remotes draw relative to it.
+      for (const avatar of session.remotes.values()) {
+        advanceRemoteRender(avatar, dt);
+        const centerX = width / 2 + (avatar.renderX - pos.x) * scale;
+        const centerY = height / 2 + (avatar.renderY - pos.y) * scale;
+        drawAvatar(ctx, avatar, centerX, centerY, avatarSize, now);
       }
 
-      const stick = stickRef.current;
       if (stick !== null) {
-        const q = (v: number) => Math.round(v * pdpr) / pdpr;
+        const q = (v: number) => Math.round(v * dpr) / dpr;
         ctx.globalAlpha = 0.25;
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -503,34 +250,24 @@ export default function GameWorld() {
         ctx.globalAlpha = 1;
       }
     };
-
-    rafId = requestAnimationFrame(drawFrame);
+    let rafId = requestAnimationFrame(drawFrame);
 
     return () => {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
-      canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointercancel', onPointerCancel);
+      canvas.removeEventListener('pointerup', onPointerEnd);
+      canvas.removeEventListener('pointercancel', onPointerEnd);
       window.removeEventListener('resize', resize);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('storage', onMapChange);
-      window.removeEventListener('focus', onMapChange);
     };
-    // remoteAvatarsRef is a stable presence-hook ref: listed for
-    // exhaustive-deps, never re-runs the loop.
-  }, [remoteAvatarsRef]);
+  }, [session]);
 
   return (
     <div ref={wrapperRef} className="h-dvh w-screen overflow-hidden bg-black">
-      <canvas ref={canvasRef} data-testid="play-canvas" className="block touch-none select-none" style={{ imageRendering: 'pixelated' }} />
-      <span data-testid="coop-status" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.status : 'idle'}</span>
-      <span data-testid="coop-role" style={COOP_BADGE_STYLE}>{coopMounted ? (coopState.role ?? '') : ''}</span>
-      <span data-testid="coop-peer-count" style={COOP_BADGE_STYLE}>{coopMounted ? coopState.peers.length : 0}</span>
-      <span data-testid="coop-remote-count" ref={remoteCountRef} style={COOP_BADGE_STYLE}>0</span>
-      <span data-testid="player-character" style={COOP_BADGE_STYLE}>{characterBadge}</span>
+      <canvas ref={canvasRef} data-testid="play-canvas" className="block touch-none select-none" style={PIXELATED} />
     </div>
   );
 }
