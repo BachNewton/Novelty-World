@@ -58,7 +58,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
     "eslint-plugin-security": "^4.0.0",
-    "highs": "^1.8.0",
+    "highs": "^1.15.1",
     "peer": "^1.0.2",
     "postcss": "^8",
     "tailwindcss": "^4.2.2",
