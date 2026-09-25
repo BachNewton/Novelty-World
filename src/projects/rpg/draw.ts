@@ -48,16 +48,26 @@ export interface AvatarPose {
   moving: boolean;
 }
 
-const stripCache = new Map<string, HTMLImageElement>();
+const stripsByCharacter = new Map<CharacterId, { idle: Record<AvatarDir, HTMLImageElement>; walk: Record<AvatarDir, HTMLImageElement> }>();
 
-function stripImage(src: string): HTMLImageElement {
-  let img = stripCache.get(src);
-  if (img === undefined) {
-    img = new Image();
+function loadStrips(srcs: Record<AvatarDir, string>): Record<AvatarDir, HTMLImageElement> {
+  const load = (src: string) => {
+    const img = new Image();
     img.src = src;
-    stripCache.set(src, img);
+    return img;
+  };
+  return { front: load(srcs.front), side: load(srcs.side), back: load(srcs.back) };
+}
+
+/** All of a character's strips, loaded together on first use so turning or
+ * starting to walk never waits on a strip that hasn't been fetched yet. */
+function stripsFor(characterId: CharacterId) {
+  let strips = stripsByCharacter.get(characterId);
+  if (strips === undefined) {
+    strips = { idle: loadStrips(idleStripsFor(characterId)), walk: loadStrips(walkStripsFor(characterId)) };
+    stripsByCharacter.set(characterId, strips);
   }
-  return img;
+  return strips;
 }
 
 /**
@@ -72,8 +82,8 @@ export function drawAvatar(
   size: number,
   animMs: number,
 ): void {
-  const strips = pose.moving ? walkStripsFor(pose.characterId) : idleStripsFor(pose.characterId);
-  const img = stripImage(strips[pose.dir]);
+  const strips = stripsFor(pose.characterId);
+  const img = (pose.moving ? strips.walk : strips.idle)[pose.dir];
   if (!isLoaded(img)) return;
   const frameMs = pose.moving ? WALK_FRAME_MS : IDLE_FRAME_MS;
   const frame = Math.floor(animMs / frameMs) % AVATAR_FRAME_COUNT;
