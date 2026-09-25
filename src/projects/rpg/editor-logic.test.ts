@@ -7,7 +7,7 @@ import {
   resolveMouseDownIntent,
   resolveMouseMoveIntent,
   resolvePickedTile,
-} from "./map-editor";
+} from "./editor-logic";
 import {
   matrixFor,
   pickerSrcsFor,

@@ -69,3 +69,7 @@ export const TILE_SHEETS: TileSheet[] = [
   { src: "/rpg/tiles/Waterfall/Waterfall_5.png", name: "Waterfall_5", category: "Waterfall", cols: 18, rows: 5, anim: { frames: 6, frameW: 3, mode: "loop", fps: 10 } },
   { src: "/rpg/tiles/Wooden_Deck_Tiles.png", name: "Wooden_Deck_Tiles", category: "Misc", cols: 5, rows: 6 },
 ];
+
+export const TILE_SHEET_BY_SRC = new Map<string, TileSheet>(
+  TILE_SHEETS.map((sheet) => [sheet.src, sheet]),
+);

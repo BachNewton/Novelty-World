@@ -1,9 +1,5 @@
-import { TILE_SHEETS, type TileAnim, type TileSheet } from "./tiles";
+import { TILE_SHEET_BY_SRC, type TileAnim, type TileSheet } from "./tiles";
 import { canonicalSrcFor } from "./tile-variants";
-
-const SHEETS_BY_SRC = new Map<string, TileSheet>(
-  TILE_SHEETS.map((sheet) => [sheet.src, sheet]),
-);
 
 /**
  * Manifest sheet for a painted cell src. Variant srcs have no manifest entry
@@ -11,7 +7,7 @@ const SHEETS_BY_SRC = new Map<string, TileSheet>(
  * their canonical sheet — the LUT remap preserves animation frames.
  */
 export function sheetForTileSrc(src: string): TileSheet | undefined {
-  return SHEETS_BY_SRC.get(src) ?? SHEETS_BY_SRC.get(canonicalSrcFor(src));
+  return TILE_SHEET_BY_SRC.get(src) ?? TILE_SHEET_BY_SRC.get(canonicalSrcFor(src));
 }
 
 /**
