@@ -68,3 +68,6 @@ rl-checkpoints/
 
 # Python bytecode cache (regenerates automatically; never commit)
 __pycache__/
+
+# family tree genealogy research (living people, public repo)
+/src/projects/family-tree/research/
