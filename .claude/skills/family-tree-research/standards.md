@@ -29,8 +29,12 @@ an end in itself. So:
   tree (parents, spouse, children, siblings), or it is the person's own
   obituary or official record naming one matching relative plus a matching
   place and era. A name match alone is a lead, never evidence.
-- **Conflicts block Confirmed.** If two acceptable sources disagree, the
-  question stays Open until a third settles it or the owner decides.
+- **Conflicts block Confirmed, unless one source is clearly stronger.** A
+  record made to state the fact (a birth or naturalization record for a
+  birthplace, a birth record for a date) outweighs one that records it in
+  passing (a census entry): go with the stronger one and note the conflict.
+  Otherwise the question stays Open until a third source settles it or the
+  owner decides.
 - **People-search listings are leads, never evidence.** They can point at a
   record; they can't confirm or exhaust anything on their own.
 - **"Per Kyle"** is a valid source: the owner vouching, from their own
@@ -99,7 +103,7 @@ person died recently enough that family would remember.
 **Confirmed** when both halves are covered by one of:
 
 - "per Kyle";
-- a recent obituary of a parent, grandparent or spouse's parent that names
+- a recent obituary of a spouse, parent, grandparent or spouse's parent that names
   the person with their partner and attributes their children to them, with
   nothing since suggesting a new partner or child (a later obituary is the
   usual signal);
