@@ -14,6 +14,7 @@ import {
   LineSegments,
   type Mesh,
   PerspectiveCamera,
+  Spherical,
   Vector3,
 } from "three";
 import { type HeldKeys, useHeldKeys } from "@/shared/hooks/use-held-keys";
@@ -33,7 +34,10 @@ const SPHERE_RADIUS = 5;
 // per second, so it feels the same at any zoom. Shift speeds it up.
 const PAN_SPEED = 0.7;
 const PAN_BOOST = 3;
-const PAN_KEYS = ["w", "a", "s", "d"] as const;
+// Arrow-key orbit speed, in radians per second.
+const ORBIT_SPEED = 1.2;
+// Held keys are lowercased `KeyboardEvent.key` values.
+const MOVE_KEYS = ["w", "a", "s", "d", "arrowleft", "arrowright", "arrowup", "arrowdown"] as const;
 // Screen-space gap kept between a label and its sphere, and between labels.
 const LABEL_LIFT_PX = 8;
 const LABEL_GAP_PX = 2;
@@ -166,6 +170,26 @@ function fitCamera(sim: TreeSimulation, camera: PerspectiveCamera, controls: Con
   controls.update();
 }
 
+const orbitOffset = new Vector3();
+const orbitSpherical = new Spherical();
+
+// Swings the camera around its orbit target: left/right around the vertical
+// axis, up/down over the top. Returns whether it moved.
+function orbitWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: number): boolean {
+  const right = Number(held.keys.has("arrowright")) - Number(held.keys.has("arrowleft"));
+  const up = Number(held.keys.has("arrowup")) - Number(held.keys.has("arrowdown"));
+  if (right === 0 && up === 0) return false;
+  const step = ORBIT_SPEED * (held.shift ? PAN_BOOST : 1) * delta;
+  orbitOffset.copy(camera.position).sub(controls.target);
+  orbitSpherical.setFromVector3(orbitOffset);
+  orbitSpherical.theta += right * step;
+  orbitSpherical.phi -= up * step;
+  orbitSpherical.makeSafe();
+  camera.position.copy(controls.target).add(orbitOffset.setFromSpherical(orbitSpherical));
+  controls.update();
+  return true;
+}
+
 const panRight = new Vector3();
 const panUp = new Vector3();
 
@@ -229,11 +253,13 @@ function Scene({
     return sim.nodes.map((n) => rank(n.id, n.onTrunkLine));
   }, [sim, rootId, selectedId]);
   const partners = useMemo(() => partnerIndices(sim), [sim]);
-  const held = useHeldKeys(PAN_KEYS);
+  const held = useHeldKeys(MOVE_KEYS);
 
   useFrame(({ camera, size }, delta) => {
-    if (controls.current && panWithKeys(held.current, camera, controls.current, delta)) {
-      userHasCamera.current = true;
+    if (controls.current) {
+      const panned = panWithKeys(held.current, camera, controls.current, delta);
+      const orbited = orbitWithKeys(held.current, camera, controls.current, delta);
+      if (panned || orbited) userHasCamera.current = true;
     }
     // Follow the tree as it spreads, unless the user has taken the camera.
     if (!sim.settled()) {

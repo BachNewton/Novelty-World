@@ -110,7 +110,8 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
 
       if (isInteractiveTarget(e.target)) return;
 
-      const dir = arrowDirection(e.key);
+      // In 3D the arrow keys orbit the camera instead.
+      const dir = viewMode === "2d" ? arrowDirection(e.key) : null;
       if (dir !== null) {
         e.preventDefault();
         const sid = store.getState().selectedId;
@@ -132,7 +133,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
 
     window.addEventListener("keydown", handler);
     return () => { window.removeEventListener("keydown", handler); };
-  }, [layout]);
+  }, [layout, viewMode]);
 
   const effectiveViewRootId =
     viewRootId in tree.persons ? viewRootId : ROOT_ID;
