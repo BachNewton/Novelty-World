@@ -16,7 +16,7 @@
 // freely without leaking state between tests.
 
 import { normalizeTree } from "../logic";
-import type { Gender, Person, Tree } from "../types";
+import type { Gender, Person, Tree, Union } from "../types";
 import productionSnapshot from "./production-tree.json";
 
 // ---------- builder helpers ----------
@@ -35,8 +35,10 @@ function p(
     commonName: "",
     gender,
     parentIds: [...parents],
-    spouseIds: [...spouses],
-    divorcedSpouseIds: [...divorced],
+    unions: [
+      ...spouses.map((personId): Union => ({ personId, status: "married" })),
+      ...divorced.map((personId): Union => ({ personId, status: "divorced" })),
+    ],
   };
 }
 
@@ -54,8 +56,12 @@ function marry(persons: Person[], aId: string, bId: string): void {
   if (a === undefined || b === undefined) {
     throw new Error(`marry: unknown id ${a === undefined ? aId : bId}`);
   }
-  if (!a.spouseIds.includes(bId)) a.spouseIds.push(bId);
-  if (!b.spouseIds.includes(aId)) b.spouseIds.push(aId);
+  if (!a.unions.some((u) => u.personId === bId)) {
+    a.unions.push({ personId: bId, status: "married" });
+  }
+  if (!b.unions.some((u) => u.personId === aId)) {
+    b.unions.push({ personId: aId, status: "married" });
+  }
 }
 
 // ---------- named scenarios ----------

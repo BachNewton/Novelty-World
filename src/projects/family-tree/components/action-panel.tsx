@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Gender, MarriageStatus, NameFields, Person } from "../types";
+import type { Gender, NameFields, Person, UnionStatus } from "../types";
 import { ROOT_ID, fullName } from "../logic";
 import { Button } from "@/shared/components/ui/button";
 
@@ -16,7 +16,7 @@ export type PanelMode =
 export interface MarriageOption {
   partnerId: string;
   partnerName: string;
-  status: MarriageStatus;
+  status: UnionStatus;
 }
 
 // Existing children of the selected person whose only listed bio parent is
@@ -43,7 +43,7 @@ interface ActionPanelProps {
   onAddSpouse: (
     name: NameFields,
     gender: Gender,
-    status: MarriageStatus,
+    status: UnionStatus,
     bioChildIds: string[],
   ) => void;
   onDivorce: (partnerId: string) => void;
@@ -59,7 +59,7 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: "NB", label: "NB" },
 ];
 
-const STATUS_OPTIONS: { value: MarriageStatus; label: string }[] = [
+const STATUS_OPTIONS: { value: UnionStatus; label: string }[] = [
   { value: "married", label: "Current" },
   { value: "divorced", label: "Divorced" },
 ];
@@ -101,8 +101,8 @@ function StatusPicker({
   value,
   onChange,
 }: {
-  value: MarriageStatus;
-  onChange: (s: MarriageStatus) => void;
+  value: UnionStatus;
+  onChange: (s: UnionStatus) => void;
 }) {
   return (
     <div className="flex gap-1" role="radiogroup" aria-label="Marriage status">
@@ -151,7 +151,7 @@ export function ActionPanel({
   const [lastDraft, setLastDraft] = useState("");
   const [commonDraft, setCommonDraft] = useState("");
   const [draftGender, setDraftGender] = useState<Gender | null>(null);
-  const [draftStatus, setDraftStatus] = useState<MarriageStatus>("married");
+  const [draftStatus, setDraftStatus] = useState<UnionStatus>("married");
   // null === "this person alone" for add-child; partnerId for a marriage.
   const [draftCoParent, setDraftCoParent] = useState<string | null>(null);
   // IDs of existing single-parent children the new spouse should also bio-parent.

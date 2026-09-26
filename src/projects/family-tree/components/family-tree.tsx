@@ -8,6 +8,7 @@ import {
   countChildren,
   describeRelation,
   fullName,
+  isCurrentUnion,
   nearestInDirection,
   nextGender,
   type NavDirection,
@@ -72,7 +73,7 @@ export function FamilyTree() {
   const addParent = useFamilyTreeStore((s) => s.addParent);
   const addChild = useFamilyTreeStore((s) => s.addChild);
   const addSpouse = useFamilyTreeStore((s) => s.addSpouse);
-  const divorce = useFamilyTreeStore((s) => s.divorce);
+  const setUnionStatus = useFamilyTreeStore((s) => s.setUnionStatus);
   const rename = useFamilyTreeStore((s) => s.rename);
   const setGender = useFamilyTreeStore((s) => s.setGender);
   const remove = useFamilyTreeStore((s) => s.remove);
@@ -206,18 +207,15 @@ export function FamilyTree() {
 
   const selectedMarriages: MarriageOption[] = useMemo(() => {
     if (!selectedPerson) return [];
-    const toOption = (
-      partnerId: string,
-      status: "married" | "divorced",
-    ): MarriageOption => ({
-      partnerId,
-      partnerName: fullName(tree.persons[partnerId]),
-      status,
-    });
+    const { unions } = selectedPerson;
     return [
-      ...selectedPerson.spouseIds.map((id) => toOption(id, "married")),
-      ...selectedPerson.divorcedSpouseIds.map((id) => toOption(id, "divorced")),
-    ];
+      ...unions.filter((u) => isCurrentUnion(u.status)),
+      ...unions.filter((u) => !isCurrentUnion(u.status)),
+    ].map((u) => ({
+      partnerId: u.personId,
+      partnerName: fullName(tree.persons[u.personId]),
+      status: u.status,
+    }));
   }, [selectedPerson, tree.persons]);
 
   // Kids of the selected person whose only listed bio parent IS the selected
@@ -325,7 +323,7 @@ export function FamilyTree() {
             onAddSpouse={(name, gender, status, bioChildIds) => {
               addSpouse(selectedPerson.id, name, gender, status, bioChildIds);
             }}
-            onDivorce={(partnerId) => { divorce(selectedPerson.id, partnerId); }}
+            onDivorce={(partnerId) => { setUnionStatus(selectedPerson.id, partnerId, "divorced"); }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}

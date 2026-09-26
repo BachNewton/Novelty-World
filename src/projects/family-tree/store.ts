@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { createClient } from "@/shared/lib/supabase/client";
-import type { Gender, Layout, MarriageStatus, NameFields, Tree } from "./types";
+import type { Gender, Layout, NameFields, Tree, UnionStatus } from "./types";
 import {
   ROOT_ID,
   addChild as logicAddChild,
@@ -10,10 +10,10 @@ import {
   addSpouse as logicAddSpouse,
   createInitialTree,
   deletePerson as logicDeletePerson,
-  divorceSpouse as logicDivorceSpouse,
   normalizeTree,
   renamePerson as logicRenamePerson,
   setGender as logicSetGender,
+  setUnionStatus as logicSetUnionStatus,
   topologyHash,
 } from "./logic";
 import type { LayoutRequest, LayoutResponse } from "./layout.worker";
@@ -67,10 +67,10 @@ interface FamilyTreeState {
     personId: string,
     name: NameFields,
     gender: Gender,
-    status?: MarriageStatus,
+    status?: UnionStatus,
     bioChildIds?: readonly string[],
   ) => void;
-  divorce: (aId: string, bId: string) => void;
+  setUnionStatus: (aId: string, bId: string, status: UnionStatus) => void;
   rename: (id: string, name: NameFields) => void;
   setGender: (id: string, gender: Gender) => void;
   remove: (id: string) => void;
@@ -398,8 +398,8 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
     );
   },
 
-  divorce: (aId, bId) => {
-    applyMutation((tree) => logicDivorceSpouse(tree, aId, bId));
+  setUnionStatus: (aId, bId, status) => {
+    applyMutation((tree) => logicSetUnionStatus(tree, aId, bId, status));
   },
 
   rename: (id, name) => {

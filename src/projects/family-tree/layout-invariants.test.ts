@@ -6,7 +6,7 @@
 // the HiGHS solve on its full size takes a few seconds.
 
 import { beforeAll, describe, it, expect } from "vitest";
-import { computeLayout } from "./logic";
+import { computeLayout, currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
 import { NAMED_FIXTURES } from "./__fixtures__/trees";
 
@@ -16,13 +16,15 @@ interface Couple {
 
 // Reproduce the same couple-pairing rule computeLayout uses internally so
 // the spouse-adjacency invariant doesn't false-positive when a person has
-// multiple spouseIds (only the first un-paired spouse counts as "the" couple).
+// multiple current partners (only the first un-paired one counts as "the" couple).
 function pairCouples(tree: Tree): Couple[] {
   const paired = new Set<string>();
   const couples: Couple[] = [];
   for (const id of Object.keys(tree.persons)) {
     if (paired.has(id)) continue;
-    const partner = tree.persons[id].spouseIds.find((sid) => !paired.has(sid));
+    const partner = currentPartnerIds(tree.persons[id]).find(
+      (sid) => !paired.has(sid),
+    );
     couples.push({ members: partner !== undefined ? [id, partner] : [id] });
     paired.add(id);
     if (partner !== undefined) paired.add(partner);

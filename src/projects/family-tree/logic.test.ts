@@ -16,18 +16,26 @@ import {
   deletePerson,
   describeRelation,
   diffTree,
-  divorceSpouse,
   fullName,
   nearestInDirection,
   nextGender,
+  normalizeTree,
   optimisticPatch,
   packElbowRows,
   renamePerson,
   setGender,
+  setUnionStatus,
   topologyHash,
 } from "./logic";
 import type { LaidOutNode, Layout } from "./types";
-import type { Gender, NameFields, Person, Tree } from "./types";
+import type {
+  Gender,
+  NameFields,
+  Person,
+  Tree,
+  Union,
+  UnionStatus,
+} from "./types";
 
 // Test-local helper: build a NameFields object positionally so test calls
 // don't have to spell out the object literal every time.
@@ -39,8 +47,8 @@ function p(
   id: string,
   gender: Gender = "M",
   parentIds: string[] = [],
-  spouseIds: string[] = [],
-  divorcedSpouseIds: string[] = [],
+  spouses: string[] = [],
+  divorced: string[] = [],
 ): Person {
   return {
     id,
@@ -49,9 +57,15 @@ function p(
     commonName: "",
     gender,
     parentIds,
-    spouseIds,
-    divorcedSpouseIds,
+    unions: [
+      ...spouses.map((personId) => u(personId, "married")),
+      ...divorced.map((personId) => u(personId, "divorced")),
+    ],
   };
+}
+
+function u(personId: string, status: UnionStatus): Union {
+  return { personId, status };
 }
 
 function makeTree(persons: Person[]): Tree {
@@ -115,8 +129,8 @@ describe("addParent", () => {
     let t = createInitialTree();
     t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
     t = addParent(t, ROOT_ID, "dad", n("Dad"), "M");
-    expect(t.persons.mom.spouseIds).toEqual(["dad"]);
-    expect(t.persons.dad.spouseIds).toEqual(["mom"]);
+    expect(t.persons.mom.unions).toEqual([u("dad", "married")]);
+    expect(t.persons.dad.unions).toEqual([u("mom", "married")]);
   });
 
   it("is a no-op when the child already has two parents", () => {
@@ -166,8 +180,8 @@ describe("addChild", () => {
 describe("addSpouse", () => {
   it("links spouses bidirectionally with given gender", () => {
     const t = addSpouse(createInitialTree(), ROOT_ID, "s", n("S"), "F");
-    expect(t.persons[ROOT_ID].spouseIds).toEqual(["s"]);
-    expect(t.persons.s.spouseIds).toEqual([ROOT_ID]);
+    expect(t.persons[ROOT_ID].unions).toEqual([u("s", "married")]);
+    expect(t.persons.s.unions).toEqual([u(ROOT_ID, "married")]);
     expect(t.persons.s.gender).toBe("F");
   });
 
@@ -202,7 +216,7 @@ describe("addSpouse", () => {
     expect(t.persons.kid.parentIds.sort()).toEqual([ROOT_ID, "wife1"].sort());
   });
 
-  it("adds a divorced spouse to divorcedSpouseIds, not spouseIds", () => {
+  it("records a divorced spouse with divorced status on both sides", () => {
     const t = addSpouse(
       createInitialTree(),
       ROOT_ID,
@@ -211,9 +225,8 @@ describe("addSpouse", () => {
       "F",
       "divorced",
     );
-    expect(t.persons[ROOT_ID].spouseIds).toEqual([]);
-    expect(t.persons[ROOT_ID].divorcedSpouseIds).toEqual(["ex"]);
-    expect(t.persons.ex.divorcedSpouseIds).toEqual([ROOT_ID]);
+    expect(t.persons[ROOT_ID].unions).toEqual([u("ex", "divorced")]);
+    expect(t.persons.ex.unions).toEqual([u(ROOT_ID, "divorced")]);
   });
 
   it("bio-parents the listed children when bioChildIds is passed", () => {
@@ -244,26 +257,100 @@ describe("addSpouse", () => {
     t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
     t = addSpouse(t, "mom", "exDad", n("Ex"), "M", "divorced", [ROOT_ID]);
     expect(t.persons[ROOT_ID].parentIds.sort()).toEqual(["exDad", "mom"]);
-    expect(t.persons.mom.divorcedSpouseIds).toEqual(["exDad"]);
+    expect(t.persons.mom.unions).toEqual([u("exDad", "divorced")]);
   });
 });
 
-describe("divorceSpouse", () => {
-  it("moves the partner from spouseIds to divorcedSpouseIds on both sides", () => {
+describe("setUnionStatus", () => {
+  it("changes the status on both sides", () => {
     let t = createInitialTree();
     t = addSpouse(t, ROOT_ID, "ex", n("Ex"), "F");
-    t = divorceSpouse(t, ROOT_ID, "ex");
-    expect(t.persons[ROOT_ID].spouseIds).toEqual([]);
-    expect(t.persons[ROOT_ID].divorcedSpouseIds).toEqual(["ex"]);
-    expect(t.persons.ex.spouseIds).toEqual([]);
-    expect(t.persons.ex.divorcedSpouseIds).toEqual([ROOT_ID]);
+    t = setUnionStatus(t, ROOT_ID, "ex", "divorced");
+    expect(t.persons[ROOT_ID].unions).toEqual([u("ex", "divorced")]);
+    expect(t.persons.ex.unions).toEqual([u(ROOT_ID, "divorced")]);
   });
 
-  it("is a no-op when the pair isn't currently married", () => {
+  it("is a no-op when the pair already has that status", () => {
     let t = createInitialTree();
-    t = addSpouse(t, ROOT_ID, "stranger", n("S"), "F", "divorced");
-    const same = divorceSpouse(t, ROOT_ID, "stranger");
-    expect(same).toBe(t);
+    t = addSpouse(t, ROOT_ID, "ex", n("Ex"), "F", "divorced");
+    expect(setUnionStatus(t, ROOT_ID, "ex", "divorced")).toBe(t);
+  });
+
+  it("is a no-op when the pair has no union", () => {
+    let t = createInitialTree();
+    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
+    expect(setUnionStatus(t, ROOT_ID, "kid", "divorced")).toBe(t);
+  });
+});
+
+describe("normalizeTree", () => {
+  it("migrates the legacy spouseIds/divorcedSpouseIds lists into unions", () => {
+    const legacy = {
+      rootId: "a",
+      persons: {
+        a: {
+          id: "a",
+          firstName: "A",
+          lastName: "",
+          commonName: "",
+          gender: "M",
+          parentIds: [],
+          spouseIds: ["b"],
+          divorcedSpouseIds: ["c"],
+        },
+        b: {
+          id: "b",
+          firstName: "B",
+          lastName: "",
+          commonName: "",
+          gender: "F",
+          parentIds: [],
+          spouseIds: ["a"],
+          divorcedSpouseIds: [],
+        },
+        // Predates divorcedSpouseIds and commonName entirely.
+        c: {
+          id: "c",
+          firstName: "C",
+          lastName: "",
+          gender: "F",
+          parentIds: [],
+          spouseIds: [],
+        },
+      },
+    };
+    const { tree, changed } = normalizeTree(legacy);
+    expect(changed).toBe(true);
+    expect(tree.persons.a.unions).toEqual([u("b", "married"), u("c", "divorced")]);
+    expect(tree.persons.b.unions).toEqual([u("a", "married")]);
+    expect(tree.persons.c.unions).toEqual([]);
+    expect(tree.persons.c.commonName).toBe("");
+    expect(tree.persons.a).not.toHaveProperty("spouseIds");
+    expect(tree.persons.a).not.toHaveProperty("divorcedSpouseIds");
+  });
+
+  it("reports no change for a tree already in the current shape", () => {
+    let t = createInitialTree();
+    t = addSpouse(t, ROOT_ID, "s", n("S"), "F");
+    const { tree, changed } = normalizeTree(JSON.parse(JSON.stringify(t)));
+    expect(changed).toBe(false);
+    expect(tree).toEqual(t);
+  });
+
+  it("hashes a migrated legacy tree the same as before the migration", () => {
+    // The persisted layout cache is keyed by topologyHash, so migrating the
+    // shape must not invalidate it. Pinned value: the pre-union hash of
+    // this exact legacy tree.
+    const legacy = {
+      rootId: "a",
+      persons: {
+        a: { id: "a", firstName: "A", lastName: "", commonName: "", gender: "M", parentIds: [], spouseIds: ["b"], divorcedSpouseIds: ["c"] },
+        b: { id: "b", firstName: "B", lastName: "", commonName: "", gender: "F", parentIds: [], spouseIds: ["a"], divorcedSpouseIds: [] },
+        c: { id: "c", firstName: "C", lastName: "", commonName: "", gender: "F", parentIds: [], spouseIds: [], divorcedSpouseIds: ["a"] },
+        k: { id: "k", firstName: "K", lastName: "", commonName: "", gender: "M", parentIds: ["a", "b"], spouseIds: [], divorcedSpouseIds: [] },
+      },
+    };
+    expect(topologyHash(normalizeTree(legacy).tree)).toBe("6f99ffd7");
   });
 });
 
@@ -307,7 +394,7 @@ describe("deletePerson", () => {
     t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
     t = deletePerson(t, "spouse");
     expect(t.persons.spouse as unknown).toBeUndefined();
-    expect(t.persons[ROOT_ID].spouseIds).toEqual([]);
+    expect(t.persons[ROOT_ID].unions).toEqual([]);
     expect(t.persons.kid.parentIds).toEqual([ROOT_ID]);
   });
 });
@@ -1151,7 +1238,7 @@ describe("topologyHash", () => {
   it("changes when a marriage transitions to divorced", () => {
     let t = createInitialTree();
     t = addSpouse(t, ROOT_ID, "s", n("S"), "F");
-    const divorced = divorceSpouse(t, ROOT_ID, "s");
+    const divorced = setUnionStatus(t, ROOT_ID, "s", "divorced");
     expect(topologyHash(divorced)).not.toBe(topologyHash(t));
   });
 
