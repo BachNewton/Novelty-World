@@ -30,16 +30,8 @@ export function Node({
     onSelect(person.id);
   }
 
-  const showBirthSurname =
-    person.birthSurname !== "" && person.birthSurname !== person.lastName;
-  const detail = [
-    showBirthSurname
-      ? `${person.gender === "M" ? "né" : "née"} ${person.birthSurname}`
-      : "",
-    person.birthDate === "" ? "" : `b. ${birthYear(person.birthDate)}`,
-  ]
-    .filter((part) => part !== "")
-    .join(" · ");
+  const year = person.birthDate === "" ? null : birthYear(person.birthDate);
+  const approximate = year?.startsWith("~") ?? false;
 
   return (
     <div
@@ -65,9 +57,17 @@ export function Node({
       <span className="text-sm font-medium text-text-primary leading-tight">
         {fullName(person)}
       </span>
-      {detail !== "" ? (
-        <span className="text-xs leading-tight text-text-muted italic">
-          {detail}
+      {year !== null ? (
+        <span
+          className={[
+            "mt-0.5 rounded-full border bg-surface-primary px-2 py-px font-mono text-xs leading-none text-brand-green",
+            approximate
+              ? "border-dashed border-brand-green/60"
+              : "border-brand-green/40",
+          ].join(" ")}
+          title={approximate ? "Born about this year" : "Birth year"}
+        >
+          {year}
         </span>
       ) : null}
       {subtitle !== null ? (

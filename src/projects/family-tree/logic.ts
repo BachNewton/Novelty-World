@@ -20,8 +20,8 @@ import type {
 // (Ruth-Anne "Ruthie" Hutchinson, 29 characters).
 export const NODE_W = 250;
 // Cards are a fixed size (the layout never measures text), so this must fit
-// the tallest content: a name wrapped onto two lines, the "née" line, and
-// the relation line.
+// the tallest content: a name wrapped onto two lines, the birth-year chip,
+// and the relation line.
 export const NODE_H = 90;
 export const SPOUSE_GAP = 28;
 export const ROW_GAP = 96;
