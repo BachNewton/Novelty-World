@@ -95,7 +95,7 @@ Tailwind CSS v4. Novelty World's visual identity is colorful, bold, fun, and qui
 
 **Rule: docs and CLAUDE.md explain concepts and invariants; they never duplicate code.** Never cite line numbers, and never paste real code into prose — a copied snippet forks the truth and rots silently, and so does prose that narrates today's implementation detail. When an example helps, make it generic and inline (shaped like code, referencing nothing real). Naming real things follows stability: file/module names are the routing map and are encouraged; exported symbol names are fine where routing matters, because a rename makes the reference fail a grep — staleness that announces itself. When renaming or moving anything, grep the docs for the old name in the same change.
 
-**Rule: docs state what is decided, not when.** No decision dates, "as of" stamps or change logs in CLAUDE.md, skills, commands or design docs: what's decided is decided, and git history holds the when. Dates stay only where the date is the data: a measurement's context, a record's `asOf`, when a source was last checked, or a log whose whole point is the timeline.
+**Rule: docs state what is decided, not when.** No decision dates, "as of" stamps or change logs in CLAUDE.md, skills, commands or design docs: what's decided is decided, and git history holds the when. Dates stay only where the date is the data: a measurement's context, a record's `asOf`, or a log whose whole point is the timeline.
 
 ### Tests and tools wait for EVENTS, not clocks
 

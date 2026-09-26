@@ -1,8 +1,7 @@
 # Sources
 
 Each source: what it is good for, how to search and cite it, and how to reach
-it. "Last verified" is the last date a session used it and it behaved as
-described; update it, or rewrite the entry, whenever that changes. A citation
+it. Rewrite an entry whenever a source stops behaving as described. A citation
 in the tree row must be public-safe (see "The research record" in
 `SKILL.md`); the full URL goes in the research log.
 
@@ -12,18 +11,16 @@ in the tree row must be public-safe (see "The research record" in
   indexes. The WebSearch budget is shared by every agent running at once and
   runs out; plan queries per family, not per person, and log who was never
   searched so a later round picks them up. Direct fetches of Google, Bing,
-  DuckDuckGo and similar get CAPTCHA or consent walls. *Last verified
-  2026-09-26.*
+  DuckDuckGo and similar get CAPTCHA or consent walls.
 - **Chrome DevTools MCP** (`mcp__chrome-devtools__*`): drives the owner's own
   Chrome, with their logins. Use it for login-gated or JavaScript-heavy sites
-  (FamilySearch) and for sites that return 403 to WebFetch. *Last verified
-  2026-09-26.*
+  (FamilySearch) and for sites that return 403 to WebFetch.
 
 ## FamilySearch
 
 The strongest source. Needs a login: use the Chrome DevTools MCP with the
 owner's session. Record pages are `familysearch.org/ark:/61903/<id>`; cite as
-"FamilySearch 1:1:XXXX-XXX". *Last verified 2026-09-26.*
+"FamilySearch 1:1:XXXX-XXX".
 
 Collections that worked:
 
@@ -57,8 +54,8 @@ elopement records can be false.
   family links; memorial ids are good citations ("Find a Grave 123456789").
   A memorial without family links needs other proof of identity. Dates quoted
   from newspapers may be notice dates, not death dates. Also reachable as a
-  FamilySearch index. *Last verified 2026-09-26.*
-- **BillionGraves**: same role, less coverage. *Not yet used.*
+  FamilySearch index.
+- **BillionGraves**: same role, less coverage. *Untested.*
 
 ## Obituaries
 
@@ -66,12 +63,11 @@ The best source for `family`: they list spouses, children, grandchildren,
 and often who died first.
 
 - **Funeral home sites**: usually fetchable. Some have a print view that
-  fetches cleanly (add the site's print parameter). *Last verified
-  2026-09-26.*
+  fetches cleanly (add the site's print parameter).
 - **Legacy.com, everloved, tribute aggregators**: 403 to WebFetch; use the
-  Chrome DevTools MCP or search-result snippets. *Last verified 2026-09-26.*
+  Chrome DevTools MCP or search-result snippets.
 - **Local newspapers' own sites**: several block automated fetches; try the
-  browser. *Last verified 2026-09-26.*
+  browser.
 
 Reading them: "Child (Spouse)" means a current partner; "the late" means
 predeceased; grandchildren are usually listed without saying whose they are;
@@ -84,9 +80,9 @@ an older obituary names married women as "Mrs. Husband's-Name".
   entries after about 1975 are one-line abstracts ("Husband of …") and need
   the news record type in the URL, not necrology. Full scans are free by
   email from the library; that is a request for the owner to make. Sometimes
-  403 to fetches; search in the browser. *Last verified 2026-09-26.*
+  403 to fetches; search in the browser.
 - Other city libraries keep similar indexes (one blocked
-  automated fetches). *Last verified 2026-09-26.*
+  automated fetches).
 
 ## People-search sites
 
@@ -96,28 +92,25 @@ through search-result snippets; direct fetches are blocked.
 
 - Spokeo, Instant Checkmate, FastPeopleSearch, TruePeopleSearch, ClustrMaps,
   Whitepages, OfficialUSA, state "resident database" sites: 403, CAPTCHA or
-  fetch errors; snippets only. *Last verified 2026-09-26.*
+  fetch errors; snippets only.
 - **Radaris**: dead. The domain shows a seizure notice under New Jersey's
-  Daniel's Law. *Last verified 2026-09-26.*
-- Voter-record sites: name and area only, no relatives. *Last verified
-  2026-09-26.*
+  Daniel's Law.
+- Voter-record sites: name and area only, no relatives.
 
 ## Other public pages
 
 - **Wedding and registry sites** (The Knot, Zola, WithJoy, MyRegistry):
-  marriage dates for recent couples; no ages, sometimes no surnames. *Last
-  verified 2026-09-26.*
+  marriage dates for recent couples; no ages, sometimes no surnames.
 - **University athletics roster bios**: an adult's birth year and parents'
   names. High-school sports sites only show that someone is past a class year;
   for a minor, use them for the birth year or class year only, and save
-  nothing that locates the child. *Last verified 2026-09-26.*
+  nothing that locates the child.
 - **Professional registries** (NPI registry, clinician directories): identity,
   profession and area for adults; not birth years. LinkedIn blocks fetches.
-  *Last verified 2026-09-26.*
 
 ## Finnish records
 
-For lines from Finland. *None yet used in a research round.*
+For lines from Finland. *Untested.*
 
 - **National Library of Finland digitized newspapers**
   (`digi.kansalliskirjasto.fi`): free, includes Finnish-American papers.

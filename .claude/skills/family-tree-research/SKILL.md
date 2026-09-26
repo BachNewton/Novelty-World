@@ -65,10 +65,10 @@ The tree is **complete** when every in-scope person has each of their
 research questions Confirmed or Exhausted.
 
 - **In scope:** everyone in the tree, both partners' families included.
-- **Direction: out and down only.** This research phase doesn't go looking
-  for new ancestors: a lead above the tree goes in the research log for a
-  later pass. Ancestors the owner supplies are always welcome; add them, and
-  they join the scope like anyone else.
+- **Direction: out and down only.** Research doesn't go looking for new
+  ancestors: a lead above the tree goes in the research log. Ancestors the
+  owner supplies are always welcome; add them, and they join the scope like
+  anyone else.
 
 ## The research record
 
@@ -189,7 +189,7 @@ Heritage records **where a line came from**, not identity. The data model is
 under "Heritage" in the project CLAUDE.md; the list of codes is
 `src/projects/family-tree/heritages.ts`.
 
-- **This pass: only from records about people already in the tree**, such as
+- **Only from records about people already in the tree**, such as
   a census giving a person's parents' birthplaces, entered on the earliest
   in-tree person of each line. Don't add ancestors to find it. How to read
   the records is in `methods.md`.
@@ -286,7 +286,7 @@ The playbooks get better only if every round feeds back into them.
   only: no names, no findings.
 - **One editor merges them.** The orchestrating session, not each research
   agent, edits `sources.md` and `methods.md`: add what worked, prune what
-  failed or went stale, update "last verified" dates, and keep each file
+  failed or went stale, and keep each file
   tight (merge duplicates, cut anything nobody would act on). Parallel agents
   editing the same files collide and bloat them.
 - **Changes to `standards.md` are proposed to the owner, never applied

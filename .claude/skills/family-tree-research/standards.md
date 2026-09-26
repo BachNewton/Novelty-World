@@ -186,7 +186,7 @@ family (last). May be Exhausted without a family answer, as above.
 
 ## heritage: where the line came from
 
-Asked only of in-scope people with no parents in the tree. This pass uses only
+Asked only of in-scope people with no parents in the tree. Research uses only
 records about people already in the tree: no new ancestors.
 
 **Confirmed** when a record tied to the person or to an in-tree descendant
@@ -200,7 +200,7 @@ gives the origin:
 
 The place maps to the present-day country containing it. If the person and
 both parents were born in the US, the origin lies above the tree: that is not
-a Confirmed "US", it is Exhausted for this pass, with the note saying so.
+a Confirmed "US", it is Exhausted, with the note saying so.
 
 ### Dead
 

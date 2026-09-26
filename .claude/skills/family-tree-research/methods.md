@@ -82,7 +82,7 @@ age 24 on 20 March 1976 means born 21 March 1951 to 20 March 1952, so mostly
 
 ## Finding a line's origin
 
-From records about people already in the tree. No new ancestors this pass.
+From records about people already in the tree; research adds no ancestors.
 
 1. Find the earliest in-tree person of the line (no parents in the tree).
 2. **Their census entries, 1880–1950.** Every census from 1880 to 1930 gives
@@ -98,7 +98,7 @@ From records about people already in the tree. No new ancestors this pass.
    or town goes in notes as the record words it. Records that disagree on the
    county but agree on the country still settle the question.
 6. **Both parents US-born:** the origin lies above the tree. Record the
-   question as Exhausted for this pass, and note where the parents were born,
-   which is where a later pass would look.
+   question as Exhausted, and note where the parents were born, which is
+   where research above the tree would look.
 7. **Enter it on that person**; descendants derive theirs. Then run
    `superseded`.
