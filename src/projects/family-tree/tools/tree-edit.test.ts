@@ -57,6 +57,10 @@ describe("parseOps", () => {
     [{ op: "addChild", parent: "x", name: { firstName: "A" }, gender: "M" }, /missing "coParent"/],
     [{ op: "addParent", ref: "kid", child: "x", name: { firstName: "A" }, gender: "M" }, /"ref" must look like/],
     [{ op: "addSpouse", person: "x", name: { firstName: "A" }, gender: "M", status: "wed", bioChildren: [] }, /"status" must be one of/],
+    [{ op: "setBirthDate", person: "x" }, /missing "birthDate"/],
+    [{ op: "setBirthDate", person: "x", birthDate: "16 Jun 1931" }, /"birthDate" "16 Jun 1931" is not YYYY/],
+    [{ op: "setBirthDate", person: "x", birthDate: 1931 }, /"birthDate" must be a string/],
+    [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", birthDate: "1931-02-30" }, /no day 30/],
   ])("rejects %j", (op, message) => {
     expect(() => parseOps([op])).toThrow(message);
   });
@@ -177,6 +181,29 @@ describe("applyOps", () => {
     expect(tree.persons[ROOT_ID].notes).toBe("first\nsecond");
   });
 
+  it("sets, describes, and clears a birth date", () => {
+    const set = run(family(), [{ op: "setBirthDate", person: "5a0e", birthDate: " 1931-06 " }]);
+    expect(set.tree.persons[SPOUSE].birthDate).toBe("1931-06");
+    expect(set.changes[0]).toBe("Set birth date of Sam Root (née Birth) [5a0e0000]: (none) → 1931-06");
+    expect(describePerson(set.tree, SPOUSE)).toContain("  born:     1931-06");
+    const cleared = run(set.tree, [{ op: "setBirthDate", person: "5a0e", birthDate: "" }]);
+    expect(cleared.tree.persons[SPOUSE].birthDate).toBe("");
+    expect(cleared.changes[0]).toContain("1931-06 → (none)");
+  });
+
+  it("gives new people the birth date their op carries", () => {
+    const { tree, changes } = run(family(), [
+      { op: "addChild", ref: "@kid", parent: "kyle", coParent: null, name: { firstName: "Cy" }, gender: "M", birthDate: "2001" },
+      { op: "addSpouse", ref: "@wife", person: "@kid", name: { firstName: "Di" }, gender: "F", status: "married", bioChildren: [], birthDate: "2002" },
+      { op: "addParent", ref: "@dad", child: SOLO_KID, name: { firstName: "Ed" }, gender: "M", birthDate: "1950-01-02" },
+    ]);
+    expect(tree.persons["new-1"].birthDate).toBe("2001");
+    expect(tree.persons["new-2"].birthDate).toBe("2002");
+    expect(tree.persons["new-3"].birthDate).toBe("1950-01-02");
+    expect(changes[0]).toContain("(M, born 2001)");
+    expect(changes[2]).toContain("(M, born 1950-01-02)");
+  });
+
   it("deletes a person and says what goes with them", () => {
     const { tree, changes } = run(family(), [{ op: "deletePerson", person: "5a0e" }]);
     expect(SPOUSE in tree.persons).toBe(false);
@@ -201,6 +228,7 @@ describe("applyOps", () => {
       { op: "addChild", parent: "kyle", coParent: null, name: { lastName: "Root" }, gender: "F" },
     ], /needs a firstName/],
     ["a rename that changes nothing", [{ op: "rename", person: "5a0e", name: { firstName: "Sam" } }], /already has these names/],
+    ["a birth date that changes nothing", [{ op: "setBirthDate", person: "5a0e", birthDate: "" }], /already has this birth date/],
     ["a status change on a pair with no union", [
       { op: "setUnionStatus", a: "5a0e", b: SOLO_KID, status: "divorced" },
     ], /have no union/],

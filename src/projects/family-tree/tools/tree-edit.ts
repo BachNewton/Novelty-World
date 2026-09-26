@@ -6,10 +6,12 @@ import {
   addChild,
   addParent,
   addSpouse,
+  birthDateProblem,
   deletePerson,
   GENDER_CYCLE,
   fullName,
   renamePerson,
+  setBirthDate,
   setGender,
   setNotes,
   setUnionDeceased,
@@ -47,6 +49,8 @@ export type Op =
   | { op: "setGender"; person: PersonRef; gender: Gender }
   | { op: "setNotes"; person: PersonRef; notes: string }
   | { op: "appendNote"; person: PersonRef; note: string }
+  // A partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"); "" clears it.
+  | { op: "setBirthDate"; person: PersonRef; birthDate: string }
   | {
       op: "addChild";
       ref?: string;
@@ -55,6 +59,7 @@ export type Op =
       coParent: PersonRef | null;
       name: Partial<NameFields>;
       gender: Gender;
+      birthDate?: string;
     }
   | {
       op: "addSpouse";
@@ -65,8 +70,16 @@ export type Op =
       status: UnionStatus;
       // Existing children of `person` the new spouse is also a parent of.
       bioChildren: PersonRef[];
+      birthDate?: string;
     }
-  | { op: "addParent"; ref?: string; child: PersonRef; name: Partial<NameFields>; gender: Gender }
+  | {
+      op: "addParent";
+      ref?: string;
+      child: PersonRef;
+      name: Partial<NameFields>;
+      gender: Gender;
+      birthDate?: string;
+    }
   | { op: "setUnionStatus"; a: PersonRef; b: PersonRef; status: UnionStatus }
   | { op: "setUnionDeceased"; a: PersonRef; b: PersonRef; deceased: PersonRef | null }
   | { op: "deletePerson"; person: PersonRef };
@@ -79,6 +92,8 @@ type FieldKind =
   | "gender"
   | "status"
   | "text"
+  | "birthDate"
+  | "birthDate?"
   | "ref?";
 
 const OP_FIELDS = {
@@ -86,7 +101,15 @@ const OP_FIELDS = {
   setGender: { person: "person", gender: "gender" },
   setNotes: { person: "person", notes: "text" },
   appendNote: { person: "person", note: "text" },
-  addChild: { ref: "ref?", parent: "person", coParent: "personOrNull", name: "name", gender: "gender" },
+  setBirthDate: { person: "person", birthDate: "birthDate" },
+  addChild: {
+    ref: "ref?",
+    parent: "person",
+    coParent: "personOrNull",
+    name: "name",
+    gender: "gender",
+    birthDate: "birthDate?",
+  },
   addSpouse: {
     ref: "ref?",
     person: "person",
@@ -94,8 +117,9 @@ const OP_FIELDS = {
     gender: "gender",
     status: "status",
     bioChildren: "persons",
+    birthDate: "birthDate?",
   },
-  addParent: { ref: "ref?", child: "person", name: "name", gender: "gender" },
+  addParent: { ref: "ref?", child: "person", name: "name", gender: "gender", birthDate: "birthDate?" },
   setUnionStatus: { a: "person", b: "person", status: "status" },
   setUnionDeceased: { a: "person", b: "person", deceased: "personOrNull" },
   deletePerson: { person: "person" },
@@ -135,6 +159,10 @@ function fieldError(kind: FieldKind, value: unknown): string | null {
         : `must be one of ${UNION_STATUSES.join(", ")}`;
     case "text":
       return typeof value === "string" ? null : "must be a string";
+    case "birthDate?":
+      return value === undefined ? null : fieldError("birthDate", value);
+    case "birthDate":
+      return typeof value === "string" ? birthDateProblem(value.trim()) : "must be a string";
     case "ref?":
       return value === undefined || (typeof value === "string" && /^@\w[\w-]*$/.test(value))
         ? null
@@ -158,7 +186,7 @@ export function parseOps(json: unknown): Op[] {
       if (key !== "op" && !(key in fields)) throw new Error(`${where} (${op}) has unknown field "${key}"`);
     }
     for (const [key, kind] of Object.entries(fields)) {
-      if (!(key in raw) && kind !== "ref?") throw new Error(`${where} (${op}) is missing "${key}"`);
+      if (!(key in raw) && !kind.endsWith("?")) throw new Error(`${where} (${op}) is missing "${key}"`);
       const problem = fieldError(kind, raw[key]);
       if (problem !== null) throw new Error(`${where} (${op}): "${key}" ${problem}`);
     }
@@ -230,6 +258,7 @@ export function describePerson(tree: Tree, id: string): string {
     .join(", ");
   lines.push(`  names:    ${names}`);
   lines.push(`  gender:   ${person.gender}`);
+  if (person.birthDate !== "") lines.push(`  born:     ${person.birthDate}`);
   lines.push(
     `  parents:  ${person.parentIds.length === 0 ? "(none)" : person.parentIds.map((pid) => labelOf(tree, pid)).join("; ")}`,
   );
@@ -317,6 +346,14 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
     return resolveId(current, ref);
   };
   const label = (id: string): string => labelOf(current, id);
+  // Gives a just-added person the birth date their op carried, if any, and
+  // describes it for the change list.
+  const bornOn = (id: string, birthDate: string | undefined): string => {
+    const date = birthDate?.trim() ?? "";
+    if (date === "") return "";
+    current = setBirthDate(current, id, date);
+    return `, born ${date}`;
+  };
   const bindRef = (ref: string | undefined, id: string): string => {
     if (ref === undefined) return "";
     if (refs.has(ref)) throw new Error(`${ref} is defined twice`);
@@ -380,6 +417,14 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         current = setNotes(current, id, before === "" ? note : `${before}\n${note}`);
         return `Add note to ${label(id)}:\n${indent(note)}`;
       }
+      case "setBirthDate": {
+        const id = who(op.person);
+        const date = op.birthDate.trim();
+        const before = current.persons[id].birthDate;
+        if (before === date) throw new Error(`${label(id)} already has this birth date`);
+        current = setBirthDate(current, id, date);
+        return `Set birth date of ${label(id)}: ${before === "" ? "(none)" : before} → ${date === "" ? "(none)" : date}`;
+      }
       case "addChild": {
         const parentId = who(op.parent);
         const coParentId = op.coParent === null ? null : who(op.coParent);
@@ -393,10 +438,11 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addChild(current, parentId, id, name, op.gender, coParentId);
+        const born = bornOn(id, op.birthDate);
         const parents = coParentId === null
           ? `${label(parentId)} (no other parent)`
           : `${label(parentId)} and ${label(coParentId)}`;
-        return `Add child ${displayName(current.persons[id])} (${op.gender})${bindRef(op.ref, id)} of ${parents}`;
+        return `Add child ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${parents}`;
       }
       case "addSpouse": {
         const personId = who(op.person);
@@ -416,8 +462,9 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addSpouse(current, personId, id, name, op.gender, op.status, childIds);
+        const born = bornOn(id, op.birthDate);
         const kids = childIds.length === 0 ? "" : `; also parent of ${childIds.map(label).join(", ")}`;
-        return `Add ${op.status} partner ${displayName(current.persons[id])} (${op.gender})${bindRef(op.ref, id)} of ${label(personId)}${kids}`;
+        return `Add ${op.status} partner ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${label(personId)}${kids}`;
       }
       case "addParent": {
         const childId = who(op.child);
@@ -428,10 +475,11 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         const otherParentId = parentIds.at(0);
         const id = newId();
         current = addParent(current, childId, id, name, op.gender);
+        const born = bornOn(id, op.birthDate);
         const union = otherParentId === undefined
           ? ""
           : `; married to ${label(otherParentId)} automatically (follow with setUnionStatus if they weren't married)`;
-        return `Add parent ${displayName(current.persons[id])} (${op.gender})${bindRef(op.ref, id)} of ${label(childId)}${union}`;
+        return `Add parent ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${label(childId)}${union}`;
       }
       case "setUnionStatus": {
         const aId = who(op.a);

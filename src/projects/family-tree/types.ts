@@ -52,6 +52,9 @@ export interface Person {
   // Free-text research notes; empty string means none. Never shown on the
   // tree itself, only in the edit panel.
   notes: string;
+  // Partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"); empty string means
+  // none recorded. A research aid, never shown on the tree cards.
+  birthDate: string;
   gender: Gender;
   parentIds: string[];
   unions: Union[];
