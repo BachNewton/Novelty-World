@@ -36,8 +36,18 @@ const PAN_SPEED = 0.7;
 const PAN_BOOST = 3;
 // Arrow-key orbit speed, in radians per second.
 const ORBIT_SPEED = 1.2;
-// Held keys are lowercased `KeyboardEvent.key` values.
-const MOVE_KEYS = ["w", "a", "s", "d", "arrowleft", "arrowright", "arrowup", "arrowdown"] as const;
+// Keyboard zoom, as a multiplicative factor per second (matches the 2D view).
+// No Shift boost: "+" needs Shift on most layouts.
+const ZOOM_RATE = 1.8;
+// Held keys are lowercased `KeyboardEvent.key` values. "=" and "_" are the
+// unshifted "+" and shifted "-", so either state of the key zooms.
+const ZOOM_IN_KEYS = ["+", "="] as const;
+const ZOOM_OUT_KEYS = ["-", "_"] as const;
+const MOVE_KEYS = [
+  "w", "a", "s", "d",
+  "arrowleft", "arrowright", "arrowup", "arrowdown",
+  ...ZOOM_IN_KEYS, ...ZOOM_OUT_KEYS,
+] as const;
 // Screen-space gap kept between a label and its sphere, and between labels.
 const LABEL_LIFT_PX = 8;
 const LABEL_GAP_PX = 2;
@@ -190,6 +200,18 @@ function orbitWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta
   return true;
 }
 
+// Moves the camera toward or away from its orbit target. Returns whether it moved.
+function zoomWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: number): boolean {
+  const zoomIn = ZOOM_IN_KEYS.some((k) => held.keys.has(k));
+  const zoomOut = ZOOM_OUT_KEYS.some((k) => held.keys.has(k));
+  const direction = Number(zoomIn) - Number(zoomOut);
+  if (direction === 0) return false;
+  const scale = Math.pow(ZOOM_RATE, -direction * delta);
+  camera.position.sub(controls.target).multiplyScalar(scale).add(controls.target);
+  controls.update();
+  return true;
+}
+
 const panRight = new Vector3();
 const panUp = new Vector3();
 
@@ -259,7 +281,8 @@ function Scene({
     if (controls.current) {
       const panned = panWithKeys(held.current, camera, controls.current, delta);
       const orbited = orbitWithKeys(held.current, camera, controls.current, delta);
-      if (panned || orbited) userHasCamera.current = true;
+      const zoomed = zoomWithKeys(held.current, camera, controls.current, delta);
+      if (panned || orbited || zoomed) userHasCamera.current = true;
     }
     // Follow the tree as it spreads, unless the user has taken the camera.
     if (!sim.settled()) {
