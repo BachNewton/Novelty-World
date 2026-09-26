@@ -74,6 +74,7 @@ export function FamilyTree() {
   const addChild = useFamilyTreeStore((s) => s.addChild);
   const addSpouse = useFamilyTreeStore((s) => s.addSpouse);
   const setUnionStatus = useFamilyTreeStore((s) => s.setUnionStatus);
+  const setUnionDeceased = useFamilyTreeStore((s) => s.setUnionDeceased);
   const rename = useFamilyTreeStore((s) => s.rename);
   const setGender = useFamilyTreeStore((s) => s.setGender);
   const setNotes = useFamilyTreeStore((s) => s.setNotes);
@@ -216,6 +217,7 @@ export function FamilyTree() {
       partnerId: u.personId,
       partnerName: fullName(tree.persons[u.personId]),
       status: u.status,
+      deceasedId: u.status === "ended-by-death" ? u.deceasedId : null,
     }));
   }, [selectedPerson, tree.persons]);
 
@@ -326,6 +328,9 @@ export function FamilyTree() {
             }}
             onSetUnionStatus={(partnerId, unionStatus) => {
               setUnionStatus(selectedPerson.id, partnerId, unionStatus);
+            }}
+            onSetUnionDeceased={(partnerId, deceasedId) => {
+              setUnionDeceased(selectedPerson.id, partnerId, deceasedId);
             }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetNotes={(notes) => { setNotes(selectedPerson.id, notes); }}

@@ -13,7 +13,7 @@ Everyone is family whether or not they've passed. The tree never shows who is de
 Types live in `types.ts`; pure operations and relationship terms live in `logic.ts`.
 
 - **Unions.** Relationships between adults are one list of unions on each person, kept symmetric on both people. Each union has a status: married, divorced, ended-by-death, partner, or ex-partner. Status belongs to the union, never to the person.
-- **Ended by death** is only needed when the survivor later remarried or repartnered. It renders like a marriage, not a divorce. The relationship readout says "late wife/husband", and nothing appears on the cards.
+- **Ended by death** is only needed when the survivor later remarried or repartnered. It renders like a marriage, not a divorce. The union can optionally record which of the two died. Only that person is ever called "late" in the relationship readout (by the survivor, and in composites like "husband's late wife"). When it isn't recorded, nobody is "late". It is wording only: it never affects layout or the topology hash, and nothing appears on the cards.
 - **Names:** first name, last name (current), common name (nickname), and an optional birth surname. The birth surname shows as a small "née …" line on the card only when it differs from the last name.
 - **Notes:** optional free text per person, for research facts that have nowhere else to live (death dates, record numbers, alternate names). Notes never appear on the tree cards.
 - **Optional string fields** use an empty string to mean "not set". They are always present, never undefined.

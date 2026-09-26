@@ -3,18 +3,23 @@ export type Gender = "M" | "F" | "NB";
 export type UnionStatus =
   | "married"
   | "divorced"
-  // The marriage ended because a spouse died. Deliberately doesn't record
-  // which spouse: the tree never shows who is alive or dead.
+  // The marriage ended because a spouse died.
   | "ended-by-death"
   | "partner"
   | "ex-partner";
 
 // A relationship between two adults. Symmetric: both people carry an entry
-// naming the other, with the same status.
-export interface Union {
-  personId: string;
-  status: UnionStatus;
-}
+// naming the other, with the same status (and the same deceasedId).
+export type Union =
+  | { personId: string; status: Exclude<UnionStatus, "ended-by-death"> }
+  | {
+      personId: string;
+      status: "ended-by-death";
+      // Which of the two people died, or null when not recorded. It only
+      // decides who the relationship readout calls "late"; cards never show
+      // it, since the tree never shows who is alive or dead.
+      deceasedId: string | null;
+    };
 
 // All name-shaped fields. Carried as a single object through the form →
 // store → logic call chain so adding a new name field (suffix, maiden, …)

@@ -18,6 +18,7 @@ import {
   diffTree,
   fullName,
   nearestInDirection,
+  newUnion,
   nextGender,
   normalizeTree,
   optimisticPatch,
@@ -25,6 +26,7 @@ import {
   renamePerson,
   setGender,
   setNotes,
+  setUnionDeceased,
   setUnionStatus,
   topologyHash,
 } from "./logic";
@@ -74,7 +76,7 @@ function p(
 }
 
 function u(personId: string, status: UnionStatus): Union {
-  return { personId, status };
+  return newUnion(personId, status);
 }
 
 function makeTree(persons: Person[]): Tree {
@@ -835,29 +837,56 @@ describe("describeRelation — ended-by-death", () => {
     );
   }
 
-  it("labels the spouses of a marriage ended by death as late wife/husband", () => {
-    const t = widower();
+  const terryDied = (): Tree =>
+    setUnionDeceased(widower(), "richard", "terry", "terry");
+
+  it("calls only the spouse recorded as deceased 'late'", () => {
+    const t = terryDied();
     expect(describeRelation(t, "richard", "terry").label).toBe("late wife");
-    expect(describeRelation(t, "terry", "richard").label).toBe("late husband");
+    expect(describeRelation(t, "terry", "richard").label).toBe("husband");
     expect(describeRelation(t, "richard", "mary").label).toBe("wife");
   });
 
-  it("uses the neutral 'late spouse' for NB partners", () => {
-    const t = treeWithUnions(
-      [p("a", "M"), p("b", "NB")],
-      [["a", "b", "ended-by-death"]],
-    );
-    expect(describeRelation(t, "a", "b").label).toBe("late spouse");
+  it("calls nobody 'late' when who died isn't recorded", () => {
+    const t = widower();
+    expect(describeRelation(t, "richard", "terry").label).toBe("wife");
+    expect(describeRelation(t, "terry", "richard").label).toBe("husband");
   });
 
-  it("composes 'husband's late wife' and 'father's late wife'", () => {
-    const t = widower();
+  it("uses the neutral 'late spouse' for NB partners", () => {
+    const t = setUnionDeceased(
+      treeWithUnions([p("a", "M"), p("b", "NB")], [["a", "b", "ended-by-death"]]),
+      "a",
+      "b",
+      "b",
+    );
+    expect(describeRelation(t, "a", "b").label).toBe("late spouse");
+    expect(describeRelation(t, "b", "a").label).toBe("husband");
+  });
+
+  it("composes 'husband's late wife' and 'father's late wife' when she died", () => {
+    const t = terryDied();
     expect(describeRelation(t, "mary", "terry").label).toBe("husband's late wife");
     expect(describeRelation(t, "maryKid", "terry").label).toBe("father's late wife");
   });
 
-  it("keeps in-law terms through a late spouse", () => {
+  it("composes without 'late' when who died isn't recorded", () => {
     const t = widower();
+    expect(describeRelation(t, "mary", "terry").label).toBe("husband's wife");
+    expect(describeRelation(t, "maryKid", "terry").label).toBe("father's wife");
+  });
+
+  it("never calls the survivor 'late' in a composite", () => {
+    // Richard died instead: Terry is just his wife, and he is her late husband.
+    const t = setUnionDeceased(widower(), "richard", "terry", "richard");
+    expect(describeRelation(t, "mary", "terry").label).toBe("husband's wife");
+    expect(describeRelation(t, "terry", "richard").label).toBe("late husband");
+    expect(describeRelation(t, "tMom", "richard").label).toBe("son-in-law");
+  });
+
+  it("keeps in-law terms through a late spouse, recorded or not", () => {
+    const t = terryDied();
+    expect(describeRelation(widower(), "richard", "tMom").label).toBe("mother-in-law");
     expect(describeRelation(t, "richard", "tMom").label).toBe("mother-in-law");
     expect(describeRelation(t, "richard", "tSis").label).toBe("sister-in-law");
     expect(describeRelation(t, "tMom", "richard").label).toBe("son-in-law");
@@ -867,6 +896,79 @@ describe("describeRelation — ended-by-death", () => {
     const t = widower();
     expect(describeRelation(t, "terryKid", "terry").label).toBe("mother");
     expect(describeRelation(t, "maryKid", "terryKid").label).toBe("half-sister");
+  });
+});
+
+describe("setUnionDeceased", () => {
+  const deceasedOn = (t: Tree, selfId: string, otherId: string) => {
+    const union = t.persons[selfId].unions.find((x) => x.personId === otherId);
+    return union?.status === "ended-by-death" ? union.deceasedId : undefined;
+  };
+
+  it("records who died on both union entries, and clears it with null", () => {
+    const base = widowedRemarriage();
+    expect(deceasedOn(base, "richard", "terry")).toBeNull();
+    const t = setUnionDeceased(base, "richard", "terry", "terry");
+    expect(deceasedOn(t, "richard", "terry")).toBe("terry");
+    expect(deceasedOn(t, "terry", "richard")).toBe("terry");
+    expect(deceasedOn(base, "richard", "terry")).toBeNull();
+    const cleared = setUnionDeceased(t, "terry", "richard", null);
+    expect(deceasedOn(cleared, "richard", "terry")).toBeNull();
+    expect(deceasedOn(cleared, "terry", "richard")).toBeNull();
+  });
+
+  it("returns the same tree when nothing changes", () => {
+    const t = setUnionDeceased(widowedRemarriage(), "richard", "terry", "terry");
+    expect(setUnionDeceased(t, "terry", "richard", "terry")).toBe(t);
+  });
+
+  it("throws for a union that didn't end by death, or a stranger as the deceased", () => {
+    const t = widowedRemarriage();
+    expect(() => setUnionDeceased(t, "richard", "mary", "mary")).toThrow();
+    expect(() => setUnionDeceased(t, "richard", "terry", "mary")).toThrow();
+  });
+
+  it("clears who died when the status changes away from ended-by-death", () => {
+    let t = setUnionDeceased(widowedRemarriage(), "richard", "terry", "terry");
+    t = setUnionStatus(t, "richard", "terry", "divorced");
+    expect(t.persons.richard.unions.find((x) => x.personId === "terry")).toEqual(
+      u("terry", "divorced"),
+    );
+    expect(t.persons.terry.unions).toEqual([u("richard", "divorced")]);
+    t = setUnionStatus(t, "richard", "terry", "ended-by-death");
+    expect(deceasedOn(t, "richard", "terry")).toBeNull();
+    expect(deceasedOn(t, "terry", "richard")).toBeNull();
+  });
+
+  it("leaves topologyHash and diffTree's structural equality untouched", () => {
+    const base = widowedRemarriage();
+    const t = setUnionDeceased(base, "richard", "terry", "terry");
+    expect(topologyHash(t)).toBe(topologyHash(base));
+    expect(diffTree(base, t).structurallyEqual).toBe(true);
+  });
+
+  it("round-trips through normalizeTree with no change reported", () => {
+    const t = setUnionDeceased(widowedRemarriage(), "richard", "terry", "terry");
+    const { tree, changed } = normalizeTree(JSON.parse(JSON.stringify(t)));
+    expect(changed).toBe(false);
+    expect(tree).toEqual(t);
+  });
+
+  it("normalizeTree backfills a missing deceasedId as unset and reports the change", () => {
+    const stored = JSON.parse(JSON.stringify(widowedRemarriage())) as {
+      persons: Record<string, { unions: { status: string; deceasedId?: unknown }[] }>;
+    };
+    for (const person of Object.values(stored.persons)) {
+      for (const union of person.unions) delete union.deceasedId;
+    }
+    const { tree, changed } = normalizeTree(stored);
+    expect(changed).toBe(true);
+    expect(tree).toEqual(widowedRemarriage());
+  });
+
+  it("normalizeTree reports no change for rows with no ended-by-death union", () => {
+    const { changed } = normalizeTree(JSON.parse(JSON.stringify(partnerFamily())));
+    expect(changed).toBe(false);
   });
 });
 

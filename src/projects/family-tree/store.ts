@@ -14,6 +14,7 @@ import {
   renamePerson as logicRenamePerson,
   setGender as logicSetGender,
   setNotes as logicSetNotes,
+  setUnionDeceased as logicSetUnionDeceased,
   setUnionStatus as logicSetUnionStatus,
   topologyHash,
 } from "./logic";
@@ -72,6 +73,7 @@ interface FamilyTreeState {
     bioChildIds?: readonly string[],
   ) => void;
   setUnionStatus: (aId: string, bId: string, status: UnionStatus) => void;
+  setUnionDeceased: (aId: string, bId: string, deceasedId: string | null) => void;
   rename: (id: string, name: NameFields) => void;
   setGender: (id: string, gender: Gender) => void;
   setNotes: (id: string, notes: string) => void;
@@ -403,6 +405,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   setUnionStatus: (aId, bId, status) => {
     applyMutation((tree) => logicSetUnionStatus(tree, aId, bId, status));
+  },
+
+  setUnionDeceased: (aId, bId, deceasedId) => {
+    applyMutation((tree) => logicSetUnionDeceased(tree, aId, bId, deceasedId));
   },
 
   rename: (id, name) => {

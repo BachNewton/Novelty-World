@@ -17,6 +17,9 @@ export interface MarriageOption {
   partnerId: string;
   partnerName: string;
   status: UnionStatus;
+  // Who died, for an ended-by-death union; null when not recorded or when
+  // the union ended some other way.
+  deceasedId: string | null;
 }
 
 // Existing children of the selected person whose only listed bio parent is
@@ -47,6 +50,7 @@ interface ActionPanelProps {
     bioChildIds: string[],
   ) => void;
   onSetUnionStatus: (partnerId: string, status: UnionStatus) => void;
+  onSetUnionDeceased: (partnerId: string, deceasedId: string | null) => void;
   onRename: (name: NameFields) => void;
   onSetNotes: (notes: string) => void;
   onSetGender: (gender: Gender) => void;
@@ -145,6 +149,50 @@ function StatusPicker({
   );
 }
 
+function DeceasedPicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: string; name: string }[];
+  value: string | null;
+  onChange: (deceasedId: string | null) => void;
+}) {
+  const choices: { id: string | null; label: string }[] = [
+    ...options.map((o) => ({ id: o.id, label: o.name })),
+    { id: null, label: "Not set" },
+  ];
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      <div className="text-xs text-text-secondary">
+        Who passed away? <span className="text-text-muted">(optional)</span>
+      </div>
+      <div className="flex flex-col gap-1" role="radiogroup" aria-label="Who passed away?">
+        {choices.map((choice) => {
+          const active = value === choice.id;
+          return (
+            <button
+              key={choice.id ?? "not-set"}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => { onChange(choice.id); }}
+              className={[
+                "min-h-10 rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                active
+                  ? "border-brand-orange bg-surface-elevated text-text-primary"
+                  : "border-border-default bg-surface-primary text-text-secondary hover:border-border-hover",
+              ].join(" ")}
+            >
+              {choice.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ActionPanel({
   person,
   isViewRoot,
@@ -157,6 +205,7 @@ export function ActionPanel({
   onAddChild,
   onAddSpouse,
   onSetUnionStatus,
+  onSetUnionDeceased,
   onRename,
   onSetNotes,
   onSetGender,
@@ -335,6 +384,18 @@ export function ActionPanel({
                 onChange={(status) => { onSetUnionStatus(m.partnerId, status); }}
                 label={`Status with ${m.partnerName}`}
               />
+              {m.status === "ended-by-death" ? (
+                <DeceasedPicker
+                  options={[
+                    { id: person.id, name: fullName(person) },
+                    { id: m.partnerId, name: m.partnerName },
+                  ]}
+                  value={m.deceasedId}
+                  onChange={(deceasedId) => {
+                    onSetUnionDeceased(m.partnerId, deceasedId);
+                  }}
+                />
+              ) : null}
             </div>
           ))}
           <div className="flex justify-end">

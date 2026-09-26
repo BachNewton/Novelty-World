@@ -61,6 +61,14 @@ function unionWith(person: Person, otherId: string): Union | undefined {
   return person.unions.find((u) => u.personId === otherId);
 }
 
+// A fresh union entry. An ended-by-death union starts without a recorded
+// deceased spouse.
+export function newUnion(personId: string, status: UnionStatus): Union {
+  return status === "ended-by-death"
+    ? { personId, status, deceasedId: null }
+    : { personId, status };
+}
+
 // Single source of truth for the Person shape — every place that creates a
 // new person funnels through this so adding a field can't drift across the
 // 4 create paths.
@@ -176,9 +184,9 @@ export function addSpouse(
   const next = clone(tree);
   const person = next.persons[personId];
   next.persons[newId] = makePerson(newId, name, gender, {
-    unions: [{ personId, status }],
+    unions: [newUnion(personId, status)],
   });
-  person.unions.push({ personId: newId, status });
+  person.unions.push(newUnion(newId, status));
   for (const childId of bioChildIds) {
     const child = next.persons[childId];
     if (child.parentIds.includes(newId)) continue;
@@ -189,7 +197,8 @@ export function addSpouse(
 }
 
 // Change the status of an existing union, on both sides. No-op when the pair
-// has no union or already has this status.
+// has no union or already has this status. Leaving ended-by-death drops the
+// recorded deceased spouse along with it.
 export function setUnionStatus(
   tree: Tree,
   aId: string,
@@ -201,12 +210,37 @@ export function setUnionStatus(
   const next = clone(tree);
   for (const [selfId, otherId] of [[aId, bId], [bId, aId]]) {
     const self = next.persons[selfId];
-    const union = unionWith(self, otherId);
-    if (union === undefined) {
-      self.unions.push({ personId: otherId, status });
+    const index = self.unions.findIndex((u) => u.personId === otherId);
+    if (index === -1) {
+      self.unions.push(newUnion(otherId, status));
     } else {
-      union.status = status;
+      self.unions[index] = newUnion(otherId, status);
     }
+  }
+  return next;
+}
+
+// Record which spouse of an ended-by-death union died (null clears it), on
+// both sides.
+export function setUnionDeceased(
+  tree: Tree,
+  aId: string,
+  bId: string,
+  deceasedId: string | null,
+): Tree {
+  const existing = unionWith(tree.persons[aId], bId);
+  if (existing?.status !== "ended-by-death") {
+    throw new Error(`setUnionDeceased: ${aId} & ${bId} have no ended-by-death union`);
+  }
+  if (deceasedId !== null && deceasedId !== aId && deceasedId !== bId) {
+    throw new Error(`setUnionDeceased: ${deceasedId} is not ${aId} or ${bId}`);
+  }
+  if (existing.deceasedId === deceasedId) return tree;
+  const next = clone(tree);
+  for (const [selfId, otherId] of [[aId, bId], [bId, aId]]) {
+    const self = next.persons[selfId];
+    const index = self.unions.findIndex((u) => u.personId === otherId);
+    self.unions[index] = { personId: otherId, status: "ended-by-death", deceasedId };
   }
   return next;
 }
@@ -240,6 +274,14 @@ export function deletePerson(tree: Tree, id: string): Tree {
   return next;
 }
 
+// A union as persisted by any schema version so far. Ended-by-death unions
+// written before `deceasedId` existed lack it.
+interface StoredUnion {
+  personId: string;
+  status: UnionStatus;
+  deceasedId?: string | null;
+}
+
 // A person as persisted by any schema version so far. Rows written before
 // unions existed carry two parallel lists instead: `spouseIds` (married) and,
 // added later still, `divorcedSpouseIds`.
@@ -252,7 +294,7 @@ interface StoredPerson {
   notes?: string;
   gender: Gender;
   parentIds: string[];
-  unions?: Union[];
+  unions?: StoredUnion[];
   spouseIds?: string[];
   divorcedSpouseIds?: string[];
 }
@@ -263,19 +305,23 @@ interface StoredTree {
 }
 
 function storedUnions(person: StoredPerson): Union[] {
-  if (person.unions !== undefined) return person.unions.map((u) => ({ ...u }));
+  if (person.unions !== undefined) {
+    return person.unions.map((u) =>
+      u.status === "ended-by-death"
+        ? { personId: u.personId, status: u.status, deceasedId: u.deceasedId ?? null }
+        : newUnion(u.personId, u.status),
+    );
+  }
   return [
-    ...(person.spouseIds ?? []).map(
-      (personId): Union => ({ personId, status: "married" }),
-    ),
-    ...(person.divorcedSpouseIds ?? []).map(
-      (personId): Union => ({ personId, status: "divorced" }),
+    ...(person.spouseIds ?? []).map((personId) => newUnion(personId, "married")),
+    ...(person.divorcedSpouseIds ?? []).map((personId) =>
+      newUnion(personId, "divorced"),
     ),
   ];
 }
 
-// Backfill schema fields added later (commonName, birthSurname, notes) and
-// migrate the pre-union spouse lists into `unions`, so older persisted rows
+// Backfill schema fields added later (commonName, birthSurname, notes,
+// deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -287,7 +333,10 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.unions === undefined ||
       person.commonName === undefined ||
       person.birthSurname === undefined ||
-      person.notes === undefined
+      person.notes === undefined ||
+      person.unions.some(
+        (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
+      )
     ) {
       changed = true;
     }
@@ -450,14 +499,19 @@ function spouseTerm(gender: Gender): string {
   return pickByGender(gender, "husband", "wife", "spouse");
 }
 
-function unionTerm(status: UnionStatus, gender: Gender): string {
-  switch (status) {
+// The term for `describedId`, who is one side of `union`. Only the spouse
+// recorded as having died is "late"; the survivor stays a plain husband or
+// wife, and so do both when nobody is recorded.
+function unionTerm(union: Union, describedId: string, gender: Gender): string {
+  switch (union.status) {
     case "married":
       return spouseTerm(gender);
     case "divorced":
       return "ex-" + spouseTerm(gender);
     case "ended-by-death":
-      return "late " + spouseTerm(gender);
+      return union.deceasedId === describedId
+        ? "late " + spouseTerm(gender)
+        : spouseTerm(gender);
     case "partner":
       return "partner";
     case "ex-partner":
@@ -521,7 +575,7 @@ function describeStructured(
 
   // 1. Direct union, in any status.
   const direct = unionWith(root, targetId);
-  if (direct !== undefined) return unionTerm(direct.status, target.gender);
+  if (direct !== undefined) return unionTerm(direct, targetId, target.gender);
 
   // 2. Blood relation. Sibling distance gets full/half discrimination by
   //    comparing parent sets — sharing all known parents is a full sibling,
@@ -606,7 +660,7 @@ function describeStructured(
     const inner = classifyBlood(path, target.gender);
     if (inner !== null) {
       const spouseGender = tree.persons[union.personId].gender;
-      return `${unionTerm(union.status, spouseGender)}'s ${inner}`;
+      return `${unionTerm(union, union.personId, spouseGender)}'s ${inner}`;
     }
   }
 
@@ -623,7 +677,7 @@ function describeStructured(
     if (foldsIntoAuntUncle) return classifyBlood(path, target.gender);
     const inner = classifyBlood(path, tree.persons[union.personId].gender);
     if (inner !== null) {
-      return `${inner}'s ${unionTerm(union.status, target.gender)}`;
+      return `${inner}'s ${unionTerm(union, targetId, target.gender)}`;
     }
   }
 

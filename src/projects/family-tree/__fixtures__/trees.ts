@@ -15,7 +15,7 @@
 // All fixtures return a fresh Tree on every call so callers can mutate
 // freely without leaking state between tests.
 
-import { normalizeTree } from "../logic";
+import { newUnion, normalizeTree } from "../logic";
 import type { Gender, Person, Tree, Union, UnionStatus } from "../types";
 import productionSnapshot from "./production-tree.json";
 
@@ -64,10 +64,10 @@ function unite(
     throw new Error(`unite: unknown id ${a === undefined ? aId : bId}`);
   }
   if (!a.unions.some((u) => u.personId === bId)) {
-    a.unions.push({ personId: bId, status });
+    a.unions.push(newUnion(bId, status));
   }
   if (!b.unions.some((u) => u.personId === aId)) {
-    b.unions.push({ personId: aId, status });
+    b.unions.push(newUnion(aId, status));
   }
 }
 
