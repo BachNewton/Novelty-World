@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addChild, addSpouse, createInitialTree, ROOT_ID } from "../logic";
+import { addChild, addParent, addSpouse, createInitialTree, ROOT_ID, setChecked } from "../logic";
 import type { NameFields, Tree } from "../types";
 import {
   applyOps,
+  completenessReport,
+  describeCompleteness,
   describePerson,
   parseOps,
   resolveId,
@@ -61,6 +63,11 @@ describe("parseOps", () => {
     [{ op: "setBirthDate", person: "x", birthDate: "16 Jun 1931" }, /"birthDate" "16 Jun 1931" is not YYYY/],
     [{ op: "setBirthDate", person: "x", birthDate: 1931 }, /"birthDate" must be a string/],
     [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", birthDate: "1931-02-30" }, /no day 30/],
+    [{ op: "markChecked", person: "x", asOf: "2026-09", source: "per Kyle" }, /"asOf" "2026-09" is not YYYY-MM-DD/],
+    [{ op: "markChecked", person: "x", asOf: "2026-02-30", source: "per Kyle" }, /"asOf" .* no day 30/],
+    [{ op: "markChecked", person: "x", asOf: "2026-09-26", source: " " }, /"source" must be a non-empty string/],
+    [{ op: "markChecked", person: "x", asOf: "2026-09-26" }, /missing "source"/],
+    [{ op: "clearChecked", person: "x", asOf: "2026-09-26" }, /unknown field "asOf"/],
   ])("rejects %j", (op, message) => {
     expect(() => parseOps([op])).toThrow(message);
   });
@@ -102,6 +109,7 @@ describe("find and show", () => {
 
   it("shows parents, unions, children, and notes", () => {
     const text = describePerson(family(), ROOT_ID);
+    expect(text).toContain("  checked:  not checked");
     expect(text).toContain("Sam Root (née Birth) [5a0e0000] (married)");
     expect(text).toContain("Ada Root");
     expect(text).toContain("(with Sam Root (née Birth) [5a0e0000])");
@@ -204,6 +212,27 @@ describe("applyOps", () => {
     expect(changes[2]).toContain("(M, born 1950-01-02)");
   });
 
+  it("marks, replaces, shows, and clears a completeness check", () => {
+    const marked = run(family(), [
+      { op: "markChecked", person: "5a0e", asOf: "2019-03-01", source: " An obituary (2019) " },
+    ]);
+    expect(marked.tree.persons[SPOUSE].checked).toEqual({ asOf: "2019-03-01", source: "An obituary (2019)" });
+    expect(marked.changes[0]).toBe(
+      "Completeness check of Sam Root (née Birth) [5a0e0000]: not checked → 2019-03-01 (source: An obituary (2019))",
+    );
+    expect(describePerson(marked.tree, SPOUSE)).toContain("  checked:  2019-03-01 (source: An obituary (2019))");
+
+    const replaced = run(marked.tree, [
+      { op: "markChecked", person: "5a0e", asOf: "2026-09-26", source: "per Kyle" },
+    ]);
+    expect(replaced.tree.persons[SPOUSE].checked).toEqual({ asOf: "2026-09-26", source: "per Kyle" });
+    expect(replaced.changes[0]).toContain("2019-03-01 (source: An obituary (2019)) → 2026-09-26 (source: per Kyle)");
+
+    const cleared = run(replaced.tree, [{ op: "clearChecked", person: "5a0e" }]);
+    expect(cleared.tree.persons[SPOUSE].checked).toBeNull();
+    expect(cleared.changes[0]).toContain("(was 2026-09-26 (source: per Kyle))");
+  });
+
   it("deletes a person and says what goes with them", () => {
     const { tree, changes } = run(family(), [{ op: "deletePerson", person: "5a0e" }]);
     expect(SPOUSE in tree.persons).toBe(false);
@@ -229,6 +258,11 @@ describe("applyOps", () => {
     ], /needs a firstName/],
     ["a rename that changes nothing", [{ op: "rename", person: "5a0e", name: { firstName: "Sam" } }], /already has these names/],
     ["a birth date that changes nothing", [{ op: "setBirthDate", person: "5a0e", birthDate: "" }], /already has this birth date/],
+    ["clearing a check that isn't there", [{ op: "clearChecked", person: "5a0e" }], /has no completeness check to clear/],
+    ["a check that changes nothing", [
+      { op: "markChecked", person: "5a0e", asOf: "2026-09-26", source: "per Kyle" },
+      { op: "markChecked", person: "5a0e", asOf: "2026-09-26", source: "per Kyle" },
+    ], /already has this completeness check/],
     ["a status change on a pair with no union", [
       { op: "setUnionStatus", a: "5a0e", b: SOLO_KID, status: "divorced" },
     ], /have no union/],
@@ -255,5 +289,33 @@ describe("applyOps", () => {
     expect(() => run(tree, [{ op: "setGender", person: "kyle", gender: "NB" }])).toThrow(
       /changed tree is invalid:\n {2}- Bo Root .* union with Ada Root .* is one-sided/,
     );
+  });
+});
+
+describe("completeness", () => {
+  // family() plus the root's mother, her own mother's second husband (a
+  // married-in step-grandfather with no children), and the root's aunt.
+  function extended(): Tree {
+    let tree = addParent(family(), ROOT_ID, "mom", n("Mo"), "F");
+    tree = addParent(tree, "mom", "gran", n("Gran"), "F");
+    tree = addSpouse(tree, "gran", "step", n("Step"), "M", "married");
+    tree = addChild(tree, "gran", "aunt", n("Aunt"), "F", null);
+    return setChecked(tree, "aunt", { asOf: "2026-09-26", source: "per Kyle" });
+  }
+
+  it("groups blood relatives of the root apart from people who married in", () => {
+    const { blood, marriedIn } = completenessReport(extended());
+    expect(blood.total).toBe(6);
+    expect(blood.unchecked.map((p) => p.firstName)).toEqual(["Ada", "Bo", "Gran", "Kyle", "Mo"]);
+    expect(marriedIn.total).toBe(2);
+    expect(marriedIn.unchecked.map((p) => p.firstName)).toEqual(["Sam", "Step"]);
+  });
+
+  it("prints counts and each unchecked person with a short id", () => {
+    const text = describeCompleteness(extended());
+    expect(text).toContain("Blood relatives: 1 of 6 checked");
+    expect(text).toContain("Married in: 0 of 2 checked");
+    expect(text).toContain("  Sam Root (née Birth) [5a0e0000]");
+    expect(text).not.toContain("Aunt");
   });
 });

@@ -3,6 +3,7 @@
 //
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts completeness
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 //
 // `apply` is a dry run unless --write is given. With --write it backs up the
@@ -16,12 +17,20 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { normalizeTree } from "../logic";
 import { fetchTreeRow, saveTreeIfUnchanged, type TreeRow } from "../persistence";
 import type { Tree } from "../types";
-import { applyOps, describePerson, parseOps, resolveId, searchPersons } from "./tree-edit";
+import {
+  applyOps,
+  describeCompleteness,
+  describePerson,
+  parseOps,
+  resolveId,
+  searchPersons,
+} from "./tree-edit";
 
 const USAGE = [
   "usage:",
   "  tree-cli.ts find <text>",
   "  tree-cli.ts show <id or id prefix>",
+  "  tree-cli.ts completeness",
   "  tree-cli.ts apply <changes.json> [--write]",
 ].join("\n");
 
@@ -53,6 +62,11 @@ async function find(text: string): Promise<void> {
 async function show(idOrPrefix: string): Promise<void> {
   const { tree } = await load(connect());
   console.log(describePerson(tree, resolveId(tree, idOrPrefix)));
+}
+
+async function completeness(): Promise<void> {
+  const { tree } = await load(connect());
+  console.log(describeCompleteness(tree));
 }
 
 async function apply(changesPath: string, write: boolean): Promise<void> {
@@ -96,6 +110,7 @@ async function main(): Promise<void> {
   const rest = args.slice(2);
   if (command === "find" && arg !== undefined && rest.length === 0) return find(arg);
   if (command === "show" && arg !== undefined && rest.length === 0) return show(arg);
+  if (command === "completeness" && args.length === 1) return completeness();
   if (command === "apply" && arg !== undefined && rest.every((r) => r === "--write")) {
     return apply(arg, rest.length > 0);
   }

@@ -2,7 +2,12 @@
 
 ## Purpose
 
-A deliberately simple, practical tree that answers one question: "how does this person, whom I know by this name, relate to me or to another family member?" It is not a genealogy app. A feature earns its place by serving that question, or by fixing data the tree otherwise can't represent correctly. Push back on genealogy-software sprawl: citations, confidence levels, event records and the like.
+A deliberately simple, practical tree that answers one question: "how does this person, whom I know by this name, relate to me or to another family member?" It is not a genealogy app. A feature earns its place by serving that question, or by fixing data the tree otherwise can't represent correctly.
+
+The split between the UI and the data layer matters:
+
+- **The UI** stays a simple relationship tree. Push back on genealogy-software sprawl there: citations, confidence levels, event records, research status and the like never appear on cards or grow the edit panel.
+- **The data layer** is also Claude's research record. It may carry what future research sessions need to judge how reliable a claim is and what is left to research, such as the completeness check and its source. Each such field still has to be something a research session actually reads or acts on; push back on data nobody uses.
 
 ## One user
 
@@ -21,6 +26,7 @@ Types live in `types.ts`; pure operations and relationship terms live in `logic.
 - **Names:** first name, last name (current), common name (nickname), and optional birth surname and middle name. The birth surname shows as a small "née …" line on the card only when it differs from the last name. The middle name (a full name or just an initial) is a research aid: records tell same-named relatives apart by it. It never appears on the cards, which show the name people know someone by; only the edit panel shows it.
 - **Notes:** optional free text per person, for research facts that have nowhere else to live (death dates, record numbers, alternate names). Notes never appear on the tree cards.
 - **Birth date:** an optional research aid in a fixed, machine-readable shape, so tools and AI can read and edit it reliably instead of parsing notes. It is a partial ISO date: a year, a year and month, or a full date (shaped like `1931`, `1931-06`, `1931-06-16`), as precise as the sources allow. An approximate year (`~1931`) records a year the sources narrow to two adjacent years, such as an age on a census or marriage record; it holds the likelier of the two, and has no month or day. Cards show it as "b. ~1931". `treeProblems` rejects anything else, including impossible dates. Only the year appears on the cards, as "b. 1931" on the same small line as "née …", so the card keeps its height; the full date shows only in the edit panel. There is deliberately no death date field: that would be a deceased flag by another name, so death dates stay in notes.
+- **Completeness check:** an optional per-person research record that the person's partners (every union, any status) and children (with any co-parent, or none) were researched and are all in the tree. It holds the full date it was true as of and a source naming the evidence; `treeProblems` rejects an impossible date or an empty source. It covers only the person's own partners and children, never their parents. Unset means not yet researched; a check on someone with no partners or children in the tree means "researched, has none". Adding a partner or child later doesn't invalidate it, since the date says when it held. The source lives in the public row, so it must be safe to publish (see Privacy). It never appears in the UI, and it never affects layout or the topology hash.
 - **Optional string fields** use an empty string to mean "not set". They are always present, never undefined.
 - **Schema evolution.** `normalizeTree` migrates saved trees on load: it backfills new fields and converts old shapes, and the store writes the migrated shape back on the next save. Every new Person field must be handled there.
 
@@ -34,7 +40,7 @@ The tree is one row, saved whole. `persistence.ts` owns every read and write of 
 
 - **No lost edits.** The row carries a version that counts tree writes. A tree save lands only if the row is still at the version the writer loaded, and it bumps the version; otherwise the writer must reload rather than overwrite. A database trigger (`supabase/family-tree.sql`) enforces the rule for every writer, including tabs running an older build. In the app, `tree-saver.ts` runs saves one at a time and stops at the first conflict or failure: the tab shows a "changed elsewhere, reload" strip and editing pauses, since anything further would be built on a stale tree.
 - **Layout writes aren't tree writes.** The cached layout lives in the same row but never moves the version, so an Optimize never trips another writer's check. It is written only if the version is still the one whose tree it was solved against.
-- **The CLI** (`tools/tree-cli.ts`, pure part in `tools/tree-edit.ts`) is how research gets into the tree: find and show people, and apply a JSON change file through the same `logic.ts` functions the UI uses, validated by `treeProblems`. It dry-runs by default, backs up the row into `research/` before writing, and uses the same versioned save. The `family-tree-research` skill describes the workflow and privacy rules around it.
+- **The CLI** (`tools/tree-cli.ts`, pure part in `tools/tree-edit.ts`) is how research gets into the tree: find and show people, list who still lacks a completeness check, and apply a JSON change file through the same `logic.ts` functions the UI uses, validated by `treeProblems`. It dry-runs by default, backs up the row into `research/` before writing, and uses the same versioned save. The `family-tree-research` skill describes the workflow and privacy rules around it.
 - **New name fields** flow through the CLI (rename, new people, search) once they are added to its empty-name defaults, which typecheck forces.
 
 ## Research edits

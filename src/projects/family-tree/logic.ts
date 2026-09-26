@@ -5,6 +5,7 @@ import {
 } from "d3-dag";
 import type { Graph, Layering, Separation } from "d3-dag";
 import type {
+  CompletenessCheck,
   Gender,
   LaidOutEdge,
   LaidOutNode,
@@ -99,6 +100,7 @@ function makePerson(
     birthSurname: name.birthSurname,
     notes: "",
     birthDate: "",
+    checked: null,
     gender,
     parentIds: [],
     unions: [],
@@ -125,6 +127,7 @@ function clone(tree: Tree): Tree {
   for (const [id, p] of Object.entries(tree.persons)) {
     persons[id] = {
       ...p,
+      checked: p.checked === null ? null : { ...p.checked },
       parentIds: [...p.parentIds],
       unions: p.unions.map((u) => ({ ...u })),
     };
@@ -317,6 +320,31 @@ export function setBirthDate(tree: Tree, id: string, birthDate: string): Tree {
   return next;
 }
 
+// Why `value` isn't a real full ISO date ("YYYY-MM-DD"), or null when it is.
+export function fullDateProblem(value: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return `"${value}" is not YYYY-MM-DD`;
+  return birthDateProblem(value);
+}
+
+// Why `check` isn't a sound completeness check, or null when it is (or when
+// there is none).
+function completenessCheckProblem(check: CompletenessCheck | null): string | null {
+  if (check === null) return null;
+  const dateProblem = fullDateProblem(check.asOf);
+  if (dateProblem !== null) return `date ${dateProblem}`;
+  if (check.source.trim() === "") return "has no source";
+  if (check.source !== check.source.trim()) return "source has surrounding whitespace";
+  return null;
+}
+
+// Record that `id`'s partners and children were researched and are all in
+// the tree, or clear that record with null.
+export function setChecked(tree: Tree, id: string, checked: CompletenessCheck | null): Tree {
+  const next = clone(tree);
+  next.persons[id].checked = checked === null ? null : { ...checked };
+  return next;
+}
+
 export function deletePerson(tree: Tree, id: string): Tree {
   if (id === tree.rootId) return tree;
   const next = clone(tree);
@@ -348,6 +376,8 @@ export function treeProblems(tree: Tree): string[] {
     if (!GENDER_CYCLE.includes(person.gender)) problems.push(`${who} has unknown gender ${String(person.gender)}`);
     const dateProblem = birthDateProblem(person.birthDate);
     if (dateProblem !== null) problems.push(`${who}'s birth date ${dateProblem}`);
+    const checkProblem = completenessCheckProblem(person.checked);
+    if (checkProblem !== null) problems.push(`${who}'s completeness check ${checkProblem}`);
 
     if (person.parentIds.length > 2) problems.push(`${who} has more than two parents`);
     if (new Set(person.parentIds).size !== person.parentIds.length) {
@@ -434,6 +464,7 @@ interface StoredPerson {
   birthSurname?: string;
   notes?: string;
   birthDate?: string;
+  checked?: CompletenessCheck | null;
   gender: Gender;
   parentIds: string[];
   unions?: StoredUnion[];
@@ -463,7 +494,7 @@ function storedUnions(person: StoredPerson): Union[] {
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,
-// notes, birthDate, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
+// notes, birthDate, checked, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -478,6 +509,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.middleName === undefined ||
       person.notes === undefined ||
       person.birthDate === undefined ||
+      person.checked === undefined ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
       )
@@ -493,6 +525,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       birthSurname: person.birthSurname ?? "",
       notes: person.notes ?? "",
       birthDate: person.birthDate ?? "",
+      checked: person.checked === undefined || person.checked === null ? null : { ...person.checked },
       gender: person.gender,
       parentIds: [...person.parentIds],
       unions: storedUnions(person),

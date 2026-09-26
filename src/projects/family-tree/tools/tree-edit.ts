@@ -9,16 +9,18 @@ import {
   birthDateProblem,
   deletePerson,
   GENDER_CYCLE,
+  fullDateProblem,
   fullName,
   renamePerson,
   setBirthDate,
+  setChecked,
   setGender,
   setNotes,
   setUnionDeceased,
   setUnionStatus,
   treeProblems,
 } from "../logic";
-import type { Gender, NameFields, Person, Tree, UnionStatus } from "../types";
+import type { CompletenessCheck, Gender, NameFields, Person, Tree, UnionStatus } from "../types";
 
 // Also the list of name fields a change file may set: a new NameFields key
 // fails typecheck here until it gets a default, and from then on flows
@@ -82,7 +84,12 @@ export type Op =
     }
   | { op: "setUnionStatus"; a: PersonRef; b: PersonRef; status: UnionStatus }
   | { op: "setUnionDeceased"; a: PersonRef; b: PersonRef; deceased: PersonRef | null }
-  | { op: "deletePerson"; person: PersonRef };
+  | { op: "deletePerson"; person: PersonRef }
+  // Records that `person`'s partners and children are all in the tree, as of
+  // a full date ("YYYY-MM-DD"), per a source a public row may name. Replaces
+  // any existing check.
+  | { op: "markChecked"; person: PersonRef; asOf: string; source: string }
+  | { op: "clearChecked"; person: PersonRef };
 
 type FieldKind =
   | "person"
@@ -92,6 +99,8 @@ type FieldKind =
   | "gender"
   | "status"
   | "text"
+  | "nonEmptyText"
+  | "fullDate"
   | "birthDate"
   | "birthDate?"
   | "ref?";
@@ -123,6 +132,8 @@ const OP_FIELDS = {
   setUnionStatus: { a: "person", b: "person", status: "status" },
   setUnionDeceased: { a: "person", b: "person", deceased: "personOrNull" },
   deletePerson: { person: "person" },
+  markChecked: { person: "person", asOf: "fullDate", source: "nonEmptyText" },
+  clearChecked: { person: "person" },
 } as const satisfies Record<Op["op"], Record<string, FieldKind>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -159,6 +170,10 @@ function fieldError(kind: FieldKind, value: unknown): string | null {
         : `must be one of ${UNION_STATUSES.join(", ")}`;
     case "text":
       return typeof value === "string" ? null : "must be a string";
+    case "nonEmptyText":
+      return typeof value === "string" && value.trim() !== "" ? null : "must be a non-empty string";
+    case "fullDate":
+      return typeof value === "string" ? fullDateProblem(value.trim()) : "must be a string";
     case "birthDate?":
       return value === undefined ? null : fieldError("birthDate", value);
     case "birthDate":
@@ -259,6 +274,7 @@ export function describePerson(tree: Tree, id: string): string {
   lines.push(`  names:    ${names}`);
   lines.push(`  gender:   ${person.gender}`);
   if (person.birthDate !== "") lines.push(`  born:     ${person.birthDate}`);
+  lines.push(`  checked:  ${describeCheck(person.checked)}`);
   lines.push(
     `  parents:  ${person.parentIds.length === 0 ? "(none)" : person.parentIds.map((pid) => labelOf(tree, pid)).join("; ")}`,
   );
@@ -286,6 +302,64 @@ export function describePerson(tree: Tree, id: string): string {
   if (person.notes !== "") {
     lines.push("  notes:");
     for (const line of person.notes.split("\n")) lines.push(`    ${line}`);
+  }
+  return lines.join("\n");
+}
+
+function describeCheck(check: CompletenessCheck | null): string {
+  return check === null ? "not checked" : `${check.asOf} (source: ${check.source})`;
+}
+
+// ---------- completeness ----------
+
+export interface CompletenessGroup {
+  total: number;
+  // Sorted by name.
+  unchecked: Person[];
+}
+
+// Who still lacks a completeness check, split into blood relatives of the
+// root (the root's ancestors and all their descendants, the root included)
+// and everyone else, who married in.
+export function completenessReport(tree: Tree): { blood: CompletenessGroup; marriedIn: CompletenessGroup } {
+  const ancestors = new Set<string>();
+  const up = [tree.rootId];
+  for (let id = up.pop(); id !== undefined; id = up.pop()) {
+    if (ancestors.has(id)) continue;
+    ancestors.add(id);
+    up.push(...tree.persons[id].parentIds);
+  }
+  const blood = new Set<string>();
+  const down = [...ancestors];
+  for (let id = down.pop(); id !== undefined; id = down.pop()) {
+    if (blood.has(id)) continue;
+    blood.add(id);
+    down.push(...childrenOf(tree, id).map((c) => c.id));
+  }
+
+  const group = (people: Person[]): CompletenessGroup => ({
+    total: people.length,
+    unchecked: people
+      .filter((p) => p.checked === null)
+      .sort((a, b) => displayName(a).localeCompare(displayName(b))),
+  });
+  const everyone = Object.values(tree.persons);
+  return {
+    blood: group(everyone.filter((p) => blood.has(p.id))),
+    marriedIn: group(everyone.filter((p) => !blood.has(p.id))),
+  };
+}
+
+export function describeCompleteness(tree: Tree): string {
+  const report = completenessReport(tree);
+  const lines: string[] = [];
+  for (const [title, group] of [
+    ["Blood relatives", report.blood],
+    ["Married in", report.marriedIn],
+  ] as const) {
+    const checked = group.total - group.unchecked.length;
+    lines.push(`${title}: ${checked} of ${group.total} checked`);
+    for (const person of group.unchecked) lines.push(`  ${labelOf(tree, person.id)}`);
   }
   return lines.join("\n");
 }
@@ -510,6 +584,23 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         return effects.length === 0
           ? `Delete ${was}`
           : `Delete ${was}, removing: ${effects.join("; ")}`;
+      }
+      case "markChecked": {
+        const id = who(op.person);
+        const before = current.persons[id].checked;
+        const after = { asOf: op.asOf.trim(), source: op.source.trim() };
+        if (before?.asOf === after.asOf && before.source === after.source) {
+          throw new Error(`${label(id)} already has this completeness check`);
+        }
+        current = setChecked(current, id, after);
+        return `Completeness check of ${label(id)}: ${describeCheck(before)} → ${describeCheck(after)}`;
+      }
+      case "clearChecked": {
+        const id = who(op.person);
+        const before = current.persons[id].checked;
+        if (before === null) throw new Error(`${label(id)} has no completeness check to clear`);
+        current = setChecked(current, id, null);
+        return `Clear completeness check of ${label(id)} (was ${describeCheck(before)})`;
       }
     }
   }

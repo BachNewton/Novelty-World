@@ -32,6 +32,17 @@ export interface NameFields {
   birthSurname: string;
 }
 
+// A research record that someone's partners (every union, any status) and
+// children (with any co-parent, or none) were all found and are all in the
+// tree. A research aid for Claude, never shown in the UI.
+export interface CompletenessCheck {
+  // Full ISO date ("YYYY-MM-DD") the check was true as of.
+  asOf: string;
+  // The evidence, named safely for a public row: an obituary, a record id,
+  // "per Kyle".
+  source: string;
+}
+
 export interface Person {
   id: string;
   firstName: string;
@@ -55,6 +66,10 @@ export interface Person {
   // Partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or approximate year ("~YYYY"); empty string means
   // none recorded. A research aid, never shown on the tree cards.
   birthDate: string;
+  // null means nobody has researched whether this person's partners and
+  // children are all in the tree. A check on someone with none in the tree
+  // means "researched, has none".
+  checked: CompletenessCheck | null;
   gender: Gender;
   parentIds: string[];
   unions: Union[];

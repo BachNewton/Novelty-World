@@ -29,6 +29,7 @@ import {
   renamePerson,
   searchByName,
   setBirthDate,
+  setChecked,
   setGender,
   setNotes,
   setUnionDeceased,
@@ -75,6 +76,7 @@ function p(
     birthSurname: "",
     notes: "",
     birthDate: "",
+    checked: null,
     gender,
     parentIds,
     unions: [
@@ -527,6 +529,7 @@ describe("normalizeTree", () => {
     birthSurname: "",
     notes: "",
     birthDate: "",
+    checked: null,
     gender: "M",
     parentIds: [],
     unions: [],
@@ -623,6 +626,66 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(false);
     expect(tree.persons[ROOT_ID].birthDate).toBe("1931-06-16");
+  });
+
+  it("backfills an unset completeness check and reports a change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, checked: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].checked).toBeNull();
+  });
+
+  it("keeps an existing completeness check and reports no change", () => {
+    const checked = { asOf: "2026-09-26", source: "per Kyle" };
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, checked },
+      },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID].checked).toEqual(checked);
+  });
+});
+
+describe("completeness check", () => {
+  it("leaves the topology hash alone", () => {
+    const base = createInitialTree();
+    const checked = setChecked(base, ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" });
+    expect(topologyHash(checked)).toBe(topologyHash(base));
+    expect(diffTree(base, checked).structurallyEqual).toBe(true);
+  });
+
+  it("survives edits that rebuild the person", () => {
+    let t = setChecked(createInitialTree(), ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" });
+    t = renamePerson(t, ROOT_ID, { firstName: "K", middleName: "", lastName: "H", commonName: "", birthSurname: "" });
+    t = setNotes(t, ROOT_ID, "note");
+    t = addChild(t, ROOT_ID, "kid", { firstName: "Kid", middleName: "", lastName: "", commonName: "", birthSurname: "" }, "F", null);
+    expect(t.persons[ROOT_ID].checked).toEqual({ asOf: "2026-09-26", source: "per Kyle" });
+    expect(t.persons.kid.checked).toBeNull();
+  });
+
+  it.each([
+    [{ asOf: "2026-09", source: "per Kyle" }, /date "2026-09" is not YYYY-MM-DD/],
+    [{ asOf: "~2026", source: "per Kyle" }, /is not YYYY-MM-DD/],
+    [{ asOf: "2026-02-30", source: "per Kyle" }, /no day 30/],
+    [{ asOf: "2026-09-26", source: "  " }, /has no source/],
+    [{ asOf: "2026-09-26", source: " per Kyle" }, /surrounding whitespace/],
+  ])("treeProblems rejects %j", (checked, message) => {
+    const t = setChecked(createInitialTree(), ROOT_ID, checked);
+    const problems = treeProblems(t).join("\n");
+    expect(problems).toContain("completeness check");
+    expect(problems).toMatch(message);
+  });
+
+  it("treeProblems accepts a sound check and no check", () => {
+    const base = createInitialTree();
+    expect(treeProblems(base)).toEqual([]);
+    expect(treeProblems(setChecked(base, ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" }))).toEqual([]);
   });
 });
 
