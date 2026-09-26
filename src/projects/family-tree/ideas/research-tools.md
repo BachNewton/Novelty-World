@@ -1,6 +1,6 @@
 # Research tools to consider
 
-Tools that could make family-tree research faster or reach sources it can't today. Nothing here is set up yet; each entry says what it unlocks and what it takes. Free tiers and site access change, so check them at setup time.
+Tools that could make family-tree research faster or reach sources it can't today. Each entry says what it unlocks and what it takes. Free tiers and site access change, so check them at setup time.
 
 Ranked by usefulness first, then by how easy it is to set up.
 
