@@ -49,7 +49,7 @@ export type Op =
   | { op: "setGender"; person: PersonRef; gender: Gender }
   | { op: "setNotes"; person: PersonRef; notes: string }
   | { op: "appendNote"; person: PersonRef; note: string }
-  // A partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"); "" clears it.
+  // A partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or "~YYYY"; "" clears it.
   | { op: "setBirthDate"; person: PersonRef; birthDate: string }
   | {
       op: "addChild";

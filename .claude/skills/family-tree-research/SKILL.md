@@ -24,6 +24,10 @@ for, the data model, and the living-tree rule.
   (or `birthDate` on a new person) with a year, year-month, or full date,
   as precise as the source. For anyone who may be living, the year only; a
   full date is for people who have died. Put the source for the date in notes.
+  An age on a record (census, marriage) fits two adjacent years: born between
+  the event date minus age+1 years and the event date minus age years. Narrow
+  it with a second record if you can; otherwise record `~YYYY` for the year
+  holding most of that window. Never write a plain year from one age.
 - **A living tree.** Everyone is family whether or not they've passed. Never
   add a deceased flag or anything that implies one. Death facts that matter to
   the research (a date, a record number) may go in notes; a union ended by

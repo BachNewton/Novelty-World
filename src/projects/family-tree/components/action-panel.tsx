@@ -506,10 +506,10 @@ export function ActionPanel({
                 optional
                 value={birthDateDraft}
                 onChange={setBirthDateDraft}
-                placeholder="YYYY, YYYY-MM or YYYY-MM-DD"
+                placeholder="YYYY, YYYY-MM, YYYY-MM-DD or ~YYYY"
               />
               <p className={`text-xs ${birthDateError === null ? "text-text-muted" : "text-brand-pink"}`}>
-                {birthDateError ?? "Year only for living people. Full dates only once someone has passed."}
+                {birthDateError ?? "Year only for living people; ~YYYY when records leave it one year either way."}
               </p>
             </div>
           ) : null}

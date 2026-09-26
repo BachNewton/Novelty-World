@@ -278,22 +278,27 @@ export function setNotes(tree: Tree, id: string, notes: string): Tree {
   return next;
 }
 
-// The year of a valid, non-empty partial ISO birth date.
+// The year of a valid, non-empty birth date, keeping the "~" of an
+// approximate year.
 export function birthYear(birthDate: string): string {
-  return birthDate.slice(0, 4);
+  return birthDate.startsWith("~") ? birthDate : birthDate.slice(0, 4);
 }
 
-// Why `value` isn't a partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"),
-// or null when it is one. The empty string means "not set" and is valid.
+// Why `value` isn't a partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD")
+// or an approximate year ("~YYYY"), or null when it is one. The empty string
+// means "not set" and is valid.
 export function birthDateProblem(value: string): string | null {
   if (value === "") return null;
+  if (value.startsWith("~")) {
+    return /^~\d{4}$/.test(value) ? null : `"${value}" is not ~YYYY (an approximate year has no month or day)`;
+  }
   const parts = value.split("-");
   const [year, month, day] = parts;
   const wellFormed =
     parts.length <= 3 &&
     /^\d{4}$/.test(year) &&
     parts.slice(1).every((part) => /^\d{2}$/.test(part));
-  if (!wellFormed) return `"${value}" is not YYYY, YYYY-MM or YYYY-MM-DD`;
+  if (!wellFormed) return `"${value}" is not YYYY, YYYY-MM, YYYY-MM-DD or ~YYYY`;
   if (parts.length === 1) return null;
   const m = Number(month);
   if (m < 1 || m > 12) return `"${value}" has no month ${month}`;

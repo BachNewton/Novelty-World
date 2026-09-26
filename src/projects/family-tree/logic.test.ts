@@ -632,15 +632,22 @@ describe("birthYear", () => {
     expect(birthYear("1931-06")).toBe("1931");
     expect(birthYear("1931-06-16")).toBe("1931");
   });
+
+  it("keeps the marker of an approximate year", () => {
+    expect(birthYear("~1935")).toBe("~1935");
+  });
 });
 
 describe("birthDateProblem", () => {
-  it.each(["", "1931", "1931-06", "1931-06-16", "2024-02-29"])("accepts %j", (value) => {
+  it.each(["", "1931", "1931-06", "1931-06-16", "2024-02-29", "~1935"])("accepts %j", (value) => {
     expect(birthDateProblem(value)).toBeNull();
   });
 
   it.each([
-    ["16 Jun 1931", /not YYYY, YYYY-MM or YYYY-MM-DD/],
+    ["16 Jun 1931", /not YYYY, YYYY-MM, YYYY-MM-DD or ~YYYY/],
+    ["~1935-06", /not ~YYYY/],
+    ["~35", /not ~YYYY/],
+    ["1935~", /not YYYY/],
     ["31", /not YYYY/],
     ["1931-6", /not YYYY/],
     ["1931-06-16T00:00", /not YYYY/],
