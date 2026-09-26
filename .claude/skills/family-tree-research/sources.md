@@ -109,7 +109,8 @@ through search-result snippets; direct fetches are blocked.
   verified 2026-09-26.*
 - **University athletics roster bios**: an adult's birth year and parents'
   names. High-school sports sites only show that someone is past a class year;
-  never search them for a minor. *Last verified 2026-09-26.*
+  for a minor, use them for the birth year or class year only, and save
+  nothing that locates the child. *Last verified 2026-09-26.*
 - **Professional registries** (NPI registry, clinician directories): identity,
   profession and area for adults; not birth years. LinkedIn blocks fetches.
   *Last verified 2026-09-26.*

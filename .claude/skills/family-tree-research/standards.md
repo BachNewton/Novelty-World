@@ -52,10 +52,11 @@ an end in itself. So:
   section below says so. Elsewhere, a question whose digital steps all came
   up empty stays `open` until family answers, even if the answer is "don't
   know" (which then makes it Exhausted).
-- **Minors.** For a child who may be under 18, don't search the child's own
-  online footprint (school, sports, social media). The must-try list is
-  records about the adults around them, then asking family. Nothing that locates a
-  child goes in the tree.
+- **Minors.** A child's own online footprint (school, sports, social media)
+  may be searched like anyone's. The privacy rules apply to what is saved,
+  not to where you look: from a child, keep only the birth year and
+  relationships, never a school, team, place or anything else that locates
+  them, in the tree or in the research log.
 
 ## family: all partners and all children are in the tree
 
@@ -178,7 +179,9 @@ birth year adds no connection, so it never holds up completeness; put it on
 the family batch anyway, since family nearly always knows a rough age.
 
 **Minors:** Confirmed by "per Kyle" or a birth record or announcement found
-through the parents. Must-try: records about the parents, then ask Kyle /
+through the parents, or two age or class-year clues narrowing it as for
+anyone. Must-try: records about the parents, the child's own online
+footprint (saving only the year), then ask Kyle /
 family (last). May be Exhausted without a family answer, as above.
 
 ## heritage: where the line came from
@@ -237,3 +240,5 @@ answer**, like birth years: heritage adds no connection.
   living birth years and heritage may be Exhausted without a family answer;
   living married-in adults get heritage from records like anyone else. Only
   a living person's `family` question still needs a family answer.
+- 2026-09-26: a minor's own online footprint may be searched; only what meets
+  the privacy rules is saved.

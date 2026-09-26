@@ -48,7 +48,8 @@ it hold what research has learned, and change every round:
   write `~YYYY`, is in `methods.md`.
 - **Minors.** Living children get a birth year like everyone else, but their
   notes never carry places, schools, teams or anything else that locates a
-  child. Don't research a child's own online footprint; see `standards.md`.
+  child. A child's own online footprint may be searched; what gets saved
+  still has to meet these rules (see `standards.md`).
 - **A living tree.** Everyone is family whether or not they've passed. Never
   add a deceased flag or anything that implies one. Death facts that matter to
   the research (a date, a record number) may go in notes; a union ended by
