@@ -1,6 +1,5 @@
 // Web Worker that runs terrain generation (~3 M noise evaluations per 600 m window,
-// ~0.7–1.6 s) off the main thread. Bundled by Next.js via `new Worker(new URL(...))` —
-// the same pattern as family-tree's layout.worker.ts.
+// ~0.7–1.6 s) off the main thread. Bundled by Next.js via `new Worker(new URL(...))`.
 //
 // The worker stays dumb: it generates the chunk it is handed and posts the buffers
 // back, TRANSFERRED (zero-copy — after postMessage the worker-side arrays are

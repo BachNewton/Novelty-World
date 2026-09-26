@@ -7,7 +7,6 @@ import type { Graph, Layering, Separation } from "d3-dag";
 import type {
   CompletenessCheck,
   Gender,
-  LaidOutEdge,
   LaidOutNode,
   Layout,
   NameFields,
@@ -1189,11 +1188,11 @@ const layeringByGenerationOp: Layering<CoupleData, unknown> = layeringByGenerati
 
 // Hand the couple-DAG to d3-dag's sugiyama pipeline and return the per-couple
 // center x. Crossing minimization runs via HiGHS-WASM (~30× faster than
-// d3-dag's bundled javascript-lp-solver) — the whole decross-highs module
-// (and the ~600KB highs WASM) is dynamic-imported so the React component
-// bundle that imports logic.ts for types/helpers doesn't pull in any of it.
-// Only the layout Web Worker (which is the sole caller of computeLayout)
-// ever fetches this chunk. coordSimplex assigns x via an LP that pulls
+// d3-dag's bundled javascript-lp-solver). Layout is solved only on the
+// desktop, but the viewer imports logic.ts for its tree helpers, so the solver
+// is a dynamic import the bundler is told to skip: that keeps decross-highs
+// and HiGHS out of the page's chunks altogether. coordSimplex assigns x via an
+// LP that pulls
 // children under their parents (subject to layer ordering and width/gap
 // constraints).
 // Solver errors propagate: swallowing them would disguise a crashed solve as
@@ -1215,7 +1214,7 @@ async function layoutCouplesViaSugiyama(
   // accepts our typed dag. The runtime is unaffected — nodeSize only ever
   // needs node.data.id, which is present on the stratified data.
   const dag = graphStratify()(data);
-  const mod = await import("./decross-highs");
+  const mod = await import(/* turbopackIgnore: true */ "./decross-highs");
   const decross = mod.decrossHighs(await mod.loadHighs());
   const layout = sugiyama()
     .layering(layeringByGenerationOp)
@@ -1815,51 +1814,8 @@ export function searchByName(tree: Tree, query: string): Person[] {
 
 export const GENDER_CYCLE: Gender[] = ["M", "F", "NB"];
 
-export function nextGender(g: Gender): Gender {
-  const i = GENDER_CYCLE.indexOf(g);
-  return GENDER_CYCLE[(i + 1) % GENDER_CYCLE.length];
-}
-
-export function countChildren(tree: Tree, parentId: string): number {
-  let count = 0;
-  for (const p of Object.values(tree.persons)) {
-    if (p.parentIds.includes(parentId)) count++;
-  }
-  return count;
-}
-
-// ---------- Optimistic layout patching ----------
+// ---------- Layout identity ----------
 //
-// `computeLayout` runs in a Web Worker and can take seconds for large trees.
-// While it runs, we still need to show the user the result of their click.
-// `optimisticPatch` produces a "good enough" layout by reusing the previous
-// layout's positions and dropping new nodes near a relative whose position is
-// already known. The real layout replaces it when the worker returns.
-
-export interface TreeDiff {
-  added: string[];
-  removed: string[];
-  structurallyEqual: boolean;
-}
-
-function sameStringArray(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-function sameUnions(a: Union[], b: Union[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i].personId !== b[i].personId || a[i].status !== b[i].status) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // Fingerprint the parts of a tree that affect layout: which persons exist,
 // their parent IDs and unions (order included, since the renderer keys off
 // the first parent/spouse), and the root. Names and
@@ -1875,10 +1831,8 @@ function sameUnions(a: Union[], b: Union[]): boolean {
 //
 // FNV-1a-32 is a non-cryptographic hash. For ~150-person trees the
 // collision probability across an indefinite session is ~150 / 2^32 ≈
-// 3.5e-8 — well below "two random topologies happen to collide and one
-// client serves the wrong layout to another". A collision would not be
-// silently wrong forever: the next Optimize run overwrites with the right
-// layout for that hash.
+// 3.5e-8 — well below "two random topologies happen to collide and the
+// viewer renders a layout solved for a different tree".
 //
 // Married and divorced unions hash exactly as the pre-union `spouseIds` and
 // `divorcedSpouseIds` lists did, so the layout cached in Supabase stays valid
@@ -1920,205 +1874,3 @@ function fnv1a32(s: string): string {
   }
   return (h >>> 0).toString(16).padStart(8, "0");
 }
-
-// Topology only — names and genders don't count, since they don't affect the
-// layout. Used to skip worker dispatch on cosmetic-only edits.
-export function diffTree(prev: Tree, next: Tree): TreeDiff {
-  const added: string[] = [];
-  const removed: string[] = [];
-  for (const id of Object.keys(next.persons)) {
-    if (!(id in prev.persons)) added.push(id);
-  }
-  for (const id of Object.keys(prev.persons)) {
-    if (!(id in next.persons)) removed.push(id);
-  }
-  let structurallyEqual = added.length === 0 && removed.length === 0;
-  if (structurallyEqual) {
-    for (const id of Object.keys(next.persons)) {
-      const a = prev.persons[id];
-      const b = next.persons[id];
-      if (
-        !sameStringArray(a.parentIds, b.parentIds) ||
-        !sameUnions(a.unions, b.unions)
-      ) {
-        structurallyEqual = false;
-        break;
-      }
-    }
-  }
-  return { added, removed, structurallyEqual };
-}
-
-// Reuse positions from `current` for surviving nodes. For each newly-added
-// person, place them near a known relative: below a parent, beside a spouse,
-// or above a child. Each new node is checked against everything already on
-// its row and shifted left or right until no overlap remains — so a parent
-// can take a quick succession of "add child" clicks without the new kids
-// piling on top of each other. Then rebuild edges from `nextTree` (so newly-
-// added relationships render right away) and shift everything so min x/y = 0.
-//
-// Existing nodes keep their cached fancy positions; only the new arrivals
-// move. The result is "approximate but readable" — the user sees their
-// additions land in obviously-distinct slots and can click Optimize to get
-// the proper sugiyama layout when they're done editing.
-interface Candidate {
-  x: number;
-  y: number;
-  // Which way to scan first when the candidate slot is occupied. We prefer
-  // extending in the same direction as the anchor relationship (a new child
-  // pushes the row rightward; a newly added ex-spouse anchored to the LEFT
-  // of an existing partner stays on the left side).
-  preferLeft: boolean;
-}
-
-function findCandidate(
-  id: string,
-  nextTree: Tree,
-  byId: Map<string, LaidOutNode>,
-): Candidate {
-  const person = nextTree.persons[id];
-  for (const pid of person.parentIds) {
-    const p = byId.get(pid);
-    if (p) return { x: p.x, y: p.y + p.h + ROW_GAP, preferLeft: false };
-  }
-  for (const sid of currentPartnerIds(person)) {
-    const s = byId.get(sid);
-    if (s) return { x: s.x + s.w + SPOUSE_GAP, y: s.y, preferLeft: false };
-  }
-  // Newly-added ex-spouse — drop on the LEFT of the existing partner so we
-  // don't stack on top of a current spouse (typically to the right).
-  for (const sid of formerPartnerIds(person)) {
-    const s = byId.get(sid);
-    if (s) {
-      return { x: s.x - NODE_W - SPOUSE_GAP, y: s.y, preferLeft: true };
-    }
-  }
-  // Newly-added person is somebody else's parent.
-  for (const candidate of Object.values(nextTree.persons)) {
-    if (!candidate.parentIds.includes(id)) continue;
-    const c = byId.get(candidate.id);
-    if (c) return { x: c.x, y: c.y - c.h - ROW_GAP, preferLeft: false };
-  }
-  return { x: 0, y: 0, preferLeft: false };
-}
-
-// Slide a new node along its row until it no longer overlaps any existing
-// node on that row. Scans both directions from the candidate and picks the
-// closer non-conflicting slot (ties broken by `preferLeft`). Existing nodes
-// keep their positions — only the newcomer moves, so the cached fancy layout
-// stays visually intact for everyone already placed.
-function placeWithoutOverlap(
-  candidate: Candidate,
-  obstacles: readonly LaidOutNode[],
-): { x: number; y: number } {
-  const onSameRow = (n: LaidOutNode): boolean => n.y === candidate.y;
-  const collidesAt = (x: number): LaidOutNode | null => {
-    for (const n of obstacles) {
-      if (!onSameRow(n)) continue;
-      const xOverlap = !(x + NODE_W <= n.x || n.x + n.w <= x);
-      if (xOverlap) return n;
-    }
-    return null;
-  };
-  if (collidesAt(candidate.x) === null) {
-    return { x: candidate.x, y: candidate.y };
-  }
-  const scan = (dir: 1 | -1): number => {
-    let x = candidate.x;
-    let c = collidesAt(x);
-    // Bounded by the obstacle count — each iteration must clear past a
-    // distinct obstacle, and a finite row has finitely many.
-    let safety = obstacles.length + 2;
-    while (c !== null && safety-- > 0) {
-      x = dir === 1 ? c.x + c.w + SUBTREE_GAP : c.x - NODE_W - SUBTREE_GAP;
-      c = collidesAt(x);
-    }
-    return x;
-  };
-  const rightX = scan(1);
-  const leftX = scan(-1);
-  const rightDist = rightX - candidate.x;
-  const leftDist = candidate.x - leftX;
-  const chooseLeft = candidate.preferLeft
-    ? leftDist <= rightDist
-    : leftDist < rightDist;
-  return { x: chooseLeft ? leftX : rightX, y: candidate.y };
-}
-
-export function optimisticPatch(
-  current: Layout,
-  nextTree: Tree,
-  diff: TreeDiff,
-): Layout {
-  const nodes: LaidOutNode[] = current.nodes
-    .filter((n) => n.id in nextTree.persons)
-    .map((n) => ({ ...n }));
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-
-  for (const id of diff.added) {
-    const candidate = findCandidate(id, nextTree, byId);
-    const { x, y } = placeWithoutOverlap(candidate, nodes);
-    const node: LaidOutNode = { id, x, y, w: NODE_W, h: NODE_H };
-    nodes.push(node);
-    byId.set(id, node);
-  }
-
-  const edges: LaidOutEdge[] = [];
-  const seenSpouse = new Set<string>();
-  for (const person of Object.values(nextTree.persons)) {
-    if (!byId.has(person.id)) continue;
-    for (const { personId: sid, status } of person.unions) {
-      if (!byId.has(sid)) continue;
-      const key =
-        person.id < sid ? `${person.id}|${sid}` : `${sid}|${person.id}`;
-      if (seenSpouse.has(key)) continue;
-      seenSpouse.add(key);
-      edges.push({ kind: "spouse", aId: person.id, bId: sid, status });
-    }
-    if (person.parentIds.length === 0) continue;
-    const parent = byId.get(person.parentIds[0]);
-    if (!parent) continue;
-    edges.push({
-      kind: "parent-child",
-      parentAId: person.parentIds[0],
-      parentBId: person.parentIds.length === 2 ? person.parentIds[1] : null,
-      childId: person.id,
-      elbowY: parent.y + parent.h + ROW_GAP / 2,
-    });
-  }
-
-  // Newly-added parent goes to negative y; shift so min x/y = 0 to keep the
-  // canvas origin sane.
-  let minX = Infinity;
-  let minY = Infinity;
-  for (const n of nodes) {
-    if (n.x < minX) minX = n.x;
-    if (n.y < minY) minY = n.y;
-  }
-  const dx = isFinite(minX) ? -minX : 0;
-  const dy = isFinite(minY) ? -minY : 0;
-  if (dx !== 0 || dy !== 0) {
-    for (const n of nodes) {
-      n.x += dx;
-      n.y += dy;
-    }
-    for (const e of edges) {
-      if (e.kind === "parent-child") e.elbowY += dy;
-    }
-  }
-
-  let width = 0;
-  let height = 0;
-  for (const n of nodes) {
-    if (n.x + n.w > width) width = n.x + n.w;
-    if (n.y + n.h > height) height = n.y + n.h;
-  }
-  return { nodes, edges, width, height };
-}
-
-export const EMPTY_LAYOUT: Layout = {
-  nodes: [],
-  edges: [],
-  width: 0,
-  height: 0,
-};

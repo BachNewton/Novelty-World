@@ -5,10 +5,10 @@ description: Update the Family Tree project (src/projects/family-tree) from gene
 
 # Family tree research → live tree
 
-The tree is one JSON document in Supabase. It is edited through the CLI in
-`src/projects/family-tree/tools/` (`tree-cli.ts`), which applies a change file
-through the app's own logic functions, validates the result, and refuses to
-overwrite a tree someone saved since it loaded. Never edit the row or its JSON
+The tree is one JSON document in Supabase. The app only displays it; the CLI
+in `src/projects/family-tree/tools/` (`tree-cli.ts`) is its only writer. It
+applies a change file through the tree's own logic functions, validates the
+result, and refuses to overwrite a tree someone saved since it loaded. Never edit the row or its JSON
 by hand, and never write SQL against it.
 
 Read `src/projects/family-tree/CLAUDE.md` first: it defines what the tree is
@@ -70,9 +70,11 @@ to be someone else, and why, so nobody chases them again.
 6. **Decide who approves** (see "Research edits" in the project CLAUDE.md), then run `apply <file> --write`. It backs
    up the current row into `research/backups/` before writing, and prints the
    new version.
-7. **Tell the owner** what changed, and to reload any open tabs. An open tab
-   loaded before the write can no longer save; it shows a "changed elsewhere"
-   notice until reloaded.
+7. **Tell the owner** what changed. An open tab keeps showing the tree it
+   loaded until reloaded. When the write changes who is related to whom, the
+   CLI reports that the stored layout no longer matches the tree; until a
+   matching layout is written the app shows an error instead of the tree, so
+   pass that on too.
 
 If `--write` reports the tree changed since it loaded, someone saved in the
 meantime: re-run the dry run against the latest tree and re-check it. Never
@@ -126,7 +128,9 @@ lists.
 
 ## The CLI
 
-Run from the repo root, which holds `.env.local` with the Supabase keys:
+Run from the repo root, which holds `.env.local` with the Supabase keys. The
+CLI reads and writes with the service-role key (`SUPABASE_SERVICE_ROLE_KEY`);
+the public anon key can only read.
 
     npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
     npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>

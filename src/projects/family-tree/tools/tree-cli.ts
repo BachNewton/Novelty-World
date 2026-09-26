@@ -1,5 +1,6 @@
-// Read and edit the live family tree from the command line. Run from the
-// repo root (it reads the Supabase keys from .env.local):
+// Read and edit the live family tree from the command line. It is the tree's
+// only writer. Run from the repo root (it reads the Supabase keys, including
+// the service-role key, from .env.local):
 //
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
@@ -13,9 +14,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { normalizeTree } from "../logic";
-import { fetchTreeRow, saveTreeIfUnchanged, type TreeRow } from "../persistence";
+import { normalizeTree, topologyHash } from "../logic";
+import type { TreeRow } from "../persistence";
 import type { Tree } from "../types";
 import {
   applyOps,
@@ -25,6 +25,7 @@ import {
   resolveId,
   searchPersons,
 } from "./tree-edit";
+import { loadTreeRow, saveTreeIfUnchanged } from "./tree-db";
 
 const USAGE = [
   "usage:",
@@ -36,44 +37,33 @@ const USAGE = [
 
 const BACKUP_DIR = fileURLToPath(new URL("../research/backups/", import.meta.url));
 
-function connect(): SupabaseClient {
-  if (process.env.NEXT_PUBLIC_SUPABASE_URL === undefined) process.loadEnvFile(".env.local");
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (url === undefined || key === undefined) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set");
-  }
-  return createClient(url, key);
-}
-
-async function load(client: SupabaseClient): Promise<{ row: TreeRow; tree: Tree }> {
-  const row = await fetchTreeRow(client);
+async function load(): Promise<{ row: TreeRow; tree: Tree }> {
+  const row = await loadTreeRow();
   if (row === null) throw new Error("There is no family tree row yet");
   return { row, tree: normalizeTree(row.data).tree };
 }
 
 async function find(text: string): Promise<void> {
-  const { tree } = await load(connect());
+  const { tree } = await load();
   const matches = searchPersons(tree, text);
   console.log(`${matches.length} match${matches.length === 1 ? "" : "es"} for "${text}"\n`);
   for (const person of matches) console.log(`${describePerson(tree, person.id)}\n`);
 }
 
 async function show(idOrPrefix: string): Promise<void> {
-  const { tree } = await load(connect());
+  const { tree } = await load();
   console.log(describePerson(tree, resolveId(tree, idOrPrefix)));
 }
 
 async function completeness(): Promise<void> {
-  const { tree } = await load(connect());
+  const { tree } = await load();
   console.log(describeCompleteness(tree));
 }
 
 async function apply(changesPath: string, write: boolean): Promise<void> {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool; the path is a change file typed by the developer running it, never external input
   const ops = parseOps(JSON.parse(readFileSync(changesPath, "utf8")));
-  const client = connect();
-  const { row, tree } = await load(client);
+  const { row, tree } = await load();
   const result = applyOps(tree, ops, () => crypto.randomUUID());
 
   console.log(`Tree version ${row.version}. ${result.changes.length} change(s):\n`);
@@ -92,13 +82,16 @@ async function apply(changesPath: string, write: boolean): Promise<void> {
   writeFileSync(backupPath, JSON.stringify({ version: row.version, data: row.data }, null, 2));
   console.log(`\nBacked up version ${row.version} to ${backupPath}`);
 
-  const version = await saveTreeIfUnchanged(client, result.tree, row.version);
+  const version = await saveTreeIfUnchanged(result.tree, row.version);
   if (version === null) {
     throw new Error(
       `The tree changed since version ${row.version} was loaded, so nothing was written. Re-run to apply against the latest.`,
     );
   }
-  console.log(`Saved. The tree is now at version ${version}. Reload any open tabs.`);
+  console.log(`Saved. The tree is now at version ${version}.`);
+  if (topologyHash(result.tree) !== row.layoutTreeHash) {
+    console.log("The stored layout doesn't match the new tree, so the viewer shows an error until a matching layout is written.");
+  }
 }
 
 async function main(): Promise<void> {

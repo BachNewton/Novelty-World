@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  EMPTY_LAYOUT,
-  NODE_H,
   NODE_W,
   ROOT_ID,
   ROOT_FIRST_NAME,
@@ -13,18 +11,14 @@ import {
   birthDateProblem,
   birthYear,
   computeLayout,
-  countChildren,
   createInitialTree,
   deletePerson,
   describeRelation,
-  diffTree,
   fullName,
   fullNameWithMiddle,
   nearestInDirection,
   newUnion,
-  nextGender,
   normalizeTree,
-  optimisticPatch,
   packElbowRows,
   renamePerson,
   searchByName,
@@ -38,7 +32,7 @@ import {
   treeProblems,
 } from "./logic";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
-import type { LaidOutNode, Layout } from "./types";
+import type { LaidOutNode } from "./types";
 import type {
   Gender,
   NameFields,
@@ -657,7 +651,6 @@ describe("completeness check", () => {
     const base = createInitialTree();
     const checked = setChecked(base, ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" });
     expect(topologyHash(checked)).toBe(topologyHash(base));
-    expect(diffTree(base, checked).structurallyEqual).toBe(true);
   });
 
   it("survives edits that rebuild the person", () => {
@@ -1202,11 +1195,10 @@ describe("setUnionDeceased", () => {
     expect(deceasedOn(t, "terry", "richard")).toBeNull();
   });
 
-  it("leaves topologyHash and diffTree's structural equality untouched", () => {
+  it("leaves topologyHash untouched", () => {
     const base = widowedRemarriage();
     const t = setUnionDeceased(base, "richard", "terry", "terry");
     expect(topologyHash(t)).toBe(topologyHash(base));
-    expect(diffTree(base, t).structurallyEqual).toBe(true);
   });
 
   it("round-trips through normalizeTree with no change reported", () => {
@@ -1976,24 +1968,6 @@ describe("searchByName", () => {
   });
 });
 
-describe("nextGender", () => {
-  it("cycles M -> F -> NB -> M", () => {
-    expect(nextGender("M")).toBe("F");
-    expect(nextGender("F")).toBe("NB");
-    expect(nextGender("NB")).toBe("M");
-  });
-});
-
-describe("countChildren", () => {
-  it("counts persons whose parentIds contain the given id", () => {
-    let t = createInitialTree();
-    t = addChild(t, ROOT_ID, "a", n("A"), "M");
-    t = addChild(t, ROOT_ID, "b", n("B"), "F");
-    expect(countChildren(t, ROOT_ID)).toBe(2);
-    expect(countChildren(t, "a")).toBe(0);
-  });
-});
-
 describe("topologyHash", () => {
   it("is stable across cosmetic changes (rename, gender)", () => {
     const base = createInitialTree();
@@ -2057,104 +2031,6 @@ describe("topologyHash", () => {
     const t2: Tree = { rootId: "a", persons: reordered };
     expect(Object.keys(t1.persons)).not.toEqual(Object.keys(t2.persons));
     expect(topologyHash(t1)).toBe(topologyHash(t2));
-  });
-});
-
-describe("optimisticPatch overlap avoidance", () => {
-  // Bake a tiny pre-existing layout for ROOT alone (mirrors what the
-  // store would have after a fresh load), then run the patch against
-  // trees where the user has rapid-fired multiple adds without giving
-  // the worker a chance to re-solve.
-  function rootOnlyLayout(): Layout {
-    return {
-      nodes: [{ id: ROOT_ID, x: 0, y: 0, w: NODE_W, h: NODE_H }],
-      edges: [],
-      width: NODE_W,
-      height: NODE_H,
-    };
-  }
-
-  function rectsOverlap(a: LaidOutNode, b: LaidOutNode): boolean {
-    const xOverlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x);
-    const yOverlap = !(a.y + a.h <= b.y || b.y + b.h <= a.y);
-    return xOverlap && yOverlap;
-  }
-
-  it("places three children of one parent without overlap", () => {
-    let tree = createInitialTree();
-    const base = rootOnlyLayout();
-    let layout = base;
-    let prev = createInitialTree();
-    for (const id of ["k1", "k2", "k3"]) {
-      const nextTree = addChild(tree, ROOT_ID, id, n(id), "M", null);
-      const diff = diffTree(prev, nextTree);
-      layout = optimisticPatch(layout, nextTree, diff);
-      prev = nextTree;
-      tree = nextTree;
-    }
-    expect(layout.nodes).toHaveLength(4);
-    for (let i = 0; i < layout.nodes.length; i++) {
-      for (let j = i + 1; j < layout.nodes.length; j++) {
-        if (rectsOverlap(layout.nodes[i], layout.nodes[j])) {
-          throw new Error(
-            `nodes overlap: ${layout.nodes[i].id} vs ${layout.nodes[j].id}`,
-          );
-        }
-      }
-    }
-  });
-
-  it("places a bulk batch of children (cold-load case) without overlap", () => {
-    // Simulate hydration: no prior layout for the kids, every one shows
-    // up as `added` in the diff.
-    let tree = createInitialTree();
-    for (let i = 0; i < 5; i++) {
-      tree = addChild(tree, ROOT_ID, `k${i}`, n(`k${i}`), "M", null);
-    }
-    const diff = diffTree(createInitialTree(), tree);
-    const layout = optimisticPatch(rootOnlyLayout(), tree, diff);
-    expect(layout.nodes).toHaveLength(6);
-    for (let i = 0; i < layout.nodes.length; i++) {
-      for (let j = i + 1; j < layout.nodes.length; j++) {
-        if (rectsOverlap(layout.nodes[i], layout.nodes[j])) {
-          throw new Error(
-            `nodes overlap: ${layout.nodes[i].id} vs ${layout.nodes[j].id}`,
-          );
-        }
-      }
-    }
-  });
-
-  it("does not move surviving nodes", () => {
-    const base = rootOnlyLayout();
-    const tree = addChild(
-      createInitialTree(),
-      ROOT_ID,
-      "kid",
-      n("K"),
-      "M",
-      null,
-    );
-    const diff = diffTree(createInitialTree(), tree);
-    const patched = optimisticPatch(base, tree, diff);
-    const root = patched.nodes.find((n) => n.id === ROOT_ID);
-    expect(root?.x).toBe(0);
-    expect(root?.y).toBe(0);
-  });
-
-  it("places every added person from an empty base (cold load)", () => {
-    let tree = createInitialTree();
-    for (let i = 0; i < 4; i++) {
-      tree = addChild(tree, ROOT_ID, `k${i}`, n(`k${i}`), "M", null);
-    }
-    const diff = diffTree(createInitialTree(), tree);
-    const layout = optimisticPatch(EMPTY_LAYOUT, tree, {
-      ...diff,
-      added: Object.keys(tree.persons),
-      removed: [],
-      structurallyEqual: false,
-    });
-    expect(layout.nodes).toHaveLength(Object.keys(tree.persons).length);
   });
 });
 

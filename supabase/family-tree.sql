@@ -1,17 +1,15 @@
--- Family Tree project: single-row global tree storage.
--- Run this once in the Supabase SQL editor.
+-- Family Tree project: single-row global tree storage. Idempotent: re-run it
+-- after any change.
+--
+-- The browser app is a read-only viewer. The tree-editing CLI is the only
+-- writer, through the service-role key, which bypasses RLS.
 
 create table if not exists public.family_tree (
   id text primary key,
   data jsonb not null,
-  -- Cached optimal layout for `data`'s current topology, plus the hash that
-  -- identifies which tree topology it was solved against. Clients render the
-  -- cached layout directly when the current tree's `topologyHash` matches
-  -- `layout_tree_hash`, skipping the seconds-long HiGHS IP solve. Otherwise
-  -- they show a fast local-shift layout and prompt the user to click
-  -- "Optimize", which spawns the solver in a worker and writes the result
-  -- back here (conditional on the hash still matching to avoid trampling
-  -- another contributor's edit).
+  -- The exactly optimized layout for `data`, plus the `topologyHash` of the
+  -- tree it was solved for. The viewer renders it as-is and shows an error
+  -- when the hash doesn't match the tree.
   layout jsonb,
   layout_tree_hash text,
   updated_at timestamptz not null default now()
@@ -24,13 +22,12 @@ alter table public.family_tree add column if not exists layout_tree_hash text;
 -- Lost-edit protection. `version` counts writes of `data`. Writers save with
 -- `update ... set data = <new>, version = <loaded> + 1 where version = <loaded>`;
 -- no row back means someone else saved first, and the writer must reload
--- instead of overwriting. Layout-cache writes leave `data` and `version` alone.
+-- instead of overwriting.
 alter table public.family_tree add column if not exists version integer not null default 0;
 
--- Enforce the rule for every writer, including browser tabs still running a
--- build from before `version` existed: a write that changes `data` without
--- moving `version` up by exactly one is rejected rather than allowed to
--- overwrite a newer tree.
+-- Enforce the rule for every writer, the service role included (triggers run
+-- whatever RLS allows): a write that changes `data` without moving `version`
+-- up by exactly one is rejected rather than allowed to overwrite a newer tree.
 create or replace function public.family_tree_require_version_bump()
 returns trigger
 language plpgsql
@@ -52,18 +49,11 @@ create trigger family_tree_require_version_bump
 
 alter table public.family_tree enable row level security;
 
--- Open read/write for v1 (wiki-style). Tighten later if vandalism becomes an issue.
+-- Read-only for the anon key: a select policy and no write policy.
 drop policy if exists "family_tree read" on public.family_tree;
 create policy "family_tree read"
   on public.family_tree for select
   using (true);
 
 drop policy if exists "family_tree write" on public.family_tree;
-create policy "family_tree write"
-  on public.family_tree for insert
-  with check (true);
-
 drop policy if exists "family_tree update" on public.family_tree;
-create policy "family_tree update"
-  on public.family_tree for update
-  using (true) with check (true);

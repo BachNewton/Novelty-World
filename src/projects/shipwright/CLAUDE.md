@@ -363,7 +363,7 @@ code that floats the ship agree on where the surface is.
   `generateChunk` (apron-sampled central-difference normals → chunk edges shade seamlessly).
   `GEN_VERSION` keys every future chunk cache. Field helpers unit-tested in `terrain.test.ts`.
 - `terrain.worker.ts` — the Web Worker wrapper: one message in (`ChunkRequest`), one payload out,
-  buffers TRANSFERRED. The family-tree `layout.worker.ts` pattern; bundles under webpack + Turbopack
+  buffers TRANSFERRED. Bundles under webpack + Turbopack
   via `new Worker(new URL(...), {type:"module"})` with no next.config changes.
 - `terrain-stream.ts` — terrain streaming: the worker client (`createTerrainGenerator` + the
   `createSyncTerrainGenerator` escape hatch), the PURE tile-planning math (`TIERS`, `planTiles` —

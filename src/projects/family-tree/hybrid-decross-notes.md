@@ -35,33 +35,18 @@ What this shows:
 
 ## What a hybrid would change
 
-Today the canvas shows the cached optimal layout whenever the tree's topology
-matches the cache. After an edit it shows a quick patch that slides new people
-into their row, and the exact solve runs only when someone presses Optimize. So
-a hybrid wouldn't speed up the common case, where the cache already has the
-answer. It would improve the other two cases:
-
-- **First view with no usable cache**, such as a fresh tree or a cache
-  invalidated by a topology change. The heuristic layout is a real layout, not a
-  patch.
-- **While Optimize runs:** the user gets a complete (if messy) layout
-  immediately rather than the stale-plus-patch view.
-
-The costs:
-
-- **A big visible reflow when the exact result lands**, because the layouts
-  differ so much. It would need an animated transition, or the swap will read as
-  the tree jumping around.
-- **Two layout paths to keep consistent.** Coordinate assignment and edge
-  routing run after decross in both paths, so the downstream code stays shared.
-  Only the ordering source differs.
+The app is now a read-only viewer: it renders the exact layout stored beside
+the tree and never solves or shows an interim layout. That removes the case
+this idea was for. A heuristic result is never allowed to reach a viewer, so a
+hybrid could only give the desktop solve a head start (see warm-starting
+below).
 
 ## Warm-starting the exact solve
 
 In the solver's log, HiGHS sat on a junk "best found" (174 crossings) for
 almost the whole solve and found the optimum near the end. Handing it the heuristic's ordering as a starting solution would
 give it a 42-crossing layout from the first second. That could shorten the
-search, and it would make "best so far" meaningful in a progress display.
+search, and it would make "best so far" meaningful in progress output.
 **Unknown:** whether `highs-js` exposes HiGHS's set-solution call; its JS API is
 narrower than the C++ one. Check this before designing around it.
 

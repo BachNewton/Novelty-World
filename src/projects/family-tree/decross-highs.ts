@@ -6,7 +6,7 @@
 // WebAssembly) solves the same MIP in ~2.3 seconds — a measured 30× speedup.
 //
 // Keep `highs` at >= 1.15: 1.8.0 crashed with "RuntimeError: null function"
-// solving the 161-person tree in a browser worker; 1.15.1 solves it cleanly.
+// solving the 161-person tree; 1.15.1 solves it cleanly.
 //
 // We reproduce d3-dag's IP formulation (Jünger-Mutzel) exactly:
 //   - Binary order var x_L_i_j (per layer L, i<j): 0 means i is before j in
@@ -28,54 +28,16 @@ type HighsInstance = Awaited<ReturnType<typeof highsLoader>>;
 
 let highsPromise: Promise<HighsInstance> | undefined;
 
-// HiGHS's solve log is the only progress signal it exposes, and it reaches JS
-// solely through the Emscripten `print` hook — which is fixed when the module
-// loads. The hook therefore forwards to whichever listener is current.
-let logListener: ((line: string) => void) | null = null;
-
-export function setSolverLogListener(
-  listener: ((line: string) => void) | null,
-): void {
-  logListener = listener;
-}
-
-function forwardLog(line: string): void {
-  logListener?.(line);
-}
-
-// In a browser/worker context we hand highs an explicit URL for its .wasm
-// asset, since the bundler's emitted location won't match highs's default
-// __dirname-relative resolution. `new URL(..., import.meta.url)` is the
-// standard Next.js / Turbopack pattern for asset imports — the bundler
-// rewrites this at build time to the fingerprinted URL it emits the .wasm
-// at. In Node (tests), highs's own __dirname-based resolution finds the
-// file in node_modules without help.
+// Emscripten's stdout hook: highs-js honors it but its typings omit it.
 type LoaderOptions = NonNullable<Parameters<typeof highsLoader>[0]> & {
-  // Emscripten's stdout hook: highs-js honors it but its typings omit it.
   print: (line: string) => void;
 };
 
-function highsLoaderOptions(): LoaderOptions {
-  // Next.js polyfills `process` in the browser bundle but without
-  // `process.versions.node`, so we use that field's presence as the
-  // real-Node discriminator. Typed via globalThis so the optional chains
-  // aren't flagged as unnecessary against @types/node's stricter shape.
-  const proc = (globalThis as { process?: { versions?: { node?: string } } }).process;
-  if (proc?.versions?.node !== undefined) {
-    return { print: forwardLog };
-  }
-  const wasmUrl = new URL(
-    "../../../node_modules/highs/build/highs.wasm",
-    import.meta.url,
-  ).href;
-  return {
-    print: forwardLog,
-    locateFile: (file) => (file.endsWith(".wasm") ? wasmUrl : file),
-  };
-}
+// HiGHS writes its solve log to stdout unless given a `print` hook.
+const quiet: LoaderOptions = { print: () => undefined };
 
 export function loadHighs(): Promise<HighsInstance> {
-  highsPromise ??= import("highs").then((mod) => mod.default(highsLoaderOptions()));
+  highsPromise ??= import("highs").then((mod) => mod.default(quiet));
   return highsPromise;
 }
 
