@@ -59,12 +59,7 @@ export function Node({
       </span>
       {year !== null ? (
         <span
-          className={[
-            "mt-0.5 rounded-full border bg-surface-primary px-2 py-px font-mono text-xs leading-none text-brand-green",
-            approximate
-              ? "border-dashed border-brand-green/60"
-              : "border-brand-green/40",
-          ].join(" ")}
+          className="mt-0.5 rounded-full bg-surface-primary px-2 py-0.5 font-mono text-xs leading-none text-brand-green"
           title={approximate ? "Born about this year" : "Birth year"}
         >
           {year}
