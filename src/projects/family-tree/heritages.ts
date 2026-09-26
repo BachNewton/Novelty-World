@@ -33,6 +33,7 @@ export const HERITAGES = {
   NO: { kind: "country", name: "Norway" },
   HU: { kind: "country", name: "Hungary" },
   UA: { kind: "country", name: "Ukraine" },
+  LB: { kind: "country", name: "Lebanon" },
 } as const satisfies Record<string, Heritage>;
 
 export type HeritageCode = keyof typeof HERITAGES;
