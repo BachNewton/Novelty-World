@@ -6,7 +6,7 @@
 import { coordSimplex, graphStratify, sugiyama } from "d3-dag";
 import type { Graph, Layering, Separation } from "d3-dag";
 import { computeGenerations, currentPartnerIds, formerPartnerIds, isCurrentUnion } from "../logic";
-import type { LaidOutNode, Layout, Tree, UnionStatus } from "../types";
+import type { LaidOutNode, Layout, Tree, Union, UnionStatus } from "../types";
 import { decrossCpSat, type DecrossOptions } from "./decross";
 
 // Wide enough to fit the longest name in the tree on one line
@@ -39,14 +39,10 @@ export const SUBTREE_GAP = 72;
 
 interface CoupleUnit {
   id: string;
-  // Adjacent members of one render-time row cluster:
-  //   1 member  — singleton.
-  //   2 members — single union (current or former).
-  //   3 members — one former + the person + one current partner. This is the
-  //               common "remarried" shape; rendered side-by-side with the
-  //               person in the middle and both partners adjacent so each
-  //               marriage line is short and child-drops emerge from clearly
-  //               identifiable marriage midpoints.
+  // A chain of unions rendered side by side, each union between neighbours:
+  // a singleton, a couple, or a longer chain like [her ex, her, him, his ex].
+  // Keeping every union adjacent keeps each marriage line short and makes
+  // each child drop emerge from its own parents' marriage midpoint.
   members: string[];
   generation: number;
   // One status per adjacent marriage line; length == members.length - 1.
@@ -98,35 +94,36 @@ function buildCoupleUnits(
   const couples: CoupleUnit[] = [];
   for (const id of order) {
     if (coupleOf.has(id)) continue;
-    const p = tree.persons[id];
+    const taken = new Set([id]);
+    const nextPartner = (personId: string, preferCurrent: boolean): Union | null => {
+      const free = tree.persons[personId].unions.filter(
+        (u) => !taken.has(u.personId) && !coupleOf.has(u.personId),
+      );
+      if (free.length === 0) return null;
+      const union =
+        free.find((u) => isCurrentUnion(u.status) === preferCurrent) ?? free[0];
+      taken.add(union.personId);
+      return union;
+    };
 
-    // Right-hand partner: the current spouse, if any uncoupled one exists.
-    const current = p.unions.find(
-      (u) => isCurrentUnion(u.status) && !coupleOf.has(u.personId),
-    );
-
-    // Left-hand partner: a "free" ex — uncoupled AND not remarried elsewhere.
-    // A remarried ex belongs in their own cluster with their new spouse, so
-    // we leave them alone here; the post-layout sweep emits a long line
-    // across whatever distance the layout produces.
-    const former = p.unions.find(
-      (u) =>
-        !isCurrentUnion(u.status) &&
-        !coupleOf.has(u.personId) &&
-        currentPartnerIds(tree.persons[u.personId]).length === 0,
-    );
-
-    const members: string[] = [];
+    // Grow a chain outward from the person: their current partner to the
+    // right, an ex to the left, then onward through each end's other
+    // partners, so a remarried ex sits between both their partners. Only
+    // someone with three or more partners leaves one out of the chain; the
+    // post-layout sweep draws that union as a line across the gap.
+    const members = [id];
     const statuses: UnionStatus[] = [];
-
-    if (former !== undefined) {
-      members.push(former.personId);
-      statuses.push(former.status);
+    let right = nextPartner(id, true);
+    while (right !== null) {
+      members.push(right.personId);
+      statuses.push(right.status);
+      right = nextPartner(right.personId, true);
     }
-    members.push(id);
-    if (current !== undefined) {
-      members.push(current.personId);
-      statuses.push(current.status);
+    let left = nextPartner(id, false);
+    while (left !== null) {
+      members.unshift(left.personId);
+      statuses.unshift(left.status);
+      left = nextPartner(left.personId, false);
     }
 
     couples.push({
@@ -343,7 +340,7 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
   // interval graph coloring once node X positions are finalized (further
   // below); for now we just stash the constants and index which parent sets
   // exist per generation. Keying by parent SET — not by couple unit — matters
-  // for 3-member [ex, person, current] clusters: a kid from the left marriage
+  // for chains like [ex, person, current]: a kid from the left marriage
   // and a kid from the right marriage share a couple unit but represent
   // different parent sets, and their bars must still be analyzed separately.
   const ELBOW_FIRST_OFFSET = 28;
@@ -373,47 +370,35 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
 
   const layout: Layout = { nodes: [], edges: [], width: 0, height: 0 };
 
-  // Within-couple spouse ordering: place each spouse on the side closer to
-  // their own parents. Doesn't affect couple-level crossings but reduces
-  // visual length of the parent→spouse drops.
-  // Skipped for 3+ member clusters: their order ([ex, person, current]) is
-  // already meaningful — the person sits in the middle by construction so
-  // each marriage line stays short.
+  // Within-chain ordering: a chain reads the same either way round, so keep
+  // or reverse it, whichever puts members nearer their own parents. Doesn't
+  // affect couple-level crossings but shortens the parent→spouse drops.
+  // Squared distance, because for a couple it reduces to "the spouse whose
+  // parents sit further left goes left", which keeps their drops uncrossed.
+  const idealFor = (memberId: string): number | null => {
+    const xs = tree.persons[memberId].parentIds
+      .map((pid) => coupleOf.get(pid))
+      .filter((id): id is string => id !== undefined)
+      .map((cid) => centerX.get(cid))
+      .filter((x): x is number => x !== undefined);
+    if (xs.length === 0) return null;
+    return xs.reduce((s, x) => s + x, 0) / xs.length;
+  };
   const spouseSideOrder = new Map<string, string[]>();
   for (const couple of couples) {
-    if (couple.members.length !== 2) {
-      spouseSideOrder.set(couple.id, [...couple.members]);
-      continue;
-    }
-    const [a, b] = couple.members;
-    const idealFor = (memberId: string): number | null => {
-      const member = tree.persons[memberId];
-      const parentCoupleIds = member.parentIds
-        .map((pid) => coupleOf.get(pid))
-        .filter((id): id is string => id !== undefined);
-      const xs = parentCoupleIds
-        .map((cid) => centerX.get(cid))
-        .filter((x): x is number => x !== undefined);
-      if (xs.length === 0) return null;
-      return xs.reduce((s, x) => s + x, 0) / xs.length;
-    };
-    const aIdeal = idealFor(a);
-    const bIdeal = idealFor(b);
-    let leftId = a;
-    let rightId = b;
-    if (aIdeal !== null && bIdeal !== null && aIdeal > bIdeal) {
-      leftId = b;
-      rightId = a;
-    } else if (aIdeal === null && bIdeal !== null) {
-      // Prefer the spouse with parents on the inside (closer to couple
-      // center), the one without parents on the outside.
-      const center = centerX.get(couple.id) ?? 0;
-      if (bIdeal < center) {
-        leftId = b;
-        rightId = a;
-      }
-    }
-    spouseSideOrder.set(couple.id, [leftId, rightId]);
+    const leftX = (centerX.get(couple.id) ?? 0) - coupleWidth(couple) / 2;
+    const slotX = (i: number): number =>
+      leftX + i * (NODE_W + SPOUSE_GAP) + NODE_W / 2;
+    const cost = (sides: readonly string[]): number =>
+      sides.reduce((sum, id, i) => {
+        const ideal = idealFor(id);
+        return ideal === null ? sum : sum + (slotX(i) - ideal) ** 2;
+      }, 0);
+    const reversed = [...couple.members].reverse();
+    spouseSideOrder.set(
+      couple.id,
+      cost(reversed) < cost(couple.members) ? reversed : [...couple.members],
+    );
   }
 
   // Marriage-aware child reordering. Within each parent couple/cluster, sort
@@ -421,8 +406,7 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
   // correctly: e.g. for [Maya, Gary, Marta], Maya's-side kids on the left,
   // Maya+Gary shared kids next, then Gary+Marta shared, then Marta's-side.
   // Rank is the average index of the child's bio parents within the parent
-  // cluster's member array (-1/0/+1 falls out naturally for the 2-member
-  // case). Limited to leaf children — translating non-leaf subtrees risks
+  // cluster's member array, so each marriage's kids sit under it. Limited to leaf children — translating non-leaf subtrees risks
   // descending crossings, which the full marriage-as-DAG refactor handles
   // properly.
   const coupleById = new Map(couples.map((c) => [c.id, c] as const));
@@ -631,23 +615,15 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
         h: NODE_H,
       });
     }
-    // One spouse edge per adjacent pair. spouseSideOrder may have swapped
-    // members in 2-member couples, so map the i-th adjacent pair back to
-    // the original buildCoupleUnits position to pick the right status.
-    const indexOfOriginal = new Map(
-      couple.members.map((m, idx) => [m, idx] as const),
-    );
+    // One spouse edge per adjacent pair, in drawing order (left to right).
+    const statuses =
+      sides[0] === couple.members[0] ? couple.statuses : [...couple.statuses].reverse();
     for (let i = 0; i < sides.length - 1; i++) {
-      const a = sides[i];
-      const b = sides[i + 1];
-      const aIdx = indexOfOriginal.get(a) ?? i;
-      const bIdx = indexOfOriginal.get(b) ?? i + 1;
-      const lower = Math.min(aIdx, bIdx);
       layout.edges.push({
         kind: "spouse",
-        aId: a,
-        bId: b,
-        status: couple.statuses[lower] ?? "married",
+        aId: sides[i],
+        bId: sides[i + 1],
+        status: statuses[i],
       });
     }
   }
@@ -678,32 +654,25 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
     }
   }
 
-  // Sweep former unions and emit their lines for any that didn't end up in
-  // the same couple unit — e.g. one ex remarried, so the other
-  // landed as a singleton. The line spans wherever the layout placed the
-  // two people; it's visually imperfect when the singleton lands far from
-  // the ex, but at least the relationship stays visible. Proper adjacency
-  // requires the marriage-as-DAG-primitive refactor (a person rendered
-  // once but represented as a member of multiple marriage units).
+  // Sweep the unions a chain couldn't hold (someone with three or more
+  // partners) and draw each as a line across whatever distance the layout
+  // put between the two people, so the relationship stays visible.
+  const spouseKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
   const emittedSpouseKey = new Set<string>();
   for (const couple of couples) {
-    if (couple.members.length === 2) {
-      const [a, b] = couple.members;
-      emittedSpouseKey.add(a < b ? `${a}|${b}` : `${b}|${a}`);
+    for (let i = 0; i < couple.members.length - 1; i++) {
+      emittedSpouseKey.add(spouseKey(couple.members[i], couple.members[i + 1]));
     }
   }
   for (const person of Object.values(tree.persons)) {
     for (const union of person.unions) {
-      if (isCurrentUnion(union.status)) continue;
-      const exId = union.personId;
-      const key =
-        person.id < exId ? `${person.id}|${exId}` : `${exId}|${person.id}`;
+      const key = spouseKey(person.id, union.personId);
       if (emittedSpouseKey.has(key)) continue;
       emittedSpouseKey.add(key);
       layout.edges.push({
         kind: "spouse",
         aId: person.id,
-        bId: exId,
+        bId: union.personId,
         status: union.status,
       });
     }

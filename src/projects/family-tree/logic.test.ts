@@ -2034,10 +2034,9 @@ describe("computeLayout", () => {
     expect(exEdge).toBeDefined();
   });
 
-  it("leaves a remarried ex out of the cluster — long dashed line instead", () => {
-    // Maya re-partnered with Bob. She belongs in HER cluster with Bob,
-    // not in Gary's cluster — so Maya/Gary aren't adjacent, but the
-    // post-layout sweep still emits a dashed marriage edge between them.
+  it("seats a remarried ex between both their partners", () => {
+    // Maya re-partnered with Bob after divorcing Gary, who married Marta.
+    // The four form one chain, so every union line joins neighbours.
     const t = makeTree([
       p("gary", "M", [], ["marta"], ["maya"]),
       p("marta", "F", [], ["gary"], []),
@@ -2046,24 +2045,63 @@ describe("computeLayout", () => {
     ]);
 
     const layout = computeLayout(t);
-    const maya = layout.nodes.find((node) => node.id === "maya")!;
-    const gary = layout.nodes.find((node) => node.id === "gary")!;
-    const bob = layout.nodes.find((node) => node.id === "bob")!;
-    expect(maya.y).toBe(bob.y);
-    // Maya is adjacent to Bob (her current), NOT to Gary.
-    const mayaBobDistance = Math.abs(maya.x - bob.x);
-    const mayaGaryDistance = Math.abs(maya.x - gary.x);
-    expect(mayaBobDistance).toBe(NODE_W + SPOUSE_GAP);
-    expect(mayaGaryDistance).toBeGreaterThan(NODE_W + SPOUSE_GAP);
+    const order = [...layout.nodes].sort((a, b) => a.x - b.x).map((n) => n.id);
+    expect([order, [...order].reverse()]).toContainEqual(["marta", "gary", "maya", "bob"]);
+    for (const edge of layout.edges) {
+      if (edge.kind !== "spouse") continue;
+      const a = layout.nodes.find((n) => n.id === edge.aId)!;
+      const b = layout.nodes.find((n) => n.id === edge.bId)!;
+      expect(b.x - a.x).toBe(NODE_W + SPOUSE_GAP);
+    }
+    expect(layout.edges.filter((e) => e.kind === "spouse")).toHaveLength(3);
+  });
 
-    const exEdge = layout.edges.find(
-      (e) =>
-        e.kind === "spouse" &&
-        e.status === "divorced" &&
-        ((e.aId === "maya" && e.bId === "gary") ||
-          (e.aId === "gary" && e.bId === "maya")),
+  it("drops each marriage's children from their own parents in a chain", () => {
+    // Danny divorced Christa, who now partners Dan, who divorced Brie.
+    // Christa's parents sit on one side and Dan's on the other, so the chain
+    // runs Danny, Christa, Dan, Brie from the side of Christa's parents.
+    const t = makeTree([
+      p("christa", "F", ["cDad", "cMom"], [], ["danny"]),
+      p("cDad", "M", [], ["cMom"]),
+      p("cMom", "F", [], ["cDad"]),
+      p("cBro", "M", ["cDad", "cMom"]),
+      p("dan", "M", ["dDad", "dMom"], [], ["brie"]),
+      p("dDad", "M", [], ["dMom"]),
+      p("dMom", "F", [], ["dDad"]),
+      p("dSis", "F", ["dDad", "dMom"]),
+      p("danny", "M", [], [], ["christa"]),
+      p("brie", "F", [], [], ["dan"]),
+      p("caleb", "M", ["danny", "christa"]),
+      p("cecily", "F", ["danny", "christa"]),
+      p("sophia", "F", ["dan", "brie"]),
+    ]);
+    t.persons.christa.unions.push(u("dan", "partner"));
+    t.persons.dan.unions.push(u("christa", "partner"));
+
+    const layout = computeLayout(t);
+    const centerOf = (id: string): number => {
+      const node = layout.nodes.find((n) => n.id === id)!;
+      return node.x + NODE_W / 2;
+    };
+    const chain = ["danny", "christa", "dan", "brie"].map(centerOf);
+    const step = NODE_W + SPOUSE_GAP;
+    const dir = Math.sign(chain[1] - chain[0]);
+    expect(chain.slice(1).map((x, i) => (x - chain[i]) * dir)).toEqual([step, step, step]);
+    // Christa sits on her parents' side of Dan.
+    expect(Math.sign(centerOf("christa") - centerOf("dan"))).toBe(
+      Math.sign(centerOf("cDad") - centerOf("dDad")),
     );
-    expect(exEdge).toBeDefined();
+
+    // Each marriage's sibling bar, from its marriage midpoint to its
+    // children, stays clear of the other's, so no child reads as the wrong
+    // couple's.
+    const bar = (mid: number, kids: string[]): [number, number] => {
+      const xs = [mid, ...kids.map(centerOf)].map((x) => x * dir);
+      return [Math.min(...xs), Math.max(...xs)];
+    };
+    const joiners = bar((chain[0] + chain[1]) / 2, ["caleb", "cecily"]);
+    const santoros = bar((chain[2] + chain[3]) / 2, ["sophia"]);
+    expect(joiners[1]).toBeLessThan(santoros[0]);
   });
 
   it("centers a single child under a couple", () => {
