@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useFamilyTreeStore } from "../store";
 import {
   ROOT_ID,
@@ -27,6 +28,13 @@ import {
   type PanelMode,
 } from "./action-panel";
 import { Button } from "@/shared/components/ui/button";
+import { cn } from "@/shared/lib/utils";
+
+const Tree3D = dynamic(() => import("./tree-3d").then((m) => m.Tree3D), {
+  ssr: false,
+});
+
+type ViewMode = "2d" | "3d";
 
 function arrowDirection(key: string): NavDirection | null {
   if (key === "ArrowUp") return "up";
@@ -87,6 +95,7 @@ export function FamilyTree() {
     useLayoutWorker();
 
   const [panelMode, setPanelMode] = useState<PanelMode>("menu");
+  const [viewMode, setViewMode] = useState<ViewMode>("2d");
   // Reset to the menu whenever the active selection changes — tracking the
   // previous selection in state is React's recommended pattern for resets:
   // https://react.dev/reference/react/useState#storing-information-from-previous-renders
@@ -252,6 +261,7 @@ export function FamilyTree() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
           <OptimizeControl
             ready={status === "ready"}
             inSync={inSync}
@@ -273,40 +283,46 @@ export function FamilyTree() {
       <SaveHaltBanner />
 
       <div className="relative flex-1">
-        <PanZoom
-          contentWidth={layout.width}
-          contentHeight={layout.height}
-          refitKey={`${personCount}-init`}
-          onBackgroundPointerDown={() => { setSelected(null); }}
-        >
-          <Edges layout={layout} />
-          {layout.nodes.map((n) => (
-            <Node
-              key={n.id}
-              node={n}
-              person={tree.persons[n.id]}
-              selected={selectedId === n.id}
-              isViewRoot={n.id === effectiveViewRootId}
-              relation={relations.get(n.id) ?? null}
-              onSelect={setSelected}
-            />
-          ))}
-        </PanZoom>
+        {viewMode === "3d" ? (
+          <Tree3D tree={tree} selectedId={selectedId} onSelect={setSelected} />
+        ) : (
+          <>
+            <PanZoom
+              contentWidth={layout.width}
+              contentHeight={layout.height}
+              refitKey={`${personCount}-init`}
+              onBackgroundPointerDown={() => { setSelected(null); }}
+            >
+              <Edges layout={layout} />
+              {layout.nodes.map((n) => (
+                <Node
+                  key={n.id}
+                  node={n}
+                  person={tree.persons[n.id]}
+                  selected={selectedId === n.id}
+                  isViewRoot={n.id === effectiveViewRootId}
+                  relation={relations.get(n.id) ?? null}
+                  onSelect={setSelected}
+                />
+              ))}
+            </PanZoom>
 
-        {layout.nodes.length === 0 ? (
-          <div
-            className="pointer-events-none absolute inset-0 flex items-center justify-center"
-            aria-live="polite"
-          >
-            <div className="flex flex-col items-center gap-3 text-text-secondary">
+            {layout.nodes.length === 0 ? (
               <div
-                className="h-8 w-8 animate-spin rounded-full border-2 border-border-default border-t-brand-orange"
-                aria-hidden
-              />
-              <span className="text-sm">Computing layout…</span>
-            </div>
-          </div>
-        ) : null}
+                className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                aria-live="polite"
+              >
+                <div className="flex flex-col items-center gap-3 text-text-secondary">
+                  <div
+                    className="h-8 w-8 animate-spin rounded-full border-2 border-border-default border-t-brand-orange"
+                    aria-hidden
+                  />
+                  <span className="text-sm">Computing layout…</span>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
 
         <OptimizeStatus />
 
@@ -343,6 +359,39 @@ export function FamilyTree() {
           />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (mode: ViewMode) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="View mode"
+      className="flex rounded-md border border-border-default bg-surface-elevated p-0.5 text-xs font-semibold"
+    >
+      {(["2d", "3d"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          aria-pressed={value === mode}
+          onClick={() => { onChange(mode); }}
+          className={cn(
+            "rounded px-2 py-1.5 uppercase transition-colors",
+            value === mode
+              ? "bg-brand-blue text-surface-primary"
+              : "text-text-secondary hover:text-text-primary",
+          )}
+        >
+          {mode}
+        </button>
+      ))}
     </div>
   );
 }

@@ -967,7 +967,7 @@ function bfsOrder(tree: Tree): string[] {
   return order;
 }
 
-function computeGenerations(tree: Tree): Map<string, number> {
+export function computeGenerations(tree: Tree): Map<string, number> {
   const childrenIdx = buildChildrenIndex(tree);
   const gen = new Map<string, number>();
   gen.set(tree.rootId, 0);
