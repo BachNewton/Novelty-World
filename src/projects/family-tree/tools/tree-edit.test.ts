@@ -12,7 +12,7 @@ import {
 } from "./tree-edit";
 
 function n(firstName: string, lastName = "", birthSurname = ""): NameFields {
-  return { firstName, lastName, commonName: "", birthSurname };
+  return { firstName, middleName: "", lastName, commonName: "", birthSurname };
 }
 
 // Root, married to a spouse, with one shared child and one child of the root

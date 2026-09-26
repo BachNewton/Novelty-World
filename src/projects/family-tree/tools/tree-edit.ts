@@ -23,6 +23,7 @@ import type { Gender, NameFields, Person, Tree, UnionStatus } from "../types";
 // through rename, new people, and search.
 const EMPTY_NAME: NameFields = {
   firstName: "",
+  middleName: "",
   lastName: "",
   commonName: "",
   birthSurname: "",
