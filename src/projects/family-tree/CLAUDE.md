@@ -16,12 +16,13 @@ Types live in `types.ts`; pure operations and relationship terms live in `logic.
 - **Ended by death** is only needed when the survivor later remarried or repartnered. It renders like a marriage, not a divorce. The union can optionally record which of the two died. Only that person is ever called "late" in the relationship readout (by the survivor, and in composites like "husband's late wife"). When it isn't recorded, nobody is "late". It is wording only: it never affects layout or the topology hash, and nothing appears on the cards.
 - **Names:** first name, last name (current), common name (nickname), and optional birth surname and middle name. The birth surname shows as a small "née …" line on the card only when it differs from the last name. The middle name (a full name or just an initial) is a research aid: records tell same-named relatives apart by it. It never appears on the cards, which show the name people know someone by; only the edit panel shows it.
 - **Notes:** optional free text per person, for research facts that have nowhere else to live (death dates, record numbers, alternate names). Notes never appear on the tree cards.
+- **Birth date:** an optional research aid in a fixed, machine-readable shape, so tools and AI can read and edit it reliably instead of parsing notes. It is a partial ISO date: a year, a year and month, or a full date (shaped like `1931`, `1931-06`, `1931-06-16`), as precise as the sources allow. `treeProblems` rejects anything else, including impossible dates. It never appears on the cards. There is deliberately no death date field: that would be a deceased flag by another name, so death dates stay in notes.
 - **Optional string fields** use an empty string to mean "not set". They are always present, never undefined.
 - **Schema evolution.** `normalizeTree` migrates saved trees on load: it backfills new fields and converts old shapes, and the store writes the migrated shape back on the next save. Every new Person field must be handled there.
 
 ## Privacy
 
-The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
+The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. A full birth date plus a name is identity-theft material, so a living person's birth date holds the year only; full dates are for people who have died. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
 
 ## Saving and editing outside the app
 

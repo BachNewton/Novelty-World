@@ -12,6 +12,7 @@ import {
   deletePerson as logicDeletePerson,
   normalizeTree,
   renamePerson as logicRenamePerson,
+  setBirthDate as logicSetBirthDate,
   setGender as logicSetGender,
   setNotes as logicSetNotes,
   setUnionDeceased as logicSetUnionDeceased,
@@ -86,6 +87,7 @@ interface FamilyTreeState {
   rename: (id: string, name: NameFields) => void;
   setGender: (id: string, gender: Gender) => void;
   setNotes: (id: string, notes: string) => void;
+  setBirthDate: (id: string, birthDate: string) => void;
   remove: (id: string) => void;
 }
 
@@ -398,6 +400,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   setNotes: (id, notes) => {
     applyMutation((tree) => logicSetNotes(tree, id, notes.trim()));
+  },
+
+  setBirthDate: (id, birthDate) => {
+    applyMutation((tree) => logicSetBirthDate(tree, id, birthDate.trim()));
   },
 
   remove: (id) => {

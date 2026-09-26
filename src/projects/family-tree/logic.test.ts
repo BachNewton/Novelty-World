@@ -10,6 +10,7 @@ import {
   addChild,
   addParent,
   addSpouse,
+  birthDateProblem,
   computeLayout,
   countChildren,
   createInitialTree,
@@ -25,6 +26,7 @@ import {
   optimisticPatch,
   packElbowRows,
   renamePerson,
+  setBirthDate,
   setGender,
   setNotes,
   setUnionDeceased,
@@ -70,6 +72,7 @@ function p(
     commonName: "",
     birthSurname: "",
     notes: "",
+    birthDate: "",
     gender,
     parentIds,
     unions: [
@@ -521,6 +524,7 @@ describe("normalizeTree", () => {
     commonName: "",
     birthSurname: "",
     notes: "",
+    birthDate: "",
     gender: "M",
     parentIds: [],
     unions: [],
@@ -595,6 +599,74 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(true);
     expect(tree.persons[ROOT_ID].notes).toBe("");
+  });
+
+  it("backfills birthDate and reports a change when only birthDate is missing", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, birthDate: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].birthDate).toBe("");
+  });
+
+  it("keeps an existing birthDate and reports no change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, birthDate: "1931-06-16" },
+      },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID].birthDate).toBe("1931-06-16");
+  });
+});
+
+describe("birthDateProblem", () => {
+  it.each(["", "1931", "1931-06", "1931-06-16", "2024-02-29"])("accepts %j", (value) => {
+    expect(birthDateProblem(value)).toBeNull();
+  });
+
+  it.each([
+    ["16 Jun 1931", /not YYYY, YYYY-MM or YYYY-MM-DD/],
+    ["31", /not YYYY/],
+    ["1931-6", /not YYYY/],
+    ["1931-06-16T00:00", /not YYYY/],
+    ["1931-13", /no month 13/],
+    ["1931-00", /no month 00/],
+    ["1931-04-31", /no day 31/],
+    ["1931-02-29", /no day 29/],
+    ["1931-06-00", /no day 00/],
+  ])("rejects %j", (value, message) => {
+    expect(birthDateProblem(value)).toMatch(message);
+  });
+});
+
+describe("setBirthDate", () => {
+  it("sets and clears a birth date", () => {
+    let t = setBirthDate(createInitialTree(), ROOT_ID, "1990");
+    expect(t.persons[ROOT_ID].birthDate).toBe("1990");
+    t = setBirthDate(t, ROOT_ID, "");
+    expect(t.persons[ROOT_ID].birthDate).toBe("");
+  });
+
+  it("returns the same tree when nothing changes, so no save is scheduled", () => {
+    const base = createInitialTree();
+    expect(setBirthDate(base, ROOT_ID, "")).toBe(base);
+  });
+
+  it("does not change the topology hash", () => {
+    const base = createInitialTree();
+    expect(topologyHash(setBirthDate(base, ROOT_ID, "1990"))).toBe(topologyHash(base));
+  });
+
+  it("is flagged by treeProblems when malformed", () => {
+    const t = setBirthDate(createInitialTree(), ROOT_ID, "1990-02-30");
+    expect(treeProblems(t)).toEqual([
+      expect.stringMatching(/birth date "1990-02-30" has no day 30/),
+    ]);
   });
 });
 

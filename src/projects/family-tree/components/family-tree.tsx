@@ -87,6 +87,7 @@ export function FamilyTree() {
   const rename = useFamilyTreeStore((s) => s.rename);
   const setGender = useFamilyTreeStore((s) => s.setGender);
   const setNotes = useFamilyTreeStore((s) => s.setNotes);
+  const setBirthDate = useFamilyTreeStore((s) => s.setBirthDate);
   const remove = useFamilyTreeStore((s) => s.remove);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
@@ -364,6 +365,7 @@ export function FamilyTree() {
             }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetNotes={(notes) => { setNotes(selectedPerson.id, notes); }}
+            onSetBirthDate={(birthDate) => { setBirthDate(selectedPerson.id, birthDate); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}
             onDelete={() => { handleDelete(selectedPerson.id); }}

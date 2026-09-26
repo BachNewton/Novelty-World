@@ -20,6 +20,10 @@ for, the data model, and the living-tree rule.
   contact details (addresses, phone numbers, emails), and never put private
   details about living people (health, finances, legal matters, anything they
   wouldn't want public). Names and relationships are fine.
+- **Birth dates go in the birth date field, not notes.** Use `setBirthDate`
+  (or `birthDate` on a new person) with a year, year-month, or full date,
+  as precise as the source. For anyone who may be living, the year only; a
+  full date is for people who have died. Put the source for the date in notes.
 - **A living tree.** Everyone is family whether or not they've passed. Never
   add a deceased flag or anything that implies one. Death facts that matter to
   the research (a date, a record number) may go in notes; a union ended by
@@ -109,10 +113,11 @@ A generic example, adding a spouse and their child:
     [
       { "op": "addSpouse", "ref": "@wife", "person": "<id>",
         "name": { "firstName": "Given", "lastName": "Surname", "birthSurname": "Maiden" },
-        "gender": "F", "status": "married", "bioChildren": [] },
+        "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02" },
       { "op": "addChild", "parent": "<id>", "coParent": "@wife",
-        "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M" },
-      { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" }
+        "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952" },
+      { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" },
+      { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" }
     ]
 
 The apply step fails loudly on anything doubtful: unknown or ambiguous ids, a

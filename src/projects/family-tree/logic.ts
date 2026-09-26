@@ -96,6 +96,7 @@ function makePerson(
     commonName: name.commonName,
     birthSurname: name.birthSurname,
     notes: "",
+    birthDate: "",
     gender,
     parentIds: [],
     unions: [],
@@ -275,6 +276,35 @@ export function setNotes(tree: Tree, id: string, notes: string): Tree {
   return next;
 }
 
+// Why `value` isn't a partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"),
+// or null when it is one. The empty string means "not set" and is valid.
+export function birthDateProblem(value: string): string | null {
+  if (value === "") return null;
+  const parts = value.split("-");
+  const [year, month, day] = parts;
+  const wellFormed =
+    parts.length <= 3 &&
+    /^\d{4}$/.test(year) &&
+    parts.slice(1).every((part) => /^\d{2}$/.test(part));
+  if (!wellFormed) return `"${value}" is not YYYY, YYYY-MM or YYYY-MM-DD`;
+  if (parts.length === 1) return null;
+  const m = Number(month);
+  if (m < 1 || m > 12) return `"${value}" has no month ${month}`;
+  if (parts.length === 2) return null;
+  // Day 0 of the following month is the last day of this one.
+  const daysInMonth = new Date(Date.UTC(Number(year), m, 0)).getUTCDate();
+  const d = Number(day);
+  if (d < 1 || d > daysInMonth) return `"${value}" has no day ${day}`;
+  return null;
+}
+
+export function setBirthDate(tree: Tree, id: string, birthDate: string): Tree {
+  if (tree.persons[id].birthDate === birthDate) return tree;
+  const next = clone(tree);
+  next.persons[id].birthDate = birthDate;
+  return next;
+}
+
 export function deletePerson(tree: Tree, id: string): Tree {
   if (id === tree.rootId) return tree;
   const next = clone(tree);
@@ -304,6 +334,8 @@ export function treeProblems(tree: Tree): string[] {
     if (person.id !== key) problems.push(`${who} is stored under key ${key} but has id ${person.id}`);
     if (person.firstName.trim() === "") problems.push(`${who} has an empty first name`);
     if (!GENDER_CYCLE.includes(person.gender)) problems.push(`${who} has unknown gender ${String(person.gender)}`);
+    const dateProblem = birthDateProblem(person.birthDate);
+    if (dateProblem !== null) problems.push(`${who}'s birth date ${dateProblem}`);
 
     if (person.parentIds.length > 2) problems.push(`${who} has more than two parents`);
     if (new Set(person.parentIds).size !== person.parentIds.length) {
@@ -389,6 +421,7 @@ interface StoredPerson {
   commonName?: string;
   birthSurname?: string;
   notes?: string;
+  birthDate?: string;
   gender: Gender;
   parentIds: string[];
   unions?: StoredUnion[];
@@ -418,7 +451,7 @@ function storedUnions(person: StoredPerson): Union[] {
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,
-// notes, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
+// notes, birthDate, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -432,6 +465,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.birthSurname === undefined ||
       person.middleName === undefined ||
       person.notes === undefined ||
+      person.birthDate === undefined ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
       )
@@ -446,6 +480,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       commonName: person.commonName ?? "",
       birthSurname: person.birthSurname ?? "",
       notes: person.notes ?? "",
+      birthDate: person.birthDate ?? "",
       gender: person.gender,
       parentIds: [...person.parentIds],
       unions: storedUnions(person),

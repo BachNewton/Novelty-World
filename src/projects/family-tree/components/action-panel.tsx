@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Gender, NameFields, Person, UnionStatus } from "../types";
-import { ROOT_ID, fullName, fullNameWithMiddle } from "../logic";
+import { ROOT_ID, birthDateProblem, fullName, fullNameWithMiddle } from "../logic";
 import { Button } from "@/shared/components/ui/button";
 
 export type PanelMode =
@@ -53,6 +53,7 @@ interface ActionPanelProps {
   onSetUnionDeceased: (partnerId: string, deceasedId: string | null) => void;
   onRename: (name: NameFields) => void;
   onSetNotes: (notes: string) => void;
+  onSetBirthDate: (birthDate: string) => void;
   onSetGender: (gender: Gender) => void;
   onSetAsViewRoot: () => void;
   onDelete: () => void;
@@ -244,6 +245,7 @@ export function ActionPanel({
   onSetUnionDeceased,
   onRename,
   onSetNotes,
+  onSetBirthDate,
   onSetGender,
   onSetAsViewRoot,
   onDelete,
@@ -254,6 +256,7 @@ export function ActionPanel({
   const [commonDraft, setCommonDraft] = useState("");
   const [birthSurnameDraft, setBirthSurnameDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
+  const [birthDateDraft, setBirthDateDraft] = useState("");
   const [draftGender, setDraftGender] = useState<Gender | null>(null);
   const [draftStatus, setDraftStatus] = useState<UnionStatus>("married");
   // null === "this person alone" for add-child; partnerId for a marriage.
@@ -283,6 +286,7 @@ export function ActionPanel({
       setCommonDraft(person.commonName);
       setBirthSurnameDraft(person.birthSurname);
       setNotesDraft(person.notes);
+      setBirthDateDraft(person.birthDate);
     } else if (mode === "menu" || mode === "union-status") {
       setFirstDraft("");
       setMiddleDraft("");
@@ -309,9 +313,10 @@ export function ActionPanel({
   const needsGender =
     mode === "add-parent" || mode === "add-child" || mode === "add-spouse";
   const trimmedFirst = firstDraft.trim();
+  const birthDateError = mode === "edit" ? birthDateProblem(birthDateDraft.trim()) : null;
   const canSubmit =
     mode === "edit"
-      ? trimmedFirst.length > 0
+      ? trimmedFirst.length > 0 && birthDateError === null
       : trimmedFirst.length > 0 && draftGender !== null;
 
   function submit() {
@@ -323,8 +328,9 @@ export function ActionPanel({
       birthSurname: birthSurnameDraft.trim(),
     };
     if (mode === "edit") {
-      if (!name.firstName) return;
+      if (!name.firstName || birthDateError !== null) return;
       onRename(name);
+      onSetBirthDate(birthDateDraft.trim());
       onSetNotes(notesDraft);
     } else {
       if (!name.firstName || draftGender === null) return;
@@ -492,6 +498,21 @@ export function ActionPanel({
               className="col-span-2"
             />
           </div>
+
+          {mode === "edit" ? (
+            <div className="flex flex-col gap-1">
+              <NameInput
+                label="Born"
+                optional
+                value={birthDateDraft}
+                onChange={setBirthDateDraft}
+                placeholder="YYYY, YYYY-MM or YYYY-MM-DD"
+              />
+              <p className={`text-xs ${birthDateError === null ? "text-text-muted" : "text-brand-pink"}`}>
+                {birthDateError ?? "Year only for living people. Full dates only once someone has passed."}
+              </p>
+            </div>
+          ) : null}
 
           {mode === "edit" ? (
             <div className="flex flex-col gap-1">
