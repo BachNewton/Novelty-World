@@ -177,8 +177,7 @@ would put a private detail about a living person in the public row. Also ask:
   can answer it without context. Never ask one at a time, and never block on
   one. `standards.md` says which questions need a family answer before they
   can be Exhausted;
-- before changing `standards.md` (see Self-improvement);
-- before entering heritage for a living married-in adult (an open question).
+- before changing `standards.md` (see Self-improvement).
 
 ## Heritage
 
@@ -208,8 +207,8 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
 - **After adding anyone above a person with an entry,** run `superseded`.
   Clear fully superseded entries, and review partly superseded ones: the
   entry may have been a guess covering both sides.
-- **Living married-in adults:** whether they get heritage at all is an open
-  question for the owner, so ask before entering it.
+- **Living married-in adults** get heritage from records like anyone else:
+  it records a line's origin, and it passes to their children.
 
 ## The CLI
 

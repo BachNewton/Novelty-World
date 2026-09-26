@@ -15,7 +15,7 @@ in the tree row must be public-safe (see "The research record" in
   DuckDuckGo and similar get CAPTCHA or consent walls. *Last verified
   2026-09-26.*
 - **Chrome DevTools MCP** (`mcp__chrome-devtools__*`): drives the owner's own
-  Chrome, with his logins. Use it for login-gated or JavaScript-heavy sites
+  Chrome, with their logins. Use it for login-gated or JavaScript-heavy sites
   (FamilySearch) and for sites that return 403 to WebFetch. *Last verified
   2026-09-26.*
 
@@ -129,7 +129,7 @@ For lines from Finland. *None yet used in a research round.*
 
 ## The owner
 
-- **"Per Kyle"**: the owner, and through him the family. The main source for
+- **"Per Kyle"**: the owner, and through them the family. The main source for
   living people, but always the last step: questions are collected into one
   batch per round (sent as a form) and answers arrive slowly, so never wait
   on them.

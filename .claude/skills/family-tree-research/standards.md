@@ -9,6 +9,19 @@ This file defines what "complete" means, so changes are proposed to the owner
 before they are made (see Self-improvement in `SKILL.md`). Sources are
 described in `sources.md`, techniques in `methods.md`.
 
+## Priority: connections first
+
+The owner cares most about finding connections: who belongs in the tree and
+how they relate. Accuracy is there to make connections easier to find, not
+an end in itself. So:
+
+- The `family` question matters most, and gets the research effort first.
+- A possible connection is worth keeping. Record it in the research log and,
+  where it helps, in notes marked "Possible:", so the next round can chase it.
+- The identity rule below stays strict, because a wrong match creates a false
+  connection. Elsewhere, "good enough to use" beats "perfect": birth years and
+  heritage don't hold up completeness once the records run out.
+
 ## Rules for every question
 
 - **Identity first.** A record counts only once it is tied to the tree's
@@ -20,8 +33,8 @@ described in `sources.md`, techniques in `methods.md`.
   question stays Open until a third settles it or the owner decides.
 - **People-search listings are leads, never evidence.** They can point at a
   record; they can't confirm or exhaust anything on their own.
-- **"Per Kyle"** is a valid source: the owner vouching, from his own
-  knowledge or from asking family. Record what he said in the research log.
+- **"Per Kyle"** is a valid source: the owner vouching, from their own
+  knowledge or from asking family. Record what they said in the research log.
 - **Exhausted needs every must-try step done and logged**, each with its null
   result in the research log. A step that couldn't run (site blocked, search
   budget spent) is not done; the question stays Open, and the note says which
@@ -109,10 +122,10 @@ wedding) shows a partner or child the record didn't cover, reset it to Open.
 
 ## birthYear: the birth year is known, or can't be found
 
-Confirmed means the year is pinned to one year. A year narrowed only to two
-adjacent years is entered as `~YYYY` (see `methods.md`) and the question stays
-Open until the must-try list is done; if nothing narrows it further, it is
-Exhausted with the `~YYYY` in place and the note giving the window.
+Confirmed means the year is known to within the two-year window of `~YYYY`
+(see `methods.md`): that is precise enough for a timeline, so a `~YYYY` from
+records meeting the rules below is Confirmed, with the note giving the window.
+Narrow it later if a record turns up, but don't spend a round on it.
 
 ### Dead
 
@@ -160,12 +173,13 @@ question; two listings that disagree by more than a year kill it.
 5. People-search listings, as leads.
 6. Ask Kyle / family (last).
 
-**Needs a family answer** to be Exhausted: family nearly always knows a
-living relative's rough age.
+**May be Exhausted without a family answer** once steps 1–5 are done. A
+birth year adds no connection, so it never holds up completeness; put it on
+the family batch anyway, since family nearly always knows a rough age.
 
 **Minors:** Confirmed by "per Kyle" or a birth record or announcement found
 through the parents. Must-try: records about the parents, then ask Kyle /
-family (last). **Needs a family answer** to be Exhausted.
+family (last). May be Exhausted without a family answer, as above.
 
 ## heritage: where the line came from
 
@@ -204,18 +218,22 @@ lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
 
 ### Living
 
-Ask the owner before entering heritage for a living married-in adult; for
-now, leave the question unset until he decides.
+Heritage for a living adult, married-in or not, comes from records like
+anyone else's: it records a line's origin, and it passes to their children.
 
 **Confirmed** by the same records as above where they exist (the 1950 census,
 a marriage record), or "per Kyle".
 
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
-record, then ask Kyle / family (last). **Needs a family answer** to be
-Exhausted.
+record, then ask Kyle / family (last). **May be Exhausted without a family
+answer**, like birth years: heritage adds no connection.
 
 ## Changes
 
 - 2026-09-26: first version, with digital sources first, family last, and a
   per-question rule for Exhausted without a family answer (proposed; awaiting
   the owner's review).
+- 2026-09-26: owner priority, connections first. `~YYYY` counts as Confirmed;
+  living birth years and heritage may be Exhausted without a family answer;
+  living married-in adults get heritage from records like anyone else. Only
+  a living person's `family` question still needs a family answer.
