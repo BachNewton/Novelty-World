@@ -248,6 +248,33 @@ export function createTreeSimulation(tree: Tree, rootId: string): TreeSimulation
   };
 }
 
+// The root's parents, siblings (half-siblings included), partners (exes
+// aside) and children: the people the 3D view opens on.
+export function immediateFamily(
+  sim: TreeSimulation,
+  rootId: string,
+): { root: TreeSimNode; family: TreeSimNode[] } {
+  const root = sim.nodes.find((n) => n.id === rootId);
+  if (!root) throw new Error(`Root ${rootId} is not in the simulation.`);
+  const family = new Set<TreeSimNode>();
+  const parents = new Set(
+    sim.families.filter((f) => f.child.id === rootId).flatMap((f) => f.parents),
+  );
+  for (const parent of parents) family.add(parent);
+  for (const f of sim.families) {
+    const isChild = f.parents.some((p) => p.id === rootId);
+    const isSibling = f.parents.some((p) => parents.has(p));
+    if (isChild || isSibling) family.add(f.child);
+  }
+  for (const l of sim.links) {
+    if (l.kind !== "union") continue;
+    if (l.source.id === rootId) family.add(l.target);
+    if (l.target.id === rootId) family.add(l.source);
+  }
+  family.delete(root);
+  return { root, family: [...family] };
+}
+
 // Runs the simulation to rest synchronously. For headless use (tests).
 export function settleTreeSimulation(sim: TreeSimulation): void {
   while (!sim.settled()) sim.simulation.tick();

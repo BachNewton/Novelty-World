@@ -3,6 +3,7 @@ import { NAMED_FIXTURES, productionTree } from "./__fixtures__/trees";
 import {
   GEN_HEIGHT,
   createTreeSimulation,
+  immediateFamily,
   settleTreeSimulation,
   type TreeSimNode,
 } from "./tree-3d-sim";
@@ -122,5 +123,31 @@ describe("tree 3D simulation", () => {
     const trunk = ground.filter((n) => n.inTrunk).map(axisDistance);
     const side = ground.filter((n) => !n.inTrunk).map(axisDistance);
     expect(Math.max(...trunk)).toBeLessThan(Math.min(...side));
+  });
+});
+
+describe("immediateFamily", () => {
+  it.each([
+    ...Object.entries(NAMED_FIXTURES),
+    ["production", productionTree],
+  ] as const)("is the root's parents, siblings, partners and children (%s)", (_, make) => {
+    const tree = make();
+    const me = tree.persons[tree.rootId];
+    const persons = Object.values(tree.persons);
+    const expected = new Set([
+      ...me.parentIds,
+      ...persons
+        .filter((p) => p.parentIds.some((id) => id === tree.rootId || me.parentIds.includes(id)))
+        .map((p) => p.id),
+      ...me.unions
+        .filter((u) => u.status !== "divorced" && u.status !== "ex-partner")
+        .map((u) => u.personId),
+    ]);
+    expected.delete(tree.rootId);
+
+    const { root, family } = immediateFamily(createTreeSimulation(tree, tree.rootId), tree.rootId);
+
+    expect(root.id).toBe(tree.rootId);
+    expect(new Set(family.map((n) => n.id))).toEqual(expected);
   });
 });

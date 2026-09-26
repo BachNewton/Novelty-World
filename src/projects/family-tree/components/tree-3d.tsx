@@ -4,7 +4,6 @@ import { type ComponentRef, type RefObject, useEffect, useMemo, useRef, useState
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import {
-  Box3,
   BufferAttribute,
   BufferGeometry,
   type Camera,
@@ -23,6 +22,7 @@ import { fullName } from "../logic";
 import {
   GEN_HEIGHT,
   createTreeSimulation,
+  immediateFamily,
   type TreeSimNode,
   type TreeSimulation,
 } from "../tree-3d-sim";
@@ -153,20 +153,30 @@ type Controls = ComponentRef<typeof OrbitControls>;
 
 const CAMERA_RIGHT = new Vector3(1, 0, 0);
 const CAMERA_UP = new Vector3().crossVectors(CAMERA_DIRECTION, CAMERA_RIGHT);
-// Breathing room around the tree, as a fraction of the fitted distance.
-const FIT_MARGIN = 1.08;
+// Breathing room around the framed people, as a fraction of the fitted distance.
+const FIT_MARGIN = 1.25;
+// Room kept at each side of the screen for the framed people's labels, which
+// are hidden rather than cut off at the edge. It decides the fit on phones.
+const FIT_LABEL_ROOM_PX = 90;
 const fitPoint = new Vector3();
 
-// Places the camera at the nearest distance, along CAMERA_DIRECTION, from
-// which every person is inside the view.
-function fitCamera(sim: TreeSimulation, camera: PerspectiveCamera, controls: Controls): void {
-  const box = new Box3();
-  for (const n of sim.nodes) box.expandByPoint(fitPoint.set(n.x, n.y, n.z));
-  const center = box.getCenter(new Vector3());
+// Aims the camera at the root and places it at the nearest distance, along
+// CAMERA_DIRECTION, from which all of `framed` is inside the view, and at
+// least a generation above and below the root. The rest of the tree is there
+// to zoom out to.
+function fitCamera(
+  root: TreeSimNode,
+  framed: TreeSimNode[],
+  camera: PerspectiveCamera,
+  controls: Controls,
+  width: number,
+): void {
+  const center = new Vector3(root.x, root.y, root.z);
   const tanV = Math.tan(((camera.fov / 2) * Math.PI) / 180);
-  const tanH = tanV * camera.aspect;
-  let distance = 0;
-  for (const n of sim.nodes) {
+  const usableWidth = width - 2 * FIT_LABEL_ROOM_PX;
+  const tanH = tanV * camera.aspect * (usableWidth / width);
+  let distance = GEN_HEIGHT / tanV;
+  for (const n of framed) {
     fitPoint.set(n.x, n.y, n.z).sub(center);
     const towardCamera = fitPoint.dot(CAMERA_DIRECTION);
     distance = Math.max(
@@ -269,12 +279,18 @@ function Scene({
   const edges = useMemo(() => buildEdgeObjects(sim, palette), [sim, palette]);
   useEffect(() => () => { edges.dispose(); }, [edges]);
 
-  const labelPriority = useMemo(() => {
-    const rank = (id: string, onTrunkLine: boolean) =>
-      id === selectedId ? 0 : id === rootId ? 1 : onTrunkLine ? 2 : 3;
-    return sim.nodes.map((n) => rank(n.id, n.onTrunkLine));
-  }, [sim, rootId, selectedId]);
   const partners = useMemo(() => partnerIndices(sim), [sim]);
+  const { root, family } = useMemo(() => immediateFamily(sim, rootId), [sim, rootId]);
+  const labelPriority = useMemo(() => {
+    const familySet = new Set(family);
+    const rank = (n: TreeSimNode) =>
+      n.id === selectedId ? 0
+        : n === root ? 1
+          : familySet.has(n) ? 2
+            : n.onTrunkLine ? 3
+              : 4;
+    return sim.nodes.map(rank);
+  }, [sim, root, family, selectedId]);
   const held = useHeldKeys(MOVE_KEYS);
 
   useFrame(({ camera, size }, delta) => {
@@ -284,11 +300,11 @@ function Scene({
       const zoomed = zoomWithKeys(held.current, camera, controls.current, delta);
       if (panned || orbited || zoomed) userHasCamera.current = true;
     }
-    // Follow the tree as it spreads, unless the user has taken the camera.
+    // Follow the family as the tree spreads, unless the user has taken the camera.
     if (!sim.settled()) {
       sim.simulation.tick(TICKS_PER_FRAME);
       if (!userHasCamera.current && controls.current && camera instanceof PerspectiveCamera) {
-        fitCamera(sim, camera, controls.current);
+        fitCamera(root, family, camera, controls.current, size.width);
       }
     }
     sim.nodes.forEach((n, i) => { meshes.current[i]?.position.set(n.x, n.y, n.z); });
