@@ -121,7 +121,7 @@ is under "Heritage" in the project CLAUDE.md; the list of codes is
   state at the time: a birthplace recorded as Prussia or Austria-Hungary maps
   by where the town actually lies. Use a **people** entry when the ancestry
   is a people without a country. If the one you need is missing, add it to
-  `heritages.ts`: one entry with a simple flag or emblem in the same shape.
+  `heritages.ts`: one entry with its kind and name.
 - **Unknown when the records don't say. Never guess.** A US-born top-of-line
   ancestor whose origin isn't traced stays unknown: the question is still
   open, which is not a claim they aren't American. Don't use a present-day
