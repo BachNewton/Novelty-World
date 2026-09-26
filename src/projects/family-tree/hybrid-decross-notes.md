@@ -58,9 +58,8 @@ The costs:
 
 ## Warm-starting the exact solve
 
-In the solver's log (see `solver-progress-notes.md`), HiGHS sat on a junk
-"best found" (174 crossings) for almost the whole solve and found the optimum
-near the end. Handing it the heuristic's ordering as a starting solution would
+In the solver's log, HiGHS sat on a junk "best found" (174 crossings) for
+almost the whole solve and found the optimum near the end. Handing it the heuristic's ordering as a starting solution would
 give it a 42-crossing layout from the first second. That could shorten the
 search, and it would make "best so far" meaningful in a progress display.
 **Unknown:** whether `highs-js` exposes HiGHS's set-solution call; its JS API is

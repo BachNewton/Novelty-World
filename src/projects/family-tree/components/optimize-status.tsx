@@ -13,7 +13,12 @@ const PHASE_LABEL: Record<SolvePhase, string> = {
 
 // Floating card over the canvas: live solve progress while optimizing, or
 // the reason the last optimize failed. No percentage — branch and bound
-// can't know how much search is left (see solver-progress-notes.md).
+// can't know how much search is left.
+//
+// Silence is reported ("last update Ns ago"), never acted on: the solver's
+// log rows space out further as trees grow, and there's no measured threshold
+// that separates a slow solve from a stuck one. Auto-cancelling would kill
+// legitimate long solves.
 export function OptimizeStatus() {
   const optimizing = useFamilyTreeStore((s) => s.optimizing);
   const error = useFamilyTreeStore((s) => s.optimizeError);

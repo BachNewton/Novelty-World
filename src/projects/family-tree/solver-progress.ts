@@ -1,8 +1,7 @@
 // Progress for the exact crossing-minimization solve, read from HiGHS's
-// human-readable solve log (see solver-progress-notes.md for why there is no
-// percentage). The log is not an API, so parsing is best-effort: a line we
-// don't recognise leaves the numbers untouched, and the caller still treats
-// its arrival as a liveness heartbeat.
+// human-readable solve log. The log is not an API, so parsing is best-effort:
+// a line we don't recognise leaves the numbers untouched, and the caller still
+// treats its arrival as a liveness heartbeat.
 
 export type SolvePhase = "preparing" | "presolve" | "search" | "placing";
 
