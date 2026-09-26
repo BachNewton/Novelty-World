@@ -11,6 +11,7 @@ import {
   addParent,
   addSpouse,
   birthDateProblem,
+  birthYear,
   computeLayout,
   countChildren,
   createInitialTree,
@@ -622,6 +623,14 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(false);
     expect(tree.persons[ROOT_ID].birthDate).toBe("1931-06-16");
+  });
+});
+
+describe("birthYear", () => {
+  it("takes the year from any precision", () => {
+    expect(birthYear("1931")).toBe("1931");
+    expect(birthYear("1931-06")).toBe("1931");
+    expect(birthYear("1931-06-16")).toBe("1931");
   });
 });
 

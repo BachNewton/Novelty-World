@@ -278,6 +278,11 @@ export function setNotes(tree: Tree, id: string, notes: string): Tree {
   return next;
 }
 
+// The year of a valid, non-empty partial ISO birth date.
+export function birthYear(birthDate: string): string {
+  return birthDate.slice(0, 4);
+}
+
 // Why `value` isn't a partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD"),
 // or null when it is one. The empty string means "not set" and is valid.
 export function birthDateProblem(value: string): string | null {

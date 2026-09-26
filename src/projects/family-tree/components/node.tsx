@@ -1,7 +1,7 @@
 "use client";
 
 import type { LaidOutNode, Person } from "../types";
-import { fullName } from "../logic";
+import { birthYear, fullName } from "../logic";
 
 interface NodeProps {
   node: LaidOutNode;
@@ -32,6 +32,14 @@ export function Node({
 
   const showBirthSurname =
     person.birthSurname !== "" && person.birthSurname !== person.lastName;
+  const detail = [
+    showBirthSurname
+      ? `${person.gender === "M" ? "né" : "née"} ${person.birthSurname}`
+      : "",
+    person.birthDate === "" ? "" : `b. ${birthYear(person.birthDate)}`,
+  ]
+    .filter((part) => part !== "")
+    .join(" · ");
 
   return (
     <div
@@ -57,9 +65,9 @@ export function Node({
       <span className="text-sm font-medium text-text-primary leading-tight">
         {fullName(person)}
       </span>
-      {showBirthSurname ? (
+      {detail !== "" ? (
         <span className="text-xs leading-tight text-text-muted italic">
-          {person.gender === "M" ? "né" : "née"} {person.birthSurname}
+          {detail}
         </span>
       ) : null}
       {subtitle !== null ? (
