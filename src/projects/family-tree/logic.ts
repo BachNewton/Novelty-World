@@ -15,6 +15,8 @@ import type {
   Union,
   UnionStatus,
 } from "./types";
+import { UNKNOWN_HERITAGE, isHeritageCode, isHeritageEntryCode } from "./heritages";
+import type { HeritageCode, HeritageEntryCode } from "./heritages";
 
 // Wide enough to fit the longest name in the tree on one line
 // (Ruth-Anne "Ruthie" Hutchinson, 29 characters).
@@ -100,6 +102,7 @@ function makePerson(
     notes: "",
     birthDate: "",
     checked: null,
+    heritage: [],
     gender,
     parentIds: [],
     unions: [],
@@ -127,6 +130,7 @@ function clone(tree: Tree): Tree {
     persons[id] = {
       ...p,
       checked: p.checked === null ? null : { ...p.checked },
+      heritage: [...p.heritage],
       parentIds: [...p.parentIds],
       unions: p.unions.map((u) => ({ ...u })),
     };
@@ -344,6 +348,36 @@ export function setChecked(tree: Tree, id: string, checked: CompletenessCheck | 
   return next;
 }
 
+// Why `heritage` isn't a valid heritage entry, or null when it is. The empty
+// list means "no entry" and is valid; a list of only unknown fills nothing,
+// so it is rejected in favor of no entry.
+export function heritageProblem(heritage: readonly unknown[]): string | null {
+  const invalid = heritage.filter((code) => !isHeritageEntryCode(code));
+  if (invalid.length > 0) {
+    return `has unknown heritage ${invalid.map((code) => JSON.stringify(code)).join(", ")}`;
+  }
+  if (new Set(heritage).size !== heritage.length) return "lists the same heritage twice";
+  if (heritage.length > 0 && heritage.every((code) => code === UNKNOWN_HERITAGE)) {
+    return "has a heritage entry of only unknown, which is the same as no entry";
+  }
+  return null;
+}
+
+// Set `id`'s heritage entry; [] removes it.
+export function setHeritage(
+  tree: Tree,
+  id: string,
+  heritage: readonly HeritageEntryCode[],
+): Tree {
+  const before = tree.persons[id].heritage;
+  if (before.length === heritage.length && before.every((code, i) => code === heritage[i])) {
+    return tree;
+  }
+  const next = clone(tree);
+  next.persons[id].heritage = [...heritage];
+  return next;
+}
+
 export function deletePerson(tree: Tree, id: string): Tree {
   if (id === tree.rootId) return tree;
   const next = clone(tree);
@@ -377,6 +411,8 @@ export function treeProblems(tree: Tree): string[] {
     if (dateProblem !== null) problems.push(`${who}'s birth date ${dateProblem}`);
     const checkProblem = completenessCheckProblem(person.checked);
     if (checkProblem !== null) problems.push(`${who}'s completeness check ${checkProblem}`);
+    const heritageIssue = heritageProblem(person.heritage);
+    if (heritageIssue !== null) problems.push(`${who} ${heritageIssue}`);
 
     if (person.parentIds.length > 2) problems.push(`${who} has more than two parents`);
     if (new Set(person.parentIds).size !== person.parentIds.length) {
@@ -464,6 +500,7 @@ interface StoredPerson {
   notes?: string;
   birthDate?: string;
   checked?: CompletenessCheck | null;
+  heritage?: HeritageEntryCode[];
   gender: Gender;
   parentIds: string[];
   unions?: StoredUnion[];
@@ -493,7 +530,7 @@ function storedUnions(person: StoredPerson): Union[] {
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,
-// notes, birthDate, checked, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
+// notes, birthDate, checked, heritage, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -509,6 +546,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.notes === undefined ||
       person.birthDate === undefined ||
       person.checked === undefined ||
+      person.heritage === undefined ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
       )
@@ -525,12 +563,114 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       notes: person.notes ?? "",
       birthDate: person.birthDate ?? "",
       checked: person.checked === undefined || person.checked === null ? null : { ...person.checked },
+      heritage: [...(person.heritage ?? [])],
       gender: person.gender,
       parentIds: [...person.parentIds],
       unions: storedUnions(person),
     };
   }
   return { tree: { rootId: t.rootId, persons }, changed };
+}
+
+// ---------- Heritage ----------
+
+// One heritage's share of a person's mix, from 0 to 1.
+export interface HeritageShare {
+  code: HeritageCode;
+  share: number;
+}
+
+// A person's heritage mix, derived from the tree and never stored. `known`
+// is in display order: largest share first, ties to the surname line.
+// Together with `unknown` the shares sum to 1.
+export interface HeritageBreakdown {
+  known: HeritageShare[];
+  unknown: number;
+  // How much of the person's own entry is still in use, from 0 to 1, or null
+  // without an entry. It is the part of their mix their parents leave
+  // unknown: below 1, research above them has taken over part of it; at 0 it
+  // fills nothing.
+  entryInUse: number | null;
+}
+
+// Surname-line order of a pair of parents: the father first. When gender
+// can't single him out (two fathers, two mothers, non-binary parents), the
+// stored parent order stands.
+const LINE_RANK: Record<Gender, number> = { M: 0, NB: 1, F: 2 };
+
+function parentsInLineOrder(tree: Tree, person: Person): string[] {
+  return [...person.parentIds].sort(
+    (a, b) => LINE_RANK[tree.persons[a].gender] - LINE_RANK[tree.persons[b].gender],
+  );
+}
+
+interface DerivedHeritage {
+  mix: Map<HeritageEntryCode, number>;
+  // Known codes in surname-line order: the father's line before the
+  // mother's, recursively, then the codes the person's entry filled in.
+  // First appearance wins.
+  line: HeritageCode[];
+  entryInUse: number | null;
+}
+
+// Every person's heritage breakdown. Each parent passes on half of their
+// mix, and a missing parent passes on an unknown half rather than letting the
+// known half stand in for the whole. The person's own entry, split equally,
+// then fills whatever is still unknown; an unknown in the entry keeps its
+// part unknown. Only parent links pass heritage on.
+export function heritageBreakdowns(tree: Tree): Record<string, HeritageBreakdown> {
+  const derived = new Map<string, DerivedHeritage>();
+
+  const derive = (id: string): DerivedHeritage => {
+    const cached = derived.get(id);
+    if (cached) return cached;
+    const person = tree.persons[id];
+    const mix = new Map<HeritageEntryCode, number>();
+    const add = (code: HeritageEntryCode, share: number): void => {
+      mix.set(code, (mix.get(code) ?? 0) + share);
+    };
+    const parents = parentsInLineOrder(tree, person).map(derive);
+    for (const parent of parents) {
+      for (const [code, share] of parent.mix) add(code, share / 2);
+    }
+    const missingParents = 2 - parents.length;
+    if (missingParents > 0) add(UNKNOWN_HERITAGE, missingParents / 2);
+    const line = parents.flatMap((parent) => parent.line);
+
+    let entryInUse: number | null = null;
+    if (person.heritage.length > 0) {
+      entryInUse = mix.get(UNKNOWN_HERITAGE) ?? 0;
+      mix.delete(UNKNOWN_HERITAGE);
+      if (entryInUse > 0) {
+        for (const code of person.heritage) {
+          add(code, entryInUse / person.heritage.length);
+          if (isHeritageCode(code)) line.push(code);
+        }
+      }
+    }
+    const result = { mix, line: [...new Set(line)], entryInUse };
+    derived.set(id, result);
+    return result;
+  };
+
+  // Shares reached by different paths can differ in the last bits of the
+  // float, so ties are judged on rounded shares.
+  const rounded = (share: number): number => Math.round(share * 1e9);
+
+  const result: Record<string, HeritageBreakdown> = {};
+  for (const id of Object.keys(tree.persons)) {
+    const { mix, line, entryInUse } = derive(id);
+    const known = line
+      .map((code) => ({ code, share: mix.get(code) ?? 0 }))
+      .sort((a, b) => rounded(b.share) - rounded(a.share));
+    result[id] = { known, unknown: mix.get(UNKNOWN_HERITAGE) ?? 0, entryInUse };
+  }
+  return result;
+}
+
+// A share as a percentage with up to two decimals: "50%", "12.5%", "6.25%".
+export function formatShare(share: number): string {
+  return `${Number((share * 100).toFixed(2))}%`;
 }
 
 // ---------- Relations ----------

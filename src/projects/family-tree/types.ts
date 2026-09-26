@@ -1,3 +1,5 @@
+import type { HeritageEntryCode } from "./heritages";
+
 export type Gender = "M" | "F" | "NB";
 
 export type UnionStatus =
@@ -70,6 +72,10 @@ export interface Person {
   // children are all in the tree. A check on someone with none in the tree
   // means "researched, has none".
   checked: CompletenessCheck | null;
+  // Where this person's line came from, as far as the records say, split
+  // equally. It only fills the part of their mix their parents leave
+  // unknown; empty means no entry. A research aid, never shown on the cards.
+  heritage: HeritageEntryCode[];
   gender: Gender;
   parentIds: string[];
   unions: Union[];

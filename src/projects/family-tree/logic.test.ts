@@ -14,8 +14,10 @@ import {
   createInitialTree,
   deletePerson,
   describeRelation,
+  formatShare,
   fullName,
   fullNameWithMiddle,
+  heritageBreakdowns,
   nearestInDirection,
   newUnion,
   normalizeTree,
@@ -25,6 +27,7 @@ import {
   setBirthDate,
   setChecked,
   setGender,
+  setHeritage,
   setNotes,
   setUnionDeceased,
   setUnionStatus,
@@ -32,6 +35,8 @@ import {
   treeProblems,
 } from "./logic";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
+import { CODE_SHAPES, HERITAGES } from "./heritages";
+import type { HeritageEntryCode } from "./heritages";
 import type { LaidOutNode } from "./types";
 import type {
   Gender,
@@ -71,6 +76,7 @@ function p(
     notes: "",
     birthDate: "",
     checked: null,
+    heritage: [],
     gender,
     parentIds,
     unions: [
@@ -524,6 +530,7 @@ describe("normalizeTree", () => {
     notes: "",
     birthDate: "",
     checked: null,
+    heritage: [],
     gender: "M",
     parentIds: [],
     unions: [],
@@ -644,6 +651,28 @@ describe("normalizeTree", () => {
     expect(changed).toBe(false);
     expect(tree.persons[ROOT_ID].checked).toEqual(checked);
   });
+
+  it("backfills an empty heritage entry and reports a change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, heritage: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].heritage).toEqual([]);
+  });
+
+  it("keeps an existing heritage entry and reports no change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, heritage: ["FI", "unknown"] },
+      },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID].heritage).toEqual(["FI", "unknown"]);
+  });
 });
 
 describe("completeness check", () => {
@@ -740,6 +769,229 @@ describe("setBirthDate", () => {
     expect(treeProblems(t)).toEqual([
       expect.stringMatching(/birth date "1990-02-30" has no day 30/),
     ]);
+  });
+});
+
+describe("heritage list", () => {
+  it("codes every entry in the shape of its kind, so the kinds can't collide", () => {
+    for (const [code, heritage] of Object.entries(HERITAGES)) {
+      expect(code).toMatch(CODE_SHAPES[heritage.kind]);
+    }
+  });
+
+  it("keeps England, Scotland and Wales separate and Ireland whole", () => {
+    expect(HERITAGES["GB-ENG"].name).toBe("England");
+    expect(HERITAGES["GB-SCT"].name).toBe("Scotland");
+    expect(HERITAGES["GB-WLS"].name).toBe("Wales");
+    expect(HERITAGES.IE.name).toBe("Ireland");
+  });
+});
+
+describe("setHeritage", () => {
+  it("sets and clears a person's entry, keeping its order", () => {
+    let t = setHeritage(createInitialTree(), ROOT_ID, ["IT", "FI"]);
+    expect(t.persons[ROOT_ID].heritage).toEqual(["IT", "FI"]);
+    t = setHeritage(t, ROOT_ID, []);
+    expect(t.persons[ROOT_ID].heritage).toEqual([]);
+  });
+
+  it("returns the same tree when nothing changes", () => {
+    const base = setHeritage(createInitialTree(), ROOT_ID, ["FI"]);
+    expect(setHeritage(base, ROOT_ID, ["FI"])).toBe(base);
+  });
+
+  it("does not change the topology hash", () => {
+    const base = createInitialTree();
+    expect(topologyHash(setHeritage(base, ROOT_ID, ["FI"]))).toBe(topologyHash(base));
+  });
+
+  it("is flagged by treeProblems for an unlisted code, a repeat, or only unknown", () => {
+    const base = createInitialTree();
+    // Unlisted codes can only arrive in a stored row, never through the types.
+    const { tree: unlisted } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: { [ROOT_ID]: { ...base.persons[ROOT_ID], heritage: ["XX", "people:nobody"] } },
+    });
+    expect(treeProblems(unlisted)).toEqual([
+      expect.stringMatching(/unknown heritage "XX", "people:nobody"/),
+    ]);
+    expect(treeProblems(setHeritage(base, ROOT_ID, ["FI", "FI"]))).toEqual([
+      expect.stringMatching(/same heritage twice/),
+    ]);
+    expect(treeProblems(setHeritage(base, ROOT_ID, ["unknown"]))).toEqual([
+      expect.stringMatching(/only unknown, which is the same as no entry/),
+    ]);
+  });
+
+  it("accepts unknown beside listed heritages", () => {
+    expect(treeProblems(setHeritage(createInitialTree(), ROOT_ID, ["FI", "unknown"]))).toEqual([]);
+  });
+});
+
+describe("heritageBreakdowns", () => {
+  function entered(person: Person, heritage: HeritageEntryCode[]): Person {
+    return { ...person, heritage };
+  }
+  function shares(tree: Tree, id: string): [string, number][] {
+    const { known, unknown } = heritageBreakdowns(tree)[id];
+    const rows: [string, number][] = known.map((k) => [k.code, k.share]);
+    return unknown > 0 ? [...rows, ["unknown", unknown]] : rows;
+  }
+  function inUse(tree: Tree, id: string): number | null {
+    return heritageBreakdowns(tree)[id].entryInUse;
+  }
+
+  it("makes the entry the whole mix of someone with no parents, in its own order", () => {
+    const t = makeTree([entered(p("a"), ["DE", "SE"])]);
+    expect(shares(t, "a")).toEqual([["DE", 0.5], ["SE", 0.5]]);
+    expect(inUse(t, "a")).toBe(1);
+  });
+
+  it("keeps an entered unknown unknown", () => {
+    const t = makeTree([entered(p("a"), ["FI", "unknown"])]);
+    expect(shares(t, "a")).toEqual([["FI", 0.5], ["unknown", 0.5]]);
+    expect(inUse(t, "a")).toBe(1);
+  });
+
+  it("is all unknown, with no entry in use to report, when nobody has an entry", () => {
+    const t = makeTree([p("kid", "F", ["dad", "mom"]), p("dad", "M"), p("mom", "F")]);
+    expect(heritageBreakdowns(t).kid).toEqual({ known: [], unknown: 1, entryInUse: null });
+  });
+
+  it("passes half of each parent's mix, the father's line first on a tie", () => {
+    const t = makeTree([
+      p("kid", "F", ["mom", "dad"]),
+      entered(p("mom", "F"), ["IT"]),
+      entered(p("dad", "M"), ["FI"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+  });
+
+  it("gives a missing parent's half to unknown instead of rescaling", () => {
+    const t = makeTree([p("kid", "M", ["dad"]), entered(p("dad"), ["IE"])]);
+    expect(shares(t, "kid")).toEqual([["IE", 0.5], ["unknown", 0.5]]);
+    expect(shares(makeTree([p("kid")]), "kid")).toEqual([["unknown", 1]]);
+  });
+
+  it("leaves an entry whole when a parent is added with nothing known above", () => {
+    const t = makeTree([
+      entered(p("kid", "M", ["dad", "mom"]), ["PL"]),
+      p("dad", "M", ["granddad"]),
+      p("mom", "F"),
+      p("granddad", "M"),
+    ]);
+    expect(shares(t, "kid")).toEqual([["PL", 1]]);
+    expect(inUse(t, "kid")).toBe(1);
+  });
+
+  it("fills only the unknown part from the entry, after the inherited lines", () => {
+    const t = makeTree([
+      entered(p("kid", "M", ["mom", "dad"]), ["IT"]),
+      entered(p("dad", "M"), ["FI"]),
+      p("mom", "F"),
+    ]);
+    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+    expect(inUse(t, "kid")).toBe(0.5);
+  });
+
+  it("splits a partial fill equally across the entry, keeping its unknown part unknown", () => {
+    const t = makeTree([
+      entered(p("kid", "M", ["dad"]), ["IT", "unknown"]),
+      p("dad", "M", ["granddad", "grandma"]),
+      entered(p("granddad", "M"), ["FI"]),
+      p("grandma", "F"),
+    ]);
+    // The known quarter is the granddad's; the entry fills the other three.
+    expect(shares(t, "kid")).toEqual([["IT", 0.375], ["FI", 0.25], ["unknown", 0.375]]);
+    expect(inUse(t, "kid")).toBe(0.75);
+  });
+
+  it("drops a fully superseded entry from the mix and reports it unused", () => {
+    const t = makeTree([
+      entered(p("kid", "M", ["dad", "mom"]), ["PL"]),
+      entered(p("dad", "M"), ["FI"]),
+      entered(p("mom", "F"), ["IT"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+    expect(inUse(t, "kid")).toBe(0);
+  });
+
+  it("passes the filled mix on to descendants", () => {
+    const t = makeTree([
+      entered(p("kid", "M", ["dad"]), ["IT"]),
+      entered(p("dad", "M"), ["FI"]),
+      p("grandkid", "F", ["kid"]),
+    ]);
+    expect(shares(t, "grandkid")).toEqual([["FI", 0.25], ["IT", 0.25], ["unknown", 0.5]]);
+    expect(inUse(t, "grandkid")).toBeNull();
+  });
+
+  it("passes nothing across a step relationship", () => {
+    const t = makeTree([
+      p("kid", "M", ["mom"]),
+      entered(p("mom", "F", [], ["step"]), ["NL"]),
+      entered(p("step", "M", [], ["mom"]), ["FR"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([["NL", 0.5], ["unknown", 0.5]]);
+  });
+
+  it("orders by share first, then by surname line", () => {
+    const t = makeTree([
+      p("kid", "M", ["dad", "mom"]),
+      entered(p("dad", "M"), ["IE", "GB-SCT"]),
+      entered(p("mom", "F"), ["FI"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IE", 0.25], ["GB-SCT", 0.25]]);
+  });
+
+  it("breaks an even four-way tie paternal grandfather, paternal grandmother, maternal grandfather, maternal grandmother", () => {
+    // Parents are listed mother-first throughout, so only gender can put
+    // the father's line first.
+    const t = makeTree([
+      p("kid", "F", ["mom", "dad"]),
+      p("dad", "M", ["dadsMom", "dadsDad"]),
+      p("mom", "F", ["momsMom", "momsDad"]),
+      entered(p("dadsDad", "M"), ["IE"]),
+      entered(p("dadsMom", "F"), ["GB-SCT"]),
+      entered(p("momsDad", "M"), ["FI"]),
+      entered(p("momsMom", "F"), ["IT"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([
+      ["IE", 0.25],
+      ["GB-SCT", 0.25],
+      ["FI", 0.25],
+      ["IT", 0.25],
+    ]);
+  });
+
+  it("falls back to the stored parent order when gender can't pick the father", () => {
+    const t = makeTree([
+      p("kid", "F", ["b", "a"]),
+      entered(p("a", "NB"), ["FI"]),
+      entered(p("b", "NB"), ["IT"]),
+    ]);
+    expect(shares(t, "kid")).toEqual([["IT", 0.5], ["FI", 0.5]]);
+  });
+
+  it("counts a heritage reached by several paths once, summing its share", () => {
+    const t = makeTree([
+      entered(p("kid", "F", ["dad", "mom"]), ["FI"]),
+      entered(p("dad", "M"), ["FI", "IT"]),
+      p("mom", "F"),
+    ]);
+    expect(shares(t, "kid")).toEqual([["FI", 0.75], ["IT", 0.25]]);
+  });
+});
+
+describe("formatShare", () => {
+  it.each([
+    [1, "100%"],
+    [0.5, "50%"],
+    [0.125, "12.5%"],
+    [0.0625, "6.25%"],
+    [1 / 3, "33.33%"],
+  ])("formats %s as %s", (share, text) => {
+    expect(formatShare(share)).toBe(text);
   });
 });
 

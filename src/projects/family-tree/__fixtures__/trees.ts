@@ -38,6 +38,7 @@ function p(
     notes: "",
     birthDate: "",
     checked: null,
+    heritage: [],
     gender,
     parentIds: [...parents],
     unions: [
