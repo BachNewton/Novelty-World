@@ -44,6 +44,7 @@ const eslintConfig = defineConfig([
     },
   },
   // `.claude/**` is Claude Code's working area (git worktrees, settings) — never project source to lint.
+  // The family tree layout solver's Python venv holds third-party files, never project source.
   // `.next-bench/**`: build output from an alternate `distDir` (NEXT_DIST_DIR), used to run a production
   // server for the Shipwright perf sweep alongside the dev server. Same generated code as `.next`.
   globalIgnores([
@@ -55,6 +56,7 @@ const eslintConfig = defineConfig([
     "scripts/**",
     ".claude/**",
     ".opencode/worktrees/**",
+    "src/projects/family-tree/layout/solver/.venv/**",
   ]),
 ]);
 

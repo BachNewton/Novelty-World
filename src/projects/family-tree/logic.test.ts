@@ -1,16 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
-  NODE_W,
   ROOT_ID,
   ROOT_FIRST_NAME,
   ROOT_LAST_NAME,
-  SPOUSE_GAP,
   addChild,
   addParent,
   addSpouse,
   birthDateProblem,
   birthYear,
-  computeLayout,
   createInitialTree,
   deletePerson,
   describeRelation,
@@ -21,7 +18,6 @@ import {
   nearestInDirection,
   newUnion,
   normalizeTree,
-  packElbowRows,
   renamePerson,
   searchByName,
   setBirthDate,
@@ -34,6 +30,7 @@ import {
   topologyHash,
   treeProblems,
 } from "./logic";
+import { NODE_W, SPOUSE_GAP, computeLayout, packElbowRows } from "./layout/compute-layout";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
 import { CODE_SHAPES, HERITAGES } from "./heritages";
 import type { HeritageEntryCode } from "./heritages";
@@ -1589,8 +1586,8 @@ describe("union statuses — mutations and layout", () => {
     expect(hashes.size).toBe(5);
   });
 
-  it("clusters a late spouse, the widower, and the current spouse side by side", async () => {
-    const layout = await computeLayout(widowedRemarriage());
+  it("clusters a late spouse, the widower, and the current spouse side by side", () => {
+    const layout = computeLayout(widowedRemarriage());
     const byId = new Map(layout.nodes.map((node) => [node.id, node]));
     const terry = byId.get("terry")!;
     const richard = byId.get("richard")!;
@@ -1613,9 +1610,9 @@ describe("union statuses — mutations and layout", () => {
     expect(statusBetween("richard", "mary")).toBe("married");
   });
 
-  it("attaches a partner couple's children to the couple like a marriage", async () => {
+  it("attaches a partner couple's children to the couple like a marriage", () => {
     const tree = partnerFamily();
-    const layout = await computeLayout(tree);
+    const layout = computeLayout(tree);
     const byId = new Map(layout.nodes.map((node) => [node.id, node]));
     const john = byId.get("john")!;
     const wendy = byId.get("wendy")!;
@@ -1649,36 +1646,36 @@ describe("union statuses — mutations and layout", () => {
 });
 
 describe("computeLayout", () => {
-  it("places the lone root", async () => {
-    const layout = await computeLayout(createInitialTree());
+  it("places the lone root", () => {
+    const layout = computeLayout(createInitialTree());
     expect(layout.nodes).toHaveLength(1);
     expect(layout.nodes[0].id).toBe(ROOT_ID);
     expect(layout.edges).toEqual([]);
   });
 
-  it("places spouses on the same row with a spouse edge", async () => {
+  it("places spouses on the same row with a spouse edge", () => {
     let t = createInitialTree();
     t = addSpouse(t, ROOT_ID, "s", n("Partner"), "F");
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
     const spouse = layout.nodes.find((n) => n.id === "s")!;
     expect(root.y).toBe(spouse.y);
     expect(layout.edges.some((e) => e.kind === "spouse")).toBe(true);
   });
 
-  it("places ancestors above the root", async () => {
+  it("places ancestors above the root", () => {
     let t = createInitialTree();
     t = addParent(t, ROOT_ID, "mom", n("Mom"), "F");
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
     const mom = layout.nodes.find((n) => n.id === "mom")!;
     expect(mom.y).toBeLessThan(root.y);
   });
 
-  it("places children below their parents and connects them", async () => {
+  it("places children below their parents and connects them", () => {
     let t = createInitialTree();
     t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
     const kid = layout.nodes.find((n) => n.id === "kid")!;
     expect(kid.y).toBeGreaterThan(root.y);
@@ -1689,7 +1686,7 @@ describe("computeLayout", () => {
     ).toBe(true);
   });
 
-  it("clusters blended-family kids by bio-parent attribution", async () => {
+  it("clusters blended-family kids by bio-parent attribution", () => {
     // Gary married Marta. James/Kathleen are Gary's bio kids (from a prior
     // unmodeled relationship); Lucas/Sebastian are Marta's. After layout,
     // each pair must be CONTIGUOUS left-to-right — Gary's kids on his side
@@ -1702,7 +1699,7 @@ describe("computeLayout", () => {
     t = addChild(t, "marta", "lucas", n("Lucas"), "M", null);
     t = addChild(t, "marta", "sebastian", n("Sebastian"), "M", null);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const xOf = (id: string) =>
       layout.nodes.find((n) => n.id === id)?.x ?? -1;
     const ordered = [
@@ -1721,7 +1718,7 @@ describe("computeLayout", () => {
     expect(transitions).toBeLessThanOrEqual(1);
   });
 
-  it("bundles a free ex + person + current spouse into one adjacent cluster", async () => {
+  it("bundles a free ex + person + current spouse into one adjacent cluster", () => {
     // Gary is currently married to Marta and was previously married to
     // Maya, who never remarried. The cluster lays out [Maya, Gary, Marta]
     // side-by-side: ex on the LEFT, person in the middle, current on the
@@ -1736,7 +1733,7 @@ describe("computeLayout", () => {
       p("kathleen", "F", ["gary", "maya"]),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const maya = layout.nodes.find((node) => node.id === "maya")!;
     const gary = layout.nodes.find((node) => node.id === "gary")!;
     const marta = layout.nodes.find((node) => node.id === "marta")!;
@@ -1763,7 +1760,7 @@ describe("computeLayout", () => {
     expect(currentEdge).toBeDefined();
   });
 
-  it("orders siblings of a 3-member cluster by bio-parent attribution", async () => {
+  it("orders siblings of a 3-member cluster by bio-parent attribution", () => {
     // Cluster [Maya, Gary, Marta]:
     //   James, Kathleen — bio kids of Gary + Maya (the LEFT marriage)
     //   Lucas, Sebastian — Marta's solo kids (from a prior unmodeled
@@ -1781,7 +1778,7 @@ describe("computeLayout", () => {
       p("sebastian", "M", ["marta"]),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const xOf = (id: string): number =>
       layout.nodes.find((n) => n.id === id)?.x ?? -1;
     const ordered = [
@@ -1801,7 +1798,7 @@ describe("computeLayout", () => {
     expect(firstGroup).toBe("maya-gary");
   });
 
-  it("places non-conflicting sibling bars at the midpoint between parents and children", async () => {
+  it("places non-conflicting sibling bars at the midpoint between parents and children", () => {
     // Two unrelated families share a grandparent so the tree is connected,
     // but each branch's kids cluster under their own parents so the sibling
     // bars don't collide. By standard genealogical convention each bar
@@ -1818,7 +1815,7 @@ describe("computeLayout", () => {
       p("b-kid", "M", ["b-dad", "b-mom"]),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const aEdge = layout.edges.find(
       (e) => e.kind === "parent-child" && e.childId === "a-kid",
     );
@@ -1838,7 +1835,7 @@ describe("computeLayout", () => {
     expect(bEdge.elbowY).toBe(midpoint);
   });
 
-  it("groups same-marriage siblings on one elbow row in a 3-member cluster", async () => {
+  it("groups same-marriage siblings on one elbow row in a 3-member cluster", () => {
     // In [Maya, Gary, Marta] with Maya+Gary kids and Marta-solo kids, the
     // two parent sets are keyed separately so their bars are analyzed
     // independently. When the X solver cleanly groups each marriage's kids
@@ -1861,7 +1858,7 @@ describe("computeLayout", () => {
       p("sebastian", "M", ["marta"]),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const edgeFor = (childId: string) =>
       layout.edges.find((e) => e.kind === "parent-child" && e.childId === childId);
     const jamesEdge = edgeFor("james");
@@ -1897,7 +1894,7 @@ describe("computeLayout", () => {
     expect(mayaGaryRight).toBeLessThan(martaLeft);
   });
 
-  it("doesn't orphan a current spouse when the partner's ex is processed first", async () => {
+  it("doesn't orphan a current spouse when the partner's ex is processed first", () => {
     // John reaches BFS before Kristin (he's connected via parents). John has
     // no current spouse, only a divorced one (Kristin), and Kristin is
     // remarried to Anthony. The fallback used to pull Kristin into John's
@@ -1910,7 +1907,7 @@ describe("computeLayout", () => {
       p("anthony", "M", [], ["kristin"]),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const kristin = layout.nodes.find((n) => n.id === "kristin")!;
     const anthony = layout.nodes.find((n) => n.id === "anthony")!;
     // Anthony must be adjacent to Kristin (his current spouse), not orphaned.
@@ -1929,7 +1926,7 @@ describe("computeLayout", () => {
     expect(exEdge).toBeDefined();
   });
 
-  it("leaves a remarried ex out of the cluster — long dashed line instead", async () => {
+  it("leaves a remarried ex out of the cluster — long dashed line instead", () => {
     // Maya re-partnered with Bob. She belongs in HER cluster with Bob,
     // not in Gary's cluster — so Maya/Gary aren't adjacent, but the
     // post-layout sweep still emits a dashed marriage edge between them.
@@ -1940,7 +1937,7 @@ describe("computeLayout", () => {
       p("bob", "M", [], ["maya"], []),
     ]);
 
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const maya = layout.nodes.find((node) => node.id === "maya")!;
     const gary = layout.nodes.find((node) => node.id === "gary")!;
     const bob = layout.nodes.find((node) => node.id === "bob")!;
@@ -1961,11 +1958,11 @@ describe("computeLayout", () => {
     expect(exEdge).toBeDefined();
   });
 
-  it("centers a single child under a couple", async () => {
+  it("centers a single child under a couple", () => {
     let t = createInitialTree();
     t = addSpouse(t, ROOT_ID, "spouse", n("Partner"), "F");
     t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const root = layout.nodes.find((n) => n.id === ROOT_ID)!;
     const spouse = layout.nodes.find((n) => n.id === "spouse")!;
     const kid = layout.nodes.find((n) => n.id === "kid")!;
@@ -1977,7 +1974,7 @@ describe("computeLayout", () => {
   // TODO: pre-existing failure — the barycenter refinement doesn't pull the
   // spouse's couple next to their sibling for this tree. Skipped to keep the
   // suite green; re-enable once the layout refinement is fixed.
-  it.skip("uses barycenter to pull a spouse next to their siblings", async () => {
+  it.skip("uses barycenter to pull a spouse next to their siblings", () => {
     // Tree shape: root and spouse share gen 0 with root's cousin and spouse's
     // sibling. Without barycenter the BFS order leaves the spouse on the
     // root's side, forcing the spouse-parent edge to vault over the cousin.
@@ -1995,7 +1992,7 @@ describe("computeLayout", () => {
       p("spSib", "M", ["spDad", "spMom"]),
       p("gp", "M"),
     ]);
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const findX = (id: string): number => {
       const n = layout.nodes.find((node) => node.id === id);
       if (!n) throw new Error(`missing ${id}`);
@@ -2007,7 +2004,7 @@ describe("computeLayout", () => {
     );
   });
 
-  it("never overlaps two couples on the same generation row", async () => {
+  it("never overlaps two couples on the same generation row", () => {
     // Great-grandparent with two children: one is on focal's lineage
     // (a paired couple), the other is a singleton sibling. The earlier
     // single-width packer placed the singleton at the same x as the
@@ -2022,7 +2019,7 @@ describe("computeLayout", () => {
       p("aunt", "F", ["ggma"]),
       p("greatAunt", "F", ["ggma"]),
     ]);
-    const layout = await computeLayout(t);
+    const layout = computeLayout(t);
     const persons = t.persons;
     for (let i = 0; i < layout.nodes.length; i++) {
       for (let j = i + 1; j < layout.nodes.length; j++) {
@@ -2039,7 +2036,7 @@ describe("computeLayout", () => {
     }
   });
 
-  it("is deterministic — repeated layouts produce identical positions", async () => {
+  it("is deterministic — repeated layouts produce identical positions", () => {
     const build = (): Tree =>
       makeTree([
         p("me", "M", ["dad", "mom"], ["sp"]),
@@ -2054,8 +2051,8 @@ describe("computeLayout", () => {
         p("spSib", "M", ["spDad", "spMom"]),
         p("gp", "M"),
       ]);
-    const a = await computeLayout(build());
-    const b = await computeLayout(build());
+    const a = computeLayout(build());
+    const b = computeLayout(build());
     expect(b.nodes.map((n) => `${n.id}:${n.x},${n.y}`)).toEqual(
       a.nodes.map((n) => `${n.id}:${n.x},${n.y}`),
     );

@@ -191,8 +191,8 @@ export function dualLineage(): Tree {
 
 // One root couple with 12 children. Half are married (in-laws come along
 // for the ride). This forces a wide layer-1 (12 couples) above a single
-// layer-0 couple — decrossOpt has nothing to permute against, so the
-// optimum is unique-up-to-tie-breaking.
+// layer-0 couple — the crossing minimization has nothing to permute against,
+// so the optimum is unique-up-to-tie-breaking.
 export function siblingExplosion(): Tree {
   const persons: Person[] = [];
   persons.push(p("dad", "M"));
@@ -215,7 +215,7 @@ export function siblingExplosion(): Tree {
 // Two branches that re-merge via a cousin marriage. Couple `gh` has TWO
 // parent couples (`ce` and `df`) in the same generation, which is the
 // structural pattern that produces unavoidable couple-DAG crossings and
-// stresses decrossOpt.
+// stresses the crossing minimization.
 //
 //   gen 0:          [a ═ b]
 //                  /        \
@@ -388,11 +388,10 @@ export function partnerFamily(): Tree {
   return makeTree("john", persons);
 }
 
-// Live snapshot of the production family_tree row (Kyle's tree). 67 people
-// with two adjacent wide layers (gen -1 = 19 couples, gen 0 = 18 couples)
-// densely interconnected by parent-child edges — the structural pattern
-// that triggers decrossOpt's worst-case cost (~50s in Node, matching the
-// in-browser worker timing). This is the authoritative bench fixture.
+// A snapshot of the production family_tree row (Kyle's tree), with adjacent
+// wide layers densely interconnected by parent-child edges — the structural
+// pattern that makes the exact crossing minimization expensive. This is the
+// authoritative bench fixture.
 //
 // Refresh via:
 //   psql ... -t -A -c "SELECT data FROM family_tree WHERE id='global';" \

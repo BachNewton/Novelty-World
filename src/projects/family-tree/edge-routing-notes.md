@@ -191,16 +191,17 @@ node — barely visible, and no overlap.
   collision case (synthesize a tree where a child column lands on an
   unrelated couple's midpoint and assert the resolved path doesn't share
   segments with the conflicting edge's parent-V).
-- No store / worker / layout changes — routing is fast and main-thread.
+- No store changes — routing is fast.
 - Existing `logic.test.ts` keeps testing layout. The split mirrors the
-  pipeline: `logic.ts` does layer + coord, `route-edges.ts` does route.
+  pipeline: `layout/compute-layout.ts` does layer + coord, `route-edges.ts`
+  does route.
 
 ## Where this leaves the existing code
 
-Nothing in `logic.ts` is wrong. `coordSimplex` is doing its job under its
-objective. `ELBOW_FIRST_OFFSET` / `ELBOW_SPACING` / `ELBOW_LAST_MARGIN`
-(lines 824–826) already correctly stagger horizontal elbow runs across
-parent couples in the same generation — the orthogonal-axis problem they
+Nothing in the layout pipeline (`layout/compute-layout.ts`) is wrong.
+`coordSimplex` is doing its job under its objective. `ELBOW_FIRST_OFFSET` /
+`ELBOW_SPACING` / `ELBOW_LAST_MARGIN` already correctly stagger horizontal
+elbow runs across parent couples in the same generation — the orthogonal-axis problem they
 solve isn't this one. The new module slots in *after* `computeLayout` and
 *before* the renderer, leaving both untouched.
 

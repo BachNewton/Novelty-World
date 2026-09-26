@@ -66,15 +66,19 @@ to be someone else, and why, so nobody chases them again.
    file, or, when it helps someone reading the tree, goes in notes starting with
    "Possible:".
 5. **Dry run** `apply <file>` and read the change list it prints, line by line,
-   against what you meant.
-6. **Decide who approves** (see "Research edits" in the project CLAUDE.md), then run `apply <file> --write`. It backs
-   up the current row into `research/backups/` before writing, and prints the
-   new version.
+   against what you meant. When the change alters who is related to whom, the
+   dry run also solves the new tree's layout (seconds; the solver prints its
+   progress), which proves the write will be able to.
+6. **Decide who approves** (see "Research edits" in the project CLAUDE.md), then run `apply <file> --write`. When the
+   topology changed it solves the layout first, then backs up the current row
+   into `research/backups/` and writes the tree and its layout together;
+   otherwise it keeps the stored layout. It prints the new version.
 7. **Tell the owner** what changed. An open tab keeps showing the tree it
-   loaded until reloaded. When the write changes who is related to whom, the
-   CLI reports that the stored layout no longer matches the tree; until a
-   matching layout is written the app shows an error instead of the tree, so
-   pass that on too.
+   loaded until reloaded.
+
+If the layout solve fails, nothing was written: the message says why. A
+missing solver venv needs `npm run setup:family-tree-solver` (once per
+machine); anything else is a bug to report, not to work around.
 
 If `--write` reports the tree changed since it loaded, someone saved in the
 meantime: re-run the dry run against the latest tree and re-check it. Never
@@ -160,7 +164,9 @@ lists.
 
 Run from the repo root, which holds `.env.local` with the Supabase keys. The
 CLI reads and writes with the service-role key (`SUPABASE_SERVICE_ROLE_KEY`);
-the public anon key can only read.
+the public anon key can only read. Writes that change the topology solve the
+layout with a Python solver, which needs a one-time
+`npm run setup:family-tree-solver` (Python 3 on the PATH).
 
     npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
     npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>

@@ -170,10 +170,11 @@ const panRight = new Vector3();
 const panUp = new Vector3();
 
 // Moves the camera and its orbit target together across the screen plane.
-function panWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: number): void {
+// Returns whether it moved.
+function panWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: number): boolean {
   const right = Number(held.keys.has("d")) - Number(held.keys.has("a"));
   const up = Number(held.keys.has("w")) - Number(held.keys.has("s"));
-  if (right === 0 && up === 0) return;
+  if (right === 0 && up === 0) return false;
   const step =
     camera.position.distanceTo(controls.target) * PAN_SPEED * (held.shift ? PAN_BOOST : 1) * delta;
   panRight.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(right * step);
@@ -181,6 +182,7 @@ function panWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: 
   camera.position.add(panRight).add(panUp);
   controls.target.add(panRight).add(panUp);
   controls.update();
+  return true;
 }
 
 interface SceneProps {
@@ -206,6 +208,17 @@ function Scene({
 }: SceneProps) {
   const meshes = useRef<(Mesh | null)[]>([]);
   const settledRef = useRef<boolean | null>(null);
+  // Once the user moves the camera, it is theirs: stop fitting it to the tree.
+  const userHasCamera = useRef(false);
+
+  useEffect(() => {
+    userHasCamera.current = false;
+    const orbit = controls.current;
+    if (!orbit) return;
+    const takeCamera = () => { userHasCamera.current = true; };
+    orbit.addEventListener("start", takeCamera);
+    return () => { orbit.removeEventListener("start", takeCamera); };
+  }, [sim, controls]);
 
   const edges = useMemo(() => buildEdgeObjects(sim, palette), [sim, palette]);
   useEffect(() => () => { edges.dispose(); }, [edges]);
@@ -219,11 +232,13 @@ function Scene({
   const held = useHeldKeys(PAN_KEYS);
 
   useFrame(({ camera, size }, delta) => {
-    if (controls.current) panWithKeys(held.current, camera, controls.current, delta);
-    // Follow the tree as it spreads, then leave the camera to the user.
+    if (controls.current && panWithKeys(held.current, camera, controls.current, delta)) {
+      userHasCamera.current = true;
+    }
+    // Follow the tree as it spreads, unless the user has taken the camera.
     if (!sim.settled()) {
       sim.simulation.tick(TICKS_PER_FRAME);
-      if (controls.current && camera instanceof PerspectiveCamera) {
+      if (!userHasCamera.current && controls.current && camera instanceof PerspectiveCamera) {
         fitCamera(sim, camera, controls.current);
       }
     }

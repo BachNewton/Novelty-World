@@ -7,17 +7,25 @@
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts completeness
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts relayout [--write]
 //
-// `apply` is a dry run unless --write is given. With --write it backs up the
-// current row into the gitignored research folder, then saves only if nobody
-// else saved since it loaded. The op vocabulary lives in tree-edit.ts.
+// The row always holds the tree and an exact layout for it. When a change
+// alters the tree's topology, `apply` solves the new tree's layout before
+// writing and saves both in one update; otherwise the stored layout stays.
+// `relayout` re-solves the current tree's layout, for layout-code changes.
+// Both are dry runs unless --write is given; a dry run still solves, so it
+// shows what the write would do. With --write they back up the current row
+// into the gitignored research folder, then save only if nobody else saved
+// since they loaded. The op vocabulary lives in tree-edit.ts.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
+import { computeLayout } from "../layout/compute-layout";
 import { normalizeTree, topologyHash } from "../logic";
 import type { TreeRow } from "../persistence";
-import type { Tree } from "../types";
+import type { Layout, Tree } from "../types";
 import {
   applyOps,
   describeCompleteness,
@@ -27,7 +35,7 @@ import {
   resolveId,
   searchPersons,
 } from "./tree-edit";
-import { loadTreeRow, saveTreeIfUnchanged } from "./tree-db";
+import { loadTreeRow, saveLayoutIfUnchanged, saveTreeIfUnchanged } from "./tree-db";
 
 const USAGE = [
   "usage:",
@@ -36,6 +44,7 @@ const USAGE = [
   "  tree-cli.ts completeness",
   "  tree-cli.ts superseded",
   "  tree-cli.ts apply <changes.json> [--write]",
+  "  tree-cli.ts relayout [--write]",
 ].join("\n");
 
 const BACKUP_DIR = fileURLToPath(new URL("../research/backups/", import.meta.url));
@@ -68,6 +77,31 @@ async function superseded(): Promise<void> {
   console.log(describeSuperseded(tree));
 }
 
+// The exact solve, with the solver's progress streamed to stderr.
+function solveLayout(tree: Tree): Layout {
+  console.log("\nSolving the layout...");
+  const t0 = performance.now();
+  const layout = computeLayout(tree, { progress: true });
+  console.log(`Solved the layout in ${((performance.now() - t0) / 1000).toFixed(1)}s.`);
+  return layout;
+}
+
+function backUp(row: TreeRow): void {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- fixed backup directory next to this script
+  mkdirSync(BACKUP_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupPath = `${BACKUP_DIR}family-tree-v${row.version}-${stamp}.json`;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the fixed backup directory plus a timestamped name built here
+  writeFileSync(backupPath, JSON.stringify(row, null, 2));
+  console.log(`\nBacked up version ${row.version} to ${backupPath}`);
+}
+
+function staleWrite(version: number): Error {
+  return new Error(
+    `The tree changed since version ${version} was loaded, so nothing was written. Re-run to apply against the latest.`,
+  );
+}
+
 async function apply(changesPath: string, write: boolean): Promise<void> {
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- dev-only tool; the path is a change file typed by the developer running it, never external input
   const ops = parseOps(JSON.parse(readFileSync(changesPath, "utf8")));
@@ -77,29 +111,48 @@ async function apply(changesPath: string, write: boolean): Promise<void> {
   console.log(`Tree version ${row.version}. ${result.changes.length} change(s):\n`);
   for (const [i, change] of result.changes.entries()) console.log(`${i + 1}. ${change}`);
 
+  const needsLayout = topologyHash(result.tree) !== row.layoutTreeHash;
+  console.log(
+    needsLayout
+      ? "\nThe stored layout doesn't fit the new tree, so the write includes a new exact layout."
+      : "\nThe tree's topology is unchanged, so the stored layout stays.",
+  );
+  const layout = needsLayout ? solveLayout(result.tree) : undefined;
+
   if (!write) {
     console.log("\nDry run: nothing was written. Re-run with --write to apply.");
     return;
   }
 
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- fixed backup directory next to this script
-  mkdirSync(BACKUP_DIR, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupPath = `${BACKUP_DIR}family-tree-v${row.version}-${stamp}.json`;
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the fixed backup directory plus a timestamped name built here
-  writeFileSync(backupPath, JSON.stringify({ version: row.version, data: row.data }, null, 2));
-  console.log(`\nBacked up version ${row.version} to ${backupPath}`);
+  backUp(row);
+  const version = await saveTreeIfUnchanged(result.tree, row.version, layout);
+  if (version === null) throw staleWrite(row.version);
+  const what = layout === undefined ? "the tree" : "the tree and its layout";
+  console.log(`Saved ${what}. The tree is now at version ${version}.`);
+}
 
-  const version = await saveTreeIfUnchanged(result.tree, row.version);
-  if (version === null) {
-    throw new Error(
-      `The tree changed since version ${row.version} was loaded, so nothing was written. Re-run to apply against the latest.`,
-    );
+async function relayout(write: boolean): Promise<void> {
+  const { row, tree } = await load();
+  const fits = row.layout !== null && topologyHash(tree) === row.layoutTreeHash;
+  const stored =
+    row.layout === null ? "is missing" : fits ? "fits the tree" : "was solved for a different tree";
+  console.log(`Tree version ${row.version}. The stored layout ${stored}.`);
+
+  const layout = solveLayout(tree);
+  if (fits) {
+    // Key order says nothing: jsonb reorders object keys when it stores them.
+    const same = isDeepStrictEqual(layout, row.layout);
+    console.log(`The new layout ${same ? "is identical to" : "differs from"} the stored one.`);
   }
-  console.log(`Saved. The tree is now at version ${version}.`);
-  if (topologyHash(result.tree) !== row.layoutTreeHash) {
-    console.log("The stored layout doesn't match the new tree, so the viewer shows an error until a matching layout is written.");
+
+  if (!write) {
+    console.log("\nDry run: nothing was written. Re-run with --write to save the layout.");
+    return;
   }
+
+  backUp(row);
+  if (!(await saveLayoutIfUnchanged(tree, layout, row.version))) throw staleWrite(row.version);
+  console.log(`Saved the layout for tree version ${row.version}.`);
 }
 
 async function main(): Promise<void> {
@@ -115,6 +168,9 @@ async function main(): Promise<void> {
   if (command === "superseded" && args.length === 1) return superseded();
   if (command === "apply" && arg !== undefined && rest.every((r) => r === "--write")) {
     return apply(arg, rest.length > 0);
+  }
+  if (command === "relayout" && args.slice(1).every((r) => r === "--write")) {
+    return relayout(args.length > 1);
   }
   throw new Error(USAGE);
 }

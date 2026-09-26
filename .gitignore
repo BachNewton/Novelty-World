@@ -71,3 +71,6 @@ __pycache__/
 
 # family tree genealogy research (living people, public repo)
 /src/projects/family-tree/research/
+
+# family tree layout solver venv (npm run setup:family-tree-solver)
+/src/projects/family-tree/layout/solver/.venv/

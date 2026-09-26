@@ -14,7 +14,7 @@
 // Run with `npm run bench`.
 
 import { bench, describe } from "vitest";
-import { computeLayout } from "./logic";
+import { computeLayout } from "./layout/compute-layout";
 import {
   ancestorPedigree,
   branching,
@@ -26,14 +26,14 @@ import {
 
 describe("productionTree (real family_tree row)", () => {
   const tree = productionTree();
-  // Single-iteration by default. computeLayout dropped from ~70s (d3-dag's
-  // bundled javascript-lp-solver) to ~1.8s after we swapped in HiGHS-WASM
-  // for crossing minimization (see decross-highs.ts). Re-run a few times
-  // if a change looks marginal and you need to defeat run-to-run variance.
+  // Single iteration: the exact decross dominates the cost, and with
+  // `progress` the solver prints its own time next to the bench's total.
+  // Re-run a few times if a change looks marginal and you need to defeat
+  // run-to-run variance.
   bench(
     "computeLayout",
-    async () => {
-      await computeLayout(tree);
+    () => {
+      computeLayout(tree, { progress: true });
     },
     { time: 0, iterations: 1 },
   );
@@ -41,8 +41,8 @@ describe("productionTree (real family_tree row)", () => {
 
 describe("kitchenSink (synthetic ~50 ppl, narrower than production)", () => {
   const tree = kitchenSink();
-  bench("computeLayout", async () => {
-    await computeLayout(tree);
+  bench("computeLayout", () => {
+    computeLayout(tree);
   });
 });
 
@@ -50,34 +50,34 @@ describe("kitchenSink (synthetic ~50 ppl, narrower than production)", () => {
 describe("chain — depth sweep (W=1)", () => {
   for (const L of [5, 20, 50]) {
     const tree = chain(L);
-    bench(`L=${L} (N=${L})`, async () => {
-      await computeLayout(tree);
+    bench(`L=${L} (N=${L})`, () => {
+      computeLayout(tree);
     });
   }
 });
 
 // Sweep pedigree depth: every step doubles W. depth=6 has 32 grandparent
-// couples in the deepest layer — this is where decrossOpt starts to feel it.
+// couples in the deepest layer — this is where the exact decross starts to feel it.
 describe("ancestorPedigree — width sweep", () => {
   for (const depth of [3, 4, 5, 6]) {
     const tree = ancestorPedigree(depth);
     const N = (1 << depth) - 1;
     const W = depth >= 2 ? 1 << (depth - 2) : 1;
-    bench(`depth=${depth} (N=${N}, W=${W})`, async () => {
-      await computeLayout(tree);
+    bench(`depth=${depth} (N=${N}, W=${W})`, () => {
+      computeLayout(tree);
     });
   }
 });
 
 // Sweep sibling-fan width K: 1 + K layer-1 couples under a single layer-0
-// couple. decrossOpt has nothing to permute against, so this should stay
+// couple. The decross has nothing to permute against, so this should stay
 // cheap even at large W.
 describe("siblingFan — width sweep (single parent couple)", () => {
   for (const K of [5, 15, 30]) {
     const tree = siblingFanOfWidth(K);
     const N = Object.keys(tree.persons).length;
-    bench(`K=${K} (N=${N})`, async () => {
-      await computeLayout(tree);
+    bench(`K=${K} (N=${N})`, () => {
+      computeLayout(tree);
     });
   }
 });
@@ -93,8 +93,8 @@ describe("branching — joint W/L sweep", () => {
   ] as const) {
     const tree = branching(b, d);
     const N = Object.keys(tree.persons).length;
-    bench(`b=${b}, d=${d} (N=${N})`, async () => {
-      await computeLayout(tree);
+    bench(`b=${b}, d=${d} (N=${N})`, () => {
+      computeLayout(tree);
     });
   }
 });

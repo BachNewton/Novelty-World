@@ -19,7 +19,7 @@ Everyone is family whether or not they've passed. The tree never shows who is de
 
 ## Data model invariants
 
-Types live in `types.ts`; pure operations and relationship terms live in `logic.ts`.
+Types live in `types.ts`; pure operations and relationship terms live in `logic.ts`. The layout pipeline lives apart, in `layout/` (see Layout).
 
 - **Unions.** Relationships between adults are one list of unions on each person, kept symmetric on both people. Each union has a status: married, divorced, ended-by-death, partner, or ex-partner. Status belongs to the union, never to the person.
 - **Ended by death** is only needed when the survivor later remarried or repartnered. It renders like a marriage, not a divorce. The union can optionally record which of the two died. Only that person is ever called "late" in the relationship readout (by the survivor, and in composites like "husband's late wife"). When it isn't recorded, nobody is "late". It is wording only: it never affects layout or the topology hash, and nothing appears on the cards.
@@ -46,9 +46,10 @@ The browser app is a read-only viewer: there is no edit UI. All edits are AI-dri
 
 - **The row always holds the tree and an exact layout for it.** The tree is one row, holding the tree and its fully optimized layout, tagged with the `topologyHash` of the tree it was solved for. A viewer must never see an unsolved or patched layout, so the browser never solves and never patches: `store.ts` loads the row and renders the stored layout as-is. A missing layout, or one whose hash doesn't match the tree, is a bug in whatever wrote the row, and the page shows an error rather than a fallback.
 - **Reads and writes.** `persistence.ts` owns the row's shape and its read, shared by the viewer (anon key) and the CLI. Writes live in `tools/tree-db.ts`, whose client uses the service-role key (`SUPABASE_SERVICE_ROLE_KEY` in `.env.local`) and never leaves that module. RLS gives the anon key read access only, and an update RLS refuses matches no rows rather than failing, which would read as a version conflict; that is why no write accepts a client from its caller. Nothing the page imports may reach `tools/`.
-- **No lost edits.** The row carries a version that counts tree writes. A tree write lands only if the row is still at the version the writer loaded, and it bumps the version; otherwise the writer must reload rather than overwrite. A database trigger (`supabase/family-tree.sql`) enforces the rule for every writer, the service role included.
+- **No lost edits.** The row carries a version that counts tree writes. A tree write lands only if the row is still at the version the writer loaded, and it bumps the version; otherwise the writer must reload rather than overwrite. A database trigger (`supabase/family-tree.sql`) enforces the rule for every writer, the service role included. A layout-only write doesn't move the version, but it too lands only if the row is still at the version the writer loaded, so the layout always belongs to the tree it was solved for.
 - **The CLI** (`tools/tree-cli.ts`, pure part in `tools/tree-edit.ts`) is how research gets into the tree: find and show people, list who still lacks a completeness check and which heritage entries research has superseded, and apply a JSON change file through the `logic.ts` edit functions, validated by `treeProblems`. It dry-runs by default, backs up the row into `research/` before writing, and uses the versioned write. The `family-tree-research` skill describes the workflow and privacy rules around it.
-- **Being built next:** `apply --write` solving the new tree's layout on the desktop and writing tree and layout together, so the invariant above holds across every write. Until then, `apply --write` writes the tree alone; when that changes the topology, the CLI says so and the viewer shows its error until a matching layout is written.
+- **Apply solves, then writes both.** When a change alters the tree's topology (its `topologyHash` no longer matches the stored layout's), `apply` solves the new tree's exact layout before writing anything, then writes the tree and its layout in one versioned update. When the topology is unchanged (a name, a note, a birth date), it writes the tree alone and the stored layout stays. A solve that fails or can't prove the optimum stops the write, so the row never holds a tree without its layout. A dry run solves too, so it shows what the write would do.
+- **Relayout** re-solves the current tree's layout and, with `--write`, stores it as a layout-only write. It is for changes to the layout code, which change layouts without changing any tree; the dry run says whether the new layout differs from the stored one.
 - **New name fields** flow through the CLI (rename, new people, search) once they are added to its empty-name defaults, which typecheck forces.
 
 ## Research edits
@@ -74,9 +75,13 @@ The tree must work from 360px phones through ultrawide desktop. Check both whene
 
 Card size is fixed and layout never measures text. Any change to card content (`components/node.tsx`) must keep the text inside the card height.
 
-The layout pipeline (`computeLayout` in `logic.ts`) is a sugiyama layout with an exact HiGHS crossing minimization (`decross-highs.ts`). It runs only on the desktop, never in the browser; its result is stored in the row beside the tree, identified by `topologyHash`. The page imports `logic.ts` for its tree helpers, so `computeLayout` dynamic-imports the solver, and the solver must stay out of the page's bundle. Read these before changing it:
+The layout pipeline (`computeLayout` in `layout/compute-layout.ts`) is a sugiyama layout with an exact crossing minimization (`layout/decross.ts`), solved by OR-Tools CP-SAT in a Python child process (`layout/solver/decross.py`, which also holds the model). It runs only on the desktop, in the CLI; its result is stored in the row beside the tree, identified by `topologyHash`. Nothing the page imports may reach `layout/`: the page's bundle holds neither the sugiyama pipeline nor the solver. Anything short of a proven optimum, including a missing venv, fails loudly; there is no fallback layout.
 
-- `hybrid-decross-notes.md`: exact vs. heuristic decross, and why the solve is exact.
+The solver needs a project-local Python venv (`layout/solver/.venv`, gitignored) with the pinned `layout/solver/requirements.txt`. `npm run setup:family-tree-solver` creates or updates it, and needs Python 3 on the PATH. The layout tests and the CLI's layout solves need it.
+
+Read these before changing the pipeline:
+
+- `hybrid-decross-notes.md`: exact vs. heuristic decross, why the solve is exact, and why the solver is CP-SAT.
 - `edge-routing-notes.md`: drop lanes, elbow rows, and overlapping connectors.
 
-To prove a change didn't alter layout, use `layout-invariants.test.ts` and the pinned snapshots in `__snapshots__/`. The production-sized fixture runs only in the slow suite (`*.slow.test.ts`, via `npm run test:slow`). Run it after any change to `logic.ts` layout code.
+To prove a change didn't alter layout, use `layout-invariants.test.ts` and the pinned snapshots in `__snapshots__/`. The production-sized fixture runs only in the slow suite (`*.slow.test.ts`, via `npm run test:slow`). Run it after any change to the layout code, then `relayout` (dry run first) so the stored layout follows the new code.

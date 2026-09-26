@@ -3,10 +3,11 @@
 // correctness checks — anything tripping here is a bug, not a quality
 // regression. Quality metrics (crossing counts, edge lengths, etc.) live
 // elsewhere. The productionTree variant lives in the slow suite because
-// the HiGHS solve on its full size takes a few seconds.
+// the exact solve on its full size takes a few seconds.
 
 import { beforeAll, describe, it, expect } from "vitest";
-import { computeLayout, currentPartnerIds } from "./logic";
+import { computeLayout } from "./layout/compute-layout";
+import { currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
 import { NAMED_FIXTURES } from "./__fixtures__/trees";
 
@@ -45,12 +46,11 @@ function rectsOverlap(a: LaidOutNode, b: LaidOutNode): boolean {
 export function defineLayoutInvariants(name: string, build: () => Tree): void {
   let tree: Tree;
   let layout: Layout;
-  // 180s mirrors layout-snapshot.slow.test.ts — the HiGHS solve on
-  // productionTree (~3-30s depending on the machine) blows past the
-  // vitest 10s default for synchronous hooks.
-  beforeAll(async () => {
+  // 180s mirrors layout-snapshot.slow.test.ts — the exact solve on
+  // productionTree takes seconds, past the vitest 10s default for hooks.
+  beforeAll(() => {
     tree = build();
-    layout = await computeLayout(tree);
+    layout = computeLayout(tree);
   }, 180_000);
 
   it("places every person in the tree", () => {
@@ -141,9 +141,9 @@ export function defineLayoutInvariants(name: string, build: () => Tree): void {
   it(
     "is deterministic across repeated runs",
     { timeout: 180_000 },
-    async () => {
-      const a = await computeLayout(build());
-      const b = await computeLayout(build());
+    () => {
+      const a = computeLayout(build());
+      const b = computeLayout(build());
       const fmt = (l: Layout): string =>
         l.nodes
           .slice()
