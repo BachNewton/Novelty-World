@@ -70,7 +70,13 @@ export function PanZoom({
     setTransform({ x, y, s });
   }, [contentWidth, contentHeight, minScale]);
 
-  useEffect(() => { fit(); }, [fit, refitKey]);
+  // Refit only when content first appears or `refitKey` changes — not on
+  // every size change, or a re-solved layout would throw away the user's
+  // pan and zoom.
+  const fitRef = useRef(fit);
+  useEffect(() => { fitRef.current = fit; }, [fit]);
+  const hasContent = contentWidth > 0 && contentHeight > 0;
+  useEffect(() => { fitRef.current(); }, [hasContent, refitKey]);
 
   // Wheel listener attached non-passively so we can preventDefault.
   useEffect(() => {
