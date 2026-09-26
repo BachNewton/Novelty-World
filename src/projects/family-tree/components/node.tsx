@@ -25,6 +25,8 @@ export function Node({
   }
 
   const subtitle = isViewRoot ? "you" : relation;
+  const showBirthSurname =
+    person.birthSurname !== "" && person.birthSurname !== person.lastName;
 
   return (
     <div
@@ -42,6 +44,11 @@ export function Node({
       <span className="text-sm font-medium text-text-primary leading-tight">
         {fullName(person)}
       </span>
+      {showBirthSurname ? (
+        <span className="text-xs leading-tight text-text-muted italic">
+          {person.gender === "M" ? "né" : "née"} {person.birthSurname}
+        </span>
+      ) : null}
       {subtitle !== null ? (
         <span
           className={[
