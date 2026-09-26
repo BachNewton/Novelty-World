@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { addChild, addParent, addSpouse, createInitialTree, ROOT_ID, setChecked } from "../logic";
+import { addChild, addParent, addSpouse, createInitialTree, ROOT_ID, setChecked, setHeritage } from "../logic";
 import type { NameFields, Tree } from "../types";
 import {
   applyOps,
   completenessReport,
   describeCompleteness,
   describePerson,
+  describeSuperseded,
   parseOps,
   resolveId,
   searchPersons,
   shortId,
+  supersededReport,
   type Op,
 } from "./tree-edit";
 
@@ -68,6 +70,12 @@ describe("parseOps", () => {
     [{ op: "markChecked", person: "x", asOf: "2026-09-26", source: " " }, /"source" must be a non-empty string/],
     [{ op: "markChecked", person: "x", asOf: "2026-09-26" }, /missing "source"/],
     [{ op: "clearChecked", person: "x", asOf: "2026-09-26" }, /unknown field "asOf"/],
+    [{ op: "setHeritage", person: "x" }, /missing "heritage"/],
+    [{ op: "setHeritage", person: "x", heritage: "FI" }, /"heritage" must be a list of heritage codes/],
+    [{ op: "setHeritage", person: "x", heritage: ["Finland"] }, /unknown heritage "Finland"/],
+    [{ op: "setHeritage", person: "x", heritage: ["FI", "FI"] }, /same heritage twice/],
+    [{ op: "setHeritage", person: "x", heritage: ["unknown"] }, /only unknown/],
+    [{ op: "addChild", parent: "x", coParent: null, name: { firstName: "A" }, gender: "M", heritage: ["XX"] }, /unknown heritage "XX"/],
   ])("rejects %j", (op, message) => {
     expect(() => parseOps([op])).toThrow(message);
   });
@@ -233,6 +241,45 @@ describe("applyOps", () => {
     expect(cleared.changes[0]).toContain("(was 2026-09-26 (source: per Kyle))");
   });
 
+  it("sets, describes, and removes a heritage entry", () => {
+    const set = run(family(), [
+      { op: "setHeritage", person: "kyle", heritage: ["FI", "unknown"] },
+      { op: "setHeritage", person: "5a0e", heritage: ["IT"] },
+    ]);
+    expect(set.tree.persons[ROOT_ID].heritage).toEqual(["FI", "unknown"]);
+    expect(set.changes[0]).toBe("Set heritage entry of Kyle Hutchinson [kyle-hut]: (no entry) → FI + unknown");
+    const root = describePerson(set.tree, ROOT_ID);
+    expect(root).toContain("  heritage: Finland (FI) 50%, unknown 50%");
+    expect(root).toContain("  entry:    FI + unknown (fully in use)");
+    const kid = describePerson(set.tree, SHARED_KID);
+    expect(kid).toContain("  heritage: Italy (IT) 50%, Finland (FI) 25%, unknown 25%");
+    expect(kid).not.toContain("entry:");
+
+    const removed = run(set.tree, [{ op: "setHeritage", person: "kyle", heritage: [] }]);
+    expect(removed.tree.persons[ROOT_ID].heritage).toEqual([]);
+    expect(removed.changes[0]).toContain("FI + unknown → (no entry)");
+    expect(describePerson(removed.tree, ROOT_ID)).toContain("  heritage: unknown 100%");
+  });
+
+  it("shows how much of a superseded entry is still in use", () => {
+    const { tree } = run(family(), [
+      { op: "setHeritage", person: "c1d00000-0000-4000-8000-000000000002", heritage: ["PL"] },
+      { op: "setHeritage", person: "c1d00000-0000-4000-8000-000000000003", heritage: ["SE"] },
+      { op: "setHeritage", person: "kyle", heritage: ["FI"] },
+    ]);
+    expect(describePerson(tree, SOLO_KID)).toContain("  entry:    SE (50% in use: partly superseded, review it)");
+    const withMom = run(tree, [{ op: "setHeritage", person: "5a0e", heritage: ["IT"] }]).tree;
+    expect(describePerson(withMom, SHARED_KID)).toContain("  entry:    PL (fully superseded: clear it)");
+  });
+
+  it("gives new people the heritage entry their op carries", () => {
+    const { tree, changes } = run(family(), [
+      { op: "addParent", child: SOLO_KID, name: { firstName: "Mo" }, gender: "F", birthDate: "1950", heritage: ["GB-SCT", "IE"] },
+    ]);
+    expect(tree.persons["new-1"].heritage).toEqual(["GB-SCT", "IE"]);
+    expect(changes[0]).toContain("(F, born 1950, heritage GB-SCT + IE)");
+  });
+
   it("deletes a person and says what goes with them", () => {
     const { tree, changes } = run(family(), [{ op: "deletePerson", person: "5a0e" }]);
     expect(SPOUSE in tree.persons).toBe(false);
@@ -258,6 +305,7 @@ describe("applyOps", () => {
     ], /needs a firstName/],
     ["a rename that changes nothing", [{ op: "rename", person: "5a0e", name: { firstName: "Sam" } }], /already has these names/],
     ["a birth date that changes nothing", [{ op: "setBirthDate", person: "5a0e", birthDate: "" }], /already has this birth date/],
+    ["a heritage entry that changes nothing", [{ op: "setHeritage", person: "5a0e", heritage: [] }], /already has this heritage entry/],
     ["clearing a check that isn't there", [{ op: "clearChecked", person: "5a0e" }], /has no completeness check to clear/],
     ["a check that changes nothing", [
       { op: "markChecked", person: "5a0e", asOf: "2026-09-26", source: "per Kyle" },
@@ -317,5 +365,40 @@ describe("completeness", () => {
     expect(text).toContain("Married in: 0 of 2 checked");
     expect(text).toContain("  Sam Root (née Birth) [5a0e0000]");
     expect(text).not.toContain("Aunt");
+  });
+});
+
+describe("superseded heritage entries", () => {
+  // family() with entries on both children, then research reaching the root
+  // (half of both children) and the spouse (the rest of Ada).
+  function researched(): Tree {
+    let tree = setHeritage(family(), SHARED_KID, ["PL"]);
+    tree = setHeritage(tree, SOLO_KID, ["SE", "unknown"]);
+    tree = setHeritage(tree, ROOT_ID, ["FI"]);
+    return setHeritage(tree, SPOUSE, ["IT"]);
+  }
+
+  it("separates fully superseded entries from partly superseded ones", () => {
+    const { full, partly } = supersededReport(researched());
+    expect(full.map((p) => p.id)).toEqual([SHARED_KID]);
+    expect(partly.map(({ person, inUse }) => [person.id, inUse])).toEqual([[SOLO_KID, 0.5]]);
+  });
+
+  it("leaves out entries still fully in use", () => {
+    const { full, partly } = supersededReport(setHeritage(family(), ROOT_ID, ["FI"]));
+    expect(full).toEqual([]);
+    expect(partly).toEqual([]);
+  });
+
+  it("prints each group with counts, entries, and short ids", () => {
+    const text = describeSuperseded(researched());
+    expect(text).toBe(
+      [
+        "Fully superseded heritage entries (clear these): 1",
+        "  Ada Root [c1d00000-0000-4000-8000-000000000002]  entry PL",
+        "Partly superseded heritage entries (review these): 1",
+        "  Bo Root [c1d00000-0000-4000-8000-000000000003]  entry SE + unknown, 50% in use",
+      ].join("\n"),
+    );
   });
 });

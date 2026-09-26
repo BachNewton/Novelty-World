@@ -108,6 +108,36 @@ this person's spouse" and "looked, there is none" look identical.
   children since. A check never expires on its own; its date says when it
   held.
 
+## Heritage
+
+Heritage records **where a line came from**, not identity. The data model
+is under "Heritage" in the project CLAUDE.md; the list of codes is
+`src/projects/family-tree/heritages.ts`.
+
+- **Enter it on the top person of each known line**, the earliest ancestor
+  found. Descendants derive theirs; an entry only fills the part of a mix
+  the person's parents leave unknown.
+- **Code = the present-day country containing the recorded place**, not the
+  state at the time: a birthplace recorded as Prussia or Austria-Hungary maps
+  by where the town actually lies. Use a **people** entry when the ancestry
+  is a people without a country. If the one you need is missing, add it to
+  `heritages.ts`: one entry with a simple flag or emblem in the same shape.
+- **Unknown when the records don't say. Never guess.** A US-born top-of-line
+  ancestor whose origin isn't traced stays unknown: the question is still
+  open, which is not a claim they aren't American. Don't use a present-day
+  country just because that's where the person was born when the question is
+  where the line came from. Use `"unknown"` inside an entry for the part of a
+  line the records leave open.
+- **Record the evidence in the person's notes:** the place as the record
+  words it, the source, and an arrival or emigration year when found.
+- **After adding ancestors above anyone with an entry,** run `superseded`.
+  Clear fully superseded entries, and review partly superseded ones: the
+  entry may have been a guess covering both sides. The confidence rules in
+  "Research edits" in the project CLAUDE.md decide when to apply directly and
+  when to ask.
+- **Living married-in adults:** whether they get heritage at all is an open
+  question for the owner, so ask before entering it.
+
 ## Sources and tools
 
 - **WebSearch and WebFetch** for obituaries, grave records (Find a Grave,
@@ -135,6 +165,7 @@ the public anon key can only read.
     npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
     npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
     npx tsx src/projects/family-tree/tools/tree-cli.ts completeness
+    npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
     npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 
 The operation vocabulary, and what each field means, is the `Op` type in
@@ -149,11 +180,13 @@ A generic example, adding a spouse and their child:
     [
       { "op": "addSpouse", "ref": "@wife", "person": "<id>",
         "name": { "firstName": "Given", "lastName": "Surname", "birthSurname": "Maiden" },
-        "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02" },
+        "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02",
+        "heritage": ["IT"] },
       { "op": "addChild", "parent": "<id>", "coParent": "@wife",
         "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952" },
       { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" },
-      { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" }
+      { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" },
+      { "op": "setHeritage", "person": "<id>", "heritage": ["FI", "unknown"] }
     ]
 
 `show` prints each person's completeness check, or "not checked". Two ops
@@ -167,6 +200,13 @@ replaces any existing check (the change list shows old → new). `clearChecked`
 fails if the person has no check. `completeness` prints, for blood relatives
 of the root and then for people who married in, how many are checked out of
 the total, and each unchecked person's name and short id.
+
+`setHeritage` (or `heritage` on a new person) sets a person's heritage entry:
+codes from `heritages.ts` plus `"unknown"`, split equally; `[]` removes it.
+`show` prints each person's derived mix and, for someone with an entry, how
+much of it is still in use. `superseded` lists every entry research above
+has taken over: fully superseded ones to clear, partly superseded ones to
+review.
 
 The apply step fails loudly on anything doubtful: unknown or ambiguous ids, a
 third parent, adding someone a relative already has under the same name (as a

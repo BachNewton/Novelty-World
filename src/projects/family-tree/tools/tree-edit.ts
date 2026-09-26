@@ -9,18 +9,24 @@ import {
   birthDateProblem,
   deletePerson,
   GENDER_CYCLE,
+  formatShare,
   fullDateProblem,
   fullName,
+  heritageBreakdowns,
+  heritageProblem,
   renamePerson,
   setBirthDate,
   setChecked,
   setGender,
+  setHeritage,
   setNotes,
   setUnionDeceased,
   setUnionStatus,
   treeProblems,
 } from "../logic";
 import type { CompletenessCheck, Gender, NameFields, Person, Tree, UnionStatus } from "../types";
+import { HERITAGES } from "../heritages";
+import type { HeritageCode, HeritageEntryCode } from "../heritages";
 
 // Also the list of name fields a change file may set: a new NameFields key
 // fails typecheck here until it gets a default, and from then on flows
@@ -53,6 +59,9 @@ export type Op =
   | { op: "appendNote"; person: PersonRef; note: string }
   // A partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or "~YYYY"; "" clears it.
   | { op: "setBirthDate"; person: PersonRef; birthDate: string }
+  // Codes from heritages.ts, plus "unknown", split equally; [] removes the
+  // entry.
+  | { op: "setHeritage"; person: PersonRef; heritage: HeritageEntryCode[] }
   | {
       op: "addChild";
       ref?: string;
@@ -62,6 +71,7 @@ export type Op =
       name: Partial<NameFields>;
       gender: Gender;
       birthDate?: string;
+      heritage?: HeritageEntryCode[];
     }
   | {
       op: "addSpouse";
@@ -73,6 +83,7 @@ export type Op =
       // Existing children of `person` the new spouse is also a parent of.
       bioChildren: PersonRef[];
       birthDate?: string;
+      heritage?: HeritageEntryCode[];
     }
   | {
       op: "addParent";
@@ -81,6 +92,7 @@ export type Op =
       name: Partial<NameFields>;
       gender: Gender;
       birthDate?: string;
+      heritage?: HeritageEntryCode[];
     }
   | { op: "setUnionStatus"; a: PersonRef; b: PersonRef; status: UnionStatus }
   | { op: "setUnionDeceased"; a: PersonRef; b: PersonRef; deceased: PersonRef | null }
@@ -103,6 +115,8 @@ type FieldKind =
   | "fullDate"
   | "birthDate"
   | "birthDate?"
+  | "heritage"
+  | "heritage?"
   | "ref?";
 
 const OP_FIELDS = {
@@ -111,6 +125,7 @@ const OP_FIELDS = {
   setNotes: { person: "person", notes: "text" },
   appendNote: { person: "person", note: "text" },
   setBirthDate: { person: "person", birthDate: "birthDate" },
+  setHeritage: { person: "person", heritage: "heritage" },
   addChild: {
     ref: "ref?",
     parent: "person",
@@ -118,6 +133,7 @@ const OP_FIELDS = {
     name: "name",
     gender: "gender",
     birthDate: "birthDate?",
+    heritage: "heritage?",
   },
   addSpouse: {
     ref: "ref?",
@@ -127,8 +143,16 @@ const OP_FIELDS = {
     status: "status",
     bioChildren: "persons",
     birthDate: "birthDate?",
+    heritage: "heritage?",
   },
-  addParent: { ref: "ref?", child: "person", name: "name", gender: "gender", birthDate: "birthDate?" },
+  addParent: {
+    ref: "ref?",
+    child: "person",
+    name: "name",
+    gender: "gender",
+    birthDate: "birthDate?",
+    heritage: "heritage?",
+  },
   setUnionStatus: { a: "person", b: "person", status: "status" },
   setUnionDeceased: { a: "person", b: "person", deceased: "personOrNull" },
   deletePerson: { person: "person" },
@@ -178,6 +202,10 @@ function fieldError(kind: FieldKind, value: unknown): string | null {
       return value === undefined ? null : fieldError("birthDate", value);
     case "birthDate":
       return typeof value === "string" ? birthDateProblem(value.trim()) : "must be a string";
+    case "heritage?":
+      return value === undefined ? null : fieldError("heritage", value);
+    case "heritage":
+      return Array.isArray(value) ? heritageProblem(value) : "must be a list of heritage codes";
     case "ref?":
       return value === undefined || (typeof value === "string" && /^@\w[\w-]*$/.test(value))
         ? null
@@ -275,6 +303,13 @@ export function describePerson(tree: Tree, id: string): string {
   lines.push(`  gender:   ${person.gender}`);
   if (person.birthDate !== "") lines.push(`  born:     ${person.birthDate}`);
   lines.push(`  checked:  ${describeCheck(person.checked)}`);
+  const heritage = heritageBreakdowns(tree)[id];
+  const mix = heritage.known.map((k) => `${heritageLabel(k.code)} ${formatShare(k.share)}`);
+  if (heritage.unknown > 0) mix.push(`unknown ${formatShare(heritage.unknown)}`);
+  lines.push(`  heritage: ${mix.join(", ")}`);
+  if (heritage.entryInUse !== null) {
+    lines.push(`  entry:    ${entryList(person.heritage)} (${describeEntryUse(heritage.entryInUse)})`);
+  }
   lines.push(
     `  parents:  ${person.parentIds.length === 0 ? "(none)" : person.parentIds.map((pid) => labelOf(tree, pid)).join("; ")}`,
   );
@@ -308,6 +343,58 @@ export function describePerson(tree: Tree, id: string): string {
 
 function describeCheck(check: CompletenessCheck | null): string {
   return check === null ? "not checked" : `${check.asOf} (source: ${check.source})`;
+}
+
+function heritageLabel(code: HeritageCode): string {
+  return `${HERITAGES[code].name} (${code})`;
+}
+
+function entryList(heritage: readonly HeritageEntryCode[]): string {
+  return heritage.length === 0 ? "(no entry)" : heritage.join(" + ");
+}
+
+function describeEntryUse(inUse: number): string {
+  if (inUse === 1) return "fully in use";
+  if (inUse === 0) return "fully superseded: clear it";
+  return `${formatShare(inUse)} in use: partly superseded, review it`;
+}
+
+// ---------- superseded heritage entries ----------
+
+export interface SupersededEntry {
+  person: Person;
+  inUse: number;
+}
+
+// Heritage entries that research above the person has taken over, sorted by
+// name: fully superseded ones fill nothing and should be cleared; partly
+// superseded ones may have been a guess covering both sides, so they need
+// review.
+export function supersededReport(tree: Tree): { full: Person[]; partly: SupersededEntry[] } {
+  const breakdowns = heritageBreakdowns(tree);
+  const superseded = Object.values(tree.persons)
+    .flatMap((person) => {
+      const inUse = breakdowns[person.id].entryInUse;
+      return inUse === null || inUse === 1 ? [] : [{ person, inUse }];
+    })
+    .sort((a, b) => displayName(a.person).localeCompare(displayName(b.person)));
+  return {
+    full: superseded.filter((s) => s.inUse === 0).map((s) => s.person),
+    partly: superseded.filter((s) => s.inUse > 0),
+  };
+}
+
+export function describeSuperseded(tree: Tree): string {
+  const { full, partly } = supersededReport(tree);
+  const lines = [`Fully superseded heritage entries (clear these): ${full.length}`];
+  for (const person of full) {
+    lines.push(`  ${labelOf(tree, person.id)}  entry ${entryList(person.heritage)}`);
+  }
+  lines.push(`Partly superseded heritage entries (review these): ${partly.length}`);
+  for (const { person, inUse } of partly) {
+    lines.push(`  ${labelOf(tree, person.id)}  entry ${entryList(person.heritage)}, ${formatShare(inUse)} in use`);
+  }
+  return lines.join("\n");
 }
 
 // ---------- completeness ----------
@@ -428,6 +515,12 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
     current = setBirthDate(current, id, date);
     return `, born ${date}`;
   };
+  // Gives a just-added person the heritage entry their op carried, if any.
+  const ofHeritage = (id: string, heritage: HeritageEntryCode[] | undefined): string => {
+    if (heritage === undefined || heritage.length === 0) return "";
+    current = setHeritage(current, id, heritage);
+    return `, heritage ${entryList(heritage)}`;
+  };
   const bindRef = (ref: string | undefined, id: string): string => {
     if (ref === undefined) return "";
     if (refs.has(ref)) throw new Error(`${ref} is defined twice`);
@@ -499,6 +592,14 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         current = setBirthDate(current, id, date);
         return `Set birth date of ${label(id)}: ${before === "" ? "(none)" : before} → ${date === "" ? "(none)" : date}`;
       }
+      case "setHeritage": {
+        const id = who(op.person);
+        const before = current.persons[id].heritage;
+        const next = setHeritage(current, id, op.heritage);
+        if (next === current) throw new Error(`${label(id)} already has this heritage entry`);
+        current = next;
+        return `Set heritage entry of ${label(id)}: ${entryList(before)} → ${entryList(op.heritage)}`;
+      }
       case "addChild": {
         const parentId = who(op.parent);
         const coParentId = op.coParent === null ? null : who(op.coParent);
@@ -512,11 +613,11 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addChild(current, parentId, id, name, op.gender, coParentId);
-        const born = bornOn(id, op.birthDate);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
         const parents = coParentId === null
           ? `${label(parentId)} (no other parent)`
           : `${label(parentId)} and ${label(coParentId)}`;
-        return `Add child ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${parents}`;
+        return `Add child ${displayName(current.persons[id])} (${op.gender}${details})${bindRef(op.ref, id)} of ${parents}`;
       }
       case "addSpouse": {
         const personId = who(op.person);
@@ -536,9 +637,9 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addSpouse(current, personId, id, name, op.gender, op.status, childIds);
-        const born = bornOn(id, op.birthDate);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
         const kids = childIds.length === 0 ? "" : `; also parent of ${childIds.map(label).join(", ")}`;
-        return `Add ${op.status} partner ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${label(personId)}${kids}`;
+        return `Add ${op.status} partner ${displayName(current.persons[id])} (${op.gender}${details})${bindRef(op.ref, id)} of ${label(personId)}${kids}`;
       }
       case "addParent": {
         const childId = who(op.child);
@@ -549,11 +650,11 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         const otherParentId = parentIds.at(0);
         const id = newId();
         current = addParent(current, childId, id, name, op.gender);
-        const born = bornOn(id, op.birthDate);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
         const union = otherParentId === undefined
           ? ""
           : `; married to ${label(otherParentId)} automatically (follow with setUnionStatus if they weren't married)`;
-        return `Add parent ${displayName(current.persons[id])} (${op.gender}${born})${bindRef(op.ref, id)} of ${label(childId)}${union}`;
+        return `Add parent ${displayName(current.persons[id])} (${op.gender}${details})${bindRef(op.ref, id)} of ${label(childId)}${union}`;
       }
       case "setUnionStatus": {
         const aId = who(op.a);

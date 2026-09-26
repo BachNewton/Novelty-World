@@ -5,6 +5,7 @@
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts completeness
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 //
 // `apply` is a dry run unless --write is given. With --write it backs up the
@@ -21,6 +22,7 @@ import {
   applyOps,
   describeCompleteness,
   describePerson,
+  describeSuperseded,
   parseOps,
   resolveId,
   searchPersons,
@@ -32,6 +34,7 @@ const USAGE = [
   "  tree-cli.ts find <text>",
   "  tree-cli.ts show <id or id prefix>",
   "  tree-cli.ts completeness",
+  "  tree-cli.ts superseded",
   "  tree-cli.ts apply <changes.json> [--write]",
 ].join("\n");
 
@@ -58,6 +61,11 @@ async function show(idOrPrefix: string): Promise<void> {
 async function completeness(): Promise<void> {
   const { tree } = await load();
   console.log(describeCompleteness(tree));
+}
+
+async function superseded(): Promise<void> {
+  const { tree } = await load();
+  console.log(describeSuperseded(tree));
 }
 
 async function apply(changesPath: string, write: boolean): Promise<void> {
@@ -104,6 +112,7 @@ async function main(): Promise<void> {
   if (command === "find" && arg !== undefined && rest.length === 0) return find(arg);
   if (command === "show" && arg !== undefined && rest.length === 0) return show(arg);
   if (command === "completeness" && args.length === 1) return completeness();
+  if (command === "superseded" && args.length === 1) return superseded();
   if (command === "apply" && arg !== undefined && rest.every((r) => r === "--write")) {
     return apply(arg, rest.length > 0);
   }
