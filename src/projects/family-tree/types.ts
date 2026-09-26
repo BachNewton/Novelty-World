@@ -1,6 +1,20 @@
 export type Gender = "M" | "F" | "NB";
 
-export type MarriageStatus = "married" | "divorced";
+export type UnionStatus =
+  | "married"
+  | "divorced"
+  // The marriage ended because a spouse died. Deliberately doesn't record
+  // which spouse: the tree never shows who is alive or dead.
+  | "ended-by-death"
+  | "partner"
+  | "ex-partner";
+
+// A relationship between two adults. Symmetric: both people carry an entry
+// naming the other, with the same status.
+export interface Union {
+  personId: string;
+  status: UnionStatus;
+}
 
 // All name-shaped fields. Carried as a single object through the form →
 // store → logic call chain so adding a new name field (suffix, maiden, …)
@@ -22,8 +36,7 @@ export interface Person {
   commonName: string;
   gender: Gender;
   parentIds: string[];
-  spouseIds: string[];
-  divorcedSpouseIds: string[];
+  unions: Union[];
 }
 
 export interface Tree {
@@ -40,7 +53,7 @@ export interface LaidOutNode {
 }
 
 export type LaidOutEdge =
-  | { kind: "spouse"; aId: string; bId: string; status: MarriageStatus }
+  | { kind: "spouse"; aId: string; bId: string; status: UnionStatus }
   | {
       kind: "parent-child";
       parentAId: string;
