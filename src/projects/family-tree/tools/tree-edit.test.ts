@@ -391,11 +391,11 @@ describe("research gaps", () => {
     return setResearch(tree, SPOUSE, "heritage", { ...RECORD, status: "exhausted" });
   }
 
-  it("covers blood relatives and their partners, not a partner's own family", () => {
+  it("covers everyone in the tree, a partner's own family included", () => {
     const { gaps, inScope } = gapsReport(extended());
-    expect(inScope).toBe(10);
+    expect(inScope).toBe(12);
     expect(Object.keys(gaps).sort()).toEqual(
-      ["aunt", "gran", ROOT_ID, "mom", "pat", "step", "tiny", SPOUSE, SHARED_KID, SOLO_KID].sort(),
+      ["aunt", "gran", ROOT_ID, "mom", "pat", "step", "stepdad", "stepex", "tiny", SPOUSE, SHARED_KID, SOLO_KID].sort(),
     );
   });
 
@@ -406,7 +406,8 @@ describe("research gaps", () => {
     expect(asked("pat")).toEqual(["family", "birthYear", "heritage"]);
     expect(asked("step")).toEqual(["family", "birthYear"]);
     expect(asked(SPOUSE)).toEqual(["family", "birthYear"]);
-    expect(totals.heritage.asked).toBe(3);
+    expect(asked("stepdad")).toEqual(["family", "birthYear", "heritage"]);
+    expect(totals.heritage.asked).toBe(5);
   });
 
   it("groups each family's heads with their childless, partnerless children, closest first", () => {
@@ -415,7 +416,8 @@ describe("research gaps", () => {
       { heads: [ROOT_ID, SPOUSE], children: [SOLO_KID], distance: 0 },
       { heads: [SHARED_KID, "pat"], children: ["tiny"], distance: 1 },
       { heads: ["mom"], children: [], distance: 1 },
-      { heads: ["gran", "step"], children: ["aunt"], distance: 2 },
+      { heads: ["gran", "step", "stepex"], children: ["aunt"], distance: 2 },
+      { heads: ["stepdad"], children: [], distance: 4 },
     ]);
   });
 
@@ -426,9 +428,9 @@ describe("research gaps", () => {
   it("counts each question's statuses and who is complete", () => {
     const { totals, complete } = gapsReport(extended());
     expect(totals).toEqual({
-      family: { asked: 10, confirmed: 1, exhausted: 0, open: 1, missing: 8 },
-      birthYear: { asked: 10, confirmed: 1, exhausted: 0, open: 0, missing: 9 },
-      heritage: { asked: 3, confirmed: 0, exhausted: 1, open: 0, missing: 2 },
+      family: { asked: 12, confirmed: 1, exhausted: 0, open: 1, missing: 10 },
+      birthYear: { asked: 12, confirmed: 1, exhausted: 0, open: 0, missing: 11 },
+      heritage: { asked: 5, confirmed: 0, exhausted: 1, open: 0, missing: 4 },
     });
     expect(complete).toBe(1);
   });
@@ -443,11 +445,13 @@ describe("research gaps", () => {
         `  child Bo Root [${SOLO_KID}]: family missing, birthYear missing`,
       ].join("\n"),
     );
-    expect(text).toContain("Gran [gran] + Step [step]\n  Gran [gran]: family missing, birthYear missing, heritage missing\n  Step [step]:");
+    expect(text).toContain(
+      "Gran [gran] + Step [step] + Stepex [stepex]\n  Gran [gran]: family missing, birthYear missing, heritage missing\n  Step [step]:",
+    );
     expect(text).not.toContain("Aunt");
-    expect(text).not.toContain("Stepdad");
-    expect(text).toContain("  heritage:  0 confirmed, 1 exhausted, 0 open, 2 missing (of 3 with no parents in the tree)");
-    expect(text).toMatch(/Complete: 1 of 10 people$/);
+    expect(text).toContain("Stepdad [stepdad]\n  Stepdad [stepdad]: family missing, birthYear missing, heritage missing");
+    expect(text).toContain("  heritage:  0 confirmed, 1 exhausted, 0 open, 4 missing (of 5 with no parents in the tree)");
+    expect(text).toMatch(/Complete: 1 of 12 people$/);
   });
 });
 

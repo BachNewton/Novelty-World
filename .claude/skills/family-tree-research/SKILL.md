@@ -64,11 +64,10 @@ it hold what research has learned, and change every round:
 The tree is **complete** when every in-scope person has each of their
 research questions Confirmed or Exhausted.
 
-- **In scope:** blood relatives of the root (the root's ancestors already in
-  the tree, and all their descendants) and the partners of those people.
-- **Direction: out and down only.** Don't add new ancestors, and don't
-  research a partner's own family (their parents, siblings). A lead above the
-  tree goes in the research log for a later pass.
+- **In scope:** everyone in the tree, both partners' families included.
+- **Direction: out and down only.** Don't add new ancestors: nobody gets a
+  parent the tree doesn't already have. A lead above the tree goes in the
+  research log for a later pass.
 
 ## The research record
 
@@ -228,7 +227,7 @@ layout with a Python solver, which needs a one-time
     npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
     npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 
-`gaps` lists the in-scope people one family at a time, closest to the root
+`gaps` lists everyone in the tree one family at a time, closest to the root
 first, and for each person which research questions are missing (unset) or
 open, `family` first. A family block is a person and their partners, then
 those of their children who have no partner or child of their own; a child

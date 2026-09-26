@@ -455,34 +455,9 @@ export function describeSuperseded(tree: Tree): string {
 
 // ---------- research gaps ----------
 
-// Blood relatives of the root: the root's ancestors already in the tree and
-// all their descendants, the root included.
-function bloodRelatives(tree: Tree): Set<string> {
-  const ancestors = new Set<string>();
-  const up = [tree.rootId];
-  for (let id = up.pop(); id !== undefined; id = up.pop()) {
-    if (ancestors.has(id)) continue;
-    ancestors.add(id);
-    up.push(...tree.persons[id].parentIds);
-  }
-  const blood = new Set<string>();
-  const down = [...ancestors];
-  for (let id = down.pop(); id !== undefined; id = down.pop()) {
-    if (blood.has(id)) continue;
-    blood.add(id);
-    down.push(...childrenOf(tree, id).map((c) => c.id));
-  }
-  return blood;
-}
-
-// Who research is responsible for: blood relatives of the root and their
-// partners (every union, any status).
+// Who research is responsible for: everyone in the tree.
 export function researchScope(tree: Tree): Set<string> {
-  const scope = bloodRelatives(tree);
-  for (const id of [...scope]) {
-    for (const union of tree.persons[id].unions) scope.add(union.personId);
-  }
-  return scope;
+  return new Set(Object.keys(tree.persons));
 }
 
 // The questions asked of an in-scope person: heritage only of someone with no
@@ -623,7 +598,7 @@ function describeGap({ question, record }: ResearchGap): string {
 export function describeGaps(tree: Tree): string {
   const report = gapsReport(tree);
   const lines = [
-    `Research gaps among ${report.inScope} people in scope (blood relatives of the root and their partners).`,
+    `Research gaps among ${report.inScope} people in scope (everyone in the tree).`,
     "One family per block, closest to the root first: its heads (a person and their partners), then",
     "their children with no family of their own. Questions show family first; heritage is asked only",
     "of people with no parents in the tree.",
