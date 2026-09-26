@@ -20,12 +20,11 @@ import { Edges } from "./edges";
 import { PersonPanel } from "./person-panel";
 import { Button } from "@/shared/components/ui/button";
 import { cn, isTextEntryTarget } from "@/shared/lib/utils";
+import { useViewUrl, type ViewMode } from "../use-view-url";
 
 const Tree3D = dynamic(() => import("./tree-3d").then((m) => m.Tree3D), {
   ssr: false,
 });
-
-type ViewMode = "2d" | "3d";
 
 function arrowDirection(key: string): NavDirection | null {
   if (key === "ArrowUp") return "up";
@@ -90,12 +89,8 @@ export function FamilyTree() {
 
 function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
   const selectedId = useFamilyTreeStore((s) => s.selectedId);
-  const viewRootId = useFamilyTreeStore((s) => s.viewRootId);
   const setSelected = useFamilyTreeStore((s) => s.setSelected);
-  const setViewRoot = useFamilyTreeStore((s) => s.setViewRoot);
-  const resetViewRoot = useFamilyTreeStore((s) => s.resetViewRoot);
-
-  const [viewMode, setViewMode] = useState<ViewMode>("2d");
+  const { viewRootId, viewMode, setViewRoot, setViewMode } = useViewUrl();
 
   useEffect(() => {
     const store = useFamilyTreeStore;
@@ -202,7 +197,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
           <NameSearch tree={tree} subtitles={subtitles} onPick={jumpTo} />
           <ViewToggle value={viewMode} onChange={setViewMode} />
           {showResetView ? (
-            <Button variant="ghost" onClick={resetViewRoot}>
+            <Button variant="ghost" onClick={() => { setViewRoot(ROOT_ID); }}>
               Reset to {ROOT_FIRST_NAME}
             </Button>
           ) : null}

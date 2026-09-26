@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createClient } from "@/shared/lib/supabase/client";
 import type { Layout, Tree } from "./types";
-import { ROOT_ID, normalizeTree, topologyHash } from "./logic";
+import { normalizeTree, topologyHash } from "./logic";
 import { fetchTreeRow } from "./persistence";
 
 // The row always holds the tree and an exact layout for it, so anything else
@@ -16,12 +16,8 @@ export type TreeLoad =
 interface FamilyTreeState {
   load: TreeLoad;
   selectedId: string | null;
-  // Local-only viewing perspective. Resets to ROOT_ID on reload by design.
-  viewRootId: string;
   hydrate: () => Promise<void>;
   setSelected: (id: string | null) => void;
-  setViewRoot: (id: string) => void;
-  resetViewRoot: () => void;
 }
 
 let hydratePromise: Promise<void> | null = null;
@@ -46,7 +42,6 @@ async function loadTree(): Promise<TreeLoad> {
 export const useFamilyTreeStore = create<FamilyTreeState>((set) => ({
   load: { status: "loading" },
   selectedId: null,
-  viewRootId: ROOT_ID,
 
   hydrate: () => {
     hydratePromise ??= (async () => {
@@ -62,6 +57,4 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set) => ({
   },
 
   setSelected: (id) => { set({ selectedId: id }); },
-  setViewRoot: (id) => { set({ viewRootId: id }); },
-  resetViewRoot: () => { set({ viewRootId: ROOT_ID }); },
 }));
