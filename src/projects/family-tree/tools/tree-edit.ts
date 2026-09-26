@@ -15,16 +15,28 @@ import {
   heritageBreakdowns,
   heritageProblem,
   renamePerson,
+  RESEARCH_QUESTIONS,
+  RESEARCH_STATUSES,
+  researchSourcesProblem,
   setBirthDate,
-  setChecked,
   setGender,
   setHeritage,
   setNotes,
+  setResearch,
   setUnionDeceased,
   setUnionStatus,
   treeProblems,
 } from "../logic";
-import type { CompletenessCheck, Gender, NameFields, Person, Tree, UnionStatus } from "../types";
+import type {
+  Gender,
+  NameFields,
+  Person,
+  ResearchQuestion,
+  ResearchRecord,
+  ResearchStatus,
+  Tree,
+  UnionStatus,
+} from "../types";
 import { HERITAGES } from "../heritages";
 import type { HeritageCode, HeritageEntryCode } from "../heritages";
 
@@ -97,11 +109,19 @@ export type Op =
   | { op: "setUnionStatus"; a: PersonRef; b: PersonRef; status: UnionStatus }
   | { op: "setUnionDeceased"; a: PersonRef; b: PersonRef; deceased: PersonRef | null }
   | { op: "deletePerson"; person: PersonRef }
-  // Records that `person`'s partners and children are all in the tree, as of
-  // a full date ("YYYY-MM-DD"), per a source a public row may name. Replaces
-  // any existing check.
-  | { op: "markChecked"; person: PersonRef; asOf: string; source: string }
-  | { op: "clearChecked"; person: PersonRef };
+  // Records where research on one of `person`'s questions stands, replacing
+  // any existing record for it. `asOf` is a full date ("YYYY-MM-DD"); the
+  // sources and note live in the public row.
+  | {
+      op: "setResearch";
+      person: PersonRef;
+      question: ResearchQuestion;
+      status: ResearchStatus;
+      asOf: string;
+      sources: string[];
+      note: string;
+    }
+  | { op: "clearResearch"; person: PersonRef; question: ResearchQuestion };
 
 type FieldKind =
   | "person"
@@ -110,8 +130,10 @@ type FieldKind =
   | "name"
   | "gender"
   | "status"
+  | "question"
+  | "researchStatus"
+  | "sources"
   | "text"
-  | "nonEmptyText"
   | "fullDate"
   | "birthDate"
   | "birthDate?"
@@ -156,8 +178,15 @@ const OP_FIELDS = {
   setUnionStatus: { a: "person", b: "person", status: "status" },
   setUnionDeceased: { a: "person", b: "person", deceased: "personOrNull" },
   deletePerson: { person: "person" },
-  markChecked: { person: "person", asOf: "fullDate", source: "nonEmptyText" },
-  clearChecked: { person: "person" },
+  setResearch: {
+    person: "person",
+    question: "question",
+    status: "researchStatus",
+    asOf: "fullDate",
+    sources: "sources",
+    note: "text",
+  },
+  clearResearch: { person: "person", question: "question" },
 } as const satisfies Record<Op["op"], Record<string, FieldKind>>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -192,10 +221,21 @@ function fieldError(kind: FieldKind, value: unknown): string | null {
       return UNION_STATUSES.includes(value as UnionStatus)
         ? null
         : `must be one of ${UNION_STATUSES.join(", ")}`;
+    case "question":
+      return RESEARCH_QUESTIONS.includes(value as ResearchQuestion)
+        ? null
+        : `must be one of ${RESEARCH_QUESTIONS.join(", ")}`;
+    case "researchStatus":
+      return RESEARCH_STATUSES.includes(value as ResearchStatus)
+        ? null
+        : `must be one of ${RESEARCH_STATUSES.join(", ")}`;
+    case "sources":
+      if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
+        return "must be a list of source names";
+      }
+      return researchSourcesProblem(value.map((v: string) => v.trim()));
     case "text":
       return typeof value === "string" ? null : "must be a string";
-    case "nonEmptyText":
-      return typeof value === "string" && value.trim() !== "" ? null : "must be a non-empty string";
     case "fullDate":
       return typeof value === "string" ? fullDateProblem(value.trim()) : "must be a string";
     case "birthDate?":
@@ -302,7 +342,6 @@ export function describePerson(tree: Tree, id: string): string {
   lines.push(`  names:    ${names}`);
   lines.push(`  gender:   ${person.gender}`);
   if (person.birthDate !== "") lines.push(`  born:     ${person.birthDate}`);
-  lines.push(`  checked:  ${describeCheck(person.checked)}`);
   const heritage = heritageBreakdowns(tree)[id];
   const mix = heritage.known.map((k) => `${heritageLabel(k.code)} ${formatShare(k.share)}`);
   if (heritage.unknown > 0) mix.push(`unknown ${formatShare(heritage.unknown)}`);
@@ -334,6 +373,10 @@ export function describePerson(tree: Tree, id: string): string {
       lines.push(`  ${i === 0 ? "children:" : "         "} ${labelOf(tree, child.id)} (${other})`);
     }
   }
+  lines.push("  research:");
+  for (const question of RESEARCH_QUESTIONS) {
+    lines.push(`    ${`${question}:`.padEnd(11)}${describeRecord(person.research[question])}`);
+  }
   if (person.notes !== "") {
     lines.push("  notes:");
     for (const line of person.notes.split("\n")) lines.push(`    ${line}`);
@@ -341,8 +384,21 @@ export function describePerson(tree: Tree, id: string): string {
   return lines.join("\n");
 }
 
-function describeCheck(check: CompletenessCheck | null): string {
-  return check === null ? "not checked" : `${check.asOf} (source: ${check.source})`;
+function describeRecord(record: ResearchRecord | null): string {
+  if (record === null) return "not researched";
+  const note = record.note === "" ? "" : ` note: ${JSON.stringify(record.note)}`;
+  return `${record.status} as of ${record.asOf} (sources: ${record.sources.join("; ")})${note}`;
+}
+
+function sameRecord(a: ResearchRecord | null, b: ResearchRecord): boolean {
+  return (
+    a !== null &&
+    a.status === b.status &&
+    a.asOf === b.asOf &&
+    a.note === b.note &&
+    a.sources.length === b.sources.length &&
+    a.sources.every((source, i) => source === b.sources[i])
+  );
 }
 
 function heritageLabel(code: HeritageCode): string {
@@ -397,18 +453,11 @@ export function describeSuperseded(tree: Tree): string {
   return lines.join("\n");
 }
 
-// ---------- completeness ----------
+// ---------- research gaps ----------
 
-export interface CompletenessGroup {
-  total: number;
-  // Sorted by name.
-  unchecked: Person[];
-}
-
-// Who still lacks a completeness check, split into blood relatives of the
-// root (the root's ancestors and all their descendants, the root included)
-// and everyone else, who married in.
-export function completenessReport(tree: Tree): { blood: CompletenessGroup; marriedIn: CompletenessGroup } {
+// Blood relatives of the root: the root's ancestors already in the tree and
+// all their descendants, the root included.
+function bloodRelatives(tree: Tree): Set<string> {
   const ancestors = new Set<string>();
   const up = [tree.rootId];
   for (let id = up.pop(); id !== undefined; id = up.pop()) {
@@ -423,31 +472,182 @@ export function completenessReport(tree: Tree): { blood: CompletenessGroup; marr
     blood.add(id);
     down.push(...childrenOf(tree, id).map((c) => c.id));
   }
-
-  const group = (people: Person[]): CompletenessGroup => ({
-    total: people.length,
-    unchecked: people
-      .filter((p) => p.checked === null)
-      .sort((a, b) => displayName(a).localeCompare(displayName(b))),
-  });
-  const everyone = Object.values(tree.persons);
-  return {
-    blood: group(everyone.filter((p) => blood.has(p.id))),
-    marriedIn: group(everyone.filter((p) => !blood.has(p.id))),
-  };
+  return blood;
 }
 
-export function describeCompleteness(tree: Tree): string {
-  const report = completenessReport(tree);
-  const lines: string[] = [];
-  for (const [title, group] of [
-    ["Blood relatives", report.blood],
-    ["Married in", report.marriedIn],
-  ] as const) {
-    const checked = group.total - group.unchecked.length;
-    lines.push(`${title}: ${checked} of ${group.total} checked`);
-    for (const person of group.unchecked) lines.push(`  ${labelOf(tree, person.id)}`);
+// Who research is responsible for: blood relatives of the root and their
+// partners (every union, any status).
+export function researchScope(tree: Tree): Set<string> {
+  const scope = bloodRelatives(tree);
+  for (const id of [...scope]) {
+    for (const union of tree.persons[id].unions) scope.add(union.personId);
   }
+  return scope;
+}
+
+// The questions asked of an in-scope person: heritage only of someone with no
+// parents in the tree, since everyone else derives theirs.
+export function questionsFor(person: Person): ResearchQuestion[] {
+  return RESEARCH_QUESTIONS.filter((q) => q !== "heritage" || person.parentIds.length === 0);
+}
+
+// Steps from the root to everyone, over parent, child and union links.
+function distancesFromRoot(tree: Tree): Map<string, number> {
+  const distance = new Map([[tree.rootId, 0]]);
+  const queue = [tree.rootId];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i];
+    const person = tree.persons[id];
+    const next = [
+      ...person.parentIds,
+      ...childrenOf(tree, id).map((c) => c.id),
+      ...person.unions.map((u) => u.personId),
+    ];
+    for (const other of next) {
+      if (distance.has(other)) continue;
+      distance.set(other, (distance.get(id) ?? 0) + 1);
+      queue.push(other);
+    }
+  }
+  return distance;
+}
+
+export interface ResearchGap {
+  question: ResearchQuestion;
+  // null when nobody has looked yet, otherwise the open record.
+  record: ResearchRecord | null;
+}
+
+// A unit research works through together: a person or couple (with every
+// in-scope partner) and those of their children who have no partner or child
+// of their own. A child who does heads a family of their own instead, so
+// everyone in scope is in exactly one family.
+export interface GapFamily {
+  // Closest to the root first.
+  heads: string[];
+  // Sorted by name.
+  children: string[];
+  // Steps from the root to the family's closest member.
+  distance: number;
+}
+
+export interface QuestionTotals {
+  // In-scope people the question is asked of.
+  asked: number;
+  confirmed: number;
+  exhausted: number;
+  open: number;
+  missing: number;
+}
+
+export interface GapsReport {
+  // Every in-scope person's family, closest to the root first.
+  families: GapFamily[];
+  // Each in-scope person's missing or open questions, in question order.
+  gaps: Record<string, ResearchGap[]>;
+  totals: Record<ResearchQuestion, QuestionTotals>;
+  // In-scope people with every question confirmed or exhausted.
+  complete: number;
+  inScope: number;
+}
+
+export function gapsReport(tree: Tree): GapsReport {
+  const scope = researchScope(tree);
+  const distance = distancesFromRoot(tree);
+  const dist = (id: string): number => distance.get(id) ?? Infinity;
+  const byCloseness = (a: string, b: string): number =>
+    dist(a) - dist(b) || displayName(tree.persons[a]).localeCompare(displayName(tree.persons[b])) || a.localeCompare(b);
+  const byName = (a: string, b: string): number =>
+    displayName(tree.persons[a]).localeCompare(displayName(tree.persons[b])) || a.localeCompare(b);
+
+  const partnersInScope = (id: string): string[] =>
+    tree.persons[id].unions.map((u) => u.personId).filter((pid) => scope.has(pid));
+  const isHead = (id: string): boolean =>
+    partnersInScope(id).length > 0 || childrenOf(tree, id).some((c) => scope.has(c.id));
+
+  const ordered = [...scope].sort(byCloseness);
+  const familyOf = new Map<string, GapFamily>();
+  const families: GapFamily[] = [];
+  for (const id of ordered.filter(isHead)) {
+    if (familyOf.has(id)) continue;
+    const family: GapFamily = { heads: [], children: [], distance: dist(id) };
+    const stack = [id];
+    for (let cur = stack.pop(); cur !== undefined; cur = stack.pop()) {
+      if (familyOf.has(cur)) continue;
+      familyOf.set(cur, family);
+      family.heads.push(cur);
+      stack.push(...partnersInScope(cur));
+    }
+    family.heads.sort(byCloseness);
+    families.push(family);
+  }
+  for (const id of ordered.filter((pid) => !isHead(pid))) {
+    const parent = tree.persons[id].parentIds.filter((pid) => familyOf.has(pid)).sort(byCloseness).at(0);
+    const family = parent === undefined ? undefined : familyOf.get(parent);
+    if (family === undefined) {
+      families.push({ heads: [id], children: [], distance: dist(id) });
+    } else {
+      family.children.push(id);
+      family.distance = Math.min(family.distance, dist(id));
+    }
+  }
+  for (const family of families) family.children.sort(byName);
+  families.sort((a, b) => a.distance - b.distance || byCloseness(a.heads[0], b.heads[0]));
+
+  const totals = Object.fromEntries(
+    RESEARCH_QUESTIONS.map((q) => [q, { asked: 0, confirmed: 0, exhausted: 0, open: 0, missing: 0 }]),
+  ) as Record<ResearchQuestion, QuestionTotals>;
+  const gaps: Record<string, ResearchGap[]> = {};
+  let complete = 0;
+  for (const id of scope) {
+    const person = tree.persons[id];
+    gaps[id] = [];
+    for (const question of questionsFor(person)) {
+      const record = person.research[question];
+      const total = totals[question];
+      total.asked++;
+      if (record === null) total.missing++;
+      else total[record.status]++;
+      if (record === null || record.status === "open") gaps[id].push({ question, record });
+    }
+    if (gaps[id].length === 0) complete++;
+  }
+  return { families, gaps, totals, complete, inScope: scope.size };
+}
+
+function describeGap({ question, record }: ResearchGap): string {
+  if (record === null) return `${question} missing`;
+  return record.note === "" ? `${question} open` : `${question} open (${record.note})`;
+}
+
+export function describeGaps(tree: Tree): string {
+  const report = gapsReport(tree);
+  const lines = [
+    `Research gaps among ${report.inScope} people in scope (blood relatives of the root and their partners).`,
+    "One family per block, closest to the root first: its heads (a person and their partners), then",
+    "their children with no family of their own. Questions show family first; heritage is asked only",
+    "of people with no parents in the tree.",
+  ];
+  for (const family of report.families) {
+    const members = [
+      ...family.heads.map((id) => ({ id, prefix: "" })),
+      ...family.children.map((id) => ({ id, prefix: "child " })),
+    ].filter(({ id }) => report.gaps[id].length > 0);
+    if (members.length === 0) continue;
+    lines.push("", family.heads.map((id) => labelOf(tree, id)).join(" + "));
+    for (const { id, prefix } of members) {
+      lines.push(`  ${prefix}${labelOf(tree, id)}: ${report.gaps[id].map(describeGap).join(", ")}`);
+    }
+  }
+  lines.push("", "Totals:");
+  for (const question of RESEARCH_QUESTIONS) {
+    const t = report.totals[question];
+    const of = question === "heritage" ? `${t.asked} with no parents in the tree` : `${t.asked}`;
+    lines.push(
+      `  ${`${question}:`.padEnd(11)}${t.confirmed} confirmed, ${t.exhausted} exhausted, ${t.open} open, ${t.missing} missing (of ${of})`,
+    );
+  }
+  lines.push(`Complete: ${report.complete} of ${report.inScope} people`);
   return lines.join("\n");
 }
 
@@ -686,22 +886,25 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
           ? `Delete ${was}`
           : `Delete ${was}, removing: ${effects.join("; ")}`;
       }
-      case "markChecked": {
+      case "setResearch": {
         const id = who(op.person);
-        const before = current.persons[id].checked;
-        const after = { asOf: op.asOf.trim(), source: op.source.trim() };
-        if (before?.asOf === after.asOf && before.source === after.source) {
-          throw new Error(`${label(id)} already has this completeness check`);
-        }
-        current = setChecked(current, id, after);
-        return `Completeness check of ${label(id)}: ${describeCheck(before)} → ${describeCheck(after)}`;
+        const before = current.persons[id].research[op.question];
+        const after: ResearchRecord = {
+          status: op.status,
+          asOf: op.asOf.trim(),
+          sources: op.sources.map((source) => source.trim()),
+          note: op.note.trim(),
+        };
+        if (sameRecord(before, after)) throw new Error(`${label(id)} already has this ${op.question} record`);
+        current = setResearch(current, id, op.question, after);
+        return `Research ${op.question} of ${label(id)}: ${describeRecord(before)} → ${describeRecord(after)}`;
       }
-      case "clearChecked": {
+      case "clearResearch": {
         const id = who(op.person);
-        const before = current.persons[id].checked;
-        if (before === null) throw new Error(`${label(id)} has no completeness check to clear`);
-        current = setChecked(current, id, null);
-        return `Clear completeness check of ${label(id)} (was ${describeCheck(before)})`;
+        const before = current.persons[id].research[op.question];
+        if (before === null) throw new Error(`${label(id)} has no ${op.question} record to clear`);
+        current = setResearch(current, id, op.question, null);
+        return `Clear ${op.question} research of ${label(id)} (was ${describeRecord(before)})`;
       }
     }
   }

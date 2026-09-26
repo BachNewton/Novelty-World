@@ -15,7 +15,7 @@
 // All fixtures return a fresh Tree on every call so callers can mutate
 // freely without leaking state between tests.
 
-import { newUnion, normalizeTree } from "../logic";
+import { emptyResearch, newUnion, normalizeTree } from "../logic";
 import type { Gender, Person, Tree, Union, UnionStatus } from "../types";
 import productionSnapshot from "./production-tree.json";
 
@@ -37,7 +37,7 @@ function p(
     birthSurname: "",
     notes: "",
     birthDate: "",
-    checked: null,
+    research: emptyResearch(),
     heritage: [],
     gender,
     parentIds: [...parents],

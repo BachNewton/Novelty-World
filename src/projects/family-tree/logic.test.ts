@@ -11,6 +11,7 @@ import {
   createInitialTree,
   deletePerson,
   describeRelation,
+  emptyResearch,
   formatShare,
   fullName,
   fullNameWithMiddle,
@@ -21,7 +22,7 @@ import {
   renamePerson,
   searchByName,
   setBirthDate,
-  setChecked,
+  setResearch,
   setGender,
   setHeritage,
   setNotes,
@@ -39,10 +40,15 @@ import type {
   Gender,
   NameFields,
   Person,
+  ResearchRecord,
+  ResearchStatus,
   Tree,
   Union,
   UnionStatus,
 } from "./types";
+
+// A sound research record, for tests to vary.
+const RECORD: ResearchRecord = { status: "confirmed", asOf: "2026-09-26", sources: ["per Kyle"], note: "" };
 
 // Test-local helper: build a NameFields object positionally so test calls
 // don't have to spell out the object literal every time.
@@ -72,7 +78,7 @@ function p(
     birthSurname: "",
     notes: "",
     birthDate: "",
-    checked: null,
+    research: emptyResearch(),
     heritage: [],
     gender,
     parentIds,
@@ -526,7 +532,7 @@ describe("normalizeTree", () => {
     birthSurname: "",
     notes: "",
     birthDate: "",
-    checked: null,
+    research: emptyResearch(),
     heritage: [],
     gender: "M",
     parentIds: [],
@@ -626,27 +632,71 @@ describe("normalizeTree", () => {
     expect(tree.persons[ROOT_ID].birthDate).toBe("1931-06-16");
   });
 
-  it("backfills an unset completeness check and reports a change", () => {
+  it("backfills an empty research record and reports a change", () => {
     const { tree, changed } = normalizeTree({
       rootId: ROOT_ID,
       persons: {
-        [ROOT_ID]: { ...currentPerson, checked: undefined },
+        [ROOT_ID]: { ...currentPerson, research: undefined },
       },
     });
     expect(changed).toBe(true);
-    expect(tree.persons[ROOT_ID].checked).toBeNull();
+    expect(tree.persons[ROOT_ID].research).toEqual({ family: null, birthYear: null, heritage: null });
   });
 
-  it("keeps an existing completeness check and reports no change", () => {
-    const checked = { asOf: "2026-09-26", source: "per Kyle" };
+  it("keeps an existing research record and reports no change", () => {
+    const research = { ...emptyResearch(), birthYear: RECORD };
     const { tree, changed } = normalizeTree({
       rootId: ROOT_ID,
       persons: {
-        [ROOT_ID]: { ...currentPerson, checked },
+        [ROOT_ID]: { ...currentPerson, research },
       },
     });
     expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].checked).toEqual(checked);
+    expect(tree.persons[ROOT_ID].research).toEqual(research);
+  });
+
+  it("converts a completeness check into a confirmed family record", () => {
+    const { research: _, ...withoutResearch } = currentPerson;
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...withoutResearch, checked: { asOf: "2026-09-26", source: "per Kyle" } },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].research).toEqual({
+      family: { status: "confirmed", asOf: "2026-09-26", sources: ["per Kyle"], note: "" },
+      birthYear: null,
+      heritage: null,
+    });
+    expect(tree.persons[ROOT_ID]).not.toHaveProperty("checked");
+  });
+
+  it("drops an unset completeness check and reports a change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, checked: null },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].research).toEqual(emptyResearch());
+    expect(tree.persons[ROOT_ID]).not.toHaveProperty("checked");
+  });
+
+  it("fails loudly on a completeness check beside a family record", () => {
+    expect(() =>
+      normalizeTree({
+        rootId: ROOT_ID,
+        persons: {
+          [ROOT_ID]: {
+            ...currentPerson,
+            research: { ...emptyResearch(), family: RECORD },
+            checked: { asOf: "2026-09-26", source: "per Kyle" },
+          },
+        },
+      }),
+    ).toThrow(/both a completeness check and a family research record/);
   });
 
   it("backfills an empty heritage entry and reports a change", () => {
@@ -672,39 +722,52 @@ describe("normalizeTree", () => {
   });
 });
 
-describe("completeness check", () => {
+describe("research record", () => {
   it("leaves the topology hash alone", () => {
     const base = createInitialTree();
-    const checked = setChecked(base, ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" });
-    expect(topologyHash(checked)).toBe(topologyHash(base));
+    expect(topologyHash(setResearch(base, ROOT_ID, "family", RECORD))).toBe(topologyHash(base));
   });
 
-  it("survives edits that rebuild the person", () => {
-    let t = setChecked(createInitialTree(), ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" });
+  it("survives edits that rebuild the person, and doesn't alias the record", () => {
+    const record = { ...RECORD, sources: ["per Kyle"] };
+    let t = setResearch(createInitialTree(), ROOT_ID, "family", record);
+    record.sources.push("mutated");
     t = renamePerson(t, ROOT_ID, { firstName: "K", middleName: "", lastName: "H", commonName: "", birthSurname: "" });
     t = setNotes(t, ROOT_ID, "note");
     t = addChild(t, ROOT_ID, "kid", { firstName: "Kid", middleName: "", lastName: "", commonName: "", birthSurname: "" }, "F", null);
-    expect(t.persons[ROOT_ID].checked).toEqual({ asOf: "2026-09-26", source: "per Kyle" });
-    expect(t.persons.kid.checked).toBeNull();
+    expect(t.persons[ROOT_ID].research.family).toEqual({ ...RECORD, sources: ["per Kyle"] });
+    expect(t.persons.kid.research).toEqual(emptyResearch());
   });
 
-  it.each([
-    [{ asOf: "2026-09", source: "per Kyle" }, /date "2026-09" is not YYYY-MM-DD/],
-    [{ asOf: "~2026", source: "per Kyle" }, /is not YYYY-MM-DD/],
-    [{ asOf: "2026-02-30", source: "per Kyle" }, /no day 30/],
-    [{ asOf: "2026-09-26", source: "  " }, /has no source/],
-    [{ asOf: "2026-09-26", source: " per Kyle" }, /surrounding whitespace/],
-  ])("treeProblems rejects %j", (checked, message) => {
-    const t = setChecked(createInitialTree(), ROOT_ID, checked);
-    const problems = treeProblems(t).join("\n");
-    expect(problems).toContain("completeness check");
-    expect(problems).toMatch(message);
+  it.each<[Partial<ResearchRecord>, RegExp]>([
+    [{ asOf: "2026-09" }, /family research date "2026-09" is not YYYY-MM-DD/],
+    [{ asOf: "2026-02-30" }, /no day 30/],
+    [{ status: "done" as ResearchStatus }, /unknown status "done"/],
+    [{ sources: [] }, /has no sources/],
+    [{ sources: ["  "] }, /has an empty source/],
+    [{ sources: [" per Kyle"] }, /surrounding whitespace/],
+    [{ sources: ["per Kyle", "per Kyle"] }, /same source twice/],
+    [{ note: "trailing " }, /note has surrounding whitespace/],
+  ])("treeProblems rejects %j", (change, message) => {
+    const t = setResearch(createInitialTree(), ROOT_ID, "family", { ...RECORD, ...change });
+    expect(treeProblems(t).join("\n")).toMatch(message);
   });
 
-  it("treeProblems accepts a sound check and no check", () => {
+  it("treeProblems accepts sound records and no records", () => {
     const base = createInitialTree();
     expect(treeProblems(base)).toEqual([]);
-    expect(treeProblems(setChecked(base, ROOT_ID, { asOf: "2026-09-26", source: "per Kyle" }))).toEqual([]);
+    const note = { ...RECORD, status: "open" as const, note: "Two censuses disagree" };
+    expect(treeProblems(setResearch(base, ROOT_ID, "heritage", note))).toEqual([]);
+  });
+
+  it("treeProblems wants a confirmed birth year to have a birth date", () => {
+    const base = createInitialTree();
+    const confirmed = setResearch(base, ROOT_ID, "birthYear", RECORD);
+    expect(treeProblems(confirmed).join("\n")).toMatch(/birthYear research is confirmed but the birth date is empty/);
+    expect(treeProblems(setBirthDate(confirmed, ROOT_ID, "~1990"))).toEqual([]);
+    expect(treeProblems(setBirthDate(confirmed, ROOT_ID, "1990"))).toEqual([]);
+    const exhausted = setResearch(base, ROOT_ID, "birthYear", { ...RECORD, status: "exhausted" });
+    expect(treeProblems(exhausted)).toEqual([]);
   });
 });
 

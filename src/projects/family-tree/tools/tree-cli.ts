@@ -4,7 +4,7 @@
 //
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
-//   npx tsx src/projects/family-tree/tools/tree-cli.ts completeness
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts gaps
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts relayout [--write]
@@ -28,7 +28,7 @@ import type { TreeRow } from "../persistence";
 import type { Layout, Tree } from "../types";
 import {
   applyOps,
-  describeCompleteness,
+  describeGaps,
   describePerson,
   describeSuperseded,
   parseOps,
@@ -41,7 +41,7 @@ const USAGE = [
   "usage:",
   "  tree-cli.ts find <text>",
   "  tree-cli.ts show <id or id prefix>",
-  "  tree-cli.ts completeness",
+  "  tree-cli.ts gaps",
   "  tree-cli.ts superseded",
   "  tree-cli.ts apply <changes.json> [--write]",
   "  tree-cli.ts relayout [--write]",
@@ -67,9 +67,9 @@ async function show(idOrPrefix: string): Promise<void> {
   console.log(describePerson(tree, resolveId(tree, idOrPrefix)));
 }
 
-async function completeness(): Promise<void> {
+async function gaps(): Promise<void> {
   const { tree } = await load();
-  console.log(describeCompleteness(tree));
+  console.log(describeGaps(tree));
 }
 
 async function superseded(): Promise<void> {
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
   const rest = args.slice(2);
   if (command === "find" && arg !== undefined && rest.length === 0) return find(arg);
   if (command === "show" && arg !== undefined && rest.length === 0) return show(arg);
-  if (command === "completeness" && args.length === 1) return completeness();
+  if (command === "gaps" && args.length === 1) return gaps();
   if (command === "superseded" && args.length === 1) return superseded();
   if (command === "apply" && arg !== undefined && rest.every((r) => r === "--write")) {
     return apply(arg, rest.length > 0);

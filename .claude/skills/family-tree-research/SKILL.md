@@ -97,6 +97,9 @@ Each question is either unset (nobody has looked) or a record:
   what would settle it. Public, so no private details.
 
 A record is judged against `standards.md` as it stood on its `asOf` date.
+The apply step refuses a `confirmed` birth year unless the person's birth
+date is set (an approximate `~YYYY` counts): set the date in the same change
+file.
 
 ## The loop: one family at a time
 
@@ -225,8 +228,12 @@ layout with a Python solver, which needs a one-time
     npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
     npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
 
-`gaps` lists the in-scope people and, for each, which research questions are
-unset or open. `superseded` lists every heritage entry research above has
+`gaps` lists the in-scope people one family at a time, closest to the root
+first, and for each person which research questions are missing (unset) or
+open, `family` first. A family block is a person and their partners, then
+those of their children who have no partner or child of their own; a child
+who does heads a family of their own, so everyone appears once. It ends with
+each question's totals and how many people are complete. `superseded` lists every heritage entry research above has
 taken over: fully superseded ones to clear, partly superseded ones to review.
 
 The operation vocabulary, and what each field means, is the `Op` type in

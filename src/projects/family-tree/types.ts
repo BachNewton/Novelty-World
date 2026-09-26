@@ -34,16 +34,32 @@ export interface NameFields {
   birthSurname: string;
 }
 
-// A research record that someone's partners (every union, any status) and
-// children (with any co-parent, or none) were all found and are all in the
-// tree. A research aid for Claude, never shown in the UI.
-export interface CompletenessCheck {
-  // Full ISO date ("YYYY-MM-DD") the check was true as of.
+// The research questions asked of each person: `family` (all their partners
+// and children are in the tree), `birthYear` (known, or can't be found), and
+// `heritage` (where their line came from; asked only of people with no
+// parents in the tree).
+export type ResearchQuestion = "family" | "birthYear" | "heritage";
+
+// `confirmed`: the evidence meets the standard. `exhausted`: every must-try
+// method was tried without an answer, which counts as done. `open`: looked,
+// not settled.
+export type ResearchStatus = "confirmed" | "exhausted" | "open";
+
+// Where research on one question stands. It lives in the public row, so its
+// sources and note must be safe to publish.
+export interface ResearchRecord {
+  status: ResearchStatus;
+  // Full ISO date ("YYYY-MM-DD") the record held as of.
   asOf: string;
-  // The evidence, named safely for a public row: an obituary, a record id,
-  // "per Kyle".
-  source: string;
+  // Source or method names, at least one: a record id, a public record, an
+  // obituary, a search method, "per Kyle".
+  sources: string[];
+  // What is unresolved and what would settle it; may be empty.
+  note: string;
 }
+
+// null means nobody has looked at that question yet.
+export type Research = Record<ResearchQuestion, ResearchRecord | null>;
 
 export interface Person {
   id: string;
@@ -68,10 +84,9 @@ export interface Person {
   // Partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or approximate year ("~YYYY"); empty string means
   // none recorded. A research aid, never shown on the tree cards.
   birthDate: string;
-  // null means nobody has researched whether this person's partners and
-  // children are all in the tree. A check on someone with none in the tree
-  // means "researched, has none".
-  checked: CompletenessCheck | null;
+  // Claude's research record for this person. Never shown on the cards and
+  // never part of the layout.
+  research: Research;
   // Where this person's line came from, as far as the records say, split
   // equally. It only fills the part of their mix their parents leave
   // unknown; empty means no entry. A research aid, never shown on the cards.

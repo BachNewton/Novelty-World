@@ -1,9 +1,12 @@
 import type {
-  CompletenessCheck,
   Gender,
   LaidOutNode,
   NameFields,
   Person,
+  Research,
+  ResearchQuestion,
+  ResearchRecord,
+  ResearchStatus,
   Tree,
   Union,
   UnionStatus,
@@ -83,7 +86,7 @@ function makePerson(
     birthSurname: name.birthSurname,
     notes: "",
     birthDate: "",
-    checked: null,
+    research: emptyResearch(),
     heritage: [],
     gender,
     parentIds: [],
@@ -111,7 +114,7 @@ function clone(tree: Tree): Tree {
   for (const [id, p] of Object.entries(tree.persons)) {
     persons[id] = {
       ...p,
-      checked: p.checked === null ? null : { ...p.checked },
+      research: copyResearch(p.research),
       heritage: [...p.heritage],
       parentIds: [...p.parentIds],
       unions: p.unions.map((u) => ({ ...u })),
@@ -311,22 +314,73 @@ export function fullDateProblem(value: string): string | null {
   return birthDateProblem(value);
 }
 
-// Why `check` isn't a sound completeness check, or null when it is (or when
-// there is none).
-function completenessCheckProblem(check: CompletenessCheck | null): string | null {
-  if (check === null) return null;
-  const dateProblem = fullDateProblem(check.asOf);
-  if (dateProblem !== null) return `date ${dateProblem}`;
-  if (check.source.trim() === "") return "has no source";
-  if (check.source !== check.source.trim()) return "source has surrounding whitespace";
+export const RESEARCH_QUESTIONS: readonly ResearchQuestion[] = ["family", "birthYear", "heritage"];
+export const RESEARCH_STATUSES: readonly ResearchStatus[] = ["confirmed", "exhausted", "open"];
+
+export function emptyResearch(): Research {
+  return { family: null, birthYear: null, heritage: null };
+}
+
+function copyRecord(record: ResearchRecord | null): ResearchRecord | null {
+  return record === null ? null : { ...record, sources: [...record.sources] };
+}
+
+function copyResearch(research: Research): Research {
+  return {
+    family: copyRecord(research.family),
+    birthYear: copyRecord(research.birthYear),
+    heritage: copyRecord(research.heritage),
+  };
+}
+
+// Why `sources` isn't a valid source list, or null when it is: at least one
+// name, each non-empty with no surrounding whitespace, none repeated.
+export function researchSourcesProblem(sources: readonly unknown[]): string | null {
+  if (sources.length === 0) return "has no sources";
+  for (const source of sources) {
+    if (typeof source !== "string" || source.trim() === "") return "has an empty source";
+    if (source !== source.trim()) return `source ${JSON.stringify(source)} has surrounding whitespace`;
+  }
+  if (new Set(sources).size !== sources.length) return "lists the same source twice";
   return null;
 }
 
-// Record that `id`'s partners and children were researched and are all in
-// the tree, or clear that record with null.
-export function setChecked(tree: Tree, id: string, checked: CompletenessCheck | null): Tree {
+// Why `record` isn't a sound research record, or null when it is.
+function researchRecordProblem(record: ResearchRecord): string | null {
+  if (!RESEARCH_STATUSES.includes(record.status)) return `has unknown status ${JSON.stringify(record.status)}`;
+  const dateProblem = fullDateProblem(record.asOf);
+  if (dateProblem !== null) return `date ${dateProblem}`;
+  const sourcesProblem = researchSourcesProblem(record.sources);
+  if (sourcesProblem !== null) return sourcesProblem;
+  if (record.note !== record.note.trim()) return "note has surrounding whitespace";
+  return null;
+}
+
+// Every problem with `person`'s research record. A confirmed birth year needs
+// a birth date to confirm; an approximate year is precise enough.
+function researchProblems(person: Person): string[] {
+  const problems: string[] = [];
+  for (const question of RESEARCH_QUESTIONS) {
+    const record = person.research[question];
+    if (record === null) continue;
+    const problem = researchRecordProblem(record);
+    if (problem !== null) problems.push(`${question} research ${problem}`);
+  }
+  if (person.research.birthYear?.status === "confirmed" && person.birthDate === "") {
+    problems.push("birthYear research is confirmed but the birth date is empty");
+  }
+  return problems;
+}
+
+// Set `id`'s record for one research question, or clear it with null.
+export function setResearch(
+  tree: Tree,
+  id: string,
+  question: ResearchQuestion,
+  record: ResearchRecord | null,
+): Tree {
   const next = clone(tree);
-  next.persons[id].checked = checked === null ? null : { ...checked };
+  next.persons[id].research[question] = copyRecord(record);
   return next;
 }
 
@@ -391,8 +445,7 @@ export function treeProblems(tree: Tree): string[] {
     if (!GENDER_CYCLE.includes(person.gender)) problems.push(`${who} has unknown gender ${String(person.gender)}`);
     const dateProblem = birthDateProblem(person.birthDate);
     if (dateProblem !== null) problems.push(`${who}'s birth date ${dateProblem}`);
-    const checkProblem = completenessCheckProblem(person.checked);
-    if (checkProblem !== null) problems.push(`${who}'s completeness check ${checkProblem}`);
+    for (const problem of researchProblems(person)) problems.push(`${who}'s ${problem}`);
     const heritageIssue = heritageProblem(person.heritage);
     if (heritageIssue !== null) problems.push(`${who} ${heritageIssue}`);
 
@@ -481,7 +534,10 @@ interface StoredPerson {
   birthSurname?: string;
   notes?: string;
   birthDate?: string;
-  checked?: CompletenessCheck | null;
+  research?: Research;
+  // The completeness check `research.family` replaced: a confirmed family
+  // question with one source.
+  checked?: { asOf: string; source: string } | null;
   heritage?: HeritageEntryCode[];
   gender: Gender;
   parentIds: string[];
@@ -493,6 +549,17 @@ interface StoredPerson {
 interface StoredTree {
   rootId: string;
   persons: Record<string, StoredPerson>;
+}
+
+function storedResearch(person: StoredPerson): Research {
+  const research = copyResearch(person.research ?? emptyResearch());
+  const { checked } = person;
+  if (checked === undefined || checked === null) return research;
+  if (research.family !== null) {
+    throw new Error(`${person.id} has both a completeness check and a family research record`);
+  }
+  research.family = { status: "confirmed", asOf: checked.asOf, sources: [checked.source], note: "" };
+  return research;
 }
 
 function storedUnions(person: StoredPerson): Union[] {
@@ -512,7 +579,8 @@ function storedUnions(person: StoredPerson): Union[] {
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,
-// notes, birthDate, checked, heritage, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
+// notes, birthDate, research, heritage, deceasedId), migrate the pre-union
+// spouse lists into `unions` and the completeness check into `research`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -527,7 +595,8 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.middleName === undefined ||
       person.notes === undefined ||
       person.birthDate === undefined ||
-      person.checked === undefined ||
+      person.research === undefined ||
+      person.checked !== undefined ||
       person.heritage === undefined ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
@@ -544,7 +613,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       birthSurname: person.birthSurname ?? "",
       notes: person.notes ?? "",
       birthDate: person.birthDate ?? "",
-      checked: person.checked === undefined || person.checked === null ? null : { ...person.checked },
+      research: storedResearch(person),
       heritage: [...(person.heritage ?? [])],
       gender: person.gender,
       parentIds: [...person.parentIds],

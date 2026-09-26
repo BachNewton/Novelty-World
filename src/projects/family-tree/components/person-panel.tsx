@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Person } from "../types";
+import type { Person, ResearchQuestion, ResearchRecord, ResearchStatus } from "../types";
 import { fullNameWithMiddle } from "../logic";
 import { Button } from "@/shared/components/ui/button";
 
@@ -39,6 +39,35 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <dt className="text-xs uppercase tracking-wide text-text-muted">{label}</dt>
       <dd className="min-w-0 break-words text-sm text-text-primary">{children}</dd>
     </div>
+  );
+}
+
+const QUESTION_LABELS: Record<ResearchQuestion, string> = {
+  family: "Partners & children",
+  birthYear: "Birth year",
+  heritage: "Heritage",
+};
+
+const STATUS_LABELS: Record<ResearchStatus, string> = {
+  confirmed: "Confirmed",
+  exhausted: "Exhausted",
+  open: "Open",
+};
+
+function ResearchLine({ question, record }: { question: ResearchQuestion; record: ResearchRecord | null }) {
+  return (
+    <li className="min-w-0">
+      <span className="text-text-secondary">{QUESTION_LABELS[question]}: </span>
+      {record === null ? (
+        <NotRecorded>Not researched</NotRecorded>
+      ) : (
+        <>
+          {STATUS_LABELS[record.status]}
+          <span className="text-text-muted"> · {formatDate(record.asOf)}</span>
+          <span className="block text-xs text-text-secondary">{record.sources.join("; ")}</span>
+        </>
+      )}
+    </li>
   );
 }
 
@@ -102,17 +131,16 @@ export function PersonPanel({
           )}
         </Field>
 
-        <Field label="Partners & children">
-          {person.checked === null ? (
-            <NotRecorded>Not checked yet</NotRecorded>
-          ) : (
-            <>
-              All in the tree as of {formatDate(person.checked.asOf)}
-              <span className="block text-xs text-text-secondary">
-                Source: {person.checked.source}
-              </span>
-            </>
-          )}
+        <Field label="Research">
+          <ul className="flex flex-col gap-1">
+            <ResearchLine question="family" record={person.research.family} />
+            <ResearchLine question="birthYear" record={person.research.birthYear} />
+            {/* Heritage is asked only of people with no parents in the tree;
+                everyone else derives theirs. */}
+            {person.parentIds.length === 0 || person.research.heritage !== null ? (
+              <ResearchLine question="heritage" record={person.research.heritage} />
+            ) : null}
+          </ul>
         </Field>
       </dl>
 
