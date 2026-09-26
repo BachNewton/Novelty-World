@@ -133,6 +133,16 @@ describe("find and show", () => {
     expect(searchPersons(tree, "TAMPERE").map((p) => p.id)).toEqual([SOLO_KID]);
   });
 
+  it("matches a native spelling and its anglicized record spelling either way", () => {
+    let tree = family();
+    tree = run(tree, [
+      { op: "rename", person: SHARED_KID, name: { lastName: "Leppälä" } },
+      { op: "rename", person: SOLO_KID, name: { lastName: "Leppala" } },
+    ]).tree;
+    expect(searchPersons(tree, "leppala").map((p) => p.id)).toEqual([SHARED_KID, SOLO_KID]);
+    expect(searchPersons(tree, "LEPPÄLÄ").map((p) => p.id)).toEqual([SHARED_KID, SOLO_KID]);
+  });
+
   it("shows parents, unions, children, and notes", () => {
     const text = describePerson(family(), ROOT_ID);
     expect(text).toContain("  research:\n    family:    not researched\n    birthYear: not researched\n    heritage:  not researched");
@@ -350,6 +360,9 @@ describe("applyOps", () => {
     ], /already has two parents/],
     ["a duplicate child (a re-run change file)", [
       { op: "addChild", parent: "kyle", coParent: "5a0e", name: { firstName: "Ada", lastName: "Root" }, gender: "F" },
+    ], /already a child of .* named Ada Root/],
+    ["a duplicate child under another spelling of the name", [
+      { op: "addChild", parent: "kyle", coParent: "5a0e", name: { firstName: "ada", lastName: "Röot" }, gender: "F" },
     ], /already a child of .* named Ada Root/],
     ["a new person without a first name", [
       { op: "addChild", parent: "kyle", coParent: null, name: { lastName: "Root" }, gender: "F" },

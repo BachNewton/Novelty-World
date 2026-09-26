@@ -2343,6 +2343,18 @@ describe("searchByName", () => {
     expect(ids("zoë")).toEqual(["zoe"]);
   });
 
+  it("finds a native spelling and its anglicized record spelling either way", () => {
+    const spellings = makeTree([
+      named("juha", n("Juha", "Leppälä")),
+      named("matt", n("Matt", "Leppala")),
+    ]);
+    const found = (query: string): string[] =>
+      searchByName(spellings, query).map((person) => person.id);
+    expect(found("leppala")).toEqual(["juha", "matt"]);
+    expect(found("Leppälä")).toEqual(["juha", "matt"]);
+    expect(found("leppälä matt")).toEqual(["matt"]);
+  });
+
   it("does not match inside a word", () => {
     expect(ids("chin")).toEqual([]);
   });

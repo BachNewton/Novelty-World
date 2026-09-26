@@ -55,6 +55,14 @@ it hold what research has learned, and change every round:
   the research (a date, a record number) may go in notes; a union ended by
   death uses that union status, and only when the survivor later remarried or
   repartnered.
+- **The spelling they lived by.** A name is spelled the way the person and
+  their own household spelled it in life. An emigrant raised abroad keeps
+  their native spelling: take it from their home country's records (a parish
+  register, an emigration record), even where US records anglicized it. A
+  child who lived in the new country under the anglicized form keeps that
+  form, even one born abroad who grew up there. The other spelling goes in
+  notes, so searches of records that use it still work. `find` matches either
+  spelling, since it ignores accents and case.
 - **Not a genealogy app.** Add what answers "how is this person related to
   me?": people, the names people actually use, and relationships. Supporting
   facts go in notes, briefly.

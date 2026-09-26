@@ -2,6 +2,7 @@
 // into operations, apply them through the app's own logic functions, and
 // describe people and changes in words the owner can approve. No I/O here.
 
+import { foldText } from "@/shared/lib/fold-text";
 import {
   addChild,
   addParent,
@@ -318,10 +319,11 @@ function labelOf(tree: Tree, id: string): string {
 
 // ---------- find / show ----------
 
-// People whose name fields or notes contain `text`, ignoring case. The full
-// name is searched too, so "first last" finds a person.
+// People whose name fields or notes contain `text`, ignoring case and accents,
+// so a native spelling and its anglicized record spelling find each other.
+// The full name is searched too, so "first last" finds a person.
 export function searchPersons(tree: Tree, text: string): Person[] {
-  const needle = text.toLowerCase();
+  const needle = foldText(text);
   return Object.values(tree.persons).filter((person) => {
     const haystack = [
       displayName(person),
@@ -329,7 +331,7 @@ export function searchPersons(tree: Tree, text: string): Person[] {
       `${person.firstName} ${person.lastName}`,
       person.notes,
     ];
-    return haystack.some((s) => s.toLowerCase().includes(needle));
+    return haystack.some((s) => foldText(s).includes(needle));
   });
 }
 
@@ -659,12 +661,15 @@ function currentName(person: Person): NameFields {
   return out;
 }
 
+// Ignores case and accents, so a record's anglicized spelling of a name the
+// tree holds in its native spelling counts as the same name.
 function sameName(a: NameFields, b: NameFields): boolean {
-  return NAME_KEYS.every((key) => a[key] === b[key]);
+  return NAME_KEYS.every((key) => foldText(a[key]) === foldText(b[key]));
 }
 
 // Refuses to add someone a relative already has under the same name, which
-// is what re-running an already applied change file would do.
+// is what re-running an already applied change file would do, or adding a
+// person again under another spelling of their name.
 function refuseDuplicate(tree: Tree, relatives: string[], name: NameFields, relation: string): void {
   const dupe = relatives.find((rid) => sameName(currentName(tree.persons[rid]), name));
   if (dupe !== undefined) {

@@ -11,6 +11,7 @@ import type {
   Union,
   UnionStatus,
 } from "./types";
+import { foldText } from "@/shared/lib/fold-text";
 import { UNKNOWN_HERITAGE, isHeritageCode, isHeritageEntryCode } from "./heritages";
 import type { HeritageCode, HeritageEntryCode } from "./heritages";
 
@@ -1267,13 +1268,10 @@ const NAME_SEARCH_RANK: Record<keyof NameFields, number> = {
 };
 const NAME_SEARCH_FIELDS = Object.keys(NAME_SEARCH_RANK) as (keyof NameFields)[];
 
-// Lowercased, accents stripped, split on anything that isn't a letter or
-// digit, so "Ruth-Anne" is the words "ruth" and "anne".
+// Folded (see foldText), split on anything that isn't a letter or digit, so
+// "Ruth-Anne" is the words "ruth" and "anne".
 function searchWords(text: string): string[] {
-  return text
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
+  return foldText(text)
     .split(/[^\p{L}\p{N}]+/u)
     .filter((w) => w !== "");
 }
