@@ -1,3 +1,5 @@
+import type { HeritageCode } from "./countries";
+
 export type Gender = "M" | "F" | "NB";
 
 export type UnionStatus =
@@ -55,6 +57,9 @@ export interface Person {
   // Partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or approximate year ("~YYYY"); empty string means
   // none recorded. A research aid, never shown on the tree cards.
   birthDate: string;
+  // Heritage entered for this person, split equally ("half X, half Y").
+  // Empty means "inherit it from the parents"; an entry overrides that.
+  heritage: HeritageCode[];
   gender: Gender;
   parentIds: string[];
   unions: Union[];

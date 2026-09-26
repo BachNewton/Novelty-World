@@ -10,6 +10,7 @@ import {
   countChildren,
   describeRelation,
   fullName,
+  heritageBreakdowns,
   isCurrentUnion,
   nearestInDirection,
   nextGender,
@@ -99,6 +100,7 @@ export function FamilyTree() {
   const setGender = useFamilyTreeStore((s) => s.setGender);
   const setNotes = useFamilyTreeStore((s) => s.setNotes);
   const setBirthDate = useFamilyTreeStore((s) => s.setBirthDate);
+  const setHeritage = useFamilyTreeStore((s) => s.setHeritage);
   const remove = useFamilyTreeStore((s) => s.remove);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
@@ -231,6 +233,8 @@ export function FamilyTree() {
     return map;
   }, [tree, effectiveViewRootId]);
 
+  const heritage = useMemo(() => heritageBreakdowns(tree), [tree]);
+
   const viewRootFocus = useMemo(() => {
     if (status !== "ready") return undefined;
     const node = layout.nodes.find((n) => n.id === effectiveViewRootId);
@@ -356,6 +360,7 @@ export function FamilyTree() {
                   selected={selectedId === n.id}
                   isViewRoot={n.id === effectiveViewRootId}
                   subtitle={subtitles.get(n.id) ?? null}
+                  heritage={heritage[n.id]}
                   flashKey={flash?.id === n.id ? flash.key : null}
                   onFlashEnd={() => { setFlash(null); }}
                   onSelect={setSelected}
@@ -410,6 +415,8 @@ export function FamilyTree() {
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetNotes={(notes) => { setNotes(selectedPerson.id, notes); }}
             onSetBirthDate={(birthDate) => { setBirthDate(selectedPerson.id, birthDate); }}
+            heritage={heritage[selectedPerson.id]}
+            onSetHeritage={(codes) => { setHeritage(selectedPerson.id, codes); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}
             onDelete={() => { handleDelete(selectedPerson.id); }}

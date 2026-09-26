@@ -61,6 +61,11 @@ describe("parseOps", () => {
     [{ op: "setBirthDate", person: "x", birthDate: "16 Jun 1931" }, /"birthDate" "16 Jun 1931" is not YYYY/],
     [{ op: "setBirthDate", person: "x", birthDate: 1931 }, /"birthDate" must be a string/],
     [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", birthDate: "1931-02-30" }, /no day 30/],
+    [{ op: "setHeritage", person: "x" }, /missing "heritage"/],
+    [{ op: "setHeritage", person: "x", heritage: "FI" }, /"heritage" must be a list of heritage codes/],
+    [{ op: "setHeritage", person: "x", heritage: ["Finland"] }, /unknown heritage "Finland"/],
+    [{ op: "setHeritage", person: "x", heritage: ["FI", "FI"] }, /same heritage twice/],
+    [{ op: "addChild", parent: "x", coParent: null, name: { firstName: "A" }, gender: "M", heritage: ["XX"] }, /unknown heritage "XX"/],
   ])("rejects %j", (op, message) => {
     expect(() => parseOps([op])).toThrow(message);
   });
@@ -204,6 +209,30 @@ describe("applyOps", () => {
     expect(changes[2]).toContain("(M, born 1950-01-02)");
   });
 
+  it("sets, describes, and clears heritage", () => {
+    const set = run(family(), [
+      { op: "setHeritage", person: "kyle", heritage: ["FI", "unknown"] },
+      { op: "setHeritage", person: "5a0e", heritage: ["IT"] },
+    ]);
+    expect(set.tree.persons[ROOT_ID].heritage).toEqual(["FI", "unknown"]);
+    expect(set.changes[0]).toBe("Set heritage of Kyle Hutchinson [kyle-hut]: (inherited) → FI + unknown");
+    expect(describePerson(set.tree, ROOT_ID)).toContain("  heritage: Finland (FI) 50%, unknown 50% [entered]");
+    expect(describePerson(set.tree, SHARED_KID)).toContain(
+      "  heritage: Italy (IT) 50%, Finland (FI) 25%, unknown 25% [inherited]",
+    );
+    const cleared = run(set.tree, [{ op: "setHeritage", person: "kyle", heritage: [] }]);
+    expect(cleared.tree.persons[ROOT_ID].heritage).toEqual([]);
+    expect(cleared.changes[0]).toContain("FI + unknown → (inherited)");
+  });
+
+  it("gives new people the heritage their op carries", () => {
+    const { tree, changes } = run(family(), [
+      { op: "addParent", child: SOLO_KID, name: { firstName: "Mo" }, gender: "F", birthDate: "1950", heritage: ["GB-SCT", "IE"] },
+    ]);
+    expect(tree.persons["new-1"].heritage).toEqual(["GB-SCT", "IE"]);
+    expect(changes[0]).toContain("(F, born 1950, heritage GB-SCT + IE)");
+  });
+
   it("deletes a person and says what goes with them", () => {
     const { tree, changes } = run(family(), [{ op: "deletePerson", person: "5a0e" }]);
     expect(SPOUSE in tree.persons).toBe(false);
@@ -229,6 +258,7 @@ describe("applyOps", () => {
     ], /needs a firstName/],
     ["a rename that changes nothing", [{ op: "rename", person: "5a0e", name: { firstName: "Sam" } }], /already has these names/],
     ["a birth date that changes nothing", [{ op: "setBirthDate", person: "5a0e", birthDate: "" }], /already has this birth date/],
+    ["a heritage that changes nothing", [{ op: "setHeritage", person: "5a0e", heritage: [] }], /already has this heritage/],
     ["a status change on a pair with no union", [
       { op: "setUnionStatus", a: "5a0e", b: SOLO_KID, status: "divorced" },
     ], /have no union/],

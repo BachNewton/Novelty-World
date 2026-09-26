@@ -3,7 +3,10 @@
 import { useState } from "react";
 import type { Gender, NameFields, Person, UnionStatus } from "../types";
 import { ROOT_ID, birthDateProblem, fullName, fullNameWithMiddle } from "../logic";
+import type { HeritageBreakdown } from "../logic";
+import type { HeritageCode } from "../countries";
 import { Button } from "@/shared/components/ui/button";
+import { HeritageEditor } from "./heritage-editor";
 
 export type PanelMode =
   | "menu"
@@ -11,7 +14,8 @@ export type PanelMode =
   | "add-child"
   | "add-spouse"
   | "edit"
-  | "union-status";
+  | "union-status"
+  | "heritage";
 
 export interface MarriageOption {
   partnerId: string;
@@ -54,6 +58,9 @@ interface ActionPanelProps {
   onRename: (name: NameFields) => void;
   onSetNotes: (notes: string) => void;
   onSetBirthDate: (birthDate: string) => void;
+  // The selected person's heritage breakdown, entered or inherited.
+  heritage: HeritageBreakdown;
+  onSetHeritage: (heritage: HeritageCode[]) => void;
   onSetGender: (gender: Gender) => void;
   onSetAsViewRoot: () => void;
   onDelete: () => void;
@@ -246,6 +253,8 @@ export function ActionPanel({
   onRename,
   onSetNotes,
   onSetBirthDate,
+  heritage,
+  onSetHeritage,
   onSetGender,
   onSetAsViewRoot,
   onDelete,
@@ -287,7 +296,7 @@ export function ActionPanel({
       setBirthSurnameDraft(person.birthSurname);
       setNotesDraft(person.notes);
       setBirthDateDraft(person.birthDate);
-    } else if (mode === "menu" || mode === "union-status") {
+    } else if (mode === "menu" || mode === "union-status" || mode === "heritage") {
       setFirstDraft("");
       setMiddleDraft("");
       setLastDraft("");
@@ -410,6 +419,13 @@ export function ActionPanel({
               </Button>
             ) : null}
             <Button
+              variant="secondary"
+              className="col-span-2"
+              onClick={() => { onModeChange("heritage"); }}
+            >
+              Heritage…
+            </Button>
+            <Button
               variant="ghost"
               disabled={isCanonicalRoot}
               className="col-span-2 text-brand-pink hover:text-brand-pink"
@@ -419,6 +435,13 @@ export function ActionPanel({
             </Button>
           </div>
         </div>
+      ) : mode === "heritage" ? (
+        <HeritageEditor
+          entered={person.heritage}
+          derived={heritage}
+          onChange={onSetHeritage}
+          onDone={() => { onModeChange("menu"); }}
+        />
       ) : mode === "union-status" ? (
         <div className="flex flex-col gap-3">
           {marriages.map((m) => (

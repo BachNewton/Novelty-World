@@ -21,12 +21,25 @@ Types live in `types.ts`; pure operations and relationship terms live in `logic.
 - **Names:** first name, last name (current), common name (nickname), and optional birth surname and middle name. The birth surname shows as a small "née …" line on the card only when it differs from the last name. The middle name (a full name or just an initial) is a research aid: records tell same-named relatives apart by it. It never appears on the cards, which show the name people know someone by; only the edit panel shows it.
 - **Notes:** optional free text per person, for research facts that have nowhere else to live (death dates, record numbers, alternate names). Notes never appear on the tree cards.
 - **Birth date:** an optional research aid in a fixed, machine-readable shape, so tools and AI can read and edit it reliably instead of parsing notes. It is a partial ISO date: a year, a year and month, or a full date (shaped like `1931`, `1931-06`, `1931-06-16`), as precise as the sources allow. An approximate year (`~1931`) records a year the sources narrow to two adjacent years, such as an age on a census or marriage record; it holds the likelier of the two, and has no month or day. Cards show it as "b. ~1931". `treeProblems` rejects anything else, including impossible dates. Only the year appears on the cards, as "b. 1931" on the same small line as "née …", so the card keeps its height; the full date shows only in the edit panel. There is deliberately no death date field: that would be a deceased flag by another name, so death dates stay in notes.
+- **Heritage:** where a person's family comes from, at present-day country level, from a curated list in `countries.ts` (each country needs a designed flag, so adding one means adding its entry there). England, Scotland and Wales are separate; Ireland covers the whole island. It is called heritage, not nationality (which means citizenship) or ethnicity. Finer detail (a region, an emigration) goes in notes. It is entered only on origin people: immigrants, the earliest known ancestor on a line, and people who married in without their ancestry in the tree. An entry is a list of countries split equally ("half X, half Y"), and may include "unknown". An empty list means "inherit". Everyone else's heritage is derived on the client and never stored: each parent passes on half of their mix, and a missing parent passes on an unknown half rather than letting the known half stand for the whole. An entry overrides what the person would inherit and cuts off everything above them, which covers conflicts, adoption and married-in people. Only parent links pass heritage on, never a step relationship. `treeProblems` rejects unlisted codes and repeats. Heritage never affects layout or the topology hash.
 - **Optional string fields** use an empty string to mean "not set". They are always present, never undefined.
 - **Schema evolution.** `normalizeTree` migrates saved trees on load: it backfills new fields and converts old shapes, and the store writes the migrated shape back on the next save. Every new Person field must be handled there.
 
+## Heritage on the tree
+
+Heritage is there to give the tree color and life, and secondarily to point research at the right country's records. It never touches the inside of a card, which belongs to the person's details; everything is drawn around the card and lets clicks through to it.
+
+- **Order.** A person's heritages are ranked by share, largest first. Ties go to the surname line: the father's side before the mother's, recursively up through the generations, first appearance winning; for a person with an entry, the entry's own order. Gender picks out the father; when it can't, the stored parent order stands.
+- **Medallions.** The top four ranks each get a round flag centered on a card corner, in reading order: top-left, top-right, bottom-left, bottom-right. Size grows with share. Unknown never gets one. The couple gap is wide enough that facing medallions never touch.
+- **Chips.** Below the card, a row of small flag-and-percentage pills lists every heritage in the same order, then unknown. They wrap before reaching the bottom medallions.
+- **All unknown shows nothing.** A person with no heritage anywhere up their lines gets no medallions and no chips, so a tree without heritage entered looks exactly as it did before the feature.
+- Color blindness is not a design constraint; the owner decided this.
+
+Open questions: whether living married-in adults get heritage entered or stay unknown until they agree, and whether origin people (the ones with an entry) should be marked on the tree or only in the edit panel.
+
 ## Privacy
 
-The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. A full birth date plus a name is identity-theft material, so a living person's birth date holds the year only; full dates are for people who have died. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
+The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. A full birth date plus a name is identity-theft material, so a living person's birth date holds the year only; full dates are for people who have died. Heritage needs no extra care: it is entered mostly on long-dead origin people, and derived heritage says little the tree doesn't already imply. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
 
 ## Saving and editing outside the app
 
@@ -60,7 +73,7 @@ The tree must work from 360px phones through ultrawide desktop. Check both whene
 
 Card size is fixed and layout never measures text. Any change to card content (`components/node.tsx`) must keep the text inside the card height.
 
-The layout pipeline is a sugiyama layout with an exact HiGHS crossing minimization. It runs in `layout.worker.ts`, and the result is cached in Supabase keyed by `topologyHash`. Until an optimize run finishes, edits show an optimistic local patch. Read these before changing it:
+The layout pipeline is a sugiyama layout with an exact HiGHS crossing minimization. It runs in `layout.worker.ts`, and the result is cached in Supabase keyed by `topologyHash`. That hash also carries a layout version: bump it whenever a layout constant (card size, a gap) changes, so the cached layout reads as stale and Optimize becomes available again. Until an optimize run finishes, edits show an optimistic local patch. Read these before changing it:
 
 - `hybrid-decross-notes.md`: exact vs. heuristic decross, and why the solve is exact.
 - `edge-routing-notes.md`: drop lanes, elbow rows, and overlapping connectors.

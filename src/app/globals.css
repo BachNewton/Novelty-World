@@ -25,6 +25,12 @@
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
 
+  /* Family Tree: heritage medallions sit on the card corners. The shadow
+     lifts them off the card; the dark hairline keeps a white flag's edge from
+     melting into what's behind it. */
+  --shadow-family-medallion: 0 2px 5px rgb(0 0 0 / 0.75);
+  --inset-shadow-family-medallion: inset 0 0 0 1px rgb(0 0 0 / 0.35);
+
   /* Family Tree: a ring pulses out from a card the search just jumped to, so
      the eye finds it among many look-alike cards. */
   --animate-family-card-flash: family-card-flash 0.7s ease-out 3;

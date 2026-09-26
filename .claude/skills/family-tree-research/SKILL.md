@@ -28,6 +28,14 @@ for, the data model, and the living-tree rule.
   the event date minus age+1 years and the event date minus age years. Narrow
   it with a second record if you can; otherwise record `~YYYY` for the year
   holding most of that window. Never write a plain year from one age.
+- **Heritage goes only on origin people.** Use `setHeritage` (or `heritage`
+  on a new person) with a list of country codes from `src/projects/family-tree/countries.ts`, split
+  equally, and `"unknown"` for a line whose origin isn't known. Enter it on
+  immigrants, the earliest known ancestor of a line, and people who married in
+  without their ancestry in the tree; everyone else inherits it, and an entry
+  cuts off inheritance above that person. `[]` puts a person back to
+  inheriting. `show` prints each person's mix and whether it was entered or
+  inherited. Keep finer detail (a region, a ship) in notes.
 - **A living tree.** Everyone is family whether or not they've passed. Never
   add a deceased flag or anything that implies one. Death facts that matter to
   the research (a date, a record number) may go in notes; a union ended by
@@ -104,11 +112,13 @@ A generic example, adding a spouse and their child:
     [
       { "op": "addSpouse", "ref": "@wife", "person": "<id>",
         "name": { "firstName": "Given", "lastName": "Surname", "birthSurname": "Maiden" },
-        "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02" },
+        "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02",
+        "heritage": ["IT"] },
       { "op": "addChild", "parent": "<id>", "coParent": "@wife",
         "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952" },
       { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" },
-      { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" }
+      { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" },
+      { "op": "setHeritage", "person": "<id>", "heritage": ["FI", "unknown"] }
     ]
 
 The apply step fails loudly on anything doubtful: unknown or ambiguous ids, a

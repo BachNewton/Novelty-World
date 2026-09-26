@@ -37,6 +37,7 @@ function p(
     birthSurname: "",
     notes: "",
     birthDate: "",
+    heritage: [],
     gender,
     parentIds: [...parents],
     unions: [

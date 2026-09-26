@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { createClient } from "@/shared/lib/supabase/client";
 import type { Gender, Layout, NameFields, Tree, UnionStatus } from "./types";
+import type { HeritageCode } from "./countries";
 import {
   ROOT_ID,
   addChild as logicAddChild,
@@ -14,6 +15,7 @@ import {
   renamePerson as logicRenamePerson,
   setBirthDate as logicSetBirthDate,
   setGender as logicSetGender,
+  setHeritage as logicSetHeritage,
   setNotes as logicSetNotes,
   setUnionDeceased as logicSetUnionDeceased,
   setUnionStatus as logicSetUnionStatus,
@@ -88,6 +90,7 @@ interface FamilyTreeState {
   setGender: (id: string, gender: Gender) => void;
   setNotes: (id: string, notes: string) => void;
   setBirthDate: (id: string, birthDate: string) => void;
+  setHeritage: (id: string, heritage: HeritageCode[]) => void;
   remove: (id: string) => void;
 }
 
@@ -404,6 +407,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   setBirthDate: (id, birthDate) => {
     applyMutation((tree) => logicSetBirthDate(tree, id, birthDate.trim()));
+  },
+
+  setHeritage: (id, heritage) => {
+    applyMutation((tree) => logicSetHeritage(tree, id, heritage));
   },
 
   remove: (id) => {
