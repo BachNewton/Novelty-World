@@ -1,0 +1,45 @@
+# Family Tree
+
+## Purpose
+
+A deliberately simple, practical tree that answers one question: "how does this person, whom I know by this name, relate to me or to another family member?" It is not a genealogy app. A feature earns its place by serving that question, or by fixing data the tree otherwise can't represent correctly. Push back on genealogy-software sprawl: citations, confidence levels, event records and the like.
+
+## A living tree
+
+Everyone is family whether or not they've passed. The tree never shows who is dead or alive, and it never needs updating when someone dies. There is deliberately no deceased flag on a person. Don't add one, and don't add UI that implies one.
+
+## Data model invariants
+
+Types live in `types.ts`; pure operations and relationship terms live in `logic.ts`.
+
+- **Unions.** Relationships between adults are one list of unions on each person, kept symmetric on both people. Each union has a status: married, divorced, ended-by-death, partner, or ex-partner. Status belongs to the union, never to the person.
+- **Ended by death** is only needed when the survivor later remarried or repartnered. It renders like a marriage, not a divorce. The relationship readout says "late wife/husband", and nothing appears on the cards.
+- **Names:** first name, last name (current), common name (nickname), and an optional birth surname. The birth surname shows as a small "née …" line on the card only when it differs from the last name.
+- **Notes:** optional free text per person, for research facts that have nowhere else to live (death dates, record numbers, alternate names). Notes never appear on the tree cards.
+- **Optional string fields** use an empty string to mean "not set". They are always present, never undefined.
+- **Schema evolution.** `normalizeTree` migrates saved trees on load: it backfills new fields and converts old shapes, and the store writes the migrated shape back on the next save. Every new Person field must be handled there.
+
+## Privacy
+
+The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
+
+## Responsive: phone and desktop
+
+The tree must work from 360px phones through ultrawide desktop. Check both whenever you touch components.
+
+- `pan-zoom.tsx` handles pointer events: one-finger or mouse drag pans, a two-finger pinch zooms, and the wheel zooms. The canvas disables browser touch gestures, and a drag suppresses the click that would otherwise select a card.
+- `action-panel.tsx` is a floating card. On narrow screens it sits at the bottom right with its width capped to the viewport minus a gutter. From `md` up it moves to the top right. It must stay fully usable at 360px.
+- The toolbar in `family-tree.tsx` shortens its labels below `sm`. Arrow-key navigation between cards is desktop-only, so every action also needs a tap path.
+- Size tap targets for fingers, not just for a mouse pointer.
+
+## Layout
+
+Card size is fixed and layout never measures text. Any change to card content (`components/node.tsx`) must keep the text inside the card height.
+
+The layout pipeline is a sugiyama layout with an exact HiGHS crossing minimization. It runs in `layout.worker.ts`, and the result is cached in Supabase keyed by `topologyHash`. Until an optimize run finishes, edits show an optimistic local patch. Read these before changing it:
+
+- `hybrid-decross-notes.md`: exact vs. heuristic decross, and why the solve is exact.
+- `edge-routing-notes.md`: drop lanes, elbow rows, and overlapping connectors.
+- `solver-progress.ts` with its test: how solver log lines become live progress.
+
+To prove a change didn't alter layout, use `layout-invariants.test.ts` and the pinned snapshots in `__snapshots__/`. The production-sized fixture runs only in the slow suite (`*.slow.test.ts`, via `npm run test:slow`). Run it after any change to `logic.ts` layout code.
