@@ -14,6 +14,7 @@ import {
   normalizeTree,
   renamePerson as logicRenamePerson,
   setGender as logicSetGender,
+  setNotes as logicSetNotes,
   topologyHash,
 } from "./logic";
 import type { LayoutRequest, LayoutResponse } from "./layout.worker";
@@ -73,6 +74,7 @@ interface FamilyTreeState {
   divorce: (aId: string, bId: string) => void;
   rename: (id: string, name: NameFields) => void;
   setGender: (id: string, gender: Gender) => void;
+  setNotes: (id: string, notes: string) => void;
   remove: (id: string) => void;
 }
 
@@ -410,6 +412,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   setGender: (id, gender) => {
     applyMutation((tree) => logicSetGender(tree, id, gender));
+  },
+
+  setNotes: (id, notes) => {
+    applyMutation((tree) => logicSetNotes(tree, id, notes.trim()));
   },
 
   remove: (id) => {

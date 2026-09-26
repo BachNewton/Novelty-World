@@ -34,6 +34,7 @@ function p(
     lastName: "",
     commonName: "",
     birthSurname: "",
+    notes: "",
     gender,
     parentIds: [...parents],
     spouseIds: [...spouses],

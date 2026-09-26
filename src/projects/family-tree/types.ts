@@ -25,6 +25,9 @@ export interface Person {
   // surname other than the one they were born with (typically by marriage),
   // so they stay recognizable under either name.
   birthSurname: string;
+  // Free-text research notes; empty string means none. Never shown on the
+  // tree itself, only in the edit panel.
+  notes: string;
   gender: Gender;
   parentIds: string[];
   spouseIds: string[];

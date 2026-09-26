@@ -75,6 +75,7 @@ export function FamilyTree() {
   const divorce = useFamilyTreeStore((s) => s.divorce);
   const rename = useFamilyTreeStore((s) => s.rename);
   const setGender = useFamilyTreeStore((s) => s.setGender);
+  const setNotes = useFamilyTreeStore((s) => s.setNotes);
   const remove = useFamilyTreeStore((s) => s.remove);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
@@ -168,7 +169,7 @@ export function FamilyTree() {
         setPanelMode("add-spouse");
       } else if (k === "r") {
         e.preventDefault();
-        setPanelMode("rename");
+        setPanelMode("edit");
       } else if (k === "g") {
         e.preventDefault();
         store.getState().setGender(sid, nextGender(person.gender));
@@ -263,7 +264,7 @@ export function FamilyTree() {
             </Button>
           ) : null}
           <p className="hidden text-xs text-text-muted lg:block">
-            Drag/WASD pan · scroll/+− zoom · arrows select · P/C/M add · R rename · G gender · Del delete
+            Drag/WASD pan · scroll/+− zoom · arrows select · P/C/M add · R edit · G gender · Del delete
           </p>
         </div>
       </header>
@@ -327,6 +328,7 @@ export function FamilyTree() {
             }}
             onDivorce={(partnerId) => { divorce(selectedPerson.id, partnerId); }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
+            onSetNotes={(notes) => { setNotes(selectedPerson.id, notes); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}
             onDelete={() => { handleDelete(selectedPerson.id); }}

@@ -25,6 +25,7 @@ import {
   normalizeTree,
   renamePerson,
   setGender,
+  setNotes,
   topologyHash,
 } from "./logic";
 import type { LaidOutNode, Layout } from "./types";
@@ -54,6 +55,7 @@ function p(
     lastName: "",
     commonName: "",
     birthSurname: "",
+    notes: "",
     gender,
     parentIds,
     spouseIds,
@@ -344,6 +346,7 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(true);
     expect(tree.persons[ROOT_ID].birthSurname).toBe("");
+    expect(tree.persons[ROOT_ID].notes).toBe("");
     expect(tree.persons[ROOT_ID].commonName).toBe("");
     expect(tree.persons[ROOT_ID].divorcedSpouseIds).toEqual([]);
   });
@@ -353,6 +356,7 @@ describe("normalizeTree", () => {
       ...legacyPerson,
       commonName: "",
       birthSurname: "Erickson",
+      notes: "d. 2003",
       divorcedSpouseIds: [],
     };
     const { tree, changed } = normalizeTree({
@@ -361,16 +365,65 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(false);
     expect(tree.persons[ROOT_ID].birthSurname).toBe("Erickson");
+    expect(tree.persons[ROOT_ID].notes).toBe("d. 2003");
   });
 
   it("reports a change when only birthSurname is missing", () => {
     const { changed } = normalizeTree({
       rootId: ROOT_ID,
       persons: {
-        [ROOT_ID]: { ...legacyPerson, commonName: "", divorcedSpouseIds: [] },
+        [ROOT_ID]: {
+          ...legacyPerson,
+          commonName: "",
+          notes: "",
+          divorcedSpouseIds: [],
+        },
       },
     });
     expect(changed).toBe(true);
+  });
+
+  it("backfills notes and reports a change when only notes is missing", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: {
+          ...legacyPerson,
+          commonName: "",
+          birthSurname: "",
+          divorcedSpouseIds: [],
+        },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].notes).toBe("");
+  });
+});
+
+describe("setNotes", () => {
+  it("sets a person's notes, preserving line breaks", () => {
+    const notes = "d. 2003\nCleveland necrology 87837";
+    const t = setNotes(createInitialTree(), ROOT_ID, notes);
+    expect(t.persons[ROOT_ID].notes).toBe(notes);
+  });
+
+  it("clears notes with an empty string", () => {
+    let t = setNotes(createInitialTree(), ROOT_ID, "birth name Elizabeth");
+    t = setNotes(t, ROOT_ID, "");
+    expect(t.persons[ROOT_ID].notes).toBe("");
+  });
+
+  it("leaves other people and the input tree untouched", () => {
+    const base = addChild(createInitialTree(), ROOT_ID, "kid", n("Kid"), "F");
+    const t = setNotes(base, "kid", "'Kate' may be a middle name");
+    expect(t.persons.kid.notes).toBe("'Kate' may be a middle name");
+    expect(t.persons[ROOT_ID]).toEqual(base.persons[ROOT_ID]);
+    expect(base.persons.kid.notes).toBe("");
+  });
+
+  it("does not change the topology hash", () => {
+    const base = createInitialTree();
+    expect(topologyHash(setNotes(base, ROOT_ID, "note"))).toBe(topologyHash(base));
   });
 });
 

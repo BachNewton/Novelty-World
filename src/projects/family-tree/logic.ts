@@ -51,6 +51,7 @@ function makePerson(
     lastName: name.lastName,
     commonName: name.commonName,
     birthSurname: name.birthSurname,
+    notes: "",
     gender,
     parentIds: [],
     spouseIds: [],
@@ -199,6 +200,12 @@ export function setGender(tree: Tree, id: string, gender: Gender): Tree {
   return next;
 }
 
+export function setNotes(tree: Tree, id: string, notes: string): Tree {
+  const next = clone(tree);
+  next.persons[id].notes = notes;
+  return next;
+}
+
 export function deletePerson(tree: Tree, id: string): Tree {
   if (id === tree.rootId) return tree;
   const next = clone(tree);
@@ -212,9 +219,9 @@ export function deletePerson(tree: Tree, id: string): Tree {
 }
 
 // Backfill schema fields added later (divorcedSpouseIds, commonName,
-// birthSurname) so older
-// persisted rows hydrate without crashing. Returns `changed: true` when a
-// field had to be added — callers can use that to write the healed row back.
+// birthSurname, notes) so older persisted rows hydrate without crashing.
+// Returns `changed: true` when a field had to be added — callers can use
+// that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
   const t = raw as Tree;
   let changed = false;
@@ -226,12 +233,15 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
     if (common === undefined) changed = true;
     const birthSurname = person.birthSurname as string | undefined;
     if (birthSurname === undefined) changed = true;
+    const notes = person.notes as string | undefined;
+    if (notes === undefined) changed = true;
     persons[id] = {
       id: person.id,
       firstName: person.firstName,
       lastName: person.lastName,
       commonName: common ?? "",
       birthSurname: birthSurname ?? "",
+      notes: notes ?? "",
       gender: person.gender,
       parentIds: [...person.parentIds],
       spouseIds: [...person.spouseIds],

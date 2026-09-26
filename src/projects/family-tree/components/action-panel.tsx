@@ -10,7 +10,7 @@ export type PanelMode =
   | "add-parent"
   | "add-child"
   | "add-spouse"
-  | "rename"
+  | "edit"
   | "divorce";
 
 export interface MarriageOption {
@@ -48,6 +48,7 @@ interface ActionPanelProps {
   ) => void;
   onDivorce: (partnerId: string) => void;
   onRename: (name: NameFields) => void;
+  onSetNotes: (notes: string) => void;
   onSetGender: (gender: Gender) => void;
   onSetAsViewRoot: () => void;
   onDelete: () => void;
@@ -143,6 +144,7 @@ export function ActionPanel({
   onAddSpouse,
   onDivorce,
   onRename,
+  onSetNotes,
   onSetGender,
   onSetAsViewRoot,
   onDelete,
@@ -151,6 +153,7 @@ export function ActionPanel({
   const [lastDraft, setLastDraft] = useState("");
   const [commonDraft, setCommonDraft] = useState("");
   const [birthSurnameDraft, setBirthSurnameDraft] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
   const [draftGender, setDraftGender] = useState<Gender | null>(null);
   const [draftStatus, setDraftStatus] = useState<MarriageStatus>("married");
   // null === "this person alone" for add-child; partnerId for a marriage.
@@ -174,11 +177,12 @@ export function ActionPanel({
   const [prevMode, setPrevMode] = useState(mode);
   if (prevMode !== mode) {
     setPrevMode(mode);
-    if (mode === "rename") {
+    if (mode === "edit") {
       setFirstDraft(person.firstName);
       setLastDraft(person.lastName);
       setCommonDraft(person.commonName);
       setBirthSurnameDraft(person.birthSurname);
+      setNotesDraft(person.notes);
     } else if (mode === "menu" || mode === "divorce") {
       setFirstDraft("");
       setLastDraft("");
@@ -205,7 +209,7 @@ export function ActionPanel({
     mode === "add-parent" || mode === "add-child" || mode === "add-spouse";
   const trimmedFirst = firstDraft.trim();
   const canSubmit =
-    mode === "rename"
+    mode === "edit"
       ? trimmedFirst.length > 0
       : trimmedFirst.length > 0 && draftGender !== null;
 
@@ -216,9 +220,10 @@ export function ActionPanel({
       commonName: commonDraft.trim(),
       birthSurname: birthSurnameDraft.trim(),
     };
-    if (mode === "rename") {
+    if (mode === "edit") {
       if (!name.firstName) return;
       onRename(name);
+      onSetNotes(notesDraft);
     } else {
       if (!name.firstName || draftGender === null) return;
       if (mode === "add-parent") onAddParent(name, draftGender);
@@ -238,7 +243,7 @@ export function ActionPanel({
   }
 
   return (
-    <div className="pointer-events-auto fixed right-4 bottom-4 z-10 w-[min(360px,calc(100vw-2rem))] rounded-lg border border-border-default bg-surface-secondary p-4 shadow-2xl md:top-20 md:right-4 md:bottom-auto">
+    <div className="pointer-events-auto fixed right-4 bottom-4 z-10 w-[min(360px,calc(100vw-2rem))] rounded-lg border border-border-default bg-surface-secondary p-4 max-h-[calc(100dvh-2rem)] overflow-y-auto shadow-2xl md:top-20 md:right-4 md:bottom-auto md:max-h-[calc(100dvh-6rem)]">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <div className="text-xs uppercase tracking-wide text-text-muted">
@@ -291,9 +296,9 @@ export function ActionPanel({
             </Button>
             <Button
               variant="secondary"
-              onClick={() => { onModeChange("rename"); }}
+              onClick={() => { onModeChange("edit"); }}
             >
-              Rename
+              Edit
             </Button>
             {canDivorce ? (
               <Button
@@ -409,6 +414,26 @@ export function ActionPanel({
             </div>
           </div>
 
+          {mode === "edit" ? (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="person-notes" className="text-xs text-text-secondary">
+                Notes <span className="text-text-muted">(optional)</span>
+              </label>
+              <textarea
+                id="person-notes"
+                value={notesDraft}
+                onChange={(e) => { setNotesDraft(e.target.value); }}
+                rows={4}
+                className="resize-y rounded-md border border-border-default bg-surface-primary px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-orange"
+                placeholder="Research notes, sources, alternate names…"
+              />
+              <p className="text-xs text-text-muted">
+                Anyone with the link can read this — keep private details about
+                living people out.
+              </p>
+            </div>
+          ) : null}
+
           {needsGender ? (
             <div className="flex flex-col gap-1">
               <label className="text-xs text-text-secondary">Gender</label>
@@ -515,7 +540,7 @@ export function ActionPanel({
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={!canSubmit}>
-              {mode === "rename" ? "Save" : "Add"}
+              {mode === "edit" ? "Save" : "Add"}
             </Button>
           </div>
         </form>
