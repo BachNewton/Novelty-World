@@ -17,7 +17,10 @@ import type {
 } from "./types";
 
 export const NODE_W = 180;
-export const NODE_H = 64;
+// Cards are a fixed size (the layout never measures text), so this must fit
+// the tallest content: a name wrapped onto two lines, the "née" line, and
+// the relation line.
+export const NODE_H = 90;
 export const SPOUSE_GAP = 28;
 export const ROW_GAP = 96;
 export const SUBTREE_GAP = 72;
@@ -72,6 +75,8 @@ function makePerson(
     firstName: name.firstName,
     lastName: name.lastName,
     commonName: name.commonName,
+    birthSurname: name.birthSurname,
+    notes: "",
     gender,
     parentIds: [],
     unions: [],
@@ -84,6 +89,7 @@ export function createInitialTree(): Tree {
     firstName: ROOT_FIRST_NAME,
     lastName: ROOT_LAST_NAME,
     commonName: "",
+    birthSurname: "",
   };
   return {
     rootId: ROOT_ID,
@@ -217,6 +223,12 @@ export function setGender(tree: Tree, id: string, gender: Gender): Tree {
   return next;
 }
 
+export function setNotes(tree: Tree, id: string, notes: string): Tree {
+  const next = clone(tree);
+  next.persons[id].notes = notes;
+  return next;
+}
+
 export function deletePerson(tree: Tree, id: string): Tree {
   if (id === tree.rootId) return tree;
   const next = clone(tree);
@@ -236,6 +248,8 @@ interface StoredPerson {
   firstName: string;
   lastName: string;
   commonName?: string;
+  birthSurname?: string;
+  notes?: string;
   gender: Gender;
   parentIds: string[];
   unions?: Union[];
@@ -260,16 +274,21 @@ function storedUnions(person: StoredPerson): Union[] {
   ];
 }
 
-// Backfill schema fields added later (commonName) and migrate the pre-union
-// spouse lists into `unions`, so older persisted rows hydrate without
-// crashing. Returns `changed: true` when a row had to be upgraded — callers
-// use that to write the healed row back.
+// Backfill schema fields added later (commonName, birthSurname, notes) and
+// migrate the pre-union spouse lists into `unions`, so older persisted rows
+// hydrate without crashing. Returns `changed: true` when a row had to be
+// upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
   const t = raw as StoredTree;
   let changed = false;
   const persons: Record<string, Person> = {};
   for (const [id, person] of Object.entries(t.persons)) {
-    if (person.unions === undefined || person.commonName === undefined) {
+    if (
+      person.unions === undefined ||
+      person.commonName === undefined ||
+      person.birthSurname === undefined ||
+      person.notes === undefined
+    ) {
       changed = true;
     }
     persons[id] = {
@@ -277,6 +296,8 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       firstName: person.firstName,
       lastName: person.lastName,
       commonName: person.commonName ?? "",
+      birthSurname: person.birthSurname ?? "",
+      notes: person.notes ?? "",
       gender: person.gender,
       parentIds: [...person.parentIds],
       unions: storedUnions(person),

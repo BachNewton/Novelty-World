@@ -13,6 +13,7 @@ import {
   normalizeTree,
   renamePerson as logicRenamePerson,
   setGender as logicSetGender,
+  setNotes as logicSetNotes,
   setUnionStatus as logicSetUnionStatus,
   topologyHash,
 } from "./logic";
@@ -73,6 +74,7 @@ interface FamilyTreeState {
   setUnionStatus: (aId: string, bId: string, status: UnionStatus) => void;
   rename: (id: string, name: NameFields) => void;
   setGender: (id: string, gender: Gender) => void;
+  setNotes: (id: string, notes: string) => void;
   remove: (id: string) => void;
 }
 
@@ -134,6 +136,7 @@ function cleanName(name: NameFields): NameFields {
     firstName: name.firstName.trim() || "Unnamed",
     lastName: name.lastName.trim(),
     commonName: name.commonName.trim(),
+    birthSurname: name.birthSurname.trim(),
   };
 }
 
@@ -409,6 +412,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   setGender: (id, gender) => {
     applyMutation((tree) => logicSetGender(tree, id, gender));
+  },
+
+  setNotes: (id, notes) => {
+    applyMutation((tree) => logicSetNotes(tree, id, notes.trim()));
   },
 
   remove: (id) => {

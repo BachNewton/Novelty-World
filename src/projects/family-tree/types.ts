@@ -23,6 +23,7 @@ export interface NameFields {
   firstName: string;
   lastName: string;
   commonName: string;
+  birthSurname: string;
 }
 
 export interface Person {
@@ -34,6 +35,13 @@ export interface Person {
   // Empty string means "no nickname". When set, fullName renders it as
   // First "Common" Last (e.g., Daniel "Dan" Santoro).
   commonName: string;
+  // Empty string means "same as lastName". Set when someone is known by a
+  // surname other than the one they were born with (typically by marriage),
+  // so they stay recognizable under either name.
+  birthSurname: string;
+  // Free-text research notes; empty string means none. Never shown on the
+  // tree itself, only in the edit panel.
+  notes: string;
   gender: Gender;
   parentIds: string[];
   unions: Union[];
