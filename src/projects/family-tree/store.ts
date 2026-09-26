@@ -134,6 +134,7 @@ function cleanName(name: NameFields): NameFields {
     firstName: name.firstName.trim() || "Unnamed",
     lastName: name.lastName.trim(),
     commonName: name.commonName.trim(),
+    birthSurname: name.birthSurname.trim(),
   };
 }
 

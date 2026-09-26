@@ -33,6 +33,7 @@ function p(
     firstName: id,
     lastName: "",
     commonName: "",
+    birthSurname: "",
     gender,
     parentIds: [...parents],
     spouseIds: [...spouses],

@@ -22,6 +22,7 @@ import {
   nextGender,
   optimisticPatch,
   packElbowRows,
+  normalizeTree,
   renamePerson,
   setGender,
   topologyHash,
@@ -31,8 +32,13 @@ import type { Gender, NameFields, Person, Tree } from "./types";
 
 // Test-local helper: build a NameFields object positionally so test calls
 // don't have to spell out the object literal every time.
-function n(firstName: string, lastName = "", commonName = ""): NameFields {
-  return { firstName, lastName, commonName };
+function n(
+  firstName: string,
+  lastName = "",
+  commonName = "",
+  birthSurname = "",
+): NameFields {
+  return { firstName, lastName, commonName, birthSurname };
 }
 
 function p(
@@ -47,6 +53,7 @@ function p(
     firstName: id,
     lastName: "",
     commonName: "",
+    birthSurname: "",
     gender,
     parentIds,
     spouseIds,
@@ -284,6 +291,86 @@ describe("renamePerson", () => {
     let t = renamePerson(createInitialTree(), ROOT_ID, n("Daniel", "Santoro", "Dan"));
     t = renamePerson(t, ROOT_ID, n("Daniel", "Santoro"));
     expect(t.persons[ROOT_ID].commonName).toBe("");
+  });
+
+  it("sets the birth surname", () => {
+    const t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      n("Gloria", "Liikanen", "", "Erickson"),
+    );
+    expect(t.persons[ROOT_ID].lastName).toBe("Liikanen");
+    expect(t.persons[ROOT_ID].birthSurname).toBe("Erickson");
+  });
+
+  it("allows clearing the birth surname to empty", () => {
+    let t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      n("Gloria", "Liikanen", "", "Erickson"),
+    );
+    t = renamePerson(t, ROOT_ID, n("Gloria", "Liikanen"));
+    expect(t.persons[ROOT_ID].birthSurname).toBe("");
+  });
+});
+
+describe("addSpouse birth surname", () => {
+  it("stores the new spouse's birth surname", () => {
+    const t = addSpouse(
+      createInitialTree(),
+      ROOT_ID,
+      "s1",
+      n("Loretta", "Santoro", "", "Johnson"),
+      "F",
+    );
+    expect(t.persons.s1.birthSurname).toBe("Johnson");
+  });
+});
+
+describe("normalizeTree", () => {
+  const legacyPerson = {
+    id: ROOT_ID,
+    firstName: "Kyle",
+    lastName: "Hutchinson",
+    gender: "M",
+    parentIds: [],
+    spouseIds: [],
+  };
+
+  it("backfills birthSurname (and other later fields) and reports the change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: { [ROOT_ID]: legacyPerson },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].birthSurname).toBe("");
+    expect(tree.persons[ROOT_ID].commonName).toBe("");
+    expect(tree.persons[ROOT_ID].divorcedSpouseIds).toEqual([]);
+  });
+
+  it("keeps an existing birthSurname and reports no change for a current row", () => {
+    const current = {
+      ...legacyPerson,
+      commonName: "",
+      birthSurname: "Erickson",
+      divorcedSpouseIds: [],
+    };
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: { [ROOT_ID]: current },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID].birthSurname).toBe("Erickson");
+  });
+
+  it("reports a change when only birthSurname is missing", () => {
+    const { changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...legacyPerson, commonName: "", divorcedSpouseIds: [] },
+      },
+    });
+    expect(changed).toBe(true);
   });
 });
 

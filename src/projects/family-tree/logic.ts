@@ -16,7 +16,10 @@ import type {
 } from "./types";
 
 export const NODE_W = 180;
-export const NODE_H = 64;
+// Cards are a fixed size (the layout never measures text), so this must fit
+// the tallest content: a name wrapped onto two lines, the "née" line, and
+// the relation line.
+export const NODE_H = 90;
 export const SPOUSE_GAP = 28;
 export const ROW_GAP = 96;
 export const SUBTREE_GAP = 72;
@@ -47,6 +50,7 @@ function makePerson(
     firstName: name.firstName,
     lastName: name.lastName,
     commonName: name.commonName,
+    birthSurname: name.birthSurname,
     gender,
     parentIds: [],
     spouseIds: [],
@@ -60,6 +64,7 @@ export function createInitialTree(): Tree {
     firstName: ROOT_FIRST_NAME,
     lastName: ROOT_LAST_NAME,
     commonName: "",
+    birthSurname: "",
   };
   return {
     rootId: ROOT_ID,
@@ -206,7 +211,8 @@ export function deletePerson(tree: Tree, id: string): Tree {
   return next;
 }
 
-// Backfill schema fields added later (divorcedSpouseIds, commonName) so older
+// Backfill schema fields added later (divorcedSpouseIds, commonName,
+// birthSurname) so older
 // persisted rows hydrate without crashing. Returns `changed: true` when a
 // field had to be added — callers can use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -218,11 +224,14 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
     if (divorced === undefined) changed = true;
     const common = person.commonName as string | undefined;
     if (common === undefined) changed = true;
+    const birthSurname = person.birthSurname as string | undefined;
+    if (birthSurname === undefined) changed = true;
     persons[id] = {
       id: person.id,
       firstName: person.firstName,
       lastName: person.lastName,
       commonName: common ?? "",
+      birthSurname: birthSurname ?? "",
       gender: person.gender,
       parentIds: [...person.parentIds],
       spouseIds: [...person.spouseIds],
