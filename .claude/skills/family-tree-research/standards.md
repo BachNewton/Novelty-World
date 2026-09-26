@@ -3,7 +3,7 @@
 What each research question needs before it is **Confirmed**, and what must be
 tried before it may be marked **Exhausted**. Anything short of both is
 **Open**. A record is judged against this file as it stood on the record's
-`asOf` date; the change list at the bottom says what changed when.
+`asOf` date; git history has the earlier versions.
 
 This file defines what "complete" means, so changes are proposed to the owner
 before they are made (see Self-improvement in `SKILL.md`). Sources are
@@ -230,15 +230,3 @@ a marriage record), or "per Kyle".
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
 record, then ask Kyle / family (last). **May be Exhausted without a family
 answer**, like birth years: heritage adds no connection.
-
-## Changes
-
-- 2026-09-26: first version, with digital sources first, family last, and a
-  per-question rule for Exhausted without a family answer (proposed; awaiting
-  the owner's review).
-- 2026-09-26: owner priority, connections first. `~YYYY` counts as Confirmed;
-  living birth years and heritage may be Exhausted without a family answer;
-  living married-in adults get heritage from records like anyone else. Only
-  a living person's `family` question still needs a family answer.
-- 2026-09-26: a minor's own online footprint may be searched; only what meets
-  the privacy rules is saved.

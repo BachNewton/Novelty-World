@@ -283,7 +283,7 @@ The playbooks get better only if every round feeds back into them.
   tight (merge duplicates, cut anything nobody would act on). Parallel agents
   editing the same files collide and bloat them.
 - **Changes to `standards.md` are proposed to the owner, never applied
-  silently**: they change what "complete" means. When one is accepted, add it
-  to that file's change list with its date, so records can be judged against
-  the standard as of their `asOf`.
+  silently**: they change what "complete" means. Git history keeps the
+  earlier versions, so a record can still be judged against the standard as
+  of its `asOf`.
 - **This file** changes only when the workflow or the rules do.
