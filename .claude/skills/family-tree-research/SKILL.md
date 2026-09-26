@@ -177,10 +177,13 @@ would put a private detail about a living person in the public row. Also ask:
 - **family questions, in one batch per round.** Asking family is the last
   must-try step, after every digital one, because people are slow to reply.
   Collect every such question across the round and hand them over together
-  at the end (the owner sends them on as a form), each phrased so a relative
-  can answer it without context. Never ask one at a time, and never block on
-  one. `standards.md` says which questions need a family answer before they
-  can be Exhausted;
+  at the end, each phrased so a relative can answer it without context.
+  Never ask one at a time, and never block on one. `standards.md` says which
+  questions need a family answer before they can be Exhausted.
+  The owner only asks people they know, never cold contacts, so group the
+  batch by the family it concerns and say who would likely know (someone in
+  that household, a sibling, a parent). The owner picks whom to send each
+  group to;
 - before changing `standards.md` (see Self-improvement).
 
 ## Heritage
