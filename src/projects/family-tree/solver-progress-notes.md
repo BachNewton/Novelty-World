@@ -68,20 +68,23 @@ What this shows:
    with tree size, and we have no measured threshold that separates slow from
    stuck.
 5. **Failure as an error.** A WASM crash throws inside the solve, and the UI must
-   show it as a failed optimize, never as a spinner that keeps spinning.
-   **Today that doesn't happen.** The sugiyama wrapper in `logic.ts` catches any
-   error and returns null, and the caller then falls back to a flat per-layer
-   placement. A solver crash comes out as a bad-looking layout with no error.
-   Solver failures need to propagate to the worker's error response instead of
-   being absorbed by that fallback.
+   show it as a failed optimize, never as a spinner that keeps spinning. The
+   sugiyama step in `logic.ts` lets solver errors propagate (it once swallowed
+   them into a flat fallback placement, which disguised a crash as an ugly
+   layout), and the store surfaces worker errors and failed uploads alike.
+
+Implemented in `solver-progress.ts` (log parsing), `layout.worker.ts`
+(streaming), and `components/optimize-status.tsx` (the card). Item 3's
+"previous duration" isn't built yet: it needs a column next to the cached
+layout.
 
 ## Getting progress out of the worker
 
 The `print` hook runs synchronously inside `solve()`, on the worker thread. The
 worker can `postMessage` a parsed progress update from inside the hook, and the
-main thread receives it because only the worker is blocked. **Not verified
-yet:** confirm that browsers deliver those messages while the worker is still
-inside the synchronous call, before building the UI on it.
+main thread receives it because only the worker is blocked. Verified in
+Chromium (September 2026): messages posted from a worker spinning in a 3s
+synchronous loop arrived within about 5ms of being sent, not batched at the end.
 
 Parse the log defensively. It's human-readable output, not an API, so a
 `highs` upgrade can change the columns. A row we can't parse should still count

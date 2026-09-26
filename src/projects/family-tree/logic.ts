@@ -858,13 +858,13 @@ const layeringByGenerationOp: Layering<CoupleData, unknown> = layeringByGenerati
 // ever fetches this chunk. coordSimplex assigns x via an LP that pulls
 // children under their parents (subject to layer ordering and width/gap
 // constraints).
-// Returns null on failure (degenerate graph the LP solver can't handle); the
-// caller falls back to a flat per-layer placement.
+// Solver errors propagate: swallowing them would disguise a crashed solve as
+// a merely ugly layout.
 async function layoutCouplesViaSugiyama(
   couples: CoupleUnit[],
   parentCouplesOf: Map<string, string[]>,
-): Promise<Map<string, number> | null> {
-  if (couples.length === 0) return null;
+): Promise<Map<string, number>> {
+  if (couples.length === 0) return new Map();
   const data: CoupleData[] = couples.map((c) => ({
     id: c.id,
     parentIds: parentCouplesOf.get(c.id) ?? [],
@@ -872,62 +872,26 @@ async function layoutCouplesViaSugiyama(
   }));
   const widthById = new Map(couples.map((c) => [c.id, coupleWidth(c)] as const));
 
-  try {
-    // d3-dag's chained types narrow to <never, never> when decross/coord run
-    // before nodeSize, so we cast the assembled layout to a callable that
-    // accepts our typed dag. The runtime is unaffected — nodeSize only ever
-    // needs node.data.id, which is present on the stratified data.
-    const dag = graphStratify()(data);
-    const mod = await import("./decross-highs");
-    const decross = mod.decrossHighs(await mod.loadHighs());
-    const layout = sugiyama()
-      .layering(layeringByGenerationOp)
-      .decross(decross)
-      .coord(coordSimplex())
-      .nodeSize((node: { data: CoupleData }) => [
-        widthById.get(node.data.id) ?? NODE_W,
-        NODE_H,
-      ])
-      .gap([SUBTREE_GAP, ROW_GAP]) as unknown as (g: typeof dag) => void;
-    layout(dag);
-    const result = new Map<string, number>();
-    for (const node of dag.nodes()) result.set(node.data.id, node.x);
-    return result;
-  } catch {
-    return null;
-  }
-}
-
-// Last-resort placement when sugiyama bails: walk each generation top-to-
-// bottom and place couples left-to-right with minimum gap, in BFS order. Bad
-// crossings, but avoids dropping nodes from the render.
-function fallbackLayout(
-  couples: CoupleUnit[],
-  layered: LayeredOrdering,
-  fallbackOrder: Map<string, number>,
-): Map<string, number> {
-  const centerX = new Map<string, number>();
-  for (const g of layered.sortedGens) {
-    const layer = (layered.byGen.get(g) ?? []).slice().sort(
-      (a, b) => (fallbackOrder.get(a.id) ?? 0) - (fallbackOrder.get(b.id) ?? 0),
-    );
-    let cursor = 0;
-    for (const c of layer) {
-      const w = coupleWidth(c);
-      centerX.set(c.id, cursor + w / 2);
-      cursor += w + SUBTREE_GAP;
-    }
-  }
-  // Disconnected couples (shouldn't happen for a normally-built tree).
-  let extraCursor = 0;
-  for (const x of centerX.values()) extraCursor = Math.max(extraCursor, x);
-  for (const c of couples) {
-    if (centerX.has(c.id)) continue;
-    const w = coupleWidth(c);
-    centerX.set(c.id, extraCursor + SUBTREE_GAP + w / 2);
-    extraCursor += w + SUBTREE_GAP;
-  }
-  return centerX;
+  // d3-dag's chained types narrow to <never, never> when decross/coord run
+  // before nodeSize, so we cast the assembled layout to a callable that
+  // accepts our typed dag. The runtime is unaffected — nodeSize only ever
+  // needs node.data.id, which is present on the stratified data.
+  const dag = graphStratify()(data);
+  const mod = await import("./decross-highs");
+  const decross = mod.decrossHighs(await mod.loadHighs());
+  const layout = sugiyama()
+    .layering(layeringByGenerationOp)
+    .decross(decross)
+    .coord(coordSimplex())
+    .nodeSize((node: { data: CoupleData }) => [
+      widthById.get(node.data.id) ?? NODE_W,
+      NODE_H,
+    ])
+    .gap([SUBTREE_GAP, ROW_GAP]) as unknown as (g: typeof dag) => void;
+  layout(dag);
+  const result = new Map<string, number>();
+  for (const node of dag.nodes()) result.set(node.data.id, node.x);
+  return result;
 }
 
 // ---------- Elbow row packing ----------
@@ -981,13 +945,6 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
   const gen = computeGenerations(tree);
   const { couples, coupleOf } = buildCoupleUnits(tree, order, gen);
 
-  const orderIndex = new Map<string, number>();
-  order.forEach((id, i) => { orderIndex.set(id, i); });
-  const fallbackOrder = new Map<string, number>();
-  for (const couple of couples) {
-    fallbackOrder.set(couple.id, orderIndex.get(couple.id) ?? 0);
-  }
-
   // For each couple, the set of distinct parent couples (one per spouse who
   // has parents in the tree). A couple may have 0, 1, or 2 parent couples.
   const parentCouplesOf = new Map<string, string[]>();
@@ -1017,12 +974,7 @@ export async function computeLayout(tree: Tree): Promise<Layout> {
   }
 
   const layered = buildLayered(couples);
-  const sugiyamaCenterX = await layoutCouplesViaSugiyama(
-    couples,
-    parentCouplesOf,
-  );
-  const rawCenterX =
-    sugiyamaCenterX ?? fallbackLayout(couples, layered, fallbackOrder);
+  const rawCenterX = await layoutCouplesViaSugiyama(couples, parentCouplesOf);
 
   // Translate so the leftmost couple's left edge sits at x = 0.
   let minLeftEdge = Infinity;

@@ -17,6 +17,8 @@ import {
   topologyHash,
 } from "./logic";
 import type { LayoutRequest, LayoutResponse } from "./layout.worker";
+import { INITIAL_SOLVE_PROGRESS } from "./solver-progress";
+import type { SolveProgress } from "./solver-progress";
 
 const TABLE = "family_tree";
 const ROW_ID = "global";
@@ -36,6 +38,13 @@ interface FamilyTreeState {
   // A worker is solving right now. Drives the "Optimizing…" UI; flips back
   // to false on success, cancel, or staleness rejection.
   optimizing: boolean;
+  // Live view of the running solve. Only meaningful while `optimizing`.
+  solveProgress: SolveProgress;
+  solveStartedAt: number;
+  // When the worker last reported anything — the liveness signal.
+  solveLastUpdateAt: number;
+  // Why the last optimize failed, until dismissed or retried.
+  optimizeError: string | null;
   selectedId: string | null;
   // Local-only viewing perspective. Defaults to ROOT_ID, never persisted to
   // Supabase. Resets to ROOT_ID on reload by design.
@@ -46,6 +55,7 @@ interface FamilyTreeState {
   resetViewRoot: () => void;
   optimize: () => void;
   cancelOptimize: () => void;
+  dismissOptimizeError: () => void;
   addParent: (childId: string, name: NameFields, gender: Gender) => void;
   addChild: (
     parentId: string,
@@ -152,6 +162,10 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
   status: "idle",
   saving: false,
   optimizing: false,
+  solveProgress: INITIAL_SOLVE_PROGRESS,
+  solveStartedAt: 0,
+  solveLastUpdateAt: 0,
+  optimizeError: null,
   selectedId: null,
   viewRootId: ROOT_ID,
 
@@ -254,14 +268,30 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
     activeWorker = worker;
     const optimizeId = ++activeOptimizeId;
 
+    function fail(error: string): void {
+      set({ optimizing: false, optimizeError: error });
+    }
+
+    // Anything thrown outside computeLayout's try — e.g. the worker's own
+    // chunk failing to load.
+    worker.onerror = (e) => {
+      if (optimizeId !== activeOptimizeId) return;
+      terminateActiveWorker();
+      fail(e.message || "The layout worker crashed.");
+    };
+
     worker.onmessage = (e: MessageEvent<LayoutResponse>) => {
       const msg = e.data;
       // The user (or a mid-solve edit) may have moved on. Bail before
       // touching state.
       if (optimizeId !== activeOptimizeId) return;
-      activeWorker = null;
-      if (!msg.ok) {
-        set({ optimizing: false });
+      if (msg.type === "progress") {
+        set({ solveProgress: msg.progress, solveLastUpdateAt: Date.now() });
+        return;
+      }
+      terminateActiveWorker();
+      if (msg.type === "error") {
+        fail(`Layout solve failed: ${msg.error}`);
         return;
       }
       void (async () => {
@@ -313,19 +343,27 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
             cachedLayoutHash: solveHash,
             optimizing: false,
           });
-        } catch {
+        } catch (err) {
           // Upload failed (Supabase unreachable, RLS rejection, etc.).
           // Leave the canvas in fast-pass mode; the user can retry. We
           // intentionally do NOT commit a local-only cached layout —
           // the canonical data lives in Supabase.
-          set({ optimizing: false });
+          const message = err instanceof Error ? err.message : String(err);
+          fail(`Saving the optimized layout failed: ${message}`);
         }
       })();
     };
 
     const req: LayoutRequest = { id: optimizeId, tree };
     worker.postMessage(req);
-    set({ optimizing: true });
+    const now = Date.now();
+    set({
+      optimizing: true,
+      optimizeError: null,
+      solveProgress: INITIAL_SOLVE_PROGRESS,
+      solveStartedAt: now,
+      solveLastUpdateAt: now,
+    });
   },
 
   cancelOptimize: () => {
@@ -333,6 +371,8 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
     terminateActiveWorker();
     set({ optimizing: false });
   },
+
+  dismissOptimizeError: () => { set({ optimizeError: null }); },
 
   addParent: (childId, name, gender) => {
     applyMutation((tree) => logicAddParent(tree, childId, newId(), cleanName(name), gender));

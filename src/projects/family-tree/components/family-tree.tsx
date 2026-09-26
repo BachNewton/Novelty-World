@@ -17,6 +17,7 @@ import type { Layout, Tree } from "../types";
 import { PanZoom } from "./pan-zoom";
 import { Node } from "./node";
 import { Edges } from "./edges";
+import { OptimizeStatus } from "./optimize-status";
 import {
   ActionPanel,
   type BioChildCandidate,
@@ -302,6 +303,8 @@ export function FamilyTree() {
             </div>
           </div>
         ) : null}
+
+        <OptimizeStatus />
 
         {selectedPerson ? (
           <ActionPanel
