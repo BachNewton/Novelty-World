@@ -195,6 +195,26 @@ describe("applyOps", () => {
     expect(changes[0]).toContain("married to Kyle Hutchinson");
   });
 
+  it("links an existing person as a second parent, marrying them to the first", () => {
+    const { tree, changes } = run(family(), [
+      { op: "addSpouse", ref: "@mo", person: SHARED_KID, name: { firstName: "Mo" }, gender: "F", status: "married", bioChildren: [] },
+      { op: "addChild", ref: "@kid", parent: "@mo", coParent: null, name: { firstName: "Di" }, gender: "F" },
+      { op: "linkParent", child: "@kid", parent: SOLO_KID },
+    ]);
+    expect(tree.persons["new-2"].parentIds).toEqual(["new-1", SOLO_KID]);
+    expect(tree.persons["new-1"].unions).toContainEqual({ personId: SOLO_KID, status: "married" });
+    expect(changes[2]).toMatch(
+      /^Link Bo Root \[.+\] as parent of Di \[new-2\]; married to Mo \[new-1\] automatically \(follow with setUnionStatus if they weren't married\)$/,
+    );
+  });
+
+  it("links an existing spouse as a child's second parent without a new union", () => {
+    const { tree, changes } = run(family(), [{ op: "linkParent", child: SOLO_KID, parent: "5a0e" }]);
+    expect(tree.persons[SOLO_KID].parentIds).toEqual([ROOT_ID, SPOUSE]);
+    expect(tree.persons[SPOUSE].unions).toEqual([{ personId: ROOT_ID, status: "married" }]);
+    expect(changes[0]).toMatch(/^Link Sam Root \(née Birth\) \[5a0e0000\] as parent of Bo Root \[.+\], alongside Kyle Hutchinson \[kyle-hut\]$/);
+  });
+
   it("changes union status and records who died", () => {
     const { tree, changes } = run(family(), [
       { op: "setUnionStatus", a: "kyle", b: "5a0e", status: "ended-by-death" },
@@ -342,6 +362,10 @@ describe("applyOps", () => {
       { ...SET_RESEARCH, person: "5a0e" },
       { ...SET_RESEARCH, person: "5a0e", sources: [" per Kyle "] },
     ], /already has this family record/],
+    ["linking a parent twice", [{ op: "linkParent", child: SHARED_KID, parent: "5a0e" }], /already a parent of/],
+    ["linking a third parent", [{ op: "linkParent", child: SHARED_KID, parent: SOLO_KID }], /already has two parents/],
+    ["linking someone as their own parent", [{ op: "linkParent", child: SOLO_KID, parent: SOLO_KID }], /can't be their own parent/],
+    ["linking a descendant as a parent", [{ op: "linkParent", child: "kyle", parent: SOLO_KID }], /is an ancestor of/],
     ["a status change on a pair with no union", [
       { op: "setUnionStatus", a: "5a0e", b: SOLO_KID, status: "divorced" },
     ], /have no union/],

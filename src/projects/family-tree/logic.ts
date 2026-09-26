@@ -146,6 +146,30 @@ export function addParent(
   return next;
 }
 
+// Make `parentId`, already in the tree, a parent of `childId`, also already
+// in it. Like addParent, a second parent is married to the first unless the
+// two already share a union, which is left as it is.
+export function linkParent(tree: Tree, childId: string, parentId: string): Tree {
+  const label = (id: string): string => `${fullName(tree.persons[id])} (${id})`;
+  const { parentIds } = tree.persons[childId];
+  if (parentId === childId) throw new Error(`${label(childId)} can't be their own parent`);
+  if (parentIds.includes(parentId)) {
+    throw new Error(`${label(parentId)} is already a parent of ${label(childId)}`);
+  }
+  if (parentIds.length >= 2) throw new Error(`${label(childId)} already has two parents`);
+  if (ancestorsWithDistance(tree, parentId).has(childId)) {
+    throw new Error(`${label(childId)} is an ancestor of ${label(parentId)}, so can't be their child`);
+  }
+  const next = clone(tree);
+  next.persons[childId].parentIds.push(parentId);
+  const otherParentId = parentIds.at(0);
+  if (otherParentId !== undefined && unionWith(next.persons[parentId], otherParentId) === undefined) {
+    next.persons[otherParentId].unions.push(newUnion(parentId, "married"));
+    next.persons[parentId].unions.push(newUnion(otherParentId, "married"));
+  }
+  return next;
+}
+
 export function addChild(
   tree: Tree,
   parentId: string,

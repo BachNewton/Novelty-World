@@ -14,6 +14,7 @@ import {
   fullName,
   heritageBreakdowns,
   heritageProblem,
+  linkParent,
   renamePerson,
   RESEARCH_QUESTIONS,
   RESEARCH_STATUSES,
@@ -106,6 +107,8 @@ export type Op =
       birthDate?: string;
       heritage?: HeritageEntryCode[];
     }
+  // Makes an existing person a parent of an existing child.
+  | { op: "linkParent"; child: PersonRef; parent: PersonRef }
   | { op: "setUnionStatus"; a: PersonRef; b: PersonRef; status: UnionStatus }
   | { op: "setUnionDeceased"; a: PersonRef; b: PersonRef; deceased: PersonRef | null }
   | { op: "deletePerson"; person: PersonRef }
@@ -175,6 +178,7 @@ const OP_FIELDS = {
     birthDate: "birthDate?",
     heritage: "heritage?",
   },
+  linkParent: { child: "person", parent: "person" },
   setUnionStatus: { a: "person", b: "person", status: "status" },
   setUnionDeceased: { a: "person", b: "person", deceased: "personOrNull" },
   deletePerson: { person: "person" },
@@ -830,6 +834,21 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
           ? ""
           : `; married to ${label(otherParentId)} automatically (follow with setUnionStatus if they weren't married)`;
         return `Add parent ${displayName(current.persons[id])} (${op.gender}${details})${bindRef(op.ref, id)} of ${label(childId)}${union}`;
+      }
+      case "linkParent": {
+        const childId = who(op.child);
+        const parentId = who(op.parent);
+        const otherParentId = current.persons[childId].parentIds.at(0);
+        const hadUnion = otherParentId !== undefined &&
+          current.persons[parentId].unions.some((u) => u.personId === otherParentId);
+        current = linkParent(current, childId, parentId);
+        let coParent = "";
+        if (otherParentId !== undefined) {
+          coParent = hadUnion
+            ? `, alongside ${label(otherParentId)}`
+            : `; married to ${label(otherParentId)} automatically (follow with setUnionStatus if they weren't married)`;
+        }
+        return `Link ${label(parentId)} as parent of ${label(childId)}${coParent}`;
       }
       case "setUnionStatus": {
         const aId = who(op.a);

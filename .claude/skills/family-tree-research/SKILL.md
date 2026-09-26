@@ -270,6 +270,14 @@ shows old → new); `clearResearch` (`{ "op": "clearResearch", "person",
 person's research record. `setHeritage` (or `heritage` on a new person) takes
 codes from `heritages.ts` plus `"unknown"`, split equally; `[]` removes it.
 
+`linkParent` (`{ "op": "linkParent", "child", "parent" }`) makes someone
+already in the tree a parent of someone else already in it: a wife found to be
+the mother of her husband's children, or a person found to be a child of an
+existing couple. As with a new parent, a second parent is married to the first
+automatically unless the two already have a union, which stays as it is. It
+refuses a child who already has two parents, a link that already exists, and
+anyone becoming their own parent or ancestor.
+
 The apply step fails loudly on anything doubtful: unknown or ambiguous ids, a
 third parent, adding someone a relative already has under the same name (as a
 re-run file would), a rename that changes nothing, or a result that breaks a

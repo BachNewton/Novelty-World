@@ -16,6 +16,7 @@ import {
   fullName,
   fullNameWithMiddle,
   heritageBreakdowns,
+  linkParent,
   nearestInDirection,
   newUnion,
   normalizeTree,
@@ -164,6 +165,50 @@ describe("addParent", () => {
     t = addParent(t, ROOT_ID, "dad", n("Dad"), "M");
     const t2 = addParent(t, ROOT_ID, "extra", n("Extra"), "M");
     expect(t2).toBe(t);
+  });
+});
+
+describe("linkParent", () => {
+  it("makes an existing person the only parent of an existing child", () => {
+    const t = linkParent(makeTree([p("kid"), p("dad")]), "kid", "dad");
+    expect(t.persons.kid.parentIds).toEqual(["dad"]);
+    expect(t.persons.dad.unions).toEqual([]);
+    expect(treeProblems(t)).toEqual([]);
+  });
+
+  it("marries the second parent to the first, like addParent", () => {
+    const t = linkParent(makeTree([p("kid", "M", ["dad"]), p("dad"), p("mom", "F")]), "kid", "mom");
+    expect(t.persons.kid.parentIds).toEqual(["dad", "mom"]);
+    expect(t.persons.dad.unions).toEqual([u("mom", "married")]);
+    expect(t.persons.mom.unions).toEqual([u("dad", "married")]);
+    expect(treeProblems(t)).toEqual([]);
+  });
+
+  it("leaves a union the two parents already share", () => {
+    const t = linkParent(
+      makeTree([p("kid", "M", ["dad"]), p("dad", "M", [], [], ["mom"]), p("mom", "F", [], [], ["dad"])]),
+      "kid",
+      "mom",
+    );
+    expect(t.persons.kid.parentIds).toEqual(["dad", "mom"]);
+    expect(t.persons.dad.unions).toEqual([u("mom", "divorced")]);
+    expect(t.persons.mom.unions).toEqual([u("dad", "divorced")]);
+  });
+
+  it("does not touch the input tree", () => {
+    const tree = makeTree([p("kid"), p("dad")]);
+    const before = JSON.stringify(tree);
+    linkParent(tree, "kid", "dad");
+    expect(JSON.stringify(tree)).toBe(before);
+  });
+
+  it.each<[string, Person[], string, string, RegExp]>([
+    ["self-parenting", [p("kid")], "kid", "kid", /can't be their own parent/],
+    ["an existing link", [p("kid", "M", ["dad"]), p("dad")], "kid", "dad", /already a parent of/],
+    ["a third parent", [p("kid", "M", ["dad", "mom"]), p("dad"), p("mom", "F"), p("x")], "kid", "x", /already has two parents/],
+    ["a parent who descends from the child", [p("gran"), p("mom", "F", ["gran"]), p("kid", "M", ["mom"])], "gran", "kid", /is an ancestor of/],
+  ])("fails loudly on %s", (_, persons, childId, parentId, message) => {
+    expect(() => linkParent(makeTree(persons), childId, parentId)).toThrow(message);
   });
 });
 
