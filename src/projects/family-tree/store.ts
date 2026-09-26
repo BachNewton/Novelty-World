@@ -136,6 +136,7 @@ function scheduleSave(tree: Tree, setSaving: (b: boolean) => void): void {
 function cleanName(name: NameFields): NameFields {
   return {
     firstName: name.firstName.trim() || "Unnamed",
+    middleName: name.middleName.trim(),
     lastName: name.lastName.trim(),
     commonName: name.commonName.trim(),
     birthSurname: name.birthSurname.trim(),

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Gender, NameFields, Person, UnionStatus } from "../types";
-import { ROOT_ID, fullName } from "../logic";
+import { ROOT_ID, fullName, fullNameWithMiddle } from "../logic";
 import { Button } from "@/shared/components/ui/button";
 
 export type PanelMode =
@@ -114,6 +114,42 @@ function GenderPicker({
   );
 }
 
+function NameInput({
+  label,
+  optional = false,
+  value,
+  onChange,
+  placeholder,
+  autoFocus = false,
+  className = "",
+}: {
+  label: string;
+  optional?: boolean;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  autoFocus?: boolean;
+  className?: string;
+}) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1 ${className}`}>
+      <span className="text-xs text-text-secondary">
+        {label}
+        {optional ? <span className="text-text-muted"> (optional)</span> : null}
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => { onChange(e.target.value); }}
+        autoFocus={autoFocus}
+        onFocus={(e) => { e.currentTarget.select(); }}
+        className="w-full min-w-0 rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
+        placeholder={placeholder}
+      />
+    </label>
+  );
+}
+
 function StatusPicker({
   value,
   onChange,
@@ -213,6 +249,7 @@ export function ActionPanel({
   onDelete,
 }: ActionPanelProps) {
   const [firstDraft, setFirstDraft] = useState("");
+  const [middleDraft, setMiddleDraft] = useState("");
   const [lastDraft, setLastDraft] = useState("");
   const [commonDraft, setCommonDraft] = useState("");
   const [birthSurnameDraft, setBirthSurnameDraft] = useState("");
@@ -241,17 +278,20 @@ export function ActionPanel({
     setPrevMode(mode);
     if (mode === "edit") {
       setFirstDraft(person.firstName);
+      setMiddleDraft(person.middleName);
       setLastDraft(person.lastName);
       setCommonDraft(person.commonName);
       setBirthSurnameDraft(person.birthSurname);
       setNotesDraft(person.notes);
     } else if (mode === "menu" || mode === "union-status") {
       setFirstDraft("");
+      setMiddleDraft("");
       setLastDraft("");
       setCommonDraft("");
       setBirthSurnameDraft("");
     } else {
       setFirstDraft("");
+      setMiddleDraft("");
       setLastDraft(person.lastName);
       setCommonDraft("");
       setBirthSurnameDraft("");
@@ -277,6 +317,7 @@ export function ActionPanel({
   function submit() {
     const name: NameFields = {
       firstName: firstDraft.trim(),
+      middleName: middleDraft.trim(),
       lastName: lastDraft.trim(),
       commonName: commonDraft.trim(),
       birthSurname: birthSurnameDraft.trim(),
@@ -303,7 +344,7 @@ export function ActionPanel({
             Selected
           </div>
           <div className="text-lg font-semibold text-text-primary">
-            {fullName(person)}
+            {fullNameWithMiddle(person)}
           </div>
         </div>
         <Button variant="ghost" onClick={onClose} aria-label="Close">
@@ -414,60 +455,42 @@ export function ActionPanel({
           className="flex flex-col gap-3"
         >
           <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-secondary">First name</label>
-              <input
-                type="text"
-                value={firstDraft}
-                onChange={(e) => { setFirstDraft(e.target.value); }}
-                autoFocus
-                onFocus={(e) => { e.currentTarget.select(); }}
-                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
-                placeholder="First"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-secondary">
-                Last name <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={lastDraft}
-                onChange={(e) => { setLastDraft(e.target.value); }}
-                onFocus={(e) => { e.currentTarget.select(); }}
-                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
-                placeholder="Last"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-secondary">
-                Common name <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={commonDraft}
-                onChange={(e) => { setCommonDraft(e.target.value); }}
-                onFocus={(e) => { e.currentTarget.select(); }}
-                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
-                placeholder="Nickname"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-text-secondary">
-                Birth surname <span className="text-text-muted">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={birthSurnameDraft}
-                onChange={(e) => { setBirthSurnameDraft(e.target.value); }}
-                onFocus={(e) => { e.currentTarget.select(); }}
-                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-text-primary outline-none focus:border-brand-orange"
-                placeholder="If different"
-              />
-            </div>
+            <NameInput
+              label="First name"
+              value={firstDraft}
+              onChange={setFirstDraft}
+              placeholder="First"
+              autoFocus
+            />
+            <NameInput
+              label="Middle"
+              optional
+              value={middleDraft}
+              onChange={setMiddleDraft}
+              placeholder="Name or initial"
+            />
+            <NameInput
+              label="Last name"
+              optional
+              value={lastDraft}
+              onChange={setLastDraft}
+              placeholder="Last"
+            />
+            <NameInput
+              label="Birth surname"
+              optional
+              value={birthSurnameDraft}
+              onChange={setBirthSurnameDraft}
+              placeholder="If different"
+            />
+            <NameInput
+              label="Common name"
+              optional
+              value={commonDraft}
+              onChange={setCommonDraft}
+              placeholder="Nickname"
+              className="col-span-2"
+            />
           </div>
 
           {mode === "edit" ? (

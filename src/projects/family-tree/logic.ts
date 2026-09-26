@@ -37,6 +37,16 @@ export function fullName(
   return `${person.firstName}${middle}${last}`;
 }
 
+// The name as records spell it, for the edit panel. Cards use fullName.
+export function fullNameWithMiddle(
+  person: Pick<Person, "firstName" | "middleName" | "lastName" | "commonName">,
+): string {
+  const first = person.middleName
+    ? `${person.firstName} ${person.middleName}`
+    : person.firstName;
+  return fullName({ ...person, firstName: first });
+}
+
 // A current union is the one a person is in now; former unions have ended.
 // Layout pairs current partners side by side, and a former union sits
 // beside them — so one ended marriage plus a current one never reads as
@@ -81,6 +91,7 @@ function makePerson(
   return {
     id,
     firstName: name.firstName,
+    middleName: name.middleName,
     lastName: name.lastName,
     commonName: name.commonName,
     birthSurname: name.birthSurname,
@@ -95,6 +106,7 @@ function makePerson(
 export function createInitialTree(): Tree {
   const rootName: NameFields = {
     firstName: ROOT_FIRST_NAME,
+    middleName: "",
     lastName: ROOT_LAST_NAME,
     commonName: "",
     birthSurname: "",
@@ -288,6 +300,7 @@ interface StoredUnion {
 interface StoredPerson {
   id: string;
   firstName: string;
+  middleName?: string;
   lastName: string;
   commonName?: string;
   birthSurname?: string;
@@ -320,8 +333,8 @@ function storedUnions(person: StoredPerson): Union[] {
   ];
 }
 
-// Backfill schema fields added later (commonName, birthSurname, notes,
-// deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
+// Backfill schema fields added later (commonName, birthSurname, middleName,
+// notes, deceasedId) and migrate the pre-union spouse lists into `unions`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -333,6 +346,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.unions === undefined ||
       person.commonName === undefined ||
       person.birthSurname === undefined ||
+      person.middleName === undefined ||
       person.notes === undefined ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
@@ -343,6 +357,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
     persons[id] = {
       id: person.id,
       firstName: person.firstName,
+      middleName: person.middleName ?? "",
       lastName: person.lastName,
       commonName: person.commonName ?? "",
       birthSurname: person.birthSurname ?? "",

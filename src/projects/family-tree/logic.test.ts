@@ -17,6 +17,7 @@ import {
   describeRelation,
   diffTree,
   fullName,
+  fullNameWithMiddle,
   nearestInDirection,
   newUnion,
   nextGender,
@@ -48,8 +49,9 @@ function n(
   lastName = "",
   commonName = "",
   birthSurname = "",
+  middleName = "",
 ): NameFields {
-  return { firstName, lastName, commonName, birthSurname };
+  return { firstName, middleName, lastName, commonName, birthSurname };
 }
 
 function p(
@@ -62,6 +64,7 @@ function p(
   return {
     id,
     firstName: id,
+    middleName: "",
     lastName: "",
     commonName: "",
     birthSurname: "",
@@ -405,6 +408,88 @@ describe("renamePerson", () => {
   });
 });
 
+describe("middle name", () => {
+  it("sets the middle name via renamePerson", () => {
+    const t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      n("Richard", "Santoro", "", "", "L."),
+    );
+    expect(t.persons[ROOT_ID].middleName).toBe("L.");
+    expect(t.persons[ROOT_ID].firstName).toBe("Richard");
+  });
+
+  it("allows clearing the middle name to empty", () => {
+    let t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      n("Richard", "Santoro", "", "", "Joseph"),
+    );
+    t = renamePerson(t, ROOT_ID, n("Richard", "Santoro"));
+    expect(t.persons[ROOT_ID].middleName).toBe("");
+  });
+
+  it("starts empty on the initial tree", () => {
+    expect(createInitialTree().persons[ROOT_ID].middleName).toBe("");
+  });
+
+  it("stores a new spouse's middle name", () => {
+    const t = addSpouse(
+      createInitialTree(),
+      ROOT_ID,
+      "s1",
+      n("Mary", "Clarke", "", "", "Ann"),
+      "F",
+    );
+    expect(t.persons.s1.middleName).toBe("Ann");
+  });
+
+  it("stores a new child's middle name", () => {
+    const t = addChild(
+      createInitialTree(),
+      ROOT_ID,
+      "c1",
+      n("Patrick", "Clarke", "", "", "B."),
+      "M",
+      null,
+    );
+    expect(t.persons.c1.middleName).toBe("B.");
+  });
+
+  it("stores a new parent's middle name", () => {
+    const t = addParent(
+      createInitialTree(),
+      ROOT_ID,
+      "p1",
+      n("David", "Hutchinson", "", "", "A."),
+      "M",
+    );
+    expect(t.persons.p1.middleName).toBe("A.");
+  });
+
+  it("fullNameWithMiddle places the middle name after the first name", () => {
+    const person = {
+      firstName: "Richard",
+      middleName: "Joseph",
+      lastName: "Santoro",
+      commonName: "Rick",
+    };
+    expect(fullNameWithMiddle(person)).toBe('Richard Joseph "Rick" Santoro');
+    expect(fullNameWithMiddle({ ...person, middleName: "" })).toBe(
+      fullName(person),
+    );
+  });
+
+  it("leaves the card name (fullName) without the middle name", () => {
+    const t = renamePerson(
+      createInitialTree(),
+      ROOT_ID,
+      n("Richard", "Santoro", "", "", "L."),
+    );
+    expect(fullName(t.persons[ROOT_ID])).toBe("Richard Santoro");
+  });
+});
+
 describe("addSpouse birth surname", () => {
   it("stores the new spouse's birth surname", () => {
     const t = addSpouse(
@@ -431,6 +516,7 @@ describe("normalizeTree", () => {
     id: ROOT_ID,
     firstName: "Kyle",
     lastName: "Hutchinson",
+    middleName: "",
     commonName: "",
     birthSurname: "",
     notes: "",
@@ -446,6 +532,7 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(true);
     expect(tree.persons[ROOT_ID].birthSurname).toBe("");
+    expect(tree.persons[ROOT_ID].middleName).toBe("");
     expect(tree.persons[ROOT_ID].notes).toBe("");
     expect(tree.persons[ROOT_ID].commonName).toBe("");
     expect(tree.persons[ROOT_ID].unions).toEqual([]);
@@ -474,6 +561,28 @@ describe("normalizeTree", () => {
       },
     });
     expect(changed).toBe(true);
+  });
+
+  it("backfills middleName and reports a change when only middleName is missing", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, middleName: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].middleName).toBe("");
+  });
+
+  it("keeps an existing middleName and reports no change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, middleName: "L." },
+      },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID].middleName).toBe("L.");
   });
 
   it("backfills notes and reports a change when only notes is missing", () => {

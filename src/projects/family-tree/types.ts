@@ -26,6 +26,7 @@ export type Union =
 // is a one-line type change instead of a positional-arg sweep.
 export interface NameFields {
   firstName: string;
+  middleName: string;
   lastName: string;
   commonName: string;
   birthSurname: string;
@@ -34,6 +35,10 @@ export interface NameFields {
 export interface Person {
   id: string;
   firstName: string;
+  // Empty string means "none recorded". A full name or an initial ("L."),
+  // kept for research: records tell same-named relatives apart by it. Never
+  // shown on the tree cards.
+  middleName: string;
   // Empty string means "no last name". Keeping it always-present (never
   // optional) avoids null/undefined plumbing through the layout/render path.
   lastName: string;

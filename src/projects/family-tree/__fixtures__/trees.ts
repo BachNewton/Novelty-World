@@ -31,6 +31,7 @@ function p(
   return {
     id,
     firstName: id,
+    middleName: "",
     lastName: "",
     commonName: "",
     birthSurname: "",
