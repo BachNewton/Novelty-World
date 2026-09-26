@@ -1,34 +1,45 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Html, OrbitControls } from "@react-three/drei";
+import { type ComponentRef, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import {
+  Box3,
   BufferAttribute,
   BufferGeometry,
+  type Camera,
   Color,
-  type Group,
   LineBasicMaterial,
   LineDashedMaterial,
   LineSegments,
   type Mesh,
+  PerspectiveCamera,
+  Vector3,
 } from "three";
+import { type HeldKeys, useHeldKeys } from "@/shared/hooks/use-held-keys";
+import { cn } from "@/shared/lib/utils";
 import { fullName } from "../logic";
 import {
   GEN_HEIGHT,
   createTreeSimulation,
-
-  type TreeSimLink,
+  type TreeSimNode,
   type TreeSimulation,
 } from "../tree-3d-sim";
 import type { Tree } from "../types";
 
 const TICKS_PER_FRAME = 2;
 const SPHERE_RADIUS = 5;
+// Keyboard pan speed, in multiples of the camera's distance to its target
+// per second, so it feels the same at any zoom. Shift speeds it up.
+const PAN_SPEED = 0.7;
+const PAN_BOOST = 3;
+const PAN_KEYS = ["w", "a", "s", "d"] as const;
+// Screen-space gap kept between a label and its sphere, and between labels.
+const LABEL_LIFT_PX = 8;
+const LABEL_GAP_PX = 2;
 const CAMERA_FOV = 50;
-const CAMERA_DISTANCE = 1100;
-// Rough settled width of a production-sized tree, in world units.
-const SCENE_WIDTH = 1000;
+// The camera looks at the tree from the front and a little above.
+const CAMERA_DIRECTION = new Vector3(0, 0.35, 1).normalize();
 
 function themeColor(token: string): Color {
   const value = getComputedStyle(document.documentElement)
@@ -64,21 +75,18 @@ function readPalette(): Palette {
 
 interface Tree3DProps {
   tree: Tree;
+  // The person relationships are viewed from; the tree is built around them.
+  rootId: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }
 
-export function Tree3D({ tree, selectedId, onSelect }: Tree3DProps) {
-  const [tidy, setTidy] = useState(1);
+export function Tree3D({ tree, rootId, selectedId, onSelect }: Tree3DProps) {
   const [settled, setSettled] = useState(false);
-  // Created at full tidy; the effect below syncs the slider's value in
-  // before the first frame ticks.
-  const sim = useMemo(() => createTreeSimulation(tree, 1), [tree]);
+  const sim = useMemo(() => createTreeSimulation(tree, rootId), [tree, rootId]);
   const palette = useMemo(() => readPalette(), []);
-
-  useEffect(() => {
-    sim.setTidy(tidy);
-  }, [sim, tidy]);
+  const labels = useRef<(HTMLDivElement | null)[]>([]);
+  const controls = useRef<Controls>(null);
 
   return (
     <div
@@ -94,74 +102,134 @@ export function Tree3D({ tree, selectedId, onSelect }: Tree3DProps) {
         <polarGridHelper args={[GEN_HEIGHT * 4, 12, 4, 64, palette.ground, palette.ground]} />
         <ambientLight intensity={0.6} />
         <directionalLight position={[300, 600, 400]} intensity={1.8} />
-        <CameraFit />
-        <OrbitControls makeDefault target={[0, GEN_HEIGHT, 0]} />
+        <OrbitControls ref={controls} makeDefault />
         <Scene
           sim={sim}
-          tree={tree}
+          rootId={rootId}
           palette={palette}
           selectedId={selectedId}
           onSelect={onSelect}
+          labels={labels}
+          controls={controls}
           onSettledChange={setSettled}
         />
       </Canvas>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {sim.nodes.map((n, i) => (
+          <div
+            key={n.id}
+            ref={(el) => { labels.current[i] = el; }}
+            className={cn(
+              "invisible absolute left-0 top-0 whitespace-nowrap rounded px-1 text-[11px] leading-tight",
+              n.id === selectedId
+                ? "bg-brand-pink font-semibold text-surface-primary"
+                : "bg-surface-primary/70 text-text-primary",
+            )}
+          >
+            {fullName(tree.persons[n.id])}
+          </div>
+        ))}
+      </div>
 
-      <label className="absolute bottom-3 left-3 flex w-[min(20rem,calc(100%-1.5rem))] items-center gap-3 rounded-lg border border-border-default bg-surface-elevated px-3 py-2 text-xs text-text-secondary shadow-lg">
-        <span>Wild</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={tidy}
-          onChange={(e) => { setTidy(Number(e.target.value)); }}
-          className="min-w-0 flex-1 accent-brand-green"
-          aria-label="Wild to tidy"
-        />
-        <span>Tidy</span>
-      </label>
     </div>
   );
 }
 
-// Backs the camera off on narrow (portrait) screens so the crown fits across.
-function CameraFit() {
-  const camera = useThree((s) => s.camera);
-  const aspect = useThree((s) => s.size.width / s.size.height);
-  useEffect(() => {
-    const visibleHeightPerUnit = 2 * Math.tan(((CAMERA_FOV / 2) * Math.PI) / 180);
-    const distance = Math.max(CAMERA_DISTANCE, SCENE_WIDTH / (visibleHeightPerUnit * aspect));
-    camera.position.set(0, GEN_HEIGHT * 1.6, distance);
-  }, [camera, aspect]);
-  return null;
+type Controls = ComponentRef<typeof OrbitControls>;
+
+const CAMERA_RIGHT = new Vector3(1, 0, 0);
+const CAMERA_UP = new Vector3().crossVectors(CAMERA_DIRECTION, CAMERA_RIGHT);
+// Breathing room around the tree, as a fraction of the fitted distance.
+const FIT_MARGIN = 1.08;
+const fitPoint = new Vector3();
+
+// Places the camera at the nearest distance, along CAMERA_DIRECTION, from
+// which every person is inside the view.
+function fitCamera(sim: TreeSimulation, camera: PerspectiveCamera, controls: Controls): void {
+  const box = new Box3();
+  for (const n of sim.nodes) box.expandByPoint(fitPoint.set(n.x, n.y, n.z));
+  const center = box.getCenter(new Vector3());
+  const tanV = Math.tan(((camera.fov / 2) * Math.PI) / 180);
+  const tanH = tanV * camera.aspect;
+  let distance = 0;
+  for (const n of sim.nodes) {
+    fitPoint.set(n.x, n.y, n.z).sub(center);
+    const towardCamera = fitPoint.dot(CAMERA_DIRECTION);
+    distance = Math.max(
+      distance,
+      towardCamera + Math.abs(fitPoint.dot(CAMERA_RIGHT)) / tanH,
+      towardCamera + Math.abs(fitPoint.dot(CAMERA_UP)) / tanV,
+    );
+  }
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(CAMERA_DIRECTION, distance * FIT_MARGIN);
+  controls.update();
+}
+
+const panRight = new Vector3();
+const panUp = new Vector3();
+
+// Moves the camera and its orbit target together across the screen plane.
+function panWithKeys(held: HeldKeys, camera: Camera, controls: Controls, delta: number): void {
+  const right = Number(held.keys.has("d")) - Number(held.keys.has("a"));
+  const up = Number(held.keys.has("w")) - Number(held.keys.has("s"));
+  if (right === 0 && up === 0) return;
+  const step =
+    camera.position.distanceTo(controls.target) * PAN_SPEED * (held.shift ? PAN_BOOST : 1) * delta;
+  panRight.setFromMatrixColumn(camera.matrixWorld, 0).multiplyScalar(right * step);
+  panUp.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(up * step);
+  camera.position.add(panRight).add(panUp);
+  controls.target.add(panRight).add(panUp);
+  controls.update();
 }
 
 interface SceneProps {
   sim: TreeSimulation;
-  tree: Tree;
+  rootId: string;
   palette: Palette;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  labels: RefObject<(HTMLDivElement | null)[]>;
+  controls: RefObject<Controls | null>;
   onSettledChange: (settled: boolean) => void;
 }
 
-function Scene({ sim, tree, palette, selectedId, onSelect, onSettledChange }: SceneProps) {
+function Scene({
+  sim,
+  rootId,
+  palette,
+  selectedId,
+  onSelect,
+  labels,
+  controls,
+  onSettledChange,
+}: SceneProps) {
   const meshes = useRef<(Mesh | null)[]>([]);
-  const label = useRef<Group>(null);
-  const [hovered, setHovered] = useState<number | null>(null);
   const settledRef = useRef<boolean | null>(null);
 
-  const edges = useMemo(() => buildEdgeObjects(sim.links, palette), [sim, palette]);
+  const edges = useMemo(() => buildEdgeObjects(sim, palette), [sim, palette]);
   useEffect(() => () => { edges.dispose(); }, [edges]);
 
-  useFrame(() => {
-    if (!sim.settled()) sim.simulation.tick(TICKS_PER_FRAME);
-    sim.nodes.forEach((n, i) => { meshes.current[i]?.position.set(n.x, n.y, n.z); });
-    if (hovered !== null && label.current) {
-      const n = sim.nodes[hovered];
-      label.current.position.set(n.x, n.y + SPHERE_RADIUS * 2, n.z);
+  const labelPriority = useMemo(() => {
+    const rank = (id: string, onTrunkLine: boolean) =>
+      id === selectedId ? 0 : id === rootId ? 1 : onTrunkLine ? 2 : 3;
+    return sim.nodes.map((n) => rank(n.id, n.onTrunkLine));
+  }, [sim, rootId, selectedId]);
+  const partners = useMemo(() => partnerIndices(sim), [sim]);
+  const held = useHeldKeys(PAN_KEYS);
+
+  useFrame(({ camera, size }, delta) => {
+    if (controls.current) panWithKeys(held.current, camera, controls.current, delta);
+    // Follow the tree as it spreads, then leave the camera to the user.
+    if (!sim.settled()) {
+      sim.simulation.tick(TICKS_PER_FRAME);
+      if (controls.current && camera instanceof PerspectiveCamera) {
+        fitCamera(sim, camera, controls.current);
+      }
     }
+    sim.nodes.forEach((n, i) => { meshes.current[i]?.position.set(n.x, n.y, n.z); });
     edges.update();
+    placeLabels(sim, labels.current, labelPriority, partners, camera, size);
     const settled = sim.settled();
     if (settled !== settledRef.current) {
       settledRef.current = settled;
@@ -173,8 +241,9 @@ function Scene({ sim, tree, palette, selectedId, onSelect, onSettledChange }: Sc
     <>
       {edges.objects.map((obj) => <primitive key={obj.uuid} object={obj} />)}
       {sim.nodes.map((n, i) => {
-        const color =
-          n.id === selectedId ? palette.selected : n.onTrunkLine ? palette.trunk : palette.person;
+        const selected = n.id === selectedId;
+        const color = selected ? palette.selected : n.onTrunkLine ? palette.trunk : palette.person;
+        const radius = n.id === rootId ? SPHERE_RADIUS * 1.6 : SPHERE_RADIUS;
         return (
           <mesh
             key={n.id}
@@ -184,28 +253,105 @@ function Scene({ sim, tree, palette, selectedId, onSelect, onSettledChange }: Sc
               e.stopPropagation();
               onSelect(n.id);
             }}
-            onPointerOver={(e) => {
-              e.stopPropagation();
-              setHovered(i);
-            }}
-            onPointerOut={() => { setHovered((h) => (h === i ? null : h)); }}
           >
-            <sphereGeometry args={[n.id === tree.rootId ? SPHERE_RADIUS * 1.6 : SPHERE_RADIUS, 16, 12]} />
+            <sphereGeometry args={[radius, 16, 12]} />
             <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.35} />
           </mesh>
         );
       })}
-      {hovered !== null ? (
-        <group ref={label}>
-          <Html center className="pointer-events-none">
-            <div className="whitespace-nowrap rounded-md border border-border-default bg-surface-elevated px-2 py-1 text-xs text-text-primary">
-              {fullName(tree.persons[sim.nodes[hovered].id])}
-            </div>
-          </Html>
-        </group>
-      ) : null}
     </>
   );
+}
+
+interface ScreenRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+const projected = new Vector3();
+
+// Each person's partner, if any, for placing the couple's names on their
+// outer sides. A current union wins over an ended one.
+function partnerIndices(sim: TreeSimulation): (number | null)[] {
+  const index = new Map(sim.nodes.map((n, i) => [n, i]));
+  const partners: (number | null)[] = sim.nodes.map(() => null);
+  for (const kind of ["union", "ex-union"] as const) {
+    for (const l of sim.links) {
+      if (l.kind !== kind) continue;
+      const a = index.get(l.source)!;
+      const b = index.get(l.target)!;
+      partners[a] ??= b;
+      partners[b] ??= a;
+    }
+  }
+  return partners;
+}
+
+// Singles are labelled above their sphere; partners beside theirs, on the
+// side away from each other, so a couple's names never cover each other.
+function labelRect(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  side: "above" | "left" | "right",
+): ScreenRect {
+  if (side === "above") {
+    return { left: x - w / 2, top: y - LABEL_LIFT_PX - h, right: x + w / 2, bottom: y - LABEL_LIFT_PX };
+  }
+  const left = side === "left" ? x - LABEL_LIFT_PX - w : x + LABEL_LIFT_PX;
+  return { left, top: y - h / 2, right: left + w, bottom: y + h / 2 };
+}
+
+// Greedy declutter: labels claim screen space in priority order (then
+// nearest first) and any label that would overlap a placed one is hidden.
+function placeLabels(
+  sim: TreeSimulation,
+  labels: (HTMLDivElement | null)[],
+  priority: number[],
+  partners: (number | null)[],
+  camera: Camera,
+  size: { width: number; height: number },
+): void {
+  const screen = sim.nodes.map((n) => {
+    projected.set(n.x, n.y, n.z).project(camera);
+    return {
+      x: ((projected.x + 1) / 2) * size.width,
+      y: ((1 - projected.y) / 2) * size.height,
+      depth: projected.z,
+    };
+  });
+  const order = sim.nodes.map((_, i) => i);
+  order.sort((a, b) => priority[a] - priority[b] || screen[a].depth - screen[b].depth);
+
+  const placed: ScreenRect[] = [];
+  for (const i of order) {
+    const el = labels[i];
+    if (!el) continue;
+    const { x, y, depth } = screen[i];
+    const partner = partners[i];
+    const side = partner === null ? "above" : x < screen[partner].x ? "left" : "right";
+    const rect = labelRect(x, y, el.offsetWidth, el.offsetHeight, side);
+    const visible =
+      depth < 1 &&
+      rect.left >= 0 &&
+      rect.top >= 0 &&
+      rect.right <= size.width &&
+      rect.bottom <= size.height &&
+      !placed.some(
+        (p) =>
+          rect.left < p.right + LABEL_GAP_PX &&
+          p.left < rect.right + LABEL_GAP_PX &&
+          rect.top < p.bottom + LABEL_GAP_PX &&
+          p.top < rect.bottom + LABEL_GAP_PX,
+      );
+    el.style.visibility = visible ? "visible" : "hidden";
+    if (!visible) continue;
+    placed.push(rect);
+    el.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+  }
 }
 
 interface EdgeObjects {
@@ -214,25 +360,38 @@ interface EdgeObjects {
   dispose: () => void;
 }
 
-function isTrunkEdge(l: TreeSimLink): boolean {
-  return l.kind === "parent" && l.source.onTrunkLine && l.target.onTrunkLine;
+type EdgeStyle = "trunk" | "branch" | "union" | "ex-union";
+
+// A line from the midpoint of `from` to `to`. A child's line starts at the
+// middle of its parents' union line rather than at each parent.
+interface Segment {
+  from: TreeSimNode[];
+  to: TreeSimNode;
+  style: EdgeStyle;
 }
 
-function buildEdgeObjects(links: TreeSimLink[], palette: Palette): EdgeObjects {
-  const styles: { matches: (l: TreeSimLink) => boolean; material: LineBasicMaterial }[] = [
-    { matches: isTrunkEdge, material: new LineBasicMaterial({ color: palette.trunk }) },
-    {
-      matches: (l) => l.kind === "parent" && !isTrunkEdge(l),
-      material: new LineBasicMaterial({ color: palette.branch, transparent: true, opacity: 0.7 }),
-    },
-    { matches: (l) => l.kind === "union", material: new LineBasicMaterial({ color: palette.union }) },
-    {
-      matches: (l) => l.kind === "ex-union",
-      material: new LineDashedMaterial({ color: palette.exUnion, dashSize: 3, gapSize: 3 }),
-    },
-  ];
-  const groups = styles.map(({ matches, material }) => {
-    const subset = links.filter(matches);
+function segments(sim: TreeSimulation): Segment[] {
+  const unions: Segment[] = sim.links
+    .filter((l) => l.kind !== "parent")
+    .map((l) => ({ from: [l.source], to: l.target, style: l.kind === "union" ? "union" : "ex-union" }));
+  const descent: Segment[] = sim.families.map(({ child, parents }) => ({
+    from: parents,
+    to: child,
+    style: child.onTrunkLine && parents.some((p) => p.onTrunkLine) ? "trunk" : "branch",
+  }));
+  return [...unions, ...descent];
+}
+
+function buildEdgeObjects(sim: TreeSimulation, palette: Palette): EdgeObjects {
+  const materials: Record<EdgeStyle, LineBasicMaterial> = {
+    trunk: new LineBasicMaterial({ color: palette.trunk }),
+    branch: new LineBasicMaterial({ color: palette.branch, transparent: true, opacity: 0.7 }),
+    union: new LineBasicMaterial({ color: palette.union }),
+    "ex-union": new LineDashedMaterial({ color: palette.exUnion, dashSize: 3, gapSize: 3 }),
+  };
+  const all = segments(sim);
+  const groups = Object.entries(materials).map(([style, material]) => {
+    const subset = all.filter((seg) => seg.style === style);
     const positions = new BufferAttribute(new Float32Array(subset.length * 6), 3);
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", positions);
@@ -245,9 +404,18 @@ function buildEdgeObjects(links: TreeSimLink[], palette: Palette): EdgeObjects {
     objects: groups.map((g) => g.object),
     update: () => {
       for (const { subset, positions, object, dashed } of groups) {
-        subset.forEach((l, i) => {
-          positions.setXYZ(i * 2, l.source.x, l.source.y, l.source.z);
-          positions.setXYZ(i * 2 + 1, l.target.x, l.target.y, l.target.z);
+        subset.forEach(({ from, to }, i) => {
+          const k = 1 / from.length;
+          let x = 0;
+          let y = 0;
+          let z = 0;
+          for (const n of from) {
+            x += n.x * k;
+            y += n.y * k;
+            z += n.z * k;
+          }
+          positions.setXYZ(i * 2, x, y, z);
+          positions.setXYZ(i * 2 + 1, to.x, to.y, to.z);
         });
         positions.needsUpdate = true;
         if (dashed) object.computeLineDistances();

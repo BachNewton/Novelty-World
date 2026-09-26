@@ -14,11 +14,12 @@ import type { Tree, UnionStatus } from "./types";
 export const GEN_HEIGHT = 120;
 
 const TUNING = {
-  charge: -60,
-  chargeDistanceMax: 400,
+  charge: -200,
+  chargeDistanceMax: 800,
   parentLinkDistance: 130,
   parentLinkStrength: 0.25,
-  unionDistance: 0,
+  // Wide enough that the union line reads and children can hang from it.
+  unionDistance: 40,
   unionStrength: 2,
   exUnionDistance: 30,
   exUnionStrength: 0.4,
@@ -27,8 +28,6 @@ const TUNING = {
   // Per generation away from the root, the trunk pull shrinks by e^-falloff.
   trunkFalloff: 0.8,
   trunkClearance: GEN_HEIGHT * 1.5,
-  heightSpring: 0.3,
-  reheatAlpha: 0.6,
 };
 
 export interface TreeSimNode extends SimulationNode {
@@ -38,6 +37,8 @@ export interface TreeSimNode extends SimulationNode {
   // Root, its ancestors and its descendants form the trunk; everyone else
   // hangs off a branch and is pushed clear of the trunk.
   onTrunkLine: boolean;
+  // The trunk line plus their partners: couples stay together at the trunk.
+  inTrunk: boolean;
 }
 
 export type TreeLinkKind = "parent" | "union" | "ex-union";
@@ -48,7 +49,8 @@ export interface TreeSimLink {
   kind: TreeLinkKind;
 }
 
-interface ParentGroup {
+// A child and the parents it descends from (one or two).
+export interface Family {
   child: TreeSimNode;
   parents: TreeSimNode[];
 }
@@ -56,9 +58,8 @@ interface ParentGroup {
 export interface TreeSimulation {
   nodes: TreeSimNode[];
   links: TreeSimLink[];
+  families: Family[];
   simulation: Simulation<TreeSimNode>;
-  // 0 = pure constellation, 1 = sculpted tree. Reheats the simulation.
-  setTidy: (tidy: number) => void;
   settled: () => boolean;
 }
 
@@ -97,7 +98,7 @@ function trunkLine(tree: Tree): Set<string> {
 function buildGraph(tree: Tree): {
   nodes: TreeSimNode[];
   links: TreeSimLink[];
-  parentGroups: ParentGroup[];
+  families: Family[];
 } {
   const gens = computeGenerations(tree);
   const line = trunkLine(tree);
@@ -110,6 +111,8 @@ function buildGraph(tree: Tree): {
       gen,
       targetY: -gen * GEN_HEIGHT,
       onTrunkLine: line.has(id),
+      inTrunk:
+        line.has(id) || tree.persons[id].unions.some((u) => line.has(u.personId)),
       x: r * Math.cos(i * golden),
       y: -gen * GEN_HEIGHT,
       z: r * Math.sin(i * golden),
@@ -121,11 +124,11 @@ function buildGraph(tree: Tree): {
   const byId = new Map(nodes.map((n) => [n.id, n]));
 
   const links: TreeSimLink[] = [];
-  const parentGroups: ParentGroup[] = [];
+  const families: Family[] = [];
   for (const person of Object.values(tree.persons)) {
     const child = byId.get(person.id)!;
     const parents = person.parentIds.map((pid) => byId.get(pid)!);
-    if (parents.length > 0) parentGroups.push({ child, parents });
+    if (parents.length > 0) families.push({ child, parents });
     for (const parent of parents) {
       links.push({ source: parent, target: child, kind: "parent" });
     }
@@ -139,18 +142,14 @@ function buildGraph(tree: Tree): {
       });
     }
   }
-  return { nodes, links, parentGroups };
+  return { nodes, links, families };
 }
 
 // Child and parents' x/z midpoint attract each other, so each couple
 // perches above its child and separate lines fork apart.
-function parentPullForce(
-  groups: ParentGroup[],
-  strength: () => number,
-): Force<TreeSimNode> {
+function parentPullForce(groups: Family[]): Force<TreeSimNode> {
   return (alpha) => {
-    const k = strength() * alpha;
-    if (k === 0) return;
+    const k = TUNING.parentPull * alpha;
     for (const { child, parents } of groups) {
       let mx = 0;
       let mz = 0;
@@ -171,19 +170,15 @@ function parentPullForce(
 }
 
 // Shapes the trunk around the x = z = 0 axis, strongest at the root's
-// generation and fading away from it: the direct line is pulled in, and
-// everyone else is pushed out of a clearance cylinder so side branches
-// droop around the trunk instead of crowding it.
-function trunkForce(
-  nodes: TreeSimNode[],
-  strength: () => number,
-): Force<TreeSimNode> {
+// generation and fading away from it: the direct line and their partners
+// are pulled in, and everyone else is pushed out of a clearance cylinder so
+// side branches droop around the trunk instead of crowding it.
+function trunkForce(nodes: TreeSimNode[]): Force<TreeSimNode> {
   return (alpha) => {
-    const k = strength() * alpha;
-    if (k === 0) return;
+    const k = TUNING.trunkPull * alpha;
     for (const n of nodes) {
       const w = k * Math.exp(-Math.abs(n.gen) * TUNING.trunkFalloff);
-      if (n.onTrunkLine) {
+      if (n.inTrunk) {
         n.vx -= n.x * w;
         n.vz -= n.z * w;
         continue;
@@ -197,29 +192,21 @@ function trunkForce(
   };
 }
 
-// Springs y toward the generation row. At full tidy it snaps instead, so
-// the rows are exact rather than a compromise with the other forces.
-function heightLockForce(
-  nodes: TreeSimNode[],
-  tidy: () => number,
-): Force<TreeSimNode> {
-  return (alpha) => {
-    const t = tidy();
-    if (t === 0) return;
+// Holds every node on its generation row; the simulation only arranges
+// people within their row.
+function heightLockForce(nodes: TreeSimNode[]): Force<TreeSimNode> {
+  return () => {
     for (const n of nodes) {
-      if (t >= 1) {
-        n.y = n.targetY;
-        n.vy = 0;
-      } else {
-        n.vy += (n.targetY - n.y) * t * TUNING.heightSpring * alpha;
-      }
+      n.y = n.targetY;
+      n.vy = 0;
     }
   };
 }
 
-export function createTreeSimulation(tree: Tree, tidy: number): TreeSimulation {
-  const { nodes, links, parentGroups } = buildGraph(tree);
-  let current = tidy;
+// Lays the tree out around `rootId`: they stand at ground level and their
+// own ancestors and descendants form the trunk.
+export function createTreeSimulation(tree: Tree, rootId: string): TreeSimulation {
+  const { nodes, links, families } = buildGraph({ ...tree, rootId });
 
   const simulation = forceSimulation(nodes, 3)
     .stop()
@@ -247,19 +234,16 @@ export function createTreeSimulation(tree: Tree, tidy: number): TreeSimulation {
         .strength(TUNING.charge)
         .distanceMax(TUNING.chargeDistanceMax),
     )
-    .force("parentPull", parentPullForce(parentGroups, () => current * TUNING.parentPull))
-    .force("trunk", trunkForce(nodes, () => current * TUNING.trunkPull))
+    .force("parentPull", parentPullForce(families))
+    .force("trunk", trunkForce(nodes))
     // Last, so no later force nudges y after the snap to the row.
-    .force("heightLock", heightLockForce(nodes, () => current));
+    .force("heightLock", heightLockForce(nodes));
 
   return {
     nodes,
     links,
+    families,
     simulation,
-    setTidy: (next) => {
-      current = next;
-      simulation.alpha(Math.max(simulation.alpha(), TUNING.reheatAlpha));
-    },
     settled: () => simulation.alpha() < simulation.alphaMin(),
   };
 }

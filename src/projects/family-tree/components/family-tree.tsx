@@ -284,7 +284,12 @@ export function FamilyTree() {
 
       <div className="relative flex-1">
         {viewMode === "3d" ? (
-          <Tree3D tree={tree} selectedId={selectedId} onSelect={setSelected} />
+          <Tree3D
+            tree={tree}
+            rootId={effectiveViewRootId}
+            selectedId={selectedId}
+            onSelect={setSelected}
+          />
         ) : (
           <>
             <PanZoom

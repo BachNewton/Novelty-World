@@ -8,8 +8,8 @@ import {
 } from "./tree-3d-sim";
 import type { Tree } from "./types";
 
-function settled(tree: Tree, tidy: number) {
-  const sim = createTreeSimulation(tree, tidy);
+function settled(tree: Tree, rootId = tree.rootId) {
+  const sim = createTreeSimulation(tree, rootId);
   settleTreeSimulation(sim);
   return sim;
 }
@@ -48,22 +48,24 @@ const fixtures: [string, () => Tree][] = [
 
 describe("tree 3D simulation", () => {
   describe.each(fixtures)("%s", (_name, make) => {
-    it.each([0, 0.5, 1])("settles with finite positions at tidy=%s", (tidy) => {
-      const { nodes } = settled(make(), tidy);
+    it("settles with finite positions", () => {
+      const { nodes } = settled(make());
       for (const n of nodes) {
         expect(Number.isFinite(n.x + n.y + n.z)).toBe(true);
       }
     });
 
-    it("locks every node to its generation row at tidy=1", () => {
-      const { nodes } = settled(make(), 1);
+    it("locks every node to its generation row", () => {
+      const { nodes } = settled(make());
       for (const n of nodes) {
         expect(n.y).toBeCloseTo(-n.gen * GEN_HEIGHT, 6);
       }
     });
 
-    it("keeps partners close together at tidy=1", () => {
-      const { links } = settled(make(), 1);
+    // The union line stays shorter than the drop to the couple's children,
+    // so a couple always reads as a pair above them.
+    it("keeps partners closer together than a generation apart", () => {
+      const { links } = settled(make());
       for (const l of links) {
         if (l.kind !== "union") continue;
         const d = Math.hypot(
@@ -71,7 +73,7 @@ describe("tree 3D simulation", () => {
           l.source.y - l.target.y,
           l.source.z - l.target.z,
         );
-        expect(d).toBeLessThan(GEN_HEIGHT * 0.5);
+        expect(d).toBeLessThan(GEN_HEIGHT);
       }
     });
   });
@@ -81,7 +83,7 @@ describe("tree 3D simulation", () => {
     ["production", productionTree],
   ])("spreads the %s crown wider with each generation up", (_name, make) => {
     const tree = make();
-    const { nodes } = settled(tree, 1);
+    const { nodes } = settled(tree);
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const spreads = [...directAncestorsByDepth(tree).entries()]
       .sort(([a], [b]) => a - b)
@@ -94,17 +96,31 @@ describe("tree 3D simulation", () => {
 
   it("keeps the trunk narrower than the crown on the production tree", () => {
     const tree = productionTree();
-    const { nodes } = settled(tree, 1);
+    const { nodes } = settled(tree);
     const root = nodes.find((n) => n.id === tree.rootId)!;
     const crown = nodes.filter((n) => n.gen <= -2);
     expect(axisDistance(root)).toBeLessThan(mean(crown.map(axisDistance)));
   });
 
+  it("builds the trunk around the person the tree is viewed from", () => {
+    const tree = productionTree();
+    const viewRoot = Object.values(tree.persons).find(
+      (p) => p.id !== tree.rootId && p.parentIds.length === 2,
+    )!;
+    const { nodes } = settled(tree, viewRoot.id);
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    expect(byId.get(viewRoot.id)!.y).toBe(0);
+    for (const pid of viewRoot.parentIds) {
+      expect(byId.get(pid)!.onTrunkLine).toBe(true);
+      expect(byId.get(pid)!.y).toBe(GEN_HEIGHT);
+    }
+  });
+
   it("clears side branches away from the trunk at ground level", () => {
-    const { nodes } = settled(productionTree(), 1);
+    const { nodes } = settled(productionTree());
     const ground = nodes.filter((n) => n.gen === 0);
-    const trunk = ground.filter((n) => n.onTrunkLine).map(axisDistance);
-    const side = ground.filter((n) => !n.onTrunkLine).map(axisDistance);
+    const trunk = ground.filter((n) => n.inTrunk).map(axisDistance);
+    const side = ground.filter((n) => !n.inTrunk).map(axisDistance);
     expect(Math.max(...trunk)).toBeLessThan(Math.min(...side));
   });
 });
