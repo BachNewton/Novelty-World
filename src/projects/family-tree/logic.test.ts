@@ -25,6 +25,7 @@ import {
   optimisticPatch,
   packElbowRows,
   renamePerson,
+  searchByName,
   setGender,
   setNotes,
   setUnionDeceased,
@@ -1775,6 +1776,52 @@ describe("nearestInDirection", () => {
     const diagUp = node("d", 700, 360);
     const result = nearestInDirection(center, [center, straightUp, diagUp], "up");
     expect(result?.id).toBe("u");
+  });
+});
+
+describe("searchByName", () => {
+  function named(id: string, name: NameFields): Person {
+    return { ...p(id), ...name };
+  }
+  const tree = makeTree([
+    named("kyle", n("Kyle", "Hutchinson")),
+    named("ruth", n("Ruth-Anne", "Hutchinson", "Ruthie")),
+    named("deb", n("Deborah", "Wenderoth", "Debbie")),
+    named("zoe", n("Zoë", "Hutchinson", "", "Débeau")),
+    named("ann", n("Ann", "Smith", "", "", "L.")),
+  ]);
+  const ids = (query: string): string[] =>
+    searchByName(tree, query).map((person) => person.id);
+
+  it("prefix-matches any word of any name field", () => {
+    expect(ids("hutch")).toEqual(["kyle", "ruth", "zoe"]);
+    expect(ids("ruthie")).toEqual(["ruth"]);
+    expect(ids("anne")).toEqual(["ruth"]);
+    expect(ids("l")).toEqual(["ann"]);
+  });
+
+  it("ignores case and accents in both the query and the names", () => {
+    expect(ids("ZOE")).toEqual(["zoe"]);
+    expect(ids("zoë")).toEqual(["zoe"]);
+  });
+
+  it("does not match inside a word", () => {
+    expect(ids("chin")).toEqual([]);
+  });
+
+  it("requires every query word to match", () => {
+    expect(ids("kyle hutch")).toEqual(["kyle"]);
+    expect(ids("kyle smith")).toEqual([]);
+  });
+
+  it("ranks names shown on the card above birth surnames and middle names", () => {
+    // Deborah and Debbie are card names; Débeau is only Zoë's birth surname.
+    expect(ids("deb")).toEqual(["deb", "zoe"]);
+  });
+
+  it("returns nothing for a blank query", () => {
+    expect(ids("")).toEqual([]);
+    expect(ids("  - ")).toEqual([]);
   });
 });
 

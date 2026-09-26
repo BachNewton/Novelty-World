@@ -24,6 +24,18 @@
   --radius-lg: 0.75rem;
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
+
+  /* Family Tree: a ring pulses out from a card the search just jumped to, so
+     the eye finds it among many look-alike cards. */
+  --animate-family-card-flash: family-card-flash 0.7s ease-out 3;
+  @keyframes family-card-flash {
+    0% {
+      box-shadow: 0 0 0 0 var(--color-brand-pink);
+    }
+    100% {
+      box-shadow: 0 0 0 16px transparent;
+    }
+  }
 }
 
 /* Pokemon type colors, sampled directly from the SVG type icons in

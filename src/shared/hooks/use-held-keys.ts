@@ -1,18 +1,12 @@
 "use client";
 
 import { type RefObject, useEffect, useRef } from "react";
+import { isTextEntryTarget } from "@/shared/lib/utils";
 
 export interface HeldKeys {
   // Lowercased `KeyboardEvent.key` values of the tracked keys currently down.
   keys: Set<string>;
   shift: boolean;
-}
-
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  return target.isContentEditable;
 }
 
 // Tracks which of `tracked` are held, for per-frame movement such as
@@ -27,7 +21,7 @@ export function useHeldKeys(tracked: readonly string[]): RefObject<HeldKeys> {
     const state = held.current;
 
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.metaKey || e.ctrlKey || e.altKey || isTextEntry(e.target)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || isTextEntryTarget(e.target)) return;
       state.shift = e.shiftKey;
       const k = e.key.toLowerCase();
       if (!keys.has(k)) return;

@@ -1,12 +1,23 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
   type PointerEvent,
   type ReactNode,
+  type Ref,
 } from "react";
+import { isTextEntryTarget } from "@/shared/lib/utils";
+
+export interface PanZoomHandle {
+  // Glides the view, keeping the zoom, until the content point sits at
+  // `anchor`: a position given as fractions of the viewport's width and
+  // height. The default anchor is the center.
+  panTo: (point: Point, anchor?: Point) => void;
+}
 
 interface PanZoomProps {
   contentWidth: number;
@@ -16,6 +27,7 @@ interface PanZoomProps {
   // Content point to center on, once, the first time it's provided.
   initialFocus?: Point;
   onBackgroundPointerDown?: () => void;
+  ref?: Ref<PanZoomHandle>;
   children: ReactNode;
 }
 
@@ -25,10 +37,13 @@ interface Transform {
   s: number;
 }
 
-interface Point {
+export interface Point {
   x: number;
   y: number;
 }
+
+const GLIDE_MS = 350;
+const VIEWPORT_CENTER: Point = { x: 0.5, y: 0.5 };
 
 interface PinchSnapshot {
   dist: number;
@@ -43,6 +58,7 @@ export function PanZoom({
   maxScale = 3,
   initialFocus,
   onBackgroundPointerDown,
+  ref,
   children,
 }: PanZoomProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,18 +69,60 @@ export function PanZoom({
   const pinchRef = useRef<PinchSnapshot | null>(null);
   const draggedRef = useRef(false);
 
+  const glideRef = useRef<number | null>(null);
+  const stopGlide = useCallback((): void => {
+    if (glideRef.current === null) return;
+    cancelAnimationFrame(glideRef.current);
+    glideRef.current = null;
+  }, []);
+  useEffect(() => stopGlide, [stopGlide]);
+
+  const panTo = useCallback(
+    (point: Point, anchor: Point, glide: boolean): void => {
+      const el = containerRef.current;
+      if (!el) return;
+      stopGlide();
+      const rect = el.getBoundingClientRect();
+      // Scales the offset from the target position by `remaining` (0 lands
+      // exactly). Recomputing the target from the live scale each frame,
+      // rather than interpolating from a fixed start, keeps it on target even
+      // if the scale changes mid-glide.
+      const approach = (t: Transform, remaining: number): Transform => {
+        const x = rect.width * anchor.x - point.x * t.s;
+        const y = rect.height * anchor.y - point.y * t.s;
+        return { ...t, x: x + (t.x - x) * remaining, y: y + (t.y - y) * remaining };
+      };
+      if (!glide || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setTransform((t) => approach(t, 0));
+        return;
+      }
+      const start = performance.now();
+      let prevRemaining = 1;
+      const step = (now: number): void => {
+        // A frame's timestamp can predate the performance.now() taken when
+        // the glide was requested, hence the clamp at 0.
+        const progress = Math.min(1, Math.max(0, (now - start) / GLIDE_MS));
+        const remaining = (1 - progress) ** 3; // ease-out cubic
+        const ratio = remaining / prevRemaining;
+        prevRemaining = remaining;
+        setTransform((t) => approach(t, ratio));
+        glideRef.current = progress < 1 ? requestAnimationFrame(step) : null;
+      };
+      glideRef.current = requestAnimationFrame(step);
+    },
+    [stopGlide],
+  );
+
+  useImperativeHandle(ref, () => ({
+    panTo: (point, anchor = VIEWPORT_CENTER) => { panTo(point, anchor, true); },
+  }), [panTo]);
+
   const centeredRef = useRef(false);
   useEffect(() => {
-    const el = containerRef.current;
-    if (!initialFocus || !el || centeredRef.current) return;
+    if (!initialFocus || centeredRef.current) return;
     centeredRef.current = true;
-    const rect = el.getBoundingClientRect();
-    setTransform((t) => ({
-      ...t,
-      x: rect.width / 2 - initialFocus.x * t.s,
-      y: rect.height / 2 - initialFocus.y * t.s,
-    }));
-  }, [initialFocus]);
+    panTo(initialFocus, VIEWPORT_CENTER, false);
+  }, [initialFocus, panTo]);
 
   // Wheel listener attached non-passively so we can preventDefault.
   useEffect(() => {
@@ -72,6 +130,7 @@ export function PanZoom({
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
+      stopGlide();
       const rect = el.getBoundingClientRect();
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
@@ -80,7 +139,7 @@ export function PanZoom({
     };
     el.addEventListener("wheel", handler, { passive: false });
     return () => { el.removeEventListener("wheel", handler); };
-  }, [minScale, maxScale]);
+  }, [minScale, maxScale, stopGlide]);
 
   // Keyboard pan (WASD) and zoom (-/+). Tracks held keys and runs an rAF loop
   // while any are pressed so the motion is smooth and resolution-independent.
@@ -133,16 +192,10 @@ export function PanZoom({
     };
 
     const startLoop = (): void => {
+      stopGlide();
       if (raf !== null) return;
       lastTime = 0;
       raf = requestAnimationFrame(tick);
-    };
-
-    const isInteractive = (target: EventTarget | null): boolean => {
-      if (!(target instanceof HTMLElement)) return false;
-      const tag = target.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-      return target.isContentEditable;
     };
 
     const keyToken = (e: KeyboardEvent): string | null => {
@@ -155,7 +208,7 @@ export function PanZoom({
 
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isInteractive(e.target)) return;
+      if (isTextEntryTarget(e.target)) return;
       shiftHeld = e.shiftKey;
       const token = keyToken(e);
       if (token === null) return;
@@ -183,9 +236,10 @@ export function PanZoom({
       window.removeEventListener("blur", clearPressed);
       if (raf !== null) cancelAnimationFrame(raf);
     };
-  }, [minScale, maxScale]);
+  }, [minScale, maxScale, stopGlide]);
 
   function handlePointerDown(e: PointerEvent<HTMLDivElement>) {
+    stopGlide();
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     draggedRef.current = false;
     if (pointersRef.current.size === 1) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { Eye, Users } from "lucide-react";
 import { useFamilyTreeStore } from "../store";
 import {
   ROOT_ID,
@@ -15,8 +16,9 @@ import {
   type NavDirection,
 } from "../logic";
 import { useLayoutWorker } from "../use-layout-worker";
-import type { Layout, Tree } from "../types";
-import { PanZoom } from "./pan-zoom";
+import type { LaidOutNode, Layout, Tree } from "../types";
+import { PanZoom, type PanZoomHandle, type Point } from "./pan-zoom";
+import { NameSearch } from "./name-search";
 import { Node } from "./node";
 import { Edges } from "./edges";
 import { OptimizeStatus } from "./optimize-status";
@@ -28,7 +30,7 @@ import {
   type PanelMode,
 } from "./action-panel";
 import { Button } from "@/shared/components/ui/button";
-import { cn } from "@/shared/lib/utils";
+import { cn, isTextEntryTarget } from "@/shared/lib/utils";
 
 const Tree3D = dynamic(() => import("./tree-3d").then((m) => m.Tree3D), {
   ssr: false,
@@ -45,11 +47,20 @@ function arrowDirection(key: string): NavDirection | null {
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (tag === "BUTTON") return true;
-  return target.isContentEditable;
+  if (isTextEntryTarget(target)) return true;
+  return target instanceof HTMLButtonElement;
+}
+
+function nodeCenter(node: LaidOutNode): Point {
+  return { x: node.x + node.w / 2, y: node.y + node.h / 2 };
+}
+
+// Below `md` the action panel covers the lower part of the canvas, so a card
+// jumped to (and thereby selected) is placed near the top instead of the
+// center, where the panel would hide it.
+function jumpAnchor(): Point {
+  const panelBelow = !window.matchMedia("(min-width: 48rem)").matches;
+  return { x: 0.5, y: panelBelow ? 0.2 : 0.5 };
 }
 
 function deleteWithConfirm(
@@ -204,11 +215,17 @@ export function FamilyTree() {
     viewRootId in tree.persons ? viewRootId : ROOT_ID;
   const viewRoot = tree.persons[effectiveViewRootId];
 
-  const relations = useMemo(() => {
+  // What each card says under the name: "you" on the view root, otherwise
+  // the relationship to it. Search results show the same line.
+  const subtitles = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const id of Object.keys(tree.persons)) {
-      const r = describeRelation(tree, effectiveViewRootId, id);
-      map.set(id, r.label);
+      map.set(
+        id,
+        id === effectiveViewRootId
+          ? "you"
+          : describeRelation(tree, effectiveViewRootId, id).label,
+      );
     }
     return map;
   }, [tree, effectiveViewRootId]);
@@ -216,8 +233,21 @@ export function FamilyTree() {
   const viewRootFocus = useMemo(() => {
     if (status !== "ready") return undefined;
     const node = layout.nodes.find((n) => n.id === effectiveViewRootId);
-    return node && { x: node.x + node.w / 2, y: node.y + node.h / 2 };
+    return node && nodeCenter(node);
   }, [status, layout.nodes, effectiveViewRootId]);
+
+  const panZoomRef = useRef<PanZoomHandle>(null);
+  const [flash, setFlash] = useState<{ id: string; key: number } | null>(null);
+  const jumpTo = useCallback(
+    (id: string) => {
+      setSelected(id);
+      // Absent while the first layout is still computing.
+      const node = layout.nodes.find((n) => n.id === id);
+      if (node) panZoomRef.current?.panTo(nodeCenter(node), jumpAnchor());
+      setFlash((f) => ({ id, key: (f?.key ?? 0) + 1 }));
+    },
+    [layout.nodes, setSelected],
+  );
 
   const selectedPerson = selectedId ? tree.persons[selectedId] : undefined;
   const personCount = Object.keys(tree.persons).length;
@@ -253,20 +283,31 @@ export function FamilyTree() {
 
   return (
     <div className="relative flex h-[calc(100vh-4rem)] w-full flex-col bg-surface-primary">
-      <header className="flex items-center justify-between gap-3 border-b border-border-default px-4 py-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold text-text-primary">Family Tree</h1>
-          <p className="truncate text-xs text-text-muted">
-            {personCount} {personCount === 1 ? "person" : "people"}
-            <span className="mx-1">·</span>
-            viewing from{" "}
-            <span className="text-brand-blue">{fullName(viewRoot)}</span>
-            {status === "loading" ? " · loading…" : null}
-            {status === "error" ? " · failed to load" : null}
-            {saving ? " · saving…" : null}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+      <header className="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-border-default px-4 py-3">
+        <h1 className="col-start-1 row-start-1 truncate text-xl font-semibold text-text-primary">
+          Family Tree
+        </h1>
+        <p className="col-span-2 row-start-2 flex min-w-0 items-center gap-3 text-xs text-text-muted sm:col-span-1">
+          <span
+            className="flex shrink-0 items-center gap-1"
+            title={`${personCount} ${personCount === 1 ? "person" : "people"} in the tree`}
+          >
+            <Users className="h-3.5 w-3.5" aria-hidden />
+            {personCount}
+          </span>
+          <span
+            className="flex min-w-0 items-center gap-1"
+            title={`Viewing from ${fullName(viewRoot)}`}
+          >
+            <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate text-brand-blue">{fullName(viewRoot)}</span>
+          </span>
+          {status === "loading" ? <span className="shrink-0">loading…</span> : null}
+          {status === "error" ? <span className="shrink-0">failed to load</span> : null}
+          {saving ? <span className="shrink-0">saving…</span> : null}
+        </p>
+        <div className="col-start-2 row-start-1 flex items-center gap-2 sm:row-span-2">
+          <NameSearch tree={tree} subtitles={subtitles} onPick={jumpTo} />
           <ViewToggle value={viewMode} onChange={setViewMode} />
           <OptimizeControl
             ready={status === "ready"}
@@ -299,6 +340,7 @@ export function FamilyTree() {
         ) : (
           <>
             <PanZoom
+              ref={panZoomRef}
               contentWidth={layout.width}
               contentHeight={layout.height}
               initialFocus={viewRootFocus}
@@ -312,7 +354,9 @@ export function FamilyTree() {
                   person={tree.persons[n.id]}
                   selected={selectedId === n.id}
                   isViewRoot={n.id === effectiveViewRootId}
-                  relation={relations.get(n.id) ?? null}
+                  subtitle={subtitles.get(n.id) ?? null}
+                  flashKey={flash?.id === n.id ? flash.key : null}
+                  onFlashEnd={() => { setFlash(null); }}
                   onSelect={setSelected}
                 />
               ))}
@@ -472,7 +516,8 @@ function OptimizeControl({
       onClick={onOptimize}
       title="Compute the optimal layout for the current tree and cache it for everyone."
     >
-      Optimize layout
+      <span className="hidden sm:inline">Optimize layout</span>
+      <span className="sm:hidden">Optimize</span>
     </Button>
   );
 }

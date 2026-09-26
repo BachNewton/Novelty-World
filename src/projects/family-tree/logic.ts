@@ -16,7 +16,9 @@ import type {
   UnionStatus,
 } from "./types";
 
-export const NODE_W = 180;
+// Wide enough to fit the longest name in the tree on one line
+// (Ruth-Anne "Ruthie" Hutchinson, 29 characters).
+export const NODE_W = 250;
 // Cards are a fixed size (the layout never measures text), so this must fit
 // the tallest content: a name wrapped onto two lines, the "née" line, and
 // the relation line.
@@ -1681,6 +1683,56 @@ export function nearestInDirection(
     }
   }
   return best;
+}
+
+// Lower ranks list first: a match on the name the card shows beats a match on
+// a name only research knows. Keyed by NameFields so a new name field fails
+// typecheck here until it is searchable.
+const NAME_SEARCH_RANK: Record<keyof NameFields, number> = {
+  firstName: 0,
+  commonName: 0,
+  lastName: 1,
+  birthSurname: 2,
+  middleName: 3,
+};
+const NAME_SEARCH_FIELDS = Object.keys(NAME_SEARCH_RANK) as (keyof NameFields)[];
+
+// Lowercased, accents stripped, split on anything that isn't a letter or
+// digit, so "Ruth-Anne" is the words "ruth" and "anne".
+function searchWords(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w !== "");
+}
+
+// People with a name word starting with each word of the query, ignoring case
+// and accents: "hutch" finds every Hutchinson, "deb" finds a Deborah.
+// Ranked by the best field each query word hit, then alphabetically.
+export function searchByName(tree: Tree, query: string): Person[] {
+  const queryWords = searchWords(query);
+  if (queryWords.length === 0) return [];
+  const hits: { person: Person; rank: number; name: string }[] = [];
+  for (const person of Object.values(tree.persons)) {
+    const fields = NAME_SEARCH_FIELDS.map((key) => ({
+      words: searchWords(person[key]),
+      rank: NAME_SEARCH_RANK[key],
+    }));
+    let rank = 0;
+    for (const q of queryWords) {
+      const best = Math.min(
+        ...fields
+          .filter((f) => f.words.some((w) => w.startsWith(q)))
+          .map((f) => f.rank),
+      );
+      rank += best;
+    }
+    if (Number.isFinite(rank)) hits.push({ person, rank, name: fullName(person) });
+  }
+  hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name));
+  return hits.map((h) => h.person);
 }
 
 export const GENDER_CYCLE: Gender[] = ["M", "F", "NB"];

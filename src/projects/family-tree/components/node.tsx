@@ -8,7 +8,11 @@ interface NodeProps {
   person: Person;
   selected: boolean;
   isViewRoot: boolean;
-  relation: string | null;
+  subtitle: string | null;
+  // Changing the key replays the flash, so picking the same person again
+  // still draws the eye.
+  flashKey: number | null;
+  onFlashEnd: () => void;
   onSelect: (id: string) => void;
 }
 
@@ -17,14 +21,15 @@ export function Node({
   person,
   selected,
   isViewRoot,
-  relation,
+  subtitle,
+  flashKey,
+  onFlashEnd,
   onSelect,
 }: NodeProps) {
   function handleClick() {
     onSelect(person.id);
   }
 
-  const subtitle = isViewRoot ? "you" : relation;
   const showBirthSurname =
     person.birthSurname !== "" && person.birthSurname !== person.lastName;
 
@@ -41,6 +46,14 @@ export function Node({
       style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
       onClick={handleClick}
     >
+      {flashKey !== null ? (
+        <span
+          key={flashKey}
+          aria-hidden
+          className="pointer-events-none absolute -inset-0.5 animate-family-card-flash rounded-lg"
+          onAnimationEnd={onFlashEnd}
+        />
+      ) : null}
       <span className="text-sm font-medium text-text-primary leading-tight">
         {fullName(person)}
       </span>

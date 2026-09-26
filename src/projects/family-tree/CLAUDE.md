@@ -4,6 +4,10 @@
 
 A deliberately simple, practical tree that answers one question: "how does this person, whom I know by this name, relate to me or to another family member?" It is not a genealogy app. A feature earns its place by serving that question, or by fixing data the tree otherwise can't represent correctly. Push back on genealogy-software sprawl: citations, confidence levels, event records and the like.
 
+## One user
+
+The owner is effectively the only person using this project. A change doesn't need to protect production while it's in progress: no cache-compatibility shims, no guarding against tabs running an old build, no staged rollouts. The owner can re-run Optimize or reload by hand. The only requirement is that the tree isn't left broken once a change is finished.
+
 ## A living tree
 
 Everyone is family whether or not they've passed. The tree never shows who is dead or alive, and it never needs updating when someone dies. There is deliberately no deceased flag on a person. Don't add one, and don't add UI that implies one.
@@ -36,9 +40,9 @@ The tree is one row, saved whole. `persistence.ts` owns every read and write of 
 
 The tree must work from 360px phones through ultrawide desktop. Check both whenever you touch components.
 
-- `pan-zoom.tsx` handles pointer events: one-finger or mouse drag pans, a two-finger pinch zooms, and the wheel zooms. The canvas disables browser touch gestures, and a drag suppresses the click that would otherwise select a card.
+- `pan-zoom.tsx` handles pointer events: one-finger or mouse drag pans, a two-finger pinch zooms, and the wheel zooms. The canvas disables browser touch gestures, and a drag suppresses the click that would otherwise select a card. It also glides to a content point on demand (`PanZoomHandle.panTo`); any pan or zoom by the user cancels a glide in progress.
 - `action-panel.tsx` is a floating card. On narrow screens it sits at the bottom right with its width capped to the viewport minus a gutter. From `md` up it moves to the top right. It must stay fully usable at 360px.
-- The toolbar in `family-tree.tsx` shortens its labels below `sm`. Arrow-key navigation between cards is desktop-only, so every action also needs a tap path.
+- The toolbar in `family-tree.tsx` shortens its labels below `sm`. The name search (`name-search.tsx`) sits inline from `sm` up; below that it is a magnifying-glass button that opens the field over the whole toolbar. Jumping to a result selects the person, so below `md` the card lands near the top of the canvas rather than the center, where the action panel would cover it. Arrow-key navigation between cards is desktop-only, so every action also needs a tap path.
 - Size tap targets for fingers, not just for a mouse pointer.
 
 ## Layout

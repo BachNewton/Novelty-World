@@ -29,3 +29,12 @@ export function shuffleArray<T>(
   }
   return out;
 }
+
+/** True when a key event's target is a field the user is typing into, where
+ *  single-key shortcuts must not fire. */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
