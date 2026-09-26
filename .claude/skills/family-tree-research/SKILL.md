@@ -65,9 +65,10 @@ The tree is **complete** when every in-scope person has each of their
 research questions Confirmed or Exhausted.
 
 - **In scope:** everyone in the tree, both partners' families included.
-- **Direction: out and down only.** Don't add new ancestors: nobody gets a
-  parent the tree doesn't already have. A lead above the tree goes in the
-  research log for a later pass.
+- **Direction: out and down only.** This research phase doesn't go looking
+  for new ancestors: a lead above the tree goes in the research log for a
+  later pass. Ancestors the owner supplies are always welcome; add them, and
+  they join the scope like anyone else.
 
 ## The research record
 
