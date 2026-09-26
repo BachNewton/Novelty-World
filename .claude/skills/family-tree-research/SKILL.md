@@ -59,7 +59,7 @@ to be someone else, and why, so nobody chases them again.
    "Possible:".
 5. **Dry run** `apply <file>` and read the change list it prints, line by line,
    against what you meant.
-6. **Decide who approves** (below), then run `apply <file> --write`. It backs
+6. **Decide who approves** (see "Research edits" in the project CLAUDE.md), then run `apply <file> --write`. It backs
    up the current row into `research/backups/` before writing, and prints the
    new version.
 7. **Tell the owner** what changed, and to reload any open tabs. An open tab
@@ -72,22 +72,9 @@ work around the check.
 
 ## Who approves
 
-**Apply directly** (then report) when every change in the file is a very
-high-confidence fact: Confirmed on the scale above, stated plainly by the
-source, and about a name or a relationship.
-
-**Ask the owner first** — show the dry-run change list and wait — when the file
-contains any of:
-
-- a Possible finding, or anything written to notes as "Possible:";
-- an inference rather than a stated fact: a surname assumed from a marriage,
-  a gender guessed from a name, a parent inferred from household records;
-- sources that conflict;
-- a deletion of an existing person;
-- a change about a living person that isn't a plain name or relationship fact.
-
-When in doubt, ask. Split a file in two rather than hold confirmed changes
-back or rush a doubtful one through.
+The owner's rule lives in the project CLAUDE.md ("Research edits"): apply
+high-confidence findings yourself and report them; ask only in the cases it
+lists.
 
 ## The CLI
 

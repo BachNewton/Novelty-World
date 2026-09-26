@@ -36,6 +36,16 @@ The tree is one row, saved whole. `persistence.ts` owns every read and write of 
 - **The CLI** (`tools/tree-cli.ts`, pure part in `tools/tree-edit.ts`) is how research gets into the tree: find and show people, and apply a JSON change file through the same `logic.ts` functions the UI uses, validated by `treeProblems`. It dry-runs by default, backs up the row into `research/` before writing, and uses the same versioned save. The `family-tree-research` skill describes the workflow and privacy rules around it.
 - **New name fields** flow through the CLI (rename, new people, search) once they are added to its empty-name defaults, which typecheck forces.
 
+## Research edits
+
+The owner wants as few approval requests as possible. When research finds evidence for a change and confidence is high, make the change with the CLI and report it afterwards. High confidence includes a near-certain inference from records: a divorce implied because both spouses remarried while alive, a birth surname from a marriage record that names the parents. Record the evidence in `research/` either way.
+
+Ask first only when:
+
+- the evidence conflicts, or confidence isn't high. A single mention or a name match without matching relatives isn't enough. A finding like that stays in `research/`, or goes into notes marked "Possible:";
+- the change deletes an existing person;
+- the change would put a private detail about a living person into the public row (see Privacy).
+
 ## Responsive: phone and desktop
 
 The tree must work from 360px phones through ultrawide desktop. Check both whenever you touch components.
