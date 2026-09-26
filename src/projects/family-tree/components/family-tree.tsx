@@ -213,6 +213,12 @@ export function FamilyTree() {
     return map;
   }, [tree, effectiveViewRootId]);
 
+  const viewRootFocus = useMemo(() => {
+    if (status !== "ready") return undefined;
+    const node = layout.nodes.find((n) => n.id === effectiveViewRootId);
+    return node && { x: node.x + node.w / 2, y: node.y + node.h / 2 };
+  }, [status, layout.nodes, effectiveViewRootId]);
+
   const selectedPerson = selectedId ? tree.persons[selectedId] : undefined;
   const personCount = Object.keys(tree.persons).length;
   const showResetView = effectiveViewRootId !== ROOT_ID;
@@ -295,7 +301,7 @@ export function FamilyTree() {
             <PanZoom
               contentWidth={layout.width}
               contentHeight={layout.height}
-              refitKey={`${personCount}-init`}
+              initialFocus={viewRootFocus}
               onBackgroundPointerDown={() => { setSelected(null); }}
             >
               <Edges layout={layout} />

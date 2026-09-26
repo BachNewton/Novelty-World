@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -14,7 +13,8 @@ interface PanZoomProps {
   contentHeight: number;
   minScale?: number;
   maxScale?: number;
-  refitKey?: string | number;
+  // Content point to center on, once, the first time it's provided.
+  initialFocus?: Point;
   onBackgroundPointerDown?: () => void;
   children: ReactNode;
 }
@@ -41,7 +41,7 @@ export function PanZoom({
   contentHeight,
   minScale = 0.1,
   maxScale = 3,
-  refitKey,
+  initialFocus,
   onBackgroundPointerDown,
   children,
 }: PanZoomProps) {
@@ -53,30 +53,18 @@ export function PanZoom({
   const pinchRef = useRef<PinchSnapshot | null>(null);
   const draggedRef = useRef(false);
 
-  const fit = useCallback(() => {
+  const centeredRef = useRef(false);
+  useEffect(() => {
     const el = containerRef.current;
-    if (!el) return;
+    if (!initialFocus || !el || centeredRef.current) return;
+    centeredRef.current = true;
     const rect = el.getBoundingClientRect();
-    if (contentWidth <= 0 || contentHeight <= 0) {
-      setTransform({ x: rect.width / 2, y: rect.height / 2, s: 1 });
-      return;
-    }
-    const padding = 96;
-    const sx = (rect.width - padding) / contentWidth;
-    const sy = (rect.height - padding) / contentHeight;
-    const s = Math.max(minScale, Math.min(1, sx, sy));
-    const x = (rect.width - contentWidth * s) / 2;
-    const y = (rect.height - contentHeight * s) / 2;
-    setTransform({ x, y, s });
-  }, [contentWidth, contentHeight, minScale]);
-
-  // Refit only when content first appears or `refitKey` changes — not on
-  // every size change, or a re-solved layout would throw away the user's
-  // pan and zoom.
-  const fitRef = useRef(fit);
-  useEffect(() => { fitRef.current = fit; }, [fit]);
-  const hasContent = contentWidth > 0 && contentHeight > 0;
-  useEffect(() => { fitRef.current(); }, [hasContent, refitKey]);
+    setTransform((t) => ({
+      ...t,
+      x: rect.width / 2 - initialFocus.x * t.s,
+      y: rect.height / 2 - initialFocus.y * t.s,
+    }));
+  }, [initialFocus]);
 
   // Wheel listener attached non-passively so we can preventDefault.
   useEffect(() => {
