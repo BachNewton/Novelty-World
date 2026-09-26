@@ -1,10 +1,25 @@
 "use client";
 
-import type { LaidOutNode, Layout } from "../types";
+import type { LaidOutNode, Layout, UnionStatus } from "../types";
 
 interface EdgesProps {
   layout: Layout;
 }
+
+const MARRIAGE_STROKE = "var(--color-brand-pink)";
+const PARTNER_STROKE = "var(--color-brand-green)";
+
+const UNION_LINE_STYLES: Record<
+  UnionStatus,
+  { stroke: string; dashed: boolean }
+> = {
+  married: { stroke: MARRIAGE_STROKE, dashed: false },
+  // Drawn exactly like a current marriage: the tree never shows who has died.
+  "ended-by-death": { stroke: MARRIAGE_STROKE, dashed: false },
+  divorced: { stroke: MARRIAGE_STROKE, dashed: true },
+  partner: { stroke: PARTNER_STROKE, dashed: false },
+  "ex-partner": { stroke: PARTNER_STROKE, dashed: true },
+};
 
 export function Edges({ layout }: EdgesProps) {
   const byId = new Map<string, LaidOutNode>(layout.nodes.map((n) => [n.id, n]));
@@ -24,7 +39,7 @@ export function Edges({ layout }: EdgesProps) {
           const y = a.y + a.h / 2;
           const x1 = a.x + a.w;
           const x2 = b.x;
-          const isDivorced = edge.status === "divorced";
+          const style = UNION_LINE_STYLES[edge.status];
           return (
             <line
               key={`s-${i}`}
@@ -32,10 +47,10 @@ export function Edges({ layout }: EdgesProps) {
               y1={y}
               x2={x2}
               y2={y}
-              stroke="var(--color-brand-pink)"
+              stroke={style.stroke}
               strokeWidth={2}
-              strokeDasharray={isDivorced ? "6 4" : undefined}
-              opacity={isDivorced ? 0.7 : 1}
+              strokeDasharray={style.dashed ? "6 4" : undefined}
+              opacity={style.dashed ? 0.7 : 1}
             />
           );
         }

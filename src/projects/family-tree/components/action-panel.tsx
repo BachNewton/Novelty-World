@@ -11,7 +11,7 @@ export type PanelMode =
   | "add-child"
   | "add-spouse"
   | "rename"
-  | "divorce";
+  | "union-status";
 
 export interface MarriageOption {
   partnerId: string;
@@ -46,7 +46,7 @@ interface ActionPanelProps {
     status: UnionStatus,
     bioChildIds: string[],
   ) => void;
-  onDivorce: (partnerId: string) => void;
+  onSetUnionStatus: (partnerId: string, status: UnionStatus) => void;
   onRename: (name: NameFields) => void;
   onSetGender: (gender: Gender) => void;
   onSetAsViewRoot: () => void;
@@ -59,9 +59,21 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
   { value: "NB", label: "NB" },
 ];
 
-const STATUS_OPTIONS: { value: UnionStatus; label: string }[] = [
-  { value: "married", label: "Current" },
-  { value: "divorced", label: "Divorced" },
+const STATUS_LABELS: Record<UnionStatus, string> = {
+  married: "Married",
+  partner: "Partner",
+  divorced: "Divorced",
+  "ex-partner": "Ex-partner",
+  "ended-by-death": "Ended by death",
+};
+
+// Laid out two per row: current unions, then separations, then death.
+const STATUS_OPTIONS: UnionStatus[] = [
+  "married",
+  "partner",
+  "divorced",
+  "ex-partner",
+  "ended-by-death",
 ];
 
 function GenderPicker({
@@ -100,29 +112,31 @@ function GenderPicker({
 function StatusPicker({
   value,
   onChange,
+  label,
 }: {
   value: UnionStatus;
   onChange: (s: UnionStatus) => void;
+  label: string;
 }) {
   return (
-    <div className="flex gap-1" role="radiogroup" aria-label="Marriage status">
-      {STATUS_OPTIONS.map((opt) => {
-        const active = value === opt.value;
+    <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label={label}>
+      {STATUS_OPTIONS.map((status) => {
+        const active = value === status;
         return (
           <button
-            key={opt.value}
+            key={status}
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => { onChange(opt.value); }}
+            onClick={() => { onChange(status); }}
             className={[
-              "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+              "rounded-md border px-2 py-1.5 text-xs font-medium transition-colors odd:last:col-span-2",
               active
                 ? "border-brand-orange bg-surface-elevated text-text-primary"
                 : "border-border-default bg-surface-primary text-text-secondary hover:border-border-hover",
             ].join(" ")}
           >
-            {opt.label}
+            {STATUS_LABELS[status]}
           </button>
         );
       })}
@@ -141,7 +155,7 @@ export function ActionPanel({
   onAddParent,
   onAddChild,
   onAddSpouse,
-  onDivorce,
+  onSetUnionStatus,
   onRename,
   onSetGender,
   onSetAsViewRoot,
@@ -157,7 +171,6 @@ export function ActionPanel({
   // IDs of existing single-parent children the new spouse should also bio-parent.
   const [draftBioChildIds, setDraftBioChildIds] = useState<string[]>([]);
 
-  const currentMarriages = marriages.filter((m) => m.status === "married");
   // Show the marriage picker on +Child whenever the person has any spouse.
   // Default picks the first current marriage (or the first ex if no current),
   // so the common case is a single confirm-click — but step-children and
@@ -177,7 +190,7 @@ export function ActionPanel({
       setFirstDraft(person.firstName);
       setLastDraft(person.lastName);
       setCommonDraft(person.commonName);
-    } else if (mode === "menu" || mode === "divorce") {
+    } else if (mode === "menu" || mode === "union-status") {
       setFirstDraft("");
       setLastDraft("");
       setCommonDraft("");
@@ -196,7 +209,6 @@ export function ActionPanel({
 
   const isCanonicalRoot = person.id === ROOT_ID;
   const canAddParent = person.parentIds.length < 2;
-  const canDivorce = currentMarriages.length > 0;
   const needsGender =
     mode === "add-parent" || mode === "add-child" || mode === "add-spouse";
   const trimmedFirst = firstDraft.trim();
@@ -222,14 +234,6 @@ export function ActionPanel({
         onAddSpouse(name, draftGender, draftStatus, draftBioChildIds);
     }
     onModeChange("menu");
-  }
-
-  function handleDivorceClick() {
-    if (currentMarriages.length === 1) {
-      onDivorce(currentMarriages[0].partnerId);
-      return;
-    }
-    onModeChange("divorce");
   }
 
   return (
@@ -282,7 +286,7 @@ export function ActionPanel({
               variant="secondary"
               onClick={() => { onModeChange("add-spouse"); }}
             >
-              + Spouse
+              + Spouse/Partner
             </Button>
             <Button
               variant="secondary"
@@ -290,16 +294,13 @@ export function ActionPanel({
             >
               Rename
             </Button>
-            {canDivorce ? (
+            {marriages.length > 0 ? (
               <Button
                 variant="secondary"
                 className="col-span-2"
-                onClick={handleDivorceClick}
+                onClick={() => { onModeChange("union-status"); }}
               >
-                Divorce
-                {currentMarriages.length === 1
-                  ? ` from ${currentMarriages[0].partnerName}`
-                  : "…"}
+                Relationship status…
               </Button>
             ) : null}
             <Button
@@ -312,33 +313,27 @@ export function ActionPanel({
             </Button>
           </div>
         </div>
-      ) : mode === "divorce" ? (
+      ) : mode === "union-status" ? (
         <div className="flex flex-col gap-3">
-          <div className="text-xs text-text-secondary">
-            Divorce {person.firstName} from…
-          </div>
-          <div className="flex flex-col gap-1">
-            {currentMarriages.map((m) => (
-              <button
-                key={m.partnerId}
-                type="button"
-                onClick={() => {
-                  onDivorce(m.partnerId);
-                  onModeChange("menu");
-                }}
-                className="rounded-md border border-border-default bg-surface-primary px-3 py-2 text-left text-sm text-text-primary transition-colors hover:border-border-hover"
-              >
-                {m.partnerName}
-              </button>
-            ))}
-          </div>
+          {marriages.map((m) => (
+            <div key={m.partnerId} className="flex flex-col gap-1">
+              <div className="text-xs text-text-secondary">
+                {person.firstName} & {m.partnerName}
+              </div>
+              <StatusPicker
+                value={m.status}
+                onChange={(status) => { onSetUnionStatus(m.partnerId, status); }}
+                label={`Status with ${m.partnerName}`}
+              />
+            </div>
+          ))}
           <div className="flex justify-end">
             <Button
               type="button"
               variant="ghost"
               onClick={() => { onModeChange("menu"); }}
             >
-              Cancel
+              Done
             </Button>
           </div>
         </div>
@@ -399,7 +394,11 @@ export function ActionPanel({
           {mode === "add-spouse" ? (
             <div className="flex flex-col gap-1">
               <label className="text-xs text-text-secondary">Status</label>
-              <StatusPicker value={draftStatus} onChange={setDraftStatus} />
+              <StatusPicker
+                value={draftStatus}
+                onChange={setDraftStatus}
+                label="Relationship status"
+              />
             </div>
           ) : null}
 
@@ -464,7 +463,7 @@ export function ActionPanel({
                     >
                       {person.firstName} & {m.partnerName}{" "}
                       <span className="text-text-muted">
-                        ({m.status === "married" ? "current" : "divorced"})
+                        ({STATUS_LABELS[m.status].toLowerCase()})
                       </span>
                     </button>
                   );

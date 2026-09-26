@@ -35,9 +35,11 @@ export function fullName(
 }
 
 // A current union is the one a person is in now; former unions have ended.
-// Layout pairs current partners side by side.
+// Layout pairs current partners side by side, and a former union sits
+// beside them — so one ended marriage plus a current one never reads as
+// bigamy.
 export function isCurrentUnion(status: UnionStatus): boolean {
-  return status === "married";
+  return status === "married" || status === "partner";
 }
 
 export function currentPartnerIds(person: Person): string[] {
@@ -427,8 +429,42 @@ function spouseTerm(gender: Gender): string {
   return pickByGender(gender, "husband", "wife", "spouse");
 }
 
-function exSpouseTerm(gender: Gender): string {
-  return "ex-" + spouseTerm(gender);
+function unionTerm(status: UnionStatus, gender: Gender): string {
+  switch (status) {
+    case "married":
+      return spouseTerm(gender);
+    case "divorced":
+      return "ex-" + spouseTerm(gender);
+    case "ended-by-death":
+      return "late " + spouseTerm(gender);
+    case "partner":
+      return "partner";
+    case "ex-partner":
+      return "ex-partner";
+  }
+}
+
+// Which unions each family of terms derives through. Step terms need a
+// marriage in force. In-law terms outlive a spouse's death but not a
+// divorce. Composite terms ("partner's mother", "son's partner") also run
+// through unmarried partners, who get no in-law or step terms of their own.
+const STEP_STATUSES: readonly UnionStatus[] = ["married"];
+const IN_LAW_STATUSES: readonly UnionStatus[] = ["married", "ended-by-death"];
+const COMPOSITE_STATUSES: readonly UnionStatus[] = [
+  "married",
+  "ended-by-death",
+  "partner",
+];
+
+function unionsWith(person: Person, statuses: readonly UnionStatus[]): Union[] {
+  return person.unions.filter((u) => statuses.includes(u.status));
+}
+
+function partnerIdsWith(
+  person: Person,
+  statuses: readonly UnionStatus[],
+): string[] {
+  return unionsWith(person, statuses).map((u) => u.personId);
 }
 
 function siblingInLawTerm(gender: Gender): string {
@@ -462,12 +498,9 @@ function describeStructured(
   const root = tree.persons[rootId];
   const target = tree.persons[targetId];
 
-  const rootSpouses = currentPartnerIds(root);
-  const targetSpouses = currentPartnerIds(target);
-
-  // 1. Direct spouse (current or divorced).
-  if (rootSpouses.includes(targetId)) return spouseTerm(target.gender);
-  if (formerPartnerIds(root).includes(targetId)) return exSpouseTerm(target.gender);
+  // 1. Direct union, in any status.
+  const direct = unionWith(root, targetId);
+  if (direct !== undefined) return unionTerm(direct.status, target.gender);
 
   // 2. Blood relation. Sibling distance gets full/half discrimination by
   //    comparing parent sets — sharing all known parents is a full sibling,
@@ -489,13 +522,14 @@ function describeStructured(
   // 3. Step-parent: root's parent's spouse. Bio parents are caught by the
   //    blood branch above, so anyone reaching here is a non-bio spouse.
   for (const parentId of root.parentIds) {
-    if (currentPartnerIds(tree.persons[parentId]).includes(targetId)) {
+    const parentSpouses = partnerIdsWith(tree.persons[parentId], STEP_STATUSES);
+    if (parentSpouses.includes(targetId)) {
       return stepParentTerm(target.gender);
     }
   }
 
   // 4. Step-child: child of root's spouse. Bio children also caught above.
-  for (const spouseId of rootSpouses) {
+  for (const spouseId of partnerIdsWith(root, STEP_STATUSES)) {
     if (target.parentIds.includes(spouseId)) {
       return stepChildTerm(target.gender);
     }
@@ -504,21 +538,24 @@ function describeStructured(
   // 5. Step-sibling: target's parent is married to root's parent, with no
   //    shared bio parent (half-siblings would have been caught in #2).
   for (const rp of root.parentIds) {
-    const rpSpouses = currentPartnerIds(tree.persons[rp]);
+    const rpSpouses = partnerIdsWith(tree.persons[rp], STEP_STATUSES);
     for (const tp of target.parentIds) {
       if (rp === tp) continue;
       if (rpSpouses.includes(tp)) return stepSiblingTerm(target.gender);
     }
   }
 
+  const rootInLawSpouses = partnerIdsWith(root, IN_LAW_STATUSES);
+  const targetInLawSpouses = partnerIdsWith(target, IN_LAW_STATUSES);
+
   // 6. Sibling-in-law: spouse of any sibling, or sibling of any spouse.
-  for (const spouseId of rootSpouses) {
+  for (const spouseId of rootInLawSpouses) {
     const path = findBloodPath(tree, spouseId, targetId);
     if (path !== null && path.distFrom === 1 && path.distTo === 1) {
       return siblingInLawTerm(target.gender);
     }
   }
-  for (const targetSpouseId of targetSpouses) {
+  for (const targetSpouseId of targetInLawSpouses) {
     const path = findBloodPath(tree, rootId, targetSpouseId);
     if (path !== null && path.distFrom === 1 && path.distTo === 1) {
       return siblingInLawTerm(target.gender);
@@ -526,7 +563,7 @@ function describeStructured(
   }
 
   // 7. Parent-in-law: parent of any spouse.
-  for (const spouseId of rootSpouses) {
+  for (const spouseId of rootInLawSpouses) {
     const path = findBloodPath(tree, spouseId, targetId);
     if (path !== null && path.distFrom === 1 && path.distTo === 0) {
       return parentInLawTerm(target.gender);
@@ -534,7 +571,7 @@ function describeStructured(
   }
 
   // 8. Child-in-law: spouse of any child.
-  for (const targetSpouseId of targetSpouses) {
+  for (const targetSpouseId of targetInLawSpouses) {
     const path = findBloodPath(tree, rootId, targetSpouseId);
     if (path !== null && path.distFrom === 0 && path.distTo === 1) {
       return childInLawTerm(target.gender);
@@ -542,27 +579,31 @@ function describeStructured(
   }
 
   // 9. Through one of root's spouses to a blood relative of that spouse.
-  for (const spouseId of rootSpouses) {
-    const path = findBloodPath(tree, spouseId, targetId);
+  for (const union of unionsWith(root, COMPOSITE_STATUSES)) {
+    const path = findBloodPath(tree, union.personId, targetId);
     if (path === null) continue;
     const inner = classifyBlood(path, target.gender);
     if (inner !== null) {
-      const spouseGender = tree.persons[spouseId].gender;
-      return `${spouseTerm(spouseGender)}'s ${inner}`;
+      const spouseGender = tree.persons[union.personId].gender;
+      return `${unionTerm(union.status, spouseGender)}'s ${inner}`;
     }
   }
 
   // 10. Target is married into the family — spouse of root's blood relative.
   // English folds spouses-of-aunts/uncles into "aunt"/"uncle" themselves, so
   // gender-flip when the inner relation is an aunt/uncle (or great-).
-  for (const targetSpouseId of targetSpouses) {
-    const path = findBloodPath(tree, rootId, targetSpouseId);
+  for (const union of unionsWith(target, COMPOSITE_STATUSES)) {
+    const path = findBloodPath(tree, rootId, union.personId);
     if (path === null) continue;
-    if (path.distTo === 1 && path.distFrom > 1) {
-      return classifyBlood(path, target.gender);
+    const foldsIntoAuntUncle =
+      IN_LAW_STATUSES.includes(union.status) &&
+      path.distTo === 1 &&
+      path.distFrom > 1;
+    if (foldsIntoAuntUncle) return classifyBlood(path, target.gender);
+    const inner = classifyBlood(path, tree.persons[union.personId].gender);
+    if (inner !== null) {
+      return `${inner}'s ${unionTerm(union.status, target.gender)}`;
     }
-    const inner = classifyBlood(path, tree.persons[targetSpouseId].gender);
-    if (inner !== null) return `${inner}'s ${spouseTerm(target.gender)}`;
   }
 
   return null;
@@ -622,7 +663,9 @@ function shortestPath(tree: Tree, fromId: string, toId: string): ChainStep[] | n
 
     for (const parentId of person.parentIds) visit(parentId, "parent");
     for (const childId of childrenIdx.get(cur) ?? []) visit(childId, "child");
-    for (const spouseId of currentPartnerIds(person)) visit(spouseId, "spouse");
+    for (const spouseId of partnerIdsWith(person, COMPOSITE_STATUSES)) {
+      visit(spouseId, "spouse");
+    }
   }
 
   if (!visited.has(toId)) return null;
@@ -703,8 +746,8 @@ interface CoupleUnit {
   id: string;
   // Adjacent members of one render-time row cluster:
   //   1 member  — singleton.
-  //   2 members — single marriage (current or divorced).
-  //   3 members — one ex + the person + one current spouse. This is the
+  //   2 members — single union (current or former).
+  //   3 members — one former + the person + one current partner. This is the
   //               common "remarried" shape; rendered side-by-side with the
   //               person in the middle and both partners adjacent so each
   //               marriage line is short and child-drops emerge from clearly
@@ -1535,7 +1578,14 @@ function sameUnions(a: Union[], b: Union[]): boolean {
 //
 // Married and divorced unions hash exactly as the pre-union `spouseIds` and
 // `divorcedSpouseIds` lists did, so the layout cached in Supabase stays valid
-// across the migration to `unions`.
+// across the migration to `unions`. Later statuses only contribute when
+// present, which keeps trees that don't use them on their old hash.
+const LATER_UNION_STATUSES: readonly UnionStatus[] = [
+  "ended-by-death",
+  "partner",
+  "ex-partner",
+];
+
 export function topologyHash(tree: Tree): string {
   const parts: string[] = [tree.rootId];
   const sortedIds = Object.keys(tree.persons).slice().sort();
@@ -1547,6 +1597,10 @@ export function topologyHash(tree: Tree): string {
         .map((u) => u.personId)
         .join(",");
     parts.push(id, p.parentIds.join(","), idsWith("married"), idsWith("divorced"));
+    for (const status of LATER_UNION_STATUSES) {
+      const ids = idsWith(status);
+      if (ids !== "") parts.push(`${status}:${ids}`);
+    }
   }
   return fnv1a32(parts.join("\n"));
 }

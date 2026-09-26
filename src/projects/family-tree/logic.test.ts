@@ -27,6 +27,7 @@ import {
   setUnionStatus,
   topologyHash,
 } from "./logic";
+import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
 import type { LaidOutNode, Layout } from "./types";
 import type {
   Gender,
@@ -659,6 +660,245 @@ describe("describeRelation", () => {
     expect(describeRelation(t, "me", "kidHusbandMom").label).toBe(
       "son-in-law's mother",
     );
+  });
+});
+
+// Build a tree from persons plus [a, b, status] unions, added to both sides.
+function treeWithUnions(
+  persons: Person[],
+  unions: [string, string, UnionStatus][],
+): Tree {
+  const t = makeTree(persons);
+  for (const [a, b, status] of unions) {
+    t.persons[a].unions.push(u(b, status));
+    t.persons[b].unions.push(u(a, status));
+  }
+  return t;
+}
+
+describe("describeRelation — ended-by-death", () => {
+  // Richard married Terry, Terry died, Richard married Mary.
+  function widower(): Tree {
+    return treeWithUnions(
+      [
+        p("richard", "M", ["rMom"]),
+        p("rMom", "F"),
+        p("terry", "F", ["tMom"]),
+        p("tMom", "F"),
+        p("tSis", "F", ["tMom"]),
+        p("mary", "F"),
+        p("maryKid", "M", ["richard", "mary"]),
+        p("terryKid", "F", ["richard", "terry"]),
+      ],
+      [
+        ["richard", "terry", "ended-by-death"],
+        ["richard", "mary", "married"],
+      ],
+    );
+  }
+
+  it("labels the spouses of a marriage ended by death as late wife/husband", () => {
+    const t = widower();
+    expect(describeRelation(t, "richard", "terry").label).toBe("late wife");
+    expect(describeRelation(t, "terry", "richard").label).toBe("late husband");
+    expect(describeRelation(t, "richard", "mary").label).toBe("wife");
+  });
+
+  it("uses the neutral 'late spouse' for NB partners", () => {
+    const t = treeWithUnions(
+      [p("a", "M"), p("b", "NB")],
+      [["a", "b", "ended-by-death"]],
+    );
+    expect(describeRelation(t, "a", "b").label).toBe("late spouse");
+  });
+
+  it("composes 'husband's late wife' and 'father's late wife'", () => {
+    const t = widower();
+    expect(describeRelation(t, "mary", "terry").label).toBe("husband's late wife");
+    expect(describeRelation(t, "maryKid", "terry").label).toBe("father's late wife");
+  });
+
+  it("keeps in-law terms through a late spouse", () => {
+    const t = widower();
+    expect(describeRelation(t, "richard", "tMom").label).toBe("mother-in-law");
+    expect(describeRelation(t, "richard", "tSis").label).toBe("sister-in-law");
+    expect(describeRelation(t, "tMom", "richard").label).toBe("son-in-law");
+  });
+
+  it("leaves bio and half-sibling terms untouched", () => {
+    const t = widower();
+    expect(describeRelation(t, "terryKid", "terry").label).toBe("mother");
+    expect(describeRelation(t, "maryKid", "terryKid").label).toBe("half-sister");
+  });
+});
+
+describe("describeRelation — partner and ex-partner", () => {
+  // John Reid and his partner Wendy Tate, unmarried, with a child.
+  function partners(): Tree {
+    return treeWithUnions(
+      [
+        p("john", "M", ["jMom"]),
+        p("jMom", "F", ["jGma"]),
+        p("jGma", "F"),
+        p("jSis", "F", ["jMom"]),
+        p("jAunt", "F", ["jGma"]),
+        p("jCousin", "M", ["jAunt"]),
+        p("wendy", "F", ["wMom"]),
+        p("wMom", "F"),
+        p("kid", "M", ["john", "wendy"]),
+        p("johnSoloKid", "F", ["john"]),
+        p("jUncleByPartner", "M"),
+      ],
+      [
+        ["john", "wendy", "partner"],
+        ["jAunt", "jUncleByPartner", "partner"],
+      ],
+    );
+  }
+
+  it("labels the couple as partners, gender-neutrally", () => {
+    const t = partners();
+    expect(describeRelation(t, "john", "wendy").label).toBe("partner");
+    expect(describeRelation(t, "wendy", "john").label).toBe("partner");
+  });
+
+  it("derives '<relative>'s partner' instead of in-law terms", () => {
+    const t = partners();
+    expect(describeRelation(t, "jMom", "wendy").label).toBe("son's partner");
+    expect(describeRelation(t, "jSis", "wendy").label).toBe("brother's partner");
+    expect(describeRelation(t, "john", "wMom").label).toBe("partner's mother");
+  });
+
+  it("derives '<parent>'s partner' instead of step-parent terms", () => {
+    const t = partners();
+    expect(describeRelation(t, "johnSoloKid", "wendy").label).toBe(
+      "father's partner",
+    );
+    expect(describeRelation(t, "wendy", "johnSoloKid").label).toBe(
+      "partner's daughter",
+    );
+  });
+
+  it("does not fold an aunt's partner into 'uncle'", () => {
+    const t = partners();
+    expect(describeRelation(t, "john", "jUncleByPartner").label).toBe(
+      "aunt's partner",
+    );
+    expect(describeRelation(t, "jCousin", "jUncleByPartner").label).toBe(
+      "mother's partner",
+    );
+  });
+
+  it("keeps bio terms for the couple's children", () => {
+    const t = partners();
+    expect(describeRelation(t, "kid", "wendy").label).toBe("mother");
+    expect(describeRelation(t, "jMom", "kid").label).toBe("grandson");
+  });
+
+  it("labels an ended partnership as ex-partner, with no derived terms", () => {
+    const t = treeWithUnions(
+      [p("a", "M", ["aMom"]), p("aMom", "F"), p("b", "F")],
+      [["a", "b", "ex-partner"]],
+    );
+    expect(describeRelation(t, "a", "b").label).toBe("ex-partner");
+    expect(describeRelation(t, "aMom", "b").label).toBeNull();
+  });
+});
+
+describe("union statuses — mutations and layout", () => {
+  it("addSpouse records a partner union, and addChild defaults to the partner as co-parent", () => {
+    let t = createInitialTree();
+    t = addSpouse(t, ROOT_ID, "wendy", n("Wendy"), "F", "partner");
+    expect(t.persons[ROOT_ID].unions).toEqual([u("wendy", "partner")]);
+    expect(t.persons.wendy.unions).toEqual([u(ROOT_ID, "partner")]);
+    t = addChild(t, ROOT_ID, "kid", n("Kid"), "M");
+    expect([...t.persons.kid.parentIds].sort()).toEqual([ROOT_ID, "wendy"].sort());
+  });
+
+  it("setUnionStatus moves a union between any two statuses", () => {
+    let t = createInitialTree();
+    t = addSpouse(t, ROOT_ID, "s", n("S"), "F", "partner");
+    t = setUnionStatus(t, ROOT_ID, "s", "married");
+    expect(t.persons[ROOT_ID].unions).toEqual([u("s", "married")]);
+    t = setUnionStatus(t, ROOT_ID, "s", "ended-by-death");
+    expect(t.persons[ROOT_ID].unions).toEqual([u("s", "ended-by-death")]);
+    expect(t.persons.s.unions).toEqual([u(ROOT_ID, "ended-by-death")]);
+    t = setUnionStatus(t, ROOT_ID, "s", "ex-partner");
+    expect(t.persons.s.unions).toEqual([u(ROOT_ID, "ex-partner")]);
+  });
+
+  it("changes topologyHash when a union's status changes", () => {
+    let t = createInitialTree();
+    t = addSpouse(t, ROOT_ID, "s", n("S"), "F");
+    const hashes = new Set<string>();
+    for (const status of [
+      "married",
+      "partner",
+      "ended-by-death",
+      "ex-partner",
+      "divorced",
+    ] as const) {
+      hashes.add(topologyHash(setUnionStatus(t, ROOT_ID, "s", status)));
+    }
+    expect(hashes.size).toBe(5);
+  });
+
+  it("clusters a late spouse, the widower, and the current spouse side by side", async () => {
+    const layout = await computeLayout(widowedRemarriage());
+    const byId = new Map(layout.nodes.map((node) => [node.id, node]));
+    const terry = byId.get("terry")!;
+    const richard = byId.get("richard")!;
+    const mary = byId.get("mary")!;
+    expect(terry.y).toBe(richard.y);
+    expect(mary.y).toBe(richard.y);
+    const [left, right] = terry.x < mary.x ? [terry, mary] : [mary, terry];
+    expect(richard.x - (left.x + left.w)).toBe(SPOUSE_GAP);
+    expect(right.x - (richard.x + richard.w)).toBe(SPOUSE_GAP);
+
+    const statusBetween = (a: string, b: string): string | undefined => {
+      const edge = layout.edges.find(
+        (e) =>
+          e.kind === "spouse" &&
+          ((e.aId === a && e.bId === b) || (e.aId === b && e.bId === a)),
+      );
+      return edge?.kind === "spouse" ? edge.status : undefined;
+    };
+    expect(statusBetween("richard", "terry")).toBe("ended-by-death");
+    expect(statusBetween("richard", "mary")).toBe("married");
+  });
+
+  it("attaches a partner couple's children to the couple like a marriage", async () => {
+    const tree = partnerFamily();
+    const layout = await computeLayout(tree);
+    const byId = new Map(layout.nodes.map((node) => [node.id, node]));
+    const john = byId.get("john")!;
+    const wendy = byId.get("wendy")!;
+    expect(john.y).toBe(wendy.y);
+    expect(Math.abs(john.x - wendy.x)).toBe(NODE_W + SPOUSE_GAP);
+    expect(
+      layout.edges.some(
+        (e) =>
+          e.kind === "spouse" &&
+          e.status === "partner" &&
+          [e.aId, e.bId].sort().join() === "john,wendy",
+      ),
+    ).toBe(true);
+    for (const kidId of ["kid1", "kid2"]) {
+      const edge = layout.edges.find(
+        (e) => e.kind === "parent-child" && e.childId === kidId,
+      );
+      if (edge?.kind !== "parent-child") throw new Error("expected edge");
+      expect([edge.parentAId, edge.parentBId].sort()).toEqual(["john", "wendy"]);
+      expect(byId.get(kidId)!.y).toBeGreaterThan(john.y);
+    }
+    expect(
+      layout.edges.some(
+        (e) =>
+          e.kind === "spouse" &&
+          e.status === "ex-partner" &&
+          [e.aId, e.bId].sort().join() === "kid1,kid1Ex",
+      ),
+    ).toBe(true);
   });
 });
 

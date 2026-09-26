@@ -323,7 +323,9 @@ export function FamilyTree() {
             onAddSpouse={(name, gender, status, bioChildIds) => {
               addSpouse(selectedPerson.id, name, gender, status, bioChildIds);
             }}
-            onDivorce={(partnerId) => { setUnionStatus(selectedPerson.id, partnerId, "divorced"); }}
+            onSetUnionStatus={(partnerId, unionStatus) => {
+              setUnionStatus(selectedPerson.id, partnerId, unionStatus);
+            }}
             onRename={(name) => { rename(selectedPerson.id, name); }}
             onSetGender={(gender) => { setGender(selectedPerson.id, gender); }}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}

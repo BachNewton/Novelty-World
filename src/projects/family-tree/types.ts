@@ -1,6 +1,13 @@
 export type Gender = "M" | "F" | "NB";
 
-export type UnionStatus = "married" | "divorced";
+export type UnionStatus =
+  | "married"
+  | "divorced"
+  // The marriage ended because a spouse died. Deliberately doesn't record
+  // which spouse: the tree never shows who is alive or dead.
+  | "ended-by-death"
+  | "partner"
+  | "ex-partner";
 
 // A relationship between two adults. Symmetric: both people carry an entry
 // naming the other, with the same status.

@@ -16,7 +16,7 @@
 // freely without leaking state between tests.
 
 import { normalizeTree } from "../logic";
-import type { Gender, Person, Tree, Union } from "../types";
+import type { Gender, Person, Tree, Union, UnionStatus } from "../types";
 import productionSnapshot from "./production-tree.json";
 
 // ---------- builder helpers ----------
@@ -49,19 +49,28 @@ function makeTree(rootId: string, persons: Person[]): Tree {
   };
 }
 
-// Marry two existing persons in-place. Bidirectional, idempotent.
-function marry(persons: Person[], aId: string, bId: string): void {
+// Join two existing persons in a union, in-place. Bidirectional, idempotent.
+function unite(
+  persons: Person[],
+  aId: string,
+  bId: string,
+  status: UnionStatus,
+): void {
   const a = persons.find((person) => person.id === aId);
   const b = persons.find((person) => person.id === bId);
   if (a === undefined || b === undefined) {
-    throw new Error(`marry: unknown id ${a === undefined ? aId : bId}`);
+    throw new Error(`unite: unknown id ${a === undefined ? aId : bId}`);
   }
   if (!a.unions.some((u) => u.personId === bId)) {
-    a.unions.push({ personId: bId, status: "married" });
+    a.unions.push({ personId: bId, status });
   }
   if (!b.unions.some((u) => u.personId === aId)) {
-    b.unions.push({ personId: aId, status: "married" });
+    b.unions.push({ personId: aId, status });
   }
+}
+
+function marry(persons: Person[], aId: string, bId: string): void {
+  unite(persons, aId, bId, "married");
 }
 
 // ---------- named scenarios ----------
@@ -328,6 +337,51 @@ export function kitchenSink(): Tree {
   return makeTree("k", persons);
 }
 
+// A widower who remarried: Richard's marriage to Terry ended with her death,
+// and he is now married to Mary. Kids from both marriages, plus a grandchild
+// under the first marriage, so the [Terry, Richard, Mary] cluster has
+// children dropping from both of its marriage lines.
+export function widowedRemarriage(): Tree {
+  const persons = [
+    p("rDad", "M"),
+    p("rMom", "F"),
+    p("richard", "M", ["rDad", "rMom"]),
+    p("terry", "F"),
+    p("mary", "F"),
+    p("terryKid1", "F", ["richard", "terry"]),
+    p("terryKid2", "M", ["richard", "terry"]),
+    p("maryKid", "M", ["richard", "mary"]),
+    p("terryKid1Sp", "M"),
+    p("grandkid", "F", ["terryKid1", "terryKid1Sp"]),
+  ];
+  marry(persons, "rDad", "rMom");
+  unite(persons, "richard", "terry", "ended-by-death");
+  marry(persons, "richard", "mary");
+  marry(persons, "terryKid1", "terryKid1Sp");
+  return makeTree("richard", persons);
+}
+
+// An unmarried couple with children. One child has since split from an
+// ex-partner (a child together) and is now with a new partner.
+export function partnerFamily(): Tree {
+  const persons = [
+    p("jDad", "M"),
+    p("jMom", "F"),
+    p("john", "M", ["jDad", "jMom"]),
+    p("wendy", "F"),
+    p("kid1", "F", ["john", "wendy"]),
+    p("kid2", "M", ["john", "wendy"]),
+    p("kid1Ex", "M"),
+    p("kid1Partner", "F"),
+    p("grandkid", "M", ["kid1", "kid1Ex"]),
+  ];
+  marry(persons, "jDad", "jMom");
+  unite(persons, "john", "wendy", "partner");
+  unite(persons, "kid1", "kid1Ex", "ex-partner");
+  unite(persons, "kid1", "kid1Partner", "partner");
+  return makeTree("john", persons);
+}
+
 // Live snapshot of the production family_tree row (Kyle's tree). 67 people
 // with two adjacent wide layers (gen -1 = 19 couples, gen 0 = 18 couples)
 // densely interconnected by parent-child edges — the structural pattern
@@ -350,6 +404,8 @@ export const NAMED_FIXTURES: Record<string, () => Tree> = {
   siblingExplosion,
   cousinMarriage,
   kitchenSink,
+  widowedRemarriage,
+  partnerFamily,
 };
 
 // ---------- parameterized generators (for the bench sweep) ----------
