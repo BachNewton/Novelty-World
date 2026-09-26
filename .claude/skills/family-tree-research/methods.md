@@ -33,8 +33,9 @@ Do this before using any record.
    mentions. The tree needs a first name; an unnamed infant goes in a
    parent's notes.
 6. **Assigning grandchildren to a parent:** obituaries rarely say whose they
-   are. Use the grandchild's own records, a surname plus another clue, or ask
-   Kyle. A surname alone is not enough.
+   are. Use the grandchild's own records or a surname plus another clue; if
+   those fail, it goes on the round's family batch. A surname alone is not
+   enough.
 
 ## Finding earlier marriages and partners
 

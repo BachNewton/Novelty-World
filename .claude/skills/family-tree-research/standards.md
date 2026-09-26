@@ -28,10 +28,20 @@ described in `sources.md`, techniques in `methods.md`.
   step is missing.
 - **Living vs. dead.** Treat someone as living unless a record of their death
   exists. Public records about living people are thin and often locked, so
-  for them "ask Kyle" is a must-try step wherever records are weak.
+  for them asking family is a must-try step.
+- **Digital first, people last.** "Ask Kyle / family" is always the last
+  must-try step, taken only once every digital step is done, because people
+  are slow to answer. The question goes on the round's batch for family (see
+  "When to ask" in `SKILL.md`), and the record stays `open` with a note saying
+  the question is out to family. Research moves on to other families; it
+  never waits on an answer.
+- **Exhausted without a family answer** is allowed only where a question's
+  section below says so. Elsewhere, a question whose digital steps all came
+  up empty stays `open` until family answers, even if the answer is "don't
+  know" (which then makes it Exhausted).
 - **Minors.** For a child who may be under 18, don't search the child's own
   online footprint (school, sports, social media). The must-try list is
-  records about the adults around them and "ask Kyle". Nothing that locates a
+  records about the adults around them, then asking family. Nothing that locates a
   child goes in the tree.
 
 ## family: all partners and all children are in the tree
@@ -63,7 +73,12 @@ that covers one half says nothing about the other.
 5. Death indexes with parent names (NUMIDENT) searched by the couple's names,
    for children who died.
 6. Grave records and their family links.
-7. Ask Kyle.
+7. Ask Kyle / family (last).
+
+**May be Exhausted without a family answer** once steps 1–6 are done: the
+records for the dead are the main evidence, and family often doesn't know an
+earlier generation's marriages. Still put the question on the batch when the
+person died recently enough that family would remember.
 
 ### Living
 
@@ -84,7 +99,10 @@ that covers one half says nothing about the other.
 2. Marriage indexes for the states they lived in.
 3. Wedding and registry sites for a recent marriage.
 4. People-search relative lists, as leads to follow into records.
-5. Ask Kyle.
+5. Ask Kyle / family (last).
+
+**Needs a family answer** to be Exhausted: records can't show that a living
+person has no other partner or child.
 
 A living person's family changes. When a later record (a new obituary, a
 wedding) shows a partner or child the record didn't cover, reset it to Open.
@@ -113,6 +131,10 @@ age windows overlap in one year. Full dates are allowed.
 5. Marriage records (ages, sometimes the date of birth).
 6. Birth, baptism and delayed-birth records.
 
+**May be Exhausted without a family answer** once steps 1–6 are done. Family
+rarely knows an exact year the records don't give; ask only when the person
+died recently.
+
 ### Living
 
 Year only, never the full date, even when a record gives it.
@@ -136,10 +158,14 @@ question; two listings that disagree by more than a year kill it.
 3. Birth and baptism indexes for the states they may have been born in.
 4. Obituaries of relatives that give ages (rare, but some do).
 5. People-search listings, as leads.
-6. Ask Kyle.
+6. Ask Kyle / family (last).
+
+**Needs a family answer** to be Exhausted: family nearly always knows a
+living relative's rough age.
 
 **Minors:** Confirmed by "per Kyle" or a birth record or announcement found
-through the parents. Must-try: records about the parents, then ask Kyle.
+through the parents. Must-try: records about the parents, then ask Kyle /
+family (last). **Needs a family answer** to be Exhausted.
 
 ## heritage: where the line came from
 
@@ -170,6 +196,11 @@ a Confirmed "US", it is Exhausted for this pass, with the note saying so.
 4. Their marriage record (some give parents' birthplaces).
 5. Their children's records, which give the parent's birthplace (a child's
    census entry lists "father's birthplace").
+6. Ask Kyle / family (last), when family lore might know where the line came
+   from.
+
+**May be Exhausted without a family answer** once steps 1–5 are done; family
+lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
 
 ### Living
 
@@ -180,8 +211,11 @@ now, leave the question unset until he decides.
 a marriage record), or "per Kyle".
 
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
-record, ask Kyle.
+record, then ask Kyle / family (last). **Needs a family answer** to be
+Exhausted.
 
 ## Changes
 
-- 2026-09-26: first version.
+- 2026-09-26: first version, with digital sources first, family last, and a
+  per-question rule for Exhausted without a family answer (proposed; awaiting
+  the owner's review).

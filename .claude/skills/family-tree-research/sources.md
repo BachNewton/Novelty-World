@@ -130,4 +130,6 @@ For lines from Finland. *None yet used in a research round.*
 ## The owner
 
 - **"Per Kyle"**: the owner, and through him the family. The main source for
-  living people. Batch questions into one list per round.
+  living people, but always the last step: questions are collected into one
+  batch per round (sent as a form) and answers arrive slowly, so never wait
+  on them.

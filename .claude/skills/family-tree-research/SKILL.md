@@ -110,26 +110,33 @@ usually answer the others.
    already entered under another name. Read the family's section of the
    research log, including its rejected look-alikes.
 3. **Research the family**, question by question against `standards.md`,
-   using the playbooks in `methods.md` and the sources in `sources.md`. Keep
-   every source's URL or citation.
+   using the playbooks in `methods.md` and the sources in `sources.md`.
+   Digital sources first; asking family is always the last step. Keep every
+   source's URL or citation.
 4. **Record findings in the research log** (`research/family-research.md`):
    each fact, its sources and its confidence (below), rejected look-alikes and
    why, and **every search that found nothing** (source, what was searched,
    date). Null results are what make a question Exhausted; without them the
    next session repeats the work.
 5. **Draft a change file** in `research/`: the facts, plus a `setResearch` for
-   every question the round settled or opened.
+   every question the round settled or opened. A question waiting on family
+   stays `open`, its note saying it is out to family and what was asked.
 6. **Dry run** `apply <file>` and read the change list it prints, line by
    line, against what you meant.
 7. **Apply** with `apply <file> --write`, following "Research edits" in the
    project CLAUDE.md for what you may apply yourself and what needs the owner
    first. It backs up the row into `research/backups/` before writing, and
    prints the new version.
-8. **Report** what changed and the questions for Kyle, and pass on anything
+8. **Report** what changed, and pass on anything
    the CLI said about the stored layout (see "The viewer and the only
    writer" in the project CLAUDE.md). An open tab keeps showing the tree it
    loaded until reloaded.
-9. **Write the round's lessons** (see Self-improvement).
+9. **Hand over the family batch**: every question for family collected this
+   round, as one list (see When to ask).
+10. **Write the round's lessons** (see Self-improvement).
+
+Never wait on a family answer: move on to the next family. When answers come
+back, apply them as their own round and update the `open` records.
 
 If `--write` reports the tree changed since it loaded, someone saved in the
 meantime: re-run the dry run against the latest tree and re-check it. Never
@@ -158,9 +165,13 @@ high-confidence findings yourself and report them; ask first only when the
 evidence conflicts or is weak, when a change deletes a person, or when it
 would put a private detail about a living person in the public row. Also ask:
 
-- when a living person's question needs "ask Kyle" to reach Exhausted
-  (`standards.md` says which): batch these into one list at the end of the
-  round rather than asking one at a time;
+- **family questions, in one batch per round.** Asking family is the last
+  must-try step, after every digital one, because people are slow to reply.
+  Collect every such question across the round and hand them over together
+  at the end (the owner sends them on as a form), each phrased so a relative
+  can answer it without context. Never ask one at a time, and never block on
+  one. `standards.md` says which questions need a family answer before they
+  can be Exhausted;
 - before changing `standards.md` (see Self-improvement);
 - before entering heritage for a living married-in adult (an open question).
 
