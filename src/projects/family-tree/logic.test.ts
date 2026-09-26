@@ -29,6 +29,7 @@ import {
   setUnionDeceased,
   setUnionStatus,
   topologyHash,
+  treeProblems,
 } from "./logic";
 import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
 import type { LaidOutNode, Layout } from "./types";
@@ -1847,5 +1848,53 @@ describe("optimisticPatch overlap avoidance", () => {
       structurallyEqual: false,
     });
     expect(layout.nodes).toHaveLength(Object.keys(tree.persons).length);
+  });
+});
+
+describe("treeProblems", () => {
+  function sound(): Tree {
+    return {
+      rootId: "kid",
+      persons: {
+        kid: p("kid", "F", ["dad", "mom"]),
+        dad: p("dad", "M", [], ["mom"]),
+        mom: p("mom", "F", [], ["dad"]),
+      },
+    };
+  }
+
+  it("finds nothing wrong with a sound tree", () => {
+    expect(treeProblems(sound())).toEqual([]);
+    expect(treeProblems(widowedRemarriage())).toEqual([]);
+    expect(treeProblems(partnerFamily())).toEqual([]);
+  });
+
+  it.each<[string, (t: Tree) => void, RegExp]>([
+    ["a missing root", (t) => { t.rootId = "nobody"; }, /root nobody is missing/],
+    ["a mismatched key", (t) => { t.persons.kid.id = "other"; }, /stored under key kid/],
+    ["an empty first name", (t) => { t.persons.kid.firstName = " "; }, /empty first name/],
+    [
+      "three parents",
+      (t) => { t.persons.x = p("x"); t.persons.kid.parentIds.push("x"); },
+      /more than two parents/,
+    ],
+    ["a repeated parent", (t) => { t.persons.kid.parentIds = ["dad", "dad"]; }, /same parent twice/],
+    ["a missing parent", (t) => { t.persons.kid.parentIds = ["ghost"]; }, /missing parent ghost/],
+    ["a one-sided union", (t) => { t.persons.mom.unions = []; }, /one-sided/],
+    ["mismatched statuses", (t) => { t.persons.mom.unions = [u("dad", "divorced")]; }, /mismatched statuses/],
+    ["a union with a missing person", (t) => { t.persons.kid.unions = [u("ghost", "married")]; }, /missing person ghost/],
+    [
+      "disagreement on who died",
+      (t) => {
+        t.persons.dad.unions = [{ personId: "mom", status: "ended-by-death", deceasedId: "mom" }];
+        t.persons.mom.unions = [{ personId: "dad", status: "ended-by-death", deceasedId: null }];
+      },
+      /disagrees on who died/,
+    ],
+    ["a parent cycle", (t) => { t.persons.dad.parentIds = ["kid"]; }, /own ancestor/],
+  ])("reports %s", (_, damage, message) => {
+    const tree = sound();
+    damage(tree);
+    expect(treeProblems(tree).join("\n")).toMatch(message);
   });
 });

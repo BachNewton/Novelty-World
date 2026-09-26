@@ -274,6 +274,90 @@ export function deletePerson(tree: Tree, id: string): Tree {
   return next;
 }
 
+
+// Every broken data-model invariant in `tree`, as readable sentences. An
+// empty list means the tree is sound. The logic functions assume these
+// invariants, so a tree that breaks one must never be saved.
+export function treeProblems(tree: Tree): string[] {
+  const problems: string[] = [];
+  const { persons } = tree;
+  const label = (id: string): string =>
+    id in persons ? `${fullName(persons[id])} (${id})` : id;
+
+  if (!(tree.rootId in persons)) {
+    problems.push(`root ${tree.rootId} is missing`);
+  }
+  for (const [key, person] of Object.entries(persons)) {
+    const who = label(key);
+    if (person.id !== key) problems.push(`${who} is stored under key ${key} but has id ${person.id}`);
+    if (person.firstName.trim() === "") problems.push(`${who} has an empty first name`);
+    if (!GENDER_CYCLE.includes(person.gender)) problems.push(`${who} has unknown gender ${String(person.gender)}`);
+
+    if (person.parentIds.length > 2) problems.push(`${who} has more than two parents`);
+    if (new Set(person.parentIds).size !== person.parentIds.length) {
+      problems.push(`${who} lists the same parent twice`);
+    }
+    for (const parentId of person.parentIds) {
+      if (parentId === key) problems.push(`${who} is their own parent`);
+      else if (!(parentId in persons)) problems.push(`${who} has missing parent ${parentId}`);
+    }
+
+    const partnerIds = person.unions.map((u) => u.personId);
+    if (new Set(partnerIds).size !== partnerIds.length) {
+      problems.push(`${who} has two unions with the same person`);
+    }
+    for (const union of person.unions) {
+      const otherId = union.personId;
+      if (otherId === key) {
+        problems.push(`${who} is in a union with themselves`);
+        continue;
+      }
+      if (!(otherId in persons)) {
+        problems.push(`${who} has a union with missing person ${otherId}`);
+        continue;
+      }
+      const mirror = unionWith(persons[otherId], key);
+      if (mirror === undefined) {
+        problems.push(`${who}'s union with ${label(otherId)} is one-sided`);
+      } else if (mirror.status !== union.status) {
+        problems.push(`${who}'s union with ${label(otherId)} has mismatched statuses`);
+      }
+      if (union.status === "ended-by-death") {
+        const { deceasedId } = union;
+        if (deceasedId !== null && deceasedId !== key && deceasedId !== otherId) {
+          problems.push(`${who}'s union with ${label(otherId)} names an outsider as deceased`);
+        }
+        if (mirror?.status === "ended-by-death" && mirror.deceasedId !== deceasedId) {
+          problems.push(`${who}'s union with ${label(otherId)} disagrees on who died`);
+        }
+      }
+    }
+  }
+  // The ancestor walk trusts parent ids, so it only runs on an otherwise
+  // sound tree.
+  if (problems.length === 0) {
+    for (const id of Object.keys(persons)) {
+      if (isOwnAncestor(tree, id)) {
+        problems.push(`${label(id)} is their own ancestor`);
+      }
+    }
+  }
+  return problems;
+}
+
+function isOwnAncestor(tree: Tree, id: string): boolean {
+  const seen = new Set<string>();
+  const stack = [...tree.persons[id].parentIds];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    if (cur === id) return true;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    stack.push(...tree.persons[cur].parentIds);
+  }
+  return false;
+}
+
 // A union as persisted by any schema version so far. Ended-by-death unions
 // written before `deceasedId` existed lack it.
 interface StoredUnion {

@@ -18,12 +18,17 @@ import {
   setUnionStatus as logicSetUnionStatus,
   topologyHash,
 } from "./logic";
+import {
+  fetchTreeRow,
+  insertInitialTree,
+  saveLayoutIfUnchanged,
+  saveTreeIfUnchanged,
+} from "./persistence";
+import { createTreeSaver, type SaveHalt, type TreeSaver } from "./tree-saver";
 import type { LayoutRequest, LayoutResponse } from "./layout.worker";
 import { INITIAL_SOLVE_PROGRESS } from "./solver-progress";
 import type { SolveProgress } from "./solver-progress";
 
-const TABLE = "family_tree";
-const ROW_ID = "global";
 const SAVE_DEBOUNCE_MS = 500;
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -37,6 +42,10 @@ interface FamilyTreeState {
   cachedLayoutHash: string | null;
   status: Status;
   saving: boolean;
+  // Set once a save conflicts or fails. Saving and editing stop for good in
+  // this tab: anything further would be built on a tree that isn't the
+  // stored one.
+  saveHalt: SaveHalt | null;
   // A worker is solving right now. Drives the "Optimizing…" UI; flips back
   // to false on success, cancel, or staleness rejection.
   optimizing: boolean;
@@ -101,32 +110,17 @@ function terminateActiveWorker(): void {
   }
 }
 
-async function persistTree(
-  tree: Tree,
-  setSaving: (b: boolean) => void,
-): Promise<void> {
-  setSaving(true);
-  try {
-    const supabase = createClient();
-    // Upsert touches only the listed columns — `layout` and
-    // `layout_tree_hash` keep whatever the last Optimize wrote, so
-    // ordinary tree edits don't wipe the cached fancy result. The cache
-    // becomes "stale" by virtue of the tree's new hash no longer matching
-    // `layout_tree_hash`; the user's Optimize button signals that and
-    // lets them refresh it.
-    await supabase
-      .from(TABLE)
-      .upsert({ id: ROW_ID, data: tree, updated_at: new Date().toISOString() });
-  } finally {
-    setSaving(false);
-  }
-}
+// Created by hydrate from the version it loaded. Every tree save goes
+// through it so a save can't overwrite a newer tree written elsewhere.
+let saver: TreeSaver | null = null;
 
-function scheduleSave(tree: Tree, setSaving: (b: boolean) => void): void {
+function scheduleSave(tree: Tree): void {
+  if (saver === null) throw new Error("Family tree saved before it was loaded");
+  const activeSaver = saver;
   if (saveTimer !== null) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    void persistTree(tree, setSaving);
+    void activeSaver.save(tree);
   }, SAVE_DEBOUNCE_MS);
 }
 
@@ -149,7 +143,8 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
   // past, so letting it run wastes CPU and the conditional upload would
   // reject it anyway.
   function applyMutation(mutate: (tree: Tree) => Tree): void {
-    const { tree } = get();
+    const { tree, saveHalt } = get();
+    if (saveHalt !== null) return;
     const next = mutate(tree);
     if (next === tree) return;
     if (get().optimizing) {
@@ -157,7 +152,7 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
       set({ optimizing: false });
     }
     set({ tree: next });
-    scheduleSave(next, (b) => { set({ saving: b }); });
+    scheduleSave(next);
   }
 
   return {
@@ -166,6 +161,7 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
   cachedLayoutHash: null,
   status: "idle",
   saving: false,
+  saveHalt: null,
   optimizing: false,
   solveProgress: INITIAL_SOLVE_PROGRESS,
   solveStartedAt: 0,
@@ -180,60 +176,42 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
       set({ status: "loading" });
       try {
         const supabase = createClient();
-        // First try with the new layout-cache columns. If the running DB
-        // hasn't had the migration applied yet, PostgREST returns 400
-        // with a "column does not exist" error — fall back to the
-        // legacy select so the app still works pre-migration. Once the
-        // migration is run everywhere this fallback is dead code, but
-        // it costs little and prevents a broken cold load in the window
-        // between deploying the client and running the SQL.
-        const withLayout = await supabase
-          .from(TABLE)
-          .select("data, layout, layout_tree_hash")
-          .eq("id", ROW_ID)
-          .maybeSingle();
-        let row:
-          | { data: unknown; layout?: unknown; layout_tree_hash?: unknown }
-          | null;
-        if (withLayout.error) {
-          const treeOnly = await supabase
-            .from(TABLE)
-            .select("data")
-            .eq("id", ROW_ID)
-            .maybeSingle();
-          if (treeOnly.error) throw treeOnly.error;
-          row = treeOnly.data;
-        } else {
-          row = withLayout.data;
-        }
+        const row = await fetchTreeRow(supabase);
 
         let loadedTree: Tree;
+        let loadedVersion: number;
         let needsPersist = false;
         let loadedLayout: Layout | null = null;
         let loadedLayoutHash: string | null = null;
         if (row) {
           const result = normalizeTree(row.data);
           loadedTree = result.tree;
+          loadedVersion = row.version;
           needsPersist = result.changed;
-          // The layout columns are nullable (and absent entirely
-          // pre-migration). Missing layout just means "no fancy solve
-          // yet" — the hook falls through to the fast pass and the
-          // user can click Optimize.
-          if (row.layout && typeof row.layout_tree_hash === "string") {
-            loadedLayout = row.layout as Layout;
-            loadedLayoutHash = row.layout_tree_hash;
-          }
+          // Missing layout just means "no fancy solve yet" — the hook falls
+          // through to the fast pass and the user can click Optimize.
+          loadedLayout = row.layout;
+          loadedLayoutHash = row.layoutTreeHash;
         } else {
           // No row in Supabase yet — seed one so subsequent loads find
           // it. The data is canonical in Supabase, so this initial
           // write is what "creates" the tree for everyone.
           loadedTree = createInitialTree();
-          await persistTree(loadedTree, (b) => { set({ saving: b }); });
+          loadedVersion = 0;
+          await insertInitialTree(supabase, loadedTree);
         }
+        saver = createTreeSaver(
+          (tree, expectedVersion) => saveTreeIfUnchanged(supabase, tree, expectedVersion),
+          loadedVersion,
+          {
+            onSavingChange: (saving) => { set({ saving }); },
+            onHalt: (saveHalt) => { set({ saveHalt }); },
+          },
+        );
         if (needsPersist) {
           // Heal the row in-place so future readers don't see the
           // broken shape.
-          await persistTree(loadedTree, (b) => { set({ saving: b }); });
+          await saver.save(loadedTree);
         }
         set({
           tree: loadedTree,
@@ -305,33 +283,31 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
         // solved against. Otherwise another contributor's edit landed
         // while HiGHS was grinding and our layout would be wrong for the
         // canonical tree — discard it; the user can re-trigger Optimize
-        // once their view catches up.
+        // once their view catches up. The write is pinned to the version
+        // just read, so a tree save landing between the read and the write
+        // discards it too.
         try {
           const supabase = createClient();
-          const { data, error } = await supabase
-            .from(TABLE)
-            .select("data")
-            .eq("id", ROW_ID)
-            .maybeSingle();
-          if (error) throw error;
-          if (!data) {
+          const row = await fetchTreeRow(supabase);
+          if (row === null) {
             set({ optimizing: false });
             return;
           }
-          const dbTree = normalizeTree(data.data).tree;
+          const dbTree = normalizeTree(row.data).tree;
           if (topologyHash(dbTree) !== solveHash) {
             set({ optimizing: false });
             return;
           }
-          const updateResult = await supabase
-            .from(TABLE)
-            .update({
-              layout: msg.layout,
-              layout_tree_hash: solveHash,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", ROW_ID);
-          if (updateResult.error) throw updateResult.error;
+          const written = await saveLayoutIfUnchanged(
+            supabase,
+            msg.layout,
+            solveHash,
+            row.version,
+          );
+          if (!written) {
+            set({ optimizing: false });
+            return;
+          }
           // Final guard: if the local tree drifted between solve start and
           // upload completion (an edit that didn't terminate this callback
           // in time, e.g. because the worker had already posted), committing
@@ -353,8 +329,7 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
           // Leave the canvas in fast-pass mode; the user can retry. We
           // intentionally do NOT commit a local-only cached layout —
           // the canonical data lives in Supabase.
-          const message = err instanceof Error ? err.message : String(err);
-          fail(`Saving the optimized layout failed: ${message}`);
+          fail(err instanceof Error ? err.message : String(err));
         }
       })();
     };
@@ -426,7 +401,8 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
 
   remove: (id) => {
     if (id === ROOT_ID) return;
-    const { tree, selectedId, viewRootId, optimizing } = get();
+    const { tree, selectedId, viewRootId, optimizing, saveHalt } = get();
+    if (saveHalt !== null) return;
     const next = logicDeletePerson(tree, id);
     if (next === tree) return;
     if (optimizing) terminateActiveWorker();
@@ -436,7 +412,7 @@ export const useFamilyTreeStore = create<FamilyTreeState>((set, get) => {
       viewRootId: viewRootId === id ? ROOT_ID : viewRootId,
       ...(optimizing ? { optimizing: false } : {}),
     });
-    scheduleSave(next, (b) => { set({ saving: b }); });
+    scheduleSave(next);
   },
   };
 });
