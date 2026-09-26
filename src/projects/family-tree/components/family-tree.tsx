@@ -19,6 +19,7 @@ import { PanZoom } from "./pan-zoom";
 import { Node } from "./node";
 import { Edges } from "./edges";
 import { OptimizeStatus } from "./optimize-status";
+import { SaveHaltBanner } from "./save-halt-banner";
 import {
   ActionPanel,
   type BioChildCandidate,
@@ -268,6 +269,8 @@ export function FamilyTree() {
           </p>
         </div>
       </header>
+
+      <SaveHaltBanner />
 
       <div className="relative flex-1">
         <PanZoom

@@ -23,6 +23,15 @@ Types live in `types.ts`; pure operations and relationship terms live in `logic.
 
 The public anon key can read and write the tree row (`supabase/family-tree.sql` has open RLS policies), so everything in it, notes included, is effectively public. Never store private details about living people. `research/` is gitignored because it names living people. Never commit it and never quote it in docs.
 
+## Saving and editing outside the app
+
+The tree is one row, saved whole. `persistence.ts` owns every read and write of it, for the app and the CLI alike.
+
+- **No lost edits.** The row carries a version that counts tree writes. A tree save lands only if the row is still at the version the writer loaded, and it bumps the version; otherwise the writer must reload rather than overwrite. A database trigger (`supabase/family-tree.sql`) enforces the rule for every writer, including tabs running an older build. In the app, `tree-saver.ts` runs saves one at a time and stops at the first conflict or failure: the tab shows a "changed elsewhere, reload" strip and editing pauses, since anything further would be built on a stale tree.
+- **Layout writes aren't tree writes.** The cached layout lives in the same row but never moves the version, so an Optimize never trips another writer's check. It is written only if the version is still the one whose tree it was solved against.
+- **The CLI** (`tools/tree-cli.ts`, pure part in `tools/tree-edit.ts`) is how research gets into the tree: find and show people, and apply a JSON change file through the same `logic.ts` functions the UI uses, validated by `treeProblems`. It dry-runs by default, backs up the row into `research/` before writing, and uses the same versioned save. The `family-tree-research` skill describes the workflow and privacy rules around it.
+- **New name fields** flow through the CLI (rename, new people, search) once they are added to its empty-name defaults, which typecheck forces.
+
 ## Responsive: phone and desktop
 
 The tree must work from 360px phones through ultrawide desktop. Check both whenever you touch components.

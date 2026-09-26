@@ -21,6 +21,35 @@ create table if not exists public.family_tree (
 alter table public.family_tree add column if not exists layout jsonb;
 alter table public.family_tree add column if not exists layout_tree_hash text;
 
+-- Lost-edit protection. `version` counts writes of `data`. Writers save with
+-- `update ... set data = <new>, version = <loaded> + 1 where version = <loaded>`;
+-- no row back means someone else saved first, and the writer must reload
+-- instead of overwriting. Layout-cache writes leave `data` and `version` alone.
+alter table public.family_tree add column if not exists version integer not null default 0;
+
+-- Enforce the rule for every writer, including browser tabs still running a
+-- build from before `version` existed: a write that changes `data` without
+-- moving `version` up by exactly one is rejected rather than allowed to
+-- overwrite a newer tree.
+create or replace function public.family_tree_require_version_bump()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.data is distinct from old.data and new.version is distinct from old.version + 1 then
+    raise exception 'family_tree: stale tree write (stored version %, write carried version %)',
+      old.version, new.version
+      using errcode = 'serialization_failure';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists family_tree_require_version_bump on public.family_tree;
+create trigger family_tree_require_version_bump
+  before update on public.family_tree
+  for each row execute function public.family_tree_require_version_bump();
+
 alter table public.family_tree enable row level security;
 
 -- Open read/write for v1 (wiki-style). Tighten later if vandalism becomes an issue.
