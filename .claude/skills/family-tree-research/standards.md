@@ -5,9 +5,10 @@ tried before it may be marked **Exhausted**. Anything short of both is
 **Open**. A record is judged against this file as it stood on the record's
 `asOf` date; git history has the earlier versions.
 
-This file defines what "complete" means, so changes are proposed to the owner
-before they are made (see Self-improvement in `SKILL.md`). Sources are
-described in `sources.md`, techniques in `methods.md`.
+This file defines what "complete" means. The orchestrating session keeps it
+current as research teaches what works (see Self-improvement in `SKILL.md`);
+it is research method, owned by Claude. Sources are described in
+`sources.md`, techniques in `methods.md`.
 
 ## Priority: connections first
 
@@ -42,7 +43,12 @@ an end in itself. So:
 - **Exhausted needs every must-try step done and logged**, each with its null
   result in the research log. A step that couldn't run (site blocked, search
   budget spent) is not done; the question stays Open, and the note says which
-  step is missing.
+  step is missing. A search of an index that doesn't cover the place and year
+  (see the coverage limits in `sources.md`) can't find anything, so log it as
+  not applicable: it counts as done.
+- **A household answer covers the household.** One family answer, or one
+  record, that settles a household settles every member it covers; don't
+  leave each child with a separate open question for the same answer.
 - **Living vs. dead.** Treat someone as living unless a record of their death
   exists. Public records about living people are thin and often locked, so
   for them asking family is a must-try step.
@@ -66,7 +72,9 @@ an end in itself. So:
 
 Two halves: **partners** (every marriage and partnership, any status) and
 **children** (with any co-parent, or none). Confirmed needs both; a source
-that covers one half says nothing about the other.
+that covers one half says nothing about the other. It covers everyone the
+person partnered with or had children with, so a married-in person's
+children with other partners, and their other partners, belong in it too.
 
 ### Dead
 
@@ -78,7 +86,9 @@ that covers one half says nothing about the other.
   no child unaccounted for; and the tree matches it.
 - **Partners:** the obituary names the spouse (and any earlier spouse), and a
   marriage-index search of the states they lived in finds no marriage missing
-  from the tree; or "per Kyle".
+  from the tree; or "per Kyle". No index search is needed when the marriage
+  leaves no room for an earlier one: it began before 18, or it lasted 50
+  years or more and began in their early twenties.
 
 **Must-try before Exhausted:**
 
@@ -103,10 +113,11 @@ person died recently enough that family would remember.
 **Confirmed** when both halves are covered by one of:
 
 - "per Kyle";
-- a recent obituary of a spouse, parent, grandparent or spouse's parent that names
-  the person with their partner and attributes their children to them, with
-  nothing since suggesting a new partner or child (a later obituary is the
-  usual signal);
+- an obituary from within about five years, of a spouse, parent,
+  grandparent or spouse's parent, that names the person with their partner
+  and attributes their children to them, with nothing since suggesting a new
+  partner or child (a later obituary is the usual signal). A surviving
+  widow's or widower's own spouse's obituary counts the same way;
 - a marriage record plus a source listing the children (a grandparent's
   obituary grouping grandchildren by parent, a birth announcement).
 
@@ -232,5 +243,6 @@ anyone else's: it records a line's origin, and it passes to their children.
 a marriage record), or "per Kyle".
 
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
-record, then ask Kyle / family (last). **May be Exhausted without a family
+record (a marriage after about 2000 is too recent to be indexed, so that step
+counts as done), then ask Kyle / family (last). **May be Exhausted without a family
 answer**, like birth years: heritage adds no connection.

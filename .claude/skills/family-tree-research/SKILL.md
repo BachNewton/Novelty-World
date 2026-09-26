@@ -191,8 +191,12 @@ would put a private detail about a living person in the public row. Also ask:
   The owner only asks people they know, never cold contacts, so group the
   batch by the family it concerns and say who would likely know (someone in
   that household, a sibling, a parent). The owner picks whom to send each
-  group to;
-- before changing `standards.md` (see Self-improvement).
+  group to.
+
+Research method and record keeping (the standards, the research record, how
+findings are logged) serve Claude's research, not how the owner explores the
+tree. Decide those yourself and report what changed; ask only about what
+the owner sees or what touches privacy.
 
 ## Heritage
 
@@ -304,12 +308,12 @@ The playbooks get better only if every round feeds back into them.
   standard that was hard to apply or that let a weak answer through. Method
   only: no names, no findings.
 - **One editor merges them.** The orchestrating session, not each research
-  agent, edits `sources.md` and `methods.md`: add what worked, prune what
+  agent, edits `sources.md`, `methods.md` and `standards.md`: add what worked, prune what
   failed or went stale, and keep each file
   tight (merge duplicates, cut anything nobody would act on). Parallel agents
   editing the same files collide and bloat them.
-- **Changes to `standards.md` are proposed to the owner, never applied
-  silently**: they change what "complete" means. Git history keeps the
+- **`standards.md` changes are reported to the owner** in the round's
+  summary, since they change what "complete" means. Git history keeps the
   earlier versions, so a record can still be judged against the standard as
   of its `asOf`.
 - **This file** changes only when the workflow or the rules do.

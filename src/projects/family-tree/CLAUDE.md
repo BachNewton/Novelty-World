@@ -57,6 +57,8 @@ The browser app is a read-only viewer: there is no edit UI. All edits are AI-dri
 
 The owner wants as few approval requests as possible. When research finds evidence for a change and confidence is high, make the change with the CLI and report it afterwards. High confidence includes a near-certain inference from records: a divorce implied because both spouses remarried while alive, a birth surname from a marriage record that names the parents. Record the evidence in `research/` either way.
 
+Research method and record keeping (the research standards, the research record, data-layer fields that only research reads) serve Claude's research, not how the owner explores the tree. Decide those and report what changed; the owner's say is over what the UI shows.
+
 Ask first only when:
 
 - the evidence conflicts, or confidence isn't high. A single mention or a name match without matching relatives isn't enough. A finding like that stays in `research/`, or goes into notes marked "Possible:";
