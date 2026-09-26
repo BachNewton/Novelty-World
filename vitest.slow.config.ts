@@ -4,6 +4,7 @@
 // suite.
 import { defineConfig } from "vitest/config";
 import path from "path";
+import { NESTED_CHECKOUTS } from "./vitest.config";
 
 export default defineConfig({
   resolve: {
@@ -13,6 +14,6 @@ export default defineConfig({
   },
   test: {
     include: ["**/*.slow.test.ts"],
-    exclude: ["e2e/**", "node_modules/**"],
+    exclude: ["e2e/**", "node_modules/**", ...NESTED_CHECKOUTS],
   },
 });
