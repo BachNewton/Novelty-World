@@ -467,6 +467,94 @@ export const NAMED_FIXTURES: Record<string, () => Tree> = {
   partnerFamily,
 };
 
+// A tree near the size and shape of the live one (about 300 people over five
+// generations): founder couples whose children marry into each other's
+// families or bring in spouses from outside, with remarriages. Its lines
+// cross, and its placement needs lines kept apart, at the live tree's scale.
+// Deterministic: a fixed-seed generator picks every choice.
+export function familyNetwork(seed = 7, founders = 30, generations = 4): Tree {
+  let state = seed;
+  const pick = (n: number): number => {
+    state = (state * 1103515245 + 12345) % 2147483648;
+    return Math.floor((state / 2147483648) * n);
+  };
+  const persons: Person[] = [];
+  let next = 0;
+  const add = (parents: string[] = []): string => {
+    const id = `n${next++}`;
+    persons.push(p(id, pick(2) === 0 ? "M" : "F", parents));
+    return id;
+  };
+
+  let couples: Array<[string, string]> = [];
+  for (let i = 0; i < founders; i++) {
+    const a = add();
+    const b = add();
+    marry(persons, a, b);
+    couples.push([a, b]);
+  }
+  for (let g = 0; g < generations; g++) {
+    const kids: Array<{ id: string; family: number }> = [];
+    couples.forEach(([a, b], family) => {
+      const count = 1 + pick(4);
+      for (let i = 0; i < count; i++) kids.push({ id: add([a, b]), family });
+    });
+    const nextCouples: Array<[string, string]> = [];
+    const taken = new Set<string>();
+    kids.forEach((kid, i) => {
+      if (taken.has(kid.id)) return;
+      const choice = pick(6);
+      // Marry into another family of this generation, not too far along.
+      const inLaw =
+        choice < 3
+          ? kids.slice(i + 1, i + 16).find((k) => !taken.has(k.id) && k.family !== kid.family)
+          : undefined;
+      if (inLaw !== undefined) {
+        taken.add(kid.id);
+        taken.add(inLaw.id);
+        marry(persons, kid.id, inLaw.id);
+        nextCouples.push([kid.id, inLaw.id]);
+      } else if (choice < 5) {
+        taken.add(kid.id);
+        const spouse = add();
+        nextCouples.push([kid.id, spouse]);
+        // Now and then a second marriage, after a divorce or a death.
+        if (pick(8) === 0) {
+          unite(persons, kid.id, spouse, pick(2) === 0 ? "divorced" : "ended-by-death");
+          const second = add();
+          marry(persons, kid.id, second);
+          nextCouples.push([kid.id, second]);
+        } else {
+          marry(persons, kid.id, spouse);
+        }
+      }
+    });
+    // Keep the tree from growing past the live one's size.
+    couples = nextCouples.filter(() => pick(10) < 6);
+  }
+  // Keep the families joined to the first founder, as a real tree is.
+  const joined = new Set([persons[0].id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const person of persons) {
+      const kin = [...person.parentIds, ...person.unions.map((u) => u.personId)];
+      if (joined.has(person.id) || !kin.some((id) => joined.has(id))) continue;
+      joined.add(person.id);
+      grew = true;
+    }
+    for (const person of persons) {
+      if (!joined.has(person.id)) continue;
+      for (const id of [...person.parentIds, ...person.unions.map((u) => u.personId)]) {
+        if (!joined.has(id)) {
+          joined.add(id);
+          grew = true;
+        }
+      }
+    }
+  }
+  return makeTree(persons[0].id, persons.filter((person) => joined.has(person.id)));
+}
+
 // ---------- parameterized generators (for the bench sweep) ----------
 
 // Linear chain of ancestors, each with a single child. L total people.

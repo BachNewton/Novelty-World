@@ -60,12 +60,28 @@ is solved again exactly in CP-SAT (`layout/solver/coord.py`): the same
 weighted line length `coordSimplex` minimizes, subject to the clearance
 between each pair found too close (a disjunction: one piece left of the other
 or right of it, hence CP-SAT rather than an LP), then, holding that length at
-its optimum, as little movement from `coordSimplex`'s placement as possible.
+its optimum, as little movement from `coordSimplex`'s placement as possible,
+then the tiebreaks below.
 A new placement can crowd a different pair, so pairs are added and the solve
 repeated until none is too close; the result is then optimal for the whole
 rule, since it is optimal for part of it and meets the rest. Usually the
-clearance costs no line length at all (the objective is flat there) and the
-fix is a small sideways shift of the pieces involved.
+clearance costs a little line length or none (the objective is flat over
+wide ranges) and the fix is a small sideways shift of the pieces involved.
+
+**Deterministic and fast at scale.** The solves use CP-SAT's parallel
+workers: with one worker, the live tree's first solve (about 230 nodes and a
+handful of pairs) ran its whole time limit without proving the optimum,
+while 16 workers prove it in under a second. Parallel workers can return any
+of several tied optima, so two more solves make the answer unique: pick the
+sides of the pairs by reading them as a binary number (one minimum), then,
+with the sides fixed, place every node as far left as the earlier optima
+allow. With the sides fixed, what is left is difference constraints and
+convex costs, whose minimizers are closed under taking the lower of two
+coordinates, so that last minimum is unique too. The exception is a line
+whose x comes from two chains (two parents who aren't in one chain), which
+falls outside that argument. The slow suite's `familyNetwork` fixture, near
+the live tree's size and shape, runs the whole placement and checks it
+repeats exactly.
 
 Considered and rejected:
 

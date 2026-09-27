@@ -20,17 +20,26 @@ plus an offset. The answer goes to stdout as JSON:
 
     {"status": "OPTIMAL", "x": [x, ...]}
 
-The model, in two solves:
+The model, in four solves, each holding the previous ones at their optimum:
 
 1. Minimize the weighted horizontal length of the links, as coordSimplex does,
    subject to the separations and the `apart` pairs. Each pair is a
    disjunction (one line left of the other, or right of it), so it gets a
    boolean for which side, which is why this is CP-SAT and not an LP.
-2. Holding that length at its optimum, minimize how far the nodes move from
-   `x0`, so the placement changes only where the lines need room.
+2. Minimize how far the nodes move from `x0`, so the placement changes only
+   where the lines need room.
+3. Pick the sides: minimize the side booleans read as a binary number, which
+   has exactly one minimum.
+4. With the sides fixed, minimize the sum of all x. What remains is a set of
+   difference constraints and convex costs, whose minimizers are closed under
+   taking the lower of two coordinates, so this has exactly one minimum too.
 
-Coordinates are integers: every width, gap and offset in the layout is. One
-worker keeps the answer deterministic when several placements tie.
+Solves 3 and 4 make the answer unique, so it doesn't depend on which of
+CP-SAT's parallel workers finds it first (a line's x from two nodes, parents
+in two chains, is the one case outside that argument). Coordinates are
+integers: every width, gap and offset in the layout is.
+
+Pass --progress to report each solve's time on stderr.
 """
 
 import json
@@ -39,7 +48,11 @@ import time
 
 from ortools.sat.python import cp_model
 
+# Far above any real solve (the live tree's four solves take seconds).
 TIME_LIMIT_S = 600
+WORKERS = 16
+# Solve 3 weighs each side boolean by a power of two, which int64 bounds.
+MAX_PAIRS = 60
 
 
 def log(message):
@@ -64,6 +77,7 @@ def build(problem):
         length_terms.append(weight * d)
     length = cp_model.LinearExpr.sum(length_terms)
 
+    sides = []
     for pair in problem["apart"]:
         # Scale both lines' x to a common denominator: |nb*A - na*B| >= min*na*nb.
         a, b = pair["a"], pair["b"]
@@ -73,49 +87,63 @@ def build(problem):
         a_right = m.new_bool_var("")
         m.add(diff >= bound).only_enforce_if(a_right)
         m.add(diff <= -bound).only_enforce_if(~a_right)
+        sides.append(a_right)
 
-    return m, x, x0, length, lo, hi
+    return m, x, x0, length, sides, lo, hi
 
 
-def solve(m):
+class NotProved(Exception):
+    pass
+
+
+def minimize(m, objective, name, show_progress, start):
+    """Minimize, then hold the objective at its optimum for the next solve."""
+    m.minimize(objective)
     solver = cp_model.CpSolver()
-    solver.parameters.num_workers = 1
+    solver.parameters.num_workers = WORKERS
     solver.parameters.max_time_in_seconds = TIME_LIMIT_S
     status = solver.solve(m)
-    return solver, status
+    if status != cp_model.OPTIMAL:
+        raise NotProved(solver.status_name(status))
+    best = round(solver.objective_value)
+    m.add(objective <= best)
+    if show_progress:
+        log(f"{time.perf_counter() - start:.1f}s: {name} proved optimal ({best})")
+    return solver
 
 
 def main():
     show_progress = "--progress" in sys.argv[1:]
     problem = json.load(sys.stdin)
+    if len(problem["apart"]) > MAX_PAIRS:
+        json.dump({"status": f"TOO_MANY_PAIRS ({len(problem['apart'])} > {MAX_PAIRS})"}, sys.stdout)
+        return
     start = time.perf_counter()
 
-    m, x, x0, length, lo, hi = build(problem)
-    m.minimize(length)
-    solver, status = solve(m)
-    if status != cp_model.OPTIMAL:
-        json.dump({"status": solver.status_name(status)}, sys.stdout)
-        return
-    best = round(solver.objective_value)
-
-    m.add(length <= best)
+    m, x, x0, length, sides, lo, hi = build(problem)
     moves = []
     for xi, target in zip(x, x0):
         d = m.new_int_var(0, hi - lo, "")
         m.add(d >= xi - target)
         m.add(d >= target - xi)
         moves.append(d)
-    m.minimize(cp_model.LinearExpr.sum(moves))
-    solver, status = solve(m)
-    if status != cp_model.OPTIMAL:
-        json.dump({"status": solver.status_name(status)}, sys.stdout)
+    try:
+        minimize(m, length, "1, line length", show_progress, start)
+        minimize(m, cp_model.LinearExpr.sum(moves), "2, movement", show_progress, start)
+        minimize(
+            m,
+            cp_model.LinearExpr.weighted_sum(sides, [2**k for k in range(len(sides))]),
+            "3, sides",
+            show_progress,
+            start,
+        )
+        solver = minimize(m, cp_model.LinearExpr.sum(x), "4, leftmost", show_progress, start)
+    except NotProved as status:
+        json.dump({"status": str(status)}, sys.stdout)
         return
 
     if show_progress:
-        log(
-            f"kept {len(problem['apart'])} pairs of lines apart in {time.perf_counter() - start:.1f}s, "
-            f"moving nodes {round(solver.objective_value)}px in all"
-        )
+        log(f"kept {len(sides)} pairs of lines apart in {time.perf_counter() - start:.1f}s")
     json.dump({"status": "OPTIMAL", "x": [solver.value(xi) for xi in x]}, sys.stdout)
 
 
