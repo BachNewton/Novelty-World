@@ -80,6 +80,22 @@ the page for the "sign in to see all available results" banner.
 - Record pages render details late: wait for the "Event Type" field (or
   "Similar Records") in the main region. "OPEN ALL" expands relatives.
 - The results row shows only the main name; open the record for aliases.
+- Wait for a page with a polling `evaluate_script` (a record link, "No
+  Results Found" or "Results per page"), not `wait_for`: `wait_for` returns
+  a whole-page snapshot that can run past 100 KB.
+- **Search the couple as parents** (father's given name or initial plus the
+  mother's exact birth surname): one query returns a family's births, the
+  children's death certificates and their marriages, and settles a date
+  conflict at once.
+- **Surname variants without a place** (`Jos*` with `Leg*n*s*`, a birth-year
+  range) reach records in other countries' collections, such as an origin
+  village's marriage. A wife's rare surname, searched as the mother's
+  surname with a wildcard, then finds that couple's children.
+- A civil death index often gives "Budapest" for a village merged into
+  Budapest later: read the register's title or the image.
+- To jump to an image in the film viewer, fill the image-number box with the
+  fill tool and press Enter; a value set by script is ignored. The thumbnail
+  grid at `/search/film/<DGS>?i=N` shows image numbers for finding a year.
 
 **Full Text search** (the Full Text tab: machine transcripts of record
 images, cited as "FamilySearch 3:1:XXXX"). The way into the 1800–1870
@@ -95,6 +111,11 @@ is in `methods.md` ("Finding a line's origin").
 - Read an image through its transcript (the image's `?view=fullText`). The
   transcription garbles names and words: read the image itself before
   relying on a wording that matters.
+- It climbs the 1800–1850 generations: a quoted head of family plus a
+  child's name finds wills naming children and executors, estate schedules
+  naming the widow and children, and dower deeds recording a widow's
+  remarriage. A record's next page can't be reached by script: search for a
+  phrase likely on it.
 
 **Collections that worked:**
 
@@ -182,6 +203,11 @@ is in `methods.md` ("Finding a line's origin").
   - "Néhai" (the late) before a parent's name in a civil marriage entry
     dates that parent's death: a child's later marriage without it shows
     the parent was still alive.
+- **Hungary Catholic church records index:** a filial village's baptisms
+  and deaths sit under its mother parish (Rátót's under Sződ), so search
+  the mother parish too. Some Latin registers write the father's name on
+  the line above the child's entry: check the layout against an indexed
+  neighbour before reading the parents.
 - **Hungary Catholic and Greek Catholic church books** (before 1895, and
   often later): mostly unindexed images, reached through the Catalog's place
   search and the film viewer. A village can keep its own Greek Catholic
@@ -235,7 +261,8 @@ is in `methods.md` ("Finding a line's origin").
 
 ## Grave records
 
-- **Find a Grave**: dates, burial place, often the full newspaper obituary
+- **Find a Grave**: "burial details unknown" means its dates have no stone
+  behind them: a lead only. Otherwise: dates, burial place, often the full newspaper obituary
   (with grandchild counts) and family links; memorial ids are good citations
   ("Find a Grave 123456789"). Memorial pages fetch cleanly.
   - **Family links are the fastest way through a dead family**: a parent's
@@ -369,6 +396,23 @@ through search-result snippets; direct fetches are blocked.
 - **Professional registries** (NPI registry, clinician directories): identity,
   profession and area for adults; never birth years or relatives. LinkedIn
   and therapyden block fetches.
+
+## Hungaricana (hungaricana.hu, free)
+
+Digitized Hungarian archives, libraries and museums, with full text.
+
+- Blocks a bare `curl` or WebFetch (403). Python `urllib` with browser-like
+  Accept and Accept-Language headers works (Git Bash `curl --data-urlencode`
+  mangles accented letters). A search, `/hu/search/results/?query=<term>`,
+  redirects to a `?list=` page; `per_page=100` works. A page's full text is
+  in the HTML of `/hu/view/<doc>/?pg=N`: use a short timeout, as page views
+  can hang.
+- **Budapest municipal assembly minutes** (`BPSZKJ_<year>`, with name
+  indexes) record pensions for officials' widows with the children's exact
+  birth dates: a strong tie for middle-class Pest families.
+- **Pest and Budapest address books** (Adress-Kalender 1867–1881, Pester
+  Lloyd-Kalender) list city staff by office and year: they date a career,
+  bracket a death year, and show a Magyarized name beside the old one.
 
 ## Hungarian military records (First World War)
 

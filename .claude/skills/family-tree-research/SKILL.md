@@ -198,6 +198,10 @@ lessons into this skill's files.
   of the research can't run, and a partial round that looks complete
   leaves searches logged that never ran. Each agent's briefing must say
   so.
+- Each briefing also forbids calling a site's internal endpoints (FamilySearch
+  image tiles, film data or any API) with the owner's session: agents reach
+  for them to read images faster, which the owner's rules forbid. Images are
+  read only through the normal viewer (see `sources.md`).
 - A research agent that needs an unlisted heritage says so in its report
   and uses "unknown" meanwhile; the orchestrating session adds it (parallel
   agents editing the list would collide) before applying that agent's file,
