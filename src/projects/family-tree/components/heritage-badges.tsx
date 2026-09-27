@@ -1,3 +1,4 @@
+import { FLAGS } from "../flags";
 import { HERITAGES } from "../heritages";
 import type { HeritageCode } from "../heritages";
 import { formatShare } from "../logic";
@@ -9,6 +10,15 @@ import { Flag } from "./flag";
 // even a small share reads, growing with the share.
 function medallionDiameter(share: number): number {
   return Math.round(44 * (0.7 + 0.6 * share));
+}
+
+// The flag's width in a medallion: the whole flag, in its own proportions,
+// inscribed in the circle with a hair of margin so its corners stay clear of
+// the rim.
+function inscribedFlagWidth(code: HeritageCode, diameter: number): number {
+  const { width, height } = FLAGS[code];
+  const aspect = width / height;
+  return ((diameter - 3) * aspect) / Math.hypot(aspect, 1);
 }
 
 const MAX_MEDALLIONS = 4;
@@ -48,7 +58,7 @@ export function HeritageBadges({
           <div
             key={m.code}
             aria-hidden
-            className="pointer-events-none absolute overflow-hidden rounded-full shadow-family-medallion"
+            className="pointer-events-none absolute flex items-center justify-center overflow-hidden rounded-full bg-surface-elevated shadow-family-medallion"
             style={{
               left: node.x + (m.right ? node.w : 0) - r,
               top: node.y + (m.bottom ? node.h : 0) - r,
@@ -56,7 +66,11 @@ export function HeritageBadges({
               height: m.diameter,
             }}
           >
-            <Flag code={m.code} fit="fill" className="block h-full w-full" />
+            <Flag
+              code={m.code}
+              className="block"
+              style={{ width: inscribedFlagWidth(m.code, m.diameter) }}
+            />
             <span className="absolute inset-0 rounded-full inset-shadow-family-medallion" />
           </div>
         );
@@ -98,14 +112,21 @@ export function HeritageChip({
         size === "card" ? "py-px pr-[5px] pl-[2px] text-[9px]" : "py-0.5 pr-2 pl-1 text-xs",
       ].join(" ")}
     >
-      <span
-        className={[
-          "inline-flex items-center justify-center overflow-hidden rounded-[2px] bg-surface-elevated text-text-muted",
-          size === "card" ? "h-2 w-3 text-[7px]" : "h-3 w-[18px] text-[10px]",
-        ].join(" ")}
-      >
-        {code === null ? "?" : <Flag code={code} fit="stretch" className="block h-full w-full" />}
-      </span>
+      {code === null ? (
+        <span
+          className={[
+            "inline-flex items-center justify-center rounded-[2px] bg-surface-elevated text-text-muted",
+            size === "card" ? "h-2 w-3 text-[7px]" : "h-3 w-[18px] text-[10px]",
+          ].join(" ")}
+        >
+          ?
+        </span>
+      ) : (
+        <Flag
+          code={code}
+          className={["block w-auto rounded-[1px]", size === "card" ? "h-2" : "h-3"].join(" ")}
+        />
+      )}
       <span className="sr-only">{name} </span>
       {formatShare(share)}
     </span>

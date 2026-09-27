@@ -1,32 +1,27 @@
+import Image from "next/image";
+import type { CSSProperties } from "react";
 import { FLAGS } from "../flags";
 import type { HeritageCode } from "../heritages";
 
 interface FlagProps {
   code: HeritageCode;
-  // "fill" crops the flag to cover its box (medallions); "stretch" squeezes
-  // the whole flag into it, so tricolors stay recognizable in a small slot.
-  fit: "fill" | "stretch";
+  // Size one dimension; the other follows the flag's official proportions.
   className?: string;
+  style?: CSSProperties;
 }
 
-export function Flag({ code, fit, className }: FlagProps) {
-  const { viewBox, shapes } = FLAGS[code];
+export function Flag({ code, className, style }: FlagProps) {
+  const flag = FLAGS[code];
   return (
-    <svg
-      viewBox={viewBox}
-      preserveAspectRatio={fit === "fill" ? "xMidYMid slice" : "none"}
-      className={className}
+    <Image
+      src={flag.src}
+      width={flag.width}
+      height={flag.height}
+      alt=""
       aria-hidden
-    >
-      {shapes.map((shape) => (
-        <path
-          key={shape.d}
-          d={shape.d}
-          fill={shape.fill}
-          stroke={shape.stroke}
-          strokeWidth={shape.strokeWidth}
-        />
-      ))}
-    </svg>
+      draggable={false}
+      className={className}
+      style={{ aspectRatio: `${flag.width} / ${flag.height}`, ...style }}
+    />
   );
 }
