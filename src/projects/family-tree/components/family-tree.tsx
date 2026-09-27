@@ -22,6 +22,7 @@ import { Edges } from "./edges";
 import { PersonPanel } from "./person-panel";
 import { Button } from "@/shared/components/ui/button";
 import { cn, isTextEntryTarget } from "@/shared/lib/utils";
+import { useStatsToggle } from "@/shared/hooks/use-stats-toggle";
 import { useViewUrl, type ViewMode } from "../use-view-url";
 
 const Tree3D = dynamic(() => import("./tree-3d").then((m) => m.Tree3D), {
@@ -58,6 +59,7 @@ export function FamilyTree() {
   const hydrate = useFamilyTreeStore((s) => s.hydrate);
 
   useEffect(() => { void hydrate(); }, [hydrate]);
+  useStatsToggle();
 
   if (load.status === "ready") return <TreeView tree={load.tree} layout={load.layout} />;
 
