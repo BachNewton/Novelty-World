@@ -257,6 +257,13 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
   words it and as it is today, and for immigrants the emigration date,
   mother tongue and the people a record states (see "Recording the
   evidence" in `standards.md`). The sources go in notes.
+- **Heritage is each generation's own answer** to "where is your family
+  from?" (decision 6 in `ideas/heritage-through-time.md`). Climbing above an
+  established entry: an ancestor whose origin is the same gets the same
+  code; one whose origin differs (a family in Pest whose father came from
+  Árva) gets the origin evidence and notes only, no entry, so the older
+  migration doesn't overwrite the descendants' identity. Keep climbing
+  either way: the journey is part of the story.
 - **After adding anyone above a person with an entry,** run `superseded`.
   Clear fully superseded entries, and review partly superseded ones: the
   entry may have been a guess covering both sides.

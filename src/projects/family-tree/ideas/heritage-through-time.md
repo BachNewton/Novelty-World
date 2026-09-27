@@ -212,5 +212,22 @@ owner's peoples); the owner judges the result.
    including German lines born 1933–1945, who show the black-red-gold.
 4. **The story lives in the person panel's Heritage section,** not a page of
    its own: it stays one click from the tree, and the tree stays the way in.
-5. **Journeys, not thresholds** (above): the displayed heritage of a line is
-   its earliest known people; the story panel shows the whole path.
+5. **Journeys, not thresholds** (above): the story panel shows a line's whole
+   path, back to its earliest known people.
+6. **Each generation's heritage is its own answer.** The owner's rule: a
+   person's heritage is what they would answer, with reasonably accurate
+   knowledge, to "where are you, your people, your family from?". So heritage
+   can change up a line as a family's culture changes with where it lives and
+   who it marries into, and the visuals follow those changes through time.
+   A newly found older origin never overwrites the heritage of the
+   generations below it. A family that left Árva for Pest in the 1840s stays
+   Hungarian for the grandchild born in Budapest in 1912. The older origin is
+   part of that grandchild's journey, not a share of their mix.
+   - **Until Part 2 can derive this from the evidence, the data follows it
+     this way:** every generation research reaches gets its evidence fields
+     (birthplace as written and today, emigration, mother tongue, recorded
+     people). A heritage entry goes on the generation whose identity the
+     evidence shows. An ancestor found above it whose origin differs gets the
+     evidence only, no entry: with no entry they pass "unknown" up, so the
+     descendant's entry keeps the family's identity, and nothing is lost
+     for Part 2 to interpret later.
