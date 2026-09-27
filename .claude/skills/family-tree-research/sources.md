@@ -111,10 +111,11 @@ is in `methods.md` ("Finding a line's origin").
   misread initials and garble rare surnames. The census indexes leave out
   the citizenship columns (arrival year, "Na"/"Pa"/"Al", naturalization
   year): read those on the image. The images sit behind the record's
-  "View original document". The viewer's Download button (then its
-  "DOWNLOAD") saves a PDF to `~/Downloads` holding the full-resolution scan:
-  pull the JPEG out with `pypdf` and crop it with PIL, which reads far better
-  than screenshots of the viewer's tiles.
+  "View original document"; zoom the viewer and screenshot its tiles. The
+  viewer's Download button gives a PDF of the full-resolution scan (pull the
+  JPEG out with `pypdf`, crop it with PIL), but it opens Chrome's native
+  Save dialog, which the MCP can't answer: the owner has to click Save.
+  Ask before using it.
 - **County marriage indexes**: ages, often both sets of parents. Ohio's runs
   to 2016; Indiana's (1811–2019) catches Ohio teenagers who eloped there, with
   dates of birth (inflated) and both sets of parents; California County
