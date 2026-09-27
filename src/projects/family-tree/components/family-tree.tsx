@@ -9,6 +9,7 @@ import {
   ROOT_FIRST_NAME,
   describeRelation,
   fullName,
+  heritageBreakdowns,
   nearestInDirection,
   type NavDirection,
 } from "../logic";
@@ -150,6 +151,8 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
     return map;
   }, [tree, effectiveViewRootId]);
 
+  const heritage = useMemo(() => heritageBreakdowns(tree), [tree]);
+
   const viewRootFocus = useMemo(() => {
     const node = layout.nodes.find((n) => n.id === effectiveViewRootId);
     return node && nodeCenter(node);
@@ -232,6 +235,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
                 selected={selectedId === n.id}
                 isViewRoot={n.id === effectiveViewRootId}
                 subtitle={subtitles.get(n.id) ?? null}
+                heritage={heritage[n.id]}
                 flashKey={flash?.id === n.id ? flash.key : null}
                 onFlashEnd={() => { setFlash(null); }}
                 onSelect={setSelected}
@@ -245,6 +249,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
             key={selectedPerson.id}
             person={selectedPerson}
             relation={subtitles.get(selectedPerson.id) ?? null}
+            heritage={heritage[selectedPerson.id]}
             viewRootName={fullName(viewRoot)}
             isViewRoot={selectedPerson.id === effectiveViewRootId}
             onSetAsViewRoot={() => { setViewRoot(selectedPerson.id); }}

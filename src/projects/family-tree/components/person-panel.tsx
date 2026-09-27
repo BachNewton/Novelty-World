@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 import type { Person, ResearchQuestion, ResearchRecord, ResearchStatus } from "../types";
 import { fullNameWithMiddle } from "../logic";
+import type { HeritageBreakdown } from "../logic";
+import { HeritageChip } from "./heritage-badges";
 import { Button } from "@/shared/components/ui/button";
 
 interface PersonPanelProps {
@@ -10,6 +12,7 @@ interface PersonPanelProps {
   // The relationship readout for this person, as their card shows it: "you"
   // on the view root, null when no relation was found.
   relation: string | null;
+  heritage: HeritageBreakdown;
   viewRootName: string;
   isViewRoot: boolean;
   onSetAsViewRoot: () => void;
@@ -78,6 +81,7 @@ function NotRecorded({ children }: { children: ReactNode }) {
 export function PersonPanel({
   person,
   relation,
+  heritage,
   viewRootName,
   isViewRoot,
   onSetAsViewRoot,
@@ -120,6 +124,21 @@ export function PersonPanel({
             <NotRecorded>Not recorded</NotRecorded>
           ) : (
             formatDate(person.birthDate)
+          )}
+        </Field>
+
+        <Field label="Heritage">
+          {heritage.known.length === 0 ? (
+            <NotRecorded>Unknown</NotRecorded>
+          ) : (
+            <span className="flex flex-wrap gap-1">
+              {heritage.known.map((entry) => (
+                <HeritageChip key={entry.code} code={entry.code} share={entry.share} size="panel" />
+              ))}
+              {heritage.unknown > 0 ? (
+                <HeritageChip code={null} share={heritage.unknown} size="panel" />
+              ) : null}
+            </span>
           )}
         </Field>
 
