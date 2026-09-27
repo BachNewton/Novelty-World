@@ -80,6 +80,13 @@ in `sources.md`.
   comes from a US record: a NUMIDENT's birthplace field can name it where a
   census says only "Finland". A sibling's exact birth date (from their US
   draft cards) ties a Finnish birth entry to the US family.
+- **County histories** (the 1880s–1910s county and township histories,
+  full text on archive.org: download the djvu text and grep for the surname)
+  can name the immigrant generation of a colonial-era line. They are
+  secondary: a lead to a record, or a Possible, not a tie.
+- **A spouse's thesis or dissertation** can name a living married-in person
+  in its dedication or acknowledgments (university repositories publish the
+  PDF).
 - **Let the obituary's birthplace drive the search.** Nulls from searching an
   assumed birth state aren't nulls.
 

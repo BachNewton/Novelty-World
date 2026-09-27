@@ -88,6 +88,14 @@ the page for the "sign in to see all available results" banner.
   their own birthplace. The 1920 census lists in-laws by relation ("maternal
   grandfather"). A 1950 entry sometimes lacks a member's birthplace ("not
   indexed"): that is unknown, not US.
+- **Read the image, not only the index.** An index transcribes a few fields
+  of a form that holds many: an Ohio county marriage license's application
+  gives the bride's exact birthday, birthplace country and prior marriages;
+  a Pennsylvania marriage license application (about 1885–1890) names both
+  parties' parents and their residence; the 1880 census's parents'
+  birthplaces can differ from the index, person by person. Indexers also
+  misread initials and garble rare surnames. The images sit behind the
+  record's "View original document"; screenshot the viewer's tiles.
 - **County marriage indexes**: ages, often both sets of parents. Ohio's runs
   to 2016; Indiana's (1811–2019) catches Ohio teenagers who eloped there, with
   dates of birth (inflated) and both sets of parents; California County
@@ -114,6 +122,20 @@ the page for the "sign in to see all available results" banner.
 - **State birth indexes**: Kentucky's and California's (to 1995) give the
   mother's birth surname, so a search by it finds a couple's children.
   Useful but weak alone.
+- **West Virginia marriage registers** (from about 1866, and the 1930s
+  license forms) name both couples' parents.
+- **Pennsylvania death certificates 1906–1970** are not on FamilySearch
+  (they are on a paid site: out). List one as a gap, not a null.
+- **Hungary Civil Registration 1895–1980**: births are indexed only to about
+  1920; later people are reached through their parents' marriages and their
+  own death records. Death registers after about 1952 give the exact birth
+  date and place, and the spouse with the marriage place and year: the best
+  way to climb and to tie.
+- **California Birth Index** (to 1995; collection id 2001879): the mother's
+  birth surname for each child.
+- **Residence Database / Public Records** entries: people-search quality,
+  but the record page's Alias field can show a birth surname or a full
+  two-part surname. Leads only; an alias can be a different, merged person.
 - **Ohio, Naturalization Records 1848–1951**: exact date and town of birth
   abroad, which no census gives; outweighs a census birthplace. It names the
   spouse, which ties identity. For Levant immigrants the town settles a
@@ -220,7 +242,11 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
   pieces. The certificates give informant, spouse, full birth date and
   birthplaces, which the FamilySearch index lacks. Wildcard first names
   (`Ph*`) return false "no records": search surname, county and year. Deaths
-  after 1972 are closed.
+  after 1972 are closed. Marriages search the same way
+  (`va_mcresults.aspx?GroomsLastName=..&BridesLastName=..&County=All&Year=All`);
+  search by the bride's surname to catch a garbled groom's. Delayed birth
+  certificates (filed decades later) list their supporting affidavits, whose
+  "sister" or "brother" can tie half-sibling households together.
 
 ## People-search sites
 
