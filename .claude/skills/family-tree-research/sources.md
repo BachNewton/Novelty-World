@@ -334,6 +334,29 @@ through search-result snippets; direct fetches are blocked.
   profession and area for adults; never birth years or relatives. LinkedIn
   and therapyden block fetches.
 
+## Hungarian military records (First World War)
+
+For a family account of a Hungarian soldier who died or was wounded in the
+war.
+
+- **Hungarian National Archives' WWI loss database**
+  (`adatbazisokonline.mnl.gov.hu/adatbazis/az-elso-vilaghaboru-vesztesegi-adatbazisa`):
+  free, no login, and plain `curl` works. About 200,000 deaths from the civil
+  death registers' duplicate copies, giving the parents' names, unit, and date
+  and place of death. It holds only deaths registered in Hungary, so a null
+  is weak. The search is a GET: `?term=` is base64 of
+  `{"q":"<text>","fq":{"db_id":{"1700002963a49da13542e0726b7bb758":"292"}},"sort":"score"}`,
+  plus `&L=50`. `*` works as a wildcard. The result rows sit as JSON inside
+  the page's script, not in the HTML. "Nincs találat" means no results.
+  Check that the search works with a place name before you log a null.
+- **Hadtörténeti Intézet war-graves registry**
+  (`hadisir.militaria.hu/hadisir-nyilvantarto`): POST `name=`. It returned
+  403 after two quick queries: pace the queries, and run a control search
+  first.
+- **Austrian casualty lists** (Verlustlisten, 1914–1919, which list the
+  wounded too): full text on ANNO (`anno.onb.ac.at/anno-suche`), a
+  JavaScript app, so search them in the browser.
+
 ## Finnish records
 
 For lines from Finland. An emigrant of 1880–1914 and their parents sit in
