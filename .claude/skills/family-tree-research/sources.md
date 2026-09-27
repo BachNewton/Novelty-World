@@ -108,8 +108,13 @@ is in `methods.md` ("Finding a line's origin").
   a Pennsylvania marriage license application (about 1885–1890) names both
   parties' parents and their residence; the 1880 census's parents'
   birthplaces can differ from the index, person by person. Indexers also
-  misread initials and garble rare surnames. The images sit behind the
-  record's "View original document"; screenshot the viewer's tiles.
+  misread initials and garble rare surnames. The census indexes leave out
+  the citizenship columns (arrival year, "Na"/"Pa"/"Al", naturalization
+  year): read those on the image. The images sit behind the record's
+  "View original document". The viewer's Download button (then its
+  "DOWNLOAD") saves a PDF to `~/Downloads` holding the full-resolution scan:
+  pull the JPEG out with `pypdf` and crop it with PIL, which reads far better
+  than screenshots of the viewer's tiles.
 - **County marriage indexes**: ages, often both sets of parents. Ohio's runs
   to 2016; Indiana's (1811–2019) catches Ohio teenagers who eloped there, with
   dates of birth (inflated) and both sets of parents; California County
