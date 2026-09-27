@@ -30,9 +30,14 @@ it hold what research has learned, and change every round:
   person's name or finding, ever; examples are generic.
 - **The tree row** holds only data that is already public, because anyone can
   read it (see Privacy in the project CLAUDE.md).
+- **The database's private tables** hold the research document the tree row
+  is projected from, a snapshot of every version, and every applied change
+  file with the change list it printed. Only the CLI reads them. Every write
+  lands there, so there are no local backups.
 - **`src/projects/family-tree/research/`** is gitignored and holds the private
-  findings: the research log, change files, backups. Never commit anything
-  from it, and never quote it in docs, commits or skills.
+  findings still outside the database: the research log, the questions for
+  family, change file drafts, round folders. Never commit anything from it,
+  and never quote it in docs, commits or skills.
 
 ## Ground rules
 
@@ -118,6 +123,10 @@ A **family** is a person or couple plus their children. Research it as a unit
 and settle all its questions together: the records that answer one question
 usually answer the others.
 
+A round starts with `verify`. If it fails, stop and report it: something
+private may be reachable with the public key, or the public row has drifted
+from the research document, and research must not write on top of either.
+
 1. **Pick a family** from `gaps`. Prefer families whose questions are unset
    over re-trying open ones, and dead generations before living ones (their
    records are richer and they anchor the rest).
@@ -140,11 +149,15 @@ usually answer the others.
    line, against what you meant. When the change alters who is related to
    whom, the dry run also solves the new tree's layout (seconds; the solver
    prints its progress), which proves the write will be able to.
-7. **Apply** with `apply <file> --write`, following "Research edits" in the
-   project CLAUDE.md for what you may apply yourself and what needs the owner
-   first. When the topology changed it solves the layout first, then backs up
-   the row into `research/backups/` and writes the tree and its layout
-   together; otherwise it keeps the stored layout. It prints the new version.
+7. **Apply** with `apply <file> --round <label> --write`, following
+   "Research edits" in the project CLAUDE.md for what you may apply yourself
+   and what needs the owner first. The label names the round in the history
+   (it defaults to the file's name). When the topology changed it solves the
+   layout first; otherwise it keeps the stored layout. Then it commits the
+   tree, its layout, a snapshot of the version and a record of the change
+   file together, prints the new version, and runs `verify`. A failed
+   `verify` after a write means the write landed but something is wrong:
+   stop and report it.
 8. **Report** what changed. An open tab keeps showing the tree it loaded
    until reloaded.
 9. **Hand over the family batch**: every question for family collected this
@@ -280,15 +293,28 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
 
 Run from the repo root, which holds `.env.local` with the Supabase keys. The
 CLI reads and writes with the service-role key (`SUPABASE_SERVICE_ROLE_KEY`);
-the public anon key can only read. Writes that change the topology solve the
-layout with a Python solver, which needs a one-time
+the public anon key can only read the public tree row. Writes that change the
+topology solve the layout with a Python solver, which needs a one-time
 `npm run setup:family-tree-solver` (Python 3 on the PATH).
 
     npx tsx src/projects/family-tree/tools/tree-cli.ts find <text>
     npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
     npx tsx src/projects/family-tree/tools/tree-cli.ts gaps
     npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
-    npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--write]
+    npx tsx src/projects/family-tree/tools/tree-cli.ts history [count]
+    npx tsx src/projects/family-tree/tools/tree-cli.ts verify
+    npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--round <label>] [--write]
+    npx tsx src/projects/family-tree/tools/tree-cli.ts restore <version> [--write]
+
+The CLI reads and edits the private research document; the public tree row
+is its projection, written in the same commit. `history` lists the latest
+versions (20 unless a count is given), newest first: when each was saved,
+its round label and the change list its apply printed. `restore` writes an
+earlier version's document back as a new version (dry run first, as with
+`apply`); versions beyond the latest 200 keep only the last of each week, and
+`history` marks those that can't be restored. `verify` checks that the
+public key reaches nothing private and that the public row is the projection
+of the document; every write runs it too.
 
 `gaps` lists everyone in the tree one family at a time, closest to the root
 first, and for each person which research questions are missing (unset) or

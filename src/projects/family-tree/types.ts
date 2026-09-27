@@ -136,6 +136,11 @@ export interface Tree {
   persons: Record<string, Person>;
 }
 
+// The private source of truth the public `Tree` is projected from
+// (`projectTree` in logic.ts). It holds exactly the tree until claims and
+// sources are added to it (ideas/claims-and-private-data.md).
+export type ResearchDocument = Tree;
+
 export interface LaidOutNode {
   id: string;
   x: number;
