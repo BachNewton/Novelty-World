@@ -7,6 +7,8 @@ in the tree row must be public-safe (see "The research record" in
 
 **Free sources only.** The owner pays for nothing: no subscriptions, memberships
 or paid tiers. A source that needs one is out of reach; never suggest it.
+**No DNA.** DNA testing, and matches from anyone else's test, are not part
+of this project: never suggest or use them.
 Free access in person counts: the owner lives in Helsinki, with a Helmet
 library card, and can visit the National Library of Finland's reading room.
 
