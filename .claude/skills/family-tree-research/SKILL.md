@@ -73,10 +73,13 @@ The tree is **complete** when every in-scope person has each of their
 research questions Confirmed or Exhausted.
 
 - **In scope:** everyone in the tree, both partners' families included.
-- **Direction: out and down only.** Research doesn't go looking for new
-  ancestors: a lead above the tree goes in the research log. Ancestors the
-  owner supplies are always welcome; add them, and they join the scope like
-  anyone else.
+- **Direction: out, down and up.** Ancestors may be added when a record
+  ties them to their child already in the tree (see the identity rule in
+  `standards.md`), most usefully to climb a line to its origin (see
+  Heritage). A new ancestor gets `birthYear` and `heritage` records; their
+  `family` question (their other children, and so the tree's collateral
+  lines) waits for a later round, so the tree doesn't balloon sideways.
+  Siblings the records name go in the research log for that round.
 
 ## The research record
 
@@ -175,6 +178,22 @@ or, when it helps someone reading the tree, goes in notes starting with
 "Possible:". This scale is about a single fact; the research record's status
 is about a whole question.
 
+## A round with parallel agents
+
+Research agents split the tree by line (one per family line, so no two touch
+the same people) and **never write to the tree**: each drafts its own change
+file, research log and family questions in a round folder under
+`research/`, and validates its change file with a dry run. The orchestrating
+session reviews each file (evidence, privacy, sources without URLs), applies
+them one at a time, runs `superseded` after each, then merges the logs into
+`family-research.md`, the questions into `family-questions.md`, and the
+lessons into this skill's files.
+
+- Run the dry run as a command of its own. Chained with a file edit in one
+  shell call, the permission classifier has refused it as destructive.
+- Every agent's browser tab shares one FamilySearch account: open your own
+  tab, keep a polite pace, close it when done.
+
 ## When to ask
 
 The owner's rule lives in "Research edits" in the project CLAUDE.md: apply
@@ -204,9 +223,10 @@ Heritage records **where a line came from**, not identity. The data model is
 under "Heritage" in the project CLAUDE.md; the list of codes is
 `src/projects/family-tree/heritages.ts`.
 
-- **Only from records about people already in the tree**, such as
-  a census giving a person's parents' birthplaces, entered on the earliest
-  in-tree person of each line. Don't add ancestors to find it. How to read
+- **Climb to the origin.** Where a line's top person and their parents
+  were born in the US, add the parents once a record ties them, and keep
+  climbing until someone was born abroad or the records run out. The entry
+  goes on the immigrant, whose descendants then derive theirs. How to read
   the records is in `methods.md`.
 - **Descendants derive theirs**, adopted children included; an entry only
   fills the part of a mix the person's parents leave unknown.
