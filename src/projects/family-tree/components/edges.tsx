@@ -92,7 +92,7 @@ export function Edges({ layout, line }: EdgesProps) {
             d={d}
             fill="none"
             stroke={highlighted ? "var(--color-brand-orange)" : "var(--color-border-hover)"}
-            strokeWidth={highlighted ? 3 : 2}
+            strokeWidth={2}
           />
         );
       })}
