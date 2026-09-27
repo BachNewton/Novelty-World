@@ -1,6 +1,6 @@
 # Research tools to consider
 
-Tools that could make family-tree research faster or reach sources it can't today. Each entry says what it unlocks and what it takes. Free tiers and site access change, so check them at setup time.
+Tools that could make family-tree research faster or reach sources it can't today. Each entry says what it unlocks and what it takes. Free tiers and site access change, so check them at setup time. The owner uses free options only.
 
 Ranked by usefulness first, then by how easy it is to set up.
 
@@ -11,12 +11,11 @@ Ranked by usefulness first, then by how easy it is to set up.
 | 3 | **FamilySearch in the owner's browser** | The richest free source (census, vital records, obituary indexes) needs a login. Research agents use the Chrome DevTools MCP directly, each in its own tab (every call targets a page by id), so they can run in parallel. | Done: a convention in `sources.md`. | Free |
 | 4 | **Chronicling America API** (Library of Congress) | Full-text search of digitized US newspapers up to 1963: older obituaries, marriage notices, arrivals. | Easy: open API, no key. | Free |
 | 5 | **Internet Archive full-text search** | City directories, yearbooks and county histories, which place a person in a year and at an address with a household. | Easy: open API, no key. | Free |
-| 6 | **Finnish archives**: Astia (National Archives), SSHY parish registers, HisKi, the Institute of Migration emigrant register, digi.kansalliskirjasto.fi newspapers | Finnish lines: births, emigration, parish moves. Useful when heritage research reaches Finland. | Medium: an Astia account, and SSHY membership for the member-only registers. | Free, SSHY membership cheap |
+| 6 | **Finnish archives**: Astia (National Archives), HisKi, SSHY's free images, the Institute of Migration emigrant register's name search, digi.kansalliskirjasto.fi newspapers (Finnish to 1939, Finnish-American to 1923) | Finnish lines: births, emigration, parish moves, emigrant newspapers. | Easy: all free online without a login for records over 100 years old (see `sources.md`). | Free |
 | 7 | **MyHeritage free account** | Record search results and some free collections (such as the SSDI). Most full records are paid, but the results alone often confirm a fact. | Easy: free account, used through the browser. | Free |
 | 8 | **WikiTree API** | Other people's research on the same families. Gives leads only, never confirmation. | Easy: open API, no key. | Free |
-| 9 | **Helmet library card** (Helsinki) | Possibly Ancestry Library Edition or newspaper archives on library computers. Unconfirmed; ask at the library. | Medium: a visit. | Free |
+| 9 | **Free in-person access in Helsinki**: the Genealogical Society library and the FamilySearch center | Member-only Finnish indexes, and premium US sites (MyHeritage, often Ancestry) on their computers. Helmet libraries themselves offer no genealogy database. | Medium: a visit (the FamilySearch center by appointment). | Free |
 | 10 | **Headless browsers with a saved login** (Playwright) | Several FamilySearch sessions at once. Faster than the queue, but FamilySearch's terms discourage automated scraping and heavy use could get the account flagged. Only if the queue proves too slow. | Medium to hard. | Free |
-| 11 | **Newspapers.com or Ancestry, one month** | The best obituary archive and the biggest record set. Worth it timed to a focused research round, if the free sources stall. | Easy. | Paid |
 
 ## Asking family
 
