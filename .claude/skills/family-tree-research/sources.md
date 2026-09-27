@@ -18,21 +18,12 @@ in the tree row must be public-safe (see "The research record" in
   - Many queries return a summary instead of snippets. When the wording
     matters, ask WebFetch to reproduce the family sentences word for word:
     its default summary mangles relationships (a spouse listed as a sibling).
-- **Chrome DevTools MCP** (`mcp__chrome-devtools__*`): drives the owner's own
-  Chrome, with their logins. Use it for login-gated or JavaScript-heavy sites
-  (FamilySearch) and for sites that return 403 to WebFetch. Several agents
-  can share it at once: each opens its own tab with `new_page` (in the
-  background) and passes that tab's `pageId` on every call. Never call
-  `select_page`, never touch a tab you didn't open, and close yours when
-  done. Keep each agent's pace polite: every tab uses the same account.
-  - **Read pages with `evaluate_script`**, returning the main region's
-    `innerText` (or one line per result row). A snapshot of a results page
-    runs to tens of kilobytes; a script reading the rows costs a tenth.
-  - **Wait for an event, never a delay**: a script that resolves when the
-    page's ready marker appears (see FamilySearch below for its markers).
-  - Never call a site's private JSON API with the session's token: the
-    permission classifier blocks it as credential access. Use the normal
-    search URLs and read the rendered page.
+- **Chrome DevTools MCP**: the owner's own Chrome, with their logins. How and
+  when to use it is in the owner's global instructions. Use it for
+  login-gated or JavaScript-heavy sites (FamilySearch) and for sites that
+  return 403 to WebFetch. Several agents can share it, each in its own tab;
+  keep each agent's pace polite, since every tab uses the same account.
+  FamilySearch's page-ready markers are below.
 
 ## FamilySearch
 

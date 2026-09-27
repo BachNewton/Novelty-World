@@ -191,8 +191,8 @@ lessons into this skill's files.
 
 - Run the dry run as a command of its own. Chained with a file edit in one
   shell call, the permission classifier has refused it as destructive.
-- Every agent's browser tab shares one FamilySearch account: open your own
-  tab, keep a polite pace, close it when done.
+- Every agent's browser tab shares one FamilySearch account (see
+  `sources.md`).
 
 ## When to ask
 
