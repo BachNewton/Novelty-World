@@ -47,9 +47,12 @@ Four stores, each with one job:
    family, as rows tied to people. They grow by appending, so they live
    beside the document rather than inside it, and adding to them never
    conflicts with a tree write.
-4. **An off-site backup** (private). A private GitHub repo that a nightly
-   job fills with a full export, so git holds the long history and a copy
-   exists outside Supabase.
+4. **An archive bucket** (private). A private Supabase Storage bucket for
+   files that aren't data: the spreadsheets sent to family, retired round
+   folders, the old local backups' originals.
+
+Supabase is the only store. The owner has decided against an off-site copy
+and accepts the risk of losing the project (see "Durability").
 
 Every write goes through the CLI and lands in one database transaction: the
 research document, its projection, the layout when the topology changed, a
@@ -355,7 +358,6 @@ stays in `tools/tree-db.ts`.
 | `withdraw <id> <reason>` | marks a draft withdrawn |
 | `relayout [--write]` | as today |
 | `restore <version> [--write]` | writes that version's saved research document back as a new version, re-projected, with a fresh layout solve |
-| `import-backup <dir> [--write]` | rebuilds every table from an export in the backup repo, for disaster recovery; refuses to run against a database that already holds a tree unless it is empty |
 
 ### The change file
 
@@ -423,43 +425,38 @@ was never added.
 research document, written by the commit function in the same transaction
 as the version itself, so no write can skip it. The public row is not
 stored, because the projection and the exact layout solve are deterministic
-from the document. Snapshots older than 200 versions are cleared to keep the
-free tier's database small; the backup repo keeps every nightly state
-forever. `history` lists versions with their change lists, and `restore`
-brings one back as a new version (never by rewinding the version counter).
+from the document. `history` lists versions with their change lists, and
+`restore` brings one back as a new version (never by rewinding the version
+counter).
 
-## Off-site backup
+With no copy outside Supabase, the database keeps the long history itself,
+thinned so the free tier stays small:
 
-The free tier has no downloadable backups, so the data leaves Supabase every
-night:
+- **Change records are kept forever.** They are small, and they say what
+  every version changed and why.
+- **Snapshots:** every version among the latest 200, plus, beyond that, the
+  last version of each calendar week, forever. The commit function thins
+  them in the same transaction. Postgres compresses large JSON values, so
+  a weekly snapshot costs a few hundred KB.
+- **The old local backups** are imported as snapshots of the versions they
+  hold (Stage 1), so history starts at the first backed-up version.
 
-- **A private repo** under the owner's GitHub account holds an `export/`
-  folder (one pretty-printed JSON file per table, with stable key order so
-  diffs read as changes) and an `archive/` folder (see Migration).
-- **A scheduled GitHub Action** in that repo runs nightly at 02:00 UTC
-  (early morning in Finland) and on manual dispatch. It calls one SQL
-  function, `family_tree_export`, which returns every family-tree table
-  except the history snapshots, and commits the files if anything changed.
-  The export function lives in `supabase/family-tree.sql`, so a new table is
-  added to the export in the same change that creates it.
-- **It connects as a read-only database role** made for it
-  (`family_tree_backup`: select on the family-tree tables and execute on the
-  export function, nothing else), through the session pooler, with that
-  role's password as the repo's only secret. The service-role key, which can
-  write every game's tables, never leaves the owner's machine.
-- **The same job probes the locks:** with the anon key (a second secret,
-  public anyway) it tries to read each private table and fails the run if
-  anything comes back, so a privacy regression emails the owner within a
-  day.
-- **The orchestrator dispatches it at the end of each round** so a busy day
-  is off-site before the night. It also keeps the free-tier project from
-  pausing for inactivity.
-- **Restore is tested, not assumed:** the stage that builds it runs
-  `import-backup` as a dry run against the first export and checks it
-  reproduces the live tables.
+## Durability
 
-Git's own history of `export/` is the long-term version history; the
-database's history table is the short-term undo.
+Supabase is the only copy. The owner accepts the risk: losing the Supabase
+project loses the tree and all research. What the design still does:
+
+- **Nothing is written anywhere else by default,** so there is one truth and
+  no stale copy to confuse a later session.
+- **`verify` runs after every write.** The anon key tries to read each
+  private table, and the write reports failure if anything comes back, so a
+  privacy regression surfaces at the next research round rather than never.
+- **A free-tier project pauses after a week without activity.** Viewer
+  visits and research rounds keep it active; a paused project keeps its data
+  and is resumed from the Supabase dashboard.
+- **`export <dir>`** (see the CLI) writes a full local export on demand, for the
+  owner to take a copy whenever they want one; nothing runs it
+  automatically.
 
 ## Heritage through time
 
@@ -500,11 +497,11 @@ the other fields.
 | The research log | one `legacy` entry per family section, verbatim, tied to the people its heading names by id | mechanical (Stage 3) |
 | Legacy entries | restructured into sources, claims and `search`, `rejected`, `lead`, `account` and `note` entries, then removed | judgement (Stage 6) |
 | The questions for family | one question per numbered item, grouped by its heading, with its "would know" line; state `sent`, answered ones marked by judgement | mechanical, then judgement (Stage 3) |
-| Change files | `family_tree_change` rows with status `imported`, the file name as the round label | mechanical (Stage 2) |
-| Tree backups | `archive/backups/` in the backup repo, as they are | mechanical (Stage 2) |
-| Round folders (briefings, agent logs and change drafts) | agent logs checked against the merged log (anything not merged becomes a `legacy` entry); drafts not applied become `withdrawn` change rows; the rest to `archive/` | judgement (Stage 5) |
-| Working notes on work in flight | owner rulings about people become `account` entries and claims; queued work becomes `lead` entries; method goes into the skill files; the rest to `archive/` | judgement (Stage 5) |
-| The spreadsheets sent to family and their generators | the outputs to `archive/`; a generator worth keeping becomes a repo tool reading `family_question`, with no personal data in its code | judgement (Stage 5) |
+| Change files | `family_tree_change` rows with status `imported`, the file name as the round label | mechanical (Stage 1) |
+| Tree backups | snapshots in `family_tree_history`, plus the original files in the archive bucket | mechanical (Stage 1) |
+| Round folders (briefings, agent logs and change drafts) | agent logs checked against the merged log (anything not merged becomes a `legacy` entry); drafts not applied become `withdrawn` change rows; the rest to the archive bucket | judgement (Stage 5) |
+| Working notes on work in flight | owner rulings about people become `account` entries and claims; queued work becomes `lead` entries; method goes into the skill files; the rest to the archive bucket | judgement (Stage 5) |
+| The spreadsheets sent to family and their generators | the outputs to the archive bucket; a generator worth keeping becomes a repo tool reading `family_question`, with no personal data in its code | judgement (Stage 5) |
 | The local copy of the live tree | dropped: it duplicates the row | mechanical |
 
 The mechanical imports are one-off scripts in `tools/`, deleted once they
@@ -521,8 +518,7 @@ public tree before conversion, so Stage 4 changes nothing the viewer sees.
 
 ### Order
 
-Storage and backup first, so that private data only moves into the database
-once it is backed up off-site; then the log, the biggest private store and
+Storage and history first; then the log, the biggest private store and
 the most exposed on one machine; then the model change; then the workflow;
 then the slow judgement work, which runs as part of ordinary research.
 
@@ -536,11 +532,11 @@ compatibility shims: the old path is removed in the stage that replaces it.
    `family_tree_history`, `family_tree_change`; the commit function and its
    grants; the private row seeded from the public row (the projection is
    the identity until claims exist). The CLI writes through the commit
-   function, records every applied change file, and stops writing local
-   backups. `history`, `restore`, `verify`.
-2. **Off-site backup.** The private repo, the export function, the
-   read-only role, the nightly Action with its anon probe, the archived tree
-   backups, the imported change files, and the restore dry run.
+   function, records every applied change file, runs `verify` after every
+   write, and stops writing local backups; the old backups and change files
+   are imported. `history`, `restore`, `verify`.
+2. **Archive bucket.** The private Storage bucket with its locks, and
+   `verify` probing it.
 3. **Research log and questions.** Their tables; the `log`, `closeLead`,
    `removeLogEntry`, `ask`, `markSent`, `answer` and `withdrawQuestion` ops;
    `log`, `grep`, `questions`, `export`; the legacy import of the log and
@@ -676,16 +672,16 @@ them (see "Who owns what" in the project `CLAUDE.md`).
     history, the change record and the log can never disagree.
 11. **Research agents submit drafts to the database; only the orchestrator
     applies.** Today's safe split is kept, without the local files.
-12. **The database keeps the last 200 versions' snapshots; git keeps
-    everything.** Undo is fast, the free tier stays small, and the long
-    history lives off-site.
-13. **A nightly GitHub Action exports to a private repo as a read-only
-    role,** also dispatched after each round. It runs without the owner's
-    machine, never holds the service-role key, and checks the privacy locks
-    daily.
+12. **The database keeps the long history itself:** every change record
+    forever, every snapshot among the last 200 versions, and a weekly
+    snapshot beyond that. With no off-site copy, thinning, not deletion,
+    keeps the free tier small.
+13. **Supabase is the only store; the owner accepts the risk.** No off-site
+    backup repo. `verify` after every write replaces a scheduled lock
+    probe, and `export <dir>` gives a copy on demand.
 14. **Migration is lossless first, structured later:** verbatim legacy
     entries and legacy-sourced claims land mechanically, and the judgement
     work happens family by family in ordinary rounds, with `gaps` counting
     what is left.
-15. **Storage and backup before the model change.** Private data moves into
-    the database only once it is backed up off-site.
+15. **Storage and history before the model change,** so every later stage's
+    writes are already recorded and restorable.
