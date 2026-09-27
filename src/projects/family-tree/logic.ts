@@ -79,6 +79,8 @@ const EMPTY_ORIGIN: OriginFields = {
   emigrationDate: "",
   motherTongue: "",
   recordedPeople: "",
+  religion: "",
+  originLore: "",
 };
 export const ORIGIN_KEYS = Object.keys(EMPTY_ORIGIN) as readonly (keyof OriginFields)[];
 
@@ -682,6 +684,8 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       emigrationDate: person.emigrationDate ?? "",
       motherTongue: person.motherTongue ?? "",
       recordedPeople: person.recordedPeople ?? "",
+      religion: person.religion ?? "",
+      originLore: person.originLore ?? "",
       research: storedResearch(person),
       heritage: [...(person.heritage ?? [])],
       gender: person.gender,

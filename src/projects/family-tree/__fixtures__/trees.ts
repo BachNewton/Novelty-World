@@ -42,6 +42,8 @@ function p(
     emigrationDate: "",
     motherTongue: "",
     recordedPeople: "",
+    religion: "",
+    originLore: "",
     research: emptyResearch(),
     heritage: [],
     gender,

@@ -100,6 +100,13 @@ export interface Person {
   // The people or nationality a record states for them, verbatim: a
   // passenger list's "Race or People", a naturalization's nationality.
   recordedPeople: string;
+  // The faith or denomination as a record words it, verbatim ("r. kath.",
+  // "Greek Catholic", "Evangelical Lutheran").
+  religion: string;
+  // What the family itself says about where this person or their family came
+  // from, and who said it ("Austrian, per Given Surname (2026)"). Lore, not
+  // record evidence.
+  originLore: string;
   // Claude's research record for this person. Never shown on the cards and
   // never part of the layout.
   research: Research;
@@ -115,7 +122,13 @@ export interface Person {
 // The origin evidence fields of a person.
 export type OriginFields = Pick<
   Person,
-  "birthPlace" | "birthPlaceToday" | "emigrationDate" | "motherTongue" | "recordedPeople"
+  | "birthPlace"
+  | "birthPlaceToday"
+  | "emigrationDate"
+  | "motherTongue"
+  | "recordedPeople"
+  | "religion"
+  | "originLore"
 >;
 
 export interface Tree {

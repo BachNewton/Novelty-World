@@ -246,7 +246,8 @@ lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
 
 Heritage is interpreted from evidence, and the interpretation may change;
 the evidence must not need re-researching. So every round records, on each
-person it reaches, what the records say (with `setOrigin`, sources in notes):
+person it reaches, what the records and the family say (with `setOrigin`,
+sources in notes):
 
 - **`birthPlace`**, word for word from the strongest record, and
   **`birthPlaceToday`**, the same place today, written so a map can place
@@ -258,16 +259,31 @@ person it reaches, what the records say (with `setOrigin`, sources in notes):
   **`motherTongue`** (as a census gives it) and **`recordedPeople`** (the
   people or nationality a record states, word for word: a passenger list's
   "Race or People", a naturalization's nationality).
+- **`religion`**, from any record that states it, word for word ("r. kath.",
+  "g. kath.", "Evangelical Lutheran"): Hungarian civil registers give it on
+  nearly every entry, and parish registers, the Irish census and some
+  marriage records give it too. A church cemetery or a congregation a family
+  attended is a cultural marker for the notes, not a stated religion. Only
+  for people who have died: a living person's religion is private.
+- **`originLore`**, what the family itself says about where this person or
+  their family came from, with who said it and when ("Austrian, per Given
+  Surname (2026)"; "of Irish descent, per a county history (1911)"). A
+  family's printed tradition, such as a county history's sketch, counts.
+  Lore is the family's own answer to where they are from, so it matters for
+  heritage, but it is never record evidence: it alone makes a heritage
+  answer Possible, not Confirmed, unless the owner vouches, and it never
+  goes in `recordedPeople`. When several people say different things, the
+  field holds each, with who said it.
 
 When records disagree, the field holds the stronger record's version (see
 "When records disagree on a birthplace" above) and the conflict goes in the
 notes. A fact read but not recorded is research that will have to be redone.
 
-**Cultural markers** go in the research log, and briefly in notes, whenever
-a record shows them: the church or congregation a family belonged to, the
-language of a newspaper, gravestone or record, a community (a Finnish
-cooperative, an ethnic parish), and family lore about where the family came
-from. They are how a line's people is judged later (see the design in
+**Cultural markers** that have no field go in the research log, and
+briefly in notes, whenever a record shows them: the church or congregation a
+family belonged to, the language of a newspaper, gravestone or record, and
+a community (a Finnish cooperative, an ethnic parish). With religion and
+lore, they are how a line's people is judged later (see the design in
 `src/projects/family-tree/ideas/heritage-through-time.md`).
 
 ### Adding an ancestor

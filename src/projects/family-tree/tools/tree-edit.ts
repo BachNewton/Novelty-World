@@ -163,6 +163,8 @@ const ORIGIN_FIELDS = {
   emigrationDate: "partialDate?",
   motherTongue: "text?",
   recordedPeople: "text?",
+  religion: "text?",
+  originLore: "text?",
 } as const satisfies Record<keyof OriginFields, FieldKind>;
 
 const OP_FIELDS = {
