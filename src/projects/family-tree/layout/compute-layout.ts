@@ -16,8 +16,8 @@ export const NODE_W = 250;
 // the tallest content: a name wrapped onto two lines, the birth-year chip,
 // and the relation line.
 export const NODE_H = 90;
-// Wide enough that the heritage medallions on a couple's facing corners never
-// touch, even two at full size (see medallionDiameter in heritage-badges.tsx).
+// Wide enough that the heritage flags on a couple's facing corners never
+// touch, even two at full size (see flagDiagonal in heritage-badges.tsx).
 export const SPOUSE_GAP = 60;
 export const ROW_GAP = 96;
 export const SUBTREE_GAP = 72;

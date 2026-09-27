@@ -6,27 +6,27 @@ import type { HeritageBreakdown } from "../logic";
 import type { LaidOutNode } from "../types";
 import { Flag } from "./flag";
 
-// Medallion diameter for a heritage's share of the mix: a big base size so
-// even a small share reads, growing with the share.
-function medallionDiameter(share: number): number {
+// How far a corner flag reaches, corner to corner, for a heritage's share of
+// the mix: a big base size so even a small share reads, growing with the
+// share.
+function flagDiagonal(share: number): number {
   return Math.round(44 * (0.7 + 0.6 * share));
 }
 
-// The flag's width in a medallion: the whole flag, in its own proportions,
-// inscribed in the circle with a hair of margin so its corners stay clear of
-// the rim.
-function inscribedFlagWidth(code: HeritageCode, diameter: number): number {
+// A corner flag's size: the whole flag in its own proportions, with the given
+// diagonal.
+function cornerFlagSize(code: HeritageCode, diagonal: number): { w: number; h: number } {
   const { width, height } = FLAGS[code];
-  const aspect = width / height;
-  return ((diameter - 3) * aspect) / Math.hypot(aspect, 1);
+  const scale = diagonal / Math.hypot(width, height);
+  return { w: width * scale, h: height * scale };
 }
 
-const MAX_MEDALLIONS = 4;
-// Clearance between the chips and a bottom medallion.
+const MAX_CORNER_FLAGS = 4;
+// Clearance between the chips and a bottom corner flag.
 const CHIP_CLEARANCE = 4;
 
 // A card's heritage decoration, drawn over and around the card, never inside
-// it: one flag medallion per corner for the largest shares (top-left,
+// it: one flag centered on each corner for the largest shares (top-left,
 // top-right, bottom-left, bottom-right by rank) and a row of chips under the
 // card listing every share. A person with no known heritage gets nothing, so
 // a tree without heritage entered looks exactly as it would without the
@@ -41,40 +41,34 @@ export function HeritageBadges({
   const { known, unknown } = heritage;
   if (known.length === 0) return null;
 
-  const medallions = known.slice(0, MAX_MEDALLIONS).map((entry, rank) => ({
+  const cornerFlags = known.slice(0, MAX_CORNER_FLAGS).map((entry, rank) => ({
     ...entry,
-    diameter: medallionDiameter(entry.share),
+    ...cornerFlagSize(entry.code, flagDiagonal(entry.share)),
     right: rank % 2 === 1,
     bottom: rank >= 2,
   }));
-  const bottomRadii = medallions.filter((m) => m.bottom).map((m) => m.diameter / 2);
-  const chipInset = bottomRadii.length > 0 ? Math.max(...bottomRadii) + CHIP_CLEARANCE : 0;
+  const bottomHalfWidths = cornerFlags.filter((f) => f.bottom).map((f) => f.w / 2);
+  const chipInset =
+    bottomHalfWidths.length > 0 ? Math.max(...bottomHalfWidths) + CHIP_CLEARANCE : 0;
 
   return (
     <>
-      {medallions.map((m) => {
-        const r = m.diameter / 2;
-        return (
-          <div
-            key={m.code}
-            aria-hidden
-            className="pointer-events-none absolute flex items-center justify-center overflow-hidden rounded-full bg-surface-elevated shadow-family-medallion"
-            style={{
-              left: node.x + (m.right ? node.w : 0) - r,
-              top: node.y + (m.bottom ? node.h : 0) - r,
-              width: m.diameter,
-              height: m.diameter,
-            }}
-          >
-            <Flag
-              code={m.code}
-              className="block"
-              style={{ width: inscribedFlagWidth(m.code, m.diameter) }}
-            />
-            <span className="absolute inset-0 rounded-full inset-shadow-family-medallion" />
-          </div>
-        );
-      })}
+      {cornerFlags.map((f) => (
+        <div
+          key={f.code}
+          aria-hidden
+          className="pointer-events-none absolute overflow-hidden rounded-[2px] shadow-family-flag"
+          style={{
+            left: node.x + (f.right ? node.w : 0) - f.w / 2,
+            top: node.y + (f.bottom ? node.h : 0) - f.h / 2,
+            width: f.w,
+            height: f.h,
+          }}
+        >
+          <Flag code={f.code} className="block h-full w-full" />
+          <span className="absolute inset-0 rounded-[2px] inset-shadow-family-flag" />
+        </div>
+      ))}
       <div
         className="pointer-events-none absolute flex flex-wrap justify-center gap-x-[3px] gap-y-[6px]"
         style={{
