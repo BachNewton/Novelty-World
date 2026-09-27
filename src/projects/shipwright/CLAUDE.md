@@ -316,6 +316,23 @@ code that floats the ship agree on where the surface is.
   example's `fog: scene.fog !== undefined` — `scene.fog` is `Fog | null`, never
   `undefined`, so that comparison fails lint. Pass an explicit boolean.
 
+### The dev machine's displays
+
+Perf numbers only mean something against the display they were taken on. The dev machine is a
+laptop (Ryzen 7 7840U / Radeon 780M) whose own panel (2256×1504) has no VRR, docked to one of two
+setups over DisplayPort:
+
+- **Samsung ViewFinity S5 34″ ultrawide:** 3440×1440 @ 100 Hz, FreeSync 48–100 Hz with LFC, VRR
+  switched on (OSD toggle + Windows' variable-refresh-rate setting). The main dev display; the
+  frame-pacing write-up in `docs/PERFORMANCE.md` ("Frame pacing, vsync, and VRR") is about it.
+- **Huawei MateView GT 27** (2560×1440, FreeSync 48–165 Hz, the better gaming display) beside an
+  **HP E232** (1080p, 60 Hz, no VRR). Game on the Huawei.
+
+Windows sometimes defaults an external display to 60 Hz, so a reading pinned at exactly 60 fps may be
+the display, not the frame: check Settings → Display → Advanced display. The shell can't read the
+current refresh rate (no interactive desktop; the display registry keys need admin), only what each
+monitor supports, so ask which display is in use rather than assuming.
+
 ## Files
 
 - `index.tsx` — re-exports `Shipwright` (registered in `PROJECT_COMPONENTS`).
