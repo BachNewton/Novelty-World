@@ -12,6 +12,7 @@ It is still not a genealogy app: the story is told simply, from evidence, not as
 The split between the UI and the data layer matters:
 
 - **The UI** is a read-only viewer of a simple relationship tree. Push back on genealogy-software sprawl there: citations, confidence levels, event records and the like never appear on the cards. The person panel shows one person's details, including the research record the tree already keeps, but it stays a short readout.
+- **Data model first.** The data model decides what research agents can record, and evidence research couldn't store is lost or buried in notes. So when research finds a kind of evidence the model can't hold, extend the model before the UI: rich data first, since the UI is easy to change later and a data model is hard to change.
 - **The data layer** is also Claude's research record. It may carry what future research sessions need to judge how reliable a claim is and what is left to research, such as the research record: where each research question about a person stands, and on what sources. Each such field still has to be something a research session actually reads or acts on; push back on data nobody uses.
 
 ## One user
