@@ -98,6 +98,8 @@ function OriginEvidence({ person }: { person: Person }) {
       )}
       {person.motherTongue === "" ? null : <Field label="Mother tongue">{person.motherTongue}</Field>}
       {person.recordedPeople === "" ? null : <Field label="Recorded as">{person.recordedPeople}</Field>}
+      {person.religion === "" ? null : <Field label="Religion">{person.religion}</Field>}
+      {person.originLore === "" ? null : <Field label="Family says">{person.originLore}</Field>}
     </>
   );
 }

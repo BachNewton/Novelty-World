@@ -94,6 +94,8 @@ function p(
     emigrationDate: "",
     motherTongue: "",
     recordedPeople: "",
+    religion: "",
+    originLore: "",
     research: emptyResearch(),
     heritage: [],
     gender,
@@ -597,6 +599,8 @@ describe("normalizeTree", () => {
     emigrationDate: "",
     motherTongue: "",
     recordedPeople: "",
+    religion: "",
+    originLore: "",
     research: emptyResearch(),
     heritage: [],
     gender: "M",
@@ -698,6 +702,18 @@ describe("normalizeTree", () => {
     expect(tree.persons[ROOT_ID].recordedPeople).toBe("");
   });
 
+  it("backfills religion and origin lore and reports a change", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, religion: undefined, originLore: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].religion).toBe("");
+    expect(tree.persons[ROOT_ID].originLore).toBe("");
+  });
+
   it("keeps existing origin fields and reports no change", () => {
     const origin = {
       birthPlace: "Capo d'Orlando, Messina, Italy",
@@ -705,6 +721,8 @@ describe("normalizeTree", () => {
       emigrationDate: "1905-04",
       motherTongue: "Italian",
       recordedPeople: "Italian (South)",
+      religion: "r. kath.",
+      originLore: "Sicilian, per Given Surname (2026)",
     };
     const { tree, changed } = normalizeTree({
       rootId: ROOT_ID,
@@ -927,14 +945,20 @@ describe("setBirthDate", () => {
 
 describe("setOrigin", () => {
   it("sets only the fields given, and clears one with an empty string", () => {
-    let t = setOrigin(createInitialTree(), ROOT_ID, { birthPlace: "Transylvania", motherTongue: "Magyar" });
-    t = setOrigin(t, ROOT_ID, { motherTongue: "", emigrationDate: "~1907" });
+    let t = setOrigin(createInitialTree(), ROOT_ID, {
+      birthPlace: "Transylvania",
+      motherTongue: "Magyar",
+      religion: "g. kath.",
+    });
+    t = setOrigin(t, ROOT_ID, { motherTongue: "", emigrationDate: "~1907", originLore: "Hungarian, per Given (2026)" });
     expect(t.persons[ROOT_ID]).toMatchObject({
       birthPlace: "Transylvania",
       birthPlaceToday: "",
       emigrationDate: "~1907",
       motherTongue: "",
       recordedPeople: "",
+      religion: "g. kath.",
+      originLore: "Hungarian, per Given (2026)",
     });
   });
 
@@ -955,10 +979,17 @@ describe("setOrigin", () => {
   });
 
   it("is flagged by treeProblems for a value with surrounding whitespace", () => {
-    const t = setOrigin(createInitialTree(), ROOT_ID, { birthPlace: "Syria ", motherTongue: " Arabic" });
+    const t = setOrigin(createInitialTree(), ROOT_ID, {
+      birthPlace: "Syria ",
+      motherTongue: " Arabic",
+      religion: "Maronite ",
+      originLore: "	Lebanese, per Given (2026)",
+    });
     expect(treeProblems(t)).toEqual([
       expect.stringMatching(/birthPlace has surrounding whitespace/),
       expect.stringMatching(/motherTongue has surrounding whitespace/),
+      expect.stringMatching(/religion has surrounding whitespace/),
+      expect.stringMatching(/originLore has surrounding whitespace/),
     ]);
   });
 });

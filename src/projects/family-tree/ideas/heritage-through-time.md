@@ -6,8 +6,9 @@ they lived, and how the world changed around them. It comes in two parts:
 
 1. **The evidence, now.** Structured facts research records about each
    person: where they were born as the record words it, when they emigrated,
-   their mother tongue, and the people or nationality a record states for
-   them. These are what research would have to redo if it didn't capture
+   their mother tongue, the people or nationality a record states for them,
+   the religion a record states, and what the family says about where they
+   came from. These are what research would have to redo if it didn't capture
    them, and they are useful for research on their own.
 2. **Interpretation and visualization, later.** Which people a line
    carries, its symbols through the eras, and the story panel. All of it
@@ -37,9 +38,10 @@ culture and identity. The current model works against that:
 
 1. **Origin: the evidence** (Part 1). The birthplace as the record words it
    ("Capo d'Orlando, Italy"; "Transylvania"; "Syria") and as it is today,
-   the emigration date, the mother tongue a census gives, and the people or
+   the emigration date, the mother tongue a census gives, the people or
    nationality a record states (a passenger list's "Race or People", a
-   naturalization's nationality). Structured fields on each person, so the
+   naturalization's nationality), the religion a record states ("g. kath."),
+   and the family's own lore about where they came from, with who said it. Structured fields on each person, so the
    interpretation can be drawn from them and the UI can tell them.
 2. **People: the heritage.** The culture a line carries: Hungarian, Finnish,
    Irish, Lebanese, Welsh. Independent of borders, so a Transylvanian
@@ -121,7 +123,8 @@ sources and reviewed like any other page text.
 - **Record the origin, then the people.** Research fills the origin fields
   from records, then chooses the people from the evidence: a birthplace, a
   mother tongue (the 1910 and 1920 US censuses asked it), a naturalization's
-  stated nationality, a church record's language. Where the evidence only
+  stated nationality, a stated religion, a church record's language, and
+  the family's lore. Where the evidence only
   gives a state and the place was home to several peoples, the people stays
   unknown and the origin still shows: never a guess from a surname.
 - `standards.md` and the project `CLAUDE.md` replace the present-day-country
@@ -226,7 +229,7 @@ owner's peoples); the owner judges the result.
    - **Until Part 2 can derive this from the evidence, the data follows it
      this way:** every generation research reaches gets its evidence fields
      (birthplace as written and today, emigration, mother tongue, recorded
-     people). A heritage entry goes on the generation whose identity the
+     people, religion, family lore). A heritage entry goes on the generation whose identity the
      evidence shows. An ancestor found above it whose origin differs gets the
      evidence only, no entry: with no entry they pass "unknown" up, so the
      descendant's entry keeps the family's identity, and nothing is lost
