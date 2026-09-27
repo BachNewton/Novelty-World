@@ -184,6 +184,18 @@ direction:
 The journey and story paragraphs stay in the plan as the panel's text
 around the map; the fan chart and the ribbon are set aside.
 
+**Where it lives in the app.** No new view; two changes to what exists:
+
+- **2D cards:** the corner flags and chips become era symbols, at the same
+  places and sizes. Cards, lines and layout are unchanged; only the symbol
+  a corner shows follows the card's birth year.
+- **Person panel** (opened from either view): a Heritage section with a
+  compact map of that person's lines and a line or two per people. It fits
+  the panel's width on desktop and its bottom sheet on a phone.
+- **3D view:** no heritage on the spheres, whose colors already mean the
+  direct line, the selection and everyone else. Heritage reaches 3D through
+  the same person panel.
+
 ## Decisions
 
 Made against the project's two aims (connection, and the story of the
