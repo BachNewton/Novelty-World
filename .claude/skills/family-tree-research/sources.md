@@ -114,8 +114,9 @@ is in `methods.md` ("Finding a line's origin").
   "View original document"; zoom the viewer and screenshot its tiles. The
   viewer's Download button gives a PDF of the full-resolution scan (pull the
   JPEG out with `pypdf`, crop it with PIL), but it opens Chrome's native
-  Save dialog, which the MCP can't answer: the owner has to click Save.
-  Ask before using it.
+  Save dialog, which the MCP can't answer. The owner saves it to
+  `~/Downloads` when the prompt appears: say you're downloading, then wait
+  for the file to land.
 - **County marriage indexes**: ages, often both sets of parents. Ohio's runs
   to 2016; Indiana's (1811–2019) catches Ohio teenagers who eloped there, with
   dates of birth (inflated) and both sets of parents; California County
