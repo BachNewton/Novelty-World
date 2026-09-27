@@ -193,6 +193,11 @@ lessons into this skill's files.
   shell call, the permission classifier has refused it as destructive.
 - Every agent's browser tab shares one FamilySearch account (see
   `sources.md`).
+- An agent whose browser is refused or unreachable stops the whole task
+  and reports "BLOCKED: browser" with the error. Without the browser most
+  of the research can't run, and a partial round that looks complete
+  leaves searches logged that never ran. Each agent's briefing must say
+  so.
 - A research agent that needs an unlisted heritage says so in its report
   and uses "unknown" meanwhile; the orchestrating session adds it (parallel
   agents editing the list would collide) before applying that agent's file,
