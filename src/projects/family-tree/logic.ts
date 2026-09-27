@@ -5,6 +5,7 @@ import type {
   OriginFields,
   Person,
   Research,
+  ResearchDocument,
   ResearchQuestion,
   ResearchRecord,
   ResearchStatus,
@@ -641,6 +642,13 @@ function storedUnions(person: StoredPerson): Union[] {
       newUnion(personId, "divorced"),
     ),
   ];
+}
+
+// The public tree the viewer reads, built from the private research
+// document; nothing else reaches the public row. The document holds nothing
+// private yet, so the projection is the document itself.
+export function projectTree(document: ResearchDocument): Tree {
+  return document;
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,

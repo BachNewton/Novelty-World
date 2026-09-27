@@ -424,8 +424,11 @@ was never added.
 `family_tree_history` replaces `research/backups/`: every tree version's
 research document, written by the commit function in the same transaction
 as the version itself, so no write can skip it. The public row is not
-stored, because the projection and the exact layout solve are deterministic
-from the document. `history` lists versions with their change lists, and
+stored, because the projection is deterministic from the document and an
+exact layout can be solved for it again. (The solve is exact but not unique:
+two solves of one tree can place some cards differently at the same optimum,
+so a restored version gets an equally good layout, not necessarily the one
+it was shown with.) `history` lists versions with their change lists, and
 `restore` brings one back as a new version (never by rewinding the version
 counter).
 
@@ -497,7 +500,7 @@ the other fields.
 | The research log | one `legacy` entry per family section, verbatim, tied to the people its heading names by id | mechanical (Stage 3) |
 | Legacy entries | restructured into sources, claims and `search`, `rejected`, `lead`, `account` and `note` entries, then removed | judgement (Stage 6) |
 | The questions for family | one question per numbered item, grouped by its heading, with its "would know" line; state `sent`, answered ones marked by judgement | mechanical, then judgement (Stage 3) |
-| Change files | `family_tree_change` rows with status `imported`, the file name as the round label | mechanical (Stage 1) |
+| Change files | `family_tree_change` rows with status `imported`, the file's path in `research/` as the round label (round folders reuse file names); a round folder's file only when proven applied (below) | mechanical (Stage 1) |
 | Tree backups | snapshots in `family_tree_history`, plus the original files in the archive bucket | mechanical (Stage 1) |
 | Round folders (briefings, agent logs and change drafts) | agent logs checked against the merged log (anything not merged becomes a `legacy` entry); drafts not applied become `withdrawn` change rows; the rest to the archive bucket | judgement (Stage 5) |
 | Working notes on work in flight | owner rulings about people become `account` entries and claims; queued work becomes `lead` entries; method goes into the skill files; the rest to the archive bucket | judgement (Stage 5) |
@@ -505,7 +508,13 @@ the other fields.
 | The local copy of the live tree | dropped: it duplicates the row | mechanical |
 
 The mechanical imports are one-off scripts in `tools/`, deleted once they
-have run. Each proves itself lossless before the local file goes: the log
+have run. Which change file made which version is recorded nowhere, so the
+change file import proves it by replay: a file was applied at version N when
+applying it to the backup of N reproduces the backup of N+1 exactly (the new
+people's ids aside). A proven file gets its versions and change list, and
+the snapshot of N+1 links to it. A top-level change file that no replay
+proves is imported without versions; a round folder's is a draft that may
+never have been applied, left for Stage 5's triage. Each proves itself lossless before the local file goes: the log
 import re-renders its legacy entries in order and diffs them against the
 original file, and the questions import prints the count per group against
 the file's.
