@@ -348,28 +348,75 @@ export function kitchenSink(): Tree {
   return makeTree("k", persons);
 }
 
-// A widower who remarried: Richard's marriage to Terry ended with her death,
-// and he is now married to Mary. Kids from both marriages, plus a grandchild
-// under the first marriage, so the [Terry, Richard, Mary] cluster has
+// A widower who remarried: the widower's marriage to the late wife ended with her death,
+// and he is now married to the new wife. Kids from both marriages, plus a grandchild
+// under the first marriage, so the [late wife, widower, new wife] cluster has
 // children dropping from both of its marriage lines.
 export function widowedRemarriage(): Tree {
   const persons = [
-    p("rDad", "M"),
-    p("rMom", "F"),
-    p("richard", "M", ["rDad", "rMom"]),
-    p("terry", "F"),
-    p("mary", "F"),
-    p("terryKid1", "F", ["richard", "terry"]),
-    p("terryKid2", "M", ["richard", "terry"]),
-    p("maryKid", "M", ["richard", "mary"]),
-    p("terryKid1Sp", "M"),
-    p("grandkid", "F", ["terryKid1", "terryKid1Sp"]),
+    p("widowerDad", "M"),
+    p("widowerMom", "F"),
+    p("widower", "M", ["widowerDad", "widowerMom"]),
+    p("lateWife", "F"),
+    p("newWife", "F"),
+    p("lateWifeKid1", "F", ["widower", "lateWife"]),
+    p("lateWifeKid2", "M", ["widower", "lateWife"]),
+    p("newWifeKid", "M", ["widower", "newWife"]),
+    p("lateWifeKid1Sp", "M"),
+    p("grandkid", "F", ["lateWifeKid1", "lateWifeKid1Sp"]),
   ];
-  marry(persons, "rDad", "rMom");
-  unite(persons, "richard", "terry", "ended-by-death");
-  marry(persons, "richard", "mary");
-  marry(persons, "terryKid1", "terryKid1Sp");
-  return makeTree("richard", persons);
+  marry(persons, "widowerDad", "widowerMom");
+  unite(persons, "widower", "lateWife", "ended-by-death");
+  marry(persons, "widower", "newWife");
+  marry(persons, "lateWifeKid1", "lateWifeKid1Sp");
+  return makeTree("widower", persons);
+}
+
+// A widower whose late wife's parents are in the tree. The widower's parents
+// also have a daughter, who sits to his left, so they sit left of the late wife's
+// parents, and the late wife's parents sit right over the chain. Drawn as
+// [late wife, widower, new wife], the late wife's line would cross the widower's; the chain must
+// be drawn the other way round.
+export function widowerWithInLaws(): Tree {
+  const persons = [
+    p("widowerDad", "M"),
+    p("widowerMom", "F"),
+    p("rSis", "F", ["widowerDad", "widowerMom"]),
+    p("widower", "M", ["widowerDad", "widowerMom"]),
+    p("lateWifeDad", "M"),
+    p("lateWifeMom", "F"),
+    p("lateWife", "F", ["lateWifeDad", "lateWifeMom"]),
+    p("newWife", "F"),
+  ];
+  marry(persons, "widowerDad", "widowerMom");
+  marry(persons, "lateWifeDad", "lateWifeMom");
+  unite(persons, "widower", "lateWife", "ended-by-death");
+  marry(persons, "widower", "newWife");
+  return makeTree("widowerDad", persons);
+}
+
+// A married-in husband whose own parents sit far off, beyond his three
+// sisters, while his wife's parents, whose only child she is, center over
+// the chain he makes with her and his ex-wife. That puts her parents' drop
+// right over him, where nothing may keep it from reading as his.
+export function inLawsOverHusband(): Tree {
+  const persons = [
+    p("wDad", "M"),
+    p("wMom", "F"),
+    p("wife", "F", ["wDad", "wMom"]),
+    p("hDad", "M"),
+    p("hMom", "F"),
+    p("hSis1", "F", ["hDad", "hMom"]),
+    p("hSis2", "F", ["hDad", "hMom"]),
+    p("hSis3", "F", ["hDad", "hMom"]),
+    p("husband", "M", ["hDad", "hMom"]),
+    p("exWife", "F"),
+  ];
+  marry(persons, "wDad", "wMom");
+  marry(persons, "hDad", "hMom");
+  marry(persons, "husband", "wife");
+  unite(persons, "husband", "exWife", "divorced");
+  return makeTree("hDad", persons);
 }
 
 // An unmarried couple with children. One child has since split from an
@@ -415,6 +462,8 @@ export const NAMED_FIXTURES: Record<string, () => Tree> = {
   cousinMarriage,
   kitchenSink,
   widowedRemarriage,
+  widowerWithInLaws,
+  inLawsOverHusband,
   partnerFamily,
 };
 

@@ -2,33 +2,47 @@
 
 decross.ts runs this script and writes the layered graph to its stdin as JSON:
 
-    {"layers": [size, ...], "edges": [[[a, c], ...], ...]}
+    {"layers": [size, ...], "chains": [[layer, index], ...],
+     "edges": [[[a, pa, c, pc], ...], ...]}
 
-`layers` gives each layer's node count. `edges[L]` lists the edges from layer
-L to layer L+1 as (index in layer L, index in layer L+1) pairs, with indices
-in d3-dag's incoming order. The answer goes to stdout as JSON:
+`layers` gives each layer's node count. `chains` lists the nodes that are a
+partner chain of two or more people, which the solver may reverse.
+`edges[L]` lists the lines from layer L to layer L+1 as (node index in layer
+L, port, node index in layer L+1, port), with indices in d3-dag's incoming
+order. A port is where on its node the line attaches, as a position along the
+chain in its incoming order: two lines at the same node and port share an
+endpoint. A node that is not a chain has a single port. The answer goes to
+stdout as JSON:
 
-    {"status": "OPTIMAL", "crossings": n, "orders": [[index, ...], ...]}
+    {"status": "OPTIMAL", "crossings": n, "orders": [[index, ...], ...],
+     "reversed": [[layer, index], ...]}
 
-where `orders[L]` is layer L's new left-to-right order as incoming indices.
-decross.ts accepts only OPTIMAL; any other status is reported, not used.
+where `orders[L]` is layer L's new left-to-right order as incoming indices and
+`reversed` lists the chains drawn in reverse. decross.ts accepts only OPTIMAL;
+any other status is reported, not used.
 
-The model is Juenger and Mutzel's, as d3-dag's own decrossOpt builds it:
+The model is Juenger and Mutzel's, as d3-dag's own decrossOpt builds it,
+extended with chain orientation:
 
 - Order variable x[L][i][j] for each i < j in a layer: 0 keeps i before j,
   1 puts j before i. Transitivity per triple i < j < k keeps each layer a
   total order: 0 <= x_ij + x_jk - x_ik <= 1.
-- Crossing variable per pair of edges (a->c, b->d) between adjacent layers
-  that share no endpoint, forced to 1 when the pair crosses. With a < b, they
-  cross iff x_ab != x_cd when c < d, and iff x_ab == x_dc when c > d.
-- Objective: fewest crossings, ties broken toward fewest reversed pairs,
-  i.e. the incoming order. Crossings weigh as much as every order variable
-  together, so the tiebreak never outweighs a crossing.
+- Orientation variable r per chain: 1 draws the chain in reverse, so its
+  ports' left-to-right order flips.
+- Crossing variable per pair of lines between adjacent layers that share no
+  endpoint, forced to 1 when the pair crosses. Each end of the pair is a
+  boolean "the second line is left of the first": an order variable when the
+  two ends are on different nodes, the chain's orientation variable (or its
+  negation) when they are on different ports of one chain. The lines cross
+  iff the two ends' booleans differ.
+- Objective: fewest crossings, ties broken toward fewest reversed pairs and
+  chains, i.e. the incoming order. Crossings outweigh every tiebreak
+  variable together, so the tiebreak never outweighs a crossing.
 
 The crossing variables are continuous >= 0 in the LP form. They are only ever
 bounded below by 0 or 1 and are minimized, so every optimum puts them at 0 or
 1, and booleans give the same optimum. The integer objective (crossings scaled
-by the order-variable count) makes CP-SAT's optimality proof exact.
+above the tiebreak's range) makes CP-SAT's optimality proof exact.
 
 Pass --progress to report the search on stderr while it runs.
 """
@@ -52,7 +66,7 @@ def log(message):
     print(f"decross: {message}", file=sys.stderr, flush=True)
 
 
-def build(layers, edges):
+def build(layers, chains, edges):
     m = cp_model.CpModel()
     order = []
     order_vars = []
@@ -68,33 +82,40 @@ def build(layers, edges):
                     m.add_linear_constraint(x[i, j] + x[j, k] - x[i, k], 0, 1)
         order.append(x)
 
+    reverse = {(L, i): m.new_bool_var("") for L, i in chains}
+
+    def second_left(L, a, pa, b, pb):
+        """Whether end (b, pb) is left of end (a, pa) in layer L, or None when
+        they are the same endpoint."""
+        if a != b:
+            return order[L][a, b] if a < b else 1 - order[L][b, a]
+        if pa == pb:
+            return None
+        r = reverse.get((L, a))
+        if r is None:
+            raise ValueError(f"node {a} of layer {L} has several ports but is not a chain")
+        return 1 - r if pb < pa else r
+
     crossing_vars = []
     for L, gap in enumerate(edges):
-        upper, lower = order[L], order[L + 1]
         for p in range(len(gap)):
             for q in range(p + 1, len(gap)):
-                (a, c), (b, d) = gap[p], gap[q]
-                if a == b or c == d:
+                (a, pa, c, pc), (b, pb, d, pd) = gap[p], gap[q]
+                top = second_left(L, a, pa, b, pb)
+                bottom = second_left(L + 1, c, pc, d, pd)
+                if top is None or bottom is None:
                     continue
-                if a > b:
-                    a, b, c, d = b, a, d, c
                 s = m.new_bool_var("")
                 crossing_vars.append(s)
-                xab = upper[a, b]
-                if c < d:
-                    xcd = lower[c, d]
-                    m.add(s - xab + xcd >= 0)
-                    m.add(s + xab - xcd >= 0)
-                else:
-                    xdc = lower[d, c]
-                    m.add(s + xab + xdc >= 1)
-                    m.add(s - xab - xdc >= -1)
+                m.add(s >= top - bottom)
+                m.add(s >= bottom - top)
 
-    weight = len(order_vars)
+    tiebreak = order_vars + list(reverse.values())
     m.minimize(
-        weight * cp_model.LinearExpr.sum(crossing_vars) + cp_model.LinearExpr.sum(order_vars)
+        (len(tiebreak) + 1) * cp_model.LinearExpr.sum(crossing_vars)
+        + cp_model.LinearExpr.sum(tiebreak)
     )
-    return m, order, order_vars, crossing_vars
+    return m, order, reverse, tiebreak, crossing_vars
 
 
 class Progress(cp_model.CpSolverSolutionCallback):
@@ -129,13 +150,14 @@ def layer_order(solver, x, size):
 def main():
     show_progress = "--progress" in sys.argv[1:]
     graph = json.load(sys.stdin)
-    layers, edges = graph["layers"], graph["edges"]
+    layers, chains, edges = graph["layers"], graph["chains"], graph["edges"]
 
     start = time.perf_counter()
-    m, order, order_vars, crossing_vars = build(layers, edges)
+    m, order, reverse, tiebreak, crossing_vars = build(layers, chains, edges)
     if show_progress:
         log(
-            f"{len(order_vars)} order variables, {len(crossing_vars)} crossing candidates; "
+            f"{len(tiebreak)} order and orientation variables, "
+            f"{len(crossing_vars)} crossing candidates; "
             f"solving with {WORKERS} workers"
         )
 
@@ -161,7 +183,11 @@ def main():
     if show_progress:
         log(f"proved optimal in {elapsed:.1f}s: {crossings} crossings")
     orders = [layer_order(solver, x, size) for x, size in zip(order, layers)]
-    json.dump({"status": name, "crossings": crossings, "orders": orders}, sys.stdout)
+    reversed_chains = [list(key) for key, r in reverse.items() if solver.boolean_value(r)]
+    json.dump(
+        {"status": name, "crossings": crossings, "orders": orders, "reversed": reversed_chains},
+        sys.stdout,
+    )
 
 
 if __name__ == "__main__":

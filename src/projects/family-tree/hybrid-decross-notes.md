@@ -79,11 +79,52 @@ live tree's full `computeLayout` takes 6–8s, about 2s of it starting Python
 and building the model.
 
 **Ties.** The objective breaks ties between equally few crossings toward the
-fewest reordered pairs, but that doesn't make every optimum unique. On the
+fewest reordered pairs and reversed chains, but that doesn't make every
+optimum unique. On the
 production fixture and the live tree every solver returned the same ordering,
 and CP-SAT's layout of the live tree matched the stored HiGHS one exactly. On
 the small `kitchenSink` test fixture CP-SAT picks a different ordering from
 HiGHS with the same objective, and picks it consistently across runs.
+
+## What the solve counts: drawn lines, and chain orientation
+
+A layout node is a whole partner chain (a single person, a couple, or a
+longer chain like [ex, person, current]), but the lines are drawn to and from
+the people in it: a child's line leaves its parents' marriage midpoint, or a
+lone parent, and ends at the child's own card. Counting crossings between
+chains, as d3-dag's model does, misses every crossing between two lines that
+end on the same chain. The clearest case is a widower's chain [late wife,
+widower, current wife] with both his parents and hers in the tree: when her
+parents sit right of his, her line crosses his, and only reversing the chain
+removes it. The partner rules fix who sits next to whom in a chain, but a
+chain reads the same either way round, so its orientation is free.
+
+So the model counts crossings between the lines as drawn:
+
+- **Ports.** Each line attaches to a chain at a port, a position along the
+  chain: a person's own place for the child's end, the midpoint of the
+  parents' places for the parents' end. Lines on the same chain and port
+  share an endpoint and never cross each other.
+- **Orientation.** One boolean per chain of two or more members reverses it,
+  flipping the left-to-right order of its ports.
+- **Crossings.** Two lines between adjacent layers cross when their ends are
+  in opposite order at the top and the bottom. Each end's order is an order
+  variable when the ends are on different chains, and the chain's orientation
+  variable (or its negation) when they are on different ports of one chain.
+  So the crossing constraint keeps the same shape as before, and the solve is
+  still a proven optimum, now over the true crossing count.
+
+Where flipping a chain costs no crossing, the orientation is settled after
+placement: whichever way puts the chain's members nearer their own parents.
+`layout/decross.ts` checks the solver's reported count against the drawn
+ordering, and uses the same rule to keep that last step from adding a
+crossing.
+
+On the production fixture, counting crossings between the drawn lines: the
+chain-level model proved 4 crossings between chains, but its layout drew 8;
+this model proves 4 and draws 4, with two chains reversed. The solve still
+proves its optimum in about 0.8s: the orientation variables and the added
+line pairs are few next to the order variables.
 
 ## Reproducing the measurements
 

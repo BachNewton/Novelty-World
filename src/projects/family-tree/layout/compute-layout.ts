@@ -1,13 +1,15 @@
 // The layout pipeline: turns a tree into the card positions and connectors
 // the viewer draws. It runs only on the desktop, in the CLI that writes the
-// row, because its exact crossing minimization is a CP-SAT solve in a Python
-// child process (decross.ts). The page must never import this module.
+// row, because its exact solves run in CP-SAT in a Python child process
+// (decross.ts, coord.ts). The page must never import this module.
 
-import { coordSimplex, graphStratify, sugiyama } from "d3-dag";
-import type { Graph, Layering, Separation } from "d3-dag";
+import { graphStratify, sugiyama } from "d3-dag";
+import type { Graph, Layering, Separation, SugiNode } from "d3-dag";
 import { computeGenerations, currentPartnerIds, formerPartnerIds, isCurrentUnion } from "../logic";
 import type { LaidOutNode, Layout, Tree, Union, UnionStatus } from "../types";
-import { decrossCpSat, type DecrossOptions } from "./decross";
+import { coordWithClearance, type VerticalPiece } from "./coord";
+import { countCrossings, decrossCpSat, portGraph, type ChainPorts, type DecrossSolution } from "./decross";
+import type { SolverOptions } from "./solver-process";
 
 // Wide enough to fit the longest name in the tree on one line
 // (Ruth-Anne "Ruthie" Hutchinson, 29 characters).
@@ -31,20 +33,23 @@ export const SUBTREE_GAP = 72;
 // own marriage lines, each connecting down to the matching spouse.
 //
 // We treat each couple (or singleton person) as a single layer-DAG node and
-// hand it to d3-dag's sugiyama pipeline. d3-dag picks the per-layer ordering
-// that minimizes edge crossings (exactly, see decross.ts) and the per-couple x via a
-// simplex LP that maximizes edge verticality (coordSimplex) — i.e., children
-// land directly under their parents whenever the global ordering allows it.
-// Because the LP solves all layers jointly, the same simplification handles
-// both per-row order and spacing, so descendants of one branch don't end up
-// inside another branch's elbow span.
+// hand it to d3-dag's sugiyama pipeline. The per-layer ordering, and which
+// way round each partner chain is drawn, minimize the crossings between the
+// drawn lines exactly (decross.ts). The per-couple x comes from a simplex LP
+// that maximizes edge verticality (coordSimplex) — i.e., children land
+// directly under their parents whenever the global ordering allows it — with
+// different families' vertical lines kept apart (coord.ts). Because the LP
+// solves all layers jointly, the same simplification handles both per-row
+// order and spacing, so descendants of one branch don't end up inside
+// another branch's elbow span.
 
 interface CoupleUnit {
   id: string;
   // A chain of unions rendered side by side, each union between neighbours:
   // a singleton, a couple, or a longer chain like [her ex, her, him, his ex].
   // Keeping every union adjacent keeps each marriage line short and makes
-  // each child drop emerge from its own parents' marriage midpoint.
+  // each child drop emerge from its own parents' marriage midpoint. This is
+  // the chain's given order; the layout may draw it reversed.
   members: string[];
   generation: number;
   // One status per adjacent marriage line; length == members.length - 1.
@@ -203,23 +208,140 @@ function layeringByGeneration<N extends CoupleData, L>(
 
 const layeringByGenerationOp: Layering<CoupleData, unknown> = layeringByGeneration;
 
-// Hand the couple-DAG to d3-dag's sugiyama pipeline and return the per-couple
-// center x. The crossing minimization is exact (decross.ts); coordSimplex then
-// assigns x via an LP that pulls children under their parents (subject to
-// layer ordering and width/gap constraints). Solver errors propagate:
-// swallowing them would disguise a failed solve as a merely ugly layout.
-function layoutCouplesViaSugiyama(
+// A person's place along their chain, as a port: doubled, so the midpoint of
+// a marriage between neighbours is a whole number too.
+function portOf(couple: CoupleUnit, personId: string): number {
+  return 2 * couple.members.indexOf(personId);
+}
+
+// The x of a person's card center relative to their chain's center, with the
+// chain drawn in the given order.
+function memberOffset(couple: CoupleUnit, sides: readonly string[], personId: string): number {
+  return -coupleWidth(couple) / 2 + NODE_W / 2 + sides.indexOf(personId) * (NODE_W + SPOUSE_GAP);
+}
+
+// Every drawn line between two chains, as (port on the parents' chain, port
+// on the child's chain), keyed by the two chains. A line leaves its parents'
+// marriage midpoint (or a lone parent) and ends at the child's own card.
+// Parents in two different chains are a line from each.
+function chainLines(
+  tree: Tree,
   couples: CoupleUnit[],
+  coupleOf: Map<string, string>,
+): Map<string, Array<[number, number]>> {
+  const coupleById = new Map(couples.map((c) => [c.id, c] as const));
+  const lines = new Map<string, Array<[number, number]>>();
+  for (const child of Object.values(tree.persons)) {
+    const childCouple = coupleById.get(coupleOf.get(child.id) ?? "");
+    if (childCouple === undefined) continue;
+    const parentsByCouple = new Map<string, string[]>();
+    for (const parentId of child.parentIds) {
+      const pc = coupleOf.get(parentId);
+      if (pc === undefined || pc === childCouple.id) continue;
+      parentsByCouple.set(pc, [...(parentsByCouple.get(pc) ?? []), parentId]);
+    }
+    for (const [pc, parentIds] of parentsByCouple) {
+      const parentCouple = coupleById.get(pc);
+      if (parentCouple === undefined) continue;
+      const port = parentIds.reduce((sum, id) => sum + portOf(parentCouple, id), 0) / parentIds.length;
+      const key = `${pc}>${childCouple.id}`;
+      lines.set(key, [...(lines.get(key) ?? []), [port, portOf(childCouple, child.id)]]);
+    }
+  }
+  return lines;
+}
+
+interface SugiyamaResult {
+  centerX: Map<string, number>;
+  // Each chain's members left to right, as drawn.
+  sides: Map<string, string[]>;
+}
+
+// Hand the couple-DAG to d3-dag's sugiyama pipeline and return the per-couple
+// center x and each chain's orientation. The crossing minimization is exact
+// (decross.ts); coordWithClearance then assigns x via an LP that pulls
+// children under their parents (subject to layer ordering and width/gap
+// constraints), re-solved exactly when two families' vertical lines would
+// share a column (coord.ts). Solver errors propagate: swallowing them would
+// disguise a failed solve as a merely ugly layout.
+function layoutCouplesViaSugiyama(
+  tree: Tree,
+  couples: CoupleUnit[],
+  coupleOf: Map<string, string>,
   parentCouplesOf: Map<string, string[]>,
-  options: DecrossOptions,
-): Map<string, number> {
-  if (couples.length === 0) return new Map();
+  options: SolverOptions,
+): SugiyamaResult {
+  if (couples.length === 0) return { centerX: new Map(), sides: new Map() };
   const data: CoupleData[] = couples.map((c) => ({
     id: c.id,
     parentIds: parentCouplesOf.get(c.id) ?? [],
     generation: c.generation,
   }));
+  const coupleById = new Map(couples.map((c) => [c.id, c] as const));
+  const coupleFor = (id: string): CoupleUnit => {
+    const couple = coupleById.get(id);
+    if (couple === undefined) throw new Error(`Layout has no couple ${id}`);
+    return couple;
+  };
+  const coupleOfPerson = (personId: string): CoupleUnit => coupleFor(coupleOf.get(personId) ?? "");
   const widthById = new Map(couples.map((c) => [c.id, coupleWidth(c)] as const));
+
+  const lines = chainLines(tree, couples, coupleOf);
+  const ports: ChainPorts<CoupleData> = {
+    isChain: (node) => coupleFor(node.id).members.length > 1,
+    lines: (source, target) => lines.get(`${source.id}>${target.id}`) ?? [],
+  };
+  const decross = decrossCpSat<CoupleData, unknown>(ports, options);
+
+  const sides = new Map<string, string[]>();
+  // Runs once coordSimplex has placed the chains: settles each chain's
+  // orientation, then lists the vertical pieces of every connector so the
+  // placement can keep different families' pieces apart.
+  const piecesOf = (layers: SugiNode<CoupleData, unknown>[][]): VerticalPiece<CoupleData>[] => {
+    const sugiOf = new Map<string, SugiNode<CoupleData, unknown>>();
+    const layerOf = new Map<string, number>();
+    layers.forEach((layer, L) => {
+      for (const node of layer) {
+        if (node.data.role !== "node") continue;
+        sugiOf.set(node.data.node.data.id, node);
+        layerOf.set(node.data.node.data.id, L);
+      }
+    });
+    const sugiFor = (coupleId: string): SugiNode<CoupleData, unknown> => {
+      const node = sugiOf.get(coupleId);
+      if (node === undefined) throw new Error(`Layout placed no node for couple ${coupleId}`);
+      return node;
+    };
+
+    orientChains(tree, couples, coupleOf, layers, ports, decross.solution(), sugiFor, sides);
+    const sidesOf = (couple: CoupleUnit): string[] => sides.get(couple.id) ?? couple.members;
+    const at = (personId: string): { node: SugiNode<CoupleData, unknown>; offset: number } => {
+      const couple = coupleOfPerson(personId);
+      return { node: sugiFor(couple.id), offset: memberOffset(couple, sidesOf(couple), personId) };
+    };
+    const rowOf = (personId: string): number => layerOf.get(coupleOfPerson(personId).id) ?? 0;
+
+    // Rows and the gaps between them, in quarters of a row pitch: row L
+    // spans [4L, 4L + 2] with its marriage lines at 4L + 1, and the gap below
+    // it spans [4L + 2, 4L + 4]. A drop runs from its parents' marriage line
+    // down to its elbow somewhere in the gap; a descent runs from its elbow
+    // down to its child's row.
+    const pieces: VerticalPiece<CoupleData>[] = [];
+    const drops = new Set<string>();
+    for (const child of Object.values(tree.persons)) {
+      if (child.parentIds.length === 0) continue;
+      const family = [...child.parentIds].sort().join("|");
+      const parentRow = rowOf(child.parentIds[0]);
+      const childRow = rowOf(child.id);
+      if (childRow <= parentRow) continue;
+      if (!drops.has(family)) {
+        drops.add(family);
+        pieces.push({ family, at: child.parentIds.map(at), from: 4 * parentRow + 1, to: 4 * parentRow + 4 });
+      }
+      pieces.push({ family, at: [at(child.id)], from: 4 * parentRow + 2, to: 4 * childRow });
+    }
+    return pieces;
+  };
 
   // d3-dag's chained types narrow to <never, never> when decross/coord run
   // before nodeSize, so we cast the assembled layout to a callable that
@@ -228,17 +350,69 @@ function layoutCouplesViaSugiyama(
   const dag = graphStratify()(data);
   const layout = sugiyama()
     .layering(layeringByGenerationOp)
-    .decross(decrossCpSat(options))
-    .coord(coordSimplex())
+    .decross(decross.decross)
+    .coord(coordWithClearance<CoupleData, unknown>(piecesOf, options))
     .nodeSize((node: { data: CoupleData }) => [
       widthById.get(node.data.id) ?? NODE_W,
       NODE_H,
     ])
     .gap([SUBTREE_GAP, ROW_GAP]) as unknown as (g: typeof dag) => void;
   layout(dag);
-  const result = new Map<string, number>();
-  for (const node of dag.nodes()) result.set(node.data.id, node.x);
-  return result;
+  const centerX = new Map<string, number>();
+  for (const node of dag.nodes()) centerX.set(node.data.id, node.x);
+  return { centerX, sides };
+}
+
+// Which way round each chain is drawn. The solver already chose the
+// orientations that minimize crossings; where flipping a chain costs no
+// crossing, it is drawn whichever way puts its members nearer their own
+// parents. Squared distance, because for a couple it reduces to "the spouse
+// whose parents sit further left goes left".
+function orientChains(
+  tree: Tree,
+  couples: CoupleUnit[],
+  coupleOf: Map<string, string>,
+  layers: SugiNode<CoupleData, unknown>[][],
+  ports: ChainPorts<CoupleData>,
+  solution: DecrossSolution<CoupleData>,
+  sugiFor: (coupleId: string) => SugiNode<CoupleData, unknown>,
+  sides: Map<string, string[]>,
+): void {
+  const reversed = new Set(solution.reversed);
+  const graph = portGraph(layers, ports);
+  const crossings = (): number => countCrossings(graph, (L, i) => reversed.has(layers[L][i]));
+
+  const idealFor = (memberId: string): number | null => {
+    const xs = tree.persons[memberId].parentIds
+      .map((pid) => coupleOf.get(pid))
+      .filter((id): id is string => id !== undefined)
+      .map((cid) => sugiFor(cid).x);
+    if (xs.length === 0) return null;
+    return xs.reduce((s, x) => s + x, 0) / xs.length;
+  };
+
+  for (const couple of couples) {
+    if (couple.members.length < 2) continue;
+    const node = sugiFor(couple.id);
+    const leftX = node.x - coupleWidth(couple) / 2;
+    const slotX = (i: number): number => leftX + i * (NODE_W + SPOUSE_GAP) + NODE_W / 2;
+    const cost = (order: readonly string[]): number =>
+      order.reduce((sum, id, i) => {
+        const ideal = idealFor(id);
+        return ideal === null ? sum : sum + (slotX(i) - ideal) ** 2;
+      }, 0);
+    const toggle = (): void => {
+      if (reversed.has(node)) reversed.delete(node);
+      else reversed.add(node);
+    };
+    const drawn = (): string[] =>
+      reversed.has(node) ? [...couple.members].reverse() : [...couple.members];
+    if (cost([...drawn()].reverse()) < cost(drawn())) {
+      toggle();
+      if (crossings() > solution.crossings) toggle();
+    }
+    sides.set(couple.id, drawn());
+  }
 }
 
 // ---------- Elbow row packing ----------
@@ -287,7 +461,7 @@ export function packElbowRows(
   return { rowIndexByKey, rowCount: rowMaxRight.length };
 }
 
-export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout {
+export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
   const order = bfsOrder(tree);
   const gen = computeGenerations(tree);
   const { couples, coupleOf } = buildCoupleUnits(tree, order, gen);
@@ -308,20 +482,14 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
     parentCouplesOf.set(couple.id, parents);
   }
 
-  // Inverse: for each couple, the child couples it produced.
-  const childCouplesOf = new Map<string, string[]>();
-  for (const couple of couples) childCouplesOf.set(couple.id, []);
-  for (const couple of couples) {
-    for (const pcId of parentCouplesOf.get(couple.id) ?? []) {
-      const list = childCouplesOf.get(pcId);
-      if (list !== undefined && !list.includes(couple.id)) {
-        list.push(couple.id);
-      }
-    }
-  }
-
   const layered = buildLayered(couples);
-  const rawCenterX = layoutCouplesViaSugiyama(couples, parentCouplesOf, options);
+  const { centerX: rawCenterX, sides: spouseSideOrder } = layoutCouplesViaSugiyama(
+    tree,
+    couples,
+    coupleOf,
+    parentCouplesOf,
+    options,
+  );
 
   // Translate so the leftmost couple's left edge sits at x = 0.
   let minLeftEdge = Infinity;
@@ -365,119 +533,12 @@ export function computeLayout(tree: Tree, options: DecrossOptions = {}): Layout 
     if (!arr.includes(key)) arr.push(key);
   }
 
-  // Filled in after node X positions are finalized — the elbow-row packer
-  // needs bar X-intervals, which depend on the child-reorder pass below.
+  // Filled in further below — the elbow-row packer needs bar X-intervals,
+  // measured from each person's final center column.
   const yByGen = new Map<number, number>();
   const yFor = (g: number): number => yByGen.get(g) ?? 0;
 
   const layout: Layout = { nodes: [], edges: [], width: 0, height: 0 };
-
-  // Within-chain ordering: a chain reads the same either way round, so keep
-  // or reverse it, whichever puts members nearer their own parents. Doesn't
-  // affect couple-level crossings but shortens the parent→spouse drops.
-  // Squared distance, because for a couple it reduces to "the spouse whose
-  // parents sit further left goes left", which keeps their drops uncrossed.
-  const idealFor = (memberId: string): number | null => {
-    const xs = tree.persons[memberId].parentIds
-      .map((pid) => coupleOf.get(pid))
-      .filter((id): id is string => id !== undefined)
-      .map((cid) => centerX.get(cid))
-      .filter((x): x is number => x !== undefined);
-    if (xs.length === 0) return null;
-    return xs.reduce((s, x) => s + x, 0) / xs.length;
-  };
-  const spouseSideOrder = new Map<string, string[]>();
-  for (const couple of couples) {
-    const leftX = (centerX.get(couple.id) ?? 0) - coupleWidth(couple) / 2;
-    const slotX = (i: number): number =>
-      leftX + i * (NODE_W + SPOUSE_GAP) + NODE_W / 2;
-    const cost = (sides: readonly string[]): number =>
-      sides.reduce((sum, id, i) => {
-        const ideal = idealFor(id);
-        return ideal === null ? sum : sum + (slotX(i) - ideal) ** 2;
-      }, 0);
-    const reversed = [...couple.members].reverse();
-    spouseSideOrder.set(
-      couple.id,
-      cost(reversed) < cost(couple.members) ? reversed : [...couple.members],
-    );
-  }
-
-  // Marriage-aware child reordering. Within each parent couple/cluster, sort
-  // children by which marriage produced them so blended families read
-  // correctly: e.g. for [Maya, Gary, Marta], Maya's-side kids on the left,
-  // Maya+Gary shared kids next, then Gary+Marta shared, then Marta's-side.
-  // Rank is the average index of the child's bio parents within the parent
-  // cluster's member array, so each marriage's kids sit under it. Limited to leaf children — translating non-leaf subtrees risks
-  // descending crossings, which the full marriage-as-DAG refactor handles
-  // properly.
-  const coupleById = new Map(couples.map((c) => [c.id, c] as const));
-  for (const parent of couples) {
-    if (parent.members.length < 2) continue;
-    const childIds = childCouplesOf.get(parent.id) ?? [];
-    if (childIds.length < 2) continue;
-    const sides = spouseSideOrder.get(parent.id);
-    if (!sides || sides.length < 2) continue;
-    const allLeaves = childIds.every(
-      (cid) => (childCouplesOf.get(cid) ?? []).length === 0,
-    );
-    if (!allLeaves) continue;
-
-    const memberIndex = new Map(sides.map((id, i) => [id, i] as const));
-    const rankOf = (cid: string): number => {
-      const child = coupleById.get(cid);
-      if (child === undefined) return 0;
-      const indices: number[] = [];
-      for (const memberId of child.members) {
-        for (const pid of tree.persons[memberId].parentIds) {
-          const idx = memberIndex.get(pid);
-          if (idx !== undefined) indices.push(idx);
-        }
-      }
-      if (indices.length === 0) return 0;
-      return indices.reduce((s, i) => s + i, 0) / indices.length;
-    };
-    const rankByChild = new Map<string, number>(
-      childIds.map((cid) => [cid, rankOf(cid)] as const),
-    );
-
-    const oldByX = [...childIds].sort(
-      (a, b) => (centerX.get(a) ?? 0) - (centerX.get(b) ?? 0),
-    );
-    const sortedChildren = [...childIds].sort((a, b) => {
-      const diff = (rankByChild.get(a) ?? 0) - (rankByChild.get(b) ?? 0);
-      if (diff !== 0) return diff;
-      // Stable within a rank: preserve sugiyama's left-to-right order.
-      return (centerX.get(a) ?? 0) - (centerX.get(b) ?? 0);
-    });
-    let unchanged = true;
-    for (let i = 0; i < oldByX.length; i++) {
-      if (oldByX[i] !== sortedChildren[i]) {
-        unchanged = false;
-        break;
-      }
-    }
-    if (unchanged) continue;
-
-    // Re-pack the siblings left-to-right in the new order. Earlier code
-    // permuted the existing center-x values among siblings, which silently
-    // broke spacing whenever the swapped children had different couple
-    // widths (e.g. a singleton getting the slot of a 3-member cluster):
-    // the destination position was sized for the original occupant, so the
-    // new one either overlapped its neighbor or left a giant gap.
-    let cursor = Math.min(
-      ...oldByX.map((id) => {
-        const c = coupleById.get(id);
-        return (centerX.get(id) ?? 0) - (c ? coupleWidth(c) : NODE_W) / 2;
-      }),
-    );
-    for (const cid of sortedChildren) {
-      const c = coupleById.get(cid);
-      const w = c ? coupleWidth(c) : NODE_W;
-      centerX.set(cid, cursor + w / 2);
-      cursor += w + SUBTREE_GAP;
-    }
-  }
 
   // Now that centerX is final, compute each person's center column. This
   // feeds the elbow-row packer below, which measures each parent set's

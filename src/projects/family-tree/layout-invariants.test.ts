@@ -6,10 +6,12 @@
 // the exact solve on its full size takes a few seconds.
 
 import { beforeAll, describe, it, expect } from "vitest";
+import { parentChildPaths } from "./edge-geometry";
+import { LINE_CLEARANCE } from "./layout/coord";
 import { computeLayout } from "./layout/compute-layout";
 import { currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
-import { NAMED_FIXTURES } from "./__fixtures__/trees";
+import { NAMED_FIXTURES, widowerWithInLaws } from "./__fixtures__/trees";
 
 interface Couple {
   members: string[]; // [a] or [a, b]
@@ -41,6 +43,57 @@ function rectsOverlap(a: LaidOutNode, b: LaidOutNode): boolean {
   const xOverlap = !(a.x + a.w <= b.x || b.x + b.w <= a.x);
   const yOverlap = !(a.y + a.h <= b.y || b.y + b.h <= a.y);
   return xOverlap && yOverlap;
+}
+
+// The vertical pieces of every parent-child connector: each family's drop
+// from its parents, and each child's descent from the elbow row.
+interface VerticalSegment {
+  family: string;
+  label: string;
+  x: number;
+  top: number;
+  bottom: number;
+}
+
+function verticalSegments(layout: Layout): VerticalSegment[] {
+  const pathOf = parentChildPaths(layout);
+  const segments: VerticalSegment[] = [];
+  for (const edge of layout.edges) {
+    if (edge.kind !== "parent-child") continue;
+    const path = pathOf(edge);
+    if (path === null) throw new Error(`no path for ${edge.childId}'s line`);
+    const [dropTop, elbowAtDrop, elbowAtChild, childTop] = path;
+    const family = [edge.parentAId, edge.parentBId ?? ""].sort().join("|");
+    segments.push(
+      { family, label: `the drop from ${family}`, x: dropTop.x, top: dropTop.y, bottom: elbowAtDrop.y },
+      { family, label: `the descent to ${edge.childId}`, x: childTop.x, top: elbowAtChild.y, bottom: childTop.y },
+    );
+  }
+  return segments;
+}
+
+// Pairs of parent-child lines between the same two rows that cross: one
+// leaves its parents left of the other's but reaches its child right of it.
+function lineCrossings(layout: Layout): Array<[string, string]> {
+  const pathOf = parentChildPaths(layout);
+  const lines = layout.edges.flatMap((edge) => {
+    if (edge.kind !== "parent-child") return [];
+    const path = pathOf(edge);
+    if (path === null) throw new Error(`no path for ${edge.childId}'s line`);
+    const top = path[0];
+    const bottom = path[path.length - 1];
+    return [{ child: edge.childId, top, bottom }];
+  });
+  const crossings: Array<[string, string]> = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const a = lines[i];
+      const b = lines[j];
+      if (a.top.y !== b.top.y || a.bottom.y !== b.bottom.y) continue;
+      if ((a.top.x - b.top.x) * (a.bottom.x - b.bottom.x) < 0) crossings.push([a.child, b.child]);
+    }
+  }
+  return crossings;
 }
 
 export function defineLayoutInvariants(name: string, build: () => Tree): void {
@@ -101,6 +154,24 @@ export function defineLayoutInvariants(name: string, build: () => Tree): void {
           throw new Error(
             `${name}: ${other.id} sits between spouses ${aId} and ${bId}`,
           );
+        }
+      }
+    }
+  });
+
+  it("never runs two families' vertical lines down the same column", () => {
+    // Two families' lines on one column read as one family: a married-in
+    // spouse under their in-laws' drop looks like one more of their children.
+    const segments = verticalSegments(layout);
+    for (let i = 0; i < segments.length; i++) {
+      for (let j = i + 1; j < segments.length; j++) {
+        const a = segments[i];
+        const b = segments[j];
+        if (a.family === b.family) continue;
+        const sameColumn = Math.abs(a.x - b.x) < LINE_CLEARANCE;
+        const spansMeet = a.top <= b.bottom && b.top <= a.bottom;
+        if (sameColumn && spansMeet) {
+          throw new Error(`${name}: ${a.label} and ${b.label} share the column at x=${a.x}`);
         }
       }
     }
@@ -170,3 +241,12 @@ describe.each(Object.entries(NAMED_FIXTURES))(
     defineLayoutInvariants(name, build);
   },
 );
+
+describe("chain orientation", () => {
+  it("draws a chain the way round that keeps its members' lines from crossing", () => {
+    // Drawn as [late wife, widower, new wife], the late wife's parents' line would cross
+    // The widower's parents' line; reversed, nothing crosses.
+    const layout = computeLayout(widowerWithInLaws());
+    expect(lineCrossings(layout)).toEqual([]);
+  });
+});
