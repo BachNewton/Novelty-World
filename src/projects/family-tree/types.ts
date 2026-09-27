@@ -89,7 +89,7 @@ export interface Person {
   research: Research;
   // Where this person's line came from, as far as the records say, split
   // equally. It only fills the part of their mix their parents leave
-  // unknown; empty means no entry. A research aid, never shown on the cards.
+  // unknown; empty means no entry. The cards show the derived mix.
   heritage: HeritageEntryCode[];
   gender: Gender;
   parentIds: string[];

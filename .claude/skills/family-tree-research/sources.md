@@ -18,21 +18,12 @@ in the tree row must be public-safe (see "The research record" in
   - Many queries return a summary instead of snippets. When the wording
     matters, ask WebFetch to reproduce the family sentences word for word:
     its default summary mangles relationships (a spouse listed as a sibling).
-- **Chrome DevTools MCP** (`mcp__chrome-devtools__*`): drives the owner's own
-  Chrome, with their logins. Use it for login-gated or JavaScript-heavy sites
-  (FamilySearch) and for sites that return 403 to WebFetch. Several agents
-  can share it at once: each opens its own tab with `new_page` (in the
-  background) and passes that tab's `pageId` on every call. Never call
-  `select_page`, never touch a tab you didn't open, and close yours when
-  done. Keep each agent's pace polite: every tab uses the same account.
-  - **Read pages with `evaluate_script`**, returning the main region's
-    `innerText` (or one line per result row). A snapshot of a results page
-    runs to tens of kilobytes; a script reading the rows costs a tenth.
-  - **Wait for an event, never a delay**: a script that resolves when the
-    page's ready marker appears (see FamilySearch below for its markers).
-  - Never call a site's private JSON API with the session's token: the
-    permission classifier blocks it as credential access. Use the normal
-    search URLs and read the rendered page.
+- **Chrome DevTools MCP**: the owner's own Chrome, with their logins. How and
+  when to use it is in the owner's global instructions. Use it for
+  login-gated or JavaScript-heavy sites (FamilySearch) and for sites that
+  return 403 to WebFetch. Several agents can share it, each in its own tab;
+  keep each agent's pace polite, since every tab uses the same account.
+  FamilySearch's page-ready markers are below.
 
 ## FamilySearch
 
@@ -46,7 +37,9 @@ ages, birthplaces, parents' birthplaces, arrival years) and **Ohio county
 marriage cards** (both sets of parents); the **search page works for the 1950
 census only** (add `&count=50`). NUMIDENT, SSDI, death indexes,
 naturalization, obituary indexes and some marriage pages show the sign-in
-wall. Try a known ark by WebFetch before queuing it for the browser.
+wall. Try a known ark by WebFetch before queuing it for the browser. The
+browser's login state can change mid-session: before logging a null, check
+the page for the "sign in to see all available results" banner.
 
 **Search URL** (`/en/search/record/results?...`). Fields: `q.givenName`,
 `q.surname`, `q.spouseGivenName` / `q.spouseSurname`, `q.fatherGivenName` /
@@ -69,8 +62,15 @@ wall. Try a known ark by WebFetch before queuing it for the browser.
   A script that reads the count as soon as the heading appears reports false
   nulls. Wait until a row with a record link appears, or "No Results Found";
   "Results per page" also marks a loaded page.
-- Rows split on `"\nMore\n"` in the main region's text; the ark ids come from
-  `main a[href*="/ark:/61903/1:1:"]` in the same order.
+- Read each result row from its own element: the row containing each
+  `a[href*="/ark:/61903/1:1:"]`, its text and ark together. Pairing the page
+  text split on "More" with a page-wide list of ark links misaligns when a
+  row carries an extra link, and has sent agents to the wrong record.
+- Read a census record's "Event Place (Original)": the indexed place can be
+  the wrong county.
+- The **FamilySearch Family Tree** (profiles others built) is a fast map to
+  the right records, never evidence. **Full-text search** returns millions of
+  loose matches for quoted names: no use.
 - Record pages render details late: wait for the "Event Type" field (or
   "Similar Records") in the main region. "OPEN ALL" expands relatives.
 - The results row shows only the main name; open the record for aliases.
@@ -93,9 +93,12 @@ wall. Try a known ark by WebFetch before queuing it for the browser.
   "Entry for X and Y") can carry a married name no other source records.
   Covers deaths to about 2007, with many 1970s deaths missing (use SSDI and a
   state death index instead).
+- **Ohio Deaths 1908–1953**: the death certificates themselves, with both
+  parents, full birth date and birthplace. Record pages fetch with WebFetch.
+  The fastest way to climb Ohio generations born 1830–1880.
 - **Ohio Death Index** (1908–1932, 1938–1944, 1958–2007): parents' surnames,
   birthplace and **marital status** ("Single" = never married, which settles
-  a partners half).
+  a partners half). Not every entry carries parents (a 1970 entry had none).
 - **SSDI, other death indexes**: dates; no relatives, so pair with something
   that ties identity. They outrank a grave site's year when the two disagree.
 - **Ohio, Stillbirths 1918–1953**: unnamed children with both parents. Each
@@ -107,7 +110,14 @@ wall. Try a known ark by WebFetch before queuing it for the browser.
   mother's birth surname, so a search by it finds a couple's children.
   Useful but weak alone.
 - **Ohio, Naturalization Records 1848–1951**: exact date and town of birth
-  abroad, which no census gives; outweighs a census birthplace.
+  abroad, which no census gives; outweighs a census birthplace. It names the
+  spouse, which ties identity. For Levant immigrants the town settles a
+  census "Syria": map the town to its present-day country.
+- **GenealogyBank obituary index**: its parent and relationship fields are
+  unreliable (a sister's name given as the mother's). Check against the
+  siblings' NUMIDENTs.
+- **Hungary Civil Registration 1895–1980**: births, marriages, deaths; search
+  the native name forms.
 - **WWII draft cards**: exact birth date and town, plus a contact person
   (often a parent or sibling) that ties the card to the family.
 - **Church baptism records**: date of birth and parents.
@@ -156,7 +166,8 @@ wall. Try a known ark by WebFetch before queuing it for the browser.
     site-wide search ignores its location parameter when fetched.
   - Rate limit: HTTP 429 after about six quick fetches; batch about four at a
     time and retry after a pause.
-- **BillionGraves**: seen only through its FamilySearch index.
+- **BillionGraves**: seen only through its FamilySearch index, where its
+  cemetery places are right when Find a Grave's index places are wrong.
 
 ## Obituaries
 
@@ -196,8 +207,15 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
 - **Cuyahoga County Probate Court marriage search**: refused the connection
   (both hosts).
 - **West Virginia Vital Research Records** (`archive.wvculture.org/vrr`):
-  ASP.NET postback forms that WebFetch can't submit; needs the browser. Its
-  death records likely stop before the late 1970s.
+  works in the browser. Results come from plain GET URLs
+  (`va_dcresults.aspx?LastName=X&FirstName=&County=C&Year=Y&PlusMinus=Exact&Search=Exact&NumRec=100`);
+  a certificate image from `va_view.aspx?Id=N&Type=Death`. The image won't
+  download on its own (it needs a referrer); screenshot the viewport, pinning
+  the `<img>` with `position:fixed` and stepping its `top` to read it in
+  pieces. The certificates give informant, spouse, full birth date and
+  birthplaces, which the FamilySearch index lacks. Wildcard first names
+  (`Ph*`) return false "no records": search surname, county and year. Deaths
+  after 1972 are closed.
 
 ## People-search sites
 

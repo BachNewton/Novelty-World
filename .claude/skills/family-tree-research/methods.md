@@ -53,7 +53,28 @@ in `sources.md`.
   surname was transcribed. Sibling names come from birth records and
   NUMIDENTs naming the same parents.
 - **A rare surname:** an exact-surname search with the state as the place
-  shows every indexed record of it there.
+  shows every indexed record of it there, across collections (censuses,
+  NUMIDENTs, obituary indexes, draft cards). With a birth-year range and no
+  given name, it returns the whole cohort, including obituary entries where
+  a sister appears only under her married name.
+- **A surname misindexed in a census** (one letter changed) empties every
+  exact-surname search. Search a sibling's given name plus the father's given
+  name plus the county, with no surname.
+- **A child missing under the birth surname** may sit in a stepfather's
+  household under his. Search the mother under a later married surname; a
+  FamilySearch Family Tree profile's source list can show it (a lead only).
+- **A married woman's parents:** a later remarriage record often names them
+  when her first marriage record doesn't.
+- **Search the target's married name with a death-year range** to surface
+  sibling obituaries that list them; the record page's "Other people on this
+  record" names the parents even when the indexed relationships are garbled.
+- **A search with only parent-name fields and a collection filter can come
+  back falsely empty** (NUMIDENT did). Search by the child's name instead.
+- **Foreign civil registration** finds an immigrant's family by the native
+  forms of their names (Andrew as András, Margaret as Margit), surnames in
+  their native spelling too.
+- **Let the obituary's birthplace drive the search.** Nulls from searching an
+  assumed birth state aren't nulls.
 
 ## Finding all children of a couple
 
@@ -140,7 +161,8 @@ age 24 on 20 March 1976 means born 21 March 1951 to 20 March 1952, so mostly
 
 ## Finding a line's origin
 
-From records about people already in the tree; research adds no ancestors.
+Climb from the line's top person until someone was born abroad. Each
+generation needs its own tie (see "Adding an ancestor" in `standards.md`).
 
 1. Find the earliest in-tree person of the line (no parents in the tree).
 2. **Their census entries, 1880–1950.** Every census from 1880 to 1930 gives
@@ -161,8 +183,9 @@ From records about people already in the tree; research adds no ancestors.
    country still settle the question.
 6. **Map the place** to the present-day country that contains it; a county
    or town goes in notes as the record words it.
-7. **Both parents US-born:** the origin lies above the tree. Record the
-   question as Exhausted, and note where the parents were born, which is
-   where research above the tree would look.
+7. **Both parents US-born:** the origin lies above the tree. Add the
+   parents (their tie per `standards.md`) and repeat from step 2 for each.
+   Stop at someone born abroad, or when the records run out (then Exhausted,
+   the note saying where each line stopped).
 8. **Enter it on that person**; descendants derive theirs. Then run
    `superseded`.

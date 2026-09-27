@@ -201,8 +201,8 @@ family (last). May be Exhausted without a family answer, as above.
 
 ## heritage: where the line came from
 
-Asked only of in-scope people with no parents in the tree. Research uses only
-records about people already in the tree: no new ancestors.
+Asked only of in-scope people with no parents in the tree. When the origin
+lies above the tree, climb (see "Adding an ancestor" below) rather than stop.
 
 **Confirmed** when a record tied to the person or to an in-tree descendant
 gives the origin:
@@ -214,8 +214,16 @@ gives the origin:
   foreign birthplace of the person or their parents.
 
 The place maps to the present-day country containing it. If the person and
-both parents were born in the US, the origin lies above the tree: that is not
-a Confirmed "US", it is Exhausted, with the note saying so.
+both parents were born in the US, the origin lies above the tree: add the
+parents and climb. It is never a Confirmed "US"; only when the climb runs out
+of records is it Exhausted, with the note saying where it stopped.
+
+**When records disagree on a birthplace,** the one the person gave
+themselves (a naturalization, a draft card) outweighs one an informant gave
+after their death (a death certificate, an obituary), and both outweigh a
+census, which can be plainly wrong (a parent put in the wrong country). A
+census "Syria" before about 1920 can't be mapped until a record names the
+town.
 
 ### Dead
 
@@ -234,6 +242,33 @@ a Confirmed "US", it is Exhausted, with the note saying so.
 **May be Exhausted without a family answer** once steps 1–5 are done; family
 lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
 
+### Adding an ancestor
+
+The identity rule applies to every generation. A parent is added only when a
+record ties them to the child already in the tree:
+
+- a record made to name the person's parents: death certificate, NUMIDENT, a
+  marriage or remarriage record, a birth record, a naturalization naming the
+  spouse;
+- a census household whose names and ages match the family, tied to the
+  in-tree person by one of the above or by a second household;
+- a sibling's records naming the same parents, when the in-tree person is
+  tied to that sibling (a sibling's obituary naming them, even by married
+  name, together with a matching census household and a surname on the
+  person's own record);
+- the same exact birth date and place on the person's own records (birth
+  record, draft card, death certificate), when one of them names the parents
+  and a census household agrees. The weakest accepted tie: say so in the
+  research log.
+
+A death certificate's parents come from an informant, usually a child, who
+can be wrong (a son naming his own mother as his father's mother): check
+them against a census household.
+
+**Census ages that disagree:** a stated birth month and year (1900 census)
+outranks an age (other years); with only ages that disagree, leave the birth
+year Open.
+
 ### Living
 
 Heritage for a living adult, married-in or not, comes from records like
@@ -244,5 +279,7 @@ a marriage record), or "per Kyle".
 
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
 record (a marriage after about 2000 is too recent to be indexed, so that step
-counts as done), then ask Kyle / family (last). **May be Exhausted without a family
+counts as done), then ask Kyle / family (last). With the birth surname unknown
+and a birth year that may be before 1950, the census step can't run: the
+question stays Open, out to family. **May be Exhausted without a family
 answer**, like birth years: heritage adds no connection.
