@@ -175,6 +175,28 @@ is in `methods.md` ("Finding a line's origin").
   - The record page's "Event Place" often says only "Magyarország". The
     register's town is in the image viewer's title (for example "Kéthely.
     Death Certificates 1934–1962").
+  - Check a place's volume list in the FamilySearch Catalog before logging
+    a missing civil record as a null: a village's registers may be filmed
+    only in part (for example deaths 1895–1906 and 1947–48, nothing
+    between), and a year outside the filmed volumes is a coverage gap.
+  - "Néhai" (the late) before a parent's name in a civil marriage entry
+    dates that parent's death: a child's later marriage without it shows
+    the parent was still alive.
+- **Hungary Catholic and Greek Catholic church books** (before 1895, and
+  often later): mostly unindexed images, reached through the Catalog's place
+  search and the film viewer. A village can keep its own Greek Catholic
+  register apart from its Roman Catholic mother parish. A mixed-rite couple
+  often married in the bride's church and baptised their children in the
+  other, so search both rites' books.
+- **Reading a film image:** on your own tab, emulate a large viewport (about
+  1800×1400), type the image number into the viewer, close the index panel,
+  zoom with the viewer's buttons and screenshot. Jumping by image number
+  changes the URL to that image's own `3:1:` id: cite that. The same page
+  can be filmed twice.
+- **Never call FamilySearch's internal endpoints** (film data, image tiles)
+  with the session token: that is using a site's private API with the
+  owner's session, which the owner's rules forbid. Read everything through
+  the normal viewer.
 - **"Public Records 1970–2009" / "Residence Database"**: people-search
   quality; exact dates but often wrong or merged. The record page's Alias
   field can show a birth surname or a full two-part surname. Leads only; an
