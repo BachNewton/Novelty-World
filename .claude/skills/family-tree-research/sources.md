@@ -5,6 +5,11 @@ it. Rewrite an entry whenever a source stops behaving as described. A citation
 in the tree row must be public-safe (see "The research record" in
 `SKILL.md`); the full URL goes in the research log.
 
+**Free sources only.** The owner pays for nothing: no subscriptions, memberships
+or paid tiers. A source that needs one is out of reach; never suggest it.
+Free access in person counts: the owner lives in Helsinki, with a Helmet
+library card, and can visit the National Library of Finland's reading room.
+
 ## Tools
 
 - **WebSearch / WebFetch**: obituaries, grave records, funeral homes, public
