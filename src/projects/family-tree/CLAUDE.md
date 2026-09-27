@@ -2,7 +2,12 @@
 
 ## Purpose
 
-A deliberately simple, practical tree that answers one question: "how does this person, whom I know by this name, relate to me or to another family member?" It is not a genealogy app. A feature earns its place by serving that question, or by fixing data the tree otherwise can't represent correctly.
+A tree that serves two aims, and a feature earns its place by serving one of them, or by fixing data the tree otherwise can't represent correctly:
+
+1. **Connection:** answer "how does this person, whom I know by this name, relate to me or to another family member?"
+2. **Story:** let the owner learn the story of their people, all of them, however they connect: where each line came from, how the world changed around it through time, and the cultures and identities it carried. Heritage exists for this aim.
+
+It is still not a genealogy app: the story is told simply, from evidence, not as a database of records.
 
 The split between the UI and the data layer matters:
 
@@ -60,6 +65,8 @@ The browser app is a read-only viewer: there is no edit UI. All edits are AI-dri
 The owner wants as few approval requests as possible. When research finds evidence for a change and confidence is high, make the change with the CLI and report it afterwards. High confidence includes a near-certain inference from records: a divorce implied because both spouses remarried while alive, a birth surname from a marriage record that names the parents. Record the evidence in `research/` either way.
 
 Research method and record keeping (the research standards, the research record, data-layer fields that only research reads) serve Claude's research, not how the owner explores the tree. Decide those and report what changed; the owner's say is over what the UI shows.
+
+The same goes for modelling and interpretation questions the owner finds hard to call: how heritage is classified, what counts as a line's origin, how the story is structured. Decide them against the two aims above, write the decision and its reasoning into the relevant doc, and report it; the owner judges the result rather than setting the rule up front.
 
 Ask first only when:
 

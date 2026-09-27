@@ -260,6 +260,13 @@ When records disagree, the field holds the stronger record's version (see
 "When records disagree on a birthplace" above) and the conflict goes in the
 notes. A fact read but not recorded is research that will have to be redone.
 
+**Cultural markers** go in the research log, and briefly in notes, whenever
+a record shows them: the church or congregation a family belonged to, the
+language of a newspaper, gravestone or record, a community (a Finnish
+cooperative, an ethnic parish), and family lore about where the family came
+from. They are how a line's people is judged later (see the design in
+`src/projects/family-tree/ideas/heritage-through-time.md`).
+
 ### Adding an ancestor
 
 The identity rule applies to every generation. A parent is added only when a

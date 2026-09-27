@@ -145,13 +145,40 @@ are added only where a record gives them.
 4. **The story panel:** the Heritage section and the first era paragraphs,
    for the peoples already in the tree.
 
-## For the owner to decide
+## A line's journey, and when a place becomes heritage
 
-1. The three layers, and a people (with an optional region) as what a
-   heritage entry names.
-2. Which year picks the symbol: the person's birth year (recommended) or
-   "as carried".
-3. The rule that a people's symbol is its own, never an imposing regime's,
-   including for the 1933–1945 German case.
-4. The story panel: whether it belongs in the person panel or a page of its
-   own.
+There is no number of generations after which a place becomes a family's
+heritage: it differs by family, by place and by era. So the tree doesn't
+apply a threshold. It records the journey instead: each generation's
+birthplace, which the tree already holds once research climbs a line. A
+line reads as a path with durations ("Germany until about the 1750s,
+Pennsylvania for about 150 years, then Ohio"), and the story panel tells it
+that way.
+
+What makes a place more than a stop on the way is culture, not time: a
+distinct people formed or kept there, with its own language, church or
+community. The Pennsylvania Dutch kept a German dialect for two centuries;
+French Canadians, Acadians and the Métis are peoples of their own. A place
+becomes a heritage entry only as such a people, and only when the evidence
+shows it: a mother tongue, a congregation, a gravestone's language, family
+lore the owner vouches for. A birth in a settler country (the US, Canada) is
+never an origin on its own; research climbs past it.
+
+## Decisions
+
+Made against the project's two aims (connection, and the story of the
+owner's peoples); the owner judges the result.
+
+1. **A heritage entry names a people, with an optional region.** Cultural
+   origin outlasts borders, which is what the story needs; a region covers
+   the eras before nation-states. The list grows whenever the evidence names
+   a people not yet in it.
+2. **A card's symbol follows that person's own birth year.** It shows how
+   the world changed around each generation, which is the point of the
+   story aim; "as carried" would freeze it.
+3. **A people's symbol is its own, never a regime's imposed on it,**
+   including German lines born 1933–1945, who show the black-red-gold.
+4. **The story lives in the person panel's Heritage section,** not a page of
+   its own: it stays one click from the tree, and the tree stays the way in.
+5. **Journeys, not thresholds** (above): the displayed heritage of a line is
+   its earliest known people; the story panel shows the whole path.
