@@ -7,7 +7,6 @@ import {
   addChild,
   addParent,
   addSpouse,
-  birthDateProblem,
   deletePerson,
   GENDER_CYCLE,
   formatShare,
@@ -16,6 +15,8 @@ import {
   heritageBreakdowns,
   heritageProblem,
   linkParent,
+  ORIGIN_KEYS,
+  partialDateProblem,
   renamePerson,
   RESEARCH_QUESTIONS,
   RESEARCH_STATUSES,
@@ -24,6 +25,7 @@ import {
   setGender,
   setHeritage,
   setNotes,
+  setOrigin,
   setResearch,
   setUnionDeceased,
   setUnionStatus,
@@ -32,6 +34,7 @@ import {
 import type {
   Gender,
   NameFields,
+  OriginFields,
   Person,
   ResearchQuestion,
   ResearchRecord,
@@ -76,6 +79,9 @@ export type Op =
   // Codes from heritages.ts, plus "unknown", split equally; [] removes the
   // entry.
   | { op: "setHeritage"; person: PersonRef; heritage: HeritageEntryCode[] }
+  // Sets the origin fields given, at least one, leaving the rest; "" clears
+  // one. `emigrationDate` is shaped like a birth date.
+  | ({ op: "setOrigin"; person: PersonRef } & Partial<OriginFields>)
   | {
       op: "addChild";
       ref?: string;
@@ -86,6 +92,7 @@ export type Op =
       gender: Gender;
       birthDate?: string;
       heritage?: HeritageEntryCode[];
+      origin?: Partial<OriginFields>;
     }
   | {
       op: "addSpouse";
@@ -98,6 +105,7 @@ export type Op =
       bioChildren: PersonRef[];
       birthDate?: string;
       heritage?: HeritageEntryCode[];
+      origin?: Partial<OriginFields>;
     }
   | {
       op: "addParent";
@@ -107,6 +115,7 @@ export type Op =
       gender: Gender;
       birthDate?: string;
       heritage?: HeritageEntryCode[];
+      origin?: Partial<OriginFields>;
     }
   // Makes an existing person a parent of an existing child.
   | { op: "linkParent"; child: PersonRef; parent: PersonRef }
@@ -139,27 +148,40 @@ type FieldKind =
   | "sources"
   | "text"
   | "fullDate"
-  | "birthDate"
-  | "birthDate?"
+  | "text?"
+  | "partialDate"
+  | "partialDate?"
   | "heritage"
   | "heritage?"
+  | "origin?"
   | "ref?";
+
+// Each origin field, as both setOrigin and a new person's `origin` take it.
+const ORIGIN_FIELDS = {
+  birthPlace: "text?",
+  birthPlaceToday: "text?",
+  emigrationDate: "partialDate?",
+  motherTongue: "text?",
+  recordedPeople: "text?",
+} as const satisfies Record<keyof OriginFields, FieldKind>;
 
 const OP_FIELDS = {
   rename: { person: "person", name: "name" },
   setGender: { person: "person", gender: "gender" },
   setNotes: { person: "person", notes: "text" },
   appendNote: { person: "person", note: "text" },
-  setBirthDate: { person: "person", birthDate: "birthDate" },
+  setBirthDate: { person: "person", birthDate: "partialDate" },
   setHeritage: { person: "person", heritage: "heritage" },
+  setOrigin: { person: "person", ...ORIGIN_FIELDS },
   addChild: {
     ref: "ref?",
     parent: "person",
     coParent: "personOrNull",
     name: "name",
     gender: "gender",
-    birthDate: "birthDate?",
+    birthDate: "partialDate?",
     heritage: "heritage?",
+    origin: "origin?",
   },
   addSpouse: {
     ref: "ref?",
@@ -168,16 +190,18 @@ const OP_FIELDS = {
     gender: "gender",
     status: "status",
     bioChildren: "persons",
-    birthDate: "birthDate?",
+    birthDate: "partialDate?",
     heritage: "heritage?",
+    origin: "origin?",
   },
   addParent: {
     ref: "ref?",
     child: "person",
     name: "name",
     gender: "gender",
-    birthDate: "birthDate?",
+    birthDate: "partialDate?",
     heritage: "heritage?",
+    origin: "origin?",
   },
   linkParent: { child: "person", parent: "person" },
   setUnionStatus: { a: "person", b: "person", status: "status" },
@@ -239,23 +263,44 @@ function fieldError(kind: FieldKind, value: unknown): string | null {
         return "must be a list of source names";
       }
       return researchSourcesProblem(value.map((v: string) => v.trim()));
+    case "text?":
+      return value === undefined ? null : fieldError("text", value);
     case "text":
       return typeof value === "string" ? null : "must be a string";
     case "fullDate":
       return typeof value === "string" ? fullDateProblem(value.trim()) : "must be a string";
-    case "birthDate?":
-      return value === undefined ? null : fieldError("birthDate", value);
-    case "birthDate":
-      return typeof value === "string" ? birthDateProblem(value.trim()) : "must be a string";
+    case "partialDate?":
+      return value === undefined ? null : fieldError("partialDate", value);
+    case "partialDate":
+      return typeof value === "string" ? partialDateProblem(value.trim()) : "must be a string";
     case "heritage?":
       return value === undefined ? null : fieldError("heritage", value);
     case "heritage":
       return Array.isArray(value) ? heritageProblem(value) : "must be a list of heritage codes";
+    case "origin?": {
+      if (value === undefined) return null;
+      if (!isRecord(value)) return "must be an object of origin fields";
+      return originFieldsError(value);
+    }
     case "ref?":
       return value === undefined || (typeof value === "string" && /^@\w[\w-]*$/.test(value))
         ? null
         : 'must look like "@name"';
   }
+}
+
+// Why a new person's `origin` object isn't one: it sets at least one origin
+// field, and nothing else. Null when it is sound.
+function originFieldsError(fields: Record<string, unknown>): string | null {
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return `needs at least one of ${ORIGIN_KEYS.join(", ")}`;
+  const kinds: Record<string, FieldKind> = ORIGIN_FIELDS;
+  for (const key of keys) {
+    if (!(key in kinds)) return `has unknown field "${key}" (allowed: ${ORIGIN_KEYS.join(", ")})`;
+    const problem = fieldError(kinds[key], fields[key]);
+    if (problem !== null) return `field "${key}" ${problem}`;
+  }
+  return null;
 }
 
 // Parse a change file's JSON into operations, rejecting anything unexpected:
@@ -277,6 +322,9 @@ export function parseOps(json: unknown): Op[] {
       if (!(key in raw) && !kind.endsWith("?")) throw new Error(`${where} (${op}) is missing "${key}"`);
       const problem = fieldError(kind, raw[key]);
       if (problem !== null) throw new Error(`${where} (${op}): "${key}" ${problem}`);
+    }
+    if (op === "setOrigin" && !ORIGIN_KEYS.some((key) => key in raw)) {
+      throw new Error(`${where} (${op}) needs at least one of ${ORIGIN_KEYS.join(", ")}`);
     }
     return raw as Op;
   });
@@ -319,8 +367,9 @@ function labelOf(tree: Tree, id: string): string {
 
 // ---------- find / show ----------
 
-// People whose name fields or notes contain `text`, ignoring case and accents,
-// so a native spelling and its anglicized record spelling find each other.
+// People whose name fields, origin fields or notes contain `text`, ignoring
+// case and accents, so a native spelling and its anglicized record spelling
+// find each other.
 // The full name is searched too, so "first last" finds a person.
 export function searchPersons(tree: Tree, text: string): Person[] {
   const needle = foldText(text);
@@ -329,6 +378,7 @@ export function searchPersons(tree: Tree, text: string): Person[] {
       displayName(person),
       ...NAME_KEYS.map((key) => person[key]),
       `${person.firstName} ${person.lastName}`,
+      ...ORIGIN_KEYS.map((key) => person[key]),
       person.notes,
     ];
     return haystack.some((s) => foldText(s).includes(needle));
@@ -348,6 +398,10 @@ export function describePerson(tree: Tree, id: string): string {
   lines.push(`  names:    ${names}`);
   lines.push(`  gender:   ${person.gender}`);
   if (person.birthDate !== "") lines.push(`  born:     ${person.birthDate}`);
+  const origin = ORIGIN_KEYS.filter((key) => person[key] !== "")
+    .map((key) => `${key}=${JSON.stringify(person[key])}`)
+    .join(", ");
+  if (origin !== "") lines.push(`  origin:   ${origin}`);
   const heritage = heritageBreakdowns(tree)[id];
   const mix = heritage.known.map((k) => `${heritageLabel(k.code)} ${formatShare(k.share)}`);
   if (heritage.unknown > 0) mix.push(`unknown ${formatShare(heritage.unknown)}`);
@@ -649,6 +703,15 @@ function trimmedName(name: Partial<NameFields>): Partial<NameFields> {
   return out;
 }
 
+function trimmedOrigin(origin: Partial<OriginFields>): Partial<OriginFields> {
+  const out: Partial<OriginFields> = {};
+  for (const key of ORIGIN_KEYS) {
+    const value = origin[key];
+    if (value !== undefined) out[key] = value.trim();
+  }
+  return out;
+}
+
 function newPersonName(name: Partial<NameFields>): NameFields {
   const full = { ...EMPTY_NAME, ...trimmedName(name) };
   if (full.firstName === "") throw new Error("a new person needs a firstName");
@@ -704,6 +767,15 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
     if (heritage === undefined || heritage.length === 0) return "";
     current = setHeritage(current, id, heritage);
     return `, heritage ${entryList(heritage)}`;
+  };
+  // Gives a just-added person the origin fields their op carried, if any.
+  const ofOrigin = (id: string, origin: Partial<OriginFields> | undefined): string => {
+    if (origin === undefined) return "";
+    const given = trimmedOrigin(origin);
+    current = setOrigin(current, id, given);
+    return ORIGIN_KEYS.filter((key) => (given[key] ?? "") !== "")
+      .map((key) => `, ${key} ${JSON.stringify(given[key])}`)
+      .join("");
   };
   const bindRef = (ref: string | undefined, id: string): string => {
     if (ref === undefined) return "";
@@ -784,6 +856,17 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         current = next;
         return `Set heritage entry of ${label(id)}: ${entryList(before)} → ${entryList(op.heritage)}`;
       }
+      case "setOrigin": {
+        const id = who(op.person);
+        const before = current.persons[id];
+        const after = trimmedOrigin(op);
+        const diffs = ORIGIN_KEYS.filter((key) => after[key] !== undefined && after[key] !== before[key]).map(
+          (key) => `${key} ${JSON.stringify(before[key])} → ${JSON.stringify(after[key])}`,
+        );
+        if (diffs.length === 0) throw new Error(`${label(id)} already has this origin`);
+        current = setOrigin(current, id, after);
+        return `Set origin of ${label(id)}: ${diffs.join(", ")}`;
+      }
       case "addChild": {
         const parentId = who(op.parent);
         const coParentId = op.coParent === null ? null : who(op.coParent);
@@ -797,7 +880,7 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addChild(current, parentId, id, name, op.gender, coParentId);
-        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage) + ofOrigin(id, op.origin);
         const parents = coParentId === null
           ? `${label(parentId)} (no other parent)`
           : `${label(parentId)} and ${label(coParentId)}`;
@@ -821,7 +904,7 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         );
         const id = newId();
         current = addSpouse(current, personId, id, name, op.gender, op.status, childIds);
-        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage) + ofOrigin(id, op.origin);
         const kids = childIds.length === 0 ? "" : `; also parent of ${childIds.map(label).join(", ")}`;
         return `Add ${op.status} partner ${displayName(current.persons[id])} (${op.gender}${details})${bindRef(op.ref, id)} of ${label(personId)}${kids}`;
       }
@@ -834,7 +917,7 @@ export function applyOps(tree: Tree, ops: readonly Op[], newId: () => string): A
         const otherParentId = parentIds.at(0);
         const id = newId();
         current = addParent(current, childId, id, name, op.gender);
-        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage);
+        const details = bornOn(id, op.birthDate) + ofHeritage(id, op.heritage) + ofOrigin(id, op.origin);
         const union = otherParentId === undefined
           ? ""
           : `; married to ${label(otherParentId)} automatically (follow with setUnionStatus if they weren't married)`;

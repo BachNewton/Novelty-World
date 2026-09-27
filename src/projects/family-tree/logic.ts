@@ -2,6 +2,7 @@ import type {
   Gender,
   LaidOutNode,
   NameFields,
+  OriginFields,
   Person,
   Research,
   ResearchQuestion,
@@ -69,6 +70,18 @@ export function newUnion(personId: string, status: UnionStatus): Union {
     : { personId, status };
 }
 
+// Also the list of origin fields: a new one fails typecheck here until it
+// gets a default, and from then on flows through new people, validation, and
+// the CLI.
+const EMPTY_ORIGIN: OriginFields = {
+  birthPlace: "",
+  birthPlaceToday: "",
+  emigrationDate: "",
+  motherTongue: "",
+  recordedPeople: "",
+};
+export const ORIGIN_KEYS = Object.keys(EMPTY_ORIGIN) as readonly (keyof OriginFields)[];
+
 // Single source of truth for the Person shape — every place that creates a
 // new person funnels through this so adding a field can't drift across the
 // 4 create paths.
@@ -87,6 +100,7 @@ function makePerson(
     birthSurname: name.birthSurname,
     notes: "",
     birthDate: "",
+    ...EMPTY_ORIGIN,
     research: emptyResearch(),
     heritage: [],
     gender,
@@ -301,9 +315,10 @@ export function birthYear(birthDate: string): string {
 }
 
 // Why `value` isn't a partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD")
-// or an approximate year ("~YYYY"), or null when it is one. The empty string
-// means "not set" and is valid.
-export function birthDateProblem(value: string): string | null {
+// or an approximate year ("~YYYY"), or null when it is one: the shape of a
+// birth date and an emigration date. The empty string means "not set" and is
+// valid.
+export function partialDateProblem(value: string): string | null {
   if (value === "") return null;
   if (value.startsWith("~")) {
     return /^~\d{4}$/.test(value) ? null : `"${value}" is not ~YYYY (an approximate year has no month or day)`;
@@ -326,6 +341,28 @@ export function birthDateProblem(value: string): string | null {
   return null;
 }
 
+// Set the origin fields `origin` gives on `id`, leaving the rest as they are;
+// "" clears one.
+export function setOrigin(tree: Tree, id: string, origin: Partial<OriginFields>): Tree {
+  const before = tree.persons[id];
+  if (ORIGIN_KEYS.every((key) => origin[key] === undefined || origin[key] === before[key])) return tree;
+  const next = clone(tree);
+  Object.assign(next.persons[id], origin);
+  return next;
+}
+
+// Every problem with `person`'s origin fields: an emigration date that isn't
+// shaped like a birth date, or a value with surrounding whitespace.
+function originProblems(person: Person): string[] {
+  const problems: string[] = [];
+  for (const key of ORIGIN_KEYS) {
+    if (person[key] !== person[key].trim()) problems.push(`${key} has surrounding whitespace`);
+  }
+  const dateProblem = partialDateProblem(person.emigrationDate);
+  if (dateProblem !== null) problems.push(`emigration date ${dateProblem}`);
+  return problems;
+}
+
 export function setBirthDate(tree: Tree, id: string, birthDate: string): Tree {
   if (tree.persons[id].birthDate === birthDate) return tree;
   const next = clone(tree);
@@ -336,7 +373,7 @@ export function setBirthDate(tree: Tree, id: string, birthDate: string): Tree {
 // Why `value` isn't a real full ISO date ("YYYY-MM-DD"), or null when it is.
 export function fullDateProblem(value: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return `"${value}" is not YYYY-MM-DD`;
-  return birthDateProblem(value);
+  return partialDateProblem(value);
 }
 
 export const RESEARCH_QUESTIONS: readonly ResearchQuestion[] = ["family", "birthYear", "heritage"];
@@ -468,8 +505,9 @@ export function treeProblems(tree: Tree): string[] {
     if (person.id !== key) problems.push(`${who} is stored under key ${key} but has id ${person.id}`);
     if (person.firstName.trim() === "") problems.push(`${who} has an empty first name`);
     if (!GENDER_CYCLE.includes(person.gender)) problems.push(`${who} has unknown gender ${String(person.gender)}`);
-    const dateProblem = birthDateProblem(person.birthDate);
+    const dateProblem = partialDateProblem(person.birthDate);
     if (dateProblem !== null) problems.push(`${who}'s birth date ${dateProblem}`);
+    for (const problem of originProblems(person)) problems.push(`${who}'s ${problem}`);
     for (const problem of researchProblems(person)) problems.push(`${who}'s ${problem}`);
     const heritageIssue = heritageProblem(person.heritage);
     if (heritageIssue !== null) problems.push(`${who} ${heritageIssue}`);
@@ -550,7 +588,7 @@ interface StoredUnion {
 // A person as persisted by any schema version so far. Rows written before
 // unions existed carry two parallel lists instead: `spouseIds` (married) and,
 // added later still, `divorcedSpouseIds`.
-interface StoredPerson {
+interface StoredPerson extends Partial<OriginFields> {
   id: string;
   firstName: string;
   middleName?: string;
@@ -604,7 +642,7 @@ function storedUnions(person: StoredPerson): Union[] {
 }
 
 // Backfill schema fields added later (commonName, birthSurname, middleName,
-// notes, birthDate, research, heritage, deceasedId), migrate the pre-union
+// notes, birthDate, the origin fields, research, heritage, deceasedId), migrate the pre-union
 // spouse lists into `unions` and the completeness check into `research`, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
@@ -620,6 +658,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.middleName === undefined ||
       person.notes === undefined ||
       person.birthDate === undefined ||
+      ORIGIN_KEYS.some((key) => person[key] === undefined) ||
       person.research === undefined ||
       person.checked !== undefined ||
       person.heritage === undefined ||
@@ -638,6 +677,11 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       birthSurname: person.birthSurname ?? "",
       notes: person.notes ?? "",
       birthDate: person.birthDate ?? "",
+      birthPlace: person.birthPlace ?? "",
+      birthPlaceToday: person.birthPlaceToday ?? "",
+      emigrationDate: person.emigrationDate ?? "",
+      motherTongue: person.motherTongue ?? "",
+      recordedPeople: person.recordedPeople ?? "",
       research: storedResearch(person),
       heritage: [...(person.heritage ?? [])],
       gender: person.gender,

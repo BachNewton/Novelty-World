@@ -84,6 +84,22 @@ export interface Person {
   // Partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or approximate year ("~YYYY"); empty string means
   // none recorded. A research aid, never shown on the tree cards.
   birthDate: string;
+  // The origin evidence below holds facts from records, so research never has
+  // to redo a search to recover them; their sources go in notes. Research
+  // aids only: never shown on the cards, never part of the layout. Empty
+  // string means not recorded.
+  // The birthplace as the strongest record words it, most specific first
+  // ("Capo d'Orlando, Messina, Italy", "Transylvania").
+  birthPlace: string;
+  // The same place as it is today ("Capo d'Orlando, Sicily, Italy").
+  birthPlaceToday: string;
+  // When they left the homeland or arrived, shaped like birthDate.
+  emigrationDate: string;
+  // The mother tongue as a record gives it ("Magyar", "Swedish").
+  motherTongue: string;
+  // The people or nationality a record states for them, verbatim: a
+  // passenger list's "Race or People", a naturalization's nationality.
+  recordedPeople: string;
   // Claude's research record for this person. Never shown on the cards and
   // never part of the layout.
   research: Research;
@@ -95,6 +111,12 @@ export interface Person {
   parentIds: string[];
   unions: Union[];
 }
+
+// The origin evidence fields of a person.
+export type OriginFields = Pick<
+  Person,
+  "birthPlace" | "birthPlaceToday" | "emigrationDate" | "motherTongue" | "recordedPeople"
+>;
 
 export interface Tree {
   rootId: string;

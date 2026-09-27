@@ -6,7 +6,6 @@ import {
   addChild,
   addParent,
   addSpouse,
-  birthDateProblem,
   birthYear,
   createInitialTree,
   deletePerson,
@@ -22,6 +21,7 @@ import {
   nearestInDirection,
   newUnion,
   normalizeTree,
+  partialDateProblem,
   renamePerson,
   searchByName,
   setBirthDate,
@@ -29,6 +29,7 @@ import {
   setGender,
   setHeritage,
   setNotes,
+  setOrigin,
   setUnionDeceased,
   setUnionStatus,
   topologyHash,
@@ -88,6 +89,11 @@ function p(
     birthSurname: "",
     notes: "",
     birthDate: "",
+    birthPlace: "",
+    birthPlaceToday: "",
+    emigrationDate: "",
+    motherTongue: "",
+    recordedPeople: "",
     research: emptyResearch(),
     heritage: [],
     gender,
@@ -586,6 +592,11 @@ describe("normalizeTree", () => {
     birthSurname: "",
     notes: "",
     birthDate: "",
+    birthPlace: "",
+    birthPlaceToday: "",
+    emigrationDate: "",
+    motherTongue: "",
+    recordedPeople: "",
     research: emptyResearch(),
     heritage: [],
     gender: "M",
@@ -673,6 +684,34 @@ describe("normalizeTree", () => {
     });
     expect(changed).toBe(true);
     expect(tree.persons[ROOT_ID].birthDate).toBe("");
+  });
+
+  it("backfills the origin fields and reports a change when any is missing", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, birthPlaceToday: undefined, recordedPeople: undefined },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].birthPlaceToday).toBe("");
+    expect(tree.persons[ROOT_ID].recordedPeople).toBe("");
+  });
+
+  it("keeps existing origin fields and reports no change", () => {
+    const origin = {
+      birthPlace: "Capo d'Orlando, Messina, Italy",
+      birthPlaceToday: "Capo d'Orlando, Sicily, Italy",
+      emigrationDate: "1905-04",
+      motherTongue: "Italian",
+      recordedPeople: "Italian (South)",
+    };
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: { [ROOT_ID]: { ...currentPerson, ...origin } },
+    });
+    expect(changed).toBe(false);
+    expect(tree.persons[ROOT_ID]).toMatchObject(origin);
   });
 
   it("keeps an existing birthDate and reports no change", () => {
@@ -837,9 +876,9 @@ describe("birthYear", () => {
   });
 });
 
-describe("birthDateProblem", () => {
+describe("partialDateProblem", () => {
   it.each(["", "1931", "1931-06", "1931-06-16", "2024-02-29", "~1935"])("accepts %j", (value) => {
-    expect(birthDateProblem(value)).toBeNull();
+    expect(partialDateProblem(value)).toBeNull();
   });
 
   it.each([
@@ -856,7 +895,7 @@ describe("birthDateProblem", () => {
     ["1931-02-29", /no day 29/],
     ["1931-06-00", /no day 00/],
   ])("rejects %j", (value, message) => {
-    expect(birthDateProblem(value)).toMatch(message);
+    expect(partialDateProblem(value)).toMatch(message);
   });
 });
 
@@ -882,6 +921,44 @@ describe("setBirthDate", () => {
     const t = setBirthDate(createInitialTree(), ROOT_ID, "1990-02-30");
     expect(treeProblems(t)).toEqual([
       expect.stringMatching(/birth date "1990-02-30" has no day 30/),
+    ]);
+  });
+});
+
+describe("setOrigin", () => {
+  it("sets only the fields given, and clears one with an empty string", () => {
+    let t = setOrigin(createInitialTree(), ROOT_ID, { birthPlace: "Transylvania", motherTongue: "Magyar" });
+    t = setOrigin(t, ROOT_ID, { motherTongue: "", emigrationDate: "~1907" });
+    expect(t.persons[ROOT_ID]).toMatchObject({
+      birthPlace: "Transylvania",
+      birthPlaceToday: "",
+      emigrationDate: "~1907",
+      motherTongue: "",
+      recordedPeople: "",
+    });
+  });
+
+  it("returns the same tree when nothing changes", () => {
+    const base = setOrigin(createInitialTree(), ROOT_ID, { recordedPeople: "Magyar" });
+    expect(setOrigin(base, ROOT_ID, { recordedPeople: "Magyar", birthPlace: "" })).toBe(base);
+    expect(setOrigin(base, ROOT_ID, {})).toBe(base);
+  });
+
+  it("does not change the topology hash", () => {
+    const base = createInitialTree();
+    expect(topologyHash(setOrigin(base, ROOT_ID, { birthPlace: "Syria" }))).toBe(topologyHash(base));
+  });
+
+  it("is flagged by treeProblems for a malformed emigration date", () => {
+    const t = setOrigin(createInitialTree(), ROOT_ID, { emigrationDate: "1905-13" });
+    expect(treeProblems(t)).toEqual([expect.stringMatching(/emigration date "1905-13" has no month 13/)]);
+  });
+
+  it("is flagged by treeProblems for a value with surrounding whitespace", () => {
+    const t = setOrigin(createInitialTree(), ROOT_ID, { birthPlace: "Syria ", motherTongue: " Arabic" });
+    expect(treeProblems(t)).toEqual([
+      expect.stringMatching(/birthPlace has surrounding whitespace/),
+      expect.stringMatching(/motherTongue has surrounding whitespace/),
     ]);
   });
 });

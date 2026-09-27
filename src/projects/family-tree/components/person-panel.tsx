@@ -78,6 +78,30 @@ function NotRecorded({ children }: { children: ReactNode }) {
   return <span className="text-text-muted italic">{children}</span>;
 }
 
+// The origin evidence research recorded, only the fields that are set.
+function OriginEvidence({ person }: { person: Person }) {
+  const place = person.birthPlace === "" ? person.birthPlaceToday : person.birthPlace;
+  const showToday = person.birthPlace !== "" && person.birthPlaceToday !== "" &&
+    person.birthPlaceToday !== person.birthPlace;
+  return (
+    <>
+      {place === "" ? null : (
+        <Field label="Birthplace">
+          {place}
+          {showToday ? (
+            <span className="block text-xs text-text-secondary">Today: {person.birthPlaceToday}</span>
+          ) : null}
+        </Field>
+      )}
+      {person.emigrationDate === "" ? null : (
+        <Field label="Emigrated">{formatDate(person.emigrationDate)}</Field>
+      )}
+      {person.motherTongue === "" ? null : <Field label="Mother tongue">{person.motherTongue}</Field>}
+      {person.recordedPeople === "" ? null : <Field label="Recorded as">{person.recordedPeople}</Field>}
+    </>
+  );
+}
+
 export function PersonPanel({
   person,
   relation,
@@ -126,6 +150,8 @@ export function PersonPanel({
             formatDate(person.birthDate)
           )}
         </Field>
+
+        <OriginEvidence person={person} />
 
         <Field label="Heritage">
           {heritage.known.length === 0 ? (

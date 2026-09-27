@@ -241,8 +241,10 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
   present-day country just because that's where the person was born when the
   question is where the line came from. Use `"unknown"` inside an entry for
   the part of a line the records leave open.
-- **Record the evidence in the person's notes:** the place as the record
-  words it, the source, and an arrival or emigration year when found.
+- **Record the evidence with `setOrigin`:** the birthplace as the record
+  words it and as it is today, and for immigrants the emigration date,
+  mother tongue and the people a record states (see "Recording the
+  evidence" in `standards.md`). The sources go in notes.
 - **After adding anyone above a person with an entry,** run `superseded`.
   Clear fully superseded entries, and review partly superseded ones: the
   entry may have been a guess covering both sides.
@@ -287,10 +289,15 @@ family's research:
         "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02",
         "heritage": ["IT"] },
       { "op": "addChild", "parent": "<id>", "coParent": "@wife",
-        "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952" },
+        "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952",
+        "origin": { "birthPlace": "Region, Country" } },
       { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" },
       { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" },
       { "op": "setHeritage", "person": "<id>", "heritage": ["FI", "unknown"] },
+      { "op": "setOrigin", "person": "<id>", "birthPlace": "Town, Province, Country",
+        "birthPlaceToday": "Town, Region, Country", "emigrationDate": "1905-04",
+        "motherTongue": "Language", "recordedPeople": "People" },
+      { "op": "appendNote", "person": "<id>", "note": "Birthplace, emigration and people from the 1905 passenger list; mother tongue from the 1920 US census" },
       { "op": "setResearch", "person": "<id>", "question": "family", "status": "confirmed",
         "asOf": "2026-01-31", "sources": ["Given Surname's obituary (2019)", "county marriage index search"],
         "note": "" },
@@ -304,6 +311,16 @@ shows old → new); `clearResearch` (`{ "op": "clearResearch", "person",
 "question" }`) removes one and fails if there is none. `show` prints each
 person's research record. `setHeritage` (or `heritage` on a new person) takes
 codes from `heritages.ts` plus `"unknown"`, split equally; `[]` removes it.
+
+`setOrigin` (`{ "op": "setOrigin", "person", "birthPlace"?, "birthPlaceToday"?,
+"emigrationDate"?, "motherTongue"?, "recordedPeople"? }`) sets only the origin
+fields it gives, at least one, and `""` clears one; the change list shows each
+field old → new, and it fails on a change that changes nothing. A new person
+takes the same fields as an optional `origin` object on `addParent`,
+`addChild` and `addSpouse`. `emigrationDate` is shaped like a birth date. The
+sources go in notes, and for anyone who may be living the birthplace fields
+hold region and country only, never a town. `show` prints the fields that are
+set, and `find` searches them.
 
 `linkParent` (`{ "op": "linkParent", "child", "parent" }`) makes someone
 already in the tree a parent of someone else already in it: a wife found to be

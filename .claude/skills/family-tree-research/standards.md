@@ -242,6 +242,24 @@ town.
 **May be Exhausted without a family answer** once steps 1–5 are done; family
 lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
 
+### Recording the evidence
+
+Heritage is interpreted from evidence, and the interpretation may change;
+the evidence must not need re-researching. So every round records, on each
+person it reaches, what the records say (with `setOrigin`, sources in notes):
+
+- **`birthPlace`**, word for word from the strongest record, and
+  **`birthPlaceToday`**, the same place today. For anyone who may be living,
+  region and country only, never a town.
+- For anyone born abroad, or whose parents were: **`emigrationDate`**,
+  **`motherTongue`** (as a census gives it) and **`recordedPeople`** (the
+  people or nationality a record states, word for word: a passenger list's
+  "Race or People", a naturalization's nationality).
+
+When records disagree, the field holds the stronger record's version (see
+"When records disagree on a birthplace" above) and the conflict goes in the
+notes. A fact read but not recorded is research that will have to be redone.
+
 ### Adding an ancestor
 
 The identity rule applies to every generation. A parent is added only when a

@@ -94,6 +94,15 @@ describe("parseOps", () => {
     [{ op: "setHeritage", person: "x", heritage: ["FI", "FI"] }, /same heritage twice/],
     [{ op: "setHeritage", person: "x", heritage: ["unknown"] }, /only unknown/],
     [{ op: "addChild", parent: "x", coParent: null, name: { firstName: "A" }, gender: "M", heritage: ["XX"] }, /unknown heritage "XX"/],
+    [{ op: "setOrigin", person: "x" }, /needs at least one of birthPlace, birthPlaceToday, emigrationDate, motherTongue, recordedPeople/],
+    [{ op: "setOrigin", person: "x", birthplace: "Syria" }, /unknown field "birthplace"/],
+    [{ op: "setOrigin", person: "x", motherTongue: 1 }, /"motherTongue" must be a string/],
+    [{ op: "setOrigin", person: "x", emigrationDate: "May 1905" }, /"emigrationDate" "May 1905" is not YYYY/],
+    [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", origin: "Syria" }, /"origin" must be an object of origin fields/],
+    [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", origin: {} }, /"origin" needs at least one of/],
+    [{ op: "addParent", child: "x", name: { firstName: "A" }, gender: "M", origin: { place: "Syria" } }, /"origin" has unknown field "place"/],
+    [{ op: "addSpouse", person: "x", name: { firstName: "A" }, gender: "M", status: "married", bioChildren: [], origin: { recordedPeople: null } }, /"origin" field "recordedPeople" must be a string/],
+    [{ op: "addChild", parent: "x", coParent: null, name: { firstName: "A" }, gender: "M", origin: { emigrationDate: "1905-02-30" } }, /"origin" field "emigrationDate" .* no day 30/],
   ])("rejects %j", (op, message) => {
     expect(() => parseOps([op])).toThrow(message);
   });
@@ -268,6 +277,61 @@ describe("applyOps", () => {
     expect(changes[2]).toContain("(M, born 1950-01-02)");
   });
 
+  it("sets, describes, and clears origin fields, one op at a time", () => {
+    const set = run(family(), [
+      {
+        op: "setOrigin", person: "5a0e", birthPlace: " Capo d'Orlando, Messina, Italy ",
+        birthPlaceToday: "Capo d'Orlando, Sicily, Italy", emigrationDate: "1905-04",
+      },
+    ]);
+    expect(set.tree.persons[SPOUSE]).toMatchObject({
+      birthPlace: "Capo d'Orlando, Messina, Italy",
+      birthPlaceToday: "Capo d'Orlando, Sicily, Italy",
+      emigrationDate: "1905-04",
+      motherTongue: "",
+      recordedPeople: "",
+    });
+    expect(set.changes[0]).toBe(
+      "Set origin of Sam Root (née Birth) [5a0e0000]: " +
+        `birthPlace "" → "Capo d'Orlando, Messina, Italy", ` +
+        `birthPlaceToday "" → "Capo d'Orlando, Sicily, Italy", emigrationDate "" → "1905-04"`,
+    );
+    expect(describePerson(set.tree, SPOUSE)).toContain(
+      `  origin:   birthPlace="Capo d'Orlando, Messina, Italy", birthPlaceToday="Capo d'Orlando, Sicily, Italy", emigrationDate="1905-04"`,
+    );
+    expect(searchPersons(set.tree, "capo d'orlando").map((p) => p.id)).toEqual([SPOUSE]);
+
+    const changed = run(set.tree, [
+      { op: "setOrigin", person: "5a0e", birthPlace: "Capo d'Orlando, Messina, Italy", emigrationDate: "", recordedPeople: "Italian" },
+    ]);
+    expect(changed.tree.persons[SPOUSE]).toMatchObject({
+      birthPlaceToday: "Capo d'Orlando, Sicily, Italy",
+      emigrationDate: "",
+      recordedPeople: "Italian",
+    });
+    expect(changed.changes[0]).toBe(
+      'Set origin of Sam Root (née Birth) [5a0e0000]: emigrationDate "1905-04" → "", recordedPeople "" → "Italian"',
+    );
+    expect(describePerson(family(), SPOUSE)).not.toContain("origin:");
+  });
+
+  it("gives new people the origin fields their op carries", () => {
+    const { tree, changes } = run(family(), [
+      { op: "addChild", ref: "@kid", parent: "kyle", coParent: null, name: { firstName: "Cy" }, gender: "M", origin: { motherTongue: " Finnish " } },
+      {
+        op: "addSpouse", person: "@kid", name: { firstName: "Di" }, gender: "F", status: "married", bioChildren: [],
+        origin: { recordedPeople: "Magyar", birthPlace: "" },
+      },
+      { op: "addParent", child: SOLO_KID, name: { firstName: "Ed" }, gender: "M", birthDate: "1880", origin: { birthPlace: "Mount Lebanon, Syria", emigrationDate: "~1900" } },
+    ]);
+    expect(tree.persons["new-1"].motherTongue).toBe("Finnish");
+    expect(tree.persons["new-2"]).toMatchObject({ recordedPeople: "Magyar", birthPlace: "" });
+    expect(tree.persons["new-3"]).toMatchObject({ birthPlace: "Mount Lebanon, Syria", emigrationDate: "~1900" });
+    expect(changes[0]).toContain('(M, motherTongue "Finnish")');
+    expect(changes[1]).toContain('(F, recordedPeople "Magyar")');
+    expect(changes[2]).toContain('(M, born 1880, birthPlace "Mount Lebanon, Syria", emigrationDate "~1900")');
+  });
+
   it("sets, replaces, shows, and clears a research record", () => {
     const set = run(family(), [
       {
@@ -369,6 +433,10 @@ describe("applyOps", () => {
     ], /needs a firstName/],
     ["a rename that changes nothing", [{ op: "rename", person: "5a0e", name: { firstName: "Sam" } }], /already has these names/],
     ["a birth date that changes nothing", [{ op: "setBirthDate", person: "5a0e", birthDate: "" }], /already has this birth date/],
+    ["an origin that changes nothing", [
+      { op: "setOrigin", person: "5a0e", motherTongue: "Swedish" },
+      { op: "setOrigin", person: "5a0e", motherTongue: " Swedish ", birthPlace: "" },
+    ], /already has this origin/],
     ["a heritage entry that changes nothing", [{ op: "setHeritage", person: "5a0e", heritage: [] }], /already has this heritage entry/],
     ["clearing research that isn't there", [{ op: "clearResearch", person: "5a0e", question: "family" }], /has no family record to clear/],
     ["a research record that changes nothing", [

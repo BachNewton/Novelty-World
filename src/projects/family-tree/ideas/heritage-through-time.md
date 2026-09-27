@@ -2,8 +2,21 @@
 
 A design for reshaping heritage from "the present-day country a line came
 from" into the story of the owner's peoples: who they were, where and when
-they lived, and how the world changed around them. Proposal for review; the
-decisions it asks for are listed at the end.
+they lived, and how the world changed around them. It comes in two parts:
+
+1. **The evidence, now.** Structured facts research records about each
+   person: where they were born as the record words it, when they emigrated,
+   their mother tongue, and the people or nationality a record states for
+   them. These are what research would have to redo if it didn't capture
+   them, and they are useful for research on their own.
+2. **Interpretation and visualization, later.** Which people a line
+   carries, its symbols through the eras, and the story panel. All of it
+   can be built, and changed, from the evidence without new research, so it
+   waits until the evidence is in.
+
+The rest of this doc is the proposal for Part 2; Part 1 is built (see the
+data model in the project `CLAUDE.md`). The decisions Part 2 asks for are
+listed at the end.
 
 ## Why
 
@@ -22,11 +35,12 @@ culture and identity. The current model works against that:
 
 ## The model: three layers
 
-1. **Origin: the evidence.** What the records say about the immigrant: the
-   place as the record words it ("Capo d'Orlando, Italy"; "Transylvania";
-   "Syria"), the present-day place it lies in, the year (birth, emigration or
-   arrival), the mother tongue when a census gives it, and the sources.
-   Structured, not buried in notes, so the UI can tell it.
+1. **Origin: the evidence** (Part 1). The birthplace as the record words it
+   ("Capo d'Orlando, Italy"; "Transylvania"; "Syria") and as it is today,
+   the emigration date, the mother tongue a census gives, and the people or
+   nationality a record states (a passenger list's "Race or People", a
+   naturalization's nationality). Structured fields on each person, so the
+   interpretation can be drawn from them and the UI can tell them.
 2. **People: the heritage.** The culture a line carries: Hungarian, Finnish,
    Irish, Lebanese, Welsh. Independent of borders, so a Transylvanian
    Hungarian is Hungarian. Optionally finer, a **region** within the people
@@ -122,14 +136,14 @@ are added only where a record gives them.
 
 ## Phases
 
-1. **Model:** peoples, regions and eras in the heritage list; the origin
-   fields; migration of existing entries; the research standard.
-2. **Symbols through time:** the historical art, and cards and chips picking
+1. **Evidence (Part 1):** the fields, the research standard to capture
+   them, and a backfill of what research already recorded in notes and logs.
+2. **Peoples:** peoples and regions in the heritage list, chosen from the
+   evidence; migration of existing entries.
+3. **Symbols through time:** the historical art, and cards and chips picking
    by era.
-3. **The story panel:** the Heritage section and the first era paragraphs,
+4. **The story panel:** the Heritage section and the first era paragraphs,
    for the peoples already in the tree.
-4. **Research round:** fill origin fields and regions for the known
-   immigrants, and settle open multi-people cases.
 
 ## For the owner to decide
 

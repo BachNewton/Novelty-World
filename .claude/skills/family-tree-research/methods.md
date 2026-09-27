@@ -73,6 +73,13 @@ in `sources.md`.
 - **Foreign civil registration** finds an immigrant's family by the native
   forms of their names (Andrew as András, Margaret as Margit), surnames in
   their native spelling too.
+- **Finnish names follow the croft, not a surname.** Parish books name
+  people by father's name and the croft or farm they live on; a US surname
+  is often the croft's name (Leppälä, a croft of a larger farm), so look for
+  it as a place heading in the communion book. The parish itself usually
+  comes from a US record: a NUMIDENT's birthplace field can name it where a
+  census says only "Finland". A sibling's exact birth date (from their US
+  draft cards) ties a Finnish birth entry to the US family.
 - **Let the obituary's birthplace drive the search.** Nulls from searching an
   assumed birth state aren't nulls.
 
@@ -189,3 +196,10 @@ generation needs its own tie (see "Adding an ancestor" in `standards.md`).
    the note saying where each line stopped).
 8. **Enter it on that person**; descendants derive theirs. Then run
    `superseded`.
+9. **Record the evidence** on everyone you read about along the way (see
+   "Recording the evidence" in `standards.md`), not only the person the
+   entry goes on. The records that carry a people rather than a place are
+   worth seeking out for immigrants: the 1910 and 1920 censuses' mother
+   tongue and passenger lists from 1903 on (their "Race or People" column),
+   both usually only on the page image, not in FamilySearch's index; and
+   naturalization papers' nationality.

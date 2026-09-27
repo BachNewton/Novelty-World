@@ -263,23 +263,34 @@ under 100 years (about 1926 on) are restricted, and access costs money: out.
   to climb generation by generation.
 - **HisKi** (`hiski.genealogia.fi`): a free index of baptisms, marriages,
   burials and moves, aimed at the whole country to 1850, some parishes into
-  the early 1900s, patchy for many. A fast way to a family; check the
-  original in Astia or SSHY before citing it.
-- **SSHY digital archive**: church-book images over 125 years old are free;
-  100–125 years needs membership (out).
+  the early 1900s, patchy for many (a parish may have no christenings at
+  all). A plain request searches every parish at once. Check a parish's
+  coverage before counting an empty result as a null; check the original in
+  Astia or SSHY before citing it.
+- **SSHY digital archive**: church-book images over 125 years old are free
+  with no login, and full-size images download directly; 100–125 years
+  needs membership (out). The must-try step for a Finnish line: birth books
+  (browsed by month) and communion books (by village and farm), whose
+  per-image index pages say which month or village each image covers.
 - **National Library of Finland digitized newspapers**
   (`digi.kansalliskirjasto.fi`): Finnish papers free to the end of 1939, and
   174 Finnish-American titles from 1876 to 1923 (Hancock, MI and Duluth, MN
   papers among them) for death notices and local news about emigrants.
-  Later material only at legal-deposit workstations (in Helsinki: the
-  National Library, Unioninkatu 36).
+  Works in the browser; the text recognition is noisy, so a name search
+  that finds nothing isn't a strong null. Later material only at
+  legal-deposit workstations (in Helsinki: the National Library,
+  Unioninkatu 36).
 - **Institute of Migration emigrant register** (Siirtolaisuusinstituutti):
   passport lists and passenger lists (Hanko sailings from 1891), many
-  nowhere else online. Its web app has a public JSON API
+  nowhere else online. Its web app has a public, no-login JSON API at
+  `siirtolaisrekisteri.siirtolaisuusinstituutti.fi/api/`
   (`/api/search/?last_name=...` lists entries with ids;
   `/api/<register>/<id>/` returns one). Name search is free, but every
   detail (year, age, parish, destination) needs the paid tier (out), so a
   free search can't tie an emigrant to a person.
+- **FamilySearch's Finland collections** index few emigrant families. Its
+  user-built Family Tree is a quick pointer to a parish (and its per-person
+  source lists can surface a record name searches missed): a lead only.
 - **In person in Helsinki, free** (the owner's to use, for a specific stuck
   question): the Genealogical Society library (Kirkkokatu 6), whose
   member-only index is free on its computers; the FamilySearch center
