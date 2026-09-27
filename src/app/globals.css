@@ -25,6 +25,11 @@
   --radius-md: 0.5rem;
   --radius-sm: 0.25rem;
 
+  /* Family Tree: the view root's direct line (its links and card borders).
+     Full brand orange shouts against the grey links; mixed toward the
+     background it marks the line without taking over the tree. */
+  --color-family-direct-line: color-mix(in srgb, var(--color-brand-orange) 60%, var(--color-surface-primary));
+
   /* Family Tree: heritage flags sit on the card corners. The shadow
      lifts them off the card; the dark hairline keeps a white flag's edge from
      melting into what's behind it. */

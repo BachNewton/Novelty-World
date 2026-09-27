@@ -50,7 +50,7 @@ export function Node({
             : isViewRoot
               ? "border-brand-blue bg-surface-tertiary hover:border-brand-pink"
               : onLine
-                ? "border-brand-orange/45 bg-surface-secondary hover:border-brand-orange/75"
+                ? "border-family-direct-line bg-surface-secondary hover:border-brand-orange"
                 : "border-border-default bg-surface-secondary hover:border-border-hover",
         ].join(" ")}
         style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
