@@ -74,11 +74,25 @@ the page for the "sign in to see all available results" banner.
 - Read a census record's "Event Place (Original)": the indexed place can be
   the wrong county.
 - The **FamilySearch Family Tree** (profiles others built) is a fast map to
-  the right records, never evidence. **Full-text search** returns millions of
-  loose matches for quoted names: no use.
+  the right records, never evidence.
 - Record pages render details late: wait for the "Event Type" field (or
   "Similar Records") in the main region. "OPEN ALL" expands relatives.
 - The results row shows only the main name; open the record for aliases.
+
+**Full Text search** (the Full Text tab: machine transcripts of record
+images, cited as "FamilySearch 3:1:XXXX"). The way into the 1800–1870
+generations, where no census states relationships: county deed, will,
+probate and orphans' court books, and published genealogies. What they tie
+is in `methods.md` ("Finding a line's origin").
+
+- Plain keyword queries work: a quoted head of family plus a child's name
+  (`"Given Surname" Child`), or a quoted name plus "deceased". Place filters
+  return an error. A quoted name alone returns millions of loose matches.
+- Results are grouped by image, thousands of loose hits: the image's heading
+  (a will book, orphans' court records, a deed book) picks out the right one.
+- Read an image through its transcript (the image's `?view=fullText`). The
+  transcription garbles names and words: read the image itself before
+  relying on a wording that matters.
 
 **Collections that worked:**
 
@@ -119,23 +133,31 @@ the page for the "sign in to see all available results" banner.
   numbers: one event, not twins (check the sex on both).
 - **Ohio County Births 1841–2003**: parents; some entries give the parents'
   ages and birthplaces (a cheap second source for origin).
-- **State birth indexes**: Kentucky's and California's (to 1995) give the
-  mother's birth surname, so a search by it finds a couple's children.
-  Useful but weak alone.
+- **State birth indexes**: Kentucky's and California's (to 1995; collection
+  id 2001879) give the mother's birth surname, so a search by it finds a
+  couple's children. Useful but weak alone.
 - **West Virginia marriage registers** (from about 1866, and the 1930s
-  license forms) name both couples' parents.
+  license forms) name both couples' parents. **Death registers** from 1853
+  name the informant and their relationship ("son"), which ties a parent to
+  a child for deaths before any census states relationships; the index
+  leaves it out, so read the image.
+- **US passport applications 1906–1925**: the father's name and birthplace,
+  and the applicant's own birth date and emigration. **Passenger lists**
+  (Ellis Island): from 1907 each manifest has a second sheet, facing the
+  first, with the town of birth and the relative being joined. Read both
+  from the image.
 - **Pennsylvania death certificates 1906–1970** are not on FamilySearch
   (they are on a paid site: out). List one as a gap, not a null.
-- **Hungary Civil Registration 1895–1980**: births are indexed only to about
-  1920; later people are reached through their parents' marriages and their
-  own death records. Death registers after about 1952 give the exact birth
-  date and place, and the spouse with the marriage place and year: the best
-  way to climb and to tie.
-- **California Birth Index** (to 1995; collection id 2001879): the mother's
-  birth surname for each child.
-- **Residence Database / Public Records** entries: people-search quality,
-  but the record page's Alias field can show a birth surname or a full
-  two-part surname. Leads only; an alias can be a different, merged person.
+- **Hungary Civil Registration 1895–1980**: births, marriages, deaths;
+  search the native name forms. Births are indexed only to about 1920;
+  later people are reached through their parents' marriages and their own
+  death records. Death registers after about 1952 give the exact birth date
+  and place, and the spouse with the marriage place and year: the best way
+  to climb and to tie.
+- **"Public Records 1970–2009" / "Residence Database"**: people-search
+  quality; exact dates but often wrong or merged. The record page's Alias
+  field can show a birth surname or a full two-part surname. Leads only; an
+  alias can be a different, merged person.
 - **Ohio, Naturalization Records 1848–1951**: exact date and town of birth
   abroad, which no census gives; outweighs a census birthplace. It names the
   spouse, which ties identity. For Levant immigrants the town settles a
@@ -143,8 +165,6 @@ the page for the "sign in to see all available results" banner.
 - **GenealogyBank obituary index**: its parent and relationship fields are
   unreliable (a sister's name given as the mother's). Check against the
   siblings' NUMIDENTs.
-- **Hungary Civil Registration 1895–1980**: births, marriages, deaths; search
-  the native name forms.
 - **WWII draft cards**: exact birth date and town, plus a contact person
   (often a parent or sibling) that ties the card to the family.
 - **Church baptism records**: date of birth and parents.
@@ -155,8 +175,6 @@ the page for the "sign in to see all available results" banner.
   wrong (a surviving spouse as a parent, in-laws or a spouse as siblings,
   wrong sex, garbled names). Search a relative's name to find the obituary
   they appear in, then read the text itself.
-- **"Public Records 1970–2009" / "Residence Database"**: people-search
-  quality; exact dates but often wrong or merged. Leads only.
 - **Find a Grave index**: dates are fine, but the cemetery's place is often
   wrong (a Michigan or West Virginia cemetery shown in another state).
 
@@ -247,6 +265,39 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
   search by the bride's surname to catch a garbled groom's. Delayed birth
   certificates (filed decades later) list their supporting affidavits, whose
   "sister" or "brother" can tie half-sibling households together.
+
+## Published books
+
+- **County and township histories** (1880s–1910s): full text on archive.org.
+  Download the djvu text and grep for the surname and for each in-tree
+  person's full name: a biographical sketch sits under its subject's name
+  (often a parent's or a sibling's), which a surname-only read misses. How
+  far to trust one is in `methods.md`.
+- **Strassburger & Hinke, *Pennsylvania German Pioneers*** (1934, three
+  volumes on archive.org): the ship lists, text-searchable, but of
+  **Philadelphia arrivals only**. A null there says nothing about an
+  immigrant who landed at Baltimore or New York.
+
+## England and Ireland
+
+- **Lancashire OnLine Parish Clerks** (`lan-opc.org.uk`, free): transcribed
+  parish registers, Catholic missions included. Catholic baptisms give the
+  mother's maiden name ("formerly X"), so a search by the couple finds the
+  sibling set (see `methods.md`). Submit searches from its form: direct
+  search URLs fail with code 4011.
+- **FreeBMD** (England and Wales civil index, 1837 on): the new site's search
+  works by filling its form in the browser. Its "same page" view shows who
+  else was entered on a marriage's register page: before 1912 (when the
+  index began giving the spouse's surname) that lists the candidate spouses.
+  Index only, so a spouse found that way is Possible.
+- **irishgenealogy.ie** (Irish civil births, marriages and deaths, free):
+  plain fetches get 403; it works in the browser through its `/search` GET
+  URLs. Register images are public PDFs holding one CCITT G4 image: download
+  the file and convert the image to read it (Chrome's PDF viewer shows it
+  unreliably).
+- **The 1901 and 1911 Irish censuses**: the National Archives site
+  (`census.nationalarchives.ie`) refused the connection. Use FamilySearch's
+  index of the same census; it lacks the form's Irish-language column.
 
 ## People-search sites
 

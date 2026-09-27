@@ -278,6 +278,10 @@ record ties them to the child already in the tree:
 - a record made to name the person's parents: death certificate, NUMIDENT, a
   marriage or remarriage record, a birth record, a naturalization naming the
   spouse;
+- a record made to name the parent's heirs: a will naming the person as a
+  child, or an heirs' deed or estate partition naming them among the
+  children, once it is shown to be the tree's person (by their spouse on
+  the deed, or as in "County histories" in `methods.md`);
 - a census household whose names and ages match the family, tied to the
   in-tree person by one of the above or by a second household;
 - a sibling's records naming the same parents, when the in-tree person is

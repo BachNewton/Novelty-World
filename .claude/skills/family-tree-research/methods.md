@@ -37,7 +37,9 @@ in `sources.md`.
 - **Search by the couple as parents** (father's surname plus mother's birth
   surname, exact). It returns every indexed record of their children at
   once: marriages (with both sets of parents), stillbirths, NUMIDENTs, death
-  entries. An empty result is a logged null for the whole sibling set.
+  entries. An empty result is a logged null for the whole sibling set. A
+  parish-register index does the same with the father's name plus the
+  mother's given name: a whole set of baptisms.
 - **Search by the spouse's birth surname**, not only ours. Our surname is
   often garbled in an index (a dropped vowel, a swapped letter) while the
   spouse's is spelled right. A surname sweep coming back empty isn't a null
@@ -57,9 +59,11 @@ in `sources.md`.
   NUMIDENTs, obituary indexes, draft cards). With a birth-year range and no
   given name, it returns the whole cohort, including obituary entries where
   a sister appears only under her married name.
-- **A surname misindexed in a census** (one letter changed) empties every
+- **A surname misindexed in a census** (one letter changed, or masked with a
+  wildcard where the indexer couldn't read it: "Sm*th") empties every
   exact-surname search. Search a sibling's given name plus the father's given
-  name plus the county, with no surname.
+  name plus the county, with no surname, or a wildcard surname plus the
+  given name and ages.
 - **A child missing under the birth surname** may sit in a stepfather's
   household under his. Search the mother under a later married surname; a
   FamilySearch Family Tree profile's source list can show it (a lead only).
@@ -70,6 +74,9 @@ in `sources.md`.
   record" names the parents even when the indexed relationships are garbled.
 - **A search with only parent-name fields and a collection filter can come
   back falsely empty** (NUMIDENT did). Search by the child's name instead.
+  With a birth-year range added, the father's given name and a wildcard
+  surname, with no place and no collection filter, reach across countries:
+  that search surfaced a family's census row abroad at once.
 - **Foreign civil registration** finds an immigrant's family by the native
   forms of their names (Andrew as András, Margaret as Margit), surnames in
   their native spelling too.
@@ -80,10 +87,14 @@ in `sources.md`.
   comes from a US record: a NUMIDENT's birthplace field can name it where a
   census says only "Finland". A sibling's exact birth date (from their US
   draft cards) ties a Finnish birth entry to the US family.
-- **County histories** (the 1880s–1910s county and township histories,
-  full text on archive.org: download the djvu text and grep for the surname)
-  can name the immigrant generation of a colonial-era line. They are
-  secondary: a lead to a record, or a Possible, not a tie.
+- **County histories** (see `sources.md`) can name the immigrant generation
+  of a colonial-era line. They are secondary: a lead to a record, or a
+  Possible, never the statement of a relationship on their own. But a
+  sketch of the in-tree person whose spouse, children and exact birth date
+  all match the tree can be the identity link for a record that states the
+  relationship with bare names (a will's "Given Married-name" among the
+  heirs, a court's "Given Surname, son of Father"): the record says whose
+  child, the sketch says it is our person.
 - **A spouse's thesis or dissertation** can name a living married-in person
   in its dedication or acknowledgments (university repositories publish the
   PDF).
@@ -188,7 +199,9 @@ generation needs its own tie (see "Adding an ancestor" in `standards.md`).
 3. **Their own records**: death record, NUMIDENT, obituary ("born in …"),
    naturalization (the town of birth, which no census gives: worth a note
    even when the country is already settled), county birth records of their
-   children (some give the parents' birthplaces).
+   children (some give the parents' birthplaces). A sibling's passport
+   application or passenger list can name the parents and their birthplace
+   when the person's own records don't.
 4. **Their children's census entries**: a child's line gives "father's
    birthplace" and "mother's birthplace", which is this person's birthplace.
 5. **When records disagree on the country**, the one made to state the
@@ -201,6 +214,16 @@ generation needs its own tie (see "Adding an ancestor" in `standards.md`).
    parents (their tie per `standards.md`) and repeat from step 2 for each.
    Stop at someone born abroad, or when the records run out (then Exhausted,
    the note saying where each line stopped).
+   **For people born about 1800–1870**, whose censuses state no
+   relationships (1850–1870 list households without them, earlier ones only
+   heads), climb through the county's will, deed, probate and orphans'
+   court books, found by
+   FamilySearch Full Text (see `sources.md`). An heirs' deed or an estate
+   partition lists every child of the deceased with their spouse: finding
+   the in-tree child there with the tree's spouse ties the generation, and
+   names the siblings. A will naming "my son" ties the same way once the
+   child is identified (by a spouse, or a county-history sketch). Early
+   death registers that name an informant and relationship ("son") tie too.
 8. **Enter it on that person**; descendants derive theirs. Then run
    `superseded`.
 9. **Record the evidence** on everyone you read about along the way (see
