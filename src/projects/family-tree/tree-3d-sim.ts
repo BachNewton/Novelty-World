@@ -6,7 +6,7 @@ import {
   type Simulation,
   type SimulationNode,
 } from "d3-force-3d";
-import { computeGenerations } from "./logic";
+import { computeGenerations, directLine, isDirectLineLink } from "./logic";
 import type { Tree, UnionStatus } from "./types";
 
 // Vertical distance between generations. Ancestors climb (+y), descendants
@@ -53,6 +53,8 @@ export interface TreeSimLink {
 export interface Family {
   child: TreeSimNode;
   parents: TreeSimNode[];
+  // The link runs along the trunk line (see isDirectLineLink).
+  onTrunkLine: boolean;
 }
 
 export interface TreeSimulation {
@@ -68,40 +70,13 @@ function isEndedUnion(status: UnionStatus): boolean {
   return status === "divorced" || status === "ex-partner";
 }
 
-function trunkLine(tree: Tree): Set<string> {
-  const line = new Set([tree.rootId]);
-  const up = [tree.rootId];
-  while (up.length > 0) {
-    for (const pid of tree.persons[up.pop()!].parentIds) {
-      if (!line.has(pid)) {
-        line.add(pid);
-        up.push(pid);
-      }
-    }
-  }
-  const descendants = new Set([tree.rootId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const p of Object.values(tree.persons)) {
-      if (descendants.has(p.id)) continue;
-      if (p.parentIds.some((pid) => descendants.has(pid))) {
-        descendants.add(p.id);
-        grew = true;
-      }
-    }
-  }
-  for (const id of descendants) line.add(id);
-  return line;
-}
-
 function buildGraph(tree: Tree): {
   nodes: TreeSimNode[];
   links: TreeSimLink[];
   families: Family[];
 } {
   const gens = computeGenerations(tree);
-  const line = trunkLine(tree);
+  const line = directLine(tree, tree.rootId);
   const golden = Math.PI * (3 - Math.sqrt(5));
   const nodes: TreeSimNode[] = Object.keys(tree.persons).map((id, i) => {
     const gen = gens.get(id) ?? 0;
@@ -128,7 +103,13 @@ function buildGraph(tree: Tree): {
   for (const person of Object.values(tree.persons)) {
     const child = byId.get(person.id)!;
     const parents = person.parentIds.map((pid) => byId.get(pid)!);
-    if (parents.length > 0) families.push({ child, parents });
+    if (parents.length > 0) {
+      families.push({
+        child,
+        parents,
+        onTrunkLine: isDirectLineLink(line, person.id, person.parentIds),
+      });
+    }
     for (const parent of parents) {
       links.push({ source: parent, target: child, kind: "parent" });
     }

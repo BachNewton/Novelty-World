@@ -454,10 +454,10 @@ function segments(sim: TreeSimulation): Segment[] {
   const unions: Segment[] = sim.links
     .filter((l) => l.kind !== "parent")
     .map((l) => ({ from: [l.source], to: l.target, style: l.kind === "union" ? "union" : "ex-union" }));
-  const descent: Segment[] = sim.families.map(({ child, parents }) => ({
+  const descent: Segment[] = sim.families.map(({ child, parents, onTrunkLine }) => ({
     from: parents,
     to: child,
-    style: child.onTrunkLine && parents.some((p) => p.onTrunkLine) ? "trunk" : "branch",
+    style: onTrunkLine ? "trunk" : "branch",
   }));
   return [...unions, ...descent];
 }

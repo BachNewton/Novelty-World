@@ -1,9 +1,16 @@
 "use client";
 
-import type { LaidOutNode, Layout, UnionStatus } from "../types";
+import { isDirectLineLink } from "../logic";
+import type { LaidOutEdge, LaidOutNode, Layout, UnionStatus } from "../types";
 
 interface EdgesProps {
   layout: Layout;
+  // The view root's direct line, whose parent links are highlighted.
+  line: ReadonlySet<string>;
+}
+
+function parentIds(edge: Extract<LaidOutEdge, { kind: "parent-child" }>): string[] {
+  return edge.parentBId === null ? [edge.parentAId] : [edge.parentAId, edge.parentBId];
 }
 
 const MARRIAGE_STROKE = "var(--color-brand-pink)";
@@ -21,8 +28,15 @@ const UNION_LINE_STYLES: Record<
   "ex-partner": { stroke: PARTNER_STROKE, dashed: true },
 };
 
-export function Edges({ layout }: EdgesProps) {
+export function Edges({ layout, line }: EdgesProps) {
   const byId = new Map<string, LaidOutNode>(layout.nodes.map((n) => [n.id, n]));
+  const onLine = (edge: LaidOutEdge): boolean =>
+    edge.kind === "parent-child" && isDirectLineLink(line, edge.childId, parentIds(edge));
+  // Siblings share their parents' drop, so the direct line is drawn last to
+  // stay on top where it overlaps a side branch.
+  const ordered = layout.edges
+    .map((edge, i) => ({ edge, i, highlighted: onLine(edge) }))
+    .sort((a, b) => Number(a.highlighted) - Number(b.highlighted));
 
   return (
     <svg
@@ -31,7 +45,7 @@ export function Edges({ layout }: EdgesProps) {
       height={layout.height}
       style={{ overflow: "visible" }}
     >
-      {layout.edges.map((edge, i) => {
+      {ordered.map(({ edge, i, highlighted }) => {
         if (edge.kind === "spouse") {
           const a = byId.get(edge.aId);
           const b = byId.get(edge.bId);
@@ -77,8 +91,8 @@ export function Edges({ layout }: EdgesProps) {
             key={`p-${i}`}
             d={d}
             fill="none"
-            stroke="var(--color-border-hover)"
-            strokeWidth={2}
+            stroke={highlighted ? "var(--color-brand-orange)" : "var(--color-border-hover)"}
+            strokeWidth={highlighted ? 3 : 2}
           />
         );
       })}

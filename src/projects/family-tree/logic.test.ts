@@ -11,11 +11,13 @@ import {
   createInitialTree,
   deletePerson,
   describeRelation,
+  directLine,
   emptyResearch,
   formatShare,
   fullName,
   fullNameWithMiddle,
   heritageBreakdowns,
+  isDirectLineLink,
   linkParent,
   nearestInDirection,
   newUnion,
@@ -33,7 +35,14 @@ import {
   treeProblems,
 } from "./logic";
 import { NODE_W, SPOUSE_GAP, computeLayout, packElbowRows } from "./layout/compute-layout";
-import { partnerFamily, widowedRemarriage } from "./__fixtures__/trees";
+import {
+  cousinMarriage,
+  lineage,
+  nuclear,
+  partnerFamily,
+  pedigree,
+  widowedRemarriage,
+} from "./__fixtures__/trees";
 import { CODE_SHAPES, HERITAGES } from "./heritages";
 import type { HeritageEntryCode } from "./heritages";
 import type { LaidOutNode } from "./types";
@@ -2286,6 +2295,72 @@ describe("packElbowRows", () => {
 function node(id: string, x: number, y: number): LaidOutNode {
   return { id, x, y, w: 100, h: 50 };
 }
+
+describe("directLine", () => {
+  const sorted = (ids: Set<string>) => [...ids].sort();
+
+  it("runs the whole way up and down a single line", () => {
+    expect(sorted(directLine(lineage(), "g2"))).toEqual(["g1", "g2", "g3", "g4", "me"]);
+  });
+
+  it("holds every ancestor on both sides and nobody else", () => {
+    expect(sorted(directLine(pedigree(), "dad"))).toEqual(
+      ["dad", "me", "pgf", "pgf_f", "pgf_m", "pgm", "pgm_f", "pgm_m"],
+    );
+  });
+
+  it("leaves out partners and siblings", () => {
+    expect(sorted(directLine(nuclear(), "dad"))).toEqual(["dad", "kid1", "kid2", "kid3"]);
+    expect(sorted(directLine(nuclear(), "kid1"))).toEqual(["dad", "kid1", "mom"]);
+  });
+
+  it("follows descendants through every child, and meets itself in a cousin marriage", () => {
+    expect(sorted(directLine(cousinMarriage(), "a"))).toEqual(["a", "c", "d", "g", "h"]);
+    expect(sorted(directLine(cousinMarriage(), "g"))).toEqual(["a", "b", "c", "e", "g"]);
+  });
+
+  it("gives someone who married in only themselves and their descendants", () => {
+    expect(sorted(directLine(widowedRemarriage(), "terryKid1Sp"))).toEqual(
+      ["grandkid", "terryKid1Sp"],
+    );
+    expect(sorted(directLine(nuclear(), "mom"))).toEqual(["kid1", "kid2", "kid3", "mom"]);
+  });
+});
+
+describe("isDirectLineLink", () => {
+  it("takes a child of the line and an off-line partner", () => {
+    const tree = widowedRemarriage();
+    const line = directLine(tree, "richard");
+    expect(isDirectLineLink(line, "terryKid1", ["richard", "terry"])).toBe(true);
+    expect(isDirectLineLink(line, "grandkid", ["terryKid1", "terryKid1Sp"])).toBe(true);
+    expect(isDirectLineLink(line, "richard", ["rDad", "rMom"])).toBe(true);
+  });
+
+  it("skips a partner's children from another union", () => {
+    const tree = widowedRemarriage();
+    const line = directLine(tree, "terry");
+    expect(isDirectLineLink(line, "terryKid2", ["richard", "terry"])).toBe(true);
+    expect(isDirectLineLink(line, "maryKid", ["richard", "mary"])).toBe(false);
+    expect(isDirectLineLink(line, "richard", ["rDad", "rMom"])).toBe(false);
+  });
+
+  it("skips a sibling's link, though it shares the parents", () => {
+    const line = directLine(nuclear(), "kid1");
+    expect(isDirectLineLink(line, "kid1", ["dad", "mom"])).toBe(true);
+    expect(isDirectLineLink(line, "kid2", ["dad", "mom"])).toBe(false);
+  });
+
+  it("matches every parent link on the line and no other, from a single parent too", () => {
+    const tree = partnerFamily();
+    const line = directLine(tree, "kid1");
+    const onLine = Object.values(tree.persons)
+      .filter((p) => p.parentIds.length > 0 && isDirectLineLink(line, p.id, p.parentIds))
+      .map((p) => p.id)
+      .sort();
+    expect(onLine).toEqual(["grandkid", "john", "kid1"]);
+    expect(isDirectLineLink(directLine(lineage(), "g2"), "me", ["g1"])).toBe(true);
+  });
+});
 
 describe("nearestInDirection", () => {
   it("picks the closest node in each cardinal direction", () => {

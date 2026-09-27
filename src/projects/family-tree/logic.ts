@@ -1221,6 +1221,35 @@ export function computeGenerations(tree: Tree): Map<string, number> {
   return gen;
 }
 
+// A person's direct line: themselves, every ancestor and every descendant.
+// Partners, siblings, cousins and in-laws are off it. Both views highlight
+// the view root's direct line.
+export function directLine(tree: Tree, id: string): Set<string> {
+  const line = new Set(ancestorsWithDistance(tree, id).keys());
+  const children = buildChildrenIndex(tree);
+  const down = [id];
+  while (down.length > 0) {
+    for (const childId of children.get(down.pop()!) ?? []) {
+      if (line.has(childId)) continue;
+      line.add(childId);
+      down.push(childId);
+    }
+  }
+  return line;
+}
+
+// Whether the link from a child up to their parents runs along `line`: the
+// child is on it and so is at least one parent. A child of the line's
+// person and an off-line partner is on it; the partner's children from
+// another union are not.
+export function isDirectLineLink(
+  line: ReadonlySet<string>,
+  childId: string,
+  parentIds: readonly string[],
+): boolean {
+  return line.has(childId) && parentIds.some((id) => line.has(id));
+}
+
 export type NavDirection = "up" | "down" | "left" | "right";
 
 export function nearestInDirection(

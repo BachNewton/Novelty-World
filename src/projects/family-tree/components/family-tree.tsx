@@ -8,6 +8,7 @@ import {
   ROOT_ID,
   ROOT_FIRST_NAME,
   describeRelation,
+  directLine,
   fullName,
   heritageBreakdowns,
   nearestInDirection,
@@ -152,6 +153,10 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
   }, [tree, effectiveViewRootId]);
 
   const heritage = useMemo(() => heritageBreakdowns(tree), [tree]);
+  const line = useMemo(
+    () => directLine(tree, effectiveViewRootId),
+    [tree, effectiveViewRootId],
+  );
 
   const viewRootFocus = useMemo(() => {
     const node = layout.nodes.find((n) => n.id === effectiveViewRootId);
@@ -226,7 +231,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
             initialFocus={viewRootFocus}
             onBackgroundPointerDown={() => { setSelected(null); }}
           >
-            <Edges layout={layout} />
+            <Edges layout={layout} line={line} />
             {layout.nodes.map((n) => (
               <Node
                 key={n.id}
@@ -234,6 +239,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
                 person={tree.persons[n.id]}
                 selected={selectedId === n.id}
                 isViewRoot={n.id === effectiveViewRootId}
+                onLine={line.has(n.id)}
                 subtitle={subtitles.get(n.id) ?? null}
                 heritage={heritage[n.id]}
                 flashKey={flash?.id === n.id ? flash.key : null}

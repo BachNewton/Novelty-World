@@ -10,6 +10,8 @@ interface NodeProps {
   person: Person;
   selected: boolean;
   isViewRoot: boolean;
+  // On the view root's direct line (an ancestor or a descendant).
+  onLine: boolean;
   subtitle: string | null;
   heritage: HeritageBreakdown;
   // Changing the key replays the flash, so picking the same person again
@@ -24,6 +26,7 @@ export function Node({
   person,
   selected,
   isViewRoot,
+  onLine,
   subtitle,
   heritage,
   flashKey,
@@ -46,7 +49,9 @@ export function Node({
             ? "border-brand-orange bg-surface-elevated"
             : isViewRoot
               ? "border-brand-blue bg-surface-tertiary hover:border-brand-pink"
-              : "border-border-default bg-surface-secondary hover:border-border-hover",
+              : onLine
+                ? "border-brand-orange/45 bg-surface-secondary hover:border-brand-orange/75"
+                : "border-border-default bg-surface-secondary hover:border-border-hover",
         ].join(" ")}
         style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
         onClick={handleClick}
