@@ -156,11 +156,23 @@ is in `methods.md` ("Finding a line's origin").
 - **Pennsylvania death certificates 1906–1970** are not on FamilySearch
   (they are on a paid site: out). List one as a gap, not a null.
 - **Hungary Civil Registration 1895–1980**: births, marriages, deaths;
-  search the native name forms. Births are indexed only to about 1920;
+  search the native name forms. Hungarian law opens births at 90 years,
+  marriages at 60 and deaths at 30, so births stop about 1920;
   later people are reached through their parents' marriages and their own
   death records. Death registers after about 1952 give the exact birth date
   and place, and the spouse with the marriage place and year: the best way
   to climb and to tie.
+  - The index covers only some registers. An unindexed birth may still be in
+    the images: from any record image, follow its waypoint (county › place)
+    to that place's list of registers, then jump through the register by
+    typing an image number (a `?i=` in the URL is ignored). Most images carry
+    a per-image index table, which a script can read while stepping with
+    "Previous/Next Image". A merged district (a Budapest kerület) can list
+    one village's register under the district's name: check the residences
+    written on the image before logging a null.
+  - The record page's "Event Place" often says only "Magyarország". The
+    register's town is in the image viewer's title (for example "Kéthely.
+    Death Certificates 1934–1962").
 - **"Public Records 1970–2009" / "Residence Database"**: people-search
   quality; exact dates but often wrong or merged. The record page's Alias
   field can show a birth surname or a full two-part surname. Leads only; an
@@ -350,12 +362,25 @@ war.
   the page's script, not in the HTML. "Nincs találat" means no results.
   Check that the search works with a place name before you log a null.
 - **Hadtörténeti Intézet war-graves registry**
-  (`hadisir.militaria.hu/hadisir-nyilvantarto`): POST `name=`. It returned
-  403 after two quick queries: pace the queries, and run a control search
-  first.
-- **Austrian casualty lists** (Verlustlisten, 1914–1919, which list the
-  wounded too): full text on ANNO (`anno.onb.ac.at/anno-suche`), a
-  JavaScript app, so search them in the browser.
+  (`hadisir.militaria.hu/hadisir-nyilvantarto`): POST `name=`. From `curl`
+  it returned 403 after two queries. From the browser tab, a same-origin
+  `fetch` POST of the form works; pace it, and run a control search first
+  (a common name returns over 100).
+- **Austro-Hungarian casualty lists** (Verlustlisten 1914–1919, the
+  lists of the wounded and sick, and their alphabetical indexes): full text
+  on ANNO. The best source for a soldier in a family story: each entry gives
+  the unit, home county and village, birth year, and wounded, prisoner or
+  killed. Search in the browser at
+  `anno.onb.ac.at/anno-suche#searchMode=simple&query=<name>`, which lists
+  the issues that match. A page's OCR text is at
+  `/cgi-content/annoshow?text=<aid>|<yyyymmdd>|<page>` (the `aid` is in each
+  hit's `data.onb.ac.at/ANNO/<aid><date>` link): fetch the pages from the
+  tab and grep for the name. The service record itself is in the Vienna War
+  Archive, not online.
+
+A **Cloudflare "Just a moment" page** (Baseball-Reference and others) is
+often a one-off: navigate again before counting the site as blocked. Never
+try to solve a CAPTCHA.
 
 ## Finnish records
 
