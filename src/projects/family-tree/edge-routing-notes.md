@@ -83,6 +83,15 @@ falls outside that argument. The slow suite's `familyNetwork` fixture, near
 the live tree's size and shape, runs the whole placement and checks it
 repeats exactly.
 
+The live tree does hit that exception: two solves of the same 411-person tree
+drew the same lines but placed 34 cards differently, both at the proven
+optimum. Every tied optimum is equally good by the solve's measures (fewest
+crossings, then line length and movement), but one can still look better
+than another by a measure the solve doesn't have: symmetry, compactness,
+families kept visually together. Choosing among tied optima by such a
+visual measure is a later improvement; until then, which optimum a solve
+returns is arbitrary.
+
 Considered and rejected:
 
 - **Phantom junction nodes in the LP**, one per family at its drop, so the
