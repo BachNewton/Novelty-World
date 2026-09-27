@@ -249,8 +249,11 @@ the evidence must not need re-researching. So every round records, on each
 person it reaches, what the records say (with `setOrigin`, sources in notes):
 
 - **`birthPlace`**, word for word from the strongest record, and
-  **`birthPlaceToday`**, the same place today. For anyone who may be living,
-  region and country only, never a town.
+  **`birthPlaceToday`**, the same place today, written so a map can place
+  it: the smallest place the records give, then the larger units, then the
+  country ("Jurva, Kurikka, South Ostrobothnia, Finland"; "Timár,
+  Szabolcs-Szatmár-Bereg, Hungary"), never a vague "Europe". For anyone who
+  may be living, region and country only, never a town.
 - For anyone born abroad, or whose parents were: **`emigrationDate`**,
   **`motherTongue`** (as a census gives it) and **`recordedPeople`** (the
   people or nationality a record states, word for word: a passenger list's

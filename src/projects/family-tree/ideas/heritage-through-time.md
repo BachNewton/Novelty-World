@@ -164,6 +164,26 @@ shows it: a mother tongue, a congregation, a gravestone's language, family
 lore the owner vouches for. A birth in a settler country (the US, Canada) is
 never an origin on its own; research climbs past it.
 
+## Direction for the visuals
+
+A throwaway mockup of six ideas on the tree's real data (a fan chart, a
+ribbon, symbols through time, a line's journey, an origins map and a
+story card) was shown to the owner. The two they liked most set the
+direction:
+
+- **Symbols through time** replace today's flags on the cards: the same
+  corner symbols, picked by each card's birth year (decisions 2 and 3
+  below).
+- **An origins map**: each known origin a point sized by its share, with an
+  arc to where the family settled, and the unknown share stated plainly.
+  It lives in the person panel's Heritage section, for that person's lines.
+  The points are the immigrants' birthplaces today; the arcs end at the
+  first birthplace in the new country. Both come from `birthPlaceToday`, so
+  research must record it in a form a map can place.
+
+The journey and story paragraphs stay in the plan as the panel's text
+around the map; the fan chart and the ribbon are set aside.
+
 ## Decisions
 
 Made against the project's two aims (connection, and the story of the
