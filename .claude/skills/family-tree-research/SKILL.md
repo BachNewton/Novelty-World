@@ -193,6 +193,10 @@ lessons into this skill's files.
   shell call, the permission classifier has refused it as destructive.
 - Every agent's browser tab shares one FamilySearch account (see
   `sources.md`).
+- A research agent that needs an unlisted heritage says so in its report
+  and uses "unknown" meanwhile; the orchestrating session adds it (parallel
+  agents editing the list would collide) before applying that agent's file,
+  then swaps the "unknown" for the new code.
 
 ## When to ask
 
@@ -233,8 +237,11 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
 - **Code = the present-day country containing the recorded place**, not the
   state at the time: a birthplace recorded as Prussia or Austria-Hungary maps
   by where the town actually lies. Use a **people** entry when the ancestry is
-  a people without a country. If the one you need is missing, add it to
-  `heritages.ts`: one entry with its kind and name.
+  a people without a country. **The list grows with the research:** when
+  the evidence needs a heritage that isn't listed, add it in the same round
+  (one entry in `heritages.ts` with its kind and name, and its flag in
+  `flags.ts`), commit and push it to main, then apply the round's changes.
+  Never park a finding because its heritage isn't listed yet.
 - **Unknown when the records don't say. Never guess.** A US-born top-of-line
   person whose origin isn't traced stays unknown: the question is still open
   or exhausted, which is not a claim they aren't American. Don't use a
