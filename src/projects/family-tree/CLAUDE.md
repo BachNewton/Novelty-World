@@ -9,6 +9,11 @@ A tree that serves two aims, and a feature earns its place by serving one of the
 
 It is still not a genealogy app: the story is told simply, from evidence, not as a database of records.
 
+## Who owns what
+
+- **Claude owns the data and the research:** the data model, what gets recorded and how, the research method and standards, sources, storage and migrations. Decide these, build them, and report what changed. The owner doesn't review them first.
+- **The owner owns the UI and the project's heart:** what the tree shows and how, and its goals (the aims above). Ask before changing the UI or reinterpreting a goal. A data decision that changes what the UI shows is the owner's call.
+
 The split between the UI and the data layer matters:
 
 - **The UI** is a read-only viewer of a simple relationship tree. Push back on genealogy-software sprawl there: citations, confidence levels, event records and the like never appear on the cards. The person panel shows one person's details, including the research record the tree already keeps, but it stays a short readout.
@@ -66,7 +71,7 @@ The browser app is a read-only viewer: there is no edit UI. All edits are AI-dri
 
 The owner wants as few approval requests as possible. When research finds evidence for a change and confidence is high, make the change with the CLI and report it afterwards. High confidence includes a near-certain inference from records: a divorce implied because both spouses remarried while alive, a birth surname from a marriage record that names the parents. Record the evidence in `research/` either way.
 
-Research method and record keeping (the research standards, the research record, data-layer fields that only research reads) serve Claude's research, not how the owner explores the tree. Decide those and report what changed; the owner's say is over what the UI shows.
+Research method, record keeping and the data model are Claude's (see "Who owns what"): decide them and report what changed.
 
 The same goes for modelling and interpretation questions the owner finds hard to call: how heritage is classified, what counts as a line's origin, how the story is structured. Decide them against the two aims above, write the decision and its reasoning into the relevant doc, and report it; the owner judges the result rather than setting the rule up front.
 
