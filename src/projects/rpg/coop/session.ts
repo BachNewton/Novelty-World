@@ -18,12 +18,7 @@ import {
   type GuestMessage,
   type HostMessage,
 } from "./protocol";
-import {
-  createTransport,
-  type Transport,
-  type TransportEvents,
-  type TransportState,
-} from "./transport";
+import type { Room, RoomEvents, RoomState } from "@/shared/lib/peer";
 
 /** Remote avatars draw at a position eased toward the last one received. */
 export interface RemoteAvatar extends Avatar {
@@ -60,7 +55,7 @@ function sameAvatar(a: Avatar, b: Avatar): boolean {
 type MapOp = Extract<GuestMessage, { kind: "paint" | "clear" }>;
 
 /** What the UI shows about the session; replaced, never mutated. */
-export interface CoopSnapshot extends TransportState {
+export interface CoopSnapshot extends RoomState {
   remoteCount: number;
 }
 
@@ -80,19 +75,21 @@ export interface CoopSession {
   stop(): void;
 }
 
-export type TransportFactory = (roomId: string, events: TransportEvents) => Transport;
+export type CoopRoom = Pick<
+  Room<HostMessage, GuestMessage>,
+  "start" | "stop" | "sendToHost" | "sendTo" | "broadcast"
+>;
 
 export function createCoopSession(options: {
-  roomId: string;
   map: MapStore;
   spawn: Avatar;
-  createTransport?: TransportFactory;
+  createRoom: (events: RoomEvents<HostMessage, GuestMessage>) => CoopRoom;
 }): CoopSession {
-  const { roomId, map, createTransport: makeTransport = createTransport } = options;
+  const { map } = options;
   const remotes = new Map<string, RemoteAvatar>();
   const listeners = new Set<() => void>();
   let local = quantize(options.spawn);
-  let state: TransportState = { status: "idle", role: null, selfId: null, peerCount: 0 };
+  let state: RoomState = { status: "idle", role: null, code: "", selfId: null, players: [] };
   let snapshot: CoopSnapshot = { ...state, remoteCount: 0 };
 
   function notify(): void {
@@ -114,7 +111,7 @@ export function createCoopSession(options: {
     if (remotes.delete(id)) notify();
   }
 
-  const transport = makeTransport(roomId, {
+  const room = options.createRoom({
     onState(next) {
       const wasConnected = state.status === "connected";
       state = next;
@@ -124,29 +121,32 @@ export function createCoopSession(options: {
       if (!wasConnected && next.role === "guest") sendToHost({ kind: "avatar", avatar: local });
       notify();
     },
-    onGuestJoined(id) {
-      const avatars: Record<string, Avatar> = { [roomId]: local };
+    onGuestJoined({ peerId }) {
+      const avatars: Record<string, Avatar> = { [hostId()]: local };
       for (const [otherId, avatar] of remotes) avatars[otherId] = avatar;
-      sendTo(id, { kind: "welcome", grid: map.grid(), avatars });
+      sendTo(peerId, { kind: "welcome", grid: map.grid(), avatars });
     },
-    onGuestLeft(id) {
-      removeRemote(id);
-      broadcast({ kind: "left", id });
+    onGuestLeft({ peerId }) {
+      removeRemote(peerId);
+      broadcast({ kind: "left", id: peerId });
     },
-    onData(from, data) {
-      if (state.role === "host") handleGuest(from, data);
-      else handleHost(data);
-    },
+    onGuestMessage: (from, data) => handleGuest(from.peerId, data),
+    onHostMessage: (data) => handleHost(data),
   });
 
+  /** As host, our own peer id. */
+  function hostId(): string {
+    if (state.role !== "host" || state.selfId === null) throw new Error("rpg coop: not hosting");
+    return state.selfId;
+  }
   function sendToHost(msg: GuestMessage): void {
-    transport.sendToHost(msg);
+    room.sendToHost(msg);
   }
   function sendTo(guestId: string, msg: HostMessage): void {
-    transport.sendTo(guestId, msg);
+    room.sendTo(guestId, msg);
   }
   function broadcast(msg: HostMessage, exceptId?: string): void {
-    transport.broadcast(msg, exceptId);
+    room.broadcast(msg, exceptId);
   }
 
   function handleGuest(from: string, data: unknown): void {
@@ -216,7 +216,7 @@ export function createCoopSession(options: {
       const next = quantize(avatar);
       if (sameAvatar(next, local)) return;
       local = next;
-      if (state.role === "host") broadcast({ kind: "avatar", id: roomId, avatar: local });
+      if (state.role === "host") broadcast({ kind: "avatar", id: hostId(), avatar: local });
       else if (state.role === "guest") sendToHost({ kind: "avatar", avatar: local });
     },
     paint(edits) {
@@ -234,7 +234,7 @@ export function createCoopSession(options: {
         listeners.delete(listener);
       };
     },
-    start: () => transport.start(),
-    stop: () => transport.stop(),
+    start: () => room.start(),
+    stop: () => room.stop(),
   };
 }

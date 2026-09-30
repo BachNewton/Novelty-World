@@ -12,7 +12,7 @@ import {
   type MapGrid,
 } from "../world-map";
 
-export const DEFAULT_ROOM_ID = "novelty-rpg-world";
+export const DEFAULT_ROOM_ID = "world";
 /** Test/dev isolation only; production always uses the default room. */
 export const ROOM_PARAM = "coop-room";
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;

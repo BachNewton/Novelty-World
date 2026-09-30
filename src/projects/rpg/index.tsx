@@ -9,7 +9,8 @@ import { DEFAULT_CHARACTER_ID } from './characters';
 import { MAP_COLS, MAP_ROWS, createStoredMapStore } from './world-map';
 import { roomIdFromSearch } from './coop/protocol';
 import { createCoopSession, type CoopSession } from './coop/session';
-import { createTransport, peerOptionsFromSearch } from './coop/transport';
+import { createRoom, peerOptionsFromSearch, stopOnPageHide } from '@/shared/lib/peer';
+import { useProfile } from '@/shared/lib/profile';
 
 export function RpgGame() {
   // The session reads localStorage and the URL, so it only exists client-side.
@@ -21,11 +22,16 @@ export function RpgGame() {
 function RpgSession() {
   const [session] = useState(() => {
     const search = window.location.search;
-    const peerOptions = peerOptionsFromSearch(search);
     return createCoopSession({
-      roomId: roomIdFromSearch(search),
       map: createStoredMapStore(),
-      createTransport: (roomId, events) => createTransport(roomId, events, peerOptions),
+      createRoom: (events) =>
+        createRoom({
+          game: 'rpg',
+          target: { mode: 'claim', code: roomIdFromSearch(search) },
+          profile: useProfile.getState(),
+          events,
+          peerOptions: peerOptionsFromSearch(search),
+        }),
       spawn: {
         x: (MAP_COLS * CELL_PX) / 2,
         y: (MAP_ROWS * CELL_PX) / 2,
@@ -38,18 +44,9 @@ function RpgSession() {
   });
   useEffect(() => {
     session.start();
-    // Leave the room explicitly when the tab goes away: peers see our
-    // channels close at once, and the server frees the room id for the next
-    // host, instead of both waiting out WebRTC / signalling timeouts.
-    const onPageHide = () => session.stop();
-    const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) session.start();
-    };
-    window.addEventListener('pagehide', onPageHide);
-    window.addEventListener('pageshow', onPageShow);
+    const unbindPage = stopOnPageHide(session);
     return () => {
-      window.removeEventListener('pagehide', onPageHide);
-      window.removeEventListener('pageshow', onPageShow);
+      unbindPage();
       session.stop();
     };
   }, [session]);
@@ -98,7 +95,7 @@ function CoopBadges({ session }: { session: CoopSession }) {
     <>
       <span data-testid="coop-status" style={HIDDEN_STYLE}>{snapshot.status}</span>
       <span data-testid="coop-role" style={HIDDEN_STYLE}>{snapshot.role ?? ''}</span>
-      <span data-testid="coop-peer-count" style={HIDDEN_STYLE}>{snapshot.peerCount}</span>
+      <span data-testid="coop-peer-count" style={HIDDEN_STYLE}>{Math.max(0, snapshot.players.length - 1)}</span>
       <span data-testid="coop-remote-count" style={HIDDEN_STYLE}>{snapshot.remoteCount}</span>
     </>
   );

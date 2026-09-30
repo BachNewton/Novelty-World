@@ -4,7 +4,7 @@ import type { Page, Browser, BrowserContext } from "@playwright/test";
 /**
  * RPG co-op E2E (PeerJS star, one room per test via `?coop-room=`).
  *
- * Offline by design: `?coop-signal=local` points PeerJS at the local
+ * Offline by design: `?peer-signal=local` points PeerJS at the local
  * PeerServer started by global-setup (`e2e/peer-server.ts`), with no STUN or
  * TURN, so the suite never touches the public PeerJS cloud.
  *
@@ -59,7 +59,7 @@ async function newPeer(browser: Browser): Promise<{ ctx: BrowserContext; page: P
 }
 
 async function gotoRpg(page: Page, room: string): Promise<void> {
-  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&coop-signal=local`);
+  await page.goto(`${RPG_URL}?${COOP_ROOM_PARAM}=${encodeURIComponent(room)}&peer-signal=local`);
   await page.waitForLoadState("domcontentloaded");
   // Play mode is the default: the play canvas mounts (edit chrome absent).
   await expect(page.getByTestId("play-canvas")).toBeVisible({ timeout: 10_000 });

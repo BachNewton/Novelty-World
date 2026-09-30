@@ -1,7 +1,7 @@
 /**
- * Local PeerJS signalling server for e2e tests, so the RPG co-op suite never
- * depends on the public PeerJS cloud (rate limits, outages). Pages opt in
- * with `?coop-signal=local`.
+ * Local PeerJS signalling server for e2e tests, so the multiplayer suites
+ * never depend on the public PeerJS cloud (rate limits, outages). Pages opt
+ * in with `?peer-signal=local` (see `src/shared/lib/peer`).
  */
 import { PeerServer } from "peer";
 

@@ -2,7 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { createEmptyGrid, createMapStore, type PlacedTile } from "../world-map";
 import type { Avatar } from "./protocol";
 import { advanceRemoteRender, createCoopSession, type CoopSession } from "./session";
-import type { TransportEvents, TransportState } from "./transport";
+import type { Player, RoomEvents, RoomState } from "@/shared/lib/peer";
+import type { GuestMessage, HostMessage } from "./protocol";
+
+type Events = RoomEvents<HostMessage, GuestMessage>;
+
+function player(peerId: string): Player {
+  return { id: `profile-${peerId}`, name: peerId, peerId };
+}
 
 const ROOM = "room";
 const GRASS: PlacedTile = { src: "/rpg/tiles/Grass/Grass_Tiles_1.png", sx: 1, sy: 1 };
@@ -15,7 +22,7 @@ const SPAWN: Avatar = { x: 320, y: 224, dir: "front", flip: false, moving: false
  * so tests control exactly how messages interleave.
  */
 function createNetwork() {
-  const nodes = new Map<string, TransportEvents>();
+  const nodes = new Map<string, Events>();
   const guests = new Set<string>();
   const queue: { to: string; run: () => void }[] = [];
   let sent = 0;
@@ -24,19 +31,25 @@ function createNetwork() {
     sent += 1;
     // Serialize like the real channel, so no object is shared across peers.
     const copy: unknown = structuredClone(data);
-    queue.push({ to, run: () => nodes.get(to)?.onData(from, copy) });
+    queue.push({
+      to,
+      run: () => {
+        const node = nodes.get(to);
+        if (to === ROOM) node?.onGuestMessage?.(player(from), copy as GuestMessage);
+        else node?.onHostMessage?.(copy as HostMessage);
+      },
+    });
   }
 
-  function state(role: TransportState["role"], selfId: string): TransportState {
-    return { status: "connected", role, selfId, peerCount: role === "host" ? guests.size : 1 };
+  function state(role: RoomState["role"], selfId: string): RoomState {
+    return { status: "connected", role, code: ROOM, selfId, players: [ROOM, ...guests].map(player) };
   }
 
   function add(id: string, map = createMapStore(createEmptyGrid())): CoopSession {
     return createCoopSession({
-      roomId: ROOM,
       map,
       spawn: SPAWN,
-      createTransport: (_roomId, events) => {
+      createRoom: (events) => {
         nodes.set(id, events);
         return {
           start() {},
@@ -55,26 +68,26 @@ function createNetwork() {
     /** A host session; its peer id is the room id. */
     host(map?: ReturnType<typeof createMapStore>): CoopSession {
       const session = add(ROOM, map);
-      nodes.get(ROOM)?.onState(state("host", ROOM));
+      nodes.get(ROOM)?.onState?.(state("host", ROOM));
       return session;
     },
     guest(id: string, map?: ReturnType<typeof createMapStore>): CoopSession {
       const session = add(id, map);
       guests.add(id);
-      nodes.get(id)?.onState(state("guest", id));
-      nodes.get(ROOM)?.onState(state("host", ROOM));
-      nodes.get(ROOM)?.onGuestJoined(id);
+      nodes.get(id)?.onState?.(state("guest", id));
+      nodes.get(ROOM)?.onState?.(state("host", ROOM));
+      nodes.get(ROOM)?.onGuestJoined?.(player(id));
       return session;
     },
     leave(id: string): void {
       guests.delete(id);
-      nodes.get(ROOM)?.onGuestLeft(id);
+      nodes.get(ROOM)?.onGuestLeft?.(player(id));
     },
     /** The host vanished: every guest drops to `reconnecting`. */
     loseHost(): void {
       nodes.delete(ROOM);
       for (const id of guests) {
-        nodes.get(id)?.onState({ status: "reconnecting", role: null, selfId: null, peerCount: 0 });
+        nodes.get(id)?.onState?.({ status: "reconnecting", role: null, code: ROOM, selfId: null, players: [] });
       }
       guests.clear();
       queue.length = 0;
@@ -85,7 +98,7 @@ function createNetwork() {
       if (events === undefined) throw new Error(`no node ${id}`);
       nodes.delete(id);
       nodes.set(ROOM, events);
-      events.onState(state("host", ROOM));
+      events.onState?.(state("host", ROOM));
     },
     flush(): void {
       while (queue.length > 0) queue.shift()?.run();
@@ -225,10 +238,9 @@ describe("map edits", () => {
 
   it("solo edits stay local and send nothing", () => {
     const solo = createCoopSession({
-      roomId: ROOM,
       map: createMapStore(createEmptyGrid()),
       spawn: SPAWN,
-      createTransport: () => ({
+      createRoom: () => ({
         start() {},
         stop() {},
         sendToHost: () => expect.unreachable(),
@@ -245,18 +257,19 @@ describe("map edits", () => {
 
   it("ignores malformed messages loudly", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    let events: TransportEvents | undefined;
+    let events: Events | undefined;
     const host = createCoopSession({
-      roomId: ROOM,
       map: createMapStore(createEmptyGrid()),
       spawn: SPAWN,
-      createTransport: (_room, e) => {
+      createRoom: (e) => {
         events = e;
         return { start() {}, stop() {}, sendToHost() {}, sendTo() {}, broadcast() {} };
       },
     });
-    events?.onState({ status: "connected", role: "host", selfId: ROOM, peerCount: 1 });
-    events?.onData("a", { kind: "paint", edits: [{ c: 1, r: 1, tile: { src: "/evil.png", sx: 0, sy: 0 } }] });
+    events?.onState?.({ status: "connected", role: "host", code: ROOM, selfId: ROOM, players: [player(ROOM), player("a")] });
+    // Peers are untrusted: a hostile one can send anything down the wire.
+    const hostile: unknown = { kind: "paint", edits: [{ c: 1, r: 1, tile: { src: "/evil.png", sx: 0, sy: 0 } }] };
+    events?.onGuestMessage?.(player("a"), hostile as GuestMessage);
     expect(cellOf(host, 1, 1)).toBeNull();
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
