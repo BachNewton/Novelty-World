@@ -52,7 +52,8 @@ nothing verifiable, which goes to the owner as an open gap on the tree.
   published file is stored byte for byte as the source published it, and a
   test holds it to the SHA-1 in its record. Drawing our own is a separate,
   last-resort path with its own bar ("Drawing our own", below), never a way
-  to patch a file that is almost right.
+  to patch a file that is almost right. The one derived file allowed is a
+  scan's display file, below, which removes paper, not symbol.
 - **One wrong detail fails the file.** A file that is close but not right
   (a crown of the wrong era, a ratio off by more than pixel rounding, a
   shade the specification contradicts) is not verified. Look for another
@@ -228,6 +229,18 @@ the repo, until the file is verified.
   solve when it renders the art (a rendering is a derived display file,
   never the record). The test refuses files over 5 MB, which means a wrong
   file, not one to shrink.
+- **A scan shows in the symbol's own shape.** A raster scan of arms on
+  paper gets a display file, so the shield and crown show in their own
+  outline rather than as a rectangle of paper. Run
+  `python src/projects/family-tree/tools/transparent-background.py <scan>
+  <symbol-id>.display.png` (into `symbol-art/`): it makes only the paper
+  transparent (the paper connected to the border, paper seen through gaps
+  such as a crown's arches, and specks of dirt) and trims to the symbol.
+  Then look at the result on a dark and a bright background: every part of
+  the symbol must be there, and no paper. If the paper can't be separated
+  cleanly (a symbol whose own colours match the paper), keep looking for
+  art instead. Record the display file in the art record's `display` (its
+  SHA-1 and pixel size); the scan itself stays unedited as the record.
 
 ## Drawing our own
 

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ART_LICENSES, SYMBOL_ART, symbolArtFile, type SymbolArt } from "./symbol-art";
+import { ART_LICENSES, SYMBOL_ART, symbolArtFile, symbolDisplayFile, type SymbolArt } from "./symbol-art";
 import { SYMBOLS, type SymbolId } from "./symbol-timelines";
 
 const ART_DIR = new URL("./symbol-art/", import.meta.url);
@@ -88,8 +88,22 @@ describe("symbol art", () => {
     }
   });
 
+  it("pins each display file, a PNG of the trimmed symbol with a transparent background", () => {
+    for (const [symbol, art] of artRecords()) {
+      if (art.display === undefined) continue;
+      expect(art.format, symbol).not.toBe("svg");
+      const bytes = artBytes(symbolDisplayFile(symbol, art));
+      expect(createHash("sha1").update(bytes).digest("hex"), symbol).toBe(art.display.sha1);
+      expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], symbol).toEqual([art.display.width, art.display.height]);
+      // IHDR colour type 6: RGBA.
+      expect(bytes[25], symbol).toBe(6);
+    }
+  });
+
   it("keeps only files that belong to a record, none of them oversized", () => {
-    const expected = new Set(artRecords().map(([symbol, art]) => symbolArtFile(symbol, art)));
+    const expected = new Set(
+      artRecords().flatMap(([symbol, art]) => [symbolArtFile(symbol, art), symbolDisplayFile(symbol, art)]),
+    );
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- the fixed symbol-art/ directory beside this file
     for (const file of readdirSync(ART_DIR)) {
       expect(expected.has(file), file).toBe(true);

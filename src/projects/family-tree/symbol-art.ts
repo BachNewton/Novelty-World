@@ -2,8 +2,9 @@
 // "Symbols"): published art checked against its official design, or, only as
 // a last resort, our own drawing from documented sources. A symbol with a
 // record here has a file in `symbol-art/`, named by its symbol id, pinned by
-// its SHA-1; a symbol without one has no verified art and isn't shown. The `heritage-symbol-art` skill is how
-// records get here. Nothing renders this art yet.
+// its SHA-1; a symbol without one has no verified art and isn't shown. The
+// `heritage-symbol-art` skill is how records get here. Nothing renders this
+// art yet.
 
 import type { SymbolId } from "./symbol-timelines";
 
@@ -36,6 +37,20 @@ interface ArtRecord {
   proportions: { width: number; height: number };
   // What was checked, and what was found: proportions, colours, details.
   checked: string;
+  // A scan's paper made transparent, so the symbol shows in its own shape;
+  // absent when the file itself is the symbol alone.
+  display?: DisplayArt;
+}
+
+// The display file beside a scan: `<symbol-id>.display.png`, the scan with
+// only its paper background made transparent by
+// `tools/transparent-background.py` and trimmed to the symbol. The symbol's
+// own pixels are untouched, and the scan stays the record.
+export interface DisplayArt {
+  sha1: string;
+  // The trimmed symbol's pixel size.
+  width: number;
+  height: number;
 }
 
 // Art as an official source or a faithful existing file published it,
@@ -124,6 +139,7 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
     licenseBasis: "Commons: PD-Kansallisarkisto",
     attribution: "",
     proportions: { width: 852, height: 1578 },
+    display: { sha1: "f55eb63972dcad285125bc22afdb15fa4345c5f9", width: 822, height: 1559 },
     checkedAgainst: [
       "Itsenäisyys 100, \"Historiallinen leijonavaakuna on kestänyt kaikki Suomen valtiolliset vaiheet\": State Archivist K. A. Bomansson's arms of the Grand Duchy, printed by Ferdinand Tilgmann in 1886; \"this lion figure at once became general in Finnish-made arms and lion flags\"; the crown removed in 1920",
       "\"Suomen suuriruhtinaskunnan vaakuna v. 1886\" (Storfurstendömet Finlands vapen), Bomansson and Tilgmann, Historiallinen Arkisto IX (1886), Finnish Heritage Agency HK10000:6738: https://www.finna.fi/Record/museovirasto.01CC071AA040A211DCA317AA4BEDA83C",
@@ -507,4 +523,9 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
 // The art's file name inside `symbol-art/`.
 export function symbolArtFile(symbol: SymbolId, art: SymbolArt): string {
   return `${symbol}.${art.format}`;
+}
+
+// The file to show: the display file where a scan has one, else the art.
+export function symbolDisplayFile(symbol: SymbolId, art: SymbolArt): string {
+  return art.display === undefined ? symbolArtFile(symbol, art) : `${symbol}.display.png`;
 }

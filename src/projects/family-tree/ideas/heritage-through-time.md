@@ -91,7 +91,10 @@ they left; their grandchildren show today's.
   preferred; a CC BY-SA drawing is fine with its credit shown), the official
   proportions and what it was checked against (`symbol-art.ts`; the
   `heritage-symbol-art` skill finds and verifies it). Coats of arms are
-  drawn in their own proportions, like flags.
+  drawn in their own shape and proportions, like flags: a shield and its
+  crown, never boxed in a rectangle. So a scan of a printed plate gets a
+  display file beside it with only the paper made transparent, the
+  symbol's own pixels untouched and the scan kept as the record.
 - **Accurate art, and our own drawing only as a last resort.** These
   symbols matter: a heritage the tree can confirm should end up with art
   that identifies it. Art comes, in order of preference, from an official
@@ -112,7 +115,8 @@ they left; their grandchildren show today's.
   like their heritage honored through a symbol, what would they likely
   answer? The form the people used for themselves, and would recognize as
   theirs, wins over an official form they would have seen as imposed. We
-  never trace, recolor, crop or fix someone else's file, and nothing
+  never trace, recolor, crop or fix someone else's file (making a scan's
+  paper transparent removes paper, not any of the symbol), and nothing
   approximate appears anywhere, mockups included. A symbol with no verified
   art isn't shown until it has some.
 - **Every symbol the tree needs gets art.** A symbol is needed when someone's
