@@ -130,6 +130,55 @@
   --color-frogmino-placeholder-l3: #d8b4fe;
 }
 
+/* Frogmino: the world around the road, a mountain road at golden hour. Soft
+   and muted beside the fleet's paints, so the traffic and the frog pop and
+   nothing by the road reads as a vehicle; the further a layer, the paler and
+   bluer, fading into the warm horizon haze, which is also the fog's colour.
+   The road is a mid slate, lighter than the tyres and glass, with lane
+   dashes only a step lighter. Read only by the 3D scene through themeColor,
+   so declared outside @theme. */
+:root {
+  --color-frogmino-world-sky-zenith: #6fc3f0;
+  --color-frogmino-world-sky-horizon: #fdecd0;
+  --color-frogmino-world-sun: #fff4b8;
+  --color-frogmino-world-sun-halo: #ffd98e;
+  --color-frogmino-world-cloud: #fdfcf7;
+  --color-frogmino-world-meadow: #a7cf83;
+  --color-frogmino-world-meadow-deep: #8cbd72;
+  --color-frogmino-world-ridge: #8fae9a;
+  --color-frogmino-world-ridge-high: #a7abc9;
+  --color-frogmino-world-peak: #b9b4d8;
+  --color-frogmino-world-rock: #aaa197;
+  --color-frogmino-world-rock-dark: #8b847c;
+  --color-frogmino-world-snow: #f5f7fc;
+  --color-frogmino-world-leaf: #5e9f6b;
+  --color-frogmino-world-leaf-light: #86bd6e;
+  --color-frogmino-world-pine: #467f68;
+  --color-frogmino-world-trunk: #8d6e55;
+  --color-frogmino-world-shrub: #77ad65;
+  --color-frogmino-world-asphalt: #555a67;
+  --color-frogmino-world-lane-dash: #7a7f8e;
+  --color-frogmino-world-edge-line: #a3a7b2;
+  --color-frogmino-world-shoulder: #9a9283;
+  --color-frogmino-world-kerb: #e4dfd4;
+  --color-frogmino-world-kerb-dark: #b9b1a3;
+  --color-frogmino-world-finish-light: #f3f1ea;
+  --color-frogmino-world-finish-dark: #4b4f5c;
+  --color-frogmino-world-spring-pad: #f29cc4;
+  --color-frogmino-world-spring-arrow: #fff4dc;
+  --color-frogmino-world-rail: #c2c8d1;
+  --color-frogmino-world-post: #8e939d;
+  --color-frogmino-world-post-white: #eeebe3;
+  --color-frogmino-world-reflector: #e2a553;
+  --color-frogmino-world-sign: #f0c457;
+  --color-frogmino-world-sign-ink: #3a3934;
+  --color-frogmino-world-cone: #df8656;
+  --color-frogmino-world-mailbox: #6f8fbb;
+  --color-frogmino-world-mailbox-flag: #d8675d;
+  --color-frogmino-world-bridge: #cdbfa8;
+  --color-frogmino-world-bridge-dark: #a8998a;
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve

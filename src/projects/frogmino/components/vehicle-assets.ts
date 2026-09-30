@@ -25,7 +25,8 @@ const CELL_BORDER_SHADE = 0.4;
 // or only those along its columns.
 export type BorderEdges = "all" | "rows" | "cols";
 
-export function borderMask(edges: BorderEdges): DataTexture {
+// A border mask for a face; `shade` is how dark its border is.
+export function borderMask(edges: BorderEdges, shade = CELL_BORDER_SHADE): DataTexture {
   const size = CELL_TEXTURE_SIZE;
   const last = size - 1;
   const data = new Uint8Array(size * size * 4);
@@ -34,7 +35,7 @@ export function borderMask(edges: BorderEdges): DataTexture {
       const nearU = Math.min(x, last - x) < CELL_BORDER_TEXELS;
       const nearV = Math.min(y, last - y) < CELL_BORDER_TEXELS;
       const edge = edges === "all" ? nearU || nearV : edges === "rows" ? nearV : nearU;
-      const value = Math.round((edge ? CELL_BORDER_SHADE : 1) * 255);
+      const value = Math.round((edge ? shade : 1) * 255);
       data.set([value, value, value, 255], (y * size + x) * 4);
     }
   }
