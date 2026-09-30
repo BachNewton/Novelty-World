@@ -1,3 +1,4 @@
+import { GROUND_CLEARANCE } from "../clearance";
 import { cellKey } from "../logic";
 import type { Cell } from "../types";
 
@@ -6,7 +7,9 @@ import type { Cell } from "../types";
 // to row + 1. Its front face is at z = 0 and it stretches back to z = -length.
 // Every body cell is a solid box through the whole length, so the front
 // silhouette is the same all along the vehicle. Everything else is a part:
-// a small box or disc on the body's surface.
+// a small box or disc on the body's surface. The vehicle rides the ground
+// clearance above the road, at y = -GROUND_CLEARANCE in this frame, and only
+// its wheels reach down through that gap to the road.
 
 // The fleet's paints. Each is a design token in globals.css.
 export const PAINTS = [
@@ -49,6 +52,9 @@ export interface Part {
   min: Vec3;
   max: Vec3;
   paint: Paint;
+  // Whether it is part of a wheel, the one thing allowed in the ground
+  // clearance under the vehicle.
+  wheel?: boolean;
 }
 
 // How far a decal stands proud of the face it sits on. Anything that stands
@@ -83,13 +89,15 @@ export interface VehicleFrame {
   // Whether the cell at (col, row) has no neighbour on that side, so its
   // face there is on the outside.
   exposed: (col: number, row: number, side: Side) => boolean;
-  // A wheel sunk into the side of a road cell, standing just proud of it.
+  // A wheel sunk into the side of a road cell, standing just proud of it and
+  // reaching down through the ground clearance to the road.
   wheel: (col: number, side: Side, from: number, radius?: number) => Part[];
   // Wheels on every outer side of every road cell, one pair of axles near
   // the ends (one axle for a vehicle a cell long).
   wheels: (radius?: number) => Part[];
   // The fronts of the tyres, peeking out under the bumper of each outer road
-  // cell, so the head-on view reads as something on wheels.
+  // cell and down to the road, so the head-on view reads as something on
+  // wheels.
   tyreFronts: () => Part[];
 }
 
@@ -153,13 +161,21 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
     const [tyreMinX, tyreMaxX] = span(-WHEEL_SUNK, WHEEL_PROUD);
     const [hubMinX, hubMaxX] = span(WHEEL_PROUD, HUB_PROUD);
     const hub = radius * HUB_RADIUS_SHARE;
+    const axle = radius - GROUND_CLEARANCE;
     return [
-      { shape: "drumX", min: [tyreMinX, 0, -from - 2 * radius], max: [tyreMaxX, 2 * radius, -from], paint: "charcoal" },
       {
         shape: "drumX",
-        min: [hubMinX, radius - hub, -from - radius - hub],
-        max: [hubMaxX, radius + hub, -from - radius + hub],
+        min: [tyreMinX, -GROUND_CLEARANCE, -from - 2 * radius],
+        max: [tyreMaxX, axle + radius, -from],
+        paint: "charcoal",
+        wheel: true,
+      },
+      {
+        shape: "drumX",
+        min: [hubMinX, axle - hub, -from - radius - hub],
+        max: [hubMaxX, axle + hub, -from - radius + hub],
         paint: "chrome",
+        wheel: true,
       },
     ];
   };
@@ -176,12 +192,16 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
       );
   };
 
+  const tyreFront = (col: number, u0: number, u1: number): Part => ({
+    ...front(col, 0, [u0, -GROUND_CLEARANCE, u1, 0.2], "charcoal"),
+    wheel: true,
+  });
   const tyreFronts: VehicleFrame["tyreFronts"] = () =>
     cells
       .filter((cell) => cell.row === 0)
       .flatMap((cell) => [
-        ...(exposed(cell.col, 0, "left") ? [front(cell.col, 0, [0.04, 0, 0.26, 0.2], "charcoal")] : []),
-        ...(exposed(cell.col, 0, "right") ? [front(cell.col, 0, [0.74, 0, 0.96, 0.2], "charcoal")] : []),
+        ...(exposed(cell.col, 0, "left") ? [tyreFront(cell.col, 0.04, 0.26)] : []),
+        ...(exposed(cell.col, 0, "right") ? [tyreFront(cell.col, 0.74, 0.96)] : []),
       ]);
 
   return { cells, length, front, back, side, top, under, exposed, wheel, wheels, tyreFronts };
@@ -205,8 +225,6 @@ export interface VehicleDesign {
   archetype: string;
   // One line on what it is, for the garage and the docs.
   blurb: string;
-  // How far it stretches along the road, in cells.
-  length: number;
   // Each body cell's paint. Colour blocking by cell helps the cells count.
   body: (cell: Cell) => Paint;
   details: (frame: VehicleFrame) => Part[];

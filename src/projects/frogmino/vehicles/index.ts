@@ -1,4 +1,4 @@
-import { vehicleCells, type VehicleId } from "../fleet";
+import { VEHICLE_IDS, VEHICLE_LENGTHS, vehicleCells, type VehicleId } from "../fleet";
 import type { Cell } from "../types";
 import { I_VEHICLES } from "./i";
 import { J_VEHICLES } from "./j";
@@ -9,7 +9,7 @@ import { S_VEHICLES } from "./s";
 import { T_VEHICLES } from "./t";
 import { Z_VEHICLES } from "./z";
 
-export const VEHICLES: Record<VehicleId, VehicleDesign> = {
+const DESIGNS: Record<VehicleId, VehicleDesign> = {
   ...I_VEHICLES,
   ...O_VEHICLES,
   ...S_VEHICLES,
@@ -19,6 +19,15 @@ export const VEHICLES: Record<VehicleId, VehicleDesign> = {
   ...L_VEHICLES,
 };
 
+// A vehicle's design and how long it is, which the fleet sets for the rules.
+export interface FleetVehicle extends VehicleDesign {
+  length: number;
+}
+
+export const VEHICLES = Object.fromEntries(
+  VEHICLE_IDS.map((id) => [id, { ...DESIGNS[id], length: VEHICLE_LENGTHS[id] }]),
+) as Record<VehicleId, FleetVehicle>;
+
 export interface BodyCell {
   cell: Cell;
   paint: Paint;
@@ -27,7 +36,7 @@ export interface BodyCell {
 // Everything needed to draw one vehicle, in its own frame (see parts.ts).
 export interface VehicleModel {
   id: VehicleId;
-  design: VehicleDesign;
+  design: FleetVehicle;
   cells: Cell[];
   length: number;
   body: BodyCell[];

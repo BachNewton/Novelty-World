@@ -54,3 +54,16 @@ export function vehicleCells(id: VehicleId): Cell[] {
   const { kind, rotation } = vehiclePiece(id);
   return pieceCells(kind, rotation);
 }
+
+// How far each vehicle stretches back along the road from its front, in
+// cells: its archetype's length, two or three. The rules keep a vehicle solid
+// for as long as its length overlaps the frog, and the art is built this long.
+export const VEHICLE_LENGTHS: Record<VehicleId, number> = {
+  I0: 2, I1: 3,
+  O0: 2,
+  S0: 3, S1: 3,
+  Z0: 2, Z1: 3,
+  T0: 2, T1: 2, T2: 2, T3: 2,
+  J0: 2, J1: 3, J2: 2, J3: 2,
+  L0: 3, L1: 2, L2: 3, L3: 2,
+};

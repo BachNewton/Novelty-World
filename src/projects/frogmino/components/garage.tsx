@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, PerspectiveCamera, View } from "@react-three/drei";
 import type { Color, Group, PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import { GROUND_CLEARANCE } from "../clearance";
 import { pieceSize } from "../logic";
 import { VEHICLE_IDS, vehiclePiece, type VehicleId } from "../fleet";
 import { VEHICLES } from "../vehicles";
@@ -53,17 +54,21 @@ function Lights() {
   );
 }
 
+// How much room a vehicle takes, standing on its wheels: its height counts
+// the ground clearance under its cells.
 function footprint(id: VehicleId): { width: number; height: number; length: number } {
   const { kind, rotation } = vehiclePiece(id);
-  return { ...pieceSize(kind, rotation), length: VEHICLES[id].length };
+  const { width, height } = pieceSize(kind, rotation);
+  return { width, height: height + GROUND_CLEARANCE, length: VEHICLES[id].length };
 }
 
 // The lane × row grid behind a head-on vehicle, in the scene's axes: lanes
-// centred on whole x, rows from y = 0 up. The road line is stronger.
+// centred on whole x, rows from the ground clearance up, and the stronger
+// road line at y = 0 beneath them, where the wheels stand.
 function CellGrid({ z, palette }: { z: number; palette: Palette }) {
   const lines = Array.from({ length: GRID + 1 }, (_, k) => k);
   return (
-    <group position={[0, 0, z]}>
+    <group position={[0, GROUND_CLEARANCE, z]}>
       {lines.map((k) => (
         <mesh key={`lane${String(k)}`} position={[k - 0.5, GRID / 2, 0]}>
           <boxGeometry args={[GRID_LINE, GRID, GRID_LINE]} />
@@ -72,10 +77,14 @@ function CellGrid({ z, palette }: { z: number; palette: Palette }) {
       ))}
       {lines.map((k) => (
         <mesh key={`row${String(k)}`} position={[(GRID - 1) / 2, k, 0]}>
-          <boxGeometry args={[GRID, k === 0 ? GRID_LINE * 3 : GRID_LINE, GRID_LINE]} />
-          <meshBasicMaterial color={k === 0 ? palette.road : palette.grid} />
+          <boxGeometry args={[GRID, GRID_LINE, GRID_LINE]} />
+          <meshBasicMaterial color={palette.grid} />
         </mesh>
       ))}
+      <mesh position={[(GRID - 1) / 2, -GROUND_CLEARANCE, 0]}>
+        <boxGeometry args={[GRID, GRID_LINE * 3, GRID_LINE]} />
+        <meshBasicMaterial color={palette.road} />
+      </mesh>
     </group>
   );
 }
@@ -84,11 +93,12 @@ function HeadOn({ id, assets, palette }: { id: VehicleId; assets: VehicleAssets;
   const size = useThree((s) => s.size);
   const { width, length } = footprint(id);
   const lane = Math.floor((GRID - width) / 2);
-  const zoom = Math.min(size.width, size.height) / (GRID + 2 * HEAD_ON_MARGIN);
+  const tall = GRID + GROUND_CLEARANCE;
+  const zoom = Math.min(size.width, size.height) / (tall + 2 * HEAD_ON_MARGIN);
   return (
     <>
       <color attach="background" args={[palette.background]} />
-      <OrthographicCamera makeDefault position={[(GRID - 1) / 2, GRID / 2, 10]} zoom={zoom} near={0.1} far={40} />
+      <OrthographicCamera makeDefault position={[(GRID - 1) / 2, tall / 2, 10]} zoom={zoom} near={0.1} far={40} />
       <Lights />
       <CellGrid z={-length - 0.1} palette={palette} />
       <Vehicle id={id} lane={lane} depth={0} assets={assets} />

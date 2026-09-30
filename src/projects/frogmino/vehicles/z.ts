@@ -5,7 +5,6 @@ export const breadWinner: VehicleDesign = {
   name: "Bread Winner",
   archetype: "Bakery van",
   blurb: "A blue bakery van hauling one colossal loaf that hangs off the roof to one side.",
-  length: 2,
   body: (cell) => (cell.row === 0 ? "cobalt" : "bun"),
   details: (f) => [
     bumper(f, 1, 0),
@@ -39,7 +38,6 @@ export const landGalleon: VehicleDesign = {
   name: "Land Galleon",
   archetype: "Pirate ship on wheels",
   blurb: "A wooden galleon on wheels, stern castle up high and a striped sail on top.",
-  length: 3,
   body: (cell) => (cell.row === 2 ? "snow" : "cocoa"),
   details: (f) => [
     // The prow is still a road vehicle: lamps, grille and bumper.

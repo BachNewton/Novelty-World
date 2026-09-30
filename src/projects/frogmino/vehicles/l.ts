@@ -7,7 +7,6 @@ export const trashPanda: VehicleDesign = {
   name: "Trash Panda",
   archetype: "Garbage truck",
   blurb: "A mint garbage truck whose raised bin has a raccoon's masked face and ringed tail.",
-  length: 3,
   body: (cell) => (cell.row === 1 ? "grape" : "mint"),
   details: (f) => [
     ...[0, 1, 2].map((col) => bumper(f, col, 0)),
@@ -49,7 +48,6 @@ export const tallLatte: VehicleDesign = {
   name: "Tall Latte",
   archetype: "Coffee cart",
   blurb: "A three-storey takeaway cup with a sleeve, a lid and latte art, pushed along by a tiny scooter cab.",
-  length: 2,
   body: (cell) => (cell.col === 1 ? "sky" : cell.row === 1 ? "cocoa" : "cream"),
   details: (f) => [
     bumper(f, 0, 0),
@@ -85,7 +83,6 @@ export const deckHand: VehicleDesign = {
   name: "Deck Hand",
   archetype: "Car carrier",
   blurb: "A blue cab on one lane hauling a top deck of three little cars that overhangs the other two.",
-  length: 3,
   body: (cell) => (cell.row === 0 ? "cobalt" : (["cherry", "lime", "sunflower"] as const)[cell.col]),
   details: (f) => [
     ...carNose(f, 0, 0),
@@ -123,7 +120,6 @@ export const cherryOnTop: VehicleDesign = {
   name: "Cherry on Top",
   archetype: "Cherry picker",
   blurb: "A sky-blue utility truck whose boom holds a cherry-red bucket out over the next lane.",
-  length: 2,
   body: (cell) => (cell.col === 0 ? "cherry" : "sky"),
   details: (f) => [
     ...carNose(f, 1, 0),

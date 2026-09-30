@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { GROUND_CLEARANCE } from "../clearance";
 import type { VehicleId } from "../fleet";
 import { vehicleModel } from "../vehicles";
 import { mergedParts, type VehicleAssets } from "./vehicle-assets";
 
 // One of the 19 vehicles, in the scene's axes: its leftmost lane centred on
-// x = lane, as a wall's column is, resting on the road, with its front face
-// at rule depth `depth` (z = -depth) and its length stretching away from the
+// x = lane, as a wall's column is, standing on its wheels on the road at
+// y = 0 with its cells the ground clearance above it, with its front face at
+// rule depth `depth` (z = -depth) and its length stretching away from the
 // frog beyond it.
 export function Vehicle({
   id,
@@ -32,7 +34,7 @@ export function Vehicle({
   );
 
   return (
-    <group position={[lane - 0.5, 0, -depth]}>
+    <group position={[lane - 0.5, GROUND_CLEARANCE, -depth]}>
       {model.body.map(({ cell, paint }) => (
         <mesh
           key={`${String(cell.col)},${String(cell.row)}`}

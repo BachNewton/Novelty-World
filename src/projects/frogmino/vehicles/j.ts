@@ -7,7 +7,6 @@ export const tractorFactor: VehicleDesign = {
   name: "Tractor Factor",
   archetype: "Farm tractor",
   blurb: "A purple farm tractor, glass cab perched over one giant muddy back wheel.",
-  length: 2,
   body: (cell) => (cell.row === 1 ? "cream" : "grape"),
   details: (f) => [
     // The glass cab, with a beacon on its roof.
@@ -39,7 +38,6 @@ export const clawDaddy: VehicleDesign = {
   name: "Claw Daddy",
   archetype: "Crane truck",
   blurb: "A lime crane truck with a hazard-striped jib and an arcade claw dangling off the end.",
-  length: 3,
   body: (cell) => (cell.row === 2 ? "sunflower" : "lime"),
   details: (f) => [
     ...carNose(f, 0, 0),
@@ -80,7 +78,6 @@ export const topDog: VehicleDesign = {
   name: "Top Dog",
   archetype: "Hot-dog cart",
   blurb: "A tiny sky-blue cart carrying a three-lane hot dog, mustard and all, high over the road.",
-  length: 2,
   body: (cell) => (cell.row === 1 ? "bun" : "sky"),
   details: (f) => [
     // The sausage peeks out along the bun's front and top, with mustard.
@@ -110,7 +107,6 @@ export const moonHauler: VehicleDesign = {
   name: "Moon Hauler",
   archetype: "Rocket transporter",
   blurb: "A grape-purple truck with a whole rocket standing upright on its bed, nose cone and all.",
-  length: 2,
   body: (cell) => (cell.col === 0 ? "grape" : cell.row === 2 ? "cherry" : "snow"),
   details: (f) => [
     ...carNose(f, 0, 0),

@@ -5,7 +5,6 @@ export const happyCamper: VehicleDesign = {
   name: "Happy Camper",
   archetype: "Camper van",
   blurb: "A peachy camper van whose pop-top pod has slid off sideways, surfboard strapped to the cab.",
-  length: 3,
   body: (cell) => (cell.row === 0 ? "peach" : "cream"),
   details: (f) => [
     bumper(f, 0, 0),
@@ -45,7 +44,6 @@ export const subStandard: VehicleDesign = {
   name: "Sub Standard",
   archetype: "Road submarine",
   blurb: "A submarine that took a wrong turn onto the road: portholes, rivets, periscope and propeller.",
-  length: 3,
   body: (cell) => (cell.col === 1 ? "teal" : "sunflower"),
   details: (f) => [
     ...carNose(f, 1, 0),

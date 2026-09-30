@@ -8,7 +8,6 @@ export const plowzilla: VehicleDesign = {
   name: "Plowzilla",
   archetype: "Snowplough",
   blurb: "A snowplough so wide it clears all four lanes at once, hazard-striped blade first.",
-  length: 2,
   body: () => "tangerine",
   details: (f) => [
     // The blade runs the whole width, with hazard stripes that step across
@@ -41,7 +40,6 @@ export const stackAttack: VehicleDesign = {
   name: "Stack Attack",
   archetype: "Quadruple-decker bus",
   blurb: "A bus with one deck too many: four storeys, one lane wide, a window band per deck.",
-  length: 3,
   body: () => "cherry",
   details: (f) => [
     ...carNose(f, 0, 0),

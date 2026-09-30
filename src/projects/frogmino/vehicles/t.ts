@@ -17,7 +17,6 @@ export const bigCab: VehicleDesign = {
   name: "Big Cab",
   archetype: "Taxi",
   blurb: "A three-lane taxi whose roof light grew into a whole checkered cell.",
-  length: 2,
   body: (cell) => (cell.row === 0 ? "sunflower" : "cream"),
   details: (f) => [
     ...[0, 1, 2].flatMap((col) => [bumper(f, col, 0), windscreen(f, col, 0, [0.08, 0.62, 0.92, 0.9])]),
@@ -47,7 +46,6 @@ export const tacoTower: VehicleDesign = {
   name: "Taco Tower",
   archetype: "Food truck",
   blurb: "A tall, skinny taco truck with its striped awning flung open to one side.",
-  length: 2,
   body: (cell) => (cell.col === 1 ? "sunflower" : "coral"),
   details: (f) => [
     ...carNose(f, 0, 0),
@@ -82,7 +80,6 @@ export const mowProblemo: VehicleDesign = {
   name: "Mow Problemo",
   archetype: "Ride-on mower",
   blurb: "A little red ride-on mower under an enormous striped sun canopy.",
-  length: 2,
   body: (cell) => (cell.row === 0 ? "cherry" : cell.col === 1 ? "snow" : "mint"),
   details: (f) => [
     // The mower: a wide cutter vent and two small lamps.
@@ -109,7 +106,6 @@ export const beachPatrol: VehicleDesign = {
   name: "Beach Patrol",
   archetype: "Lifeguard tower buggy",
   blurb: "A lifeguard tower on wheels, lookout on top and a lifebuoy seat hung off one side.",
-  length: 2,
   body: (cell) => (cell.col === 0 ? "coral" : cell.row === 1 ? "snow" : "sky"),
   details: (f) => [
     ...carNose(f, 1, 0),

@@ -20,7 +20,6 @@ export const mrSprinkles: VehicleDesign = {
   name: "Mr. Sprinkles",
   archetype: "Ice-cream van",
   blurb: "A square pink-and-cream ice-cream van with sprinkles on the roof and a scoop on the side.",
-  length: 2,
   body: (cell) => (cell.row === 0 ? "bubblegum" : "cream"),
   details: (f) => [
     bumper(f, 0, 0),
