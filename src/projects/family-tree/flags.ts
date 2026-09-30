@@ -1,11 +1,11 @@
-// Each people's flag on the cards: today's flag of the country the people
-// was coded by before heritage named peoples, from the svg-country-flags
+// Each people's flag of today, which the cards show only where the era's
+// symbol (heritage-symbols.ts) has no verified art yet: the flag of the
+// country the people was coded by before heritage named peoples, from the svg-country-flags
 // package (Wikimedia Commons artwork, public domain) in each flag's official
 // proportions. A region shows its people's flag. Every people in
 // heritages.ts needs an entry here. The proportions are repeated here
 // because the import is only the file's URL; a test holds them to each
-// file's viewBox. The era symbols of ideas/heritage-through-time.md
-// (symbol-timelines.ts) are data only: the cards don't use them yet.
+// file's viewBox.
 
 import { peopleOf, type HeritageCode, type PeopleCode } from "./heritages";
 import de from "svg-country-flags/svg/de.svg";

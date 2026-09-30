@@ -1,10 +1,10 @@
 // The symbols each people used for itself through the eras
 // (ideas/heritage-through-time.md, decisions 2 and 3): a card's symbol for a
-// share will follow that person's birth year. Symbols represent people, not
-// governments: where a people identified with the state they lived under, its
-// symbol serves; where they didn't, the era shows the symbol the people used
-// for themselves and would wish to be represented by. This is data only for now: the UI
-// doesn't use it until the owner approves the era symbols and their art.
+// share follows that person's birth year (`heritage-symbols.ts`). Symbols
+// represent people, not governments: where a people identified with the
+// state they lived under, its symbol serves; where they didn't, the era shows
+// the symbol the people used for themselves and would wish to be represented
+// by.
 //
 // Every era starts out as the design doc's proposal, unverified: an era is
 // verified once research lists the sources that settle its years and its

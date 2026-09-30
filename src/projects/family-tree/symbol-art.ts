@@ -3,8 +3,8 @@
 // a last resort, our own drawing from documented sources. A symbol with a
 // record here has a file in `symbol-art/`, named by its symbol id, pinned by
 // its SHA-1; a symbol without one has no verified art and isn't shown. The
-// `heritage-symbol-art` skill is how records get here. Nothing renders this
-// art yet.
+// `heritage-symbol-art` skill is how records get here; the cards show the
+// art through `symbol-art-urls.ts`.
 
 import type { SymbolId } from "./symbol-timelines";
 

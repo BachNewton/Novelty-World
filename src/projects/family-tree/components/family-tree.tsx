@@ -11,9 +11,11 @@ import {
   directLine,
   fullName,
   heritageBreakdowns,
+  symbolBirthYear,
   nearestInDirection,
   type NavDirection,
 } from "../logic";
+import { shownHeritage } from "../heritage-symbols";
 import type { LaidOutNode, Layout, Tree } from "../types";
 import { PanZoom, type PanZoomHandle, type Point } from "./pan-zoom";
 import { NameSearch } from "./name-search";
@@ -154,7 +156,20 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
     return map;
   }, [tree, effectiveViewRootId]);
 
-  const heritage = useMemo(() => heritageBreakdowns(tree), [tree]);
+  const heritage = useMemo(() => {
+    const breakdowns = heritageBreakdowns(tree);
+    return Object.fromEntries(
+      Object.keys(tree.persons).map((id) => [id, shownHeritage(breakdowns[id], symbolBirthYear(tree, id))]),
+    );
+  }, [tree]);
+  const loneParents = useMemo(() => {
+    const laidOut = new Set(layout.nodes.map((n) => n.id));
+    return new Set(
+      layout.edges.flatMap((e) =>
+        e.kind === "parent-child" && (e.parentBId === null || !laidOut.has(e.parentBId)) ? [e.parentAId] : [],
+      ),
+    );
+  }, [layout]);
   const line = useMemo(
     () => directLine(tree, effectiveViewRootId),
     [tree, effectiveViewRootId],
@@ -244,6 +259,7 @@ function TreeView({ tree, layout }: { tree: Tree; layout: Layout }) {
                 onLine={line.has(n.id)}
                 subtitle={subtitles.get(n.id) ?? null}
                 heritage={heritage[n.id]}
+                lineBelow={loneParents.has(n.id)}
                 flashKey={flash?.id === n.id ? flash.key : null}
                 onFlashEnd={() => { setFlash(null); }}
                 onSelect={setSelected}

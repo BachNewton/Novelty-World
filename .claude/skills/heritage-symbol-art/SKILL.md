@@ -322,8 +322,10 @@ The repo may be public, so every file's licence is recorded and honoured.
    `feat(family-tree): verified art for <symbol-id>`, with a body naming
    what it was checked against.
 
-Nothing renders this art yet: the cards still show `flags.ts`. Wiring era
-symbols into the UI is the owner's call.
+The cards show a symbol as soon as it has art: add its file to
+`symbol-art-urls.ts` in the same change (a test holds that list to the
+records). Until then a share whose era needs it shows its people's flag of
+today from `flags.ts`, with no era named.
 
 ## When the specification contradicts the timeline
 

@@ -2,7 +2,7 @@
 
 import type { LaidOutNode, Person } from "../types";
 import { birthYear, fullName } from "../logic";
-import type { HeritageBreakdown } from "../logic";
+import type { ShownHeritage } from "../heritage-symbols";
 import { HeritageBadges } from "./heritage-badges";
 
 interface NodeProps {
@@ -13,7 +13,9 @@ interface NodeProps {
   // On the view root's direct line (an ancestor or a descendant).
   onLine: boolean;
   subtitle: string | null;
-  heritage: HeritageBreakdown;
+  heritage: ShownHeritage;
+  // A line drops from the bottom center of the card: a lone parent's.
+  lineBelow: boolean;
   // Changing the key replays the flash, so picking the same person again
   // still draws the eye.
   flashKey: number | null;
@@ -29,6 +31,7 @@ export function Node({
   onLine,
   subtitle,
   heritage,
+  lineBelow,
   flashKey,
   onFlashEnd,
   onSelect,
@@ -86,7 +89,7 @@ export function Node({
           </span>
         ) : null}
       </div>
-      <HeritageBadges node={node} heritage={heritage} />
+      <HeritageBadges node={node} heritage={heritage} lineBelow={lineBelow} />
     </>
   );
 }

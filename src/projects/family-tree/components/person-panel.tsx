@@ -2,9 +2,11 @@
 
 import type { ReactNode } from "react";
 import type { Person, ResearchQuestion, ResearchRecord, ResearchStatus } from "../types";
-import { fullNameWithMiddle } from "../logic";
-import type { HeritageBreakdown } from "../logic";
-import { HeritageChip } from "./heritage-badges";
+import { formatShare, fullNameWithMiddle } from "../logic";
+import type { ShownHeritage } from "../heritage-symbols";
+import { PEOPLES } from "../heritages";
+import { UnknownChip } from "./heritage-badges";
+import { HeritageSymbol } from "./heritage-symbol";
 import { Button } from "@/shared/components/ui/button";
 
 interface PersonPanelProps {
@@ -12,7 +14,7 @@ interface PersonPanelProps {
   // The relationship readout for this person, as their card shows it: "you"
   // on the view root, null when no relation was found.
   relation: string | null;
-  heritage: HeritageBreakdown;
+  heritage: ShownHeritage;
   viewRootName: string;
   isViewRoot: boolean;
   onSetAsViewRoot: () => void;
@@ -156,17 +158,32 @@ export function PersonPanel({
         <OriginEvidence person={person} />
 
         <Field label="Heritage">
-          {heritage.known.length === 0 ? (
+          {heritage.shares.length === 0 ? (
             <NotRecorded>Unknown</NotRecorded>
           ) : (
-            <span className="flex flex-wrap gap-1">
-              {heritage.known.map((entry) => (
-                <HeritageChip key={entry.code} code={entry.code} share={entry.share} size="panel" />
+            <ul className="flex flex-col gap-1.5">
+              {heritage.shares.map((share) => (
+                <li key={share.people} className="flex items-start gap-2">
+                  <span className="flex h-5 w-8 shrink-0 items-center justify-center">
+                    <HeritageSymbol symbol={share.symbol} className="block max-h-5 max-w-8 object-contain" />
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span>
+                      {PEOPLES[share.people].name}{" "}
+                      <span className="font-mono text-text-secondary">{formatShare(share.share)}</span>
+                    </span>
+                    {share.era === null ? null : (
+                      <span className="text-xs text-text-muted">{share.era}</span>
+                    )}
+                  </span>
+                </li>
               ))}
               {heritage.unknown > 0 ? (
-                <HeritageChip code={null} share={heritage.unknown} size="panel" />
+                <li>
+                  <UnknownChip share={heritage.unknown} size="panel" />
+                </li>
               ) : null}
-            </span>
+            </ul>
           )}
         </Field>
 

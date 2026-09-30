@@ -225,10 +225,8 @@ are added only where a record gives them.
 2. **The art:** verified art for every symbol id, through the
    `heritage-symbol-art` skill; `peoples` lists the symbols still without
    it.
-3. **The card visuals:** A1 with T4 hover, one share per people (see
-   "Direction for the visuals"). Until then the cards show exactly what
-   they did before peoples: each people shows today's flag of the country
-   it was coded by, and a chip's hover names that country.
+3. **Built: the card visuals,** A1 with T4 hover and one share per people
+   (see "Direction for the visuals").
 4. **Saved for later:** the Heritage panel with the journeys globe, and the
    3D ideas.
 
@@ -275,8 +273,9 @@ and journeys are sample data. The owner's rulings:
   region in its regional era; otherwise the share shows its people's.
 - **Dropped:** the extras (C), and the earlier fan chart and ribbon.
 
-**Where it lives in the app now:** only the 2D cards (A1 with T4). The
-person panel and the 3D view are unchanged for now.
+**Where it lives in the app now:** the 2D cards (A1 with T4), and the
+person panel, which lists each people with its share and era in words, the
+tap path to the hover text. The 3D view is unchanged for now.
 
 ### Saved for later
 
