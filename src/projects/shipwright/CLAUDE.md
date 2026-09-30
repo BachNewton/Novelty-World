@@ -60,7 +60,7 @@ Rough, non-binding direction of travel (order and scope will flex):
    level, targeting the **Finnish Archipelago Sea**. See `terrain.ts` + `docs/ISLANDS.md`.
 8. Resources & gathering — harvest from islands into an inventory.
 9. Multiplayer co-op — shared world + ship via the platform's multiplayer libs
-   (`src/shared/lib/multiplayer`, host-authoritative — see root CLAUDE.md).
+   (`src/shared/lib/peer`, a host/guest star — see root CLAUDE.md).
 
 Further water-fidelity rungs (layer on as polish, not blockers): shoreline foam,
 dual-scale normal detail + sun glitter, and — only if we outgrow Gerstner

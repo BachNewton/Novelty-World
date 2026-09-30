@@ -288,8 +288,8 @@ by `dev` and the current online seed) skips the lobby.
 
 ## Multiplayer / networking
 
-**This project does NOT use the shared multiplayer stack.** Do not import from
-`src/shared/lib/webrtc/` or `src/shared/lib/multiplayer/` — those are P2P meshes;
+**This project does NOT use the shared peer-to-peer rooms.** Do not import from
+`src/shared/lib/peer/` — that is a PeerJS host/guest star for real-time games;
 Monopoly is turn-based on a single authoritative server row. (`@/shared/lib/profile`
 is fine — local identity, not networking.) There is **no local/in-process mode**;
 every game, including `dev`, runs on the route against a Supabase row.

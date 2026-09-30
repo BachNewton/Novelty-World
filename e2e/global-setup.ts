@@ -13,20 +13,15 @@ async function startService(script: string): Promise<number> {
   });
 
   await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`${script} startup timeout`)), 5000);
     child.stdout.on("data", (data: Buffer) => {
-      if (data.toString().includes("listening")) {
-        clearTimeout(timeout);
-        resolve();
-      }
+      if (data.toString().includes("listening")) resolve();
     });
     child.stderr.on("data", (data: Buffer) => {
       console.error(`${script} error:`, data.toString());
     });
-    child.on("error", (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
+    child.on("error", reject);
+    // A service that dies before listening (e.g. its port is taken) fails the run.
+    child.on("exit", (code) => reject(new Error(`${script} exited with code ${code} before listening`)));
   });
 
   if (child.pid === undefined) throw new Error(`${script} has no pid`);
@@ -34,12 +29,8 @@ async function startService(script: string): Promise<number> {
 }
 
 export default async function globalSetup() {
-  const pids = await Promise.all([
-    // Mock signaling + presence for the shared multiplayer lib.
-    startService("ws-relay.ts"),
-    // PeerJS signalling for the RPG co-op suite.
-    startService("peer-server.ts"),
-  ]);
+  // PeerJS signalling for every multiplayer suite (`?peer-signal=local`).
+  const pids = [await startService("peer-server.ts")];
   // Stored for teardown.
   process.env.E2E_SERVICE_PIDS = pids.join(",");
 }

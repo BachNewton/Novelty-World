@@ -104,11 +104,11 @@ export const PROJECTS: Project[] = [
     icon: "Sailboat",
   },
   {
-    name: "Network Test",
-    slug: "network-test",
-    description: "Multiplayer network diagnostics and benchmarking",
-    categorySlug: "tools",
-    icon: "Activity",
+    name: "Frogmino",
+    slug: "frogmino",
+    description: "Hop, turn and squeeze your block-shaped frog through the holes in oncoming walls",
+    categorySlug: "3d-games",
+    icon: "Blocks",
   },
   {
     name: "Pi Solver",
@@ -116,13 +116,6 @@ export const PROJECTS: Project[] = [
     description: "Compute digits of Pi with various algorithms",
     categorySlug: "tools",
     icon: "Calculator",
-  },
-  {
-    name: "Open World Test",
-    slug: "open-world-test",
-    description: "Real-time peer connection mesh visualizer",
-    categorySlug: "tools",
-    icon: "Globe",
   },
   {
     name: "For The Stats 2",

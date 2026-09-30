@@ -14,12 +14,6 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   euchre: dynamic(() =>
     import("@/projects/euchre").then((m) => ({ default: m.Euchre })),
   ),
-  "network-test": dynamic(() =>
-    import("@/projects/network-test").then((m) => ({ default: m.NetworkTest })),
-  ),
-  "open-world-test": dynamic(() =>
-    import("@/projects/open-world-test").then((m) => ({ default: m.OpenWorldTest })),
-  ),
   rpg: dynamic(() =>
     import("@/projects/rpg").then((m) => ({ default: m.RpgGame })),
   ),
@@ -42,6 +36,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   ),
   shipwright: dynamic(() =>
     import("@/projects/shipwright").then((m) => ({ default: m.Shipwright })),
+  ),
+  frogmino: dynamic(() =>
+    import("@/projects/frogmino").then((m) => ({ default: m.Frogmino })),
   ),
 };
 

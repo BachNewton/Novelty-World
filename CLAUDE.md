@@ -22,7 +22,7 @@ Novelty World is a Next.js 16 monorepo-style platform hosting multiple games and
 | E2E tests | `npm run test:e2e` |
 | All tests | `npm run test:all` |
 
-E2E tests (Playwright) expect the dev server on port 3001 and a WS relay on port 3002 (started automatically via `e2e/global-setup.ts`).
+E2E tests (Playwright) expect the dev server on port 3001 and a local PeerJS signalling server on port 3003 (started automatically via `e2e/global-setup.ts`). Multiplayer pages opt into it with `?peer-signal=local`, so the suites never touch the public PeerJS cloud.
 
 ## Principles
 
@@ -53,7 +53,13 @@ A catch-all route (`src/app/[...slug]/page.tsx`) handles all project URLs using 
 
 ### Multiplayer
 
-There is a shared multiplayer library built on WebRTC with Supabase Realtime for signaling (`src/shared/lib/webrtc/` and `src/shared/lib/multiplayer/`). It provides two room models: `useLobbyRoom` (host/guest with explicit start) and `useWorldRoom` (open mesh). The host is always authoritative — validates moves and broadcasts state, guests submit actions and apply updates.
+Real-time multiplayer runs on **PeerJS**, through the small shared module `src/shared/lib/peer/`. A room is a **star**: one host, and guests connected to the host only, never to each other. A room is named by a short code that maps to the host's PeerJS id, namespaced per game. There are three ways in: **host** a fresh code, **join** by code, or **claim** a fixed code, where whoever the signalling server grants it to hosts and everyone else joins them (the RPG's single shared world; its guests re-elect a host the same way when the host leaves).
+
+The module owns **connection bookkeeping only**: codes, signalling config, the star, the player list (profile id, name and peer id, kept by the host and shared with every guest), join/leave, host loss, connection status, typed send/broadcast, and React-safe setup and teardown (`useRoom` for components, `createRoom` for code outside React). It deliberately owns **no game semantics**: no state-sync engine, no action framework, no authority logic. Each game decides what its messages mean. The usual pattern is host-authoritative: guests send intents up, and the host validates them, applies them and sends the result down. A helper only one game needs stays in that game.
+
+Everything is event-driven (PeerJS `open` / `connection` / `data` / `close` / `error`); there are no timers. One known gap: a host that dies without closing its tab is noticed only when WebRTC gives up on the channel, and a guest that dials a host id the server hasn't yet expired can wait with no event at all. Closing that gap needs a connect timeout, which is the owner's call.
+
+Monopoly is the exception: it is turn-based on one authoritative Supabase row, not peer-to-peer.
 
 ### Shared code
 

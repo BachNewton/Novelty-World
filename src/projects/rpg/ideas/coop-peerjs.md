@@ -3,19 +3,17 @@
 Status: implemented; unit tests and `e2e/rpg-coop.spec.ts` green.
 
 Production rule: one global room, no codes/lobby/invites. `?coop-room=`
-exists for testing/dev isolation only; `?coop-signal=local` points PeerJS at
+exists for testing/dev isolation only; `?peer-signal=local` points PeerJS at
 the e2e suite's local PeerServer.
 
 ## Design
 
-- **Transport** (`coop/transport.ts`): a PeerJS star. Every tab claims the
-  room's fixed peer id; the server grants it to one tab (the host) and
-  refuses the rest, who join the host as guests. When the host leaves, its
-  guests race to claim the id again, so re-election is the same path as the
-  first join. Everything is event-driven — no timers, no polling. Handlers
-  are bound to the Peer/connection they were registered on and ignore
-  events once it has been replaced; that is what keeps teardown and
-  re-election race-free.
+- **Transport**: the shared PeerJS star room (`src/shared/lib/peer`) in its
+  claim mode. Every tab claims the room's fixed code; the server grants it
+  to one tab (the host) and refuses the rest, who join the host as guests.
+  When the host leaves, its guests race to claim the code again, so
+  re-election is the same path as the first join. The RPG keeps only its
+  own protocol and session on top.
 - **Session** (`coop/session.ts`): one per page, shared by play and edit
   mode, owning the map store, remote avatars and the local avatar. The host
   is authoritative: guests apply their own paints optimistically, the host
