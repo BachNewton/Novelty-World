@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TETROMINOES, cellKey, frogCells, frogPasses, pieceCells, rectOpening as rect } from "./logic";
+import { TETROMINOES, cellKey, frogCells, frogPasses, pieceCells, rectOpening as rect, rotateInCorridor } from "./logic";
 import type { Cell, Frog, Opening, Rotation, TetrominoKind } from "./types";
 
 const KINDS = Object.keys(TETROMINOES) as TetrominoKind[];
@@ -112,5 +112,30 @@ describe("frogPasses", () => {
     const floor = rect([1, 2], [0, 1]);
     expect(frogPasses(frog({ kind: "O", col: 1, hop: 0 }), floor)).toBe(true);
     expect(frogPasses(frog({ kind: "O", col: 1, hop: 1 }), floor)).toBe(false);
+  });
+});
+
+describe("rotateInCorridor", () => {
+  it("turns about the piece's middle, and turning back restores the column", () => {
+    const start = { col: 3, rotation: 0 as Rotation };
+    const turned = rotateInCorridor("L", start, 1, 7);
+    expect(turned).toEqual({ col: 3, rotation: 1 });
+    expect(rotateInCorridor("L", { col: 3, rotation: 1 }, -1, 7)).toEqual(start);
+    expect(rotateInCorridor("L", start, -1, 7)).toEqual({ col: 4, rotation: 3 });
+  });
+
+  it("kicks one column in at the left edge", () => {
+    // Standing up two wide at column 0, a clockwise turn to three wide would
+    // recentre to column -1.
+    expect(rotateInCorridor("L", { col: 0, rotation: 1 }, 1, 7)).toEqual({ col: 0, rotation: 2 });
+  });
+
+  it("kicks one column in at the right edge", () => {
+    // Two wide against the right wall of a 7-wide corridor, turning to three wide.
+    expect(rotateInCorridor("L", { col: 5, rotation: 1 }, -1, 7)).toEqual({ col: 4, rotation: 0 });
+  });
+
+  it("fails a turn that still doesn't fit after the kick", () => {
+    expect(rotateInCorridor("I", { col: 1, rotation: 1 }, 1, 3)).toBeNull();
   });
 });

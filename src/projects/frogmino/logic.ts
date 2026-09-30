@@ -55,3 +55,41 @@ export function frogPasses(frog: Frog, opening: Opening): boolean {
   const open = new Set(opening.map(cellKey));
   return frogCells(frog).every((c) => open.has(cellKey(c)));
 }
+
+// The width and height of a piece's bounding box in a rotation.
+export function pieceSize(kind: TetrominoKind, rotation: Rotation): { width: number; height: number } {
+  const cells = pieceCells(kind, rotation);
+  return {
+    width: Math.max(...cells.map((c) => c.col)) + 1,
+    height: Math.max(...cells.map((c) => c.row)) + 1,
+  };
+}
+
+// A quarter turn: +1 is clockwise, -1 counter-clockwise.
+export type Turn = 1 | -1;
+
+export interface Placement {
+  col: number;
+  rotation: Rotation;
+}
+
+// Turns a piece about its middle, kept inside a corridor `cols` wide. A turn
+// that would poke out of the corridor is nudged one column back in (a
+// Tetris-style wall kick); if it still doesn't fit, the turn fails and this
+// returns null. Clockwise rounds the recentring one way and counter-clockwise
+// the other, so turning and turning back returns the piece to its column.
+export function rotateInCorridor(
+  kind: TetrominoKind,
+  placement: Placement,
+  turn: Turn,
+  cols: number,
+): Placement | null {
+  const rotation = ((placement.rotation + turn + 4) % 4) as Rotation;
+  const shift = (pieceSize(kind, placement.rotation).width - pieceSize(kind, rotation).width) / 2;
+  const centred = placement.col + (turn === 1 ? Math.floor(shift) : Math.ceil(shift));
+  const { width } = pieceSize(kind, rotation);
+  const fits = (col: number): boolean => col >= 0 && col + width <= cols;
+  if (fits(centred)) return { col: centred, rotation };
+  const kicked = centred < 0 ? centred + 1 : centred - 1;
+  return fits(kicked) ? { col: kicked, rotation } : null;
+}

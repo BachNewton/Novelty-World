@@ -7,15 +7,32 @@ The owner and a friend designed it. What follows is decided unless it sits under
 ## Code map
 
 - `types.ts`: cells on the wall face, tetromino kinds, the frog, openings.
-- `logic.ts`: pure rules, no React and no Three. The tetromino definitions, rotation, the cells a frog covers, and the pass test.
-- `components/frogmino.tsx`: the root component. The scene is loaded browser-only because it reads its colours from the live stylesheet.
-- `components/scene.tsx`: the 3D scene. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
+- `logic.ts`: pure piece rules, no React and no Three. The tetromino definitions, rotation, piece sizes, turning inside the corridor with a wall kick, the cells a frog covers, and the pass test.
+- `run.ts`: pure run rules. The rule state of one playthrough (frog, walls, clock), the player's actions, `advance` for moving time on, and judging walls as they cross the frog.
+- `course.ts`: the seeded course generator.
+- `tuning.ts`: the feel knobs (wall speed and spacing, hop airtime, ease duration, knock-back, corridor size, depth step), in one constants object. Tuning is done by editing it; there is no settings UI.
+- `store.ts`: the Zustand store holding the current run, with actions for key presses, frame ticks and restart.
+- `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay. The scene is loaded browser-only because it reads its colours from the live stylesheet.
+- `components/scene.tsx`: the 3D scene and the per-frame loop. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
+- `components/use-frog-keys.ts`: the keyboard controls.
 
-The project is scaffolding so far: the scene is a static placeholder showing the concept (camera behind and above the frog, a floor, a T-shaped frog, one wall with an opening larger than it). There are no controls, no game loop and no store yet.
+The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), four walls from a fixed seed, a bonk knock-back, and an end-of-course overlay with restart. There is no clock, no finish line, no touch controls and no co-op yet.
 
 ## The wall face
 
 A wall is a grid of cells: columns across the corridor, rows up from the floor. An opening is a set of those cells. The frog is a tetromino with a lateral column (its leftmost cell), a rotation of quarter turns clockwise as the player sees it from behind, and a hop height of 0 or 1. A rotated piece always rests on the floor, or one cell above it when hopping.
+
+## The motion model
+
+What the rules decide is kept apart from what the player sees.
+
+- **The frog's rule state is discrete** (column, rotation, depth step and hop) and changes the instant a key is pressed, with no tick delay. One press is one action; held keys don't repeat.
+- **The drawn frog eases toward its rule state** over the ease duration: position, rotation and depth. The rules never see the in-between.
+- **Walls move continuously.** A wall's depth is a real number that falls by the wall speed times each frame's elapsed time. Frame time is clamped, so returning to a backgrounded tab doesn't lurch the course forward.
+- **A wall is judged exactly once**, at the moment its plane crosses the frog's rule depth, using the frog's rule column, rotation and hop at that moment. Crossing is found by comparing depths before and after, so a long frame can't carry a wall past the frog unjudged, and the hop is read at the instant of crossing rather than at the frame's end. Jumping forward through a wall's plane is a crossing too, judged at once. A pass leaves the frog where it is; a bonk shoves it back a few depth steps, never past the corridor start. Either way the wall is then resolved and never judged again, and is drawn fading through.
+- **A hop is a window in the rules:** for the airtime after it starts the frog counts as one cell up, otherwise it is on the floor. A hop pressed while airborne is ignored. It is drawn as a smooth arc that spends most of the window a full cell up.
+- **Turning** is about the piece's middle. A turn that would poke out of the corridor is nudged one column back in, Tetris-style; if it still doesn't fit, the turn fails. A move off the corridor edge is ignored.
+- The rules are pure functions of the run state and elapsed time, called from the render loop; the drawing updates Three objects directly, so React does not re-render per frame.
 
 ## The pass test
 
