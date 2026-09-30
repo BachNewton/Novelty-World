@@ -105,6 +105,12 @@ they left; their grandchildren show today's.
   recognized design. We never trace, recolor, crop or fix someone else's file, and nothing
   approximate appears anywhere, mockups included. A symbol with no verified
   art isn't shown until it has some.
+- **Every symbol the tree needs gets art.** A symbol is needed when someone's
+  heritage share picks it at their birth year. "Art not verified" never
+  appears on the tree, mockups included: the CLI's `needed-art` lists every
+  needed symbol still without art, with who needs it, and art research works
+  from that list. A people or region that research adds brings its needed
+  symbols' art in the same round.
 - **A symbol is always shown whole.** Anything that represents a place, a
   people or a country (a flag, a coat of arms, a regional emblem) is drawn at
   its true aspect ratio, uncropped, in its own colors, and nothing overlaps
@@ -125,9 +131,9 @@ region entry for those years.
 | People | Timeline |
 |---|---|
 | Finnish | before 1918: the crowned lion (arms of Finland, Grand Duchy under Sweden then Russia); 1918 on: blue cross |
-| Hungarian | before 1918: Kingdom of Hungary (tricolor with the crowned arms); 1918 on: tricolor |
+| Hungarian | 1848 on: the red-white-green tricolor, the Kingdom's national flag (the arms flags were state variants) and today's; before 1848: to research |
 | Italian | before 1861: region (e.g. Kingdom of the Two Sicilies); 1861–1946: Kingdom of Italy (tricolor with the Savoy shield); 1946 on: tricolor |
-| Irish | before 1922: the green harp flag; 1922 on: tricolor |
+| Irish | 1798–1918: the green harp flag; 1919 on: tricolor (it displaced the harp flag after the 1918 election); before 1798: to research |
 | English, Scottish, Welsh | unchanged: St George's cross, the saltire, the red dragon |
 | German | before 1871: region (Bavaria, Prussia, and so on); 1871–1918: black-white-red; 1919 on: black-red-gold |
 | Swedish, Dutch, Polish, Ukrainian | one symbol throughout (their own colors or arms through the eras in question) |

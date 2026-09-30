@@ -100,12 +100,30 @@ function regionEra(from: number | null, until: number | null, name: string, symb
 export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
   finnish: [
     era(null, 1809, "Finland under the Swedish crown", "finland-lion-arms"),
-    era(1809, 1918, "Grand Duchy of Finland (Russian Empire)", "finland-lion-arms"),
-    era(1918, null, "Finland", "finland-flag"),
+    verified(era(1809, 1918, "Grand Duchy of Finland (Russian Empire)", "finland-lion-arms"), [
+      "Finnish Ministry of the Interior, \"Coat of arms of Finland\" (the lion arms, shown since the 1580s, were the arms of the Grand Duchy of Finland from 1809)",
+      "Imperial decree of 26 October 1809 confirming the arms of the Grand Duchy of Finland (Polnoe sobranie zakonov Rossiiskoi imperii)",
+      "K. A. Bomansson, \"Storfurstendömet Finlands vapen\", Historiallinen Arkisto IX (1886): the arms as Finland used them",
+      "Act on the Flag of Finland, 29 May 1918 (Suomen asetuskokoelma 40/1918): the flag that replaced the arms as Finland's symbol",
+    ]),
+    verified(era(1918, null, "Finland", "finland-flag"), [
+      "Act on the Flag of Finland, 29 May 1918 (Suomen asetuskokoelma 40/1918)",
+      "Act on the Flag of Finland (380/1978)",
+      "Finnish Ministry of the Interior, \"About the flag\"",
+    ]),
   ],
   hungarian: [
-    era(null, 1918, "Kingdom of Hungary", "hungary-kingdom-flag"),
-    era(1918, null, "Hungary", "hungary-flag"),
+    era(null, 1848, "Kingdom of Hungary", "hungary-kingdom-flag"),
+    verified(era(1848, 1918, "Kingdom of Hungary", "hungary-flag"), [
+      "Act XXI of 1848 on the national colours and the arms of the country: red, white and green",
+      "Flags of the World, \"Hungary - Historical Flags (1848)\" (the flag of 1848 was the plain red-white-green)",
+      "Flags of the World, \"Hungary - Historical flags (1867-1918)\" (the national flag of 1882-1918 was the plain tricolour; the arms flags were state variants whose arms changed in 1874 and 1915)",
+    ]),
+    verified(era(1918, null, "Hungary", "hungary-flag"), [
+      "Fundamental Law of Hungary (2011), article I: red, white and green horizontal stripes of equal width",
+      "Act LXXXIII of 1995 on the use of the arms and the flag of the Republic of Hungary",
+      "Government decree 132/2000 (VII. 14.): the national flag's 1:2 ratio",
+    ]),
   ],
   italian: [
     era(null, 1861, "Italy before unification", "italy-tricolour", true),
@@ -113,8 +131,15 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
     era(1946, null, "Italian Republic", "italy-tricolour"),
   ],
   irish: [
-    era(null, 1922, "Ireland under British rule", "ireland-harp-flag"),
-    era(1922, null, "Ireland", "ireland-flag"),
+    era(null, 1798, "Kingdom of Ireland", "ireland-harp-flag"),
+    verified(era(1798, 1919, "Ireland under British rule", "ireland-harp-flag"), [
+      "G. A. Hayes-McCoy, A History of Irish Flags from Earliest Times (1979): green generally accepted as the Irish colour from the rebellion of 1798; the harp of the 18th and 19th centuries a winged maiden",
+      "Flags of the World, \"Ireland: Green Flag\" (a gold harp on green, carried in 1798 and 1803, the national flag in popular use until Sinn Féin's victory in the December 1918 election)",
+    ]),
+    verified(era(1919, null, "Ireland", "ireland-flag"), [
+      "Flags of the World, \"Ireland: Green Flag\" (after the December 1918 election the tricolour replaced the green flag as the national flag)",
+      "Bunreacht na hÉireann (1937), article 7: the national flag is the tricolour of green, white and orange",
+    ]),
   ],
   english: [era(null, null, "England", "england-flag")],
   scottish: [era(null, null, "Scotland", "scotland-flag")],

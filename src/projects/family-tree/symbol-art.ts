@@ -113,6 +113,55 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The Commons page's colour table says crimson #DC143C, which is not what the file draws; the file itself was checked. " +
       "The plain tricolour was the merchant flag from 1867 and the national flag from 8 November 1892.",
   },
+  "hungary-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "a7f7e6bcf8b6a00cbd3f26459f97a83105a5579b",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Hungary.svg",
+    author: "SKopp (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-Coa-Hungary, PD-ineligible",
+    attribution: "",
+    proportions: { width: 2, height: 1 },
+    checkedAgainst: [
+      "Fundamental Law of Hungary (2011), article I: red, white and green horizontal stripes of equal width",
+      "Government decree 132/2000 (VII. 14.): the national flag at 1:2",
+      "Hungarian standard MSZ 1361:2009 on the national flag: red Pantone 18-1660 TCX, green Pantone 18-6320 TCX",
+      "Act XXI of 1848 on the national colours and the arms of the country",
+      "Flags of the World, \"Hungary\" and \"Hungary - Historical flags (1867-1918)\": https://www.fotw.info/flags/hu.html",
+    ],
+    checked:
+      "Three equal horizontal stripes, red over white over green, at 1:2: the file is 1200 by 600 with stripes of 200. " +
+      "Red #CE2939 and green #477050 are Pantone's sRGB values for 18-1660 TCX and 18-6320 TCX, the colours of MSZ 1361:2009; white #FFFFFF. " +
+      "The file's history has a 2022 colour edit war, reverted each time to these colours; the talk page's only dispute (2009) was the ratio, 1:2 against 2:3, which decree 132/2000 settles for the national flag. " +
+      "The same tricolour was Hungary's national flag from 1848 (Act XXI of 1848 named only the colours), plain and without the arms from 1882 to 1918 by Flags of the World; " +
+      "before 2000 no act set its ratio or shades, and Flags of the World gives 1:2 as the tricolour's ratio from 1848, while 2:3 was also flown.",
+  },
+  "ireland-harp-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "ee07bfa4a3819e1bf941811fd247e2a7019454b0",
+    source: "https://commons.wikimedia.org/wiki/File:Green_harp_flag_of_Ireland.svg",
+    author: "Raymond1922A, with the harp redrawn by Sodacan (Wikimedia Commons)",
+    license: "cc-by-sa-3.0",
+    licenseBasis: "Commons: self, cc-by-sa-3.0",
+    attribution:
+      "Green harp flag of Ireland by Raymond1922A and Sodacan, Wikimedia Commons, CC BY-SA 3.0: https://commons.wikimedia.org/wiki/File:Green_harp_flag_of_Ireland.svg",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "G. A. Hayes-McCoy, A History of Irish Flags from Earliest Times (Dublin, 1979), as quoted by Flags of the World: the green flag from 1798; the 18th- and 19th-century harp a winged maiden, one wing forming its neck",
+      "Flags of the World, \"Ireland: Green Flag\": https://www.fotw.info/flags/ie-green.html",
+      "\"Ireland\", Flags of All Nations, series 1 (N9), Allen & Ginter cigarette cards, 1887, Metropolitan Museum of Art",
+      "\"Charles Parnell, Member of Parliament, Ireland\", Rulers, Flags, and Coats of Arms (N126), W. Duke, Sons & Co., 1888, Metropolitan Museum of Art: the \"Flag of Ireland\"",
+      "The Irish Transvaal Brigade's uninscribed green flag of 1899 with a winged-maiden harp, National Museum of Ireland (Hayes-McCoy, plate iv)",
+    ],
+    checked:
+      "The green harp flag never had an official design and flew in many variants: a plain or winged-maiden harp, with or without a crown, a wreath of shamrocks or an inscription such as \"Erin go Bragh\". " +
+      "This is its most iconic design, a gold winged-maiden harp with silver strings, centred on a plain green field: the form Hayes-McCoy gives the harp of the 18th and 19th centuries, " +
+      "and the one the period's own flag references show as the flag of Ireland (the 1887 Allen & Ginter and 1888 Duke cards) and the surviving 1899 Transvaal Brigade flag carries. " +
+      "The file draws exactly that: field #009A49, the harp in golds #FFDB43 and #DBBA2E, strings #DFDFDF, no crown or inscription. " +
+      "No ratio or shade was ever set; the file is 450 by 300 (2:3), within the period's variety (Flags of the World draws it 1:2). The file has no talk page; its one later upload (2017) redrew the harp, and the stored file is that version, checked as above.",
+  },
   "slovene-tricolour": {
     kind: "published",
     format: "svg",
