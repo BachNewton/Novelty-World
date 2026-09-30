@@ -7,7 +7,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   type Camera,
-  Color,
+  type Color,
   LineBasicMaterial,
   LineDashedMaterial,
   LineSegments,
@@ -17,6 +17,7 @@ import {
   Vector3,
 } from "three";
 import { type HeldKeys, useHeldKeys } from "@/shared/hooks/use-held-keys";
+import { themeColor } from "@/shared/lib/three/theme-color";
 import { cn } from "@/shared/lib/utils";
 import { fullName } from "../logic";
 import {
@@ -54,14 +55,6 @@ const LABEL_GAP_PX = 2;
 const CAMERA_FOV = 50;
 // The camera looks at the tree from the front and a little above.
 const CAMERA_DIRECTION = new Vector3(0, 0.35, 1).normalize();
-
-function themeColor(token: string): Color {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue(token)
-    .trim();
-  if (value === "") throw new Error(`Theme token ${token} is not defined`);
-  return new Color(value);
-}
 
 interface Palette {
   background: Color;
