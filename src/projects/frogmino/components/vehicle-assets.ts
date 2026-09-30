@@ -21,9 +21,11 @@ const CELL_TEXTURE_SIZE = 16;
 const CELL_BORDER_TEXELS = 1;
 const CELL_BORDER_SHADE = 0.4;
 
-type BorderEdges = "all" | "rows" | "cols";
+// Which edges of a face get the border: all four, only those along its rows,
+// or only those along its columns.
+export type BorderEdges = "all" | "rows" | "cols";
 
-function borderMask(edges: BorderEdges): DataTexture {
+export function borderMask(edges: BorderEdges): DataTexture {
   const size = CELL_TEXTURE_SIZE;
   const last = size - 1;
   const data = new Uint8Array(size * size * 4);

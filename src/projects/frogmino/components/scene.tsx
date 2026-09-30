@@ -5,14 +5,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import {
   BoxGeometry,
-  DataTexture,
-  LinearMipmapLinearFilter,
   MathUtils,
   MeshBasicMaterial,
   MeshLambertMaterial,
-  NearestFilter,
   Object3D,
-  RGBAFormat,
   type Color,
   type Group,
   type InstancedMesh,
@@ -30,14 +26,16 @@ import {
 } from "../run";
 import { useFrogminoStore } from "../store";
 import { TUNING } from "../tuning";
-import type { Cell, Opening } from "../types";
+import type { Cell } from "../types";
+import { borderMask } from "./vehicle-assets";
+import { makeVehicleViewAssets, VehicleView } from "./vehicle-view";
 
 // World axes: x runs across the corridor (one unit per column), y up (one unit
 // per row), and the walls come at the frog from -z. A rule depth d sits at
 // z = -d: a wall's cubes lie just beyond its depth and the frog's just short
 // of its own, each as deep as the rules count it, so the two touch when their
 // depths meet and overlap exactly when the rules say they do.
-const { corridorCols, depthStep, wallRows, courseLength, cameraHeight, cameraFollow, cameraLookAhead } = TUNING;
+const { corridorCols, depthStep, courseLength, cameraHeight, cameraFollow, cameraLookAhead } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
 
 // The camera looks down at the floor a look-ahead in front of the frog.
@@ -54,12 +52,6 @@ const START_ZONE_LENGTH = cameraFollow + 3;
 const END_ZONE_LENGTH = 6;
 const ROAD_LINE_COUNT = Math.floor(courseLength / depthStep) + 1;
 const ROAD_LINE_THICKNESS = 0.06;
-
-// Each cube face gets a darker inset border, so touching cells still read as
-// a grid. The texture is a brightness mask the material colour multiplies.
-const CELL_TEXTURE_SIZE = 16;
-const CELL_BORDER_TEXELS = 1;
-const CELL_BORDER_SHADE = 0.4;
 
 // The fit outline is drawn just in front of the next wall's face.
 const FIT_LINE_WIDTH = 0.1;
@@ -84,7 +76,6 @@ interface Palette {
   roadLine: Color;
   startZone: Color;
   endZone: Color;
-  wall: Color;
   frog: Color;
   bonk: Color;
   fitOutline: Color;
@@ -97,38 +88,20 @@ function readPalette(): Palette {
     roadLine: themeColor("--color-border-hover"),
     startZone: themeColor("--color-surface-elevated"),
     endZone: themeColor("--color-brand-blue"),
-    wall: themeColor("--color-brand-orange"),
     frog: themeColor("--color-brand-green"),
     bonk: themeColor("--color-brand-pink"),
     fitOutline: themeColor("--color-text-primary"),
   };
 }
 
-function cellBorderTexture(): DataTexture {
-  const size = CELL_TEXTURE_SIZE;
-  const data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const edge = Math.min(x, y, size - 1 - x, size - 1 - y) < CELL_BORDER_TEXELS;
-      const value = Math.round((edge ? CELL_BORDER_SHADE : 1) * 255);
-      data.set([value, value, value, 255], (y * size + x) * 4);
-    }
-  }
-  const texture = new DataTexture(data, size, size, RGBAFormat);
-  texture.magFilter = NearestFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
-  return texture;
-}
-
 function makeAssets(palette: Palette) {
-  const cellMap = cellBorderTexture();
+  // Every cube face gets the darker inset border, so touching cells still read
+  // as a grid.
+  const cellMap = borderMask("all");
   return {
     cellMap,
     cube: new BoxGeometry(1, 1, 1),
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
-    wallMaterial: new MeshLambertMaterial({ color: palette.wall, map: cellMap }),
     frogMaterial: new MeshLambertMaterial({ color: palette.frog, map: cellMap }),
     fitMaterial: new MeshBasicMaterial({ color: palette.fitOutline }),
   };
@@ -185,19 +158,16 @@ interface CubeSpot {
   y: number;
 }
 
-// Touching cubes, `thickness` deep, drawn as one instanced mesh from depth 0
-// along `direction`: back toward the start (-1) for the frog, which fills
-// from its front face backward, or on along the course (+1) for a wall.
+// The frog's touching cubes, as one instanced mesh filling `thickness` back
+// from its front face toward the start.
 function CellBlock({
   spots,
   thickness,
-  direction,
   material,
   assets,
 }: {
   spots: readonly CubeSpot[];
   thickness: number;
-  direction: 1 | -1;
   material: MeshLambertMaterial;
   assets: Assets;
 }) {
@@ -208,25 +178,14 @@ function CellBlock({
     const placer = new Object3D();
     placer.scale.set(1, 1, thickness);
     spots.forEach((spot, i) => {
-      placer.position.set(spot.x, spot.y, (-direction * thickness) / 2);
+      placer.position.set(spot.x, spot.y, thickness / 2);
       placer.updateMatrix();
       mesh.setMatrixAt(i, placer.matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [spots, thickness, direction]);
+  }, [spots, thickness]);
   return <instancedMesh ref={cubesRef} args={[assets.cube, material, spots.length]} />;
-}
-
-function wallSpots(opening: Opening): CubeSpot[] {
-  const open = new Set(opening.map(cellKey));
-  const spots: CubeSpot[] = [];
-  for (let col = 0; col < corridorCols; col++) {
-    for (let row = 0; row < wallRows; row++) {
-      if (!open.has(cellKey({ col, row }))) spots.push({ x: col, y: row + 0.5 });
-    }
-  }
-  return spots;
 }
 
 interface Edge {
@@ -369,7 +328,13 @@ function Game({ palette }: { palette: Palette }) {
     const { width, height } = pieceSize(kind, 0);
     return pieceCells(kind, 0).map((c) => ({ x: c.col - (width - 1) / 2, y: c.row - (height - 1) / 2 }));
   }, [kind]);
-  const wallSpotLists = useMemo(() => course.map((wall) => wallSpots(wall.opening)), [course]);
+  const vehicleAssets = useMemo(() => makeVehicleViewAssets(assets.cellMap), [assets]);
+  useEffect(
+    () => () => {
+      vehicleAssets.dispose();
+    },
+    [vehicleAssets],
+  );
 
   const frogRef = useRef<Group>(null);
   const wallRefs = useRef<(Group | null)[]>([]);
@@ -462,25 +427,20 @@ function Game({ palette }: { palette: Palette }) {
         <CellBlock
           spots={frogSpots}
           thickness={FROG_THICKNESS}
-          direction={-1}
           material={assets.frogMaterial}
           assets={assets}
         />
       </group>
-      {wallSpotLists.map((spots, i) => (
+      {course.map((row, i) => (
         <group
           key={i}
           ref={(group) => {
             wallRefs.current[i] = group;
           }}
         >
-          <CellBlock
-            spots={spots}
-            thickness={WALL_THICKNESS}
-            direction={1}
-            material={assets.wallMaterial}
-            assets={assets}
-          />
+          {row.vehicles.map(({ id, lane }) => (
+            <VehicleView key={lane} id={id} lane={lane} depth={0} assets={vehicleAssets} />
+          ))}
         </group>
       ))}
       <instancedMesh ref={fitRef} args={[assets.fitEdge, assets.fitMaterial, MAX_PERIMETER]} frustumCulled={false} />

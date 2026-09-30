@@ -4,25 +4,28 @@ Brain Wall (the Japanese game show) meets Tetris, with Frogger-style hopping. Th
 
 The owner and a friend designed it. What follows is decided unless it sits under Open questions.
 
-The prototype still models every obstacle as a full-width wall with openings in it, and wherever the sections below speak of walls, they describe that prototype. The decided direction is traffic, not walls: see Traffic.
+The obstacles are rows of traffic (see Traffic). The rules still call a row a wall, from the prototype: a row's vehicles are its solid cells and everything else on the face is its opening, so wherever the sections below speak of walls and openings, they mean a row as the rules see it.
 
 ## Code map
 
 - `types.ts`: cells on the wall face, tetromino kinds, the frog, openings.
 - `logic.ts`: pure piece rules, no React and no Three. The tetromino definitions, rotation, piece sizes, turning inside the corridor with a wall kick, the cells a frog covers, and the pass test.
-- `run.ts`: pure run rules. The rule state of one playthrough (frog, walls, clock), the frog's and a wall's thickness, the player's actions and held jumps, `advance` for moving time on, judging walls as they reach the frog, keeping the frog out of a wall's solid cells while they overlap, the bonk, the looping traffic, and the start and end zones.
-- `course.ts`: the seeded course generator: the walls' openings and where they start along the course.
+- `run.ts`: pure run rules. The rule state of one playthrough (frog, walls, clock), the frog's and a wall's thickness, the player's actions and held jumps, `advance` for moving time on, judging walls as they reach the frog, keeping the frog out of a wall's solid cells while they overlap, riding, the bonk, the looping traffic, and the start and end zones.
+- `traffic.ts`: a row of traffic (which vehicles, in which lanes) and the opening it leaves, refusing a row whose vehicles share a lane or leave the road.
+- `composer.ts`: the answer-first row composer, the difficulty rules, and the poses a frog can take and which of them pass an opening.
+- `course.ts`: the seeded course: fifteen rows up the difficulty ramp, and where each starts along the course.
 - `tuning.ts`: the feel knobs (wall speed and placement, course length, hop airtime, ease duration, corridor size, jump distance, held-jump repeat interval, bonk knock-back, and the camera's height, follow distance and look-ahead), in one constants object. Tuning is done by editing it; there is no settings UI.
 - `store.ts`: the Zustand store holding the current run, with actions for key presses and releases, frame ticks and restart.
-- `fleet.ts`: the 19 vehicle ids, derived from the tetromino definitions and rotation in `logic.ts`, and each vehicle's cells.
+- `fleet.ts`: the 19 vehicle ids, derived from the tetromino definitions and rotation in `logic.ts`, and each vehicle's cells. It is the one definition of the vehicles; the rules and the art both key by its ids.
 - `vehicles/`: the fleet's designs. `parts.ts` is the vehicle's own frame, the paints, the surface-detail tolerance and the helpers that place details on a cell's faces; `kit.ts` holds details many vehicles share (headlights, bumpers, windscreens, rings); `i.ts` to `l.ts` hold one piece's vehicles each; `index.ts` gathers them as `VEHICLES` and builds a `vehicleModel` from an id.
 - `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay, or the garage when the URL has `?garage`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
-- `components/scene.tsx`: the 3D scene and the per-frame loop. It draws the frog and the walls as thick as the rules count them, from the thicknesses `run.ts` exports. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
+- `components/scene.tsx`: the 3D scene and the per-frame loop. It draws the frog and each row's vehicles as thick as the rules count them, from the thicknesses `run.ts` exports. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
 - `components/use-frog-keys.ts`: the keyboard controls, including holding and releasing the jump keys.
-- `components/vehicle.tsx`: the `Vehicle` component, drawing any of the 19 by id at a lane and depth, in the scene's axes. `components/vehicle-assets.ts` holds its materials, cell-border masks and per-paint merged detail geometry.
+- `components/vehicle-view.tsx`: the placeholder traffic art the game draws for now: each vehicle as its four cubes in one flat colour of its own, from the placeholder tokens in `globals.css`. It is the seam for the fleet's art: `Vehicle` takes the same props, so the scene swaps `VehicleView` and its assets for `Vehicle` and `makeVehicleAssets`, and nothing else changes.
+- `components/vehicle.tsx`: the `Vehicle` component, drawing any of the 19 by id at a lane and depth, in the scene's axes. `components/vehicle-assets.ts` holds its materials, per-paint merged detail geometry, and the cell-border masks, which the scene's frog and placeholder vehicles share.
 - `components/garage.tsx`: the garage (see The fleet).
 
-The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), fifteen walls from a fixed seed with about one in four raised (never the first three, always the last) that loop as endless traffic, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
+The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no pull-offs yet), fifteen rows of traffic from a fixed seed ramping from easy to hard, drawn with placeholder art, that loop as endless traffic, riding, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
 
 ## The wall face
 
@@ -45,7 +48,8 @@ What the rules decide is kept apart from what the player sees.
 - **The bonk.** A wall the frog fits passes around it. A wall it doesn't fit bonks it: the frog is knocked back from the wall's face by the bonk knock-back, a few jumps' distance, and no further than the start zone. The wall stays solid and keeps coming, so it bonks the frog again when it arrives unless the frog fits by then or has got clear. A jump forward into a wall the frog doesn't fit is a bonk too. Walls never let through a frog that doesn't fit, and never carry it along: the obstacles are becoming vehicles, and being carried along by one looks wrong. The walls are spaced so that a knock-back always lands the frog clear of every wall, and never reaches one it has passed; the rules refuse tuning that would allow it. That spacing also means no two walls overlap the frog at once.
 - **Feedback is for bonks only.** A bonked frog is drawn knocked back along a low arc, squashed flat against the wall at first, and flashes pink. A pass has no feedback on the frog.
 - **A jump back into a passed wall is refused.** A jump back that would leave the frog overlapping a wall it has already passed doesn't happen, just as a move off the corridor edge is ignored: no bonk, and no passing back through. So the frog can't jump back at all while a wall overlaps it.
-- **A hop lifts the frog one cell for its airtime,** then it lands. A hop pressed while airborne is ignored. If the airtime ends while a wall it passed up high still overlaps it, landing would put it into the wall's floor, so it stays up and lands the moment it can: when the wall has gone by, or sooner if a move or a jump forward frees it. That is the stand-on-it idea (see Traffic) for the overlap alone. It is drawn as a smooth arc that rises quickly to a full cell and falls once the frog lands.
+- **A hop lifts the frog one cell for its airtime,** then it lands. A hop pressed while airborne is ignored. It is drawn as a smooth arc that rises quickly to a full cell and falls once the frog lands.
+- **Riding.** A frog that is up while a row overlaps it rides the row: it stays up, gliding across the vehicles' low parts, until the row's back face has gone by, then lands, however long ago its airtime ran out. This is a mechanic, not a safeguard. It makes the hop's timing forgiving: a hop pressed early, whose airtime would end while the row goes by, still carries the frog across. And it looks like the frog gliding across a car's hood. The riding frog can still slide within the opening, and can jump forward, in the same pose and height, which stays inside the opening, so it reaches the row's back face and lands sooner. A held jump keeps repeating while it rides. A jump back follows the usual rule: refused while it would overlap the row. Riding has no visual of its own; the hop arc simply stays up.
 - **Turning** is about the piece's middle. A turn that would poke out of the corridor is nudged one column back in, Tetris-style; if it still doesn't fit, the turn fails. A move off the corridor edge is ignored.
 - The rules are pure functions of the run state and elapsed time, called from the render loop; the drawing updates Three objects directly, so React does not re-render per frame.
 
@@ -76,11 +80,18 @@ On touch screens (a starting point, to be tuned once it is playable):
 - **Tap** the left or right side to rotate counter-clockwise or clockwise.
 - **Swipe up** to hop. A swipe fires as soon as the finger has travelled far enough, while a tap has to wait for the finger to lift before it can rule out a swipe, so the timing-critical hop belongs on a swipe.
 - **Tap the centre** to jump forward, **swipe down** to jump back.
-- **Tap the hold box** to hold.
 
 ## Pieces
 
-The game deals the shapes; the player never chooses them. There is a next-piece preview and a Tetris-style hold, usable once per wall.
+The frog's piece changes only at pull-offs. There is no Tetris-style hold, no dealt-piece queue and no next-piece preview.
+
+- **Pull-offs** are lanes that appear at times on the left or right edge of the road, outside the traffic lanes, like the pull-offs on a mountain road. Level design chooses where they come and on which side.
+- **A piece waits in each.** The frog can jump into a pull-off to rest there, and choose to take its piece. Its old piece is left behind in the pull-off: it can swap back, or a co-op partner can take it. The frog rejoins the traffic by jumping back onto the road.
+- **Taking the piece is optional,** but the level can make it the smart way, or the only way, through the traffic ahead. Reading the road ahead is part of the skill.
+- **In co-op only one player can take a waiting piece,** so the partners decide who.
+- **A pull-off is wide enough for both its pieces** in some rotation, which the course builder guarantees.
+
+Pull-offs aren't built yet.
 
 ## Courses and medals
 
@@ -104,7 +115,11 @@ Solo is fully playable; co-op is optional. It runs over PeerJS through the repo'
 Obstacles are shaped vehicles on a road, not walls. "Wall" is prototype vocabulary and will go away.
 
 - **For now, vehicles arrive lined up in rows at one speed.** Side by side as one row, they leave a gap the frog must match to pass: the Brain Wall moment.
-- **Mixed speeds and staggered vehicles are tabled.** Staggered vehicles the frog weaves between, as in Frogger, and vehicles travelling at different speeds were part of the direction. The design problem that tabled them: getting vehicles at different speeds to arrive lined up into a matching row at the right moment is hard. Two v1 rules are proposed for when they are revisited: within a lane, a vehicle nearer the frog is never slower than one behind it; and a vehicle keeps a constant silhouette along its length, with solid sides, and a hop onto it stands on it.
+- **A row is vehicles from the 19, side by side, one per lane.** Each vehicle (see The fleet) takes the lanes its silhouette spans, no two share a lane, and lanes may stay empty. There is no stacking yet. A row's solid cells are its vehicles' cells; everything else within the four rows is the opening. So the pass test, the bonk, a row's solidity while it overlaps the frog, riding and the looping traffic all work on a row exactly as on a wall.
+- **No filler vehicles.** Smaller one-, two- and three-cell fillers were tried in analysis: they added clutter and didn't close the gaps they were meant to.
+- **Rows are composed answer-first.** The composer picks the intended answer (a rotation, a column, and whether it hops), fills lanes one vehicle at a time with vehicles that keep the answer's cells open, then counts how many distinct poses the finished row lets through. It keeps the row only if that count suits the difficulty, and tries again otherwise. Easy rows let 4 to 14 poses through, medium 2 to 5, hard 1 or 2, and a hard row lets through none of the placements that passed the row before it, so the frog must change something. The harder the row, the more it prefers vehicles that close the open cells beside the answer. A raised answer must need its hop: a row built around one is kept only if no grounded pose passes. Every row is passable, because its answer is.
+- **Known gap: rows rarely force the frog to lie flat.** A pose held down by a ceiling needs an overhang reaching over it from a neighbouring lane, and one vehicle per lane seldom gives one. If that is missed in play, the idea to try is vehicles carrying vehicles (stacking): analysis showed it raises the poses a row can force from 129 to 202 of 210.
+- **Mixed speeds and staggered vehicles are tabled.** Staggered vehicles the frog weaves between, as in Frogger, and vehicles travelling at different speeds were part of the direction. The design problem that tabled them: getting vehicles at different speeds to arrive lined up into a matching row at the right moment is hard. Two v1 rules are proposed for when they are revisited: within a lane, a vehicle nearer the frog is never slower than one behind it; and a vehicle keeps a constant silhouette along its length, with solid sides. The earlier idea that a hop onto a vehicle stands on it is adopted, as riding (see The motion model).
 - **Vehicle shapes are silhouettes chosen for gameplay,** and the art serves them: see The fleet.
 
 ## The fleet
@@ -145,7 +160,7 @@ The art serves the shape: fun, quirky vehicles that never hide which four cells 
 
 ## Levels
 
-v1 levels are hardcoded or generated from a fixed seed. The generator places real piece placements first and grows the openings around them, so every wall is solvable. A floor wall's opening may hold a tricky fit with no hop alongside fits that hop; that is good level design, not a flaw. The demo course has fifteen walls with roomy openings, spaced for a new player to read each one. About one in four is raised, picked by the seed, but never one of the first three, so the hop comes once the floor walls are familiar, and the last is always raised. A level editor is a later idea.
+v1 levels are hardcoded or generated from a fixed seed, with rows from the answer-first composer (see Traffic). A floor row may let through fits that hop alongside a grounded one; that is good level design, not a flaw. The demo course has fifteen rows, spaced for a new player to read each one, ramping up by thirds: five easy, five medium, five hard. Raised rows come at the rate the composer finds natural, rarely when easy and more often as the difficulty climbs, about three a course. A level editor is a later idea.
 
 ## Look
 
@@ -166,9 +181,8 @@ Sound comes later, with ZzFX: the MIT micro-library that generates retro sounds 
 
 ## Open questions
 
-- Is 0.8 s the right hop airtime? To be tuned in playtesting, like the bonk knock-back (three jumps) and the held-jump repeat interval (0.22 s).
+- Is 0.7 s the right hop airtime? To be tuned in playtesting, like the bonk knock-back (three jumps) and the held-jump repeat interval (0.22 s).
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
-- The pass rule for a single vehicle: the frog's cells must not overlap its solid cells while the two overlap in depth. A row is just several vehicles at the same depth.
 - Vehicle length: how long must a fit be held?
 - How co-op's "openings fill in" rule translates to vehicles.
 - The code rename from wall to vehicle terminology, once the model changes.

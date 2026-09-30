@@ -11,6 +11,7 @@ import {
   frogShape,
   hopHeight,
   isDone,
+  isRiding,
   nextWall,
   pressJump,
   releaseJump,
@@ -238,7 +239,7 @@ describe("traffic", () => {
     let bonks = 0;
     let passes = 0;
     let returns = 0;
-    for (let step = 0; step < 5000; step++) {
+    for (let step = 0; step < 10000; step++) {
       const before = run;
       run = random() < 0.3 ? applyAction(run, actions[Math.floor(random() * actions.length)]) : advance(run, random() * 1.2);
       if (run.lastBonk !== before.lastBonk) bonks++;
@@ -264,12 +265,12 @@ describe("traffic", () => {
 
 describe("hop", () => {
   it("keeps the frog up for the tuning's airtime", () => {
-    expect(TUNING.hopAirtime).toBe(0.8);
+    expect(TUNING.hopAirtime).toBe(0.7);
     const run = applyAction(createRun([], TUNING, SEED), "hop");
-    expect(hopHeight(advanceBy(run, 0.79, 0.01).frog)).toBe(1);
-    const landed = advanceBy(run, 0.81, 0.01).frog;
+    expect(hopHeight(advanceBy(run, 0.69, 0.01).frog)).toBe(1);
+    const landed = advanceBy(run, 0.71, 0.01).frog;
     expect(hopHeight(landed)).toBe(0);
-    expect(landed.latestHop?.landedAt).toBeCloseTo(0.8);
+    expect(landed.latestHop?.landedAt).toBeCloseTo(0.7);
     const short = applyAction(createRun([], TEST_TUNING, SEED), "hop");
     expect(hopHeight(advanceBy(short, 0.49, 0.01).frog)).toBe(1);
     expect(hopHeight(advanceBy(short, 0.51, 0.01).frog)).toBe(0);
@@ -371,7 +372,7 @@ describe("a wall overlapping the frog", () => {
     expect(hopHeight(applyAction(overlapping(TALL), "hop").frog)).toBe(1);
   });
 
-  it("holds up a frog that passed a raised opening until it has gone by, then lands it", () => {
+  it("rides a frog that passed a raised opening across it until it has gone by, then lands it", () => {
     // Up from 0 s, the frog passes at 0.2 s; its airtime ends at 0.5 s.
     const run = overlapping(RAISED, "hop");
     expect(hopHeight(advanceBy(run, 1.8).frog)).toBe(1);
@@ -385,19 +386,57 @@ describe("a wall overlapping the frog", () => {
     expect(advanceBy(run, 2).lastBonk).toBeNull();
   });
 
-  it("lands a held-up frog as soon as an action frees it", () => {
+  it("gives an early hop grace: one whose airtime ends mid-overlap still passes and rides across", () => {
+    // Up from 0 s with 0.5 s of airtime, the frog meets the raised opening at
+    // 0.45 s, just before it would have landed, and rides it until 2.45 s.
+    const run = advanceBy(applyAction(runWithWall(RAISED, 5.45), "hop"), 0.5, 0.01);
+    expect(run.walls[0].passed).toBe(true);
+    expect(isRiding(run)).toBe(true);
+    const across = advanceBy(run, 1.9, 0.01);
+    expect(hopHeight(across.frog)).toBe(1);
+    expect(across.lastBonk).toBeNull();
+    const landed = advanceBy(run, 2, 0.01).frog;
+    expect(hopHeight(landed)).toBe(0);
+    expect(landed.latestHop?.landedAt).toBeCloseTo(2.45);
+  });
+
+  it("rides even where landing would fit, and keeps riding through a slide", () => {
+    // Room to stand or hop, and to slide: the frog passed up high rides on.
+    const run = overlapping(rect([1, 5], [0, 3]), "hop");
+    const slid = applyAction(advanceBy(run, 0.5), "left");
+    expect(slid.frog.col).toBe(1);
+    expect(isRiding(slid)).toBe(true);
+    expect(hopHeight(advanceBy(slid, 1).frog)).toBe(1);
+    expect(hopHeight(advanceBy(slid, 1.5).frog)).toBe(0);
+  });
+
+  it("jumps a riding frog forward in its pose and height, clearing the wall sooner", () => {
     // At 0.6 s the wall fills 4.6 to 5.6. One jump forward leaves the frog
-    // (5 to 6) still overlapping it; a second takes it clear, and it lands.
+    // (5 to 6) still riding it; a second takes it clear, and it lands, long
+    // before the 2.2 s the wall would have taken to go by.
     const run = advanceBy(overlapping(RAISED, "hop"), 0.3);
-    expect(hopHeight(run.frog)).toBe(1);
+    expect(isRiding(run)).toBe(true);
     const once = applyAction(run, "forward");
-    expect(hopHeight(once.frog)).toBe(1);
+    expect(once.frog).toMatchObject({ depth: 6, col: run.frog.col, rotation: run.frog.rotation });
+    expect(isRiding(once)).toBe(true);
     const twice = applyAction(once, "forward");
+    expect(twice.frog.depth).toBe(7);
     expect(hopHeight(twice.frog)).toBe(0);
     expect(twice.frog.latestHop?.landedAt).toBeCloseTo(0.6);
   });
 
-  it("refuses a hop while held up", () => {
+  it("repeats a held jump while riding", () => {
+    // Riding from 0.3 s, the press jumps the frog to 6, still on the wall;
+    // the repeat at 0.55 s carries it clear to 7, where it lands.
+    const riding = pressJump(overlapping(RAISED, "hop"), "forward");
+    expect(riding.frog.depth).toBe(6);
+    expect(isRiding(riding)).toBe(true);
+    const repeated = advanceBy(riding, 0.25, 0.01);
+    expect(repeated.frog.depth).toBe(7);
+    expect(repeated.frog.latestHop?.landedAt).toBeCloseTo(0.55);
+  });
+
+  it("refuses a hop while riding", () => {
     const run = advanceBy(overlapping(RAISED, "hop"), 0.3);
     expect(applyAction(run, "hop")).toBe(run);
   });

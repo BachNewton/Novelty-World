@@ -19,7 +19,8 @@ import type { Tuning } from "./tuning";
 // passed is behind it. Each rule below keeps that true, so a wall is judged
 // exactly once each time it reaches the frog. And the frog's cells are
 // always inside the opening of any wall overlapping it: an action that would
-// break that is refused, and a hop that would land in a wall's floor stays up.
+// break that is refused. A frog that is up while a wall overlaps it rides the
+// wall: it stays up until the wall has gone by.
 
 // How deep the frog and a wall are along the course, in units. The scene
 // draws them this deep too.
@@ -215,13 +216,20 @@ function landNow(run: Run): Run {
   return withFrog(run, { latestHop: { ...hopping, landedAt: run.time } });
 }
 
-// A hop whose airtime is over lands, unless landing would put the frog into
-// the floor of a wall overlapping it: then it stays up until it can land.
+// Riding: a frog that is up while a wall overlaps it stays up, gliding across
+// the wall's low parts, until the wall has gone by or a jump forward carries
+// it off. So a hop's timing is forgiving: one pressed early, whose airtime
+// would end mid-overlap, still carries the frog across.
+export function isRiding(run: Run): boolean {
+  return hopHeight(run.frog) === 1 && run.walls.some((wall) => overlapsFrog(wall, run.frog.depth));
+}
+
+// A hop whose airtime is over lands, unless the frog is riding.
 function settle(run: Run): Run {
   const hopping = run.frog.latestHop;
   if (hopping === null || hopping.landedAt !== null) return run;
   if (run.time < hopping.startedAt + run.tuning.hopAirtime) return run;
-  return clearOfWalls(run, { ...frogShape(run.frog), hop: 0 }) ? landNow(run) : run;
+  return isRiding(run) ? run : landNow(run);
 }
 
 // Each wall whose front face the jump reaches is judged at once, nearest
@@ -287,7 +295,7 @@ function act(run: Run, action: FrogAction): Run {
   }
 }
 
-// An action can free a frog held up by a wall, so it lands straight after.
+// A jump forward can carry a riding frog off its wall, so it lands straight after.
 export function applyAction(run: Run, action: FrogAction): Run {
   if (isDone(run)) return run;
   return settle(act(run, action));
@@ -315,20 +323,20 @@ function nextArrival(run: Run): RunEvent | null {
   };
 }
 
-// When a hopping frog comes down: at the end of its airtime or, if a wall
-// holds it up then, once that wall has gone by. Only one wall can overlap the
-// frog at a time (the tuning check spaces them), so the frog lands the moment
-// that wall's back face passes its own.
+// When a hopping frog comes down: at the end of its airtime or, if it is
+// riding a wall then, once that wall has gone by. Only one wall can overlap
+// the frog at a time (the tuning check spaces them), so the frog lands the
+// moment that wall's back face passes its own.
 function nextLanding(run: Run): RunEvent | null {
   const hopping = run.frog.latestHop;
   if (hopping === null || hopping.landedAt !== null) return null;
   const due = hopping.startedAt + run.tuning.hopAirtime;
   if (run.time < due) return { time: due, happen: settle };
   const frogBack = run.frog.depth - FROG_THICKNESS;
-  const holding = run.walls.find((wall) => overlapsFrog(wall, run.frog.depth));
-  if (holding === undefined) throw new Error("A frog is held up with no wall overlapping it");
+  const ridden = run.walls.find((wall) => overlapsFrog(wall, run.frog.depth));
+  if (ridden === undefined) throw new Error("A frog is riding with no wall overlapping it");
   return {
-    time: run.time + (holding.depth + WALL_THICKNESS - frogBack) / run.tuning.wallSpeed,
+    time: run.time + (ridden.depth + WALL_THICKNESS - frogBack) / run.tuning.wallSpeed,
     happen: landNow,
   };
 }
@@ -368,7 +376,7 @@ function recycleAtStartEdge(run: Run): Run {
   return next;
 }
 
-// A wall leaving at the start edge can free a frog it held up.
+// A wall leaving at the start edge can end a ride.
 function moveOnTo(run: Run, time: number): Run {
   return settle(recycleAtStartEdge(moveWallsTo(run, time)));
 }

@@ -102,6 +102,34 @@
   --color-frogmino-snow: #fafafa;
 }
 
+/* Frogmino: placeholder traffic colours, one flat colour per vehicle id, used
+   until the fleet's art draws the traffic in play. Mid-bright so each reads
+   on a dark or a light road, all distinct from each other and from the frog's
+   brand green, and deliberately off Tetris's piece colours (no cyan I, yellow
+   O, purple T, green S, red Z, blue J or orange L). Read only by the 3D scene
+   through themeColor, so declared outside @theme. */
+:root {
+  --color-frogmino-placeholder-i0: #ffe66d;
+  --color-frogmino-placeholder-i1: #b5485e;
+  --color-frogmino-placeholder-o0: #f06fb1;
+  --color-frogmino-placeholder-s0: #3b9ae1;
+  --color-frogmino-placeholder-s1: #f7b538;
+  --color-frogmino-placeholder-z0: #3fc1a5;
+  --color-frogmino-placeholder-z1: #9d6ee8;
+  --color-frogmino-placeholder-t0: #e84a5f;
+  --color-frogmino-placeholder-t1: #a3d65c;
+  --color-frogmino-placeholder-t2: #7ee0e6;
+  --color-frogmino-placeholder-t3: #c78b4a;
+  --color-frogmino-placeholder-j0: #ff9e7a;
+  --color-frogmino-placeholder-j1: #8a3f7a;
+  --color-frogmino-placeholder-j2: #d17de8;
+  --color-frogmino-placeholder-j3: #8f9e3a;
+  --color-frogmino-placeholder-l0: #6c7ee8;
+  --color-frogmino-placeholder-l1: #5d8aa8;
+  --color-frogmino-placeholder-l2: #e2c290;
+  --color-frogmino-placeholder-l3: #d8b4fe;
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve

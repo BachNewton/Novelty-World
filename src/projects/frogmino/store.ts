@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { COURSE_SEED, generateCourse, type CourseWall } from "./course";
+import { COURSE_SEED, generateCourse, type CourseRow } from "./course";
 import {
   advance,
   applyAction,
@@ -21,7 +21,7 @@ function freshRun(): Run {
 }
 
 interface FrogminoStore {
-  course: readonly CourseWall[];
+  course: readonly CourseRow[];
   run: Run;
   // Bumped on every restart, so the drawing knows to snap rather than ease.
   runId: number;
