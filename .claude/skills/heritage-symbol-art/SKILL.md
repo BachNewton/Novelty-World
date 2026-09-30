@@ -1,13 +1,17 @@
 ---
 name: heritage-symbol-art
-description: Find the official design specification of a Family Tree heritage symbol (a flag, a coat of arms, a regional emblem), verify real art against it, and store the file unedited with its art record (src/projects/family-tree/symbol-art.ts). Use whenever a people or region is added to heritages.ts, a symbol timeline era is added or changed, a symbol id has no verified art, or the owner asks for a symbol's art or its source. Family-tree research invokes it in the same round as it adds a people or region, to propose the new timeline's symbols and find their art.
+description: Find the official design specification of a Family Tree heritage symbol (a flag, a coat of arms, a regional emblem), verify real art against it (or, as a documented last resort, draw it as SVG from the specification), and store it with its art record (src/projects/family-tree/symbol-art.ts). Use whenever a people or region is added to heritages.ts, a symbol timeline era is added or changed, a symbol id has no verified art, or the owner asks for a symbol's art or its source. Family-tree research invokes it in the same round as it adds a people or region, to propose the new timeline's symbols and find their art.
 ---
 
 # Heritage symbol art
 
-Every heritage symbol the tree shows is **real art, checked against its
-official design**: never drawn, traced or approximated by us. This skill
-finds that design, finds a faithful file, proves the file matches it, and
+These symbols are important: a heritage the tree can confirm should end up
+with art that identifies it, for each of its eras. Art comes, in order of
+preference, from **an official published design**, then **a faithful
+existing file** verified against the official design or the historical
+record, and only as **a last resort from our own SVG**, drawn from
+documented sources at high confidence ("Drawing our own", below). This
+skill finds the design, finds or makes the art, proves it matches, and
 stores it with a record of where it came from. The rules behind it are
 "Symbols" in `src/projects/family-tree/ideas/heritage-through-time.md` and
 "Heritage" in the project CLAUDE.md; read both first.
@@ -36,16 +40,19 @@ present-day flag from `flags.ts` meanwhile.
 
 ## The rules
 
-- **Never draw, trace, recolour, crop, simplify or "fix" art.** Not in the
-  repo, not in a mockup. The file is stored byte for byte as the source
-  published it, and a test holds it to the SHA-1 in its record.
+- **Never trace, recolour, crop, simplify or "fix" someone else's art.** A
+  published file is stored byte for byte as the source published it, and a
+  test holds it to the SHA-1 in its record. Drawing our own is a separate,
+  last-resort path with its own bar ("Drawing our own", below), never a way
+  to patch a file that is almost right.
 - **One wrong detail fails the file.** A file that is close but not right
   (a crown of the wrong era, a ratio off by more than pixel rounding, a
   shade the specification contradicts) is not verified. Look for another
   file; if none is right, the symbol stays without art.
-- **Nothing verifiable, no art.** The symbol stays without a record, and the
-  open question goes where research keeps its questions (the research log),
-  not in the repo: what was tried and what would settle it.
+- **Nothing verifiable and nothing drawable, no art.** The symbol stays
+  without a record, and the open question goes where research keeps its
+  questions (the research log), not in the repo: what was tried and what
+  would settle it.
 - **A people's own symbol, never a regime's imposed on it.** This is the
   timeline's rule, and the art follows it: the art is of the symbol the era
   names, in the form the people used in those years.
@@ -194,6 +201,45 @@ the repo, until the file is verified.
   never the record). The test refuses files over 5 MB, which means a wrong
   file, not one to shrink.
 
+## Drawing our own
+
+The last resort, for a symbol whose design is certain but which has no
+faithful published art.
+
+**Allowed only when all of these hold:**
+
+- **Both published avenues are exhausted:** no official artwork, and no
+  existing file (Commons and its "other versions", official downloads,
+  reference sites) that passes the checks above. The record lists what was
+  searched and why each candidate fell short.
+- **The design is fully documented:** cited sources settle the proportions,
+  the colours, and every element and where it sits: the act's text or
+  construction sheet, a heraldic blazon, a reference work's description,
+  dated photographs of real specimens.
+- **Confidence is high.** If any detail would be a guess (the pose of a
+  lion, the form of a crown, the shape of a harp), it isn't: the symbol
+  stays without art and the question is written down.
+
+**How to draw it:**
+
+- Hand-write a plain SVG: a `viewBox` in the specification's own units (an
+  11:18 flag as `0 0 18 11`), simple shapes, the official colours as exact
+  values, no filters, gradients or effects the design doesn't have.
+- Only designs made of geometry and plain charges are realistically
+  drawable to this bar: stripes, crosses, saltires, simple shapes. Detailed
+  heraldic figures (lions, eagles, crowns) are almost never documented to
+  every line, so for those keep looking for published art.
+- Render it in the scratchpad and compare it against the specification and
+  the dated specimens, element by element, before recording it.
+
+**Its record** is a drawn one: `kind: "drawn"`, SVG, licensed CC0 (it is
+our own work), `searched` (the avenues exhausted), `elements` (each element
+of the design and the sources that document it), `proportions` and
+`checked`, with the file's own SHA-1 pinned like any other. Drawn art is
+held to every other rule: true proportions, the official colours, shown
+whole, and a people's own symbol, never a regime's. **Replace it** with
+published art as soon as a verifiable file turns up.
+
 ## Licence and attribution
 
 The repo may be public, so every file's licence is recorded and honoured.
@@ -217,11 +263,11 @@ The repo may be public, so every file's licence is recorded and honoured.
 
 1. Copy the verified file to
    `src/projects/family-tree/symbol-art/<symbol-id>.<svg|png>`, unedited.
-2. Add its record to `SYMBOL_ART` in `symbol-art.ts`: format, the source's
-   SHA-1, the source page, author, licence and its basis, attribution (empty
+2. Add its record to `SYMBOL_ART` in `symbol-art.ts`. For published art
+   (`kind: "published"`): format, the source's SHA-1, the source page, author, licence and its basis, attribution (empty
    when the licence needs none), the official proportions, what it was
    checked against (most authoritative first) and what was checked and
-   found. Art provenance may name URLs, unlike research sources in the
+   found. For our own drawing, the drawn record above. Art provenance may name URLs, unlike research sources in the
    tree row: this is reference data about public symbols, in code rather
    than the public row, and a Commons file page is the canonical way to
    credit a file under its licence.

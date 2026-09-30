@@ -46,7 +46,7 @@ function pngRatio(png: Buffer): number {
 }
 
 describe("symbol art", () => {
-  it("is stored unedited: each file's SHA-1 is its source's", () => {
+  it("is stored unedited: each file's SHA-1 is its record's", () => {
     for (const [symbol, art] of artRecords()) {
       const hash = createHash("sha1").update(artBytes(symbolArtFile(symbol, art))).digest("hex");
       expect(hash, symbol).toBe(art.sha1);
@@ -72,18 +72,28 @@ describe("symbol art", () => {
     }
   });
 
-  it("records a listed symbol, a source, a licence and the credit it requires, and what the art was checked against", () => {
+  it("records a listed symbol, a licence and the credit it requires, and what the art rests on", () => {
+    const texts = (art: SymbolArt): string[] =>
+      art.kind === "published"
+        ? [art.source, art.licenseBasis, ...art.checkedAgainst]
+        : [...art.searched, ...art.elements.flatMap((e) => [e.element, ...e.sources])];
     for (const [symbol, art] of artRecords()) {
       expect(Object.hasOwn(SYMBOLS, symbol), symbol).toBe(true);
       expect(art.sha1, symbol).toMatch(/^[0-9a-f]{40}$/);
-      expect(art.source, symbol).toMatch(/^https:\/\/\S+$/);
       expect(Object.hasOwn(ART_LICENSES, art.license), symbol).toBe(true);
       expect(art.attribution !== "", symbol).toBe(ART_LICENSES[art.license].attribution);
-      for (const text of [art.author, art.licenseBasis, art.checked, ...art.checkedAgainst]) {
+      for (const text of [art.author, art.checked, ...texts(art)]) {
         expect(text.trim(), symbol).toBe(text);
         expect(text, symbol).not.toBe("");
       }
-      expect(art.checkedAgainst.length, symbol).toBeGreaterThan(0);
+      if (art.kind === "published") {
+        expect(art.source, symbol).toMatch(/^https:\/\/\S+$/);
+        expect(art.checkedAgainst.length, symbol).toBeGreaterThan(0);
+      } else {
+        expect(art.searched.length, symbol).toBeGreaterThan(0);
+        expect(art.elements.length, symbol).toBeGreaterThan(0);
+        for (const { element, sources } of art.elements) expect(sources.length, `${symbol}: ${element}`).toBeGreaterThan(0);
+      }
       expect(art.proportions.width, symbol).toBeGreaterThan(0);
       expect(art.proportions.height, symbol).toBeGreaterThan(0);
     }

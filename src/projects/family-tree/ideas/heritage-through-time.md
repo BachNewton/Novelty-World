@@ -81,19 +81,28 @@ they left; their grandchildren show today's.
   1848 and 1919, not the Nazi flag.
 - **Art:** modern flags keep coming from the `svg-country-flags` package.
   Historical flags and coats of arms come from official downloads or
-  Wikimedia Commons, stored in the repo unedited, one file per symbol id,
+  Wikimedia Commons (or, as a last resort, our own drawing; see below),
+  stored in the repo unedited, one file per symbol id,
   each with a record of its source page, author, licence (public domain
   preferred; a CC BY-SA drawing is fine with its credit shown), the official
   proportions and what it was checked against (`symbol-art.ts`; the
   `heritage-symbol-art` skill finds and verifies it). Coats of arms are
   drawn in their own proportions, like flags.
-- **Real art only, never our own drawing.** A symbol's art is never drawn or
-  approximated by us, in the app or in a mockup. It comes from an official
-  source (a government's or institution's published design), or from a
-  faithful file such as a Wikimedia Commons one that has been checked against
-  the official specification or the historical record: its proportions,
-  colors and details. Research records that source beside the era. A symbol
-  with no verified art isn't shown until it has some.
+- **Accurate art, and our own drawing only as a last resort.** These
+  symbols matter: a heritage the tree can confirm should end up with art
+  that identifies it. Art comes, in order of preference, from an official
+  source (a government's or institution's published design), then from a
+  faithful existing file such as a Wikimedia Commons one checked against the
+  official specification or the historical record (its proportions, colors
+  and details), and only then from our own SVG. We draw one only when both
+  published avenues are exhausted, the cited sources document the
+  proportions, the colors and every element and its placement, and
+  confidence is high; if any detail would be a guess, the symbol waits. A
+  drawing's record says it is ours, what was searched and what each element
+  rests on, and it is replaced as soon as verifiable published art turns
+  up. We never trace, recolor, crop or fix someone else's file, and nothing
+  approximate appears anywhere, mockups included. A symbol with no verified
+  art isn't shown until it has some.
 - **A symbol is always shown whole.** Anything that represents a place, a
   people or a country (a flag, a coat of arms, a regional emblem) is drawn at
   its true aspect ratio, uncropped, in its own colors, and nothing overlaps
