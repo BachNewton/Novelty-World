@@ -16,11 +16,13 @@ import type { NameFields, ResearchRecord, Tree } from "../types";
 import {
   applyOps,
   describeGaps,
+  describeNeededArt,
   describePeoples,
   describePerson,
   describeSuperseded,
   describeUndecided,
   gapsReport,
+  neededSymbols,
   parseOps,
   resolveId,
   searchPersons,
@@ -613,6 +615,38 @@ describe("peoples", () => {
     const withoutArt = Object.keys(SYMBOLS).filter((symbol) => !Object.hasOwn(SYMBOL_ART, symbol));
     expect(text).toContain(`Symbols without verified art: ${withoutArt.length}\n  ${withoutArt[0]}\n`);
     expect(text).not.toMatch(/^  finland-flag$/m);
+  });
+});
+
+describe("the symbols the tree needs", () => {
+  // A Finnish root born in 1900 (the lion arms, no art) whose children,
+  // with no birth dates, are estimated a generation later (the blue cross).
+  function finnish(): Tree {
+    return setHeritage(setBirthDate(family(), ROOT_ID, "1900"), ROOT_ID, ["finnish"]);
+  }
+
+  it("picks each known share's symbol at each person's birth year, own or estimated", () => {
+    const { needed, unpicked } = neededSymbols(finnish());
+    expect(needed.map(({ symbol, people }) => [symbol, people.map((p) => p.id)])).toEqual([
+      ["finland-lion-arms", [ROOT_ID]],
+      ["finland-flag", [SHARED_KID, SOLO_KID]],
+    ]);
+    expect(unpicked).toEqual([]);
+  });
+
+  it("lists the needed symbols without art, with a count and an example", () => {
+    expect(SYMBOL_ART["finland-flag"]).toBeDefined();
+    expect(SYMBOL_ART["finland-lion-arms"]).toBeUndefined();
+    const lines = describeNeededArt(finnish()).split("\n");
+    expect(lines[0]).toBe("Symbols the tree needs: 2. Without verified art: 1");
+    expect(lines[1]).toMatch(/^  finland-lion-arms \(.+\): 1 person, e\.g\. Kyle Hutchinson \[.+\]$/);
+    expect(lines.slice(2)).toEqual(["People with heritage but no birth year to pick a symbol by: 0"]);
+  });
+
+  it("counts people with heritage but no birth year anywhere near them", () => {
+    const { needed, unpicked } = neededSymbols(setHeritage(family(), ROOT_ID, ["finnish"]));
+    expect(needed).toEqual([]);
+    expect(unpicked.map((p) => p.id).sort()).toEqual([ROOT_ID, SHARED_KID, SOLO_KID].sort());
   });
 });
 

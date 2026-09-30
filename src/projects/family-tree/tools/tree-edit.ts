@@ -29,6 +29,7 @@ import {
   setResearch,
   setUnionDeceased,
   setUnionStatus,
+  symbolBirthYear,
   treeProblems,
 } from "../logic";
 import type {
@@ -50,6 +51,7 @@ import {
   SYMBOLS,
   eraYears,
   isVerified,
+  pickSymbol,
   type SymbolEra,
   type SymbolId,
 } from "../symbol-timelines";
@@ -557,6 +559,59 @@ export function describePeoples(): string {
   lines.push("", `Eras still to verify with sources: ${unverified}`);
   const withoutArt = (Object.keys(SYMBOLS) as SymbolId[]).filter((symbol) => SYMBOL_ART[symbol] === undefined);
   lines.push(`Symbols without verified art: ${withoutArt.length}`, ...withoutArt.map((symbol) => `  ${symbol}`));
+  return lines.join("\n");
+}
+
+// ---------- the symbols the tree needs ----------
+
+export interface NeededSymbol {
+  symbol: SymbolId;
+  // Everyone whose card picks it, sorted by name.
+  people: Person[];
+}
+
+// The era symbols the tree picks: each known share of each person's heritage,
+// at the birth year their symbols are picked by. In the order of SYMBOLS.
+// Someone with heritage but no birth year to pick by (none of their own, and
+// no relative with one) picks nothing, and is counted in `unpicked`.
+export function neededSymbols(tree: Tree): { needed: NeededSymbol[]; unpicked: Person[] } {
+  const breakdowns = heritageBreakdowns(tree);
+  const people = new Map<SymbolId, Person[]>();
+  const unpicked: Person[] = [];
+  const byName = (a: Person, b: Person): number => displayName(a).localeCompare(displayName(b));
+  for (const person of Object.values(tree.persons)) {
+    const { known } = breakdowns[person.id];
+    if (known.length === 0) continue;
+    const year = symbolBirthYear(tree, person.id);
+    if (year === null) {
+      unpicked.push(person);
+      continue;
+    }
+    for (const { code } of known) {
+      const { symbol } = pickSymbol(code, year);
+      const list = people.get(symbol) ?? [];
+      if (!list.includes(person)) people.set(symbol, [...list, person]);
+    }
+  }
+  const needed = (Object.keys(SYMBOLS) as SymbolId[]).flatMap((symbol) => {
+    const list = people.get(symbol);
+    return list === undefined ? [] : [{ symbol, people: [...list].sort(byName) }];
+  });
+  return { needed, unpicked: unpicked.sort(byName) };
+}
+
+// The symbols the tree needs that have no verified art, with who needs them.
+// Every one of them is a gap on the tree, so research's art work starts here.
+export function describeNeededArt(tree: Tree): string {
+  const { needed, unpicked } = neededSymbols(tree);
+  const missing = needed.filter(({ symbol }) => SYMBOL_ART[symbol] === undefined);
+  const count = (n: number): string => `${n} ${n === 1 ? "person" : "people"}`;
+  const lines = [`Symbols the tree needs: ${needed.length}. Without verified art: ${missing.length}`];
+  for (const { symbol, people } of missing) {
+    lines.push(`  ${symbol} (${SYMBOLS[symbol].name}): ${count(people.length)}, e.g. ${labelOf(tree, people[0].id)}`);
+  }
+  lines.push(`People with heritage but no birth year to pick a symbol by: ${unpicked.length}`);
+  for (const person of unpicked) lines.push(`  ${labelOf(tree, person.id)}`);
   return lines.join("\n");
 }
 

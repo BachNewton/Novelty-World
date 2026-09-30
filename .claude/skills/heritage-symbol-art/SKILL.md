@@ -24,6 +24,13 @@ stores it with a record of where it came from. The rules behind it are
   without a record has **no verified art** and isn't shown.
 - `npx tsx src/projects/family-tree/tools/tree-cli.ts peoples` lists every
   timeline and, at the end, every symbol still without verified art.
+- **The needed symbols** are the ones the live tree picks: some person's
+  heritage share picks the symbol at their birth year (their own, or the
+  estimate from their relatives). `tree-cli.ts needed-art` lists every
+  needed symbol without verified art, with how many people need it and one
+  of them. That list is the work queue: art research targets needed
+  symbols, and **every needed symbol must end with art**, because the tree
+  never shows "art not verified". A symbol nobody needs can wait.
 
 ## When to use it
 
@@ -31,12 +38,13 @@ stores it with a record of where it came from. The rules behind it are
   a region to `heritages.ts`, or adds, splits or changes an era in
   `symbol-timelines.ts`. For a new people or region, run "A new people or
   region" below.
-- **On its own:** a symbol id without art (the `peoples` list), a record to
-  re-check, or the owner asking where a symbol's art comes from.
+- **On its own:** a needed symbol without art (the `needed-art` list), a
+  record to re-check, or the owner asking where a symbol's art comes from.
 
-A people never waits for its art. It lands with its timeline and "no
-verified art", and the art catches up; the tree keeps showing its
-present-day flag from `flags.ts` meanwhile.
+A new people or region brings the art of the symbols it makes needed in the
+same round: run `needed-art` after adding it, and the round isn't done
+while that list names one of its symbols, unless the search below ends with
+nothing verifiable, which goes to the owner as an open gap on the tree.
 
 ## The rules
 
@@ -52,7 +60,8 @@ present-day flag from `flags.ts` meanwhile.
 - **Nothing verifiable and nothing drawable, no art.** The symbol stays
   without a record, and the open question goes where research keeps its
   questions (the research log), not in the repo: what was tried and what
-  would settle it.
+  would settle it. For a needed symbol that is a gap on the tree, so it
+  also goes to the owner; `needed-art` keeps listing it until it is closed.
 - **A people's own symbol, never a regime's imposed on it.** This is the
   timeline's rule, and the art follows it: the art is of the symbol the era
   names, in the form the people used in those years.

@@ -8,6 +8,7 @@
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts undecided
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts peoples
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts needed-art
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts history [count]
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts verify
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--round <label>] [--write]
@@ -37,6 +38,7 @@ import type { Layout, ResearchDocument, Tree } from "../types";
 import {
   applyOps,
   describeGaps,
+  describeNeededArt,
   describePeoples,
   describePerson,
   describeSuperseded,
@@ -65,6 +67,7 @@ const USAGE = [
   "  tree-cli.ts superseded",
   "  tree-cli.ts undecided",
   "  tree-cli.ts peoples",
+  "  tree-cli.ts needed-art",
   "  tree-cli.ts history [count]",
   "  tree-cli.ts verify",
   "  tree-cli.ts apply <changes.json> [--round <label>] [--write]",
@@ -107,6 +110,11 @@ async function show(idOrPrefix: string): Promise<void> {
 async function gaps(): Promise<void> {
   const { document } = await load();
   console.log(describeGaps(document));
+}
+
+async function neededArt(): Promise<void> {
+  const { document } = await load();
+  console.log(describeNeededArt(document));
 }
 
 async function superseded(): Promise<void> {
@@ -320,6 +328,7 @@ async function main(): Promise<void> {
     console.log(describePeoples());
     return;
   }
+  if (command === "needed-art" && readOnly && only(0)) return neededArt();
   if (command === "verify" && readOnly && only(0)) return verify();
   if (command === "history" && readOnly && positional.length <= 1) {
     return history(arg === undefined ? DEFAULT_HISTORY_COUNT : versionArg(arg));
