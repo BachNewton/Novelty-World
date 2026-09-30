@@ -450,10 +450,14 @@ describe("guest", () => {
 });
 
 describe("teardown", () => {
-  it("stop destroys the peer without firing stale re-election", () => {
+  /** `stop` tears down at the end of the current task. */
+  const endOfTask = () => Promise.resolve();
+
+  it("stop destroys the peer without firing stale re-election", async () => {
     const h = startAsGuest();
     const peers = FakePeer.all.length;
     h.room.stop();
+    await endOfTask();
     expect(h.guestPeer.destroyed).toBe(true);
     expect(FakePeer.all.length).toBe(peers);
     expect(h.state()?.status).toBe("idle");
@@ -473,11 +477,24 @@ describe("teardown", () => {
     expect(h.log).toEqual([]);
   });
 
-  it("can start again after stop (React StrictMode remount)", () => {
+  it("a start in the same task as a stop keeps the live connection (React StrictMode remount)", async () => {
     const h = startAsHost();
+    const peer = lastPeer();
     h.room.stop();
     h.room.start();
+    await endOfTask();
+    expect(peer.destroyed).toBe(false);
+    expect(FakePeer.all).toHaveLength(1);
+    expect(h.state()).toMatchObject({ status: "connected", role: "host" });
+  });
+
+  it("can start again after a completed stop", async () => {
+    const h = startAsHost();
+    h.room.stop();
+    await endOfTask();
+    h.room.start();
     lastPeer().emit("open", HOST_ID);
+    expect(FakePeer.all).toHaveLength(2);
     expect(h.state()).toMatchObject({ status: "connected", role: "host" });
   });
 });

@@ -76,6 +76,7 @@ export interface RoomOptions<HostMessage, GuestMessage> {
 
 export interface Room<HostMessage, GuestMessage> {
   start(): void;
+  /** Leaves at the end of the current task; a `start` before then cancels it. */
   stop(): void;
   /** Guest only. */
   sendToHost(message: GuestMessage): void;
@@ -400,17 +401,36 @@ export function createRoom<HostMessage, GuestMessage>(
     return { kind: "message", message };
   }
 
+  /**
+   * React StrictMode remounts an effect within one task: stop, then start at
+   * once. Tearing down at the end of the task lets that start keep the live
+   * connection. Destroying at once would make the restart claim the same id
+   * before the server has released it, and the server would refuse the
+   * claim in favour of our own dying socket, which swallows every dial.
+   */
+  let stopPending = false;
+
   return {
     start() {
+      if (stopPending) {
+        stopPending = false;
+        return;
+      }
       if (status !== "idle") return;
       failures = 0;
       window.addEventListener("online", onOnline);
       attempt();
     },
     stop() {
-      window.removeEventListener("online", onOnline);
-      dropPeer();
-      publish("idle", null);
+      if (stopPending || status === "idle") return;
+      stopPending = true;
+      queueMicrotask(() => {
+        if (!stopPending) return;
+        stopPending = false;
+        window.removeEventListener("online", onOnline);
+        dropPeer();
+        publish("idle", null);
+      });
     },
     sendToHost(message) {
       openConn(hostConn, "host").send(wrap(message));
