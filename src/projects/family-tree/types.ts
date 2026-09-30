@@ -1,6 +1,8 @@
 import type { HeritageEntryCode } from "./heritages";
 
-export type Gender = "M" | "F" | "NB";
+// "U" is a gender no record gives (a child named only as "Kelly" in an
+// obituary): relationship terms stay neutral, as for "NB".
+export type Gender = "M" | "F" | "NB" | "U";
 
 export type UnionStatus =
   | "married"

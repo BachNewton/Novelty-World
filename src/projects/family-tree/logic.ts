@@ -748,7 +748,7 @@ export interface HeritageBreakdown {
 // Surname-line order of a pair of parents: the father first. When gender
 // can't single him out (two fathers, two mothers, non-binary parents), the
 // stored parent order stands.
-const LINE_RANK: Record<Gender, number> = { M: 0, NB: 1, F: 2 };
+const LINE_RANK: Record<Gender, number> = { M: 0, NB: 1, U: 1, F: 2 };
 
 function parentsInLineOrder(tree: Tree, person: Person): string[] {
   return [...person.parentIds].sort(
@@ -1475,7 +1475,7 @@ export function searchByName(tree: Tree, query: string): Person[] {
   return hits.map((h) => h.person);
 }
 
-export const GENDER_CYCLE: Gender[] = ["M", "F", "NB"];
+export const GENDER_CYCLE: Gender[] = ["M", "F", "NB", "U"];
 
 // ---------- Layout identity ----------
 //

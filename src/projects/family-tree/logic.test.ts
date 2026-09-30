@@ -1418,6 +1418,15 @@ describe("describeRelation", () => {
     expect(describeRelation(t, "b", "a").label).toBe("ex-husband");
   });
 
+  it("uses neutral terms for a person whose gender no record gives", () => {
+    const t = makeTree([
+      p("kid", "U", ["mom"]),
+      p("mom", "F"),
+    ]);
+    expect(describeRelation(t, "mom", "kid").label).toBe("child");
+    expect(treeProblems(t)).toEqual([]);
+  });
+
   it("uses the neutral 'spouse' label for NB partners", () => {
     const t = makeTree([
       p("a", "M", [], ["b"]),
