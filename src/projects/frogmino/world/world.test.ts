@@ -180,8 +180,16 @@ describe("depth fighting", () => {
     // along an edge.
     expect(scan([slab, box([0, 1.5, 0], [2, 1, 2], "rock")])).toBe(0);
     expect(scan([slab, box([2, 0.5, 0], [2, 1, 2], "rock")])).toBe(0);
-    // Faces the camera never sees: bottoms below it.
+    // A box set into another, flush with its top, shares that plane; the
+    // bottoms they share look down, away from a camera above them.
     expect(scan([slab, box([0, 0.5, 0], [1, 1, 1], "sign")])).toBe(1);
+    // A decal on the slab's front, and a smaller one laid over it: their backs
+    // lie against the slab, buried, but their fronts must stand apart.
+    const decal = box([0, 0.5, 1.01], [1, 0.5, 0.02], "sign");
+    expect(scan([slab, decal, box([0, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(0);
+    expect(scan([slab, decal, box([0, 0.5, 1.0125], [0.5, 0.25, 0.025], "sign-ink")])).toBe(1);
+    // Laid over it edge to edge, the two decals' sides share a plane.
+    expect(scan([slab, decal, box([0.25, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(1);
   });
 
   it("keeps the hand-built parts at least a paint layer apart", () => {

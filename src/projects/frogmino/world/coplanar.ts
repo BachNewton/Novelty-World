@@ -27,8 +27,10 @@ const NORMAL_GRAIN = 1e4;
 // Faces that only touch along an edge share no area; floating point makes
 // such touching edges overlap by a sliver far thinner than this.
 const MIN_AREA = 1e-6;
-// Planes laid exactly `minGap` apart count as far enough apart.
+// Planes laid exactly `minGap` apart count as far enough apart, and faces
+// this close count as lying in one plane.
 const GAP_TOLERANCE = 1e-9;
+const PLANE_GRAIN = 1e-6;
 
 const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const minus = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -92,11 +94,28 @@ function sharedArea(subject: readonly Point[], clip: readonly Point[]): number {
   return output.length < 3 ? 0 : Math.abs(signedArea(output)) / 2;
 }
 
-function overlapArea(a: Face, b: Face): number {
+// Two faces' corners, flattened onto the first one's plane.
+function flatten(a: Face, b: Face): [Point[], Point[]] {
   const u = unit(cross(a.normal, Math.abs(a.normal[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
   const v = cross(a.normal, u);
   const flat = (face: Face): Point[] => face.corners.map((p): Point => [dot(p, u), dot(p, v)]);
-  return sharedArea(flat(a), flat(b));
+  return [flat(a), flat(b)];
+}
+
+function overlapArea(a: Face, b: Face): number {
+  const [pa, pb] = flatten(a, b);
+  return sharedArea(pa, pb);
+}
+
+// A face lying flat against another box's face, looking into it, and wholly
+// covered by it, is buried: it can only be seen from inside that box.
+function buried(face: Face, against: readonly Face[]): boolean {
+  return against.some((other) => {
+    if (other.index === face.index || dot(other.normal, face.normal) > -1 + 1e-9) return false;
+    if (Math.abs(other.offset + face.offset) > PLANE_GRAIN) return false;
+    const [mine, theirs] = flatten(face, other);
+    return sharedArea(mine, theirs) >= Math.abs(signedArea(mine)) / 2 - MIN_AREA;
+  });
 }
 
 // The heights the camera moves between. A face looking down from below the
@@ -120,7 +139,19 @@ export function faceClashes(boxes: readonly WorldBox[], minGap: number, eye: Eye
   const keyOf = (normal: Vec3, cell: number): string =>
     `${normal.map((n) => String(Math.round(n * NORMAL_GRAIN))).join(",")}|${String(cell)}`;
   const cellOf = (face: Face): number => Math.floor(face.offset / minGap);
-  const all = boxes.flatMap((box, index) => faces(box, index)).filter((face) => seen(face, eye));
+  const every = boxes.flatMap((box, index) => faces(box, index));
+  const planeKey = (normal: Vec3, offset: number): string =>
+    `${normal.map((n) => String(Math.round(n * NORMAL_GRAIN))).join(",")}|${String(Math.round(offset / PLANE_GRAIN))}`;
+  const planes = new Map<string, Face[]>();
+  for (const face of every) {
+    const key = planeKey(face.normal, face.offset);
+    const plane = planes.get(key);
+    if (plane === undefined) planes.set(key, [face]);
+    else plane.push(face);
+  }
+  const facing = (face: Face): Face[] =>
+    planes.get(planeKey([-face.normal[0], -face.normal[1], -face.normal[2]], -face.offset)) ?? [];
+  const all = every.filter((face) => seen(face, eye) && !buried(face, facing(face)));
   for (const face of all) {
     const key = keyOf(face.normal, cellOf(face));
     const bucket = buckets.get(key);
