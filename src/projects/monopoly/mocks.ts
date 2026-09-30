@@ -1,6 +1,7 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
+import { createRng } from "@/shared/lib/seeded-random";
 import { CHANCE, COMMUNITY_CHEST } from "./data";
-import { createRng, initialDecks } from "./engine";
+import { initialDecks } from "./engine";
 import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import { DEFAULT_PREFERENCES, STARTING_CASH } from "./lobby";
 import type { GameState, Player, PlayerCount, TurnGroup } from "./types";

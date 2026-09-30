@@ -1,9 +1,10 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
 import { shuffleArray } from "@/shared/lib/utils";
+import { createRng } from "@/shared/lib/seeded-random";
 import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import { BOT_NAMES } from "./bot-names";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
-import { createRng, initialDecks } from "./engine";
+import { initialDecks } from "./engine";
 import type {
   BotStrategy,
   GameState,

@@ -1,3 +1,5 @@
+import { createRng } from "@/shared/lib/seeded-random";
+
 // ---------------------------------------------------------------------------
 // SNES — Separable Natural Evolution Strategy (Schaul et al. 2011), a compact,
 // robust black-box optimizer for the bot's parameter vector. It maintains a
@@ -11,19 +13,6 @@
 // control, so a run is reproducible; the produced constants are what matter, and
 // the frozen bot stays pure (no ES code ships in the bot).
 // ---------------------------------------------------------------------------
-
-/** A tiny deterministic PRNG (mulberry32) so the ES's own sampling is reproducible
- *  from a numeric seed — independent of the game RNG. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** Standard normal via Box–Muller, drawn from a uniform PRNG. */
 function gaussian(rng: () => number): number {
@@ -78,7 +67,7 @@ export class Snes {
     this.popSize = cfg.popSize;
     this.etaMu = cfg.etaMu ?? 1;
     this.etaSigma = cfg.etaSigma ?? (3 + Math.log(cfg.dim)) / (5 * Math.sqrt(cfg.dim));
-    this.rng = mulberry32(cfg.seed);
+    this.rng = createRng(cfg.seed).next;
     this.mu = [...initMu];
     this.sigma = new Array<number>(cfg.dim).fill(cfg.initSigma ?? 0.2);
     this.utilities = computeUtilities(cfg.popSize);

@@ -1,5 +1,5 @@
+import { createRng } from "@/shared/lib/seeded-random";
 import { CHANCE, COMMUNITY_CHEST, SPACES } from "./data";
-import { createRng } from "./engine";
 import { freshGame } from "./mocks";
 import type { DevCommand } from "./protocol";
 import type { GameState } from "./types";

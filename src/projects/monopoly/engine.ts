@@ -1,4 +1,5 @@
 import { shuffleArray } from "@/shared/lib/utils";
+import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import {
   BID_INCREMENT,
   CHANCE,
@@ -49,59 +50,6 @@ export { BID_INCREMENT, JAIL_FEE };
 /** The Jail cell a jailed token sits on, derived from the static board so the
  *  jail logic never hardcodes the index. */
 const JAIL_POSITION = SPACES.findIndex((s) => s.kind === "jail");
-
-/** Random number source for the engine. Every roll, deck shuffle, and
- *  card draw goes through this; `Math.random` may not be called directly
- *  from engine code. See `monopoly/CLAUDE.md` "RNG: always injected."
- *
- *  `getState()` returns the current internal state — a value that can be
- *  passed back to `createRng` to resume the same stream. This is how the
- *  RNG round-trips through `GameState.rngState`, which is what makes a
- *  serialized game state alone sufficient to keep play deterministic
- *  across reloads, devices, or host hand-offs. */
-export interface Rng {
-  /** Next uniform value in [0, 1). */
-  next(): number;
-  /** Current internal state; passing this back to `createRng` resumes
-   *  the same stream of values. */
-  getState(): number;
-}
-
-/** Construct an RNG from either a string seed (for new games) or a
- *  numeric state (to resume a stream). String seeds are hashed with xmur3
- *  into a 32-bit mulberry32 state; numeric input is used directly so
- *  `createRng(prev.getState())` continues exactly where `prev` left off.
- *
- *  Implementation references:
- *  - xmur3 + mulberry32 from https://stackoverflow.com/a/47593316
- *  - Both are tiny, deterministic, dependency-free. JavaScript intentionally
- *    does not let you seed `Math.random`, so any engine that needs
- *    reproducibility brings its own. */
-export function createRng(seedOrState: string | number): Rng {
-  let state: number;
-  if (typeof seedOrState === "number") {
-    state = seedOrState >>> 0;
-  } else {
-    let h = 1779033703 ^ seedOrState.length;
-    for (let i = 0; i < seedOrState.length; i++) {
-      h = Math.imul(h ^ seedOrState.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    h = Math.imul(h ^ (h >>> 16), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    state = (h ^ (h >>> 16)) >>> 0;
-  }
-  return {
-    next: () => {
-      state = (state + 0x6d2b79f5) | 0;
-      let t = state;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    },
-    getState: () => state >>> 0,
-  };
-}
 
 /** Freshly shuffled draw piles for both decks, advancing `rng`. Called once
  *  when a game is seeded so each game gets a deterministic, seed-dependent

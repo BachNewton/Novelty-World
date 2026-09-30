@@ -1,4 +1,5 @@
-import { autoStep, createRng, netWorth, type Rng } from "../../engine";
+import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { autoStep, netWorth } from "../../engine";
 import { freshGame } from "../../mocks";
 import { driveOp, type DriveOp } from "../../pacing";
 import type { GameState, PlayerCount } from "../../types";

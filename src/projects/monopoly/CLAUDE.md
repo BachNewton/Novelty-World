@@ -60,7 +60,9 @@ the obvious one it's a **mechanic** gated by preferences.
 
 **Engine code (`engine.ts`, `logic.ts`) is pure** — no React, no side effects,
 no `Math.random`. Every randomness call goes through an **injected RNG**; this is
-non-negotiable (deterministic replay, regression tests, future headless RL).
+non-negotiable (deterministic replay, regression tests, future headless RL). The
+RNG is the site's shared seeded generator (`createRng` in
+`src/shared/lib/seeded-random.ts`), whose output stream is pinned by its tests.
 
 ### Turn phases
 

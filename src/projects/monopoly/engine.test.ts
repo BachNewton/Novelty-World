@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { createRng } from "@/shared/lib/seeded-random";
 import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
 import {
   apply,
   autoStep,
-  createRng,
   firstNegativePlayer,
   projectTrade,
   tradeMortgageFees,
@@ -85,35 +85,6 @@ function withOwnership(
 ): GameState {
   return { ...state, ownership: { ...state.ownership, ...ownership } };
 }
-
-describe("createRng", () => {
-  it("is deterministic for a given seed", () => {
-    const a = createRng("alpha");
-    const b = createRng("alpha");
-    const sampleA = [a.next(), a.next(), a.next()];
-    const sampleB = [b.next(), b.next(), b.next()];
-    expect(sampleA).toEqual(sampleB);
-  });
-
-  it("produces different streams for different seeds", () => {
-    const a = createRng("alpha");
-    const b = createRng("beta");
-    expect(a.next()).not.toEqual(b.next());
-  });
-
-  it("resumes the same stream from a serialized getState() value", () => {
-    const a = createRng("resume");
-    const before = [a.next(), a.next()];
-    const snapshot = a.getState();
-    const expected = [a.next(), a.next(), a.next()];
-
-    const b = createRng(snapshot);
-    const actual = [b.next(), b.next(), b.next()];
-    expect(actual).toEqual(expected);
-    // And the resumed RNG hasn't poisoned what came before.
-    expect(before).toHaveLength(2);
-  });
-});
 
 describe("autoStep", () => {
   it("rolls the dice, leaves pre-roll, and bumps rngState", () => {

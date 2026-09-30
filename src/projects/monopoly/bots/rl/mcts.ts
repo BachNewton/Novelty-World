@@ -1,4 +1,5 @@
-import { autoStep, createRng, firstNegativePlayer, netWorth, type Rng } from "../../engine";
+import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { autoStep, firstNegativePlayer, netWorth } from "../../engine";
 import type { GameState } from "../../types";
 import { encode, MAX_SEATS } from "./features";
 import { applyCandidate, legalActions, type Action } from "./actions";

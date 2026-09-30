@@ -1,3 +1,4 @@
+import { createRng } from "@/shared/lib/seeded-random";
 import { cellKey, frogCells, pieceSize } from "./logic";
 import type { Cell, Frog, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
 import type { Tuning } from "./tuning";
@@ -9,18 +10,6 @@ export const WALL_COUNT = 4;
 const GROWN_CELLS = 3;
 // The chance that a wall other than the guaranteed raised one is raised too.
 const RAISED_CHANCE = 0.3;
-
-// mulberry32: a tiny seeded generator, uniform in [0, 1).
-export function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) | 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function pick<T>(items: readonly T[], random: () => number): T {
   return items[Math.floor(random() * items.length)];
@@ -62,7 +51,7 @@ function makeOpening(kind: TetrominoKind, hop: HopHeight, tuning: Tuning, random
 // A course of walls from a seed: always the same walls for the same seed,
 // every one passable, and at least one raised so it needs a hop.
 export function generateCourse(seed: number, tuning: Tuning, kind: TetrominoKind = "L"): Opening[] {
-  const random = seededRandom(seed);
+  const random = createRng(seed).next;
   const raisedWall = Math.floor(random() * WALL_COUNT);
   return Array.from({ length: WALL_COUNT }, (_, i) => {
     const hop: HopHeight = i === raisedWall || random() < RAISED_CHANCE ? 1 : 0;

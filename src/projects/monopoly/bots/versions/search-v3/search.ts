@@ -26,7 +26,8 @@
 // played move is a pure function of state. No `Math.random`, no `Date`.
 // ===========================================================================
 import process from "node:process";
-import { apply, autoStep, createRng } from "../../../engine";
+import { createRng } from "@/shared/lib/seeded-random";
+import { apply, autoStep } from "../../../engine";
 import { driveOp, type BotResolver } from "../../../pacing";
 import type { GameState, Intent } from "../../../types";
 import { positionValue, baseBot } from "./base";
