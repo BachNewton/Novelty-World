@@ -7,9 +7,13 @@ export const COURSE_SEED = 20260930;
 export const WALL_COUNT = 4;
 // Open cells grown around each wall's placement, beyond the piece's own four.
 // The fewer, the tighter the opening.
-const GROWN_CELLS = 3;
-// The chance that a wall other than the guaranteed raised one is raised too.
-const RAISED_CHANCE = 0.3;
+const GROWN_CELLS = 7;
+
+export interface CourseWall {
+  opening: Opening;
+  // Where the wall starts, before it begins moving toward the start zone.
+  depth: number;
+}
 
 function pick<T>(items: readonly T[], random: () => number): T {
   return items[Math.floor(random() * items.length)];
@@ -49,12 +53,14 @@ function makeOpening(kind: TetrominoKind, hop: HopHeight, tuning: Tuning, random
 }
 
 // A course of walls from a seed: always the same walls for the same seed,
-// every one passable, and at least one raised so it needs a hop.
-export function generateCourse(seed: number, tuning: Tuning, kind: TetrominoKind = "L"): Opening[] {
+// every one passable, spread along the course. Only the last wall is raised,
+// so a new player meets the hop once they have the feel of the rest.
+export function generateCourse(seed: number, tuning: Tuning, kind: TetrominoKind = "L"): CourseWall[] {
   const random = createRng(seed).next;
-  const raisedWall = Math.floor(random() * WALL_COUNT);
   return Array.from({ length: WALL_COUNT }, (_, i) => {
-    const hop: HopHeight = i === raisedWall || random() < RAISED_CHANCE ? 1 : 0;
-    return makeOpening(kind, hop, tuning, random);
+    const hop: HopHeight = i === WALL_COUNT - 1 ? 1 : 0;
+    const opening = makeOpening(kind, hop, tuning, random);
+    const shift = (random() * 2 - 1) * tuning.wallJitter;
+    return { opening, depth: tuning.firstWallDepth + i * tuning.wallSpacing + shift };
   });
 }

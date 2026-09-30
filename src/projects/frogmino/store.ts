@@ -1,15 +1,14 @@
 "use client";
 
 import { create } from "zustand";
-import { COURSE_SEED, generateCourse } from "./course";
+import { COURSE_SEED, generateCourse, type CourseWall } from "./course";
 import { advance, applyAction, createRun, type FrogAction, type Run } from "./run";
 import { TUNING } from "./tuning";
-import type { Opening } from "./types";
 
 const COURSE = generateCourse(COURSE_SEED, TUNING);
 
 interface FrogminoStore {
-  course: readonly Opening[];
+  course: readonly CourseWall[];
   run: Run;
   // Bumped on every restart, so the drawing knows to snap rather than ease.
   runId: number;
