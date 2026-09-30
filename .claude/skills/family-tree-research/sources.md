@@ -386,6 +386,21 @@ through search-result snippets; direct fetches are blocked.
   Daniel's Law.
 - Voter-record sites: name and area only, no relatives.
 
+## Social media
+
+Public profiles and posts: the main source for living people's partners and
+children, and for recent deaths through memorial posts. Evidence once the
+identity rule ties the account (see `standards.md`). The owner allows
+reading anything public; cite only generically in the tree.
+
+- Read them in the browser (the Chrome DevTools MCP), never logged in as the
+  owner to anything beyond what a signed-in view shows by default; never
+  message, follow, friend, react or comment.
+- Find accounts by the full name plus a relative's name or a place; an
+  obituary's survivor list gives the names to search.
+- What to take: who is partnered with whom, whose children are whose, a
+  maiden name, a milestone age. Leave everything else on the page.
+
 ## Other public pages
 
 - **Wedding and registry sites** (The Knot, Zola, WithJoy, MyRegistry):
@@ -503,7 +518,5 @@ under 100 years (about 1926 on) are restricted, and access costs money: out.
 
 ## The owner
 
-- **"Per Kyle"**: the owner, and through them the family. The main source for
-  living people, but always the last step: questions are collected into one
-  batch per round (sent as a form) and answers arrive slowly, so never wait
-  on them.
+- **"Per Kyle"**: the owner's own knowledge, when they volunteer it. Research
+  never asks the owner or family to find something out.

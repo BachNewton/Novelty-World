@@ -135,16 +135,15 @@ from the research document, and research must not write on top of either.
    research log, including its rejected look-alikes.
 3. **Research the family**, question by question against `standards.md`,
    using the playbooks in `methods.md` and the sources in `sources.md`.
-   Digital sources first; asking family is always the last step. Keep every
-   source's URL or citation.
+   Nobody is asked: every step is digital. Keep every source's URL or
+   citation.
 4. **Record findings in the research log** (`research/family-research.md`):
    each fact, its sources and its confidence (below), rejected look-alikes and
    why, and **every search that found nothing** (source, what was searched,
    date). Null results are what make a question Exhausted; without them the
    next session repeats the work.
 5. **Draft a change file** in `research/`: the facts, plus a `setResearch` for
-   every question the round settled or opened. A question waiting on family
-   stays `open`, its note saying it is out to family and what was asked.
+   every question the round settled, exhausted or left open.
 6. **Dry run** `apply <file>` and read the change list it prints, line by
    line, against what you meant. When the change alters who is related to
    whom, the dry run also solves the new tree's layout (seconds; the solver
@@ -160,12 +159,7 @@ from the research document, and research must not write on top of either.
    stop and report it.
 8. **Report** what changed. An open tab keeps showing the tree it loaded
    until reloaded.
-9. **Hand over the family batch**: every question for family collected this
-   round, as one list (see When to ask).
-10. **Write the round's lessons** (see Self-improvement).
-
-Never wait on a family answer: move on to the next family. When answers come
-back, apply them as their own round and update the `open` records.
+9. **Write the round's lessons** (see Self-improvement).
 
 If the layout solve fails, nothing was written: the message says why. A
 missing solver venv needs `npm run setup:family-tree-solver` (once per
@@ -195,12 +189,11 @@ is about a whole question.
 
 Research agents split the tree by line (one per family line, so no two touch
 the same people) and **never write to the tree**: each drafts its own change
-file, research log and family questions in a round folder under
+file and research log in a round folder under
 `research/`, and validates its change file with a dry run. The orchestrating
 session reviews each file (evidence, privacy, sources without URLs), applies
 them one at a time, runs `superseded` after each, then merges the logs into
-`family-research.md`, the questions into `family-questions.md`, and the
-lessons into this skill's files.
+`family-research.md` and the lessons into this skill's files.
 
 - Run the dry run as a command of its own. Chained with a file edit in one
   shell call, the permission classifier has refused it as destructive.
@@ -225,18 +218,11 @@ lessons into this skill's files.
 The owner's rule lives in "Research edits" in the project CLAUDE.md: apply
 high-confidence findings yourself and report them; ask first only when the
 evidence conflicts or is weak, when a change deletes a person, or when it
-would put a private detail about a living person in the public row. Also ask:
+would put a private detail about a living person in the public row.
 
-- **family questions, in one batch per round.** Asking family is the last
-  must-try step, after every digital one, because people are slow to reply.
-  Collect every such question across the round and hand them over together
-  at the end, each phrased so a relative can answer it without context.
-  Never ask one at a time, and never block on one. `standards.md` says which
-  questions need a family answer before they can be Exhausted.
-  The owner only asks people they know, never cold contacts, so group the
-  batch by the family it concerns and say who would likely know (someone in
-  that household, a sibling, a parent). The owner picks whom to send each
-  group to.
+Research never asks the owner or family to find something out: waiting on
+people blocks the work. What the records and public pages can't settle is
+Exhausted, with the note saying what would settle it.
 
 Research method and record keeping (the standards, the research record, how
 findings are logged) serve Claude's research, not how the owner explores the

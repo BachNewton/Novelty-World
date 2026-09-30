@@ -109,12 +109,8 @@ children with other partners, and their other partners, belong in it too.
 5. Death indexes with parent names (NUMIDENT) searched by the couple's names,
    for children who died.
 6. Grave records and their family links.
-7. Ask Kyle / family (last).
-
-**May be Exhausted without a family answer** once steps 1–6 are done: the
-records for the dead are the main evidence, and family often doesn't know an
-earlier generation's marriages. Still put the question on the batch when the
-person died recently enough that family would remember.
+7. For someone who died recently, public social media memorials and posts by
+   their children and grandchildren.
 
 ### Living
 
@@ -127,7 +123,10 @@ person died recently enough that family would remember.
   partner or child (a later obituary is the usual signal). A surviving
   widow's or widower's own spouse's obituary counts the same way;
 - a marriage record plus a source listing the children (a grandparent's
-  obituary grouping grandchildren by parent, a birth announcement).
+  obituary grouping grandchildren by parent, a birth announcement);
+- public social media of the person or their partner, tied by the identity
+  rule, that shows the partner and attributes the children to them, with
+  nothing in the obituaries or listings suggesting another partner or child.
 
 **Must-try before Exhausted:**
 
@@ -136,10 +135,12 @@ person died recently enough that family would remember.
 2. Marriage indexes for the states they lived in.
 3. Wedding and registry sites for a recent marriage.
 4. People-search relative lists, as leads to follow into records.
-5. Ask Kyle / family (last).
+5. Public social media (Facebook, Instagram, LinkedIn and the like) of the
+   person, their partner and their children, found by name plus a relative
+   or place.
 
-**Needs a family answer** to be Exhausted: records can't show that a living
-person has no other partner or child.
+Records can't prove that a living person has no other partner or child, so an
+Exhausted `family` note says which half is unproven.
 
 A living person's family changes. When a later record (a new obituary, a
 wedding) shows a partner or child the record didn't cover, reset it to Open.
@@ -168,10 +169,6 @@ age windows overlap in one year. Full dates are allowed.
 5. Marriage records (ages, sometimes the date of birth).
 6. Birth, baptism and delayed-birth records.
 
-**May be Exhausted without a family answer** once steps 1–6 are done. Family
-rarely knows an exact year the records don't give; ask only when the person
-died recently.
-
 ### Living
 
 Year only, never the full date, even when a record gives it.
@@ -181,6 +178,8 @@ Year only, never the full date, even when a record gives it.
 - a public record tied to the person that gives the birth date or year: a
   birth or baptism index, a marriage record with the date of birth, an
   official roster or bio that names their parents; or
+- a public social media post tied to the person that gives an age on a
+  known date (a milestone birthday); or
 - two records whose age windows overlap in one year; or
 - "per Kyle".
 
@@ -195,17 +194,14 @@ question; two listings that disagree by more than a year kill it.
 3. Birth and baptism indexes for the states they may have been born in.
 4. Obituaries of relatives that give ages (rare, but some do).
 5. People-search listings, as leads.
-6. Ask Kyle / family (last).
+6. Public social media: milestone-birthday posts, graduation years.
 
-**May be Exhausted without a family answer** once steps 1–5 are done. A
-birth year adds no connection, so it never holds up completeness; put it on
-the family batch anyway, since family nearly always knows a rough age.
+A birth year adds no connection, so it never holds up completeness.
 
 **Minors:** Confirmed by "per Kyle" or a birth record or announcement found
 through the parents, or two age or class-year clues narrowing it as for
-anyone. Must-try: records about the parents, the child's own online
-footprint (saving only the year), then ask Kyle /
-family (last). May be Exhausted without a family answer, as above.
+anyone. Must-try: records about the parents, the parents' public social
+media, and the child's own online footprint (saving only the year).
 
 ## heritage: where the line came from
 
@@ -281,11 +277,9 @@ town.
 4. Their marriage record (some give parents' birthplaces).
 5. Their children's records, which give the parent's birthplace (a child's
    census entry lists "father's birthplace").
-6. Ask Kyle / family (last), when family lore might know where the line came
-   from.
-
-**May be Exhausted without a family answer** once steps 1–5 are done; family
-lore alone is recorded as Possible, not Confirmed, unless the owner vouches.
+6. Family lore in public writing: obituaries, memorial pages, public posts
+   and family-history pages by descendants. Lore alone is recorded as
+   Possible, not Confirmed, unless the owner vouches.
 
 ### Recording the evidence
 
@@ -372,7 +366,8 @@ a marriage record), or "per Kyle".
 
 **Must-try before Exhausted:** the 1950 census if born by then, their marriage
 record (a marriage after about 2000 is too recent to be indexed, so that step
-counts as done), then ask Kyle / family (last). With the birth surname unknown
-and a birth year that may be before 1950, the census step can't run: the
-question stays Open, out to family. **May be Exhausted without a family
-answer**, like birth years: heritage adds no connection.
+counts as done), then public social media and family-history pages for the
+family's own account of where they came from. With the birth surname unknown
+and a birth year that may be before 1950, the census step can't run; the
+question is Exhausted once the other steps are done, with the note saying
+the birth surname would settle it. Heritage adds no connection.

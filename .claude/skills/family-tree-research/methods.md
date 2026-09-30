@@ -124,9 +124,9 @@ in `sources.md`.
 7. **Assigning grandchildren to a parent:** obituaries rarely say whose they
    are. A surname works when each child's children carry a distinct one (a
    son's the family name, a married daughter's her husband's), with a second
-   clue ("the only son"). Otherwise use the grandchild's own records; if
-   those fail, it goes on the round's family batch. A surname alone is not
-   enough.
+   clue ("the only son"). Otherwise use the grandchild's own records and
+   public social media (a parent's post naming the child, the child's
+   profile listing a parent). A surname alone is not enough.
 8. **A child whose other parent is unknown** goes in under the known parent
    with no co-parent; `linkParent` adds the other parent once a record names
    them.
