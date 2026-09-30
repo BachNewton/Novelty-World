@@ -1,7 +1,9 @@
 // The symbols each people used for itself through the eras
 // (ideas/heritage-through-time.md, decisions 2 and 3): a card's symbol for a
-// share will follow that person's birth year. A people's own symbol in each
-// era, never a regime's imposed on it. This is data only for now: the UI
+// share will follow that person's birth year. Symbols represent people, not
+// governments: where a people identified with the state they lived under, its
+// symbol serves; where they didn't, the era shows the symbol the people used
+// for themselves and would wish to be represented by. This is data only for now: the UI
 // doesn't use it until the owner approves the era symbols and their art.
 //
 // Every era starts out as the design doc's proposal, unverified: an era is
@@ -127,8 +129,21 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
   ],
   italian: [
     era(null, 1861, "Italy before unification", "italy-tricolour", true),
-    era(1861, 1946, "Kingdom of Italy", "italy-savoy-flag"),
-    era(1946, null, "Italian Republic", "italy-tricolour"),
+    verified(era(1861, 1946, "Kingdom of Italy", "italy-savoy-flag"), [
+      "Law of 17 March 1861, no. 4671: Victor Emmanuel II takes the title of King of Italy",
+      "Proclamation of King Charles Albert, 23 March 1848: the Savoy shield on the Italian tricolour, the flag of the Risorgimento, of the Kingdom of Sardinia and from 1861 of Italy",
+      "Royal decree-law of 24 September 1923, no. 2072, converted by law of 24 December 1925, no. 2264: the national flag is the tricolour with the Savoy arms uncrowned and bordered azure, the crowned form being the state flag of royal and government buildings",
+      "Presidency of the Council of Ministers, \"La Bandiera - Cenni storici e norme per l'esposizione\" (the tricolour the flag of the Kingdom of Sardinia from 1848 and of the Italian state from 1861)",
+      "Flags of the World, \"Kingdom of Italy (1848-1946)\"",
+      "Italians identified with the Kingdom their Risorgimento made, so its national flag represents them; the uncrowned national flag was the one the people flew, the crowned form the monarchy's buildings'",
+    ]),
+    verified(era(1946, null, "Italian Republic", "italy-tricolour"), [
+      "Institutional referendum of 2 June 1946, which ended the Kingdom",
+      "Legislative decree of the provisional head of state, 19 June 1946: the tricolour without the Savoy arms as the flag of the Republic",
+      "Constitution of the Italian Republic (1948), article 12",
+      "Decree of the President of the Council of Ministers, 14 April 2006, article 31: the flag's Pantone colours",
+      "The Republic's flag is the people's own by referendum and Constitution, the flag Italians fly as theirs",
+    ]),
   ],
   irish: [
     era(null, 1798, "Kingdom of Ireland", "ireland-harp-flag"),

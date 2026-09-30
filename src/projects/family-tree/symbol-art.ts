@@ -162,6 +162,70 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The file draws exactly that: field #009A49, the harp in golds #FFDB43 and #DBBA2E, strings #DFDFDF, no crown or inscription. " +
       "No ratio or shade was ever set; the file is 450 by 300 (2:3), within the period's variety (Flags of the World draws it 1:2). The file has no talk page; its one later upload (2017) redrew the harp, and the stored file is that version, checked as above.",
   },
+  "italy-savoy-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "ff060347b1116848ade2b000e617fb1f13ffa279",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Italy_(1861%E2%80%931946).svg",
+    author: "F l a n k e r, with the Savoy arms redrawn by Fry1989 (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-user (F l a n k e r), Insignia",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "Royal decree-law of 24 September 1923, no. 2072, converted with amendments by law of 24 December 1925, no. 2264, \"Norme per l'uso della bandiera nazionale\", article 1: the national flag is green, white and red in equal vertical thirds, green at the hoist, the white charged with the royal arms bordered azure, two-thirds as high as it is long; the state flag, for the sovereign's residences, Parliament, diplomatic missions and government offices, adds the royal crown; article 3: local public bodies fly the arms without the crown",
+      "Proclamation of King Charles Albert, 23 March 1848: the troops to carry the Savoy shield on the Italian tricolour",
+      "Presidency of the Council of Ministers, Ufficio del Cerimoniale di Stato, \"La Bandiera - Cenni storici e norme per l'esposizione\": the tricolour became the flag of the Kingdom of Sardinia in 1848 and of the Italian state in 1861",
+      "Flags of the World, \"Kingdom of Italy (1848-1946)\": https://www.fotw.info/flags/it-king.html (green-white-red with the Savoy arms; the tricolour was and is 2:3)",
+    ],
+    checked:
+      "The Kingdom had two forms: the national flag, with the Savoy shield uncrowned and bordered azure, and the state flag, which added the royal crown for the sovereign's residences, Parliament, diplomatic missions and government offices (law 2264 of 1925, articles 1 and 3). " +
+      "Italians identified with the united Kingdom their Risorgimento had made, and the national flag is the one they flew themselves, from 1848 the Risorgimento's tricolour and from 1861 united Italy's; the crown marked the monarchy's own buildings. So the symbol that represents the people is the uncrowned national flag, recorded here. " +
+      "The file draws it: 1500 by 1000 (2:3) with equal thirds of 500, green #009246 at the hoist, white #FFFFFF, red #CE2B37; on the white a red shield (#D2232C) with a white cross throughout, bordered blue (#4B61D1), no crown. " +
+      "The law named the colours only, so any true green, white, red and azure is faithful. The file's history is a revert war between two uploads with identical geometry and colours (an Inkscape version and a minified one, over file size), not a design dispute; the talk page discusses only the shield's centring, since fixed.",
+  },
+  "italy-tricolour": {
+    kind: "drawn",
+    format: "svg",
+    sha1: "531a1b9bde7562638b9233ba4f09b7aeec61bd8d",
+    author: "Novelty World (our own drawing)",
+    license: "cc0-1.0",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    searched: [
+      "Official artwork: none published. The Presidency of the Council of Ministers gives the flag only as Pantone textile codes (its \"La Bandiera\" pages and PDF, and article 31 of the decree of 14 April 2006)",
+      "Commons File:Flag_of_Italy.svg: draws green #009246 and red #CE2B37, Pantone's older conversions, which its own page's colour table no longer gives; all three colours differ from the specification's",
+      "Commons File:Flag_of_Italy_(Pantone).svg: green #008C45 and red #CD212A are right, but the white is #FFFFFF where Pantone 11-0601 TCX converts to #F4F5F0",
+      "Commons' national-flag category for Italy (the variant, printable, WFB and construction-sheet files): none draws the specification's white",
+    ],
+    elements: [
+      {
+        element: "Three vertical bands of equal size, green at the hoist, then white, then red",
+        sources: [
+          "Constitution of the Italian Republic (1948), article 12",
+          "Presidency of the Council of Ministers, Ufficio del Cerimoniale di Stato, \"La Bandiera\": https://presidenza.governo.it/ufficio_cerimoniale/cerimoniale/bandiera.html",
+        ],
+      },
+      {
+        element: "Proportions 2:3",
+        sources: [
+          "Presidency of the Council of Ministers, \"La Bandiera - Cenni storici e norme per l'esposizione\" (flags made 300 by 200 or 450 by 300 cm)",
+          "Flags of the World, \"Italy\": https://www.fotw.info/flags/it.html",
+        ],
+      },
+      {
+        element: "Colours: green #008C45, white #F4F5F0, red #CD212A",
+        sources: [
+          "Decree of the President of the Council of Ministers, 14 April 2006 (Gazzetta Ufficiale no. 174, 28 July 2006), article 31: green Pantone textile 17-6153 TCX, white 11-0601 TCX, red 18-1662 TCX",
+          "Pantone's sRGB values for those codes (Fern Green 0,140,69; Bright White 244,245,240; Flame Scarlet 205,33,42), as the Pantone colour finder gives them and Commons' File:Flag_of_Italy.svg colour table quotes it",
+        ],
+      },
+    ],
+    checked:
+      "The Republic's flag, chosen with the Republic by the referendum of 1946 and written into its Constitution: Italians identify with it and fly it as theirs, so the state's symbol represents the people. " +
+      "Drawn as a viewBox of 3 by 2 with three bands of 1, in the decree's colours as Pantone converts them, and rendered to check the bands and colours. " +
+      "Drawn because no published file draws all three colours of the specification.",
+  },
   "slovene-tricolour": {
     kind: "published",
     format: "svg",
