@@ -8,6 +8,9 @@ Playbooks for each research question. What counts as done is in
 
 Do this before using any record.
 
+- **Check where a tree entry came from** (its notes, sources and the
+  `history` change list) before researching it: a person the owner entered
+  may rest on "per Kyle" and have no public trace at all.
 - **Match relatives, not names.** A record is the tree's person when it names
   them with relatives who match the tree. A shared name, town and era is only
   a lead; common names produce many look-alikes nearby.
@@ -24,6 +27,21 @@ Do this before using any record.
   one question usually answers others (a spouse's parents on a marriage card,
   a companion or stepchild an earlier summary dropped). Read the full text
   again before searching anew.
+- **A birth date and town on a marriage docket** (or a draft card) matched to
+  a county birth record naming the parents is the "same exact birth date and
+  place" tie of `standards.md`; a census household agreeing completes it.
+- **A townland or parish** on a passenger list, matched in a sibling's
+  marriage register, ties an Irish family firmly. A village on a county
+  border may be addressed in the neighbouring county (by its post town), so
+  a county disagreement between records isn't a conflict until the map says
+  so.
+- **A death certificate's informant**, even a child, can name the wrong
+  parent. The parents' own census household settles it, even one taken
+  before the person was born, with their graves and the widowhood that
+  follows.
+- **A death without an obituary:** an SSDI entry, a birth date inside the
+  person's census window, the place, and a cemetery lot shared with the
+  spouse tie a couple's deaths.
 
 ## Search techniques
 
@@ -34,21 +52,24 @@ in `sources.md`.
   a collection filter (fuzzy search returns thousands of look-alikes), and a
   collection that covers the place and years (see the coverage limits in
   `sources.md`). Log a search outside coverage as not done, not as a null.
-- **Search by the couple as parents** (father's surname plus mother's birth
-  surname, exact). It returns every indexed record of their children at
-  once: marriages (with both sets of parents), stillbirths, NUMIDENTs, death
-  entries. An empty result is a logged null for the whole sibling set. A
-  parish-register index does the same with the father's name plus the
-  mother's given name: a whole set of baptisms.
+- **Search by the couple as parents**: the father's given name and surname
+  plus the mother's given name or exact birth surname, no place. It returns
+  every indexed record of their children at once: births, marriages (with
+  both sets of parents), stillbirths, NUMIDENTs, death entries and
+  obituary-index entries, and settles a date conflict at once. An empty
+  result is a logged null for the whole sibling set. A parish-register index
+  does the same with the father's name plus the mother's given name: a
+  whole set of baptisms.
+- **Search the wife with the husband as spouse**, not only the husband: it
+  finds households his own search misses.
 - **Search by the spouse's birth surname**, not only ours. Our surname is
   often garbled in an index (a dropped vowel, a swapped letter) while the
   spouse's is spelled right. A surname sweep coming back empty isn't a null
   until the spouse-surname search is done too.
-- **Find a married woman by her given name plus her father's surname**, own
-  surname left blank. It finds her NUMIDENT and death records under whatever
-  married name she died with, which beats guessing married surnames.
-- **Read NUMIDENT aliases.** The alias field can show a married name, and so
-  an earlier or later marriage, that nothing else records.
+- **Find a married woman by her given name plus her birth surname**, own
+  surname left blank. It finds her NUMIDENT, death records and obituary
+  under whatever married name she died with, which beats guessing married
+  surnames. Try it before calling her Exhausted.
 - **Reach an unindexed childhood census through a sibling**: search a
   sibling's given name with a birth-year range, residence county and the
   mother's given name, no surname. It finds the household however the
@@ -116,7 +137,10 @@ in `sources.md`.
 4. **Grave records' family links** (see `sources.md`): quickest for a dead
    family, never proof that an unlinked child doesn't exist. Tie an unlinked
    person by another clue (a twin's identical birth date and county).
-5. **Census households** for the years the children were at home.
+5. **Census households** for the years the children were at home: every
+   household in the span, not just one. The 1900 census gives the mother's
+   children born and still living; matched to the grave records' links, the
+   count closes a sibling set, infants included.
 6. **Death records with parents' names** (NUMIDENT, stillbirth indexes)
    searched by the couple's names: this finds children who died, including
    infants no obituary mentions. The tree needs a first name; an unnamed
@@ -126,7 +150,9 @@ in `sources.md`.
    son's the family name, a married daughter's her husband's), with a second
    clue ("the only son"). Otherwise use the grandchild's own records and
    public social media (a parent's post naming the child, the child's
-   profile listing a parent). A surname alone is not enough.
+   profile listing a parent). A surname alone is not enough. Obituaries
+   usually list grandchildren oldest to youngest: the order hints at an
+   unplaced grandchild's age and place, never evidence.
 8. **A child whose other parent is unknown** goes in under the known parent
    with no co-parent; `linkParent` adds the other parent once a record names
    them.
@@ -141,7 +167,11 @@ in `sources.md`.
   years apart (a couple's two obituaries, a parent's and a grandparent's):
   the partner in brackets changes when a marriage does.
 - **Marriage indexes** under every surname the person used; a second record
-  with the same parents is the same person remarrying.
+  with the same parents is the same person remarrying. A marriage license's
+  "previous marriages" answer settles the question for that date.
+- **A spouse missing from a census**: a wife listed "married" but alone may
+  have a husband in an institution, such as a soldiers' home (see
+  `sources.md`).
 - **Stepchildren** listed in an obituary mean an earlier partner of the
   spouse; a "stepmother" or "stepfather" is a parent's spouse.
 - **Companions:** "companion" or "dear friend" in two obituaries that name

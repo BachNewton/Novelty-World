@@ -28,8 +28,9 @@ library card, and can visit the National Library of Finland's reading room.
 - **Chrome DevTools MCP**: the owner's own Chrome, with their logins. How and
   when to use it is in the owner's global instructions. Use it for
   login-gated or JavaScript-heavy sites (FamilySearch) and for sites that
-  return 403 to WebFetch. Several agents can share it, each in its own tab;
-  keep each agent's pace polite, since every tab uses the same account.
+  return 403 to WebFetch. Several agents can share it, **one tab each**,
+  closed when done: several agents with many tabs crashed Chrome. Keep each
+  agent's pace polite, since every tab uses the same account.
   FamilySearch's page-ready markers are below.
 
 ## FamilySearch
@@ -37,12 +38,12 @@ library card, and can visit the National Library of Finland's reading room.
 The strongest source. Record pages are `familysearch.org/ark:/61903/<id>`;
 cite as "FamilySearch 1:1:XXXX-XXX".
 
-**Access.** Index searches need the login (the Chrome DevTools MCP with the
-owner's session), with two exceptions. Without a login, WebFetch reads many
-**census record pages** (1920, 1930, 1950, sometimes 1940: full household,
-ages, birthplaces, parents' birthplaces, arrival years) and **Ohio county
-marriage cards** (both sets of parents); the **search page works for the 1950
-census only** (add `&count=50`). NUMIDENT, SSDI, death indexes,
+**Access.** Every search needs the login (the Chrome DevTools MCP with the
+owner's session): the search pages, the 1950 census's included, show the
+sign-in wall to WebFetch. Without a login, WebFetch still reads many **census
+record pages** (1920, 1930, 1950, sometimes 1940: full household, ages,
+birthplaces, parents' birthplaces, arrival years) and **Ohio county marriage
+cards** (both sets of parents). NUMIDENT, SSDI, death indexes,
 naturalization, obituary indexes and some marriage pages show the sign-in
 wall. Try a known ark by WebFetch before queuing it for the browser. The
 browser's login state can change mid-session: before logging a null, check
@@ -83,10 +84,6 @@ the page for the "sign in to see all available results" banner.
 - Wait for a page with a polling `evaluate_script` (a record link, "No
   Results Found" or "Results per page"), not `wait_for`: `wait_for` returns
   a whole-page snapshot that can run past 100 KB.
-- **Search the couple as parents** (father's given name or initial plus the
-  mother's exact birth surname): one query returns a family's births, the
-  children's death certificates and their marriages, and settles a date
-  conflict at once.
 - **Surname variants without a place** (`Jos*` with `Leg*n*s*`, a birth-year
   range) reach records in other countries' collections, such as an origin
   village's marriage. A wife's rare surname, searched as the mother's
@@ -114,8 +111,12 @@ is in `methods.md` ("Finding a line's origin").
 - It climbs the 1800–1850 generations: a quoted head of family plus a
   child's name finds wills naming children and executors, estate schedules
   naming the widow and children, and dower deeds recording a widow's
-  remarriage. A record's next page can't be reached by script: search for a
+  remarriage. With a daughter's married name it finds wills naming married
+  daughters. A record's next page can't be reached by script: search for a
   phrase likely on it.
+- The same transcript view (the image page's full text) reads any image
+  quickly, such as a marriage license docket or a Cuyahoga license
+  application.
 
 **Collections that worked:**
 
@@ -124,16 +125,21 @@ is in `methods.md` ("Finding a line's origin").
   A parent living with a married child is listed as "Father"/"Mother" with
   their own birthplace. The 1920 census lists in-laws by relation ("maternal
   grandfather"). A 1950 entry sometimes lacks a member's birthplace ("not
-  indexed"): that is unknown, not US.
+  indexed"): that is unknown, not US. The 1900 census indexes each mother's
+  children born and still living (see `methods.md`).
 - **Read the image, not only the index.** An index transcribes a few fields
   of a form that holds many: an Ohio county marriage license's application
   gives the bride's exact birthday, birthplace country and prior marriages;
   a Pennsylvania marriage license application (about 1885–1890) names both
-  parties' parents and their residence; the 1880 census's parents'
+  parties' parents and their residence; a Pennsylvania license docket or
+  application of any year gives each party's exact birth date and town,
+  "previous marriages" (which settles a partners half with no index search)
+  and a parent's consent for a minor; the 1880 census's parents'
   birthplaces can differ from the index, person by person. Indexers also
   misread initials and garble rare surnames. The census indexes leave out
   the citizenship columns (arrival year, "Na"/"Pa"/"Al", naturalization
-  year): read those on the image. The images sit behind the record's
+  year) and the 1910 and 1920 mother-tongue columns: read those on the
+  image. The images sit behind the record's
   "View original document"; zoom the viewer and screenshot its tiles. The
   viewer's Download button gives a PDF of the full-resolution scan (pull the
   JPEG out with `pypdf`, crop it with PIL), but it opens Chrome's native
@@ -155,17 +161,23 @@ is in `methods.md` ("Finding a line's origin").
   The fastest way to climb Ohio generations born 1830–1880.
 - **Ohio Death Index** (1908–1932, 1938–1944, 1958–2007): parents' surnames,
   birthplace and **marital status** ("Single" = never married, which settles
-  a partners half). Not every entry carries parents (a 1970 entry had none).
+  a partners half). It gives the parents even where the NUMIDENT is a
+  claim-only entry. Not every entry carries parents (a 1970 entry had none).
 - **SSDI, other death indexes**: dates; no relatives, so pair with something
-  that ties identity. They outrank a grave site's year when the two disagree.
+  that ties identity (see `methods.md`). An exact birth date shared with the
+  person is not identity: check the NUMIDENT's parents. They outrank a
+  grave site's year when the two disagree.
 - **Ohio, Stillbirths 1918–1953**: unnamed children with both parents. Each
   stillbirth has a birth-side and a death-side certificate with different
   numbers: one event, not twins (check the sex on both).
 - **Ohio County Births 1841–2003**: parents; some entries give the parents'
   ages and birthplaces (a cheap second source for origin).
 - **State birth indexes**: Kentucky's and California's (to 1995; collection
-  id 2001879) give the mother's birth surname, so a search by it finds a
-  couple's children. Useful but weak alone.
+  id 2001879) give the mother's birth surname, so the exact surname plus
+  `q.motherSurname` finds a couple's children. Useful but weak alone.
+- **Minnesota marriage, divorce and birth indexes**, searched together,
+  rebuild a living person's partners and children (the birth index names
+  both parents).
 - **West Virginia marriage registers** (from about 1866, and the 1930s
   license forms) name both couples' parents. **Death registers** from 1853
   name the informant and their relationship ("son"), which ties a parent to
@@ -173,9 +185,15 @@ is in `methods.md` ("Finding a line's origin").
   leaves it out, so read the image.
 - **US passport applications 1906–1925**: the father's name and birthplace,
   and the applicant's own birth date and emigration. **Passenger lists**
-  (Ellis Island): from 1907 each manifest has a second sheet, facing the
-  first, with the town of birth and the relative being joined. Read both
-  from the image.
+  (Ellis Island) name the nearest relative at home, with their townland; from
+  1907 each manifest has a second sheet, facing the first, with the town of
+  birth and the relative being joined. The index lacks the second sheet:
+  read both from the image.
+- **National Homes for Disabled Volunteer Soldiers registers** (1866–1938):
+  a Civil War veteran's birthplace, religion, nearest relative (usually the
+  wife, with her address), admission and death. Read the image; the index
+  gives little. A wife "married" but alone in the 1900 census may have a
+  husband in a soldiers' home.
 - **Pennsylvania death certificates 1906–1970** are not on FamilySearch
   (they are on a paid site: out). List one as a gap, not a null.
 - **Hungary Civil Registration 1895–1980**: births, marriages, deaths;
@@ -232,19 +250,21 @@ is in `methods.md` ("Finding a line's origin").
   spouse, which ties identity. For Levant immigrants the town settles a
   census "Syria": record the town as it is today, and choose the people
   from it and the rest of the evidence.
-- **GenealogyBank obituary index**: its parent and relationship fields are
-  unreliable (a sister's name given as the mother's). Check against the
-  siblings' NUMIDENTs.
 - **WWII draft cards**: exact birth date and town, plus a contact person
-  (often a parent or sibling) that ties the card to the family.
+  (often a parent or sibling) that ties the card to the family. The 1942
+  registration of older men (born about 1877–1897) reaches the immigrant
+  generation.
 - **Church baptism records**: date of birth and parents.
 - **Obituary collections**: GenealogyBank Historical (1815–2013) and
-  Obituaries, Births and Marriages (1980–2015) index survivor names, mostly
-  without text; US Obituary Records 2014–2023 often carries the full text on
-  the record page. The indexed relationships are machine-extracted and often
-  wrong (a surviving spouse as a parent, in-laws or a spouse as siblings,
-  wrong sex, garbled names). Search a relative's name to find the obituary
-  they appear in, then read the text itself.
+  Obituaries, Births and Marriages (1980–2015) index each survivor with a
+  relationship, mostly without text; US Obituary Records 2014–2023 lists
+  every name with its relationship and often carries the full text, which
+  covers most obituaries Legacy.com blocks. The relationships are
+  machine-extracted and often wrong (a sister as the mother, a surviving
+  spouse as a parent, in-laws or a spouse as siblings, wrong sex, garbled
+  names): check them against the siblings' NUMIDENTs or the text. Search a
+  relative's name to find the obituary they appear in, then read the text
+  itself.
 - **Find a Grave index**: dates are fine, but the cemetery's place is often
   wrong (a Michigan or West Virginia cemetery shown in another state).
 
@@ -270,10 +290,13 @@ is in `methods.md` ("Finding a line's origin").
     memorial links each child, and each child's memorial the spouse and
     children. But links are often missing (a memorial added later by another
     contributor isn't linked): a missing link is not evidence of absence.
-  - **Read the bio, not just the links**: bios quote death certificates, and
-    can conflict with the linked family.
-  - Memorials added by volunteers from cemetery lists (no bio, no links) give
-    only years: dates, not identity.
+  - **Links need a record behind them**: they can be wrong (a marriage year,
+    a child linked to a second wife who wasn't the mother).
+  - **Read the bio, not just the links**: bios often quote obituaries and
+    death certificates in full, and can conflict with the linked family.
+  - Memorials added by volunteers from cemetery lists (no photo, no bio, no
+    links) give dates, not identity, and even their dates lose to an
+    obituary.
   - Dates quoted from newspapers may be notice dates, and a year can be a
     transcription slip; death records made to state the death win.
   - **Search inside a cemetery**:
@@ -290,14 +313,20 @@ is in `methods.md` ("Finding a line's origin").
 The best source for `family`: they list spouses, children, grandchildren,
 and often who died first.
 
-- **Funeral home sites and local TV news obituary pages**: usually fetchable.
-  Some funeral-home print views fetch cleanly (add the site's print
-  parameter), but a site can start returning 403 without warning, print
-  view included; fall back to snippets.
-- **Legacy.com, everloved, tribute aggregators**: 403 to WebFetch. Search
-  snippets quote their survivors paragraph nearly verbatim when the query
-  holds the person's name, year and place plus a survivor's name or "survived
-  by": often enough to settle a family without opening the page.
+- **Funeral home sites and local TV news obituary pages**: usually fetchable;
+  Dignity Memorial pages fetch cleanly. Some funeral-home print views fetch
+  cleanly (add the site's print parameter), but a site can start returning
+  403 without warning, print view included; many that 403 to WebFetch
+  render in the browser. Old obituary URLs can redirect away to a listing,
+  leaving search snippets as the only copy: keep the survivors paragraph
+  when you first read it.
+- **Legacy.com, everloved, tribute aggregators**: 403 to WebFetch, and
+  Legacy sometimes serves a Cloudflare challenge in the browser too.
+  FamilySearch's US Obituary Records extraction and Find a Grave bios cover
+  most of it. Search snippets quote the survivors paragraph nearly verbatim
+  when the query holds the person's name, year and place plus a survivor's
+  name or "survived by": often enough to settle a family without opening
+  the page.
 - **Local newspapers' own sites**: several block automated fetches (a small
   city daily's archive among them); try the browser or snippets.
 
@@ -310,11 +339,16 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
 ## Library necrology indexes
 
 - **Cleveland Public Library news and necrology index** (`cpl.org`): death
-  notices from Cleveland papers. Older entries are full necrology records;
-  entries after about 1975 are one-line abstracts ("Husband of …") and need
-  the news record type in the URL, not necrology. Full scans are free by
-  email from the library; that is a request for the owner to make. Returns
-  403 to WebFetch; search it in the browser.
+  notices from Cleveland papers. Returns 403 to WebFetch; it works in the
+  browser. A plain surname search returns every abstract for the surname.
+  Older entries are full necrology records with the notice's text; entries
+  after about 1975 are one-line abstracts ("Wife of X", "Father of Y") and
+  need the news record type in the URL, not necrology. Those abstracts name
+  spouses and children nothing else records, so sweep every surname in a
+  line. From the results tab, a same-origin `fetch` of each `showrecord`
+  page (the site's normal pages, not an API) reads them all in one pass.
+  Full scans are free by email from the library; that is a request for the
+  owner to make.
 - Other city libraries keep similar indexes (one blocked automated
   fetches).
 
@@ -356,16 +390,24 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
   mother's maiden name ("formerly X"), so a search by the couple finds the
   sibling set (see `methods.md`). Submit searches from its form: direct
   search URLs fail with code 4011.
-- **FreeBMD** (England and Wales civil index, 1837 on): the new site's search
-  works by filling its form in the browser. Its "same page" view shows who
-  else was entered on a marriage's register page: before 1912 (when the
-  index began giving the spouse's surname) that lists the candidate spouses.
-  Index only, so a spouse found that way is Possible.
+- **FreeBMD** (England and Wales civil index, 1837 on): the new site
+  (`freebmd2.org.uk`) searches by filling its form in the browser. Its "same
+  page" view shows who else was entered on a marriage's register page:
+  before 1912 (when the index began giving the spouse's surname) that lists
+  the candidate spouses. Index only, so a spouse found that way is Possible.
 - **irishgenealogy.ie** (Irish civil births, marriages and deaths, free):
-  plain fetches get 403; it works in the browser through its `/search` GET
-  URLs. Register images are public PDFs holding one CCITT G4 image: download
-  the file and convert the image to read it (Chrome's PDF viewer shows it
-  unreliably).
+  plain fetches get 403; it works in the browser through its GET URLs,
+  `/search?church-or-civil=civil&firstname=&lastname=&yearStart=&yearEnd=`
+  plus `&event-birth=1` (or `event-marriage`, `event-death`), with
+  `mothers-surname` and `location` to narrow. Register images are public
+  PDFs holding one CCITT G4 image: fetch the PDF from inside the site's own
+  tab and decode it with `pypdf` (Chrome's PDF viewer shows it
+  unreliably). Death entries give the informant, their relationship and the
+  marital status. Its Cloudflare challenges cleared after Chrome restarted.
+- **rip.ie** (Irish death notices, about 2000 on): its URL search takes its
+  own parameters, `surname`, `start` (`YYYY-MM-DD 00:00:00`) and `end`;
+  without `start` it shows "No Results Found" for any name, which is not a
+  null.
 - **The 1901 and 1911 Irish censuses**: the National Archives site
   (`census.nationalarchives.ie`) refused the connection. Use FamilySearch's
   index of the same census; it lacks the form's Irish-language column.
@@ -399,8 +441,25 @@ reading anything public; cite only generically in the tree.
   follow, friend, react, comment or post. Keep a human pace: if Facebook
   shows a checkpoint, a warning or a login challenge, stop using it and
   report it.
-- Find accounts by the full name plus a relative's name or a place; an
-  obituary's survivor list gives the names to search.
+- Find accounts through an anchor: the full name plus a relative's name, or
+  mutual friends with a known relative, which pick the right namesake.
+  Searching a name without an anchor relative wastes time. An obituary's
+  survivor list gives the names to search.
+- Most friend lists are hidden, except those of the owner's friends. A
+  family elder's friend list, filtered by name, surfaces the grandchildren's
+  accounts.
+- A profile's "Family and relationships" page gives the marriage year,
+  children and step-relations (one "stepdaughter" overturned an assumed
+  half-sibling). A display name with "(Maiden)" gives a birth surname.
+- Post search on a child's name plus "birthday" finds milestone posts: save
+  the year only.
+- Reading pages: post dates aren't in `innerText` (take them from an
+  accessibility snapshot, or date a post by its neighbours); timelines drop
+  posts as you scroll, so collect the text while scrolling; a tag list's "N
+  others" opens a "People" dialog, and a Messenger PIN dialog may be open at
+  the same time (close it; never enter anything).
+- Absence isn't evidence: some parents keep their children off social media
+  entirely.
 - What to take: who is partnered with whom, whose children are whose, a
   maiden name, a milestone age. Leave everything else on the page.
 

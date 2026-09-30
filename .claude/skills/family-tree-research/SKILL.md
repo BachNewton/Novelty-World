@@ -197,8 +197,14 @@ them one at a time, runs `superseded` after each, then merges the logs into
 
 - Run the dry run as a command of its own. Chained with a file edit in one
   shell call, the permission classifier has refused it as destructive.
-- Every agent's browser tab shares one FamilySearch account (see
-  `sources.md`).
+- Each agent works in one browser tab of its own and closes it when done:
+  several agents with many tabs crashed Chrome. Every tab shares one
+  FamilySearch and Facebook account (see `sources.md`).
+- Each agent saves raw findings to its log as it goes, and keeps a "still
+  to do" list apart from its nulls, so a crash doesn't turn unrun searches
+  into nulls.
+- An agent's report (findings, what's left open, lessons) goes in its final
+  message: the harness refuses a research agent's write of a report file.
 - An agent whose browser is refused or unreachable stops the whole task
   and reports "BLOCKED: browser" with the error. Without the browser most
   of the research can't run, and a partial round that looks complete
