@@ -25,7 +25,7 @@ The frog passes a wall if every cell it covers is inside an opening: a subset te
 
 - **Move** left and right across the corridor.
 - **Rotate** the piece.
-- **Hop**: vertical, exactly one cell, for raised openings. The pass test decides a hop like anything else, so hopping at a floor-level opening bonks only when the opening has no room above the piece.
+- **Hop**: vertical, exactly one cell, for raised openings. The pass test decides a hop like anything else: a needless hop is fine as long as the piece still clears the opening, and it bonks only when there is no room above. A special rule punishing unneeded hops would be confusing.
 - **Jump** forward or back along the corridor in discrete depth steps, to go faster or to buy reading time.
 
 Hop and jump forward are different actions.
@@ -69,6 +69,5 @@ Fun, quirky and colourful, in keeping with Novelty World. Art comes after gamepl
 
 ## Open questions
 
-- How long is a hop's airtime?
-- Should a hop at a floor-level opening always bonk, even with headroom? The pass test alone says no, and that is how it stands.
+- How long is a hop's airtime? To be tuned in playtesting.
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
