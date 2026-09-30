@@ -393,9 +393,12 @@ children, and for recent deaths through memorial posts. Evidence once the
 identity rule ties the account (see `standards.md`). The owner allows
 reading anything public; cite only generically in the tree.
 
-- Read them in the browser (the Chrome DevTools MCP), never logged in as the
-  owner to anything beyond what a signed-in view shows by default; never
-  message, follow, friend, react or comment.
+- Read them in the browser (the Chrome DevTools MCP). The owner's Facebook
+  login may be used to see what it can see; they aren't friends with most of
+  the people searched, so expect public-only views. Read only: never message,
+  follow, friend, react, comment or post. Keep a human pace: if Facebook
+  shows a checkpoint, a warning or a login challenge, stop using it and
+  report it.
 - Find accounts by the full name plus a relative's name or a place; an
   obituary's survivor list gives the names to search.
 - What to take: who is partnered with whom, whose children are whose, a
