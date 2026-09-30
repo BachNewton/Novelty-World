@@ -4,7 +4,11 @@ import type { Cell, Frog, HopHeight, Opening, Rotation, TetrominoKind } from "./
 import type { Tuning } from "./tuning";
 
 export const COURSE_SEED = 20260930;
-export const WALL_COUNT = 4;
+export const WALL_COUNT = 15;
+// The opening walls a new player meets before any raised one.
+export const GROUNDED_START = 3;
+// About one wall in this many is raised, the last always among them.
+const RAISED_EVERY = 4;
 // Open cells grown around each wall's placement, beyond the piece's own four.
 // The fewer, the tighter the opening.
 const GROWN_CELLS = 7;
@@ -52,13 +56,26 @@ function makeOpening(kind: TetrominoKind, hop: HopHeight, tuning: Tuning, random
   return [...open.values()];
 }
 
+// Which walls are raised: the last, plus others picked by the seed from after
+// the grounded start, so a new player has the feel of the floor walls first.
+function pickRaised(random: () => number): Set<number> {
+  const candidates = Array.from({ length: WALL_COUNT - 1 - GROUNDED_START }, (_, i) => GROUNDED_START + i);
+  const raised = new Set([WALL_COUNT - 1]);
+  const count = Math.round(WALL_COUNT / RAISED_EVERY);
+  while (raised.size < count) {
+    const index = Math.floor(random() * candidates.length);
+    raised.add(candidates.splice(index, 1)[0]);
+  }
+  return raised;
+}
+
 // A course of walls from a seed: always the same walls for the same seed,
-// every one passable, spread along the course. Only the last wall is raised,
-// so a new player meets the hop once they have the feel of the rest.
+// every one passable, spread along the course.
 export function generateCourse(seed: number, tuning: Tuning, kind: TetrominoKind = "L"): CourseWall[] {
   const random = createRng(seed).next;
+  const raised = pickRaised(random);
   return Array.from({ length: WALL_COUNT }, (_, i) => {
-    const hop: HopHeight = i === WALL_COUNT - 1 ? 1 : 0;
+    const hop: HopHeight = raised.has(i) ? 1 : 0;
     const opening = makeOpening(kind, hop, tuning, random);
     const shift = (random() * 2 - 1) * tuning.wallJitter;
     return { opening, depth: tuning.firstWallDepth + i * tuning.wallSpacing + shift };

@@ -1,8 +1,10 @@
 # Frogmino
 
-Brain Wall (the Japanese game show) meets Tetris, with Frogger-style hopping. The player is a frog shaped like a tetromino, and walls with holes in them come at it down a corridor. It is real-time, seen from behind the frog in real 3D with Three.js (through `@react-three/fiber`). Faked 2D depth was considered and rejected: it is harder to get right than real 3D.
+Brain Wall (the Japanese game show) meets Tetris, with Frogger-style hopping. The player is a frog shaped like a tetromino, and shaped vehicles come at it down a road: some side by side, leaving a gap it must match, some staggered, to weave between. It is real-time, seen from behind the frog in real 3D with Three.js (through `@react-three/fiber`). Faked 2D depth was considered and rejected: it is harder to get right than real 3D.
 
 The owner and a friend designed it. What follows is decided unless it sits under Open questions.
+
+The prototype still models every obstacle as a full-width wall with openings in it, and wherever the sections below speak of walls, they describe that prototype. The decided direction is traffic, not walls: see Traffic.
 
 ## Code map
 
@@ -16,7 +18,7 @@ The owner and a friend designed it. What follows is decided unless it sits under
 - `components/scene.tsx`: the 3D scene and the per-frame loop. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
 - `components/use-frog-keys.ts`: the keyboard controls.
 
-The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), four walls from a fixed seed with only the last one raised, the Brain Wall push, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
+The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), fifteen walls from a fixed seed with about one in four raised (never the first three, always the last), the Brain Wall push, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
 
 ## The wall face
 
@@ -88,9 +90,17 @@ Solo is fully playable; co-op is optional. It runs over PeerJS through the repo'
 - The walls generated depend on the player count.
 - The rules are written for a list of players from the start, with solo as a list of one. Wall generation, the pass test, frog-to-frog solidity, filled openings and the team clock all work on that list, so co-op is never retrofitted onto solo-only systems.
 
+## Traffic
+
+Obstacles are shaped vehicles on a road, not walls. "Wall" is prototype vocabulary and will go away.
+
+- **Vehicles don't always line up across the road.** Sometimes they arrive side by side as one row, and the frog must match the shape of the gap between them to pass: the Brain Wall moment. Sometimes they are staggered, and the frog weaves between them, as in Frogger.
+- **Vehicles can travel at different speeds,** as in Frogger. That is part of the challenge.
+- **Vehicle shapes are silhouettes chosen for gameplay,** with no art in mind. A later art pass makes them fun, quirky vehicles.
+
 ## Levels
 
-v1 levels are hardcoded or generated from a fixed seed. The generator places real piece placements first and grows the openings around them, so every wall is solvable. The demo course is gentle: four walls with roomy openings, spaced for a new player to read each one, and only the last raised so the hop comes once the rest is familiar. A level editor is a later idea.
+v1 levels are hardcoded or generated from a fixed seed. The generator places real piece placements first and grows the openings around them, so every wall is solvable. A floor wall's opening may hold a tricky fit with no hop alongside fits that hop; that is good level design, not a flaw. The demo course has fifteen walls with roomy openings, spaced for a new player to read each one. About one in four is raised, picked by the seed, but never one of the first three, so the hop comes once the floor walls are familiar, and the last is always raised. A level editor is a later idea.
 
 ## Look
 
@@ -103,7 +113,7 @@ Fun, quirky and colourful, in keeping with Novelty World: bright, flat and carto
 
 ## Theme
 
-A later art pass presents walls as oncoming cars and trucks, as in Frogger. An empty floor gap is a lane with no vehicle, and openings with cells blocked above them are fine: they are odd-looking vehicles with overhanging parts, like trailers and cabs. That is why the walls move toward the frog rather than the frog running at them. Nothing about the frog's look is decided yet.
+The obstacles are oncoming cars and trucks, as in Frogger (see Traffic). Cells blocked above an empty floor cell are fine: they are odd-looking vehicles with overhanging parts, like trailers and cabs. That is why the traffic moves toward the frog rather than the frog running at it. Nothing about the frog's look is decided yet.
 
 ## Sound
 
@@ -113,3 +123,9 @@ Sound comes later, with ZzFX: the MIT micro-library that generates retro sounds 
 
 - How long is a hop's airtime? To be tuned in playtesting.
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
+- The pass rule for a single vehicle: the frog's cells must not overlap its solid cells while the two overlap in depth. A row is just several vehicles at the same depth.
+- Vehicle length: how long must a fit be held?
+- Vehicles at different speeds in the same columns: can they overlap, or are there per-lane speeds as in Frogger?
+- How the push works when several vehicles touch the frog at once.
+- How co-op's "openings fill in" rule translates to vehicles.
+- The code rename from wall to vehicle terminology, once the model changes.

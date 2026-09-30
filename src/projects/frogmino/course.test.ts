@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { COURSE_SEED, WALL_COUNT, generateCourse, type CourseWall } from "./course";
+import { COURSE_SEED, GROUNDED_START, WALL_COUNT, generateCourse, type CourseWall } from "./course";
 import { frogPasses, pieceSize } from "./logic";
 import { TUNING } from "./tuning";
 import type { Frog, HopHeight, Opening, Rotation } from "./types";
@@ -40,10 +40,16 @@ describe("generateCourse", () => {
   it("holds up across many seeds", () => {
     for (let seed = 1; seed <= 200; seed++) {
       const walls = generateCourse(seed, TUNING);
-      // Four walls an L can pass, and only the last one raised.
+      // Every wall an L can pass: a floor wall grounded, a raised one only with a hop.
       expect(walls).toHaveLength(WALL_COUNT);
-      expect(walls.slice(0, -1).every((w) => passingPlacements(w.opening, 0).length > 0)).toBe(true);
-      expect(walls.map(needsHop)).toEqual([false, false, false, true]);
+      const raised = walls.map(needsHop);
+      walls.forEach((wall, i) => {
+        if (!raised[i]) expect(passingPlacements(wall.opening, 0).length).toBeGreaterThan(0);
+      });
+      // About one in four raised, never in the grounded start, always the last.
+      expect(raised.filter(Boolean)).toHaveLength(Math.round(WALL_COUNT / 4));
+      expect(raised.slice(0, GROUNDED_START)).not.toContain(true);
+      expect(raised[WALL_COUNT - 1]).toBe(true);
       // Spread along the course, in order, between the start and the end zone.
       walls.forEach((wall, i) => {
         expect(wall.depth).toBeGreaterThan(i === 0 ? 0 : walls[i - 1].depth);

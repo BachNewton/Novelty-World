@@ -42,7 +42,7 @@ export const TUNING: Tuning = {
   firstWallDepth: 15,
   wallSpacing: 14,
   wallJitter: 2,
-  courseLength: 60,
+  courseLength: 214,
   hopAirtime: 0.6,
   easeDuration: 0.1,
   corridorCols: 7,
