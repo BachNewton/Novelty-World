@@ -59,6 +59,8 @@ The module owns **connection bookkeeping only**: codes, signalling config, the s
 
 Everything is event-driven (PeerJS `open` / `connection` / `data` / `close` / `error`); there are no timers. One known gap: a host that dies without closing its tab is noticed only when WebRTC gives up on the channel, and a guest that dials a host id the server hasn't yet expired can wait with no event at all. Closing that gap needs a connect timeout, which is the owner's call.
 
+The peer module has no room discovery. A game that lists its open rooms, rather than asking for a typed code, uses the separate shared room list (`src/shared/lib/room-list/`, `useRoomList`): hosts advertise a listing over Supabase Realtime presence on a per-game lobby channel, and the lobby renders the live list with `GameLobby`'s `openRooms`. Frogmino uses it; e2e runs put it on a channel of their own with `?room-list=<name>`.
+
 Monopoly is the exception: it is turn-based on one authoritative Supabase row, not peer-to-peer.
 
 ### Shared code
