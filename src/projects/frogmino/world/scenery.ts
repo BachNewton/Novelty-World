@@ -1,5 +1,5 @@
 import type { Rng } from "@/shared/lib/seeded-random";
-import { GROUND_DROP, box, sideX, type Side, type Vec3, type WorldBox } from "./geometry";
+import { GROUND_DROP, box, boxArea, overlaps, sideX, type Side, type Vec3, type WorldBox } from "./geometry";
 import type { WorldPaint } from "./paints";
 import { between, tileRange, tileRng, type WorldPlan } from "./road";
 
@@ -108,6 +108,8 @@ function hillsOnSide(rng: Rng, layer: HillLayer, side: Side, near: number, far: 
 }
 
 // Faint darker patches on the meadow, so the ground isn't one flat colour.
+// Patches all lie at one height, so one that would overlap another, or reach
+// into the next tile's, is left out rather than fight it for the same plane.
 function meadowPatches(rng: Rng, near: number, far: number): WorldBox[] {
   const boxes: WorldBox[] = [];
   for (const side of ["left", "right"] as const) {
@@ -115,33 +117,36 @@ function meadowPatches(rng: Rng, near: number, far: number): WorldBox[] {
       const [w, l] = [between(rng, 2, 7), between(rng, 2, 7)];
       const x = sideX(side, between(rng, 5, 30) + w / 2);
       const depth = between(rng, near, far);
-      boxes.push(box([x, -GROUND_DROP + 0.02, -depth], [w, 0.04, l], "meadow-deep", 0, between(rng, -0.4, 0.4)));
+      const patch = box([x, -GROUND_DROP + 0.02, -depth], [w, 0.04, l], "meadow-deep", 0, between(rng, -0.4, 0.4));
+      const area = boxArea(patch);
+      const inTile = area.minDepth >= near && area.maxDepth <= far;
+      if (inTile && boxes.every((other) => !overlaps(area, boxArea(other)))) boxes.push(patch);
     }
   }
   return boxes;
 }
 
 // Two landmarks along the course, far off the road: a boulder with a frog's
-// eyes, and a mesa shaped like a T.
+// eyes, and a mesa shaped like a T. Both stand on the land.
 function frogRock(x: number, depth: number): WorldBox[] {
-  const z = -depth;
+  const [y, z] = [-GROUND_DROP, -depth];
   return [
-    box([x, 6, z], [26, 12, 20], "rock"),
-    box([x, 13, z], [20, 4, 16], "rock"),
-    box([x - 6, 16.5, z + 4], [6, 5, 6], "snow"),
-    box([x + 6, 16.5, z + 4], [6, 5, 6], "snow"),
-    box([x - 6, 17, z + 7.1], [2.6, 2.6, 0.4], "sign-ink"),
-    box([x + 6, 17, z + 7.1], [2.6, 2.6, 0.4], "sign-ink"),
-    box([x, 9, z + 10.1], [14, 1.2, 0.4], "rock-dark"),
+    box([x, y + 6, z], [26, 12, 20], "rock"),
+    box([x, y + 13, z], [20, 4, 16], "rock"),
+    box([x - 6, y + 16.5, z + 4], [6, 5, 6], "snow"),
+    box([x + 6, y + 16.5, z + 4], [6, 5, 6], "snow"),
+    box([x - 6, y + 17, z + 7.1], [2.6, 2.6, 0.4], "sign-ink"),
+    box([x + 6, y + 17, z + 7.1], [2.6, 2.6, 0.4], "sign-ink"),
+    box([x, y + 9, z + 10.1], [14, 1.2, 0.4], "rock-dark"),
   ];
 }
 
 function tMesa(x: number, depth: number): WorldBox[] {
-  const z = -depth;
+  const [y, z] = [-GROUND_DROP, -depth];
   return [
-    box([x, 12, z], [12, 24, 12], "ridge-high"),
-    box([x, 28, z], [40, 8, 14], "ridge-high"),
-    box([x, 32.6, z], [36, 1.2, 12], "snow"),
+    box([x, y + 12, z], [12, 24, 12], "ridge-high"),
+    box([x, y + 28, z], [40, 8, 14], "ridge-high"),
+    box([x, y + 32.6, z], [36, 1.2, 12], "snow"),
   ];
 }
 

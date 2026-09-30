@@ -14,7 +14,7 @@ import { VEHICLES } from "../../vehicles";
 import { GROUND_DROP, pullOffArea, type PullOffStretch } from "../../world/geometry";
 import { PREVIEW_ROWS, passingPose } from "../../world/preview-rows";
 import { DECK_TOP, OVERPASS_FAR, OVERPASS_NEAR } from "../../world/structures";
-import { CAMERA_PITCH, fittedFov } from "../camera-fit";
+import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "../camera-fit";
 import { Vehicle } from "../vehicle";
 import { borderMask, makeVehicleAssets } from "../vehicle-assets";
 import { FrogminoStructures, FrogminoWorld } from "./world";
@@ -110,6 +110,8 @@ function PreviewCamera() {
     <PerspectiveCamera
       makeDefault
       fov={fittedFov(aspect)}
+      near={CAMERA_NEAR}
+      far={CAMERA_FAR}
       position={[CENTER_X, DECK_TOP + cameraHeight, -FROG_DECK_DEPTH + cameraFollow]}
       rotation={[CAMERA_PITCH, 0, 0]}
     />

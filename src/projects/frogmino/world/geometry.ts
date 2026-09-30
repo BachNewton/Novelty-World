@@ -73,18 +73,21 @@ export function overlaps(a: Area, b: Area): boolean {
   return a.minX < b.maxX && b.minX < a.maxX && a.minDepth < b.maxDepth && b.minDepth < a.maxDepth;
 }
 
-function corners(b: WorldBox): Vec3[] {
-  const [w, h, d] = b.size;
+// A point given in a box's own axes, about its centre, placed in the world.
+export function boxPoint(b: WorldBox, [x0, y0, z0]: Vec3): Vec3 {
   const [cr, sr] = [Math.cos(b.roll), Math.sin(b.roll)];
   const [cy, sy] = [Math.cos(b.yaw), Math.sin(b.yaw)];
+  const [x1, y1] = [x0 * cr - y0 * sr, x0 * sr + y0 * cr];
+  const [x2, z2] = [x1 * cy + z0 * sy, -x1 * sy + z0 * cy];
+  return [b.center[0] + x2, b.center[1] + y1, b.center[2] + z2];
+}
+
+function corners(b: WorldBox): Vec3[] {
+  const [w, h, d] = b.size;
   const result: Vec3[] = [];
   for (const x0 of [-w / 2, w / 2]) {
     for (const y0 of [-h / 2, h / 2]) {
-      for (const z0 of [-d / 2, d / 2]) {
-        const [x1, y1] = [x0 * cr - y0 * sr, x0 * sr + y0 * cr];
-        const [x2, z2] = [x1 * cy + z0 * sy, -x1 * sy + z0 * cy];
-        result.push([b.center[0] + x2, b.center[1] + y1, b.center[2] + z2]);
-      }
+      for (const z0 of [-d / 2, d / 2]) result.push(boxPoint(b, [x0, y0, z0]));
     }
   }
   return result;

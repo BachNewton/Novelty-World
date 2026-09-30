@@ -19,7 +19,7 @@ import {
   type WorldBox,
 } from "./geometry";
 import { RAIL_SEGMENT, propBoxes, type Prop, type PropKind } from "./props";
-import { finishMarkings, finishZone, gantryBoxes, mark, overpassBoxes, structureKeepOuts } from "./structures";
+import { FINISH_LINE, finishMarkings, finishZone, gantryBoxes, mark, overpassBoxes, structureKeepOuts } from "./structures";
 import type { WorldPaint } from "./paints";
 
 // The road never ends, either way: whichever way the camera goes, the road
@@ -173,11 +173,13 @@ function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
       marks.push(mark(x, (d0 + d1) / 2, DASH_WIDTH, DASH_LENGTH, "lane-dash"));
     }
   }
-  // Solid edge lines, dashed where a pull-off opens beside the road.
+  // Solid edge lines, dashed where a pull-off opens beside the road, and
+  // stopping for the chequered finish line painted from edge to edge.
+  const finishLine: [number, number] = [plan.courseLength + FINISH_LINE.near, plan.courseLength + FINISH_LINE.far];
   for (const side of ["left", "right"] as const) {
     const x = sideX(side, 0);
     const gaps = edgeGaps(plan, side);
-    for (const [a, b] of cutGaps(near, far, gaps)) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
+    for (const [a, b] of cutGaps(near, far, [...gaps, finishLine])) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
     for (const [g0, g1] of gaps) {
       for (let n = Math.floor(g0 / (2 * EDGE_DASH)); n * 2 * EDGE_DASH < g1; n++) {
         const [d0, d1] = [Math.max(g0, near, n * 2 * EDGE_DASH), Math.min(g1, far, n * 2 * EDGE_DASH + EDGE_DASH)];

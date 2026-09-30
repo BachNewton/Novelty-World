@@ -1,9 +1,10 @@
-import { box, type Vec3, type WorldBox } from "./geometry";
+import { GROUND_DROP, box, type Vec3, type WorldBox } from "./geometry";
 
 // The roadside's furniture and plants, each a handful of boxes around its
 // own origin: the middle of its footprint on the ground, facing the camera
 // (+z). The near-road ones stay under the near-height limit; trees stand
-// further out.
+// further out. Parts that touch share only an edge or opposite faces, never
+// a face looking the same way, which the depth buffer would fight over.
 
 export type PropKind =
   | "guardRail"
@@ -49,17 +50,18 @@ const TEMPLATES: Record<PropKind, readonly WorldBox[]> = {
     box([0, 0.31, 0], [0.05, 0.14, RAIL_SEGMENT], "rail"),
   ],
   reflectorPost: [
-    box([0, 0.24, 0], [0.08, 0.48, 0.08], "post-white"),
-    box([0, 0.4, 0], [0.09, 0.07, 0.09], "reflector"),
+    box([0, 0.1825, 0], [0.08, 0.365, 0.08], "post-white"),
+    box([0, 0.4, 0], [0.08, 0.07, 0.08], "reflector"),
+    box([0, 0.4575, 0], [0.08, 0.045, 0.08], "post-white"),
   ],
   // Frogs crossing: a diamond with a frog on it.
   frogSign: [
     box([0, 0.23, 0], [0.05, 0.46, 0.05], "post"),
     box([0, 0.5, 0.03], [0.25, 0.25, 0.03], "sign", DIAMOND),
     box([0, 0.485, 0.05], [0.11, 0.06, 0.01], "sign-ink"),
-    box([-0.035, 0.53, 0.05], [0.035, 0.035, 0.01], "sign-ink"),
-    box([0.035, 0.53, 0.05], [0.035, 0.035, 0.01], "sign-ink"),
-    box([0, 0.45, 0.05], [0.15, 0.02, 0.01], "sign-ink"),
+    box([-0.035, 0.5325, 0.05], [0.035, 0.035, 0.01], "sign-ink"),
+    box([0.035, 0.5325, 0.05], [0.035, 0.035, 0.01], "sign-ink"),
+    box([0, 0.445, 0.05], [0.15, 0.02, 0.01], "sign-ink"),
   ],
   // Falling blocks: a square sign with a tetromino tumbling on it.
   blockSign: [
@@ -77,7 +79,7 @@ const TEMPLATES: Record<PropKind, readonly WorldBox[]> = {
   rock: [
     box([0, 0.15, 0], [0.5, 0.3, 0.45], "rock"),
     box([0.08, 0.36, -0.04], [0.3, 0.14, 0.28], "rock-dark"),
-    box([-0.26, 0.09, 0.12], [0.2, 0.18, 0.2], "rock-dark"),
+    box([-0.26, 0.09, 0.1], [0.2, 0.18, 0.2], "rock-dark"),
   ],
   shrub: [
     box([0, 0.15, 0], [0.4, 0.3, 0.4], "shrub"),
@@ -109,7 +111,7 @@ function turn([x, y, z]: Vec3, yaw: number): Vec3 {
   return [x * c + z * s, y, -x * s + z * c];
 }
 
-// A prop's boxes, placed in the world.
+// A prop's boxes, placed in the world, standing on the land beside the road.
 export function propBoxes(prop: Prop): WorldBox[] {
   return TEMPLATES[prop.kind].map((part) => {
     const [x, y, z] = turn(
@@ -117,6 +119,6 @@ export function propBoxes(prop: Prop): WorldBox[] {
       prop.yaw,
     );
     const size: Vec3 = [part.size[0] * prop.scale, part.size[1] * prop.scale, part.size[2] * prop.scale];
-    return { ...part, center: [prop.x + x, y, -prop.depth + z], size, yaw: part.yaw + prop.yaw };
+    return { ...part, center: [prop.x + x, y - GROUND_DROP, -prop.depth + z], size, yaw: part.yaw + prop.yaw };
   });
 }

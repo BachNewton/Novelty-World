@@ -28,6 +28,11 @@ const SUN_DISTANCE = 850;
 const SUN_SIZE = 56;
 const SUN_AZIMUTH = MathUtils.degToRad(22);
 const SUN_ELEVATION = MathUtils.degToRad(8);
+// The sky writes no depth, so its layers are painted in this order, behind
+// everything: dome, then halo, then sun. Left to the renderer, the order
+// among equal render orders would come down to when each material happened
+// to be created.
+const RENDER_ORDER = { dome: -3, halo: -2, sun: -1 };
 
 function skyGeometry(horizon: Color, zenith: Color): SphereGeometry {
   const geometry = new SphereGeometry(SKY_RADIUS, 24, 16);
@@ -67,15 +72,15 @@ export function Sky({ palette }: { palette: WorldPalette }) {
 
   return (
     <group ref={groupRef}>
-      <mesh geometry={geometry} renderOrder={-1}>
+      <mesh geometry={geometry} renderOrder={RENDER_ORDER.dome}>
         <meshBasicMaterial vertexColors side={BackSide} fog={false} depthWrite={false} />
       </mesh>
       <group ref={sunRef}>
-        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, -2]} renderOrder={-1}>
+        <mesh rotation={[0, 0, Math.PI / 4]} position={[0, 0, -2]} renderOrder={RENDER_ORDER.halo}>
           <planeGeometry args={[SUN_SIZE * 1.5, SUN_SIZE * 1.5]} />
           <meshBasicMaterial color={palette["sun-halo"]} fog={false} depthWrite={false} />
         </mesh>
-        <mesh renderOrder={-1}>
+        <mesh renderOrder={RENDER_ORDER.sun}>
           <planeGeometry args={[SUN_SIZE, SUN_SIZE]} />
           <meshBasicMaterial color={palette.sun} fog={false} depthWrite={false} />
         </mesh>
