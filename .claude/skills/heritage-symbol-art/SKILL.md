@@ -62,9 +62,11 @@ nothing verifiable, which goes to the owner as an open gap on the tree.
   questions (the research log), not in the repo: what was tried and what
   would settle it. For a needed symbol that is a gap on the tree, so it
   also goes to the owner; `needed-art` keeps listing it until it is closed.
-- **A people's own symbol, never a regime's imposed on it.** This is the
-  timeline's rule, and the art follows it: the art is of the symbol the era
-  names, in the form the people used in those years.
+- **Represent people, not governments.** A state's symbol serves where the
+  people identified with that state; where they didn't, the symbol is the
+  one the people used for themselves and would wish to be represented by.
+  This is the timeline's rule, and the art follows it: the art is of the
+  symbol the era names, in the form the people used in those years.
 
 ## A new people or region
 

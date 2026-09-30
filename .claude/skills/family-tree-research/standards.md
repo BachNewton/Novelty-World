@@ -253,8 +253,8 @@ Each people's timeline of symbols (`symbol-timelines.ts`) starts as the
 design doc's unverified proposal. An era is **verified** when its sources
 (safe to publish, no URLs: a reference work, an official heraldry page, a
 history of the flag) settle three things: the years it covers, the symbol,
-and that the symbol was the people's own rather than a regime's imposed on
-it. Change the years, the symbol or the era's name to what the sources
+and that the symbol represents the people, not a government they didn't
+identify with (see "Symbols" in the design doc). Change the years, the symbol or the era's name to what the sources
 show, split an era where the sources do, and list the sources on it.
 An era's art is not recorded on the era: each symbol id's verified art and
 its provenance live in `symbol-art.ts`, and the `heritage-symbol-art` skill

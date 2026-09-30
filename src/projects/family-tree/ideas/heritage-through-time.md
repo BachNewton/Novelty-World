@@ -73,7 +73,11 @@ they left; their grandchildren show today's.
 
 ## Symbols
 
-- **A people's own symbol in each era, never a regime imposed on it.** A
+- **Represent people, not governments.** A symbol stands for the people, as
+  they would wish to be represented. Where a people identified with the state
+  they lived under, its symbol is theirs too and the two align; where they
+  didn't, the tree shows the symbol that represents the people, never the
+  government's. A
   Polish line in the partition era shows the white eagle, not the Russian or
   Prussian flag; a Ukrainian line in the Soviet era shows the blue and
   yellow. The rule also keeps regime flags that dishonor the people off the
@@ -317,7 +321,9 @@ owner's peoples); the owner judges the result.
    - **The estimated birth year** comes from the nearest relatives with a
      birth date, over parent, child and partner links, about 30 years a
      generation, averaging relatives equally near.
-3. **A people's symbol is its own, never a regime's imposed on it,**
+3. **Symbols represent people, not governments.** Where a people identified
+   with its state, the state's symbol serves; where it didn't, the symbol
+   the people would choose for themselves, never one a government imposed,
    including German lines born 1933–1945, who show the black-red-gold.
 4. **The story lives in the person panel's Heritage section,** not a page of
    its own: it stays one click from the tree, and the tree stays the way in.
