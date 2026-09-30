@@ -194,7 +194,7 @@ are added only where a record gives them.
    exactly what they did before peoples: each people shows today's flag of
    the country it was coded by, a region its people's flag, and a chip's
    hover names that country.
-4. **The Heritage panel** with the origins map and the era paragraphs.
+4. **The Heritage panel** with the journeys globe and the era paragraphs.
 
 ## A line's journey, and when a place becomes heritage
 
@@ -225,12 +225,18 @@ direction:
 - **Symbols through time** replace today's flags on the cards: the same
   corner symbols, picked by each card's birth year (decisions 2 and 3
   below).
-- **An origins map**: each known origin a point sized by its share, with an
-  arc to where the family settled, and the unknown share stated plainly.
-  It lives in the person panel's Heritage section, for that person's lines.
-  The points are the immigrants' birthplaces today; the arcs end at the
-  first birthplace in the new country. Both come from `birthPlaceToday`, so
-  research must record it in a form a map can place.
+- **A journeys map on a 3D globe**: each of the person's lines drawn as its
+  journey through time, not a single origin-to-destination arc. A line's
+  path runs through every generation's birthplace in order, from its
+  earliest known ancestor down to the person, each stop dated by that
+  generation's birth year, so a family that moved from place to place
+  (Germany, then Pennsylvania, then Ohio) shows every move. The earliest
+  stop is sized by the line's share, and the unknown share is stated
+  plainly. It lives in the person panel's Heritage section. The map is
+  always a 3D globe, in the 2D view as in the 3D view, never a flat
+  projection. Every stop comes from a generation's `birthPlaceToday`, so
+  research records it on every generation it reaches, the settler-country
+  births included, in a form a map can place.
 
 The journey and story paragraphs stay in the plan as the panel's text
 around the map; the fan chart and the ribbon are set aside.
