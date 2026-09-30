@@ -100,7 +100,9 @@ they left; their grandchildren show today's.
   confidence is high; if any detail would be a guess, the symbol waits. A
   drawing's record says it is ours, what was searched and what each element
   rests on, and it is replaced as soon as verifiable published art turns
-  up. We never trace, recolor, crop or fix someone else's file, and nothing
+  up. A symbol that is clearly identifiable but has no single common design
+  (the green harp flew in many variants) takes its most iconic, most widely
+  recognized design. We never trace, recolor, crop or fix someone else's file, and nothing
   approximate appears anywhere, mockups included. A symbol with no verified
   art isn't shown until it has some.
 - **A symbol is always shown whole.** Anything that represents a place, a

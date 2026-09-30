@@ -126,9 +126,14 @@ What settles each thing:
 nineteenth-century green harp flag, which existed in many harp and layout
 variants): the art can be verified only against the historical record, by
 matching a documented surviving example or a design the references agree
-was the standard one. If the references document only variants, no file is
-faithful to "the" symbol; it stays without art and the question is written
-down.
+was the standard one. **A symbol that is clearly identifiable but has no
+single common design** (the green harp flew in many harp and layout
+variants) takes **its most iconic, most widely recognized design**: the one
+the references reproduce most, or the best-known surviving example. The
+record says it is one variant of several and why this one was chosen, with
+its sources; the art is then verified against that design. Only a symbol
+that isn't clearly identifiable at all stays without art, with the
+question written down.
 
 **Sources disagree** (a Commons drawing of a grand-ducal arms whose crown
 and arm are disputed on its talk page): follow the disagreement to the
