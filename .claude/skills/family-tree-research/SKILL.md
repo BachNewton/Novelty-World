@@ -262,7 +262,10 @@ timelines are `symbol-timelines.ts` beside it.
   gains first if the sources show the region was the homeland then), commit
   and push it to main,
   then apply the round's changes. Never park a finding because its people
-  isn't listed yet.
+  isn't listed yet. Whenever you add a people or region, or add, split or
+  change an era, invoke the `heritage-symbol-art` skill in the same round:
+  it proposes the new symbols and finds their art. The people lands with
+  "no verified art", and the art catches up; never wait for it.
 - **Verify the symbol timelines** as the research reaches each people: each
   era's years and symbol need sources (see `standards.md`, "Symbol
   timelines"). `peoples` lists every era still unverified.

@@ -256,12 +256,10 @@ history of the flag) settle three things: the years it covers, the symbol,
 and that the symbol was the people's own rather than a regime's imposed on
 it. Change the years, the symbol or the era's name to what the sources
 show, split an era where the sources do, and list the sources on it.
-Record the era's art source too: an official published design, or a
-faithful file (a Wikimedia Commons one) checked against the official
-specification or the historical record, with what it was checked against.
-Never draw or approximate art ourselves; an era with no verified art isn't
-shown until it has some (see "Symbols" in
-`src/projects/family-tree/ideas/heritage-through-time.md`). A
+An era's art is not recorded on the era: each symbol id's verified art and
+its provenance live in `symbol-art.ts`, and the `heritage-symbol-art` skill
+finds and checks it. An era can be verified before its symbol has art;
+`peoples` lists the symbols still without it. A
 disputed era (a mandate-era flag that was a regime's) stays unverified with
 the question in the research log until it is settled.
 
