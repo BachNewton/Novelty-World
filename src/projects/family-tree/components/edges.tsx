@@ -1,8 +1,8 @@
 "use client";
 
-import { parentChildPaths, unionLine, type ParentChildEdge } from "../edge-geometry";
+import { parentChildPaths, unionPaths, unionPoints, type ParentChildEdge, type Point } from "../edge-geometry";
 import { isDirectLineLink } from "../logic";
-import type { LaidOutEdge, LaidOutNode, Layout, UnionStatus } from "../types";
+import type { LaidOutEdge, Layout, UnionStatus } from "../types";
 
 interface EdgesProps {
   layout: Layout;
@@ -30,8 +30,12 @@ const UNION_LINE_STYLES: Record<
   "ex-partner": { stroke: PARTNER_STROKE, dashed: true },
 };
 
+function pathData(points: Point[]): string {
+  return points.map((p, j) => `${j === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+}
+
 export function Edges({ layout, line }: EdgesProps) {
-  const byId = new Map<string, LaidOutNode>(layout.nodes.map((n) => [n.id, n]));
+  const unionOf = unionPaths(layout);
   const pathOf = parentChildPaths(layout);
   const onLine = (edge: LaidOutEdge): boolean =>
     edge.kind === "parent-child" && isDirectLineLink(line, edge.childId, parentIds(edge));
@@ -50,18 +54,14 @@ export function Edges({ layout, line }: EdgesProps) {
     >
       {ordered.map(({ edge, i, highlighted }) => {
         if (edge.kind === "spouse") {
-          const a = byId.get(edge.aId);
-          const b = byId.get(edge.bId);
-          if (!a || !b) return null;
-          const { x1, x2, y } = unionLine(a, b);
+          const union = unionOf(edge);
+          if (union === null) return null;
           const style = UNION_LINE_STYLES[edge.status];
           return (
-            <line
+            <path
               key={`s-${i}`}
-              x1={x1}
-              y1={y}
-              x2={x2}
-              y2={y}
+              d={pathData(unionPoints(union))}
+              fill="none"
               stroke={style.stroke}
               strokeWidth={2}
               strokeDasharray={style.dashed ? "6 4" : undefined}
@@ -71,11 +71,10 @@ export function Edges({ layout, line }: EdgesProps) {
         }
         const points = pathOf(edge);
         if (points === null) return null;
-        const d = points.map((p, j) => `${j === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
         return (
           <path
             key={`p-${i}`}
-            d={d}
+            d={pathData(points)}
             fill="none"
             stroke={highlighted ? DIRECT_LINE_STROKE : "var(--color-border-hover)"}
             strokeWidth={2}

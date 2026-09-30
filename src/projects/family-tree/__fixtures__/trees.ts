@@ -442,6 +442,96 @@ export function partnerFamily(): Tree {
   return makeTree("john", persons);
 }
 
+// A man with three ex-wives, like the live tree's widest partner chain: only
+// the second shares a child with him, so she sits beside him with the first,
+// and the third overflows to the end of the chain, joined by a bracket under
+// the second. The second also has a child of her own, and parents in the
+// tree, so lines leave and reach the card the bracket passes.
+export function threeExes(): Tree {
+  const persons = [
+    p("hDad", "M"),
+    p("hMom", "F"),
+    p("hub", "M", ["hDad", "hMom"]),
+    p("ex2Dad", "M"),
+    p("ex2Mom", "F"),
+    p("ex1", "F"),
+    p("ex2", "F", ["ex2Dad", "ex2Mom"]),
+    p("ex3", "F"),
+    p("kid", "F", ["hub", "ex2"]),
+    p("ex2Kid", "M", ["ex2"]),
+  ];
+  marry(persons, "hDad", "hMom");
+  marry(persons, "ex2Dad", "ex2Mom");
+  unite(persons, "hub", "ex1", "divorced");
+  unite(persons, "hub", "ex2", "divorced");
+  unite(persons, "hub", "ex3", "divorced");
+  return makeTree("hDad", persons);
+}
+
+// Someone with a child by each of three partners: one couple can't sit side
+// by side, so their children drop from the middle of the bracket joining
+// them.
+export function threeCoParents(): Tree {
+  const persons = [
+    p("hub", "M"),
+    p("a", "F"),
+    p("b", "F"),
+    p("c", "F"),
+    p("aKid", "F", ["hub", "a"]),
+    p("bKid", "M", ["hub", "b"]),
+    p("cKid", "F", ["hub", "c"]),
+    p("cKid2", "M", ["hub", "c"]),
+  ];
+  unite(persons, "hub", "a", "divorced");
+  unite(persons, "hub", "b", "divorced");
+  marry(persons, "hub", "c");
+  return makeTree("hub", persons);
+}
+
+// Someone with four partners, children by three: the two who fit beside
+// them share children, and the other two overflow to the nearer chain ends,
+// one with children and one without.
+export function fourPartners(): Tree {
+  const persons = [
+    p("hub", "M"),
+    p("a", "F"),
+    p("b", "F"),
+    p("c", "F"),
+    p("d", "F"),
+    p("aKid", "F", ["hub", "a"]),
+    p("bKid", "M", ["hub", "b"]),
+    p("cKid", "F", ["hub", "c"]),
+    p("dKid", "M", ["d"]),
+  ];
+  unite(persons, "hub", "a", "divorced");
+  unite(persons, "hub", "b", "divorced");
+  unite(persons, "hub", "c", "ex-partner");
+  unite(persons, "hub", "d", "partner");
+  return makeTree("hub", persons);
+}
+
+// Three ex-wives who each remarried: the first and third overflow ends grow
+// on through their new husbands, and one new couple has children, so a
+// remarried ex sits between both her husbands and an overflow partner's own
+// family hangs from its own union line.
+export function remarriedExes(): Tree {
+  const persons = [
+    p("hub", "M"),
+    p("ex1", "F"),
+    p("ex1New", "M"),
+    p("ex2", "F"),
+    p("ex3", "F"),
+    p("ex3New", "M"),
+    p("ex3Kid", "F", ["ex3", "ex3New"]),
+  ];
+  unite(persons, "hub", "ex1", "divorced");
+  unite(persons, "hub", "ex2", "divorced");
+  unite(persons, "hub", "ex3", "divorced");
+  marry(persons, "ex1", "ex1New");
+  marry(persons, "ex3", "ex3New");
+  return makeTree("hub", persons);
+}
+
 // A snapshot of the production family_tree row (Kyle's tree), with adjacent
 // wide layers densely interconnected by parent-child edges — the structural
 // pattern that makes the exact crossing minimization expensive. This is the
@@ -467,6 +557,10 @@ export const NAMED_FIXTURES: Record<string, () => Tree> = {
   widowerWithInLaws,
   inLawsOverHusband,
   partnerFamily,
+  threeExes,
+  threeCoParents,
+  fourPartners,
+  remarriedExes,
 };
 
 // A tree near the size and shape of the live one (about 300 people over five

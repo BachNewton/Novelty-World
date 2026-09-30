@@ -90,8 +90,8 @@ HiGHS with the same objective, and picks it consistently across runs.
 
 A layout node is a whole partner chain (a single person, a couple, or a
 longer chain like [ex, person, current]), but the lines are drawn to and from
-the people in it: a child's line leaves its parents' marriage midpoint, or a
-lone parent, and ends at the child's own card. Counting crossings between
+the people in it: a child's line leaves the middle of its parents' union
+line, or a lone parent, and ends at the child's own card. Counting crossings between
 chains, as d3-dag's model does, misses every crossing between two lines that
 end on the same chain. The clearest case is a widower's chain [late wife,
 widower, current wife] with both his parents and hers in the tree: when her
@@ -102,9 +102,11 @@ chain reads the same either way round, so its orientation is free.
 So the model counts crossings between the lines as drawn:
 
 - **Ports.** Each line attaches to a chain at a port, a position along the
-  chain: a person's own place for the child's end, the midpoint of the
-  parents' places for the parents' end. Lines on the same chain and port
-  share an endpoint and never cross each other.
+  chain: a person's own place for the child's end, and for the parents' end
+  the point their drop leaves from: the midpoint of the parents' places, or,
+  for a couple joined by a bracket (`edge-routing-notes.md`), the middle of
+  its run. Lines on the same chain and port share an endpoint and never
+  cross each other.
 - **Orientation.** One boolean per chain of two or more members reverses it,
   flipping the left-to-right order of its ports.
 - **Crossings.** Two lines between adjacent layers cross when their ends are

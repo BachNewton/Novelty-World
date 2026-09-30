@@ -2274,7 +2274,7 @@ describe("computeLayout", () => {
     expect(Math.abs(anthony.x - kristin.x)).toBe(NODE_W + SPOUSE_GAP);
 
     // The divorce link between John and Kristin still renders as a dashed
-    // edge from the post-layout sweep.
+    // edge: all three share one chain.
     const exEdge = layout.edges.find(
       (e) =>
         e.kind === "spouse" &&

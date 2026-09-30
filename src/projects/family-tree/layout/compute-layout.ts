@@ -6,6 +6,7 @@
 import { graphStratify, sugiyama } from "d3-dag";
 import type { Graph, Layering, Separation, SugiNode } from "d3-dag";
 import { computeGenerations, currentPartnerIds, formerPartnerIds, isCurrentUnion } from "../logic";
+import { pairKey, rowUnionPaths } from "../edge-geometry";
 import type { LaidOutNode, Layout, Tree, Union, UnionStatus } from "../types";
 import { coordWithClearance, type VerticalPiece } from "./coord";
 import { countCrossings, decrossCpSat, portGraph, type ChainPorts, type DecrossSolution } from "./decross";
@@ -45,16 +46,24 @@ export const SUBTREE_GAP = 72;
 
 interface CoupleUnit {
   id: string;
-  // A chain of unions rendered side by side, each union between neighbours:
-  // a singleton, a couple, or a longer chain like [her ex, her, him, his ex].
-  // Keeping every union adjacent keeps each marriage line short and makes
-  // each child drop emerge from its own parents' marriage midpoint. This is
-  // the chain's given order; the layout may draw it reversed.
+  // A chain of partners rendered side by side: a singleton, a couple, or a
+  // longer chain like [her ex, her, him, his ex]. Keeping unions between
+  // neighbours keeps each marriage line short and makes each child drop
+  // emerge from its own parents' marriage midpoint. This is the chain's given
+  // order; the layout may draw it reversed.
   members: string[];
   generation: number;
-  // One status per adjacent marriage line; length == members.length - 1.
-  // Empty for singletons.
-  statuses: UnionStatus[];
+  // Every union between two members: between neighbours, or, for someone
+  // with more partners than a card has sides, a bracket under the members
+  // between.
+  unions: ChainUnion[];
+}
+
+interface ChainUnion {
+  a: string;
+  b: string;
+  status: UnionStatus;
+  hasChildren: boolean;
 }
 
 function childrenOf(tree: Tree, parentId: string): string[] {
@@ -92,56 +101,189 @@ function bfsOrder(tree: Tree): string[] {
 }
 
 
+// Everyone reachable from `start` through `neighbours`, in breadth-first
+// order.
+function reachable(start: string, neighbours: (id: string) => string[]): string[] {
+  const found = [start];
+  const seen = new Set(found);
+  for (let i = 0; i < found.length; i++) {
+    for (const other of neighbours(found[i])) {
+      if (seen.has(other)) continue;
+      seen.add(other);
+      found.push(other);
+    }
+  }
+  return found;
+}
+
+// Grows a chain outward from `start` through `unionsOf`: a current partner to
+// the right and an ex to the left, then onward through each end's next
+// partner, so a remarried ex sits between both their partners. Everyone it
+// takes is added to `taken`, and nobody already there is taken again.
+function growChain(start: string, unionsOf: (id: string) => Union[], taken: Set<string>): string[] {
+  taken.add(start);
+  const nextPartner = (personId: string, preferCurrent: boolean): string | null => {
+    const free = unionsOf(personId).filter((u) => !taken.has(u.personId));
+    if (free.length === 0) return null;
+    const union = free.find((u) => isCurrentUnion(u.status) === preferCurrent) ?? free[0];
+    taken.add(union.personId);
+    return union.personId;
+  };
+  const members = [start];
+  for (let right = nextPartner(start, true); right !== null; right = nextPartner(right, true)) {
+    members.push(right);
+  }
+  for (let left = nextPartner(start, false); left !== null; left = nextPartner(left, false)) {
+    members.unshift(left);
+  }
+  return members;
+}
+
+// A chain where someone has more partners than a card has sides, so some
+// union can't be between neighbours and is drawn as a bracket. Partners who
+// share children come first for the places beside each other: they form runs
+// ("blocks"), grown like a chain from the person with the most partners
+// first, that stay whole and in order. The chain starts from that person's
+// block and grows at its ends by any block with a partner of the end person
+// at its own end, current partners first, then the right end before the
+// left. When nothing more fits beside an end, the overflow joins:
+// the first member's next unplaced partner, with their block, goes at the
+// chain end nearest that member (the right on a tie), the partner innermost.
+function arrangeOverflowChain(tree: Tree, component: string[], sharesChildren: SharesChildren): string[] {
+  const hub = component.reduce((best, id) =>
+    tree.persons[id].unions.length > tree.persons[best].unions.length ? id : best,
+  );
+  const coParentUnions = (id: string): Union[] =>
+    tree.persons[id].unions.filter((u) => sharesChildren(id, u.personId));
+  const blockOf = new Map<string, string[]>();
+  const blocked = new Set<string>();
+  for (const id of [hub, ...component]) {
+    if (blocked.has(id)) continue;
+    const block = growChain(id, coParentUnions, blocked);
+    for (const member of block) blockOf.set(member, block);
+  }
+  const blockFor = (id: string): string[] => {
+    const block = blockOf.get(id);
+    if (block === undefined) throw new Error(`${id} is outside the partner chain being arranged`);
+    return block;
+  };
+
+  let chain = [...blockFor(hub)];
+  const placed = new Set(chain);
+  const freeUnions = (id: string): Union[] =>
+    tree.persons[id].unions.filter((u) => !placed.has(u.personId));
+  // Adds a partner's block at one end, the partner as near the chain as the
+  // block allows.
+  const attach = (partnerId: string, atRight: boolean): void => {
+    const block = blockFor(partnerId);
+    const inward = block.indexOf(partnerId) <= (block.length - 1) / 2 ? block : [...block].reverse();
+    chain = atRight ? [...chain, ...inward] : [...[...inward].reverse(), ...chain];
+    for (const member of block) placed.add(member);
+  };
+
+  while (placed.size < component.length) {
+    const beside = [true, false].flatMap((atRight) =>
+      freeUnions(atRight ? chain[chain.length - 1] : chain[0])
+        .filter((u) => {
+          const block = blockFor(u.personId);
+          return block[0] === u.personId || block[block.length - 1] === u.personId;
+        })
+        .map((union) => ({ union, atRight })),
+    );
+    if (beside.length > 0) {
+      const { union, atRight } = beside.find(({ union: u }) => isCurrentUnion(u.status)) ?? beside[0];
+      attach(union.personId, atRight);
+      continue;
+    }
+    const i = chain.findIndex((id) => freeUnions(id).length > 0);
+    attach(freeUnions(chain[i])[0].personId, chain.length - 1 - i <= i);
+  }
+  return chain;
+}
+
+type SharesChildren = (a: string, b: string) => boolean;
+
+function sharesChildrenIn(tree: Tree): SharesChildren {
+  const coParents = new Set<string>();
+  for (const person of Object.values(tree.persons)) {
+    if (person.parentIds.length === 2) coParents.add(pairKey(person.parentIds[0], person.parentIds[1]));
+  }
+  return (a, b) => coParents.has(pairKey(a, b));
+}
+
 function buildCoupleUnits(
   tree: Tree,
   order: string[],
   gen: Map<string, number>,
 ): { couples: CoupleUnit[]; coupleOf: Map<string, string> } {
+  const sharesChildren = sharesChildrenIn(tree);
+  const partnersOf = (id: string): string[] => tree.persons[id].unions.map((u) => u.personId);
+
   const coupleOf = new Map<string, string>();
   const couples: CoupleUnit[] = [];
   for (const id of order) {
     if (coupleOf.has(id)) continue;
-    const taken = new Set([id]);
-    const nextPartner = (personId: string, preferCurrent: boolean): Union | null => {
-      const free = tree.persons[personId].unions.filter(
-        (u) => !taken.has(u.personId) && !coupleOf.has(u.personId),
-      );
-      if (free.length === 0) return null;
-      const union =
-        free.find((u) => isCurrentUnion(u.status) === preferCurrent) ?? free[0];
-      taken.add(union.personId);
-      return union;
-    };
-
-    // Grow a chain outward from the person: their current partner to the
-    // right, an ex to the left, then onward through each end's other
-    // partners, so a remarried ex sits between both their partners. Only
-    // someone with three or more partners leaves one out of the chain; the
-    // post-layout sweep draws that union as a line across the gap.
-    const members = [id];
-    const statuses: UnionStatus[] = [];
-    let right = nextPartner(id, true);
-    while (right !== null) {
-      members.push(right.personId);
-      statuses.push(right.status);
-      right = nextPartner(right.personId, true);
-    }
-    let left = nextPartner(id, false);
-    while (left !== null) {
-      members.unshift(left.personId);
-      statuses.unshift(left.status);
-      left = nextPartner(left.personId, false);
+    // A chain holds everyone joined to the person through unions, so every
+    // union is drawn within one chain. With nobody past two partners the
+    // whole of it fits side by side.
+    const component = reachable(id, partnersOf);
+    const members = component.some((m) => partnersOf(m).length > 2)
+      ? arrangeOverflowChain(tree, component, sharesChildren)
+      : growChain(id, (m) => tree.persons[m].unions, new Set());
+    if (members.length !== component.length) {
+      throw new Error(`The partner chain from ${id} left out some of its partners`);
     }
 
-    couples.push({
-      id,
-      members,
-      generation: gen.get(id)!,
-      statuses,
+    const unions: ChainUnion[] = [];
+    members.forEach((a, i) => {
+      for (const union of tree.persons[a].unions) {
+        if (members.indexOf(union.personId) <= i) continue;
+        unions.push({ a, b: union.personId, status: union.status, hasChildren: sharesChildren(a, union.personId) });
+      }
     });
+    couples.push({ id, members, generation: gen.get(id)!, unions });
     for (const member of members) coupleOf.set(member, id);
   }
   return { couples, coupleOf };
+}
+
+// Where each member's card and each union's line fall with the chain drawn
+// in `order`, from the geometry the renderer uses: member i's card is
+// centered at i * CHAIN_STEP.
+interface ChainGeometry {
+  // The x of the line down to the children of `parentIds`, all of them
+  // members: the middle of their union's line, or of the cards.
+  dropX(parentIds: readonly string[]): number;
+  // The same, when the parents are joined by a bracket, else null.
+  bracketDropX(parentIds: readonly string[]): number | null;
+  // How far below the cards the deepest bracket runs, or 0.
+  bracketDepth: number;
+}
+
+const CHAIN_STEP = NODE_W + SPOUSE_GAP;
+
+function chainGeometry(tree: Tree, couple: CoupleUnit, order: readonly string[]): ChainGeometry {
+  const centerOf = (id: string): number => order.indexOf(id) * CHAIN_STEP;
+  const cards = order.map((id) => ({ id, x: centerOf(id) - NODE_W / 2, y: 0, w: NODE_W, h: NODE_H }));
+  const paths = rowUnionPaths(
+    cards,
+    couple.unions.map((u) => ({ aId: u.a, bId: u.b, hasChildren: u.hasChildren })),
+    (id) => tree.persons[id].unions.length,
+  );
+  let bracketDepth = 0;
+  for (const path of paths.values()) {
+    if (path.kind === "bracket") bracketDepth = Math.max(bracketDepth, path.runY - NODE_H);
+  }
+  const bracketDropX = (parentIds: readonly string[]): number | null => {
+    const path = parentIds.length === 2 ? paths.get(pairKey(parentIds[0], parentIds[1])) : undefined;
+    return path?.kind === "bracket" && path.drop !== null ? path.drop.x : null;
+  };
+  return {
+    dropX: (parentIds) =>
+      bracketDropX(parentIds) ?? parentIds.reduce((sum, id) => sum + centerOf(id), 0) / parentIds.length,
+    bracketDropX,
+    bracketDepth,
+  };
 }
 
 function coupleWidth(couple: CoupleUnit): number {
@@ -208,8 +350,13 @@ function layeringByGeneration<N extends CoupleData, L>(
 
 const layeringByGenerationOp: Layering<CoupleData, unknown> = layeringByGeneration;
 
-// A person's place along their chain, as a port: doubled, so the midpoint of
-// a marriage between neighbours is a whole number too.
+// A place along a chain in its given order, as a port: a card center is
+// twice its member's index, so the midpoint of a marriage between neighbours
+// is a whole number too.
+function portAt(x: number): number {
+  return (2 * x) / CHAIN_STEP;
+}
+
 function portOf(couple: CoupleUnit, personId: string): number {
   return 2 * couple.members.indexOf(personId);
 }
@@ -221,15 +368,16 @@ function memberOffset(couple: CoupleUnit, sides: readonly string[], personId: st
 }
 
 // Every drawn line between two chains, as (port on the parents' chain, port
-// on the child's chain), keyed by the two chains. A line leaves its parents'
-// marriage midpoint (or a lone parent) and ends at the child's own card.
-// Parents in two different chains are a line from each.
+// on the child's chain), keyed by the two chains. A line leaves the middle of
+// its parents' union line or bracket (or a lone parent) and ends at the
+// child's own card. Parents in two different chains are a line from each.
 function chainLines(
   tree: Tree,
   couples: CoupleUnit[],
   coupleOf: Map<string, string>,
 ): Map<string, Array<[number, number]>> {
   const coupleById = new Map(couples.map((c) => [c.id, c] as const));
+  const geometry = new Map(couples.map((c) => [c.id, chainGeometry(tree, c, c.members)] as const));
   const lines = new Map<string, Array<[number, number]>>();
   for (const child of Object.values(tree.persons)) {
     const childCouple = coupleById.get(coupleOf.get(child.id) ?? "");
@@ -241,9 +389,9 @@ function chainLines(
       parentsByCouple.set(pc, [...(parentsByCouple.get(pc) ?? []), parentId]);
     }
     for (const [pc, parentIds] of parentsByCouple) {
-      const parentCouple = coupleById.get(pc);
-      if (parentCouple === undefined) continue;
-      const port = parentIds.reduce((sum, id) => sum + portOf(parentCouple, id), 0) / parentIds.length;
+      const parentGeometry = geometry.get(pc);
+      if (parentGeometry === undefined) continue;
+      const port = portAt(parentGeometry.dropX(parentIds));
       const key = `${pc}>${childCouple.id}`;
       lines.set(key, [...(lines.get(key) ?? []), [port, portOf(childCouple, child.id)]]);
     }
@@ -320,12 +468,21 @@ function layoutCouplesViaSugiyama(
       return { node: sugiFor(couple.id), offset: memberOffset(couple, sidesOf(couple), personId) };
     };
     const rowOf = (personId: string): number => layerOf.get(coupleOfPerson(personId).id) ?? 0;
+    // Where the line to children leaves their parents: between them, or,
+    // for a couple joined by a bracket, from the middle of its run.
+    const dropAt = (parentIds: readonly string[]): Array<{ node: SugiNode<CoupleData, unknown>; offset: number }> => {
+      const couple = coupleOfPerson(parentIds[0]);
+      const drawn = sidesOf(couple);
+      const dropX = chainGeometry(tree, couple, drawn).bracketDropX(parentIds);
+      if (dropX === null) return parentIds.map(at);
+      return [{ node: sugiFor(couple.id), offset: dropX - ((drawn.length - 1) * CHAIN_STEP) / 2 }];
+    };
 
     // Rows and the gaps between them, in quarters of a row pitch: row L
     // spans [4L, 4L + 2] with its marriage lines at 4L + 1, and the gap below
     // it spans [4L + 2, 4L + 4]. A drop runs from its parents' marriage line
-    // down to its elbow somewhere in the gap; a descent runs from its elbow
-    // down to its child's row.
+    // (or bracket, under the row) down to its elbow somewhere in the gap; a
+    // descent runs from its elbow down to its child's row.
     const pieces: VerticalPiece<CoupleData>[] = [];
     const drops = new Set<string>();
     for (const child of Object.values(tree.persons)) {
@@ -336,7 +493,7 @@ function layoutCouplesViaSugiyama(
       if (childRow <= parentRow) continue;
       if (!drops.has(family)) {
         drops.add(family);
-        pieces.push({ family, at: child.parentIds.map(at), from: 4 * parentRow + 1, to: 4 * parentRow + 4 });
+        pieces.push({ family, at: dropAt(child.parentIds), from: 4 * parentRow + 1, to: 4 * parentRow + 4 });
       }
       pieces.push({ family, at: [at(child.id)], from: 4 * parentRow + 2, to: 4 * childRow });
     }
@@ -516,6 +673,8 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
   const ELBOW_FIRST_OFFSET = 28;
   const ELBOW_SPACING = 32;
   const ELBOW_LAST_MARGIN = 28;
+  // Between a bracket's run and the highest elbow row below it.
+  const BRACKET_CLEARANCE = 16;
 
   const parentSetKey = (ids: readonly string[]): string =>
     [...ids].sort().join("|");
@@ -559,6 +718,22 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
     }
   }
 
+  // Each chain's unions as drawn: where couples drop their children, and how
+  // deep its brackets run under the row.
+  const drawnGeometry = new Map(
+    couples.map((c) => [c.id, chainGeometry(tree, c, spouseSideOrder.get(c.id) ?? c.members)] as const),
+  );
+  const geometryOf = (coupleId: string): ChainGeometry => {
+    const geometry = drawnGeometry.get(coupleId);
+    if (geometry === undefined) throw new Error(`Layout has no couple ${coupleId}`);
+    return geometry;
+  };
+  const bracketDepthByGen = new Map<number, number>();
+  for (const couple of couples) {
+    const depth = geometryOf(couple.id).bracketDepth;
+    bracketDepthByGen.set(couple.generation, Math.max(bracketDepthByGen.get(couple.generation) ?? 0, depth));
+  }
+
   const childrenByParentSet = new Map<string, string[]>();
   for (const person of Object.values(tree.persons)) {
     if (person.parentIds.length === 0) continue;
@@ -571,7 +746,19 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
     arr.push(person.id);
   }
 
+  // A bracketed couple's drop, measured in its chain's geometry from the
+  // center of the chain's leftmost card.
+  const bracketDropX = (ids: readonly string[]): number | null => {
+    const couple = couples.find((c) => c.members.includes(ids[0]));
+    if (couple === undefined) return null;
+    const x = geometryOf(couple.id).bracketDropX(ids);
+    const leftmost = personCenterX.get((spouseSideOrder.get(couple.id) ?? couple.members)[0]);
+    return x === null || leftmost === undefined ? null : leftmost + x;
+  };
+
   const parentMidXFromCenters = (ids: readonly string[]): number => {
+    const bracketDrop = bracketDropX(ids);
+    if (bracketDrop !== null) return bracketDrop;
     if (ids.length === 2) {
       const ax = personCenterX.get(ids[0]);
       const bx = personCenterX.get(ids[1]);
@@ -643,13 +830,17 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
   }
 
   // Row gap only needs to grow when conflicting bars stack — free bars all
-  // sit at the midpoint and don't add rows.
+  // sit at the midpoint and don't add rows — or to keep the elbow rows below
+  // the brackets that run under the row.
   const rowGapAfter = (g: number): number => {
     const nRows = numConflictRowsByGen.get(g) ?? 0;
-    if (nRows <= 1) return ROW_GAP;
+    const bracketDepth = bracketDepthByGen.get(g) ?? 0;
+    const forBrackets =
+      bracketDepth > 0 ? 2 * (bracketDepth + BRACKET_CLEARANCE) + (Math.max(nRows, 1) - 1) * ELBOW_SPACING : 0;
+    if (nRows <= 1) return Math.max(ROW_GAP, forBrackets);
     const required =
       ELBOW_FIRST_OFFSET + (nRows - 1) * ELBOW_SPACING + ELBOW_LAST_MARGIN;
-    return Math.max(ROW_GAP, required);
+    return Math.max(ROW_GAP, required, forBrackets);
   };
 
   if (layered.sortedGens.length > 0) {
@@ -678,16 +869,16 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
         h: NODE_H,
       });
     }
-    // One spouse edge per adjacent pair, in drawing order (left to right).
-    const statuses =
-      sides[0] === couple.members[0] ? couple.statuses : [...couple.statuses].reverse();
-    for (let i = 0; i < sides.length - 1; i++) {
-      layout.edges.push({
-        kind: "spouse",
-        aId: sides[i],
-        bId: sides[i + 1],
-        status: statuses[i],
-      });
+    // One spouse edge per union, left partner first, in drawing order:
+    // by the left partner, then the nearer right partner.
+    const drawnUnions = couple.unions
+      .map((u) => {
+        const [ia, ib] = [sides.indexOf(u.a), sides.indexOf(u.b)];
+        return ia < ib ? { left: ia, right: ib, status: u.status } : { left: ib, right: ia, status: u.status };
+      })
+      .sort((a, b) => a.left - b.left || a.right - b.right);
+    for (const { left, right, status } of drawnUnions) {
+      layout.edges.push({ kind: "spouse", aId: sides[left], bId: sides[right], status });
     }
   }
 
@@ -717,33 +908,10 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
     }
   }
 
-  // Sweep the unions a chain couldn't hold (someone with three or more
-  // partners) and draw each as a line across whatever distance the layout
-  // put between the two people, so the relationship stays visible.
-  const spouseKey = (a: string, b: string): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
-  const emittedSpouseKey = new Set<string>();
-  for (const couple of couples) {
-    for (let i = 0; i < couple.members.length - 1; i++) {
-      emittedSpouseKey.add(spouseKey(couple.members[i], couple.members[i + 1]));
-    }
-  }
-  for (const person of Object.values(tree.persons)) {
-    for (const union of person.unions) {
-      const key = spouseKey(person.id, union.personId);
-      if (emittedSpouseKey.has(key)) continue;
-      emittedSpouseKey.add(key);
-      layout.edges.push({
-        kind: "spouse",
-        aId: person.id,
-        bId: union.personId,
-        status: union.status,
-      });
-    }
-  }
-
-  // One parent-child edge per child. The renderer drops from the midpoint of
-  // the parents' marriage line (or the lone parent's center) down to the
-  // child — so in-laws naturally get their own visible drop into their child.
+  // One parent-child edge per child. The renderer drops from the middle of
+  // the parents' union line or bracket (or the lone parent's center) down to
+  // the child — so in-laws naturally get their own visible drop into their
+  // child.
   for (const person of Object.values(tree.persons)) {
     if (person.parentIds.length === 0) continue;
     const parentGen = gen.get(person.parentIds[0]) ?? 0;
@@ -763,8 +931,9 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
     (max: number, n: LaidOutNode) => Math.max(max, n.x + n.w),
     0,
   );
-  layout.height = layout.nodes.reduce(
-    (max: number, n: LaidOutNode) => Math.max(max, n.y + n.h),
+  // The bottom row's brackets run below its cards.
+  layout.height = couples.reduce(
+    (max, c) => Math.max(max, yFor(c.generation) + NODE_H + geometryOf(c.id).bracketDepth),
     0,
   );
   return layout;
