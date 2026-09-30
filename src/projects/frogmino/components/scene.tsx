@@ -4,18 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import {
-  BackSide,
   BoxGeometry,
-  BufferAttribute,
-  BufferGeometry,
   DataTexture,
   LinearMipmapLinearFilter,
   MathUtils,
   MeshBasicMaterial,
-  MeshToonMaterial,
+  MeshLambertMaterial,
   NearestFilter,
   Object3D,
-  RedFormat,
   RGBAFormat,
   type Color,
   type Group,
@@ -23,8 +19,15 @@ import {
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { cellKey, frogCells, pieceCells, pieceSize } from "../logic";
-import { hullTriangles, outlineHull, type CubeSpot } from "../outline";
-import { hopHeight, nextWall, type Bonk, type Run } from "../run";
+import {
+  FROG_THICKNESS,
+  WALL_THICKNESS,
+  frogShape,
+  hopHeight,
+  nextWall,
+  type Bonk,
+  type Run,
+} from "../run";
 import { useFrogminoStore } from "../store";
 import { TUNING } from "../tuning";
 import type { Cell, Opening } from "../types";
@@ -32,7 +35,8 @@ import type { Cell, Opening } from "../types";
 // World axes: x runs across the corridor (one unit per column), y up (one unit
 // per row), and the walls come at the frog from -z. A rule depth d sits at
 // z = -d: a wall's cubes lie just beyond its depth and the frog's just short
-// of its own, so the two touch when their depths meet.
+// of its own, each as deep as the rules count it, so the two touch when their
+// depths meet and overlap exactly when the rules say they do.
 const { corridorCols, depthStep, wallRows, courseLength, cameraHeight, cameraFollow, cameraLookAhead } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
 
@@ -56,10 +60,6 @@ const ROAD_LINE_THICKNESS = 0.06;
 const CELL_TEXTURE_SIZE = 16;
 const CELL_BORDER_TEXELS = 1;
 const CELL_BORDER_SHADE = 0.4;
-// Toon shading's brightness bands, darkest (facing away from the light) first.
-const TOON_BANDS = [0.35, 0.65, 1];
-// How far the dark outline stands proud of a shape, in units.
-const OUTLINE_WIDTH = 0.05;
 
 // The fit outline is drawn just in front of the next wall's face.
 const FIT_LINE_WIDTH = 0.1;
@@ -74,7 +74,8 @@ const BONK_ARC_HEIGHT = 0.8;
 const BONK_SQUASH = 0.45;
 
 // The hop arc overshoots a sine and is capped at one cell, so the drawn frog
-// spends most of its airtime a full cell up, as the rules count it.
+// rises quickly to a full cell, as the rules count it, and falls the same way
+// once the rules land it.
 const HOP_ARC_OVERSHOOT = 1.3;
 
 interface Palette {
@@ -86,7 +87,6 @@ interface Palette {
   wall: Color;
   frog: Color;
   bonk: Color;
-  outline: Color;
   fitOutline: Color;
 }
 
@@ -100,7 +100,6 @@ function readPalette(): Palette {
     wall: themeColor("--color-brand-orange"),
     frog: themeColor("--color-brand-green"),
     bonk: themeColor("--color-brand-pink"),
-    outline: themeColor("--color-surface-primary"),
     fitOutline: themeColor("--color-text-primary"),
   };
 }
@@ -123,26 +122,14 @@ function cellBorderTexture(): DataTexture {
   return texture;
 }
 
-function toonGradient(): DataTexture {
-  const data = new Uint8Array(TOON_BANDS.map((band) => Math.round(band * 255)));
-  const texture = new DataTexture(data, TOON_BANDS.length, 1, RedFormat);
-  texture.magFilter = NearestFilter;
-  texture.minFilter = NearestFilter;
-  texture.needsUpdate = true;
-  return texture;
-}
-
 function makeAssets(palette: Palette) {
   const cellMap = cellBorderTexture();
-  const gradientMap = toonGradient();
   return {
     cellMap,
-    gradientMap,
     cube: new BoxGeometry(1, 1, 1),
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
-    wallMaterial: new MeshToonMaterial({ color: palette.wall, map: cellMap, gradientMap }),
-    frogMaterial: new MeshToonMaterial({ color: palette.frog, map: cellMap, gradientMap }),
-    hullMaterial: new MeshBasicMaterial({ color: palette.outline, side: BackSide }),
+    wallMaterial: new MeshLambertMaterial({ color: palette.wall, map: cellMap }),
+    frogMaterial: new MeshLambertMaterial({ color: palette.frog, map: cellMap }),
     fitMaterial: new MeshBasicMaterial({ color: palette.fitOutline }),
   };
 }
@@ -192,40 +179,43 @@ function Floor({ palette }: { palette: Palette }) {
   );
 }
 
-function hullGeometry(spots: readonly CubeSpot[]): BufferGeometry {
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(hullTriangles(outlineHull(spots, OUTLINE_WIDTH)), 3));
-  return geometry;
+// The middle of one cube's face on the wall face; its depth is its block's.
+interface CubeSpot {
+  x: number;
+  y: number;
 }
 
-// Touching cubes drawn as one instanced mesh, with the shape's outline hull.
-function CellBlock({ spots, material, assets }: { spots: readonly CubeSpot[]; material: MeshToonMaterial; assets: Assets }) {
+// Touching cubes, `thickness` deep, drawn as one instanced mesh from depth 0
+// along `direction`: back toward the start (-1) for the frog, which fills
+// from its front face backward, or on along the course (+1) for a wall.
+function CellBlock({
+  spots,
+  thickness,
+  direction,
+  material,
+  assets,
+}: {
+  spots: readonly CubeSpot[];
+  thickness: number;
+  direction: 1 | -1;
+  material: MeshLambertMaterial;
+  assets: Assets;
+}) {
   const cubesRef = useRef<InstancedMesh>(null);
-  const hull = useMemo(() => hullGeometry(spots), [spots]);
-  useEffect(
-    () => () => {
-      hull.dispose();
-    },
-    [hull],
-  );
   useLayoutEffect(() => {
     const mesh = cubesRef.current;
     if (mesh === null) return;
     const placer = new Object3D();
+    placer.scale.set(1, 1, thickness);
     spots.forEach((spot, i) => {
-      placer.position.set(spot.x, spot.y, spot.z);
+      placer.position.set(spot.x, spot.y, (-direction * thickness) / 2);
       placer.updateMatrix();
       mesh.setMatrixAt(i, placer.matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [spots]);
-  return (
-    <>
-      <instancedMesh ref={cubesRef} args={[assets.cube, material, spots.length]} />
-      <mesh geometry={hull} material={assets.hullMaterial} />
-    </>
-  );
+  }, [spots, thickness, direction]);
+  return <instancedMesh ref={cubesRef} args={[assets.cube, material, spots.length]} />;
 }
 
 function wallSpots(opening: Opening): CubeSpot[] {
@@ -233,7 +223,7 @@ function wallSpots(opening: Opening): CubeSpot[] {
   const spots: CubeSpot[] = [];
   for (let col = 0; col < corridorCols; col++) {
     for (let row = 0; row < wallRows; row++) {
-      if (!open.has(cellKey({ col, row }))) spots.push({ x: col, y: row + 0.5, z: -0.5 });
+      if (!open.has(cellKey({ col, row }))) spots.push({ x: col, y: row + 0.5 });
     }
   }
   return spots;
@@ -277,12 +267,31 @@ function frogTarget(run: Run): { x: number; y: number; depth: number } {
   return { x: col + (width - 1) / 2, y: 0.5 + (height - 1) / 2, depth };
 }
 
-function hopLift(run: Run): number {
-  const start = run.frog.hopStartedAt;
-  if (start === null) return 0;
-  const progress = (run.time - start) / run.tuning.hopAirtime;
-  if (progress < 0 || progress >= 1) return 0;
+// The rising half of the hop arc, `seconds` into it.
+function hopArc(seconds: number, airtime: number): number {
+  const progress = MathUtils.clamp(seconds / airtime, 0, 0.5);
   return Math.min(1, HOP_ARC_OVERSHOOT * Math.sin(Math.PI * progress));
+}
+
+// How long the arc takes to reach a full cell.
+function hopRiseTime(airtime: number): number {
+  return (airtime * Math.asin(1 / HOP_ARC_OVERSHOOT)) / Math.PI;
+}
+
+// The drawn frog rises along the arc while the rules have it up, and falls
+// back along it once they land it. Each only ever moves the drawn frog one
+// way, so it carries on smoothly from wherever it was left.
+function hopLift(run: Run, drawnLift: number): number {
+  const hop = run.frog.latestHop;
+  if (hop === null) return 0;
+  const airtime = run.tuning.hopAirtime;
+  if (hop.landedAt === null) return Math.max(drawnLift, hopArc(run.time - hop.startedAt, airtime));
+  return Math.min(drawnLift, hopArc(hopRiseTime(airtime) - (run.time - hop.landedAt), airtime));
+}
+
+// Whether any wall's cubes overlap the drawn frog's.
+function overlapsDrawnFrog(run: Run, frogDepth: number): boolean {
+  return run.walls.some((wall) => wall.depth < frogDepth && wall.depth + WALL_THICKNESS > frogDepth - FROG_THICKNESS);
 }
 
 interface BonkMotion {
@@ -318,6 +327,7 @@ interface DrawnFrog {
   // Quarter turns drawn so far, unwrapped so a turn always eases the short way.
   turns: number;
   rotation: number;
+  lift: number;
   // The latest bonk seen, and the knock-back it is drawing.
   bonk: Bonk | null;
   bonkMotion: BonkMotion | null;
@@ -331,6 +341,7 @@ function snapped(run: Run): DrawnFrog {
     angle: -turns * (Math.PI / 2),
     turns,
     rotation: run.frog.rotation,
+    lift: hopHeight(run.frog),
     bonk: run.lastBonk,
     bonkMotion: null,
   };
@@ -356,7 +367,7 @@ function Game({ palette }: { palette: Palette }) {
   // turns in place.
   const frogSpots = useMemo(() => {
     const { width, height } = pieceSize(kind, 0);
-    return pieceCells(kind, 0).map((c) => ({ x: c.col - (width - 1) / 2, y: c.row - (height - 1) / 2, z: 0.5 }));
+    return pieceCells(kind, 0).map((c) => ({ x: c.col - (width - 1) / 2, y: c.row - (height - 1) / 2 }));
   }, [kind]);
   const wallSpotLists = useMemo(() => course.map((wall) => wallSpots(wall.opening)), [course]);
 
@@ -399,9 +410,23 @@ function Game({ palette }: { palette: Palette }) {
     const bonkLift = pose === null ? 0 : pose.lift;
     const squash = pose === null ? 0 : pose.squash;
 
+    // Eased moves could cut through a wall's cubes (a turn swings the piece
+    // through cells outside both of its poses), and a move made just before a
+    // wall arrives may not have finished easing. So while a wall overlaps the
+    // drawn frog, it is drawn exactly as the rules have it, and the rules keep
+    // that inside the wall's opening.
+    if (overlapsDrawnFrog(run, d.depth)) {
+      d.x = target.x;
+      d.y = target.y;
+      d.angle = -d.turns * (Math.PI / 2);
+      d.lift = hopHeight(run.frog);
+    } else {
+      d.lift = hopLift(run, d.lift);
+    }
+
     const frog = frogRef.current;
     if (frog !== null) {
-      frog.position.set(d.x, d.y + hopLift(run) + bonkLift, -d.depth);
+      frog.position.set(d.x, d.y + d.lift + bonkLift, -d.depth);
       frog.rotation.z = d.angle;
       // Flattened along the course against the wall, bulging a little across.
       frog.scale.set(1 + squash / 2, 1 + squash / 2, 1 - squash);
@@ -423,7 +448,7 @@ function Game({ palette }: { palette: Palette }) {
     fit.visible = next !== null;
     if (next === null) return;
     fit.position.z = -run.walls[next].depth + FIT_OUTLINE_LIFT;
-    const cells = frogCells({ ...run.frog, hop: hopHeight(run, run.time) });
+    const cells = frogCells(frogShape(run.frog));
     const shape = cells.map(cellKey).join(";");
     if (shape !== fitShape.current) {
       fitShape.current = shape;
@@ -434,7 +459,13 @@ function Game({ palette }: { palette: Palette }) {
   return (
     <>
       <group ref={frogRef}>
-        <CellBlock spots={frogSpots} material={assets.frogMaterial} assets={assets} />
+        <CellBlock
+          spots={frogSpots}
+          thickness={FROG_THICKNESS}
+          direction={-1}
+          material={assets.frogMaterial}
+          assets={assets}
+        />
       </group>
       {wallSpotLists.map((spots, i) => (
         <group
@@ -443,7 +474,13 @@ function Game({ palette }: { palette: Palette }) {
             wallRefs.current[i] = group;
           }}
         >
-          <CellBlock spots={spots} material={assets.wallMaterial} assets={assets} />
+          <CellBlock
+            spots={spots}
+            thickness={WALL_THICKNESS}
+            direction={1}
+            material={assets.wallMaterial}
+            assets={assets}
+          />
         </group>
       ))}
       <instancedMesh ref={fitRef} args={[assets.fitEdge, assets.fitMaterial, MAX_PERIMETER]} frustumCulled={false} />
