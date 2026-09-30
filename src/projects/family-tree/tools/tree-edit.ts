@@ -51,7 +51,9 @@ import {
   eraYears,
   isVerified,
   type SymbolEra,
+  type SymbolId,
 } from "../symbol-timelines";
+import { SYMBOL_ART } from "../symbol-art";
 
 // Also the list of name fields a change file may set: a new NameFields key
 // fails typecheck here until it gets a default, and from then on flows
@@ -531,8 +533,9 @@ function describeEra(era: SymbolEra, regional: boolean): string {
   return `    ${eraYears(era).padEnd(12)} ${era.name}: ${era.symbol} (${SYMBOLS[era.symbol].name})${region}, ${verified}`;
 }
 
-// Every listed people with its regions and the symbol timelines of each, and
-// how many eras research has yet to verify.
+// Every listed people with its regions and the symbol timelines of each, how
+// many eras research has yet to verify, and which symbols have no verified
+// art.
 export function describePeoples(): string {
   const lines: string[] = [];
   let unverified = 0;
@@ -552,6 +555,8 @@ export function describePeoples(): string {
     }
   }
   lines.push("", `Eras still to verify with sources: ${unverified}`);
+  const withoutArt = (Object.keys(SYMBOLS) as SymbolId[]).filter((symbol) => SYMBOL_ART[symbol] === undefined);
+  lines.push(`Symbols without verified art: ${withoutArt.length}`, ...withoutArt.map((symbol) => `  ${symbol}`));
   return lines.join("\n");
 }
 

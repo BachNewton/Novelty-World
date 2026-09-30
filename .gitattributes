@@ -3,3 +3,8 @@
 # line-ending churn when something writes CRLF on Windows. Binary files are
 # auto-detected and left untouched.
 * text=auto eol=lf
+
+# Heritage symbol art is stored byte for byte as its source published it, and
+# its record holds the source file's SHA-1, so line endings must never be
+# normalized.
+src/projects/family-tree/symbol-art/** -text

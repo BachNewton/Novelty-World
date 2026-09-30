@@ -10,7 +10,8 @@ import {
   setOrigin,
   setResearch,
 } from "../logic";
-import { PEOPLE_TIMELINES, REGION_TIMELINES } from "../symbol-timelines";
+import { PEOPLE_TIMELINES, REGION_TIMELINES, SYMBOLS } from "../symbol-timelines";
+import { SYMBOL_ART } from "../symbol-art";
 import type { NameFields, ResearchRecord, Tree } from "../types";
 import {
   applyOps,
@@ -605,6 +606,13 @@ describe("peoples", () => {
     expect(text).toMatch(/before 1861 +Italy before unification: italy-tricolour \(.*\), regional, UNVERIFIED/);
     const eras = [...Object.values(PEOPLE_TIMELINES), ...Object.values(REGION_TIMELINES)].flat().length;
     expect(text).toContain(`Eras still to verify with sources: ${eras}`);
+  });
+
+  it("lists the symbols without verified art", () => {
+    const text = describePeoples();
+    const withoutArt = Object.keys(SYMBOLS).filter((symbol) => !Object.hasOwn(SYMBOL_ART, symbol));
+    expect(text).toContain(`Symbols without verified art: ${withoutArt.length}\n  ${withoutArt[0]}\n`);
+    expect(text).not.toMatch(/^  finland-flag$/m);
   });
 });
 

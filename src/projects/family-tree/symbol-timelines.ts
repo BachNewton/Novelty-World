@@ -17,10 +17,8 @@ import {
   type RegionSlug,
 } from "./heritages";
 
-// A symbol a people or region used for itself. Its art (historical flags
-// and arms from Wikimedia Commons, stored in the repo with their source and
-// license) is a later step; until then a symbol is an id and a name research
-// can find it by.
+// A symbol a people or region used for itself: an id and a name research
+// can find it by. Its verified art, when it has some, is in symbol-art.ts.
 export const SYMBOLS = {
   "finland-lion-arms": { name: "Coat of arms of Finland (the crowned lion)" },
   "finland-flag": { name: "Flag of Finland (the blue cross)" },
