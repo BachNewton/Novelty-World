@@ -255,7 +255,13 @@ design doc's unverified proposal. An era is **verified** when its sources
 history of the flag) settle three things: the years it covers, the symbol,
 and that the symbol was the people's own rather than a regime's imposed on
 it. Change the years, the symbol or the era's name to what the sources
-show, split an era where the sources do, and list the sources on it. A
+show, split an era where the sources do, and list the sources on it.
+Record the era's art source too: an official published design, or a
+faithful file (a Wikimedia Commons one) checked against the official
+specification or the historical record, with what it was checked against.
+Never draw or approximate art ourselves; an era with no verified art isn't
+shown until it has some (see "Symbols" in
+`src/projects/family-tree/ideas/heritage-through-time.md`). A
 disputed era (a mandate-era flag that was a regime's) stays unverified with
 the question in the research log until it is settled.
 
