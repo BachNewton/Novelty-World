@@ -1,3 +1,4 @@
+import type { PullOffStretch } from "../pull-off";
 import { TUNING } from "../tuning";
 import type { WorldPaint } from "./paints";
 
@@ -26,15 +27,6 @@ export const NEAR_HEIGHT_LIMIT = 0.7;
 export const TALL_OFFSET = 5;
 
 export type Side = "left" | "right";
-
-// What the world needs to know of a pull-off: which side, the stretch it
-// spans along the course, and how many lanes wide it is.
-export interface PullOffStretch {
-  side: Side;
-  near: number;
-  far: number;
-  width: number;
-}
 
 // Decorations keep this far clear of a pull-off: along the course, beyond
 // its barriers, and across, beyond its outer edge.

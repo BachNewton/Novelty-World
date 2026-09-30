@@ -20,8 +20,13 @@ function freshRun(): Run {
   return createRun(COURSE.rows, TUNING, COURSE_SEED, { kind: COURSE.start, pullOffs: COURSE.pullOffs });
 }
 
+// Which of the course's rows each wall of the traffic is: the same for every
+// run, since a run lines its traffic up from the course alone.
+const TRAFFIC = freshRun().walls.map((wall) => wall.row);
+
 interface FrogminoStore {
   course: Course;
+  traffic: readonly number[];
   run: Run;
   // Bumped on every restart, so the drawing knows to snap rather than ease.
   runId: number;
@@ -35,6 +40,7 @@ interface FrogminoStore {
 
 export const useFrogminoStore = create<FrogminoStore>()((set) => ({
   course: COURSE,
+  traffic: TRAFFIC,
   run: freshRun(),
   runId: 0,
   act: (action) => set((s) => ({ run: applyAction(s.run, action) })),

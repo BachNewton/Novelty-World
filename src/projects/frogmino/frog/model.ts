@@ -1,3 +1,4 @@
+import { GROUND_CLEARANCE } from "../clearance";
 import { cellKey, pieceCells, pieceSize } from "../logic";
 import { FROG_THICKNESS } from "../run";
 import type { Cell, Rotation, TetrominoKind } from "../types";
@@ -16,11 +17,6 @@ import type { FrogRole, Markings, Pupil } from "./look";
 // row, on the road. Seen head-on, every cell is a full square and nothing
 // reaches into an empty cell: the eyes bulge up from a dip in the back of the
 // head, never above it (see the frog in CLAUDE.md).
-
-// How far the frog's visuals are lifted off the road so its legs fit
-// beneath. The rules don't see it; the integration lifts the traffic by the
-// same amount.
-export const DEFAULT_CLEARANCE = 0.25;
 
 // The head's snout: a full-height ridge across the front of the top row,
 // which keeps each head cell a full square seen head-on.
@@ -189,7 +185,7 @@ function legs(from: number, to: number, clearance: number): FrogLeg[] {
 }
 
 export function frogModel(kind: TetrominoKind, rotation: Rotation, options: FrogModelOptions): FrogModel {
-  const { markings, pupil, clearance = DEFAULT_CLEARANCE, depth = FROG_THICKNESS } = options;
+  const { markings, pupil, clearance = GROUND_CLEARANCE, depth = FROG_THICKNESS } = options;
   const cells = pieceCells(kind, rotation);
   const { width, height } = pieceSize(kind, rotation);
   const filled = new Set(cells.map(cellKey));

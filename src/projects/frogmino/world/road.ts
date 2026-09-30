@@ -14,10 +14,10 @@ import {
   roadArea,
   sideX,
   type Area,
-  type PullOffStretch,
   type Side,
   type WorldBox,
 } from "./geometry";
+import type { PullOffStretch } from "../pull-off";
 import { RAIL_SEGMENT, propBoxes, type Prop, type PropKind } from "./props";
 import { FINISH_LINE, finishMarkings, finishZone, gantryBoxes, mark, overpassBoxes, structureKeepOuts } from "./structures";
 import type { WorldPaint } from "./paints";

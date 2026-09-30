@@ -2,8 +2,8 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { findRow, type Difficulty, type Face, type RowPieces } from "./composer";
 import { firstFit, pieceSize, TETROMINOES } from "./logic";
 import { BARRIER_DEPTH, pullOffLanes, type PullOff, type Side } from "./pull-off";
-import type { Row } from "./traffic";
-import type { Frog, Opening, TetrominoKind } from "./types";
+import { rowBack, rowSolids, type Row } from "./traffic";
+import type { Frog, Opening, Solid, TetrominoKind } from "./types";
 import type { Tuning } from "./tuning";
 
 export const COURSE_SEED = 20260930;
@@ -22,15 +22,17 @@ export const COURSE_DIFFICULTIES: readonly Difficulty[] = [
   ...Array<Difficulty>(5).fill("hard"),
 ];
 
-// What the run rules need of a row: the cells the frog may pass through, and
-// where the row starts before it begins moving toward the start zone.
+// What the run rules need of a row: its vehicles' cells and lengths, and
+// where its front starts before it begins moving toward the start.
 export interface CourseWall {
-  opening: Opening;
+  solids: readonly Solid[];
   depth: number;
 }
 
 export interface CourseRow extends CourseWall {
   vehicles: Row;
+  // The cells no vehicle fills, which the frog passes through.
+  opening: Opening;
   difficulty: Difficulty;
   // The pieces it lets through, and those it must not.
   pieces: RowPieces;
@@ -58,7 +60,7 @@ export interface Course {
 
 const KINDS = Object.keys(TETROMINOES) as TetrominoKind[];
 
-// How far the seed shifts a row from even spacing, either way.
+// How far the seed shifts a gap between rows from the spacing, either way.
 export function wallShift(tuning: Tuning, random: () => number): number {
   return (random() * 2 - 1) * tuning.wallJitter;
 }
@@ -84,13 +86,23 @@ interface Stretch {
   after: Frog[];
 }
 
-// The rows from `from` up to `to`, all for the same pieces. Null if the
-// vehicles can't build one of them for those pieces.
+// Where the row after `row` starts: the spacing, shifted by the seed, beyond
+// its back, so the time to read the next row doesn't depend on how long this
+// one's vehicles are.
+function frontAfter(row: CourseWall, shift: number, tuning: Tuning): number {
+  return rowBack(row) + tuning.wallSpacing + shift;
+}
+
+// The rows from `from` up to `to`, all for the same pieces, the first with
+// its front at `front`. Null if the vehicles can't build one of them for
+// those pieces.
 function composeStretch(
   from: number,
   to: number,
   pieces: RowPieces,
-  depths: readonly number[],
+  front: number,
+  shifts: readonly number[],
+  tuning: Tuning,
   face: Face,
   before: readonly Frog[],
   random: () => number,
@@ -101,7 +113,17 @@ function composeStretch(
     const difficulty = COURSE_DIFFICULTIES[i];
     const row = findRow(pieces, difficulty, face, after, random);
     if (row === null) return null;
-    rows.push({ vehicles: row.vehicles, opening: row.opening, difficulty, pieces, answers: row.answers, depth: depths[i] });
+    const previous = rows.at(-1);
+    const depth = previous === undefined ? front : frontAfter(previous, shifts[i], tuning);
+    rows.push({
+      vehicles: row.vehicles,
+      solids: rowSolids(row.vehicles),
+      opening: row.opening,
+      difficulty,
+      pieces,
+      answers: row.answers,
+      depth,
+    });
     after = row.fits;
   }
   return { rows, after };
@@ -125,7 +147,8 @@ function checkPullOff(pullOff: CoursePullOff, before: CoursePullOff | undefined,
 }
 
 // A course of traffic rows and pull-offs from a seed: always the same for the
-// same seed, every row passable, spread along the course.
+// same seed, every row passable, each row the spacing beyond the back of the
+// one before.
 //
 // Rows are composed for the pieces the frog could be holding when it meets
 // them, tracked through the course. Before the first pull-off that is the
@@ -141,7 +164,7 @@ function checkPullOff(pullOff: CoursePullOff, before: CoursePullOff | undefined,
 export function generateCourse(seed: number, tuning: Tuning, start: TetrominoKind = "L"): Course {
   const random = createRng(seed).next;
   const face: Face = { cols: tuning.corridorCols, rows: tuning.wallRows };
-  const depths = COURSE_DIFFICULTIES.map((_, i) => tuning.firstWallDepth + i * tuning.wallSpacing + wallShift(tuning, random));
+  const shifts = COURSE_DIFFICULTIES.map(() => wallShift(tuning, random));
   const sides = PULL_OFF_ROWS.map((): Side => (random() < 0.5 ? "left" : "right"));
 
   // Where each stretch of rows begins and ends: before the first pull-off,
@@ -150,7 +173,7 @@ export function generateCourse(seed: number, tuning: Tuning, start: TetrominoKin
 
   // Where the frog stands before the first row: where it starts.
   const startPose: Frog = { kind: start, col: Math.floor((face.cols - pieceSize(start, 0).width) / 2), rotation: 0, hop: 0 };
-  const first = composeStretch(0, bounds[1], { pass: [start], refuse: [] }, depths, face, [startPose], random);
+  const first = composeStretch(0, bounds[1], { pass: [start], refuse: [] }, tuning.firstWallDepth + shifts[0], shifts, tuning, face, [startPose], random);
   if (first === null) throw new Error(`No first stretch of rows for a ${start}`);
   const rows = [...first.rows];
   let before = first.after;
@@ -160,11 +183,13 @@ export function generateCourse(seed: number, tuning: Tuning, start: TetrominoKin
   PULL_OFF_ROWS.forEach((firstRow, k) => {
     const forced = holding.length > 1;
     const offers = holding.includes(start) ? shuffled(KINDS.filter((kind) => !holding.includes(kind)), random) : [start];
+    const last = rows[firstRow - 1];
+    const front = frontAfter(last, shifts[firstRow], tuning);
     for (const waiting of offers) {
       const pieces: RowPieces = forced ? { pass: [waiting], refuse: holding } : { pass: [...holding, waiting], refuse: [] };
-      const stretch = composeStretch(firstRow, bounds[k + 2], pieces, depths, face, before, random);
+      const stretch = composeStretch(firstRow, bounds[k + 2], pieces, front, shifts, tuning, face, before, random);
       if (stretch === null) continue;
-      const centre = meetingDepth((depths[firstRow - 1] + depths[firstRow]) / 2, tuning);
+      const centre = meetingDepth((last.depth + front) / 2, tuning);
       const pullOff: CoursePullOff = {
         side: sides[k],
         near: centre - tuning.pullOffLength / 2,

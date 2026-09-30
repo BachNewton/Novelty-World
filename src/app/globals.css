@@ -102,39 +102,10 @@
   --color-frogmino-snow: #fafafa;
 }
 
-/* Frogmino: placeholder traffic colours, one flat colour per vehicle id, used
-   until the fleet's art draws the traffic in play. Mid-bright so each reads
-   on a dark or a light road, all distinct from each other and from the frog's
-   brand green, and deliberately off Tetris's piece colours (no cyan I, yellow
-   O, purple T, green S, red Z, blue J or orange L). Read only by the 3D scene
-   through themeColor, so declared outside @theme. */
-:root {
-  --color-frogmino-placeholder-i0: #ffe66d;
-  --color-frogmino-placeholder-i1: #b5485e;
-  --color-frogmino-placeholder-o0: #f06fb1;
-  --color-frogmino-placeholder-s0: #3b9ae1;
-  --color-frogmino-placeholder-s1: #f7b538;
-  --color-frogmino-placeholder-z0: #3fc1a5;
-  --color-frogmino-placeholder-z1: #9d6ee8;
-  --color-frogmino-placeholder-t0: #e84a5f;
-  --color-frogmino-placeholder-t1: #a3d65c;
-  --color-frogmino-placeholder-t2: #7ee0e6;
-  --color-frogmino-placeholder-t3: #c78b4a;
-  --color-frogmino-placeholder-j0: #ff9e7a;
-  --color-frogmino-placeholder-j1: #8a3f7a;
-  --color-frogmino-placeholder-j2: #d17de8;
-  --color-frogmino-placeholder-j3: #8f9e3a;
-  --color-frogmino-placeholder-l0: #6c7ee8;
-  --color-frogmino-placeholder-l1: #5d8aa8;
-  --color-frogmino-placeholder-l2: #e2c290;
-  --color-frogmino-placeholder-l3: #d8b4fe;
-}
-
 /* Frogmino: the pull-offs beside the road. The ground is packed gravel, warm
-   and a clear step apart from the road and the start and end zones; the
-   barriers and the marker are road-works bright, to be seen from far down
-   the road. Read only by the 3D scene through themeColor, so declared
-   outside @theme. */
+   and a clear step apart from the road; the barriers and the marker are
+   road-works bright, to be seen from far down the road. Read only by the 3D
+   scene through themeColor, so declared outside @theme. */
 :root {
   --color-frogmino-pull-off-ground: #8a7a62;
   --color-frogmino-pull-off-barrier: #ff8a1f;
@@ -163,6 +134,15 @@
   --color-frogmino-frog-unclaimed-foot: #cdbfad;
   --color-frogmino-frog-eye: #fbf8ee;
   --color-frogmino-frog-pupil: #1c1d26;
+}
+
+/* Frogmino: the frog's silhouette, drawn flat and unlit wherever a vehicle,
+   the overpass or the finish gantry hides the frog from the camera, so the
+   player never loses it. A bright, light green, a step off the skin, reads
+   as the frog through any paint. Read only by the 3D scene through
+   themeColor, so declared outside @theme. */
+:root {
+  --color-frogmino-frog-silhouette: #b4f59a;
 }
 
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft

@@ -5,12 +5,12 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, PerspectiveCamera, View } from "@react-three/drei";
 import type { Color, Group, PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
+import { GROUND_CLEARANCE } from "../../clearance";
 import { pieceSize } from "../../logic";
 import { FROG_THICKNESS } from "../../run";
 import { TUNING } from "../../tuning";
 import type { Rotation, TetrominoKind } from "../../types";
 import { FROG_LOOKS, FROG_VARIANTS, type FrogVariant } from "../../frog/look";
-import { DEFAULT_CLEARANCE } from "../../frog/model";
 import { FrogBody, type FrogHandle } from "./frog-body";
 import { makeFrogAssets, type FrogAssets } from "./frog-assets";
 
@@ -129,7 +129,7 @@ function PreviewFrog({ frog, cue, assets }: { frog: Placed; cue: Cue; assets: Fr
 // against the traffic, with its rows lifted by the clearance, and the road
 // below it.
 function Stage({ lanes, palette, children }: { lanes: number; palette: Palette; children: ReactNode }) {
-  const c = DEFAULT_CLEARANCE;
+  const c = GROUND_CLEARANCE;
   const across = Array.from({ length: lanes + 1 }, (_, k) => k);
   const up = Array.from({ length: GRID_ROWS + 1 }, (_, k) => k);
   const middle = (lanes - 1) / 2;
@@ -170,7 +170,7 @@ function Stage({ lanes, palette, children }: { lanes: number; palette: Palette; 
 function StageCamera({ lanes, angle }: { lanes: number; angle: Angle }) {
   const size = useThree((s) => s.size);
   const camera = useRef<PerspectiveCameraImpl>(null);
-  const target: [number, number, number] = [(lanes - 1) / 2, DEFAULT_CLEARANCE + GRID_ROWS / 2, FROG_THICKNESS / 2];
+  const target: [number, number, number] = [(lanes - 1) / 2, GROUND_CLEARANCE + GRID_ROWS / 2, FROG_THICKNESS / 2];
   const radius = Math.max(lanes, GRID_ROWS) / 2 + 0.4;
   const distance = radius / Math.sin((GAMEPLAY_FOV / 2) * DEGREES);
   const along = Math.hypot(...GAMEPLAY_VIEW);
@@ -185,7 +185,7 @@ function StageCamera({ lanes, angle }: { lanes: number; angle: Angle }) {
     return (
       <OrthographicCamera
         makeDefault
-        position={[target[0], (DEFAULT_CLEARANCE + GRID_ROWS) / 2, 10]}
+        position={[target[0], (GROUND_CLEARANCE + GRID_ROWS) / 2, 10]}
         zoom={zoom}
         near={0.1}
         far={40}
@@ -250,9 +250,9 @@ function Turntable({ pose, variant, cue, assets, palette }: { pose: Pose; varian
   const { width, height } = pieceSize(pose.kind, pose.rotation);
   const spin = useRef<Group>(null);
   const camera = useRef<PerspectiveCameraImpl>(null);
-  const middleY = DEFAULT_CLEARANCE + height / 2;
+  const middleY = GROUND_CLEARANCE + height / 2;
   // Far enough back that the frog, hopping a cell, always fits as it turns.
-  const radius = Math.hypot(width + 0.6, height + 1 + DEFAULT_CLEARANCE, FROG_THICKNESS + 0.6) / 2 + 0.6;
+  const radius = Math.hypot(width + 0.6, height + 1 + GROUND_CLEARANCE, FROG_THICKNESS + 0.6) / 2 + 0.6;
   const distance = radius / Math.sin((TURNTABLE_FOV / 2) * DEGREES);
   const along = Math.hypot(...TURNTABLE_VIEW);
   const position = TURNTABLE_VIEW.map((axis, i) => (i === 1 ? middleY : 0) + (axis / along) * distance) as [

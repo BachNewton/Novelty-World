@@ -28,7 +28,7 @@ async function swipe(page: Page, x: number, fromY: number, toY: number): Promise
   await cdp.detach();
 }
 
-test("a swipe up hops and a tap in the centre jumps forward", async ({ page }) => {
+test("a tap in the centre drops the frog from the overpass, and then a swipe up hops", async ({ page }) => {
   await page.goto(SOLO);
   const layer = page.getByTestId("frogmino-touch");
   await expect(layer).toBeVisible({ timeout: 30_000 });
@@ -37,12 +37,12 @@ test("a swipe up hops and a tap in the centre jumps forward", async ({ page }) =
   const centreX = box.x + box.width / 2;
   const centreY = box.y + box.height / 2;
 
+  // The frog starts on the overpass, where a hop does nothing.
+  await expect(layer).toHaveAttribute("data-frog-depth", "0");
+  await page.touchscreen.tap(centreX, centreY);
+  await expect(layer).not.toHaveAttribute("data-frog-depth", "0");
+
   await expect(layer).toHaveAttribute("data-hopped-at", "");
   await swipe(page, centreX, centreY + 40, centreY - 60);
   await expect(layer).toHaveAttribute("data-hopped-at", /\d/);
-
-  const startDepth = await layer.getAttribute("data-frog-depth");
-  if (startDepth === null) throw new Error("The touch layer has no frog depth");
-  await page.touchscreen.tap(centreX, centreY);
-  await expect(layer).not.toHaveAttribute("data-frog-depth", startDepth);
 });

@@ -1,3 +1,4 @@
+import { GROUND_CLEARANCE } from "../clearance";
 import { TUNING } from "../tuning";
 import {
   GROUND_DROP,
@@ -14,17 +15,16 @@ import type { WorldPaint } from "./paints";
 
 // The two structures spanning the road: the overpass the frog starts on, and
 // the finish gantry it ends on. Both are decks the frog can stand on, high
-// enough that the tallest vehicle, lifted off the road by its planned ground
+// enough that the tallest vehicle, lifted off the road by the ground
 // clearance, drives clearly underneath, on pillars that stay outside the
 // traffic lanes and the verges.
 
 export const DECK_TOP = 5;
 const DECK_THICKNESS = 0.45;
 export const DECK_UNDERSIDE = DECK_TOP - DECK_THICKNESS;
-// How far the vehicles are planned to ride above the road.
-export const PLANNED_VEHICLE_LIFT = 0.25;
-// The tallest vehicle, lifted, and the least room left above it.
-export const VEHICLE_TOP = TUNING.wallRows + PLANNED_VEHICLE_LIFT;
+// The tallest vehicle, lifted by the ground clearance, and the least room
+// left above it.
+export const VEHICLE_TOP = TUNING.wallRows + GROUND_CLEARANCE;
 export const HEADROOM = 0.25;
 
 // Each deck spans a stretch of the course this long.

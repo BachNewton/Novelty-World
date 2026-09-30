@@ -1,4 +1,4 @@
-import { isDone, type Run } from "../run";
+import { crossedFinish, type Run } from "../run";
 import { passStreakSemitones, type SoundId } from "./sounds";
 
 // Turns what changed in the game's state into sounds, so the rules never know
@@ -21,21 +21,19 @@ export interface Heard {
   streak: number;
 }
 
-function newlyPassed(before: Run, after: Run): number {
-  return after.walls.filter((wall, i) => wall.passed && !before.walls[i].passed).length;
-}
-
 // The sounds between two moments of the game. A restart is silent and starts
 // the streak over. Each pass of a row sounds once (a row the traffic brings
-// round again is a new pass), each bonk once, a hop as it starts, a change of
-// piece (only a pull-off swap changes it) and reaching the end.
+// round again is a new pass, and one going by beneath the frog on the
+// overpass or the gantry is no pass), each bonk once, a hop as it starts, the
+// drop from the overpass, a change of piece (only a pull-off swap changes it)
+// and crossing the finish line.
 export function soundCues(before: GameMoment, after: GameMoment, streak: number): Heard {
   if (after.runId !== before.runId) return { cues: [], streak: 0 };
   const was = before.run;
   const now = after.run;
   const cues: SoundCue[] = [];
   let next = streak;
-  for (let i = newlyPassed(was, now); i > 0; i--) {
+  for (let i = now.passes - was.passes; i > 0; i--) {
     cues.push({ sound: "pass", semitones: passStreakSemitones(next) });
     next++;
   }
@@ -45,7 +43,8 @@ export function soundCues(before: GameMoment, after: GameMoment, streak: number)
   }
   const hop = now.frog.latestHop;
   if (hop !== null && hop.startedAt !== was.frog.latestHop?.startedAt) cues.push({ sound: "hop" });
+  if (now.droppedAt !== null && was.droppedAt === null) cues.push({ sound: "drop" });
   if (now.frog.kind !== was.frog.kind) cues.push({ sound: "swap" });
-  if (isDone(now) && !isDone(was)) cues.push({ sound: "finish" });
+  if (crossedFinish(now) && !crossedFinish(was)) cues.push({ sound: "finish" });
   return { cues, streak: next };
 }

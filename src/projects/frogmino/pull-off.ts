@@ -7,13 +7,17 @@ import type { Lanes, TetrominoKind } from "./types";
 
 export type Side = "left" | "right";
 
-export interface PullOff {
+// Where a pull-off is: all the world around the road needs of it.
+export interface PullOffStretch {
   side: Side;
   // The stretch it spans along the course, between its barriers' inner faces.
   near: number;
   far: number;
   // How many lanes wide it is.
   width: number;
+}
+
+export interface PullOff extends PullOffStretch {
   waiting: TetrominoKind;
 }
 

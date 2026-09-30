@@ -4,7 +4,8 @@ import { COURSE_DIFFICULTIES, COURSE_SEED, PULL_OFF_ROWS, generateCourse, type C
 import { VEHICLE_IDS } from "./fleet";
 import { firstFit } from "./logic";
 import { BARRIER_DEPTH, pullOffLanes } from "./pull-off";
-import { lanesOf, rowOpening } from "./traffic";
+import { VEHICLE_LENGTHS } from "./fleet";
+import { lanesOf, rowBack, rowOpening, rowSolids } from "./traffic";
 import { TUNING } from "./tuning";
 import type { TetrominoKind } from "./types";
 
@@ -51,6 +52,8 @@ describe("generateCourse", () => {
       expect(new Set(lanes).size).toBe(lanes.length);
       for (const v of row.vehicles) expect(VEHICLE_IDS).toContain(v.id);
       expect(row.opening).toEqual(rowOpening(row.vehicles, FACE.cols, FACE.rows));
+      expect(row.solids).toEqual(rowSolids(row.vehicles));
+      expect(row.solids.map((solid) => solid.length)).toEqual(row.vehicles.map((v) => VEHICLE_LENGTHS[v.id]));
     }
   });
 
@@ -102,12 +105,23 @@ describe("generateCourse", () => {
     }
   });
 
-  it("spreads the rows along the course, in order, between the start and the end zone", () => {
+  it("spaces the rows back to front: the gap from one row's longest vehicle's back to the next row's front", () => {
     for (const c of courses) {
-      c.rows.forEach((row, i) => {
-        expect(row.depth).toBeGreaterThan(i === 0 ? 0 : c.rows[i - 1].depth);
-        expect(row.depth).toBeLessThan(TUNING.courseLength);
+      expect(c.rows[0].depth).toBeGreaterThanOrEqual(TUNING.firstWallDepth - TUNING.wallJitter);
+      expect(c.rows[0].depth).toBeLessThanOrEqual(TUNING.firstWallDepth + TUNING.wallJitter);
+      c.rows.slice(1).forEach((row, i) => {
+        const gap = row.depth - rowBack(c.rows[i]);
+        expect(gap).toBeGreaterThanOrEqual(TUNING.wallSpacing - TUNING.wallJitter);
+        expect(gap).toBeLessThanOrEqual(TUNING.wallSpacing + TUNING.wallJitter);
       });
+    }
+  });
+
+  it("brings every row to the frog before the finish line, however fast it goes", () => {
+    // The fastest frog holds a jump the whole way.
+    const fastest = TUNING.depthStep / TUNING.jumpRepeatInterval;
+    for (const c of courses) {
+      for (const row of c.rows) expect((row.depth * fastest) / (fastest + TUNING.wallSpeed)).toBeLessThan(TUNING.courseLength);
     }
   });
 });

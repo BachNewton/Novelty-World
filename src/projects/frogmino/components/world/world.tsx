@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { Mesh } from "three";
-import { GROUND_DROP, type PullOffStretch } from "../../world/geometry";
+import type { PullOffStretch } from "../../pull-off";
+import { GROUND_DROP } from "../../world/geometry";
 import { roadTile, roadTiles, structuresNear, type WorldPlan } from "../../world/road";
 import { sceneryTile, sceneryTiles } from "../../world/scenery";
 import { gantryBoxes, overpassBoxes } from "../../world/structures";
@@ -13,9 +14,10 @@ import { makeWorldMaterials, readWorldPalette, type WorldMaterials, type WorldPa
 
 // The fog starts beyond the rows the player reads and ends where the road is
 // built to, so the road and the land fade into the horizon haze rather than
-// ending.
+// ending. Nothing beyond its far end can be seen, which is where recycled
+// traffic reappears.
 const FOG_NEAR = 90;
-const FOG_FAR = 520;
+export const FOG_FAR = 520;
 const GROUND_SIZE = 1400;
 
 function sameTiles(a: readonly number[], b: readonly number[]): boolean {

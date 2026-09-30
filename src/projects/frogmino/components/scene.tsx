@@ -1,120 +1,113 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import {
   BoxGeometry,
+  GreaterDepth,
   MathUtils,
   MeshBasicMaterial,
-  MeshLambertMaterial,
   Object3D,
-  type Color,
+  type Camera as CameraImpl,
   type Group,
   type InstancedMesh,
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
-import { cellKey, frogCells, pieceCells, pieceSize } from "../logic";
+import { GROUND_CLEARANCE } from "../clearance";
+import { COURSE_SEED } from "../course";
+import { FROG_LOOKS } from "../frog/look";
+import { frogModel, frogPivot } from "../frog/model";
+import { cellKey, frogCells, pieceSize } from "../logic";
+import { nearPullOff } from "../pull-off";
 import {
   FROG_THICKNESS,
-  WALL_THICKNESS,
+  crossedFinish,
   frogShape,
   hopHeight,
+  inPlay,
   nextWall,
+  onOverpass,
   type Bonk,
   type Run,
 } from "../run";
-import { nearPullOff } from "../pull-off";
 import { useFrogminoStore } from "../store";
 import { TUNING } from "../tuning";
-import type { Cell, TetrominoKind } from "../types";
+import type { Cell, Rotation, TetrominoKind } from "../types";
+import { DECK_LENGTH, DECK_TOP } from "../world/structures";
+import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "./camera-fit";
+import { FrogBody, type FrogHandle } from "./frog/frog-body";
+import { frogDrawnIn, makeFrogAssets } from "./frog/frog-assets";
 import { PullOffs } from "./pull-offs";
-import { borderMask } from "./vehicle-assets";
-import { makeVehicleViewAssets, VehicleView } from "./vehicle-view";
+import { Vehicle } from "./vehicle";
+import { borderMask, makeVehicleAssets } from "./vehicle-assets";
+import { FrogminoWorld } from "./world/world";
 
 // World axes: x runs across the corridor (one unit per column), y up (one unit
-// per row), and the walls come at the frog from -z. A rule depth d sits at
-// z = -d: a wall's cubes lie just beyond its depth and the frog's just short
+// per row), and the traffic comes at the frog from -z. A rule depth d sits at
+// z = -d: a row's vehicles lie just beyond its depth and the frog just short
 // of its own, each as deep as the rules count it, so the two touch when their
-// depths meet and overlap exactly when the rules say they do.
-const { corridorCols, depthStep, courseLength, cameraHeight, cameraFollow, cameraLookAhead } = TUNING;
+// depths meet and overlap exactly when the rules say they do. Everything drawn
+// in the cell grid stands the ground clearance above the ground under it.
+const { corridorCols, courseLength, cameraHeight, cameraFollow } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
+const INITIAL_CAMERA: [number, number, number] = [CENTER_X, DECK_TOP + cameraHeight, cameraFollow];
+// The camera rises and falls with the ground under the frog (the overpass,
+// the road, the finish gantry) over about this long, in seconds.
+const CAMERA_LEVEL_EASE = 0.6;
 
-// The camera looks down at the floor a look-ahead in front of the frog.
-const CAMERA_PITCH = -Math.atan2(cameraHeight, cameraFollow + cameraLookAhead);
-const INITIAL_CAMERA: [number, number, number] = [CENTER_X, cameraHeight, cameraFollow];
-// Vertical field of view on wide screens. Narrow portrait screens widen it so
-// the corridor always fits across.
-const BASE_FOV = 50;
-const MIN_HORIZONTAL_FOV = 55;
-const DEGREES = 180 / Math.PI;
+// Solo play is the first player's frog.
+const VARIANT = "p1";
+// The frog's silhouette draws after the traffic and the world, so it sees
+// what hides the frog in the depth buffer, and before the frog itself, so
+// the frog never hides its own parts from it.
+const SILHOUETTE_ORDER = 1;
+const FROG_ORDER = 2;
 
-// The start zone reaches back under the camera; the end zone is a short pad.
-const START_ZONE_LENGTH = cameraFollow + 3;
-const END_ZONE_LENGTH = 6;
-const ROAD_LINE_COUNT = Math.floor(courseLength / depthStep) + 1;
-const ROAD_LINE_THICKNESS = 0.06;
-
-// The fit outline is drawn just in front of the next wall's face.
+// The fit outline is drawn just in front of the next row's face.
 const FIT_LINE_WIDTH = 0.1;
 const FIT_OUTLINE_LIFT = 0.03;
 // The longest perimeter of any tetromino, in cell edges.
 const MAX_PERIMETER = 10;
 
-// A bonk knocks the drawn frog back along a low arc, squashed flat against
-// the wall at first and springing back into shape as it lands.
+// A bonk knocks the drawn frog back along a low arc; the frog itself
+// flattens against the row and is left dazed.
 const BONK_DURATION = 0.3;
 const BONK_ARC_HEIGHT = 0.8;
-const BONK_SQUASH = 0.45;
 
 // The hop arc overshoots a sine and is capped at one cell, so the drawn frog
 // rises quickly to a full cell, as the rules count it, and falls the same way
 // once the rules land it.
 const HOP_ARC_OVERSHOOT = 1.3;
 
-interface Palette {
-  background: Color;
-  road: Color;
-  roadLine: Color;
-  startZone: Color;
-  endZone: Color;
-  frog: Color;
-  bonk: Color;
-  fitOutline: Color;
-}
+// The drop from the overpass hops off its lip, then falls ever faster to the
+// road, clearing the deck's edge on the way down.
+const DROP_HOP = 0.6;
 
-function readPalette(): Palette {
-  return {
-    background: themeColor("--color-surface-primary"),
-    road: themeColor("--color-surface-tertiary"),
-    roadLine: themeColor("--color-border-hover"),
-    startZone: themeColor("--color-surface-elevated"),
-    endZone: themeColor("--color-brand-blue"),
-    frog: themeColor("--color-brand-green"),
-    bonk: themeColor("--color-brand-pink"),
-    fitOutline: themeColor("--color-text-primary"),
-  };
-}
+// The finish leap springs back and up from the spring pad, clear of the
+// gantry's near face, and comes down in the middle of its deck, spinning
+// round once on the way.
+const LEAP_BACK = 1.5;
+const LEAP_PEAK = DECK_TOP + 3;
+const GANTRY_STAND = courseLength + DECK_LENGTH / 2 + FROG_THICKNESS / 2;
 
-function makeAssets(palette: Palette) {
-  // Every cube face gets the darker inset border, so touching cells still read
-  // as a grid.
-  const cellMap = borderMask("all");
+// The scene's own things: the fit outline, the frog's silhouette, and the
+// cell border the pull-offs' barriers and waiting pieces carry.
+function makeAssets() {
   return {
-    cellMap,
-    cube: new BoxGeometry(1, 1, 1),
+    cellMap: borderMask("all"),
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
-    frogMaterial: new MeshLambertMaterial({ color: palette.frog, map: cellMap }),
-    fitMaterial: new MeshBasicMaterial({ color: palette.fitOutline }),
+    fitMaterial: new MeshBasicMaterial({ color: themeColor("--color-text-primary") }),
+    // Drawn only where something nearer the camera hides the frog: before
+    // the frog itself, so only the traffic and the structures are in the
+    // depth buffer yet, and without writing depth, so it never hides the frog.
+    silhouette: new MeshBasicMaterial({
+      color: themeColor("--color-frogmino-frog-silhouette"),
+      depthFunc: GreaterDepth,
+      depthWrite: false,
+      fog: false,
+    }),
   };
-}
-
-type Assets = ReturnType<typeof makeAssets>;
-
-function fittedFov(aspect: number): number {
-  const halfHorizontal = MIN_HORIZONTAL_FOV / 2 / DEGREES;
-  const narrowFov = 2 * Math.atan(Math.tan(halfHorizontal) / aspect) * DEGREES;
-  return Math.max(BASE_FOV, narrowFov);
 }
 
 function Camera() {
@@ -123,71 +116,12 @@ function Camera() {
     <PerspectiveCamera
       makeDefault
       fov={fittedFov(aspect)}
+      near={CAMERA_NEAR}
+      far={CAMERA_FAR}
       position={INITIAL_CAMERA}
       rotation={[CAMERA_PITCH, 0, 0]}
     />
   );
-}
-
-function Strip({ from, to, color }: { from: number; to: number; color: Color }) {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[CENTER_X, 0, -(from + to) / 2]}>
-      <planeGeometry args={[corridorCols, to - from]} />
-      <meshBasicMaterial color={color} />
-    </mesh>
-  );
-}
-
-function Floor({ palette }: { palette: Palette }) {
-  return (
-    <>
-      <Strip from={-START_ZONE_LENGTH} to={0} color={palette.startZone} />
-      <Strip from={0} to={courseLength} color={palette.road} />
-      <Strip from={courseLength} to={courseLength + END_ZONE_LENGTH} color={palette.endZone} />
-      {Array.from({ length: ROAD_LINE_COUNT }, (_, step) => (
-        <mesh key={step} position={[CENTER_X, ROAD_LINE_THICKNESS / 2, -step * depthStep]}>
-          <boxGeometry args={[corridorCols, ROAD_LINE_THICKNESS, ROAD_LINE_THICKNESS]} />
-          <meshBasicMaterial color={palette.roadLine} />
-        </mesh>
-      ))}
-    </>
-  );
-}
-
-// The middle of one cube's face on the wall face; its depth is its block's.
-interface CubeSpot {
-  x: number;
-  y: number;
-}
-
-// The frog's touching cubes, as one instanced mesh filling `thickness` back
-// from its front face toward the start.
-function CellBlock({
-  spots,
-  thickness,
-  material,
-  assets,
-}: {
-  spots: readonly CubeSpot[];
-  thickness: number;
-  material: MeshLambertMaterial;
-  assets: Assets;
-}) {
-  const cubesRef = useRef<InstancedMesh>(null);
-  useLayoutEffect(() => {
-    const mesh = cubesRef.current;
-    if (mesh === null) return;
-    const placer = new Object3D();
-    placer.scale.set(1, 1, thickness);
-    spots.forEach((spot, i) => {
-      placer.position.set(spot.x, spot.y, thickness / 2);
-      placer.updateMatrix();
-      mesh.setMatrixAt(i, placer.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-  }, [spots, thickness]);
-  return <instancedMesh ref={cubesRef} args={[assets.cube, material, spots.length]} />;
 }
 
 interface Edge {
@@ -221,11 +155,12 @@ function placeEdges(mesh: InstancedMesh, edges: readonly Edge[]): void {
   mesh.instanceMatrix.needsUpdate = true;
 }
 
-// Where the drawn frog is heading: the middle of its rule placement's box.
+// Where the drawn frog is heading: the middle of its rule placement's box,
+// across and up from the top of the ground clearance, and its depth.
 function frogTarget(run: Run): { x: number; y: number; depth: number } {
   const { kind, col, rotation, depth } = run.frog;
   const { width, height } = pieceSize(kind, rotation);
-  return { x: col + (width - 1) / 2, y: 0.5 + (height - 1) / 2, depth };
+  return { x: col + (width - 1) / 2, y: height / 2, depth };
 }
 
 // The rising half of the hop arc, `seconds` into it.
@@ -250,9 +185,12 @@ function hopLift(run: Run, drawnLift: number): number {
   return Math.min(drawnLift, hopArc(hopRiseTime(airtime) - (run.time - hop.landedAt), airtime));
 }
 
-// Whether any wall's cubes overlap the drawn frog's.
+// Whether any vehicle overlaps the drawn frog.
 function overlapsDrawnFrog(run: Run, frogDepth: number): boolean {
-  return run.walls.some((wall) => wall.depth < frogDepth && wall.depth + WALL_THICKNESS > frogDepth - FROG_THICKNESS);
+  return run.walls.some(
+    (wall) =>
+      wall.depth < frogDepth && wall.solids.some((solid) => wall.depth + solid.length > frogDepth - FROG_THICKNESS),
+  );
 }
 
 interface BonkMotion {
@@ -264,7 +202,6 @@ interface BonkMotion {
 interface BonkPose {
   depth: number;
   lift: number;
-  squash: number;
 }
 
 // Where a bonk's knock-back has the drawn frog now; null once it is over, or
@@ -276,7 +213,39 @@ function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
   return {
     depth: MathUtils.lerp(motion.from, motion.to, 1 - (1 - progress) ** 2),
     lift: BONK_ARC_HEIGHT * Math.sin(Math.PI * progress),
-    squash: BONK_SQUASH * (1 - progress) ** 2,
+  };
+}
+
+// A jump off one level onto another, drawn over its own time: the drop from
+// the overpass and the leap onto the finish gantry.
+interface Leap {
+  fromDepth: number;
+  fromLevel: number;
+  startedAt: number;
+  landed: boolean;
+}
+
+// Where the drop from the overpass has the drawn frog, `progress` of the way
+// down to the road, heading for the rules' depth.
+function dropPose(leap: Leap, progress: number, depth: number): { depth: number; level: number; height: number } {
+  const level = DECK_TOP * (1 - progress ** 3);
+  return {
+    depth: MathUtils.lerp(leap.fromDepth, depth, 1 - (1 - progress) ** 2),
+    level,
+    height: level + DROP_HOP * Math.sin(Math.PI * progress),
+  };
+}
+
+// Where the finish leap has the drawn frog, `progress` of the way onto the
+// gantry's deck: along a curve that swings back and up clear of the deck's
+// near face, then forward onto it.
+function leapPose(leap: Leap, progress: number): { depth: number; level: number; height: number } {
+  const bezier = (from: number, via: number, to: number): number =>
+    (1 - progress) ** 2 * from + 2 * progress * (1 - progress) * via + progress ** 2 * to;
+  return {
+    depth: bezier(leap.fromDepth, courseLength - LEAP_BACK, GANTRY_STAND),
+    level: MathUtils.lerp(leap.fromLevel, DECK_TOP, progress),
+    height: bezier(leap.fromLevel, LEAP_PEAK, DECK_TOP),
   };
 }
 
@@ -286,40 +255,64 @@ interface DrawnFrog {
   x: number;
   y: number;
   depth: number;
-  angle: number;
-  // Quarter turns drawn so far, unwrapped so a turn always eases the short way.
-  turns: number;
-  rotation: number;
+  // The ground under the frog: the overpass's deck, the road or the gantry's.
+  level: number;
+  // How far the drawn frog still has to swing to reach the rule rotation,
+  // which the frog is already drawn in.
+  swing: number;
+  rotation: Rotation;
   lift: number;
-  // The latest bonk seen, and the knock-back it is drawing.
+  // The latest hop and bonk seen, and the knock-back the bonk is drawing.
+  hopAt: number | null;
   bonk: Bonk | null;
   bonkMotion: BonkMotion | null;
+  drop: Leap | null;
+  leap: Leap | null;
 }
 
 function snapped(run: Run): DrawnFrog {
-  const target = frogTarget(run);
-  const turns = run.frog.rotation;
   return {
-    ...target,
+    ...frogTarget(run),
     kind: run.frog.kind,
-    angle: -turns * (Math.PI / 2),
-    turns,
+    level: onOverpass(run) ? DECK_TOP : 0,
+    swing: 0,
     rotation: run.frog.rotation,
     lift: hopHeight(run.frog),
+    hopAt: run.frog.latestHop?.startedAt ?? null,
     bonk: run.lastBonk,
     bonkMotion: null,
+    drop: null,
+    leap: null,
   };
 }
 
+// The camera follows the drawn frog from behind, rising and falling with the
+// ground under it. Near a pull-off it pans across to take in the road and
+// the pull-off together, and pans back once the frog has gone by it.
+function follow(camera: CameraImpl, run: Run, d: DrawnFrog, delta: number, snap: boolean): void {
+  camera.position.z = -d.depth + cameraFollow;
+  const level = d.level + cameraHeight;
+  camera.position.y = snap ? level : MathUtils.damp(camera.position.y, level, 3 / CAMERA_LEVEL_EASE, delta);
+  const pullOff = nearPullOff(run.pullOffs, d.depth - FROG_THICKNESS, d.depth, run.tuning.cameraPullOffReach);
+  const pan = pullOff === null ? 0 : ((pullOff.side === "left" ? -1 : 1) * pullOff.width) / 2;
+  camera.position.x = MathUtils.damp(camera.position.x, CENTER_X + pan, 3 / run.tuning.cameraPullOffEase, delta);
+}
+
 // Runs the game each frame: advances the rules, then eases the drawn frog
-// toward its rule state and places the walls, all without React re-rendering.
-function Game({ palette }: { palette: Palette }) {
+// toward its rule state and places the traffic, all without React
+// re-rendering.
+function Game() {
   const course = useFrogminoStore((s) => s.course);
+  const traffic = useFrogminoStore((s) => s.traffic);
   const kind = useFrogminoStore((s) => s.run.frog.kind);
+  const rotation = useFrogminoStore((s) => s.run.frog.rotation);
   // Changes only when a swap changes a waiting piece.
   const pullOffs = useFrogminoStore((s) => s.run.pullOffs);
 
-  const assets = useMemo(() => makeAssets(palette), [palette]);
+  const assets = useMemo(() => makeAssets(), []);
+  const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
+  const frogAssets = useMemo(() => makeFrogAssets(), []);
+  const silhouette = useMemo(() => frogDrawnIn(frogAssets, assets.silhouette), [frogAssets, assets]);
   useEffect(
     () => () => {
       Object.values(assets).forEach((asset) => {
@@ -328,22 +321,25 @@ function Game({ palette }: { palette: Palette }) {
     },
     [assets],
   );
-
-  // The piece's spawn cells about the middle of its box, so the drawn frog
-  // turns in place.
-  const frogSpots = useMemo(() => {
-    const { width, height } = pieceSize(kind, 0);
-    return pieceCells(kind, 0).map((c) => ({ x: c.col - (width - 1) / 2, y: c.row - (height - 1) / 2 }));
-  }, [kind]);
-  const vehicleAssets = useMemo(() => makeVehicleViewAssets(assets.cellMap), [assets]);
   useEffect(
     () => () => {
       vehicleAssets.dispose();
+      frogAssets.dispose();
     },
-    [vehicleAssets],
+    [vehicleAssets, frogAssets],
   );
+  // The waiting pieces are drawn in the frog's skin.
+  const frogColour = useMemo(() => themeColor(FROG_LOOKS[VARIANT].tokens.skin), []);
+
+  // The frog turns about the middle of its cells.
+  const pivot = useMemo(() => {
+    const look = FROG_LOOKS[VARIANT];
+    return frogPivot(frogModel(kind, rotation, { markings: look.markings, pupil: look.pupil, clearance: GROUND_CLEARANCE }));
+  }, [kind, rotation]);
 
   const frogRef = useRef<Group>(null);
+  const bodyRef = useRef<FrogHandle>(null);
+  const silhouetteRef = useRef<FrogHandle>(null);
   const wallRefs = useRef<(Group | null)[]>([]);
   const fitRef = useRef<InstancedMesh>(null);
   const fitShape = useRef("");
@@ -353,15 +349,24 @@ function Game({ palette }: { palette: Palette }) {
   useFrame((state, delta) => {
     useFrogminoStore.getState().tick(delta);
     const { run, runId } = useFrogminoStore.getState();
+    const play = (action: Parameters<FrogHandle["play"]>[0]): void => {
+      bodyRef.current?.play(action);
+      silhouetteRef.current?.play(action);
+    };
 
-    if (drawn.current === null || drawnRunId.current !== runId || drawn.current.kind !== run.frog.kind) {
+    const snap = drawn.current === null || drawnRunId.current !== runId || drawn.current.kind !== run.frog.kind;
+    if (snap) {
+      if (drawnRunId.current !== runId) play("idle");
       drawn.current = snapped(run);
       drawnRunId.current = runId;
     }
     const d = drawn.current;
+    if (d === null) throw new Error("The drawn frog wasn't set");
     if (run.frog.rotation !== d.rotation) {
+      // The frog is drawn at once in its new rotation, so it starts swung
+      // back to where it was and swings the short way round to rest.
       const quarterTurns = (run.frog.rotation - d.rotation + 4) % 4;
-      d.turns += quarterTurns === 3 ? -1 : quarterTurns;
+      d.swing += (quarterTurns === 3 ? -1 : quarterTurns) * (Math.PI / 2);
       d.rotation = run.frog.rotation;
     }
     // Exponential easing that covers about 95% of the way in the ease duration.
@@ -369,60 +374,84 @@ function Game({ palette }: { palette: Palette }) {
     const target = frogTarget(run);
     d.x = MathUtils.damp(d.x, target.x, lambda, delta);
     d.y = MathUtils.damp(d.y, target.y, lambda, delta);
-    d.angle = MathUtils.damp(d.angle, -d.turns * (Math.PI / 2), lambda, delta);
+    d.swing = MathUtils.damp(d.swing, 0, lambda, delta);
 
+    const hop = run.frog.latestHop;
+    if (hop !== null && hop.startedAt !== d.hopAt) {
+      d.hopAt = hop.startedAt;
+      play("hop");
+    }
     const bonk = run.lastBonk;
     if (bonk !== d.bonk) {
       d.bonk = bonk;
-      if (bonk !== null) d.bonkMotion = { from: bonk.depth, to: run.frog.depth, startedAt: bonk.time };
+      if (bonk !== null) {
+        d.bonkMotion = { from: bonk.depth, to: run.frog.depth, startedAt: bonk.time };
+        play("bonk");
+      }
     }
+    if (run.droppedAt !== null && d.drop === null && d.level > 0) {
+      d.drop = { fromDepth: d.depth, fromLevel: d.level, startedAt: run.droppedAt, landed: false };
+      play("hop");
+    }
+    if (run.finishedAt !== null && d.leap === null) {
+      d.leap = { fromDepth: d.depth, fromLevel: d.level, startedAt: run.finishedAt, landed: false };
+      play("hop");
+    }
+
     const pose = bonkPose(d.bonkMotion, run);
     if (pose === null) d.bonkMotion = null;
-    d.depth = pose === null ? MathUtils.damp(d.depth, target.depth, lambda, delta) : pose.depth;
-    const bonkLift = pose === null ? 0 : pose.lift;
-    const squash = pose === null ? 0 : pose.squash;
+    let height = d.level;
+    let spin = 0;
+    const leap = d.leap ?? d.drop;
+    if (leap !== null && !leap.landed) {
+      const duration = leap === d.leap ? run.tuning.finishLeapDuration : run.tuning.dropDuration;
+      const progress = Math.min(1, (run.time - leap.startedAt) / duration);
+      const at = leap === d.leap ? leapPose(leap, progress) : dropPose(leap, progress, target.depth);
+      d.depth = at.depth;
+      d.level = at.level;
+      height = at.height;
+      if (leap === d.leap) spin = 2 * Math.PI * (1 - (1 - progress) ** 2);
+      if (progress === 1) {
+        leap.landed = true;
+        play("land");
+      }
+    } else if (!crossedFinish(run)) {
+      d.depth = pose === null ? MathUtils.damp(d.depth, target.depth, lambda, delta) : pose.depth;
+    }
 
-    // Eased moves could cut through a wall's cubes (a turn swings the piece
-    // through cells outside both of its poses), and a move made just before a
-    // wall arrives may not have finished easing. So while a wall overlaps the
-    // drawn frog, it is drawn exactly as the rules have it, and the rules keep
-    // that inside the wall's opening.
-    if (overlapsDrawnFrog(run, d.depth)) {
+    // Eased moves could cut through a vehicle (a turn swings the piece
+    // through cells outside both of its poses), and a move made just before
+    // a row arrives may not have finished easing. So while a vehicle overlaps
+    // the drawn frog in play, it is drawn exactly as the rules have it, and
+    // the rules keep that inside the opening.
+    const wasUp = d.lift > 0;
+    if (inPlay(run) && overlapsDrawnFrog(run, d.depth)) {
       d.x = target.x;
       d.y = target.y;
-      d.angle = -d.turns * (Math.PI / 2);
+      d.swing = 0;
       d.lift = hopHeight(run.frog);
     } else {
       d.lift = hopLift(run, d.lift);
     }
+    if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
 
     const frog = frogRef.current;
     if (frog !== null) {
-      frog.position.set(d.x, d.y + d.lift + bonkLift, -d.depth);
-      frog.rotation.z = d.angle;
-      // Flattened along the course against the wall, bulging a little across.
-      frog.scale.set(1 + squash / 2, 1 + squash / 2, 1 - squash);
+      const bonkLift = pose === null ? 0 : pose.lift;
+      frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + d.lift + bonkLift, -d.depth + FROG_THICKNESS / 2);
+      frog.rotation.set(0, spin, d.swing);
     }
-    state.camera.position.z = -d.depth + cameraFollow;
-    // Near a pull-off, the camera pans across to take in the road and the
-    // pull-off together, and pans back once the frog has gone by it.
-    const pullOff = nearPullOff(run.pullOffs, d.depth - FROG_THICKNESS, d.depth, run.tuning.cameraPullOffReach);
-    const pan = pullOff === null ? 0 : ((pullOff.side === "left" ? -1 : 1) * pullOff.width) / 2;
-    state.camera.position.x = MathUtils.damp(state.camera.position.x, CENTER_X + pan, 3 / run.tuning.cameraPullOffEase, delta);
-
-    const flashing = bonk !== null && run.time - bonk.time < run.tuning.flashDuration;
-    assets.frogMaterial.color.copy(flashing ? palette.bonk : palette.frog);
+    follow(state.camera, run, d, delta, snap);
 
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
-      if (!group) return;
-      group.position.z = -wall.depth;
+      if (group) group.position.z = -wall.depth;
     });
 
     const fit = fitRef.current;
     if (fit === null) return;
     const next = nextWall(run);
-    fit.visible = next !== null;
+    fit.visible = next !== null && !crossedFinish(run);
     if (next === null) return;
     fit.position.z = -run.walls[next].depth + FIT_OUTLINE_LIFT;
     const cells = frogCells(frogShape(run.frog));
@@ -435,44 +464,51 @@ function Game({ palette }: { palette: Palette }) {
 
   return (
     <>
+      <FrogminoWorld courseLength={courseLength} pullOffs={course.pullOffs} seed={COURSE_SEED} />
       <group ref={frogRef}>
-        <CellBlock
-          spots={frogSpots}
-          thickness={FROG_THICKNESS}
-          material={assets.frogMaterial}
-          assets={assets}
-        />
+        <group position={[-pivot[0], -pivot[1], -pivot[2]]}>
+          <FrogBody
+            ref={silhouetteRef}
+            kind={kind}
+            rotation={rotation}
+            variant={VARIANT}
+            renderOrder={SILHOUETTE_ORDER}
+            assets={silhouette}
+          />
+          <FrogBody ref={bodyRef} kind={kind} rotation={rotation} variant={VARIANT} renderOrder={FROG_ORDER} assets={frogAssets} />
+        </group>
       </group>
-      <PullOffs pullOffs={pullOffs} cellMap={assets.cellMap} frog={palette.frog} />
-      {course.rows.map((row, i) => (
+      <PullOffs pullOffs={pullOffs} cellMap={assets.cellMap} frog={frogColour} />
+      {traffic.map((row, i) => (
         <group
           key={i}
           ref={(group) => {
             wallRefs.current[i] = group;
           }}
         >
-          {row.vehicles.map(({ id, lane }) => (
-            <VehicleView key={lane} id={id} lane={lane} depth={0} assets={vehicleAssets} />
+          {course.rows[row].vehicles.map(({ id, lane }) => (
+            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={vehicleAssets} />
           ))}
         </group>
       ))}
-      <instancedMesh ref={fitRef} args={[assets.fitEdge, assets.fitMaterial, MAX_PERIMETER]} frustumCulled={false} />
+      <instancedMesh
+        ref={fitRef}
+        args={[assets.fitEdge, assets.fitMaterial, MAX_PERIMETER]}
+        position-y={GROUND_CLEARANCE}
+        frustumCulled={false}
+      />
     </>
   );
 }
 
 export function FrogminoScene() {
-  const palette = useMemo(() => readPalette(), []);
-
   // Flat: no tone mapping, so the design tokens show as authored.
   return (
     <Canvas flat>
-      <color attach="background" args={[palette.background]} />
       <Camera />
       <ambientLight intensity={1.5} />
       <directionalLight position={[4, 10, 6]} intensity={1.8} />
-      <Floor palette={palette} />
-      <Game palette={palette} />
+      <Game />
     </Canvas>
   );
 }

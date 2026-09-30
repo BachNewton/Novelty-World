@@ -2,14 +2,15 @@
 
 import { useImperativeHandle, useMemo, useRef, type Ref } from "react";
 import { useFrame } from "@react-three/fiber";
-import type { Group, Mesh, MeshLambertMaterial } from "three";
+import type { Group, Material, Mesh } from "three";
 import { cellKey } from "../../logic";
 import type { Rotation, TetrominoKind } from "../../types";
 import type { Vec3 } from "../../vehicles/parts";
 import { FROG_LOOKS, type FrogVariant } from "../../frog/look";
-import { DEFAULT_CLEARANCE, frogModel, type FrogPart } from "../../frog/model";
+import { GROUND_CLEARANCE } from "../../clearance";
+import { frogModel, type FrogPart } from "../../frog/model";
 import { frogMotion, type FrogAction } from "../../frog/motion";
-import type { FrogAssets } from "./frog-assets";
+import type { FrogDrawing } from "./frog-assets";
 
 // Starts one of the frog's reactions; "idle" cuts one short. The frog times
 // it from the next frame, on the render clock.
@@ -31,12 +32,14 @@ function PartMesh({
   origin,
   assets,
   material,
+  renderOrder,
   ref,
 }: {
   part: FrogPart;
   origin: Vec3;
-  assets: FrogAssets;
-  material: MeshLambertMaterial;
+  assets: FrogDrawing;
+  material: Material;
+  renderOrder: number;
   ref?: Ref<Mesh>;
 }) {
   const [x0, y0, z0] = part.min;
@@ -46,6 +49,7 @@ function PartMesh({
       ref={ref}
       geometry={assets.shapes[part.shape]}
       material={material}
+      renderOrder={renderOrder}
       position={minus(middleOf(part), origin)}
       scale={[x1 - x0, y1 - y0, z1 - z0]}
     />
@@ -56,13 +60,15 @@ function PartMesh({
 // rotation, in its own frame (see `frog/model.ts`): cells from x = 0 across
 // and from the clearance up, its front face at z = 0 and its back toward the
 // camera at z = 1. It breathes, blinks and puffs its throat by itself, and
-// plays a hop, a landing or a bonk when told to through `ref`.
+// plays a hop, a landing or a bonk when told to through `ref`. Its meshes
+// draw in `renderOrder` among the scene's opaque objects.
 export function FrogBody({
   kind,
   rotation,
   variant,
-  clearance = DEFAULT_CLEARANCE,
+  clearance = GROUND_CLEARANCE,
   seed = 0,
+  renderOrder = 0,
   assets,
   ref,
 }: {
@@ -72,7 +78,8 @@ export function FrogBody({
   clearance?: number;
   // Tells frogs apart, so two frogs never blink in step.
   seed?: number;
-  assets: FrogAssets;
+  renderOrder?: number;
+  assets: FrogDrawing;
   ref?: Ref<FrogHandle>;
 }) {
   const look = FROG_LOOKS[variant];
@@ -144,10 +151,10 @@ export function FrogBody({
           position={cell.anchor}
         >
           {cell.body.map((part, i) => (
-            <PartMesh key={`body${String(i)}`} part={part} origin={cell.anchor} assets={assets} material={paints.body} />
+            <PartMesh renderOrder={renderOrder} key={`body${String(i)}`} part={part} origin={cell.anchor} assets={assets} material={paints.body} />
           ))}
           {cell.details.map((part, i) => (
-            <PartMesh
+            <PartMesh renderOrder={renderOrder}
               key={`detail${String(i)}`}
               part={part}
               origin={cell.anchor}
@@ -159,14 +166,14 @@ export function FrogBody({
             const e = eyeStart[c] + i;
             return (
               <group key={e} position={minus(eye.centre, cell.anchor)}>
-                <PartMesh part={eye.bump} origin={eye.centre} assets={assets} material={paints.roles.skin} />
+                <PartMesh renderOrder={renderOrder} part={eye.bump} origin={eye.centre} assets={assets} material={paints.roles.skin} />
                 <group
                   ref={(group) => {
                     eyeballs.current[e] = group;
                   }}
                 >
-                  <PartMesh part={eye.white} origin={eye.centre} assets={assets} material={paints.roles.eye} />
-                  <PartMesh
+                  <PartMesh renderOrder={renderOrder} part={eye.white} origin={eye.centre} assets={assets} material={paints.roles.eye} />
+                  <PartMesh renderOrder={renderOrder}
                     ref={(mesh) => {
                       pupils.current[e] = mesh;
                     }}
@@ -182,7 +189,7 @@ export function FrogBody({
           {cell.throat && (
             // The throat puffs about its own middle.
             <group ref={throat} position={minus(middleOf(cell.throat), cell.anchor)}>
-              <PartMesh
+              <PartMesh renderOrder={renderOrder}
                 part={cell.throat}
                 origin={middleOf(cell.throat)}
                 assets={assets}
@@ -201,7 +208,7 @@ export function FrogBody({
           position={leg.hip}
         >
           {leg.parts.map((part, i) => (
-            <PartMesh key={i} part={part} origin={leg.hip} assets={assets} material={paints.roles[part.role]} />
+            <PartMesh renderOrder={renderOrder} key={i} part={part} origin={leg.hip} assets={assets} material={paints.roles[part.role]} />
           ))}
         </group>
       ))}

@@ -31,3 +31,10 @@ export interface Lanes {
 
 // The cells of one hole in a wall.
 export type Opening = readonly Cell[];
+
+// One vehicle of a row as the rules see it: the cells of the face it fills,
+// and how far it reaches back along the course from the row's front.
+export interface Solid {
+  cells: readonly Cell[];
+  length: number;
+}

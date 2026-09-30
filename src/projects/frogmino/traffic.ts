@@ -1,6 +1,6 @@
-import { vehicleCells, type VehicleId } from "./fleet";
+import { VEHICLE_LENGTHS, vehicleCells, type VehicleId } from "./fleet";
 import { cellKey } from "./logic";
-import type { Cell, Opening } from "./types";
+import type { Cell, Opening, Solid } from "./types";
 
 // One vehicle in a row, its leftmost lane at `lane`.
 export interface RowVehicle {
@@ -8,8 +8,9 @@ export interface RowVehicle {
   lane: number;
 }
 
-// A row of traffic: vehicles side by side at one depth, one per lane span,
-// with empty lanes allowed.
+// A row of traffic: vehicles side by side, their fronts lined up at one
+// depth, one per lane span, with empty lanes allowed. Each reaches back its
+// own length, so the row's back is wherever its longest vehicle ends.
 export type Row = readonly RowVehicle[];
 
 // How many lanes a vehicle takes up.
@@ -51,4 +52,16 @@ export function rowOpening(row: Row, cols: number, rows: number): Opening {
     }
   }
   return open;
+}
+
+// The row as the rules see it: each vehicle's cells and length.
+export function rowSolids(row: Row): Solid[] {
+  return row.map((placed) => ({ cells: vehicleCellsAt(placed), length: VEHICLE_LENGTHS[placed.id] }));
+}
+
+// Where a row's back is along the course, from its front at `depth`: its
+// longest vehicle's back.
+export function rowBack(row: { depth: number; solids: readonly Solid[] }): number {
+  if (row.solids.length === 0) throw new Error("A row with no vehicles has no back");
+  return row.depth + Math.max(...row.solids.map((solid) => solid.length));
 }

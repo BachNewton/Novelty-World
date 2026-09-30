@@ -1,27 +1,38 @@
-import { createRng } from "@/shared/lib/seeded-random";
+import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { wallShift, type CourseWall } from "./course";
 import { cellKey, firstFit, frogCells, insideLanes, pieceSize, rotateInCorridor, type Placement } from "./logic";
 import { pullOffLanes, withinStretch, type PullOff } from "./pull-off";
-import type { Frog, HopHeight, Lanes, Opening, Rotation, TetrominoKind } from "./types";
+import { rowBack } from "./traffic";
+import type { Frog, HopHeight, Lanes, Rotation, Solid, TetrominoKind } from "./types";
 import type { Tuning } from "./tuning";
 
 // One playthrough of a course, as the rules see it. Everything here is pure:
 // the frog's rule state changes the instant an action is applied, the walls'
 // depths are continuous, and `advance` moves time on.
 //
-// Depth is measured forward from the start zone's edge, at depth 0. A wall's
-// depth is its front face, the one coming at the frog, and the wall fills
-// from there back along the course; the frog's depth is its front face, and
-// it fills from there toward the start. A wall overlaps the frog while their
-// depth ranges intersect. The overlap begins when the wall's front face
-// reaches the frog's, and that is where the wall is judged.
+// Depth is measured forward from the course's start, at depth 0, and the
+// road runs on forever both ways. A wall is a row of vehicles whose fronts
+// line up: its depth is that front, the face coming at the frog, and each
+// vehicle fills from there back along the course its own length. The frog's
+// depth is its front face, and it fills from there toward the start. A
+// vehicle overlaps the frog while their depth ranges intersect: from when the
+// row's front reaches the frog's front until the vehicle's own back goes by
+// the frog's back. The row is judged once, as its front arrives, against all
+// its vehicles; after that each vehicle is solid only while it overlaps the
+// frog, so a shorter vehicle frees its lanes while a longer one still
+// overlaps, and the opening only grows.
 //
 // Every wall the frog hasn't passed is ahead of it, and every wall it has
 // passed is behind it. Each rule below keeps that true, so a wall is judged
 // exactly once each time it reaches the frog. And the frog's cells are
-// always inside the opening of any wall overlapping it: an action that would
-// break that is refused. A frog that is up while a wall overlaps it rides the
-// wall: it stays up until the wall has gone by.
+// always inside the opening left by the vehicles overlapping it: an action
+// that would break that is refused. A frog that is up while a vehicle
+// overlaps it rides: it stays up until the last one has gone by.
+//
+// The frog starts out of play on the overpass above the start, and drops to
+// the road with its first jump forward; there is no way back up. It is out
+// of play again once it crosses the finish line, when it leaps up onto the
+// finish gantry. Out of play, no row touches it: the traffic goes by beneath.
 //
 // Lanes run across the road from 0, and the walls fill the traffic lanes. A
 // pull-off's lanes lie beyond them, and the frog may use them only while its
@@ -29,19 +40,22 @@ import type { Tuning } from "./tuning";
 // pull-off, so the frog's cells in pull-off lanes never meet one: every rule
 // that judges the frog against a wall judges only its cells in traffic lanes.
 
-// How deep the frog and a wall are along the course, in units. The scene
-// draws them this deep too.
+// How deep the frog is along the course, in units. The scene draws it this
+// deep too.
 export const FROG_THICKNESS = 1;
-export const WALL_THICKNESS = 1;
 
 export interface Wall {
-  opening: Opening;
+  // The row's vehicles, their fronts all at `depth`.
+  solids: readonly Solid[];
   // Falls as the wall comes at the frog.
   depth: number;
   // Whether the frog is past this wall's front face, so the wall is between
-  // it and the start or still around it. Only a judged crossing sets it; a
-  // wall reappearing at the far end clears it.
+  // it and the start or still around it. A crossing sets it; a wall
+  // reappearing ahead clears it.
   passed: boolean;
+  // Which of the course's rows this is: the traffic repeats the course's
+  // rows in order, as many times as it takes to reach the traffic horizon.
+  row: number;
 }
 
 export interface Hop {
@@ -82,8 +96,15 @@ export interface Run {
   frog: RuleFrog;
   walls: Wall[];
   lastBonk: Bonk | null;
+  // How many times the frog has passed a row.
+  passes: number;
   heldJump: HeldJump | null;
-  // The seeded stream that places walls reappearing at the far end.
+  // When the frog dropped from the overpass to the road; null while it is
+  // still up there.
+  droppedAt: number | null;
+  // When the frog crossed the finish line; null until it does.
+  finishedAt: number | null;
+  // The seeded stream that places walls reappearing ahead.
   rngState: number;
   // They never move; only the piece waiting in each changes.
   pullOffs: PullOff[];
@@ -92,17 +113,21 @@ export interface Run {
 export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "forward" | "back" | "swap";
 
 // A bonked frog must leave the wall's face, or the wall would bonk it again
-// at once, forever, and a held jump must wait between repeats. Walls must be
-// spaced far enough apart that a bonk never knocks the frog into a wall it
-// has passed, which also means no two walls ever overlap the frog at once.
+// at once, forever, and a held jump must wait between repeats. Rows must be
+// spaced far enough apart, back to front, that a bonk never knocks the frog
+// into a wall it has passed, which also means no two walls ever overlap the
+// frog at once. A row is recycled only once it is behind the frog, and
+// reappears ahead of it.
 function checkTuning(tuning: Tuning): void {
   if (tuning.bonkKnockback <= 0) throw new Error("A bonk must knock the frog back");
   if (tuning.jumpRepeatInterval <= 0) throw new Error("A held jump must wait between repeats");
-  const closestWalls = tuning.wallSpacing - 2 * tuning.wallJitter;
-  const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS + WALL_THICKNESS;
-  if (closestWalls < bonkReach) {
-    throw new Error(`Walls as close as ${String(closestWalls)} let a bonk reach ${String(bonkReach)} back into a passed wall`);
+  const closestGap = tuning.wallSpacing - tuning.wallJitter;
+  const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS;
+  if (closestGap < bonkReach) {
+    throw new Error(`Rows as close as ${String(closestGap)} let a bonk reach ${String(bonkReach)} back into a passed row`);
   }
+  if (tuning.recycleBehind < 0) throw new Error("A row must be behind the frog to be recycled");
+  if (tuning.trafficHorizon <= 0) throw new Error("A recycled row must reappear ahead of the frog");
 }
 
 // A pull-off must hold the frog wherever a jump from outside its stretch
@@ -122,10 +147,29 @@ export interface RunOptions {
   pullOffs?: readonly PullOff[];
 }
 
+// The course's rows where it puts them, then its rows again in order, each
+// the spacing (with seeded jitter) beyond the back of the one before, until
+// the traffic reaches the traffic horizon from the start. So a row recycled
+// behind the frontmost one comes back out of sight.
+function lineUpTraffic(course: readonly CourseWall[], tuning: Tuning, rng: Rng): Wall[] {
+  const walls = course.map((wall, row): Wall => ({ solids: wall.solids, depth: wall.depth, passed: false, row }));
+  if (walls.length === 0) return walls;
+  let back = Math.max(...walls.map(rowBack));
+  while (back < tuning.trafficHorizon) {
+    const row = walls.length % course.length;
+    const wall: Wall = { solids: course[row].solids, depth: back + tuning.wallSpacing + wallShift(tuning, rng.next), passed: false, row };
+    walls.push(wall);
+    back = rowBack(wall);
+  }
+  return walls;
+}
+
 export function createRun(course: readonly CourseWall[], tuning: Tuning, seed: number, options: RunOptions = {}): Run {
   checkTuning(tuning);
   const { kind = "L", pullOffs = [] } = options;
   for (const pullOff of pullOffs) checkPullOff(pullOff, tuning);
+  const rng = createRng(seed);
+  const walls = lineUpTraffic(course, tuning, rng);
   return {
     tuning,
     time: 0,
@@ -136,10 +180,13 @@ export function createRun(course: readonly CourseWall[], tuning: Tuning, seed: n
       depth: 0,
       latestHop: null,
     },
-    walls: course.map((wall) => ({ opening: wall.opening, depth: wall.depth, passed: false })),
+    walls,
     lastBonk: null,
+    passes: 0,
     heldJump: null,
-    rngState: seed,
+    droppedAt: null,
+    finishedAt: null,
+    rngState: rng.getState(),
     pullOffs: pullOffs.map((pullOff) => ({
       side: pullOff.side,
       near: pullOff.near,
@@ -160,8 +207,27 @@ export function frogShape(frog: RuleFrog): Frog {
   return { kind: frog.kind, col: frog.col, rotation: frog.rotation, hop: hopHeight(frog) };
 }
 
+// Whether the frog is still up on the overpass, before its drop.
+export function onOverpass(run: Run): boolean {
+  return run.droppedAt === null;
+}
+
+// Whether the frog has crossed the finish line. The rules stop there.
+export function crossedFinish(run: Run): boolean {
+  return run.finishedAt !== null;
+}
+
+// Whether the frog is on the road among the traffic: dropped from the
+// overpass and not yet over the finish line.
+export function inPlay(run: Run): boolean {
+  return !onOverpass(run) && !crossedFinish(run);
+}
+
+// Whether the run is over: the frog has crossed the finish line and its leap
+// onto the finish gantry has landed. The rules' clock runs on after the
+// crossing, and the traffic with it.
 export function isDone(run: Run): boolean {
-  return run.frog.depth >= run.tuning.courseLength;
+  return run.finishedAt !== null && run.time >= run.finishedAt + run.tuning.finishLeapDuration;
 }
 
 // The wall the frog meets next: the nearest one it hasn't passed. Null only
@@ -203,23 +269,33 @@ export function pullOffHoldingFrog(run: Run): number | null {
   return index === -1 ? null : index;
 }
 
-// The pass test on the frog's cells in traffic lanes: its cells in a
-// pull-off's lanes never meet a wall.
-function passesWall(run: Run, shape: Frog, opening: Opening): boolean {
-  const open = new Set(opening.map(cellKey));
-  return frogCells(shape).every((cell) => !inTraffic(run, cell.col) || open.has(cellKey(cell)));
+// The pass test on the frog's cells in traffic lanes, against some of a
+// row's vehicles: each cell on the row's face and in none of their cells.
+// Its cells in a pull-off's lanes never meet a vehicle.
+function fitsAmong(run: Run, shape: Frog, solids: readonly Solid[]): boolean {
+  if (solids.length === 0) return true;
+  const solid = new Set(solids.flatMap((s) => s.cells.map(cellKey)));
+  return frogCells(shape).every(
+    (cell) => !inTraffic(run, cell.col) || (cell.row < run.tuning.wallRows && !solid.has(cellKey(cell))),
+  );
 }
 
-// A wall the frog has passed overlaps it until the wall's back face goes by
-// the frog's.
-function overlapsFrog(wall: Wall, frogDepth: number): boolean {
-  return wall.passed && wall.depth + WALL_THICKNESS > frogDepth - FROG_THICKNESS;
+// The vehicles of a wall the frog has passed that still overlap it, with its
+// front face at `frogDepth`: those whose back hasn't yet gone by its back.
+export function overlappingSolids(wall: Wall, frogDepth: number): readonly Solid[] {
+  if (!wall.passed) return [];
+  return wall.solids.filter((solid) => wall.depth + solid.length > frogDepth - FROG_THICKNESS);
 }
 
-// Whether the frog could take this shape at its depth: inside the opening of
-// every wall overlapping it.
+// Whether the frog could take this shape with its front face at `depth`:
+// inside the opening the overlapping vehicles leave.
+function clearOfWallsAt(run: Run, shape: Frog, depth: number): boolean {
+  return run.walls.every((wall) => fitsAmong(run, shape, overlappingSolids(wall, depth)));
+}
+
+// Out of play, no vehicle touches the frog.
 function clearOfWalls(run: Run, shape: Frog): boolean {
-  return run.walls.every((wall) => !overlapsFrog(wall, run.frog.depth) || passesWall(run, shape, wall.opening));
+  return !inPlay(run) || clearOfWallsAt(run, shape, run.frog.depth);
 }
 
 function withFrog(run: Run, frog: Partial<RuleFrog>): Run {
@@ -232,20 +308,25 @@ function withWall(run: Run, index: number, wall: Partial<Wall>): Run {
 
 // The wall passes around the frog.
 function pass(run: Run, index: number): Run {
+  return { ...withWall(run, index, { passed: true }), passes: run.passes + 1 };
+}
+
+// The wall goes by beneath a frog out of play, unjudged.
+function goBy(run: Run, index: number): Run {
   return withWall(run, index, { passed: true });
 }
 
-// The frog is knocked back from the wall's face, no further than the start
-// zone, and onto the road: a frog straddling a pull-off's edge is shifted
-// sideways just far enough that every cell is in traffic lanes, since the
-// knock-back can carry it past the pull-off's stretch. The wall stays solid
-// and keeps coming, so it bonks the frog again when it arrives unless the
-// frog fits by then or has got clear. A held jump key keeps repeating, a full
-// repeat interval after the bonk.
+// The frog is knocked back from the wall's face, however far that takes it,
+// and onto the road: a frog straddling a pull-off's edge is shifted sideways
+// just far enough that every cell is in traffic lanes, since the knock-back
+// can carry it past the pull-off's stretch. The wall stays solid and keeps
+// coming, so it bonks the frog again when it arrives unless the frog fits by
+// then or has got clear. A held jump key keeps repeating, a full repeat
+// interval after the bonk.
 function bonk(run: Run, index: number): Run {
   const { time, tuning, heldJump, frog } = run;
   const face = run.walls[index].depth;
-  const depth = Math.max(0, face - tuning.bonkKnockback * tuning.depthStep);
+  const depth = face - tuning.bonkKnockback * tuning.depthStep;
   const { width } = pieceSize(frog.kind, frog.rotation);
   const col = Math.min(Math.max(frog.col, 0), tuning.corridorCols - width);
   return {
@@ -255,13 +336,13 @@ function bonk(run: Run, index: number): Run {
   };
 }
 
-// Judges the next wall at the frog's face, now.
+// Judges the next wall at the frog's face, now, against all its vehicles.
 function meet(run: Run, index: number): Run {
-  return passesWall(run, frogShape(run.frog), run.walls[index].opening) ? pass(run, index) : bonk(run, index);
+  return fitsAmong(run, frogShape(run.frog), run.walls[index].solids) ? pass(run, index) : bonk(run, index);
 }
 
-// Takes up a new placement if it stays inside the opening of any wall
-// overlapping the frog; otherwise the action is refused, like a move off the
+// Takes up a new placement if it stays inside the opening the overlapping
+// vehicles leave; otherwise the action is refused, like a move off the
 // corridor edge.
 function reshape(run: Run, frog: Placement): Run {
   return clearOfWalls(run, { ...frogShape(run.frog), ...frog }) ? withFrog(run, frog) : run;
@@ -317,16 +398,17 @@ function landNow(run: Run): Run {
   return withFrog(run, { latestHop: { ...hopping, landedAt: run.time } });
 }
 
-// Riding: a frog that is up while a wall overlaps it stays up, gliding across
-// the wall's low parts, until the wall has gone by or a jump forward carries
-// it off. So a hop's timing is forgiving: one pressed early, whose airtime
-// would end mid-overlap, still carries the frog across. A frog entirely in a
-// pull-off is over no vehicle, so it doesn't ride.
+// Riding: a frog that is up while a vehicle overlaps it stays up, gliding
+// across the vehicles' low parts, until the last of them has gone by or a
+// jump forward carries it off. So a hop's timing is forgiving: one pressed
+// early, whose airtime would end mid-overlap, still carries the frog across.
+// A frog entirely in a pull-off is over no vehicle, so it doesn't ride.
 export function isRiding(run: Run): boolean {
   return (
+    inPlay(run) &&
     hopHeight(run.frog) === 1 &&
     frogCells(frogShape(run.frog)).some((cell) => inTraffic(run, cell.col)) &&
-    run.walls.some((wall) => overlapsFrog(wall, run.frog.depth))
+    run.walls.some((wall) => overlappingSolids(wall, run.frog.depth).length > 0)
   );
 }
 
@@ -338,9 +420,17 @@ function settle(run: Run): Run {
   return isRiding(run) ? run : landNow(run);
 }
 
+// The frog crosses the finish line: the rules stop, so no row judges it
+// again, and a held jump lets go. It leaps onto the finish gantry, where the
+// traffic goes by beneath it.
+function finish(run: Run): Run {
+  return { ...landNow(run), heldJump: null, finishedAt: run.time };
+}
+
 // Each wall whose front face the jump reaches is judged at once, nearest
 // first. A wall the frog doesn't fit bonks it and ends the jump. A jump
 // forward never meets a passed wall: those are all behind the frog's front.
+// A jump that reaches the finish line ends the run.
 function jumpForward(run: Run): Run {
   const target = run.frog.depth + run.tuning.depthStep;
   if (!mayStandAt(run, target)) return run;
@@ -349,41 +439,54 @@ function jumpForward(run: Run): Run {
     next = meet(next, index);
     if (!next.walls[index].passed) return next;
   }
-  return withFrog(next, { depth: target });
+  const moved = withFrog(next, { depth: target });
+  return target >= run.tuning.courseLength ? finish(moved) : moved;
 }
 
-// A jump back that would leave the frog overlapping a wall it has passed is
-// refused, like a move off the corridor edge: it would carry the frog back
-// into the wall or through it. So a jump back is always refused while a
-// wall overlaps the frog.
+// A jump back that would leave the frog overlapping a vehicle of a wall it
+// has passed is refused, like a move off the corridor edge: it would carry
+// the frog back into the vehicle or through it. So a jump back is always
+// refused while a vehicle overlaps the frog. Behind the start the road goes
+// on, and so may the frog.
 function jumpBack(run: Run): Run {
-  const target = Math.max(0, run.frog.depth - run.tuning.depthStep);
-  if (target === run.frog.depth || !mayStandAt(run, target)) return run;
-  const blocked = run.walls.some((wall) => overlapsFrog(wall, target));
+  const target = run.frog.depth - run.tuning.depthStep;
+  if (!mayStandAt(run, target)) return run;
+  const blocked = run.walls.some((wall) => overlappingSolids(wall, target).length > 0);
   return blocked ? run : withFrog(run, { depth: target });
 }
 
-// A jump key pressed: one jump now, and more every repeat interval while it
-// stays held, until it is released.
-export function pressJump(run: Run, direction: JumpDirection): Run {
-  if (isDone(run)) return run;
-  const held = { direction, nextAt: run.time + run.tuning.jumpRepeatInterval };
-  return applyAction({ ...run, heldJump: held }, direction);
+// The first jump forward drops the frog from the overpass onto the road, a
+// jump ahead of where it stood, and puts it in play. A drop that would land
+// it in a vehicle going by beneath is refused, like a jump back; one onto a
+// row's face is judged, like any jump forward.
+function drop(run: Run): Run {
+  const target = run.frog.depth + run.tuning.depthStep;
+  if (!clearOfWallsAt(run, frogShape(run.frog), target)) return run;
+  return jumpForward({ ...run, droppedAt: run.time });
 }
 
-// A jump key released; with no direction, every held jump is let go, as when
-// the window loses focus and key releases can no longer be seen.
-export function releaseJump(run: Run, direction?: JumpDirection): Run {
-  if (run.heldJump === null) return run;
-  if (direction !== undefined && run.heldJump.direction !== direction) return run;
-  return { ...run, heldJump: null };
-}
-
-function repeatJump(run: Run, held: HeldJump): Run {
-  return applyAction({ ...run, heldJump: { ...held, nextAt: held.nextAt + run.tuning.jumpRepeatInterval } }, held.direction);
+// On the overpass the frog can line itself up and drop; nothing else.
+function actOnOverpass(run: Run, action: FrogAction): Run {
+  switch (action) {
+    case "left":
+      return moveColumn(run, -1);
+    case "right":
+      return moveColumn(run, 1);
+    case "rotateCcw":
+      return rotate(run, -1);
+    case "rotateCw":
+      return rotate(run, 1);
+    case "forward":
+      return drop(run);
+    case "hop":
+    case "back":
+    case "swap":
+      return run;
+  }
 }
 
 function act(run: Run, action: FrogAction): Run {
+  if (onOverpass(run)) return actOnOverpass(run, action);
   switch (action) {
     case "left":
       return moveColumn(run, -1);
@@ -406,8 +509,28 @@ function act(run: Run, action: FrogAction): Run {
 
 // A jump forward can carry a riding frog off its wall, so it lands straight after.
 export function applyAction(run: Run, action: FrogAction): Run {
-  if (isDone(run)) return run;
+  if (crossedFinish(run)) return run;
   return settle(act(run, action));
+}
+
+// A jump key pressed: one jump now, and more every repeat interval while it
+// stays held, until it is released.
+export function pressJump(run: Run, direction: JumpDirection): Run {
+  if (crossedFinish(run)) return run;
+  const held = { direction, nextAt: run.time + run.tuning.jumpRepeatInterval };
+  return applyAction({ ...run, heldJump: held }, direction);
+}
+
+// A jump key released; with no direction, every held jump is let go, as when
+// the window loses focus and key releases can no longer be seen.
+export function releaseJump(run: Run, direction?: JumpDirection): Run {
+  if (run.heldJump === null) return run;
+  if (direction !== undefined && run.heldJump.direction !== direction) return run;
+  return { ...run, heldJump: null };
+}
+
+function repeatJump(run: Run, held: HeldJump): Run {
+  return applyAction({ ...run, heldJump: { ...held, nextAt: held.nextAt + run.tuning.jumpRepeatInterval } }, held.direction);
 }
 
 // Moves the clock to `time`, carrying every wall toward the start.
@@ -421,31 +544,29 @@ interface RunEvent {
   happen: (run: Run) => Run;
 }
 
-// When the next wall reaches the frog, if it can. The start zone is safe: no
-// wall reaches a frog standing in it.
+// When the next wall reaches the frog. In play it is judged there; out of
+// play it goes by beneath.
 function nextArrival(run: Run): RunEvent | null {
   const index = nextWall(run);
-  if (index === null || run.frog.depth <= 0) return null;
+  if (index === null) return null;
   return {
     time: run.time + (run.walls[index].depth - run.frog.depth) / run.tuning.wallSpeed,
-    happen: (at) => meet(at, index),
+    happen: (at) => (inPlay(at) ? meet(at, index) : goBy(at, index)),
   };
 }
 
 // When a hopping frog comes down: at the end of its airtime or, if it is
-// riding a wall then, once that wall has gone by. Only one wall can overlap
-// the frog at a time (the tuning check spaces them), so the frog lands the
-// moment that wall's back face passes its own.
+// riding then, once the last vehicle overlapping it has gone by. Only one
+// wall can overlap the frog at a time (the tuning check spaces them).
 function nextLanding(run: Run): RunEvent | null {
   const hopping = run.frog.latestHop;
   if (hopping === null || hopping.landedAt !== null) return null;
   const due = hopping.startedAt + run.tuning.hopAirtime;
   if (run.time < due) return { time: due, happen: settle };
-  const frogBack = run.frog.depth - FROG_THICKNESS;
-  const ridden = run.walls.find((wall) => overlapsFrog(wall, run.frog.depth));
-  if (ridden === undefined) throw new Error("A frog is riding with no wall overlapping it");
+  const backs = run.walls.flatMap((wall) => overlappingSolids(wall, run.frog.depth).map((solid) => wall.depth + solid.length));
+  if (backs.length === 0) throw new Error("A frog is riding with no vehicle overlapping it");
   return {
-    time: run.time + (ridden.depth + WALL_THICKNESS - frogBack) / run.tuning.wallSpeed,
+    time: run.time + (Math.max(...backs) - (run.frog.depth - FROG_THICKNESS)) / run.tuning.wallSpeed,
     happen: landNow,
   };
 }
@@ -465,43 +586,45 @@ function nextEvent(run: Run): RunEvent | null {
   return soonest;
 }
 
-// A wall that reaches the start zone's edge disappears there and reappears at
-// the far end with the same opening: a spacing (with seeded jitter) behind the
-// rearmost wall, or behind the frog if it has raced past every wall. So it is
-// always ahead of the frog, beyond every wall already coming at it, and is
-// judged afresh when it arrives.
-function recycleAtStartEdge(run: Run): Run {
+// A wall whose back is the recycling distance behind the frog, out of the
+// camera's view, reappears ahead of it with the same vehicles: the spacing
+// (with seeded jitter) beyond the frontmost wall's back, and never nearer the
+// frog than the traffic horizon, beyond the fog. So a wall never appears or
+// vanishes on screen, and it is judged afresh when it arrives.
+function recycle(run: Run): Run {
+  const limit = run.frog.depth - run.tuning.recycleBehind;
   const leaving = run.walls
     .map((wall, index) => ({ wall, index }))
-    .filter(({ wall }) => wall.depth <= 0)
+    .filter(({ wall }) => rowBack(wall) < limit)
     .sort((a, b) => a.wall.depth - b.wall.depth);
   let next = run;
   for (const { index } of leaving) {
     const rng = createRng(next.rngState);
-    const shift = wallShift(next.tuning, rng.next);
-    const rearmost = Math.max(next.frog.depth, ...next.walls.filter((_, i) => i !== index).map((w) => w.depth));
-    next = { ...withWall(next, index, { depth: rearmost + next.tuning.wallSpacing + shift, passed: false }), rngState: rng.getState() };
+    const gap = next.tuning.wallSpacing + wallShift(next.tuning, rng.next);
+    const frontmost = Math.max(...next.walls.filter((_, i) => i !== index).map(rowBack));
+    const depth = Math.max(frontmost + gap, next.frog.depth + next.tuning.trafficHorizon);
+    next = { ...withWall(next, index, { depth, passed: false }), rngState: rng.getState() };
   }
   return next;
 }
 
-// A wall leaving at the start edge can end a ride.
+// A wall going by can end a ride.
 function moveOnTo(run: Run, time: number): Run {
-  return settle(recycleAtStartEdge(moveWallsTo(run, time)));
+  return settle(recycle(moveWallsTo(run, time)));
 }
 
 // Moves the run on by `elapsed` seconds (clamped to the tuning's longest
-// frame). Walls travel continuously toward the start zone, and everything
-// that happens during the frame (a wall reaching the frog, a hop landing, a
-// held jump repeating) happens in order, at its own instant: a long frame
-// can't carry a wall past the frog unjudged or skip a repeat, a hop is read
-// when the wall arrives rather than at the frame's end, and a wall that bonks
-// the frog and arrives again within the frame is judged again.
+// frame). Walls travel continuously toward the start, and everything that
+// happens during the frame (a wall reaching the frog, a hop landing, a held
+// jump repeating) happens in order, at its own instant: a long frame can't
+// carry a wall past the frog unjudged or skip a repeat, a hop is read when
+// the wall arrives rather than at the frame's end, and a wall that bonks the
+// frog and arrives again within the frame is judged again. After the finish
+// the traffic keeps driving, beneath the frog on the gantry.
 export function advance(run: Run, elapsed: number): Run {
   const end = run.time + Math.min(elapsed, run.tuning.maxFrameDelta);
   let next = run;
   for (;;) {
-    if (isDone(next)) return next;
     const event = nextEvent(next);
     if (event === null || event.time > end) return moveOnTo(next, end);
     next = event.happen(moveOnTo(next, event.time));

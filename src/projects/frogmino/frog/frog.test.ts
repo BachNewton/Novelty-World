@@ -5,7 +5,8 @@ import { cellKey, pieceCells } from "../logic";
 import type { Rotation, TetrominoKind } from "../types";
 import { SURFACE_TOLERANCE } from "../vehicles/parts";
 import { FROG_LOOKS, FROG_ROLES, FROG_VARIANTS, type FrogVariant } from "./look";
-import { DEFAULT_CLEARANCE, frogModel, type FrogModel, type FrogPart } from "./model";
+import { GROUND_CLEARANCE } from "../clearance";
+import { frogModel, type FrogModel, type FrogPart } from "./model";
 import {
   BONK_DURATION,
   EYES_SHUT,
@@ -209,8 +210,8 @@ describe("the clearance", () => {
     expect(Math.min(...model.cells.flatMap(({ body }) => body.map((part) => part.min[1])))).toBe(0);
   });
 
-  it("defaults to a quarter of a cell", () => {
-    expect(DEFAULT_CLEARANCE).toBe(0.25);
+  it("stands in the shared ground clearance by default", () => {
+    expect(modelFor("L", 0, "p1").clearance).toBe(GROUND_CLEARANCE);
   });
 });
 
