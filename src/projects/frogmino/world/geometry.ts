@@ -44,6 +44,9 @@ export interface WorldBox {
   paint: WorldPaint;
 }
 
+// Where a box is and how it is turned, whatever it is painted.
+export type Placement = Omit<WorldBox, "paint">;
+
 export function box(center: Vec3, size: Vec3, paint: WorldPaint, roll = 0, yaw = 0): WorldBox {
   return { center, size, yaw, roll, paint };
 }
@@ -66,7 +69,7 @@ export function overlaps(a: Area, b: Area): boolean {
 }
 
 // A point given in a box's own axes, about its centre, placed in the world.
-export function boxPoint(b: WorldBox, [x0, y0, z0]: Vec3): Vec3 {
+export function boxPoint(b: Placement, [x0, y0, z0]: Vec3): Vec3 {
   const [cr, sr] = [Math.cos(b.roll), Math.sin(b.roll)];
   const [cy, sy] = [Math.cos(b.yaw), Math.sin(b.yaw)];
   const [x1, y1] = [x0 * cr - y0 * sr, x0 * sr + y0 * cr];

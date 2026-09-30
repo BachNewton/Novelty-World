@@ -1,5 +1,7 @@
 import { GROUND_CLEARANCE } from "../clearance";
+import { CAMERA_NEAR } from "../components/camera-fit";
 import { cellKey } from "../logic";
+import { TUNING } from "../tuning";
 import type { Cell } from "../types";
 
 // A vehicle is built in its own frame: x runs across the lanes and y up the
@@ -57,14 +59,27 @@ export interface Part {
   wheel?: boolean;
 }
 
-// How far a decal stands proud of the face it sits on. Anything that stands
-// proud of an outer face (sideways or upward) must stay within the surface
-// detail tolerance, so it never reads as part of the silhouette.
-export const DECAL = 0.02;
-// A second decal laid over a first stands a little prouder, so the two never
-// fight over the same depth.
-export const OVERLAY = 0.035;
+// Anything that stands proud of an outer face (sideways or upward) must stay
+// within the surface detail tolerance, so it never reads as part of the
+// silhouette.
 export const SURFACE_TOLERANCE = 0.05;
+// How far apart two faces that look the same way must be for the depth
+// buffer to tell which is in front, wherever the traffic is drawn. A 24-bit
+// depth buffer resolves about d² / (near × 2²⁴) at distance d, and traffic is
+// drawn at most the traffic horizon away, where it reappears beyond the fog:
+// with the gameplay camera's near plane, a little under 0.02.
+const DEPTH_BITS = 24;
+export const DEPTH_RESOLUTION = TUNING.trafficHorizon ** 2 / (CAMERA_NEAR * 2 ** DEPTH_BITS);
+// Paint lies on a face in layers, each a layer thick: a decal is one layer,
+// a second decal laid over it two, and so on. A layer is thicker than the
+// depth resolution, and two layers stay within the surface tolerance.
+// Different paints never share a layer where they overlap: a smaller detail
+// laid over a decal sits a layer up and inset from its edges, and stripes of
+// two paints lie side by side in one layer rather than one over the other.
+export const LAYER = 0.02;
+export const layers = (count: number): number => count * LAYER;
+export const DECAL = layers(1);
+export const OVERLAY = layers(2);
 
 // A rectangle on a face in the cell's own units, 0 to 1 across each way.
 // On the front and back: [left, bottom, right, top] as the frog sees it.
@@ -102,10 +117,11 @@ export interface VehicleFrame {
 }
 
 export const WHEEL_RADIUS = 0.27;
-const WHEEL_PROUD = 0.03;
+// The tyre stands a layer proud of the body, and the hub a layer prouder.
+const WHEEL_PROUD = layers(1);
 const WHEEL_SUNK = 0.12;
 const HUB_RADIUS_SHARE = 0.45;
-const HUB_PROUD = 0.045;
+const HUB_PROUD = layers(2);
 
 function drumFor(look: Look, axis: "drumX" | "drumY" | "drumZ"): PartShape {
   return look === "round" ? axis : "box";

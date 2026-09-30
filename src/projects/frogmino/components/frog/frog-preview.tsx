@@ -6,6 +6,7 @@ import { OrthographicCamera, PerspectiveCamera, View } from "@react-three/drei";
 import type { Color, Group, PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { GROUND_CLEARANCE } from "../../clearance";
+import { CAMERA_FAR, CAMERA_NEAR } from "../camera-fit";
 import { pieceSize } from "../../logic";
 import { FROG_THICKNESS } from "../../run";
 import { TUNING } from "../../tuning";
@@ -187,15 +188,15 @@ function StageCamera({ lanes, angle }: { lanes: number; angle: Angle }) {
         makeDefault
         position={[target[0], (GROUND_CLEARANCE + GRID_ROWS) / 2, 10]}
         zoom={zoom}
-        near={0.1}
-        far={40}
+        near={CAMERA_NEAR}
+        far={CAMERA_FAR}
       />
     );
   }
   const aspect = size.width / size.height;
   // Narrow cards widen the view so the stage fits across.
   const fov = aspect >= 1 ? GAMEPLAY_FOV : 2 * Math.atan(Math.tan((GAMEPLAY_FOV / 2) * DEGREES) / aspect) / DEGREES;
-  return <PerspectiveCamera ref={camera} makeDefault position={position} fov={fov} near={0.1} far={80} />;
+  return <PerspectiveCamera ref={camera} makeDefault position={position} fov={fov} near={CAMERA_NEAR} far={CAMERA_FAR} />;
 }
 
 function StageView({
@@ -271,7 +272,7 @@ function Turntable({ pose, variant, cue, assets, palette }: { pose: Pose; varian
   return (
     <>
       <color attach="background" args={[palette.background]} />
-      <PerspectiveCamera ref={camera} makeDefault position={position} fov={TURNTABLE_FOV} near={0.1} far={60} />
+      <PerspectiveCamera ref={camera} makeDefault position={position} fov={TURNTABLE_FOV} near={CAMERA_NEAR} far={CAMERA_FAR} />
       <Lights />
       <group ref={spin}>
         <mesh position={[0, -0.03, 0]}>

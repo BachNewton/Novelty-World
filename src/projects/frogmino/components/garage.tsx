@@ -6,6 +6,7 @@ import { OrthographicCamera, PerspectiveCamera, View } from "@react-three/drei";
 import type { Color, Group, PerspectiveCamera as PerspectiveCameraImpl } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { GROUND_CLEARANCE } from "../clearance";
+import { CAMERA_FAR, CAMERA_NEAR } from "./camera-fit";
 import { pieceSize } from "../logic";
 import { VEHICLE_IDS, vehiclePiece, type VehicleId } from "../fleet";
 import { VEHICLES } from "../vehicles";
@@ -98,7 +99,7 @@ function HeadOn({ id, assets, palette }: { id: VehicleId; assets: VehicleAssets;
   return (
     <>
       <color attach="background" args={[palette.background]} />
-      <OrthographicCamera makeDefault position={[(GRID - 1) / 2, tall / 2, 10]} zoom={zoom} near={0.1} far={40} />
+      <OrthographicCamera makeDefault position={[(GRID - 1) / 2, tall / 2, 10]} zoom={zoom} near={CAMERA_NEAR} far={CAMERA_FAR} />
       <Lights />
       <CellGrid z={-length - 0.1} palette={palette} />
       <Vehicle id={id} lane={lane} depth={0} assets={assets} />
@@ -151,7 +152,7 @@ function Turntable({ id, assets, palette }: { id: VehicleId; assets: VehicleAsse
   return (
     <>
       <color attach="background" args={[palette.background]} />
-      <PerspectiveCamera ref={camera} makeDefault position={position} fov={TURNTABLE_FOV} near={0.1} far={60} />
+      <PerspectiveCamera ref={camera} makeDefault position={position} fov={TURNTABLE_FOV} near={CAMERA_NEAR} far={CAMERA_FAR} />
       <Lights />
       <group ref={spin}>
         <group position={[-(width - 1) / 2, 0, length / 2]}>

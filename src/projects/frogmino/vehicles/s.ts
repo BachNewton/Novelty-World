@@ -1,5 +1,5 @@
 import { bumper, carNose, headlight, ring, sidePorthole, windscreen } from "./kit";
-import { OVERLAY, windowsAlong, type VehicleDesign } from "./parts";
+import { layers, windowsAlong, type VehicleDesign } from "./parts";
 
 export const happyCamper: VehicleDesign = {
   name: "Happy Camper",
@@ -19,9 +19,9 @@ export const happyCamper: VehicleDesign = {
     // The pod: a wood-trim stripe and curtained windows.
     ...[1, 2].flatMap((col) => [
       f.front(col, 1, [0.06, 0.1, 0.94, 0.24], "cocoa"),
-      f.front(col, 1, [0.14, 0.38, 0.86, 0.84], "glass"),
-      f.front(col, 1, [0.14, 0.38, 0.3, 0.84], "bubblegum", "flat", OVERLAY),
-      f.front(col, 1, [0.7, 0.38, 0.86, 0.84], "bubblegum", "flat", OVERLAY),
+      f.front(col, 1, [0.14, 0.38, 0.3, 0.84], "bubblegum"),
+      f.front(col, 1, [0.3, 0.38, 0.7, 0.84], "glass"),
+      f.front(col, 1, [0.7, 0.38, 0.86, 0.84], "bubblegum"),
     ]),
     f.side(1, 1, "left", [0, 0.1, 3, 0.24], "cocoa"),
     f.side(2, 1, "right", [0, 0.1, 3, 0.24], "cocoa"),
@@ -30,9 +30,10 @@ export const happyCamper: VehicleDesign = {
       f.side(2, 1, "right", rect, "glass"),
     ]),
     f.side(0, 0, "left", [0.9, 0.62, 2.1, 0.94], "glass"),
-    // A surfboard lying on the cab roof.
-    f.top(0, 0, [0.3, 0.2, 0.7, 2.8], "sky", 0.03),
-    f.top(0, 0, [0.46, 0.2, 0.54, 2.8], "snow", 0.04),
+    // A surfboard lying on the cab roof, with a stripe down the middle.
+    f.top(0, 0, [0.3, 0.2, 0.46, 2.8], "sky", layers(2)),
+    f.top(0, 0, [0.46, 0.2, 0.54, 2.8], "snow", layers(2)),
+    f.top(0, 0, [0.54, 0.2, 0.7, 2.8], "sky", layers(2)),
     f.top(1, 1, [0.3, 1, 0.7, 2], "chrome"),
     f.back(0, 0, [0.1, 0.5, 0.35, 0.75], "cherry"),
     f.back(1, 0, [0.65, 0.5, 0.9, 0.75], "cherry"),
@@ -62,8 +63,8 @@ export const subStandard: VehicleDesign = {
     ),
     // The periscope: a tube up, then an elbow out to its lens.
     f.front(0, 2, [0.56, 0.08, 0.72, 0.8], "charcoal"),
-    f.front(0, 2, [0.2, 0.62, 0.72, 0.84], "charcoal", "flat", OVERLAY),
-    f.front(0, 2, [0.24, 0.64, 0.42, 0.82], "chrome", "round", 0.05),
+    f.front(0, 2, [0.2, 0.62, 0.72, 0.84], "charcoal", "flat", layers(2)),
+    f.front(0, 2, [0.24, 0.64, 0.42, 0.82], "chrome", "round", layers(3)),
     ...[0.3, 1.3, 2.3].flatMap((from) => [
       ...sidePorthole(f, 1, 1, "right", from),
       ...sidePorthole(f, 0, 1, "left", from),
@@ -74,8 +75,8 @@ export const subStandard: VehicleDesign = {
     f.side(1, 0, "left", [0, 0.62, 3, 0.74], "sunflower"),
     // The propeller.
     f.back(1, 0, [0.2, 0.2, 0.8, 0.8], "chrome", "round"),
-    f.back(1, 0, [0.44, 0.1, 0.56, 0.9], "charcoal", "flat", OVERLAY),
-    f.back(1, 0, [0.1, 0.44, 0.9, 0.56], "charcoal", "flat", OVERLAY),
+    f.back(1, 0, [0.44, 0.1, 0.56, 0.9], "charcoal", "flat", layers(2)),
+    f.back(1, 0, [0.1, 0.44, 0.9, 0.56], "charcoal", "flat", layers(2)),
     ...f.wheels(),
   ],
 };

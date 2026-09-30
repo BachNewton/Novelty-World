@@ -3,8 +3,10 @@ import { GROUND_CLEARANCE } from "../clearance";
 import { cellKey } from "../logic";
 import { VEHICLE_IDS, vehicleCells } from "../fleet";
 import type { Cell } from "../types";
-import { VEHICLES, vehicleModel } from "./index";
-import { SURFACE_TOLERANCE, type Part } from "./parts";
+import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
+import type { Placement } from "../world/geometry";
+import { VEHICLES, vehicleModel, type VehicleModel } from "./index";
+import { DEPTH_RESOLUTION, LAYER, SURFACE_TOLERANCE, layers, type Paint, type Part, type Vec3 } from "./parts";
 
 // Every way a part's front view pokes into a cell the vehicle doesn't fill,
 // into the ground clearance, or below the road, by more than the
@@ -69,6 +71,73 @@ describe("the silhouette check", () => {
   });
 });
 
+// A vehicle's body cells and parts as boxes for the face scanner. A disc or
+// drum is scanned as the box it fills: its flat ends lie in that box's faces,
+// and its curved side only touches them along a line, so the scan can only
+// over-report. Body cells carry the cell border, so they never count as the
+// same material as a part, whatever the paint.
+interface ScanBox extends Placement {
+  paint: Paint;
+  what: string;
+  body: boolean;
+}
+
+function scanBoxes(model: VehicleModel): ScanBox[] {
+  const at = (p: Vec3): string => p.map((n) => n.toFixed(3)).join(",");
+  return [
+    ...model.body.map(({ cell, paint }) => ({
+      ...spanning([cell.col, cell.row, -model.length], [cell.col + 1, cell.row + 1, 0]),
+      paint,
+      what: `body ${cellKey(cell)}`,
+      body: true,
+    })),
+    ...model.parts.map((part) => ({
+      ...spanning(part.min, part.max),
+      paint: part.paint,
+      what: `${part.shape} ${at(part.min)}..${at(part.max)}`,
+      body: false,
+    })),
+  ];
+}
+
+// The camera never goes below the road, which is the ground clearance under
+// a vehicle's cells, and may look down from any height.
+const EYE = { lowest: -GROUND_CLEARANCE, highest: Infinity };
+const COPLANAR = 1e-6;
+
+// Two faces fight unless they are one material, when whichever wins looks
+// the same.
+function fights({ a, b }: FaceClash<ScanBox>): boolean {
+  return a.body || b.body || a.paint !== b.paint;
+}
+
+const describeClash = ({ a, b, gap }: FaceClash<ScanBox>): string =>
+  `${a.paint} ${a.what} ~ ${b.paint} ${b.what}, ${gap.toFixed(4)} apart`;
+
+describe("the vehicles' face scan", () => {
+  it("takes a paint layer to be enough for the depth buffer, and two to fit the surface tolerance", () => {
+    expect(LAYER).toBeGreaterThan(DEPTH_RESOLUTION);
+    expect(layers(2)).toBeLessThan(SURFACE_TOLERANCE);
+  });
+
+  const clashesOf = (parts: Part[], minGap = COPLANAR): number => {
+    const model: VehicleModel = { ...vehicleModel("T0"), body: [{ cell: { col: 0, row: 0 }, paint: "cream" }], parts };
+    return faceClashes(scanBoxes(model), minGap, EYE).filter(fights).length;
+  };
+  const part = (min: Vec3, max: Vec3, paint: Paint): Part => ({ shape: "box", min, max, paint });
+
+  it("finds a decal edge to edge on another, but not one inset from its edges", () => {
+    expect(clashesOf([part([0.1, 0.1, 0], [0.9, 0.9, 0.02], "glass"), part([0.2, 0.5, 0], [0.5, 0.9, 0.04], "charcoal")])).toBe(1);
+    expect(clashesOf([part([0.1, 0.1, 0], [0.9, 0.9, 0.02], "glass"), part([0.2, 0.5, 0], [0.5, 0.8, 0.04], "charcoal")])).toBe(0);
+  });
+
+  it("finds different paints layered too close for the depth buffer, but not the same paint", () => {
+    const base = part([0.1, 0.1, 0], [0.9, 0.9, 0.02], "glass");
+    expect(clashesOf([base, part([0.2, 0.2, 0], [0.8, 0.8, 0.03], "charcoal")], DEPTH_RESOLUTION)).toBe(1);
+    expect(clashesOf([base, part([0.2, 0.2, 0], [0.8, 0.8, 0.03], "glass")], DEPTH_RESOLUTION)).toBe(0);
+  });
+});
+
 describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
   const model = vehicleModel(id);
 
@@ -95,6 +164,14 @@ describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
     for (const part of model.parts) {
       for (let axis = 0; axis < 3; axis++) expect(part.max[axis]).toBeGreaterThan(part.min[axis]);
     }
+  });
+
+  it("lays no two faces of different paints in one plane", () => {
+    expect(faceClashes(scanBoxes(model), COPLANAR, EYE).filter(fights).map(describeClash)).toEqual([]);
+  });
+
+  it("layers different paints far enough apart for the depth buffer, however far away it is drawn", () => {
+    expect(faceClashes(scanBoxes(model), DEPTH_RESOLUTION, EYE).filter(fights).map(describeClash)).toEqual([]);
   });
 
   it("is two or three cells long", () => {

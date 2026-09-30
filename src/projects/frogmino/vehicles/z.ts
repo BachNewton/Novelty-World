@@ -1,5 +1,5 @@
 import { bumper, carNose, headlight, ring, windscreen } from "./kit";
-import { OVERLAY, stripesAcross, type VehicleDesign } from "./parts";
+import { OVERLAY, layers, stripesAcross, type VehicleDesign } from "./parts";
 
 export const breadWinner: VehicleDesign = {
   name: "Bread Winner",
@@ -45,8 +45,9 @@ export const landGalleon: VehicleDesign = {
     ...f.tyreFronts(),
     // The ship's wheel above.
     ...ring(f, 0, 1, [0.2, 0.2, 0.8, 0.8], "bun", "cocoa", 0.6),
-    f.front(0, 1, [0.47, 0.12, 0.53, 0.88], "bun", "flat", OVERLAY),
-    f.front(0, 1, [0.12, 0.47, 0.88, 0.53], "bun", "flat", OVERLAY),
+    // Its spokes cross over the hub, a layer above it.
+    f.front(0, 1, [0.47, 0.12, 0.53, 0.88], "bun", "flat", layers(3)),
+    f.front(0, 1, [0.12, 0.47, 0.88, 0.53], "bun", "flat", layers(3)),
     // Cannon ports in the stern castle.
     f.front(1, 1, [0.18, 0.3, 0.42, 0.54], "charcoal", "round"),
     f.front(1, 1, [0.58, 0.3, 0.82, 0.54], "charcoal", "round"),

@@ -1,5 +1,5 @@
 import { carNose } from "./kit";
-import { stripesAcross, windowsAlong, type VehicleDesign } from "./parts";
+import { layers, stripesAcross, windowsAlong, type VehicleDesign } from "./parts";
 
 const LANES = [0, 1, 2, 3];
 const SIDES = ["left", "right"] as const;
@@ -10,14 +10,13 @@ export const plowzilla: VehicleDesign = {
   blurb: "A snowplough so wide it clears all four lanes at once, hazard-striped blade first.",
   body: () => "tangerine",
   details: (f) => [
-    // The blade runs the whole width, with hazard stripes that step across
-    // the cells' seams.
-    ...LANES.flatMap((col) => [
-      f.front(col, 0, [0.06, 0.08, 0.94, 0.58], "sunflower", "flat", 0.06),
-      ...stripesAcross([0.06, 0.08, 0.94, 0.58], 4)
-        .filter((_, i) => i % 2 === 1)
-        .map((rect) => f.front(col, 0, rect, "charcoal", "flat", 0.075)),
-    ]),
+    // The blade runs the whole width, a thick plate of hazard stripes that
+    // step across the cells' seams.
+    ...LANES.flatMap((col) =>
+      stripesAcross([0.06, 0.08, 0.94, 0.58], 4).map((rect, i) =>
+        f.front(col, 0, rect, i % 2 === 0 ? "sunflower" : "charcoal", "flat", layers(3)),
+      ),
+    ),
     // Big lamps on the outer cells, the driver's windscreen in the middle two.
     f.front(0, 0, [0.3, 0.64, 0.7, 0.94], "headlight", "round"),
     f.front(3, 0, [0.3, 0.64, 0.7, 0.94], "headlight", "round"),

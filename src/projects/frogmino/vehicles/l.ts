@@ -1,5 +1,5 @@
 import { bumper, carNose, grille, headlight, headlights, ring, windscreen } from "./kit";
-import { OVERLAY, stripesAcross, type VehicleDesign } from "./parts";
+import { OVERLAY, layers, stripesAcross, type VehicleDesign } from "./parts";
 
 const SIDES = ["left", "right"] as const;
 
@@ -22,8 +22,8 @@ export const trashPanda: VehicleDesign = {
     f.front(2, 1, [0.08, 0.44, 0.92, 0.7], "charcoal"),
     f.front(2, 1, [0.2, 0.48, 0.4, 0.66], "snow", "round", OVERLAY),
     f.front(2, 1, [0.6, 0.48, 0.8, 0.66], "snow", "round", OVERLAY),
-    f.front(2, 1, [0.26, 0.53, 0.34, 0.61], "charcoal", "round", 0.05),
-    f.front(2, 1, [0.66, 0.53, 0.74, 0.61], "charcoal", "round", 0.05),
+    f.front(2, 1, [0.26, 0.53, 0.34, 0.61], "charcoal", "round", layers(3)),
+    f.front(2, 1, [0.66, 0.53, 0.74, 0.61], "charcoal", "round", layers(3)),
     f.front(2, 1, [0.3, 0.1, 0.7, 0.4], "snow", "round"),
     f.front(2, 1, [0.42, 0.22, 0.58, 0.34], "charcoal", "round", OVERLAY),
     // Its ringed tail runs down both sides of the bin.
@@ -126,9 +126,15 @@ export const cherryOnTop: VehicleDesign = {
     windscreen(f, 1, 0, [0.1, 0.62, 0.9, 0.9]),
     ...f.tyreFronts(),
     // The boom, climbing to a pivot.
-    f.front(1, 1, [0.4, 0.06, 0.6, 0.94], "charcoal"),
-    f.front(1, 1, [0.4, 0.3, 0.6, 0.38], "sunflower", "flat", OVERLAY),
-    f.front(1, 1, [0.4, 0.62, 0.6, 0.7], "sunflower", "flat", OVERLAY),
+    ...(
+      [
+        [0.06, 0.3, "charcoal"],
+        [0.3, 0.38, "sunflower"],
+        [0.38, 0.62, "charcoal"],
+        [0.62, 0.7, "sunflower"],
+        [0.7, 0.94, "charcoal"],
+      ] as const
+    ).map(([v0, v1, paint]) => f.front(1, 1, [0.4, v0, 0.6, v1], paint)),
     f.front(1, 2, [0.4, 0.06, 0.6, 0.42], "charcoal"),
     ...ring(f, 1, 2, [0.3, 0.42, 0.7, 0.82], "chrome", "charcoal", 0.4),
     ...SIDES.map((side) => f.side(1, 1, side, [0.8, 0.06, 1.2, 0.94], "charcoal")),
@@ -140,7 +146,7 @@ export const cherryOnTop: VehicleDesign = {
     f.front(0, 2, [0.52, 0.14, 0.76, 0.38], "cherry", "round", OVERLAY),
     f.front(0, 2, [0.34, 0.38, 0.38, 0.62], "lime", "flat", OVERLAY),
     f.front(0, 2, [0.62, 0.38, 0.66, 0.62], "lime", "flat", OVERLAY),
-    f.front(0, 2, [0.34, 0.58, 0.66, 0.62], "lime", "flat", 0.05),
+    f.front(0, 2, [0.34, 0.58, 0.66, 0.62], "lime", "flat", layers(3)),
     f.back(1, 0, [0.1, 0.5, 0.3, 0.7], "cherry"),
     f.back(1, 0, [0.7, 0.5, 0.9, 0.7], "cherry"),
     ...f.wheels(),

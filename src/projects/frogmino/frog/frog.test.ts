@@ -3,7 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cellKey, pieceCells } from "../logic";
 import type { Rotation, TetrominoKind } from "../types";
-import { SURFACE_TOLERANCE } from "../vehicles/parts";
+import { DEPTH_RESOLUTION, SURFACE_TOLERANCE } from "../vehicles/parts";
+import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
+import type { Placement } from "../world/geometry";
 import { FROG_LOOKS, FROG_ROLES, FROG_VARIANTS, type FrogVariant } from "./look";
 import { GROUND_CLEARANCE } from "../clearance";
 import { frogModel, type FrogModel, type FrogPart } from "./model";
@@ -88,6 +90,33 @@ function reaches(model: FrogModel): { name: string; part: FrogPart; rect: Rect }
   }
   return found;
 }
+
+// The frog's flat-faced parts as boxes for the face scanner: its cells'
+// skin, which carries the cell border, and its marks, belly, mouth and throat.
+// A disc is scanned as the box it fills (see the fleet's scan). Balls are
+// left out: a ball meets a plane or another ball at a point or along a
+// curve, never over an area, so it can't share a plane with anything.
+interface ScanBox extends Placement {
+  role: FrogPart["role"];
+  body: boolean;
+  what: string;
+}
+
+function scanBoxes(model: FrogModel): ScanBox[] {
+  const box = (part: FrogPart, body: boolean, what: string): ScanBox => ({ ...spanning(part.min, part.max), role: part.role, body, what });
+  return model.cells.flatMap(({ cell, body, details, throat }) => {
+    const at = cellKey(cell);
+    return [
+      ...body.map((part) => box(part, true, `${at} skin`)),
+      ...[...details, ...(throat ? [throat] : [])].map((part) => box(part, false, `${at} ${part.role} ${part.shape}`)),
+    ];
+  });
+}
+
+// The camera never goes below the road, under the frog's legs.
+const EYE = { lowest: 0, highest: Infinity };
+
+const fights = ({ a, b }: FaceClash<ScanBox>): boolean => a.body || b.body || a.role !== b.role;
 
 function modelFor(kind: TetrominoKind, rotation: Rotation, variant: FrogVariant, clearance?: number): FrogModel {
   const { markings, pupil } = FROG_LOOKS[variant];
@@ -180,6 +209,11 @@ describe.each(FROG_VARIANTS)("the %s frog", (variant) => {
       );
       expect(new Set(counts).size).toBe(1);
       expect(counts[0]).toBeGreaterThan(0);
+    });
+
+    it("layers its paints far enough apart for the depth buffer, and never in one plane", () => {
+      const clashes = faceClashes(scanBoxes(model), DEPTH_RESOLUTION, EYE).filter(fights);
+      expect(clashes.map(({ a, b, gap }) => `${a.what} ~ ${b.what}, ${gap.toFixed(4)} apart`)).toEqual([]);
     });
 
     it("covers exactly its piece's cells", () => {

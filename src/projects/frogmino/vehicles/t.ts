@@ -1,5 +1,5 @@
 import { bumper, carNose, grille, headlight, ring, windscreen } from "./kit";
-import { OVERLAY, stripesAcross, type FaceRect, type VehicleDesign } from "./parts";
+import { OVERLAY, layers, stripesAcross, type FaceRect, type VehicleDesign } from "./parts";
 
 const SIDES = ["left", "right"] as const;
 
@@ -97,7 +97,7 @@ export const mowProblemo: VehicleDesign = {
     f.side(1, 0, "left", [0.9, 0.62, 1.3, 0.94], "snow", "round"),
     f.side(1, 0, "right", [0.9, 0.62, 1.3, 0.94], "snow", "round"),
     // The grass bag on the back.
-    f.back(1, 0, [0.14, 0.1, 0.86, 0.8], "lime", "flat", 0.06),
+    f.back(1, 0, [0.14, 0.1, 0.86, 0.8], "lime", "flat", layers(3)),
     ...f.wheels(0.25),
   ],
 };
