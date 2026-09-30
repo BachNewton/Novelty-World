@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { isDone } from "../run";
 import { useFrogminoStore } from "../store";
@@ -11,6 +11,7 @@ import { useFrogKeys } from "./use-frog-keys";
 const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScene), {
   ssr: false,
 });
+const Garage = dynamic(() => import("./garage").then((m) => m.Garage), { ssr: false });
 
 const KEY_LEGEND: readonly [keys: string, action: string][] = [
   ["A D / ← →", "move"],
@@ -43,7 +44,25 @@ function DoneOverlay() {
   );
 }
 
+function subscribeToNothing(): () => void {
+  return () => undefined;
+}
+
+// `?garage` in the URL shows the fleet instead of the game. The server render
+// never has it, so the page hydrates as the game and switches after.
+function useGarageMode(): boolean {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => new URLSearchParams(window.location.search).has("garage"),
+    () => false,
+  );
+}
+
 export function Frogmino() {
+  return useGarageMode() ? <Garage /> : <FrogminoGame />;
+}
+
+function FrogminoGame() {
   const done = useFrogminoStore((s) => isDone(s.run));
   const restart = useFrogminoStore((s) => s.restart);
   useFrogKeys();

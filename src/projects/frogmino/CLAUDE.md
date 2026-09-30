@@ -14,9 +14,13 @@ The prototype still models every obstacle as a full-width wall with openings in 
 - `course.ts`: the seeded course generator: the walls' openings and where they start along the course.
 - `tuning.ts`: the feel knobs (wall speed and placement, course length, hop airtime, ease duration, corridor size, jump distance, held-jump repeat interval, bonk knock-back, and the camera's height, follow distance and look-ahead), in one constants object. Tuning is done by editing it; there is no settings UI.
 - `store.ts`: the Zustand store holding the current run, with actions for key presses and releases, frame ticks and restart.
-- `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay. The scene is loaded browser-only because it reads its colours from the live stylesheet.
+- `fleet.ts`: the 19 vehicle ids, derived from the tetromino definitions and rotation in `logic.ts`, and each vehicle's cells.
+- `vehicles/`: the fleet's designs. `parts.ts` is the vehicle's own frame, the paints, the surface-detail tolerance and the helpers that place details on a cell's faces; `kit.ts` holds details many vehicles share (headlights, bumpers, windscreens, rings); `i.ts` to `l.ts` hold one piece's vehicles each; `index.ts` gathers them as `VEHICLES` and builds a `vehicleModel` from an id.
+- `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay, or the garage when the URL has `?garage`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
 - `components/scene.tsx`: the 3D scene and the per-frame loop. It draws the frog and the walls as thick as the rules count them, from the thicknesses `run.ts` exports. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
 - `components/use-frog-keys.ts`: the keyboard controls, including holding and releasing the jump keys.
+- `components/vehicle.tsx`: the `Vehicle` component, drawing any of the 19 by id at a lane and depth, in the scene's axes. `components/vehicle-assets.ts` holds its materials, cell-border masks and per-paint merged detail geometry.
+- `components/garage.tsx`: the garage (see The fleet).
 
 The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), fifteen walls from a fixed seed with about one in four raised (never the first three, always the last) that loop as endless traffic, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
 
@@ -101,7 +105,43 @@ Obstacles are shaped vehicles on a road, not walls. "Wall" is prototype vocabula
 
 - **For now, vehicles arrive lined up in rows at one speed.** Side by side as one row, they leave a gap the frog must match to pass: the Brain Wall moment.
 - **Mixed speeds and staggered vehicles are tabled.** Staggered vehicles the frog weaves between, as in Frogger, and vehicles travelling at different speeds were part of the direction. The design problem that tabled them: getting vehicles at different speeds to arrive lined up into a matching row at the right moment is hard. Two v1 rules are proposed for when they are revisited: within a lane, a vehicle nearer the frog is never slower than one behind it; and a vehicle keeps a constant silhouette along its length, with solid sides, and a hop onto it stands on it.
-- **Vehicle shapes are silhouettes chosen for gameplay,** with no art in mind. A later art pass makes them fun, quirky vehicles.
+- **Vehicle shapes are silhouettes chosen for gameplay,** and the art serves them: see The fleet.
+
+## The fleet
+
+The traffic is exactly the 19 fixed tetrominoes: every rotation of the seven pieces, with rotations that look the same counted once (I 2, O 1, S 2, Z 2, T 4, J 4, L 4). Each is its own vehicle, with an id made of its piece and the first rotation that gives its shape, such as `J2`. A vehicle drives head-on at the frog and never rotates. Its front silhouette, as the player sees it from behind the frog, is exactly its piece's four cells on the lane × row grid, resting on the road. Funky shapes, such as a long bar on top of a single wheeled cell, are intended.
+
+The art serves the shape: fun, quirky vehicles that never hide which four cells they fill.
+
+- **The silhouette is sacred.** Seen head-on, a vehicle's solid volume fills exactly its four cells. Nothing reaches into an empty cell of its bounding box or a neighbouring lane: not wheels, mirrors, antennas, exhausts, cargo, flags or smoke, because an intrusion would lie to the player about the opening. Details stay inside the cells' volume, standing proud of an outer face by no more than the surface-detail tolerance in `vehicles/parts.ts`, a few hundredths of a cell. A unit test checks every detail's front-projected bounds against its vehicle's cells.
+- **Cells stay countable.** Every body cell carries the darker inset border the walls and the frog have: all round on its front and back, and along the seams on its sides and top, so the border never stretches with the length. Details sit inset from the cell edges so the seams show, and colour blocking by cell (a deck, an awning, a load) helps the count.
+- **The silhouette is constant along the length.** Each body cell is one solid box the vehicle's whole length, one to three cells to suit its archetype, so the opening is the same wherever along the vehicle the frog is. Length is visual for now; the rules judge the front face.
+- **No Tetris colours.** The paints are the fleet's own design tokens in `globals.css`, and none belongs to a piece: not the standard seven-colours-per-piece mapping, and never one main colour for every rotation of a piece (a test checks this). Vehicles are told apart by archetype, silhouette and decoration, not colour alone. This is deliberate distance from Tetris's protected look; see the legal note in `ideas/tetris-worlds-look.md`.
+- **Procedural, in the game's look.** Vehicles are boxes and discs built in code and merged per paint, in the plain lit materials and lights of Look. There are no models, textures or fonts, so there is nothing to credit.
+
+| Id | Name | Archetype |
+|---|---|---|
+| I0 | Plowzilla | Snowplough |
+| I1 | Stack Attack | Quadruple-decker bus |
+| O0 | Mr. Sprinkles | Ice-cream van |
+| S0 | Happy Camper | Camper van |
+| S1 | Sub Standard | Road submarine |
+| Z0 | Bread Winner | Bakery van |
+| Z1 | Land Galleon | Pirate ship on wheels |
+| T0 | Big Cab | Taxi |
+| T1 | Taco Tower | Food truck |
+| T2 | Mow Problemo | Ride-on mower |
+| T3 | Beach Patrol | Lifeguard tower buggy |
+| J0 | Tractor Factor | Farm tractor |
+| J1 | Claw Daddy | Crane truck |
+| J2 | Top Dog | Hot-dog cart |
+| J3 | Moon Hauler | Rocket transporter |
+| L0 | Trash Panda | Garbage truck |
+| L1 | Tall Latte | Coffee cart |
+| L2 | Deck Hand | Car carrier |
+| L3 | Cherry on Top | Cherry picker |
+
+**The garage** shows the whole fleet: `?garage` on Frogmino's URL. Each vehicle appears twice: head-on through an orthographic camera, which is exactly its silhouette, over a faint lane × row grid, and turning slowly on a lane-grid plate in three-quarter view. One canvas behind the page draws every view into its card, so the page needs one WebGL context however many vehicles it shows.
 
 ## Levels
 

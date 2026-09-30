@@ -74,6 +74,34 @@
   --color-poke-fairy: #e18ce1;
 }
 
+/* Frogmino: the vehicle fleet's paints. Read only by the 3D scene (through
+   themeColor), never by a Tailwind class, so they're declared outside @theme
+   where Tailwind can't prune them as unused. Deliberately not tied to piece
+   shapes: no paint belongs to a tetromino. Chrome, charcoal, glass and
+   headlight are for details: trim, tyres, windows and lamps. */
+:root {
+  --color-frogmino-cherry: #ff3b5c;
+  --color-frogmino-tangerine: #ff8a1f;
+  --color-frogmino-sunflower: #ffd23f;
+  --color-frogmino-lime: #b6e33a;
+  --color-frogmino-mint: #6ee7b7;
+  --color-frogmino-teal: #14b8a6;
+  --color-frogmino-sky: #4cc3ff;
+  --color-frogmino-cobalt: #3a5cff;
+  --color-frogmino-grape: #9b5cff;
+  --color-frogmino-bubblegum: #ff7ac8;
+  --color-frogmino-coral: #ff7a6b;
+  --color-frogmino-peach: #ffb38a;
+  --color-frogmino-cream: #fff1d0;
+  --color-frogmino-bun: #e8a857;
+  --color-frogmino-cocoa: #8a5a3b;
+  --color-frogmino-chrome: #cfd6e0;
+  --color-frogmino-charcoal: #2b2d36;
+  --color-frogmino-glass: #1f3a5f;
+  --color-frogmino-headlight: #fff6b0;
+  --color-frogmino-snow: #fafafa;
+}
+
 /* Monopoly: pulse a frame between white and its normal border to draw the eye —
    used for a traded chip ("what changed in this trade", against the dense
    ownership grid) and for the active player's token. The --mono-* vars resolve
