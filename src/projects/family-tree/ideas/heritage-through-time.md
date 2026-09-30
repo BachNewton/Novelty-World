@@ -15,9 +15,11 @@ they lived, and how the world changed around them. It comes in two parts:
    can be built, and changed, from the evidence without new research, so it
    waits until the evidence is in.
 
-The rest of this doc is the proposal for Part 2; Part 1 is built (see the
-data model in the project `CLAUDE.md`). The decisions Part 2 asks for are
-listed at the end.
+Part 1 is built, and so is Part 2's data model: heritage names peoples
+with optional regions, and each people's symbol timeline is data (see the
+data model in the project `CLAUDE.md`, and "Where Part 2 stands" below).
+The rest of this doc is the design for Part 2. The decisions it asks for
+are listed at the end.
 
 ## Why
 
@@ -86,9 +88,10 @@ they left; their grandchildren show today's.
 
 ## Proposed timelines for the peoples in the tree today
 
-Starting points to verify against sources before building. "Region" means
-the symbol belongs to the region, so the people needs a region entry for
-those years.
+Starting points to verify against sources. They are entered in
+`symbol-timelines.ts` as unverified eras, for research to verify and cite.
+"Region" means the symbol belongs to the region, so the people needs a
+region entry for those years.
 
 | People | Timeline |
 |---|---|
@@ -127,8 +130,8 @@ sources and reviewed like any other page text.
   the family's lore. Where the evidence only
   gives a state and the place was home to several peoples, the people stays
   unknown and the origin still shows: never a guess from a surname.
-- `standards.md` and the project `CLAUDE.md` replace the present-day-country
-  rule with this.
+- `standards.md` and the project `CLAUDE.md` hold this rule, in place of
+  the present-day-country rule heritage started with.
 
 ## Migrating what exists
 
@@ -147,6 +150,37 @@ are added only where a record gives them.
    by era.
 4. **The story panel:** the Heritage section and the first era paragraphs,
    for the peoples already in the tree.
+
+## Where Part 2 stands
+
+**Built: the data model.**
+
+- Every heritage entry names a people, with an optional region
+  (`heritages.ts`); the old country codes migrate one to one on load.
+- Each people has a symbol timeline, and each region one for its people's
+  regional eras (`symbol-timelines.ts`), entered from the table above and
+  marked unverified until research lists sources for each era.
+- A pure picker gives the symbol and hover label for a heritage and a birth
+  year, and a person without a birth date gets a year estimated from their
+  nearest relatives, never stored.
+- Validation, and CLI support for research: change files take the new
+  codes, `peoples` lists peoples, regions and timelines with what is left
+  to verify, and `undecided` lists who has origin evidence but no heritage
+  decision on their line.
+
+**What remains:**
+
+1. **Research:** verify every era's years and symbol against sources,
+   including the Lebanese mandate-era question; add regions where records
+   give them; choose peoples for the lines `undecided` lists.
+2. **The art:** historical flags and arms from Wikimedia Commons, in the
+   repo with source and license, one per symbol id.
+3. **The card visuals** (owner's call): corner symbols and chips picked by
+   each card's birth year, hover naming the era. Until then the cards show
+   exactly what they did before peoples: each people shows today's flag of
+   the country it was coded by, a region its people's flag, and a chip's
+   hover names that country.
+4. **The Heritage panel** with the origins map and the era paragraphs.
 
 ## A line's journey, and when a place becomes heritage
 
@@ -208,9 +242,33 @@ owner's peoples); the owner judges the result.
    origin outlasts borders, which is what the story needs; a region covers
    the eras before nation-states. The list grows whenever the evidence names
    a people not yet in it.
+   - **A region is part of the code, not a separate field:** `italian` or
+     `italian/sicily`. An entry stays a flat list of codes, so the mix math,
+     the change files and the validation are unchanged, and a region can
+     never be recorded without its people. The mix treats a regional code
+     as a heritage of its own; grouping shares by people is the display's
+     job, derived and never stored.
+   - **Codes are lowercase slugs of the people's English name** (`finnish`,
+     `lebanese`), readable in change files. A people without a country of
+     its own (`sami`, `roma`) is the same kind of entry as any other, so the
+     old separate "people" kind is gone.
+   - **Region slugs are unique across all peoples**, and each region names
+     its people. A region entered under another people is rejected rather
+     than read as a new region.
 2. **A card's symbol follows that person's own birth year.** It shows how
    the world changed around each generation, which is the point of the
    story aim; "as carried" would freeze it.
+   - **Eras are spans of birth years:** an era covers its first year up to,
+     not including, the next era's first year, and a timeline runs without
+     gaps from the earliest times to the present. So the German Empire's
+     era runs to 1919: a child born in 1918 was born under it.
+   - **A regional era still names a symbol for the people as a whole,** for
+     a share with no region: the colors the people's own national movement
+     used before unification (the Italian tricolour, the black-red-gold of
+     1848). A share with a region shows its region's symbol in those years.
+   - **The estimated birth year** comes from the nearest relatives with a
+     birth date, over parent, child and partner links, about 30 years a
+     generation, averaging relatives equally near.
 3. **A people's symbol is its own, never a regime's imposed on it,**
    including German lines born 1933–1945, who show the black-red-gold.
 4. **The story lives in the person panel's Heritage section,** not a page of

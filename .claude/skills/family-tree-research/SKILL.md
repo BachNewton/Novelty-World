@@ -215,7 +215,7 @@ lessons into this skill's files.
   image tiles, film data or any API) with the owner's session: agents reach
   for them to read images faster, which the owner's rules forbid. Images are
   read only through the normal viewer (see `sources.md`).
-- A research agent that needs an unlisted heritage says so in its report
+- A research agent that needs an unlisted people or region says so in its report
   and uses "unknown" meanwhile; the orchestrating session adds it (parallel
   agents editing the list would collide) before applying that agent's file,
   then swaps the "unknown" for the new code.
@@ -245,9 +245,10 @@ the owner sees or what touches privacy.
 
 ## Heritage
 
-Heritage records **where a line came from**, not identity. The data model is
-under "Heritage" in the project CLAUDE.md; the list of codes is
-`src/projects/family-tree/heritages.ts`.
+Heritage records **the people a line came from**, not identity. The data
+model is under "Heritage" in the project CLAUDE.md; the list of peoples and
+regions is `src/projects/family-tree/heritages.ts`, and their symbol
+timelines are `symbol-timelines.ts` beside it.
 
 - **Climb to the origin.** Where a line's top person and their parents
   were born in the US, add the parents once a record ties them, and keep
@@ -256,19 +257,34 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
   the records is in `methods.md`.
 - **Descendants derive theirs**, adopted children included; an entry only
   fills the part of a mix the person's parents leave unknown.
-- **Code = the present-day country containing the recorded place**, not the
-  state at the time: a birthplace recorded as Prussia or Austria-Hungary maps
-  by where the town actually lies. Use a **people** entry when the ancestry is
-  a people without a country. **The list grows with the research:** when
-  the evidence needs a heritage that isn't listed, add it in the same round
-  (one entry in `heritages.ts` with its kind and name, and its flag in
-  `flags.ts`), commit and push it to main, then apply the round's changes.
-  Never park a finding because its heritage isn't listed yet.
+- **Evidence first, then the people.** Record the origin evidence with
+  `setOrigin`, then choose the **people** from it: the culture the line
+  carried (Hungarian, Finnish, Lebanese), not the state that held the
+  place, and never a surname. A Hungarian born in a town now in Romania is
+  Hungarian. Where the evidence gives only a state that was home to several
+  peoples, the people stays unknown and the evidence still shows. How to
+  weigh the evidence is in `standards.md` ("Choosing the people").
+- **A region only where a record gives it.** A region (`italian/sicily`)
+  is the finer homeland before the nation-states; enter one only when a
+  record names that region or a place in it, never from a surname or a
+  guess.
+- **The list grows with the research:** when the evidence needs a people or
+  region that isn't listed, add it in the same round (a people: its entry
+  in `heritages.ts`, its flag in `flags.ts` and its timeline in
+  `symbol-timelines.ts`, which typecheck forces; a region: its entry and
+  its timeline for its people's regional era, which the people's timeline
+  gains first if the sources show the region was the homeland then), commit
+  and push it to main,
+  then apply the round's changes. Never park a finding because its people
+  isn't listed yet.
+- **Verify the symbol timelines** as the research reaches each people: each
+  era's years and symbol need sources (see `standards.md`, "Symbol
+  timelines"). `peoples` lists every era still unverified.
 - **Unknown when the records don't say. Never guess.** A US-born top-of-line
   person whose origin isn't traced stays unknown: the question is still open
-  or exhausted, which is not a claim they aren't American. Don't use a
-  present-day country just because that's where the person was born when the
-  question is where the line came from. Use `"unknown"` inside an entry for
+  or exhausted, which is not a claim they aren't American. Don't choose a
+  people just because of where the person was born when the question is
+  where the line came from. Use `"unknown"` inside an entry for
   the part of a line the records leave open.
 - **Record the evidence with `setOrigin`:** the birthplace as the record
   words it and as it is today; for immigrants the emigration date, mother
@@ -278,7 +294,7 @@ under "Heritage" in the project CLAUDE.md; the list of codes is
   notes.
 - **Heritage is each generation's own answer** to "where is your family
   from?" (decision 6 in `ideas/heritage-through-time.md`). Climbing above an
-  established entry: an ancestor whose origin is the same gets the same
+  established entry: an ancestor whose people is the same gets the same
   code; one whose origin differs (a family in Pest whose father came from
   Árva) gets the origin evidence and notes only, no entry, so the older
   migration doesn't overwrite the descendants' identity. Keep climbing
@@ -301,6 +317,8 @@ topology solve the layout with a Python solver, which needs a one-time
     npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
     npx tsx src/projects/family-tree/tools/tree-cli.ts gaps
     npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
+    npx tsx src/projects/family-tree/tools/tree-cli.ts undecided
+    npx tsx src/projects/family-tree/tools/tree-cli.ts peoples
     npx tsx src/projects/family-tree/tools/tree-cli.ts history [count]
     npx tsx src/projects/family-tree/tools/tree-cli.ts verify
     npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--round <label>] [--write]
@@ -323,6 +341,11 @@ those of their children who have no partner or child of their own; a child
 who does heads a family of their own, so everyone appears once. It ends with
 each question's totals and how many people are complete. `superseded` lists every heritage entry research above has
 taken over: fully superseded ones to clear, partly superseded ones to review.
+`undecided` lists everyone with origin evidence recorded but no heritage
+decision on their line: no entry of their own, nothing known from above,
+and no entry below them. Many are lines still mid-climb, but anyone on it
+born abroad needs a people chosen. `peoples` lists every people with its
+regions and symbol timelines, each era verified (with its sources) or not.
 
 The operation vocabulary, and what each field means, is the `Op` type in
 `tools/tree-edit.ts`; the parser rejects unknown ops and fields. In a change
@@ -338,13 +361,13 @@ family's research:
       { "op": "addSpouse", "ref": "@wife", "person": "<id>",
         "name": { "firstName": "Given", "lastName": "Surname", "birthSurname": "Maiden" },
         "gender": "F", "status": "married", "bioChildren": [], "birthDate": "1928-04-02",
-        "heritage": ["IT"] },
+        "heritage": ["italian"] },
       { "op": "addChild", "parent": "<id>", "coParent": "@wife",
         "name": { "firstName": "Child", "lastName": "Surname" }, "gender": "M", "birthDate": "1952",
         "origin": { "birthPlace": "Region, Country" } },
       { "op": "appendNote", "person": "@wife", "note": "Married 1950 (county marriage record)" },
       { "op": "setBirthDate", "person": "<id>", "birthDate": "1925-11" },
-      { "op": "setHeritage", "person": "<id>", "heritage": ["FI", "unknown"] },
+      { "op": "setHeritage", "person": "<id>", "heritage": ["finnish", "unknown"] },
       { "op": "setOrigin", "person": "<id>", "birthPlace": "Town, Province, Country",
         "birthPlaceToday": "Town, Region, Country", "emigrationDate": "1905-04",
         "motherTongue": "Language", "recordedPeople": "People", "religion": "Faith as written",
@@ -362,7 +385,9 @@ family's research:
 shows old → new); `clearResearch` (`{ "op": "clearResearch", "person",
 "question" }`) removes one and fails if there is none. `show` prints each
 person's research record. `setHeritage` (or `heritage` on a new person) takes
-codes from `heritages.ts` plus `"unknown"`, split equally; `[]` removes it.
+codes from `heritages.ts` (a people, `"finnish"`, or a people and region,
+`"italian/sicily"`) plus `"unknown"`, split equally; `[]` removes it. An old
+country code (`"FI"`) is refused with the people to use instead.
 
 `setOrigin` (`{ "op": "setOrigin", "person", "birthPlace"?, "birthPlaceToday"?,
 "emigrationDate"?, "motherTongue"?, "recordedPeople"?, "religion"?,

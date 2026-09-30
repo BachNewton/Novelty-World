@@ -38,8 +38,17 @@ an end in itself. So:
   owner decides.
 - **People-search listings are leads, never evidence.** They can point at a
   record; they can't confirm or exhaust anything on their own.
-- **"Per Kyle"** is a valid source: the owner vouching, from their own
-  knowledge or from asking family. Record what they said in the research log.
+- **"Per Kyle"** is a valid source: the owner vouching from their own
+  knowledge, when they volunteer it. Record what they said in the research log.
+- **Public social media is evidence for the living.** A public profile or
+  post by the person or a relative (a relationship status, a family photo
+  captioned with names, a wedding or birth announcement, a birthday post
+  giving an age) counts once the identity rule ties the account to the tree's
+  person: it names or shows at least two relatives who match the tree. It can
+  confirm relationships and a birth year; it never confirms a death. The
+  source in the tree is generic ("public social media", "a public wedding
+  announcement"), never a platform handle, profile name or URL; those go in
+  the research log.
 - **Exhausted needs every must-try step done and logged**, each with its null
   result in the research log. A step that couldn't run (site blocked, search
   budget spent) is not done; the question stays Open, and the note says which
@@ -51,17 +60,16 @@ an end in itself. So:
   leave each child with a separate open question for the same answer.
 - **Living vs. dead.** Treat someone as living unless a record of their death
   exists. Public records about living people are thin and often locked, so
-  for them asking family is a must-try step.
-- **Digital first, people last.** "Ask Kyle / family" is always the last
-  must-try step, taken only once every digital step is done, because people
-  are slow to answer. The question goes on the round's batch for family (see
-  "When to ask" in `SKILL.md`), and the record stays `open` with a note saying
-  the question is out to family. Research moves on to other families; it
-  never waits on an answer.
-- **Exhausted without a family answer** is allowed only where a question's
-  section below says so. Elsewhere, a question whose digital steps all came
-  up empty stays `open` until family answers, even if the answer is "don't
-  know" (which then makes it Exhausted).
+  for them public social media and people-search listings (as leads) are
+  must-try steps.
+- **Nobody is asked.** Research never asks the owner or family: waiting on
+  people blocks the work. Every must-try step is digital, and a question
+  whose steps all came up empty is Exhausted, with the note saying what would
+  settle it.
+- **Look anywhere public, save only what the tree needs.** Any public page
+  may be read. The research log keeps a finding's URL and the relationship
+  facts it gives, nothing else about a living person: no addresses, contact
+  details, employers, health, finances, photos or daily life.
 - **Minors.** A child's own online footprint (school, sports, social media)
   may be searched like anyone's. The privacy rules apply to what is saved,
   not to where you look: from a child, keep only the birth year and
@@ -205,18 +213,55 @@ Asked only of in-scope people with no parents in the tree. When the origin
 lies above the tree, climb (see "Adding an ancestor" below) rather than stop.
 
 **Confirmed** when a record tied to the person or to an in-tree descendant
-gives the origin:
+gives the origin, and the evidence settles the people (see "Choosing the
+people" below):
 
 - the person was born abroad (their own birthplace is the origin);
 - a census gives their parents' birthplaces abroad (the origin is those
-  countries, split as the parents split);
+  places, split as the parents split);
 - a naturalization, immigration or death record, or an obituary, gives the
   foreign birthplace of the person or their parents.
 
-The place maps to the present-day country containing it. If the person and
-both parents were born in the US, the origin lies above the tree: add the
-parents and climb. It is never a Confirmed "US"; only when the climb runs out
-of records is it Exhausted, with the note saying where it stopped.
+If the person and both parents were born in the US, the origin lies above
+the tree: add the parents and climb. It is never a Confirmed "US"; only when
+the climb runs out of records is it Exhausted, with the note saying where it
+stopped. An origin whose people the evidence doesn't settle is Open, with
+that share `"unknown"` and the note saying what would settle it.
+
+### Choosing the people
+
+The entry names the people the line carried, chosen from the evidence
+recorded in the origin fields, never from a surname:
+
+- **A birthplace alone settles the people only where the place was home to
+  essentially one people** (a parish in Finland proper, a village in
+  Tuscany). A state or a region home to several peoples (Austria-Hungary,
+  the Russian Empire, Prussia, Transylvania, Ottoman Syria) needs more.
+- **What settles it:** a stated mother tongue, a passenger list's "Race or
+  People", a naturalization's nationality, a religion that marks one people
+  there (a Greek Catholic parish, a Lutheran one in a Catholic region), a
+  church record's language, and the family's lore (Possible on its own
+  unless the owner vouches). Two independent pieces that agree confirm it.
+- **When they disagree**, a record the person made (a naturalization, a
+  census answer about their own mother tongue) outweighs one made about
+  them, and the conflict goes in the notes.
+- **Not settled:** the people stays `"unknown"`, the question Open, and the
+  origin fields still hold everything found. Never guess.
+- **A region** (`italian/sicily`) only where a record names the region or a
+  place in it, for a line whose homeland was that region before its
+  people's nation-state. Absent that, the people alone.
+
+### Symbol timelines
+
+Each people's timeline of symbols (`symbol-timelines.ts`) starts as the
+design doc's unverified proposal. An era is **verified** when its sources
+(safe to publish, no URLs: a reference work, an official heraldry page, a
+history of the flag) settle three things: the years it covers, the symbol,
+and that the symbol was the people's own rather than a regime's imposed on
+it. Change the years, the symbol or the era's name to what the sources
+show, split an era where the sources do, and list the sources on it. A
+disputed era (a mandate-era flag that was a regime's) stays unverified with
+the question in the research log until it is settled.
 
 **When records disagree on a birthplace,** the one the person gave
 themselves (a naturalization, a draft card) outweighs one an informant gave

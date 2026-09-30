@@ -208,8 +208,10 @@ generation needs its own tie (see "Adding an ancestor" in `standards.md`).
    birthplace (naturalization, birth record) outweighs a census, which can
    be plainly wrong. Records that disagree on the county but agree on the
    country still settle the question.
-6. **Map the place** to the present-day country that contains it; a county
-   or town goes in notes as the record words it.
+6. **Place it and choose the people.** Record the place as the record words
+   it and as it is today (`birthPlace`, `birthPlaceToday`), then choose the
+   people from the evidence (see "Choosing the people" in `standards.md`),
+   never from the state the place lies in today or once did.
 7. **Both parents US-born:** the origin lies above the tree. Add the
    parents (their tie per `standards.md`) and repeat from step 2 for each.
    Stop at someone born abroad, or when the records run out (then Exhausted,

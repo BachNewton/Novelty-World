@@ -230,7 +230,8 @@ is in `methods.md` ("Finding a line's origin").
 - **Ohio, Naturalization Records 1848–1951**: exact date and town of birth
   abroad, which no census gives; outweighs a census birthplace. It names the
   spouse, which ties identity. For Levant immigrants the town settles a
-  census "Syria": map the town to its present-day country.
+  census "Syria": record the town as it is today, and choose the people
+  from it and the rest of the evidence.
 - **GenealogyBank obituary index**: its parent and relationship fields are
   unreliable (a sister's name given as the mother's). Check against the
   siblings' NUMIDENTs.
