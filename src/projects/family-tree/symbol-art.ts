@@ -134,6 +134,32 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The Commons page's colour table says crimson #DC143C, which is not what the file draws; the file itself was checked. " +
       "The plain tricolour was the merchant flag from 1867 and the national flag from 8 November 1892.",
   },
+  "germany-black-red-gold": {
+    kind: "published",
+    format: "svg",
+    sha1: "69aeb30e7468ad611bbbcc12400cc2345c7608c7",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Germany_(RGB).svg",
+    author: "Kamran.nef and Colohisto (Wikimedia Commons), after the federal government's colour specification",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-simple, PD-Flag-Germany, insignia",
+    attribution: "",
+    proportions: { width: 5, height: 3 },
+    checkedAgainst: [
+      "Basic Law for the Federal Republic of Germany (1949), article 22: the federal flag is black-red-gold",
+      "Anordnung über die deutschen Flaggen, 13 November 1996 (BGBl. I S. 1729): three equal horizontal stripes, black over red over gold, height to length 3:5",
+      "Federal Government corporate design styleguide, \"Die Nationalfarben\": black #000000, red #FF0000 (Pantone 485), gold #FFCC00 (Pantone 7405): https://styleguide.bundesregierung.gov.de/sg-de/die-nationalfarben-2023492",
+      "Bundesbeschluss über Wappen und Farben des Deutschen Bundes, 9 March 1848: https://www.verfassungen.de/de06-66/bundesfarben48.htm",
+      "Flags of the World, \"Weimar Republic 1919-1933\" and \"Regulation on Flags of 11th April 1921\": https://www.fotw.info/flags/de1919.html",
+    ],
+    checked:
+      "Three equal horizontal stripes, black over red over gold, at 3:5 as the 1996 flag order sets them: the file is 1000 by 600 with stripes of 200. " +
+      "Black #000000, red #FF0000 and gold #FFCC00 are exactly the federal government's published RGB values for the national colours, which the styleguide gives for screen use (its CMYK and Pantone values are for print). " +
+      "The better-known Commons file Flag_of_Germany.svg draws #DD0000 and #FFCE00, shades chosen on its talk page in 2006, so it was not used. " +
+      "The same colours represent the German people in every era the timeline gives them: the national movement's colours from the Burschenschaft of 1815 and the Hambach Festival of 1832, " +
+      "declared the German Confederation's colours on 9 March 1848 as \"the colours of the former imperial banner\", the Reich's colours under the Weimar constitution (article 3), and the federal flag since 1949; " +
+      "Germans born 1933-1945 show them too, as the people's own colours rather than the regime's flags. " +
+      "Only the ratio varied: the Weimar flag flew at 2:3 (Flags of the World), and 3:5 dates from the federal flag order of 1950, kept in 1996.",
+  },
   "hungary-flag": {
     kind: "published",
     format: "svg",
@@ -269,6 +295,72 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "Drawn as a viewBox of 3 by 2 with three bands of 1, in the decree's colours as Pantone converts them, and rendered to check the bands and colours. " +
       "Drawn because no published file draws all three colours of the specification.",
   },
+  "lebanon-cedar": {
+    kind: "published",
+    format: "svg",
+    sha1: "1500d0cb2b60c7837ea29946c10e787525dc2f6d",
+    source: "https://commons.wikimedia.org/wiki/File:Cedar_flag.svg",
+    author: "RblxFunkyGamer (2023 redrawing), after Mysid and Lokal Profil (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-retouched-user, insignia",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "Roman Klimeš, \"The Cedar Tree – The Symbol of a Country\", Proceedings of the 25th International Congress of Vexillology, Rotterdam 2013 (https://fiav.org/wp-content/uploads/2021/06/ICV2525-Roman-Klimes-The-Cedar-Tree-%E2%80%93-The-Symbol-of-a-Country.pdf): by 1848 the unofficial flag of Lebanon, white with a green cedar in the centre; proposed by Shukri el-Khoury in 1913 and adopted by Lebanese emigrants in America; hoisted at Baabda from 2 November 1918 to May 1919",
+      "Flags of the World, \"Lebanon: Cedar Flag 1918\" (https://www.fotw.info/flags/lb_cedar.html), after Joseph Nehmé, \"The Flag of Lebanon\", Crux Australis 50 (1996): a white cloth with a green cedar in the centre, 2:3, first attested October 1848",
+      "Flags of the World, \"French Mandate of Greater Lebanon 1920-1943\" (https://www.fotw.info/flags/lb-frm20.html): the mandate's tricolour with a cedar, for comparison",
+    ],
+    checked:
+      "The cedar flag had no official design and survives in no dated drawing: its sources describe a white flag with a green cedar in the centre (one 1918 account puts the cedar in the lower part), at 2:3. " +
+      "This is that design in its most widely recognized form, one variant of several, the cedar as the Lebanese flag draws it: all green, centred, as high as half the flag and a third of its length wide. The file is 1773 by 1182 (3:2), white #FFFFFF with the cedar in green #00A850 (edges traced in #80D4A8, the blend of the two), the cedar centred within 0.3% (rendered and measured). " +
+      "The shade and the cedar's drawing were never specified. The file's 2023 re-upload (no reason given) redrew the 2006 cedar and brightened its green without changing the design. " +
+      "Why it represents the people: for births under the Mutasarrifate and the French Mandate, the Lebanese flag is the one they used for themselves: the Maronites' cedar on white from 1848, the emigrant communities' flag in America from 1913, and the flag hoisted at Baabda in 1918. " +
+      "The mandate's tricolour with a cedar (1920-1943) is not used: Lebanese emigrants designed it and some Lebanese asked for it, but it set the people's cedar on France's colours, which the Lebanese deputies dropped at independence in 1943 as the sign of it. Asked how they would want to be remembered, these Lebanese would most likely choose their own cedar on white.",
+  },
+  "lebanon-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "9a84bbac85fa8a4f4b66c1320c4f814786b07292",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Lebanon.svg",
+    author: "Henri Pharaon (design, 1943); drawn by Arctic Levantine and optimized by SVG flag maker (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-Lebanon, PD-USGov-CIA-WF, PD-ineligible, insignia",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "Constitution of Lebanon, article 5, as amended by the Constitutional Law of 7 December 1943 (Arabic text, Presidency of the Republic: https://www.presidency.gov.lb/lebanon-system/aldstwr-allbnany): red, white, red horizontal; the white as high as both reds together; a green cedar in the centre, its top touching the upper red and its base the lower, its size a third of the white (French text: \"dont la largeur occupe le tiers de celle-ci\")",
+      "Roman Klimeš, \"The Cedar Tree – The Symbol of a Country\", Proceedings of the 25th International Congress of Vexillology, Rotterdam 2013: the 1943 text, no ratio set",
+      "Flags of the World, \"Lebanon\" (https://www.fotw.info/flags/lb.html): 2:3; Album des Pavillons 2023 colours, red Pantone 1788 C, green Pantone 355 C",
+      "Flags of the World, \"Lebanon: Flag Variants\" (https://www.fotw.info/Flags/lb!.html): an all-green cedar is correct, brown-trunk flags are not",
+    ],
+    checked:
+      "Red, white and red stripes of 1:2:1, the cedar all green, centred, as wide as a third of the flag's length and exactly as high as the white stripe, touching both reds: the file is 2880 by 1920 with stripes of 480, 960 and 480 and the cedar from x 960 to 1920 (rendered and measured). " +
+      "The constitution names the colours only, so the shades are unspecified; the file draws red #D31624, white #FFFFFF, green #008C3E, true renderings of the named colours (Album des Pavillons 2023, a French naval reference, gives Pantone 1788 C and 355 C). " +
+      "No act sets a ratio; 2:3 is the ratio Flags of the World and the flag's users give. The cedar's drawing isn't specified either: the file's history has a 2024 revert war over which drawing to use, settled since January 2025 on this one, and every version met article 5. " +
+      "The talk page's old threads on a brown trunk are settled by article 5's \"green cedar\": the 1943 original drawing and the 1967 WIPO filing show a brown trunk, but Flags of the World calls brown-trunk flags wrong. " +
+      "Why it represents the people: the flag the Lebanese deputies themselves adopted at independence in November 1943, keeping the cedar and dropping the French colours (Klimeš), and flown by independent Lebanon ever since.",
+  },
+  "poland-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "9d863c46f09d040344d9ccae1c29231995ae1f5d",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Poland_(normative).svg",
+    author: "Mareklug (Wikimedia Commons), colours converted by DeJotPe from the act's CIE values",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-self, Polishsymbol",
+    attribution: "",
+    proportions: { width: 8, height: 5 },
+    checkedAgainst: [
+      "Act of 31 January 1980 on the arms, colours and anthem of the Republic of Poland and on state seals (Dz. U. 1980 nr 7 poz. 18), with its annexes: two equal horizontal stripes, white over red; the flag at 5:8; the colours as CIE 1976 coordinates, white x 0.315, y 0.320, Y 82.0 (ΔE 4.0), red x 0.570, y 0.305, Y 16.0 (ΔE 8.0), illuminant C",
+      "Resolution of the joined chambers of the Sejm of the Kingdom of Poland, 7 February 1831, on the national cockade (white with red, the colours of the arms of the Kingdom of Poland and the Grand Duchy of Lithuania), Polish State Archives: https://pamiecpolski.archiwa.gov.pl/uchwala-sejmu-krolestwa-polskiego-z-7-lutego-1831-r/",
+    ],
+    checked:
+      "White over red in equal halves at 5:8: the file is 1280 by 800 with bands of 400. " +
+      "The act gives its colours only as CIE coordinates with a permitted deviation, and no official sRGB value is published; the file's white #E9E8E7 and red #D4213D are a conversion of those coordinates to sRGB, " +
+      "and were re-checked here: converted back, they lie ΔE*uv 3.0 and 2.4 from the act's colours, inside its tolerances of 4.0 and 8.0 (a direct conversion gives #EDE9E5 and #D7213E). " +
+      "The common Commons file Flag_of_Poland.svg draws pure white and crimson #DC143C, whose white falls outside the act's tolerance, so it was not used. " +
+      "Why it represents the people: white and red are the Poles' own colours from the Sejm's resolution of 1831, carried through the partitions and the uprisings of 1830 and 1863 when Poland had no state, never the partitioning powers', and the national flag from 1919; the colours were unspecified before 1980.",
+  },
   "scotland-flag": {
     kind: "published",
     format: "svg",
@@ -334,6 +426,28 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The arms: a shield with white Triglav on blue, two wavy blue lines beneath, three gold six-pointed stars in a downward triangle, red borders on the sides. " +
       "Rendered at the size of the government's official PNG and compared pixel by pixel: identical but for 769 anti-aliased edge pixels of 2.8 million, and the same colours, #FFFFFF, #0000FF, #FF0000 and #FFFF00, as the official vector. " +
       "The act gives colours only as SCOTDIC codes and the government page adds CMYK; the Commons talk page's long shade dispute settled in 2022 on the official vector's colours, which the file uses.",
+  },
+  "sweden-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "e2717718a2b2089843c6fc487d65cbe6fdceb9c3",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Sweden.svg",
+    author: "Jon Harald Søby and others (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-shape, insignia",
+    attribution: "",
+    proportions: { width: 8, height: 5 },
+    checkedAgainst: [
+      "Lag (1982:269) om Sveriges flagga: a yellow cross on a blue field, fields 5:2:9 lengthwise and 4:2:4 in height",
+      "Lag angående rikets flagga, 22 June 1906, and its bill (Proposition 1906:115): the same proportions, 16 to 10, first set in 1906",
+      "Förordning (1983:826) med riktlinjer för färgnyanserna i Sveriges flagga: blue NCS 4055-R95B, yellow NCS 0580-Y10R",
+      "Swedish Institute, Sweden brand visual identity, \"Colour\": Sweden Blue Standard #005293 (NCS 4055-R95B, PMS 301 C) and Sweden Yellow Standard #FECB00 (NCS 0580-Y10R, PMS 116 C), the flag's colours: https://sharingsweden.se/the-sweden-brand/brand-visual-identity/colour",
+    ],
+    checked:
+      "A yellow cross on blue at 10:16, the cross one fifth of the height, its vertical arm after 5 of 16 parts: the file is viewBox 8 by 5 with the cross 1 wide, centred at x = 3 (2.5 to 3.5) and y = 2.5, i.e. 5:2:9 and 4:2:4. " +
+      "Blue #005293 and yellow #FECB00 are exactly the sRGB values the Swedish Institute publishes for the flag's colours, with the ordinance's NCS codes. " +
+      "The shades were set only in 1906 (\"light middle blue\" and \"golden yellow\") and in NCS from 1983; earlier flags varied. " +
+      "Why it represents the people: Swedes identified with their own kingdom and its flag. From 1844 to 1905 the naval and merchant flags carried the union mark in the canton, but the flag Swedes flew as their own, restored as the only national flag in 1905-1906 and honoured on Sweden's flag day since 1916, is this plain cross flag.",
   },
   "wales-flag": {
     kind: "published",

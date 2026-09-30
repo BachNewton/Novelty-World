@@ -181,13 +181,38 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
     ]),
   ],
   german: [
-    era(null, 1871, "Germany before unification", "germany-black-red-gold", true),
+    verified(era(null, 1871, "Germany before unification", "germany-black-red-gold", true), [
+      "Jena Urburschenschaft (1815) and the Hambach Festival (1832): black-red-gold the colours of the German national movement",
+      "Bundesbeschluss über Wappen und Farben des Deutschen Bundes, 9 March 1848: black, red and gold, the colours of the former German imperial banner, declared the colours of the German Confederation",
+      "Before 1815 Germans as a whole had no national colours: the Holy Roman Empire's eagle was the emperor's and the territorial arms were their rulers' (Bavaria and Prussia have regional eras of their own); the colours Germans chose in 1848 as the continuation of the old imperial banner are the ones that represent the people, not a government",
+    ]),
     era(1871, 1919, "German Empire", "german-empire-flag"),
-    era(1919, null, "Germany", "germany-black-red-gold"),
+    verified(era(1919, null, "Germany", "germany-black-red-gold"), [
+      "Constitution of the German Reich (Weimar, 11 August 1919), article 3: the Reich colours are black-red-gold",
+      "Basic Law for the Federal Republic of Germany (1949), article 22: the federal flag is black-red-gold",
+      "Anordnung über die deutschen Flaggen (1996): three equal horizontal stripes, black, red and gold, at 3:5",
+      "German lines born 1933-1945 show black-red-gold, the people's own colours of 1848 and 1919, not the regime's (the 1933 decrees replaced it with the swastika and black-white-red flags)",
+    ]),
   ],
-  swedish: [era(null, null, "Sweden", "sweden-flag")],
+  swedish: [
+    verified(era(null, null, "Sweden", "sweden-flag"), [
+      "Proposition 1906:115, on the flag law (the 1844 royal letter put the union mark on the naval and merchant flags and ships' flags; private flags on land were the square-cut blue with a yellow cross since the placard of 1663)",
+      "Lag angående rikets flagga (22 June 1906): the plain blue flag with a yellow cross, the union mark gone from 1 November 1905",
+      "Lag (1982:269) om Sveriges flagga and Förordning (1983:826) on its colours",
+      "Stiftelsen Sveriges Nationaldag, \"Flaggans historia\" (the blue and yellow cross flag since the sixteenth century; Swedish flag day since 1916)",
+      "Swedes identified with their own kingdom and its flag; the union mark of 1844-1905 marked the union with Norway on official flags, and the plain cross flag is the one Swedes flew and honour as theirs",
+    ]),
+  ],
   dutch: [era(null, null, "the Netherlands", "netherlands-flag")],
-  polish: [era(null, null, "Poland", "poland-flag")],
+  polish: [
+    verified(era(null, null, "Poland", "poland-flag"), [
+      "Resolution of the joined chambers of the Sejm of the Kingdom of Poland, 7 February 1831: the national cockade is white with red, the colours of the arms of the Kingdom of Poland and the Grand Duchy of Lithuania, the emblem under which Poles should unite (Polish State Archives)",
+      "Institute of National Remembrance, \"Polska kokarda narodowa\" (white and red as the colours of Polishness and the fight for freedom through the partitions)",
+      "Act of 1 August 1919 on the arms and colours of the Republic of Poland",
+      "Act of 31 January 1980 on the arms, colours and anthem of the Republic of Poland and on state seals",
+      "White and red represent the Poles through the partitions, when they had no state of their own, never the partitioning powers' flags",
+    ]),
+  ],
   ukrainian: [era(null, null, "Ukraine", "ukraine-flag")],
   norwegian: [
     era(null, 1821, "Norway before its own flag", "norway-lion-arms"),
@@ -198,8 +223,18 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
     era(1790, null, "France", "france-tricolour"),
   ],
   lebanese: [
-    era(null, 1943, "Mount Lebanon and the French Mandate", "lebanon-cedar"),
-    era(1943, null, "Lebanon", "lebanon-flag"),
+    verified(era(null, 1943, "Mount Lebanon and the French Mandate", "lebanon-cedar"), [
+      "Roman Klimeš, \"The Cedar Tree – The Symbol of a Country\", Proceedings of the 25th International Congress of Vexillology (2013): the cedar a Maronite symbol from the 18th century; by 1848 the central charge of Lebanon's own unofficial flag, white with a green cedar; the flag of the Lebanese emigrants in America from 1913, hoisted at Baabda in November 1918",
+      "Flags of the World, \"Lebanon: Cedar Flag 1918\" (the white flag with the cedar, first attested in October 1848 and still in use under the Administrative Council in 1919), after Joseph Nehmé, \"The Flag of Lebanon\", Crux Australis 50 (1996)",
+      "Flags of the World, \"French Mandate of Greater Lebanon 1920-1943\" (the mandate's flag, the French tricolour with a cedar, constitution of 23 May 1926, article 5)",
+      "The Lebanese did not identify with the Ottoman or French governments: the cedar on white is the flag they used for themselves, at home and in America, and the mandate's tricolour set their cedar on France's colours, which they dropped at independence",
+    ]),
+    verified(era(1943, null, "Lebanon", "lebanon-flag"), [
+      "Constitution of Lebanon, article 5, as amended by the Constitutional Law of 7 December 1943",
+      "Roman Klimeš, \"The Cedar Tree – The Symbol of a Country\", Proceedings of the 25th International Congress of Vexillology (2013): the flag adopted by the Lebanese deputies at independence, keeping the cedar and dropping the French colours",
+      "Flags of the World, \"Lebanon\"",
+      "The flag of independent Lebanon, chosen by its own deputies, which the Lebanese identify with",
+    ]),
   ],
   slovene: [
     verified(era(null, 1991, "The Slovene lands", "slovene-tricolour"), [
