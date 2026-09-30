@@ -89,6 +89,10 @@ function era(
   return { from, until, name, symbol, regional, sources: UNVERIFIED };
 }
 
+function verified<E extends SymbolEra>(unverified: E, sources: readonly string[]): E {
+  return { ...unverified, sources };
+}
+
 function regionEra(from: number | null, until: number | null, name: string, symbol: SymbolId): SymbolEra {
   return { from, until, name, symbol, sources: UNVERIFIED };
 }
@@ -137,8 +141,17 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
     era(1943, null, "Lebanon", "lebanon-flag"),
   ],
   slovene: [
-    era(null, 1991, "The Slovene lands", "slovene-tricolour"),
-    era(1991, null, "Slovenia", "slovenia-flag"),
+    verified(era(null, 1991, "The Slovene lands", "slovene-tricolour"), [
+      "National Assembly of Slovenia, \"Državni simboli\" (the Slovene national flag since 1848, in the colours of the arms of Carniola)",
+      "Flags of the World, \"Slovenia\" (the plain tricolour from 1848, and among Slovenes abroad after 1945)",
+      "Flags of the World, \"Republic of Slovenia (Socialist Yugoslavia)\" (the red-star flag of 1947, a Yugoslav republic's flag)",
+      "Act on the Coat of Arms, Flag and Anthem of the Republic of Slovenia and on the Slovene National Flag (Uradni list RS 67/1994), article 3",
+    ]),
+    verified(era(1991, null, "Slovenia", "slovenia-flag"), [
+      "Constitutional Amendment C, 24 June 1991 (Uradni list RS 1/1991)",
+      "Act on the Coat of Arms, Flag and Anthem of the Republic of Slovenia and on the Slovene National Flag (Uradni list RS 67/1994)",
+      "National Assembly of Slovenia, \"Državni simboli\"",
+    ]),
   ],
 };
 

@@ -113,6 +113,49 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The Commons page's colour table says crimson #DC143C, which is not what the file draws; the file itself was checked. " +
       "The plain tricolour was the merchant flag from 1867 and the national flag from 8 November 1892.",
   },
+  "slovene-tricolour": {
+    kind: "published",
+    format: "svg",
+    sha1: "d02998807d65f0749a0fbe7183e73321ed54ef9a",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_the_Slovene_Nation.svg",
+    author: "Makaristos (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-ineligible",
+    attribution: "",
+    proportions: { width: 2, height: 1 },
+    checkedAgainst: [
+      "Act on the Coat of Arms, Flag and Anthem of the Republic of Slovenia and on the Slovene National Flag (Uradni list RS 67/1994, 27 October 1994), article 3 and the colour annex",
+      "Constitutional Amendment C, 24 June 1991 (Uradni list RS 1/1991), point 2: the state flag is the white-blue-red Slovene national flag with the arms",
+      "National Assembly of Slovenia, \"Državni simboli\": https://www.dz-rs.si/wps/portal/Home/odz/ureditev/drzavniSimboli",
+      "Government of Slovenia, \"Državni simboli\", with its flag artwork and CMYK values: https://www.gov.si/teme/drzavni-simboli/",
+    ],
+    checked:
+      "The act's national flag: white, blue, red in equal horizontal thirds at 1:2. The file is 1200 by 600 (viewBox 6 by 3) with bands of 1, white over blue over red. " +
+      "The act names its colours only in SCOTDIC textile codes and the government page adds CMYK; the government's own flag artwork on that page draws them as #FFFFFF, #0000FF and #FF0000, " +
+      "and the file renders exactly those (its blue band's style #0000ff overrides the #005CE5 fill attribute; rendered and measured). " +
+      "The flag had no statutory design before 1991: from 1848 it was the white-blue-red of the Carniolan arms with no set ratio or shade, so the 1994 act's form of it is the one recorded.",
+  },
+  "slovenia-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "e303bd704bf87d97b874f4c34e1877aafa7eda33",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Slovenia.svg",
+    author: "Marko Pogačnik (design); vectorized by Achim1999 (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-Slovenia, insignia",
+    attribution: "",
+    proportions: { width: 2, height: 1 },
+    checkedAgainst: [
+      "Constitutional Amendment C, 24 June 1991 (Uradni list RS 1/1991), points 1 and 2",
+      "Act on the Coat of Arms, Flag and Anthem of the Republic of Slovenia and on the Slovene National Flag (Uradni list RS 67/1994, 27 October 1994), with its geometric and colour rules for the arms and the flag",
+      "Government of Slovenia, \"Državni simboli\", and its official flag artwork (Zastava-Republike-Slovenije.pdf and .png): https://www.gov.si/teme/drzavni-simboli/",
+    ],
+    checked:
+      "Ratio 1:2, white, blue and red thirds; the arms centred at a quarter of the length on the white-blue line, half in each field, as high as one stripe: the file is viewBox 240 by 120 with the arms centred at (60, 40) and 40 high. " +
+      "The arms: a shield with white Triglav on blue, two wavy blue lines beneath, three gold six-pointed stars in a downward triangle, red borders on the sides. " +
+      "Rendered at the size of the government's official PNG and compared pixel by pixel: identical but for 769 anti-aliased edge pixels of 2.8 million, and the same colours, #FFFFFF, #0000FF, #FF0000 and #FFFF00, as the official vector. " +
+      "The act gives colours only as SCOTDIC codes and the government page adds CMYK; the Commons talk page's long shade dispute settled in 2022 on the official vector's colours, which the file uses.",
+  },
 };
 
 // The art's file name inside `symbol-art/`.

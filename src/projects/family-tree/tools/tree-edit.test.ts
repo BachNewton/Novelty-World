@@ -10,7 +10,7 @@ import {
   setOrigin,
   setResearch,
 } from "../logic";
-import { PEOPLE_TIMELINES, REGION_TIMELINES, SYMBOLS } from "../symbol-timelines";
+import { PEOPLE_TIMELINES, REGION_TIMELINES, SYMBOLS, isVerified } from "../symbol-timelines";
 import { SYMBOL_ART } from "../symbol-art";
 import type { NameFields, ResearchRecord, Tree } from "../types";
 import {
@@ -604,7 +604,7 @@ describe("peoples", () => {
     expect(text).toContain("Finnish (finnish)");
     expect(text).toContain("  region Sicily (italian/sicily)");
     expect(text).toMatch(/before 1861 +Italy before unification: italy-tricolour \(.*\), regional, UNVERIFIED/);
-    const eras = [...Object.values(PEOPLE_TIMELINES), ...Object.values(REGION_TIMELINES)].flat().length;
+    const eras = [...Object.values(PEOPLE_TIMELINES), ...Object.values(REGION_TIMELINES)].flat().filter((era) => !isVerified(era)).length;
     expect(text).toContain(`Eras still to verify with sources: ${eras}`);
   });
 
