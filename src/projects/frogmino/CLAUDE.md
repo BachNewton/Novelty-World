@@ -19,18 +19,23 @@ The obstacles are rows of traffic (see Traffic). The rules still call a row a wa
 - `store.ts`: the Zustand store holding the current run, with actions for key presses and releases, frame ticks and restart.
 - `fleet.ts`: the 19 vehicle ids, derived from the tetromino definitions and rotation in `logic.ts`, and each vehicle's cells. It is the one definition of the vehicles; the rules and the art both key by its ids.
 - `vehicles/`: the fleet's designs. `parts.ts` is the vehicle's own frame, the paints, the surface-detail tolerance and the helpers that place details on a cell's faces; `kit.ts` holds details many vehicles share (headlights, bumpers, windscreens, rings); `i.ts` to `l.ts` hold one piece's vehicles each; `index.ts` gathers them as `VEHICLES` and builds a `vehicleModel` from an id.
-- `components/frogmino.tsx`: the root component, with the key legend, the mute button and the end-of-course overlay, or the garage when the URL has `?garage`, the world preview when it has `?world`, or the sound audition when it has `?sounds`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
+- `components/frogmino.tsx`: the root component, with the touch controls, the key legend, the mute button and the end-of-course overlay, or the garage when the URL has `?garage`, the world preview when it has `?world`, or the sound audition when it has `?sounds`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
 - `components/scene.tsx`: the 3D scene and the per-frame loop. It draws the frog and each row's vehicles as thick as the rules count them, from the thicknesses `run.ts` exports. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
 - `components/use-frog-keys.ts`: the keyboard controls, including holding and releasing the jump keys.
 - `components/pull-offs.tsx`: the pull-offs as drawn: their ground, barriers and marker, and the piece waiting in each.
+- `touch-gestures.ts`: the pure touch gesture recogniser, from pointer samples to the same actions the keys make, with its thresholds in `GESTURE_TUNING`.
+- `components/use-frog-touch.ts`: feeds the play area's pointer events to the recogniser and its commands to the store. `components/touch-controls.tsx` is the touch layer over the play area, the touch hint and the Swap button.
 - `components/vehicle-view.tsx`: the placeholder traffic art the game draws for now: each vehicle as its four cubes in one flat colour of its own, from the placeholder tokens in `globals.css`. It is the seam for the fleet's art: `Vehicle` takes the same props, so the scene swaps `VehicleView` and its assets for `Vehicle` and `makeVehicleAssets`, and nothing else changes.
 - `components/vehicle.tsx`: the `Vehicle` component, drawing any of the 19 by id at a lane and depth, in the scene's axes. `components/vehicle-assets.ts` holds its materials, per-paint merged detail geometry, and the cell-border masks, which the scene's frog and placeholder vehicles share.
 - `components/garage.tsx`: the garage (see The fleet).
+- `view.ts`: which screen the page opens on, from its URL (see Lobby).
+- `coop.ts`: the co-op wire protocol and the waiting room's pure rules: who takes the partner's seat, starting a round on a seed, and when the host's game is listed. `coop-store.ts` holds the waiting room's state for the lobby's room handlers.
+- `components/lobby.tsx`: the lobby (see Lobby), owning the peer room and the open-games list. `components/coop-room.tsx` is the waiting room and the coming-soon screen.
 - `world/`: the world around the road (see World), pure layout with no React or Three. `geometry.ts` is the road's edges, the world box, footprints and the ground kept clear; `paints.ts` the world's paints and their tokens; `structures.ts` the overpass, the finish gantry and the finish's road paint; `props.ts` the roadside furniture and plants as boxes; `road.ts` the road tiles, with their surfaces, markings and seeded roadside; `scenery.ts` the land's layers, the landmarks and the clouds; `preview-rows.ts` the preview's traffic.
 - `components/world/`: the world's drawing. `world.tsx` is `FrogminoWorld`; `box-instances.tsx` draws a list of world boxes as one instanced mesh; `sky.tsx` the sky dome, sun and clouds; `world-assets.ts` the palette and materials; `world-preview.tsx` the `?world` page. `components/camera-fit.ts` is the gameplay camera's pitch and fitted field of view.
 - `audio/`: the sound (see Sound). `sounds.ts` holds the sound designs as ZzFX parameters, with each sound's variation, minimum gap and trigger, and renders a design's layers into one buffer; `player.ts` plays with the anti-annoyance rules behind a thin `AudioOutput` seam; `sound-board.ts` is the browser side, one AudioContext and the rendered buffers, and the trigger API; `cues.ts` turns store state changes into sounds; `use-game-sounds.ts` wires that to the store; `settings.ts` keeps mute and volume; `mute-button.tsx` and `sound-lab.tsx` are the mute toggle and the `?sounds` page. `zzfx.d.ts` types the part of ZzFX the game uses.
 
-The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: an L piece that changes only at the three pull-offs, fifteen rows of traffic from a fixed seed ramping from easy to hard, drawn with placeholder art, that loop as endless traffic, riding, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
+The project is a solo prototype so far, played by keyboard or touch, proving controls, motion and collision: an L piece that changes only at the three pull-offs, fifteen rows of traffic from a fixed seed ramping from easy to hard, drawn with placeholder art, that loop as endless traffic, riding, the bonk, and an end-zone overlay with restart. There is no clock or medals. Co-op connects two players in the lobby, but there is no co-op play yet.
 
 ## The wall face
 
@@ -82,12 +87,17 @@ The frog passes a wall if every cell it covers is inside an opening: a subset te
 
 Hop and jump forward are different actions.
 
-On touch screens (a starting point, to be tuned once it is playable):
+On touch screens every finger on the play area is its own gesture, so one thumb can hold the centre while the other steers. The screen is split into thirds, left, centre and right, by where a finger comes down. A finger that stays within the tap slop (12 CSS pixels) is a tap or a hold; one that leaves it is a drag if it went more sideways than up or down, and a swipe otherwise, and it never becomes anything else. So one gesture is only ever one of tap, drag, swipe or hold.
 
-- **Drag** left or right to move, one column per step of finger travel.
-- **Tap** the left or right side to rotate counter-clockwise or clockwise.
-- **Swipe up** to hop. A swipe fires as soon as the finger has travelled far enough, while a tap has to wait for the finger to lift before it can rule out a swipe, so the timing-critical hop belongs on a swipe.
-- **Tap the centre** to jump forward, **swipe down** to jump back.
+- **Drag** left or right, anywhere, to move one lane per 32 CSS pixels of finger travel, like mobile Tetris: a fast drag moves several lanes at once, and dragging back moves back. At 360px wide the corridor fits within one thumb's sweep.
+- **Tap** the left or right third to rotate counter-clockwise or clockwise.
+- **Swipe up** to hop, **swipe down** to jump back. A swipe fires the moment the finger has travelled 32 CSS pixels, mid-gesture, not on lifting, and once per gesture. A tap has to wait for the finger to lift before it can rule out a swipe, so the timing-critical hop belongs on a swipe.
+- **Tap the centre** to jump forward. **Press and hold** it to keep jumping, exactly as holding W: after 280 milliseconds still, the held jump starts (one jump, then one every held-jump repeat interval), and lifting the finger lets go. A still finger makes no events, so the hold's threshold is the one thing timed; a move event past it counts too. Only one finger holds at a time.
+- **Swap** in a pull-off is a Swap button at the bottom centre, shown only while the frog is fully inside a pull-off, which is exactly when a swap can happen. A button was chosen over tapping the waiting piece: it is big and plain at 360px, it needs no hit-testing in the 3D scene, and it can't be mistaken for a centre tap.
+
+Mouse pointers are left to the keyboard. The play area takes no browser gestures: no scrolling, zooming, pull-to-refresh, text selection or long-press callout. The mute button and the done screen sit above the touch layer and keep their own taps; on touch screens the done screen has a Restart button, since there is no R key.
+
+**The touch hint** shows on touch screens only (a coarse pointer), over the play area: the three zones with their taps and the hold, and the drag and swipes beneath. It goes once the player has made three gestures, and the keyboard legend shows only for fine pointers.
 
 ## Pieces
 
@@ -118,6 +128,29 @@ The frog's piece changes only at pull-offs. There is no Tetris-style hold, no de
 ## Courses and medals
 
 A level is a course with an end zone, run against the clock: gold, silver and bronze times, in the manner of time-trial marble games. There is no endless mode and there are no lives. A bonk costs time: the ground it knocks the frog back is the penalty.
+
+## Lobby
+
+The page opens on the lobby, built on the shared `GameLobby`. It offers three ways in:
+
+- **Play solo** starts the solo game at once.
+- **Host co-op** opens a peer room and lists it on the open-games list.
+- **Join** is a click on a game in that list, which joins its room by code under the hood. There is no typing of codes: every hosted game is public, which suits a small site played among friends.
+
+The open-games list is the shared room list (see Multiplayer in the root `CLAUDE.md`), updating live as games are hosted, fill, start or close. A game is listed only while its host is connected and waiting for a partner: co-op is two frogs, so a game drops off the list once it has a partner or starts, and when its host leaves or closes the tab. It comes back if the partner leaves before the round.
+
+**The waiting room** lists the players by their profile names, with the room's connection status (connecting, connected, reconnecting). The host has a Start button, enabled once a partner is in. A guest whose host leaves is told so, a guest who clicks a game whose host has gone is told it has closed (the peer module's `not-found`), and a guest who arrives after the seat was taken is turned away with a note. Leaving, or closing the tab, takes the room down through the peer module.
+
+**Co-op play isn't built yet:** the rules still handle one frog. Start moves both players to a "coming soon: you're connected!" screen showing the course seed they share, with a way back to the lobby.
+
+**The protocol** (`coop.ts`) follows the root `CLAUDE.md`: guests send intents, the host decides and sends results. Defined so far, host to guest:
+
+- `start`, carrying the course seed. The host draws the seed and sends it with Start, so both frogs grow the same course from it.
+- `full`: the guest is turned away, because the game already has its partner or has started.
+
+There are no guest intents yet; co-op play adds the frog's actions.
+
+**The URL switches.** `view.ts` resolves the URL to one screen. `?play=solo` skips the lobby into solo play, so loading the page straight into the game still works; any other `play` value fails loudly. The dev views replace the game and win over `?play`: `?garage` (the fleet), `?world` (the world preview) and `?sounds` (the sound audition), in that order of precedence.
 
 ## Co-op
 
