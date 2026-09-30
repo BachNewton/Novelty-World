@@ -71,6 +71,27 @@ export interface DrawnArt extends ArtRecord {
 export type SymbolArt = PublishedArt | DrawnArt;
 
 export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
+  "england-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "e775153a8f921d9c6010a8b4181fa8835e5006f2",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_England.svg",
+    author: "Traditional design; vectorized by Nicholas Shanks (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-shape, Insignia",
+    attribution: "",
+    proportions: { width: 5, height: 3 },
+    checkedAgainst: [
+      "Flag Institute, UK Flag Registry, \"England\" (UNKG0100): aspect ratio 3:5, Pantone white and red 186: https://www.flaginstitute.org/wp/flags/england/",
+      "Flags of the World, \"England\": the national flag at 3:5, the cross 1/5 of the flag's height wide: https://www.crwflags.com/fotw/flags/gb-eng.html",
+    ],
+    checked:
+      "A red cross on white, the cross one fifth of the flag's height wide, centred, at 3:5: the file is 800 by 480 with both arms of the cross stroked 96 wide through the centre. " +
+      "Red #C8102E is Pantone's sRGB value for 186 C, the Flag Institute's red; white #FFFFFF. " +
+      "No statute sets the flag's ratio or shade: it was established by custom, and 3:5 is the ratio the Flag Institute's registry and Flags of the World give. " +
+      "The file history's only changes since 2011 are code clean-ups and a 2020-21 revert pair; the talk page has no design dispute. " +
+      "It represents the English people: England's own flag, as distinct from the Union flag of the United Kingdom state, flown by the English as their national flag since the 16th century.",
+  },
   "finland-flag": {
     kind: "published",
     format: "svg",
@@ -136,6 +157,28 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The file's history has a 2022 colour edit war, reverted each time to these colours; the talk page's only dispute (2009) was the ratio, 1:2 against 2:3, which decree 132/2000 settles for the national flag. " +
       "The same tricolour was Hungary's national flag from 1848 (Act XXI of 1848 named only the colours), plain and without the arms from 1882 to 1918 by Flags of the World; " +
       "before 2000 no act set its ratio or shades, and Flags of the World gives 1:2 as the tricolour's ratio from 1848, while 2:3 was also flown.",
+  },
+  "ireland-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "ee4b5ae8d97783e6510494ee44fe0d8ac3b851d8",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Ireland_(Pantone).svg",
+    author: "Marcus365 (Wikimedia Commons), from the Department of the Taoiseach's specification",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-IrishGov, Insignia",
+    attribution: "",
+    proportions: { width: 2, height: 1 },
+    checkedAgainst: [
+      "Bunreacht na hÉireann (1937), article 7: \"The national flag is the tricolour of green, white and orange\"",
+      "Department of the Taoiseach, \"The National Flag - Guidelines\" (September 2025), technical data: proportion 2:1, each colour 1/3 of the width, green PMS 347, orange PMS 151: https://assets.gov.ie/static/documents/9d76c655/The_National_Flag_-_Guidelines_September_2025.pdf",
+      "Flags of the World, \"Ireland\": https://www.crwflags.com/fotw/flags/ie.html",
+    ],
+    checked:
+      "Three equal vertical pales, green at the hoist, white, orange, at 1:2: the file is 1200 by 600 with pales of 400. " +
+      "Green #009A44 and orange #FF8200 are Pantone's sRGB values for 347 C and 151 C, the colours of the Taoiseach's guidelines; white #FFFFFF. " +
+      "The better-known File:Flag_of_Ireland.svg was rejected: its #169B62 and #FF883E are no published Pantone value for 347 or 151 (its talk page shows them chosen by editors from an uncoated reading). " +
+      "This file has a single upload (2026) and no talk page. " +
+      "It represents the Irish people: the flag of the independence movement from 1916, adopted by the Irish Republic in 1919 and the Free State in 1922, and confirmed as the national flag by the people's own constitution of 1937.",
   },
   "ireland-harp-flag": {
     kind: "published",
@@ -226,6 +269,29 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "Drawn as a viewBox of 3 by 2 with three bands of 1, in the decree's colours as Pantone converts them, and rendered to check the bands and colours. " +
       "Drawn because no published file draws all three colours of the specification.",
   },
+  "scotland-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "c1cbff0b38aab01c2b93e1f2ccea8e70ed27722b",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Scotland.svg",
+    author: "Traditional design; author of the drawing unknown (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-flag, Insignia",
+    attribution: "",
+    proportions: { width: 5, height: 3 },
+    checkedAgainst: [
+      "Lord Lyon's register (1672): \"Azure a cross of St Andrew Argent\", as quoted by the Flag Institute",
+      "Flag Institute, UK Flag Registry, \"Scotland\" (UNKG0101): aspect ratio 3:5, Pantone blue 300 and white: https://www.flaginstitute.org/wp/flags/scotland/",
+      "Scottish Parliament Education, Culture and Sport Committee recommendation (2003): Pantone 300 as the optimum blue",
+      "Flags of the World, \"Colour and Design of the Scottish Flag\": the saltire one fifth of the flag's hoist wide; no fixed ratio (3:5, 1:2, and 4:5 by the Lord Lyon's office): https://www.crwflags.com/fotw/flags/gb-s-des.html",
+    ],
+    checked:
+      "A white saltire from corner to corner on blue, its arms one fifth of the hoist wide: the file is 1000 by 600 with both diagonals stroked 120 wide. " +
+      "Blue #005EB8 is Pantone's sRGB value for 300 C, the 2003 recommendation; white #FFFFFF. " +
+      "No ratio is fixed: 3:5 is the Flag Institute's and the Ministry of Defence's, while 1:2 is common and the Lord Lyon's office suggests 4:5. The talk page's only design question (2009) was the ratio, left open for that reason. " +
+      "The shade was unspecified before 2003: flags of the 1870s-1900s were often navy, and tradition called for a lighter azure, so Pantone 300 is the flag's one specified shade. " +
+      "It represents the Scottish people: Scotland's own emblem from the 13th century, as distinct from the Union flag of the United Kingdom state.",
+  },
   "slovene-tricolour": {
     kind: "published",
     format: "svg",
@@ -268,6 +334,31 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The arms: a shield with white Triglav on blue, two wavy blue lines beneath, three gold six-pointed stars in a downward triangle, red borders on the sides. " +
       "Rendered at the size of the government's official PNG and compared pixel by pixel: identical but for 769 anti-aliased edge pixels of 2.8 million, and the same colours, #FFFFFF, #0000FF, #FF0000 and #FFFF00, as the official vector. " +
       "The act gives colours only as SCOTDIC codes and the government page adds CMYK; the Commons talk page's long shade dispute settled in 2022 on the official vector's colours, which the file uses.",
+  },
+  "wales-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "c8eb8725ff8271995beff985be8f6d4c9ba26d78",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Wales.svg",
+    author: "Tobias Jakobs (Open Clipart), revised by Wikimedia Commons contributors",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-OpenClipart, PD-UK-Gov, Insignia",
+    attribution: "",
+    proportions: { width: 5, height: 3 },
+    checkedAgainst: [
+      "The Queen's command of February 1959 that only the red dragon on a green and white flag be flown on government buildings in Wales, as quoted by Flags of the World",
+      "Flag Institute, UK Flag Registry, \"Wales\" (UNKG0102): aspect ratio 3:5, Pantone white, green 354, red 186, and its image of the flag: https://www.flaginstitute.org/wp/flags/wales-flag/",
+      "Flags of the World, \"Wales\" and \"Wales: History of Welsh Flags\": https://www.crwflags.com/fotw/flags/gb-wales.html, https://www.crwflags.com/fotw/flags/gb-wa-hs.html",
+    ],
+    checked:
+      "A red dragon passant, dexter forepaw raised, tail raised, on white over green halves, at 3:5: the file is 800 by 480, white over green at 240. " +
+      "Red #C8102E and green #00B140 are Pantone's sRGB values for 186 C and 354 C, the Flag Institute's colours; white #FFFFFF; the dragon has black outlines. " +
+      "The 1959 command set no drawing, so the dragon exists in many drawings. This is one variant of several: the Open Clipart dragon Commons uses, chosen because it is the most widely reproduced and the one the Flag Institute's registry image draws. " +
+      "Rendered and compared with the registry image, it is the same drawing, placed a little smaller on the field. " +
+      "The file history has edit wars (2019-2022, 2026) over other drawings, one of them the 2005 original; each was reverted to this lineage, and the 2023 deletion request was kept. The talk page (2006) records that the dragon's form is not standardised. " +
+      "It represents the Welsh people: the red dragon has been Wales's emblem since the Historia Brittonum (c. 829). " +
+      "Where the forms differed, this is the one the Welsh chose for themselves: the green-and-white flag flown at eisteddfodau from 1858 and campaigned for from 1893. " +
+      "In 1958 the Gorsedd of Bards asked for this flag in place of the government's augmented badge of 1953, and the 1959 command adopted it.",
   },
 };
 

@@ -154,11 +154,32 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
     verified(era(1919, null, "Ireland", "ireland-flag"), [
       "Flags of the World, \"Ireland: Green Flag\" (after the December 1918 election the tricolour replaced the green flag as the national flag)",
       "Bunreacht na hÉireann (1937), article 7: the national flag is the tricolour of green, white and orange",
+      "Department of the Taoiseach, \"The National Flag - Guidelines\" (the tricolour accepted as the national flag after the 1916 Rising, adopted by the Irish Free State in 1922, confirmed by the Constitution in 1937): the independence movement's own flag, which the Irish identify with",
     ]),
   ],
-  english: [era(null, null, "England", "england-flag")],
-  scottish: [era(null, null, "Scotland", "scotland-flag")],
-  welsh: [era(null, null, "Wales", "wales-flag")],
+  english: [
+    verified(era(null, null, "England", "england-flag"), [
+      "Flags of the World, \"England\" (the cross of St George an English emblem from 1277, national-flag status from the 16th century, England's own flag as distinct from the Union flag)",
+      "Flag Institute, UK Flag Registry, \"England\" (earliest use by an English monarch 1277; established by tradition, not decree)",
+      "The English people's own flag rather than the United Kingdom state's, the flag the English fly as theirs",
+    ]),
+  ],
+  scottish: [
+    verified(era(null, null, "Scotland", "scotland-flag"), [
+      "Flag Institute, UK Flag Registry, \"Scotland\" (the saltire Scotland's emblem from the seal of the Guardians of 1286; recorded by the Lord Lyon in 1672)",
+      "Flags of the World, \"Scotland\" (the saltire on blue from about 1542, among the oldest national flags)",
+      "Scottish Parliament committee recommendation of 2003 (Pantone 300)",
+      "The Scottish people's own flag rather than the United Kingdom state's, the flag the Scots fly as theirs",
+    ]),
+  ],
+  welsh: [
+    verified(era(null, null, "Wales", "wales-flag"), [
+      "Flags of the World, \"Wales: History of Welsh Flags\" (the red dragon the Britons' symbol in the Historia Brittonum; Henry VII's dragon on white and green, 1485; shown at the Llangollen Eisteddfod of 1858; in 1958 the Gorsedd of Bards asked that the Red Dragon flag be the national flag instead of the 1953 augmented badge, and the 1959 command adopted it)",
+      "Flag Institute, UK Flag Registry, \"Wales\" (official flag from February 1959; the dragon Wales's emblem since Cadwaladr, c. 655)",
+      "Flags of the World, \"Wales\" (the green-and-white dragon flag shown in 1840 and campaigned for by T. H. Thomas from 1893, in use by 1911, and recognised as the national flag in the first decades of the 20th century)",
+      "The Welsh people's own emblem, chosen by the Welsh themselves over the government's badge, rather than the United Kingdom state's flag",
+    ]),
+  ],
   german: [
     era(null, 1871, "Germany before unification", "germany-black-red-gold", true),
     era(1871, 1919, "German Empire", "german-empire-flag"),
