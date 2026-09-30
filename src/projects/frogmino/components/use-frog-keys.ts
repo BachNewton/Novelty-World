@@ -14,6 +14,7 @@ const KEY_ACTIONS = new Map<string, FrogAction>([
   ["KeyQ", "rotateCcw"],
   ["KeyE", "rotateCw"],
   ["Space", "hop"],
+  ["KeyC", "swap"],
 ]);
 
 const JUMP_KEYS = new Map<string, JumpDirection>([

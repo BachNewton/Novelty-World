@@ -1,12 +1,13 @@
-import { cellKey, frogCells, frogPasses, pieceCells, pieceSize } from "./logic";
+import { cellKey, frogCells, pieceCells, pieceSize } from "./logic";
 import { shapeKey, VEHICLE_IDS } from "./fleet";
 import { lanesOf, rowOpening, vehicleCellsAt, vehicleWidth, type Row, type RowVehicle } from "./traffic";
 import type { Cell, Frog, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
 
-// Composes rows of traffic answer-first: pick the pose the row is for, fill
-// the lanes with vehicles that keep that pose's cells open, count how many
-// poses the result lets through, and keep it only if that count suits the
-// difficulty. Every row is passable because its answer is.
+// Composes rows of traffic answer-first: pick the pose the row is for (one
+// per piece the row must let through), fill the lanes with vehicles that keep
+// those poses' cells open, count how many poses of each piece the result lets
+// through, and keep it only if each count suits the difficulty. Every row is
+// passable by each of its pieces because their answers are.
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -60,22 +61,56 @@ export function poses(kind: TetrominoKind, face: Face): Frog[] {
   });
 }
 
+interface PoseCells {
+  frog: Frog;
+  cells: string[];
+}
+
+// Every pose of a piece with the keys of its cells, worked out once per
+// piece and face: the composer tests poses against openings thousands of
+// times a course.
+const POSE_CELLS = new Map<string, PoseCells[]>();
+
+function poseCells(kind: TetrominoKind, face: Face): PoseCells[] {
+  const key = `${kind},${String(face.cols)},${String(face.rows)}`;
+  const cached = POSE_CELLS.get(key);
+  if (cached !== undefined) return cached;
+  const computed = poses(kind, face).map((frog) => ({ frog, cells: frogCells(frog).map(cellKey) }));
+  POSE_CELLS.set(key, computed);
+  return computed;
+}
+
+// The poses whose every cell is open: `frogPasses` for every pose.
+function passingIn(kind: TetrominoKind, face: Face, open: ReadonlySet<string>): Frog[] {
+  return poseCells(kind, face)
+    .filter((pose) => pose.cells.every((cell) => open.has(cell)))
+    .map((pose) => pose.frog);
+}
+
 // The poses that pass an opening.
 export function fits(kind: TetrominoKind, face: Face, opening: Opening): Frog[] {
-  return poses(kind, face).filter((frog) => frogPasses(frog, opening));
+  return passingIn(kind, face, new Set(opening.map(cellKey)));
 }
 
 // Where the frog stands, ignoring height: what a hard row forbids repeating.
-function placementKey(frog: Frog): string {
-  return `${String(frog.rotation)},${String(frog.col)}`;
+export function placementKey(frog: Frog): string {
+  return `${frog.kind},${String(frog.rotation)},${String(frog.col)}`;
+}
+
+// Which pieces a row is for.
+export interface RowPieces {
+  // Each must pass the row.
+  pass: readonly TetrominoKind[];
+  // None may pass it.
+  refuse: readonly TetrominoKind[];
 }
 
 export interface ComposedRow {
   vehicles: Row;
   opening: Opening;
-  // The pose the row was built around.
-  answer: Frog;
-  // Every pose that passes it.
+  // The poses the row was built around, one per piece it must let through.
+  answers: Frog[];
+  // Every pose of those pieces that passes it.
   fits: Frog[];
 }
 
@@ -111,64 +146,87 @@ function besideAnswer(answer: readonly Cell[], face: Face): Set<string> {
   return beside;
 }
 
-// Every vehicle at every lane where it stays on the road.
-function roadPlacements(face: Face): RowVehicle[] {
-  return VEHICLE_IDS.flatMap((id) => Array.from({ length: face.cols - vehicleWidth(id) + 1 }, (_, lane) => ({ id, lane })));
+interface RoadPlacement {
+  placed: RowVehicle;
+  lanes: number[];
+  cells: string[];
 }
 
-// Fills the lanes one vehicle at a time, never over the answer's cells and
+// Every vehicle at every lane where it stays on the road, with the lanes it
+// takes and the keys of its cells, worked out once per road width.
+const ROAD_PLACEMENTS = new Map<number, RoadPlacement[]>();
+
+function roadPlacements(face: Face): RoadPlacement[] {
+  const cached = ROAD_PLACEMENTS.get(face.cols);
+  if (cached !== undefined) return cached;
+  const computed = VEHICLE_IDS.flatMap((id) =>
+    Array.from({ length: face.cols - vehicleWidth(id) + 1 }, (_, lane) => {
+      const placed = { id, lane };
+      return { placed, lanes: lanesOf(placed), cells: vehicleCellsAt(placed).map(cellKey) };
+    }),
+  );
+  ROAD_PLACEMENTS.set(face.cols, computed);
+  return computed;
+}
+
+// Fills the lanes one vehicle at a time, never over the answers' cells and
 // never in a lane already taken, until nothing fits or the row stops.
-function fillLanes(answer: Frog, rule: DifficultyRule, face: Face, random: () => number): RowVehicle[] {
-  const answerCells = frogCells(answer);
+function fillLanes(answers: readonly Frog[], rule: DifficultyRule, face: Face, random: () => number): RowVehicle[] {
+  const answerCells = answers.flatMap(frogCells);
   const kept = new Set(answerCells.map(cellKey));
   const beside = besideAnswer(answerCells, face);
-  const hugs = (placed: RowVehicle): number => vehicleCellsAt(placed).filter((c) => beside.has(cellKey(c))).length;
+  // Every placement clear of the answers, with how strongly it is preferred.
+  const clear = roadPlacements(face).flatMap(({ placed, lanes, cells }) => {
+    if (cells.some((c) => kept.has(c))) return [];
+    const hugs = cells.filter((c) => beside.has(c)).length;
+    return [{ placed, lanes, weight: Math.exp(rule.hug * hugs) }];
+  });
   const takenLanes = new Set<number>();
   const row: RowVehicle[] = [];
   for (;;) {
-    const options = roadPlacements(face).filter(
-      (placed) =>
-        lanesOf(placed).every((lane) => !takenLanes.has(lane)) &&
-        vehicleCellsAt(placed).every((c) => !kept.has(cellKey(c))),
-    );
+    const options = clear.filter((option) => option.lanes.every((lane) => !takenLanes.has(lane)));
     if (options.length === 0) return row;
-    const placed = weightedPick(options, (o) => Math.exp(rule.hug * hugs(o)), random);
+    const { placed, lanes } = weightedPick(options, (o) => o.weight, random);
     row.push(placed);
-    lanesOf(placed).forEach((lane) => takenLanes.add(lane));
+    lanes.forEach((lane) => takenLanes.add(lane));
     if (random() < rule.stop) return row;
   }
 }
 
-// One row of traffic for the frog's piece. `before` is where the frog could
-// stand after the previous row; a hard row lets none of those through. Throws
-// if no acceptable row turns up, which would mean the difficulty asks for
-// something the vehicles can't build.
-export function composeRow(
-  kind: TetrominoKind,
+// One row of traffic that every piece in `pieces.pass` passes and no piece
+// in `pieces.refuse` does. `before` is where the frog could stand after the
+// previous row; a hard row lets none of those through. Null if no acceptable
+// row turns up: the vehicles can't build what the difficulty asks of those
+// pieces, or can rarely.
+export function findRow(
+  pieces: RowPieces,
   difficulty: Difficulty,
   face: Face,
   before: readonly Frog[],
   random: () => number,
-): ComposedRow {
+): ComposedRow | null {
   const rule = DIFFICULTIES[difficulty];
   const forbidden = new Set(rule.demandChange ? before.map(placementKey) : []);
-  const allPoses = poses(kind, face);
+  const [fewest, most] = rule.fits;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const hop: HopHeight = random() < rule.hopChance ? 1 : 0;
-    const answer = pick(
-      allPoses.filter((p) => p.hop === hop),
-      random,
+    const answers = pieces.pass.map((kind) =>
+      pick(
+        poses(kind, face).filter((p) => p.hop === hop),
+        random,
+      ),
     );
-    const vehicles = fillLanes(answer, rule, face, random);
+    const vehicles = fillLanes(answers, rule, face, random);
     const opening = rowOpening(vehicles, face.cols, face.rows);
-    const passing = fits(kind, face, opening);
-    const [fewest, most] = rule.fits;
-    if (passing.length < fewest || passing.length > most) continue;
+    const open = new Set(opening.map(cellKey));
+    const passing = pieces.pass.map((kind) => passingIn(kind, face, open));
+    if (passing.some((each) => each.length < fewest || each.length > most)) continue;
+    const all = passing.flat();
     // A raised answer must need its hop, or the row doesn't read as raised.
-    if (hop === 1 && passing.some((p) => p.hop === 0)) continue;
-    if (passing.some((p) => forbidden.has(placementKey(p)))) continue;
-    return { vehicles, opening, answer, fits: passing };
+    if (hop === 1 && all.some((p) => p.hop === 0)) continue;
+    if (all.some((p) => forbidden.has(placementKey(p)))) continue;
+    if (pieces.refuse.some((kind) => passingIn(kind, face, open).length > 0)) continue;
+    return { vehicles, opening, answers, fits: all };
   }
-  throw new Error(`No ${difficulty} row for a ${kind} in ${String(MAX_ATTEMPTS)} attempts`);
+  return null;
 }
-

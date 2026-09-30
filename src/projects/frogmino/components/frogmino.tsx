@@ -22,6 +22,7 @@ const KEY_LEGEND: readonly [keys: string, action: string][] = [
   ["Q E", "rotate"],
   ["Space", "hop"],
   ["W S / ↑ ↓", "jump (hold to repeat)"],
+  ["C", "swap (in a pull-off)"],
   ["R", "restart"],
   ["M", "mute"],
 ];

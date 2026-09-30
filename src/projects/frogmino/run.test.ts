@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
 import { COURSE_SEED, generateCourse } from "./course";
-import { frogPasses, rectOpening as rect } from "./logic";
+import { TETROMINOES, cellKey, frogCells, insideLanes, pieceSize, rectOpening as rect } from "./logic";
+import type { PullOff } from "./pull-off";
 import {
   FROG_THICKNESS,
   WALL_THICKNESS,
@@ -12,14 +13,16 @@ import {
   hopHeight,
   isDone,
   isRiding,
+  lanesAt,
   nextWall,
+  pullOffHoldingFrog,
   pressJump,
   releaseJump,
   type FrogAction,
   type Run,
 } from "./run";
 import { TUNING, type Tuning } from "./tuning";
-import type { Opening } from "./types";
+import type { Opening, TetrominoKind } from "./types";
 
 // Unit jumps and unit wall speed keep the arithmetic readable: a jump is 1
 // unit, a wall moves 1 unit a second, and a bonk knocks the frog back 3.
@@ -232,36 +235,58 @@ describe("traffic", () => {
   });
 
   it("never lets a wall reach the frog unjudged, whatever the player does or the frame rate", () => {
-    const random = createRng(99).next;
-    const actions: FrogAction[] = ["left", "right", "rotateCw", "rotateCcw", "hop", "forward", "forward", "back"];
     const tuning = { ...TUNING, courseLength: 1e9, maxFrameDelta: 1 };
-    let run = createRun(generateCourse(COURSE_SEED, tuning), tuning, COURSE_SEED);
-    let bonks = 0;
-    let passes = 0;
-    let returns = 0;
-    for (let step = 0; step < 10000; step++) {
-      const before = run;
-      run = random() < 0.3 ? applyAction(run, actions[Math.floor(random() * actions.length)]) : advance(run, random() * 1.2);
-      if (run.lastBonk !== before.lastBonk) bonks++;
-      run.walls.forEach((wall, i) => {
-        if (wall.passed && !before.walls[i].passed) passes++;
-        if (wall.depth > before.walls[i].depth) returns++;
-      });
-      const frog = run.frog.depth;
-      for (const wall of run.walls) {
-        // Every wall the frog hasn't passed is ahead of it, and every wall it
-        // has passed is behind it.
-        if (wall.passed) expect(wall.depth).toBeLessThanOrEqual(frog + 1e-9);
-        else expect(wall.depth).toBeGreaterThanOrEqual(frog - 1e-9);
-        // A wall overlapping the frog has every cell of the frog inside its
-        // opening.
-        if (overlaps(wall.depth, frog)) expect(frogPasses(frogShape(run.frog), wall.opening)).toBe(true);
-      }
-    }
+    const course = generateCourse(COURSE_SEED, tuning);
+    const run = createRun(course.rows, tuning, COURSE_SEED, { kind: course.start, pullOffs: course.pullOffs });
+    const counts = playRandomly(run, 99);
     // The play really did pass, bonk and loop.
-    expect(Math.min(bonks, passes, returns)).toBeGreaterThan(20);
+    expect(Math.min(counts.bonks, counts.passes, counts.returns)).toBeGreaterThan(20);
+  });
+
+  it("keeps the same promises with a pull-off beside the whole road, swapping pieces as it goes", () => {
+    const tuning = { ...TUNING, courseLength: 1e9, maxFrameDelta: 1 };
+    const course = generateCourse(COURSE_SEED, tuning);
+    const everywhere: PullOff = { side: "right", near: 0.5, far: 1e8, width: 3, waiting: "I" };
+    const run = createRun(course.rows, tuning, COURSE_SEED, { pullOffs: [everywhere] });
+    const counts = playRandomly(run, 7, ["right", "right", "swap"]);
+    expect(Math.min(counts.bonks, counts.passes, counts.returns, counts.swaps)).toBeGreaterThan(20);
   });
 });
+
+// Plays at random, mixing actions and frames of every length, and checks
+// after every step that each wall the frog hasn't passed is ahead of it and
+// each it has passed behind it, that the frog's cells in traffic lanes are
+// inside the opening of any wall overlapping it, and that every cell is in a
+// lane the frog may use there.
+function playRandomly(start: Run, seed: number, extra: FrogAction[] = []) {
+  const random = createRng(seed).next;
+  const actions: FrogAction[] = ["left", "right", "rotateCw", "rotateCcw", "hop", "forward", "forward", "back", ...extra];
+  let run = start;
+  const counts = { bonks: 0, passes: 0, returns: 0, swaps: 0 };
+  for (let step = 0; step < 10000; step++) {
+    const before = run;
+    run = random() < 0.3 ? applyAction(run, actions[Math.floor(random() * actions.length)]) : advance(run, random() * 1.2);
+    if (run.lastBonk !== before.lastBonk) counts.bonks++;
+    if (run.frog.kind !== before.frog.kind) counts.swaps++;
+    run.walls.forEach((wall, i) => {
+      if (wall.passed && !before.walls[i].passed) counts.passes++;
+      if (wall.depth > before.walls[i].depth) counts.returns++;
+    });
+    const frog = run.frog.depth;
+    const cols = run.tuning.corridorCols;
+    const onRoad = frogCells(frogShape(run.frog)).filter((c) => c.col >= 0 && c.col < cols);
+    for (const wall of run.walls) {
+      if (wall.passed) expect(wall.depth).toBeLessThanOrEqual(frog + 1e-9);
+      else expect(wall.depth).toBeGreaterThanOrEqual(frog - 1e-9);
+      if (overlaps(wall.depth, frog)) {
+        const open = new Set(wall.opening.map(cellKey));
+        for (const c of onRoad) expect(open.has(cellKey(c))).toBe(true);
+      }
+    }
+    expect(insideLanes(run.frog.kind, run.frog, lanesAt(run, frog))).toBe(true);
+  }
+  return counts;
+}
 
 describe("hop", () => {
   it("keeps the frog up for the tuning's airtime", () => {
@@ -598,5 +623,196 @@ describe("the end zone", () => {
     expect(advance(run, 0.1)).toBe(run);
     expect(applyAction(run, "back")).toBe(run);
     expect(pressJump(run, "back")).toBe(run);
+  });
+});
+
+// A pull-off on the right, lanes 7 to 9, holding a frog whose depth range
+// lies from 10 to 16: its front face from 11 to 16.
+const PULL_OFF: PullOff = { side: "right", near: 10, far: 16, width: 3, waiting: "I" };
+
+function runBeside(frog: Partial<Run["frog"]>, walls: readonly { opening: Opening; depth: number }[] = [], pullOff: Partial<PullOff> = {}): Run {
+  const run = createRun(walls, TEST_TUNING, SEED, { pullOffs: [{ ...PULL_OFF, ...pullOff }] });
+  return { ...run, frog: { ...run.frog, ...frog } };
+}
+
+describe("a pull-off", () => {
+  it("takes the frog sliding in from the outer traffic lane, one lane a press, until it is entirely inside", () => {
+    // The flat L at lane 4 fills lanes 4 to 6.
+    let run = runBeside({ col: 4, depth: 12 });
+    run = applyAction(run, "right");
+    expect(run.frog.col).toBe(5);
+    run = act(run, "right", "right");
+    expect(run.frog.col).toBe(7);
+    expect(pullOffHoldingFrog(run)).toBe(0);
+    // Its outer edge is as far as it goes.
+    expect(applyAction(run, "right")).toBe(run);
+  });
+
+  it("lets the frog back onto the road by sliding out", () => {
+    const run = act(runBeside({ col: 7, depth: 12 }), "left", "left", "left");
+    expect(run.frog.col).toBe(4);
+    expect(pullOffHoldingFrog(run)).toBeNull();
+  });
+
+  it("refuses a slide into its barriers, beside the stretch at either end", () => {
+    // The frog's back face short of the near end, or its front past the far end.
+    for (const depth of [10.5, 16.5, 5, 30]) {
+      const run = runBeside({ col: 4, depth });
+      expect(applyAction(run, "right")).toBe(run);
+    }
+    // At the stretch's very ends it may.
+    expect(applyAction(runBeside({ col: 4, depth: 11 }), "right").frog.col).toBe(5);
+    expect(applyAction(runBeside({ col: 4, depth: 16 }), "right").frog.col).toBe(5);
+  });
+
+  it("turns the frog inside the road's and the pull-off's lanes together, kicking it back in from the outer edge", () => {
+    // The flat L entirely inside turns upright, two lanes wide, in place.
+    const upright = applyAction(runBeside({ col: 7, depth: 12 }), "rotateCw");
+    expect(upright.frog).toMatchObject({ col: 7, rotation: 1 });
+    // The upright I against the outer edge lies flat kicked back in, straddling the edge.
+    expect(applyAction(runBeside({ kind: "I", col: 9, rotation: 1, depth: 12 }), "rotateCw").frog).toMatchObject({ col: 6, rotation: 2 });
+    // The upright L at the road's edge turns flat into the pull-off's lanes
+    // beside its stretch, but beside a barrier it is kicked back onto the road.
+    expect(applyAction(runBeside({ col: 5, rotation: 1, depth: 12 }), "rotateCcw").frog).toMatchObject({ col: 5, rotation: 0 });
+    expect(applyAction(runBeside({ col: 5, rotation: 1, depth: 20 }), "rotateCcw").frog).toMatchObject({ col: 4, rotation: 0 });
+  });
+
+  it("lets the frog jump within the stretch, and refuses a jump past either end while any cell is in pull-off lanes", () => {
+    let run = runBeside({ col: 7, depth: 12 });
+    run = act(run, "forward", "forward", "forward", "forward");
+    expect(run.frog.depth).toBe(16);
+    expect(applyAction(run, "forward")).toBe(run);
+    run = act(run, "back", "back", "back", "back", "back");
+    expect(run.frog.depth).toBe(11);
+    expect(applyAction(run, "back")).toBe(run);
+    // Straddling the edge, the same.
+    const straddling = runBeside({ col: 5, depth: 16 });
+    expect(applyAction(straddling, "forward")).toBe(straddling);
+    // On the road, the stretch's ends don't matter.
+    expect(applyAction(runBeside({ col: 4, depth: 16 }), "forward").frog.depth).toBe(17);
+    expect(applyAction(runBeside({ col: 4, depth: 11 }), "back").frog.depth).toBe(10);
+  });
+
+  it("keeps a held jump repeating when it is refused at the stretch's end", () => {
+    let run = pressJump(runBeside({ col: 7, depth: 15 }), "forward");
+    expect(run.frog.depth).toBe(16);
+    run = advanceBy(run, 0.6);
+    expect(run.frog.depth).toBe(16);
+    expect(run.heldJump).not.toBeNull();
+  });
+});
+
+// The flat L at lane 5 straddles the edge: lanes 5 and 6 on the road, lane 7
+// (and its raised end) in the pull-off.
+describe("a row arriving at a frog straddling a pull-off's edge", () => {
+  it("is judged on the frog's cells in traffic lanes only, and passes when they are all in the opening", () => {
+    const run = advanceBy(runBeside({ col: 5, depth: 12 }, [{ opening: rect([5, 6], [0, 0]), depth: 12.2 }]), 0.3);
+    expect(run.walls[0].passed).toBe(true);
+    expect(run.lastBonk).toBeNull();
+    // While the row overlaps it, the frog may slide deeper into the pull-off,
+    // which keeps its road cells in the opening, but not further onto the road.
+    expect(applyAction(run, "right").frog.col).toBe(6);
+    expect(applyAction(run, "left")).toBe(run);
+  });
+
+  it("bonks when a road cell meets a vehicle, knocking the frog back onto the road", () => {
+    const run = advanceBy(runBeside({ col: 5, depth: 12 }, [{ opening: rect([6, 6], [0, 3]), depth: 12.2 }]), 0.3);
+    expect(run.lastBonk?.depth).toBeCloseTo(12);
+    expect(run.frog.depth).toBeCloseTo(9);
+    // Shifted sideways just far enough that every cell is in traffic lanes.
+    expect(run.frog.col).toBe(4);
+    expect(insideLanes(run.frog.kind, run.frog, { first: 0, last: 6 })).toBe(true);
+  });
+
+  it("passes a frog entirely inside the pull-off, whatever the row, and keeps it from sliding into the row's vehicles", () => {
+    let run = advanceBy(runBeside({ col: 7, depth: 12 }, [{ opening: [], depth: 12.2 }]), 0.3);
+    expect(run.walls[0].passed).toBe(true);
+    expect(run.lastBonk).toBeNull();
+    expect(applyAction(run, "left")).toBe(run);
+    // Once the row has gone by, the road is open again.
+    run = advanceBy(run, 2);
+    expect(applyAction(run, "left").frog.col).toBe(6);
+  });
+
+  it("doesn't carry a frog up in the pull-off as a rider: it lands at the end of its airtime", () => {
+    const run = advanceBy(applyAction(runBeside({ col: 7, depth: 12 }, [{ opening: [], depth: 12.2 }]), "hop"), 0.6, 0.01);
+    expect(run.walls[0].passed).toBe(true);
+    expect(isRiding(run)).toBe(false);
+    expect(hopHeight(run.frog)).toBe(0);
+    expect(run.frog.latestHop?.landedAt).toBeCloseTo(0.5);
+  });
+});
+
+describe("a swap", () => {
+  it("gives the frog the waiting piece and leaves its own in its place, so a second swap swaps back", () => {
+    const run = runBeside({ col: 7, depth: 12 }, [], { waiting: "O" });
+    const swapped = applyAction(run, "swap");
+    expect(swapped.frog).toMatchObject({ kind: "O", col: 7, rotation: 0, depth: 12 });
+    expect(swapped.pullOffs[0].waiting).toBe("L");
+    const back = applyAction(swapped, "swap");
+    expect(back.frog).toMatchObject({ kind: "L", col: 7, rotation: 0 });
+    expect(back.pullOffs[0].waiting).toBe("O");
+  });
+
+  it("keeps the frog's rotation and lane when the new piece fits there", () => {
+    // The upright L at lane 8 fills lanes 8 and 9; so does the upright S.
+    const swapped = applyAction(runBeside({ col: 8, rotation: 1, depth: 12 }, [], { waiting: "S" }), "swap");
+    expect(swapped.frog).toMatchObject({ kind: "S", col: 8, rotation: 1 });
+  });
+
+  it("otherwise takes the first rotation, then lane, that fits inside the pull-off", () => {
+    // The flat I is four lanes wide; the first rotation that fits stands it
+    // up, at the pull-off's first lane.
+    const swapped = applyAction(runBeside({ col: 7, depth: 12 }), "swap");
+    expect(swapped.frog).toMatchObject({ kind: "I", col: 7, rotation: 1 });
+    // The upright I in the outer lane swapped for the T, two lanes wide in
+    // that rotation, which doesn't fit there: the T's first rotation, three
+    // lanes wide, fits from the pull-off's first lane.
+    const t = applyAction(runBeside({ kind: "I", col: 9, rotation: 1, depth: 12 }, [], { waiting: "T" }), "swap");
+    expect(t.frog).toMatchObject({ kind: "T", col: 7, rotation: 0 });
+  });
+
+  it("does nothing unless the frog is entirely inside a pull-off", () => {
+    for (const frog of [{ col: 6, depth: 12 }, { col: 4, depth: 12 }, { col: 2, depth: 0 }]) {
+      const run = runBeside(frog);
+      expect(applyAction(run, "swap")).toBe(run);
+    }
+    const nowhere = createRun([], TEST_TUNING, SEED);
+    expect(applyAction(nowhere, "swap")).toBe(nowhere);
+  });
+
+  it("can't happen in a run whose pull-off can't be landed in, or can't hold its piece", () => {
+    expect(() => runBeside({}, [], { far: 11.5 })).toThrow();
+    expect(() => runBeside({}, [], { width: 1, waiting: "O" })).toThrow();
+  });
+});
+
+describe("pieces other than the L", () => {
+  const KINDS = Object.keys(TETROMINOES) as TetrominoKind[];
+  const atFive = (run: Run): Run => ({ ...run, frog: { ...run.frog, depth: 5 } });
+
+  it.each(KINDS)("the %s starts centred, passes a row shaped like it, and is bonked by one a lane over", (kind) => {
+    const start = createRun([], TEST_TUNING, SEED, { kind });
+    expect(start.frog.col).toBe(Math.floor((7 - pieceSize(kind, 0).width) / 2));
+    const own = frogCells(frogShape(start.frog));
+    const passed = advanceBy(atFive(createRun([{ opening: own, depth: 5.2 }], TEST_TUNING, SEED, { kind })), 0.3);
+    expect(passed.walls[0].passed).toBe(true);
+    const over = own.map((c) => ({ col: c.col + 1, row: c.row }));
+    const bonked = advanceBy(atFive(createRun([{ opening: over, depth: 5.2 }], TEST_TUNING, SEED, { kind })), 0.3);
+    expect(bonked.lastBonk).not.toBeNull();
+    // One slide over first, and it fits.
+    const slid = advanceBy(applyAction(atFive(createRun([{ opening: over, depth: 5.2 }], TEST_TUNING, SEED, { kind })), "right"), 0.3);
+    expect(slid.walls[0].passed).toBe(true);
+  });
+
+  it("stands the I up to pass a one-lane slot, and rides it across a raised opening", () => {
+    const slot = atFive(createRun([{ opening: rect([3, 3], [0, 3]), depth: 5.2 }], TEST_TUNING, SEED, { kind: "I" }));
+    const upright = applyAction(slot, "rotateCw");
+    expect(upright.frog).toMatchObject({ col: 2, rotation: 1 });
+    expect(advanceBy(applyAction(upright, "right"), 0.3).walls[0].passed).toBe(true);
+    const raised = atFive(createRun([{ opening: rect([1, 4], [1, 1]), depth: 5.2 }], TEST_TUNING, SEED, { kind: "I" }));
+    const riding = advanceBy(applyAction(raised, "hop"), 0.6, 0.01);
+    expect(riding.walls[0].passed).toBe(true);
+    expect(isRiding(riding)).toBe(true);
   });
 });

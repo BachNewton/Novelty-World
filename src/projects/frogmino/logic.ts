@@ -1,4 +1,4 @@
-import type { Cell, Frog, Opening, Rotation, TetrominoKind } from "./types";
+import type { Cell, Frog, Lanes, Opening, Rotation, TetrominoKind } from "./types";
 
 // Each piece in its spawn orientation, resting on row 0 at column 0.
 export const TETROMINOES: Record<TetrominoKind, readonly Cell[]> = {
@@ -73,23 +73,40 @@ export interface Placement {
   rotation: Rotation;
 }
 
-// Turns a piece about its middle, kept inside a corridor `cols` wide. A turn
-// that would poke out of the corridor is nudged one column back in (a
-// Tetris-style wall kick); if it still doesn't fit, the turn fails and this
-// returns null. Clockwise rounds the recentring one way and counter-clockwise
-// the other, so turning and turning back returns the piece to its column.
+const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
+
+// Whether a piece in a rotation, its leftmost cell at `col`, lies inside the
+// lanes.
+export function insideLanes(kind: TetrominoKind, placement: Placement, lanes: Lanes): boolean {
+  const { width } = pieceSize(kind, placement.rotation);
+  return placement.col >= lanes.first && placement.col + width - 1 <= lanes.last;
+}
+
+// Turns a piece about its middle, kept inside the lanes. A turn that would
+// poke out of them is nudged one lane back in (a Tetris-style wall kick); if
+// it still doesn't fit, the turn fails and this returns null. Clockwise
+// rounds the recentring one way and counter-clockwise the other, so turning
+// and turning back returns the piece to its lane.
 export function rotateInCorridor(
   kind: TetrominoKind,
   placement: Placement,
   turn: Turn,
-  cols: number,
+  lanes: Lanes,
 ): Placement | null {
   const rotation = ((placement.rotation + turn + 4) % 4) as Rotation;
   const shift = (pieceSize(kind, placement.rotation).width - pieceSize(kind, rotation).width) / 2;
   const centred = placement.col + (turn === 1 ? Math.floor(shift) : Math.ceil(shift));
-  const { width } = pieceSize(kind, rotation);
-  const fits = (col: number): boolean => col >= 0 && col + width <= cols;
-  if (fits(centred)) return { col: centred, rotation };
-  const kicked = centred < 0 ? centred + 1 : centred - 1;
-  return fits(kicked) ? { col: kicked, rotation } : null;
+  if (insideLanes(kind, { col: centred, rotation }, lanes)) return { col: centred, rotation };
+  const kicked = centred < lanes.first ? centred + 1 : centred - 1;
+  return insideLanes(kind, { col: kicked, rotation }, lanes) ? { col: kicked, rotation } : null;
 }
+
+// Where a piece first fits inside the lanes: the first rotation that fits,
+// at the first lane it fits from. Null if no rotation is narrow enough.
+export function firstFit(kind: TetrominoKind, lanes: Lanes): Placement | null {
+  for (const rotation of ROTATIONS) {
+    if (insideLanes(kind, { col: lanes.first, rotation }, lanes)) return { col: lanes.first, rotation };
+  }
+  return null;
+}
+

@@ -130,6 +130,17 @@
   --color-frogmino-placeholder-l3: #d8b4fe;
 }
 
+/* Frogmino: the pull-offs beside the road. The ground is packed gravel, warm
+   and a clear step apart from the road and the start and end zones; the
+   barriers and the marker are road-works bright, to be seen from far down
+   the road. Read only by the 3D scene through themeColor, so declared
+   outside @theme. */
+:root {
+  --color-frogmino-pull-off-ground: #8a7a62;
+  --color-frogmino-pull-off-barrier: #ff8a1f;
+  --color-frogmino-pull-off-marker: #ffd23f;
+}
+
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft
    and muted beside the fleet's paints, so the traffic and the frog pop and
    nothing by the road reads as a vehicle; the further a layer, the paler and

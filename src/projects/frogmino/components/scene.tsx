@@ -24,9 +24,11 @@ import {
   type Bonk,
   type Run,
 } from "../run";
+import { nearPullOff } from "../pull-off";
 import { useFrogminoStore } from "../store";
 import { TUNING } from "../tuning";
-import type { Cell } from "../types";
+import type { Cell, TetrominoKind } from "../types";
+import { PullOffs } from "./pull-offs";
 import { borderMask } from "./vehicle-assets";
 import { makeVehicleViewAssets, VehicleView } from "./vehicle-view";
 
@@ -279,6 +281,8 @@ function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
 }
 
 interface DrawnFrog {
+  // The piece drawn; a swap snaps the drawing to the new piece.
+  kind: TetrominoKind;
   x: number;
   y: number;
   depth: number;
@@ -297,6 +301,7 @@ function snapped(run: Run): DrawnFrog {
   const turns = run.frog.rotation;
   return {
     ...target,
+    kind: run.frog.kind,
     angle: -turns * (Math.PI / 2),
     turns,
     rotation: run.frog.rotation,
@@ -311,6 +316,8 @@ function snapped(run: Run): DrawnFrog {
 function Game({ palette }: { palette: Palette }) {
   const course = useFrogminoStore((s) => s.course);
   const kind = useFrogminoStore((s) => s.run.frog.kind);
+  // Changes only when a swap changes a waiting piece.
+  const pullOffs = useFrogminoStore((s) => s.run.pullOffs);
 
   const assets = useMemo(() => makeAssets(palette), [palette]);
   useEffect(
@@ -347,7 +354,7 @@ function Game({ palette }: { palette: Palette }) {
     useFrogminoStore.getState().tick(delta);
     const { run, runId } = useFrogminoStore.getState();
 
-    if (drawn.current === null || drawnRunId.current !== runId) {
+    if (drawn.current === null || drawnRunId.current !== runId || drawn.current.kind !== run.frog.kind) {
       drawn.current = snapped(run);
       drawnRunId.current = runId;
     }
@@ -397,6 +404,11 @@ function Game({ palette }: { palette: Palette }) {
       frog.scale.set(1 + squash / 2, 1 + squash / 2, 1 - squash);
     }
     state.camera.position.z = -d.depth + cameraFollow;
+    // Near a pull-off, the camera pans across to take in the road and the
+    // pull-off together, and pans back once the frog has gone by it.
+    const pullOff = nearPullOff(run.pullOffs, d.depth - FROG_THICKNESS, d.depth, run.tuning.cameraPullOffReach);
+    const pan = pullOff === null ? 0 : ((pullOff.side === "left" ? -1 : 1) * pullOff.width) / 2;
+    state.camera.position.x = MathUtils.damp(state.camera.position.x, CENTER_X + pan, 3 / run.tuning.cameraPullOffEase, delta);
 
     const flashing = bonk !== null && run.time - bonk.time < run.tuning.flashDuration;
     assets.frogMaterial.color.copy(flashing ? palette.bonk : palette.frog);
@@ -431,7 +443,8 @@ function Game({ palette }: { palette: Palette }) {
           assets={assets}
         />
       </group>
-      {course.map((row, i) => (
+      <PullOffs pullOffs={pullOffs} cellMap={assets.cellMap} frog={palette.frog} />
+      {course.rows.map((row, i) => (
         <group
           key={i}
           ref={(group) => {

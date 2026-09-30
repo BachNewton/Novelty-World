@@ -21,5 +21,13 @@ export interface Frog {
   hop: HopHeight;
 }
 
+// A span of lanes across the road, inclusive at both ends. The traffic lanes
+// run from 0; a pull-off's lanes lie beyond them, so a left pull-off's are
+// negative.
+export interface Lanes {
+  first: number;
+  last: number;
+}
+
 // The cells of one hole in a wall.
 export type Opening = readonly Cell[];

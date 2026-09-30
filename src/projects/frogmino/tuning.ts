@@ -39,6 +39,23 @@ export interface Tuning {
   // How far ahead of the frog the camera looks, at floor level. It sets the
   // camera's downward pitch.
   cameraLookAhead: number;
+  // How many lanes wide a pull-off is.
+  pullOffWidth: number;
+  // How far along the course a pull-off's stretch reaches, between its
+  // barriers, in units. It must hold the frog wherever a jump from outside
+  // lands, so at least the frog's depth plus a jump.
+  pullOffLength: number;
+  // The pace the course expects the frog to advance at, in units per second,
+  // counting the time it waits for rows. Rows come at the frog as it goes, so
+  // it meets a row well short of where the row starts; the course places each
+  // pull-off where a frog at this pace would be between the rows either side.
+  pullOffPace: number;
+  // How far ahead of a pull-off the camera starts making room for it, in
+  // units.
+  cameraPullOffReach: number;
+  // Roughly how long the camera takes to make room for a pull-off, or to
+  // settle back, in seconds.
+  cameraPullOffEase: number;
 }
 
 export const TUNING: Tuning = {
@@ -59,4 +76,9 @@ export const TUNING: Tuning = {
   cameraHeight: 8.5,
   cameraFollow: 7,
   cameraLookAhead: 6,
+  pullOffWidth: 3,
+  pullOffLength: 6,
+  pullOffPace: 4.5,
+  cameraPullOffReach: 12,
+  cameraPullOffEase: 0.6,
 };

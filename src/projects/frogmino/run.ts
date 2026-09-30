@@ -1,7 +1,8 @@
 import { createRng } from "@/shared/lib/seeded-random";
 import { wallShift, type CourseWall } from "./course";
-import { frogPasses, pieceSize, rotateInCorridor } from "./logic";
-import type { Frog, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
+import { cellKey, firstFit, frogCells, insideLanes, pieceSize, rotateInCorridor, type Placement } from "./logic";
+import { pullOffLanes, withinStretch, type PullOff } from "./pull-off";
+import type { Frog, HopHeight, Lanes, Opening, Rotation, TetrominoKind } from "./types";
 import type { Tuning } from "./tuning";
 
 // One playthrough of a course, as the rules see it. Everything here is pure:
@@ -21,6 +22,12 @@ import type { Tuning } from "./tuning";
 // always inside the opening of any wall overlapping it: an action that would
 // break that is refused. A frog that is up while a wall overlaps it rides the
 // wall: it stays up until the wall has gone by.
+//
+// Lanes run across the road from 0, and the walls fill the traffic lanes. A
+// pull-off's lanes lie beyond them, and the frog may use them only while its
+// depth range lies within the pull-off's stretch. No wall ever reaches into a
+// pull-off, so the frog's cells in pull-off lanes never meet one: every rule
+// that judges the frog against a wall judges only its cells in traffic lanes.
 
 // How deep the frog and a wall are along the course, in units. The scene
 // draws them this deep too.
@@ -78,9 +85,11 @@ export interface Run {
   heldJump: HeldJump | null;
   // The seeded stream that places walls reappearing at the far end.
   rngState: number;
+  // They never move; only the piece waiting in each changes.
+  pullOffs: PullOff[];
 }
 
-export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "forward" | "back";
+export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "forward" | "back" | "swap";
 
 // A bonked frog must leave the wall's face, or the wall would bonk it again
 // at once, forever, and a held jump must wait between repeats. Walls must be
@@ -96,8 +105,27 @@ function checkTuning(tuning: Tuning): void {
   }
 }
 
-export function createRun(course: readonly CourseWall[], tuning: Tuning, seed: number, kind: TetrominoKind = "L"): Run {
+// A pull-off must hold the frog wherever a jump from outside its stretch
+// lands, and hold its waiting piece in some pose.
+function checkPullOff(pullOff: PullOff, tuning: Tuning): void {
+  if (pullOff.far - pullOff.near < FROG_THICKNESS + tuning.depthStep) {
+    throw new Error(`A pull-off ${String(pullOff.far - pullOff.near)} deep can be jumped over`);
+  }
+  if (firstFit(pullOff.waiting, pullOffLanes(pullOff, tuning.corridorCols)) === null) {
+    throw new Error(`A ${pullOff.waiting} doesn't fit a pull-off ${String(pullOff.width)} lanes wide`);
+  }
+}
+
+export interface RunOptions {
+  // The piece the frog starts as; an L unless the course says otherwise.
+  kind?: TetrominoKind;
+  pullOffs?: readonly PullOff[];
+}
+
+export function createRun(course: readonly CourseWall[], tuning: Tuning, seed: number, options: RunOptions = {}): Run {
   checkTuning(tuning);
+  const { kind = "L", pullOffs = [] } = options;
+  for (const pullOff of pullOffs) checkPullOff(pullOff, tuning);
   return {
     tuning,
     time: 0,
@@ -112,6 +140,13 @@ export function createRun(course: readonly CourseWall[], tuning: Tuning, seed: n
     lastBonk: null,
     heldJump: null,
     rngState: seed,
+    pullOffs: pullOffs.map((pullOff) => ({
+      side: pullOff.side,
+      near: pullOff.near,
+      far: pullOff.far,
+      width: pullOff.width,
+      waiting: pullOff.waiting,
+    })),
   };
 }
 
@@ -140,6 +175,41 @@ export function nextWall(run: Run): number | null {
   return next;
 }
 
+function inTraffic(run: Run, col: number): boolean {
+  return col >= 0 && col < run.tuning.corridorCols;
+}
+
+// The lanes the frog may use with its front face at `depth`: the traffic
+// lanes, widened by any pull-off whose stretch holds the frog's whole depth.
+export function lanesAt(run: Run, depth: number): Lanes {
+  let lanes: Lanes = { first: 0, last: run.tuning.corridorCols - 1 };
+  for (const pullOff of run.pullOffs) {
+    if (!withinStretch(pullOff, depth - FROG_THICKNESS, depth)) continue;
+    const beside = pullOffLanes(pullOff, run.tuning.corridorCols);
+    lanes = { first: Math.min(lanes.first, beside.first), last: Math.max(lanes.last, beside.last) };
+  }
+  return lanes;
+}
+
+// The pull-off the frog is entirely inside, its depth within the stretch and
+// every cell in the pull-off's lanes; null if none.
+export function pullOffHoldingFrog(run: Run): number | null {
+  const { frog, tuning } = run;
+  const index = run.pullOffs.findIndex(
+    (pullOff) =>
+      withinStretch(pullOff, frog.depth - FROG_THICKNESS, frog.depth) &&
+      insideLanes(frog.kind, frog, pullOffLanes(pullOff, tuning.corridorCols)),
+  );
+  return index === -1 ? null : index;
+}
+
+// The pass test on the frog's cells in traffic lanes: its cells in a
+// pull-off's lanes never meet a wall.
+function passesWall(run: Run, shape: Frog, opening: Opening): boolean {
+  const open = new Set(opening.map(cellKey));
+  return frogCells(shape).every((cell) => !inTraffic(run, cell.col) || open.has(cellKey(cell)));
+}
+
 // A wall the frog has passed overlaps it until the wall's back face goes by
 // the frog's.
 function overlapsFrog(wall: Wall, frogDepth: number): boolean {
@@ -149,7 +219,7 @@ function overlapsFrog(wall: Wall, frogDepth: number): boolean {
 // Whether the frog could take this shape at its depth: inside the opening of
 // every wall overlapping it.
 function clearOfWalls(run: Run, shape: Frog): boolean {
-  return run.walls.every((wall) => !overlapsFrog(wall, run.frog.depth) || frogPasses(shape, wall.opening));
+  return run.walls.every((wall) => !overlapsFrog(wall, run.frog.depth) || passesWall(run, shape, wall.opening));
 }
 
 function withFrog(run: Run, frog: Partial<RuleFrog>): Run {
@@ -166,15 +236,20 @@ function pass(run: Run, index: number): Run {
 }
 
 // The frog is knocked back from the wall's face, no further than the start
-// zone. The wall stays solid and keeps coming, so it bonks the frog again
-// when it arrives unless the frog fits by then or has got clear. A held jump
-// key keeps repeating, a full repeat interval after the bonk.
+// zone, and onto the road: a frog straddling a pull-off's edge is shifted
+// sideways just far enough that every cell is in traffic lanes, since the
+// knock-back can carry it past the pull-off's stretch. The wall stays solid
+// and keeps coming, so it bonks the frog again when it arrives unless the
+// frog fits by then or has got clear. A held jump key keeps repeating, a full
+// repeat interval after the bonk.
 function bonk(run: Run, index: number): Run {
-  const { time, tuning, heldJump } = run;
+  const { time, tuning, heldJump, frog } = run;
   const face = run.walls[index].depth;
   const depth = Math.max(0, face - tuning.bonkKnockback * tuning.depthStep);
+  const { width } = pieceSize(frog.kind, frog.rotation);
+  const col = Math.min(Math.max(frog.col, 0), tuning.corridorCols - width);
   return {
-    ...withFrog(run, { depth }),
+    ...withFrog(run, { depth, col }),
     heldJump: heldJump === null ? null : { ...heldJump, nextAt: time + tuning.jumpRepeatInterval },
     lastBonk: { time, depth: face },
   };
@@ -182,26 +257,52 @@ function bonk(run: Run, index: number): Run {
 
 // Judges the next wall at the frog's face, now.
 function meet(run: Run, index: number): Run {
-  return frogPasses(frogShape(run.frog), run.walls[index].opening) ? pass(run, index) : bonk(run, index);
+  return passesWall(run, frogShape(run.frog), run.walls[index].opening) ? pass(run, index) : bonk(run, index);
 }
 
 // Takes up a new placement if it stays inside the opening of any wall
 // overlapping the frog; otherwise the action is refused, like a move off the
 // corridor edge.
-function reshape(run: Run, frog: Pick<RuleFrog, "col" | "rotation">): Run {
+function reshape(run: Run, frog: Placement): Run {
   return clearOfWalls(run, { ...frogShape(run.frog), ...frog }) ? withFrog(run, frog) : run;
 }
 
+// A slide is refused if it would put a cell outside the lanes the frog may
+// use: off the road's edge, or into a pull-off's barrier.
 function moveColumn(run: Run, by: number): Run {
-  const col = run.frog.col + by;
-  const { width } = pieceSize(run.frog.kind, run.frog.rotation);
-  if (col < 0 || col + width > run.tuning.corridorCols) return run;
-  return reshape(run, { col, rotation: run.frog.rotation });
+  const placement = { col: run.frog.col + by, rotation: run.frog.rotation };
+  if (!insideLanes(run.frog.kind, placement, lanesAt(run, run.frog.depth))) return run;
+  return reshape(run, placement);
 }
 
 function rotate(run: Run, turn: 1 | -1): Run {
-  const placement = rotateInCorridor(run.frog.kind, run.frog, turn, run.tuning.corridorCols);
+  const placement = rotateInCorridor(run.frog.kind, run.frog, turn, lanesAt(run, run.frog.depth));
   return placement === null ? run : reshape(run, placement);
+}
+
+// Whether the frog, as it stands, may be at `depth`: a frog with cells in a
+// pull-off's lanes can't jump past the pull-off's barriers.
+function mayStandAt(run: Run, depth: number): boolean {
+  return insideLanes(run.frog.kind, run.frog, lanesAt(run, depth));
+}
+
+// The frog takes the piece waiting in the pull-off it is entirely inside, and
+// leaves its own there in its place. The new piece keeps the frog's rotation
+// and lane if they fit inside the pull-off; otherwise it takes the first
+// rotation, then lane, that does. A swap anywhere else does nothing.
+function swap(run: Run): Run {
+  const index = pullOffHoldingFrog(run);
+  if (index === null) return run;
+  const pullOff = run.pullOffs[index];
+  const lanes = pullOffLanes(pullOff, run.tuning.corridorCols);
+  const kind = pullOff.waiting;
+  const kept: Placement = { col: run.frog.col, rotation: run.frog.rotation };
+  const placement = insideLanes(kind, kept, lanes) ? kept : firstFit(kind, lanes);
+  if (placement === null) throw new Error(`A ${kind} doesn't fit the pull-off it waits in`);
+  return {
+    ...withFrog(run, { kind, ...placement }),
+    pullOffs: run.pullOffs.map((p, i) => (i === index ? { ...p, waiting: run.frog.kind } : p)),
+  };
 }
 
 function hop(run: Run): Run {
@@ -219,9 +320,14 @@ function landNow(run: Run): Run {
 // Riding: a frog that is up while a wall overlaps it stays up, gliding across
 // the wall's low parts, until the wall has gone by or a jump forward carries
 // it off. So a hop's timing is forgiving: one pressed early, whose airtime
-// would end mid-overlap, still carries the frog across.
+// would end mid-overlap, still carries the frog across. A frog entirely in a
+// pull-off is over no vehicle, so it doesn't ride.
 export function isRiding(run: Run): boolean {
-  return hopHeight(run.frog) === 1 && run.walls.some((wall) => overlapsFrog(wall, run.frog.depth));
+  return (
+    hopHeight(run.frog) === 1 &&
+    frogCells(frogShape(run.frog)).some((cell) => inTraffic(run, cell.col)) &&
+    run.walls.some((wall) => overlapsFrog(wall, run.frog.depth))
+  );
 }
 
 // A hop whose airtime is over lands, unless the frog is riding.
@@ -237,6 +343,7 @@ function settle(run: Run): Run {
 // forward never meets a passed wall: those are all behind the frog's front.
 function jumpForward(run: Run): Run {
   const target = run.frog.depth + run.tuning.depthStep;
+  if (!mayStandAt(run, target)) return run;
   let next = run;
   for (let index = nextWall(next); index !== null && next.walls[index].depth <= target; index = nextWall(next)) {
     next = meet(next, index);
@@ -251,7 +358,7 @@ function jumpForward(run: Run): Run {
 // wall overlaps the frog.
 function jumpBack(run: Run): Run {
   const target = Math.max(0, run.frog.depth - run.tuning.depthStep);
-  if (target === run.frog.depth) return run;
+  if (target === run.frog.depth || !mayStandAt(run, target)) return run;
   const blocked = run.walls.some((wall) => overlapsFrog(wall, target));
   return blocked ? run : withFrog(run, { depth: target });
 }
@@ -292,6 +399,8 @@ function act(run: Run, action: FrogAction): Run {
       return jumpForward(run);
     case "back":
       return jumpBack(run);
+    case "swap":
+      return swap(run);
   }
 }
 
