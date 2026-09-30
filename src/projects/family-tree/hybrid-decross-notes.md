@@ -128,7 +128,44 @@ this model proves 4 and draws 4, with two chains reversed. The solve still
 proves its optimum in about 0.8s: the orientation variables and the added
 line pairs are few next to the order variables.
 
-## Reproducing the measurements
+## Brackets: crossings no ordering can change
+
+A union between partners who aren't neighbours in their chain is drawn as a
+bracket under the row (`edge-routing-notes.md`). It is a line like any other
+and can be crossed, so the solve must either count its crossings or be shown
+unable to change them. It is the second:
+
+1. **Where a bracket lies.** Horizontally, between its two legs, which meet
+   the cards of its own two partners, so inside its own chain's span.
+   Vertically, from the bottom of its row's cards down to its run, and the
+   gap below the row keeps every elbow row a clearance under the deepest
+   run. Call that rectangle, down to the clearance, the bracket's band.
+2. **What else can enter the band.** Descents from the gap above end at the
+   tops of cards, above the band. Crossbars and descents to the next row
+   start at elbow rows, below it. Another chain's drops leave its own cards,
+   and chains in a row never overlap, so they fall outside the span. What is
+   left are the drops leaving this chain's own cards and gaps between the
+   legs, and the chain's other brackets.
+3. **Those are fixed by the chain.** Which drops leave from between a
+   bracket's legs, and which brackets interleave, depend only on the
+   chain's order of members and who has children with whom. Reversing a
+   chain draws the mirror image (the bracket's shape depends on the people,
+   never on the direction), which keeps every such crossing.
+
+So the number of bracket crossings is a constant of the tree: no layer order,
+chain orientation or placement changes it, and the solve's proven optimum
+over the lines it does count is the optimum of the whole picture. A
+bracketed couple's own children are counted like anyone's: their drop is a
+port along the chain at the middle of the run.
+
+The layout reports both numbers, the proven crossings between lines to
+children and the brackets' constant, and the layout invariant tests count
+the drawn picture and require both to match on every fixture, including
+the production tree with partners added past a card's two sides (in the
+slow suite). They also check step 2 directly: no line but those drops
+enters a bracket's band.
+
+
 
 For the solver's own timings, run the CLI's `relayout` without `--write`: it
 solves the live tree and streams the solver's progress, including the time to

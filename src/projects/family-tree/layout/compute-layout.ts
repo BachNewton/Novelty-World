@@ -258,6 +258,12 @@ interface ChainGeometry {
   bracketDropX(parentIds: readonly string[]): number | null;
   // How far below the cards the deepest bracket runs, or 0.
   bracketDepth: number;
+  // How many times the chain's brackets cross a line: a drop leaving the
+  // row between a bracket's legs, or another bracket whose span interleaves.
+  // Only the chain's own lines can meet its brackets, and a reversed chain
+  // draws the mirror image, so the count is the chain's own, whatever the
+  // order and orientation the solve chooses.
+  bracketCrossings: number;
 }
 
 const CHAIN_STEP = NODE_W + SPOUSE_GAP;
@@ -278,12 +284,30 @@ function chainGeometry(tree: Tree, couple: CoupleUnit, order: readonly string[])
     const path = parentIds.length === 2 ? paths.get(pairKey(parentIds[0], parentIds[1])) : undefined;
     return path?.kind === "bracket" && path.drop !== null ? path.drop.x : null;
   };
-  return {
-    dropX: (parentIds) =>
-      bracketDropX(parentIds) ?? parentIds.reduce((sum, id) => sum + centerOf(id), 0) / parentIds.length,
-    bracketDropX,
-    bracketDepth,
-  };
+  const dropX = (parentIds: readonly string[]): number =>
+    bracketDropX(parentIds) ?? parentIds.reduce((sum, id) => sum + centerOf(id), 0) / parentIds.length;
+
+  const drops = new Map<string, number>();
+  for (const person of Object.values(tree.persons)) {
+    if (person.parentIds.length === 0 || !person.parentIds.every((id) => order.includes(id))) continue;
+    drops.set([...person.parentIds].sort().join("|"), dropX(person.parentIds));
+  }
+  const brackets = couple.unions.flatMap((u) => {
+    const path = paths.get(pairKey(u.a, u.b));
+    return path?.kind === "bracket" ? [{ own: [u.a, u.b].sort().join("|"), ...path }] : [];
+  });
+  let bracketCrossings = 0;
+  for (const bracket of brackets) {
+    for (const [family, x] of drops) {
+      if (family !== bracket.own && bracket.x1 < x && x < bracket.x2) bracketCrossings++;
+    }
+  }
+  for (const p of brackets) {
+    for (const q of brackets) {
+      if (p.x1 < q.x1 && q.x1 < p.x2 && p.x2 < q.x2) bracketCrossings++;
+    }
+  }
+  return { dropX, bracketDropX, bracketDepth, bracketCrossings };
 }
 
 function coupleWidth(couple: CoupleUnit): number {
@@ -400,6 +424,8 @@ function chainLines(
 }
 
 interface SugiyamaResult {
+  // The proven fewest crossings between the lines to children.
+  crossings: number;
   centerX: Map<string, number>;
   // Each chain's members left to right, as drawn.
   sides: Map<string, string[]>;
@@ -419,7 +445,7 @@ function layoutCouplesViaSugiyama(
   parentCouplesOf: Map<string, string[]>,
   options: SolverOptions,
 ): SugiyamaResult {
-  if (couples.length === 0) return { centerX: new Map(), sides: new Map() };
+  if (couples.length === 0) return { crossings: 0, centerX: new Map(), sides: new Map() };
   const data: CoupleData[] = couples.map((c) => ({
     id: c.id,
     parentIds: parentCouplesOf.get(c.id) ?? [],
@@ -517,7 +543,7 @@ function layoutCouplesViaSugiyama(
   layout(dag);
   const centerX = new Map<string, number>();
   for (const node of dag.nodes()) centerX.set(node.data.id, node.x);
-  return { centerX, sides };
+  return { crossings: decross.solution().crossings, centerX, sides };
 }
 
 // Which way round each chain is drawn. The solver already chose the
@@ -619,6 +645,19 @@ export function packElbowRows(
 }
 
 export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
+  return solveLayout(tree, options).layout;
+}
+
+// A layout with the crossings it draws: `lineCrossings` between lines to
+// children, the proven optimum of the exact solve, and `bracketCrossings`,
+// where brackets cross lines, which no choice of the solve can change.
+export interface SolvedLayout {
+  layout: Layout;
+  lineCrossings: number;
+  bracketCrossings: number;
+}
+
+export function solveLayout(tree: Tree, options: SolverOptions = {}): SolvedLayout {
   const order = bfsOrder(tree);
   const gen = computeGenerations(tree);
   const { couples, coupleOf } = buildCoupleUnits(tree, order, gen);
@@ -640,7 +679,7 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
   }
 
   const layered = buildLayered(couples);
-  const { centerX: rawCenterX, sides: spouseSideOrder } = layoutCouplesViaSugiyama(
+  const { crossings: lineCrossings, centerX: rawCenterX, sides: spouseSideOrder } = layoutCouplesViaSugiyama(
     tree,
     couples,
     coupleOf,
@@ -936,5 +975,6 @@ export function computeLayout(tree: Tree, options: SolverOptions = {}): Layout {
     (max, c) => Math.max(max, yFor(c.generation) + NODE_H + geometryOf(c.id).bracketDepth),
     0,
   );
-  return layout;
+  const bracketCrossings = couples.reduce((sum, c) => sum + geometryOf(c.id).bracketCrossings, 0);
+  return { layout, lineCrossings, bracketCrossings };
 }

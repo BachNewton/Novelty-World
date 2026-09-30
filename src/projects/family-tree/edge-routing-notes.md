@@ -98,7 +98,9 @@ The exact solve therefore needs no term for them and still proves the
 fewest crossings among everything it can change. It does count a
 bracketed couple's children: their drop is a port along the chain at the
 run's middle, like any couple's. Nothing else can meet a bracket: descents
-end at the tops of cards, and the elbow rows lie below the run. (A line
+end at the tops of cards, and the elbow rows lie below the run
+(`hybrid-decross-notes.md` has the argument, and the check that the drawn
+picture's crossings match the solve's). (A line
 that skips a row already runs through that row's cards; the layout draws
 none on the trees it has.) The layout invariant tests check all of this on
 the drawn lines.

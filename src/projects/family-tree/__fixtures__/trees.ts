@@ -544,6 +544,36 @@ export function productionTree(): Tree {
   return normalizeTree(productionSnapshot).tree;
 }
 
+// The production tree with partners past a card's two sides added to two of
+// its people, so the production-sized solve lays out brackets: one man gains
+// a third partner with a child (his childless current wife overflows), and
+// one woman a third, childless ex-husband.
+export function productionWithOverflow(): Tree {
+  const tree = productionTree();
+  const find = (first: string, last: string): Person => {
+    const person = Object.values(tree.persons).find((q) => q.firstName === first && q.lastName === last);
+    if (person === undefined) throw new Error(`productionWithOverflow: no ${first} ${last}`);
+    return person;
+  };
+  const add = (person: Person): void => {
+    tree.persons[person.id] = person;
+  };
+  const join = (a: Person, b: Person, status: UnionStatus): void => {
+    a.unions.push(newUnion(b.id, status));
+    b.unions.push(newUnion(a.id, status));
+  };
+  const gary = find("Gary", "Hutchinson");
+  const garyPartner = p("overflowPartner", "F");
+  add(garyPartner);
+  join(gary, garyPartner, "ex-partner");
+  add(p("overflowKid", "M", [gary.id, garyPartner.id]));
+  const kristin = find("Kristin", "West");
+  const kristinEx = p("overflowEx", "M");
+  add(kristinEx);
+  join(kristin, kristinEx, "divorced");
+  return tree;
+}
+
 export const NAMED_FIXTURES: Record<string, () => Tree> = {
   trivial,
   nuclear,

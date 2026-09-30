@@ -16,7 +16,7 @@ import {
   type UnionPath,
 } from "./edge-geometry";
 import { LINE_CLEARANCE } from "./layout/coord";
-import { NODE_W, SPOUSE_GAP, computeLayout } from "./layout/compute-layout";
+import { NODE_W, SPOUSE_GAP, computeLayout, solveLayout, type SolvedLayout } from "./layout/compute-layout";
 import { currentPartnerIds } from "./logic";
 import type { LaidOutNode, Layout, Tree } from "./types";
 import {
@@ -92,13 +92,15 @@ function verticalSegments(layout: Layout): VerticalSegment[] {
 
 // Pairs of parent-child lines between the same two rows that cross: one
 // leaves its parents left of the other's but reaches its child right of it.
+// A line's rows are its parents' and its child's, wherever its drop starts.
 function lineCrossings(layout: Layout): Array<[string, string]> {
   const pathOf = parentChildPaths(layout);
+  const rowOf = new Map(layout.nodes.map((n) => [n.id, n.y]));
   const lines = layout.edges.flatMap((edge) => {
     if (edge.kind !== "parent-child") return [];
     const path = pathOf(edge);
     if (path === null) throw new Error(`no path for ${edge.childId}'s line`);
-    const top = path[0];
+    const top = { x: path[0].x, y: rowOf.get(edge.parentAId) ?? NaN };
     const bottom = path[path.length - 1];
     return [{ child: edge.childId, top, bottom }];
   });
@@ -151,12 +153,47 @@ function meet(s: [Point, Point], t: [Point, Point]): boolean {
 export function defineLayoutInvariants(name: string, build: () => Tree): void {
   let tree: Tree;
   let layout: Layout;
+  let solved: SolvedLayout;
   // 180s mirrors layout-snapshot.slow.test.ts — the exact solve on
   // productionTree takes seconds, past the vitest 10s default for hooks.
   beforeAll(() => {
     tree = build();
-    layout = computeLayout(tree);
+    solved = solveLayout(tree);
+    layout = solved.layout;
   }, 180_000);
+
+  it("draws exactly the crossings the exact solve counted", () => {
+    // Between lines to children, the proven optimum; where brackets cross
+    // lines, the count fixed by the chains themselves.
+    expect(lineCrossings(layout).length, `${name}: crossings between lines to children`).toBe(solved.lineCrossings);
+    const pathOf = parentChildPaths(layout);
+    const drawn = brackets(layout);
+    let bracketMeets = 0;
+    for (const { aId, bId, path } of drawn) {
+      const own = [aId, bId].sort().join("|");
+      const bracketSegments = segments(unionPoints(path));
+      const families = new Set<string>();
+      for (const edge of layout.edges) {
+        if (edge.kind !== "parent-child") continue;
+        const family = [edge.parentAId, edge.parentBId ?? ""].sort().join("|");
+        const line = pathOf(edge);
+        if (family === own || line === null) continue;
+        if (segments(line).some((segment) => bracketSegments.some((s) => meet(s, segment)))) families.add(family);
+      }
+      bracketMeets += families.size;
+      for (const other of drawn) {
+        if (other.path === path) continue;
+        const [p, q] = [path, other.path];
+        if (p.x1 < q.x1 && q.x1 < p.x2 && p.x2 < q.x2) {
+          if (!bracketSegments.some((s) => segments(unionPoints(q)).some((t) => meet(s, t)))) {
+            throw new Error(`${name}: interleaved brackets ${aId}-${bId} and ${other.aId}-${other.bId} don't cross`);
+          }
+          bracketMeets++;
+        }
+      }
+    }
+    expect(bracketMeets, `${name}: crossings with brackets`).toBe(solved.bracketCrossings);
+  });
 
   it("places every person in the tree", () => {
     const placed = new Set(layout.nodes.map((n) => n.id));
@@ -289,32 +326,29 @@ export function defineLayoutInvariants(name: string, build: () => Tree): void {
     }
   });
 
-  it("crosses a bracket only with drops leaving its row between its legs, or an interleaved bracket", () => {
+  it("keeps every other line out of each bracket's band, so no placement can cross one", () => {
+    // The band runs across the bracket's legs, from its row's cards down to
+    // (not including) the clearance under its run. Only drops leaving the row between the
+    // legs, which the chain fixes, and the couple's own drop may enter it.
     const pathOf = parentChildPaths(layout);
-    const drawn = brackets(layout);
-    for (const { aId, bId, path } of drawn) {
+    for (const { aId, bId, path } of brackets(layout)) {
       const own = [aId, bId].sort().join("|");
-      const bracketSegments = segments(unionPoints(path));
+      const band = { left: path.x1, right: path.x2, top: path.y, bottom: path.runY + 16 };
       for (const edge of layout.edges) {
         if (edge.kind !== "parent-child") continue;
         if ([edge.parentAId, edge.parentBId ?? ""].sort().join("|") === own) continue;
         const line = pathOf(edge);
         if (line === null) throw new Error(`no path for ${edge.childId}'s line`);
-        segments(line).forEach((segment, i) => {
-          if (!bracketSegments.some((s) => meet(s, segment))) return;
-          const [top] = segment;
-          const dropFromRow = i === 0 && top.y <= path.y && path.x1 < top.x && top.x < path.x2;
-          if (!dropFromRow) throw new Error(`${name}: ${edge.childId}'s line crosses the ${aId}-${bId} bracket`);
+        segments(line).forEach(([from, to], i) => {
+          const enters =
+            Math.min(from.x, to.x) <= band.right &&
+            band.left <= Math.max(from.x, to.x) &&
+            Math.min(from.y, to.y) < band.bottom &&
+            band.top <= Math.max(from.y, to.y);
+          if (!enters) return;
+          const dropFromRow = i === 0 && from.y <= path.y && path.x1 < from.x && from.x < path.x2;
+          if (!dropFromRow) throw new Error(`${name}: ${edge.childId}'s line enters the ${aId}-${bId} bracket's band`);
         });
-      }
-      for (const other of drawn) {
-        if (other.path === path || other.path.y !== path.y) continue;
-        const crosses = bracketSegments.some((s) => segments(unionPoints(other.path)).some((t) => meet(s, t)));
-        const [p, q] = [path, other.path];
-        const interleaved = (p.x1 < q.x1 && q.x1 < p.x2 && p.x2 < q.x2) || (q.x1 < p.x1 && p.x1 < q.x2 && q.x2 < p.x2);
-        if (crosses && !interleaved) {
-          throw new Error(`${name}: the ${aId}-${bId} and ${other.aId}-${other.bId} brackets cross`);
-        }
       }
     }
   });
