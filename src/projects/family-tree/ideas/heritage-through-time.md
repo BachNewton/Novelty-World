@@ -102,7 +102,13 @@ they left; their grandchildren show today's.
   rests on, and it is replaced as soon as verifiable published art turns
   up. A symbol that is clearly identifiable but has no single common design
   (the green harp flew in many variants) takes its most iconic, most widely
-  recognized design. We never trace, recolor, crop or fix someone else's file, and nothing
+  recognized design. Where the sources leave no clear right answer (several
+  forms of a symbol, one of them drawn by a ruling power), the question that
+  decides is: if these people were alive today and we asked how they would
+  like their heritage honored through a symbol, what would they likely
+  answer? The form the people used for themselves, and would recognize as
+  theirs, wins over an official form they would have seen as imposed. We
+  never trace, recolor, crop or fix someone else's file, and nothing
   approximate appears anywhere, mockups included. A symbol with no verified
   art isn't shown until it has some.
 - **Every symbol the tree needs gets art.** A symbol is needed when someone's

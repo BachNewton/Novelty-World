@@ -144,6 +144,16 @@ its sources; the art is then verified against that design. Only a symbol
 that isn't clearly identifiable at all stays without art, with the
 question written down.
 
+**No clear right answer** (several forms, such as a coat of arms as the
+ruling empire's official drawing showed it and as the people's own artists
+drew it): ask how the people of that era, if they were alive today, would
+want their heritage honored through a symbol, and what they would recognize
+as theirs. Look for evidence of what they used for themselves: their own
+publications, societies, flags flown at their gatherings, emigrant
+communities' banners, national-movement writing. That form wins over an
+official one they would have seen as imposed. The record's `checked` text
+gives the reasoning and its sources.
+
 **Sources disagree** (a Commons drawing of a grand-ducal arms whose crown
 and arm are disputed on its talk page): follow the disagreement to the
 highest-ranked source. If that source settles it, check the file against
