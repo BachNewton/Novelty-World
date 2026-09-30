@@ -83,6 +83,13 @@ they left; their grandchildren show today's.
   Historical flags and coats of arms come from Wikimedia Commons (public
   domain, free), stored in the repo, each with its source and license noted.
   Coats of arms are drawn in their own proportions, like flags.
+- **A symbol is always shown whole.** Anything that represents a place, a
+  people or a country (a flag, a coat of arms, a regional emblem) is drawn at
+  its true aspect ratio, uncropped, and nothing overlaps it: no badge, no
+  other symbol, no label, no line. So no design may slice a flag into a share
+  of a shape, clip it to a circle or a tab, stack symbols over one another,
+  or wrap one around a sphere. A share is shown by the symbol's size or by
+  something beside it, never by cutting the symbol.
 - **Every chip and corner symbol names its era** on hover: "Finnish, Grand
   Duchy of Finland (Russian Empire), before 1918".
 
