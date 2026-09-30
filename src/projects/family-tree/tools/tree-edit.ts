@@ -42,8 +42,16 @@ import type {
   Tree,
   UnionStatus,
 } from "../types";
-import { HERITAGES } from "../heritages";
+import { PEOPLES, REGIONS, heritageName, type PeopleCode, type RegionSlug } from "../heritages";
 import type { HeritageCode, HeritageEntryCode } from "../heritages";
+import {
+  PEOPLE_TIMELINES,
+  REGION_TIMELINES,
+  SYMBOLS,
+  eraYears,
+  isVerified,
+  type SymbolEra,
+} from "../symbol-timelines";
 
 // Also the list of name fields a change file may set: a new NameFields key
 // fails typecheck here until it gets a default, and from then on flows
@@ -76,8 +84,8 @@ export type Op =
   | { op: "appendNote"; person: PersonRef; note: string }
   // A partial ISO date ("YYYY", "YYYY-MM" or "YYYY-MM-DD") or "~YYYY"; "" clears it.
   | { op: "setBirthDate"; person: PersonRef; birthDate: string }
-  // Codes from heritages.ts, plus "unknown", split equally; [] removes the
-  // entry.
+  // Codes from heritages.ts (a people, "finnish", or a people and region,
+  // "italian/sicily"), plus "unknown", split equally; [] removes the entry.
   | { op: "setHeritage"; person: PersonRef; heritage: HeritageEntryCode[] }
   // Sets the origin fields given, at least one, leaving the rest; "" clears
   // one. `emigrationDate` is shaped like a birth date.
@@ -464,7 +472,7 @@ function sameRecord(a: ResearchRecord | null, b: ResearchRecord): boolean {
 }
 
 function heritageLabel(code: HeritageCode): string {
-  return `${HERITAGES[code].name} (${code})`;
+  return `${heritageName(code)} (${code})`;
 }
 
 function entryList(heritage: readonly HeritageEntryCode[]): string {
@@ -511,6 +519,89 @@ export function describeSuperseded(tree: Tree): string {
   lines.push(`Partly superseded heritage entries (review these): ${partly.length}`);
   for (const { person, inUse } of partly) {
     lines.push(`  ${labelOf(tree, person.id)}  entry ${entryList(person.heritage)}, ${formatShare(inUse)} in use`);
+  }
+  return lines.join("\n");
+}
+
+// ---------- peoples, regions and symbol timelines ----------
+
+function describeEra(era: SymbolEra, regional: boolean): string {
+  const verified = isVerified(era) ? `verified (${era.sources.join("; ")})` : "UNVERIFIED";
+  const region = regional ? ", regional" : "";
+  return `    ${eraYears(era).padEnd(12)} ${era.name}: ${era.symbol} (${SYMBOLS[era.symbol].name})${region}, ${verified}`;
+}
+
+// Every listed people with its regions and the symbol timelines of each, and
+// how many eras research has yet to verify.
+export function describePeoples(): string {
+  const lines: string[] = [];
+  let unverified = 0;
+  for (const people of Object.keys(PEOPLES) as PeopleCode[]) {
+    lines.push(`${PEOPLES[people].name} (${people})`);
+    for (const era of PEOPLE_TIMELINES[people]) {
+      lines.push(describeEra(era, era.regional));
+      if (!isVerified(era)) unverified++;
+    }
+    for (const region of Object.keys(REGIONS) as RegionSlug[]) {
+      if (REGIONS[region].people !== people) continue;
+      lines.push(`  region ${REGIONS[region].name} (${people}/${region})`);
+      for (const era of REGION_TIMELINES[region]) {
+        lines.push(`  ${describeEra(era, false)}`);
+        if (!isVerified(era)) unverified++;
+      }
+    }
+  }
+  lines.push("", `Eras still to verify with sources: ${unverified}`);
+  return lines.join("\n");
+}
+
+// ---------- origin evidence without a heritage decision ----------
+
+function hasOriginEvidence(person: Person): boolean {
+  return ORIGIN_KEYS.some((key) => person[key] !== "");
+}
+
+// People with origin evidence recorded whose line has no heritage decision
+// yet: no entry of their own, nothing known passed down to them, and no
+// entry on anyone below them that could have kept the family's identity
+// (decision 6 of ideas/heritage-through-time.md). Sorted by name.
+export function undecidedReport(tree: Tree): Person[] {
+  const breakdowns = heritageBreakdowns(tree);
+  const children = new Map<string, string[]>();
+  for (const person of Object.values(tree.persons)) {
+    for (const parentId of person.parentIds) children.set(parentId, [...(children.get(parentId) ?? []), person.id]);
+  }
+  const hasEntryBelow = (id: string): boolean => {
+    const seen = new Set<string>();
+    const stack = [...(children.get(id) ?? [])];
+    while (stack.length > 0) {
+      const cur = stack.pop()!;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      if (tree.persons[cur].heritage.length > 0) return true;
+      stack.push(...(children.get(cur) ?? []));
+    }
+    return false;
+  };
+  return Object.values(tree.persons)
+    .filter(
+      (person) =>
+        hasOriginEvidence(person) &&
+        person.heritage.length === 0 &&
+        breakdowns[person.id].known.length === 0 &&
+        !hasEntryBelow(person.id),
+    )
+    .sort((a, b) => displayName(a).localeCompare(displayName(b)));
+}
+
+export function describeUndecided(tree: Tree): string {
+  const undecided = undecidedReport(tree);
+  const lines = [`Origin evidence without a heritage decision: ${undecided.length}`];
+  for (const person of undecided) {
+    const origin = ORIGIN_KEYS.filter((key) => person[key] !== "")
+      .map((key) => `${key}=${JSON.stringify(person[key])}`)
+      .join(", ");
+    lines.push(`  ${labelOf(tree, person.id)}  ${origin}`);
   }
   return lines.join("\n");
 }

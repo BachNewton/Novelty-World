@@ -28,6 +28,7 @@ import {
   setResearch,
   setGender,
   setHeritage,
+  symbolBirthYear,
   setNotes,
   setOrigin,
   setUnionDeceased,
@@ -42,9 +43,18 @@ import {
   nuclear,
   partnerFamily,
   pedigree,
+  productionTree,
   widowedRemarriage,
 } from "./__fixtures__/trees";
-import { CODE_SHAPES, HERITAGES } from "./heritages";
+import {
+  LEGACY_COUNTRY_CODES,
+  PEOPLES,
+  PEOPLE_CODE_SHAPE,
+  REGION_CODES,
+  REGION_CODE_SHAPE,
+  heritageCodeProblem,
+  heritageName,
+} from "./heritages";
 import type { HeritageEntryCode } from "./heritages";
 import type { LaidOutNode } from "./types";
 import type {
@@ -825,11 +835,55 @@ describe("normalizeTree", () => {
     const { tree, changed } = normalizeTree({
       rootId: ROOT_ID,
       persons: {
-        [ROOT_ID]: { ...currentPerson, heritage: ["FI", "unknown"] },
+        [ROOT_ID]: { ...currentPerson, heritage: ["italian/sicily", "finnish", "unknown"] },
       },
     });
     expect(changed).toBe(false);
-    expect(tree.persons[ROOT_ID].heritage).toEqual(["FI", "unknown"]);
+    expect(tree.persons[ROOT_ID].heritage).toEqual(["italian/sicily", "finnish", "unknown"]);
+  });
+
+  it("migrates each present-day country code to its people, one to one", () => {
+    const { tree, changed } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...currentPerson, heritage: [...Object.keys(LEGACY_COUNTRY_CODES), "unknown"] },
+      },
+    });
+    expect(changed).toBe(true);
+    expect(tree.persons[ROOT_ID].heritage).toEqual([
+      "finnish",
+      "italian",
+      "irish",
+      "english",
+      "scottish",
+      "welsh",
+      "german",
+      "swedish",
+      "polish",
+      "dutch",
+      "french",
+      "norwegian",
+      "hungarian",
+      "ukrainian",
+      "lebanese",
+      "unknown",
+    ]);
+    expect(treeProblems(tree)).toEqual([]);
+  });
+
+  it("migrates heritage without touching the production tree's topology hash", () => {
+    const plain = productionTree();
+    const codes = Object.keys(LEGACY_COUNTRY_CODES);
+    const raw = structuredClone(plain) as unknown as {
+      persons: Record<string, { heritage: string[] }>;
+    };
+    Object.values(raw.persons).forEach((person, i) => {
+      person.heritage = [codes[i % codes.length]];
+    });
+    const { tree, changed } = normalizeTree(raw);
+    expect(changed).toBe(true);
+    expect(treeProblems(tree)).toEqual([]);
+    expect(topologyHash(tree)).toBe(topologyHash(plain));
   });
 });
 
@@ -995,36 +1049,37 @@ describe("setOrigin", () => {
 });
 
 describe("heritage list", () => {
-  it("codes every entry in the shape of its kind, so the kinds can't collide", () => {
-    for (const [code, heritage] of Object.entries(HERITAGES)) {
-      expect(code).toMatch(CODE_SHAPES[heritage.kind]);
-    }
+  it("codes every people and region in its shape", () => {
+    for (const code of Object.keys(PEOPLES)) expect(code).toMatch(PEOPLE_CODE_SHAPE);
+    for (const code of REGION_CODES) expect(code).toMatch(REGION_CODE_SHAPE);
   });
 
-  it("keeps England, Scotland and Wales separate and Ireland whole", () => {
-    expect(HERITAGES["GB-ENG"].name).toBe("England");
-    expect(HERITAGES["GB-SCT"].name).toBe("Scotland");
-    expect(HERITAGES["GB-WLS"].name).toBe("Wales");
-    expect(HERITAGES.IE.name).toBe("Ireland");
+  it("gives every region a listed people", () => {
+    for (const code of REGION_CODES) expect(heritageCodeProblem(code), code).toBeNull();
+  });
+
+  it("names regions within their people", () => {
+    expect(heritageName("finnish")).toBe("Finnish");
+    expect(heritageName("italian/sicily")).toBe("Italian (Sicily)");
   });
 });
 
 describe("setHeritage", () => {
   it("sets and clears a person's entry, keeping its order", () => {
-    let t = setHeritage(createInitialTree(), ROOT_ID, ["IT", "FI"]);
-    expect(t.persons[ROOT_ID].heritage).toEqual(["IT", "FI"]);
+    let t = setHeritage(createInitialTree(), ROOT_ID, ["italian", "finnish"]);
+    expect(t.persons[ROOT_ID].heritage).toEqual(["italian", "finnish"]);
     t = setHeritage(t, ROOT_ID, []);
     expect(t.persons[ROOT_ID].heritage).toEqual([]);
   });
 
   it("returns the same tree when nothing changes", () => {
-    const base = setHeritage(createInitialTree(), ROOT_ID, ["FI"]);
-    expect(setHeritage(base, ROOT_ID, ["FI"])).toBe(base);
+    const base = setHeritage(createInitialTree(), ROOT_ID, ["finnish"]);
+    expect(setHeritage(base, ROOT_ID, ["finnish"])).toBe(base);
   });
 
   it("does not change the topology hash", () => {
     const base = createInitialTree();
-    expect(topologyHash(setHeritage(base, ROOT_ID, ["FI"]))).toBe(topologyHash(base));
+    expect(topologyHash(setHeritage(base, ROOT_ID, ["finnish"]))).toBe(topologyHash(base));
   });
 
   it("is flagged by treeProblems for an unlisted code, a repeat, or only unknown", () => {
@@ -1035,9 +1090,9 @@ describe("setHeritage", () => {
       persons: { [ROOT_ID]: { ...base.persons[ROOT_ID], heritage: ["XX", "people:nobody"] } },
     });
     expect(treeProblems(unlisted)).toEqual([
-      expect.stringMatching(/unknown heritage "XX", "people:nobody"/),
+      expect.stringMatching(/unknown heritage: "XX" is not a listed people; "people:nobody" is not a listed people/),
     ]);
-    expect(treeProblems(setHeritage(base, ROOT_ID, ["FI", "FI"]))).toEqual([
+    expect(treeProblems(setHeritage(base, ROOT_ID, ["finnish", "finnish"]))).toEqual([
       expect.stringMatching(/same heritage twice/),
     ]);
     expect(treeProblems(setHeritage(base, ROOT_ID, ["unknown"]))).toEqual([
@@ -1045,8 +1100,27 @@ describe("setHeritage", () => {
     ]);
   });
 
+  it("is flagged by treeProblems for an unlisted region or one of another people", () => {
+    const base = createInitialTree();
+    const { tree } = normalizeTree({
+      rootId: ROOT_ID,
+      persons: {
+        [ROOT_ID]: { ...base.persons[ROOT_ID], heritage: ["german/nowhere", "german/sicily", "italian/sicily/x"] },
+      },
+    });
+    expect(treeProblems(tree)).toEqual([
+      expect.stringMatching(
+        /"german\/nowhere": German has no listed region "nowhere"; "german\/sicily": Sicily is a region of the Italian people, not the German; "italian\/sicily\/x" is not a listed people/,
+      ),
+    ]);
+  });
+
+  it("accepts a region beside its people", () => {
+    expect(treeProblems(setHeritage(createInitialTree(), ROOT_ID, ["italian/sicily", "italian"]))).toEqual([]);
+  });
+
   it("accepts unknown beside listed heritages", () => {
-    expect(treeProblems(setHeritage(createInitialTree(), ROOT_ID, ["FI", "unknown"]))).toEqual([]);
+    expect(treeProblems(setHeritage(createInitialTree(), ROOT_ID, ["finnish", "unknown"]))).toEqual([]);
   });
 });
 
@@ -1064,14 +1138,14 @@ describe("heritageBreakdowns", () => {
   }
 
   it("makes the entry the whole mix of someone with no parents, in its own order", () => {
-    const t = makeTree([entered(p("a"), ["DE", "SE"])]);
-    expect(shares(t, "a")).toEqual([["DE", 0.5], ["SE", 0.5]]);
+    const t = makeTree([entered(p("a"), ["german", "swedish"])]);
+    expect(shares(t, "a")).toEqual([["german", 0.5], ["swedish", 0.5]]);
     expect(inUse(t, "a")).toBe(1);
   });
 
   it("keeps an entered unknown unknown", () => {
-    const t = makeTree([entered(p("a"), ["FI", "unknown"])]);
-    expect(shares(t, "a")).toEqual([["FI", 0.5], ["unknown", 0.5]]);
+    const t = makeTree([entered(p("a"), ["finnish", "unknown"])]);
+    expect(shares(t, "a")).toEqual([["finnish", 0.5], ["unknown", 0.5]]);
     expect(inUse(t, "a")).toBe(1);
   });
 
@@ -1083,87 +1157,87 @@ describe("heritageBreakdowns", () => {
   it("passes half of each parent's mix, the father's line first on a tie", () => {
     const t = makeTree([
       p("kid", "F", ["mom", "dad"]),
-      entered(p("mom", "F"), ["IT"]),
-      entered(p("dad", "M"), ["FI"]),
+      entered(p("mom", "F"), ["italian"]),
+      entered(p("dad", "M"), ["finnish"]),
     ]);
-    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+    expect(shares(t, "kid")).toEqual([["finnish", 0.5], ["italian", 0.5]]);
   });
 
   it("gives a missing parent's half to unknown instead of rescaling", () => {
-    const t = makeTree([p("kid", "M", ["dad"]), entered(p("dad"), ["IE"])]);
-    expect(shares(t, "kid")).toEqual([["IE", 0.5], ["unknown", 0.5]]);
+    const t = makeTree([p("kid", "M", ["dad"]), entered(p("dad"), ["irish"])]);
+    expect(shares(t, "kid")).toEqual([["irish", 0.5], ["unknown", 0.5]]);
     expect(shares(makeTree([p("kid")]), "kid")).toEqual([["unknown", 1]]);
   });
 
   it("leaves an entry whole when a parent is added with nothing known above", () => {
     const t = makeTree([
-      entered(p("kid", "M", ["dad", "mom"]), ["PL"]),
+      entered(p("kid", "M", ["dad", "mom"]), ["polish"]),
       p("dad", "M", ["granddad"]),
       p("mom", "F"),
       p("granddad", "M"),
     ]);
-    expect(shares(t, "kid")).toEqual([["PL", 1]]);
+    expect(shares(t, "kid")).toEqual([["polish", 1]]);
     expect(inUse(t, "kid")).toBe(1);
   });
 
   it("fills only the unknown part from the entry, after the inherited lines", () => {
     const t = makeTree([
-      entered(p("kid", "M", ["mom", "dad"]), ["IT"]),
-      entered(p("dad", "M"), ["FI"]),
+      entered(p("kid", "M", ["mom", "dad"]), ["italian"]),
+      entered(p("dad", "M"), ["finnish"]),
       p("mom", "F"),
     ]);
-    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+    expect(shares(t, "kid")).toEqual([["finnish", 0.5], ["italian", 0.5]]);
     expect(inUse(t, "kid")).toBe(0.5);
   });
 
   it("splits a partial fill equally across the entry, keeping its unknown part unknown", () => {
     const t = makeTree([
-      entered(p("kid", "M", ["dad"]), ["IT", "unknown"]),
+      entered(p("kid", "M", ["dad"]), ["italian", "unknown"]),
       p("dad", "M", ["granddad", "grandma"]),
-      entered(p("granddad", "M"), ["FI"]),
+      entered(p("granddad", "M"), ["finnish"]),
       p("grandma", "F"),
     ]);
     // The known quarter is the granddad's; the entry fills the other three.
-    expect(shares(t, "kid")).toEqual([["IT", 0.375], ["FI", 0.25], ["unknown", 0.375]]);
+    expect(shares(t, "kid")).toEqual([["italian", 0.375], ["finnish", 0.25], ["unknown", 0.375]]);
     expect(inUse(t, "kid")).toBe(0.75);
   });
 
   it("drops a fully superseded entry from the mix and reports it unused", () => {
     const t = makeTree([
-      entered(p("kid", "M", ["dad", "mom"]), ["PL"]),
-      entered(p("dad", "M"), ["FI"]),
-      entered(p("mom", "F"), ["IT"]),
+      entered(p("kid", "M", ["dad", "mom"]), ["polish"]),
+      entered(p("dad", "M"), ["finnish"]),
+      entered(p("mom", "F"), ["italian"]),
     ]);
-    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IT", 0.5]]);
+    expect(shares(t, "kid")).toEqual([["finnish", 0.5], ["italian", 0.5]]);
     expect(inUse(t, "kid")).toBe(0);
   });
 
   it("passes the filled mix on to descendants", () => {
     const t = makeTree([
-      entered(p("kid", "M", ["dad"]), ["IT"]),
-      entered(p("dad", "M"), ["FI"]),
+      entered(p("kid", "M", ["dad"]), ["italian"]),
+      entered(p("dad", "M"), ["finnish"]),
       p("grandkid", "F", ["kid"]),
     ]);
-    expect(shares(t, "grandkid")).toEqual([["FI", 0.25], ["IT", 0.25], ["unknown", 0.5]]);
+    expect(shares(t, "grandkid")).toEqual([["finnish", 0.25], ["italian", 0.25], ["unknown", 0.5]]);
     expect(inUse(t, "grandkid")).toBeNull();
   });
 
   it("passes nothing across a step relationship", () => {
     const t = makeTree([
       p("kid", "M", ["mom"]),
-      entered(p("mom", "F", [], ["step"]), ["NL"]),
-      entered(p("step", "M", [], ["mom"]), ["FR"]),
+      entered(p("mom", "F", [], ["step"]), ["dutch"]),
+      entered(p("step", "M", [], ["mom"]), ["french"]),
     ]);
-    expect(shares(t, "kid")).toEqual([["NL", 0.5], ["unknown", 0.5]]);
+    expect(shares(t, "kid")).toEqual([["dutch", 0.5], ["unknown", 0.5]]);
   });
 
   it("orders by share first, then by surname line", () => {
     const t = makeTree([
       p("kid", "M", ["dad", "mom"]),
-      entered(p("dad", "M"), ["IE", "GB-SCT"]),
-      entered(p("mom", "F"), ["FI"]),
+      entered(p("dad", "M"), ["irish", "scottish"]),
+      entered(p("mom", "F"), ["finnish"]),
     ]);
-    expect(shares(t, "kid")).toEqual([["FI", 0.5], ["IE", 0.25], ["GB-SCT", 0.25]]);
+    expect(shares(t, "kid")).toEqual([["finnish", 0.5], ["irish", 0.25], ["scottish", 0.25]]);
   });
 
   it("breaks an even four-way tie paternal grandfather, paternal grandmother, maternal grandfather, maternal grandmother", () => {
@@ -1173,35 +1247,86 @@ describe("heritageBreakdowns", () => {
       p("kid", "F", ["mom", "dad"]),
       p("dad", "M", ["dadsMom", "dadsDad"]),
       p("mom", "F", ["momsMom", "momsDad"]),
-      entered(p("dadsDad", "M"), ["IE"]),
-      entered(p("dadsMom", "F"), ["GB-SCT"]),
-      entered(p("momsDad", "M"), ["FI"]),
-      entered(p("momsMom", "F"), ["IT"]),
+      entered(p("dadsDad", "M"), ["irish"]),
+      entered(p("dadsMom", "F"), ["scottish"]),
+      entered(p("momsDad", "M"), ["finnish"]),
+      entered(p("momsMom", "F"), ["italian"]),
     ]);
     expect(shares(t, "kid")).toEqual([
-      ["IE", 0.25],
-      ["GB-SCT", 0.25],
-      ["FI", 0.25],
-      ["IT", 0.25],
+      ["irish", 0.25],
+      ["scottish", 0.25],
+      ["finnish", 0.25],
+      ["italian", 0.25],
     ]);
   });
 
   it("falls back to the stored parent order when gender can't pick the father", () => {
     const t = makeTree([
       p("kid", "F", ["b", "a"]),
-      entered(p("a", "NB"), ["FI"]),
-      entered(p("b", "NB"), ["IT"]),
+      entered(p("a", "NB"), ["finnish"]),
+      entered(p("b", "NB"), ["italian"]),
     ]);
-    expect(shares(t, "kid")).toEqual([["IT", 0.5], ["FI", 0.5]]);
+    expect(shares(t, "kid")).toEqual([["italian", 0.5], ["finnish", 0.5]]);
   });
 
   it("counts a heritage reached by several paths once, summing its share", () => {
     const t = makeTree([
-      entered(p("kid", "F", ["dad", "mom"]), ["FI"]),
-      entered(p("dad", "M"), ["FI", "IT"]),
+      entered(p("kid", "F", ["dad", "mom"]), ["finnish"]),
+      entered(p("dad", "M"), ["finnish", "italian"]),
       p("mom", "F"),
     ]);
-    expect(shares(t, "kid")).toEqual([["FI", 0.75], ["IT", 0.25]]);
+    expect(shares(t, "kid")).toEqual([["finnish", 0.75], ["italian", 0.25]]);
+  });
+});
+
+describe("symbolBirthYear", () => {
+  function born(person: Person, birthDate: string): Person {
+    return { ...person, birthDate };
+  }
+
+  it("uses the person's own year, approximate or not", () => {
+    expect(symbolBirthYear(makeTree([born(p("a"), "1931-06-16")]), "a")).toBe(1931);
+    expect(symbolBirthYear(makeTree([born(p("a"), "~1931")]), "a")).toBe(1931);
+  });
+
+  it("estimates about 30 years a generation from the nearest relative", () => {
+    const t = makeTree([
+      p("kid", "M", ["dad"]),
+      born(p("dad", "M", ["granddad"]), "1900"),
+      born(p("granddad"), "1850"),
+    ]);
+    expect(symbolBirthYear(t, "kid")).toBe(1930);
+    const up = makeTree([p("dad"), born(p("kid", "M", ["dad"]), "1950")]);
+    expect(symbolBirthYear(up, "dad")).toBe(1920);
+    const grand = makeTree([p("granddad"), p("dad", "M", ["granddad"]), born(p("kid", "M", ["dad"]), "1950")]);
+    expect(symbolBirthYear(grand, "granddad")).toBe(1890);
+  });
+
+  it("counts a partner and a sibling as the same generation", () => {
+    const partner = makeTree([p("a", "M", [], ["b"]), born(p("b", "F", [], ["a"]), "1901")]);
+    expect(symbolBirthYear(partner, "a")).toBe(1901);
+    const sibling = makeTree([p("a", "M", ["mom"]), p("mom", "F"), born(p("b", "F", ["mom"]), "1905")]);
+    expect(symbolBirthYear(sibling, "a")).toBe(1905);
+  });
+
+  it("averages relatives equally near, and ignores farther ones", () => {
+    const t = makeTree([
+      p("kid", "M", ["dad", "mom"]),
+      born(p("dad", "M", ["granddad"], ["mom"]), "1900"),
+      born(p("mom", "F", [], ["dad"]), "1910"),
+      born(p("granddad"), "1800"),
+    ]);
+    expect(symbolBirthYear(t, "kid")).toBe(1935);
+  });
+
+  it("is null when no relative has a birth date", () => {
+    expect(symbolBirthYear(makeTree([p("a", "M", ["b"]), p("b")]), "a")).toBeNull();
+  });
+
+  it("never stores the estimate", () => {
+    const t = makeTree([p("kid", "M", ["dad"]), born(p("dad"), "1900")]);
+    symbolBirthYear(t, "kid");
+    expect(t.persons.kid.birthDate).toBe("");
   });
 });
 

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
-import { FLAGS } from "../flags";
+import { flagOf } from "../flags";
 import type { HeritageCode } from "../heritages";
 
 interface FlagProps {
@@ -11,7 +11,7 @@ interface FlagProps {
 }
 
 export function Flag({ code, className, style }: FlagProps) {
-  const flag = FLAGS[code];
+  const flag = flagOf(code);
   return (
     <Image
       src={flag.src}

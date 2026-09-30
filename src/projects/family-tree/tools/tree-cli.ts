@@ -6,6 +6,8 @@
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts show <id or prefix>
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts gaps
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts superseded
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts undecided
+//   npx tsx src/projects/family-tree/tools/tree-cli.ts peoples
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts history [count]
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts verify
 //   npx tsx src/projects/family-tree/tools/tree-cli.ts apply <changes.json> [--round <label>] [--write]
@@ -35,8 +37,10 @@ import type { Layout, ResearchDocument, Tree } from "../types";
 import {
   applyOps,
   describeGaps,
+  describePeoples,
   describePerson,
   describeSuperseded,
+  describeUndecided,
   parseOps,
   resolveId,
   searchPersons,
@@ -59,6 +63,8 @@ const USAGE = [
   "  tree-cli.ts show <id or id prefix>",
   "  tree-cli.ts gaps",
   "  tree-cli.ts superseded",
+  "  tree-cli.ts undecided",
+  "  tree-cli.ts peoples",
   "  tree-cli.ts history [count]",
   "  tree-cli.ts verify",
   "  tree-cli.ts apply <changes.json> [--round <label>] [--write]",
@@ -106,6 +112,11 @@ async function gaps(): Promise<void> {
 async function superseded(): Promise<void> {
   const { document } = await load();
   console.log(describeSuperseded(document));
+}
+
+async function undecided(): Promise<void> {
+  const { document } = await load();
+  console.log(describeUndecided(document));
 }
 
 function timestamp(iso: string): string {
@@ -304,6 +315,11 @@ async function main(): Promise<void> {
   if (command === "show" && readOnly && only(1) && arg !== undefined) return show(arg);
   if (command === "gaps" && readOnly && only(0)) return gaps();
   if (command === "superseded" && readOnly && only(0)) return superseded();
+  if (command === "undecided" && readOnly && only(0)) return undecided();
+  if (command === "peoples" && readOnly && only(0)) {
+    console.log(describePeoples());
+    return;
+  }
   if (command === "verify" && readOnly && only(0)) return verify();
   if (command === "history" && readOnly && positional.length <= 1) {
     return history(arg === undefined ? DEFAULT_HISTORY_COUNT : versionArg(arg));

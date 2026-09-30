@@ -1,5 +1,4 @@
-import { FLAGS } from "../flags";
-import { HERITAGES } from "../heritages";
+import { flagOf } from "../flags";
 import type { HeritageCode } from "../heritages";
 import { formatShare } from "../logic";
 import type { HeritageBreakdown } from "../logic";
@@ -16,7 +15,7 @@ function flagDiagonal(share: number): number {
 // A corner flag's size: the whole flag in its own proportions, with the given
 // diagonal.
 function cornerFlagSize(code: HeritageCode, diagonal: number): { w: number; h: number } {
-  const { width, height } = FLAGS[code];
+  const { width, height } = flagOf(code);
   const scale = diagonal / Math.hypot(width, height);
   return { w: width * scale, h: height * scale };
 }
@@ -97,7 +96,7 @@ export function HeritageChip({
   share: number;
   size?: "card" | "panel";
 }) {
-  const name = code === null ? "Unknown" : HERITAGES[code].name;
+  const name = code === null ? "Unknown" : flagOf(code).country;
   return (
     <span
       title={name}

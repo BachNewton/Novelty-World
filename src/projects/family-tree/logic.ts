@@ -14,8 +14,14 @@ import type {
   UnionStatus,
 } from "./types";
 import { foldText } from "@/shared/lib/fold-text";
-import { UNKNOWN_HERITAGE, isHeritageCode, isHeritageEntryCode } from "./heritages";
-import type { HeritageCode, HeritageEntryCode } from "./heritages";
+import {
+  LEGACY_COUNTRY_CODES,
+  UNKNOWN_HERITAGE,
+  heritageCodeProblem,
+  isHeritageCode,
+  isLegacyCountryCode,
+} from "./heritages";
+import type { HeritageCode, HeritageEntryCode, LegacyCountryCode } from "./heritages";
 
 export const ROOT_ID = "kyle-hutchinson";
 export const ROOT_FIRST_NAME = "Kyle";
@@ -453,10 +459,13 @@ export function setResearch(
 // list means "no entry" and is valid; a list of only unknown fills nothing,
 // so it is rejected in favor of no entry.
 export function heritageProblem(heritage: readonly unknown[]): string | null {
-  const invalid = heritage.filter((code) => !isHeritageEntryCode(code));
-  if (invalid.length > 0) {
-    return `has unknown heritage ${invalid.map((code) => JSON.stringify(code)).join(", ")}`;
-  }
+  const invalid = heritage.flatMap((code) => {
+    if (typeof code !== "string") return [JSON.stringify(code)];
+    if (code === UNKNOWN_HERITAGE) return [];
+    const problem = heritageCodeProblem(code);
+    return problem === null ? [] : [problem];
+  });
+  if (invalid.length > 0) return `has unknown heritage: ${invalid.join("; ")}`;
   if (new Set(heritage).size !== heritage.length) return "lists the same heritage twice";
   if (heritage.length > 0 && heritage.every((code) => code === UNKNOWN_HERITAGE)) {
     return "has a heritage entry of only unknown, which is the same as no entry";
@@ -604,7 +613,8 @@ interface StoredPerson extends Partial<OriginFields> {
   // The completeness check `research.family` replaced: a confirmed family
   // question with one source.
   checked?: { asOf: string; source: string } | null;
-  heritage?: HeritageEntryCode[];
+  // Before heritage named peoples, it held present-day country codes.
+  heritage?: (HeritageEntryCode | LegacyCountryCode)[];
   gender: Gender;
   parentIds: string[];
   unions?: StoredUnion[];
@@ -651,9 +661,18 @@ export function projectTree(document: ResearchDocument): Tree {
   return document;
 }
 
+// A stored heritage entry with each present-day country code replaced by the
+// people it stood for (FI → finnish), one to one.
+function storedHeritage(person: StoredPerson): HeritageEntryCode[] {
+  return (person.heritage ?? []).map((code) =>
+    isLegacyCountryCode(code) ? LEGACY_COUNTRY_CODES[code] : code,
+  );
+}
+
 // Backfill schema fields added later (commonName, birthSurname, middleName,
 // notes, birthDate, the origin fields, research, heritage, deceasedId), migrate the pre-union
-// spouse lists into `unions` and the completeness check into `research`, so older persisted rows
+// spouse lists into `unions`, the completeness check into `research` and
+// country-coded heritage into peoples, so older persisted rows
 // hydrate without crashing. Returns `changed: true` when a row had to be
 // upgraded — callers use that to write the healed row back.
 export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
@@ -672,6 +691,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       person.research === undefined ||
       person.checked !== undefined ||
       person.heritage === undefined ||
+      person.heritage.some(isLegacyCountryCode) ||
       person.unions.some(
         (u) => u.status === "ended-by-death" && u.deceasedId === undefined,
       )
@@ -695,7 +715,7 @@ export function normalizeTree(raw: unknown): { tree: Tree; changed: boolean } {
       religion: person.religion ?? "",
       originLore: person.originLore ?? "",
       research: storedResearch(person),
-      heritage: [...(person.heritage ?? [])],
+      heritage: storedHeritage(person),
       gender: person.gender,
       parentIds: [...person.parentIds],
       unions: storedUnions(person),
@@ -798,6 +818,56 @@ export function heritageBreakdowns(tree: Tree): Record<string, HeritageBreakdown
     result[id] = { known, unknown: mix.get(UNKNOWN_HERITAGE) ?? 0, entryInUse };
   }
   return result;
+}
+
+// About how many years apart a parent's and a child's births are.
+export const GENERATION_YEARS = 30;
+
+// The year of a person's birth date as a number, or null without one.
+function birthYearNumber(person: Person): number | null {
+  return person.birthDate === "" ? null : Number(birthYear(person.birthDate).replace("~", ""));
+}
+
+// The birth year a person's era symbols are picked by: their own, or else an
+// estimate from their nearest relatives with a birth date, over parent,
+// child and union links, about GENERATION_YEARS a generation. Relatives
+// equally near are averaged. Null when no relative has a birth date. The
+// estimate only ever picks a symbol: it is never stored or shown as fact.
+export function symbolBirthYear(tree: Tree, id: string): number | null {
+  const own = birthYearNumber(tree.persons[id]);
+  if (own !== null) return own;
+  const children = new Map<string, string[]>();
+  for (const person of Object.values(tree.persons)) {
+    for (const parentId of person.parentIds) children.set(parentId, [...(children.get(parentId) ?? []), person.id]);
+  }
+  // Each relative's generation relative to the person: parents -1, children +1.
+  const generation = new Map([[id, 0]]);
+  let frontier = [id];
+  while (frontier.length > 0) {
+    const next: string[] = [];
+    const estimates: number[] = [];
+    for (const cur of frontier) {
+      const person = tree.persons[cur];
+      const gen = generation.get(cur) ?? 0;
+      const links: [string, number][] = [
+        ...person.parentIds.map((pid): [string, number] => [pid, gen - 1]),
+        ...(children.get(cur) ?? []).map((cid): [string, number] => [cid, gen + 1]),
+        ...person.unions.map((u): [string, number] => [u.personId, gen]),
+      ];
+      for (const [relative, relativeGen] of links) {
+        if (generation.has(relative)) continue;
+        generation.set(relative, relativeGen);
+        next.push(relative);
+        const year = birthYearNumber(tree.persons[relative]);
+        if (year !== null) estimates.push(year - relativeGen * GENERATION_YEARS);
+      }
+    }
+    if (estimates.length > 0) {
+      return Math.round(estimates.reduce((sum, year) => sum + year, 0) / estimates.length);
+    }
+    frontier = next;
+  }
+  return null;
 }
 
 // A share as a percentage with up to two decimals: "50%", "12.5%", "6.25%".

@@ -1,10 +1,13 @@
-// Each heritage's flag, from the svg-country-flags package: Wikimedia
-// Commons artwork (public domain) in each flag's official proportions. Every
-// heritage in heritages.ts needs an entry here. The proportions are repeated
-// here because the import is only the file's URL; a test holds them to
-// each file's viewBox.
+// Each people's flag on the cards: today's flag of the country the people
+// was coded by before heritage named peoples, from the svg-country-flags
+// package (Wikimedia Commons artwork, public domain) in each flag's official
+// proportions. A region shows its people's flag. Every people in
+// heritages.ts needs an entry here. The proportions are repeated here
+// because the import is only the file's URL; a test holds them to each
+// file's viewBox. The era symbols of ideas/heritage-through-time.md
+// (symbol-timelines.ts) are data only: the cards don't use them yet.
 
-import type { HeritageCode } from "./heritages";
+import { peopleOf, type HeritageCode, type PeopleCode } from "./heritages";
 import de from "svg-country-flags/svg/de.svg";
 import fi from "svg-country-flags/svg/fi.svg";
 import fr from "svg-country-flags/svg/fr.svg";
@@ -26,22 +29,28 @@ export interface Flag {
   // The flag's official proportions, width to height.
   width: number;
   height: number;
+  // The country the flag belongs to: the chips' hover text.
+  country: string;
 }
 
-export const FLAGS: Record<HeritageCode, Flag> = {
-  FI: { src: fi, width: 18, height: 11 },
-  IT: { src: it, width: 3, height: 2 },
-  IE: { src: ie, width: 2, height: 1 },
-  "GB-ENG": { src: gbEng, width: 5, height: 3 },
-  "GB-SCT": { src: gbSct, width: 5, height: 3 },
-  "GB-WLS": { src: gbWls, width: 5, height: 3 },
-  DE: { src: de, width: 5, height: 3 },
-  SE: { src: se, width: 8, height: 5 },
-  PL: { src: pl, width: 8, height: 5 },
-  NL: { src: nl, width: 3, height: 2 },
-  FR: { src: fr, width: 3, height: 2 },
-  NO: { src: no, width: 11, height: 8 },
-  HU: { src: hu, width: 2, height: 1 },
-  UA: { src: ua, width: 3, height: 2 },
-  LB: { src: lb, width: 3, height: 2 },
+export const FLAGS: Record<PeopleCode, Flag> = {
+  finnish: { src: fi, width: 18, height: 11, country: "Finland" },
+  italian: { src: it, width: 3, height: 2, country: "Italy" },
+  irish: { src: ie, width: 2, height: 1, country: "Ireland" },
+  english: { src: gbEng, width: 5, height: 3, country: "England" },
+  scottish: { src: gbSct, width: 5, height: 3, country: "Scotland" },
+  welsh: { src: gbWls, width: 5, height: 3, country: "Wales" },
+  german: { src: de, width: 5, height: 3, country: "Germany" },
+  swedish: { src: se, width: 8, height: 5, country: "Sweden" },
+  polish: { src: pl, width: 8, height: 5, country: "Poland" },
+  dutch: { src: nl, width: 3, height: 2, country: "Netherlands" },
+  french: { src: fr, width: 3, height: 2, country: "France" },
+  norwegian: { src: no, width: 11, height: 8, country: "Norway" },
+  hungarian: { src: hu, width: 2, height: 1, country: "Hungary" },
+  ukrainian: { src: ua, width: 3, height: 2, country: "Ukraine" },
+  lebanese: { src: lb, width: 3, height: 2, country: "Lebanon" },
 };
+
+export function flagOf(code: HeritageCode): Flag {
+  return FLAGS[peopleOf(code)];
+}
