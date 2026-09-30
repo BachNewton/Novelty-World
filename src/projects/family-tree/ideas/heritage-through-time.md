@@ -80,9 +80,13 @@ they left; their grandchildren show today's.
   tree: a German line born 1933–1945 shows the black-red-gold, the colors of
   1848 and 1919, not the Nazi flag.
 - **Art:** modern flags keep coming from the `svg-country-flags` package.
-  Historical flags and coats of arms come from Wikimedia Commons (public
-  domain, free), stored in the repo, each with its source and license noted.
-  Coats of arms are drawn in their own proportions, like flags.
+  Historical flags and coats of arms come from official downloads or
+  Wikimedia Commons, stored in the repo unedited, one file per symbol id,
+  each with a record of its source page, author, licence (public domain
+  preferred; a CC BY-SA drawing is fine with its credit shown), the official
+  proportions and what it was checked against (`symbol-art.ts`; the
+  `heritage-symbol-art` skill finds and verifies it). Coats of arms are
+  drawn in their own proportions, like flags.
 - **Real art only, never our own drawing.** A symbol's art is never drawn or
   approximated by us, in the app or in a mockup. It comes from an official
   source (a government's or institution's published design), or from a
@@ -187,8 +191,9 @@ are added only where a record gives them.
 1. **Research:** verify every era's years and symbol against sources,
    including the Lebanese mandate-era question; add regions where records
    give them; choose peoples for the lines `undecided` lists.
-2. **The art:** historical flags and arms from Wikimedia Commons, in the
-   repo with source and license, one per symbol id.
+2. **The art:** verified art for every symbol id, through the
+   `heritage-symbol-art` skill; `peoples` lists the symbols still without
+   it.
 3. **The card visuals** (owner's call): corner symbols and chips picked by
    each card's birth year, hover naming the era. Until then the cards show
    exactly what they did before peoples: each people shows today's flag of
