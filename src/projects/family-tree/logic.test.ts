@@ -1655,6 +1655,15 @@ describe("describeRelation", () => {
       "son-in-law's mother",
     );
   });
+
+  it("reaches someone linked to the family only by an ended union", () => {
+    const t = treeWithUnions(
+      [p("me", "M", ["mom"]), p("mom", "F"), p("uncle", "M", ["gran"]), p("gran", "F"), p("uncleEx", "F")],
+      [["uncle", "uncleEx", "divorced"]],
+    );
+    t.persons.mom.parentIds = ["gran"];
+    expect(describeRelation(t, "me", "uncleEx").label).toBe("uncle's ex-wife");
+  });
 });
 
 // Build a tree from persons plus [a, b, status] unions, added to both sides.
@@ -1888,13 +1897,13 @@ describe("describeRelation — partner and ex-partner", () => {
     expect(describeRelation(t, "jMom", "kid").label).toBe("grandson");
   });
 
-  it("labels an ended partnership as ex-partner, with no derived terms", () => {
+  it("labels an ended partnership as ex-partner, with no derived in-law terms", () => {
     const t = treeWithUnions(
       [p("a", "M", ["aMom"]), p("aMom", "F"), p("b", "F")],
       [["a", "b", "ex-partner"]],
     );
     expect(describeRelation(t, "a", "b").label).toBe("ex-partner");
-    expect(describeRelation(t, "aMom", "b").label).toBeNull();
+    expect(describeRelation(t, "aMom", "b").label).toBe("son's ex-partner");
   });
 });
 

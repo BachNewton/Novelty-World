@@ -1045,6 +1045,13 @@ function unionTerm(union: Union, describedId: string, gender: Gender): string {
 // through unmarried partners, who get no in-law or step terms of their own.
 const STEP_STATUSES: readonly UnionStatus[] = ["married"];
 const IN_LAW_STATUSES: readonly UnionStatus[] = ["married", "ended-by-death"];
+const ALL_UNION_STATUSES: readonly UnionStatus[] = [
+  "married",
+  "divorced",
+  "ended-by-death",
+  "partner",
+  "ex-partner",
+];
 const COMPOSITE_STATUSES: readonly UnionStatus[] = [
   "married",
   "ended-by-death",
@@ -1237,7 +1244,12 @@ function buildChildrenIndex(tree: Tree): Map<string, string[]> {
   return idx;
 }
 
-function shortestPath(tree: Tree, fromId: string, toId: string): ChainStep[] | null {
+function shortestPath(
+  tree: Tree,
+  fromId: string,
+  toId: string,
+  statuses: readonly UnionStatus[],
+): ChainStep[] | null {
   if (fromId === toId) return [];
   const childrenIdx = buildChildrenIndex(tree);
   const prev = new Map<string, ChainStep>();
@@ -1258,7 +1270,7 @@ function shortestPath(tree: Tree, fromId: string, toId: string): ChainStep[] | n
 
     for (const parentId of person.parentIds) visit(parentId, "parent");
     for (const childId of childrenIdx.get(cur) ?? []) visit(childId, "child");
-    for (const spouseId of partnerIdsWith(person, COMPOSITE_STATUSES)) {
+    for (const spouseId of partnerIdsWith(person, statuses)) {
       visit(spouseId, "spouse");
     }
   }
@@ -1280,8 +1292,13 @@ function shortestPath(tree: Tree, fromId: string, toId: string): ChainStep[] | n
 // person whose relation to the anchor has a structured (single-term) label.
 // The chain is the join of those labels, e.g. "brother-in-law's wife" rather
 // than "wife's brother's wife".
+// Someone linked to the family only through an ended union (an uncle's
+// ex-wife) has no path through current unions, so the chain falls back to
+// any union.
 function chainLabel(tree: Tree, fromId: string, toId: string): string | null {
-  const path = shortestPath(tree, fromId, toId);
+  const path =
+    shortestPath(tree, fromId, toId, COMPOSITE_STATUSES) ??
+    shortestPath(tree, fromId, toId, ALL_UNION_STATUSES);
   if (path === null || path.length === 0) return null;
 
   const persons = [fromId, ...path.map((s) => s.toId)];
