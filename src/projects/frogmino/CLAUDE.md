@@ -25,14 +25,26 @@ The frog passes a wall if every cell it covers is inside an opening: a subset te
 
 - **Move** left and right across the corridor.
 - **Rotate** the piece.
-- **Hop**: vertical, exactly one cell, for raised openings. Hopping at a floor-level opening bonks.
+- **Hop**: vertical, exactly one cell, for raised openings. The pass test decides a hop like anything else, so hopping at a floor-level opening bonks only when the opening has no room above the piece.
 - **Jump** forward or back along the corridor in discrete depth steps, to go faster or to buy reading time.
 
 Hop and jump forward are different actions.
 
+On touch screens (a starting point, to be tuned once it is playable):
+
+- **Drag** left or right to move, one column per step of finger travel.
+- **Tap** the left or right side to rotate counter-clockwise or clockwise.
+- **Swipe up** to hop. A swipe fires as soon as the finger has travelled far enough, while a tap has to wait for the finger to lift before it can rule out a swipe, so the timing-critical hop belongs on a swipe.
+- **Tap the centre** to jump forward, **swipe down** to jump back.
+- **Tap the hold box** to hold.
+
 ## Pieces
 
 The game deals the shapes; the player never chooses them. There is a next-piece preview and a Tetris-style hold, usable once per wall.
+
+## Courses and medals
+
+A level is a course with a finish line, run against the clock: gold, silver and bronze times, in the manner of time-trial marble games. There is no endless mode and there are no lives. A bonk knocks the frog back, and the time it costs is the penalty.
 
 ## Co-op
 
@@ -42,15 +54,21 @@ Solo is fully playable; co-op is optional. It runs over PeerJS through the repo'
 - Openings can be separate (who takes which) or shared (both frogs must squeeze into one).
 - Players may need to hop together, or one hops and the other doesn't.
 - Frogs are always solid to each other at the same depth. They get past each other by jumping forward or back a depth step.
+- **Openings fill in.** A frog that passes through an opening fills the cells it used, like a landed Tetris piece, and a partner must fit through what is left. That is what makes a shared opening different from two separate ones: how the first frog goes through decides whether the second can. It also stops a trailing partner reusing the cells the leader just used, whatever their depths.
+- **The team's time is the average of its players' finish times**, as in Forza Horizon 2's co-op Bucket List challenges: a fast player banks time a slower partner can spend. Everyone's result rides on everyone else's.
 - The walls generated depend on the player count.
+- The rules are written for a list of players from the start, with solo as a list of one. Wall generation, the pass test, frog-to-frog solidity, filled openings and the team clock all work on that list, so co-op is never retrofitted onto solo-only systems.
 
 ## Levels
 
 v1 levels are hardcoded or generated from a fixed seed. The generator places real piece placements first and grows the openings around them, so every wall is solvable. A level editor is a later idea.
 
+## Look
+
+Fun, quirky and colourful, in keeping with Novelty World. Art comes after gameplay: nothing about the frog's look is decided yet.
+
 ## Open questions
 
-- Is a bonk a knock-back or a knock-out?
 - How long is a hop's airtime?
-- Does co-op partners staggering their depths to reuse one opening need limiting?
+- Should a hop at a floor-level opening always bonk, even with headroom? The pass test alone says no, and that is how it stands.
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
