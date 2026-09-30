@@ -1,22 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
-import type { LobbyRoomState } from "@/shared/lib/multiplayer";
+import { parseRoomCode } from "@/shared/lib/peer";
 
 interface GameLobbyProps {
-  room: LobbyRoomState;
   /** Icon element rendered above the title. */
   icon: ReactNode;
   /** Game title (e.g. "Euchre", "Tic Tac Toe"). */
   title: string;
   /** Subtitle shown below the title. */
   subtitle: string;
+  onCreate: () => void;
+  onJoin: (code: string) => void;
+  /** Why the last attempt to join ended, when it did. */
+  notice?: string | null;
 }
 
-export function GameLobby({ room, icon, title, subtitle }: GameLobbyProps) {
+export function GameLobby({ icon, title, subtitle, onCreate, onJoin, notice }: GameLobbyProps) {
+  const [input, setInput] = useState("");
+  const code = parseRoomCode(input);
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-12">
       <div className="text-center space-y-3">
@@ -27,51 +33,33 @@ export function GameLobby({ room, icon, title, subtitle }: GameLobbyProps) {
         <p className="text-text-secondary">{subtitle}</p>
       </div>
 
-      <Button onClick={room.createRoom}>Create Room</Button>
+      <Button onClick={onCreate}>Create Room</Button>
 
-      {/* Live room list */}
-      <div className="w-full max-w-lg space-y-3">
-        <h2 className="font-medium text-text-primary">
-          Open Rooms
-          {room.rooms.length > 0 && (
-            <span className="ml-2 text-sm text-text-muted font-normal">
-              ({room.rooms.length})
-            </span>
-          )}
-        </h2>
-
-        {room.rooms.length === 0 ? (
-          <Card className="p-5 text-center">
-            <p className="text-text-muted text-sm">
-              No rooms available. Create one to get started!
-            </p>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {room.rooms.map((r) => (
-              <Card
-                key={r.roomCode}
-                className="flex items-center justify-between p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm tracking-widest text-brand-orange">
-                    {r.roomCode}
-                  </span>
-                  <span className="text-sm text-text-secondary">
-                    {r.playerCount} players
-                  </span>
-                </div>
-                <Button
-                  onClick={() => room.joinRoom(r.roomCode)}
-                  className="text-sm"
-                >
-                  Join
-                </Button>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+      <Card className="w-full max-w-sm space-y-3 p-5">
+        <h2 className="font-medium text-text-primary">Join a friend&apos;s room</h2>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (code !== null) onJoin(code);
+          }}
+        >
+          <input
+            aria-label="Room code"
+            value={input}
+            onChange={(e) => setInput(e.target.value.toUpperCase())}
+            placeholder="CODE"
+            maxLength={4}
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 rounded-md border border-border-default bg-surface-secondary px-3 py-2 font-mono text-lg tracking-widest text-brand-orange placeholder:text-text-muted focus:border-border-hover focus:outline-none"
+          />
+          <Button type="submit" disabled={code === null}>
+            Join
+          </Button>
+        </form>
+        {notice && <p className="text-sm text-brand-pink">{notice}</p>}
+      </Card>
 
       <Link href="/">
         <Button variant="ghost">Back to Novelty World</Button>

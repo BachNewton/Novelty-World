@@ -3,7 +3,6 @@
 import { useCallback, useMemo } from "react";
 import { useEuchreStore } from "../store";
 import type { Card, PlayerIndex, BidAction, Team } from "../types";
-import type { ConnectionState } from "@/shared/lib/multiplayer";
 import {
   getTeam,
   getPartner,
@@ -30,8 +29,8 @@ const DEFAULT_NAMES: Record<PlayerIndex, string> = {
 export interface GameTableProps {
   /** Player display names by seat index. */
   playerNames?: Record<PlayerIndex, string>;
-  /** Connection status per seat (multiplayer only). */
-  playerStatuses?: Record<PlayerIndex, ConnectionState>;
+  /** Whether each seat's player is in the room (multiplayer only). */
+  seatConnected?: Record<PlayerIndex, boolean>;
   /** Whether this client is the game authority. Controls "Next Hand" button. */
   isAuthority?: boolean;
   /** Override callbacks for multiplayer routing. */
@@ -58,7 +57,7 @@ function seatOrder(myPlayer: PlayerIndex): PlayerIndex[] {
 export function GameTable(props: GameTableProps = {}) {
   const {
     playerNames = DEFAULT_NAMES,
-    playerStatuses,
+    seatConnected,
     isAuthority = true,
     onBid: onBidProp,
     onCardClick: onCardClickProp,
@@ -177,7 +176,7 @@ export function GameTable(props: GameTableProps = {}) {
           isActive={game.currentPlayer === players[2]}
           label={playerLabel(players[2], me, game.dealer, playerNames)}
           trickCount={trickCountForPlayer(players[2], game)}
-          disconnected={playerStatuses?.[players[2]] === "disconnected" || playerStatuses?.[players[2]] === "failed"}
+          disconnected={seatConnected?.[players[2]] === false}
         />
 
         {/*
@@ -198,7 +197,7 @@ export function GameTable(props: GameTableProps = {}) {
             isActive={game.currentPlayer === players[1]}
             label={playerLabel(players[1], me, game.dealer, playerNames)}
             trickCount={trickCountForPlayer(players[1], game)}
-            disconnected={playerStatuses?.[players[1]] === "disconnected" || playerStatuses?.[players[1]] === "failed"}
+            disconnected={seatConnected?.[players[1]] === false}
           />
 
           {/* Right opponent — col 2 on mobile, col 3 on desktop */}
@@ -210,7 +209,7 @@ export function GameTable(props: GameTableProps = {}) {
               isActive={game.currentPlayer === players[3]}
               label={playerLabel(players[3], me, game.dealer, playerNames)}
               trickCount={trickCountForPlayer(players[3], game)}
-              disconnected={playerStatuses?.[players[3]] === "disconnected" || playerStatuses?.[players[3]] === "failed"}
+              disconnected={seatConnected?.[players[3]] === false}
             />
           </div>
 

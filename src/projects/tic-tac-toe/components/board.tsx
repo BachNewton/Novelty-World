@@ -21,6 +21,7 @@ export function Board({ onCellClick }: BoardProps) {
       {board.map((value, index) => (
         <Cell
           key={index}
+          index={index}
           value={value}
           isWinning={winLine?.includes(index) ?? false}
           isClickable={isMyTurn && value === null}

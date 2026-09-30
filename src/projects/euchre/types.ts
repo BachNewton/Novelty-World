@@ -125,64 +125,33 @@ export interface ActionResult {
   state: GameState;
 }
 
-// --- DataChannel message types ---
-
-export const MSG = {
-  GAME_START: "game-start",
-  BID: "bid",
-  DISCARD: "discard",
-  PLAY_CARD: "play-card",
-  NEXT_HAND: "next-hand",
-  STATE_UPDATE: "state-update",
-  PLAY_AGAIN_REQUEST: "play-again-request",
-  PLAY_AGAIN_ACCEPTED: "play-again-accepted",
-  TEAM_SELECT: "team-select",
-  TEAM_UPDATE: "team-update",
-} as const;
-
-// --- Message payloads ---
-
-export interface SeatAssignment {
-  playerId: string;
-  seatIndex: PlayerIndex;
-}
-
-export interface GameStartPayload {
-  seatAssignments: SeatAssignment[];
-  gameState: GameState;
-}
-
-export interface BidPayload {
-  player: PlayerIndex;
-  action: BidAction;
-}
-
-export interface DiscardPayload {
-  card: Card;
-}
-
-export interface PlayCardPayload {
-  player: PlayerIndex;
-  card: Card;
-}
-
-export interface StateUpdatePayload {
-  gameState: GameState;
-}
-
-export interface PlayAgainAcceptedPayload {
-  gameState: GameState;
-}
-
-export interface TeamSelectPayload {
-  team: Team;
-}
+// --- Lobby: teams and seats, keyed by persistent player id ---
 
 export interface TeamAssignment {
   playerId: string;
   team: Team;
 }
 
-export interface TeamUpdatePayload {
-  assignments: TeamAssignment[];
+export interface SeatAssignment {
+  playerId: string;
+  /** Kept with the seat so a player who drops out keeps their name. */
+  name: string;
+  seatIndex: PlayerIndex;
 }
+
+// --- Wire messages ---
+
+/** Host → guests. */
+export type HostMessage =
+  | { kind: "teams"; teams: TeamAssignment[] }
+  | { kind: "start"; seats: SeatAssignment[]; gameState: GameState }
+  | { kind: "state"; gameState: GameState };
+
+/** Guest → host. The host knows who sent it, so no seat travels with it. */
+export type GuestMessage =
+  | { kind: "team"; team: Team }
+  | { kind: "bid"; action: BidAction }
+  | { kind: "discard"; card: Card }
+  | { kind: "play"; card: Card }
+  | { kind: "next-hand" }
+  | { kind: "play-again" };

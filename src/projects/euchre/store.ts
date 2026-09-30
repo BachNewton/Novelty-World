@@ -6,6 +6,9 @@ import type {
   PlayerIndex,
   GameState,
   BidAction,
+  SeatAssignment,
+  Team,
+  TeamAssignment,
 } from "./types";
 import {
   createGameState,
@@ -43,6 +46,18 @@ interface EuchreActions {
   /** Guest: apply authoritative game state from host. */
   applyStateUpdate: (gameState: GameState) => void;
 
+  /** Host: put a player on a team (moving them if already on one). */
+  setTeam: (playerId: string, team: Team) => void;
+
+  /** Host: take a departed player off the teams. */
+  dropFromTeams: (playerId: string) => void;
+
+  /** Guest: apply the host's teams. */
+  setTeams: (teams: TeamAssignment[]) => void;
+
+  /** Fix the seats for a game; sets this client's seat from its player id. */
+  seatPlayers: (seats: SeatAssignment[], myPlayerId: string) => void;
+
   /** Full reset back to pre-game state. */
   reset: () => void;
 }
@@ -50,6 +65,9 @@ interface EuchreActions {
 export type EuchreStore = {
   myPlayer: PlayerIndex | null;
   game: GameState | null;
+  teams: TeamAssignment[];
+  /** Null until a game starts. */
+  seats: SeatAssignment[] | null;
 } & EuchreActions;
 
 // ============================================================
@@ -59,6 +77,8 @@ export type EuchreStore = {
 export const useEuchreStore = create<EuchreStore>((set, get) => ({
   myPlayer: null,
   game: null,
+  teams: [],
+  seats: null,
 
   setMyPlayer: (player) => set({ myPlayer: player }),
 
@@ -126,5 +146,15 @@ export const useEuchreStore = create<EuchreStore>((set, get) => ({
 
   applyStateUpdate: (gameState) => set({ game: gameState }),
 
-  reset: () => set({ myPlayer: null, game: null }),
+  setTeam: (playerId, team) =>
+    set({ teams: [...get().teams.filter((t) => t.playerId !== playerId), { playerId, team }] }),
+
+  dropFromTeams: (playerId) => set({ teams: get().teams.filter((t) => t.playerId !== playerId) }),
+
+  setTeams: (teams) => set({ teams }),
+
+  seatPlayers: (seats, myPlayerId) =>
+    set({ seats, myPlayer: seats.find((s) => s.playerId === myPlayerId)?.seatIndex ?? null }),
+
+  reset: () => set({ myPlayer: null, game: null, teams: [], seats: null }),
 }));

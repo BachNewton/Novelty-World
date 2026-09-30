@@ -4,15 +4,17 @@ import { cn } from "@/shared/lib/utils";
 import type { CellValue } from "../types";
 
 interface CellProps {
+  index: number;
   value: CellValue;
   isWinning: boolean;
   isClickable: boolean;
   onClick: () => void;
 }
 
-export function Cell({ value, isWinning, isClickable, onClick }: CellProps) {
+export function Cell({ index, value, isWinning, isClickable, onClick }: CellProps) {
   return (
     <button
+      aria-label={`Cell ${index + 1}`}
       onClick={onClick}
       disabled={!isClickable}
       className={cn(

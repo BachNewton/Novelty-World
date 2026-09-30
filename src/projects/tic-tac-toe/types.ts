@@ -14,7 +14,7 @@ export type GamePhase = "playing" | "finished";
 
 export type GameResult = { winner: Player } | { draw: true };
 
-/** Game-only state (no connection/lifecycle — owned by multiplayer framework) */
+/** Game-only state (no connection/lifecycle — owned by the shared peer room) */
 export interface GameState {
   board: Board;
   currentTurn: Player;
@@ -25,14 +25,9 @@ export interface GameState {
   winLine: number[] | null;
 }
 
-// --- DataChannel message payloads ---
+// --- Wire messages ---
 
-/** Guest → Host: request to place a mark */
-export interface MoveRequest {
-  cellIndex: number;
-}
-
-/** Host → Guest: authoritative state update */
+/** Host → guest: the authoritative board */
 export interface StateUpdate {
   board: Board;
   currentTurn: Player;
@@ -41,26 +36,10 @@ export interface StateUpdate {
   winLine: number[] | null;
 }
 
-/** Either → other: request to play again */
-export type PlayAgainRequest = Record<string, never>;
+/** Host → guest. `start` begins a round on a fresh board. */
+export type HostMessage =
+  | { kind: "start"; hostPlayer: Player }
+  | { kind: "state"; update: StateUpdate };
 
-/** Host → Guest: initial player assignment when connection is established */
-export interface GameStart {
-  hostPlayer: Player;
-}
-
-/** Host → Guest: new game started */
-export interface PlayAgainAccepted {
-  board: Board;
-  currentTurn: Player;
-  hostPlayer: Player;
-}
-
-/** Message type string constants */
-export const MSG = {
-  GAME_START: "game-start",
-  MOVE_REQUEST: "move-request",
-  STATE_UPDATE: "state-update",
-  PLAY_AGAIN_REQUEST: "play-again-request",
-  PLAY_AGAIN_ACCEPTED: "play-again-accepted",
-} as const;
+/** Guest → host. */
+export type GuestMessage = { kind: "move"; cellIndex: number } | { kind: "play-again" };

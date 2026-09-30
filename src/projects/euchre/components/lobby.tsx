@@ -2,16 +2,17 @@
 
 import { Spade } from "lucide-react";
 import { GameLobby } from "@/shared/components/game-lobby";
-import type { LobbyRoomState } from "@/shared/lib/multiplayer";
 
 interface LobbyProps {
-  room: LobbyRoomState;
+  onCreate: () => void;
+  onJoin: (code: string) => void;
+  notice: string | null;
 }
 
-export function EuchreLobby({ room }: LobbyProps) {
+export function EuchreLobby(props: LobbyProps) {
   return (
     <GameLobby
-      room={room}
+      {...props}
       icon={<Spade size={32} />}
       title="Euchre"
       subtitle="Play Euchre with friends"
