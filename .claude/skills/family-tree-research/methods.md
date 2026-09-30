@@ -121,6 +121,9 @@ in `sources.md`.
   PDF).
 - **Let the obituary's birthplace drive the search.** Nulls from searching an
   assumed birth state aren't nulls.
+- **A married-in person's parents:** a candidate father's obituary lists his
+  children; one of them matching a sibling on the couple's social-media
+  family lists gives a Possible parentage, to tie with a record.
 
 ## Finding all children of a couple
 
@@ -156,6 +159,10 @@ in `sources.md`.
 8. **A child whose other parent is unknown** goes in under the known parent
    with no co-parent; `linkParent` adds the other parent once a record names
    them.
+9. **A child known only by a gender-ambiguous name** (an obituary's "Robin")
+   goes in with gender "U" (unknown), which gives neutral relationship
+   terms; never guess a sex, and never use NB for it. Set the sex once a
+   record gives it.
 
 ## Finding earlier marriages and partners
 
@@ -178,11 +185,19 @@ in `sources.md`.
   each other confirms the pairing.
 - **An in-law's parent's obituary** names the in-law's current spouse, though
   its grandchildren are rarely attributed.
+- **An unnamed earlier husband:** when the children kept his surname and it
+  is rare, an exact-surname search finds his father's obituary index entry,
+  which lists the granddaughters under their married names and names him as
+  the son.
 - **Never married:** a death index giving marital status "Single" settles the
-  partners half.
+  partners half, unless an earlier record disagrees: a census "Divorced"
+  overturns it, so check every census first.
 - **Divorce by inference:** both spouses remarried while the other was alive.
   That is near-certain and may be applied (see "Research edits" in the
-  project CLAUDE.md).
+  project CLAUDE.md). When one spouse has no death record at all, a missing
+  SSDI entry for someone born in the 1930s is evidence they were alive into
+  the 1990s–2010s, so a remarriage of the other spouse points to divorce,
+  not ended-by-death; the note says it is inferred.
 - **Ended by death** only when the survivor later remarried or repartnered.
 
 ## Pinning a birth year

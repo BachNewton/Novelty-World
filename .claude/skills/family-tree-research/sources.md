@@ -31,7 +31,10 @@ library card, and can visit the National Library of Finland's reading room.
   return 403 to WebFetch. Several agents can share it, **one tab each**,
   closed when done: several agents with many tabs crashed Chrome. Keep each
   agent's pace polite, since every tab uses the same account.
-  FamilySearch's page-ready markers are below.
+  FamilySearch's page-ready markers are below. A script that clicks a link
+  and reads the result in one evaluation throws "execution context
+  destroyed" when the page navigates: trigger the click with `setTimeout`,
+  then read in a separate call.
 
 ## FamilySearch
 
@@ -81,6 +84,10 @@ the page for the "sign in to see all available results" banner.
 - Record pages render details late: wait for the "Event Type" field (or
   "Similar Records") in the main region. "OPEN ALL" expands relatives.
 - The results row shows only the main name; open the record for aliases.
+- Index ages can be absurd: the 1950 census indexes some infants as "49
+  years". Open the household before rejecting a hit on age. Wildcard given
+  names (`Ger*`) return mostly noise; prefer exact names plus a birth-year
+  range.
 - Wait for a page with a polling `evaluate_script` (a record link, "No
   Results Found" or "Results per page"), not `wait_for`: `wait_for` returns
   a whole-page snapshot that can run past 100 KB.
@@ -126,7 +133,10 @@ is in `methods.md` ("Finding a line's origin").
   their own birthplace. The 1920 census lists in-laws by relation ("maternal
   grandfather"). A 1950 entry sometimes lacks a member's birthplace ("not
   indexed"): that is unknown, not US. The 1900 census indexes each mother's
-  children born and still living (see `methods.md`).
+  children born and still living (see `methods.md`). Read a record page's
+  "Other People on This Record" block in full: a 1940 household can hold a
+  lodger who is a sibling, with a marital status ("Divorced") that
+  overturns a later "Single".
 - **Read the image, not only the index.** An index transcribes a few fields
   of a form that holds many: an Ohio county marriage license's application
   gives the bride's exact birthday, birthplace country and prior marriages;
@@ -140,7 +150,11 @@ is in `methods.md` ("Finding a line's origin").
   the citizenship columns (arrival year, "Na"/"Pa"/"Al", naturalization
   year) and the 1910 and 1920 mother-tongue columns: read those on the
   image. The images sit behind the record's
-  "View original document"; zoom the viewer and screenshot its tiles. The
+  "View original document"; zoom the viewer and screenshot its tiles. Where
+  there is no viewer link, the record's "Check Image Availability" says
+  whether an image exists and where it can be seen (often only at a
+  FamilySearch center or affiliate library): log that answer, not "no
+  image", and put the image on the owner's request list. The
   viewer's Download button gives a PDF of the full-resolution scan (pull the
   JPEG out with `pypdf`, crop it with PIL), but it opens Chrome's native
   Save dialog, which the MCP can't answer. The owner saves it to
@@ -153,7 +167,9 @@ is in `methods.md` ("Finding a line's origin").
   Marriages/Divorces gives birth years.
 - **NUMIDENT**: birth and death dates plus both parents' names; the best
   identity proof for the dead. Its "Alias" field (and a Similar Records
-  "Entry for X and Y") can carry a married name no other source records.
+  "Entry for X and Y") can carry a married name no other source records;
+  with the parent fields, one entry can give a stepchild's mother and
+  married name at once.
   Covers deaths to about 2007, with many 1970s deaths missing (use SSDI and a
   state death index instead).
 - **Ohio Deaths 1908–1953**: the death certificates themselves, with both
@@ -166,7 +182,8 @@ is in `methods.md` ("Finding a line's origin").
 - **SSDI, other death indexes**: dates; no relatives, so pair with something
   that ties identity (see `methods.md`). An exact birth date shared with the
   person is not identity: check the NUMIDENT's parents. They outrank a
-  grave site's year when the two disagree.
+  grave site's year when the two disagree. A missing SSDI entry is
+  evidence too (see `methods.md`, "Finding earlier marriages").
 - **Ohio, Stillbirths 1918–1953**: unnamed children with both parents. Each
   stillbirth has a birth-side and a death-side certificate with different
   numbers: one event, not twins (check the sex on both).
@@ -340,17 +357,32 @@ like Dr.): keep the survivors paragraph verbatim in the research log.
 
 - **Cleveland Public Library news and necrology index** (`cpl.org`): death
   notices from Cleveland papers. Returns 403 to WebFetch; it works in the
-  browser. A plain surname search returns every abstract for the surname.
-  Older entries are full necrology records with the notice's text; entries
-  after about 1975 are one-line abstracts ("Wife of X", "Father of Y") and
-  need the news record type in the URL, not necrology. Those abstracts name
-  spouses and children nothing else records, so sweep every surname in a
-  line. From the results tab, a same-origin `fetch` of each `showrecord`
-  page (the site's normal pages, not an API) reads them all in one pass.
-  Full scans are free by email from the library; that is a request for the
-  owner to make.
+  browser. Search with
+  `cpl.org/newsindex/results?searchType=both&searchFor=Surname%2C+Given`;
+  a plain surname returns every entry for the surname. Entries before about
+  1975 are full necrology records with the notice's text, step-relations
+  included ("stepmother of …"), which can tie a marriage nothing else
+  records. Later entries are one-line abstracts ("Wife of X", "Father of
+  Y") and need the news record type in the URL, not necrology. Those
+  abstracts name spouses and children nothing else records, so sweep every
+  surname in a line; a married man is usually indexed "Husband of", so a
+  "Son of" abstract hints (no more) that he was unmarried. From the results
+  tab, a same-origin `fetch` of each `showrecord` page (the site's normal
+  pages, not an API) reads them all in one pass. The full text of a later
+  notice is a scan, free by email from the library: a request for the owner
+  to make.
+- **Kalamazoo Public Library Local Newspaper Index** (`kzpl.sirsi.net`,
+  Local Information > Search Local Newspaper; works in the browser):
+  Kalamazoo Gazette citations (date, page, column) back to the 1960s,
+  obituaries and local news items. Citations only; the texts are on the
+  library's microfilm.
 - Other city libraries keep similar indexes (one blocked automated
   fetches).
+- **Ohio Obituary Index** (Rutherford B. Hayes library, `rbhayes.org`):
+  a statewide index of obituaries by county. Its Caspio search form can be
+  filled by script (Last Name, First Name, Middle Name, Death Year); the
+  per-record "View" won't open by script. Coverage is uneven: Ashtabula
+  from 1981, and Lake and Ashtabula thin, so a null there is weak.
 
 ## Courts and state archives
 
@@ -445,19 +477,34 @@ reading anything public; cite only generically in the tree.
   mutual friends with a known relative, which pick the right namesake.
   Searching a name without an anchor relative wastes time. An obituary's
   survivor list gives the names to search.
-- Most friend lists are hidden, except those of the owner's friends. A
-  family elder's friend list, filtered by name, surfaces the grandchildren's
-  accounts.
-- A profile's "Family and relationships" page gives the marriage year,
-  children and step-relations (one "stepdaughter" overturned an assumed
-  half-sibling). A display name with "(Maiden)" gives a birth surname.
-- Post search on a child's name plus "birthday" finds milestone posts: save
-  the year only.
-- Reading pages: post dates aren't in `innerText` (take them from an
-  accessibility snapshot, or date a post by its neighbours); timelines drop
-  posts as you scroll, so collect the text while scrolling; a tag list's "N
-  others" opens a "People" dialog, and a Messenger PIN dialog may be open at
-  the same time (close it; never enter anything).
+- **Collect handles in bulk:** a relative's mutual-friends page and a
+  grandparent's friend list are the fastest way to the family's accounts.
+  Most friend lists are hidden, except those of the owner's friends; on a
+  non-friend's profile only mutual friends show, so a friend-list scan
+  there can't rule a relative out.
+- **Profile pages** (`/<handle>/<section>`, or
+  `profile.php?id=N&sk=<section>`):
+  - `about_contact_and_basic_info` shows the birth date of the owner's
+    friends, sometimes with the year: save the year only.
+  - `about_family_and_relationships` gives the relationship status (with
+    the year), listed family and step-relations (one "stepdaughter"
+    overturned an assumed half-sibling). Family lists are incomplete and
+    can disagree: a sibling may list a brother the parent doesn't, so read
+    every sibling's list, not just the parent's.
+  - A display name with "(Maiden)" gives a birth surname. A profile address
+    can keep an older married name (`firstname.maidenmarried`): a lead only.
+- **Posts:** timelines often don't load; search a person's own posts with
+  `/search/posts/?q=<name> <word>` instead ("birthday", "baby", a child's
+  name). A child's first name plus the surname finds grandparents' birthday
+  posts, which name grandchildren in full; save the year only. A deceased
+  relative's own profile (photo captions, their comments) often names the
+  grandchildren.
+- Reading pages: post dates aren't in `innerText`. They are in the
+  accessibility snapshot, or in a date link's aria-label on hover: save the
+  snapshot to a file and grep it, rather than reading it inline. Timelines
+  drop posts as you scroll, so collect the text while scrolling; a tag
+  list's "N others" opens a "People" dialog, and a Messenger PIN dialog may
+  be open at the same time (close it; never enter anything).
 - Absence isn't evidence: some parents keep their children off social media
   entirely.
 - What to take: who is partnered with whom, whose children are whose, a
@@ -470,7 +517,8 @@ reading anything public; cite only generically in the tree.
 - **University athletics roster bios**: an adult's birth year and parents'
   names. High-school sports sites only show that someone is past a class year;
   for a minor, use them for the birth year or class year only, and save
-  nothing that locates the child.
+  nothing that locates the child. MaxPreps roster pages return 403 from
+  Finland, in the browser too: use search snippets.
 - **Professional registries** (NPI registry, clinician directories): identity,
   profession and area for adults; never birth years or relatives. LinkedIn
   and therapyden block fetches.

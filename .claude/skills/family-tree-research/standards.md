@@ -179,7 +179,8 @@ Year only, never the full date, even when a record gives it.
   birth or baptism index, a marriage record with the date of birth, an
   official roster or bio that names their parents; or
 - a public social media post tied to the person that gives an age on a
-  known date (a milestone birthday); or
+  known date (a milestone birthday), or the birth year the person's own
+  tied profile shows on its about page; or
 - two records whose age windows overlap in one year; or
 - "per Kyle".
 
@@ -194,7 +195,8 @@ question; two listings that disagree by more than a year kill it.
 3. Birth and baptism indexes for the states they may have been born in.
 4. Obituaries of relatives that give ages (rare, but some do).
 5. People-search listings, as leads.
-6. Public social media: milestone-birthday posts, graduation years.
+6. Public social media: the profile's about page, milestone-birthday posts,
+   graduation years.
 
 A birth year adds no connection, so it never holds up completeness.
 
