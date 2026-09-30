@@ -45,6 +45,8 @@ export const SYMBOLS = {
   "ukraine-flag": { name: "Flag of Ukraine (blue and yellow)" },
   "lebanon-cedar": { name: "The cedar of Lebanon" },
   "lebanon-flag": { name: "Flag of Lebanon" },
+  "slovene-tricolour": { name: "Slovene tricolour (white, blue and red)" },
+  "slovenia-flag": { name: "Flag of Slovenia" },
   "sicily-trinacria": { name: "The Trinacria of Sicily" },
   "bavaria-lozenges": { name: "The white and blue lozenges of Bavaria" },
   "prussia-flag": { name: "Black and white of Prussia (the Prussian eagle)" },
@@ -135,6 +137,10 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
   lebanese: [
     era(null, 1943, "Mount Lebanon and the French Mandate", "lebanon-cedar"),
     era(1943, null, "Lebanon", "lebanon-flag"),
+  ],
+  slovene: [
+    era(null, 1991, "The Slovene lands", "slovene-tricolour"),
+    era(1991, null, "Slovenia", "slovenia-flag"),
   ],
 };
 

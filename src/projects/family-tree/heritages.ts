@@ -35,6 +35,7 @@ export const PEOPLES = {
   hungarian: { name: "Hungarian" },
   ukrainian: { name: "Ukrainian" },
   lebanese: { name: "Lebanese" },
+  slovene: { name: "Slovene" },
 } as const satisfies Record<string, People>;
 
 export type PeopleCode = keyof typeof PEOPLES;
