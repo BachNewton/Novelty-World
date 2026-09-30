@@ -19,6 +19,7 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
 const Garage = dynamic(() => import("./garage").then((m) => m.Garage), { ssr: false });
 const WorldPreview = dynamic(() => import("./world/world-preview").then((m) => m.WorldPreview), { ssr: false });
 const SoundLab = dynamic(() => import("../audio/sound-lab").then((m) => m.SoundLab), { ssr: false });
+const FrogPreview = dynamic(() => import("./frog/frog-preview").then((m) => m.FrogPreview), { ssr: false });
 
 const KEY_LEGEND: readonly [keys: string, action: string][] = [
   ["A D / ← →", "move"],
@@ -66,7 +67,8 @@ function subscribeToNothing(): () => void {
 }
 
 // `?garage` in the URL shows the fleet instead of the game, `?world` the world
-// preview, and `?sounds` the sound audition. The server render never has any
+// preview, `?sounds` the sound audition and `?frog` the frog preview. The
+// server render never has any
 // of them, so the page hydrates as the game and switches after.
 function useUrlFlag(flag: string): boolean {
   return useSyncExternalStore(
@@ -80,9 +82,11 @@ export function Frogmino() {
   const garage = useUrlFlag("garage");
   const world = useUrlFlag("world");
   const sounds = useUrlFlag("sounds");
+  const frog = useUrlFlag("frog");
   if (garage) return <Garage />;
   if (world) return <WorldPreview />;
   if (sounds) return <SoundLab />;
+  if (frog) return <FrogPreview />;
   return <FrogminoEntry />;
 }
 

@@ -141,6 +141,30 @@
   --color-frogmino-pull-off-marker: #ffd23f;
 }
 
+/* Frogmino: the frogs. The two players are a matched pair of real frogs: a
+   leaf-green tree frog with a sunny belly and orange feet, and an azure dart
+   frog with a pale belly and pink feet, apart in lightness as well as hue so
+   they tell apart for a colour-blind player too. The frog waiting in a
+   pull-off is a pale, sleepy sage. The frog's colours never change with its
+   piece, and no skin is near a Tetris piece colour. Read only by the 3D scene
+   through themeColor, so declared outside @theme. */
+:root {
+  --color-frogmino-frog-p1-skin: #5cc23f;
+  --color-frogmino-frog-p1-mark: #2e7d32;
+  --color-frogmino-frog-p1-belly: #ffe27a;
+  --color-frogmino-frog-p1-foot: #ff9640;
+  --color-frogmino-frog-p2-skin: #3f86f2;
+  --color-frogmino-frog-p2-mark: #1b3a8c;
+  --color-frogmino-frog-p2-belly: #c8ecff;
+  --color-frogmino-frog-p2-foot: #ff78b0;
+  --color-frogmino-frog-unclaimed-skin: #b3bfae;
+  --color-frogmino-frog-unclaimed-mark: #97a693;
+  --color-frogmino-frog-unclaimed-belly: #e4e8da;
+  --color-frogmino-frog-unclaimed-foot: #cdbfad;
+  --color-frogmino-frog-eye: #fbf8ee;
+  --color-frogmino-frog-pupil: #1c1d26;
+}
+
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft
    and muted beside the fleet's paints, so the traffic and the frog pop and
    nothing by the road reads as a vehicle; the further a layer, the paler and
