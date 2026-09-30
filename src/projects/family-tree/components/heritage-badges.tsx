@@ -30,7 +30,9 @@ const CHIP_CLEARANCE = 4;
 // year, drawn whole: a flag with its shadow outside it, a coat of arms in its
 // own outline. A person with no known heritage gets nothing, so a tree
 // without heritage entered looks exactly as it would without the feature.
-// Clicks pass through to the card and the canvas. When a line drops from the
+// Clicks pass through to the card and the canvas, except on the chips, which
+// take the pointer so their hover text can show (a drag started on one still
+// reaches the canvas and pans). When a line drops from the
 // bottom center of the card (a lone parent's), the chips sit to its right, so
 // the line never crosses a symbol.
 export function HeritageBadges({
@@ -108,7 +110,7 @@ const CHIP = {
   },
 };
 const PILL =
-  "inline-flex items-center gap-[3px] whitespace-nowrap rounded-full border border-border-hover bg-surface-tertiary font-mono leading-[1.15] text-text-secondary";
+  "pointer-events-auto inline-flex items-center gap-[3px] whitespace-nowrap rounded-full border border-border-hover bg-surface-tertiary font-mono leading-[1.15] text-text-secondary";
 
 // A small symbol-and-percentage pill; its hover text names the people and
 // the symbol's era. "panel" is the larger size for the person panel.
