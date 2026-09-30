@@ -299,7 +299,11 @@ sources in notes):
   it: the smallest place the records give, then the larger units, then the
   country ("Jurva, Kurikka, South Ostrobothnia, Finland"; "Timár,
   Szabolcs-Szatmár-Bereg, Hungary"), never a vague "Europe". For anyone who
-  may be living, region and country only, never a town.
+  may be living, region and country only, never a town. Every generation
+  gets one, US and Canadian births included ("Lakewood, Ohio, United
+  States"): the heritage map follows each line's journey through every
+  birthplace. A settler-country birth is a stop on the journey, never a
+  heritage origin.
 - For anyone born abroad, or whose parents were: **`emigrationDate`**,
   **`motherTongue`** (as a census gives it) and **`recordedPeople`** (the
   people or nationality a record states, word for word: a passenger list's
