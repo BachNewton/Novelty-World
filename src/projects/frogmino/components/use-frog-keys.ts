@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { isTextEntryTarget } from "@/shared/lib/utils";
-import type { FrogAction } from "../run";
+import type { FrogAction, JumpDirection } from "../run";
 import { useFrogminoStore } from "../store";
 
 // Physical keys, so the WASD block stays put on other keyboard layouts.
@@ -14,31 +14,51 @@ const KEY_ACTIONS = new Map<string, FrogAction>([
   ["KeyQ", "rotateCcw"],
   ["KeyE", "rotateCw"],
   ["Space", "hop"],
+]);
+
+const JUMP_KEYS = new Map<string, JumpDirection>([
   ["KeyW", "forward"],
   ["ArrowUp", "forward"],
   ["KeyS", "back"],
   ["ArrowDown", "back"],
 ]);
 
-// One key press is one action: held keys don't repeat.
+// One key press is one action, and the operating system's key repeat is
+// ignored. A held jump key repeats in the rules, on the rules' own clock.
 export function useFrogKeys(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.metaKey || e.ctrlKey || e.altKey || isTextEntryTarget(e.target)) return;
-      const { act, restart } = useFrogminoStore.getState();
+      const store = useFrogminoStore.getState();
       if (e.code === "KeyR") {
         e.preventDefault();
-        if (!e.repeat) restart();
+        if (!e.repeat) store.restart();
         return;
       }
+      const jump = JUMP_KEYS.get(e.code);
       const action = KEY_ACTIONS.get(e.code);
-      if (action === undefined) return;
+      if (jump === undefined && action === undefined) return;
       e.preventDefault();
-      if (!e.repeat) act(action);
+      if (e.repeat) return;
+      if (jump !== undefined) store.pressJump(jump);
+      if (action !== undefined) store.act(action);
+    };
+    const onKeyUp = (e: KeyboardEvent): void => {
+      const jump = JUMP_KEYS.get(e.code);
+      if (jump !== undefined) useFrogminoStore.getState().releaseJump(jump);
+    };
+    // Key releases aren't seen while the window is out of focus, so a key
+    // held when it loses focus would otherwise stay held.
+    const onBlur = (): void => {
+      useFrogminoStore.getState().releaseJump();
     };
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
     };
   }, []);
 }

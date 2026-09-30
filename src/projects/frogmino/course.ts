@@ -56,6 +56,11 @@ function makeOpening(kind: TetrominoKind, hop: HopHeight, tuning: Tuning, random
   return [...open.values()];
 }
 
+// How far the seed shifts a wall from even spacing, either way.
+export function wallShift(tuning: Tuning, random: () => number): number {
+  return (random() * 2 - 1) * tuning.wallJitter;
+}
+
 // Which walls are raised: the last, plus others picked by the seed from after
 // the grounded start, so a new player has the feel of the floor walls first.
 function pickRaised(random: () => number): Set<number> {
@@ -77,7 +82,6 @@ export function generateCourse(seed: number, tuning: Tuning, kind: TetrominoKind
   return Array.from({ length: WALL_COUNT }, (_, i) => {
     const hop: HopHeight = raised.has(i) ? 1 : 0;
     const opening = makeOpening(kind, hop, tuning, random);
-    const shift = (random() * 2 - 1) * tuning.wallJitter;
-    return { opening, depth: tuning.firstWallDepth + i * tuning.wallSpacing + shift };
+    return { opening, depth: tuning.firstWallDepth + i * tuning.wallSpacing + wallShift(tuning, random) };
   });
 }

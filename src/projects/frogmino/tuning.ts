@@ -22,10 +22,14 @@ export interface Tuning {
   wallRows: number;
   // How far one jump carries the frog, in units.
   depthStep: number;
+  // How often a held jump key jumps again, in seconds.
+  jumpRepeatInterval: number;
+  // How many jumps' distance a bonk knocks the frog back.
+  bonkKnockback: number;
   // The longest frame the rules will advance by, in seconds, so returning to
   // a backgrounded tab doesn't lurch the walls forward.
   maxFrameDelta: number;
-  // How long the pass or bonk flash lasts, in seconds.
+  // How long the bonk flash lasts, in seconds.
   flashDuration: number;
   // The camera's height above the floor. It must stay above the tallest
   // wall so walls pass beneath it.
@@ -43,11 +47,13 @@ export const TUNING: Tuning = {
   wallSpacing: 14,
   wallJitter: 2,
   courseLength: 214,
-  hopAirtime: 0.6,
+  hopAirtime: 0.8,
   easeDuration: 0.1,
   corridorCols: 7,
   wallRows: 4,
   depthStep: 1.5,
+  jumpRepeatInterval: 0.22,
+  bonkKnockback: 3,
   maxFrameDelta: 0.1,
   flashDuration: 0.35,
   cameraHeight: 8.5,

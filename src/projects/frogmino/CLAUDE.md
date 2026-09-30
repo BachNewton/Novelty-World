@@ -1,6 +1,6 @@
 # Frogmino
 
-Brain Wall (the Japanese game show) meets Tetris, with Frogger-style hopping. The player is a frog shaped like a tetromino, and shaped vehicles come at it down a road: some side by side, leaving a gap it must match, some staggered, to weave between. It is real-time, seen from behind the frog in real 3D with Three.js (through `@react-three/fiber`). Faked 2D depth was considered and rejected: it is harder to get right than real 3D.
+Brain Wall (the Japanese game show) meets Tetris, with Frogger-style hopping. The player is a frog shaped like a tetromino, and shaped vehicles come at it down a road: side by side, leaving a gap it must match (staggered vehicles to weave between are tabled: see Traffic). It is real-time, seen from behind the frog in real 3D with Three.js (through `@react-three/fiber`). Faked 2D depth was considered and rejected: it is harder to get right than real 3D.
 
 The owner and a friend designed it. What follows is decided unless it sits under Open questions.
 
@@ -10,15 +10,16 @@ The prototype still models every obstacle as a full-width wall with openings in 
 
 - `types.ts`: cells on the wall face, tetromino kinds, the frog, openings.
 - `logic.ts`: pure piece rules, no React and no Three. The tetromino definitions, rotation, piece sizes, turning inside the corridor with a wall kick, the cells a frog covers, and the pass test.
-- `run.ts`: pure run rules. The rule state of one playthrough (frog, walls, clock), the player's actions, `advance` for moving time on, judging walls as they reach the frog, the push, and the start and end zones.
+- `run.ts`: pure run rules. The rule state of one playthrough (frog, walls, clock), the player's actions and held jumps, `advance` for moving time on, judging walls as they reach the frog, the bonk, the looping traffic, and the start and end zones.
 - `course.ts`: the seeded course generator: the walls' openings and where they start along the course.
-- `tuning.ts`: the feel knobs (wall speed and placement, course length, hop airtime, ease duration, corridor size, jump distance, and the camera's height, follow distance and look-ahead), in one constants object. Tuning is done by editing it; there is no settings UI.
-- `store.ts`: the Zustand store holding the current run, with actions for key presses, frame ticks and restart.
+- `tuning.ts`: the feel knobs (wall speed and placement, course length, hop airtime, ease duration, corridor size, jump distance, held-jump repeat interval, bonk knock-back, and the camera's height, follow distance and look-ahead), in one constants object. Tuning is done by editing it; there is no settings UI.
+- `outline.ts`: the dark outline's geometry: the inverted hull of a whole shape of touching cubes.
+- `store.ts`: the Zustand store holding the current run, with actions for key presses and releases, frame ticks and restart.
 - `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay. The scene is loaded browser-only because it reads its colours from the live stylesheet.
 - `components/scene.tsx`: the 3D scene and the per-frame loop. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
-- `components/use-frog-keys.ts`: the keyboard controls.
+- `components/use-frog-keys.ts`: the keyboard controls, including holding and releasing the jump keys.
 
-The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), fifteen walls from a fixed seed with about one in four raised (never the first three, always the last), the Brain Wall push, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
+The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no dealt pieces, preview or hold), fifteen walls from a fixed seed with about one in four raised (never the first three, always the last) that loop as endless traffic, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
 
 ## The wall face
 
@@ -30,12 +31,15 @@ What the rules decide is kept apart from what the player sees.
 
 - **The course is a road of fixed length** with a start zone behind it and an end zone at its far end. Walls are placed along it and all move toward the start at the course's wall speed. The frog does not run on its own: it advances only by jumping forward, with no limit on how far ahead it may race, and reaching the end zone completes the course.
 - **The start zone is safe,** like Frogger's sidewalk: a wall that reaches its edge disappears there, and never reaches a frog standing in it.
-- **The frog's rule state is discrete** (column, rotation, depth and hop window) and changes the instant a key is pressed, with no tick delay. One press is one action; held keys don't repeat. Its depth changes a jump at a time, except while a wall is pushing it.
-- **The drawn frog eases toward its rule state** over the ease duration: position, rotation and depth. The rules never see the in-between. A pushed frog's drawn depth rides the wall's face.
+- **Traffic loops, and never runs out.** A wall that disappears at the start edge reappears at the far end with the same opening, a wall spacing (with seeded jitter) behind the rearmost wall, so waiting in the start zone never clears the road. If the frog has raced past every wall, the wall reappears that spacing ahead of the frog instead. Either way it comes back ahead of the frog and beyond every wall already coming at it, and it is judged afresh when it arrives.
+- **The frog's rule state is discrete** (column, rotation, depth and hop window) and changes the instant a key is pressed, with no tick delay. One press is one action, and the operating system's key repeat is ignored; only a held jump key repeats (see Controls). Its depth changes a jump or a bonk at a time.
+- **The drawn frog eases toward its rule state** over the ease duration: position, rotation and depth. The rules never see the in-between.
 - **Walls move continuously.** A wall's depth is a real number that falls by the wall speed times each frame's elapsed time. Frame time is clamped, so returning to a backgrounded tab doesn't lurch the course forward.
-- **A wall is judged when it reaches the frog,** using the frog's rule column, rotation and hop at that instant. Arrival is found by comparing depths before and after a frame, so a long frame can't carry a wall past the frog unjudged, and the hop is read at the instant of arrival rather than at the frame's end. A jump forward across a wall's plane is judged at once in the same way.
-- **The Brain Wall push.** A wall the frog fits passes around it. A wall it doesn't fit pins it against the wall's face and carries it backward. While pinned, the fit is checked again whenever the frog's rule state changes (a move, a turn, a hop starting or landing), and the moment it fits, the wall passes around it and the frog is free. A pinned frog can't jump forward into the wall; jumping back is allowed and frees it. A frog pushed all the way back is left standing at the start when the wall disappears there. A jump forward into a wall the frog doesn't fit leaves it pinned against the face instead of passing. Walls are solid and never let through a frog that doesn't fit; the only feedback is a brief pass or bonk flash on the frog.
-- **Walls behind the frog are solid too.** Jumping back into a passed wall the frog doesn't fit stops it against the wall's back; one it does fit is ahead of it again, to be judged when it next arrives.
+- **Every wall the frog hasn't passed is ahead of it, and every wall it has passed is behind it.** Each rule keeps that true, and it is what makes each arrival judged exactly once.
+- **A wall is judged when it reaches the frog,** using the frog's rule column, rotation and hop at that instant. Within a frame, everything happens in order at its own instant (each wall arriving, each repeat of a held jump), so a long frame can't carry a wall past the frog unjudged, and the hop is read at the instant of arrival rather than at the frame's end. A jump forward that reaches a wall's face is judged at once in the same way.
+- **The bonk.** A wall the frog fits passes around it. A wall it doesn't fit bonks it: the frog is knocked back from the wall's face by the bonk knock-back, a few jumps' distance, and no further than the start zone. The wall stays solid and keeps coming, so it bonks the frog again when it arrives unless the frog fits by then or has got clear. A jump forward into a wall the frog doesn't fit is a bonk too. Walls never let through a frog that doesn't fit, and never carry it along: the obstacles are becoming vehicles, and being carried along by one looks wrong. The walls are spaced so that a knock-back can never reach a wall the frog has passed; the rules refuse tuning that would allow it.
+- **Feedback is for bonks only.** A bonked frog is drawn knocked back along a low arc, squashed flat against the wall at first, and flashes pink. A pass has no feedback on the frog.
+- **A jump back into a passed wall is refused.** A jump back that would carry the frog into or through a wall it has already passed doesn't happen, just as a move off the corridor edge is ignored: no bonk, and no passing back through.
 - **A hop is a window in the rules:** for the airtime after it starts the frog counts as one cell up, otherwise it is on the floor. A hop pressed while airborne is ignored. It is drawn as a smooth arc that spends most of the window a full cell up.
 - **Turning** is about the piece's middle. A turn that would poke out of the corridor is nudged one column back in, Tetris-style; if it still doesn't fit, the turn fails. A move off the corridor edge is ignored.
 - The rules are pure functions of the run state and elapsed time, called from the render loop; the drawing updates Three objects directly, so React does not re-render per frame.
@@ -50,14 +54,14 @@ The frog's cells, at its current column, rotation and hop height, are always pro
 
 ## The pass test
 
-The frog passes a wall if every cell it covers is inside an opening: a subset test, checked when the wall reaches the frog. Any covered cell that meets the wall is a bonk, and the wall pushes the frog back until it fits. Openings are usually larger than the piece; how tight they are is the difficulty dial.
+The frog passes a wall if every cell it covers is inside an opening: a subset test, checked when the wall reaches the frog. Any covered cell that meets the wall is a bonk, which knocks the frog back. Openings are usually larger than the piece; how tight they are is the difficulty dial.
 
 ## Controls
 
 - **Move** left and right across the corridor.
 - **Rotate** the piece.
 - **Hop**: vertical, exactly one cell, for raised openings. The pass test decides a hop like anything else: a needless hop is fine as long as the piece still clears the opening, and it bonks only when there is no room above. A special rule punishing unneeded hops would be confusing.
-- **Jump** forward or back along the course a fixed distance at a time. Jumping forward is the only way the frog advances; jumping back buys reading time.
+- **Jump** forward or back along the course a fixed distance at a time. Jumping forward is the only way the frog advances; jumping back buys reading time. Holding a jump key keeps jumping at a steady cadence, so the player needn't mash it: the first jump comes on the press, then another every held-jump repeat interval, timed by the rules' own clock rather than the operating system's key repeat. A bonk stops the repeat until the key is pressed again, so holding a jump into a wall doesn't bonk the frog over and over; a refused jump back doesn't stop it. Releasing the key, or the window losing focus, lets go.
 
 Hop and jump forward are different actions.
 
@@ -75,7 +79,7 @@ The game deals the shapes; the player never chooses them. There is a next-piece 
 
 ## Courses and medals
 
-A level is a course with an end zone, run against the clock: gold, silver and bronze times, in the manner of time-trial marble games. There is no endless mode and there are no lives. A bonk costs time: the wall pushes the frog back until it fits, and that is the penalty.
+A level is a course with an end zone, run against the clock: gold, silver and bronze times, in the manner of time-trial marble games. There is no endless mode and there are no lives. A bonk costs time: the ground it knocks the frog back is the penalty.
 
 ## Co-op
 
@@ -94,8 +98,8 @@ Solo is fully playable; co-op is optional. It runs over PeerJS through the repo'
 
 Obstacles are shaped vehicles on a road, not walls. "Wall" is prototype vocabulary and will go away.
 
-- **Vehicles don't always line up across the road.** Sometimes they arrive side by side as one row, and the frog must match the shape of the gap between them to pass: the Brain Wall moment. Sometimes they are staggered, and the frog weaves between them, as in Frogger.
-- **Vehicles can travel at different speeds,** as in Frogger. That is part of the challenge.
+- **For now, vehicles arrive lined up in rows at one speed.** Side by side as one row, they leave a gap the frog must match to pass: the Brain Wall moment.
+- **Mixed speeds and staggered vehicles are tabled.** Staggered vehicles the frog weaves between, as in Frogger, and vehicles travelling at different speeds were part of the direction. The design problem that tabled them: getting vehicles at different speeds to arrive lined up into a matching row at the right moment is hard. Two v1 rules are proposed for when they are revisited: within a lane, a vehicle nearer the frog is never slower than one behind it; and a vehicle keeps a constant silhouette along its length, with solid sides, and a hop onto it stands on it.
 - **Vehicle shapes are silhouettes chosen for gameplay,** with no art in mind. A later art pass makes them fun, quirky vehicles.
 
 ## Levels
@@ -104,10 +108,10 @@ v1 levels are hardcoded or generated from a fixed seed. The generator places rea
 
 ## Look
 
-Fun, quirky and colourful, in keeping with Novelty World: bright, flat and cartoony.
+Fun, quirky and colourful, in keeping with Novelty World: bright, flat and cartoony. Inspiration: see `ideas/tetris-worlds-look.md`.
 
 - **Cells touch,** in walls and the frog, with no gaps between cubes. Every cell face has a darker inset border so the grid still reads.
-- **Toon shading** in a few flat bands, with dark outlines around shapes.
+- **Toon shading** in a few flat bands, with dark outlines around shapes. An outline is an inverted hull of the whole shape, never a larger copy of each cube: a per-cube copy pokes out of its neighbours at every seam, which made the cell borders look uneven and change as the frog turned.
 - **Lighting is simple:** one ambient light and one directional light. Richer lighting (postprocessing, ambient occlusion) is deferred.
 - Walls are solid and opaque at all times.
 
@@ -121,11 +125,9 @@ Sound comes later, with ZzFX: the MIT micro-library that generates retro sounds 
 
 ## Open questions
 
-- How long is a hop's airtime? To be tuned in playtesting.
+- Is 0.8 s the right hop airtime? To be tuned in playtesting, like the bonk knock-back (three jumps) and the held-jump repeat interval (0.22 s).
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
 - The pass rule for a single vehicle: the frog's cells must not overlap its solid cells while the two overlap in depth. A row is just several vehicles at the same depth.
 - Vehicle length: how long must a fit be held?
-- Vehicles at different speeds in the same columns: can they overlap, or are there per-lane speeds as in Frogger?
-- How the push works when several vehicles touch the frog at once.
 - How co-op's "openings fill in" rule translates to vehicles.
 - The code rename from wall to vehicle terminology, once the model changes.

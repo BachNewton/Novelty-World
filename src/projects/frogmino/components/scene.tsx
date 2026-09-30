@@ -6,6 +6,8 @@ import { PerspectiveCamera } from "@react-three/drei";
 import {
   BackSide,
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   DataTexture,
   LinearMipmapLinearFilter,
   MathUtils,
@@ -21,7 +23,8 @@ import {
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { cellKey, frogCells, pieceCells, pieceSize } from "../logic";
-import { hopHeight, nextWall, type Run } from "../run";
+import { hullTriangles, outlineHull, type CubeSpot } from "../outline";
+import { hopHeight, nextWall, type Bonk, type Run } from "../run";
 import { useFrogminoStore } from "../store";
 import { TUNING } from "../tuning";
 import type { Cell, Opening } from "../types";
@@ -64,6 +67,12 @@ const FIT_OUTLINE_LIFT = 0.03;
 // The longest perimeter of any tetromino, in cell edges.
 const MAX_PERIMETER = 10;
 
+// A bonk knocks the drawn frog back along a low arc, squashed flat against
+// the wall at first and springing back into shape as it lands.
+const BONK_DURATION = 0.3;
+const BONK_ARC_HEIGHT = 0.8;
+const BONK_SQUASH = 0.45;
+
 // The hop arc overshoots a sine and is capped at one cell, so the drawn frog
 // spends most of its airtime a full cell up, as the rules count it.
 const HOP_ARC_OVERSHOOT = 1.3;
@@ -76,7 +85,6 @@ interface Palette {
   endZone: Color;
   wall: Color;
   frog: Color;
-  pass: Color;
   bonk: Color;
   outline: Color;
   fitOutline: Color;
@@ -91,7 +99,6 @@ function readPalette(): Palette {
     endZone: themeColor("--color-brand-blue"),
     wall: themeColor("--color-brand-orange"),
     frog: themeColor("--color-brand-green"),
-    pass: themeColor("--color-brand-blue"),
     bonk: themeColor("--color-brand-pink"),
     outline: themeColor("--color-surface-primary"),
     fitOutline: themeColor("--color-text-primary"),
@@ -132,9 +139,6 @@ function makeAssets(palette: Palette) {
     cellMap,
     gradientMap,
     cube: new BoxGeometry(1, 1, 1),
-    // An inverted hull: a slightly larger cube drawn inside out, which shows
-    // only as a dark rim around a shape's silhouette.
-    hull: new BoxGeometry(1 + 2 * OUTLINE_WIDTH, 1 + 2 * OUTLINE_WIDTH, 1 + 2 * OUTLINE_WIDTH),
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
     wallMaterial: new MeshToonMaterial({ color: palette.wall, map: cellMap, gradientMap }),
     frogMaterial: new MeshToonMaterial({ color: palette.frog, map: cellMap, gradientMap }),
@@ -188,34 +192,38 @@ function Floor({ palette }: { palette: Palette }) {
   );
 }
 
-interface CubeSpot {
-  x: number;
-  y: number;
-  z: number;
+function hullGeometry(spots: readonly CubeSpot[]): BufferGeometry {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new BufferAttribute(hullTriangles(outlineHull(spots, OUTLINE_WIDTH)), 3));
+  return geometry;
 }
 
-// Touching cubes drawn as one instanced mesh, with their outline hull as
-// another.
+// Touching cubes drawn as one instanced mesh, with the shape's outline hull.
 function CellBlock({ spots, material, assets }: { spots: readonly CubeSpot[]; material: MeshToonMaterial; assets: Assets }) {
   const cubesRef = useRef<InstancedMesh>(null);
-  const hullsRef = useRef<InstancedMesh>(null);
+  const hull = useMemo(() => hullGeometry(spots), [spots]);
+  useEffect(
+    () => () => {
+      hull.dispose();
+    },
+    [hull],
+  );
   useLayoutEffect(() => {
+    const mesh = cubesRef.current;
+    if (mesh === null) return;
     const placer = new Object3D();
-    for (const mesh of [cubesRef.current, hullsRef.current]) {
-      if (mesh === null) continue;
-      spots.forEach((spot, i) => {
-        placer.position.set(spot.x, spot.y, spot.z);
-        placer.updateMatrix();
-        mesh.setMatrixAt(i, placer.matrix);
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.computeBoundingSphere();
-    }
+    spots.forEach((spot, i) => {
+      placer.position.set(spot.x, spot.y, spot.z);
+      placer.updateMatrix();
+      mesh.setMatrixAt(i, placer.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
   }, [spots]);
   return (
     <>
       <instancedMesh ref={cubesRef} args={[assets.cube, material, spots.length]} />
-      <instancedMesh ref={hullsRef} args={[assets.hull, assets.hullMaterial, spots.length]} />
+      <mesh geometry={hull} material={assets.hullMaterial} />
     </>
   );
 }
@@ -277,6 +285,31 @@ function hopLift(run: Run): number {
   return Math.min(1, HOP_ARC_OVERSHOOT * Math.sin(Math.PI * progress));
 }
 
+interface BonkMotion {
+  from: number;
+  to: number;
+  startedAt: number;
+}
+
+interface BonkPose {
+  depth: number;
+  lift: number;
+  squash: number;
+}
+
+// Where a bonk's knock-back has the drawn frog now; null once it is over, or
+// once the frog has jumped away from where the bonk put it.
+function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
+  if (motion === null || run.frog.depth !== motion.to) return null;
+  const progress = (run.time - motion.startedAt) / BONK_DURATION;
+  if (progress >= 1) return null;
+  return {
+    depth: MathUtils.lerp(motion.from, motion.to, 1 - (1 - progress) ** 2),
+    lift: BONK_ARC_HEIGHT * Math.sin(Math.PI * progress),
+    squash: BONK_SQUASH * (1 - progress) ** 2,
+  };
+}
+
 interface DrawnFrog {
   x: number;
   y: number;
@@ -285,12 +318,22 @@ interface DrawnFrog {
   // Quarter turns drawn so far, unwrapped so a turn always eases the short way.
   turns: number;
   rotation: number;
+  // The latest bonk seen, and the knock-back it is drawing.
+  bonk: Bonk | null;
+  bonkMotion: BonkMotion | null;
 }
 
 function snapped(run: Run): DrawnFrog {
   const target = frogTarget(run);
   const turns = run.frog.rotation;
-  return { ...target, angle: -turns * (Math.PI / 2), turns, rotation: run.frog.rotation };
+  return {
+    ...target,
+    angle: -turns * (Math.PI / 2),
+    turns,
+    rotation: run.frog.rotation,
+    bonk: run.lastBonk,
+    bonkMotion: null,
+  };
 }
 
 // Runs the game each frame: advances the rules, then eases the drawn frog
@@ -343,27 +386,35 @@ function Game({ palette }: { palette: Palette }) {
     const target = frogTarget(run);
     d.x = MathUtils.damp(d.x, target.x, lambda, delta);
     d.y = MathUtils.damp(d.y, target.y, lambda, delta);
-    d.depth = MathUtils.damp(d.depth, target.depth, lambda, delta);
-    // A pushed frog rides the wall's face rather than trailing into it.
-    if (run.frog.pinnedTo !== null) d.depth = Math.min(d.depth, target.depth);
     d.angle = MathUtils.damp(d.angle, -d.turns * (Math.PI / 2), lambda, delta);
+
+    const bonk = run.lastBonk;
+    if (bonk !== d.bonk) {
+      d.bonk = bonk;
+      if (bonk !== null) d.bonkMotion = { from: bonk.depth, to: run.frog.depth, startedAt: bonk.time };
+    }
+    const pose = bonkPose(d.bonkMotion, run);
+    if (pose === null) d.bonkMotion = null;
+    d.depth = pose === null ? MathUtils.damp(d.depth, target.depth, lambda, delta) : pose.depth;
+    const bonkLift = pose === null ? 0 : pose.lift;
+    const squash = pose === null ? 0 : pose.squash;
 
     const frog = frogRef.current;
     if (frog !== null) {
-      frog.position.set(d.x, d.y + hopLift(run), -d.depth);
+      frog.position.set(d.x, d.y + hopLift(run) + bonkLift, -d.depth);
       frog.rotation.z = d.angle;
+      // Flattened along the course against the wall, bulging a little across.
+      frog.scale.set(1 + squash / 2, 1 + squash / 2, 1 - squash);
     }
     state.camera.position.z = -d.depth + cameraFollow;
 
-    const judgment = run.lastJudgment;
-    const flashing = judgment !== null && run.time - judgment.time < run.tuning.flashDuration;
-    assets.frogMaterial.color.copy(flashing ? (judgment.passed ? palette.pass : palette.bonk) : palette.frog);
+    const flashing = bonk !== null && run.time - bonk.time < run.tuning.flashDuration;
+    assets.frogMaterial.color.copy(flashing ? palette.bonk : palette.frog);
 
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
       if (!group) return;
       group.position.z = -wall.depth;
-      group.visible = !wall.gone;
     });
 
     const fit = fitRef.current;
