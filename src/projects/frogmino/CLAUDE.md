@@ -18,12 +18,13 @@ The obstacles are rows of traffic (see Traffic). The rules still call a row a wa
 - `store.ts`: the Zustand store holding the current run, with actions for key presses and releases, frame ticks and restart.
 - `fleet.ts`: the 19 vehicle ids, derived from the tetromino definitions and rotation in `logic.ts`, and each vehicle's cells. It is the one definition of the vehicles; the rules and the art both key by its ids.
 - `vehicles/`: the fleet's designs. `parts.ts` is the vehicle's own frame, the paints, the surface-detail tolerance and the helpers that place details on a cell's faces; `kit.ts` holds details many vehicles share (headlights, bumpers, windscreens, rings); `i.ts` to `l.ts` hold one piece's vehicles each; `index.ts` gathers them as `VEHICLES` and builds a `vehicleModel` from an id.
-- `components/frogmino.tsx`: the root component, with the key legend and the end-of-course overlay, or the garage when the URL has `?garage`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
+- `components/frogmino.tsx`: the root component, with the key legend, the mute button and the end-of-course overlay, or the garage when the URL has `?garage`, or the sound audition when it has `?sounds`. The scene is loaded browser-only because it reads its colours from the live stylesheet.
 - `components/scene.tsx`: the 3D scene and the per-frame loop. It draws the frog and each row's vehicles as thick as the rules count them, from the thicknesses `run.ts` exports. Its colours come from the design tokens in `globals.css` through `themeColor` in `src/shared/lib/three/`, never hardcoded.
 - `components/use-frog-keys.ts`: the keyboard controls, including holding and releasing the jump keys.
 - `components/vehicle-view.tsx`: the placeholder traffic art the game draws for now: each vehicle as its four cubes in one flat colour of its own, from the placeholder tokens in `globals.css`. It is the seam for the fleet's art: `Vehicle` takes the same props, so the scene swaps `VehicleView` and its assets for `Vehicle` and `makeVehicleAssets`, and nothing else changes.
 - `components/vehicle.tsx`: the `Vehicle` component, drawing any of the 19 by id at a lane and depth, in the scene's axes. `components/vehicle-assets.ts` holds its materials, per-paint merged detail geometry, and the cell-border masks, which the scene's frog and placeholder vehicles share.
 - `components/garage.tsx`: the garage (see The fleet).
+- `audio/`: the sound (see Sound). `sounds.ts` holds the sound designs as ZzFX parameters, with each sound's variation, minimum gap and trigger, and renders a design's layers into one buffer; `player.ts` plays with the anti-annoyance rules behind a thin `AudioOutput` seam; `sound-board.ts` is the browser side, one AudioContext and the rendered buffers, and the trigger API; `cues.ts` turns store state changes into sounds; `use-game-sounds.ts` wires that to the store; `settings.ts` keeps mute and volume; `mute-button.tsx` and `sound-lab.tsx` are the mute toggle and the `?sounds` page. `zzfx.d.ts` types the part of ZzFX the game uses.
 
 The project is a solo, keyboard-only prototype so far, proving controls, motion and collision: one fixed L piece for the whole run (no pull-offs yet), fifteen rows of traffic from a fixed seed ramping from easy to hard, drawn with placeholder art, that loop as endless traffic, riding, the bonk, and an end-zone overlay with restart. There is no clock or medals, no touch controls and no co-op yet.
 
@@ -177,7 +178,32 @@ The obstacles are oncoming cars and trucks, as in Frogger (see Traffic). Cells b
 
 ## Sound
 
-Sound comes later, with ZzFX: the MIT micro-library that generates retro sounds in code from arrays of parameters. There are no audio files and nothing to credit; the game designs its own sounds and varies their pitch, such as a subtle random pitch on the frequent move sound and a rising pitch on consecutive passes. Frequently played sounds are rendered once and replayed, not rebuilt on every play. Nothing is built yet.
+Sound complements the gameplay and never gets in its way, like the art. It adds a little polish and fun, never overwhelms the player, and must not get repetitive or annoying, so only moments worth marking have a sound. It is made with ZzFX, the MIT micro-library that generates retro sounds in code from arrays of parameters: no audio files, and nothing to credit, since code libraries aren't credited. The palette is soft retro: sine and triangle waves, mostly through a low-pass filter, never harsh square beeps.
+
+**The set.**
+
+- **Hop:** a light springy boing as a hop starts. It can come at most once per airtime, so it is short and quiet.
+- **Bonk:** a comedic thud, a falling boink over a low bump, when a row knocks the frog back.
+- **Row passed:** a small pop as the frog fits through a row. Each clean pass in a row climbs one note of the major pentatonic scale, up to the octave, and a bonk or a restart starts it over: the reward for a streak, heard rather than shown.
+- **Drop onto the road:** a short falling whistle and plop, as the frog drops from the start overpass.
+- **Pull-off swap:** a quick two-note blip as the frog takes a pull-off's piece.
+- **Finish:** a short, soft four-note fanfare as the frog reaches the end.
+
+**Slides, turns and jumps are silent.** They are the game's constant input: a player lines up a fit with a burst of slides and turns before every row, and holds a jump key for most of a run, repeating several times a second. A sound on each would be by far the most repeated sound in the game, a drone under everything else, however quiet and varied. What they do is already shown at once by the frog and the fit outline, and forward progress is heard in the pass pops. Refused moves, landings and restarts are silent too.
+
+**Anti-annoyance rules,** applied to every play:
+
+- A small random stray in pitch and volume, from a range per sound, so a repeated sound doesn't sound like a recording. Musical sounds stray least: the pass pop barely, so its scale stays in tune, and the fanfare not at all.
+- A minimum gap per sound, measured on the audio clock: a play sooner than that after the last play of the same sound is dropped, so no sound can machine-gun.
+- Frequent sounds are the quietest and shortest.
+
+**Playback.** One AudioContext, ZzFX's own. Browsers keep audio off until the player interacts with the page, so the sounds load on the first key press, click or tap, inside that input event: that is when ZzFX is imported, and every sound is rendered once to an AudioBuffer and replayed from it, which is cheap on older phones. ZzFX's own per-play randomness is off, since it would be baked into the one rendering; the variation comes at playback instead. A sound triggered before audio is unlocked is dropped, not queued.
+
+**Mute.** A small button in the game's top corner, or the M key, mutes all sound. Mute and the master volume are remembered in local storage; if storage refuses, the setting still holds for the visit.
+
+**The sound audition** is `?sounds` on Frogmino's URL. It lists each sound with its trigger, its variation and minimum gap, and its ZzFX parameters, which paste into the ZzFX designer. Each has a play button and a ten-in-a-row button, which plays it ten times at about the busiest rate the game can trigger it (passes climbing their streak), to judge how it wears. It has the master volume and the mute toggle. The designs are tuned by editing `audio/sounds.ts`.
+
+**Triggers.** The rules know nothing about sound. The game view watches the store and turns each state change into sounds (`soundCues` in `audio/cues.ts`): a pass when a row newly counts as passed, once per row each time the traffic brings it round, a bonk when the run records a new bonk, a hop when a new hop starts, a swap when the frog's piece changes (only a pull-off swap changes it), and the finish when the run completes. A restart is silent. An event that shows in the run's state belongs there, as a new cue with a test. An event the state can't show, such as a moment in an animation, calls the trigger API, `playSound` in `audio/sound-board.ts`, with the sound's id, when it happens. The drop from the start overpass has its sound but no trigger yet: the round that builds the overpass wires it one of those two ways, and a finish leap onto the finish gantry may move the finish fanfare to the leap the same way.
 
 ## Open questions
 
