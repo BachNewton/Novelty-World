@@ -225,12 +225,12 @@ are added only where a record gives them.
 2. **The art:** verified art for every symbol id, through the
    `heritage-symbol-art` skill; `peoples` lists the symbols still without
    it.
-3. **The card visuals** (owner's call): corner symbols and chips picked by
-   each card's birth year, hover naming the era. Until then the cards show
-   exactly what they did before peoples: each people shows today's flag of
-   the country it was coded by, a region its people's flag, and a chip's
-   hover names that country.
-4. **The Heritage panel** with the journeys globe and the era paragraphs.
+3. **The card visuals:** A1 with T4 hover, one share per people (see
+   "Direction for the visuals"). Until then the cards show exactly what
+   they did before peoples: each people shows today's flag of the country
+   it was coded by, and a chip's hover names that country.
+4. **Saved for later:** the Heritage panel with the journeys globe, and the
+   3D ideas.
 
 ## A line's journey, and when a place becomes heritage
 
@@ -253,41 +253,62 @@ never an origin on its own; research climbs past it.
 
 ## Direction for the visuals
 
-A throwaway mockup of six ideas on the tree's real data (a fan chart, a
-ribbon, symbols through time, a line's journey, an origins map and a
-story card) was shown to the owner. The two they liked most set the
-direction:
+Two rounds of throwaway mockups were shown to the owner. The second is kept
+in the repo, `ideas/mockups/heritage-visuals.html` (open it from disk; it
+loads the real art from `symbol-art/` and its libraries from a CDN), with
+every variant labelled. Its people are real but its heritage, birthplaces
+and journeys are sample data. The owner's rulings:
 
-- **Symbols through time** replace today's flags on the cards: the same
-  corner symbols, picked by each card's birth year (decisions 2 and 3
-  below).
-- **A journeys map on a 3D globe**: each of the person's lines drawn as its
-  journey through time, not a single origin-to-destination arc. A line's
-  path runs through every generation's birthplace in order, from its
-  earliest known ancestor down to the person, each stop dated by that
-  generation's birth year, so a family that moved from place to place
-  (Germany, then Pennsylvania, then Ohio) shows every move. The earliest
-  stop is sized by the line's share, and the unknown share is stated
-  plainly. It lives in the person panel's Heritage section. The map is
-  always a 3D globe, in the 2D view as in the 3D view, never a flat
+- **Cards: A1, the quiet swap.** Today's cards, corner flags and chips
+  exactly, at the same places and sizes; only the art follows each card's
+  birth year. Cards, lines and layout are unchanged. A coat of arms shows in
+  its own shape (a shield and crown), not boxed.
+- **Hover: T4.** A symbol's hover and tap text names the people and share
+  first, then the era and its years underneath ("Finnish 25%", then "Grand
+  Duchy of Finland (Russian Empire), 1809–1918").
+- **Regions never split a people's share.** A card and the panel show one
+  share per people, however many of its lines came through a region (the
+  mockup's R2, grouped). A culture different enough to be told apart gets
+  its own people, not a region, even when it is geographically close: the
+  Pennsylvania Dutch or the Sámi, not "a region of" their neighbors. A
+  region's own symbol shows only while the whole share comes from that
+  region in its regional era; otherwise the share shows its people's.
+- **Dropped:** the extras (C), and the earlier fan chart and ribbon.
+
+**Where it lives in the app now:** only the 2D cards (A1 with T4). The
+person panel and the 3D view are unchanged for now.
+
+### Saved for later
+
+Ideas the owner likes but isn't ready to build. Each is in the mockup.
+
+- **The Heritage section with a journeys globe** (B, and the journeys in
+  F). Each of the person's lines drawn as its journey through time, not a
+  single origin-to-destination arc: a path through every generation's
+  birthplace in order, from its earliest known ancestor down to the person,
+  each stop dated by that generation's birth year, so a family that moved
+  from place to place (Germany, then Pennsylvania, then Ohio) shows every
+  move. The earliest stop is sized by the line's share, and the unknown
+  share is stated plainly. It would live in the person panel's Heritage
+  section, with the journey and story paragraphs as the text around it. The
+  map is always a 3D globe, in the 2D view as in the 3D view, never a flat
   projection. Every stop comes from a generation's `birthPlaceToday`, so
-  research records it on every generation it reaches, the settler-country
-  births included, in a form a map can place.
-
-The journey and story paragraphs stay in the plan as the panel's text
-around the map; the fan chart and the ribbon are set aside.
-
-**Where it lives in the app.** No new view; two changes to what exists:
-
-- **2D cards:** the corner flags and chips become era symbols, at the same
-  places and sizes. Cards, lines and layout are unchanged; only the symbol
-  a corner shows follows the card's birth year.
-- **Person panel** (opened from either view): a Heritage section with a
-  compact map of that person's lines and a line or two per people. It fits
-  the panel's width on desktop and its bottom sheet on a phone.
-- **3D view:** no heritage on the spheres, whose colors already mean the
-  direct line, the selection and everyone else. Heritage reaches 3D through
-  the same person panel.
+  research keeps recording it on every generation it reaches, the
+  settler-country births included, in a form a map can place.
+- **F3, the timeline scrubber**, the owner's favorite way to show the
+  journeys: a slider sets a year, the globe shows where every line had
+  reached by then, and a list says where each line was.
+- **D5 in 3D, time as height:** a sphere's height is its birth year, with
+  planes at the era boundaries, so the 3D tree becomes a history you look
+  up through. The owner's favorite for 3D. The open problem: it breaks down
+  toward the living, where birth years are only years or missing, and the
+  estimated years that pick symbols are too rough to place a sphere by.
+- **Geography in the 3D layout:** the force-directed layout would weigh
+  both family lines and geography, so people who share a place (a
+  birthplace, a region, a homeland) are pulled together in space while
+  their family links still hold them in their lines. Clusters of a
+  homeland, the move to a new country, and a family spreading out would
+  become visible in the shape of the tree itself.
 
 ## Decisions
 

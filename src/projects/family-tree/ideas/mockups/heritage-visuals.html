@@ -1,0 +1,1424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heritage Through Time</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+} }
+</script>
+<style>
+:root{
+  --o:#ff8c00; --b:#00CED1; --p:#FF2D95; --g:#22c55e;
+  --s0:#0a0a0a; --s1:#141414; --s2:#1e1e1e; --s3:#262626;
+  --t1:#f5f5f5; --t2:#a3a3a3; --t3:#737373;
+  --bd:#262626; --bh:#404040;
+  --direct:color-mix(in srgb, var(--o) 60%, var(--s0));
+  --gold:#d4a017; --sample:#facc15;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--s0);color:var(--t1);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:hidden}
+a{color:var(--b)}
+.wrap{max-width:1200px;margin:0 auto;padding:0 16px 96px}
+button{font:inherit;color:inherit;cursor:pointer}
+
+/* ---------- hero ---------- */
+.hero{padding:40px 0 20px}
+.hero h1{font-size:clamp(30px,6vw,56px);line-height:1;margin:0 0 10px;font-weight:900;letter-spacing:-.02em;
+  background:linear-gradient(90deg,var(--o),var(--p) 45%,var(--b));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--t2);max-width:760px;margin:6px 0;line-height:1.5}
+.samplebox{margin:18px 0 8px;border:1px dashed var(--sample);background:color-mix(in srgb,var(--sample) 7%,var(--s0));border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;color:var(--t1)}
+.samplebox b{color:var(--sample)}
+.pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:2px 7px;vertical-align:middle}
+.pill.sample{background:var(--sample);color:var(--s0)}
+.pill.extra{background:var(--p);color:var(--s0)}
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--s0) 88%,transparent);backdrop-filter:blur(8px);display:flex;gap:6px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--bd)}
+.nav a{text-decoration:none;font-size:13px;font-weight:700;border:1px solid var(--bh);border-radius:999px;padding:5px 12px;color:var(--t1);background:var(--s1)}
+.nav a:hover{border-color:var(--p)}
+.nav a span{color:var(--o)}
+
+/* ---------- sections ---------- */
+section.sec{padding-top:44px}
+.sec>h2{font-size:clamp(22px,4vw,34px);margin:0 0 6px;font-weight:900;letter-spacing:-.01em}
+.sec>h2 .l{display:inline-flex;align-items:center;justify-content:center;width:1.3em;height:1.3em;border-radius:10px;margin-right:10px;font-size:.8em;color:var(--s0)}
+.sec>.lead{color:var(--t2);max-width:820px;line-height:1.55;margin:0 0 14px}
+.controls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin:10px 0 18px;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--s1)}
+.controls .grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.controls .lab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-right:2px}
+.seg{border:1px solid var(--bh);background:var(--s2);border-radius:999px;padding:6px 12px;font-size:13px;min-height:34px}
+.seg[aria-pressed="true"]{background:var(--p);border-color:var(--p);color:var(--s0);font-weight:700}
+.v{border:1px solid var(--bd);border-radius:16px;background:var(--s1);margin:0 0 22px;overflow:hidden}
+.v>header{padding:14px 16px 10px;display:flex;gap:12px;align-items:flex-start}
+.tag{flex:none;font-weight:900;font-size:18px;min-width:46px;height:34px;padding:0 8px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;color:var(--s0)}
+.tA{background:var(--o)} .tB{background:var(--b)} .tC{background:var(--p)} .tD{background:var(--g)}
+.v h3{margin:0;font-size:18px;font-weight:800}
+.v .pitch{margin:3px 0 0;color:var(--t2);font-size:14px;line-height:1.45}
+.v .note{margin:0;padding:10px 16px 14px;color:var(--t3);font-size:13px;line-height:1.5}
+.v .note b{color:var(--t2)}
+
+/* ---------- tree canvas (2D mock) ---------- */
+.canvas{position:relative;overflow:auto;background-color:var(--s0);
+  background-image:radial-gradient(circle,#1b1b1b 1px,transparent 1.2px);background-size:22px 22px;
+  border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+.sizer{position:relative}
+.scene{position:absolute;left:0;top:0;transform-origin:0 0}
+.scene svg.edges{position:absolute;left:0;top:0;overflow:visible}
+.edges path{fill:none;stroke:var(--bh);stroke-width:2}
+.edges path.union{stroke:color-mix(in srgb,var(--p) 70%,var(--s0))}
+.edges path.dl{stroke:var(--direct);stroke-width:2.5}
+.card{position:absolute;width:250px;height:90px;border:2px solid var(--bd);background:var(--s1);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 12px;text-align:center;transition:opacity .2s}
+.card.line{border-color:var(--direct)}
+.card.root{border-color:var(--b);background:var(--s2)}
+.card.dim{opacity:.22}
+.card.ring{box-shadow:0 0 0 4px var(--ring)}
+.nm{font-size:14px;font-weight:500;line-height:1.2}
+.yr{margin-top:2px;border-radius:999px;background:var(--s0);padding:3px 8px;font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--g)}
+.sub{margin-top:4px;font-size:12px;line-height:1.2;color:var(--t3)}
+.root .sub{color:var(--b)}
+.sym{display:inline-block;flex:none;line-height:0;position:relative}
+.sym svg{display:block;width:100%;height:100%}
+img.art{display:block;width:100%;height:100%}
+.corner{position:absolute;box-shadow:0 2px 5px rgb(0 0 0/.75);cursor:help;line-height:0}
+.corner.arms{box-shadow:none}
+.corner.plate{background:#2a2a2a;display:flex;align-items:center;justify-content:center}
+.corner.antique{box-shadow:0 0 0 2px var(--s0),0 0 0 4px var(--gold),0 2px 8px rgb(0 0 0/.75)}
+.corner svg{overflow:visible}
+.chips{position:absolute;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 3px}
+.chip{display:inline-flex;align-items:center;gap:3px;white-space:nowrap;border-radius:999px;border:1px solid var(--bh);background:var(--s2);font:9px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--t2);padding:1px 5px 1px 2px;cursor:help}
+.chip .sym{height:8px}
+.chip .arr{color:var(--t3);font-size:8px;margin:0 1px}
+.chip .q{display:inline-flex;align-items:center;justify-content:center;height:8px;width:12px;border-radius:2px;background:var(--s3);color:var(--t3);font-size:7px}
+.chip em{font:600 8.5px/1 system-ui,sans-serif;font-style:normal;color:var(--gold);margin-left:1px}
+.chip.ant{border-color:var(--gold)}
+.band{position:absolute;left:0;border-top:1px solid #222;background:linear-gradient(90deg,rgb(255 140 0/.06),rgb(0 206 209/.03) 60%,transparent)}
+.band .bl{position:absolute;left:10px;top:6px;font-size:12px;color:var(--t2);white-space:nowrap}
+.band .bl b{color:var(--o);font:700 12px ui-monospace,monospace;margin-right:8px}
+.band .bl i{font-style:normal;color:var(--gold)}
+.stamp{position:absolute;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;background:var(--s0);border:1.5px dashed var(--b);color:var(--b);border-radius:8px;padding:3px 8px;font:700 11px/1.2 system-ui,sans-serif;box-shadow:0 2px 8px rgb(0 0 0/.6)}
+.stamp svg{width:14px;height:14px}
+.hint{font-size:12px;color:var(--t3);padding:6px 16px 0}
+
+/* ---------- tooltip ---------- */
+.tip{position:fixed;z-index:100;max-width:280px;background:var(--s3);border:1px solid var(--bh);padding:7px 9px;border-radius:8px;font-size:12.5px;line-height:1.4;pointer-events:none;box-shadow:0 8px 24px rgb(0 0 0/.6);display:none}
+.tip b{color:var(--o)}
+
+/* ---------- panels (B) ---------- */
+.frames{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:0 16px 14px}
+.frame{min-width:0}
+.frame .flab{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin:0 0 6px}
+.desk{position:relative;height:680px;border:1px solid var(--bd);border-radius:12px;overflow:hidden;background-color:var(--s0);
+  background-image:radial-gradient(circle,#1b1b1b 1px,transparent 1.2px);background-size:22px 22px}
+.desk .ghostcards,.phone .ghostcards{position:absolute;inset:0;filter:blur(1.5px);opacity:.55}
+.ghostcards i{position:absolute;width:125px;height:45px;border:2px solid var(--bd);border-radius:6px;background:var(--s1)}
+.ghostcards i.l{border-color:var(--direct)} .ghostcards i.r{border-color:var(--b)}
+.desk .tb,.phone .tb{position:absolute;left:0;right:0;top:0;height:46px;border-bottom:1px solid var(--bd);background:var(--s1);display:flex;align-items:center;gap:8px;padding:0 12px;font-size:13px;color:var(--t2);font-weight:700}
+.tb .logo{color:var(--t1)} .tb .sp{flex:1}
+.tb .bt{border:1px solid var(--bh);border-radius:6px;padding:3px 8px;font-weight:500}
+.desk .pwrap{position:absolute;right:16px;top:62px;width:min(360px,calc(100% - 32px));max-height:calc(100% - 78px);overflow:auto}
+.phone{position:relative;width:360px;height:680px;border:1px solid var(--bh);border-radius:26px;overflow:hidden;background-color:var(--s0);
+  background-image:radial-gradient(circle,#1b1b1b 1px,transparent 1.2px);background-size:22px 22px}
+.phone .pwrap{position:absolute;left:16px;right:16px;bottom:16px;max-height:64%;overflow:auto;border-radius:8px}
+.pp{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:16px;box-shadow:0 25px 50px -12px rgb(0 0 0/.8)}
+.pp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px}
+.pp-name{font-size:18px;font-weight:600;line-height:1.25}
+.pp-nee{font-size:14px;color:var(--t3);font-style:italic}
+.pp .x{background:none;border:0;color:var(--t2);font-size:20px;line-height:1;padding:4px 8px;border-radius:6px}
+.pp dl{margin:0;display:flex;flex-direction:column;gap:12px}
+.pp dt{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--t3)}
+.pp dd{margin:2px 0 0;font-size:14px;line-height:1.4;min-width:0;overflow-wrap:anywhere}
+.pp dd .today{display:block;font-size:12px;color:var(--t2)}
+.pp .muted{color:var(--t3);font-style:italic}
+.pp .btn2{margin-top:16px;width:100%;border:1px solid var(--bh);background:var(--s2);border-radius:8px;padding:10px;font-size:14px}
+.hs{border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:12px 0;margin:2px 0}
+.hs-h{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.map{position:relative;width:100%;border-radius:8px;overflow:hidden;background:#0d1117;border:1px solid var(--bd)}
+.map svg{display:block}
+.map .land{fill:#232323;stroke:#2f2f2f;stroke-width:.5}
+.map .bord{fill:none;stroke:#333;stroke-width:.4}
+.map .arc{fill:none;stroke-width:1.6;stroke-linecap:round}
+.map-wait{padding:30px 10px;text-align:center;color:var(--t3);font-size:12px}
+.unkbadge{position:absolute;left:6px;bottom:6px;display:flex;align-items:center;gap:5px;background:rgb(10 10 10/.85);border:1px solid var(--bh);border-radius:6px;padding:3px 6px;font-size:11px;color:var(--t2)}
+.hatch{display:inline-block;width:12px;height:10px;border-radius:2px;background:repeating-linear-gradient(45deg,#555 0 2px,#222 2px 4px);flex:none}
+.hrow{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;padding:9px 0;border-top:1px solid #1f1f1f}
+.hrow:first-of-type{border-top:0}
+.hrow .dot{width:10px;height:10px;border-radius:50%}
+.hrow .who{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;min-width:0}
+.hrow .pct{font:700 13px ui-monospace,monospace;color:var(--t1)}
+.hrow .l1,.hrow .l2,.hrow .jr{grid-column:2 / 4;font-size:12.5px;line-height:1.45}
+.hrow .l1{color:var(--t1)}
+.hrow .l2{color:var(--t2)}
+.hrow .jr{color:var(--b)}
+.hrow .jr::before{content:"Journey · ";color:var(--t3)}
+.inl{display:inline-flex;vertical-align:-1px;margin:0 2px}
+.inl .sym{height:10px}
+.acc details{border-top:1px solid #1f1f1f}
+.acc summary{list-style:none;display:flex;align-items:center;gap:8px;padding:10px 0;cursor:pointer;min-height:40px}
+.acc summary::-webkit-details-marker{display:none}
+.acc summary .n{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:800 11px/1 system-ui;color:var(--s0);flex:none}
+.acc summary .nm2{font-weight:700;font-size:14px;flex:1;min-width:0}
+.acc summary .chev{color:var(--t3);transition:transform .2s}
+.acc details[open] .chev{transform:rotate(90deg)}
+.acc .body{padding:0 0 10px 28px;font-size:12.5px;line-height:1.5;color:var(--t2)}
+.acc .body p{margin:0 0 5px}
+.acc .body .jr{color:var(--b)}
+.sbar{display:flex;height:26px;border-radius:7px;overflow:hidden;gap:2px;margin-bottom:6px}
+.sbar button{position:relative;border:0;padding:0;min-width:16px;opacity:.4;transition:opacity .15s}
+.sbar button[aria-pressed="true"]{opacity:1;box-shadow:inset 0 0 0 2px #f5f5f5}
+.skeys{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.skey{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--bh);background:var(--s2);border-radius:999px;padding:4px 8px 4px 5px;font-size:12px;min-height:30px}
+.skey .sw{width:8px;height:8px;border-radius:50%;flex:none}
+.skey b{font:700 11px ui-monospace,monospace;color:var(--t2)}
+.skey[aria-pressed="true"]{border-color:#f5f5f5;background:var(--s3)}
+.sbar button .pc{position:absolute;left:4px;top:7px;font:700 9.5px/1 ui-monospace,monospace;background:rgb(10 10 10/.8);border-radius:3px;padding:2px 3px;color:var(--t1)}
+.sbar button.unk{background:repeating-linear-gradient(45deg,#444 0 3px,#222 3px 6px)}
+.focus{font-size:12.5px;line-height:1.5;color:var(--t2);margin-top:8px;min-height:88px}
+.focus b{color:var(--t1)}
+.focus .jr{color:var(--b)}
+.route{padding:9px 0;border-top:1px solid #1f1f1f}
+.route .rh{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:700;margin-bottom:6px}
+.route .rh .pct{margin-left:auto;font:700 13px ui-monospace,monospace}
+.stops{display:flex;flex-wrap:wrap;align-items:center;gap:4px 3px;font-size:12px}
+.stop{display:inline-flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--bh);border-radius:999px;padding:3px 8px 3px 4px;line-height:1.2}
+.stop .sym{height:10px}
+.stop small{color:var(--t3)}
+.arrow{color:var(--t3);font-size:12px}
+.route .who2{font-size:12px;color:var(--t2);margin-top:5px;line-height:1.45}
+.onlyphone{display:none}
+@media (max-width:900px){.frames{grid-template-columns:1fr}}
+@media (max-width:520px){.frame.ph{display:none}.onlyphone{display:block}.frames{padding:0 12px 12px}}
+
+/* ---------- C1 timeline ---------- */
+.tl{padding:10px 16px 16px}
+.tlrow{margin:0 0 14px}
+.tlrow .th{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:700;margin-bottom:4px}
+.tlrow .th .pct{font:700 12px ui-monospace,monospace;color:var(--t2)}
+.tlrow>svg{display:block;width:100%;overflow:visible}
+.tlrow text{font:10.5px ui-monospace,monospace;fill:var(--t3)}
+.tlrow text.nm{font:600 10.5px system-ui,sans-serif;fill:var(--t1)}
+.tl .axis{font:10px ui-monospace,monospace;fill:var(--t3)}
+.tlpicker{padding:0 16px}
+
+/* ---------- 3D ---------- */
+.d3wrap{position:relative;height:min(600px,74vh);min-height:400px;background:var(--s0);border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);overflow:hidden;touch-action:none}
+.d3wrap canvas{display:block;width:100%;height:100%}
+.d3labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lb{position:absolute;left:0;top:0;white-space:nowrap;border-radius:4px;padding:1px 4px;font-size:11px;line-height:1.25;background:rgb(10 10 10/.7);color:var(--t1);display:flex;align-items:center;gap:3px;visibility:hidden}
+.lb.sel{background:var(--p);color:var(--s0);font-weight:600}
+.lb .sym{height:9px}
+.lb.flagmode{background:rgb(10 10 10/.55);padding:2px 3px;gap:3px;align-items:flex-end}
+.lb.era{background:none;color:var(--b);font:700 11px ui-monospace,monospace;text-shadow:0 1px 3px #000}
+.p3{position:absolute;right:12px;top:12px;width:min(300px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px;box-shadow:0 20px 40px rgb(0 0 0/.7);font-size:13px}
+.p3 .pn{font-size:16px;font-weight:600}
+.p3 .pr{color:var(--t3);font-size:12px;margin-bottom:8px}
+.p3 .chipsrow{display:flex;flex-wrap:wrap;gap:4px}
+.p3 .chipsrow .chip{font-size:11px;padding:2px 7px 2px 3px}
+.p3 .chipsrow .chip .sym{height:11px}
+.p3 .globe{width:100%;height:190px;margin-top:8px;border-radius:8px;overflow:hidden;background:#07090c;position:relative}
+.p3 .globe canvas{display:block;width:100%;height:100%}
+.p3 .gcap{font-size:11.5px;color:var(--t2);margin-top:6px;line-height:1.4}
+@media (max-width:640px){.p3{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:46%}}
+.d3list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;padding:12px 16px}
+.d3list button{text-align:left;border:1px solid var(--bh);background:var(--s2);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;min-height:44px}
+.d3list button[aria-pressed="true"]{border-color:var(--g);box-shadow:0 0 0 2px color-mix(in srgb,var(--g) 40%,transparent);background:color-mix(in srgb,var(--g) 8%,var(--s2))}
+.d3list .tag{font-size:14px;min-width:36px;height:26px}
+.d3list b{display:block;font-size:14px;margin-bottom:2px}
+.d3list span.pt{font-size:12.5px;color:var(--t2);line-height:1.4}
+.d3msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--t3);font-size:13px;text-align:center;padding:20px}
+.tE{background:var(--sample)}
+.qh{font-size:18px;font-weight:800;margin:26px 0 6px;color:var(--t1)}
+.tcases{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:0 16px 12px}
+.tcase{background:var(--s0);border:1px solid var(--bd);border-radius:10px;padding:10px;min-width:0}
+.tcase .who{font-size:11px;color:var(--t3);margin-bottom:7px}
+.tcase .row{display:flex;gap:10px;align-items:flex-start}
+.flagbox{box-shadow:0 2px 5px rgb(0 0 0/.75)}
+.bub{background:var(--s3);border:1px solid var(--bh);border-radius:8px;padding:6px 8px;font-size:12.5px;line-height:1.4;min-width:0;overflow-wrap:anywhere}
+.bub b{color:var(--o)}
+.rbadge{position:absolute;box-shadow:0 1px 4px #000;cursor:help;line-height:0}
+.rbadge svg{width:100%;height:100%;display:block}
+.rbadge-l{position:absolute;font-size:9px;color:var(--t2);white-space:nowrap}
+.pline{padding:10px 16px 0;display:grid;gap:6px;font-size:13px;color:var(--t2)}
+.pline .lab2{display:inline-block;min-width:124px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}
+.pline b{color:var(--t1)}
+.frow{position:absolute;display:flex;flex-wrap:wrap;align-items:flex-start;gap:5px}
+.fl{display:inline-block;line-height:0;box-shadow:0 2px 4px rgb(0 0 0/.7);cursor:help}
+.fl.arms{box-shadow:none}
+.fl svg{width:100%;height:100%;display:block}
+.flq{display:inline-flex;align-items:center;justify-content:center;background:repeating-linear-gradient(45deg,#3a3a3a 0 3px,#1c1c1c 3px 6px);color:var(--t2);font:700 9px/1 ui-monospace,monospace;border:1px solid var(--bh);cursor:help}
+.tX{background:var(--bh);color:var(--t2)}
+.pill.drop{background:var(--bh);color:var(--t1)}
+.v.dropped{background:var(--s0);border-style:dashed}
+.v.dropped .note{padding-top:0}
+.d3list .dropbox{border:1px dashed var(--bh);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;color:var(--t2);font-size:12.5px;line-height:1.4}
+.rulebox{margin:10px 0 8px;border:1px solid var(--b);background:color-mix(in srgb,var(--b) 7%,var(--s0));border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5}
+.rulebox b{color:var(--b)}
+.src{display:grid;grid-template-columns:90px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--bd);font-size:13px;line-height:1.5;color:var(--t2)}
+.src b{color:var(--t1)} .src a{overflow-wrap:anywhere}
+.srcsym{display:flex;justify-content:center;align-items:flex-start;padding-top:3px}
+.src .st{font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px}
+.src .st.ok{background:color-mix(in srgb,var(--g) 25%,transparent);color:var(--g)}
+.src .st.no{background:color-mix(in srgb,var(--p) 25%,transparent);color:var(--p)}
+.src .era{color:var(--t3)}
+.tF{background:#a78bfa}
+.map{touch-action:none;background:none;border:0;cursor:grab}
+.ghint{position:absolute;right:6px;bottom:4px;font-size:10px;color:var(--t3);pointer-events:none}
+.fbody{padding:0 16px 8px}
+.fctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.fctl input[type=range]{flex:1;min-width:160px;accent-color:var(--p)}
+.bigyear{font:800 20px ui-monospace,monospace;color:var(--o);min-width:64px}
+.lines,.where{margin-top:8px;font-size:12.5px;line-height:1.45;color:var(--t2)}
+.where b{color:var(--t1)}
+.jl{padding:6px 0;border-top:1px solid #1f1f1f}
+.jt{color:var(--b);margin-top:2px}
+.lk{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lk .sw{width:10px;height:10px;border-radius:50%;flex:none}
+.lk b{color:var(--t1)}
+.muted2{color:var(--t3)}
+.foot{margin-top:40px;color:var(--t3);font-size:12.5px;line-height:1.6;border-top:1px solid var(--bd);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="tip" id="tip"></div>
+<div class="wrap">
+  <header class="hero">
+    <h1>Heritage through time</h1>
+    <p>A throwaway mockup for reacting to, not building from. It explores the two directions you liked, <b>symbols through time on the cards</b> and <b>an origins map in the person panel</b>, with several variants of each, then a few extra ideas and a set of 3D ideas. Every variant has a label, so you can answer "I like A6 and B3".</p>
+    <p>Hover (or tap) any flag, coat of arms or chip to see which era it names.</p>
+    <div class="samplebox">
+      <span class="pill sample">Sample data</span>&nbsp; The <b>people and how they're related</b> come from the real tree fixture. Its heritage and origin fields are empty, so <b>every birth year, heritage entry, birthplace, emigration year, mother tongue, recorded people, journey and story sentence here is invented</b> to exercise the design. Some people are invented, such as Salvatore Santoro (<code>italian/sicily</code>), to give good examples. The symbols are real art only: the repo's verified files. No sample person is born under a symbol without verified art.
+    </div>
+    <div class="rulebox"><b>Whole-symbol rule, applied throughout.</b> A flag, coat of arms or regional emblem is always shown whole: its true aspect ratio, uncropped, in its own colours (no tint, fade or filter), and nothing overlaps it (no badge, other symbol, label, line or arc). A share is shown by a symbol's size or by something beside it. <b>Real art only:</b> no symbol is drawn by us; each is the repo's verified file, checked against a specification or the historical record (see <a href="#sources">Sources</a>), and no symbol without verified art is ever shown: the sample data avoids them instead. Variants whose core idea broke the rule (A5, A6, A7, D3) are marked <i>dropped</i>, and rule-abiding replacements carry new labels (A8, A9, D7).</div>
+  </header>
+  <nav class="nav">
+    <a href="#A"><span>A</span> Era symbols on cards</a>
+    <a href="#B"><span>B</span> Heritage panel + map</a>
+    <a href="#C"><span>C</span> Extras</a>
+    <a href="#D"><span>D</span> 3D ideas</a>
+    <a href="#E"><span>E</span> Open questions</a>
+    <a href="#F"><span>F</span> Journeys on the globe</a>
+    <a href="#sources"><span>S</span> Sources</a>
+  </nav>
+
+  <!-- ===================== A ===================== -->
+  <section class="sec" id="A">
+    <h2><span class="l tA">A</span>Era symbols on the 2D cards</h2>
+    <p class="lead">A slice of the real tree, 4 to 5 generations on the direct line. Each card's symbols follow that person's <b>own birth year</b>: an Irishman born before 1919 carries the green harp, his grandchildren the tricolour. A1 to A5 keep today's corner-and-chip form and vary how the era gets across. A6 and A7 rethink the form itself.</p>
+    <div class="controls">
+      <div class="grp"><span class="lab">Line</span>
+        <button class="seg" data-slice="mother" aria-pressed="true">Kyle's mother · Santoro &amp; Clarke</button>
+        <button class="seg" data-slice="father" aria-pressed="false">Kyle's father · Hutchinson &amp; Sadowski</button>
+        <button class="seg" data-slice="elliott" aria-pressed="false">Elliott's mother · Liikanen &amp; Hoff</button>
+      </div>
+            <div class="grp"><span class="lab">Zoom</span>
+        <button class="seg" data-zoom="read" aria-pressed="true">Actual size</button>
+        <button class="seg" data-zoom="fit" aria-pressed="false">Fit width</button>
+      </div>
+    </div>
+    <div id="Avariants"></div>
+  </section>
+
+  <!-- ===================== B ===================== -->
+  <section class="sec" id="B">
+    <h2><span class="l tB">B</span>The Heritage section, with an origins map</h2>
+    <p class="lead">The person panel gains a Heritage section: a small globe you can drag to turn, with each line's <b>journey</b> drawn through every generation's birthplace in order (the origin ancestor's point sized by share, unknown lines in grey and the unknown share stated plainly), one or two lines per people, and the journey in words. Birthplaces and the ancestors above the tree are <span class="pill sample">sample</span>. Each variant is shown in the real panel's frame at wide-screen size and on a 360px phone.</p>
+    <div class="controls">
+      <div class="grp"><span class="lab">Person</span>
+        <button class="seg" data-person="kyle" aria-pressed="true">Kyle (7 peoples + unknown)</button>
+        <button class="seg" data-person="davidH" aria-pressed="false">David, Kyle's son (10 + unknown)</button>
+        <button class="seg" data-person="elliott" aria-pressed="false">Elliott</button>
+        <button class="seg" data-person="joe" aria-pressed="false">Joe Santoro (an immigrant)</button>
+      </div>
+    </div>
+    <p class="onlyphone lead" style="font-size:13px">You're on a phone, so each frame below already shows the panel at your screen's real width.</p>
+    <div id="Bvariants"></div>
+  </section>
+
+  <!-- ===================== C ===================== -->
+  <section class="sec" id="C">
+    <h2><span class="l tC">C</span>Extras <span class="pill extra">new ideas</span></h2>
+    <p class="lead">Three ideas that weren't among the six shown before. They build on the two favourites rather than competing with them.</p>
+    <div id="Cvariants"></div>
+  </section>
+
+  <!-- ===================== D ===================== -->
+  <section class="sec" id="D">
+    <h2><span class="l tD">D</span>Heritage in the 3D view</h2>
+    <p class="lead">The 3D view's sphere colours already mean something: <b style="color:var(--o)">orange</b> is Kyle's direct line, <b style="color:var(--p)">pink</b> the selection, <b style="color:var(--b)">blue</b> everyone else. So each idea puts heritage somewhere other than the sphere's main colour, or behind a toggle. Real interactive 3D on a slice of the tree (drag to orbit, pinch or scroll to zoom, tap a sphere to select). Pick an idea below.</p>
+    <div class="v" style="overflow:visible">
+      <div class="d3list" id="d3list"></div>
+      <div class="d3wrap" id="d3wrap"><div class="d3msg" id="d3msg">Loading 3D (three.js from jsdelivr)…</div><div class="d3labels" id="d3labels"></div></div>
+      <p class="note" id="d3note"></p>
+    </div>
+  </section>
+
+  <!-- ===================== E ===================== -->
+  <section class="sec" id="E">
+    <h2><span class="l tE">E</span>Two open questions from the data model</h2>
+    <p class="lead">Heritage codes are now peoples, with an optional region inside the code (<code>italian/sicily</code>), and every people has a timeline of eras with a label. Two display questions fall out of that. The eras and labels here follow <code>symbol-timelines.ts</code>.</p>
+
+    <h3 class="qh">Question 1 · What a symbol's hover or label text says</h3>
+    <p class="lead">The same five symbols under each option. The switch below changes <b>every hover on this page</b>, so you can also try it on the cards, the panels and the 3D view.</p>
+    <div class="controls" id="hoverctl"><div class="grp"><span class="lab">Hover text everywhere</span></div></div>
+    <div id="E1"></div>
+
+    <h3 class="qh">Question 2 · A region share next to a plain share of the same people</h3>
+    <p class="lead">A sample person with <b>Irish 50%</b>, <b>Italian (Sicily) 25%</b> and <b>Italian 25%</b> (the second Italian line's region isn't recorded). The same mix is shown twice: born <b>1880</b>, in the Kingdom of Italy, and born <b>1990</b>: in both years the two Italian shares pick the same symbol, since the Sicilian share only has a symbol of its own before 1861. Births before 1861 aren't shown, because Sicily's own symbol for those years has no verified art yet. <b>R3</b> (a Trinacria badge beside the grouped flag in every era) is dropped for the same reason: there is no verified Trinacria art to draw.</p>
+    <div id="E2"></div>
+  </section>
+
+  <!-- ===================== F ===================== -->
+  <section class="sec" id="F">
+    <h2><span class="l tF">F</span>Journeys on the globe</h2>
+    <p class="lead">Every line as a journey through time: a path through each generation's birthplace in order, from the earliest known ancestor down to the person, each stop dated by that generation's birth year. The Hutchinson line alone moves Yorkshire → Virginia → Virginia again → Ohio → Ohio → Michigan → Ohio → Michigan. Four ways to present it; each works in the panel's globe too. <span class="pill sample">sample places</span></p>
+    <div class="controls"><div class="grp"><span class="lab">Person</span>
+      <button class="seg" data-fperson="kyle" aria-pressed="true">Kyle</button>
+      <button class="seg" data-fperson="davidH" aria-pressed="false">David</button>
+      <button class="seg" data-fperson="elliott" aria-pressed="false">Elliott</button></div></div>
+    <div id="Fvariants"></div>
+  </section>
+
+  <section class="sec" id="sources">
+    <h2><span class="l" style="background:var(--t2)">S</span>Sources</h2>
+    <p class="lead">Every symbol on this page, where its art comes from, and what it was checked against. <b>Verified (repo)</b> is the repo's own file in <code>src/projects/family-tree/symbol-art/</code>, with its full record in <code>symbol-art.ts</code>. The Grand Duchy of Finland's lion arms are shown in the form Finns drew themselves (Bomansson), not the Russian Empire's 1882 drawing. Every symbol here is the repo's verified art, with its record in <code>SYMBOL_ART</code>; sample data never picks a symbol without it (Sicily's own symbol before 1861, for one, isn't shown). Symbols used by the data model but not by this mockup (Bavaria, Prussia, Norway, France and others) aren't listed; the repo also has verified art for Wales, and Lebanon's flag and cedar flag.</p>
+    <div id="srclist"></div>
+  </section>
+
+  <div class="foot">
+    Mockup only, with nothing wired to the app. Libraries: d3, topojson-client, world-atlas and three.js from cdn.jsdelivr.net, so it needs an internet connection. All symbol art is inlined: the repo's verified files; see Sources. The eras follow <code>symbol-timelines.ts</code>.
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   DATA: structure and names from the fixture; everything else SAMPLE
+   ===================================================================== */
+const ROOT = 'kyle';
+const P = {
+  kyle:{n:'Kyle Hutchinson', y:1990, par:['eric','sheilaH'], rel:'you'},
+  elliott:{n:'Elliott Hutchinson', y:1991, par:['bob','sarah'], rel:'husband'},
+  davidH:{n:'David Hutchinson', y:2024, par:['kyle','elliott'], rel:'son'},
+  megan:{n:'Megan Hutchinson', y:1993, par:['eric','sheilaH'], rel:'sister'},
+  sheilaH:{n:'Sheila Hutchinson', y:1962, par:['davidS','nana'], rel:'mother', nee:'Santoro'},
+  eric:{n:'Eric Hutchinson', y:1960, par:['jim','carol'], rel:'father'},
+  davidS:{n:'David Santoro', y:1935, par:['joe','letty'], rel:'grandfather'},
+  richard:{n:'Richard Santoro', y:1932, par:['joe','letty'], rel:'great-uncle'},
+  nana:{n:'Sheila "Nana" Santoro', y:1938, par:['pat','mae'], rel:'grandmother', nee:'Clarke'},
+  mimi:{n:'Mary "Mimi" Michael', y:1940, par:['pat','mae'], rel:'great-aunt'},
+  terry:{n:'Terry Reid', y:1943, par:['pat','mae'], rel:'great-aunt'},
+  jim:{n:'James "Jim" Hutchinson', y:1934, par:['don','anne'], rel:'grandfather'},
+  carol:{n:'Carol Hutchinson', y:1937, par:['adam','harriet'], rel:'grandmother', nee:'Sadowski'},
+  gary:{n:'Gary Hutchinson', y:1963, par:['jim','carol'], rel:'uncle'},
+  holly:{n:'Holly Hutchinson', y:1966, par:['jim','carol'], rel:'aunt'},
+  joe:{n:'Joe Santoro', y:1897, par:[], entry:['IT'], rel:'great-grandfather'},
+  letty:{n:'Letty Santoro', y:1901, par:[], entry:['IT'], rel:'great-grandmother'},
+  pat:{n:'Patrick "Pat" Clarke', y:1899, par:[], entry:['IE'], rel:'great-grandfather'},
+  mae:{n:'Mae Clarke', y:1903, par:[], entry:['SCT'], rel:'great-grandmother'},
+  don:{n:'Donald "Don" Hutchinson', y:1905, par:[], entry:['ENG'], rel:'great-grandfather'},
+  anne:{n:'Anne Hutchinson', y:1908, par:[], rel:'great-grandmother'},
+  adam:{n:'Adam Sadowski', y:1903, par:[], entry:['PL'], rel:'great-grandfather'},
+  harriet:{n:'Harriet Sadowski', y:1906, par:[], entry:['HU'], rel:'great-grandmother'},
+  sarah:{n:'Sarah Davidson', y:1963, par:['carl','elaine'], rel:'mother-in-law'},
+  bob:{n:'Bob Davidson', y:1960, par:['glenn','jennie'], rel:'father-in-law'},
+  emily:{n:'Emily Davidson', y:1994, par:['bob','sarah'], rel:'sister-in-law'},
+  daniel:{n:'Daniel Davidson', y:1988, par:['bob','sarah'], rel:'brother-in-law'},
+  elaine:{n:'Elaine Hoff', y:1935, par:['august','esther'], rel:"husband's grandmother"},
+  carl:{n:'Carl Hoff', y:1936, par:[], entry:['DE'], rel:"husband's grandfather"},
+  kathy:{n:'Kathy Ridenour', y:1958, par:['carl','elaine'], rel:"husband's aunt"},
+  glenn:{n:'Glenn "Pete" Davidson', y:1930, par:[], entry:['SCT'], rel:"husband's grandfather"},
+  jennie:{n:'Jennie Davidson', y:1932, par:[], entry:['SWE'], rel:"husband's grandmother"},
+  august:{n:'August Liikanen', y:1899, par:[], entry:['FI'], rel:"husband's great-grandfather"},
+  esther:{n:'Esther Liikanen', y:1902, par:[], entry:['FI'], rel:"husband's great-grandmother"},
+  salvatore:{n:'Salvatore Santoro', y:1866, par:[], entry:['IT/sicily'], rel:'great-great-grandfather', sample:true},
+};
+const UNIONS = [['eric','sheilaH'],['kyle','elliott'],['davidS','nana'],['jim','carol'],['joe','letty'],['pat','mae'],['don','anne'],['adam','harriet'],['bob','sarah'],['carl','elaine'],['glenn','jennie'],['august','esther']];
+
+// Kyle's direct line: ancestors and descendants.
+const DIRECT = new Set();
+(function up(id){ DIRECT.add(id); (P[id].par||[]).forEach(up); })(ROOT);
+DIRECT.add('davidH'); DIRECT.add('salvatore');
+
+const PEOPLES = {
+  IT:{name:'Italian', c:'#ff8c00'}, IE:{name:'Irish', c:'#22c55e'}, SCT:{name:'Scottish', c:'#3b82f6'},
+  ENG:{name:'English', c:'#e5e5e5'}, PL:{name:'Polish', c:'#FF2D95'}, HU:{name:'Hungarian', c:'#ef4444'},
+  FI:{name:'Finnish', c:'#00CED1'}, DE:{name:'German', c:'#facc15'}, SWE:{name:'Swedish', c:'#a78bfa'},
+  'IT/sicily':{name:'Italian (Sicily)', c:'#ff8c00'},
+};
+
+// SAMPLE origin evidence for the origin people. Birthplaces for anyone who may be living: region and country only.
+const DET = [-83.05, 42.33];
+const ORIGIN = {
+  joe:{short:"Capo d'Orlando, Sicily", today:"Capo d'Orlando, Sicily, Italy", rec:"Capo d'Orlando, Messina", ll:[14.77,38.15], left:1913, to:'Detroit', toLL:DET, tongue:'Italian', rp:'Italian (South)', rel:'Roman Catholic',
+    stops:[["Capo d'Orlando, Sicily",'until 1913'],['Detroit','3 generations']], jt:"Sicily until 1913, then Detroit for three generations",
+    story:"Joe was born in the Kingdom of Italy, 36 years after unification. Sicily was poor and emptying: over a million Sicilians left before 1914."},
+  letty:{short:"Sant'Agata, Sicily", today:"Sant'Agata di Militello, Sicily, Italy", rec:"S. Agata di Militello, Messina", ll:[14.63,38.07], left:1920, to:'Detroit', toLL:DET, tongue:'Italian', rp:'Italian (South)',
+    stops:[["Sant'Agata, Sicily",'until 1920'],['Detroit','3 generations']], jt:"Sicily until 1920, then Detroit",
+    story:"Letty left after the First World War, one of the last before the US quota laws of 1924 all but closed the door."},
+  pat:{short:'Castlebar, Co. Mayo', today:'Castlebar, County Mayo, Ireland', rec:'Castlebar, Co. Mayo', ll:[-9.30,53.86], left:1921, to:'Detroit', toLL:DET, tongue:'English', rp:'Irish',
+    stops:[['County Mayo','until 1921'],['Detroit','3 generations']], jt:"County Mayo until 1921, then Detroit",
+    story:"Pat was born under the green harp, in an Ireland still ruled from London. He left in 1921, the year the treaty creating the Irish Free State was signed."},
+  mae:{short:'Govan, Glasgow', today:'Govan, Glasgow, Scotland', rec:'Govan, Lanarkshire', ll:[-4.31,55.86], left:1923, to:'Detroit', toLL:DET, tongue:'English', rp:'Scotch',
+    stops:[['Govan, Glasgow','until 1923'],['Detroit','3 generations']], jt:"Glasgow until 1923, then Detroit",
+    story:"Govan's shipyards built ships for the world until the post-war slump, which sent Clydesiders to Detroit's car plants."},
+  don:{short:'Yorkshire, England', today:'Yorkshire, England', rec:'(no record; family lore)', ll:[-1.3,54.0], left:'~1740s', to:'Augusta County, Virginia', toLL:[-79.1,38.1], lore:'"English, from Yorkshire", per the family Bible (sample)',
+    stops:[['England','until about the 1740s'],['Virginia','about 80 years'],['Ohio','about 100 years'],['Detroit','since the 1920s']], jt:"England until about the 1740s, Virginia for about 80 years, Ohio for about a century, then Detroit",
+    story:"Colonial Virginia's backcountry drew English settlers west through the 1700s, and this line kept moving with the frontier."},
+  adam:{short:'Posen (Poznań)', today:'Poznań, Greater Poland, Poland', rec:'Posen, Prussia', ll:[16.93,52.41], left:1912, to:'Hamtramck, Detroit', toLL:[-83.05,42.39], tongue:'Polish', rp:'Polish',
+    stops:[['Posen (Poznań)','until 1912'],['Hamtramck, Detroit','3 generations']], jt:"Posen until 1912, then Hamtramck",
+    story:"Poland wasn't on the map from 1795 to 1918. Adam was born in the Prussian partition, and the passenger list still says “Polish”."},
+  harriet:{short:'Kolozsvár (Cluj)', today:'Cluj-Napoca, Romania', rec:'Kolozsvár, Kolozs, Hungary', ll:[23.6,46.77], left:1914, to:'Detroit', toLL:DET, tongue:'Magyar', rp:'Magyar',
+    stops:[['Kolozsvár (Cluj-Napoca, Romania today)','until 1914'],['Detroit','3 generations']], jt:"Kolozsvár until 1914, then Detroit",
+    story:"Harriet was born a Hungarian in the Kingdom of Hungary. Six years after she left, Transylvania became part of Romania, so the point sits in Romania while her people stays Hungarian."},
+  august:{short:'Kauhava, Ostrobothnia', today:'Kauhava, South Ostrobothnia, Finland', rec:'Kauhava, Vaasan lääni', ll:[22.93,63.1], left:1916, to:'Hancock, Michigan', toLL:[-88.58,47.13], tongue:'Finnish', rp:'Finnish',
+    stops:[['Kauhava, Ostrobothnia','until 1916'],['Hancock, Michigan','about 40 years'],['Detroit','since the 1960s']], jt:"Ostrobothnia until 1916, Michigan's Copper Country for about 40 years, then Detroit",
+    story:"Finland was a Grand Duchy of the Russian Empire, under the crowned lion. Ostrobothnians went to the copper mines of Michigan's Upper Peninsula."},
+  esther:{short:'Oulu', today:'Oulu, North Ostrobothnia, Finland', rec:'Uleåborg', ll:[25.47,65.01], left:1913, to:'Hancock, Michigan', toLL:[-88.58,47.13], tongue:'Finnish', rp:'Finnish',
+    stops:[['Oulu','until 1913'],['Hancock, Michigan','about 40 years'],['Detroit','since the 1960s']], jt:"Oulu until 1913, then the Copper Country",
+    story:"The record gives Oulu by its Swedish name, Uleåborg: the Grand Duchy's paperwork was still largely in Swedish."},
+  carl:{short:'Bavaria', today:'Bavaria, Germany', rec:'Bavaria, West Germany', ll:[11.5,48.9], left:1954, to:'Detroit', toLL:DET, tongue:'German',
+    stops:[['Bavaria','until 1954'],['Detroit','2 generations']], jt:"Bavaria until 1954, then Detroit",
+    story:"Born in 1936, Carl's line shows black-red-gold, the German colours of 1848 and 1919, never the regime's flag. Post-war Bavaria was rebuilding, and Detroit was hiring."},
+  glenn:{short:'Aberdeenshire', today:'Aberdeenshire, Scotland', rec:'Aberdeenshire, Scotland', ll:[-2.4,57.2], left:1952, to:'Sault Ste. Marie, Ontario', toLL:[-84.33,46.52], tongue:'English',
+    stops:[['Aberdeenshire','until 1952'],['Sault Ste. Marie, Ontario','about 20 years'],['Michigan','since the 1970s']], jt:"Aberdeenshire until 1952, Ontario for about 20 years, then Michigan",
+    story:"Post-war Scotland was short of work and housing, and Canada was recruiting."},
+  jennie:{short:'Värmland', today:'Värmland, Sweden', rec:'Värmlands län, Sweden', ll:[13.5,59.7], left:1953, to:'Sault Ste. Marie, Ontario', toLL:[-84.33,46.52], tongue:'Swedish',
+    stops:[['Värmland','until 1953'],['Sault Ste. Marie, Ontario','about 20 years'],['Michigan','since the 1970s']], jt:"Värmland until 1953, then Ontario",
+    story:"Värmland's forests and small farms sent more of their people to North America than almost any other part of Sweden."},
+};
+
+/* ---------- symbols (verified repo art, or Wikimedia Commons art) ---------- */
+// Real art only, inlined byte for byte: the repo's verified file (src/projects/family-tree/symbol-art/, `repo`), whose
+// record is in SYMBOL_ART. w/h is the record's proportion. A symbol without repo art has no entry here, and the sample
+// data never picks one: symOf throws if it does.
+const SYM = {"it": {"w": 3, "h": 2, "file": null, "repo": "src/projects/family-tree/symbol-art/italy-tricolour.svg", "src": "../../symbol-art/italy-tricolour.svg"}, "ie": {"w": 2, "h": 1, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Ireland_(Pantone).svg", "repo": "src/projects/family-tree/symbol-art/ireland-flag.svg", "src": "../../symbol-art/ireland-flag.svg"}, "sct": {"w": 5, "h": 3, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Scotland.svg", "repo": "src/projects/family-tree/symbol-art/scotland-flag.svg", "src": "../../symbol-art/scotland-flag.svg"}, "eng": {"w": 5, "h": 3, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_England.svg", "repo": "src/projects/family-tree/symbol-art/england-flag.svg", "src": "../../symbol-art/england-flag.svg"}, "pl": {"w": 8, "h": 5, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Poland_(normative).svg", "repo": "src/projects/family-tree/symbol-art/poland-flag.svg", "src": "../../symbol-art/poland-flag.svg"}, "hu": {"w": 2, "h": 1, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Hungary.svg", "repo": "src/projects/family-tree/symbol-art/hungary-flag.svg", "src": "../../symbol-art/hungary-flag.svg"}, "fi": {"w": 18, "h": 11, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Finland.svg", "repo": "src/projects/family-tree/symbol-art/finland-flag.svg", "src": "../../symbol-art/finland-flag.svg"}, "de": {"w": 5, "h": 3, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Germany_(RGB).svg", "repo": "src/projects/family-tree/symbol-art/germany-black-red-gold.svg", "src": "../../symbol-art/germany-black-red-gold.svg"}, "it_kingdom": {"w": 3, "h": 2, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Italy_(1861%E2%80%931946).svg", "repo": "src/projects/family-tree/symbol-art/italy-savoy-flag.svg", "src": "../../symbol-art/italy-savoy-flag.svg"}, "de_empire": {"w": 3, "h": 2, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Germany_(1867%E2%80%931918).svg", "repo": "src/projects/family-tree/symbol-art/german-empire-flag.svg", "src": "../../symbol-art/german-empire-flag.svg"}, "ie_harp": {"w": 3, "h": 2, "file": "https://commons.wikimedia.org/wiki/File:Green_harp_flag_of_Ireland.svg", "repo": "src/projects/family-tree/symbol-art/ireland-harp-flag.svg", "src": "../../symbol-art/ireland-harp-flag.svg"}, "fi_lion": {"w": 822, "h": 1559, "file": "https://commons.wikimedia.org/wiki/File:Coat_of_arms_of_Finland_1889.jpg", "repo": "src/projects/family-tree/symbol-art/finland-lion-arms.display.png", "src": "../../symbol-art/finland-lion-arms.display.png"}, "swe": {"w": 8, "h": 5, "file": "https://commons.wikimedia.org/wiki/File:Flag_of_Sweden.svg", "repo": "src/projects/family-tree/symbol-art/sweden-flag.svg", "src": "../../symbol-art/sweden-flag.svg"}};
+// Each people's symbols through time, mirroring symbol-timelines.ts (era names and boundaries).
+// `from` inclusive, `until` exclusive; null = open-ended. `regional`: the homeland was a region then.
+const TL = {
+  FI:[{from:null,until:1809,key:'fi_lion',name:'Finland under the Swedish crown',short:'Swedish crown'},
+      {from:1809,until:1918,key:'fi_lion',name:'Grand Duchy of Finland (Russian Empire)',short:'Grand Duchy'},
+      {from:1918,until:null,key:'fi',name:'Finland'}],
+  HU:[{from:null,until:1848,key:'hu_kingdom',name:'Kingdom of Hungary',short:'Kingdom'},
+      {from:1848,until:1918,key:'hu',name:'Kingdom of Hungary',short:'Kingdom'},
+      {from:1918,until:null,key:'hu',name:'Hungary'}],
+  IT:[{from:null,until:1861,key:'it',name:'Italy before unification',regional:true,short:'pre-unification'},
+      {from:1861,until:1946,key:'it_kingdom',name:'Kingdom of Italy',short:'Kingdom'},
+      {from:1946,until:null,key:'it',name:'Italian Republic'}],
+  IE:[{from:null,until:1798,key:'ie_harp',name:'Kingdom of Ireland',short:'harp'},
+      {from:1798,until:1919,key:'ie_harp',name:'Ireland under British rule',short:'harp'},
+      {from:1919,until:null,key:'ie',name:'Ireland'}],
+  ENG:[{from:null,until:null,key:'eng',name:'England'}],
+  SCT:[{from:null,until:null,key:'sct',name:'Scotland'}],
+  PL:[{from:null,until:null,key:'pl',name:'Poland'}],
+  DE:[{from:null,until:1871,key:'de',name:'Germany before unification',regional:true,short:'pre-unification'},
+      {from:1871,until:1919,key:'de_empire',name:'German Empire',short:'Empire'},
+      {from:1919,until:null,key:'de',name:'Germany'}],
+  SWE:[{from:null,until:null,key:'swe',name:'Sweden'}],
+};
+// Region timelines cover only their people's regional eras (seeded: Sicily, Bavaria, Prussia; Sicily is used here).
+const RTL = {
+  sicily:{name:'Sicily', eras:[{from:null,until:1816,key:'trinacria',name:'Kingdom of Sicily',short:'Sicily'},
+                               {from:1816,until:1861,key:'trinacria',name:'Kingdom of the Two Sicilies',short:'Two Sicilies'}]},
+};
+const TODAY_COUNTRY = {FI:'Finland', HU:'Hungary', IT:'Italy', IE:'Ireland', ENG:'England', SCT:'Scotland', PL:'Poland', DE:'Germany', SWE:'Sweden'};
+const peopleOf = code => code.split('/')[0];
+const eraYears = e => e.from==null && e.until==null ? 'all eras' : e.from==null ? `before ${e.until}` : e.until==null ? `since ${e.from}` : `${e.from}–${e.until}`;
+const eraAt = (tl, y) => tl.find(e => (e.from==null || y>=e.from) && (e.until==null || y<e.until));
+// The data model's pickSymbol, plus what the mockup needs to draw it.
+function eraOf(code, year){
+  const [pe, rg] = code.split('/'); const pEra = eraAt(TL[pe], year);
+  let e = pEra, who = PEOPLES[pe].name;
+  if (pEra.regional && rg) { e = eraAt(RTL[rg].eras, year); who = `${who} (${RTL[rg].name})`; }
+  const label = [who, e.name, ...(e.from!=null || e.until!=null ? [eraYears(e)] : [])].join(', ');
+  return {key:e.key, era:e.name, span:eraYears(e), short:e.short, region:e!==pEra, hist:e!==TL[pe].at(-1), who, people:pe, label};
+}
+const isHistoric = (code, year) => eraOf(code, year).hist;
+const modernKey = code => TL[peopleOf(code)].at(-1).key;
+const HOVER_MODES = {
+  T1:{t:'The country', pitch:'Just today\'s country name, as the flag tooltips say today: "Finland".'},
+  T2:{t:'The people', pitch:'The people and share only: "Finnish 25%". The art alone carries the era.'},
+  T3:{t:'The era label, one line', pitch:'The data model\'s label as it is: "Irish, Ireland under British rule, 1798–1919".'},
+  T4:{t:'People first, era underneath', pitch:'The same words, split for reading: "Irish 25%" in bold, and under it "Ireland under British rule · 1798–1919".'},
+  T5:{t:'Then and today', pitch:'T4, plus a line naming today\'s homeland whenever the symbol is a historical one: "Today: Finland".'},
+};
+let hoverMode = 'T4';
+function tipFor(code, year, share){
+  const e = eraOf(code, year); const sh = share!=null ? ' '+pct(share) : '';
+  const dim = t => `<br><span style="color:var(--t3)">${t}</span>`;
+  let t;
+  if (hoverMode==='T1') t = `<b>${TODAY_COUNTRY[e.people]}</b>`;
+  else if (hoverMode==='T2') t = `<b>${e.who}${sh}</b>`;
+  else if (hoverMode==='T3') t = e.label;
+  else t = `<b>${e.who}${sh}</b><br>${e.era}${e.span==='all eras'?'':' · '+e.span}`;
+  if (hoverMode==='T5' && e.hist) t += dim(`Today: ${TL[e.people].at(-1).name}`);
+  if ((hoverMode==='T3'||hoverMode==='T4'||hoverMode==='T5') && e.people==='DE' && year>=1933 && year<=1945) t += dim(`Born ${year}: shown in the people's own colours, never the regime's flag.`);
+  if ((hoverMode==='T4'||hoverMode==='T5') && e.region) t += dim(`A region's own symbol: before unification the region was the homeland.`);
+  return t;
+}
+function pct(x){ const v = x*100; return (Math.abs(v-Math.round(v))<1e-9 ? Math.round(v) : (Math.round(v*10)/10)) + '%'; }
+
+// svg markup, always drawn into a box of the symbol's own proportions, so it is never cropped.
+function symOf(key){ const S=SYM[key]; if (!S || !S.repo) throw new Error(`No verified repo art (SYMBOL_ART) for symbol ${key}: the sample data must not pick it`); return S; }
+function svgOf(key){ const S=symOf(key);
+  return `<img class="art" src="${S.src}" alt="" draggable="false">`; }
+function symSpan(key, h, extra=''){ const S=symOf(key); return `<span class="sym" style="height:${h}px;width:${(h*S.w/S.h).toFixed(1)}px" ${extra}>${svgOf(key)}</span>`; }
+function svgDataURL(key){ return symOf(key).src; }
+// The same, inside an <svg>: the real art as an <image>.
+function svgArt(key, x, y, w, h){ const S=symOf(key);
+  return `<image href="${S.src}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/>`; }
+
+/* ---------- heritage math (same rule as the app: half from each parent, entry fills unknown) ---------- */
+const mixMemo = {};
+function mix(id){
+  if (mixMemo[id]) return mixMemo[id];
+  const p = P[id]; const acc = new Map(); let unknown = 0;
+  const par = p.par || [];
+  if (par.length === 0) unknown = 1;
+  else for (const q of par) { const m = mix(q); m.known.forEach(k => acc.set(k.code,(acc.get(k.code)||0)+k.share/2)); unknown += m.unknown/2; }
+  if (p.entry) { const u = unknown; unknown = 0; for (const c of p.entry) acc.set(c,(acc.get(c)||0)+u/p.entry.length); }
+  const stable = [...acc.entries()].map(([code,share],i)=>({code,share,i})).sort((a,b)=>(b.share-a.share)||(a.i-b.i)).map(({code,share})=>({code,share}));
+  return (mixMemo[id] = {known: stable, unknown});
+}
+function originsOf(id, w=1, out=[]){
+  const p = P[id];
+  if (!p.par || p.par.length===0) { out.push({id, w, code: p.entry ? p.entry[0] : null}); return out; }
+  p.par.forEach(q => originsOf(q, w/2, out)); return out;
+}
+function groupsOf(id){
+  const g = new Map(); let unknown = 0; const unknownWho = [];
+  for (const o of originsOf(id)) {
+    if (!o.code) { unknown += o.w; unknownWho.push(o); continue; }
+    if (!g.has(o.code)) g.set(o.code, {code:o.code, share:0, origins:[]});
+    const e = g.get(o.code); e.share += o.w; e.origins.push(o);
+  }
+  return {groups:[...g.values()].sort((a,b)=>b.share-a.share), unknown, unknownWho};
+}
+function firstName(id){ return P[id].n.replace(/ ".*?"/,'').split(' ')[0]; }
+function nick(id){ const m = P[id].n.match(/"(.*?)"/); return m ? m[1] : firstName(id); }
+function unknownText(id, g){
+  if (g.unknown <= 0) return '';
+  const who = g.unknownWho.map(o => `${P[o.id].n}'s parents aren't in the tree yet`).join('; ');
+  return `${pct(g.unknown)} unknown: ${who}.`;
+}
+
+/* ---------- tooltip (hover on desktop, tap on touch) ---------- */
+const tip = document.getElementById('tip');
+function showTip(el, x, y){ tip.innerHTML = el.getAttribute('data-tip'); tip.style.display='block';
+  const r = tip.getBoundingClientRect(); let lx = x+14, ly = y+14;
+  if (lx + r.width > innerWidth - 8) lx = Math.max(8, x - r.width - 10);
+  if (ly + r.height > innerHeight - 8) ly = Math.max(8, y - r.height - 10);
+  tip.style.left = lx+'px'; tip.style.top = ly+'px'; }
+document.addEventListener('pointermove', e => { if (e.pointerType!=='mouse') return; const el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el, e.clientX, e.clientY); else tip.style.display='none'; });
+document.addEventListener('click', e => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) { showTip(el, e.clientX, e.clientY); } else if (!(e.pointerType==='mouse')) tip.style.display='none'; });
+document.addEventListener('scroll', () => { tip.style.display='none'; }, {passive:true, capture:true});
+const esc = s => String(s).replace(/"/g,'&quot;');
+
+/* =====================================================================
+   A: 2D card slices
+   ===================================================================== */
+const NODE_W = 250, NODE_H = 90, ROW_PITCH = 206, PAD_X = 64, PAD_Y = 84;
+const SLICES = {
+  mother:{rows:[[['salvatore',0]],[['joe',0],['letty',310],['pat',700],['mae',1010]],[['davidS',350],['nana',660]],[['sheilaH',505],['eric',815]],[['kyle',660]]], sampleEdges:[['salvatore','joe']]},
+  father:{rows:[[['don',0],['anne',310],['adam',700],['harriet',1010]],[['jim',350],['carol',660]],[['eric',505],['sheilaH',815]],[['kyle',660],['elliott',970]],[['davidH',815]]]},
+  elliott:{rows:[[['august',0],['esther',310]],[['elaine',155],['carl',465],['glenn',855],['jennie',1165]],[['sarah',460],['bob',770]],[['elliott',615],['kyle',925]],[['davidH',770]]]},
+};
+const CROSSINGS = [
+  {child:'davidS', text:'1913 & 1920 · Sicily → Detroit'},
+  {child:'nana', text:'1921–23 · Mayo & Glasgow → Detroit'},
+  {child:'carol', text:'1912–14 · Posen & Kolozsvár → Detroit'},
+  {child:'elaine', text:'1913–16 · Finland → Hancock, MI'},
+  {child:'sarah', text:'1954 · Bavaria → Detroit'},
+  {child:'bob', text:'1952–53 · Scotland & Sweden → Ontario'},
+];
+const SHIP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20c2 1 4 1 6 0s4-1 6 0 4 1 6 0"/><path d="M4 17l-1-5h18l-2 5"/><path d="M12 3v9M12 4l6 5h-6"/></svg>';
+
+function layoutSlice(key){
+  const s = SLICES[key]; const cards = [];
+  s.rows.forEach((row,r) => row.forEach(([id,x]) => cards.push({id, x:PAD_X+x, y:PAD_Y+r*ROW_PITCH, row:r})));
+  const byId = Object.fromEntries(cards.map(c=>[c.id,c]));
+  const W = Math.max(...cards.map(c=>c.x)) + NODE_W + PAD_X;
+  const H = PAD_Y + (s.rows.length-1)*ROW_PITCH + NODE_H + 80;
+  const edges = [];
+  for (const [a,b] of UNIONS) { const A=byId[a], B=byId[b]; if (A && B && A.row===B.row) { const [l,r] = A.x<B.x?[A,B]:[B,A]; edges.push({type:'union', d:`M${l.x+NODE_W} ${l.y+NODE_H/2}H${r.x}`, dl: DIRECT.has(a)&&DIRECT.has(b)}); } }
+  for (const c of cards) {
+    let pars = (P[c.id].par||[]).map(x=>byId[x]).filter(Boolean); let sample = false;
+    for (const [pa,ch] of (s.sampleEdges||[])) if (ch===c.id) { pars=[byId[pa]]; sample=true; }
+    if (!pars.length) continue;
+    let sx, sy;
+    if (pars.length===2) { const [l,r] = pars[0].x<pars[1].x?pars:[pars[1],pars[0]]; sx=(l.x+NODE_W+r.x)/2; sy=l.y+NODE_H/2; }
+    else { sx = pars[0].x+NODE_W/2; sy = pars[0].y+NODE_H; }
+    const ey = c.y-44, cx = c.x+NODE_W/2;
+    edges.push({type:'child', child:c.id, parents:pars.map(q=>q.id), sample, d:`M${sx} ${sy}V${ey}H${cx}V${c.y}`, mid:[(sx+cx)/2, ey], dl: DIRECT.has(c.id) && pars.every(q=>DIRECT.has(q.id))});
+  }
+  return {cards, byId, W, H, edges, s};
+}
+const flagDiag = share => Math.round(44*(0.7+0.6*share));
+function sizeFor(S, diag){ const k = diag/Math.hypot(S.w,S.h); return {w:S.w*k, h:S.h*k}; }
+
+function cornerHTML(c, v, opts){
+  const m = mix(c.id), y = P[c.id].y; let html = ''; const halfBottoms = [];
+  m.known.slice(0,4).forEach((k,rank) => {
+    const e = eraOf(k.code,y), S = SYM[e.key], hist = isHistoric(k.code,y);
+    const plate = S.arms && opts.arms==='plate';
+    const box = plate ? sizeFor({w:3,h:2}, flagDiag(k.share)) : sizeFor(S, flagDiag(k.share));
+    const right = rank%2===1, bottom = rank>=2;
+    const cx = c.x + (right?NODE_W:0), cy = c.y + (bottom?NODE_H:0);
+    if (bottom) halfBottoms.push(box.w/2);
+    const rim = v.antique && hist;
+    const cls = ['corner']; if (S.arms && !plate) cls.push('arms'); if (plate) cls.push('plate'); if (rim) cls.push('antique');
+    const art = svgOf(e.key);
+    const inner = plate ? `<span class="sym" style="height:86%;aspect-ratio:${S.w}/${S.h}">${art}</span>` : art;
+    html += `<div class="${cls.join(' ')}" data-tip="${esc(tipFor(k.code,y,k.share))}" style="left:${cx-box.w/2}px;top:${cy-box.h/2}px;width:${box.w}px;height:${box.h}px">${inner}</div>`;
+  });
+  return {html, inset: halfBottoms.length ? Math.max(...halfBottoms)+4 : 0};
+}
+function chipsHTML(c, v, inset, aside){
+  const m = mix(c.id), y = P[c.id].y; if (!m.known.length) return '';
+  const chips = m.known.map(k => { const e = eraOf(k.code,y), hist = isHistoric(k.code,y);
+    const now = v.thenNowChip && hist ? `<span class="arr">→</span>${symSpan(modernKey(k.code),8)}` : '';
+    return `<span class="chip ${v.antique&&hist?'ant':''}" data-tip="${esc(tipFor(k.code,y,k.share) + (now?`<br><span style="color:var(--t3)">→ today: ${TL[peopleOf(k.code)].at(-1).name}</span>`:''))}">${symSpan(e.key,8)}${now}${pct(k.share)}${v.chipEra&&hist?`<em>${e.short}</em>`:''}</span>`; }).join('')
+    + (m.unknown>0 ? `<span class="chip" data-tip="${esc('<b>Unknown '+pct(m.unknown)+'</b><br>Nobody has found where this part came from yet.')}"><span class="q">?</span>${pct(m.unknown)}</span>` : '');
+  // A line of descent leaving the card's bottom centre keeps the chips to its right, so it never crosses one.
+  const left = aside ? c.x + NODE_W/2 + 8 : c.x + inset, width = aside ? NODE_W/2 - 8 - inset : NODE_W - 2*inset;
+  return `<div class="chips" style="left:${left}px;top:${c.y+NODE_H+4}px;width:${width}px;${aside?'justify-content:flex-start':''}">${chips}</div>`;
+}
+// A8: whole flags in a row under the card, each sized by its share. `aside` keeps the row
+// off a line of descent that leaves the card's bottom centre.
+function flagRowHTML(c, aside){
+  const m = mix(c.id), y = P[c.id].y; if (!m.known.length) return '';
+  const hOf = sh => Math.round(9 + 20*sh);
+  const items = m.known.map(k => { const e = eraOf(k.code,y), S = SYM[e.key], h = hOf(k.share);
+    return `<span class="fl ${S.arms?'arms':''}" data-tip="${esc(tipFor(k.code,y,k.share))}" style="height:${h}px;width:${(h*S.w/S.h).toFixed(1)}px">${svgOf(e.key)}</span>`; }).join('')
+    + (m.unknown>0 ? (() => { const h = hOf(m.unknown); return `<span class="flq" data-tip="${esc('<b>Unknown '+pct(m.unknown)+'</b>')}" style="height:${h}px;width:${(h*1.5).toFixed(1)}px">?</span>`; })() : '');
+  const left = aside ? c.x + NODE_W/2 + 10 : c.x, width = aside ? NODE_W/2 - 10 : NODE_W;
+  return `<div class="frow" style="left:${left}px;top:${c.y+NODE_H+7}px;width:${width}px;justify-content:${aside?'flex-start':'center'}">${items}</div>`;
+}
+function bandsHTML(L){
+  let html = '';
+  L.s.rows.forEach((row, r) => {
+    const ids = row.map(([id])=>id); const ys = ids.map(id=>P[id].y);
+    const eras = new Set();
+    ids.forEach(id => mix(id).known.forEach(k => { if (isHistoric(k.code,P[id].y)) eras.add(eraOf(k.code,P[id].y).era); }));
+    const top = PAD_Y + r*ROW_PITCH - 46;
+    const yr = Math.min(...ys)===Math.max(...ys) ? `${ys[0]}` : `${Math.min(...ys)}–${Math.max(...ys)}`;
+    html += `<div class="band" style="top:${top}px;width:${L.W}px;height:${ROW_PITCH}px"><div class="bl"><b>born ${yr}</b>${eras.size?`<i>${[...eras].join(' · ')}</i>`:'<span style="color:var(--t3)">today\'s symbols</span>'}</div></div>`;
+  });
+  return html;
+}
+function renderSlice(host, sliceKey, v, opts){
+  const L = layoutSlice(sliceKey);
+  let deco = '', cards = '';
+  if (v.bands) deco += bandsHTML(L);
+  const lens = v.lens ? opts.lens : null;
+  for (const c of L.cards) {
+    const p = P[c.id]; const cls = ['card'];
+    if (c.id===ROOT) cls.push('root'); else if (DIRECT.has(c.id)) cls.push('line');
+    if (p.sample) cls.push('sample');
+    let style = `left:${c.x}px;top:${c.y}px`;
+    if (lens) { if (!mix(c.id).known.some(k=>k.code===lens)) cls.push('dim'); if (p.entry && p.entry.includes(lens)) { cls.push('ring'); style += `;--ring:${PEOPLES[lens].c}`; } }
+    cards += `<div class="${cls.join(' ')}" style="${style}"><span class="nm">${p.n}</span><span class="yr">${p.y}</span><span class="sub">${p.rel}</span></div>`;
+    if (lens && !mix(c.id).known.some(k=>k.code===lens)) continue;
+    const aside = L.edges.some(e => e.type==='child' && e.parents.length===1 && e.parents[0]===c.id);
+    if (v.corners) { const cr = cornerHTML(c, v, opts); deco += cr.html; if (v.chips) deco += chipsHTML(c, v, cr.inset, aside); }
+    if (v.flagRow) deco += flagRowHTML(c, aside);
+  }
+  const paths = L.edges.map(e => {
+    let cls = e.type==='union' ? 'union' : ''; if (e.dl) cls += ' dl'; if (e.sample) cls += ' samp';
+    let style = '';
+    if (lens && e.type==='child' && mix(e.child).known.some(k=>k.code===lens) && e.parents.some(q=>mix(q).known.some(k=>k.code===lens))) style = `style="stroke:${PEOPLES[lens].c};stroke-width:4"`;
+    else if (lens && e.type==='child') style = 'style="opacity:.25"';
+    return `<path class="${cls}" d="${e.d}" ${style}/>`;
+  }).join('');
+  let stamps = '';
+  if (v.stamps) for (const cr of CROSSINGS) { const e = L.edges.find(e=>e.child===cr.child); if (e) stamps += `<div class="stamp" style="left:${e.mid[0]}px;top:${e.mid[1]}px">${SHIP}${cr.text}</div>`; }
+  const avail = host.clientWidth || 360;
+  let s = opts.zoom==='fit' ? avail/L.W : 1;
+  host.innerHTML = `<div class="sizer" style="width:${L.W*s}px;height:${L.H*s}px"><div class="scene" style="width:${L.W}px;height:${L.H}px;transform:scale(${s})"><svg class="edges" width="${L.W}" height="${L.H}">${paths}</svg>${cards}${deco}${stamps}</div></div>`;
+  if (opts.zoom!=='fit' && s*L.W > avail+2) {
+    // start scrolled to the view root's column, where the story ends
+    const k = L.byId[ROOT]; if (k) host.scrollLeft = Math.max(0, (k.x+NODE_W/2)*s - avail/2);
+  }
+}
+
+const DROPPED = '<b>Dropped under the whole-symbol rule.</b> ';
+const A_VARIANTS = [
+  {id:'A1', t:'Quiet swap', pitch:"Today's cards exactly. Only the art follows the birth year, and the era is named on hover or tap.", v:{corners:true,chips:true},
+   note:"<b>Region after its era:</b> Salvatore (<code>italian/sicily</code>, born 1866) shows the Kingdom of Italy's flag like Joe: after 1861 a Sicilian share shows its people's symbol. The zero-change baseline: easy to build, but a newcomer won't know the symbols changed."},
+  {id:'A2', t:'Era word on the chips', pitch:'Chips of a historical symbol carry a tiny gold era word beside the symbol ("Kingdom", "Grand Duchy", "harp"). Today\'s symbols stay plain.', v:{corners:true,chips:true,chipEra:true},
+   note:"Adds about 30px to a historical chip. It reads the era without hovering, and the gold word only appears where history changed."},
+  {id:'A3', t:'Generation date bands', pitch:'Faint bands behind each generation row give the birth years and name the eras in play. The cards themselves are untouched.', v:{corners:true,chips:true,bands:true},
+   note:"Works on this slice because the rows line up. In the real tree a row mixes generations born decades apart, so the band would have to follow the view root's direct line. <b>Weakest fit for the full tree.</b>"},
+  {id:'A4', t:'Gold rim', pitch:"Historical symbols get a gold rim around them, and their chips a gold border. Today's flags stay plain. You can tell then from now at a glance, with no text.", v:{corners:true,chips:true,antique:true},
+   note:"The cheapest way to show history everywhere, and it works at any zoom. It says <i>old</i>, not <i>which</i> era: hover still carries the name. (The sepia tint is gone under the rule.)"},
+  {id:'A5', t:'Then and now', dropped:true, note:DROPPED+"It tucked today's flag behind each historical one, partly hidden. The same goal, showing where a symbol went, is kept by <b>A9</b> with both symbols whole and side by side."},
+  {id:'A6', t:'Folder tabs', dropped:true, note:DROPPED+"Its tabs were cut from the symbols to fit each share's width. The same goal, a single row that replaces corners and chips and reads the shares, is kept by <b>A8</b>."},
+  {id:'A7', t:'Quartered crest', dropped:true, note:DROPPED+"It sliced one shield into bands by share. Combining several symbols into one emblem can't be done without cutting them; <b>A8</b> is the nearest whole-symbol form."},
+  {id:'A8', t:'Flag row, sized by share', pitch:"A new form that follows the rule: under the card, one row of whole symbols, each as tall as its share (unknown as a hatched ?). It replaces both the corner flags and the chips, and the exact percentages move to hover.", v:{flagRow:true},
+   note:"Size carries the share, and nothing is cut or covered. It is calmer than the corners, which is a gain and a loss. On a card with 10 peoples the small flags are about 10px tall."},
+  {id:'A9', t:'Then → now chips', pitch:"The chip of a historical share shows the era symbol, an arrow and today's symbol, both whole and side by side: harp → tricolour. The corners keep the era symbol only.", v:{corners:true,chips:true,thenNowChip:true},
+   note:"Does A5's job, where each symbol went, without hiding anything. Only historical shares grow, so modern cards are unchanged."},
+];
+const aState = {slice:'mother', arms:'own', zoom:'read'};
+function renderA(){
+  const host = document.getElementById('Avariants');
+  if (!host.childElementCount) host.innerHTML = A_VARIANTS.map(a => a.dropped
+    ? `<article class="v dropped" id="${a.id}"><header><span class="tag tX">${a.id}</span><div><h3>${a.t} <span class="pill drop">dropped</span></h3></div></header><p class="note">${a.note}</p></article>`
+    : `<article class="v" id="${a.id}"><header><span class="tag tA">${a.id}</span><div><h3>${a.t}${a.id>'A7'?' <span class="pill extra">new</span>':''}</h3><p class="pitch">${a.pitch}</p></div></header><div class="canvas" data-av="${a.id}"></div><p class="hint">Drag or scroll sideways inside the frame to see the whole slice.</p><p class="note">${a.note}</p></article>`).join('');
+  A_VARIANTS.filter(a => !a.dropped).forEach(a => renderSlice(host.querySelector(`[data-av="${a.id}"]`), aState.slice, a.v, aState));
+}
+function wireSeg(attr, state, key, after){
+  document.querySelectorAll(`[data-${attr}]`).forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll(`[data-${attr}]`).forEach(x => x.setAttribute('aria-pressed', x===b ? 'true':'false'));
+    state[key] = b.dataset[attr]; after();
+  }));
+}
+wireSeg('slice', aState, 'slice', renderA);
+wireSeg('arms', aState, 'arms', renderA);
+wireSeg('zoom', aState, 'zoom', renderA);
+
+/* =====================================================================
+   B: person panel + origins map
+   ===================================================================== */
+let WORLD = null;
+const MAPS = new Map(); let mapSeq = 0;
+function mapSlot(cfg, h){ const id = 'map'+(mapSeq++); MAPS.set(id, cfg); return `<div class="map" id="${id}" style="${h?`height:${h}px`:''}"></div>`; }
+/* ---------- journeys: every generation's birthplace, in order (SAMPLE places) ---------- */
+const PL = {MI:{n:'Michigan', ll:[-84.6,43.3]}, UP:{n:"Michigan's Upper Peninsula", ll:[-87.4,46.4]}, OH:{n:'Ohio', ll:[-82.8,40.3]},
+  ON:{n:'Ontario', ll:[-80.6,44.3]}, OR:{n:'Oregon', ll:[-120.6,44.0]}};
+// Birthplace of each tree person; region level for anyone who may be living.
+const BORN = {kyle:PL.MI, megan:PL.MI, elliott:PL.MI, davidH:PL.OR, sheilaH:PL.MI, eric:PL.OH, davidS:PL.MI, richard:PL.MI, nana:PL.MI, mimi:PL.MI, terry:PL.MI,
+  jim:PL.MI, carol:PL.MI, gary:PL.MI, holly:PL.MI, sarah:PL.MI, bob:PL.ON, emily:PL.MI, daniel:PL.MI, elaine:PL.UP, kathy:PL.MI,
+  don:{n:'Columbus, Ohio', ll:[-83.0,39.96]}, anne:{n:'Ohio', ll:[-82.6,40.6]}};
+Object.keys(ORIGIN).forEach(id => { if (!BORN[id]) BORN[id] = {n:ORIGIN[id].short, ll:ORIGIN[id].ll}; });
+// Invented ancestors above each origin person, so lines reach further back and some move several times.
+const PRE = {
+  joe:[{who:'Salvatore Santoro', y:1866, n:"Capo d'Orlando, Sicily", ll:[14.77,38.15]}],
+  letty:[{who:"Letty's mother", y:1874, n:'Tortorici, Sicily', ll:[14.82,38.03]}],
+  pat:[{who:"Pat's father", y:1866, n:'Clifden, Co. Galway', ll:[-10.02,53.49]}],
+  mae:[{who:"Mae's grandfather", y:1838, n:'Ayrshire, Scotland', ll:[-4.6,55.45]}, {who:"Mae's father", y:1871, n:'Belfast', ll:[-5.93,54.6]}],
+  don:[{who:'Thomas Hutchinson', y:1716, n:'Yorkshire, England', ll:[-1.3,54.0]}, {who:'John Hutchinson', y:1748, n:'Augusta County, Virginia', ll:[-79.1,38.1]},
+       {who:'William Hutchinson', y:1791, n:'Greenbrier County, Virginia', ll:[-80.45,37.8]}, {who:'James Hutchinson', y:1824, n:'Ross County, Ohio', ll:[-83.0,39.33]},
+       {who:'Samuel Hutchinson', y:1866, n:'Columbus, Ohio', ll:[-83.0,39.96]}],
+  adam:[{who:"Adam's father", y:1872, n:'Gniezno, Greater Poland', ll:[17.6,52.54]}],
+  harriet:[{who:"Harriet's grandfather", y:1842, n:'Árva County (Orava, Slovakia today)', ll:[19.4,49.3]}, {who:"Harriet's father", y:1874, n:'Pest (Budapest)', ll:[19.04,47.5]}],
+  august:[{who:"August's father", y:1868, n:'Lapua, Ostrobothnia', ll:[23.0,62.97]}],
+  carl:[{who:"Carl's father", y:1902, n:'Silesia (Poland today)', ll:[17.0,51.1]}],
+  jennie:[{who:"Jennie's father", y:1899, n:'Karlstad', ll:[13.5,59.38]}],
+};
+function chainDown(from, to){ const up = x => { if (x===from) return [x]; for (const q of (P[x].par||[])) { const r = up(q); if (r) return [...r, x]; } return null; }; return up(to); }
+const jMemo = {};
+function journeysOf(id){
+  if (jMemo[id]) return jMemo[id];
+  return (jMemo[id] = originsOf(id).map(o => {
+    const raw = [...(PRE[o.id]||[]).map(s => ({...s, sample:true})), ...chainDown(o.id, id).map(c => ({who:P[c].n, y:P[c].y, n:BORN[c].n, ll:BORN[c].ll}))];
+    const stops = []; for (const s of raw) { const last = stops.at(-1); if (last && last.n===s.n) { last.ys.push(s.y); last.whos.push(s.who); } else stops.push({n:s.n, ll:s.ll, ys:[s.y], whos:[s.who], sample:!!s.sample}); }
+    const surname = P[o.id].n.split(' ').at(-1);
+    return {origin:o.id, code:o.code, w:o.w, stops, name:`${nick(o.id)} ${surname}`, color:o.code ? PEOPLES[o.code].c : '#9a9a9a'};
+  }));
+}
+const yrs = s => s.ys.length > 1 ? `${s.ys[0]}–${s.ys.at(-1)}` : `${s.ys[0]}`;
+const stopTip = (j, s) => `<b>${s.n}</b> <span style="color:var(--t3)">(sample place)</span><br>${s.whos.map((w,i)=>`${w}, born ${s.ys[i]}`).join('<br>')}<br><span style="color:var(--t3)">${j.name} line${j.code?' · '+PEOPLES[j.code].name:' · heritage unknown'}</span>`;
+const journeyText = j => j.stops.map(s => `${s.n} ${yrs(s)}`).join(' → ');
+
+/* ---------- the globe (d3 orthographic; drag to turn) ---------- */
+function globeCentre(J){ const pts = J.flatMap(j => j.stops.map(s => s.ll)); const c = d3.geoCentroid({type:'MultiPoint', coordinates:pts}); return [-c[0], -Math.max(-60, Math.min(60, c[1]))]; }
+function drawMap(el){
+  const cfg = MAPS.get(el.id); if (!cfg) return;
+  const w = el.clientWidth; if (!w) return;
+  if (!WORLD) { el.innerHTML = `<div class="map-wait">${window.WORLD_FAILED?'The globe needs an internet connection (world-atlas from jsdelivr).':'Loading globe…'}</div>`; return; }
+  const J = cfg.journeys || (cfg.journeys = journeysOf(cfg.person));
+  const size = Math.min(w, cfg.h || 280);
+  const flagMode = cfg.style==='flags';
+  let fl = [], bandH = 0;
+  if (flagMode) {
+    fl = J.filter(j => j.code).map(j => { const e = eraOf(j.code, P[j.origin].y), S = SYM[e.key]; const fh = 9 + 16*Math.sqrt(j.w); return {j, key:e.key, fh, fw:fh*S.w/S.h}; });
+    const total = fl.reduce((t,f) => t+f.fw+5, 0) + 4; if (total > w-8) { const k = (w-8)/total; fl.forEach(f => { f.fh *= k; f.fw *= k; }); }
+    bandH = Math.max(...fl.map(f => f.fh)) + 12;
+  }
+  const H = size + bandH; el.style.height = H+'px';
+  const r = size/2 - 6, cx = w/2, cy = size/2;
+  if (!cfg.rot) cfg.rot = globeCentre(J);
+  const proj = d3.geoOrthographic().scale(r).translate([cx, cy]).rotate(cfg.rot).clipAngle(90).precision(0.4);
+  const path = d3.geoPath(proj);
+  const centre = [-cfg.rot[0], -cfg.rot[1]];
+  const visible = ll => d3.geoDistance(ll, centre) < Math.PI/2 - 0.02;
+  const dim = j => cfg.focus && (cfg.focus==='?' ? j.code!==null : j.code!==cfg.focus) || (cfg.only && cfg.only!==j.origin);
+  const cut = s => cfg.year==null || s.ys[0] <= cfg.year;
+  let out = `<svg width="${w}" height="${H}" viewBox="0 0 ${w} ${H}">`;
+  out += `<path d="${path({type:'Sphere'})}" fill="#0e1620" stroke="#2c3440"/>`;
+  out += `<path d="${path(d3.geoGraticule10())}" fill="none" stroke="#17202b" stroke-width=".5"/>`;
+  out += `<path class="land" d="${path(WORLD.countries)}"/><path class="bord" d="${path(WORLD.borders)}"/>`;
+  // journeys: one path per line through every generation's birthplace
+  J.forEach(j => { const pts = j.stops.filter(cut).map(s => s.ll); if (pts.length < 2) return;
+    out += `<path d="${path({type:'LineString', coordinates:pts})}" fill="none" stroke="${j.color}" stroke-width="${cfg.only===j.origin?2.6:1.7}" stroke-linejoin="round" stroke-linecap="round" opacity="${dim(j)?.12:.9}"/>`; });
+  // dated stops
+  const placed = [];
+  J.forEach(j => j.stops.filter(cut).forEach((s, i) => { if (!visible(s.ll)) return; const [x,y] = proj(s.ll);
+    const isOrigin = s.whos.includes(P[j.origin].n);
+    const rad = isOrigin && cfg.style==='dots' ? 3 + 7*Math.sqrt(j.w) : 2.6;
+    out += `<circle cx="${x}" cy="${y}" r="${rad}" fill="${j.color}" stroke="#0a0a0a" stroke-width="1" opacity="${dim(j)?.2:1}" data-tip="${esc(stopTip(j, s))}" style="cursor:help"/>`;
+    if (cfg.labels && !dim(j)) { const t = yrs(s), tw = t.length*5.4 + 4, box = {l:x+5, t:y-6, r:x+5+tw, b:y+6};
+      if (!placed.some(p => box.l<p.r && p.l<box.r && box.t<p.b && p.t<box.b)) { placed.push(box); out += `<text x="${x+6}" y="${y+3}" font-size="9" font-family="ui-monospace,monospace" fill="#e5e5e5" stroke="#0a0a0a" stroke-width="2.5" paint-order="stroke">${t}</text>`; } }
+  }));
+  if (cfg.style==='pins') { const done = new Set();
+    J.forEach(j => { if (!j.code || done.has(j.code)) return; const s = j.stops.find(st => st.whos.includes(P[j.origin].n)); if (!s || !visible(s.ll)) return; done.add(j.code);
+      const [x,y] = proj(s.ll); out += `<g opacity="${dim(j)?.2:1}"><circle cx="${x}" cy="${y}" r="7.5" fill="${j.color}" stroke="#0a0a0a" stroke-width="1.5"/><text x="${x}" y="${y+3.6}" text-anchor="middle" font-size="10" font-weight="800" font-family="system-ui" fill="#0a0a0a">${cfg.num[j.code]}</text></g>`; }); }
+  if (flagMode) {
+    // whole symbols in a row under the globe, spread so none touch; leaders end above the row
+    fl.forEach(f => { const s = f.j.stops.find(st => st.whos.includes(P[f.j.origin].n)); f.ll = s.ll; const p = proj(s.ll); f.px = p ? p[0] : cx; f.vis = visible(s.ll); f.py = p ? p[1] : cy; });
+    fl.sort((a,b) => a.px - b.px);
+    let cur = 4; fl.forEach(f => { f.x = Math.max(f.px - f.fw/2, cur); cur = f.x + f.fw + 5; });
+    let lim = w - 4; for (let i = fl.length-1; i >= 0; i--) { const f = fl[i]; if (f.x + f.fw > lim) f.x = lim - f.fw; lim = f.x - 5; }
+    const top = size + 6;
+    fl.forEach(f => { if (f.vis) out += `<line x1="${f.px}" y1="${f.py}" x2="${f.x+f.fw/2}" y2="${top-2}" stroke="${f.j.color}" stroke-width="1" opacity=".7"/>`; });
+    fl.forEach(f => { out += `<g data-tip="${esc(tipFor(f.j.code, P[f.j.origin].y, f.j.w) + `<br><span style="color:var(--t3)">${P[f.j.origin].n}</span>`)}" style="cursor:help">${svgArt(f.key, f.x, top, f.fw, f.fh)}</g>`; });
+  }
+  out += `</svg>`;
+  el.innerHTML = out + `<span class="ghint">drag to turn</span>`;
+  const G = groupsOf(cfg.person);
+  if (G.unknown > 0 && !cfg.noBadge) el.insertAdjacentHTML('beforeend', `<div class="unkbadge" style="top:6px;bottom:auto"><span class="hatch"></span>${pct(G.unknown)} unknown heritage (grey line)</div>`);
+  if (!el.dataset.drag) { el.dataset.drag = '1';
+    let start = null, raf = 0;
+    el.addEventListener('pointerdown', e => { if (e.target.closest('[data-tip]') && e.pointerType==='mouse') return; start = {x:e.clientX, y:e.clientY, rot:[...MAPS.get(el.id).rot]}; el.setPointerCapture(e.pointerId); });
+    el.addEventListener('pointermove', e => { if (!start) return; const c = MAPS.get(el.id); const k = 70 / (Math.min(el.clientWidth, c.h||280)/2);
+      c.rot = [start.rot[0] + (e.clientX-start.x)*k, Math.max(-80, Math.min(80, start.rot[1] - (e.clientY-start.y)*k))];
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; drawMap(el); }); });
+    const end = () => { start = null; }; el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  }
+}
+// Turn a globe so `ll` faces the viewer, animated frame by frame.
+function spinTo(el, ll, ms = 700){ const c = MAPS.get(el.id); if (!c.rot) c.rot = globeCentre(c.journeys || journeysOf(c.person)); const from = [...c.rot], to = [-ll[0], -Math.max(-70, Math.min(70, ll[1]))];
+  if (to[0] - from[0] > 180) to[0] -= 360; if (from[0] - to[0] > 180) to[0] += 360;
+  const t0 = performance.now(); const step = now => { const t = Math.min(1, (now-t0)/ms), e = t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+    c.rot = [from[0]+(to[0]-from[0])*e, from[1]+(to[1]-from[1])*e]; drawMap(el); if (t < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
+function drawAllMaps(){ MAPS.forEach((_, id) => { const el = document.getElementById(id); if (el) drawMap(el); }); }
+let rT; addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(() => { drawAllMaps(); renderA(); renderC(); renderE2(); }, 150); });
+
+function evidenceHTML(id){
+  const O = ORIGIN[id]; if (!O) return '';
+  let h = `<div><dt>Birthplace</dt><dd>${O.rec}${O.today!==O.rec?`<span class="today">Today: ${O.today}</span>`:''}</dd></div>`;
+  h += `<div><dt>Emigrated</dt><dd>${O.left}</dd></div>`;
+  if (O.tongue) h += `<div><dt>Mother tongue</dt><dd>${O.tongue}</dd></div>`;
+  if (O.rp) h += `<div><dt>Recorded as</dt><dd>${O.rp}</dd></div>`;
+  return h;
+}
+function panel(id, heritageHTML){
+  const p = P[id];
+  return `<div class="pp"><div class="pp-h"><div><div class="pp-name">${p.n}</div>${p.nee?`<div class="pp-nee">née ${p.nee}</div>`:''}</div><button class="x" aria-label="Close">×</button></div>
+  <dl><div><dt>${id===ROOT?'Relation':'Relation to Kyle'}</dt><dd>${id===ROOT?'<span style="color:var(--b)">Viewing relations from here</span>':p.rel.replace(/^./,c=>c.toUpperCase())}</dd></div>
+  <div><dt>Born</dt><dd>${p.y}</dd></div>${evidenceHTML(id)}
+  <div class="hs">${heritageHTML}</div>
+  <div><dt>Notes</dt><dd class="muted">None</dd></div>
+  <div><dt>Research</dt><dd style="font-size:13px;color:var(--t2)">Partners &amp; children: Confirmed · Birth year: Confirmed</dd></div></dl>
+  ${id===ROOT?'':'<button class="btn2">View relations from here</button>'}</div>`;
+}
+const hsHead = (extra='') => `<div class="hs-h"><dt style="margin:0">Heritage</dt><span class="pill sample">sample</span>${extra}</div>`;
+function namesOf(g){ return g.origins.map(o=>nick(o.id)+' '+P[o.id].n.split(' ').at(-1)).join(' & ').replace(/(\w+) Santoro & (\w+) Santoro/,'$1 & $2 Santoro').replace(/(\w+) Liikanen & (\w+) Liikanen/,'$1 & $2 Liikanen'); }
+function leftSyms(g){ return [...new Set(g.origins.map(o=>eraOf(g.code,P[o.id].y).key))].map(k=>`<span class="inl">${symSpan(k,10)}</span>`).join(''); }
+function line1(g){
+  const places = [...new Set(g.origins.map(o=>ORIGIN[o.id].short))].join(' & ');
+  const to = [...new Set(g.origins.map(o=>ORIGIN[o.id].to))].join(' & ');
+  const yrs = [...new Set(g.origins.map(o=>ORIGIN[o.id].left))].join(', ');
+  return `${namesOf(g)} · ${places} → ${to}, ${yrs}. Born under ${leftSyms(g)}`;
+}
+const journeyOf = g => [...new Set(g.origins.map(o=>ORIGIN[o.id].jt))].join('; ');
+const storyOf = g => ORIGIN[g.origins[0].id].story;
+function mapCfg(id, extra={}){ const G = groupsOf(id); return {person:id, origins:G.groups.flatMap(g=>g.origins.map(o=>({...o, code:g.code}))), unknown:G.unknown, ...extra}; }
+
+const B_VARIANTS = [
+  {id:'B1', t:'Map on top, a short story per people', pitch:'The globe heads the section; under it, one row per people: share, who and where, one line of that era, and the journey.',
+   render(id){ const G = groupsOf(id), y = P[id].y;
+     return hsHead() + mapSlot(mapCfg(id,{style:'dots'})) + `<div style="margin-top:6px">` + G.groups.map(g => `<div class="hrow"><span class="dot" style="background:${PEOPLES[g.code].c}"></span><span class="who">${symSpan(eraOf(g.code,y).key,12)} ${PEOPLES[g.code].name}</span><span class="pct">${pct(g.share)}</span><div class="l1">${line1(g)}</div><div class="l2">${storyOf(g)}</div><div class="jr">${journeyOf(g)}</div></div>`).join('')
+       + (G.unknown>0?`<div class="hrow"><span class="hatch"></span><span class="who">Unknown</span><span class="pct">${pct(G.unknown)}</span><div class="l2">${unknownText(id,G).replace(/^[\d.]+% unknown: /,'')}</div></div>`:'') + `</div>`; },
+   note:'<b>The most complete readout</b>, and the longest: at 7 peoples it scrolls on a phone. It is the natural home for the curated era paragraphs.'},
+  {id:'B2', t:'Numbered pins and a collapsed list', pitch:'Globe pins are numbered at each people\'s origin; the list below is one line per people and opens to show the story and the journey. The panel stays short.',
+   render(id){ const G = groupsOf(id), y = P[id].y; const num = {}; G.groups.forEach((g,i)=>num[g.code]=i+1);
+     return hsHead() + mapSlot(mapCfg(id,{style:'pins', num})) + `<div class="acc" style="margin-top:4px">` + G.groups.map((g,i) => `<details ${i===0?'open':''}><summary><span class="n" style="background:${PEOPLES[g.code].c}">${i+1}</span>${symSpan(eraOf(g.code,y).key,12)}<span class="nm2">${PEOPLES[g.code].name} <span style="font:700 12px ui-monospace,monospace;color:var(--t2);margin-left:4px">${pct(g.share)}</span></span><span class="chev">›</span></summary><div class="body"><p style="color:var(--t1)">${line1(g)}</p><p>${storyOf(g)}</p><p class="jr">${journeyOf(g)}</p></div></details>`).join('')
+       + (G.unknown>0?`<details><summary><span class="n" style="background:repeating-linear-gradient(45deg,#666 0 2px,#333 2px 4px)"></span><span class="nm2">Unknown <span style="font:700 12px ui-monospace,monospace;color:var(--t2);margin-left:4px">${pct(G.unknown)}</span></span><span class="chev">›</span></summary><div class="body"><p>${unknownText(id,G)}</p></div></details>`:'') + `</div>`; },
+   note:'<b>Shortest</b>, and the one that best keeps "the panel stays a short readout". The pins tie the list to the map without colour-matching.'},
+  {id:'B3', t:'The share bar steers the map', pitch:'One bar split by share in plain people colours, with unknown hatched, and under it a row of keys, each with its whole symbol. Tap a segment or a key and the globe lights that people\'s journeys while the text below tells its story.',
+   render(id){ const G = groupsOf(id), y = P[id].y; const first = G.groups[0].code;
+     const bar = `<div class="sbar">` + G.groups.map(g => `<button aria-pressed="${g.code===first}" data-code="${g.code}" style="flex:${g.share};background:${PEOPLES[g.code].c}" title="${PEOPLES[g.code].name}">${g.share>=0.2?`<span class="pc">${pct(g.share)}</span>`:''}</button>`).join('')
+       + (G.unknown>0?`<button class="unk" aria-pressed="false" data-code="?" style="flex:${G.unknown}" title="Unknown"></button>`:'') + `</div>`;
+     const keys = `<div class="skeys">` + G.groups.map(g => `<button class="skey" aria-pressed="${g.code===first}" data-code="${g.code}"><span class="sw" style="background:${PEOPLES[g.code].c}"></span>${symSpan(eraOf(g.code,y).key,11)}${PEOPLES[g.code].name} <b>${pct(g.share)}</b></button>`).join('')
+       + (G.unknown>0?`<button class="skey" aria-pressed="false" data-code="?"><span class="hatch"></span>Unknown <b>${pct(G.unknown)}</b></button>`:'') + `</div>`;
+     return hsHead() + bar + keys + mapSlot(mapCfg(id,{style:'dots', focus:first})) + `<div class="focus" data-focus data-person="${id}">${focusText(id, first)}</div>`; },
+   after(root){ root.querySelectorAll('[data-focus]').forEach(ft => { const pp = ft.closest('.hs'); const mapEl = pp.querySelector('.map'); const btns = pp.querySelectorAll('button[data-code]');
+     btns.forEach(b => b.addEventListener('click', () => { const code = b.dataset.code; btns.forEach(x=>x.setAttribute('aria-pressed', x.dataset.code===code)); MAPS.get(mapEl.id).focus = code; drawMap(mapEl); ft.innerHTML = focusText(ft.dataset.person, code); })); }); },
+   note:'<b>Interactive, and compact at any number of peoples</b>, because only one story shows at a time. The keys carry the symbols whole, and they are the easy tap targets on a phone; the bar only shows proportion.'},
+  {id:'B4', t:'Journeys as routes', pitch:'Text-led: each line is a route of stops with durations, starting from the symbol of the era they left under. The globe shrinks to a small one above.',
+   render(id){ const G = groupsOf(id), y = P[id].y;
+     return hsHead() + mapSlot(mapCfg(id,{style:'dots', h:170})) + G.groups.map(g => `<div class="route"><div class="rh"><span class="dot" style="width:10px;height:10px;border-radius:50%;background:${PEOPLES[g.code].c}"></span>${PEOPLES[g.code].name}<span class="pct">${pct(g.share)}</span></div>`
+       + g.origins.map(o => { const O = ORIGIN[o.id]; const e = eraOf(g.code, P[o.id].y);
+          return `<div class="stops" style="margin-bottom:4px">` + O.stops.map((s,i) => `<span class="stop">${i===0?symSpan(e.key,10,`data-tip="${esc(tipFor(g.code,P[o.id].y))}"`):''}${s[0]} <small>${s[1]}</small></span>`).join('<span class="arrow">→</span>') + `</div><div class="who2">${P[o.id].n}, left ${O.left}${O.rec!==O.today?` · recorded as “${O.rec}”`:''}</div>`; }).join('')
+       + `</div>`).join('') + (G.unknown>0?`<div class="route"><div class="rh"><span class="hatch"></span>Unknown<span class="pct">${pct(G.unknown)}</span></div><div class="who2">${unknownText(id,G).replace(/^[\d.]+% unknown: /,'')}</div></div>`:''); },
+   note:'Makes "Germany until about the 1750s, Pennsylvania for about 150 years, then Ohio" the main event: see the English line. <b>Best for long journeys</b>; one-hop immigrant lines look thin.'},
+  {id:'B5', t:'Symbols under the globe', pitch:'Combines both favourites: the symbol each origin ancestor was born under, whole and sized by share, stands in a row under the globe, spread so none touch, with a thin leader up to the birthplace. The journeys stay on the globe, so nothing crosses a symbol.',
+   render(id){ const G = groupsOf(id), y = P[id].y;
+     return hsHead() + mapSlot(mapCfg(id,{style:'flags'})) + `<div style="margin-top:6px">` + G.groups.map(g => `<div class="hrow"><span class="dot" style="background:${PEOPLES[g.code].c}"></span><span class="who">${PEOPLES[g.code].name}</span><span class="pct">${pct(g.share)}</span><div class="jr">${journeyOf(g)}</div></div>`).join('')
+       + (G.unknown>0?`<div class="hrow"><span class="hatch"></span><span class="who">Unknown</span><span class="pct">${pct(G.unknown)}</span></div>`:'') + `</div>`; },
+   note:'The Kingdom of Italy’s Savoy tricolour for Sicily and the green harp for Mayo say "which world they left" without a word. The symbols can\'t sit on the points themselves without overlapping each other (Sicily, the two Finns) or the journeys, so <b>they stand under the globe on leaders</b>; a leader disappears while its point is on the far side. With 11 origins (David) they get small.'},
+];
+function focusText(id, code){
+  const G = groupsOf(id);
+  if (code==='?') return `<b>Unknown ${pct(G.unknown)}.</b> ${unknownText(id,G).replace(/^[\d.]+% unknown: /,'')}`;
+  const g = G.groups.find(x=>x.code===code); if (!g) return '';
+  return `<b>${PEOPLES[code].name} ${pct(g.share)}</b> · ${line1(g)}<br>${storyOf(g)}<br><span class="jr">${journeyOf(g)}</span>`;
+}
+const bState = {person:'kyle'};
+function ghostCards(){ return `<div class="ghostcards">${[[40,110,'l'],[200,110,''],[120,230,'l'],[40,350,'r'],[210,350,''],[380,230,''],[520,110,''],[480,350,'']].map(([x,y,c])=>`<i class="${c}" style="left:${x}px;top:${y}px"></i>`).join('')}</div>`; }
+function renderB(){
+  [...MAPS.keys()].forEach(k => { const el = document.getElementById(k); if (!el || el.closest('#Bvariants')) MAPS.delete(k); });
+  const host = document.getElementById('Bvariants');
+  host.innerHTML = B_VARIANTS.map(b => `<article class="v" id="${b.id}"><header><span class="tag tB">${b.id}</span><div><h3>${b.t}</h3><p class="pitch">${b.pitch}</p></div></header>
+    <div class="frames"><div class="frame"><p class="flab">Wide screen · panel 360px, top right</p><div class="desk">${ghostCards()}<div class="tb"><span class="logo">Family Tree</span><span class="sp"></span><span class="bt">2D</span><span class="bt">3D</span></div><div class="pwrap">${panel(bState.person, b.render(bState.person))}</div></div></div>
+    <div class="frame ph"><p class="flab">Phone · 360px screen</p><div class="phone">${ghostCards()}<div class="tb"><span class="logo">Tree</span><span class="sp"></span><span class="bt">⌕</span></div><div class="pwrap">${panel(bState.person, b.render(bState.person))}</div></div></div></div>
+    <p class="note">${b.note}</p></article>`).join('');
+  B_VARIANTS.forEach(b => b.after && b.after(host.querySelector('#'+b.id)));
+  drawAllMaps();
+}
+wireSeg('person', bState, 'person', renderB);
+
+/* =====================================================================
+   C: extras
+   ===================================================================== */
+const cState = {tl:'kyle', lens:'FI', lensSlice:'elliott', stampSlice:'mother'};
+function chainFor(id, code){
+  const out = []; (function walk(x){ if (mix(x).known.some(k=>k.code===code)) out.push(x); (P[x].par||[]).forEach(walk); })(id);
+  if (code==='IT' && out.includes('joe')) out.push('salvatore');
+  return out;
+}
+function timelineHTML(id, width){
+  const Y0 = 1840, Y1 = 2030; const G = groupsOf(id);
+  const left = 4, right = width-4; const X = yr => left + (yr-Y0)/(Y1-Y0)*(right-left);
+  return G.groups.map(g => {
+    const chain = chainFor(id, g.code).sort((a,b)=>P[a].y-P[b].y);
+    const regionCode = chain.map(c => (P[c].entry||[])[0]).find(x => x && x.includes('/'));
+    const segs = TL[peopleOf(g.code)].filter(e => (e.until ?? 9999) > Y0); let body = '';
+    segs.forEach((e,i) => { const from = Math.max(e.from ?? Y0, Y0), to = Math.min(e.until ?? Y1, Y1);
+      const shown = e.regional && regionCode ? eraOf(regionCode, from) : eraOf(g.code, from);
+      const x0 = X(from), x1 = X(to), S = SYM[shown.key];
+      // Whole symbols repeated along the era; a symbol that wouldn't fit whole is left out, never cut.
+      // An era whose symbol has no verified art yet (Finland's lion arms) keeps its band, empty.
+      const fh = 16, fw = S ? fh*S.w/S.h : 0, n = S ? Math.floor((x1-x0) / (fw+4)) : 0;
+      body += `<rect x="${x0}" y="28" width="${x1-x0}" height="20" fill="#1a1a1a"/>`;
+      for (let t = 0; t < n; t++) body += svgArt(shown.key, x0+2+t*(fw+4), 30, fw, fh);
+      body += `<rect x="${x0}" y="28" width="${x1-x0}" height="20" fill="none" stroke="#0a0a0a" stroke-width="1.5" data-tip="${esc(`<b>${shown.who}</b>: ${shown.era}, ${shown.span}`)}" style="cursor:help;pointer-events:all"/>`;
+      if (i>0) body += `<text x="${x0}" y="60" text-anchor="middle">${from}</text>`; });
+    chain.forEach((c,i) => { const x = X(P[c].y); const own = (P[c].entry||[])[0]; const e = eraOf(own && peopleOf(own)===g.code ? own : g.code, P[c].y); const hist = e.hist;
+      body += `<line x1="${x}" y1="18" x2="${x}" y2="26" stroke="#f5f5f5" stroke-width="1"/>`;
+      body += `<circle cx="${x}" cy="15" r="${c===id?6:4.5}" fill="${c===id?'var(--b)':'#f5f5f5'}" stroke="#0a0a0a" stroke-width="1.5" data-tip="${esc(`<b>${P[c].n}</b>, born ${P[c].y}<br>${e.era}${hist?'':' (today\'s symbol)'}`)}" style="cursor:help"/>`;
+      const nm = nick(c); if (width > 420 || i===0 || c===id) body += `<text class="nm" x="${x}" y="6" text-anchor="middle">${nm}</text>`; });
+    return `<div class="tlrow"><div class="th">${symSpan(eraOf(g.code,P[id].y).key,12)} ${PEOPLES[g.code].name} <span class="pct">${pct(g.share)}</span></div><svg height="64" viewBox="0 0 ${width} 64">${body}</svg></div>`;
+  }).join('') + `<svg height="16" viewBox="0 0 ${width} 16" style="display:block;width:100%">${[1850,1900,1950,2000].map(yr=>`<text class="axis" x="${X(yr)}" y="11" text-anchor="middle">${yr}</text>`).join('')}</svg>`;
+}
+const C_VARIANTS = [
+  {id:'C1', t:'Each people\'s timeline, with your generations on it', pitch:'In the panel: one strip per people showing every symbol it used through time, with a dot for each generation of this person\'s line at their birth year. You see exactly which generation lived through which change.',
+   body:() => `<div class="controls" style="margin:0 16px 10px"><div class="grp"><span class="lab">Person</span>${['kyle','davidH','elliott'].map(p=>`<button class="seg" data-tl="${p}" aria-pressed="${cState.tl===p}">${P[p].n.split(' ')[0]}</button>`).join('')}</div></div><div class="tl" data-tlhost></div>`,
+   note:'Salvatore (yellow dot), Joe and David sit in the Kingdom of Italy, and Sheila and Kyle after 1946. It uses the symbols-through-time art as <b>the story itself</b>. It could live in the panel under the map, or in place of it.'},
+  {id:'C2', t:'People lens on the tree', pitch:'Tap a people (a chip, or a row in the panel) and the tree dims everyone who doesn\'t carry it, draws the lines that carry it in that people\'s colour, and rings the ancestor it came from.',
+   body:() => `<div class="controls" style="margin:0 16px 10px"><div class="grp"><span class="lab">Line</span>${[['mother','Santoro & Clarke'],['father','Hutchinson & Sadowski'],['elliott','Liikanen & Hoff']].map(([k,l])=>`<button class="seg" data-lensslice="${k}" aria-pressed="${cState.lensSlice===k}">${l}</button>`).join('')}</div><div class="grp" data-lenspeople></div></div><div class="canvas" data-lenscanvas></div>`,
+   note:'Answers "where does my Finnish come from?" on the tree itself, one tap from the chip. It ties the story aim to the connection aim.'},
+  {id:'C3', t:'The crossing, marked on the line', pitch:'A small ship stamp sits on the line of descent where a family crossed: on the line between the immigrant couple and their first child born in the new country. It gives the year and the route, and the cards don\'t change.',
+   body:() => `<div class="controls" style="margin:0 16px 10px"><div class="grp"><span class="lab">Line</span>${[['mother','Santoro & Clarke'],['father','Hutchinson & Sadowski'],['elliott','Liikanen & Hoff']].map(([k,l])=>`<button class="seg" data-stampslice="${k}" aria-pressed="${cState.stampSlice===k}">${l}</button>`).join('')}</div></div><div class="canvas" data-stampcanvas></div>`,
+   note:'It makes the generation boundary visible, so the old symbols are above the ship and the new country below it. It lives on the connector, not the card, which keeps the card clean. Pairs well with A1 or A4.'},
+];
+function renderC(){
+  const host = document.getElementById('Cvariants');
+  if (!host.childElementCount) {
+    host.innerHTML = C_VARIANTS.map(c => `<article class="v" id="${c.id}"><header><span class="tag tC">${c.id}</span><div><h3>${c.t} <span class="pill extra">extra</span></h3><p class="pitch">${c.pitch}</p></div></header>${c.body()}<p class="note">${c.note}</p></article>`).join('');
+    host.querySelectorAll('[data-tl]').forEach(b => b.addEventListener('click', () => { cState.tl = b.dataset.tl; host.querySelectorAll('[data-tl]').forEach(x=>x.setAttribute('aria-pressed', x===b)); renderC(); }));
+    host.querySelectorAll('[data-lensslice]').forEach(b => b.addEventListener('click', () => { cState.lensSlice = b.dataset.lensslice; host.querySelectorAll('[data-lensslice]').forEach(x=>x.setAttribute('aria-pressed', x===b)); const codes = sliceCodes(cState.lensSlice); if (!codes.includes(cState.lens)) cState.lens = codes[0]; renderC(); }));
+    host.querySelectorAll('[data-stampslice]').forEach(b => b.addEventListener('click', () => { cState.stampSlice = b.dataset.stampslice; host.querySelectorAll('[data-stampslice]').forEach(x=>x.setAttribute('aria-pressed', x===b)); renderC(); }));
+  }
+  const tlHost = host.querySelector('[data-tlhost]'); tlHost.innerHTML = timelineHTML(cState.tl, Math.max(280, tlHost.clientWidth - 32));
+  const lp = host.querySelector('[data-lenspeople]');
+  lp.innerHTML = `<span class="lab">People</span>` + sliceCodes(cState.lensSlice).map(code => `<button class="seg" data-lens="${code}" aria-pressed="${cState.lens===code}" style="${cState.lens===code?`background:${PEOPLES[code].c};border-color:${PEOPLES[code].c}`:''}">${symSpan(modernKey(code),10)} ${PEOPLES[code].name}</button>`).join('');
+  lp.querySelectorAll('[data-lens]').forEach(b => b.addEventListener('click', () => { cState.lens = b.dataset.lens; renderC(); }));
+  renderSlice(host.querySelector('[data-lenscanvas]'), cState.lensSlice, {corners:true, chips:true, lens:true}, {arms:'own', zoom:'read', lens:cState.lens});
+  renderSlice(host.querySelector('[data-stampcanvas]'), cState.stampSlice, {corners:true, chips:true, stamps:true}, {arms:'own', zoom:'read'});
+}
+function sliceCodes(k){ const s = new Set(); SLICES[k].rows.flat().forEach(([id]) => mix(id).known.forEach(x => s.add(x.code))); return [...s]; }
+
+/* =====================================================================
+   E: open questions (hover text; region shares)
+   ===================================================================== */
+const T_CASES = [
+  {code:'IE', year:1899, share:1, who:'Patrick "Pat" Clarke, born 1899'},
+  {code:'IT/sicily', year:1866, share:1, who:'Salvatore Santoro (sample), born 1866'},
+  {code:'HU', year:1906, share:1, who:"Harriet Sadowski, born 1906 in today's Romania"},
+  {code:'DE', year:1936, share:1, who:'Carl Hoff, born 1936'},
+  {code:'IT', year:1990, share:.25, who:'Kyle, born 1990 (a modern share)'},
+];
+const T_NOTES = {
+  T1:"<b>Wrong for exactly the cases this feature exists for.</b> Pat's green harp reads \"Ireland\", a state that didn't exist yet, and it contradicts the model's move from countries to peoples.",
+  T2:"Short and always true, but nothing says why Pat's corner is a harp rather than the tricolour. That leaves the era to the art and the panel.",
+  T3:"Complete and exact, and it's what the model already produces. The share is missing, though, and people, era and years run together in one long line on a phone.",
+  T4:"<b>My pick.</b> The same words as T3, but the people and share come first, as they do on the chip, and the era reads as a caption. The 1933–45 and region notes fit underneath.",
+  T5:"The most educational. Its extra line only appears on historical symbols, so modern cards stay short. A good fit for the person panel even if hover uses T4.",
+};
+function renderE1(){
+  const ctl = document.querySelector('#hoverctl .grp');
+  ctl.innerHTML = `<span class="lab">Hover text everywhere</span>` + Object.keys(HOVER_MODES).map(k => `<button class="seg" data-hm="${k}" aria-pressed="${hoverMode===k}">${k} · ${HOVER_MODES[k].t}</button>`).join('');
+  ctl.querySelectorAll('[data-hm]').forEach(b => b.addEventListener('click', () => { hoverMode = b.dataset.hm; rerenderAll(); }));
+  const keep = hoverMode;
+  document.getElementById('E1').innerHTML = Object.keys(HOVER_MODES).map(k => {
+    hoverMode = k;
+    const cases = T_CASES.map(c => { const e = eraOf(c.code, c.year); const S = SYM[e.key];
+      return `<div class="tcase"><div class="who">${c.who}</div><div class="row"><span class="sym ${S.arms?'':'flagbox'}" style="height:30px;width:${(30*S.w/S.h).toFixed(1)}px">${svgOf(e.key)}</span><div class="bub">${tipFor(c.code, c.year, c.share)}</div></div></div>`; }).join('');
+    return `<article class="v" id="${k}"><header><span class="tag tE">${k}</span><div><h3>${HOVER_MODES[k].t}</h3><p class="pitch">${HOVER_MODES[k].pitch}</p></div></header><div class="tcases">${cases}</div><p class="note">${T_NOTES[k]}</p></article>`;
+  }).join('');
+  hoverMode = keep;
+}
+function rerenderAll(){ renderE1(); renderA(); renderB(); renderF(); renderC(); renderE2(); window.dispatchEvent(new Event('hovermode')); }
+
+const Q2 = [{code:'IE',share:.5},{code:'IT/sicily',share:.25},{code:'IT',share:.25}];
+const R_VARIANTS = [
+  {id:'R1', t:'Separate shares, each its own symbol', pitch:'Every share is its own corner and chip, exactly as the codes are stored.', entries:() => Q2.map(x=>({...x})),
+   note:"Honest to the data, but in both years you get <b>two identical flags</b> side by side, with only the hover to tell them apart."},
+  {id:'R2', t:'Grouped under the people', pitch:'One Italian 50% share with the people\'s symbol. The region is named only in the hover and the panel.', entries:() => grouped(),
+   note:"Clean: one flag per people. But before 1861 the region's own era symbol, which the model stores, would never get shown."},
+  {id:'R4', t:'Separate in the region\'s era, merged after', pitch:'Follows the model\'s own rule: while the era is regional (before 1861), the Sicily share shows its region\'s symbol on its own. Once the symbols would be the same, the two shares merge into Italian 50%, with Sicily named in the hover and the panel.', entries:(year) => eraOf('IT/sicily', year).region ? Q2.map(x=>({...x})) : grouped(),
+   note:"<b>My pick.</b> There are never two identical flags, and no new element is needed. In 1880 and 1990 it looks exactly like R2; it differs only for births before 1861, where the Sicily share would show Sicily's own symbol once that has verified art."},
+];
+function grouped(){ return [{code:'IE',share:.5}, {code:'IT',share:.5, group:[{code:'IT/sicily',share:.25},{code:'IT',share:.25,label:'region not recorded'}]}]; }
+function groupTip(en, year){ return tipFor(en.code, year, en.share) + `<br><span style="color:var(--t3)">of which ${en.group.map(g=>g.label?`${pct(g.share)} ${g.label}`:`${RTL.sicily.name} ${pct(g.share)}`).join(', ')}</span>`; }
+function miniCard(x, y0, name, year, sub, entries){
+  let html = `<div class="card" style="left:${x}px;top:${y0}px"><span class="nm">${name}</span><span class="yr">${year}</span><span class="sub">${sub}</span></div>`;
+  const bottoms = [];
+  entries.slice(0,4).forEach((en, rank) => {
+    const e = eraOf(en.code, year), S = SYM[e.key], box = sizeFor(S, flagDiag(en.share));
+    const right = rank%2===1, bottom = rank>=2, cx = x + (right?NODE_W:0), cy = y0 + (bottom?NODE_H:0);
+    if (bottom) bottoms.push(box.w/2);
+    const tipTxt = en.group ? groupTip(en, year) : tipFor(en.code, year, en.share);
+    html += `<div class="corner ${S.arms?'arms':''}" data-tip="${esc(tipTxt)}" style="left:${cx-box.w/2}px;top:${cy-box.h/2}px;width:${box.w}px;height:${box.h}px">${svgOf(e.key)}</div>`;
+    if (en.badge) { const bw = 18, bh = 12, bx = right ? cx + box.w/2 + 6 : cx - box.w/2 - 6 - bw;
+      html += `<div class="rbadge" data-tip="${esc('<b>Sicily</b><br>Region of this Italian share (25% of the 50%)')}" style="left:${bx}px;top:${cy - bh/2}px;width:${bw}px;height:${bh}px">${svgOf(en.badge)}</div>`; }
+  });
+  const inset = bottoms.length ? Math.max(...bottoms)+4 : 0;
+  html += `<div class="chips" style="left:${x+inset}px;top:${y0+NODE_H+4}px;width:${NODE_W-2*inset}px">` + entries.map(en => { const e = eraOf(en.code, year);
+    return `<span class="chip" data-tip="${esc(en.group ? groupTip(en, year) : tipFor(en.code, year, en.share))}">${symSpan(e.key,8)}${pct(en.share)}${en.badge?`<span class="arr">+</span>${symSpan(en.badge,8)}`:''}</span>`; }).join('') + `</div>`;
+  return html;
+}
+function panelLine(entries){
+  return entries.map(en => `<b>${en.group ? 'Italian' : PEOPLES[en.code].name}</b> ${pct(en.share)}${en.group ? ` <span style="color:var(--t3)">(Sicily ${pct(.25)}, region not recorded ${pct(.25)})</span>` : ''}`).join(' · ');
+}
+function renderE2(){
+  const host = document.getElementById('E2');
+  host.innerHTML = R_VARIANTS.map(r => `<article class="v" id="${r.id}"><header><span class="tag tE">${r.id}</span><div><h3>${r.t}</h3><p class="pitch">${r.pitch}</p></div></header><div class="canvas" data-r="${r.id}"></div>
+    <div class="pline">${[1880,1990].map(y => `<div><span class="lab2">Panel, born ${y}</span>${panelLine(r.entries(y))}</div>`).join('')}</div><p class="note">${r.note}</p></article>`).join('');
+  R_VARIANTS.forEach(r => {
+    const el = host.querySelector(`[data-r="${r.id}"]`);
+    const W = 64+250+150+250+64, H = 50+90+62;
+    const scene = miniCard(64, 50, 'Maria (sample)', 1880, '½ Irish · ¼ Italian (Sicily) · ¼ Italian', r.entries(1880)) + miniCard(64+250+150, 50, 'Luca (sample)', 1990, 'the same mix, born 1990', r.entries(1990));
+    const avail = el.clientWidth || 360; const s = Math.max(0.62, Math.min(1, avail/W));
+    el.innerHTML = `<div class="sizer" style="width:${W*s}px;height:${H*s}px"><div class="scene" style="width:${W}px;height:${H}px;transform:scale(${s})">${scene}</div></div>`;
+  });
+}
+
+const SOURCES = [{"key": "it", "name": "Italian tricolour", "era": "Italian Republic (since 1946)", "spec": "Constitution of Italy, art. 12; 2:3; the 2006 decree's Pantone TCX colours 17-6153, 11-0601, 18-1662", "status": "Verified (repo)", "note": "Our own drawing, the last resort: no published file draws all three official colours (the Commons files draw pure white or older conversions)."}, {"key": "ie", "name": "Flag of Ireland", "era": "Ireland (since 1919)", "spec": "Bunreacht na hÉireann, art. 7; Department of the Taoiseach guidelines: 1:2, green PMS 347, orange PMS 151", "status": "Verified (repo)", "note": "The Pantone file: the common Commons file's shades are no Pantone value."}, {"key": "sct", "name": "The saltire", "era": "Scotland", "spec": "Lord Lyon's register (1672); Flag Institute registry (3:5, Pantone 300); Scottish Parliament recommendation (2003)", "status": "Verified (repo)", "note": "No ratio is fixed by law; the blue was unspecified before 2003."}, {"key": "eng", "name": "St George's cross", "era": "England", "spec": "No statute; Flag Institute registry and Flags of the World: 3:5, the cross 1/5 of the height, Pantone 186 red", "status": "Verified (repo)", "note": "England's own flag, as distinct from the Union flag."}, {"key": "pl", "name": "Flag of Poland", "era": "Poland", "spec": "Act of 31 January 1980: white over red, 5:8, colours as CIE coordinates; the Sejm's white-and-red cockade of 1831", "status": "Verified (repo)", "note": "The normative file: its colours lie inside the act's tolerances; the common file's white does not."}, {"key": "hu", "name": "Flag of Hungary (the red-white-green tricolour)", "era": "Kingdom of Hungary (1848–1918) and Hungary (since 1918)", "spec": "Fundamental Law of Hungary, art. I; decree 132/2000 (1:2); MSZ 1361:2009 colours (Pantone 18-1660 and 18-6320 TCX). The plain tricolour was the national flag from 1848 (Act XXI of 1848; Flags of the World); the arms flags were state variants", "status": "Verified (repo)", "note": ""}, {"key": "fi_lion", "name": "The lion arms of Finland (the Finnish form)", "era": "Grand Duchy of Finland (Russian Empire), 1809–1918", "spec": "State Archivist K. A. Bomansson's arms (1886; this plate 1889), which \"at once became general in Finnish-made arms and lion flags\" (Itsenäisyys 100); compared with the Finnish Heritage Agency's scan of the 1886 plate", "status": "Verified (repo)", "note": "The form Finns drew themselves (armoured arm, trampled sabre, no eagle), not the Russian Empire's 1882 drawing with the imperial eagle in the crown: symbols represent people, not governments. The National Archives of Finland's scan, a JPEG."}, {"key": "fi", "name": "Flag of Finland", "era": "Finland (since 1918)", "spec": "Act on the Flag of Finland (1918; 380/1978): 11:18; blue PMS 294 C per decision 827/1993", "status": "Verified (repo)", "note": ""}, {"key": "de", "name": "Black, red and gold", "era": "Germany before unification, and Germany (since 1919)", "spec": "Basic Law, art. 22; flag order of 1996 (3:5); the federal government's RGB. The colours of 1815, 1832 and 1848, and the Weimar constitution, art. 3", "status": "Verified (repo)", "note": "Germans born 1933–1945 show them too: the people's colours, not the regime's flags."}, {"key": "swe", "name": "Flag of Sweden", "era": "Sweden", "spec": "Lag (1982:269) om Sveriges flagga (5:2:9 by 4:2:4, 10:16); the 1906 flag act; Förordning (1983:826) NCS colours, as the Swedish Institute gives them in sRGB", "status": "Verified (repo)", "note": "The plain cross flag, the one Swedes flew as theirs; the 1844–1905 union mark was on official flags."}, {"key": "it_kingdom", "name": "Tricolour with the Savoy shield (national flag)", "era": "Kingdom of Italy, 1861–1946", "spec": "Law 2264 of 24 December 1925, art. 1: the national flag with the Savoy arms bordered azure, uncrowned; 2:3. Charles Albert's proclamation of 23 March 1848; Flags of the World", "status": "Verified (repo)", "note": "The uncrowned national flag Italians flew; the crowned form was the state flag of royal and government buildings."}, {"key": "de_empire", "name": "Black, white and red", "era": "German Empire, 1871–1919", "spec": "Ordinance of 25 October 1867 (black-white-red, 2:3) and the 1871 constitution, art. 55", "status": "Verified (repo)", "note": ""}, {"key": "ie_harp", "name": "Green harp flag", "era": "Ireland under British rule, 1798–1919", "spec": "No official design. Its most iconic one, a gold winged-maiden harp on plain green: Hayes-McCoy, A History of Irish Flags (1979); Flags of the World, \"Ireland: Green Flag\"; the 1887 Allen & Ginter and 1888 Duke flag cards", "status": "Verified (repo)", "note": "One variant of several (plain harp, crown, shamrocks, \"Erin go Bragh\"), chosen as the most iconic. CC BY-SA 3.0: Raymond1922A and Sodacan, Wikimedia Commons."}];
+function renderSources(){
+  document.getElementById('srclist').innerHTML = SOURCES.map(x => { const S = SYM[x.key];
+    return `<div class="src"><div class="srcsym">${symSpan(x.key, 34)}</div><div><b>${x.name}</b> <span class="st ${x.status.startsWith('Not')?'no':'ok'}">${x.status}</span><br><span class="era">${x.era}</span><br>${S.repo?`Repo art: <code>${S.repo}</code><br>`:''}${S.file?`${S.repo?'Source':'File'}: <a href="${S.file}">${decodeURIComponent(S.file.split('File:')[1])}</a><br>`:''}Checked against: ${x.spec}${x.note?`<br><span class="era">${x.note}</span>`:''}</div></div>`; }).join('');
+}
+/* =====================================================================
+   F: journeys on the globe
+   ===================================================================== */
+const fState = {person:'kyle'};
+function lineKey(j){ return `<span class="lk"><span class="sw" style="background:${j.color}"></span>${j.code ? symSpan(eraOf(j.code, P[j.origin].y).key, 11) : '<span class="hatch"></span>'}<b>${j.name}</b> <span class="muted2">${j.code ? PEOPLES[j.code].name : 'heritage unknown'} · ${pct(j.w)}</span></span>`; }
+const F_VARIANTS = [
+  {id:'F1', t:'Dated stops, one colour per line', pitch:'Every line is one coloured path through each generation\'s birthplace, and every stop carries its birth year. Drag to turn; hover or tap a stop for who was born there.',
+   body:id => mapSlot({person:id, style:'plain', labels:true, h:360, noBadge:false}) + `<div class="lines">${journeysOf(id).map(j => `<div class="jl">${lineKey(j)}<div class="jt">${journeyText(j)}</div></div>`).join('')}</div>`,
+   note:'The full picture at once. With 8 lines the years crowd where lines meet (Michigan), so labels that would collide are left out and the tooltip carries them.'},
+  {id:'F2', t:'Playback through time', pitch:'Press play: the years run from the earliest ancestor to the person, each path grows as each generation is born, and the globe turns to follow the latest move.',
+   body:id => `<div class="fctl"><button class="seg" data-play aria-pressed="false">▶ Play</button><span class="bigyear" data-year></span></div>` + mapSlot({person:id, style:'plain', labels:true, h:360, year:null}),
+   note:'The most "story" of the four: you watch Yorkshire empty into Virginia, then Ohio, while Sicily, Mayo and Ostrobothnia join in around 1900. Best in the 3D view\'s panel or a full-screen moment, since it takes about ten seconds.'},
+  {id:'F3', t:'Timeline scrubber', pitch:'A slider sets the year. The paths show where every line had reached by then, and a list says where each line was: "1850: Hutchinsons in Ross County, Ohio; Pat Clarke\'s father not yet born…".',
+   body:id => { const J = journeysOf(id); const y0 = Math.min(...J.flatMap(j=>j.stops.map(s=>s.ys[0]))), y1 = P[id].y;
+     return `<div class="fctl"><input type="range" data-scrub min="${y0}" max="${y1}" value="1900" aria-label="Year"><span class="bigyear" data-year>1900</span></div>` + mapSlot({person:id, style:'plain', labels:false, h:320, year:1900}) + `<div class="where" data-where></div>`; },
+   note:'Answers "where was everyone in 1900?", which none of the other views can. The list under the globe is the accessible version of the picture.'},
+  {id:'F4', t:'Follow one line', pitch:'Pick a line; the globe turns to each generation\'s birthplace in turn as you step through, with who was born there and when.',
+   body:id => `<div class="fctl" data-lines>${journeysOf(id).map((j,i) => `<button class="skey" data-line="${j.origin}" aria-pressed="${i===0}">${j.code ? symSpan(eraOf(j.code, P[j.origin].y).key, 11) : '<span class="hatch"></span>'}${j.name}</button>`).join('')}</div>
+     <div class="fctl"><button class="seg" data-step="-1">← Earlier</button><button class="seg" data-step="1">Later →</button></div>` + mapSlot({person:id, style:'plain', labels:true, h:320, only:journeysOf(id)[0].origin, noBadge:true}) + `<div class="where" data-cap></div>`,
+   note:'The best fit for the panel on a phone: one line, one stop at a time, big and readable. It is also where the era paragraphs could appear, stop by stop.'},
+];
+function renderF(){
+  const host = document.getElementById('Fvariants'); const id = fState.person;
+  [...MAPS.keys()].forEach(k => { if (!document.getElementById(k) || document.getElementById(k).closest('#Fvariants')) MAPS.delete(k); });
+  host.innerHTML = F_VARIANTS.map(f => `<article class="v" id="${f.id}"><header><span class="tag tF">${f.id}</span><div><h3>${f.t}</h3><p class="pitch">${f.pitch}</p></div></header><div class="fbody">${f.body(id)}</div><p class="note">${f.note}</p></article>`).join('');
+  host.querySelectorAll('.map').forEach(drawMap);
+  // F2 playback
+  { const art = host.querySelector('#F2'), mapEl = art.querySelector('.map'), btn = art.querySelector('[data-play]'), yl = art.querySelector('[data-year]');
+    const J = journeysOf(id), y0 = Math.min(...J.flatMap(j=>j.stops.map(s=>s.ys[0]))) - 5, y1 = P[id].y;
+    let raf = 0, t0 = 0;
+    btn.onclick = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; btn.textContent = '▶ Play'; return; }
+      btn.textContent = '❚❚ Pause'; t0 = performance.now(); const c = MAPS.get(mapEl.id);
+      const tick = now => { const year = Math.round(y0 + (y1-y0) * Math.min(1, (now-t0)/10000)); c.year = year; yl.textContent = year;
+        let latest = null; J.forEach(j => j.stops.forEach(s => { if (s.ys[0] <= year && (!latest || s.ys[0] > latest.ys[0])) latest = s; }));
+        if (latest) { const tr = [-latest.ll[0], -Math.max(-60, Math.min(60, latest.ll[1]))]; let dx = tr[0]-c.rot[0]; if (dx>180) dx-=360; if (dx<-180) dx+=360; c.rot = [c.rot[0]+dx*.06, c.rot[1]+(tr[1]-c.rot[1])*.06]; }
+        drawMap(mapEl); if (year < y1) raf = requestAnimationFrame(tick); else { raf = 0; btn.textContent = '↺ Replay'; } };
+      raf = requestAnimationFrame(tick); };
+    yl.textContent = `${y0+5}–${y1}`; }
+  // F3 scrubber
+  { const art = host.querySelector('#F3'), mapEl = art.querySelector('.map'), sl = art.querySelector('[data-scrub]'), yl = art.querySelector('[data-year]'), wh = art.querySelector('[data-where]');
+    const upd = () => { const year = +sl.value; yl.textContent = year; MAPS.get(mapEl.id).year = year; drawMap(mapEl);
+      wh.innerHTML = `<b>In ${year}</b>` + journeysOf(id).map(j => { const s = [...j.stops].reverse().find(st => st.ys[0] <= year);
+        return `<div class="jl">${lineKey(j)}<div class="jt">${s ? `${s.n} <span class="muted2">(${s.whos.at(-1)}, born ${s.ys.at(-1) <= year ? s.ys.filter(y=>y<=year).at(-1) : s.ys[0]})</span>` : '<span class="muted2">no one on this line born yet</span>'}</div></div>`; }).join(''); };
+    sl.oninput = upd; upd(); }
+  // F4 follow one line
+  { const art = host.querySelector('#F4'), mapEl = art.querySelector('.map'), cap = art.querySelector('[data-cap]'); let line = journeysOf(id)[0], i = 0;
+    const show = () => { const s = line.stops[i]; MAPS.get(mapEl.id).only = line.origin; MAPS.get(mapEl.id).year = s.ys[0];
+      cap.innerHTML = `<b>${line.name} line · stop ${i+1} of ${line.stops.length}</b><br>${yrs(s)} · ${s.n}<br><span class="muted2">${s.whos.map((w,k)=>`${w}, born ${s.ys[k]}`).join('; ')}</span>`;
+      spinTo(mapEl, s.ll); };
+    art.querySelectorAll('[data-line]').forEach(b => b.onclick = () => { line = journeysOf(id).find(j => j.origin===b.dataset.line); i = 0; art.querySelectorAll('[data-line]').forEach(x => x.setAttribute('aria-pressed', x===b)); show(); });
+    art.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { i = Math.max(0, Math.min(line.stops.length-1, i + +b.dataset.step)); show(); });
+    show(); }
+}
+/* ---------- boot ---------- */
+renderA(); renderB(); renderF(); renderC(); renderE1(); renderE2(); renderSources();
+wireSeg('fperson', fState, 'person', renderF);
+window.worldReady = fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(r => { if (!r.ok) throw new Error('world-atlas '+r.status); return r.json(); }).then(topo => {
+  WORLD = { countries: topojson.feature(topo, topo.objects.countries), borders: topojson.mesh(topo, topo.objects.countries, (a,b)=>a!==b) };
+  window.WORLD = WORLD; drawAllMaps(); document.body.dataset.maps = 'done'; return WORLD;
+}).catch(err => { window.WORLD_FAILED = true; drawAllMaps(); document.body.dataset.maps = 'failed'; console.error(err); return null; });
+
+// shared with the 3D module
+window.HT = {journeysOf, P, UNIONS, DIRECT, ROOT, PEOPLES, ORIGIN, SYM, TL, peopleOf, eraOf, isHistoric, modernKey, mix, groupsOf, originsOf, pct, symSpan, svgDataURL, tipFor, esc};
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const {journeysOf, P, UNIONS, DIRECT, ROOT, PEOPLES, ORIGIN, SYM, eraOf, isHistoric, mix, groupsOf, originsOf, pct, symSpan, svgDataURL, tipFor, esc} = window.HT;
+
+const D_VARIANTS = [
+  {id:'D1', t:'Symbols ride on the labels', pitch:'The name label beside each sphere gets that person\'s era symbols. The spheres stay exactly as they are.', note:'The cheapest idea, and the colours keep their meaning. Labels already declutter, so symbols appear only where a name fits. <b>The safest baseline.</b>'},
+  {id:'D2', t:'Heritage halos', pitch:'A thin ring around each sphere, split by share in each people\'s colour (unknown grey), always facing you. The sphere\'s own colour still means direct line, selection or everyone else.', note:'You read the mix from any angle and at any zoom, even without labels. Colours only work with a key (the panel\'s chips), and there are 9 people colours to learn.'},
+  {id:'D3', dropped:true, t:'Heritage paint (toggle)', why:'It wrapped the symbols around the spheres, which cuts and bends them. <b>D7</b> keeps its goal, a tree you read as flags at a glance, with whole symbols.', pitch:'A "Heritage" switch repaints each sphere as a bead in segments of its era symbols. The direct line and the selection move to an outline hull, so no meaning is lost.', note:'The boldest, and the most fun: a tree of little flag-beads. Because it is a mode, the default view is unchanged. Tap <b>Paint off/on</b> in the corner to compare.'},
+  {id:'D4', t:'The tree stands on the globe', pitch:'A globe lies under the tree with every line’s journey drawn on it, and each origin ancestor drops a root to their birthplace. The family’s places are turned toward you, under the tree.', note:'Uses the third dimension for place: the journeys map, in 3D. Orbit down low to follow a root to its town, or around the globe to see the lines cross the Atlantic. <b>The most "wow"</b>, and the globe is large.'},
+  {id:'D5', t:'Time is height', pitch:'Height becomes birth year. Translucent era planes cross the tree at 1919 and 1946, and the symbols on each label change as the tree passes through them.', note:'Makes "how the world changed around each generation" literal: Pat sits above the 1919 plane with the harp, and his daughter below it with the tricolour. It changes the layout, so it suits a mode rather than the default.'},
+  {id:'D7', t:'Flag mode (toggle)', pitch:'A switch turns every label into that person\'s whole symbols, each sized by share, with no name (except the selection). The labels declutter like names do, so no symbol ever sits on another, on a sphere or under the panel.', note:'The rule-abiding successor to D3: the whole tree reads as its peoples at a glance, and the spheres keep their colours. Symbols that don\'t fit hide, like names do today, so zoom in to see more.'},
+  {id:'D6', t:'Origins globe in the panel', pitch:'The 3D view\'s person panel gets a small spinning globe instead of the flat map. The selected person\'s origins glow, and arcs lift off toward where the family settled. Tap a sphere to switch person.', note:'Keeps heritage off the spheres entirely, as the doc says, while still giving 3D its own flavour of the origins map. Pairs with any of D1 to D5.'},
+];
+const list = document.getElementById('d3list');
+list.innerHTML = [...D_VARIANTS].sort((a,b)=>a.id.localeCompare(b.id)).map(d => d.dropped
+  ? `<div class="dropbox"><span class="tag tX" style="font-size:14px;min-width:36px;height:26px">${d.id}</span><span><b style="display:block;color:var(--t1)">${d.t} <span class="pill drop">dropped</span></b>Dropped under the whole-symbol rule. ${d.why}</span></div>`
+  : `<button data-d="${d.id}" aria-pressed="${d.id==='D1'}"><span class="tag tD">${d.id}</span><span><b>${d.t}</b><span class="pt">${d.pitch}</span></span></button>`).join('');
+const note = document.getElementById('d3note');
+const wrap = document.getElementById('d3wrap'), labelsHost = document.getElementById('d3labels');
+document.getElementById('d3msg').remove();
+
+const GEN = 120;
+const ids = Object.keys(P).filter(id => !P[id].sample);
+const kids = {}; ids.forEach(id => (P[id].par||[]).forEach(q => (kids[q] ||= []).push(id)));
+const spouses = {}; UNIONS.forEach(([a,b]) => { (spouses[a] ||= []).push(b); (spouses[b] ||= []).push(a); });
+// generation from the root, ancestors up
+const gen = {[ROOT]:0}; const q = [ROOT];
+while (q.length) { const x = q.shift(); const g = gen[x];
+  for (const p of (P[x].par||[])) if (!(p in gen)) { gen[p] = g+1; q.push(p); }
+  for (const c of (kids[x]||[])) if (!(c in gen)) { gen[c] = g-1; q.push(c); }
+  for (const s of (spouses[x]||[])) if (!(s in gen)) { gen[s] = g; q.push(s); } }
+// deterministic force layout in x/z
+function hash(s){ let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h>>>0); }
+const N = ids.map(id => { const h = hash(id); return {id, x:(h%400)-200, z:((h>>9)%400)-200, y:gen[id]*GEN, vx:0, vz:0}; });
+const byId = Object.fromEntries(N.map(n=>[n.id,n]));
+const links = [];
+ids.forEach(id => (P[id].par||[]).forEach(p => links.push([byId[p], byId[id], 50, .06])));
+UNIONS.forEach(([a,b]) => links.push([byId[a], byId[b], 26, .2]));
+for (let it = 0; it < 600; it++) {
+  const cool = 1 - it/600;
+  for (let i = 0; i < N.length; i++) for (let j = i+1; j < N.length; j++) {
+    const a = N[i], b = N[j]; if (Math.abs(gen[a.id]-gen[b.id]) > 1) continue;
+    let dx = a.x-b.x, dz = a.z-b.z; let d2 = dx*dx+dz*dz + .01; const f = 1400/d2; const d = Math.sqrt(d2);
+    a.vx += dx/d*f; a.vz += dz/d*f; b.vx -= dx/d*f; b.vz -= dz/d*f; }
+  for (const [a,b,L,k] of links) { const dx = b.x-a.x, dz = b.z-a.z; const d = Math.hypot(dx,dz)+.01; const f = (d-L)*k; a.vx += dx/d*f; a.vz += dz/d*f; b.vx -= dx/d*f; b.vz -= dz/d*f; }
+  for (const n of N) { n.vx -= n.x*.004; n.vz -= n.z*.004; n.x += n.vx*.5*cool; n.z += n.vz*.5*cool; n.vx *= .5; n.vz *= .5; }
+}
+const root0 = byId[ROOT]; N.forEach(n => { n.x -= root0.x; n.z -= root0.z; n.genY = n.y; n.timeY = (2000 - P[n.id].y) * 4; });
+
+// ---- three setup
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+wrap.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#0a0a0a');
+const camera = new THREE.PerspectiveCamera(50, 1, 1, 20000);
+const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
+scene.add(new THREE.AmbientLight(0xffffff, .6)); const dl = new THREE.DirectionalLight(0xffffff, 1.8); dl.position.set(300,600,400); scene.add(dl);
+const grid = new THREE.PolarGridHelper(GEN*4, 12, 4, 64, 0x404040, 0x404040); grid.position.y = -GEN*1.5; scene.add(grid);
+const COL = {trunk:new THREE.Color('#ff8c00'), person:new THREE.Color('#00CED1'), sel:new THREE.Color('#FF2D95'), branch:new THREE.Color('#22c55e'), union:new THREE.Color('#FF2D95')};
+let selected = ROOT, variant = 'D1', flagOn = true;
+const R = id => id===ROOT ? 8 : 5;
+const meshes = N.map(n => { const m = new THREE.Mesh(new THREE.SphereGeometry(R(n.id), 32, 20), new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x000000, emissiveIntensity:.35})); m.userData.id = n.id; scene.add(m); return m; });
+function baseColor(id){ return id===selected ? COL.sel : DIRECT.has(id) ? COL.trunk : COL.person; }
+// edges
+const segs = [];
+UNIONS.forEach(([a,b]) => segs.push({from:[byId[a]], to:byId[b], kind:'union'}));
+ids.forEach(id => { const ps = (P[id].par||[]).map(p=>byId[p]); if (ps.length) segs.push({from:ps, to:byId[id], kind: DIRECT.has(id) && ps.every(p=>DIRECT.has(p.id)) ? 'trunk':'branch'}); });
+const edgeGroups = ['union','trunk','branch'].map(kind => { const sub = segs.filter(s=>s.kind===kind); const pos = new THREE.BufferAttribute(new Float32Array(sub.length*6),3); const g = new THREE.BufferGeometry(); g.setAttribute('position',pos);
+  const mat = new THREE.LineBasicMaterial({color: kind==='union'?COL.union:kind==='trunk'?COL.trunk:COL.branch, transparent:kind==='branch', opacity:.7}); const obj = new THREE.LineSegments(g, mat); obj.frustumCulled = false; scene.add(obj); return {sub,pos,obj}; });
+function updateEdges(){ for (const {sub,pos} of edgeGroups) { sub.forEach((s,i) => { let x=0,y=0,z=0; for (const n of s.from){ x+=n.x/s.from.length; y+=n.y/s.from.length; z+=n.z/s.from.length; } pos.setXYZ(i*2,x,y,z); pos.setXYZ(i*2+1,s.to.x,s.to.y,s.to.z); }); pos.needsUpdate = true; } }
+
+// ---- D2 halos
+const halos = N.map(n => { const g = new THREE.Group(); const m = mix(n.id); const segsH = [...m.known.map(k=>({c:PEOPLES[k.code].c, s:k.share})), ...(m.unknown>0?[{c:'#555555', s:m.unknown}]:[])];
+  let a = Math.PI/2; const r0 = R(n.id)+2.2, r1 = R(n.id)+4.6;
+  segsH.forEach(sg => { const len = sg.s*Math.PI*2; const ring = new THREE.Mesh(new THREE.RingGeometry(r0, r1, 48, 1, a+0.05, Math.max(0.02,len-0.1)), new THREE.MeshBasicMaterial({color:sg.c, side:THREE.DoubleSide})); g.add(ring); a += len; });
+  scene.add(g); return g; });
+
+// ---- D4: the tree stands on a globe; journeys on its surface, roots from each origin ancestor to their birthplace
+const GR = 320, floorY = -GEN*1.5 - 40;
+const llv = ([lon,lat], r) => { const L = lon*Math.PI/180, F = lat*Math.PI/180; return new THREE.Vector3(Math.cos(L)*Math.cos(F)*r, Math.sin(F)*r, -Math.sin(L)*Math.cos(F)*r); };
+const floor = new THREE.Group(); floor.position.set(0, floorY - GR, 0); scene.add(floor);
+const spin = new THREE.Group(); floor.add(spin);
+const worldGlobe = new THREE.Mesh(new THREE.SphereGeometry(GR, 96, 64), new THREE.MeshBasicMaterial({color:0x1a2230})); spin.add(worldGlobe);
+const roots = new THREE.Group(); scene.add(roots);
+const rootLines = [];
+{ const J0 = journeysOf(ROOT); const cen = d3.geoCentroid({type:'MultiPoint', coordinates:J0.flatMap(j => j.stops.map(st => st.ll))});
+  spin.quaternion.setFromUnitVectors(llv(cen, 1), new THREE.Vector3(0, 1, 1.1).normalize());
+  J0.forEach(j => { const col = new THREE.Color(j.color); const pts = [];
+    for (let k = 0; k < j.stops.length-1; k++) { const it = d3.geoInterpolate(j.stops[k].ll, j.stops[k+1].ll); for (let t = 0; t <= 24; t++) pts.push(llv(it(t/24), GR*1.004)); }
+    if (pts.length) spin.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:col})));
+    j.stops.forEach(st => { const d = new THREE.Mesh(new THREE.SphereGeometry(3.2, 12, 8), new THREE.MeshBasicMaterial({color:col})); d.position.copy(llv(st.ll, GR*1.005)); spin.add(d); });
+    const st = j.stops.find(x => x.whos.includes(P[j.origin].n));
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({color:col, dashSize:6, gapSize:4}));
+    line.frustumCulled = false; roots.add(line); rootLines.push({line, n:byId[j.origin], local:llv(st.ll, GR*1.005)}); }); }
+window.worldReady.then(w => { if (w) buildGlobeTexture(w); });
+
+// ---- D5 era planes
+const eraPlanes = new THREE.Group(); scene.add(eraPlanes);
+const ERAS = [{y:1919, t:'1919 · Ireland: green harp → tricolour · Germany: Empire → black-red-gold', c:'#22c55e'}, {y:1946, t:'1946 · Italy: Kingdom → Republic', c:'#ff8c00'}];
+const eraLabels = [];
+ERAS.forEach(e => { const y = (2000-e.y)*4; const disc = new THREE.Mesh(new THREE.CircleGeometry(260, 64), new THREE.MeshBasicMaterial({color:e.c, transparent:true, opacity:.06, side:THREE.DoubleSide, depthWrite:false})); disc.rotation.x = -Math.PI/2; disc.position.y = y; eraPlanes.add(disc);
+  const pts = []; for (let i=0;i<=96;i++){ const a = i/96*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*260, y, Math.sin(a)*260)); }
+  eraPlanes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:e.c, transparent:true, opacity:.45})));
+  const el = document.createElement('div'); el.className = 'lb era'; el.style.color = e.c; el.textContent = e.t; labelsHost.appendChild(el); eraLabels.push({el, right:!!e.right, pos:new THREE.Vector3(e.right?250:-250, y, 0)}); });
+
+// ---- labels
+const labels = N.map(n => { const el = document.createElement('div'); el.className = 'lb'; labelsHost.appendChild(el); return el; });
+function labelHTML(id){
+  const name = P[id].n;
+  if (variant==='D7' && flagOn) { const m = mix(id), y = P[id].y;
+    const syms = m.known.map(k => symSpan(eraOf(k.code,y).key, Math.round(8 + 14*k.share))).join('') + (m.unknown>0 ? `<span class="q" style="font:700 9px ui-monospace,monospace;color:var(--t3)">?</span>` : '');
+    return (m.known.length ? syms : '') + (id===selected || !m.known.length ? `<span>${name}</span>` : ''); }
+  if (variant==='D1' || variant==='D5') { const m = mix(id); const y = P[id].y; return m.known.slice(0,4).map(k => symSpan(eraOf(k.code,y).key, 9)).join('') + `<span>${name}</span>`; }
+  return name;
+}
+function refreshLabels(){ labels.forEach((el,i) => { el.innerHTML = labelHTML(N[i].id); el.classList.toggle('sel', N[i].id===selected); el.classList.toggle('flagmode', variant==='D7' && flagOn && N[i].id!==selected); }); }
+const proj = new THREE.Vector3();
+function placeLabels(w, h){
+  const pri = id => id===selected?0 : id===ROOT?1 : DIRECT.has(id)?2 : 3;
+  const order = N.map((n,i)=>i).sort((a,b)=>pri(N[a].id)-pri(N[b].id));
+  const placed = [];
+  const wr = wrap.getBoundingClientRect(), pr = panelEl.getBoundingClientRect();
+  placed.push({l:pr.left-wr.left, t:pr.top-wr.top, r:pr.right-wr.left, b:pr.bottom-wr.top});
+  for (const e of eraLabels) { proj.copy(e.pos).project(camera); const x = (proj.x+1)/2*w, y = (1-proj.y)/2*h;
+    e.el.style.maxWidth = Math.min(w-8, 460)+'px'; e.el.style.whiteSpace = 'normal';
+    const ew = e.el.offsetWidth, eh = e.el.offsetHeight; const lx = Math.max(4, Math.min(e.right ? x - ew : x, w - ew - 4)), ly = e.right ? y+4 : y-eh-4;
+    const r = {l:lx, t:ly, r:lx+ew, b:ly+eh};
+    const ok = variant==='D5' && proj.z<1 && ly>0 && ly+eh<h && !placed.some(p => r.l<p.r+2 && p.l<r.r+2 && r.t<p.b+2 && p.t<r.b+2);
+    e.el.style.visibility = ok ? 'visible' : 'hidden'; if (ok) { placed.push(r); e.el.style.transform = `translate(${lx}px,${ly}px)`; } }
+  for (const i of order) { const n = N[i], el = labels[i]; proj.set(n.x, n.y, n.z).project(camera);
+    const x = (proj.x+1)/2*w, y = (1-proj.y)/2*h; const lw = el.offsetWidth, lh = el.offsetHeight;
+    const r = {l:x+10, t:y-lh/2, r:x+10+lw, b:y+lh/2};
+    const ok = proj.z < 1 && r.l>=0 && r.t>=0 && r.r<=w && r.b<=h && !placed.some(p => r.l<p.r+2 && p.l<r.r+2 && r.t<p.b+2 && p.t<r.b+2);
+    el.style.visibility = ok ? 'visible' : 'hidden'; if (ok) { placed.push(r); el.style.transform = `translate(${r.l}px,${r.t}px)`; } }
+}
+
+// ---- panel (with D6 globe)
+const panelEl = document.createElement('div'); panelEl.className = 'p3'; wrap.appendChild(panelEl);
+let globe = null;
+function renderPanel(){
+  const p = P[selected], m = mix(selected);
+  const chips = m.known.map(k => `<span class="chip" data-tip="${esc(tipFor(k.code,p.y,k.share))}">${symSpan(eraOf(k.code,p.y).key,11)}${pct(k.share)}</span>`).join('') + (m.unknown>0?`<span class="chip"><span class="q" style="height:11px;width:16px">?</span>${pct(m.unknown)}</span>`:'');
+  let extra = '';
+  if (variant==='D7') extra = `<button class="seg" id="flagbtn" style="margin-top:8px" aria-pressed="${flagOn}">Flag mode ${flagOn?'on':'off'}</button>`;
+  if (variant==='D6') { const G = groupsOf(selected); extra = `<div class="globe" id="globebox"></div><div class="gcap">Each line's journey through every generation's birthplace (sample places).<br>${G.groups.map(g=>`<span style="color:${PEOPLES[g.code].c}">●</span> ${PEOPLES[g.code].name} ${pct(g.share)}`).join(' &nbsp;')}${G.unknown>0?` &nbsp;<span style="color:#888">●</span> unknown ${pct(G.unknown)}`:''}</div>`; }
+  panelEl.innerHTML = `<div class="pn">${p.n}</div><div class="pr">Born ${p.y} · ${selected===ROOT?'viewing relations from here':p.rel}</div><div class="chipsrow">${chips || '<span class="muted" style="color:var(--t3);font-style:italic">Heritage unknown</span>'}</div>${extra}`;
+  const fb = document.getElementById('flagbtn'); if (fb) fb.onclick = () => { flagOn = !flagOn; applyVariant(); };
+  if (variant==='D6') mountGlobe(document.getElementById('globebox'));
+}
+
+// globe
+let globeTex = null;
+function buildGlobeTexture(world){
+  const c = document.createElement('canvas'); c.width = 2048; c.height = 1024; const ctx = c.getContext('2d');
+  ctx.fillStyle = '#0d1520'; ctx.fillRect(0,0,2048,1024);
+  const pr = d3.geoEquirectangular().scale(2048/(2*Math.PI)).translate([1024,512]); const path = d3.geoPath(pr, ctx);
+  ctx.beginPath(); path(world.countries); ctx.fillStyle = '#2b3038'; ctx.fill(); ctx.beginPath(); path(world.borders); ctx.strokeStyle = '#444b55'; ctx.lineWidth = 1; ctx.stroke();
+  globeTex = new THREE.CanvasTexture(c); globeTex.colorSpace = THREE.SRGBColorSpace; if (globe) globe.mat.map = globeTex, globe.mat.needsUpdate = true;
+  worldGlobe.material.map = globeTex; worldGlobe.material.color.set(0xffffff); worldGlobe.material.needsUpdate = true;
+}
+const ll2v = ([lon,lat], r=1) => { const L = lon*Math.PI/180, F = lat*Math.PI/180; return new THREE.Vector3(Math.cos(L)*Math.cos(F)*r, Math.sin(F)*r, -Math.sin(L)*Math.cos(F)*r); };
+function mountGlobe(box){
+  if (!globe) {
+    const r = new THREE.WebGLRenderer({antialias:true, alpha:true}); r.setPixelRatio(Math.min(devicePixelRatio,2));
+    const sc = new THREE.Scene(); const cam = new THREE.PerspectiveCamera(35, 1, .1, 100); cam.position.set(0, .9, 3.6); cam.lookAt(0,.15,0);
+    const mat = new THREE.MeshBasicMaterial({color:0xffffff, map:globeTex}); const sph = new THREE.Mesh(new THREE.SphereGeometry(1,64,32), mat);
+    const pivot = new THREE.Group(); pivot.add(sph); sc.add(pivot);
+    const marks = new THREE.Group(); pivot.add(marks);
+    globe = {r, sc, cam, mat, pivot, marks, t:0};
+  }
+  box.appendChild(globe.r.domElement);
+  const w = box.clientWidth, h = box.clientHeight; globe.r.setSize(w, h, false); globe.cam.aspect = w/h; globe.cam.updateProjectionMatrix();
+  globe.marks.clear();
+  const J = journeysOf(selected);
+  J.forEach(j => { const col = new THREE.Color(j.color); const pts = [];
+    for (let k = 0; k < j.stops.length-1; k++) { const it = d3.geoInterpolate(j.stops[k].ll, j.stops[k+1].ll); for (let t = 0; t <= 24; t++) pts.push(ll2v(it(t/24), 1.006)); }
+    if (pts.length) globe.marks.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:col})));
+    j.stops.forEach((st, k) => { const origin = st.whos.includes(P[j.origin].n); const dot = new THREE.Mesh(new THREE.SphereGeometry(origin ? .02+.05*Math.sqrt(j.w) : .014, 16, 12), new THREE.MeshBasicMaterial({color:col})); dot.position.copy(ll2v(st.ll, 1.01)); globe.marks.add(dot); }); });
+  const cen = d3.geoCentroid({type:'MultiPoint', coordinates:J.flatMap(j => j.stops.map(st => st.ll))}); const lonSum = cen[0], cnt = 1;
+  globe.center = cnt ? lonSum/cnt : -30;
+}
+function tickGlobe(dt){ if (!globe || variant!=='D6' || !globe.r.domElement.isConnected) return; globe.t += dt;
+  // face the middle of the Atlantic crossing, swaying gently
+  globe.pivot.rotation.y = -(90 + globe.center)*Math.PI/180 + Math.sin(globe.t*.4)*.5;
+  globe.pivot.rotation.x = .25;
+  globe.r.render(globe.sc, globe.cam); }
+
+// ---- variants
+function applyVariant(reframe = false){
+  const time = variant==='D5';
+  N.forEach(n => { n.targetY = time ? n.timeY : n.genY; });
+  halos.forEach(h => h.visible = variant==='D2');
+  floor.visible = roots.visible = variant==='D4';
+  eraPlanes.visible = time; grid.visible = variant!=='D4' && !time;
+  meshes.forEach((m,i) => { const c = baseColor(N[i].id); m.material.color.copy(c); m.material.emissive.copy(c); });
+  refreshLabels(); renderPanel();
+  note.innerHTML = `<b>${variant}.</b> ` + D_VARIANTS.find(d=>d.id===variant).note;
+  if (reframe) frameCamera();
+}
+function frameCamera(){
+  if (variant==='D4') { camera.position.set(0, 160, 1250); controls.target.set(0, floorY+40, 0); }
+  else if (variant==='D5') { camera.position.set(0, 330, 900); controls.target.set(0, 170, 0); }
+  else { camera.position.set(0, 270, 780); controls.target.set(0, 125, 0); }
+  controls.update();
+}
+list.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { variant = b.dataset.d; list.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b)); applyVariant(true); }));
+
+// picking
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => { if (!down || Math.hypot(e.clientX-down[0], e.clientY-down[1]) > 6) return;
+  const r = renderer.domElement.getBoundingClientRect(); ptr.set((e.clientX-r.left)/r.width*2-1, -(e.clientY-r.top)/r.height*2+1); ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObjects(meshes)[0]; if (hit) { selected = hit.object.userData.id; applyVariant(); } });
+
+// resize + loop (render only while on screen)
+let W = 0, H = 0;
+function resize(){ W = wrap.clientWidth; H = wrap.clientHeight; renderer.setSize(W, H, false); camera.aspect = W/H; camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(wrap); resize();
+let visible = true; new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe(wrap);
+const clock = new THREE.Clock(); const rootTmp = new THREE.Vector3();
+applyVariant(true);
+window.addEventListener('hovermode', renderPanel);
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), .05);
+  if (!visible) return;
+  N.forEach((n,i) => { n.y += (n.targetY - n.y) * Math.min(1, dt*6); meshes[i].position.set(n.x, n.y, n.z); halos[i].position.copy(meshes[i].position); halos[i].quaternion.copy(camera.quaternion); });
+  rootLines.forEach(({line, n, local}) => { const a = line.geometry.attributes.position; rootTmp.copy(local); spin.localToWorld(rootTmp); a.setXYZ(0, n.x, n.y, n.z); a.setXYZ(1, rootTmp.x, rootTmp.y, rootTmp.z); a.needsUpdate = true; line.computeLineDistances(); });
+  updateEdges(); controls.update(); renderer.render(scene, camera); placeLabels(W, H); tickGlobe(dt);
+  document.body.dataset.three = 'rendered';
+});
+</script>
+</body>
+</html>
