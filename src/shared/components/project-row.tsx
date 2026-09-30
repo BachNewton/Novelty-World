@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BRAND_TEXT_COLORS } from "@/shared/lib/brand-colors";
 import { getProjectPath } from "@/shared/lib/constants";
 import type { Project } from "@/shared/types";
 import {
@@ -47,13 +48,6 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Sailboat,
 };
 
-const BRAND_COLORS = [
-  "text-brand-orange",
-  "text-brand-blue",
-  "text-brand-pink",
-  "text-brand-green",
-] as const;
-
 interface ProjectRowProps {
   project: Project;
   index: number;
@@ -61,7 +55,7 @@ interface ProjectRowProps {
 
 export function ProjectRow({ project, index }: ProjectRowProps) {
   const Icon = ICON_MAP[project.icon];
-  const iconColor = BRAND_COLORS[index % BRAND_COLORS.length];
+  const iconColor = BRAND_TEXT_COLORS[index % BRAND_TEXT_COLORS.length];
 
   return (
     <Link href={getProjectPath(project)} className="block">

@@ -253,6 +253,9 @@ The repo may be public, so every file's licence is recorded and honoured.
   `attribution` holds the credit line (author, licence and source), and the
   UI must show it wherever the art appears, for example in a credits list.
   Storing the file unedited means share-alike asks nothing more of us.
+- **Credits are automatic.** The site's credits page (`/credits`) builds
+  Family Tree's credits from every published record, so art that needs
+  attribution is credited from its record, with nothing extra to do.
 - **Anything else** (non-commercial, no-derivatives, "fair use", unclear or
   missing licence) is not usable: look for another file.
 - Record `licenseBasis` as the source states it: the Commons licence

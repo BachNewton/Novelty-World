@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ProfileEditor } from "@/shared/components/profile-editor";
 import { ProjectRow } from "@/shared/components/project-row";
 import { Star } from "@/shared/components/star";
@@ -117,6 +118,13 @@ export default function HomePage() {
       <span className="fixed bottom-2 left-3 z-20 select-none text-xs text-text-primary">
         v{process.env.APP_VERSION}
       </span>
+
+      <Link
+        href="/credits"
+        className="fixed bottom-2 right-3 z-20 text-xs text-text-secondary transition-colors hover:text-text-primary"
+      >
+        Credits
+      </Link>
 
       {/* Wave footer */}
       <svg

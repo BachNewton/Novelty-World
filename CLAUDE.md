@@ -59,6 +59,10 @@ There is a shared multiplayer library built on WebRTC with Supabase Realtime for
 
 Reusable components, hooks, and utilities live in `src/shared/`. Check there before building something new — use and extend what exists.
 
+### Credits
+
+The site-wide credits page (`/credits`, linked quietly from the home page) lists third-party work the site shows: art, photos, fonts, icons, textures, sounds and data sets. Code libraries aren't listed. The `Credit` shape and site-wide credits live in `src/shared/lib/credits.ts`; each project that uses someone else's work keeps its own list in its `credits.ts`, registered in `src/app/credits/credit-groups.ts`. **Any change that adds a third-party asset must add its credit in the same change**, with the licence, the source and, when the licence requires a credit, its credit line (a test enforces that). Derive a project's credits from its own asset records where it has them, as Family Tree does from its symbol art, rather than keeping a second list.
+
 ### Database / Supabase SQL
 
 This project does **not** use a migrations folder or the Supabase CLI. SQL lives as flat, idempotent files in `supabase/*.sql` (one per feature, e.g. `monopoly.sql`), written to be safely re-runnable (`create table if not exists`, `add column if not exists`, `drop policy if exists` before `create policy`).
