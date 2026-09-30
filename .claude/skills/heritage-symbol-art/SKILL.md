@@ -20,7 +20,7 @@ stores it with a record of where it came from. The rules behind it are
   each people's and region's timeline says which symbol each era shows.
 - **The art** is one file per symbol id in
   `src/projects/family-tree/symbol-art/`, named `<symbol-id>.svg` (or
-  `.png`), with its record in `SYMBOL_ART` (`symbol-art.ts`). A symbol
+  `.png`, or `.jpg` for a scan), with its record in `SYMBOL_ART` (`symbol-art.ts`). A symbol
   without a record has **no verified art** and isn't shown.
 - `npx tsx src/projects/family-tree/tools/tree-cli.ts peoples` lists every
   timeline and, at the end, every symbol still without verified art.
@@ -217,9 +217,11 @@ the repo, until the file is verified.
 
 - **SVG is preferred.** Take a faithful SVG over a raster of the same
   design.
-- **Raster only when no faithful SVG exists:** the original upload as PNG,
-  at its full resolution. A PNG thumbnail is Commons' rendering, not the
-  source; don't store one.
+- **Raster only when no faithful SVG exists:** the original upload as the
+  source published it, at its full resolution: a PNG, or a JPEG where the
+  source is a photograph or scan of a period specimen (an archive's scan of
+  the original plate). A PNG thumbnail is Commons' rendering, not the
+  source; don't store one, and never convert a JPEG to PNG.
 - **A huge file stays as it is.** An intricate arms SVG can be megabytes.
   Prefer an equally faithful, smaller file of the same design if one exists;
   otherwise store the large one unedited. Its size is the UI's problem to
@@ -291,7 +293,7 @@ The repo may be public, so every file's licence is recorded and honoured.
 ## Recording it
 
 1. Copy the verified file to
-   `src/projects/family-tree/symbol-art/<symbol-id>.<svg|png>`, unedited.
+   `src/projects/family-tree/symbol-art/<symbol-id>.<svg|png|jpg>`, unedited.
 2. Add its record to `SYMBOL_ART` in `symbol-art.ts`. For published art
    (`kind: "published"`): format, the source's SHA-1, the source page, author, licence and its basis, attribution (empty
    when the licence needs none), the official proportions, what it was

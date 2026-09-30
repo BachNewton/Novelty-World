@@ -45,6 +45,32 @@ function pngRatio(png: Buffer): number {
   return png.readUInt32BE(16) / png.readUInt32BE(20);
 }
 
+// A JPEG's pixel width over height, from its first start-of-frame marker
+// (baseline, progressive or any other SOFn).
+function jpegRatio(jpeg: Buffer): number {
+  if (jpeg.readUInt16BE(0) !== 0xffd8) throw new Error("not a JPEG");
+  let offset = 2;
+  while (offset + 9 < jpeg.length) {
+    if (jpeg[offset] !== 0xff) throw new Error(`no marker at byte ${offset}`);
+    const marker = jpeg[offset + 1];
+    const isFrame = marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker);
+    if (isFrame) return jpeg.readUInt16BE(offset + 7) / jpeg.readUInt16BE(offset + 5);
+    offset += 2 + jpeg.readUInt16BE(offset + 2);
+  }
+  throw new Error("no start-of-frame marker");
+}
+
+function artRatio(art: SymbolArt, bytes: Buffer): number {
+  switch (art.format) {
+    case "svg":
+      return svgRatio(bytes.toString("utf8"));
+    case "png":
+      return pngRatio(bytes);
+    case "jpg":
+      return jpegRatio(bytes);
+  }
+}
+
 describe("symbol art", () => {
   it("is stored unedited: each file's SHA-1 is its record's", () => {
     for (const [symbol, art] of artRecords()) {
@@ -56,7 +82,7 @@ describe("symbol art", () => {
   it("has the symbol's official proportions", () => {
     for (const [symbol, art] of artRecords()) {
       const bytes = artBytes(symbolArtFile(symbol, art));
-      const ratio = art.format === "svg" ? svgRatio(bytes.toString("utf8")) : pngRatio(bytes);
+      const ratio = artRatio(art, bytes);
       const official = art.proportions.width / art.proportions.height;
       expect(Math.abs(ratio / official - 1), symbol).toBeLessThanOrEqual(RATIO_TOLERANCE);
     }
@@ -105,5 +131,14 @@ describe("svgRatio", () => {
     expect(svgRatio('<svg width="100" height="100" viewBox="0 0 18 11">')).toBeCloseTo(18 / 11);
     expect(svgRatio('<?xml version="1.0"?><svg xmlns="x" height="1000" width="1500px">')).toBeCloseTo(1.5);
     expect(() => svgRatio('<svg width="100%" height="100%">')).toThrow();
+  });
+});
+
+describe("jpegRatio", () => {
+  it("reads the frame size past other segments, from a progressive frame too", () => {
+    const app0 = [0xff, 0xe0, 0x00, 0x04, 0x00, 0x00];
+    const sof2 = [0xff, 0xc2, 0x00, 0x0b, 0x08, 0x06, 0x2a, 0x03, 0x54, 0x01, 0x01, 0x11, 0x00];
+    expect(jpegRatio(Buffer.from([0xff, 0xd8, ...app0, ...sof2]))).toBeCloseTo(852 / 1578);
+    expect(() => jpegRatio(Buffer.from([0x89, 0x50, 0x4e, 0x47]))).toThrow();
   });
 });

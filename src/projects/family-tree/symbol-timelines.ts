@@ -107,6 +107,10 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
       "Imperial decree of 26 October 1809 confirming the arms of the Grand Duchy of Finland (Polnoe sobranie zakonov Rossiiskoi imperii)",
       "K. A. Bomansson, \"Storfurstendömet Finlands vapen\", Historiallinen Arkisto IX (1886): the arms as Finland used them",
       "Act on the Flag of Finland, 29 May 1918 (Suomen asetuskokoelma 40/1918): the flag that replaced the arms as Finland's symbol",
+      "Itsenäisyys 100, \"Historiallinen leijonavaakuna on kestänyt kaikki Suomen valtiolliset vaiheet\" (the lion arms became the Grand Duchy's in 1809; the lion that K. A. Bomansson drew and Ferdinand Tilgmann printed in 1886 at once became general in Finnish-made arms and lion flags)",
+      "Finnish Government, \"The Finnish flag turns 100\" (the arms flown on white by students in 1848; the red-and-yellow lion flag with the arms' lion raised on 6 December 1917)",
+      "Suomen lipun historia, \"Flags of the Grand Duchy of Finland\" and \"Finnish Flags During the Years of Oppression, 1890-1917\" (Topelius's blue-and-white flag of 1862 bore the lion arms; the red lion flag spread among Finns in 1899-1917 and was banned by the Russian authorities)",
+      "Finns identified with the Grand Duchy of Finland, their own state, not with the Russian Empire: its lion arms were Finland's, the one symbol shared by every side of the flag debate, in the form Finns drew themselves rather than the Russian Empire's 1882 drawing",
     ]),
     verified(era(1918, null, "Finland", "finland-flag"), [
       "Act on the Flag of Finland, 29 May 1918 (Suomen asetuskokoelma 40/1918)",

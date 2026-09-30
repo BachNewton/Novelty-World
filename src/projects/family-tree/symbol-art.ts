@@ -20,8 +20,9 @@ export const ART_LICENSES = {
 export type ArtLicenseId = keyof typeof ART_LICENSES;
 
 interface ArtRecord {
-  // SVG wherever a faithful one exists; PNG only when the source is raster.
-  format: "svg" | "png";
+  // SVG wherever a faithful one exists; a raster only when the source is one:
+  // PNG, or JPEG for a scan of a period specimen, stored as published.
+  format: "svg" | "png" | "jpg";
   // The file's SHA-1, so a test can prove the stored file was never edited:
   // for published art, the source's own (Commons gives each upload's).
   sha1: string;
@@ -112,6 +113,33 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "Proportions 11:18, cross arms 3, fields 4:3:4 high and 5:3:10 long: the file draws exactly that (viewBox 18 by 11), as the 1918 act already set them. " +
       "Blue #002F6C is Pantone's sRGB value for PMS 294 C, the blue of decision 827/1993; white #FFFFFF. " +
       "The 1918 act's blue was an unspecified ultramarine until 1993, so earlier flags varied in shade.",
+  },
+  "finland-lion-arms": {
+    kind: "published",
+    format: "jpg",
+    sha1: "e3da7d37fbcfecefc3003e7c9911f1d11f283bd2",
+    source: "https://commons.wikimedia.org/wiki/File:Coat_of_arms_of_Finland_1889.jpg",
+    author: "Karl August Bomansson (scan: National Archives of Finland)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-Kansallisarkisto",
+    attribution: "",
+    proportions: { width: 852, height: 1578 },
+    checkedAgainst: [
+      "Itsenäisyys 100, \"Historiallinen leijonavaakuna on kestänyt kaikki Suomen valtiolliset vaiheet\": State Archivist K. A. Bomansson's arms of the Grand Duchy, printed by Ferdinand Tilgmann in 1886; \"this lion figure at once became general in Finnish-made arms and lion flags\"; the crown removed in 1920",
+      "\"Suomen suuriruhtinaskunnan vaakuna v. 1886\" (Storfurstendömet Finlands vapen), Bomansson and Tilgmann, Historiallinen Arkisto IX (1886), Finnish Heritage Agency HK10000:6738: https://www.finna.fi/Record/museovirasto.01CC071AA040A211DCA317AA4BEDA83C",
+      "Finnish Government, \"The Finnish flag turns 100\": the arms flown on white in 1848, blue and white as popular colours from the 1860s, the red-and-yellow lion flag with the arms' lion raised on 6 December 1917: https://valtioneuvosto.fi/en/-/1410869/suomen-lippu-tayttaa-sata-vuotta",
+      "Suomen lipun historia, \"Flags of the Grand Duchy of Finland\" and \"Finnish Flags During the Years of Oppression, 1890-1917\": Topelius's blue-and-white flag of 1862 bore the lion arms; the red lion flag spread in 1899-1917 and was banned: https://www.leijonalippu.fi/en/sortokaudet.html",
+      "Finnish Ministry of the Interior, \"Coat of arms of Finland\": https://intermin.fi/en/flag-and-arms/arms-of-finland",
+    ],
+    checked:
+      "Represent people, not governments: Finns of 1809-1918 identified with the Grand Duchy of Finland, their own state with its own Senate, Diet and constitution, but not with the Russian Empire. " +
+      "The lion arms were Finland's own, and the one symbol every side shared: Topelius's blue-and-white flag of 1862 bore them, the red lion flag of the national movement is their lion, and Finns kept to the lion stamps until Russia stopped them in 1901. " +
+      "The flags were factional (blue and white for the Finnish-speaking side, red and yellow for the Swedish-speaking side and the Young Finns), so the arms, not a flag, are the symbol that represents them all. " +
+      "The era's arms came in two forms: the Russian Empire's official 1882 drawing (a bare arm, a Russian double eagle in the crown) and the form Finland's own State Archivist Bomansson drew in 1886, which at once became general in Finnish-made arms and lion flags (Itsenäisyys 100). " +
+      "By the rule that the form a people used for themselves wins over one they would have seen as imposed, this is the Finnish form. " +
+      "The file is the National Archives of Finland's scan of Bomansson's own colour plate, the historical record itself, stored unedited: a crowned gold lion on red, an armoured arm brandishing a sword, a sabre under its hind paws, nine silver roses, and a closed red-capped crown with no eagle. " +
+      "Compared element by element with the Finnish Heritage Agency's scan of the 1886 printed plate (HK10000:6738): the same design. The scan's cream paper is the original's; no ratio was set, so the proportions are the scan's own (852 by 1578). " +
+      "A JPEG scan, because no faithful SVG of the Finnish form exists (the Commons SVGs follow the 1882 Russian drawing or carry the eagle crown). Finnish-American usage was searched without a direct source, so the choice rests on usage in Finland.",
   },
   "german-empire-flag": {
     kind: "published",

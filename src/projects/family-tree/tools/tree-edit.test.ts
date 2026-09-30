@@ -619,32 +619,33 @@ describe("peoples", () => {
 });
 
 describe("the symbols the tree needs", () => {
-  // A Finnish root born in 1900 (the lion arms, no art) whose children,
-  // with no birth dates, are estimated a generation later (the blue cross).
-  function finnish(): Tree {
-    return setHeritage(setBirthDate(family(), ROOT_ID, "1900"), ROOT_ID, ["finnish"]);
+  // A Hungarian root born in 1840 (the Kingdom's flag before 1848, no art)
+  // whose children, with no birth dates, are estimated a generation later
+  // (the red-white-green tricolour).
+  function hungarian(): Tree {
+    return setHeritage(setBirthDate(family(), ROOT_ID, "1840"), ROOT_ID, ["hungarian"]);
   }
 
   it("picks each known share's symbol at each person's birth year, own or estimated", () => {
-    const { needed, unpicked } = neededSymbols(finnish());
+    const { needed, unpicked } = neededSymbols(hungarian());
     expect(needed.map(({ symbol, people }) => [symbol, people.map((p) => p.id)])).toEqual([
-      ["finland-lion-arms", [ROOT_ID]],
-      ["finland-flag", [SHARED_KID, SOLO_KID]],
+      ["hungary-kingdom-flag", [ROOT_ID]],
+      ["hungary-flag", [SHARED_KID, SOLO_KID]],
     ]);
     expect(unpicked).toEqual([]);
   });
 
   it("lists the needed symbols without art, with a count and an example", () => {
-    expect(SYMBOL_ART["finland-flag"]).toBeDefined();
-    expect(SYMBOL_ART["finland-lion-arms"]).toBeUndefined();
-    const lines = describeNeededArt(finnish()).split("\n");
+    expect(SYMBOL_ART["hungary-flag"]).toBeDefined();
+    expect(SYMBOL_ART["hungary-kingdom-flag"]).toBeUndefined();
+    const lines = describeNeededArt(hungarian()).split("\n");
     expect(lines[0]).toBe("Symbols the tree needs: 2. Without verified art: 1");
-    expect(lines[1]).toMatch(/^  finland-lion-arms \(.+\): 1 person, e\.g\. Kyle Hutchinson \[.+\]$/);
+    expect(lines[1]).toMatch(/^  hungary-kingdom-flag \(.+\): 1 person, e\.g\. Kyle Hutchinson \[.+\]$/);
     expect(lines.slice(2)).toEqual(["People with heritage but no birth year to pick a symbol by: 0"]);
   });
 
   it("counts people with heritage but no birth year anywhere near them", () => {
-    const { needed, unpicked } = neededSymbols(setHeritage(family(), ROOT_ID, ["finnish"]));
+    const { needed, unpicked } = neededSymbols(setHeritage(family(), ROOT_ID, ["hungarian"]));
     expect(needed).toEqual([]);
     expect(unpicked.map((p) => p.id).sort()).toEqual([ROOT_ID, SHARED_KID, SOLO_KID].sort());
   });
