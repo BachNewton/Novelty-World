@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 const NW_PREFIX = "nw:";
+const STORAGE_NAME = "profile";
 
 export interface PlayerProfile {
   id: string;
@@ -33,8 +34,15 @@ export const useProfile = create<ProfileStore>()(
       setName: (name: string) => set({ name }),
     }),
     {
-      name: "profile",
+      name: STORAGE_NAME,
       storage: appPersistStorage,
     },
   ),
 );
+
+// zustand's persist writes only when the state changes, so a profile nobody
+// has edited would get a new id on every page load and could never be
+// recognised on a rejoin. Write the first one down.
+if (typeof window !== "undefined" && localStorage.getItem(NW_PREFIX + STORAGE_NAME) === null) {
+  useProfile.setState({});
+}
