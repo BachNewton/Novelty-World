@@ -83,6 +83,13 @@ they left; their grandchildren show today's.
   Historical flags and coats of arms come from Wikimedia Commons (public
   domain, free), stored in the repo, each with its source and license noted.
   Coats of arms are drawn in their own proportions, like flags.
+- **Real art only, never our own drawing.** A symbol's art is never drawn or
+  approximated by us, in the app or in a mockup. It comes from an official
+  source (a government's or institution's published design), or from a
+  faithful file such as a Wikimedia Commons one that has been checked against
+  the official specification or the historical record: its proportions,
+  colors and details. Research records that source beside the era. A symbol
+  with no verified art isn't shown until it has some.
 - **A symbol is always shown whole.** Anything that represents a place, a
   people or a country (a flag, a coat of arms, a regional emblem) is drawn at
   its true aspect ratio, uncropped, in its own colors, and nothing overlaps
