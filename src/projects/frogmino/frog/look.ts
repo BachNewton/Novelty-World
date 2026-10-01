@@ -1,5 +1,5 @@
 // How each frog looks: the player's frog in solo, the pair of partners in
-// co-op, and the sleepy frog waiting in a pull-off. The two players are a
+// co-op, and a sleepy unclaimed frog. The two players are a
 // matched pair of real frogs, not one frog recoloured: a leaf-green tree frog
 // with orange feet, round spots and round pupils, and an azure dart frog
 // with pink feet, freckles and bar pupils. Their skins differ in hue and in

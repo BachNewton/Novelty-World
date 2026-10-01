@@ -38,7 +38,25 @@ The obstacles are rows of traffic (see Traffic). The rules still call a row a wa
 - `components/world/`: the world's drawing. `world.tsx` is `FrogminoWorld`; `box-instances.tsx` draws a list of world boxes as one instanced mesh; `sky.tsx` the sky dome, sun and clouds; `world-assets.ts` the palette and materials; `world-preview.tsx` the `?world` page. `components/camera-fit.ts` is the gameplay camera's pitch and fitted field of view.
 - `audio/`: the sound (see Sound). `sounds.ts` holds the sound designs as ZzFX parameters, with each sound's variation, minimum gap and trigger, and renders a design's layers into one buffer; `player.ts` plays with the anti-annoyance rules behind a thin `AudioOutput` seam; `sound-board.ts` is the browser side, one AudioContext and the rendered buffers, and the trigger API; `cues.ts` turns store state changes into sounds; `use-game-sounds.ts` wires that to the store; `settings.ts` keeps mute and volume; `mute-button.tsx` and `sound-lab.tsx` are the mute toggle and the `?sounds` page. `zzfx.d.ts` types the part of ZzFX the game uses.
 
-The project is a solo prototype so far, played by keyboard or touch, proving controls, motion and collision: an L piece that changes only at gates in the traffic, an endless stream of rows from a fixed seed that ramps from easy to hard over its first fifteen and goes on in waves, drawn in the fleet's art on the world's mountain road, riding, the bonk, a start on the overpass and a finish on the gantry, with a done overlay and restart. There is no clock or medals. Co-op connects two players in the lobby, but there is no co-op play yet.
+## Status and next steps
+
+**Built:** a solo prototype, played by keyboard or touch, proving controls, motion and collision.
+- An L piece that changes only at gates in the traffic.
+- An endless stream of rows from a fixed seed, ramping from easy to hard over its first fifteen and going on in waves.
+- Drawn in the fleet's art and the frog's art on the world's mountain road, with sound.
+- Riding, the bonk, a start on the overpass and a finish on the gantry, with a done overlay and restart.
+- The lobby connects two players for co-op, but there is no co-op play yet.
+- There is no clock and no medals.
+
+**Next, in order:**
+1. **The owner playtests the latest round:** gates and needs-gate rows, jumping back for a missed gate, the overpass drop, the finish leap, the frog in play, and the world mounted in the game. Feel and look calls go to the owner; see Open questions.
+2. **Traffic performance on phones.** About 35 rows are in flight, each vehicle drawn with its full art at roughly 30 draw calls. If phones struggle, draw the traffic as instanced meshes, as the world already is.
+3. **The clock and medals,** which need the course format and the automated player from `ideas/course-authoring.md`.
+4. **Claude's course-authoring toolbox and skill** (`ideas/course-authoring.md`): validate, analyse, play and preview, then a skill teaching course design.
+5. **Co-op play:** rules for a list of frogs, the shared seed, frog-to-frog solidity, openings filling in, gates closing behind the first frog, pair tracking in the stream, and the averaged team time.
+6. **Later:** stacking (vehicles carrying vehicles, for ceilings), staggered and mixed-speed traffic, and the human course editor.
+
+**Dev views:** add these to the URL. `?play=solo` skips the lobby; `?garage` shows the fleet, `?world` the world, `?sounds` the sounds and `?frog` the frog.
 
 ## The wall face
 
@@ -308,3 +326,9 @@ Sound complements the gameplay and never gets in its way, like the art. It adds 
 - Networked co-op hop timing: each player's hop should be judged on their own timeline, with forgiving airtime. How exactly is still open.
 - How co-op's "openings fill in" rule translates to vehicles.
 - The code rename from wall to vehicle terminology, once the model changes.
+- **The camera on desktop.** At the current pitch, a wide screen sees only road, meadow and hills: the sky and the far peaks show only on portrait phones. Tilting up shows more sky but changes how far ahead rows can be read.
+- **The world's loudness.** The bright meadow fills much of a desktop view and may pull the eye from the road; it is easy to darken or push back. The pink spring pad, the hazard-striped overpass edge and the terracotta cones haven't been judged.
+- **Right after the drop,** the overpass deck hides the frog for a few seconds and only its silhouette shows: is the silhouette's colour clear, and is the framing acceptable?
+- **The gates' look.** The gate's piece shows on signs on its posts at the roadside, not overhead, because the decks leave no room above the tallest vehicle. Does it read from far enough away? Its violet is close to the fleet's grape paint.
+- **Frog poses that may not read as a frog:** the flat I (it looks like a log), poses with a single bottom cell under a wide top, and head-to-one-side J, L, S and Z poses. The waiting frog, Snooze, has no use in play now that pull-offs are gone.
+- **Fleet designs the art pass was least sure of:** Land Galleon, Tall Latte, Sub Standard's periscope, Mow Problemo, Moon Hauler, and wheels that show only as stubs head-on.

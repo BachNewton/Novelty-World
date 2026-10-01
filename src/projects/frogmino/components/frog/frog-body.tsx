@@ -56,7 +56,7 @@ function PartMesh({
   );
 }
 
-// The player's frog, or a frog waiting in a pull-off, as any piece in any
+// The player's frog, or a sleepy unclaimed one, as any piece in any
 // rotation, in its own frame (see `frog/model.ts`): cells from x = 0 across
 // and from the clearance up, its front face at z = 0 and its back toward the
 // camera at z = 1. It breathes, blinks and puffs its throat by itself, and
