@@ -102,14 +102,19 @@
   --color-frogmino-snow: #fafafa;
 }
 
-/* Frogmino: the pull-offs beside the road. The ground is packed gravel, warm
-   and a clear step apart from the road; the barriers and the marker are
-   road-works bright, to be seen from far down the road. Read only by the 3D
-   scene through themeColor, so declared outside @theme. */
+/* Frogmino: the gates, which travel with their rows and set the frog's
+   piece. A blocky gantry chequered in deep violet and lilac, a pattern no
+   vehicle and nothing in the world wears, so a gate never reads as traffic
+   or scenery; a cream
+   sign over the gate's lanes that the piece's icon stands out on; and a
+   faint lilac shimmer in the gap that never hides the fit. Read only by the
+   3D scene through themeColor, so declared outside @theme. */
 :root {
-  --color-frogmino-pull-off-ground: #8a7a62;
-  --color-frogmino-pull-off-barrier: #ff8a1f;
-  --color-frogmino-pull-off-marker: #ffd23f;
+  --color-frogmino-gate-frame: #6d3fd6;
+  --color-frogmino-gate-frame-light: #b99bff;
+  --color-frogmino-gate-sign: #fff6e2;
+  --color-frogmino-gate-arrow: #6d3fd6;
+  --color-frogmino-gate-shimmer: #d9c6ff;
 }
 
 /* Frogmino: the frogs. The two players are a matched pair of real frogs: a
@@ -175,6 +180,7 @@
   --color-frogmino-world-lane-dash: #7a7f8e;
   --color-frogmino-world-edge-line: #a3a7b2;
   --color-frogmino-world-shoulder: #9a9283;
+  --color-frogmino-world-lay-by: #a89880;
   --color-frogmino-world-kerb: #e4dfd4;
   --color-frogmino-world-kerb-dark: #b9b1a3;
   --color-frogmino-world-finish-light: #f3f1ea;

@@ -1,13 +1,15 @@
 import { cellKey, frogCells, pieceCells, pieceSize } from "./logic";
 import { shapeKey, VEHICLE_IDS } from "./fleet";
-import { lanesOf, rowOpening, vehicleCellsAt, vehicleWidth, type Row, type RowVehicle } from "./traffic";
-import type { Cell, Frog, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
+import { GATE_WIDTH, gateLanes, insideGate, lanesOf, rowOpening, vehicleCellsAt, vehicleWidth, type Row, type RowVehicle } from "./traffic";
+import type { Cell, Frog, Gate, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
 
 // Composes rows of traffic answer-first: pick the pose the row is for (one
 // per piece the row must let through), fill the lanes with vehicles that keep
 // those poses' cells open, count how many poses of each piece the result lets
 // through, and keep it only if each count suits the difficulty. Every row is
-// passable by each of its pieces because their answers are.
+// passable by each of its pieces because their answers are. A row may hold a
+// gate, two lanes no vehicle takes: the answers and the counts are all about
+// the row's normal openings, the ways through that keep the frog's piece.
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -99,22 +101,28 @@ export function placementKey(frog: Frog): string {
 
 // Which pieces a row is for.
 export interface RowPieces {
-  // Each must pass the row.
+  // Each must pass through a normal opening.
   pass: readonly TetrominoKind[];
-  // None may pass it.
+  // None may pass through a normal opening.
   refuse: readonly TetrominoKind[];
+  // The piece the row's gate sets; null for a row without one.
+  gate: TetrominoKind | null;
 }
 
 export interface ComposedRow {
   vehicles: Row;
+  gates: Gate[];
   opening: Opening;
   // The poses the row was built around, one per piece it must let through.
   answers: Frog[];
-  // Every pose of those pieces that passes it.
+  // Every pose of those pieces that passes it through a normal opening, and
+  // every pose of the gate's piece inside the gate: where the frog can be
+  // once it is through.
   fits: Frog[];
 }
 
 function pick<T>(items: readonly T[], random: () => number): T {
+  if (items.length === 0) throw new Error("Nothing to pick from");
   return items[Math.floor(random() * items.length)];
 }
 
@@ -170,8 +178,9 @@ function roadPlacements(face: Face): RoadPlacement[] {
 }
 
 // Fills the lanes one vehicle at a time, never over the answers' cells and
-// never in a lane already taken, until nothing fits or the row stops.
-function fillLanes(answers: readonly Frog[], rule: DifficultyRule, face: Face, random: () => number): RowVehicle[] {
+// never in a lane already taken or kept open for a gate, until nothing fits
+// or the row stops.
+function fillLanes(answers: readonly Frog[], gateLaneSet: ReadonlySet<number>, rule: DifficultyRule, face: Face, random: () => number): RowVehicle[] {
   const answerCells = answers.flatMap(frogCells);
   const kept = new Set(answerCells.map(cellKey));
   const beside = besideAnswer(answerCells, face);
@@ -181,7 +190,7 @@ function fillLanes(answers: readonly Frog[], rule: DifficultyRule, face: Face, r
     const hugs = cells.filter((c) => beside.has(c)).length;
     return [{ placed, lanes, weight: Math.exp(rule.hug * hugs) }];
   });
-  const takenLanes = new Set<number>();
+  const takenLanes = new Set(gateLaneSet);
   const row: RowVehicle[] = [];
   for (;;) {
     const options = clear.filter((option) => option.lanes.every((lane) => !takenLanes.has(lane)));
@@ -193,11 +202,23 @@ function fillLanes(answers: readonly Frog[], rule: DifficultyRule, face: Face, r
   }
 }
 
-// One row of traffic that every piece in `pieces.pass` passes and no piece
-// in `pieces.refuse` does. `before` is where the frog could stand after the
-// previous row; a hard row lets none of those through. Null if no acceptable
-// row turns up: the vehicles can't build what the difficulty asks of those
-// pieces, or can rarely.
+// A gate for `kind` in lanes the seed picks, anywhere across the road.
+function placeGate(kind: TetrominoKind, face: Face, random: () => number): Gate {
+  return { lane: Math.floor(random() * (face.cols - GATE_WIDTH + 1)), kind };
+}
+
+// The ways through an opening that keep the frog's piece: every passing
+// pose not entirely inside one of the row's gates.
+export function normalFits(kind: TetrominoKind, face: Face, opening: Opening, gates: readonly Gate[]): Frog[] {
+  return passingIn(kind, face, new Set(opening.map(cellKey))).filter((p) => gates.every((gate) => !insideGate(frogCells(p), gate)));
+}
+
+// One row of traffic that every piece in `pieces.pass` passes through a
+// normal opening and no piece in `pieces.refuse` does, with a gate for
+// `pieces.gate` when it names one. `before` is where the frog could stand
+// after the previous row; a hard row lets none of those through. Null if no
+// acceptable row turns up: the vehicles can't build what the difficulty asks
+// of those pieces, or can rarely.
 export function findRow(
   pieces: RowPieces,
   difficulty: Difficulty,
@@ -209,24 +230,33 @@ export function findRow(
   const forbidden = new Set(rule.demandChange ? before.map(placementKey) : []);
   const [fewest, most] = rule.fits;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const hop: HopHeight = random() < rule.hopChance ? 1 : 0;
-    const answers = pieces.pass.map((kind) =>
-      pick(
-        poses(kind, face).filter((p) => p.hop === hop),
-        random,
-      ),
+    const gates = pieces.gate === null ? [] : [placeGate(pieces.gate, face, random)];
+    const gateLaneSet = new Set(
+      gates.flatMap((gate) => {
+        const { first, last } = gateLanes(gate);
+        return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+      }),
     );
-    const vehicles = fillLanes(answers, rule, face, random);
-    const opening = rowOpening(vehicles, face.cols, face.rows);
-    const open = new Set(opening.map(cellKey));
-    const passing = pieces.pass.map((kind) => passingIn(kind, face, open));
+    const hop: HopHeight = random() < rule.hopChance ? 1 : 0;
+    // A gate can leave a piece no pose at that height beside it, such as a
+    // raised I beside a gate in the middle of the road.
+    const candidates = pieces.pass.map((kind) =>
+      poses(kind, face).filter((p) => p.hop === hop && frogCells(p).every((cell) => !gateLaneSet.has(cell.col))),
+    );
+    if (candidates.some((each) => each.length === 0)) continue;
+    const answers = candidates.map((each) => pick(each, random));
+    const vehicles = fillLanes(answers, gateLaneSet, rule, face, random);
+    const opening = rowOpening(vehicles, face.cols, face.rows, gates);
+    const passing = pieces.pass.map((kind) => normalFits(kind, face, opening, gates));
     if (passing.some((each) => each.length < fewest || each.length > most)) continue;
     const all = passing.flat();
     // A raised answer must need its hop, or the row doesn't read as raised.
     if (hop === 1 && all.some((p) => p.hop === 0)) continue;
     if (all.some((p) => forbidden.has(placementKey(p)))) continue;
-    if (pieces.refuse.some((kind) => passingIn(kind, face, open).length > 0)) continue;
-    return { vehicles, opening, answers, fits: all };
+    if (pieces.refuse.some((kind) => normalFits(kind, face, opening, gates).length > 0)) continue;
+    const open = new Set(opening.map(cellKey));
+    const transformed = gates.flatMap((gate) => passingIn(gate.kind, face, open).filter((p) => insideGate(frogCells(p), gate)));
+    return { vehicles, gates, opening, answers, fits: [...all, ...transformed] };
   }
   return null;
 }

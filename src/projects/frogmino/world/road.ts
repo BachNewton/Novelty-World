@@ -10,14 +10,13 @@ import {
   box,
   boxArea,
   overlaps,
-  pullOffKeepOut,
   roadArea,
   sideX,
   type Area,
   type Side,
   type WorldBox,
 } from "./geometry";
-import type { PullOffStretch } from "../pull-off";
+import { layByIn, layByKeepOut, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { RAIL_SEGMENT, propBoxes, type Prop, type PropKind } from "./props";
 import { FINISH_LINE, finishMarkings, finishZone, gantryBoxes, mark, overpassBoxes, structureKeepOuts } from "./structures";
 import type { WorldPaint } from "./paints";
@@ -29,7 +28,6 @@ import type { WorldPaint } from "./paints";
 export interface WorldPlan {
   seed: number;
   courseLength: number;
-  pullOffs: readonly PullOffStretch[];
 }
 
 export const ROAD_TILE = 24;
@@ -39,15 +37,10 @@ export const ROAD_TILE = 24;
 export const ROAD_BEHIND_CAMERA = 30;
 export const ROAD_AHEAD_OF_CAMERA = 560;
 
-// A pull-off's barriers stand this deep beyond each end of its stretch; the
-// shoulder and kerb give way to them there too.
-const PULL_OFF_BARRIER = 1;
-
 const DASH_LENGTH = 1.1;
 const DASH_PERIOD = 3;
 const DASH_WIDTH = 0.06;
 const EDGE_LINE_WIDTH = 0.08;
-const EDGE_DASH = 0.5;
 const KERB_BLOCK = 2;
 
 const REFLECTOR_SPACING = 8;
@@ -79,12 +72,15 @@ const SIDE_STYLE: Record<Side, { railChance: number; treeChance: number; feature
 };
 
 export interface RoadTile {
-  // The road's surfaces: the asphalt, shoulders and kerbs.
+  // The road's surfaces: the asphalt, shoulders and kerbs, and a lay-by's
+  // gravel.
   surfaces: WorldBox[];
   // Flat paint on the road: lane dashes, edge lines, the finish.
   markings: WorldBox[];
   // Everything standing beside the road.
   props: WorldBox[];
+  // The tile's lay-by, if it has one.
+  layBy: LayBy | null;
 }
 
 export function tileRange(cameraDepth: number, behind: number, ahead: number, tile: number): number[] {
@@ -115,13 +111,6 @@ function pick<T>(rng: Rng, weighted: readonly [T, number][]): T {
   return weighted[weighted.length - 1][0];
 }
 
-// The stretches of one side's edge that pull-offs (and their barriers) take.
-function edgeGaps(plan: WorldPlan, side: Side): [number, number][] {
-  return plan.pullOffs
-    .filter((p) => p.side === side)
-    .map((p): [number, number] => [p.near - PULL_OFF_BARRIER, p.far + PULL_OFF_BARRIER]);
-}
-
 // What is left of near..far once the gaps are cut out of it.
 function cutGaps(near: number, far: number, gaps: readonly [number, number][]): [number, number][] {
   let pieces: [number, number][] = [[near, far]];
@@ -141,20 +130,17 @@ function surfaceBox(x0: number, x1: number, top: number, near: number, far: numb
   return box([(x0 + x1) / 2, (top - GROUND_DROP) / 2, -(near + far) / 2], [x1 - x0, top + GROUND_DROP, far - near], paint);
 }
 
-function roadSurfaces(plan: WorldPlan, near: number, far: number): WorldBox[] {
+// The road's shoulders and kerbs run unbroken along both edges.
+function roadSurfaces(near: number, far: number): WorldBox[] {
   const surfaces = [surfaceBox(ROAD_LEFT, ROAD_RIGHT, 0, near, far, "asphalt")];
   for (const side of ["left", "right"] as const) {
     const [edge, shoulder, kerb] = [sideX(side, 0), sideX(side, SHOULDER_WIDTH), sideX(side, VERGE)];
-    for (const [a, b] of cutGaps(near, far, edgeGaps(plan, side))) {
-      surfaces.push(surfaceBox(Math.min(edge, shoulder), Math.max(edge, shoulder), 0, a, b, "shoulder"));
-      // Kerb blocks alternate light and dark on a fixed rhythm along the road.
-      for (let k = Math.floor(a / KERB_BLOCK); k * KERB_BLOCK < b; k++) {
-        const [k0, k1] = [Math.max(a, k * KERB_BLOCK), Math.min(b, (k + 1) * KERB_BLOCK)];
-        if (k1 - k0 < 1e-6) continue;
-        surfaces.push(
-          surfaceBox(Math.min(shoulder, kerb), Math.max(shoulder, kerb), KERB_HEIGHT, k0, k1, k % 2 === 0 ? "kerb" : "kerb-dark"),
-        );
-      }
+    surfaces.push(surfaceBox(Math.min(edge, shoulder), Math.max(edge, shoulder), 0, near, far, "shoulder"));
+    // Kerb blocks alternate light and dark on a fixed rhythm along the road.
+    for (let k = Math.floor(near / KERB_BLOCK); k * KERB_BLOCK < far; k++) {
+      const [k0, k1] = [Math.max(near, k * KERB_BLOCK), Math.min(far, (k + 1) * KERB_BLOCK)];
+      if (k1 - k0 < 1e-6) continue;
+      surfaces.push(surfaceBox(Math.min(shoulder, kerb), Math.max(shoulder, kerb), KERB_HEIGHT, k0, k1, k % 2 === 0 ? "kerb" : "kerb-dark"));
     }
   }
   return surfaces;
@@ -173,28 +159,21 @@ function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
       marks.push(mark(x, (d0 + d1) / 2, DASH_WIDTH, DASH_LENGTH, "lane-dash"));
     }
   }
-  // Solid edge lines, dashed where a pull-off opens beside the road, and
-  // stopping for the chequered finish line painted from edge to edge.
+  // Solid edge lines, stopping for the chequered finish line painted from
+  // edge to edge.
   const finishLine: [number, number] = [plan.courseLength + FINISH_LINE.near, plan.courseLength + FINISH_LINE.far];
   for (const side of ["left", "right"] as const) {
     const x = sideX(side, 0);
-    const gaps = edgeGaps(plan, side);
-    for (const [a, b] of cutGaps(near, far, [...gaps, finishLine])) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
-    for (const [g0, g1] of gaps) {
-      for (let n = Math.floor(g0 / (2 * EDGE_DASH)); n * 2 * EDGE_DASH < g1; n++) {
-        const [d0, d1] = [Math.max(g0, near, n * 2 * EDGE_DASH), Math.min(g1, far, n * 2 * EDGE_DASH + EDGE_DASH)];
-        if (d1 - d0 > 1e-6) marks.push(mark(x, (d0 + d1) / 2, EDGE_LINE_WIDTH, d1 - d0, "edge-line"));
-      }
-    }
+    for (const [a, b] of cutGaps(near, far, [finishLine])) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
   }
   if (plan.courseLength >= near && plan.courseLength < far) marks.push(...finishMarkings(plan.courseLength));
   return marks;
 }
 
-// Where the roadside may not put anything: the road, the pull-offs, and the
-// structures' footprints.
+// Where the roadside may not put anything: the road and the structures'
+// footprints.
 export function keepOuts(plan: WorldPlan, near: number, far: number): Area[] {
-  return [roadArea(near - 1, far + 1), ...plan.pullOffs.map(pullOffKeepOut), ...structureKeepOuts(plan.courseLength)];
+  return [roadArea(near - 1, far + 1), ...structureKeepOuts(plan.courseLength)];
 }
 
 function allowed(boxes: readonly WorldBox[], blocked: readonly Area[]): boolean {
@@ -258,12 +237,18 @@ function placeProps(rng: Rng, near: number, far: number): Prop[] {
 
 export function roadTile(plan: WorldPlan, index: number): RoadTile {
   const [near, far] = [index * ROAD_TILE, (index + 1) * ROAD_TILE];
-  const blocked = keepOuts(plan, near, far);
+  const layBy = layByIn(tileRng(plan.seed, "lay-by", index), near, far, structureKeepOuts(plan.courseLength));
+  const blocked = [...keepOuts(plan, near, far), ...(layBy === null ? [] : [layByKeepOut(layBy)])];
   const props = placeProps(tileRng(plan.seed, "road", index), near, far)
     .map(propBoxes)
     .filter((boxes) => allowed(boxes, blocked))
     .flat();
-  return { surfaces: roadSurfaces(plan, near, far), markings: roadMarkings(plan, near, far), props };
+  return {
+    surfaces: [...roadSurfaces(near, far), ...(layBy === null ? [] : [layBySurface(layBy)])],
+    markings: roadMarkings(plan, near, far),
+    props: [...props, ...(layBy === null ? [] : layByProps(layBy))],
+    layBy,
+  };
 }
 
 // The structures, when the road around the camera reaches them.

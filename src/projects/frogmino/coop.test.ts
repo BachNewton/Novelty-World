@@ -11,7 +11,7 @@ import {
   type HostSeat,
   type ListingSource,
 } from "./coop";
-import { generateCourse } from "./course";
+import { rowStream } from "./stream";
 import { TUNING } from "./tuning";
 
 const EMPTY: HostSeat = { phase: WAITING, partnerPeerId: null };
@@ -31,7 +31,8 @@ describe("drawCourseSeed", () => {
     const start: HostMessage = { kind: "start", seed: drawCourseSeed() };
     const received = JSON.parse(JSON.stringify(start)) as HostMessage;
     if (received.kind !== "start") throw new Error("the start message lost its kind");
-    expect(generateCourse(received.seed, TUNING)).toEqual(generateCourse(start.seed, TUNING));
+    const [theirs, ours] = [rowStream(received.seed, TUNING), rowStream(start.seed, TUNING)];
+    for (let i = 0; i < 20; i++) expect(theirs.row(i)).toEqual(ours.row(i));
   });
 });
 

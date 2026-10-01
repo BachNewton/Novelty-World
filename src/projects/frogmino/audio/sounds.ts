@@ -71,7 +71,7 @@ export interface SoundDesign {
   busiestEvery: number;
 }
 
-export const SOUND_IDS = ["hop", "bonk", "pass", "drop", "swap", "finish"] as const;
+export const SOUND_IDS = ["hop", "bonk", "pass", "drop", "gate", "finish"] as const;
 export type SoundId = (typeof SOUND_IDS)[number];
 
 // Each clean pass in a row climbs the major pentatonic scale, in semitones,
@@ -168,28 +168,45 @@ export const SOUNDS: Record<SoundId, SoundDesign> = {
     minGap: 0.4,
     busiestEvery: 2,
   },
-  swap: {
-    label: "Pull-off swap",
-    trigger: "The frog takes the piece waiting in a pull-off.",
+  gate: {
+    label: "Gate",
+    trigger: "The frog passes through a gate, either way, and becomes the gate's piece.",
     layers: [
+      // A soft rising whoosh of breathy air...
       {
         at: 0,
         zzfx: {
-          volume: 0.45,
-          frequency: 392,
-          attack: 0.005,
-          sustain: 0.06,
-          release: 0.07,
+          volume: 0.3,
+          frequency: 260,
+          attack: 0.06,
+          sustain: 0.08,
+          release: 0.16,
+          slide: 3,
+          noise: 3,
+          filter: -1600,
+        },
+      },
+      // ...with a sparkle of quick high notes climbing over it.
+      {
+        at: 0.05,
+        zzfx: {
+          volume: 0.22,
+          frequency: 1046.5,
+          attack: 0.01,
+          sustain: 0.12,
+          release: 0.18,
           shape: Shape.triangle,
-          pitchJump: 196,
-          pitchJumpTime: 0.045,
-          filter: -3000,
+          pitchJump: 262,
+          pitchJumpTime: 0.04,
+          repeatTime: 0.04,
+          tremolo: 0.4,
+          filter: -5000,
         },
       },
     ],
     variation: { pitch: 0.04, volume: 0.15 },
-    minGap: 0.12,
-    busiestEvery: 0.4,
+    minGap: 0.3,
+    busiestEvery: 1.5,
   },
   finish: {
     label: "Finish",

@@ -11,15 +11,12 @@ import type { Row } from "../../traffic";
 import { TUNING } from "../../tuning";
 import type { Frog } from "../../types";
 import { VEHICLES } from "../../vehicles";
-import type { PullOffStretch } from "../../pull-off";
-import { GROUND_DROP, pullOffArea } from "../../world/geometry";
 import { PREVIEW_ROWS, passingPose } from "../../world/preview-rows";
 import { DECK_TOP, OVERPASS_FAR, OVERPASS_NEAR } from "../../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "../camera-fit";
 import { Vehicle } from "../vehicle";
 import { borderMask, makeVehicleAssets } from "../vehicle-assets";
 import { FrogminoStructures, FrogminoWorld } from "./world";
-import { readWorldPalette } from "./world-assets";
 
 // `?world`: the world around the road, seen from the gameplay camera as it
 // drives down the road, with rows of traffic coming at a stand-in frog that
@@ -29,13 +26,6 @@ import { readWorldPalette } from "./world-assets";
 
 const { corridorCols, courseLength, cameraHeight, cameraFollow, wallSpeed } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
-
-// Sample pull-offs, until the course's own are passed in.
-const SAMPLE_PULL_OFFS: readonly PullOffStretch[] = [
-  { side: "left", near: 40, far: 46, width: 3 },
-  { side: "right", near: 95, far: 101, width: 3 },
-  { side: "left", near: 150, far: 156, width: 3 },
-];
 
 const DRIVES = {
   reverse: { label: "◀◀ Back", speed: -6 },
@@ -215,27 +205,6 @@ function PreviewTraffic({
   );
 }
 
-// Stand-ins for the pull-offs' own surfaces, which the gameplay draws.
-function PullOffStandIns() {
-  const color = useMemo(() => readWorldPalette().shoulder, []);
-  return (
-    <>
-      {SAMPLE_PULL_OFFS.map((p) => {
-        const area = pullOffArea(p);
-        return (
-          <mesh
-            key={`${p.side}${String(p.near)}`}
-            position={[(area.minX + area.maxX) / 2, -GROUND_DROP / 2, -(area.minDepth + area.maxDepth) / 2]}
-          >
-            <boxGeometry args={[area.maxX - area.minX, GROUND_DROP, area.maxDepth - area.minDepth]} />
-            <meshLambertMaterial color={color} />
-          </mesh>
-        );
-      })}
-    </>
-  );
-}
-
 // Without the world: the bare road the game draws today, following the camera.
 function BareRoad() {
   const colors = useMemo(
@@ -294,10 +263,7 @@ export function WorldPreview() {
           <ambientLight intensity={1.5} />
           <directionalLight position={[4, 10, 6]} intensity={1.8} />
           {world ? (
-            <>
-              <FrogminoWorld courseLength={courseLength} pullOffs={SAMPLE_PULL_OFFS} seed={COURSE_SEED} />
-              <PullOffStandIns />
-            </>
+            <FrogminoWorld courseLength={courseLength} seed={COURSE_SEED} />
           ) : (
             <BareRoad />
           )}

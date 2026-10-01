@@ -22,8 +22,7 @@ export interface Frog {
 }
 
 // A span of lanes across the road, inclusive at both ends. The traffic lanes
-// run from 0; a pull-off's lanes lie beyond them, so a left pull-off's are
-// negative.
+// run from 0.
 export interface Lanes {
   first: number;
   last: number;
@@ -37,4 +36,11 @@ export type Opening = readonly Cell[];
 export interface Solid {
   cells: readonly Cell[];
   length: number;
+}
+
+// A gate in a row: a gap two lanes wide and the full height of the face,
+// from `lane`, that sets the frog's piece to `kind` as it passes through.
+export interface Gate {
+  lane: number;
+  kind: TetrominoKind;
 }

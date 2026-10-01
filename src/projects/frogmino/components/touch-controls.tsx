@@ -2,7 +2,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronsUp, MoveHorizontal, RotateCcw, RotateCw } from "lucide-react";
-import { isDone, pullOffHoldingFrog } from "../run";
+import { isDone } from "../run";
 import { useFrogminoStore } from "../store";
 import { useFrogTouch } from "./use-frog-touch";
 
@@ -63,28 +63,10 @@ function TouchHint() {
   );
 }
 
-// Touch screens only: the keyboard swaps with C.
-function SwapButton() {
-  const act = useFrogminoStore((s) => s.act);
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        act("swap");
-        // Space is the hop key, and it would press a focused button too.
-        e.currentTarget.blur();
-      }}
-      className="absolute bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 hidden -translate-x-1/2 touch-manipulation rounded-full border-2 border-brand-green bg-surface-secondary/90 px-8 py-3 text-lg font-bold text-brand-green shadow-lg pointer-coarse:block"
-    >
-      Swap
-    </button>
-  );
-}
-
 // The touch layer over the play area: it takes every finger that lands on
 // the game, stops the browser scrolling, zooming or selecting, and shows the
-// hint and the pull-off swap button. It sits under the other overlays, so the
-// mute button and the done screen keep their own taps.
+// hint. It sits under the other overlays, so the mute button and the done
+// screen keep their own taps.
 export function TouchControls() {
   const [gestures, setGestures] = useState(0);
   const countGesture = useCallback(() => {
@@ -92,7 +74,6 @@ export function TouchControls() {
   }, []);
   const handlers = useFrogTouch(countGesture);
   const done = useFrogminoStore((s) => isDone(s.run));
-  const inPullOff = useFrogminoStore((s) => pullOffHoldingFrog(s.run) !== null);
   const depth = useFrogminoStore((s) => s.run.frog.depth);
   const hoppedAt = useFrogminoStore((s) => s.run.frog.latestHop?.startedAt ?? null);
 
@@ -109,7 +90,6 @@ export function TouchControls() {
         className="absolute inset-0 touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
       />
       {!done && gestures < HINT_GESTURES && <TouchHint />}
-      {!done && inPullOff && <SwapButton />}
     </>
   );
 }

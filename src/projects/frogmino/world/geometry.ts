@@ -1,4 +1,3 @@
-import type { PullOffStretch } from "../pull-off";
 import { TUNING } from "../tuning";
 import type { WorldPaint } from "./paints";
 
@@ -19,18 +18,13 @@ export const VERGE = SHOULDER_WIDTH + KERB_WIDTH;
 // The road is a slab this thick, sitting on the land.
 export const GROUND_DROP = 0.15;
 
-// Near the road, everything stays low, so nothing ever hides a lane, a
-// pull-off or the frog from the camera, or draws the eye away from them.
-// Anything taller keeps its whole footprint at least the tall offset beyond
-// the road's edge.
+// Near the road, everything stays low, so nothing ever hides a lane or the
+// frog from the camera, or draws the eye away from them. Anything taller
+// keeps its whole footprint at least the tall offset beyond the road's edge.
 export const NEAR_HEIGHT_LIMIT = 0.7;
 export const TALL_OFFSET = 5;
 
 export type Side = "left" | "right";
-
-// Decorations keep this far clear of a pull-off: along the course, beyond
-// its barriers, and across, beyond its outer edge.
-export const PULL_OFF_CLEARANCE = { along: 2, across: 0.5 };
 
 export type Vec3 = readonly [number, number, number];
 
@@ -127,15 +121,4 @@ export function sideArea(side: Side, from: number, to: number, near: number, far
 // The road itself, lanes, shoulders and kerbs, over a stretch of the course.
 export function roadArea(near: number, far: number): Area {
   return { minX: ROAD_LEFT - VERGE, maxX: ROAD_RIGHT + VERGE, minDepth: near, maxDepth: far };
-}
-
-// The lanes a pull-off takes beside the road, over its stretch.
-export function pullOffArea(p: PullOffStretch): Area {
-  return sideArea(p.side, 0, p.width, p.near, p.far);
-}
-
-// The ground decorations keep clear of around a pull-off.
-export function pullOffKeepOut(p: PullOffStretch): Area {
-  const { along, across } = PULL_OFF_CLEARANCE;
-  return sideArea(p.side, 0, p.width + across, p.near - along, p.far + along);
 }

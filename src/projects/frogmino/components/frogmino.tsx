@@ -6,6 +6,7 @@ import { isDone } from "../run";
 import { useFrogminoStore } from "../store";
 import { MuteButton } from "../audio/mute-button";
 import { useGameSounds } from "../audio/use-game-sounds";
+import { KEY_LEGEND } from "../controls";
 import { frogminoView } from "../view";
 import { useFrogKeys } from "./use-frog-keys";
 import { TouchControls } from "./touch-controls";
@@ -20,16 +21,6 @@ const Garage = dynamic(() => import("./garage").then((m) => m.Garage), { ssr: fa
 const WorldPreview = dynamic(() => import("./world/world-preview").then((m) => m.WorldPreview), { ssr: false });
 const SoundLab = dynamic(() => import("../audio/sound-lab").then((m) => m.SoundLab), { ssr: false });
 const FrogPreview = dynamic(() => import("./frog/frog-preview").then((m) => m.FrogPreview), { ssr: false });
-
-const KEY_LEGEND: readonly [keys: string, action: string][] = [
-  ["A D / ← →", "move"],
-  ["Q E", "rotate"],
-  ["Space", "hop"],
-  ["W S / ↑ ↓", "jump (hold to repeat)"],
-  ["C", "swap (in a pull-off)"],
-  ["R", "restart"],
-  ["M", "mute"],
-];
 
 function KeyLegend() {
   return (

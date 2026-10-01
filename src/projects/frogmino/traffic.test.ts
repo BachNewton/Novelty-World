@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { VEHICLE_IDS } from "./fleet";
 import { cellKey } from "./logic";
-import { lanesOf, rowOpening, vehicleCellsAt } from "./traffic";
+import { gateLanes, insideGate, lanesOf, rowOpening, vehicleCellsAt } from "./traffic";
 
 describe("a vehicle in a row", () => {
   it("takes up its own lanes from where it is placed", () => {
@@ -27,5 +27,21 @@ describe("rowOpening", () => {
   it("refuses vehicles sharing a lane or leaving the road", () => {
     expect(() => rowOpening([{ id: "O0", lane: 0 }, { id: "I1", lane: 1 }], 7, 4)).toThrow();
     expect(() => rowOpening([{ id: "I0", lane: 4 }], 7, 4)).toThrow();
+  });
+
+  it("keeps a gate's two lanes open, and refuses a gate off the road or with a vehicle in it", () => {
+    const opening = rowOpening([{ id: "I1", lane: 0 }], 7, 4, [{ lane: 3, kind: "T" }]);
+    expect(opening).toHaveLength(28 - 4);
+    expect(() => rowOpening([{ id: "O0", lane: 2 }], 7, 4, [{ lane: 3, kind: "T" }])).toThrow();
+    expect(() => rowOpening([], 7, 4, [{ lane: 6, kind: "T" }])).toThrow();
+    expect(() => rowOpening([], 7, 4, [{ lane: 1, kind: "T" }, { lane: 2, kind: "O" }])).toThrow();
+  });
+});
+
+describe("a gate", () => {
+  it("spans two lanes, and holds only cells that are all in them", () => {
+    expect(gateLanes({ lane: 3 })).toEqual({ first: 3, last: 4 });
+    expect(insideGate([{ col: 3, row: 0 }, { col: 4, row: 3 }], { lane: 3 })).toBe(true);
+    expect(insideGate([{ col: 3, row: 0 }, { col: 5, row: 0 }], { lane: 3 })).toBe(false);
   });
 });

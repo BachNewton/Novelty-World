@@ -25,8 +25,9 @@ export interface Heard {
 // the streak over. Each pass of a row sounds once (a row the traffic brings
 // round again is a new pass, and one going by beneath the frog on the
 // overpass or the gantry is no pass), each bonk once, a hop as it starts, the
-// drop from the overpass, a change of piece (only a pull-off swap changes it)
-// and crossing the finish line.
+// drop from the overpass, a change of piece (only a gate changes it, so each
+// transformation sounds once, whichever way the frog went through) and
+// crossing the finish line.
 export function soundCues(before: GameMoment, after: GameMoment, streak: number): Heard {
   if (after.runId !== before.runId) return { cues: [], streak: 0 };
   const was = before.run;
@@ -44,7 +45,7 @@ export function soundCues(before: GameMoment, after: GameMoment, streak: number)
   const hop = now.frog.latestHop;
   if (hop !== null && hop.startedAt !== was.frog.latestHop?.startedAt) cues.push({ sound: "hop" });
   if (now.droppedAt !== null && was.droppedAt === null) cues.push({ sound: "drop" });
-  if (now.frog.kind !== was.frog.kind) cues.push({ sound: "swap" });
+  if (now.frog.kind !== was.frog.kind) cues.push({ sound: "gate" });
   if (crossedFinish(now) && !crossedFinish(was)) cues.push({ sound: "finish" });
   return { cues, streak: next };
 }

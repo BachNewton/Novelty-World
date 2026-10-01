@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TETROMINOES, cellKey, firstFit, frogCells, frogPasses, pieceCells, rectOpening as rect, rotateInCorridor } from "./logic";
+import { TETROMINOES, cellKey, frogCells, frogPasses, pieceCells, rectOpening as rect, rotateInCorridor } from "./logic";
 import type { Cell, Frog, Opening, Rotation, TetrominoKind } from "./types";
 
 const KINDS = Object.keys(TETROMINOES) as TetrominoKind[];
@@ -137,23 +137,12 @@ describe("rotateInCorridor", () => {
     expect(rotateInCorridor("L", { col: 5, rotation: 1 }, -1, ROAD)).toEqual({ col: 4, rotation: 0 });
   });
 
-  it("kicks inside lanes that don't start at 0, such as a left pull-off's", () => {
-    const pullOffAndRoad = { first: -3, last: 6 };
-    expect(rotateInCorridor("L", { col: -3, rotation: 1 }, 1, pullOffAndRoad)).toEqual({ col: -3, rotation: 2 });
+  it("kicks inside lanes that don't start at 0", () => {
+    expect(rotateInCorridor("L", { col: -3, rotation: 1 }, 1, { first: -3, last: 6 })).toEqual({ col: -3, rotation: 2 });
     expect(rotateInCorridor("I", { col: -3, rotation: 1 }, 1, { first: -3, last: -1 })).toBeNull();
   });
 
   it("fails a turn that still doesn't fit after the kick", () => {
     expect(rotateInCorridor("I", { col: 1, rotation: 1 }, 1, { first: 0, last: 2 })).toBeNull();
-  });
-});
-
-describe("firstFit", () => {
-  it("takes the first rotation narrow enough, from the first lane", () => {
-    const pullOff = { first: 7, last: 9 };
-    expect(firstFit("L", pullOff)).toEqual({ col: 7, rotation: 0 });
-    expect(firstFit("I", pullOff)).toEqual({ col: 7, rotation: 1 });
-    expect(firstFit("O", { first: -3, last: -1 })).toEqual({ col: -3, rotation: 0 });
-    expect(firstFit("T", { first: 0, last: 0 })).toBeNull();
   });
 });

@@ -73,8 +73,6 @@ export interface Placement {
   rotation: Rotation;
 }
 
-const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
-
 // Whether a piece in a rotation, its leftmost cell at `col`, lies inside the
 // lanes.
 export function insideLanes(kind: TetrominoKind, placement: Placement, lanes: Lanes): boolean {
@@ -100,13 +98,3 @@ export function rotateInCorridor(
   const kicked = centred < lanes.first ? centred + 1 : centred - 1;
   return insideLanes(kind, { col: kicked, rotation }, lanes) ? { col: kicked, rotation } : null;
 }
-
-// Where a piece first fits inside the lanes: the first rotation that fits,
-// at the first lane it fits from. Null if no rotation is narrow enough.
-export function firstFit(kind: TetrominoKind, lanes: Lanes): Placement | null {
-  for (const rotation of ROTATIONS) {
-    if (insideLanes(kind, { col: lanes.first, rotation }, lanes)) return { col: lanes.first, rotation };
-  }
-  return null;
-}
-

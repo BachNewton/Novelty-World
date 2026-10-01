@@ -25,6 +25,7 @@ export const WORLD_PAINTS = [
   "lane-dash",
   "edge-line",
   "shoulder",
+  "lay-by",
   "kerb",
   "kerb-dark",
   "finish-light",

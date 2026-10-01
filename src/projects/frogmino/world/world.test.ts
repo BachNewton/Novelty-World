@@ -14,12 +14,12 @@ import {
   boxBottom,
   boxTop,
   overlaps,
-  pullOffArea,
   roadArea,
   sideX,
   type Area,
   type WorldBox,
 } from "./geometry";
+import { LAY_BY_INNER, layByArea, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { WORLD_PAINTS, worldToken } from "./paints";
 import { PREVIEW_ROWS, passingPose } from "./preview-rows";
 import { propBoxes, type PropKind } from "./props";
@@ -27,21 +27,20 @@ import { ROAD_TILE, roadTile, roadTiles, structuresNear, type WorldPlan } from "
 import { SCENERY_TILE, cloudPlace, clouds, sceneryTile } from "./scenery";
 import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, gantryBoxes, overpassBoxes } from "./structures";
 
-const PLAN: WorldPlan = {
-  seed: 20260930,
-  courseLength: 214,
-  pullOffs: [
-    { side: "left", near: 40, far: 46, width: 3 },
-    { side: "right", near: 95, far: 101, width: 3 },
-    { side: "left", near: 150, far: 156, width: 3 },
-  ],
-};
+const PLAN: WorldPlan = { seed: 20260930, courseLength: 214 };
 
 // Every tile from well behind the start to well past the finish.
 const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
 
 function propsOf(plan: WorldPlan): WorldBox[] {
   return COURSE_TILES.flatMap((k) => roadTile(plan, k).props);
+}
+
+function layBysOf(plan: WorldPlan): LayBy[] {
+  return COURSE_TILES.flatMap((k) => {
+    const { layBy } = roadTile(plan, k);
+    return layBy === null ? [] : [layBy];
+  });
 }
 
 const lanes: Area = { minX: ROAD_LEFT, maxX: ROAD_RIGHT, minDepth: -Infinity, maxDepth: Infinity };
@@ -59,22 +58,84 @@ describe("the roadside", () => {
     expect(props.some((b) => b.center[0] > ROAD_RIGHT)).toBe(true);
   });
 
-  it("keeps everything off the road and out of the pull-offs", () => {
-    const blocked = [roadArea(-Infinity, Infinity), ...PLAN.pullOffs.map(pullOffArea)];
-    const intruders = propsOf(PLAN).filter((b) => blocked.some((area) => overlaps(boxArea(b), area)));
-    expect(intruders).toEqual([]);
+  it("keeps everything off the road", () => {
+    const road = roadArea(-Infinity, Infinity);
+    expect(propsOf(PLAN).filter((b) => overlaps(boxArea(b), road))).toEqual([]);
   });
 
-  it("keeps the land beyond out of the lanes and the pull-offs too", () => {
-    const blocked = [lanes, ...PLAN.pullOffs.map(pullOffArea)];
+  it("keeps the land beyond out of the lanes and the lay-bys too", () => {
+    const blocked = [lanes, ...layBysOf(PLAN).map(layByArea)];
     const scenery = [-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(PLAN, k));
     expect(scenery.filter((b) => blocked.some((area) => overlaps(boxArea(b), area)))).toEqual([]);
   });
+});
 
-  it("leaves a gap in the shoulders and kerbs for each pull-off", () => {
-    const surfaces = COURSE_TILES.flatMap((k) => roadTile(PLAN, k).surfaces).filter((b) => b.paint !== "asphalt");
-    const inPullOffs = surfaces.filter((b) => PLAN.pullOffs.some((p) => overlaps(boxArea(b), pullOffArea(p))));
-    expect(inPullOffs).toEqual([]);
+describe("the lay-bys", () => {
+  const TILES = Array.from({ length: 200 }, (_, i) => i - 100);
+  const tiles = TILES.map((k) => roadTile(PLAN, k));
+  const layBys = tiles.flatMap((tile) => (tile.layBy === null ? [] : [tile.layBy]));
+
+  it("come now and then along the road, more on the valley side than the mountain side", () => {
+    expect(layBys.length).toBeGreaterThan(TILES.length / 6);
+    expect(layBys.length).toBeLessThan(TILES.length / 2);
+    const right = layBys.filter((l) => l.side === "right").length;
+    expect(right).toBeGreaterThan(layBys.length - right);
+    expect(right).toBeLessThan(layBys.length);
+  });
+
+  it("lie beyond the kerb, off the road and clear of the structures", () => {
+    for (const layBy of layBys) {
+      const area = layByArea(layBy);
+      expect(overlaps(area, roadArea(-Infinity, Infinity))).toBe(false);
+      expect(Math.min(Math.abs(area.minX - ROAD_LEFT), Math.abs(area.minX - ROAD_RIGHT), Math.abs(area.maxX - ROAD_LEFT), Math.abs(area.maxX - ROAD_RIGHT))).toBeCloseTo(LAY_BY_INNER);
+      for (const structure of [...overpassBoxes(), ...gantryBoxes(PLAN.courseLength)]) expect(overlaps(area, boxArea(structure))).toBe(false);
+    }
+  });
+
+  it("are fenced off from the road by a guard rail with no gap, and a kerb that runs on unbroken", () => {
+    tiles.forEach((tile, i) => {
+      const k = TILES[i];
+      const kerbs = tile.surfaces.filter((b) => b.paint === "kerb" || b.paint === "kerb-dark");
+      for (const side of ["left", "right"] as const) {
+        const covered = kerbs
+          .filter((b) => (side === "left" ? b.center[0] < ROAD_LEFT : b.center[0] > ROAD_RIGHT))
+          .map((b) => boxArea(b))
+          .sort((a, b) => a.minDepth - b.minDepth);
+        expect(covered[0].minDepth).toBeCloseTo(k * ROAD_TILE);
+        for (let j = 1; j < covered.length; j++) expect(covered[j].minDepth).toBeCloseTo(covered[j - 1].maxDepth);
+        expect(covered[covered.length - 1].maxDepth).toBeCloseTo((k + 1) * ROAD_TILE);
+      }
+      if (tile.layBy === null) return;
+      const layBy: LayBy = tile.layBy;
+      const gravel = layByArea(layBy);
+      const between = (b: WorldBox): boolean => {
+        const area = boxArea(b);
+        return layBy.side === "left" ? area.minX >= gravel.maxX && area.maxX <= ROAD_LEFT : area.minX >= ROAD_RIGHT && area.maxX <= gravel.minX;
+      };
+      const rails = layByProps(layBy)
+        .filter((b) => b.paint === "rail" && between(b))
+        .map((b) => boxArea(b))
+        .sort((a, b) => a.minDepth - b.minDepth);
+      expect(rails[0].minDepth).toBeLessThanOrEqual(gravel.minDepth + 1e-9);
+      for (let j = 1; j < rails.length; j++) expect(rails[j].minDepth).toBeLessThanOrEqual(rails[j - 1].maxDepth + 1e-9);
+      expect(rails[rails.length - 1].maxDepth).toBeGreaterThanOrEqual(gravel.maxDepth - 1e-9);
+    });
+  });
+
+  it("keep the rest of the roadside off their gravel", () => {
+    for (const tile of tiles) {
+      if (tile.layBy === null) continue;
+      const own = new Set(layByProps(tile.layBy).map((b) => JSON.stringify(b)));
+      const gravel = layByArea(tile.layBy);
+      const others = tile.props.filter((b) => !own.has(JSON.stringify(b)));
+      expect(others.filter((b) => overlaps(boxArea(b), gravel))).toEqual([]);
+    }
+  });
+
+  it("stay low, as everything near the road does", () => {
+    for (const layBy of layBys) {
+      for (const b of [layBySurface(layBy), ...layByProps(layBy)]) expect(boxTop(b)).toBeLessThanOrEqual(NEAR_HEIGHT_LIMIT);
+    }
   });
 
   it("stays low near the road, with anything taller standing back", () => {
@@ -202,6 +263,11 @@ describe("depth fighting", () => {
     for (const kind of kinds) {
       const parts = propBoxes({ kind, x: 0, depth: 0, yaw: 0, scale: 1 });
       expect(faceClashes([ground, ...parts], MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
+    }
+    for (const side of ["left", "right"] as const) {
+      const layBy: LayBy = { side, near: 10, far: 18 };
+      const parts = [ground, ...roadTile(PLAN, 0).surfaces.filter((b) => b.paint !== "lay-by"), layBySurface(layBy), ...layByProps(layBy)];
+      expect(faceClashes(parts, MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
     }
   });
 

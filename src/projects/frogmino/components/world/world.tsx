@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { Mesh } from "three";
-import type { PullOffStretch } from "../../pull-off";
 import { GROUND_DROP } from "../../world/geometry";
 import { roadTile, roadTiles, structuresNear, type WorldPlan } from "../../world/road";
 import { sceneryTile, sceneryTiles } from "../../world/scenery";
@@ -62,21 +61,13 @@ function Ground({ palette }: { palette: WorldPalette }) {
 }
 
 // The world around the road: the road itself with its markings, the
-// roadside, the land in layers out to the mountains, the sky, and the two
+// roadside and its lay-bys, the land in layers out to the mountains, the sky, and the two
 // structures, the overpass at the start and the finish gantry. It is drawn in
 // the game scene's axes and needs the scene's lights. The road and land are
 // rebuilt around the camera as it moves, so they go on forever both ways.
-export function FrogminoWorld({
-  courseLength,
-  pullOffs,
-  seed,
-}: {
-  courseLength: number;
-  pullOffs: readonly PullOffStretch[];
-  seed: number;
-}) {
+export function FrogminoWorld({ courseLength, seed }: { courseLength: number; seed: number }) {
   const { palette, materials } = useWorldAssets();
-  const plan: WorldPlan = useMemo(() => ({ seed, courseLength, pullOffs }), [seed, courseLength, pullOffs]);
+  const plan: WorldPlan = useMemo(() => ({ seed, courseLength }), [seed, courseLength]);
   const roadKeys = useTilesAroundCamera(roadTiles);
   const sceneryKeys = useTilesAroundCamera(sceneryTiles);
 

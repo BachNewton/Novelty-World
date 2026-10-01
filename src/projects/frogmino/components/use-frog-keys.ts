@@ -2,27 +2,8 @@
 
 import { useEffect } from "react";
 import { isTextEntryTarget } from "@/shared/lib/utils";
-import type { FrogAction, JumpDirection } from "../run";
+import { JUMP_KEYS, KEY_ACTIONS } from "../controls";
 import { useFrogminoStore } from "../store";
-
-// Physical keys, so the WASD block stays put on other keyboard layouts.
-const KEY_ACTIONS = new Map<string, FrogAction>([
-  ["KeyA", "left"],
-  ["ArrowLeft", "left"],
-  ["KeyD", "right"],
-  ["ArrowRight", "right"],
-  ["KeyQ", "rotateCcw"],
-  ["KeyE", "rotateCw"],
-  ["Space", "hop"],
-  ["KeyC", "swap"],
-]);
-
-const JUMP_KEYS = new Map<string, JumpDirection>([
-  ["KeyW", "forward"],
-  ["ArrowUp", "forward"],
-  ["KeyS", "back"],
-  ["ArrowDown", "back"],
-]);
 
 // One key press is one action, and the operating system's key repeat is
 // ignored. A held jump key repeats in the rules, on the rules' own clock.

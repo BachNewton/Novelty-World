@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useShallow } from "zustand/react/shallow";
 import { PerspectiveCamera } from "@react-three/drei";
 import {
   BoxGeometry,
@@ -15,11 +16,9 @@ import {
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { GROUND_CLEARANCE } from "../clearance";
-import { COURSE_SEED } from "../course";
 import { FROG_LOOKS } from "../frog/look";
 import { frogModel, frogPivot } from "../frog/model";
 import { cellKey, frogCells, pieceSize } from "../logic";
-import { nearPullOff } from "../pull-off";
 import {
   FROG_THICKNESS,
   crossedFinish,
@@ -38,9 +37,9 @@ import { DECK_LENGTH, DECK_TOP } from "../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "./camera-fit";
 import { FrogBody, type FrogHandle } from "./frog/frog-body";
 import { frogDrawnIn, makeFrogAssets } from "./frog/frog-assets";
-import { PullOffs } from "./pull-offs";
+import { GateView, makeGateAssets } from "./gate";
 import { Vehicle } from "./vehicle";
-import { borderMask, makeVehicleAssets } from "./vehicle-assets";
+import { makeVehicleAssets } from "./vehicle-assets";
 import { FrogminoWorld } from "./world/world";
 
 // World axes: x runs across the corridor (one unit per column), y up (one unit
@@ -91,11 +90,9 @@ const LEAP_BACK = 1.5;
 const LEAP_PEAK = DECK_TOP + 3;
 const GANTRY_STAND = courseLength + DECK_LENGTH / 2 + FROG_THICKNESS / 2;
 
-// The scene's own things: the fit outline, the frog's silhouette, and the
-// cell border the pull-offs' barriers and waiting pieces carry.
+// The scene's own things: the fit outline and the frog's silhouette.
 function makeAssets() {
   return {
-    cellMap: borderMask("all"),
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
     fitMaterial: new MeshBasicMaterial({ color: themeColor("--color-text-primary") }),
     // Drawn only where something nearer the camera hides the frog: before
@@ -250,7 +247,7 @@ function leapPose(leap: Leap, progress: number): { depth: number; level: number;
 }
 
 interface DrawnFrog {
-  // The piece drawn; a swap snaps the drawing to the new piece.
+  // The piece drawn; a gate snaps the drawing to the new piece.
   kind: TetrominoKind;
   x: number;
   y: number;
@@ -286,32 +283,29 @@ function snapped(run: Run): DrawnFrog {
   };
 }
 
-// The camera follows the drawn frog from behind, rising and falling with the
-// ground under it. Near a pull-off it pans across to take in the road and
-// the pull-off together, and pans back once the frog has gone by it.
-function follow(camera: CameraImpl, run: Run, d: DrawnFrog, delta: number, snap: boolean): void {
+// The camera follows the drawn frog from behind, over the middle of the
+// road, rising and falling with the ground under it.
+function follow(camera: CameraImpl, d: DrawnFrog, delta: number, snap: boolean): void {
   camera.position.z = -d.depth + cameraFollow;
   const level = d.level + cameraHeight;
   camera.position.y = snap ? level : MathUtils.damp(camera.position.y, level, 3 / CAMERA_LEVEL_EASE, delta);
-  const pullOff = nearPullOff(run.pullOffs, d.depth - FROG_THICKNESS, d.depth, run.tuning.cameraPullOffReach);
-  const pan = pullOff === null ? 0 : ((pullOff.side === "left" ? -1 : 1) * pullOff.width) / 2;
-  camera.position.x = MathUtils.damp(camera.position.x, CENTER_X + pan, 3 / run.tuning.cameraPullOffEase, delta);
 }
 
 // Runs the game each frame: advances the rules, then eases the drawn frog
 // toward its rule state and places the traffic, all without React
 // re-rendering.
 function Game() {
-  const course = useFrogminoStore((s) => s.course);
-  const traffic = useFrogminoStore((s) => s.traffic);
+  const stream = useFrogminoStore((s) => s.stream);
+  // Which row of the stream each wall is: changes only when a wall is
+  // recycled as the next row.
+  const traffic = useFrogminoStore(useShallow((s) => s.run.walls.map((wall) => wall.index)));
   const kind = useFrogminoStore((s) => s.run.frog.kind);
   const rotation = useFrogminoStore((s) => s.run.frog.rotation);
-  // Changes only when a swap changes a waiting piece.
-  const pullOffs = useFrogminoStore((s) => s.run.pullOffs);
 
   const assets = useMemo(() => makeAssets(), []);
   const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
   const frogAssets = useMemo(() => makeFrogAssets(), []);
+  const gateAssets = useMemo(() => makeGateAssets(), []);
   const silhouette = useMemo(() => frogDrawnIn(frogAssets, assets.silhouette), [frogAssets, assets]);
   useEffect(
     () => () => {
@@ -325,11 +319,10 @@ function Game() {
     () => () => {
       vehicleAssets.dispose();
       frogAssets.dispose();
+      gateAssets.dispose();
     },
-    [vehicleAssets, frogAssets],
+    [vehicleAssets, frogAssets, gateAssets],
   );
-  // The waiting pieces are drawn in the frog's skin.
-  const frogColour = useMemo(() => themeColor(FROG_LOOKS[VARIANT].tokens.skin), []);
 
   // The frog turns about the middle of its cells.
   const pivot = useMemo(() => {
@@ -441,7 +434,7 @@ function Game() {
       frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + d.lift + bonkLift, -d.depth + FROG_THICKNESS / 2);
       frog.rotation.set(0, spin, d.swing);
     }
-    follow(state.camera, run, d, delta, snap);
+    follow(state.camera, d, delta, snap);
 
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
@@ -464,7 +457,7 @@ function Game() {
 
   return (
     <>
-      <FrogminoWorld courseLength={courseLength} pullOffs={course.pullOffs} seed={COURSE_SEED} />
+      <FrogminoWorld courseLength={courseLength} seed={stream.seed} />
       <group ref={frogRef}>
         <group position={[-pivot[0], -pivot[1], -pivot[2]]}>
           <FrogBody
@@ -478,16 +471,18 @@ function Game() {
           <FrogBody ref={bodyRef} kind={kind} rotation={rotation} variant={VARIANT} renderOrder={FROG_ORDER} assets={frogAssets} />
         </group>
       </group>
-      <PullOffs pullOffs={pullOffs} cellMap={assets.cellMap} frog={frogColour} />
-      {traffic.map((row, i) => (
+      {traffic.map((index, i) => (
         <group
           key={i}
           ref={(group) => {
             wallRefs.current[i] = group;
           }}
         >
-          {course.rows[row].vehicles.map(({ id, lane }) => (
-            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={vehicleAssets} />
+          {stream.row(index).vehicles.map(({ id, lane }) => (
+            <Vehicle key={`${String(index)}:${String(lane)}`} id={id} lane={lane} depth={0} assets={vehicleAssets} />
+          ))}
+          {stream.row(index).gates.map((gate) => (
+            <GateView key={`${String(index)}:${String(gate.lane)}`} gate={gate} assets={gateAssets} />
           ))}
         </group>
       ))}

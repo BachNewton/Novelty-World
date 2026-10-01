@@ -45,4 +45,7 @@ test("a tap in the centre drops the frog from the overpass, and then a swipe up 
   await expect(layer).toHaveAttribute("data-hopped-at", "");
   await swipe(page, centreX, centreY + 40, centreY - 60);
   await expect(layer).toHaveAttribute("data-hopped-at", /\d/);
+
+  // Pieces change at gates in the road, so there is nothing to swap.
+  await expect(page.getByRole("button", { name: "Swap" })).toHaveCount(0);
 });
