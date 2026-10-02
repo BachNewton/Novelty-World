@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { VEHICLE_IDS } from "./fleet";
 import { cellKey } from "./logic";
-import { gateLanes, insideGate, lanesOf, rowOpening, vehicleCellsAt } from "./traffic";
+import { acrossGate, gateLanes, insideGate, keepsClear, lanesOf, rowOpening, rowSolids, vehicleCellsAt } from "./traffic";
 
 describe("a vehicle in a row", () => {
   it("takes up its own lanes from where it is placed", () => {
@@ -43,5 +43,38 @@ describe("a gate", () => {
     expect(gateLanes({ lane: 3 })).toEqual({ first: 3, last: 4 });
     expect(insideGate([{ col: 3, row: 0 }, { col: 4, row: 3 }], { lane: 3 })).toBe(true);
     expect(insideGate([{ col: 3, row: 0 }, { col: 5, row: 0 }], { lane: 3 })).toBe(false);
+  });
+});
+
+describe("a gate's frame", () => {
+  it("stands a post on the lane line either side of the gate, solid for the row's whole length", () => {
+    const solids = rowSolids([{ id: "I1", lane: 0 }, { id: "O0", lane: 5 }], [{ lane: 2, kind: "T" }]);
+    expect(solids.filter((solid) => "post" in solid)).toEqual([
+      { post: 2, length: 3 },
+      { post: 4, length: 3 },
+    ]);
+    expect(rowSolids([{ id: "I1", lane: 0 }])).toHaveLength(1);
+  });
+
+  it("holds cells wholly in the gate or wholly out of it, never across a post", () => {
+    const gate = { lane: 3 };
+    expect(acrossGate([{ col: 3, row: 0 }, { col: 4, row: 0 }], gate)).toBe(false);
+    expect(acrossGate([{ col: 1, row: 0 }, { col: 2, row: 0 }], gate)).toBe(false);
+    expect(acrossGate([{ col: 2, row: 0 }, { col: 3, row: 0 }], gate)).toBe(true);
+    expect(acrossGate([{ col: 4, row: 0 }, { col: 5, row: 0 }], gate)).toBe(true);
+  });
+
+  it("is solid: nothing stands across a post, or moves across one, though a post fills no cell", () => {
+    const solids = rowSolids([{ id: "I1", lane: 0 }], [{ lane: 3, kind: "T" }]);
+    const at = (col: number) => [{ col, row: 0 }];
+    // Staying put either side of a post, or moving beside it.
+    expect(keepsClear(at(2), at(2), solids)).toBe(true);
+    expect(keepsClear(at(3), at(4), solids)).toBe(true);
+    // Standing across a post, or stepping through one.
+    expect(keepsClear([...at(2), ...at(3)], [...at(2), ...at(3)], solids)).toBe(false);
+    expect(keepsClear(at(2), at(3), solids)).toBe(false);
+    expect(keepsClear(at(4), at(5), solids)).toBe(false);
+    // And into a vehicle, as ever.
+    expect(keepsClear(at(1), at(0), solids)).toBe(false);
   });
 });

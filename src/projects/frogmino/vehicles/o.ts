@@ -29,7 +29,6 @@ export const mrSprinkles: VehicleDesign = {
     // One grille split by the seam between the two cells.
     f.front(0, 0, [0.6, 0.34, 0.94, 0.52], "charcoal"),
     f.front(1, 0, [0.06, 0.34, 0.4, 0.52], "charcoal"),
-    ...f.tyreFronts(),
     f.front(0, 1, [0.08, 0.2, 0.92, 0.86], "glass"),
     f.front(1, 1, [0.08, 0.2, 0.92, 0.86], "glass"),
     ...SPRINKLES.map(([col, u, z, paint]) => f.top(col, 1, [u, z, u + 0.16, z + 0.06], paint)),

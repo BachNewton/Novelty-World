@@ -17,8 +17,8 @@ import {
   nextWall,
   onOverpass,
   overlappingSolids,
-  pressJump,
-  releaseJump,
+  pressHeld,
+  releaseHeld,
   type FrogAction,
   type RuleRow,
   type RuleRows,
@@ -26,7 +26,7 @@ import {
   type Wall,
 } from "./run";
 import { rowStream, type RowStream } from "./stream";
-import { gateLanes, insideGate, rowBack } from "./traffic";
+import { acrossLine, gateLanes, gatePostLines, insideGate, rowBack } from "./traffic";
 import { TUNING, type Tuning } from "./tuning";
 import type { Cell, Frog, Gate, Opening, Solid, TetrominoKind } from "./types";
 
@@ -42,7 +42,7 @@ const TEST_TUNING: Tuning = {
   corridorCols: 7,
   courseLength: 100,
   hopAirtime: 0.5,
-  jumpRepeatInterval: 0.25,
+  holdRepeatInterval: 0.25,
   maxFrameDelta: 0.1,
   recycleBehind: 5,
   trafficHorizon: 30,
@@ -81,10 +81,13 @@ interface TestWall {
 }
 
 // The walls where the test puts them, each a row of one vehicle filling
-// everything but the opening, then the same rows again in order, each the
-// spacing beyond the back of the one before.
+// everything but the opening, with its gates' posts, then the same rows
+// again in order, each the spacing beyond the back of the one before.
 function rowsOf(walls: readonly TestWall[]): RuleRows {
-  const rows = walls.map(({ opening, length = 1, gates = [] }) => ({ solids: [{ cells: closed(opening), length }], gates }));
+  const rows = walls.map(({ opening, length = 1, gates = [] }) => ({
+    solids: [{ cells: closed(opening), length }, ...gates.flatMap((gate) => gatePostLines(gate).map((post) => ({ post, length })))],
+    gates,
+  }));
   const gaps = walls.map((w, i) => (i === 0 ? w.depth : w.depth - (walls[i - 1].depth + (walls[i - 1].length ?? 1))));
   return (index): RuleRow => ({ ...rows[index % rows.length], gap: index < walls.length ? gaps[index] : TEST_TUNING.wallSpacing });
 }
@@ -130,7 +133,7 @@ describe("a run", () => {
     expect(inPlay(run)).toBe(false);
     expect(run.walls.slice(0, 2).map((w) => w.depth)).toEqual([12, 30]);
     expect(run.lastBonk).toBeNull();
-    expect(run.heldJump).toBeNull();
+    expect(run.holds).toEqual([]);
   });
 
   it("lines the stream's rows up in order, each its gap beyond the back of the one before, out to the traffic horizon", () => {
@@ -145,7 +148,7 @@ describe("a run", () => {
   it("refuses tuning where a bonk could knock the frog into a passed wall, or not move it", () => {
     expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, wallSpacing: 5 })).toThrow();
     expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, bonkKnockback: 0 })).toThrow();
-    expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, jumpRepeatInterval: 0 })).toThrow();
+    expect(() => createRun(NO_TRAFFIC, { ...TEST_TUNING, holdRepeatInterval: 0 })).toThrow();
     expect(() => createRun(NO_TRAFFIC, TUNING)).not.toThrow();
   });
 
@@ -385,8 +388,9 @@ function inGate(kind: TetrominoKind, gate: Gate): Placement {
 // vehicle overlapping it; that a wall's overlapping vehicles only ever drop
 // away unless the frog jumped back among them; that a wall is recycled only
 // once it is well behind the frog, and comes back beyond the traffic
-// horizon; that every cell is on the road; and that the frog's piece only
-// changes in a gate it has just crossed.
+// horizon; that every cell is on the road; that the frog never stands across
+// a gate's post while its row overlaps the frog; and that the frog's piece
+// only changes in a gate it has just crossed.
 function playRandomly(start: Run, seed: number, extra: FrogAction[], lineUp: (run: Run, random: () => number) => Run) {
   const random = createRng(seed).next;
   const actions: FrogAction[] = ["left", "right", "rotateCw", "rotateCcw", "hop", "forward", "forward", "back", ...extra];
@@ -425,7 +429,8 @@ function playRandomly(start: Run, seed: number, extra: FrogAction[], lineUp: (ru
       }
       if (w.passed) expect(w.depth).toBeLessThanOrEqual(frog + 1e-9);
       else expect(w.depth).toBeGreaterThanOrEqual(frog - 1e-9);
-      const solid = new Set(overlapping(w, frog).flatMap((v) => v.cells.map(cellKey)));
+      for (const solid of overlapping(w, frog)) if ("post" in solid) expect(acrossLine(cells, solid.post)).toBe(false);
+      const solid = new Set(overlapping(w, frog).flatMap((v) => ("cells" in v ? v.cells.map(cellKey) : [])));
       if (solid.size === 0) return;
       for (const c of cells) {
         expect(solid.has(cellKey(c))).toBe(false);
@@ -602,7 +607,7 @@ describe("a wall overlapping the frog", () => {
   it("repeats a held jump while riding", () => {
     // Riding from 0.3 s, the press jumps the frog to 6, still on the wall;
     // the repeat at 0.55 s carries it clear to 7, where it lands.
-    const riding = pressJump(passedInto(RAISED, "hop"), "forward");
+    const riding = pressHeld(passedInto(RAISED, "hop"), "forward");
     expect(riding.frog.depth).toBe(6);
     expect(isRiding(riding)).toBe(true);
     const repeated = advanceBy(riding, 0.25, 0.01);
@@ -707,12 +712,12 @@ describe("jump", () => {
 
 describe("a held jump", () => {
   function jumpsIn(seconds: number, frame: number): Run {
-    const run = pressJump(createRun(NO_TRAFFIC, { ...TEST_TUNING, maxFrameDelta: 10 }), "forward");
+    const run = pressHeld(onRoad(createRun(NO_TRAFFIC, { ...TEST_TUNING, maxFrameDelta: 10 })), "forward");
     return advanceBy(run, seconds, frame);
   }
 
   it("jumps on the press, then again every repeat interval, whatever the frame rate", () => {
-    const pressed = pressJump(createRun(NO_TRAFFIC, TEST_TUNING), "forward");
+    const pressed = pressHeld(onRoad(createRun(NO_TRAFFIC, TEST_TUNING)), "forward");
     expect(pressed.frog.depth).toBe(1);
     // Repeats at 0.25, 0.5 and 0.75 s.
     for (const frame of [0.01, 0.05, 0.1, 0.3, 0.9]) {
@@ -722,18 +727,18 @@ describe("a held jump", () => {
   });
 
   it("repeats a held jump back too", () => {
-    const run = advanceBy(pressJump(onRoad(createRun(NO_TRAFFIC, TEST_TUNING), { depth: 10 }), "back"), 0.6);
+    const run = advanceBy(pressHeld(onRoad(createRun(NO_TRAFFIC, TEST_TUNING), { depth: 10 }), "back"), 0.6);
     expect(run.frog.depth).toBe(7);
   });
 
   it("keeps jumping after a bonk, a full repeat interval later", () => {
-    let run = pressJump(runWithWall(BLOCKED, 10, 0), "forward");
+    let run = pressHeld(runWithWall(BLOCKED, 10, 0), "forward");
     // At 2 s the wall reaches the frog at 8, just as the key would repeat,
     // and bonks it back to 5.
     run = advanceBy(run, 2.1);
     expect(run.lastBonk?.time).toBeCloseTo(2);
     expect(run.frog.depth).toBeCloseTo(5);
-    expect(run.heldJump?.nextAt).toBeCloseTo(2.25);
+    expect(run.holds.at(0)?.nextAt).toBeCloseTo(2.25);
     // Still held, it jumps on at 2.25 s and 2.5 s, and at 2.75 s jumps into
     // the wall at 7.25 and is bonked again.
     run = advanceBy(run, 0.5);
@@ -744,7 +749,7 @@ describe("a held jump", () => {
   });
 
   it("waits a full repeat interval after a bonk between repeats, rather than jumping at once", () => {
-    let run = pressJump(runWithWall(BLOCKED, 9.1, 10), "back");
+    let run = pressHeld(runWithWall(BLOCKED, 9.1, 10), "back");
     expect(run.frog.depth).toBe(9);
     // The wall arrives at 0.1 s, before the repeat due at 0.25 s, and bonks
     // the frog to 6. The repeat moves to 0.35 s.
@@ -759,31 +764,113 @@ describe("a held jump", () => {
     // Past the wall, out of line with its opening, the frog holds back. The
     // wall is clear of where the jump lands from 0.9 s, and the key goes on.
     let run = applyAction(advanceBy(applyAction(runWithWall(FITS, 5.5), "forward"), 1.6), "left");
-    run = pressJump(run, "back");
+    run = pressHeld(run, "back");
     expect(run.frog.depth).toBe(6);
-    expect(run.heldJump).not.toBeNull();
+    expect(run.holds).toHaveLength(1);
     run = advanceBy(run, 1.1);
-    expect(run.heldJump).not.toBeNull();
+    expect(run.holds).toHaveLength(1);
     expect(run.frog.depth).toBe(5);
   });
 
   it("stops when its key is released, or every key is let go", () => {
-    const held = pressJump(createRun(NO_TRAFFIC, TEST_TUNING), "forward");
-    expect(releaseJump(held, "back")).toBe(held);
-    const released = releaseJump(held, "forward");
-    expect(released.heldJump).toBeNull();
+    const held = pressHeld(onRoad(createRun(NO_TRAFFIC, TEST_TUNING)), "forward");
+    expect(releaseHeld(held, "back")).toBe(held);
+    const released = releaseHeld(held, "forward");
+    expect(released.holds).toEqual([]);
     expect(advanceBy(released, 1).frog.depth).toBe(1);
     // Losing focus lets go of whatever is held.
-    const blurred = releaseJump(held);
-    expect(blurred.heldJump).toBeNull();
+    const blurred = releaseHeld(held);
+    expect(blurred.holds).toEqual([]);
     expect(advanceBy(blurred, 1).frog.depth).toBe(1);
   });
 
   it("follows the latest jump key pressed", () => {
     let run = onRoad(createRun(NO_TRAFFIC, TEST_TUNING), { depth: 10 });
-    run = pressJump(pressJump(run, "forward"), "back");
-    expect(run.heldJump?.direction).toBe("back");
-    expect(releaseJump(run, "forward")).toBe(run);
+    run = pressHeld(pressHeld(run, "forward"), "back");
+    expect(run.holds.map((hold) => hold.action)).toEqual(["back"]);
+    expect(releaseHeld(run, "forward")).toBe(run);
+  });
+});
+
+describe("a held slide", () => {
+  function slidesIn(seconds: number, frame: number): Run {
+    const atLeftEdge = onRoad(createRun(NO_TRAFFIC, { ...TEST_TUNING, maxFrameDelta: 10 }), { col: 0, depth: 10 });
+    return advanceBy(pressHeld(atLeftEdge, "right"), seconds, frame);
+  }
+
+  it("slides on the press, then again every repeat interval, whatever the frame rate", () => {
+    expect(slidesIn(0, 0.05).frog.col).toBe(1);
+    // Repeats at 0.25 and 0.5 s.
+    for (const frame of [0.01, 0.05, 0.1, 0.3, 0.6]) {
+      expect(slidesIn(0.6, frame).frog.col).toBe(3);
+    }
+  });
+
+  it("keeps repeating at the corridor edge, and on the overpass", () => {
+    // From column 2 on the overpass: 1 on the press, 0 at 0.25 s, then the
+    // edge refuses it, and the key is still held.
+    const run = advanceBy(pressHeld(createRun(NO_TRAFFIC, TEST_TUNING), "left"), 0.6);
+    expect(onOverpass(run)).toBe(true);
+    expect(run.frog.col).toBe(0);
+    expect(run.holds.map((hold) => hold.action)).toEqual(["left"]);
+    expect(advanceBy(releaseHeld(run, "left"), 1).frog.col).toBe(0);
+  });
+
+  it("keeps repeating when a vehicle overlapping the frog refuses it", () => {
+    // The frog passes into a two-long row at 0.5 s, which overlaps it until
+    // 3.5 s. Held from 1.1 s, the slide is refused until the repeat at 3.6 s.
+    let run = advanceBy(runWithWalls([{ opening: FITS, depth: 5.5, length: 2 }]), 1.1);
+    expect(run.walls[0].passed).toBe(true);
+    run = pressHeld(run, "left");
+    expect(run.frog.col).toBe(2);
+    expect(run.holds).toHaveLength(1);
+    expect(advanceBy(run, 2.4).frog.col).toBe(2);
+    expect(advanceBy(run, 2.6).frog.col).toBe(1);
+  });
+
+  it("repeats while riding", () => {
+    // Riding from 0.3 s, the press slides the frog to 1, the opening's edge.
+    // The repeats are refused until the wall has gone by at 2.2 s.
+    const riding = pressHeld(advanceBy(applyAction(runWithWall(rect([1, 5], [0, 3]), 5.2), "hop"), 0.3), "left");
+    expect(isRiding(riding)).toBe(true);
+    expect(riding.frog.col).toBe(1);
+    const along = advanceBy(riding, 1.5);
+    expect(isRiding(along)).toBe(true);
+    expect(along.frog.col).toBe(1);
+    expect(advanceBy(riding, 2.1).frog.col).toBe(0);
+  });
+
+  it("slides at its own instant within a long frame, before or after a row arrives", () => {
+    const heldRight = (wallDepth: number): Run =>
+      pressHeld(onRoad(runWithWall(FITS, wallDepth, 5, { maxFrameDelta: 10 }), { col: 0 }), "right");
+    // The repeat at 0.25 s lines the frog up before the row arrives at 0.3 s,
+    // and the next, at 0.5 s, is refused by its vehicle.
+    const lined = advance(heldRight(5.3), 0.6);
+    expect(lined.passes).toBe(1);
+    expect(lined.lastBonk).toBeNull();
+    expect(lined.frog.col).toBe(2);
+    // A row arriving at 0.2 s, before the repeat, bonks the frog, and the
+    // slide comes a full repeat interval later, at 0.45 s.
+    const bonked = advance(heldRight(5.2), 0.5);
+    expect(bonked.lastBonk?.time).toBeCloseTo(0.2);
+    expect(bonked.frog.col).toBe(2);
+    expect(bonked.holds.at(0)?.nextAt).toBeCloseTo(0.7);
+  });
+
+  it("is held alongside a held jump, and a newer slide replaces the held one", () => {
+    let run = onRoad(createRun(NO_TRAFFIC, TEST_TUNING), { depth: 10 });
+    run = pressHeld(pressHeld(run, "forward"), "left");
+    expect(run.frog).toMatchObject({ depth: 11, col: 1 });
+    // Both repeat at 0.25 s; at 0.3 s right replaces left.
+    run = pressHeld(advanceBy(run, 0.3), "right");
+    expect(run.frog).toMatchObject({ depth: 12, col: 1 });
+    expect(run.holds.map((hold) => hold.action)).toEqual(["forward", "right"]);
+    expect(releaseHeld(run, "left")).toBe(run);
+    // The jump repeats at 0.5 s, the slide at 0.55 s.
+    expect(advanceBy(run, 0.3).frog).toMatchObject({ depth: 13, col: 2 });
+    // Releasing the slide leaves the jump held; losing focus lets go of both.
+    expect(releaseHeld(run, "right").holds.map((hold) => hold.action)).toEqual(["forward"]);
+    expect(releaseHeld(run).holds).toEqual([]);
   });
 });
 
@@ -797,15 +884,15 @@ describe("the finish", () => {
     expect(run.finishedAt).toBe(0);
     expect(inPlay(run)).toBe(false);
     for (const action of ["back", "forward", "left", "hop"] as const) expect(applyAction(run, action)).toBe(run);
-    expect(pressJump(run, "back")).toBe(run);
+    expect(pressHeld(run, "back")).toBe(run);
   });
 
   it("stops a held jump, and lands a hop, as the frog crosses", () => {
-    let run = advanceBy(pressJump(runWithWall(TALL, 200, 97.5), "forward"), 0.3, 0.01);
+    let run = advanceBy(pressHeld(runWithWall(TALL, 200, 97.5), "forward"), 0.3, 0.01);
     expect(run.frog.depth).toBe(99.5);
     run = advanceBy(applyAction(run, "hop"), 0.25, 0.01);
     expect(crossedFinish(run)).toBe(true);
-    expect(run.heldJump).toBeNull();
+    expect(run.holds).toEqual([]);
     expect(hopHeight(run.frog)).toBe(0);
     expect(advanceBy(run, 2).frog).toEqual(run.frog);
   });
@@ -830,7 +917,9 @@ describe("the finish", () => {
 });
 
 describe("the overpass", () => {
-  const start = (walls: readonly TestWall[] = []): Run => createRun(walls.length === 0 ? NO_TRAFFIC : rowsOf(walls), TEST_TUNING);
+  // A drop four jumps long, whose leap takes half a second.
+  const tuning: Tuning = { ...TEST_TUNING, dropDistance: 4, dropDuration: 0.5 };
+  const start = (walls: readonly TestWall[] = []): Run => createRun(walls.length === 0 ? NO_TRAFFIC : rowsOf(walls), tuning);
 
   it("holds the frog out of play: the traffic goes by beneath, unjudged", () => {
     const run = advanceBy(start([{ opening: [], depth: 2 }]), 5);
@@ -848,42 +937,55 @@ describe("the overpass", () => {
     for (const action of ["hop", "back"] as const) expect(applyAction(run, action)).toBe(run);
   });
 
-  it("drops the frog onto the road with its first jump forward, a jump ahead, into play", () => {
+  it("drops the frog onto the road with its first jump forward, the drop distance ahead, into play", () => {
     const run = advanceBy(start(), 0.5);
     const dropped = applyAction(run, "forward");
     expect(dropped.droppedAt).toBeCloseTo(0.5);
     expect(inPlay(dropped)).toBe(true);
-    expect(dropped.frog.depth).toBe(1);
-    // A held jump drops, then keeps jumping along the road.
-    expect(advanceBy(pressJump(start(), "forward"), 0.3).frog.depth).toBe(2);
+    expect(dropped.frog.depth).toBe(4);
+    // A held jump drops, and keeps jumping along the road once the leap lands.
+    const held = pressHeld(start(), "forward");
+    expect(advanceBy(held, 0.3).frog.depth).toBe(4);
+    expect(advanceBy(held, 0.6).frog.depth).toBe(5);
   });
 
   it("has no way back up: once dropped, a jump back goes along the road behind the start", () => {
-    const run = act(start(), "forward", "back", "back", "back");
+    const run = act(start(), "forward", "back", "back", "back", "back", "back", "back");
     expect(run.droppedAt).toBe(0);
     expect(onOverpass(run)).toBe(false);
     expect(run.frog.depth).toBe(-2);
   });
 
-  it("refuses a drop onto a vehicle going by beneath, and lets one into a gap in it", () => {
-    // A long row gone under the deck, still beneath where the frog would land.
-    const under = advanceBy(start([{ opening: BLOCKED, depth: 0.5, length: 3 }]), 1);
-    expect(under.walls[0].passed).toBe(true);
-    expect(applyAction(under, "forward")).toBe(under);
-    const gap = applyAction(advanceBy(start([{ opening: FITS, depth: 0.5, length: 3 }]), 1), "forward");
-    expect(inPlay(gap)).toBe(true);
-    expect(gap.frog.depth).toBe(1);
-    expect(gap.lastBonk).toBeNull();
+  it("flies over the rows between, which go by beneath it unjudged", () => {
+    const run = applyAction(start([{ opening: [], depth: 2 }]), "forward");
+    expect(run.frog.depth).toBe(4);
+    expect(run.walls[0].passed).toBe(true);
+    expect(run.lastBonk).toBeNull();
+    expect(run.passes).toBe(0);
   });
 
-  it("judges a row whose face the drop lands on, like any jump forward", () => {
-    const bonked = applyAction(advanceBy(start([{ opening: BLOCKED, depth: 1.5 }]), 1), "forward");
-    expect(bonked.lastBonk?.depth).toBeCloseTo(0.5);
-    expect(bonked.frog.depth).toBeCloseTo(-2.5);
+  it("refuses a drop onto a vehicle going by beneath, and lets one into a gap in it", () => {
+    // A long row, flown over, still beneath where the frog would land.
+    const under = advanceBy(start([{ opening: BLOCKED, depth: 1.5, length: 5 }]), 1);
+    expect(applyAction(under, "forward")).toBe(under);
+    const gap = applyAction(advanceBy(start([{ opening: FITS, depth: 1.5, length: 5 }]), 1), "forward");
+    expect(inPlay(gap)).toBe(true);
+    expect(gap.frog.depth).toBe(4);
+    expect(gap.lastBonk).toBeNull();
+    // One gone under the deck before the drop, likewise.
+    const gone = advanceBy(start([{ opening: BLOCKED, depth: 0.5, length: 6 }]), 1);
+    expect(gone.walls[0].passed).toBe(true);
+    expect(applyAction(gone, "forward")).toBe(gone);
+  });
+
+  it("judges a row whose face the leap's last jump lands on, like any jump forward", () => {
+    const bonked = applyAction(advanceBy(start([{ opening: BLOCKED, depth: 4.5 }]), 1), "forward");
+    expect(bonked.lastBonk?.depth).toBeCloseTo(3.5);
+    expect(bonked.frog.depth).toBeCloseTo(0.5);
     expect(inPlay(bonked)).toBe(true);
-    const passed = applyAction(advanceBy(start([{ opening: FITS, depth: 1.5 }]), 1), "forward");
+    const passed = applyAction(advanceBy(start([{ opening: FITS, depth: 4.5 }]), 1), "forward");
     expect(passed.passes).toBe(1);
-    expect(passed.frog.depth).toBe(1);
+    expect(passed.frog.depth).toBe(4);
   });
 });
 
@@ -1029,11 +1131,51 @@ describe("a gate", () => {
     expect(isRiding(t)).toBe(true);
   });
 
-  it("gives its piece only to a frog with every cell in its lanes", () => {
-    // The upright L at lane 2 has its foot in the gate and its body beside it.
+  it("bonks a frog standing across one of its posts as the row arrives, as a vehicle would", () => {
+    // The upright L at lane 2 has its foot in the gate and its body beside
+    // it: every cell is open, but the gate's post stands between them.
     const run = advanceBy(beforeGate({ rotation: 1, col: 2 }, gateRow("O", rect([2, 2], [0, 3]))), 0.3);
-    expect(run.walls[0].passed).toBe(true);
+    expect(run.walls[0].passed).toBe(false);
+    expect(run.lastBonk?.depth).toBeCloseTo(5);
+    expect(run.frog).toMatchObject({ kind: "L", depth: 2 });
+  });
+
+  it("bonks a frog jumping forward into its row across one of its posts", () => {
+    const run = applyAction(beforeGate({ rotation: 1, col: 2 }, gateRow("O", rect([2, 2], [0, 3]))), "forward");
+    expect(run.walls[0].passed).toBe(false);
+    expect(run.lastBonk?.depth).toBeCloseTo(5.2);
     expect(run.frog.kind).toBe("L");
+  });
+
+  it("refuses a slide or turn across one of its posts while the row overlaps the frog, either way", () => {
+    // A gate for the frog's own piece, beside an opening three lanes wide.
+    const row = gateRow("L", rect([0, 2], [0, 3]));
+    // In the gate, the upright L can't slide or turn out of it.
+    const inside = advanceBy(beforeGate({ rotation: 1, col: 3 }, row), 0.3);
+    expect(inside.walls[0].passed).toBe(true);
+    for (const action of ["left", "right", "rotateCw", "rotateCcw"] as const) expect(applyAction(inside, action).frog).toEqual(inside.frog);
+    // Beside it, the upright I can't step through the post into it.
+    const beside = advanceBy(beforeGate({ kind: "I", rotation: 1, col: 2 }, row), 0.3);
+    expect(beside.walls[0].passed).toBe(true);
+    expect(applyAction(beside, "right").frog).toEqual(beside.frog);
+    expect(applyAction(beside, "left").frog.col).toBe(1);
+    // Once the row has gone by, the posts are gone with it.
+    const clear = advanceBy(beside, 2);
+    expect(applyAction(clear, "right").frog.col).toBe(3);
+  });
+
+  it("refuses a jump back that would put the frog across one of its posts", () => {
+    // The O passes beside the gate, jumps on and, once the row has gone by,
+    // stands across the gate's post.
+    let run = advanceBy(beforeGate({ kind: "O", col: 1 }, gateRow("L", rect([0, 2], [0, 3]))), 0.3);
+    expect(run.walls[0].passed).toBe(true);
+    run = advanceBy(applyAction(run, "forward"), 1);
+    run = applyAction(run, "right");
+    expect(run.frog).toMatchObject({ col: 2, depth: 6 });
+    expect(applyAction(run, "back").frog.depth).toBe(6);
+    // Wholly in the gate, it may jump back into the row.
+    run = applyAction(run, "right");
+    expect(applyAction(run, "back").frog.depth).toBe(5);
   });
 
   it("is optional: a frog through a normal opening keeps its piece", () => {
@@ -1044,18 +1186,21 @@ describe("a gate", () => {
   });
 
   it("gives a frog going back through it its piece too", () => {
-    // Through the opening beside the gate, the upright I keeps its piece,
-    // then slides into the gate while the row overlaps it.
+    // Through the opening beside the gate, the upright I keeps its piece. It
+    // jumps on and, once the row has gone by, lines up in the gate.
     let run = advanceBy(beforeGate({ kind: "I", rotation: 1, col: 2 }, gateRow("O", rect([2, 2], [0, 3]))), 0.3);
     expect(run.frog.kind).toBe("I");
-    run = applyAction(run, "right");
-    expect(run.frog.col).toBe(3);
-    // A jump back across the row's front, every cell in the gate.
+    run = applyAction(advanceBy(applyAction(run, "forward"), 1), "right");
+    expect(run.frog).toMatchObject({ col: 3, depth: 6 });
+    // Jumps back into the row, and out across its front, every cell in the
+    // gate.
+    run = act(run, "back", "back");
+    expect(run.frog).toMatchObject({ kind: "I", depth: 4 });
     run = applyAction(run, "back");
-    expect(run.frog).toMatchObject({ kind: "O", col: 3, rotation: 1, depth: 4 });
+    expect(run.frog).toMatchObject({ kind: "O", col: 3, rotation: 1, depth: 3 });
     expect(run.walls[0].passed).toBe(false);
     // The row comes again, and the frog, in the gate, passes it.
-    run = advanceBy(run, 1);
+    run = advanceBy(run, 1.5);
     expect(run.walls[0].passed).toBe(true);
     expect(run.passes).toBe(2);
     expect(run.frog.kind).toBe("O");
@@ -1093,11 +1238,11 @@ describe("going back for a gate the frog skipped", () => {
     expect(run.frog.kind).toBe("L");
     expect(run.lastBonk?.time).toBeCloseTo(21);
     // Upright in the gate, it holds back until it is through.
-    run = pressJump(steer(run, { rotation: 1, col: 4 }), "back");
+    run = pressHeld(steer(run, { rotation: 1, col: 4 }), "back");
     expect(run.frog).toMatchObject({ rotation: 1, col: 4 });
     for (let t = 0; t < 10 && run.frog.kind === "L"; t += 0.05) run = advance(run, 0.05);
     expect(run.frog.kind).toBe("O");
-    run = releaseJump(run);
+    run = releaseHeld(run);
     // The gate row comes again and passes around it; once it has gone by,
     // the O lines up with the square, and passes the row that knocked it back.
     for (let t = 0; t < 10 && (!run.walls[0].passed || overlappingSolids(run.walls[0], run.frog.depth).length > 0); t += 0.05) run = advance(run, 0.05);
@@ -1189,7 +1334,7 @@ function skipGatesAndRecover(seed: number, wanted: number): { recoveries: number
     }
     if (recovering !== null) {
       if (run.frog.kind === recovering.gate.kind) {
-        run = releaseJump(run);
+        run = releaseHeld(run);
         recovered = recovering;
         recovering = null;
         continue;
@@ -1204,7 +1349,7 @@ function skipGatesAndRecover(seed: number, wanted: number): { recoveries: number
         run = steer(run, pose);
         if (pose.hop === 1 && hopHeight(run.frog) === 0) run = applyAction(run, "hop");
       }
-      if (run.heldJump === null) run = pressJump(run, "back");
+      if (run.holds.length === 0) run = pressHeld(run, "back");
       continue;
     }
     const next = nextWall(run);

@@ -23,7 +23,6 @@ export const bigCab: VehicleDesign = {
     headlight(f, 0, 0, "left"),
     headlight(f, 2, 0, "right"),
     grille(f, 1, 0),
-    ...f.tyreFronts(),
     // The roof light, checkered on every face.
     ...checkerDarks([0.1, 0.22, 0.9, 0.78], 4, 2).map((rect) => f.front(1, 1, rect, "charcoal")),
     ...SIDES.flatMap((side) =>
@@ -49,7 +48,6 @@ export const tacoTower: VehicleDesign = {
   body: (cell) => (cell.col === 1 ? "sunflower" : "coral"),
   details: (f) => [
     ...carNose(f, 0, 0),
-    ...f.tyreFronts(),
     windscreen(f, 0, 0, [0.1, 0.62, 0.9, 0.9]),
     windscreen(f, 0, 1, [0.1, 0.2, 0.9, 0.86]),
     // The taco sign on top: a shell with lettuce and tomato.
@@ -86,7 +84,6 @@ export const mowProblemo: VehicleDesign = {
     f.front(1, 0, [0.14, 0.26, 0.86, 0.5], "charcoal"),
     f.front(1, 0, [0.14, 0.62, 0.34, 0.82], "headlight", "round"),
     f.front(1, 0, [0.66, 0.62, 0.86, 0.82], "headlight", "round"),
-    ...f.tyreFronts(),
     // The canopy's scalloped fringe, and a stripe down each panel's top.
     ...[0, 1, 2].flatMap((col) => [
       ...[0.1, 0.41, 0.72].map((u) =>
@@ -109,7 +106,6 @@ export const beachPatrol: VehicleDesign = {
   body: (cell) => (cell.col === 0 ? "coral" : cell.row === 1 ? "snow" : "sky"),
   details: (f) => [
     ...carNose(f, 1, 0),
-    ...f.tyreFronts(),
     windscreen(f, 1, 0, [0.1, 0.62, 0.9, 0.9]),
     // A red cross on the white middle, front and sides.
     f.front(1, 1, [0.4, 0.2, 0.6, 0.8], "cherry"),

@@ -15,7 +15,6 @@ export const trashPanda: VehicleDesign = {
     headlight(f, 0, 0, "left"),
     grille(f, 1, 0),
     headlight(f, 2, 0, "right"),
-    ...f.tyreFronts(),
     // The raccoon on the bin: ears, mask, eyes, muzzle and nose.
     f.front(2, 1, [0.08, 0.8, 0.28, 0.94], "charcoal"),
     f.front(2, 1, [0.72, 0.8, 0.92, 0.94], "charcoal"),
@@ -71,7 +70,6 @@ export const tallLatte: VehicleDesign = {
     bumper(f, 1, 0),
     windscreen(f, 1, 0, [0.12, 0.6, 0.88, 0.9]),
     f.front(1, 0, [0.38, 0.32, 0.62, 0.52], "headlight", "round"),
-    ...f.tyreFronts(),
     ...f.wheels(),
   ],
 };
@@ -87,7 +85,6 @@ export const deckHand: VehicleDesign = {
   details: (f) => [
     ...carNose(f, 0, 0),
     windscreen(f, 0, 0, [0.1, 0.62, 0.9, 0.9]),
-    ...f.tyreFronts(),
     ...SIDES.map((side) => f.side(0, 0, side, [0.1, 0.6, 0.9, 0.92], "glass")),
     // Each little car's face, sunroof and flank.
     ...DECK_CARS.flatMap((col) => [
@@ -124,7 +121,6 @@ export const cherryOnTop: VehicleDesign = {
   details: (f) => [
     ...carNose(f, 1, 0),
     windscreen(f, 1, 0, [0.1, 0.62, 0.9, 0.9]),
-    ...f.tyreFronts(),
     // The boom, climbing to a pivot.
     ...(
       [

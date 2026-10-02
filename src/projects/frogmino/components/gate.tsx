@@ -2,26 +2,15 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import {
-  BoxGeometry,
-  DoubleSide,
-  Euler,
-  Matrix4,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
-  PlaneGeometry,
-  Quaternion,
-  Vector3,
-  type BufferGeometry,
-  type Mesh,
-} from "three";
+import { BoxGeometry, DoubleSide, MeshBasicMaterial, MeshLambertMaterial, PlaneGeometry, type BufferGeometry, type Mesh } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import type { Gate } from "../types";
 import { GATE_TOKENS, gapBox, gateParts, type GatePaint, type GatePart } from "./gate-parts";
 
-// A gate as drawn, in its row's frame (see `gate-parts.ts`): the gantry, and
-// a faint shimmer of light drifting across the gap, which never hides the fit.
+// A gate as drawn, in its row's frame (see `gate-parts.ts`): the frame round
+// its lanes, and a faint shimmer of light drifting across the gap between
+// the posts, which never hides the fit.
 
 const SHIMMER_STRIPS = 4;
 const SHIMMER_WIDTH = 0.05;
@@ -66,9 +55,7 @@ function mergedByPaint(parts: readonly GatePart[]): { paint: GatePaint; geometry
   const byPaint = new Map<GatePaint, BufferGeometry[]>();
   for (const p of parts) {
     const geometry = new BoxGeometry(...p.size);
-    geometry.applyMatrix4(
-      new Matrix4().compose(new Vector3(...p.center), new Quaternion().setFromEuler(new Euler(0, 0, p.roll)), new Vector3(1, 1, 1)),
-    );
+    geometry.translate(...p.center);
     byPaint.set(p.paint, [...(byPaint.get(p.paint) ?? []), geometry]);
   }
   return [...byPaint].map(([paint, geometries]) => {
@@ -80,8 +67,10 @@ function mergedByPaint(parts: readonly GatePart[]): { paint: GatePaint; geometry
   });
 }
 
-export function GateView({ gate, assets }: { gate: Gate; assets: GateAssets }) {
-  const merged = useMemo(() => mergedByPaint(gateParts(gate)), [gate]);
+// `length` is how far the gate's row reaches back from its front, which the
+// posts run along.
+export function GateView({ gate, length, assets }: { gate: Gate; length: number; assets: GateAssets }) {
+  const merged = useMemo(() => mergedByPaint(gateParts(gate, length)), [gate, length]);
   useEffect(
     () => () => {
       merged.forEach(({ geometry }) => {

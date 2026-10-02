@@ -4,6 +4,7 @@ import { FROG_THICKNESS } from "../run";
 import type { Cell, Rotation, TetrominoKind } from "../types";
 import { DECAL, type Vec3 } from "../vehicles/parts";
 import type { FrogRole, Markings, Pupil } from "./look";
+import type { PupilOrbit } from "./motion";
 
 // The frog is built in its own frame, like a vehicle: x runs across the
 // lanes and y up, so the cell at (col, row) fills x from col to col + 1. Every
@@ -16,27 +17,40 @@ import type { FrogRole, Markings, Pupil } from "./look";
 // row, with the eyes on top of it, and the legs are always under the bottom
 // row, on the road. Seen head-on, every cell is a full square and nothing
 // reaches into an empty cell: the eyes bulge up from a dip in the back of the
-// head, never above it (see the frog in CLAUDE.md).
+// head, never above it, and look ahead down the road, away from the camera
+// (see the frog in CLAUDE.md).
 
 // The head's snout: a full-height ridge across the front of the top row,
 // which keeps each head cell a full square seen head-on.
-const SNOUT_DEPTH = 0.26;
+const SNOUT_DEPTH = 0.1;
 // How far the back of the head sits below the top of its cells, so the eyes
 // bulge up out of it.
 const HEAD_DIP = 0.22;
 
+// The camera is behind the frog, which looks down the road at the traffic,
+// so the eyes look that way too. Each eye is a skin bump on the head, just
+// behind the snout, which the camera sees from behind. Its eyeball bulges
+// out of the bump's outer front, as a real frog's eyes sit on the sides of
+// its head, with the pupil in the middle of the bulge: from behind, only a
+// sliver of white shows round each bump's side.
 const EYE_RADIUS = 0.2;
 // The two eyes' centres are half a cell apart, centred on the head row.
 const EYE_SPACING = 0.5;
-const EYE_Z = SNOUT_DEPTH + 0.15;
-// The white sits a little up and back in the bump, facing the camera, and
-// the pupil near its top, so the frog looks up and back at the player.
-const WHITE_RADIUS = 0.155;
-const WHITE_OFFSET: Vec3 = [0, 0.03, 0.05];
-const PUPIL_OFFSET: Vec3 = [0, 0.116, 0.058];
-const PUPIL_RADII: Record<Pupil, Vec3> = {
-  round: [0.075, 0.075, 0.075],
-  bar: [0.105, 0.045, 0.06],
+const EYE_Z = 0.33;
+// Which way the right eye looks: out, ahead down the road, and a little up.
+// The left eye's mirrors it.
+const GAZE: Vec3 = [0.75, 0.2, -0.63];
+const WHITE_RADIUS = 0.11;
+// How far the white's middle sits from the bump's, along the gaze. The white
+// stands well out of the bump, so its rim crosses the bump's skin steeply: a
+// white barely poking through would run alongside the skin and flicker
+// through it.
+const WHITE_OUT = 0.145;
+// Each pupil's size, and how far its middle is from the white's: it stands
+// out of the white far enough that its rim crosses the white steeply.
+const PUPILS: Record<Pupil, { radii: Vec3; distance: number }> = {
+  round: { radii: [0.045, 0.045, 0.045], distance: 0.08 },
+  bar: { radii: [0.05, 0.026, 0.04], distance: 0.095 },
 };
 
 const MARK_SIZE = 0.42;
@@ -66,6 +80,8 @@ export interface FrogEye {
   bump: FrogPart;
   white: FrogPart;
   pupil: FrogPart;
+  // Which way the pupil looks from the white's middle, a unit vector.
+  gaze: Vec3;
 }
 
 export interface FrogCell {
@@ -106,6 +122,11 @@ export interface FrogModelOptions {
 }
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const times = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
+const unit = (a: Vec3): Vec3 => times(a, 1 / Math.hypot(...a));
+const cross = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+// The middle of a part's box.
+export const partMiddle = (part: FrogPart): Vec3 => times(add(part.min, part.max), 0.5);
 
 function ellipsoid(centre: Vec3, radii: Vec3, role: FrogRole): FrogPart {
   return {
@@ -116,15 +137,35 @@ function ellipsoid(centre: Vec3, radii: Vec3, role: FrogRole): FrogPart {
   };
 }
 
-function eye(x: number, top: number, pupil: Pupil): FrogEye {
+// An eye at `x` across, peaking at `top`, on the `side` of the head it
+// looks out of: -1 left, 1 right.
+function eye(x: number, top: number, side: -1 | 1, pupil: Pupil): FrogEye {
+  const outward = (v: Vec3): Vec3 => [side * v[0], v[1], v[2]];
   const centre: Vec3 = [x, top - EYE_RADIUS, EYE_Z];
-  const whiteCentre = add(centre, WHITE_OFFSET);
+  const gaze = unit(outward(GAZE));
+  const whiteCentre = add(centre, times(gaze, WHITE_OUT));
   return {
     centre,
     bump: ellipsoid(centre, [EYE_RADIUS, EYE_RADIUS, EYE_RADIUS], "skin"),
     white: ellipsoid(whiteCentre, [WHITE_RADIUS, WHITE_RADIUS, WHITE_RADIUS], "eye"),
-    pupil: ellipsoid(add(whiteCentre, PUPIL_OFFSET), PUPIL_RADII[pupil], "pupil"),
+    pupil: ellipsoid(add(whiteCentre, times(gaze, PUPILS[pupil].distance)), PUPILS[pupil].radii, "pupil"),
+    gaze,
   };
+}
+
+// Where a pupil's middle is: on its gaze, or, dazed, tipped off it by the
+// orbit's radius and turned round it by the orbit's angle, always the same
+// distance from the white's middle, so it rolls over the white.
+export function pupilCentre(eye: FrogEye, orbit: PupilOrbit | null): Vec3 {
+  const whiteCentre = partMiddle(eye.white);
+  const out = Math.hypot(...partMiddle(eye.pupil).map((v, i) => v - whiteCentre[i]));
+  if (orbit === null) return add(whiteCentre, times(eye.gaze, out));
+  const across = unit(cross(eye.gaze, [0, 1, 0]));
+  const up = cross(across, eye.gaze);
+  const tip = orbit.radius / out;
+  const aside = add(times(across, Math.cos(orbit.angle)), times(up, Math.sin(orbit.angle)));
+  const look = add(times(eye.gaze, Math.cos(tip)), times(aside, Math.sin(tip)));
+  return add(whiteCentre, times(look, out));
 }
 
 function disc(axis: "drumY" | "drumZ", centre: Vec3, size: number): FrogPart {
@@ -242,7 +283,9 @@ export function frogModel(kind: TetrominoKind, rotation: Rotation, options: Frog
       anchor: [col + 0.5, bottom, 0],
       body,
       details,
-      eyes: head ? eyeXs.filter((x) => x >= col && x < col + 1).map((x) => eye(x, top, pupil)) : [],
+      eyes: head
+        ? eyeXs.flatMap((x, i) => (x >= col && x < col + 1 ? [eye(x, top, i === 0 ? -1 : 1, pupil)] : []))
+        : [],
       throat,
     };
   });

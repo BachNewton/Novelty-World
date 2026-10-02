@@ -4,7 +4,8 @@
 export interface Tuning {
   // How fast the walls come at the frog, in units per second.
   wallSpeed: number;
-  // Where the first row's front starts.
+  // Where the first row's front starts: beyond where the drop lands the
+  // frog, by the reading room it has before the first row.
   firstWallDepth: number;
   // The gap from one row's back (its longest vehicle's) to the next row's
   // front, in units: the reading time between rows, whatever their vehicles'
@@ -25,7 +26,9 @@ export interface Tuning {
   trafficHorizon: number;
   // How long a hop keeps the frog one cell up, in seconds.
   hopAirtime: number;
-  // Roughly how long the drawn frog takes to catch up with a move, in seconds.
+  // Roughly how long the drawn frog takes to catch up with a turn, in
+  // seconds. A jump or a slide glides over the held-key repeat interval
+  // instead (see `frog/moves.ts`).
   easeDuration: number;
   // Columns across the corridor.
   corridorCols: number;
@@ -33,15 +36,20 @@ export interface Tuning {
   wallRows: number;
   // How far one jump carries the frog, in units.
   depthStep: number;
-  // How often a held jump key jumps again, in seconds.
-  jumpRepeatInterval: number;
+  // How often a held jump or slide key acts again, in seconds.
+  holdRepeatInterval: number;
   // How many jumps' distance a bonk knocks the frog back.
   bonkKnockback: number;
   // The longest frame the rules will advance by, in seconds, so returning to
   // a backgrounded tab doesn't lurch the walls forward.
   maxFrameDelta: number;
-  // How long the drawn frog takes to drop from the overpass to the road, in
-  // seconds.
+  // How far ahead of where it stood on the overpass the frog's first jump
+  // forward lands it on the road, in units: far enough that the camera,
+  // following it, is past the overpass's deck when it lands, and still is
+  // after a bonk as it lands.
+  dropDistance: number;
+  // How long the drawn frog's leap from the overpass to the road takes, in
+  // seconds. A held key repeats only once it lands.
   dropDuration: number;
   // How long the drawn frog's leap from the spring pad onto the finish
   // gantry takes, in seconds. The done screen waits for it to land.
@@ -58,7 +66,7 @@ export interface Tuning {
 
 export const TUNING: Tuning = {
   wallSpeed: 2.5,
-  firstWallDepth: 15,
+  firstWallDepth: 28.5,
   wallSpacing: 13,
   wallJitter: 2,
   courseLength: 214,
@@ -69,12 +77,13 @@ export const TUNING: Tuning = {
   corridorCols: 7,
   wallRows: 4,
   depthStep: 1.5,
-  jumpRepeatInterval: 0.22,
+  holdRepeatInterval: 0.22,
   bonkKnockback: 3,
   maxFrameDelta: 0.1,
-  dropDuration: 0.45,
+  dropDistance: 15,
+  dropDuration: 1.2,
   finishLeapDuration: 0.9,
-  cameraHeight: 8.5,
-  cameraFollow: 7,
-  cameraLookAhead: 6,
+  cameraHeight: 6.5,
+  cameraFollow: 8,
+  cameraLookAhead: 8,
 };

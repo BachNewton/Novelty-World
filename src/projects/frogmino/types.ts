@@ -33,13 +33,25 @@ export type Opening = readonly Cell[];
 
 // One vehicle of a row as the rules see it: the cells of the face it fills,
 // and how far it reaches back along the course from the row's front.
-export interface Solid {
+export interface VehicleSolid {
   cells: readonly Cell[];
   length: number;
 }
 
+// One post of a gate's frame as the rules see it. It stands on the line on
+// the left of lane `post` and fills no cell, but no frog may stand across
+// it or move across it, for as far back along the course as `length`.
+export interface PostSolid {
+  post: number;
+  length: number;
+}
+
+// Something in a row the frog must keep clear of.
+export type Solid = VehicleSolid | PostSolid;
+
 // A gate in a row: a gap two lanes wide and the full height of the face,
-// from `lane`, that sets the frog's piece to `kind` as it passes through.
+// from `lane`, framed by a post on the lane line either side, that sets the
+// frog's piece to `kind` as it passes through.
 export interface Gate {
   lane: number;
   kind: TetrominoKind;

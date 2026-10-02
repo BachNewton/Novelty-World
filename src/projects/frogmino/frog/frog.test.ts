@@ -8,12 +8,13 @@ import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
 import type { Placement } from "../world/geometry";
 import { FROG_LOOKS, FROG_ROLES, FROG_VARIANTS, type FrogVariant } from "./look";
 import { GROUND_CLEARANCE } from "../clearance";
-import { frogModel, type FrogModel, type FrogPart } from "./model";
+import { frogModel, pupilCentre, type FrogEye, type FrogModel, type FrogPart } from "./model";
 import {
   BONK_DURATION,
   EYES_SHUT,
   HOP_DURATION,
   LAND_DURATION,
+  MOVE_LANDING,
   PUPIL_ORBIT,
   THROAT_PUFF,
   frogMotion,
@@ -70,6 +71,17 @@ function allowedSpace(model: FrogModel): Rect[] {
   return c > 0 ? [...cells, [from, 0, to, c]] : cells;
 }
 
+// Where a pupil reaches, head-on, anywhere on its dazed circle.
+function pupilReach(eye: FrogEye): Rect {
+  const half = [0, 1].map((axis) => (eye.pupil.max[axis] - eye.pupil.min[axis]) / 2);
+  const centres = Array.from({ length: 24 }, (_, k) =>
+    pupilCentre(eye, { angle: (2 * Math.PI * k) / 24, radius: PUPIL_ORBIT }),
+  );
+  const xs = centres.map((c) => c[0]);
+  const ys = centres.map((c) => c[1]);
+  return [Math.min(...xs) - half[0], Math.min(...ys) - half[1], Math.max(...xs) + half[0], Math.max(...ys) + half[1]];
+}
+
 // Every part at its furthest reach: the throat fully puffed, the pupils
 // anywhere on their dazed circle.
 function reaches(model: FrogModel): { name: string; part: FrogPart; rect: Rect }[] {
@@ -80,8 +92,8 @@ function reaches(model: FrogModel): { name: string; part: FrogPart; rect: Rect }
     for (const eye of eyes) {
       found.push({ name: `${at} eye bump`, part: eye.bump, rect: faceOf(eye.bump) });
       found.push({ name: `${at} eye white`, part: eye.white, rect: faceOf(eye.white) });
-      const [x0, y0, x1, y1] = faceOf(eye.pupil);
-      found.push({ name: `${at} pupil`, part: eye.pupil, rect: [x0 - PUPIL_ORBIT, y0, x1 + PUPIL_ORBIT, y1] });
+      found.push({ name: `${at} pupil`, part: eye.pupil, rect: faceOf(eye.pupil) });
+      found.push({ name: `${at} dazed pupil`, part: eye.pupil, rect: pupilReach(eye) });
     }
     if (throat) found.push({ name: `${at} throat`, part: throat, rect: grown(faceOf(throat), THROAT_PUFF) });
   }
@@ -251,24 +263,24 @@ describe("the clearance", () => {
 
 describe("the frog's motion", () => {
   const ACTIONS: readonly FrogAction[] = ["idle", "hop", "land", "bonk"];
+  const STRIDE = 0.22;
+  const MOVES = [null, ...[0, 0.05, 0.11, 0.2, 0.25, 0.3, 1].map((since) => ({ since, duration: STRIDE }))];
   const times = Array.from({ length: 400 }, (_, i) => i * 0.037);
 
   it("only ever shrinks the cells, and keeps every motion within its limits", () => {
     const within = (value: number, low: number, high: number): boolean => value >= low && value <= high;
     const broken: string[] = [];
     for (const action of ACTIONS) {
-      for (const sleepy of [false, true]) {
-        for (const since of [0, 0.05, 0.1, 0.2, 0.4, 1, 2]) {
-          for (const time of times.filter((_, i) => i % 3 === 0)) {
-            const m = frogMotion({ time, action, since, seed: 3, sleepy });
-            const ok =
-              m.cell.every((scale) => within(scale, 0.5, 1)) &&
-              within(m.eyeball, EYES_SHUT, 1) &&
-              within(m.throat, 1, THROAT_PUFF) &&
-              within(m.tuck, 0, 1) &&
-              (m.pupilOrbit === null || m.pupilOrbit.radius <= PUPIL_ORBIT);
-            if (!ok) broken.push(`${action} sleepy=${String(sleepy)} since=${String(since)} t=${String(time)}`);
-          }
+      for (const [since, move] of [0, 0.05, 0.1, 0.2, 0.4, 1, 2].flatMap((since) => MOVES.map((move) => [since, move] as const))) {
+        for (const time of times.filter((_, i) => i % 3 === 0)) {
+          const m = frogMotion({ time, action, since, seed: 3, move });
+          const ok =
+            m.cell.every((scale) => within(scale, 0.5, 1)) &&
+            within(m.eyeball, EYES_SHUT, 1) &&
+            within(m.throat, 1, THROAT_PUFF) &&
+            within(m.tuck, 0, 1) &&
+            (m.pupilOrbit === null || m.pupilOrbit.radius <= PUPIL_ORBIT);
+          if (!ok) broken.push(`${action} since=${String(since)} move=${JSON.stringify(move)} t=${String(time)}`);
         }
       }
     }
@@ -277,41 +289,51 @@ describe("the frog's motion", () => {
 
   it("blinks now and then, at the same moments for the same seed, and out of step for another", () => {
     const shut = (seed: number): boolean[] =>
-      times.map((time) => frogMotion({ time, action: "idle", since: 0, seed, sleepy: false }).eyeball < 0.8);
+      times.map((time) => frogMotion({ time, action: "idle", since: 0, seed }).eyeball < 0.8);
     expect(shut(1).some(Boolean)).toBe(true);
     expect(shut(1)).toEqual(shut(1));
     expect(shut(2)).not.toEqual(shut(1));
   });
 
-  it("keeps a sleepy frog's eyes shut", () => {
-    for (const time of times) {
-      expect(frogMotion({ time, action: "idle", since: 0, seed: 1, sleepy: true }).eyeball).toBe(EYES_SHUT);
-    }
-  });
-
   it("settles back to idle once an action is over", () => {
-    const idle = frogMotion({ time: 1, action: "idle", since: 0, seed: 1, sleepy: false });
+    const idle = frogMotion({ time: 1, action: "idle", since: 0, seed: 1 });
     for (const [action, over] of [
       ["land", LAND_DURATION],
       ["bonk", BONK_DURATION],
     ] as const) {
-      expect(frogMotion({ time: 1, action, since: over + 0.01, seed: 1, sleepy: false })).toEqual(idle);
+      expect(frogMotion({ time: 1, action, since: over + 0.01, seed: 1 })).toEqual(idle);
     }
   });
 
   it("tucks its legs away for the whole hop, and puts them down on landing", () => {
-    const hop = (since: number) => frogMotion({ time: 1, action: "hop", since, seed: 1, sleepy: false });
+    const hop = (since: number) => frogMotion({ time: 1, action: "hop", since, seed: 1 });
     expect(hop(0).tuck).toBe(0);
     expect(hop(HOP_DURATION + 2).tuck).toBe(1);
-    expect(hop(HOP_DURATION + 2).cell).toEqual(frogMotion({ time: 1, action: "idle", since: 0, seed: 1, sleepy: false }).cell);
-    expect(frogMotion({ time: 1, action: "land", since: 0, seed: 1, sleepy: false }).tuck).toBe(1);
-    expect(frogMotion({ time: 1, action: "land", since: LAND_DURATION, seed: 1, sleepy: false }).tuck).toBe(0);
+    expect(hop(HOP_DURATION + 2).cell).toEqual(frogMotion({ time: 1, action: "idle", since: 0, seed: 1 }).cell);
+    expect(frogMotion({ time: 1, action: "land", since: 0, seed: 1 }).tuck).toBe(1);
+    expect(frogMotion({ time: 1, action: "land", since: LAND_DURATION, seed: 1 }).tuck).toBe(0);
+  });
+
+  it("hops a little on a move, legs half up, and settles once it has landed", () => {
+    const idle = frogMotion({ time: 1, action: "idle", since: 0, seed: 1 });
+    const move = (since: number) => frogMotion({ time: 1, action: "idle", since: 0, seed: 1, move: { since, duration: STRIDE } });
+    expect(move(0)).toEqual(idle);
+    expect(move(STRIDE / 2).tuck).toBeCloseTo(0.5);
+    expect(move(STRIDE / 2).cell[0]).toBeLessThan(idle.cell[0]);
+    expect(move(STRIDE + MOVE_LANDING / 2).cell[1]).toBeLessThan(idle.cell[1]);
+    expect(move(STRIDE + MOVE_LANDING)).toEqual(idle);
+  });
+
+  it("keeps a move's hop from cutting a hop or a bonk short", () => {
+    const during = { since: STRIDE / 2, duration: STRIDE };
+    expect(frogMotion({ time: 1, action: "hop", since: 1, seed: 1, move: during }).tuck).toBe(1);
+    expect(frogMotion({ time: 1, action: "bonk", since: 0.8, seed: 1, move: during }).pupilOrbit).not.toBeNull();
   });
 
   it("flattens a bonked frog along the road and leaves it dazed", () => {
-    const hit = frogMotion({ time: 1, action: "bonk", since: 0, seed: 1, sleepy: false });
+    const hit = frogMotion({ time: 1, action: "bonk", since: 0, seed: 1 });
     expect(hit.cell[2]).toBeLessThan(0.7);
-    expect(frogMotion({ time: 1, action: "bonk", since: 0.8, seed: 1, sleepy: false }).pupilOrbit).not.toBeNull();
+    expect(frogMotion({ time: 1, action: "bonk", since: 0.8, seed: 1 }).pupilOrbit).not.toBeNull();
   });
 });
 

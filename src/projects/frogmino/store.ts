@@ -6,10 +6,10 @@ import {
   advance,
   applyAction,
   createRun,
-  pressJump,
-  releaseJump,
+  pressHeld,
+  releaseHeld,
   type FrogAction,
-  type JumpDirection,
+  type HeldAction,
   type Run,
 } from "./run";
 import { rowStream, type RowStream } from "./stream";
@@ -28,9 +28,9 @@ interface FrogminoStore {
   // Bumped on every restart, so the drawing knows to snap rather than ease.
   runId: number;
   act: (action: FrogAction) => void;
-  pressJump: (direction: JumpDirection) => void;
-  // With no direction, lets go of every held jump.
-  releaseJump: (direction?: JumpDirection) => void;
+  press: (action: HeldAction) => void;
+  // With no action, lets go of every held key.
+  release: (action?: HeldAction) => void;
   tick: (elapsed: number) => void;
   restart: () => void;
 }
@@ -40,8 +40,8 @@ export const useFrogminoStore = create<FrogminoStore>()((set) => ({
   run: freshRun(),
   runId: 0,
   act: (action) => set((s) => ({ run: applyAction(s.run, action) })),
-  pressJump: (direction) => set((s) => ({ run: pressJump(s.run, direction) })),
-  releaseJump: (direction) => set((s) => ({ run: releaseJump(s.run, direction) })),
+  press: (action) => set((s) => ({ run: pressHeld(s.run, action) })),
+  release: (action) => set((s) => ({ run: releaseHeld(s.run, action) })),
   tick: (elapsed) => set((s) => ({ run: advance(s.run, elapsed) })),
   restart: () => set((s) => ({ run: freshRun(), runId: s.runId + 1 })),
 }));

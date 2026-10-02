@@ -1,28 +1,28 @@
 import { GROUND_CLEARANCE } from "../clearance";
 import { pieceCells } from "../logic";
-import { gateLanes } from "../traffic";
+import { gatePostLines } from "../traffic";
 import { TUNING } from "../tuning";
 import type { Gate } from "../types";
-import { sideX, type Side } from "../world/geometry";
+import { LAYER as PAINT_LAYER, SURFACE_TOLERANCE } from "../vehicles/parts";
 import { DECK_UNDERSIDE, VEHICLE_TOP } from "../world/structures";
 
-// A gate's gantry as boxes, in its row's frame: x across the road, one unit
-// per lane; y up from the road; z along the course, the row's front face at
-// z = 0 and its vehicles toward -z. It travels with its row, so it stays
-// out of every lane below the tallest vehicle: posts on the shoulders, a
-// chequered beam across the road above the vehicles, with the gate's own
-// lanes marked on it by a panel of arrows pointing down into them, and on
-// each post a sign showing the gate's piece as a little frog. The rows drive
-// under the overpass and the finish gantry, so all of it passes beneath
-// their decks too.
+// A gate's frame as boxes, in its row's frame: x across the road, one unit
+// per lane, lane n centred on x = n; y up from the road; z along the course,
+// the row's front face at z = 0 and its vehicles toward -z. It travels with
+// its row. A thin post stands on the lane line either side of the gate's two
+// lanes, from the road to just above the tallest vehicle, and runs the row's
+// whole length, since the rules hold it solid for as long as the row
+// overlaps the frog. A lintel across the top joins them at the row's front,
+// with a sign on its face showing the gate's piece as a little frog. The
+// rows drive under the overpass and the finish gantry, so all of it passes
+// beneath their decks too.
 
-export type GatePaint = "frame" | "frameLight" | "panel" | "arrow" | "skin" | "eye" | "pupil";
+export type GatePaint = "frame" | "frameLight" | "panel" | "skin" | "eye" | "pupil";
 
 export const GATE_TOKENS: Record<GatePaint, string> = {
   frame: "--color-frogmino-gate-frame",
   frameLight: "--color-frogmino-gate-frame-light",
   panel: "--color-frogmino-gate-sign",
-  arrow: "--color-frogmino-gate-arrow",
   // The icon is the player's own frog, as the piece the gate gives it.
   skin: "--color-frogmino-frog-p1-skin",
   eye: "--color-frogmino-frog-eye",
@@ -34,63 +34,64 @@ export type Vec3 = readonly [number, number, number];
 export interface GatePart {
   center: Vec3;
   size: Vec3;
-  // Turned about z, for the arrows' arms.
-  roll: number;
   paint: GatePaint;
 }
 
 // A little clear of the vehicles below and the decks above.
 const GAP = 0.03;
-export const BEAM_BOTTOM = VEHICLE_TOP + GAP;
-export const BEAM_TOP = DECK_UNDERSIDE - GAP;
-const DEPTH = 0.3;
-const POST_OFFSET = 0.3;
-const POST_WIDTH = 0.22;
-const CHECK = 0.5;
-// The signs stand out from the posts toward the frog, clear of the lanes
-// and short of the structures' pillars.
-const SIGN_INNER = 0.04;
-const SIGN_OUTER = 1.1;
-const SIGN_BOTTOM = 1.7;
-const SIGN_TOP = 2.9;
-const SIGN_FRONT = 0.14;
-const SIGN_THICKNESS = 0.12;
+export const LINTEL_BOTTOM = VEHICLE_TOP + GAP;
+export const LINTEL_TOP = DECK_UNDERSIDE - GAP;
+// Half a post's width, either side of its lane line: it reaches into the
+// lanes beside it a paint layer further than a vehicle's details may stand
+// proud of its side, so it buries them rather than sharing a plane with
+// them, and no further.
+export const POST_HALF = SURFACE_TOLERANCE + PAINT_LAYER;
+// The frame stands a paint layer inside the row's ends, so its faces never
+// share a plane with a vehicle's front or back.
+export const END_INSET = PAINT_LAYER;
+const LINTEL_DEPTH = 0.3;
+const BAND = 0.5;
+// The sign fills the lintel's face but for a rim of the frame round it, and
+// stands out from it toward the frog.
+const SIGN_RIM = 0.012;
+const SIGN_WIDTH = 0.6;
+const SIGN_THICKNESS = 0.04;
 // The icon's cells, as cubes a little smaller than their spacing so they
-// stay countable.
-const ICON_CELL = 0.25;
-const ICON_CUBE = 0.22;
-const ICON_DEPTH = 0.08;
-const EYE = 0.08;
-const PUPIL = 0.04;
-const LAYER = 0.01;
+// stay countable, two rows of them filling the sign's height.
+const ICON_MARGIN = 0.012;
+const ICON_CELL = (LINTEL_TOP - LINTEL_BOTTOM - 2 * SIGN_RIM - 2 * ICON_MARGIN) / 2;
+const ICON_CUBE = 0.88 * ICON_CELL;
+const ICON_DEPTH = 0.03;
+const EYE = 0.34 * ICON_CELL;
+const PUPIL = 0.17 * ICON_CELL;
+const LAYER = 0.006;
 
-if (BEAM_TOP - BEAM_BOTTOM < 0.15) throw new Error("No room for a gate's beam between the vehicles and the decks");
+if (LINTEL_TOP - LINTEL_BOTTOM < 0.15) throw new Error("No room for a gate's lintel between the vehicles and the decks");
 
-function part(center: Vec3, size: Vec3, paint: GatePaint, roll = 0): GatePart {
-  return { center, size, roll, paint };
+function part(center: Vec3, size: Vec3, paint: GatePaint): GatePart {
+  return { center, size, paint };
 }
 
-// A box spanning x0..x1 and y0..y1, as deep as the beam.
-function span(x0: number, x1: number, y0: number, y1: number, paint: GatePaint): GatePart {
-  return part([(x0 + x1) / 2, (y0 + y1) / 2, -DEPTH / 2], [x1 - x0, y1 - y0, DEPTH], paint);
+// A box spanning x0..x1, y0..y1 and z0..z1.
+function span(x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, paint: GatePaint): GatePart {
+  return part([(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], [x1 - x0, y1 - y0, z1 - z0], paint);
 }
 
-// Blocks of two paints across x0..x1, about a check wide each.
-function chequer(x0: number, x1: number, startLight: boolean): GatePart[] {
-  const count = Math.max(1, Math.round((x1 - x0) / CHECK));
-  const width = (x1 - x0) / count;
-  return Array.from({ length: count }, (_, i) =>
-    span(x0 + i * width, x0 + (i + 1) * width, BEAM_BOTTOM, BEAM_TOP, (i % 2 === 0) === startLight ? "frameLight" : "frame"),
-  );
+// About a band's width each, `count` slices of from..to, in the two violets
+// by turns.
+function bands(from: number, to: number, startLight: boolean): { from: number; to: number; paint: GatePaint }[] {
+  const count = Math.max(1, Math.round((to - from) / BAND));
+  const width = (to - from) / count;
+  return Array.from({ length: count }, (_, i) => ({
+    from: from + i * width,
+    to: from + (i + 1) * width,
+    paint: (i % 2 === 0) === startLight ? "frameLight" : "frame",
+  }));
 }
 
-// A chevron pointing down, painted on the beam's front at x.
-function arrow(x: number): GatePart[] {
-  const y = (BEAM_BOTTOM + BEAM_TOP) / 2;
-  const arm = BEAM_TOP - BEAM_BOTTOM;
-  return [-1, 1].map((sideways) =>
-    part([x + (sideways * arm) / 3, y, LAYER / 2], [arm, arm / 5, LAYER], "arrow", (sideways * Math.PI) / 4),
-  );
+// The x of the lane line on the left of lane `line`.
+function lineX(line: number): number {
+  return line - 0.5;
 }
 
 // The gate's piece as a little frog: its cells, and two eyes on the front of
@@ -109,47 +110,44 @@ function frogIcon(kind: Gate["kind"], x: number, y: number, front: number): Gate
   });
   const head = cells.filter((c) => c.row === height - 1);
   const middle = head.reduce((sum, c) => sum + at(c.col, c.row)[0], 0) / head.length;
-  const eyeY = at(0, height - 1)[1] + ICON_CUBE / 2 - EYE / 2 - 0.015;
+  const eyeY = at(0, height - 1)[1] + ICON_CUBE / 2 - EYE / 2 - 0.1 * ICON_CELL;
   const face = front + ICON_DEPTH;
   const eyes = [-1, 1].flatMap((sideways) => {
     const ex = middle + (sideways * ICON_CELL) / 4;
     return [
-      part([ex, eyeY, face + LAYER], [EYE, EYE, 2 * LAYER], "eye"),
-      part([ex, eyeY + (EYE - PUPIL) / 2 - 0.005, face + 2 * LAYER + LAYER / 2], [PUPIL, PUPIL, LAYER], "pupil"),
+      part([ex, eyeY, face + LAYER / 2], [EYE, EYE, LAYER], "eye"),
+      part([ex, eyeY + (EYE - PUPIL) / 2 - 0.02 * ICON_CELL, face + LAYER + LAYER / 2], [PUPIL, PUPIL, LAYER], "pupil"),
     ];
   });
   return [...cubes, ...eyes];
 }
 
-// A sign on the post on `side`, with the gate's piece on it.
-function sign(side: Side, kind: Gate["kind"]): GatePart[] {
-  const [a, b] = [sideX(side, SIGN_INNER), sideX(side, SIGN_OUTER)];
-  const [x0, x1] = [Math.min(a, b), Math.max(a, b)];
-  const panel = part(
-    [(x0 + x1) / 2, (SIGN_BOTTOM + SIGN_TOP) / 2, SIGN_FRONT - SIGN_THICKNESS / 2],
-    [x1 - x0, SIGN_TOP - SIGN_BOTTOM, SIGN_THICKNESS],
+// The gate's frame, for a row reaching `length` back from its front.
+export function gateParts(gate: Gate, length: number): GatePart[] {
+  const [left, right] = gatePostLines(gate).map(lineX);
+  const [front, back] = [-END_INSET, -length + END_INSET];
+  const posts = [left, right].flatMap((x) =>
+    bands(0, LINTEL_BOTTOM, false).map((band) => span(x - POST_HALF, x + POST_HALF, band.from, band.to, back, front, band.paint)),
+  );
+  const lintel = bands(left - POST_HALF, right + POST_HALF, true).map((band) =>
+    span(band.from, band.to, LINTEL_BOTTOM, LINTEL_TOP, front - LINTEL_DEPTH, front, band.paint),
+  );
+  const middle = (left + right) / 2;
+  const sign = span(
+    middle - SIGN_WIDTH / 2,
+    middle + SIGN_WIDTH / 2,
+    LINTEL_BOTTOM + SIGN_RIM,
+    LINTEL_TOP - SIGN_RIM,
+    front,
+    front + SIGN_THICKNESS,
     "panel",
   );
-  return [panel, ...frogIcon(kind, (x0 + x1) / 2, (SIGN_BOTTOM + SIGN_TOP) / 2 - 0.08, SIGN_FRONT)];
+  const icon = frogIcon(gate.kind, middle, (LINTEL_BOTTOM + LINTEL_TOP) / 2, front + SIGN_THICKNESS);
+  return [...posts, ...lintel, sign, ...icon];
 }
 
-export function gateParts(gate: Gate): GatePart[] {
-  const lanes = gateLanes(gate);
-  const [gate0, gate1] = [lanes.first - 0.5, lanes.last + 0.5];
-  const [left, right] = [sideX("left", POST_OFFSET), sideX("right", POST_OFFSET)];
-  const [x0, x1] = [left - POST_WIDTH / 2, right + POST_WIDTH / 2];
-  const posts = [left, right].map((x) => span(x - POST_WIDTH / 2, x + POST_WIDTH / 2, 0, BEAM_BOTTOM, "frame"));
-  const beam = [
-    ...chequer(x0, gate0, true),
-    span(gate0, gate1, BEAM_BOTTOM, BEAM_TOP, "panel"),
-    ...chequer(gate1, x1, false),
-  ];
-  const arrows = [lanes.first, lanes.last].flatMap(arrow);
-  return [...posts, ...beam, ...arrows, ...sign("left", gate.kind), ...sign("right", gate.kind)];
-}
-
-// Where the gate's gap is: its lanes, the face's full height.
+// Where the gate's gap is: between its posts, the face's full height.
 export function gapBox(gate: Gate): { x0: number; x1: number; y0: number; y1: number } {
-  const lanes = gateLanes(gate);
-  return { x0: lanes.first - 0.5, x1: lanes.last + 0.5, y0: GROUND_CLEARANCE, y1: GROUND_CLEARANCE + TUNING.wallRows };
+  const [left, right] = gatePostLines(gate).map(lineX);
+  return { x0: left + POST_HALF, x1: right - POST_HALF, y0: GROUND_CLEARANCE, y1: GROUND_CLEARANCE + TUNING.wallRows };
 }

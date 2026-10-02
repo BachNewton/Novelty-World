@@ -1,6 +1,6 @@
 import { VEHICLE_LENGTHS, vehicleCells, type VehicleId } from "./fleet";
 import { cellKey } from "./logic";
-import type { Cell, Gate, Lanes, Opening, Solid } from "./types";
+import type { Cell, Gate, Lanes, Opening, PostSolid, Solid, VehicleSolid } from "./types";
 
 // One vehicle in a row, its leftmost lane at `lane`.
 export interface RowVehicle {
@@ -42,6 +42,23 @@ export function insideGate(cells: readonly Cell[], gate: Pick<Gate, "lane">): bo
   return cells.every((cell) => cell.col >= first && cell.col <= last);
 }
 
+// The lane lines a gate's posts stand on, either side of its lanes: each the
+// line on the left of a lane.
+export function gatePostLines(gate: Pick<Gate, "lane">): number[] {
+  return [gate.lane, gate.lane + GATE_WIDTH];
+}
+
+// Whether cells lie on both sides of the line on the left of lane `line`.
+export function acrossLine(cells: readonly Cell[], line: number): boolean {
+  return cells.some((cell) => cell.col < line) && cells.some((cell) => cell.col >= line);
+}
+
+// Whether cells stand across one of a gate's posts: some in its lanes and
+// some outside them.
+export function acrossGate(cells: readonly Cell[], gate: Pick<Gate, "lane">): boolean {
+  return gatePostLines(gate).some((line) => acrossLine(cells, line));
+}
+
 // The row's opening: every cell of the `cols` × `rows` face that none of its
 // vehicles fills, its gates' lanes among them. A vehicle outside the road,
 // two sharing a lane, or a gate off the road or with a vehicle in its lanes,
@@ -77,14 +94,36 @@ export function rowOpening(row: Row, cols: number, rows: number, gates: readonly
   return open;
 }
 
-// The row as the rules see it: each vehicle's cells and length.
-export function rowSolids(row: Row): Solid[] {
-  return row.map((placed) => ({ cells: vehicleCellsAt(placed), length: VEHICLE_LENGTHS[placed.id] }));
+// How far a row reaches back along the course from its front: its longest
+// vehicle's length.
+export function rowLength(solids: readonly Solid[]): number {
+  if (solids.length === 0) throw new Error("A row with no vehicles has no length");
+  return Math.max(...solids.map((solid) => solid.length));
+}
+
+// The row as the rules see it: each vehicle's cells and length, and each of
+// its gates' posts, solid for the row's whole length, so for as long as the
+// row overlaps the frog.
+export function rowSolids(row: Row, gates: readonly Gate[] = []): Solid[] {
+  const vehicles: VehicleSolid[] = row.map((placed) => ({ cells: vehicleCellsAt(placed), length: VEHICLE_LENGTHS[placed.id] }));
+  if (gates.length === 0) return vehicles;
+  const length = rowLength(vehicles);
+  const posts: PostSolid[] = gates.flatMap((gate) => gatePostLines(gate).map((post) => ({ post, length })));
+  return [...vehicles, ...posts];
+}
+
+// Whether a frog moving from the cells `from` to the cells `to` keeps clear
+// of a row's solids: none of `to` in a vehicle's cells, and none of either
+// across a post, so it neither stands across one nor passes through one. A
+// frog that isn't moving across the face goes from its cells to the same.
+export function keepsClear(from: readonly Cell[], to: readonly Cell[], solids: readonly Solid[]): boolean {
+  const filled = new Set(solids.flatMap((solid) => ("cells" in solid ? solid.cells.map(cellKey) : [])));
+  const swept = [...from, ...to];
+  return to.every((cell) => !filled.has(cellKey(cell))) && solids.every((solid) => !("post" in solid) || !acrossLine(swept, solid.post));
 }
 
 // Where a row's back is along the course, from its front at `depth`: its
 // longest vehicle's back.
 export function rowBack(row: { depth: number; solids: readonly Solid[] }): number {
-  if (row.solids.length === 0) throw new Error("A row with no vehicles has no back");
-  return row.depth + Math.max(...row.solids.map((solid) => solid.length));
+  return row.depth + rowLength(row.solids);
 }

@@ -15,7 +15,6 @@ export const happyCamper: VehicleDesign = {
     f.front(1, 0, [0.06, 0.34, 0.4, 0.52], "charcoal"),
     windscreen(f, 0, 0, [0.08, 0.62, 0.92, 0.9]),
     windscreen(f, 1, 0, [0.08, 0.62, 0.92, 0.9]),
-    ...f.tyreFronts(),
     // The pod: a wood-trim stripe and curtained windows.
     ...[1, 2].flatMap((col) => [
       f.front(col, 1, [0.06, 0.1, 0.94, 0.24], "cocoa"),
@@ -48,7 +47,6 @@ export const subStandard: VehicleDesign = {
   body: (cell) => (cell.col === 1 ? "teal" : "sunflower"),
   details: (f) => [
     ...carNose(f, 1, 0),
-    ...f.tyreFronts(),
     f.front(1, 0, [0.2, 0.62, 0.8, 0.9], "glass"),
     ...ring(f, 1, 1, [0.18, 0.18, 0.82, 0.82], "chrome", "glass", 0.7),
     ...ring(f, 0, 1, [0.18, 0.18, 0.82, 0.82], "chrome", "glass", 0.7),

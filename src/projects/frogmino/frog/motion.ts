@@ -2,7 +2,8 @@ import { createRng } from "@/shared/lib/seeded-random";
 import type { Vec3 } from "../vehicles/parts";
 
 // The frog's life, as a pure function of time: breathing, blinking, the
-// throat puffing, and the reactions to a hop, a landing and a bonk. Every
+// throat puffing, the reactions to a hop, a landing and a bonk, and the small
+// hop of an everyday move. Every
 // cell only ever shrinks toward its own anchor, never grows, so no motion
 // can reach into an empty cell; the throat is the one part that grows, and
 // only by as much as its cell has room for. It is all kept subtle, so
@@ -10,13 +11,29 @@ import type { Vec3 } from "../vehicles/parts";
 
 export type FrogAction = "idle" | "hop" | "land" | "bonk";
 
+// The dazed pupils' circling: how far each is tipped off its gaze, and which
+// way round.
+export interface PupilOrbit {
+  angle: number;
+  radius: number;
+}
+
+// An everyday move's hop (a jump or a slide), which plays over whatever
+// action is playing: `since` its start, `duration` long.
+export interface MoveHop {
+  since: number;
+  duration: number;
+}
 export interface FrogMotion {
   // Each cell's scale about its anchor, every axis at most 1.
   cell: Vec3;
   // The eyeball's scale in its bump: 1 is open, EYES_SHUT hides it.
   eyeball: number;
-  // The dazed pupils' circling, as an angle and a radius across the eye top.
-  pupilOrbit: { angle: number; radius: number } | null;
+  // The pupils' scale about their own middles: they shrink away as the lid
+  // closes over them, ahead of the white.
+  pupil: number;
+  // The dazed pupils' circling.
+  pupilOrbit: PupilOrbit | null;
   // The throat's puff, from 1 up to THROAT_PUFF.
   throat: number;
   // How far the legs are tucked up into the body, from 0 (standing) to 1
@@ -33,17 +50,17 @@ export interface FrogMotionInput {
   since: number;
   // Tells frogs apart, so two frogs never blink in step.
   seed: number;
-  sleepy: boolean;
+  // The latest move's hop; null for none.
+  move?: MoveHop | null;
 }
 
 // The eyeball sinks this far into its bump to close: small enough to hide
 // inside it, so the bump shows as a closed lid.
 export const EYES_SHUT = 0.6;
 export const THROAT_PUFF = 1.25;
-export const PUPIL_ORBIT = 0.045;
+export const PUPIL_ORBIT = 0.02;
 
 const BREATH = { hz: 0.45, depth: 0.018 };
-const SLEEPY_BREATH = { hz: 0.22, depth: 0.035 };
 
 // One blink somewhere in each slot, sometimes two in quick succession.
 const BLINK_SLOT = 3.6;
@@ -66,8 +83,29 @@ export const BONK_DURATION = 1.5;
 const BONK_FLATTEN_TIME = 0.35;
 const BONK_FLATTEN = 0.4;
 const BONK_SQUASH = 0.08;
-const DAZED_EYES = 0.85;
+// The dazed lids droop only this far: any further and the white's rim would
+// cross the lid's skin at too shallow an angle to draw cleanly.
+export const DAZED_EYES = 0.9;
 const DAZED_TURNS_PER_SECOND = 2.2;
+
+// A move's hop narrows the frog a touch and draws its legs half up while it
+// is in the air, and squashes it a touch as it lands. Held moves chain, each
+// taking off as the last lands, so the landing squash shows only after the
+// last of them.
+const MOVE_NARROW = 0.05;
+const MOVE_TUCK = 0.5;
+const MOVE_SQUASH = 0.06;
+export const MOVE_LANDING = 0.12;
+
+// A pupil stands just proud of its white, so as the eye shuts it would still
+// show after the lid had covered the white round it. It shrinks away instead,
+// from its full size with the eye open as far as the dazed lids leave it, to
+// nothing just before the white goes under.
+const PUPIL_GONE = 0.8;
+
+export function pupilScale(eyeball: number): number {
+  return Math.min(1, Math.max(0, (eyeball - PUPIL_GONE) / (DAZED_EYES - PUPIL_GONE)));
+}
 
 function slotRandom(seed: number, what: string, slot: number): number {
   return createRng(`${String(seed)}:${what}:${String(slot)}`).next();
@@ -94,15 +132,14 @@ function puff(time: number, seed: number): number {
   return pulse(time - at, PUFF_DURATION) ** 2;
 }
 
-export function frogMotion({ time, action, since, seed, sleepy }: FrogMotionInput): FrogMotion {
-  const breath = sleepy ? SLEEPY_BREATH : BREATH;
+export function frogMotion({ time, action, since, seed, move = null }: FrogMotionInput): FrogMotion {
   // Seeded phase, so a row of frogs doesn't breathe in unison.
   const phase = slotRandom(seed, "breath", 0) * 2 * Math.PI;
-  const breathing = breath.depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * breath.hz * time + phase));
+  const breathing = BREATH.depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * BREATH.hz * time + phase));
   let [x, y, z] = [1, 1 - breathing, 1];
   let tuck = 0;
   let pupilOrbit: FrogMotion["pupilOrbit"] = null;
-  let eyeball = sleepy ? EYES_SHUT : 1 - (1 - EYES_SHUT) * blink(time, seed);
+  let eyeball = 1 - (1 - EYES_SHUT) * blink(time, seed);
 
   if (action === "hop") {
     const lift = pulse(since, HOP_DURATION);
@@ -115,16 +152,25 @@ export function frogMotion({ time, action, since, seed, sleepy }: FrogMotionInpu
     const left = (1 - Math.min(1, since / BONK_FLATTEN_TIME)) ** 2;
     z *= 1 - BONK_FLATTEN * left;
     y *= 1 - BONK_SQUASH * left;
-    if (!sleepy) eyeball = DAZED_EYES;
+    eyeball = DAZED_EYES;
     const fade = 1 - since / BONK_DURATION;
     pupilOrbit = { angle: 2 * Math.PI * DAZED_TURNS_PER_SECOND * since, radius: PUPIL_ORBIT * fade };
+  }
+
+  if (move !== null) {
+    const air = pulse(move.since, move.duration);
+    x *= 1 - MOVE_NARROW * air;
+    z *= 1 - MOVE_NARROW * air;
+    y *= 1 - MOVE_SQUASH * pulse(move.since - move.duration, MOVE_LANDING);
+    tuck = Math.max(tuck, MOVE_TUCK * air);
   }
 
   return {
     cell: [x, y, z],
     eyeball,
+    pupil: pupilScale(eyeball),
     pupilOrbit,
-    throat: sleepy ? 1 : 1 + (THROAT_PUFF - 1) * puff(time, seed),
+    throat: 1 + (THROAT_PUFF - 1) * puff(time, seed),
     tuck,
   };
 }

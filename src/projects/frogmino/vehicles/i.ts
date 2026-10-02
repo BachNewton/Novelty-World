@@ -42,7 +42,6 @@ export const stackAttack: VehicleDesign = {
   body: () => "cherry",
   details: (f) => [
     ...carNose(f, 0, 0),
-    ...f.tyreFronts(),
     f.front(0, 0, [0.1, 0.62, 0.9, 0.9], "glass"),
     // Each deck has its own cream band and windows, so the four storeys count.
     ...DECKS.flatMap((row) => [

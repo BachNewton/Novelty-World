@@ -1,5 +1,5 @@
-import { cellKey, frogCells, insideLanes, pieceSize, rotateInCorridor, type Placement } from "./logic";
-import { gateLanes, insideGate, rowBack } from "./traffic";
+import { frogCells, insideLanes, pieceSize, rotateInCorridor, type Placement } from "./logic";
+import { gateLanes, insideGate, keepsClear, rowBack } from "./traffic";
 import type { Frog, Gate, HopHeight, Lanes, Rotation, Solid, TetrominoKind } from "./types";
 import type { Tuning } from "./tuning";
 
@@ -26,9 +26,11 @@ import type { Tuning } from "./tuning";
 // that would break that is refused. A frog that is up while a vehicle
 // overlaps it rides: it stays up until the last one has gone by.
 //
-// A row may hold gates: gaps two lanes wide and the face's full height. A
-// frog that crosses a row's front with every cell in a gate's lanes, either
-// way, takes the gate's piece.
+// A row may hold gates: gaps two lanes wide and the face's full height,
+// framed by a post on the lane line either side. A post is solid like a
+// vehicle, for as long as the row overlaps the frog, so a frog meets a gate
+// wholly in it or wholly out of it. A frog that crosses a row's front with
+// every cell in a gate's lanes, either way, takes the gate's piece.
 //
 // The frog starts out of play on the overpass above the start, and drops to
 // the road with its first jump forward; there is no way back up. It is out
@@ -39,8 +41,9 @@ import type { Tuning } from "./tuning";
 // deep too.
 export const FROG_THICKNESS = 1;
 
-// What the rules need of a row: its vehicles' cells and lengths, its gates,
-// and how far its front comes after the back of the row before it.
+// What the rules need of a row: its solids (its vehicles' cells and its
+// gates' posts, with their lengths), its gates, and how far its front comes
+// after the back of the row before it.
 export interface RuleRow {
   solids: readonly Solid[];
   gates: readonly Gate[];
@@ -52,7 +55,7 @@ export interface RuleRow {
 export type RuleRows = (index: number) => RuleRow;
 
 export interface Wall {
-  // The row's vehicles, their fronts all at `depth`.
+  // The row's vehicles and gate posts, their fronts all at `depth`.
   solids: readonly Solid[];
   gates: readonly Gate[];
   // Falls as the wall comes at the frog.
@@ -87,12 +90,13 @@ export interface Bonk {
   depth: number;
 }
 
-export type JumpDirection = "forward" | "back";
+// The actions whose keys repeat while held: the jumps and the slides.
+export type HeldAction = "forward" | "back" | "left" | "right";
 
-// A jump key held down, which jumps again every repeat interval.
-export interface HeldJump {
-  direction: JumpDirection;
-  // When the next repeat jump happens, in run time.
+// A key held down, which acts again every repeat interval.
+export interface Hold {
+  action: HeldAction;
+  // When it next acts, in run time.
   nextAt: number;
 }
 
@@ -107,7 +111,8 @@ export interface Run {
   lastBonk: Bonk | null;
   // How many times the frog has passed a row.
   passes: number;
-  heldJump: HeldJump | null;
+  // The keys held down, in the order pressed: at most a jump and a slide.
+  holds: readonly Hold[];
   // When the frog dropped from the overpass to the road; null while it is
   // still up there.
   droppedAt: number | null;
@@ -118,14 +123,15 @@ export interface Run {
 export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "forward" | "back";
 
 // A bonked frog must leave the wall's face, or the wall would bonk it again
-// at once, forever, and a held jump must wait between repeats. Rows must be
+// at once, forever, and a held key must wait between repeats. Rows must be
 // spaced far enough apart, back to front, that a bonk never knocks the frog
 // into a wall it has passed, which also means no two walls ever overlap the
 // frog at once. A row is recycled only once it is behind the frog, and
 // reappears ahead of it.
 function checkTuning(tuning: Tuning): void {
   if (tuning.bonkKnockback <= 0) throw new Error("A bonk must knock the frog back");
-  if (tuning.jumpRepeatInterval <= 0) throw new Error("A held jump must wait between repeats");
+  if (tuning.holdRepeatInterval <= 0) throw new Error("A held key must wait between repeats");
+  if (tuning.dropDistance < tuning.depthStep) throw new Error("The drop must reach at least a jump ahead");
   const closestGap = tuning.wallSpacing - tuning.wallJitter;
   const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS;
   if (closestGap < bonkReach) {
@@ -173,7 +179,7 @@ export function createRun(rows: RuleRows, tuning: Tuning, options: RunOptions = 
     rows,
     lastBonk: null,
     passes: 0,
-    heldJump: null,
+    holds: [],
     droppedAt: null,
     finishedAt: null,
   };
@@ -228,12 +234,13 @@ function roadLanes(run: Run): Lanes {
   return { first: 0, last: run.tuning.corridorCols - 1 };
 }
 
-// The pass test against some of a row's vehicles: each cell on the row's
-// face and in none of their cells.
+// The pass test against some of a row's solids, for the frog taking `shape`
+// from its pose now: each cell on the row's face and in no vehicle's cells,
+// and nothing standing or moving across a gate's post.
 function fitsAmong(run: Run, shape: Frog, solids: readonly Solid[]): boolean {
   if (solids.length === 0) return true;
-  const solid = new Set(solids.flatMap((s) => s.cells.map(cellKey)));
-  return frogCells(shape).every((cell) => cell.row < run.tuning.wallRows && !solid.has(cellKey(cell)));
+  const cells = frogCells(shape);
+  return cells.every((cell) => cell.row < run.tuning.wallRows) && keepsClear(frogCells(frogShape(run.frog)), cells, solids);
 }
 
 // The vehicles of a wall the frog has passed that still overlap it, with its
@@ -325,14 +332,14 @@ function goBy(run: Run, index: number): Run {
 
 // The frog is knocked back from the wall's face, however far that takes it.
 // The wall stays solid and keeps coming, so it bonks the frog again when it
-// arrives unless the frog fits by then or has got clear. A held jump key
-// keeps repeating, a full repeat interval after the bonk.
+// arrives unless the frog fits by then or has got clear. A held key keeps
+// repeating, a full repeat interval after the bonk.
 function bonk(run: Run, index: number): Run {
-  const { time, tuning, heldJump } = run;
+  const { time, tuning } = run;
   const face = run.walls[index].depth;
   return {
     ...withFrog(run, { depth: face - tuning.bonkKnockback * tuning.depthStep }),
-    heldJump: heldJump === null ? null : { ...heldJump, nextAt: time + tuning.jumpRepeatInterval },
+    holds: run.holds.map((hold) => ({ ...hold, nextAt: time + tuning.holdRepeatInterval })),
     lastBonk: { time, depth: face },
   };
 }
@@ -384,10 +391,10 @@ function settle(run: Run): Run {
 }
 
 // The frog crosses the finish line: the rules stop, so no row judges it
-// again, and a held jump lets go. It leaps onto the finish gantry, where the
-// traffic goes by beneath it.
+// again, and every held key lets go. It leaps onto the finish gantry, where
+// the traffic goes by beneath it.
 function finish(run: Run): Run {
-  return { ...landNow(run), heldJump: null, finishedAt: run.time };
+  return { ...landNow(run), holds: [], finishedAt: run.time };
 }
 
 // Each wall whose front face the jump reaches is judged at once, nearest
@@ -422,14 +429,24 @@ function jumpBack(run: Run): Run {
   return next;
 }
 
-// The first jump forward drops the frog from the overpass onto the road, a
-// jump ahead of where it stood, and puts it in play. A drop that would land
-// it in a vehicle going by beneath is refused, like a move off the corridor
-// edge; one onto a row's face is judged, like any jump forward.
+// The first jump forward drops the frog from the overpass onto the road, the
+// drop distance ahead of where it stood, and puts it in play. It leaps over
+// the traffic: the rows it flies over go by beneath it, unjudged, and the
+// last jump's worth of the leap is a jump forward, so one onto a row's face
+// is judged like any other. A drop that would land it in a vehicle is
+// refused, like a move off the corridor edge. A held key repeats once the
+// leap has landed.
 function drop(run: Run): Run {
-  const target = run.frog.depth + run.tuning.depthStep;
-  if (!clearOfWallsAt(run, frogShape(run.frog), target)) return run;
-  return jumpForward({ ...run, droppedAt: run.time });
+  const { time, tuning } = run;
+  const target = run.frog.depth + tuning.dropDistance;
+  const approach = target - tuning.depthStep;
+  let flown: Run = { ...run, droppedAt: time };
+  run.walls.forEach((wall, index) => {
+    if (!wall.passed && wall.depth <= approach) flown = goBy(flown, index);
+  });
+  if (!clearOfWallsAt(flown, frogShape(run.frog), target)) return run;
+  const landing = withFrog(flown, { depth: approach });
+  return jumpForward({ ...landing, holds: run.holds.map((hold) => ({ ...hold, nextAt: time + tuning.dropDuration })) });
 }
 
 // On the overpass the frog can line itself up and drop; nothing else.
@@ -477,24 +494,31 @@ export function applyAction(run: Run, action: FrogAction): Run {
   return settle(act(run, action));
 }
 
-// A jump key pressed: one jump now, and more every repeat interval while it
-// stays held, until it is released.
-export function pressJump(run: Run, direction: JumpDirection): Run {
+function isJump(action: HeldAction): boolean {
+  return action === "forward" || action === "back";
+}
+
+// A jump or slide key pressed: one action now, and another every repeat
+// interval while it stays held, until it is released. A jump and a slide can
+// be held at once; a newer jump replaces a held jump, and a newer slide a
+// held slide.
+export function pressHeld(run: Run, action: HeldAction): Run {
   if (crossedFinish(run)) return run;
-  const held = { direction, nextAt: run.time + run.tuning.jumpRepeatInterval };
-  return applyAction({ ...run, heldJump: held }, direction);
+  const others = run.holds.filter((hold) => isJump(hold.action) !== isJump(action));
+  const holds = [...others, { action, nextAt: run.time + run.tuning.holdRepeatInterval }];
+  return applyAction({ ...run, holds }, action);
 }
 
-// A jump key released; with no direction, every held jump is let go, as when
-// the window loses focus and key releases can no longer be seen.
-export function releaseJump(run: Run, direction?: JumpDirection): Run {
-  if (run.heldJump === null) return run;
-  if (direction !== undefined && run.heldJump.direction !== direction) return run;
-  return { ...run, heldJump: null };
+// A held key released; with no action, every held key is let go, as when the
+// window loses focus and key releases can no longer be seen.
+export function releaseHeld(run: Run, action?: HeldAction): Run {
+  const holds = run.holds.filter((hold) => action !== undefined && hold.action !== action);
+  return holds.length === run.holds.length ? run : { ...run, holds };
 }
 
-function repeatJump(run: Run, held: HeldJump): Run {
-  return applyAction({ ...run, heldJump: { ...held, nextAt: held.nextAt + run.tuning.jumpRepeatInterval } }, held.direction);
+function repeatHeld(run: Run, held: Hold): Run {
+  const holds = run.holds.map((hold) => (hold.action === held.action ? { ...hold, nextAt: held.nextAt + run.tuning.holdRepeatInterval } : hold));
+  return applyAction({ ...run, holds }, held.action);
 }
 
 // Moves the clock to `time`, carrying every wall toward the start.
@@ -535,16 +559,16 @@ function nextLanding(run: Run): RunEvent | null {
   };
 }
 
-function nextRepeat(run: Run): RunEvent | null {
-  const held = run.heldJump;
-  return held === null ? null : { time: held.nextAt, happen: (at) => repeatJump(at, held) };
+function nextRepeats(run: Run): RunEvent[] {
+  return run.holds.map((held) => ({ time: held.nextAt, happen: (at) => repeatHeld(at, held) }));
 }
 
-// The soonest of a landing, the next wall arrival and the next repeat of a
-// held jump. At the same instant, a landing comes first, then an arrival.
+// The soonest of a landing, the next wall arrival and the next repeat of each
+// held key. At the same instant, a landing comes first, then an arrival, then
+// the held keys in the order pressed.
 function nextEvent(run: Run): RunEvent | null {
   let soonest: RunEvent | null = null;
-  for (const event of [nextLanding(run), nextArrival(run), nextRepeat(run)]) {
+  for (const event of [nextLanding(run), nextArrival(run), ...nextRepeats(run)]) {
     if (event !== null && (soonest === null || event.time < soonest.time)) soonest = event;
   }
   return soonest;
@@ -580,7 +604,7 @@ function moveOnTo(run: Run, time: number): Run {
 // Moves the run on by `elapsed` seconds (clamped to the tuning's longest
 // frame). Walls travel continuously toward the start, and everything that
 // happens during the frame (a wall reaching the frog, a hop landing, a held
-// jump repeating) happens in order, at its own instant: a long frame can't
+// key repeating) happens in order, at its own instant: a long frame can't
 // carry a wall past the frog unjudged or skip a repeat, a hop is read when
 // the wall arrives rather than at the frame's end, and a wall that bonks the
 // frog and arrives again within the frame is judged again. After the finish

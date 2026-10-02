@@ -1,6 +1,6 @@
 import { cellKey, frogCells, pieceCells, pieceSize } from "./logic";
 import { shapeKey, VEHICLE_IDS } from "./fleet";
-import { GATE_WIDTH, gateLanes, insideGate, lanesOf, rowOpening, vehicleCellsAt, vehicleWidth, type Row, type RowVehicle } from "./traffic";
+import { GATE_WIDTH, acrossGate, gateLanes, insideGate, lanesOf, rowOpening, vehicleCellsAt, vehicleWidth, type Row, type RowVehicle } from "./traffic";
 import type { Cell, Frog, Gate, HopHeight, Opening, Rotation, TetrominoKind } from "./types";
 
 // Composes rows of traffic answer-first: pick the pose the row is for (one
@@ -8,8 +8,10 @@ import type { Cell, Frog, Gate, HopHeight, Opening, Rotation, TetrominoKind } fr
 // those poses' cells open, count how many poses of each piece the result lets
 // through, and keep it only if each count suits the difficulty. Every row is
 // passable by each of its pieces because their answers are. A row may hold a
-// gate, two lanes no vehicle takes: the answers and the counts are all about
-// the row's normal openings, the ways through that keep the frog's piece.
+// gate, two lanes no vehicle takes, framed by posts that bonk a frog standing
+// across them: the answers and the counts are all about the row's normal
+// openings, the ways through wholly outside the gate, which keep the frog's
+// piece.
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -65,7 +67,8 @@ export function poses(kind: TetrominoKind, face: Face): Frog[] {
 
 interface PoseCells {
   frog: Frog;
-  cells: string[];
+  cells: Cell[];
+  keys: string[];
 }
 
 // Every pose of a piece with the keys of its cells, worked out once per
@@ -77,21 +80,25 @@ function poseCells(kind: TetrominoKind, face: Face): PoseCells[] {
   const key = `${kind},${String(face.cols)},${String(face.rows)}`;
   const cached = POSE_CELLS.get(key);
   if (cached !== undefined) return cached;
-  const computed = poses(kind, face).map((frog) => ({ frog, cells: frogCells(frog).map(cellKey) }));
+  const computed = poses(kind, face).map((frog) => {
+    const cells = frogCells(frog);
+    return { frog, cells, keys: cells.map(cellKey) };
+  });
   POSE_CELLS.set(key, computed);
   return computed;
 }
 
-// The poses whose every cell is open: `frogPasses` for every pose.
-function passingIn(kind: TetrominoKind, face: Face, open: ReadonlySet<string>): Frog[] {
+// The poses whose every cell is open and that stand across none of the
+// gates' posts: the pass test, posts and all, for every pose.
+function passingIn(kind: TetrominoKind, face: Face, open: ReadonlySet<string>, gates: readonly Gate[]): Frog[] {
   return poseCells(kind, face)
-    .filter((pose) => pose.cells.every((cell) => open.has(cell)))
+    .filter((pose) => pose.keys.every((key) => open.has(key)) && gates.every((gate) => !acrossGate(pose.cells, gate)))
     .map((pose) => pose.frog);
 }
 
-// The poses that pass an opening.
-export function fits(kind: TetrominoKind, face: Face, opening: Opening): Frog[] {
-  return passingIn(kind, face, new Set(opening.map(cellKey)));
+// The poses that pass an opening, among the posts of its gates.
+export function fits(kind: TetrominoKind, face: Face, opening: Opening, gates: readonly Gate[] = []): Frog[] {
+  return passingIn(kind, face, new Set(opening.map(cellKey)), gates);
 }
 
 // Where the frog stands, ignoring height: what a hard row forbids repeating.
@@ -117,7 +124,7 @@ export interface ComposedRow {
   answers: Frog[];
   // Every pose of those pieces that passes it through a normal opening, and
   // every pose of the gate's piece inside the gate: where the frog can be
-  // once it is through.
+  // once it is through. A pose across a gate's post passes neither way.
   fits: Frog[];
 }
 
@@ -208,9 +215,10 @@ function placeGate(kind: TetrominoKind, face: Face, random: () => number): Gate 
 }
 
 // The ways through an opening that keep the frog's piece: every passing
-// pose not entirely inside one of the row's gates.
+// pose wholly outside the row's gates. One wholly inside a gate is a
+// transformation, and one across a gate's post is a bonk.
 export function normalFits(kind: TetrominoKind, face: Face, opening: Opening, gates: readonly Gate[]): Frog[] {
-  return passingIn(kind, face, new Set(opening.map(cellKey))).filter((p) => gates.every((gate) => !insideGate(frogCells(p), gate)));
+  return fits(kind, face, opening, gates).filter((p) => gates.every((gate) => !insideGate(frogCells(p), gate)));
 }
 
 // One row of traffic that every piece in `pieces.pass` passes through a
@@ -255,7 +263,7 @@ export function findRow(
     if (all.some((p) => forbidden.has(placementKey(p)))) continue;
     if (pieces.refuse.some((kind) => normalFits(kind, face, opening, gates).length > 0)) continue;
     const open = new Set(opening.map(cellKey));
-    const transformed = gates.flatMap((gate) => passingIn(gate.kind, face, open).filter((p) => insideGate(frogCells(p), gate)));
+    const transformed = gates.flatMap((gate) => passingIn(gate.kind, face, open, gates).filter((p) => insideGate(frogCells(p), gate)));
     return { vehicles, gates, opening, answers, fits: [...all, ...transformed] };
   }
   return null;

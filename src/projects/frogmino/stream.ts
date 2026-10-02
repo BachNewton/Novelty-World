@@ -65,7 +65,8 @@ function waveBeats(holding: number, random: () => number): Beat[] {
 // A row of the stream, with what the builder knows of it.
 export interface StreamRow extends CourseRow {
   index: number;
-  // Its vehicles as the rules see them, and the cells none of them fills.
+  // Its vehicles and gate posts as the rules see them, and the cells no
+  // vehicle fills.
   solids: readonly Solid[];
   opening: Opening;
   // The pieces the frog could be holding as it meets the row.
@@ -173,7 +174,7 @@ export function rowStream(seed: number, tuning: Tuning, start: TetrominoKind = "
         gap: gaps[i],
         needsGate,
         difficulty,
-        solids: rowSolids(composed.vehicles),
+        solids: rowSolids(composed.vehicles, composed.gates),
         opening: composed.opening,
         holding,
         answers: composed.answers,

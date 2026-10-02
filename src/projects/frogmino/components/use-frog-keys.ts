@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import { isTextEntryTarget } from "@/shared/lib/utils";
-import { JUMP_KEYS, KEY_ACTIONS } from "../controls";
+import { HELD_KEYS, KEY_ACTIONS } from "../controls";
 import { useFrogminoStore } from "../store";
 
 // One key press is one action, and the operating system's key repeat is
-// ignored. A held jump key repeats in the rules, on the rules' own clock.
+// ignored. A held jump or slide key repeats in the rules, on the rules' own
+// clock.
 export function useFrogKeys(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -17,22 +18,22 @@ export function useFrogKeys(): void {
         if (!e.repeat) store.restart();
         return;
       }
-      const jump = JUMP_KEYS.get(e.code);
+      const held = HELD_KEYS.get(e.code);
       const action = KEY_ACTIONS.get(e.code);
-      if (jump === undefined && action === undefined) return;
+      if (held === undefined && action === undefined) return;
       e.preventDefault();
       if (e.repeat) return;
-      if (jump !== undefined) store.pressJump(jump);
+      if (held !== undefined) store.press(held);
       if (action !== undefined) store.act(action);
     };
     const onKeyUp = (e: KeyboardEvent): void => {
-      const jump = JUMP_KEYS.get(e.code);
-      if (jump !== undefined) useFrogminoStore.getState().releaseJump(jump);
+      const held = HELD_KEYS.get(e.code);
+      if (held !== undefined) useFrogminoStore.getState().release(held);
     };
     // Key releases aren't seen while the window is out of focus, so a key
     // held when it loses focus would otherwise stay held.
     const onBlur = (): void => {
-      useFrogminoStore.getState().releaseJump();
+      useFrogminoStore.getState().release();
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);

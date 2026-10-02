@@ -14,9 +14,8 @@ export const tractorFactor: VehicleDesign = {
     ...SIDES.map((side) => f.side(0, 1, side, [0.12, 0.1, 1.88, 0.88], "glass")),
     f.back(0, 1, [0.12, 0.1, 0.88, 0.88], "glass"),
     f.top(0, 1, [0.35, 0.8, 0.65, 1.2], "sunflower"),
-    // The giant back wheel's tread, seen head-on, and the little front one.
+    // The giant back wheel's tread, seen head-on.
     f.front(0, 0, [0.04, 0, 0.34, 0.88], "charcoal"),
-    f.front(2, 0, [0.74, 0, 0.96, 0.24], "charcoal"),
     ...f.wheel(0, "left", 1.04, 0.46),
     ...f.wheel(2, "right", 0.1, 0.25),
     // A round lamp, then the chrome grille on the nose.
@@ -41,7 +40,6 @@ export const clawDaddy: VehicleDesign = {
   body: (cell) => (cell.row === 2 ? "sunflower" : "lime"),
   details: (f) => [
     ...carNose(f, 0, 0),
-    ...f.tyreFronts(),
     windscreen(f, 0, 1, [0.1, 0.2, 0.9, 0.86]),
     ...SIDES.flatMap((side) => windowsAlong(3, 0.3, 0.86).map((rect) => f.side(0, 1, side, rect, "glass"))),
     // The operator's window, under hazard stripes.
@@ -93,7 +91,6 @@ export const topDog: VehicleDesign = {
     bumper(f, 2, 0),
     ...headlights(f, 2, 0),
     windscreen(f, 2, 0, [0.2, 0.62, 0.8, 0.9]),
-    ...f.tyreFronts(),
     ...stripesAcross([0.1, 0.62, 1.9, 0.92], 6)
       .filter((_, i) => i % 2 === 0)
       .map((rect) => f.side(2, 0, "left", rect, "snow")),
@@ -111,7 +108,6 @@ export const moonHauler: VehicleDesign = {
   details: (f) => [
     ...carNose(f, 0, 0),
     windscreen(f, 0, 0, [0.1, 0.62, 0.9, 0.9]),
-    ...f.tyreFronts(),
     f.side(0, 0, "left", [0.8, 0.6, 1.8, 0.92], "glass"),
     // The rocket: fins, a porthole, a banded nose cone with a beacon.
     f.front(1, 0, [0.06, 0.26, 0.28, 0.74], "cherry"),

@@ -15,7 +15,6 @@ export const breadWinner: VehicleDesign = {
     f.front(2, 0, [0.06, 0.34, 0.4, 0.52], "charcoal"),
     windscreen(f, 1, 0, [0.08, 0.62, 0.92, 0.9]),
     windscreen(f, 2, 0, [0.08, 0.62, 0.92, 0.9]),
-    ...f.tyreFronts(),
     // The loaf's sliced ends show the crumb, and its top is scored.
     ...[0, 1].flatMap((col) => [
       f.front(col, 1, [0.12, 0.08, 0.88, 0.78], "cream"),
@@ -42,7 +41,6 @@ export const landGalleon: VehicleDesign = {
   details: (f) => [
     // The prow is still a road vehicle: lamps, grille and bumper.
     ...carNose(f, 0, 0),
-    ...f.tyreFronts(),
     // The ship's wheel above.
     ...ring(f, 0, 1, [0.2, 0.2, 0.8, 0.8], "bun", "cocoa", 0.6),
     // Its spokes cross over the hub, a layer above it.

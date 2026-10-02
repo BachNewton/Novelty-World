@@ -33,10 +33,10 @@ function perform(command: TouchCommand): void {
       store.act(command.action);
       return;
     case "holdJump":
-      store.pressJump("forward");
+      store.press("forward");
       return;
     case "releaseJump":
-      store.releaseJump("forward");
+      store.release("forward");
       return;
   }
 }

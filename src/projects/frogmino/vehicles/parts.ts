@@ -110,10 +110,6 @@ export interface VehicleFrame {
   // Wheels on every outer side of every road cell, one pair of axles near
   // the ends (one axle for a vehicle a cell long).
   wheels: (radius?: number) => Part[];
-  // The fronts of the tyres, peeking out under the bumper of each outer road
-  // cell and down to the road, so the head-on view reads as something on
-  // wheels.
-  tyreFronts: () => Part[];
 }
 
 export const WHEEL_RADIUS = 0.27;
@@ -208,19 +204,7 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
       );
   };
 
-  const tyreFront = (col: number, u0: number, u1: number): Part => ({
-    ...front(col, 0, [u0, -GROUND_CLEARANCE, u1, 0.2], "charcoal"),
-    wheel: true,
-  });
-  const tyreFronts: VehicleFrame["tyreFronts"] = () =>
-    cells
-      .filter((cell) => cell.row === 0)
-      .flatMap((cell) => [
-        ...(exposed(cell.col, 0, "left") ? [tyreFront(cell.col, 0.04, 0.26)] : []),
-        ...(exposed(cell.col, 0, "right") ? [tyreFront(cell.col, 0.74, 0.96)] : []),
-      ]);
-
-  return { cells, length, front, back, side, top, under, exposed, wheel, wheels, tyreFronts };
+  return { cells, length, front, back, side, top, under, exposed, wheel, wheels };
 }
 
 // Evenly spaced stripes across a face rectangle, `count` of them alternating

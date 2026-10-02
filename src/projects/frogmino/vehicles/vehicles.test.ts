@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { Object3D, Vector3 } from "three";
 import { GROUND_CLEARANCE } from "../clearance";
 import { cellKey } from "../logic";
 import { VEHICLE_IDS, vehicleCells } from "../fleet";
@@ -7,6 +8,7 @@ import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
 import type { Placement } from "../world/geometry";
 import { VEHICLES, vehicleModel, type VehicleModel } from "./index";
 import { DEPTH_RESOLUTION, LAYER, SURFACE_TOLERANCE, layers, type Paint, type Part, type Vec3 } from "./parts";
+import { RUMBLE_DROP, applyRumble, rumbleFor, rumblePose, type RumblePose } from "./rumble";
 
 // Every way a part's front view pokes into a cell the vehicle doesn't fill,
 // into the ground clearance, or below the road, by more than the
@@ -138,6 +140,69 @@ describe("the vehicles' face scan", () => {
   });
 });
 
+// The rumble's extremes: each end of the vehicle settled not at all or by
+// the whole drop. Every point settles somewhere between its two ends, so
+// these bound it.
+function rumbleExtremes(length: number): RumblePose[] {
+  return [0, RUMBLE_DROP].flatMap((front) =>
+    [0, RUMBLE_DROP].map((back) => ({ drop: front, tip: Math.asin((front - back) / length) })),
+  );
+}
+
+// A part, or a body cell as a part, moved into a rumble pose: the box that
+// holds wherever its corners go.
+function rumbled(part: Part, pose: RumblePose): Part {
+  const vehicle = new Object3D();
+  applyRumble(vehicle, pose);
+  vehicle.updateMatrix();
+  const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
+    new Vector3(
+      (i & 1 ? part.max : part.min)[0],
+      (i & 2 ? part.max : part.min)[1],
+      (i & 4 ? part.max : part.min)[2],
+    ).applyMatrix4(vehicle.matrix),
+  );
+  const bound = (pick: (values: number[]) => number): Vec3 => [
+    pick(corners.map((c) => c.x)),
+    pick(corners.map((c) => c.y)),
+    pick(corners.map((c) => c.z)),
+  ];
+  return { ...part, min: bound((v) => Math.min(...v)), max: bound((v) => Math.max(...v)) };
+}
+
+const bodyParts = (model: VehicleModel): Part[] =>
+  model.body.map(({ cell, paint }) => ({
+    shape: "box",
+    min: [cell.col, cell.row, -model.length],
+    max: [cell.col + 1, cell.row + 1, 0],
+    paint,
+  }));
+
+describe("the rumble", () => {
+  it("only ever settles each end of a vehicle, by no more than the drop", () => {
+    for (const seed of ["0:0", "1:2", "17:3", "T0"]) {
+      const rumble = rumbleFor(seed);
+      for (let time = 0; time < 5; time += 0.013) {
+        const { drop, tip } = rumblePose(rumble, time, 3);
+        const back = drop - 3 * Math.sin(tip);
+        for (const end of [drop, back]) {
+          expect(end).toBeGreaterThanOrEqual(0);
+          expect(end).toBeLessThanOrEqual(RUMBLE_DROP + 1e-12);
+        }
+      }
+    }
+  });
+
+  it("puts two vehicles out of step", () => {
+    const [a, b] = [rumbleFor("4:0"), rumbleFor("4:1")];
+    expect(rumblePose(a, 1, 2)).not.toEqual(rumblePose(b, 1, 2));
+  });
+
+  it("stays within the surface-detail tolerance", () => {
+    expect(RUMBLE_DROP).toBeLessThan(SURFACE_TOLERANCE);
+  });
+});
+
 describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
   const model = vehicleModel(id);
 
@@ -153,6 +218,23 @@ describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
     for (const part of model.parts) {
       expect(part.min[2]).toBeGreaterThanOrEqual(-model.length - 0.1);
       expect(part.max[2]).toBeLessThanOrEqual(0.1);
+    }
+  });
+
+  it("keeps its body and every part inside its four cells, seen head-on, however it rumbles", () => {
+    for (const pose of rumbleExtremes(model.length)) {
+      const moved = [...bodyParts(model), ...model.parts].map((part) => rumbled(part, pose));
+      expect(intrusions(model.cells, moved)).toEqual([]);
+    }
+  });
+
+  it("keeps its wheels on the road however it rumbles, pressing in no more than the drop", () => {
+    for (const pose of rumbleExtremes(model.length)) {
+      const lowest = Math.min(
+        ...model.parts.filter((part) => part.wheel === true).map((part) => rumbled(part, pose).min[1]),
+      );
+      expect(lowest).toBeLessThanOrEqual(-GROUND_CLEARANCE + 1e-4);
+      expect(lowest).toBeGreaterThanOrEqual(-GROUND_CLEARANCE - RUMBLE_DROP - 1e-4);
     }
   });
 

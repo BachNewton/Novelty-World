@@ -16,9 +16,11 @@ import {
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { GROUND_CLEARANCE } from "../clearance";
+import { dropPose, finishLeapPose, leapProgress } from "../frog/leaps";
 import { FROG_LOOKS } from "../frog/look";
 import { frogModel, frogPivot } from "../frog/model";
-import { cellKey, frogCells, pieceSize } from "../logic";
+import { moveDuration } from "../frog/moves";
+import { cellKey, frogCells } from "../logic";
 import {
   FROG_THICKNESS,
   crossedFinish,
@@ -26,15 +28,25 @@ import {
   hopHeight,
   inPlay,
   nextWall,
-  onOverpass,
-  type Bonk,
   type Run,
 } from "../run";
 import { useFrogminoStore } from "../store";
+import { keepsClear, rowLength } from "../traffic";
 import { TUNING } from "../tuning";
-import type { Cell, Rotation, TetrominoKind } from "../types";
-import { DECK_LENGTH, DECK_TOP } from "../world/structures";
-import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "./camera-fit";
+import type { Cell } from "../types";
+import { DECK_TOP } from "../world/structures";
+import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
+import {
+  type BonkMotion,
+  type DrawnFrog,
+  arrived,
+  frogTarget,
+  glideAt,
+  moveLift,
+  seeMoves,
+  snapped,
+  withPiece,
+} from "./drawn-frog";
 import { FrogBody, type FrogHandle } from "./frog/frog-body";
 import { frogDrawnIn, makeFrogAssets } from "./frog/frog-assets";
 import { GateView, makeGateAssets } from "./gate";
@@ -48,12 +60,10 @@ import { FrogminoWorld } from "./world/world";
 // of its own, each as deep as the rules count it, so the two touch when their
 // depths meet and overlap exactly when the rules say they do. Everything drawn
 // in the cell grid stands the ground clearance above the ground under it.
-const { corridorCols, courseLength, cameraHeight, cameraFollow } = TUNING;
+const { corridorCols, courseLength } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
-const INITIAL_CAMERA: [number, number, number] = [CENTER_X, DECK_TOP + cameraHeight, cameraFollow];
-// The camera rises and falls with the ground under the frog (the overpass,
-// the road, the finish gantry) over about this long, in seconds.
-const CAMERA_LEVEL_EASE = 0.6;
+const INITIAL_EYE = cameraEye(TUNING, 0, DECK_TOP);
+const INITIAL_CAMERA: [number, number, number] = [CENTER_X, INITIAL_EYE.y, INITIAL_EYE.z];
 
 // Solo play is the first player's frog.
 const VARIANT = "p1";
@@ -78,17 +88,6 @@ const BONK_ARC_HEIGHT = 0.8;
 // rises quickly to a full cell, as the rules count it, and falls the same way
 // once the rules land it.
 const HOP_ARC_OVERSHOOT = 1.3;
-
-// The drop from the overpass hops off its lip, then falls ever faster to the
-// road, clearing the deck's edge on the way down.
-const DROP_HOP = 0.6;
-
-// The finish leap springs back and up from the spring pad, clear of the
-// gantry's near face, and comes down in the middle of its deck, spinning
-// round once on the way.
-const LEAP_BACK = 1.5;
-const LEAP_PEAK = DECK_TOP + 3;
-const GANTRY_STAND = courseLength + DECK_LENGTH / 2 + FROG_THICKNESS / 2;
 
 // The scene's own things: the fit outline and the frog's silhouette.
 function makeAssets() {
@@ -152,14 +151,6 @@ function placeEdges(mesh: InstancedMesh, edges: readonly Edge[]): void {
   mesh.instanceMatrix.needsUpdate = true;
 }
 
-// Where the drawn frog is heading: the middle of its rule placement's box,
-// across and up from the top of the ground clearance, and its depth.
-function frogTarget(run: Run): { x: number; y: number; depth: number } {
-  const { kind, col, rotation, depth } = run.frog;
-  const { width, height } = pieceSize(kind, rotation);
-  return { x: col + (width - 1) / 2, y: height / 2, depth };
-}
-
 // The rising half of the hop arc, `seconds` into it.
 function hopArc(seconds: number, airtime: number): number {
   const progress = MathUtils.clamp(seconds / airtime, 0, 0.5);
@@ -190,10 +181,17 @@ function overlapsDrawnFrog(run: Run, frogDepth: number): boolean {
   );
 }
 
-interface BonkMotion {
-  from: number;
-  to: number;
-  startedAt: number;
+// Whether the frog, drawn at `frogDepth` in its rule pose, would be inside
+// a vehicle or across a gate's post overlapping it there. A move's glide
+// trails the rules, so a frog that has just jumped clear of a vehicle and then
+// slid into its lane would be drawn inside it, were it still gliding.
+function drawnInVehicle(run: Run, frogDepth: number): boolean {
+  const cells = frogCells(frogShape(run.frog));
+  return run.walls.some((wall) => {
+    if (wall.depth >= frogDepth) return false;
+    const solids = wall.solids.filter((solid) => wall.depth + solid.length > frogDepth - FROG_THICKNESS);
+    return !keepsClear(cells, cells, solids);
+  });
 }
 
 interface BonkPose {
@@ -213,82 +211,12 @@ function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
   };
 }
 
-// A jump off one level onto another, drawn over its own time: the drop from
-// the overpass and the leap onto the finish gantry.
-interface Leap {
-  fromDepth: number;
-  fromLevel: number;
-  startedAt: number;
-  landed: boolean;
-}
-
-// Where the drop from the overpass has the drawn frog, `progress` of the way
-// down to the road, heading for the rules' depth.
-function dropPose(leap: Leap, progress: number, depth: number): { depth: number; level: number; height: number } {
-  const level = DECK_TOP * (1 - progress ** 3);
-  return {
-    depth: MathUtils.lerp(leap.fromDepth, depth, 1 - (1 - progress) ** 2),
-    level,
-    height: level + DROP_HOP * Math.sin(Math.PI * progress),
-  };
-}
-
-// Where the finish leap has the drawn frog, `progress` of the way onto the
-// gantry's deck: along a curve that swings back and up clear of the deck's
-// near face, then forward onto it.
-function leapPose(leap: Leap, progress: number): { depth: number; level: number; height: number } {
-  const bezier = (from: number, via: number, to: number): number =>
-    (1 - progress) ** 2 * from + 2 * progress * (1 - progress) * via + progress ** 2 * to;
-  return {
-    depth: bezier(leap.fromDepth, courseLength - LEAP_BACK, GANTRY_STAND),
-    level: MathUtils.lerp(leap.fromLevel, DECK_TOP, progress),
-    height: bezier(leap.fromLevel, LEAP_PEAK, DECK_TOP),
-  };
-}
-
-interface DrawnFrog {
-  // The piece drawn; a gate snaps the drawing to the new piece.
-  kind: TetrominoKind;
-  x: number;
-  y: number;
-  depth: number;
-  // The ground under the frog: the overpass's deck, the road or the gantry's.
-  level: number;
-  // How far the drawn frog still has to swing to reach the rule rotation,
-  // which the frog is already drawn in.
-  swing: number;
-  rotation: Rotation;
-  lift: number;
-  // The latest hop and bonk seen, and the knock-back the bonk is drawing.
-  hopAt: number | null;
-  bonk: Bonk | null;
-  bonkMotion: BonkMotion | null;
-  drop: Leap | null;
-  leap: Leap | null;
-}
-
-function snapped(run: Run): DrawnFrog {
-  return {
-    ...frogTarget(run),
-    kind: run.frog.kind,
-    level: onOverpass(run) ? DECK_TOP : 0,
-    swing: 0,
-    rotation: run.frog.rotation,
-    lift: hopHeight(run.frog),
-    hopAt: run.frog.latestHop?.startedAt ?? null,
-    bonk: run.lastBonk,
-    bonkMotion: null,
-    drop: null,
-    leap: null,
-  };
-}
-
 // The camera follows the drawn frog from behind, over the middle of the
 // road, rising and falling with the ground under it.
 function follow(camera: CameraImpl, d: DrawnFrog, delta: number, snap: boolean): void {
-  camera.position.z = -d.depth + cameraFollow;
-  const level = d.level + cameraHeight;
-  camera.position.y = snap ? level : MathUtils.damp(camera.position.y, level, 3 / CAMERA_LEVEL_EASE, delta);
+  const eye = cameraEye(TUNING, d.depth, d.level);
+  camera.position.z = eye.z;
+  camera.position.y = snap ? eye.y : easedCameraHeight(camera.position.y, eye.y, delta);
 }
 
 // Runs the game each frame: advances the rules, then eases the drawn frog
@@ -347,27 +275,35 @@ function Game() {
       silhouetteRef.current?.play(action);
     };
 
-    const snap = drawn.current === null || drawnRunId.current !== runId || drawn.current.kind !== run.frog.kind;
-    if (snap) {
+    const newRun = drawn.current === null || drawnRunId.current !== runId;
+    if (newRun) {
       if (drawnRunId.current !== runId) play("idle");
       drawn.current = snapped(run);
       drawnRunId.current = runId;
     }
-    const d = drawn.current;
+    let d = drawn.current;
     if (d === null) throw new Error("The drawn frog wasn't set");
-    if (run.frog.rotation !== d.rotation) {
+    // The frog's model is rendered by React from the store, so it shows a
+    // new piece or rotation only from the frame after the rules take it.
+    // Until then the drawn frog holds its pose, or the old model would be
+    // drawn for a frame in the new pose's place.
+    const modelPosed = kind === run.frog.kind && rotation === run.frog.rotation;
+    if (modelPosed && d.kind !== kind) {
+      d = withPiece(d, run.frog);
+      drawn.current = d;
+    } else if (modelPosed && d.rotation !== rotation) {
       // The frog is drawn at once in its new rotation, so it starts swung
       // back to where it was and swings the short way round to rest.
-      const quarterTurns = (run.frog.rotation - d.rotation + 4) % 4;
+      const quarterTurns = (rotation - d.rotation + 4) % 4;
       d.swing += (quarterTurns === 3 ? -1 : quarterTurns) * (Math.PI / 2);
-      d.rotation = run.frog.rotation;
+      d.rotation = rotation;
     }
-    // Exponential easing that covers about 95% of the way in the ease duration.
+    // Exponential easing that covers about 95% of the way in the ease
+    // duration, for what isn't drawn as a move's glide: a turn's swing and
+    // shift, and anything else that moves the frog.
     const lambda = 3 / run.tuning.easeDuration;
-    const target = frogTarget(run);
-    d.x = MathUtils.damp(d.x, target.x, lambda, delta);
-    d.y = MathUtils.damp(d.y, target.y, lambda, delta);
-    d.swing = MathUtils.damp(d.swing, 0, lambda, delta);
+    const target = frogTarget(run.frog);
+    const stride = moveDuration(run.tuning);
 
     const hop = run.frog.latestHop;
     if (hop !== null && hop.startedAt !== d.hopAt) {
@@ -375,7 +311,8 @@ function Game() {
       play("hop");
     }
     const bonk = run.lastBonk;
-    if (bonk !== d.bonk) {
+    const bonked = bonk !== d.bonk;
+    if (bonked) {
       d.bonk = bonk;
       if (bonk !== null) {
         d.bonkMotion = { from: bonk.depth, to: run.frog.depth, startedAt: bonk.time };
@@ -391,25 +328,64 @@ function Game() {
       play("hop");
     }
 
+    const leap = d.leap ?? d.drop;
+    const leaping = leap !== null && !leap.landed;
+
+    // A slide or a jump is drawn as a move: a glide to its new place, with
+    // a small hop. A bonk's knock-back, the drop and the finish leap move the
+    // frog too, and are drawn as their own motions.
+    const seen = seeMoves(d, run.frog, run.time, !bonked && !leaping && !crossedFinish(run));
+    if (seen.moveHops !== d.moveHops) {
+      bodyRef.current?.move(stride);
+      silhouetteRef.current?.move(stride);
+    }
+    d = seen;
+    drawn.current = d;
+    if (modelPosed) {
+      const slide = d.glideX;
+      if (slide !== null && slide.to === target.x) {
+        d.x = glideAt(slide, run.time, stride);
+        if (arrived(slide, run.time, stride)) d.glideX = null;
+      } else {
+        d.glideX = null;
+        d.x = MathUtils.damp(d.x, target.x, lambda, delta);
+      }
+      d.y = MathUtils.damp(d.y, target.y, lambda, delta);
+      d.swing = MathUtils.damp(d.swing, 0, lambda, delta);
+    }
+
     const pose = bonkPose(d.bonkMotion, run);
     if (pose === null) d.bonkMotion = null;
     let height = d.level;
     let spin = 0;
-    const leap = d.leap ?? d.drop;
-    if (leap !== null && !leap.landed) {
+    if (leaping) {
       const duration = leap === d.leap ? run.tuning.finishLeapDuration : run.tuning.dropDuration;
-      const progress = Math.min(1, (run.time - leap.startedAt) / duration);
-      const at = leap === d.leap ? leapPose(leap, progress) : dropPose(leap, progress, target.depth);
+      const progress = leapProgress(run.time - leap.startedAt, duration);
+      const at =
+        leap === d.leap ? finishLeapPose(leap, courseLength, progress) : dropPose(leap, target.depth, progress);
       d.depth = at.depth;
       d.level = at.level;
       height = at.height;
-      if (leap === d.leap) spin = 2 * Math.PI * (1 - (1 - progress) ** 2);
+      spin = at.spin;
       if (progress === 1) {
         leap.landed = true;
         play("land");
       }
     } else if (!crossedFinish(run)) {
-      d.depth = pose === null ? MathUtils.damp(d.depth, target.depth, lambda, delta) : pose.depth;
+      const jump = d.glideDepth;
+      if (pose !== null) {
+        d.depth = pose.depth;
+      } else if (jump !== null && jump.to === target.depth) {
+        d.depth = glideAt(jump, run.time, stride);
+        if (arrived(jump, run.time, stride)) d.glideDepth = null;
+      } else {
+        d.glideDepth = null;
+        d.depth = MathUtils.damp(d.depth, target.depth, lambda, delta);
+      }
+      if (pose === null && inPlay(run) && drawnInVehicle(run, d.depth)) {
+        d.depth = target.depth;
+        d.glideDepth = null;
+      }
     }
 
     // Eased moves could cut through a vehicle (a turn swings the piece
@@ -418,23 +394,32 @@ function Game() {
     // the drawn frog in play, it is drawn exactly as the rules have it, and
     // the rules keep that inside the opening.
     const wasUp = d.lift > 0;
-    if (inPlay(run) && overlapsDrawnFrog(run, d.depth)) {
-      d.x = target.x;
-      d.y = target.y;
-      d.swing = 0;
+    const amongVehicles = inPlay(run) && overlapsDrawnFrog(run, d.depth);
+    if (amongVehicles) {
+      if (modelPosed) {
+        d.x = target.x;
+        d.y = target.y;
+        d.swing = 0;
+        d.glideX = null;
+      }
       d.lift = hopHeight(run.frog);
     } else {
       d.lift = hopLift(run, d.lift);
     }
     if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
+    // A move's hop never lifts the frog among vehicles, and never plays over
+    // a bonk's knock-back, the drop or the finish leap. A hop's arc already
+    // lifts it higher, so the two never add up.
+    const stepLift = amongVehicles || pose !== null || leaping ? 0 : moveLift(d.moveHops, run.time, stride);
 
     const frog = frogRef.current;
     if (frog !== null) {
       const bonkLift = pose === null ? 0 : pose.lift;
-      frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + d.lift + bonkLift, -d.depth + FROG_THICKNESS / 2);
+      const lift = Math.max(d.lift, stepLift) + bonkLift;
+      frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + lift, -d.depth + FROG_THICKNESS / 2);
       frog.rotation.set(0, spin, d.swing);
     }
-    follow(state.camera, d, delta, snap);
+    follow(state.camera, d, delta, newRun);
 
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
@@ -479,10 +464,22 @@ function Game() {
           }}
         >
           {stream.row(index).vehicles.map(({ id, lane }) => (
-            <Vehicle key={`${String(index)}:${String(lane)}`} id={id} lane={lane} depth={0} assets={vehicleAssets} />
+            <Vehicle
+              key={`${String(index)}:${String(lane)}`}
+              id={id}
+              lane={lane}
+              depth={0}
+              assets={vehicleAssets}
+              rumbleSeed={`${String(index)}:${String(lane)}`}
+            />
           ))}
           {stream.row(index).gates.map((gate) => (
-            <GateView key={`${String(index)}:${String(gate.lane)}`} gate={gate} assets={gateAssets} />
+            <GateView
+              key={`${String(index)}:${String(gate.lane)}`}
+              gate={gate}
+              length={rowLength(stream.row(index).solids)}
+              assets={gateAssets}
+            />
           ))}
         </group>
       ))}

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { advance, applyAction, createRun, pressJump, type RuleRow, type RuleRows, type Run } from "../run";
+import { advance, applyAction, createRun, pressHeld, type RuleRow, type RuleRows, type Run } from "../run";
 import { TUNING } from "../tuning";
 import type { Cell, Gate } from "../types";
 import { soundCues, type GameMoment, type SoundCue } from "./cues";
 
 const FRAME = 1 / 60;
-const WALL_DEPTH = 12;
+// The row comes this far ahead of where the drop lands the frog.
+const ROW_AHEAD = 12;
+const WALL_DEPTH = TUNING.dropDistance + ROW_AHEAD;
 
 function wholeFace(): Cell[] {
   const cells: Cell[] = [];
@@ -45,7 +47,7 @@ function gateRow(): RuleRows {
 // Plays frames until the row has reached the frog and gone by, but not so
 // long that a row that bonked the frog reaches it again, hearing every change
 // the way the game does.
-function hearFrames(run: Run, seconds = WALL_DEPTH / TUNING.wallSpeed + 1): SoundCue[] {
+function hearFrames(run: Run, seconds = ROW_AHEAD / TUNING.wallSpeed + 1): SoundCue[] {
   let before: GameMoment = { run, runId: 0 };
   let streak = 0;
   const heard: SoundCue[] = [];
@@ -123,7 +125,7 @@ describe("soundCues", () => {
     const dropped = applyAction(up, "forward");
     expect(soundsOf(soundCues({ run: up, runId: 0 }, { run: dropped, runId: 0 }, 0).cues)).toEqual(["drop"]);
     // A held jump carries on along the road, and nothing drops again.
-    expect(soundsOf(hearFrames(pressJump(dropped, "forward"), 3))).not.toContain("drop");
+    expect(soundsOf(hearFrames(pressHeld(dropped, "forward"), 3))).not.toContain("drop");
   });
 
   it("is silent while rows go by beneath the frog on the overpass", () => {
@@ -135,7 +137,7 @@ describe("soundCues", () => {
     const up = createRun(openOrSolid(false), tuning);
     // The held jump drops the frog and carries it over the line; the solid
     // row arrives after, beneath the finished frog.
-    const pressed = pressJump(up, "forward");
+    const pressed = pressHeld(up, "forward");
     const heard = [...soundCues({ run: up, runId: 0 }, { run: pressed, runId: 0 }, 0).cues];
     let before: GameMoment = { run: pressed, runId: 0 };
     for (let t = 0; t < WALL_DEPTH / TUNING.wallSpeed + 2; t += FRAME) {

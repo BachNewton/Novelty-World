@@ -86,8 +86,9 @@ describe("the row stream", () => {
         expect(lanes.filter((lane) => lane >= first && lane <= last)).toEqual([]);
       }
       expect(row.opening).toEqual(rowOpening(row.vehicles, FACE.cols, FACE.rows, row.gates));
-      expect(row.solids).toEqual(rowSolids(row.vehicles));
-      expect(row.solids.map((solid) => solid.length)).toEqual(row.vehicles.map((v) => VEHICLE_LENGTHS[v.id]));
+      expect(row.solids).toEqual(rowSolids(row.vehicles, row.gates));
+      const vehicles = row.solids.filter((solid) => "cells" in solid);
+      expect(vehicles.map((solid) => solid.length)).toEqual(row.vehicles.map((v) => VEHICLE_LENGTHS[v.id]));
     }
   });
 
@@ -198,14 +199,19 @@ describe("the row stream", () => {
   });
 
   it("brings every row of the ramp to the frog before the finish line, however fast it goes", () => {
-    // The fastest frog holds a jump the whole way.
-    const fastest = TUNING.depthStep / TUNING.jumpRepeatInterval;
+    // The fastest frog holds a jump the whole way: it drops at once, and
+    // jumps on from when the leap lands, as though it had been jumping from
+    // `lead` all along.
+    const { dropDistance, dropDuration, wallSpeed } = TUNING;
+    const fastest = TUNING.depthStep / TUNING.holdRepeatInterval;
+    const lead = dropDistance - fastest * dropDuration;
     for (const rows of STREAMS) {
       let back = 0;
       rows.slice(0, 15).forEach((row, i) => {
         const depth = i === 0 ? row.gap : back + row.gap;
         back = rowBack({ depth, solids: row.solids });
-        expect((depth * fastest) / (fastest + TUNING.wallSpeed)).toBeLessThan(TUNING.courseLength);
+        const meets = Math.max(dropDistance, (depth * fastest + wallSpeed * lead) / (fastest + wallSpeed));
+        expect(meets).toBeLessThan(TUNING.courseLength);
       });
     }
   });

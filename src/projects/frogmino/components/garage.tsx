@@ -157,7 +157,7 @@ function Turntable({ id, assets, palette }: { id: VehicleId; assets: VehicleAsse
       <group ref={spin}>
         <group position={[-(width - 1) / 2, 0, length / 2]}>
           <Plate width={width} length={length} palette={palette} />
-          <Vehicle id={id} lane={0} depth={0} assets={assets} />
+          <Vehicle id={id} lane={0} depth={0} assets={assets} rumbleSeed={id} />
         </group>
       </group>
     </>

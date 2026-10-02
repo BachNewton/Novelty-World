@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
-import { MathUtils, MeshLambertMaterial, type Group, type Mesh } from "three";
+import { MeshLambertMaterial, type Group, type Mesh } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { COURSE_SEED } from "../../course";
+import { dropPose, type LeapStart } from "../../frog/leaps";
 import { frogCells } from "../../logic";
 import type { Row } from "../../traffic";
 import { TUNING } from "../../tuning";
@@ -13,18 +14,20 @@ import type { Frog } from "../../types";
 import { VEHICLES } from "../../vehicles";
 import { PREVIEW_ROWS, passingPose } from "../../world/preview-rows";
 import { DECK_TOP, OVERPASS_FAR, OVERPASS_NEAR } from "../../world/structures";
-import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, fittedFov } from "../camera-fit";
+import { CAMERA_FAR, CAMERA_NEAR, cameraEye, cameraPitch, fittedFov, type CameraKnobs } from "../camera-fit";
 import { Vehicle } from "../vehicle";
 import { borderMask, makeVehicleAssets } from "../vehicle-assets";
+import { CAMERA_KNOB_KEYS, CAMERA_KNOB_RANGES, TUNED_CAMERA, formatKnob, tuningSnippet } from "./camera-knobs";
 import { FrogminoStructures, FrogminoWorld } from "./world";
 
 // `?world`: the world around the road, seen from the gameplay camera as it
 // drives down the road, with rows of traffic coming at a stand-in frog that
 // always takes the pose that fits the next row. It is for judging whether
 // the world frames the gameplay without distracting from it, so it can be
-// switched off to compare against the bare road.
+// switched off to compare against the bare road. Its camera controls drive
+// the gameplay camera's own maths with live knobs, for tuning by eye.
 
-const { corridorCols, courseLength, cameraHeight, cameraFollow, wallSpeed } = TUNING;
+const { corridorCols, courseLength, wallSpeed } = TUNING;
 const CENTER_X = (corridorCols - 1) / 2;
 
 const DRIVES = {
@@ -38,9 +41,8 @@ type Drive = keyof typeof DRIVES;
 // The frog waits on the overpass's deck a moment, then jumps down to the road.
 const FROG_DECK_DEPTH = (OVERPASS_NEAR + OVERPASS_FAR) / 2 + 0.5;
 const DECK_WAIT = 2.5;
-const DROP_DURATION = 0.5;
-const DROP_LANDING = 1.5;
-const DROP_ARC = 0.8;
+const DROP_START: LeapStart = { fromDepth: FROG_DECK_DEPTH, fromLevel: DECK_TOP };
+const DROP_LANDING = FROG_DECK_DEPTH + TUNING.dropDistance;
 const START_POSE: Frog = { kind: "L", col: 2, rotation: 0, hop: 0 };
 
 // A few rows loop around the frog: they vanish well behind the camera and
@@ -53,6 +55,8 @@ interface Motion {
   time: number;
   depth: number;
   y: number;
+  // The level the camera rides above.
+  level: number;
   // Seconds left on the deck; null once the frog has jumped down.
   deckWait: number | null;
   // How far through the jump down, from 0 to 1; null when not jumping.
@@ -60,7 +64,7 @@ interface Motion {
 }
 
 function startMotion(): Motion {
-  return { time: 0, depth: FROG_DECK_DEPTH, y: DECK_TOP, deckWait: DECK_WAIT, drop: null };
+  return { time: 0, depth: FROG_DECK_DEPTH, y: DECK_TOP, level: DECK_TOP, deckWait: DECK_WAIT, drop: null };
 }
 
 function rowLength(row: Row): number {
@@ -85,26 +89,32 @@ function advanceMotion(m: Motion, speed: number, delta: number): void {
     return;
   }
   if (m.drop !== null) {
-    m.drop = Math.min(1, m.drop + delta / DROP_DURATION);
-    const eased = 1 - (1 - m.drop) ** 2;
-    m.depth = MathUtils.lerp(FROG_DECK_DEPTH, DROP_LANDING, eased);
-    m.y = MathUtils.lerp(DECK_TOP, 0, eased) + DROP_ARC * Math.sin(Math.PI * m.drop);
+    m.drop = Math.min(1, m.drop + delta / TUNING.dropDuration);
+    const pose = dropPose(DROP_START, DROP_LANDING, m.drop);
+    m.depth = pose.depth;
+    m.y = pose.height;
+    m.level = pose.level;
     if (m.drop === 1) m.drop = null;
     return;
   }
   m.depth += speed * delta;
 }
 
-function PreviewCamera() {
+const DEGREES = 180 / Math.PI;
+
+function PreviewCamera({ knobs, onFov }: { knobs: CameraKnobs; onFov: (fov: number) => void }) {
   const aspect = useThree((s) => s.size.width / s.size.height);
+  const fov = fittedFov(aspect);
+  useEffect(() => onFov(fov), [fov, onFov]);
+  const eye = cameraEye(knobs, FROG_DECK_DEPTH, DECK_TOP);
   return (
     <PerspectiveCamera
       makeDefault
-      fov={fittedFov(aspect)}
+      fov={fov}
       near={CAMERA_NEAR}
       far={CAMERA_FAR}
-      position={[CENTER_X, DECK_TOP + cameraHeight, -FROG_DECK_DEPTH + cameraFollow]}
-      rotation={[CAMERA_PITCH, 0, 0]}
+      position={[CENTER_X, eye.y, eye.z]}
+      rotation={[cameraPitch(knobs), 0, 0]}
     />
   );
 }
@@ -112,10 +122,12 @@ function PreviewCamera() {
 function PreviewTraffic({
   drive,
   restarts,
+  knobs,
   onDepth,
 }: {
   drive: Drive;
   restarts: number;
+  knobs: CameraKnobs;
   onDepth: (depth: number) => void;
 }) {
   const rows = useMemo(
@@ -171,8 +183,8 @@ function PreviewTraffic({
       cubeRefs.current[i]?.position.set(cell.col, m.y + cell.row + 0.5, -m.depth + 0.5);
     });
 
-    const ground = m.drop === null ? m.y : MathUtils.lerp(DECK_TOP, 0, 1 - (1 - m.drop) ** 2);
-    camera.position.set(CENTER_X, ground + cameraHeight, -m.depth + cameraFollow);
+    const eye = cameraEye(knobs, m.depth, m.level);
+    camera.position.set(CENTER_X, eye.y, eye.z);
     onDepth(m.depth);
   });
 
@@ -186,7 +198,7 @@ function PreviewTraffic({
           }}
         >
           {row.vehicles.map(({ id, lane }) => (
-            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={assets} />
+            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={assets} rumbleSeed={`${String(i)}:${String(lane)}`} />
           ))}
         </group>
       ))}
@@ -244,10 +256,74 @@ function PreviewButton({ active, onClick, children }: { active: boolean; onClick
   );
 }
 
+function CameraPanel({
+  knobs,
+  onChange,
+  fov,
+}: {
+  knobs: CameraKnobs;
+  onChange: (knobs: CameraKnobs) => void;
+  // The fitted field of view, once the canvas has measured itself.
+  fov: number | null;
+}) {
+  const [copied, setCopied] = useState(false);
+  const change = (next: CameraKnobs) => {
+    setCopied(false);
+    onChange(next);
+  };
+
+  return (
+    <details className="pointer-events-auto w-full max-w-xs rounded-lg bg-surface-secondary/85 text-text-primary">
+      <summary className="cursor-pointer select-none px-3 py-1.5 text-xs font-bold">Camera</summary>
+      <div className="flex flex-col gap-2 px-3 pb-3">
+        {CAMERA_KNOB_KEYS.map((key) => {
+          const { label, min, max, step } = CAMERA_KNOB_RANGES[key];
+          return (
+            <label key={key} className="flex flex-col gap-0.5 text-xs">
+              <span className="flex justify-between">
+                <span>{label}</span>
+                <span className="font-mono">{formatKnob(knobs[key])}</span>
+              </span>
+              <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={knobs[key]}
+                onChange={(event) => change({ ...knobs, [key]: Number(event.target.value) })}
+                className="w-full accent-brand-green"
+              />
+            </label>
+          );
+        })}
+        <div className="flex justify-between font-mono text-xs text-text-secondary">
+          <span>pitch {(-cameraPitch(knobs) * DEGREES).toFixed(1)}° down</span>
+          {fov !== null && <span>fov {fov.toFixed(1)}°</span>}
+        </div>
+        <div className="flex gap-2">
+          <PreviewButton active={false} onClick={() => change(TUNED_CAMERA)}>
+            ↺ Reset to tuning
+          </PreviewButton>
+          <PreviewButton
+            active={copied}
+            onClick={() => {
+              void navigator.clipboard.writeText(tuningSnippet(knobs)).then(() => setCopied(true));
+            }}
+          >
+            {copied ? "Copied ✓" : "Copy values"}
+          </PreviewButton>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function WorldPreview() {
   const [world, setWorld] = useState(true);
   const [drive, setDrive] = useState<Drive>("forward");
   const [restarts, setRestarts] = useState(0);
+  const [knobs, setKnobs] = useState<CameraKnobs>(TUNED_CAMERA);
+  const [fov, setFov] = useState<number | null>(null);
   const readout = useRef<HTMLSpanElement>(null);
   // Written straight to the page each frame, without re-rendering.
   const showDepth = useCallback((depth: number) => {
@@ -259,7 +335,7 @@ export function WorldPreview() {
     <div className="relative h-[100dvh] w-full overflow-hidden bg-surface-primary">
       <div className="absolute inset-0">
         <Canvas flat>
-          <PreviewCamera />
+          <PreviewCamera knobs={knobs} onFov={setFov} />
           <ambientLight intensity={1.5} />
           <directionalLight position={[4, 10, 6]} intensity={1.8} />
           {world ? (
@@ -267,14 +343,17 @@ export function WorldPreview() {
           ) : (
             <BareRoad />
           )}
-          <PreviewTraffic drive={drive} restarts={restarts} onDepth={showDepth} />
+          <PreviewTraffic drive={drive} restarts={restarts} knobs={knobs} onDepth={showDepth} />
         </Canvas>
       </div>
-      <div className="pointer-events-none absolute left-4 top-4 rounded-lg bg-surface-secondary/80 px-3 py-1.5">
-        <h1 className="text-xl font-bold text-brand-green">
-          Frogmino <span className="text-sm font-normal text-text-secondary">world preview</span>
-        </h1>
-        <span ref={readout} data-testid="world-depth" className="font-mono text-xs text-text-secondary" />
+      <div className="pointer-events-none absolute inset-x-4 top-4 flex flex-col items-start gap-2">
+        <div className="rounded-lg bg-surface-secondary/80 px-3 py-1.5">
+          <h1 className="text-xl font-bold text-brand-green">
+            Frogmino <span className="text-sm font-normal text-text-secondary">world preview</span>
+          </h1>
+          <span ref={readout} data-testid="world-depth" className="font-mono text-xs text-text-secondary" />
+        </div>
+        <CameraPanel knobs={knobs} onChange={setKnobs} fov={fov} />
       </div>
       <div className="absolute inset-x-4 bottom-4 flex flex-wrap gap-2">
         {(Object.keys(DRIVES) as Drive[]).map((key) => (
