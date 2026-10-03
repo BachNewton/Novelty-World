@@ -1,5 +1,3 @@
-import { PREVIEW_LANES, type PreviewLanes } from "./world/preview-rows";
-
 // Which screen the page opens on, from its URL. With no switch it is the
 // lobby; the switches exist so a developer lands straight on what they are
 // working on.
@@ -11,12 +9,11 @@ export type FrogminoView = "lobby" | "solo" | "local" | DevView;
 export const PLAY_PARAM = "play";
 const PLAYS = ["solo", "local"] as const;
 
-/** `?lanes=7|9|10` sets local co-op's road width. */
-export const LANES_PARAM = "lanes";
-const DEFAULT_COOP_LANES: PreviewLanes = 10;
+/** `?replay=<name>` plays a named replay (see `proof/replays.ts`). */
+export const REPLAY_PARAM = "replay";
 
 /** Dev views that replace the game entirely, in order of precedence. */
-const DEV_VIEWS = ["garage", "world", "sounds", "music", "frog"] as const;
+const DEV_VIEWS = ["garage", "world", "sounds", "music", "frog", REPLAY_PARAM] as const;
 type DevView = (typeof DEV_VIEWS)[number];
 
 function isPlay(play: string): play is (typeof PLAYS)[number] {
@@ -31,20 +28,13 @@ export function frogminoView(search: string): FrogminoView {
   if (play !== null && !isPlay(play)) {
     throw new Error(`Frogmino: unknown ?${PLAY_PARAM}=${play}; the only ones are ${PLAYS.map((p) => `?${PLAY_PARAM}=${p}`).join(" and ")}`);
   }
-  if (play === "solo" && params.has(LANES_PARAM)) {
-    throw new Error(`Frogmino: ?${LANES_PARAM} is for local co-op only; solo plays the stream's own road`);
-  }
   return play ?? "lobby";
 }
 
-/** Local co-op's road width: `?lanes`, or 10 lanes. Fails loudly on a width
- *  with no co-op rows. */
-export function coopLanes(search: string): PreviewLanes {
-  const lanes = new URLSearchParams(search).get(LANES_PARAM);
-  if (lanes === null) return DEFAULT_COOP_LANES;
-  const width = PREVIEW_LANES.find((option) => String(option) === lanes);
-  if (width === undefined) {
-    throw new Error(`Frogmino: ?${LANES_PARAM}=${lanes} has no co-op rows; the widths are ${PREVIEW_LANES.join(", ")}`);
-  }
-  return width;
+/** The replay `?replay` names. Fails loudly on a missing name; whether a
+ *  replay by that name exists is the replay view's to say. */
+export function replayName(search: string): string {
+  const name = new URLSearchParams(search).get(REPLAY_PARAM);
+  if (name === null || name === "") throw new Error(`Frogmino: ?${REPLAY_PARAM} needs a replay's name, as in ?${REPLAY_PARAM}=perch`);
+  return name;
 }

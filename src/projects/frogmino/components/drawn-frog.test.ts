@@ -316,4 +316,14 @@ describe("the drawn frog bonked while it moves", () => {
     expect(run.lastBonk).not.toBeNull();
     expectSmooth(frames, fastest);
   });
+
+  it("sees a bonk the rules made afresh, as a correction re-running them does, as the same bonk", () => {
+    const { run } = drive(runWith(solid, 6), 1);
+    const bonk = run.lastBonk;
+    if (bonk === null) throw new Error("the row didn't bonk the frog");
+    const drawn = seeBonk(snapped(run, 0), { ...run, lastBonk: null });
+    const seen = seeBonk(drawn, run);
+    expect(seeBonk(seen, { ...run, lastBonk: { ...bonk } })).toBe(seen);
+    expect(seeBonk(seen, { ...run, lastBonk: { ...bonk, tick: bonk.tick + 1 } })).not.toBe(seen);
+  });
 });

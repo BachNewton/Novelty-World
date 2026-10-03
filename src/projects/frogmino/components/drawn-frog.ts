@@ -260,13 +260,20 @@ export function withHop(run: Run, drawn: DrawnFrog, now: number): DrawnFrog {
 export const BONK_DURATION = 0.3;
 const BONK_ARC_HEIGHT = 0.8;
 
+// Whether two of the rules' bonks are the same one. Online, a correction
+// re-runs the rules, which make every bonk afresh, so a bonk is told by when
+// and where it was, not by which object holds it.
+export function sameBonk(a: Bonk | null, b: Bonk | null): boolean {
+  return a === b || (a !== null && b !== null && a.tick === b.tick && a.depth === b.depth);
+}
+
 // The drawn frog seeing the rules' latest bonk. A new one knocks it back from
 // where it is drawn to where the rules knocked it. That is not the row's face
 // whenever the bonk interrupts a move: a jump forward into the face, or a row
 // arriving mid-glide, finds the drawn frog still short of it.
 export function seeBonk(drawn: DrawnFrog, run: Run): DrawnFrog {
   const bonk = run.lastBonk;
-  if (bonk === drawn.bonk) return drawn;
+  if (sameBonk(bonk, drawn.bonk)) return drawn;
   if (bonk === null) return { ...drawn, bonk };
   return { ...drawn, bonk, bonkMotion: { from: drawn.depth, to: run.depth, startedAt: toSeconds(bonk.tick) } };
 }

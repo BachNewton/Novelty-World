@@ -97,15 +97,11 @@ test("a hosted game is listed live, joined with a click, and started", async ({ 
 
     await host.page.getByRole("button", { name: "Start", exact: true }).click();
     for (const { page } of [host, guest]) {
-      await expect(page.getByText("Co-op play is coming soon: you're connected!")).toBeVisible({ timeout: TIMEOUT });
+      await expect(page.getByTestId("frogmino-game")).toBeVisible({ timeout: TIMEOUT });
     }
-    // Both frogs got the host's course.
-    const seed = await host.page.getByTestId("course-seed").textContent();
-    expect(seed).toMatch(/^\d+$/);
-    await expect(guest.page.getByTestId("course-seed")).toHaveText(seed ?? "");
 
-    // The partner goes back to the lobby: the host's game reopens and is listed again.
-    await guest.page.getByRole("button", { name: "Back to lobby" }).click();
+    // The partner leaves the game: the host's game reopens and is listed again.
+    await guest.page.getByRole("button", { name: "Leave", exact: true }).click();
     await expect(host.page.getByText("Leapy left the game")).toBeVisible({ timeout: TIMEOUT });
     await expect(openGame(watcher.page, "Hoppy")).toBeVisible({ timeout: TIMEOUT });
 

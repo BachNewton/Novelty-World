@@ -2,37 +2,59 @@ import { describe, expect, it } from "vitest";
 import {
   admitGuest,
   COOP_CAPACITY,
-  drawCourseSeed,
   openListing,
+  parseGuestMessage,
+  parseHostMessage,
   releaseGuest,
   startRound,
   WAITING,
+  type GuestMessage,
   type HostMessage,
   type HostSeat,
   type ListingSource,
 } from "./coop";
-import { rowStream } from "./stream";
-import { TUNING } from "./tuning";
+import type { CourseSpec } from "./courses";
+
+const COURSE: CourseSpec = { kind: "coop" };
 
 const EMPTY: HostSeat = { phase: WAITING, partnerPeerId: null };
 const PAIRED: HostSeat = { phase: WAITING, partnerPeerId: "guest-1" };
 
-describe("drawCourseSeed", () => {
-  it("draws a 32-bit unsigned seed", () => {
-    for (let i = 0; i < 100; i++) {
-      const seed = drawCourseSeed();
-      expect(Number.isInteger(seed)).toBe(true);
-      expect(seed).toBeGreaterThanOrEqual(0);
-      expect(seed).toBeLessThan(2 ** 32);
-    }
+describe("the wire", () => {
+  const offTheWire = (message: unknown): unknown => JSON.parse(JSON.stringify(message));
+
+  it("carries every host message through unchanged", () => {
+    const messages: HostMessage[] = [
+      { kind: "start", course: COURSE },
+      { kind: "full" },
+      { kind: "input", seq: 3, tick: 120, player: 0, input: { kind: "act", action: "rotateCw" } },
+      { kind: "input", seq: 4, tick: 125, player: 1, input: { kind: "press", action: "forward" }, id: 2 },
+      { kind: "input", seq: 5, tick: 130, player: 1, input: { kind: "releaseAll" } },
+      { kind: "confirm", seq: 6, tick: 100, hash: 4_000_000_000 },
+      { kind: "pong", seq: 7, at: 90, tick: 131 },
+      { kind: "restart", seq: 8 },
+    ];
+    for (const message of messages) expect(parseHostMessage(offTheWire(message))).toEqual(message);
   });
 
-  it("grows the same course on both ends of the wire", () => {
-    const start: HostMessage = { kind: "start", seed: drawCourseSeed() };
-    const received = JSON.parse(JSON.stringify(start)) as HostMessage;
-    if (received.kind !== "start") throw new Error("the start message lost its kind");
-    const [theirs, ours] = [rowStream(received.seed, TUNING), rowStream(start.seed, TUNING)];
-    for (let i = 0; i < 20; i++) expect(theirs.row(i)).toEqual(ours.row(i));
+  it("carries every guest message through unchanged", () => {
+    const messages: GuestMessage[] = [
+      { kind: "input", seq: 0, round: 1, id: 0, tick: 12, input: { kind: "release", action: "left" } },
+      { kind: "restart", seq: 1, round: 1 },
+      { kind: "ping", seq: 2, at: 40 },
+      { kind: "desync", seq: 3, tick: 50 },
+    ];
+    for (const message of messages) expect(parseGuestMessage(offTheWire(message))).toEqual(message);
+  });
+
+  it("fails loudly on anything that isn't a message of the protocol", () => {
+    expect(() => parseHostMessage({ kind: "teleport" })).toThrow(/not a host message/);
+    expect(() => parseHostMessage("start")).toThrow();
+    expect(() => parseHostMessage({ kind: "start", course: { kind: "moon" } })).toThrow(/not a course/);
+    expect(() => parseHostMessage({ kind: "confirm", seq: 1, tick: -50, hash: 1 })).toThrow();
+    expect(() => parseHostMessage({ kind: "input", seq: 1, tick: 1, player: 0, input: { kind: "act", action: "fly" } })).toThrow(/not a player input/);
+    expect(() => parseGuestMessage({ kind: "input", seq: 0, round: 0, id: 0, tick: 1.5, input: { kind: "releaseAll" } })).toThrow();
+    expect(() => parseGuestMessage({ kind: "start", course: COURSE })).toThrow(/not a guest message/);
   });
 });
 
@@ -46,14 +68,14 @@ describe("admitGuest", () => {
   });
 
   it("turns away a guest once the round has started", () => {
-    const startedAlone: HostSeat = { phase: { kind: "started", seed: 7 }, partnerPeerId: null };
+    const startedAlone: HostSeat = { phase: { kind: "started", course: COURSE }, partnerPeerId: null };
     expect(admitGuest(startedAlone, "guest-2").admitted).toBe(false);
   });
 });
 
 describe("releaseGuest", () => {
   it("reopens the seat and ends the round when the partner leaves", () => {
-    const started = startRound(PAIRED, 7);
+    const started = startRound(PAIRED, COURSE);
     expect(releaseGuest(started, "guest-1")).toEqual({ seat: EMPTY, partnerLeft: true });
   });
 
@@ -63,13 +85,13 @@ describe("releaseGuest", () => {
 });
 
 describe("startRound", () => {
-  it("starts on the host's seed", () => {
-    expect(startRound(PAIRED, 42).phase).toEqual({ kind: "started", seed: 42 });
+  it("starts on the host's course", () => {
+    expect(startRound(PAIRED, COURSE).phase).toEqual({ kind: "started", course: COURSE });
   });
 
   it("refuses to start alone, or twice", () => {
-    expect(() => startRound(EMPTY, 42)).toThrow();
-    expect(() => startRound(startRound(PAIRED, 42), 43)).toThrow();
+    expect(() => startRound(EMPTY, COURSE)).toThrow();
+    expect(() => startRound(startRound(PAIRED, COURSE), COURSE)).toThrow();
   });
 });
 
@@ -82,7 +104,7 @@ describe("openListing", () => {
 
   it("lists nothing once the game is full or started", () => {
     expect(openListing({ ...host, seat: PAIRED })).toBeNull();
-    expect(openListing({ ...host, seat: { phase: { kind: "started", seed: 1 }, partnerPeerId: null } })).toBeNull();
+    expect(openListing({ ...host, seat: { phase: { kind: "started", course: COURSE }, partnerPeerId: null } })).toBeNull();
   });
 
   it("lists nothing for a guest, or a host not yet connected", () => {

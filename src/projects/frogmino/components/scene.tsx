@@ -39,6 +39,7 @@ import {
   glideAt,
   moveLift,
   seeMoves,
+  sameBonk,
   seeBonk,
   snapped,
   withHop,
@@ -253,7 +254,7 @@ function TeamFrog({
       d.hopAt = hop.startedAt;
       play("hop");
     }
-    const bonked = run.lastBonk !== d.bonk;
+    const bonked = !sameBonk(run.lastBonk, d.bonk);
     if (bonked) {
       d = seeBonk(d, run);
       drawn.current = d;

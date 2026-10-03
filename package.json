@@ -26,6 +26,7 @@
     "sim:probe-gate": "tsx src/projects/monopoly/bots/eval/probe-gate-cli.ts",
     "bot-brief": "node src/projects/monopoly/bots/bot-brief-cli.mjs",
     "bench": "vitest bench --run",
+    "frogmino:prove": "tsx src/projects/frogmino/proof/prove-cli.ts",
     "setup:family-tree-solver": "python src/projects/family-tree/layout/solver/setup_venv.py",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test"

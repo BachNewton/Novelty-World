@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Crown, PartyPopper } from "lucide-react";
+import { Crown } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
 import type { Player, RoomStatus } from "@/shared/lib/peer";
@@ -107,22 +107,6 @@ export function CoopRoom({ status, isHost, selfId, players, seat, notice, onStar
   }
 
   const shown = roomPlayers(players, isHost, seat);
-
-  if (seat.phase.kind === "started") {
-    return (
-      <Screen>
-        <Card className="w-full max-w-sm space-y-3 border-2 border-brand-green p-6">
-          <PartyPopper size={40} className="mx-auto text-brand-orange" aria-hidden />
-          <p className="text-xl font-bold text-text-primary">Co-op play is coming soon: you&apos;re connected!</p>
-          <p className="text-sm text-text-secondary">
-            Course <span data-testid="course-seed" className="font-mono text-brand-blue">{seat.phase.seed}</span>
-          </p>
-        </Card>
-        <PlayerList players={shown} selfId={selfId} />
-        <Button onClick={onLeave}>Back to lobby</Button>
-      </Screen>
-    );
-  }
 
   return (
     <Screen>

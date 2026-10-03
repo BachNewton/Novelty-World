@@ -10,10 +10,10 @@ const LOBBY = "/games/3d-games/frogmino";
 const TIMEOUT = 30_000;
 
 test("?play=local opens the join screen, where both halves of the keyboard join and start", async ({ page }) => {
-  await page.goto(`${LOBBY}?play=local&lanes=9`);
+  await page.goto(`${LOBBY}?play=local`);
   const start = page.getByRole("button", { name: "Start", exact: true });
   await expect(start).toBeDisabled({ timeout: TIMEOUT });
-  await expect(page.getByText("Road: 9 lanes")).toBeVisible();
+  await expect(page.getByText("Road: 10 lanes")).toBeVisible();
 
   const sprout = page.getByTestId("slot-1");
   const splash = page.getByTestId("slot-2");

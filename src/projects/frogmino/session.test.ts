@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
-import { coopPlaceholderCourse, soloCourse } from "./courses";
+import { coopCourse, courseOf, soloCourse } from "./courses";
 import { seatedSink, SOLO_SEATING } from "./input/devices";
 import { EMPTY_LINEUP, join, lineupSeating } from "./input/lineup";
 import { createRun, replay, type FrogAction, type HeldAction, type PlayerInput } from "./run";
-import { localSession } from "./session";
+import { localSession, replaySession } from "./session";
 import { TUNING } from "./tuning";
-import { PREVIEW_LANES } from "./world/preview-rows";
+import { PERCH_ROW } from "./proof/perch";
+import { findReplay } from "./proof/replays";
 
 const FRAME = 1 / 60;
 
@@ -56,18 +57,17 @@ describe("a solo session", () => {
 });
 
 describe("a local co-op session", () => {
-  it("plays the placeholder course at the width it is given, a frog per player", () => {
-    for (const lanes of PREVIEW_LANES) {
-      const { run } = localSession(coopPlaceholderCourse(lanes)).store.getState();
-      expect(run.lanes).toBe(lanes);
-      expect(run.frogs.map((frog) => frog.kind)).toEqual(["L", "J"]);
-      // Side by side: the flat L's three lanes, then the J.
-      expect(run.frogs[1].col).toBeGreaterThanOrEqual(run.frogs[0].col + 3);
-    }
+  it("plays local co-op's course on its road, a frog per player", () => {
+    const course = coopCourse();
+    const { run } = localSession(course).store.getState();
+    expect(run.lanes).toBe(course.lanes);
+    expect(run.frogs.map((frog) => frog.kind)).toEqual(["L", "J"]);
+    // Side by side: the flat L's three lanes, then the J.
+    expect(run.frogs[1].col).toBeGreaterThanOrEqual(run.frogs[0].col + 3);
   });
 
   it("routes each joined device to its own frog, and drops an unseated one's inputs", () => {
-    const session = localSession(coopPlaceholderCourse(10));
+    const session = localSession(coopCourse());
     const sink = seatedSink(lineupSeating(join(join(EMPTY_LINEUP, "keys:right"), "pad:0")), session);
     sink.input("pad:0", { kind: "act", action: "right" });
     sink.input("keys:right", { kind: "act", action: "left" });
@@ -76,14 +76,14 @@ describe("a local co-op session", () => {
   });
 
   it("fails loudly on an input for a player with no frog", () => {
-    const session = localSession(coopPlaceholderCourse(9));
+    const session = localSession(coopCourse());
     expect(() => {
       session.input(2, { kind: "act", action: "hop" });
     }).toThrow(/no frog for player 2/);
   });
 
   it("replays its recorded log to exactly the run it played, whatever the frames", () => {
-    const course = coopPlaceholderCourse(10);
+    const course = coopCourse();
     const session = localSession(course);
     const random = createRng("frogmino-session-replay").next;
     const ACTS: readonly FrogAction[] = ["left", "right", "rotateCcw", "rotateCw", "hop", "forward", "back"];
@@ -112,4 +112,47 @@ describe("a local co-op session", () => {
     const start = createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes });
     expect(replay(start, log, run.tick)).toEqual(run);
   }, 30_000);
+});
+
+describe("a replay session", () => {
+  const PERCH = findReplay("perch");
+  const course = courseOf(PERCH.course);
+  const start = () => createRun(course.row, TUNING, { kinds: course.kinds, lanes: course.lanes });
+
+  it("plays its log as if its players pressed those keys at those ticks, whatever the frames", () => {
+    const session = replaySession(course, PERCH.log, PERCH.until);
+    for (let i = 0; i < 200; i++) session.frame(FRAME * (0.5 + (i % 3)));
+    const { run, log } = session.store.getState();
+    expect(run).toEqual(replay(start(), PERCH.log, run.tick));
+    expect(log).toEqual(PERCH.log.filter((input) => input.tick <= run.tick));
+  });
+
+  it("stops at its end, and starts over on a restart", () => {
+    const session = replaySession(course, PERCH.log, PERCH.until);
+    for (let i = 0; i < 2000 && session.store.getState().run.tick < PERCH.until; i++) session.frame(0.1);
+    session.frame(0.1);
+    expect(session.store.getState().run.tick).toBe(PERCH.until);
+    expect(session.store.getState().run.passes).toBe(PERCH_ROW + 1);
+    session.restart();
+    const { run, runId } = session.store.getState();
+    expect(run.tick).toBe(0);
+    expect(runId).toBe(1);
+  });
+
+  it("runs slower, or not at all when paused", () => {
+    const session = replaySession(course, PERCH.log, PERCH.until);
+    session.setSpeed(0.25);
+    session.frame(0.1);
+    expect(session.store.getState().run.tick).toBe(2);
+    session.setSpeed(0);
+    session.frame(0.1);
+    expect(session.store.getState().run.tick).toBe(2);
+  });
+
+  it("takes no input: its players are the log", () => {
+    const session = replaySession(course, PERCH.log, PERCH.until);
+    expect(() => {
+      session.input(0, { kind: "act", action: "hop" });
+    }).toThrow(/takes no input/);
+  });
 });

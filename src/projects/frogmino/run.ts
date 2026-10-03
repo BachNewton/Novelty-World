@@ -463,11 +463,18 @@ function bonk(run: Run, index: number): Run {
   };
 }
 
+// The pass test for one frog standing still as a row reaches it: every cell
+// on the row's face, in no vehicle's cells and across no gate's post.
+export function fitsRow(shape: Frog, solids: readonly Solid[], wallRows: number): boolean {
+  const cells = frogCells(shape);
+  return cells.every((cell) => cell.row < wallRows) && keepsClear(cells, cells, solids);
+}
+
 // Judges the next wall at the team's face, now, against all its vehicles:
 // it passes only if every frog fits, and bonks the whole team otherwise.
 function meet(run: Run, index: number): Run {
   const { solids } = run.walls[index];
-  const fit = run.frogs.every((frog, player) => fitsAmong(run, player, frogShape(frog), solids));
+  const fit = run.frogs.every((frog) => fitsRow(frogShape(frog), solids, run.tuning.wallRows));
   return fit ? pass(run, index) : bonk(run, index);
 }
 
