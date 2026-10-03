@@ -79,6 +79,11 @@ the page for the "sign in to see all available results" banner.
   row carries an extra link, and has sent agents to the wrong record.
 - Read a census record's "Event Place (Original)": the indexed place can be
   the wrong county.
+- **United States, Residence Database / Public Records, 1970-2009** (consumer
+  address data): aliases give a living woman's birth and married surnames
+  together, with a birth month and year. One record can merge a household (a
+  daughter's name with her father's aliases): a lead to a household and a
+  birth year, never evidence of a relationship.
 - The **FamilySearch Family Tree** (profiles others built) is a fast map to
   the right records, never evidence.
 - Record pages render details late: wait for the "Event Type" field (or
@@ -493,6 +498,10 @@ reading anything public; cite only generically in the tree.
     every sibling's list, not just the parent's.
   - A display name with "(Maiden)" gives a birth surname. A profile address
     can keep an older married name (`firstname.maidenmarried`): a lead only.
+- **One profile's posts:** `/profile/<numeric id>/search/?q=<word>` ("sister",
+  a given name) searches only that profile's posts and posts to it; the id is the
+  `"userID"` in the profile page's HTML. A sibling's birthday post there named a
+  sister whose own family list confirmed it.
 - **Posts:** timelines often don't load; search a person's own posts with
   `/search/posts/?q=<name> <word>` instead ("birthday", "baby", a child's
   name). A child's first name plus the surname finds grandparents' birthday
