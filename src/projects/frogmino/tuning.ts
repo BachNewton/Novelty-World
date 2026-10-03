@@ -1,6 +1,7 @@
 // The knobs that set how Frogmino feels. Depths and distances are in world
 // units: one unit is one cube, the width of a corridor column. Depth is
 // measured forward from the course's start, at the foot of the overpass.
+// Times are in seconds; the rules count them in whole ticks (see `ticks.ts`).
 export interface Tuning {
   // How fast the walls come at the frog, in units per second.
   wallSpeed: number;
@@ -40,8 +41,8 @@ export interface Tuning {
   holdRepeatInterval: number;
   // How many jumps' distance a bonk knocks the frog back.
   bonkKnockback: number;
-  // The longest frame the rules will advance by, in seconds, so returning to
-  // a backgrounded tab doesn't lurch the walls forward.
+  // The longest frame the game runs the rules' ticks for, in seconds, so
+  // returning to a backgrounded tab doesn't lurch the walls forward.
   maxFrameDelta: number;
   // How far ahead of where it stood on the overpass the frog's first jump
   // forward lands it on the road, in units: far enough that the camera,

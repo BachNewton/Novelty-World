@@ -1,3 +1,4 @@
+import { tickTiming, toSeconds } from "../ticks";
 import type { Tuning } from "../tuning";
 
 // The drawn frog's everyday moves, the jumps forward and back and the slides
@@ -10,10 +11,11 @@ import type { Tuning } from "../tuning";
 // game's most frequent actions.
 export const MOVE_HOP_HEIGHT = 0.14;
 
-// A move takes as long as a held key's repeat, so held moves chain: each one
-// lands just as the next takes off, and a held jump flows on without a stop.
-export function moveDuration(tuning: Pick<Tuning, "holdRepeatInterval">): number {
-  return tuning.holdRepeatInterval;
+// A move takes as long as a held key's repeat, in the rules' whole ticks, so
+// held moves chain: each one lands just as the next takes off, and a held
+// jump flows on without a stop.
+export function moveDuration(tuning: Tuning): number {
+  return toSeconds(tickTiming(tuning).holdRepeat);
 }
 
 export function moveProgress(seconds: number, duration: number): number {

@@ -1,11 +1,14 @@
 import { frogCells, insideLanes, pieceSize, rotateInCorridor, type Placement } from "./logic";
 import { gateLanes, insideGate, keepsClear, rowBack } from "./traffic";
 import type { Frog, Gate, HopHeight, Lanes, Rotation, Solid, TetrominoKind } from "./types";
+import { TICK_RATE, tickTiming } from "./ticks";
 import type { Tuning } from "./tuning";
 
 // One playthrough of a course, as the rules see it. Everything here is pure:
-// the frog's rule state changes the instant an action is applied, the walls'
-// depths are continuous, and `advance` moves time on.
+// the frog's rule state changes the instant an input is applied, and `step`
+// moves time on by one tick (see `ticks.ts`). A run is a pure function of
+// its course, its tuning and its input log: every player input, stamped with
+// the tick it applies at, so replaying the log from the start reproduces it.
 //
 // Depth is measured forward from the course's start, at depth 0, and the
 // road runs on forever both ways. A wall is a row of vehicles whose fronts
@@ -58,8 +61,13 @@ export interface Wall {
   // The row's vehicles and gate posts, their fronts all at `depth`.
   solids: readonly Solid[];
   gates: readonly Gate[];
-  // Falls as the wall comes at the frog.
+  // Falls as the wall comes at the frog: where it was placed, less the
+  // traffic's travel since. Worked out afresh from those each tick, so no
+  // rounding builds up along the way.
   depth: number;
+  placedDepth: number;
+  // The tick it was placed at.
+  placedAt: number;
   // Whether the frog is past this wall's front face, so the wall is between
   // it and the start or still around it. A crossing sets it; a jump back
   // across its front, or the wall reappearing ahead, clears it.
@@ -68,9 +76,10 @@ export interface Wall {
   index: number;
 }
 
+// Times in the rules are ticks.
 export interface Hop {
   startedAt: number;
-  // When the frog came down, in run time; null while it is up.
+  // When the frog came down; null while it is up.
   landedAt: number | null;
 }
 
@@ -85,7 +94,7 @@ export interface RuleFrog {
 }
 
 export interface Bonk {
-  time: number;
+  tick: number;
   // Where the frog met the wall that bonked it.
   depth: number;
 }
@@ -96,14 +105,14 @@ export type HeldAction = "forward" | "back" | "left" | "right";
 // A key held down, which acts again every repeat interval.
 export interface Hold {
   action: HeldAction;
-  // When it next acts, in run time.
+  // The tick it next acts at.
   nextAt: number;
 }
 
 export interface Run {
   tuning: Tuning;
-  // Seconds of play so far.
-  time: number;
+  // Ticks of play so far.
+  tick: number;
   frog: RuleFrog;
   walls: Wall[];
   // Where a recycled wall's next row comes from.
@@ -122,6 +131,28 @@ export interface Run {
 
 export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "forward" | "back";
 
+// What a player does: an action, or a jump or slide key pressed or let go, or
+// every key let go at once, as when the window loses focus.
+export type PlayerInput =
+  | { kind: "act"; action: FrogAction }
+  | { kind: "press"; action: HeldAction }
+  | { kind: "release"; action: HeldAction }
+  | { kind: "releaseAll" };
+
+// An input as the log keeps it: which player's, and the tick it applies at.
+export interface TimedInput {
+  tick: number;
+  player: number;
+  input: PlayerInput;
+}
+
+// Every input of a run, in tick order; inputs stamped with the same tick
+// apply in the order listed. It is plain data, so a session can insert an
+// input that reaches it late in its place and replay from there.
+export type InputLog = readonly TimedInput[];
+
+const NO_INPUTS: InputLog = [];
+
 // A bonked frog must leave the wall's face, or the wall would bonk it again
 // at once, forever, and a held key must wait between repeats. Rows must be
 // spaced far enough apart, back to front, that a bonk never knocks the frog
@@ -130,7 +161,7 @@ export type FrogAction = "left" | "right" | "rotateCcw" | "rotateCw" | "hop" | "
 // reappears ahead of it.
 function checkTuning(tuning: Tuning): void {
   if (tuning.bonkKnockback <= 0) throw new Error("A bonk must knock the frog back");
-  if (tuning.holdRepeatInterval <= 0) throw new Error("A held key must wait between repeats");
+  if (tickTiming(tuning).holdRepeat < 1) throw new Error("A held key must wait at least a tick between repeats");
   if (tuning.dropDistance < tuning.depthStep) throw new Error("The drop must reach at least a jump ahead");
   const closestGap = tuning.wallSpacing - tuning.wallJitter;
   const bonkReach = tuning.bonkKnockback * tuning.depthStep + FROG_THICKNESS;
@@ -155,7 +186,8 @@ function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
   do {
     const index = walls.length;
     const row = rows(index);
-    const wall: Wall = { solids: row.solids, gates: row.gates, depth: index === 0 ? row.gap : back + row.gap, passed: false, index };
+    const depth = index === 0 ? row.gap : back + row.gap;
+    const wall: Wall = { solids: row.solids, gates: row.gates, depth, placedDepth: depth, placedAt: 0, passed: false, index };
     walls.push(wall);
     back = rowBack(wall);
   } while (back < tuning.trafficHorizon);
@@ -167,7 +199,7 @@ export function createRun(rows: RuleRows, tuning: Tuning, options: RunOptions = 
   const { kind = "L" } = options;
   return {
     tuning,
-    time: 0,
+    tick: 0,
     frog: {
       kind,
       col: Math.floor((tuning.corridorCols - pieceSize(kind, 0).width) / 2),
@@ -215,7 +247,7 @@ export function inPlay(run: Run): boolean {
 // onto the finish gantry has landed. The rules' clock runs on after the
 // crossing, and the traffic with it.
 export function isDone(run: Run): boolean {
-  return run.finishedAt !== null && run.time >= run.finishedAt + run.tuning.finishLeapDuration;
+  return run.finishedAt !== null && run.tick >= run.finishedAt + tickTiming(run.tuning).finishLeap;
 }
 
 // The wall the frog meets next: the nearest one it hasn't passed. Null only
@@ -274,7 +306,7 @@ function withWall(run: Run, index: number, wall: Partial<Wall>): Run {
 function landNow(run: Run): Run {
   const hopping = run.frog.latestHop;
   if (hopping === null || hopping.landedAt !== null) return run;
-  return withFrog(run, { latestHop: { ...hopping, landedAt: run.time } });
+  return withFrog(run, { latestHop: { ...hopping, landedAt: run.tick } });
 }
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
@@ -335,12 +367,12 @@ function goBy(run: Run, index: number): Run {
 // arrives unless the frog fits by then or has got clear. A held key keeps
 // repeating, a full repeat interval after the bonk.
 function bonk(run: Run, index: number): Run {
-  const { time, tuning } = run;
+  const { tick, tuning } = run;
   const face = run.walls[index].depth;
   return {
     ...withFrog(run, { depth: face - tuning.bonkKnockback * tuning.depthStep }),
-    holds: run.holds.map((hold) => ({ ...hold, nextAt: time + tuning.holdRepeatInterval })),
-    lastBonk: { time, depth: face },
+    holds: run.holds.map((hold) => ({ ...hold, nextAt: tick + tickTiming(tuning).holdRepeat })),
+    lastBonk: { tick, depth: face },
   };
 }
 
@@ -371,7 +403,7 @@ function rotate(run: Run, turn: 1 | -1): Run {
 function hop(run: Run): Run {
   if (hopHeight(run.frog) === 1) return run;
   if (!clearOfWalls(run, { ...frogShape(run.frog), hop: 1 })) return run;
-  return withFrog(run, { latestHop: { startedAt: run.time, landedAt: null } });
+  return withFrog(run, { latestHop: { startedAt: run.tick, landedAt: null } });
 }
 
 // Riding: a frog that is up while a vehicle overlaps it stays up, gliding
@@ -386,7 +418,7 @@ export function isRiding(run: Run): boolean {
 function settle(run: Run): Run {
   const hopping = run.frog.latestHop;
   if (hopping === null || hopping.landedAt !== null) return run;
-  if (run.time < hopping.startedAt + run.tuning.hopAirtime) return run;
+  if (run.tick < hopping.startedAt + tickTiming(run.tuning).hopAirtime) return run;
   return isRiding(run) ? run : landNow(run);
 }
 
@@ -394,7 +426,7 @@ function settle(run: Run): Run {
 // again, and every held key lets go. It leaps onto the finish gantry, where
 // the traffic goes by beneath it.
 function finish(run: Run): Run {
-  return { ...landNow(run), holds: [], finishedAt: run.time };
+  return { ...landNow(run), holds: [], finishedAt: run.tick };
 }
 
 // Each wall whose front face the jump reaches is judged at once, nearest
@@ -437,16 +469,16 @@ function jumpBack(run: Run): Run {
 // refused, like a move off the corridor edge. A held key repeats once the
 // leap has landed.
 function drop(run: Run): Run {
-  const { time, tuning } = run;
+  const { tick, tuning } = run;
   const target = run.frog.depth + tuning.dropDistance;
   const approach = target - tuning.depthStep;
-  let flown: Run = { ...run, droppedAt: time };
+  let flown: Run = { ...run, droppedAt: tick };
   run.walls.forEach((wall, index) => {
     if (!wall.passed && wall.depth <= approach) flown = goBy(flown, index);
   });
   if (!clearOfWallsAt(flown, frogShape(run.frog), target)) return run;
   const landing = withFrog(flown, { depth: approach });
-  return jumpForward({ ...landing, holds: run.holds.map((hold) => ({ ...hold, nextAt: time + tuning.dropDuration })) });
+  return jumpForward({ ...landing, holds: run.holds.map((hold) => ({ ...hold, nextAt: tick + tickTiming(tuning).dropDuration })) });
 }
 
 // On the overpass the frog can line itself up and drop; nothing else.
@@ -505,7 +537,7 @@ function isJump(action: HeldAction): boolean {
 export function pressHeld(run: Run, action: HeldAction): Run {
   if (crossedFinish(run)) return run;
   const others = run.holds.filter((hold) => isJump(hold.action) !== isJump(action));
-  const holds = [...others, { action, nextAt: run.time + run.tuning.holdRepeatInterval }];
+  const holds = [...others, { action, nextAt: run.tick + tickTiming(run.tuning).holdRepeat }];
   return applyAction({ ...run, holds }, action);
 }
 
@@ -517,61 +549,8 @@ export function releaseHeld(run: Run, action?: HeldAction): Run {
 }
 
 function repeatHeld(run: Run, held: Hold): Run {
-  const holds = run.holds.map((hold) => (hold.action === held.action ? { ...hold, nextAt: held.nextAt + run.tuning.holdRepeatInterval } : hold));
+  const holds = run.holds.map((hold) => (hold.action === held.action ? { ...hold, nextAt: held.nextAt + tickTiming(run.tuning).holdRepeat } : hold));
   return applyAction({ ...run, holds }, held.action);
-}
-
-// Moves the clock to `time`, carrying every wall toward the start.
-function moveWallsTo(run: Run, time: number): Run {
-  const travel = run.tuning.wallSpeed * (time - run.time);
-  return { ...run, time, walls: run.walls.map((wall) => ({ ...wall, depth: wall.depth - travel })) };
-}
-
-interface RunEvent {
-  time: number;
-  happen: (run: Run) => Run;
-}
-
-// When the next wall reaches the frog. In play it is judged there; out of
-// play it goes by beneath.
-function nextArrival(run: Run): RunEvent | null {
-  const index = nextWall(run);
-  if (index === null) return null;
-  return {
-    time: run.time + (run.walls[index].depth - run.frog.depth) / run.tuning.wallSpeed,
-    happen: (at) => (inPlay(at) ? meet(at, index) : goBy(at, index)),
-  };
-}
-
-// When a hopping frog comes down: at the end of its airtime or, if it is
-// riding then, once the last vehicle overlapping it has gone by. Only one
-// wall can overlap the frog at a time (the tuning check spaces them).
-function nextLanding(run: Run): RunEvent | null {
-  const hopping = run.frog.latestHop;
-  if (hopping === null || hopping.landedAt !== null) return null;
-  const due = hopping.startedAt + run.tuning.hopAirtime;
-  if (run.time < due) return { time: due, happen: settle };
-  const backs = run.walls.flatMap((wall) => overlappingSolids(wall, run.frog.depth).map((solid) => wall.depth + solid.length));
-  if (backs.length === 0) throw new Error("A frog is riding with no vehicle overlapping it");
-  return {
-    time: run.time + (Math.max(...backs) - (run.frog.depth - FROG_THICKNESS)) / run.tuning.wallSpeed,
-    happen: landNow,
-  };
-}
-
-function nextRepeats(run: Run): RunEvent[] {
-  return run.holds.map((held) => ({ time: held.nextAt, happen: (at) => repeatHeld(at, held) }));
-}
-
-// The soonest of a landing, the next wall arrival and the next repeat of each
-// held key. At the same instant, a landing comes first, then an arrival, then
-// the held keys in the order pressed.
-function nextEvent(run: Run): RunEvent | null {
-  let soonest: RunEvent | null = null;
-  for (const event of [nextLanding(run), nextArrival(run), ...nextRepeats(run)]) {
-    if (event !== null && (soonest === null || event.time < soonest.time)) soonest = event;
-  }
-  return soonest;
 }
 
 // A wall whose back is the recycling distance behind the frog, out of the
@@ -581,6 +560,7 @@ function nextEvent(run: Run): RunEvent | null {
 // screen, and the frog meets the stream's rows in order however it goes.
 function recycle(run: Run): Run {
   const limit = run.frog.depth - run.tuning.recycleBehind;
+  if (run.walls.every((wall) => rowBack(wall) >= limit)) return run;
   const leaving = run.walls
     .map((wall, index) => ({ wall, index }))
     .filter(({ wall }) => rowBack(wall) < limit)
@@ -591,30 +571,114 @@ function recycle(run: Run): Run {
     const streamIndex = Math.max(...next.walls.map((wall) => wall.index)) + 1;
     const row = next.rows(streamIndex);
     const depth = Math.max(Math.max(...others.map(rowBack)) + row.gap, next.frog.depth + next.tuning.trafficHorizon);
-    next = withWall(next, index, { solids: row.solids, gates: row.gates, depth, passed: false, index: streamIndex });
+    next = withWall(next, index, {
+      solids: row.solids,
+      gates: row.gates,
+      depth,
+      placedDepth: depth,
+      placedAt: next.tick,
+      passed: false,
+      index: streamIndex,
+    });
   }
   return next;
 }
 
-// A wall going by can end a ride.
-function moveOnTo(run: Run, time: number): Run {
-  return settle(recycle(moveWallsTo(run, time)));
+// The clock moves on a tick, carrying every wall toward the start.
+function moveWalls(run: Run): Run {
+  const tick = run.tick + 1;
+  const { wallSpeed } = run.tuning;
+  return {
+    ...run,
+    tick,
+    walls: run.walls.map((wall) => ({ ...wall, depth: wall.placedDepth - (wallSpeed * (tick - wall.placedAt)) / TICK_RATE })),
+  };
 }
 
-// Moves the run on by `elapsed` seconds (clamped to the tuning's longest
-// frame). Walls travel continuously toward the start, and everything that
-// happens during the frame (a wall reaching the frog, a hop landing, a held
-// key repeating) happens in order, at its own instant: a long frame can't
-// carry a wall past the frog unjudged or skip a repeat, a hop is read when
-// the wall arrives rather than at the frame's end, and a wall that bonks the
-// frog and arrives again within the frame is judged again. After the finish
-// the traffic keeps driving, beneath the frog on the gantry.
-export function advance(run: Run, elapsed: number): Run {
-  const end = run.time + Math.min(elapsed, run.tuning.maxFrameDelta);
+// Each wall that has reached the frog's face: judged in play, and going by
+// beneath out of play. The spacing lets only one arrive at a time, but each
+// is met in turn, nearest first, and a bonk takes the frog back from the
+// face, so none is ever carried past the frog unjudged.
+function arrive(run: Run): Run {
   let next = run;
-  for (;;) {
-    const event = nextEvent(next);
-    if (event === null || event.time > end) return moveOnTo(next, end);
-    next = event.happen(moveOnTo(next, event.time));
+  for (let index = nextWall(next); index !== null && next.walls[index].depth <= next.frog.depth; index = nextWall(next)) {
+    next = inPlay(next) ? meet(next, index) : goBy(next, index);
   }
+  return next;
+}
+
+// Each held key due to act this tick acts, in the order pressed. A bonk or
+// the finish along the way puts the later ones off, or lets them go.
+function repeatDue(run: Run): Run {
+  let next = run;
+  for (const { action } of run.holds) {
+    const held = next.holds.find((hold) => hold.action === action);
+    if (held !== undefined && held.nextAt <= next.tick) next = repeatHeld(next, held);
+  }
+  return next;
+}
+
+// One tick: the walls move on, a wall far enough behind the frog is
+// recycled, and then whatever falls due in the tick happens, in this order.
+// A wall reaching the frog is judged first: it arrived within the tick, at
+// or before anything timed to the tick's end, so a hop due to land then is
+// read still up. Then a hop whose airtime is over lands, unless the frog
+// rides, and a ride ends once the last vehicle has gone by. Then the held
+// keys repeat. The inputs stamped with the tick apply after all of that.
+// After the finish the traffic keeps driving, beneath the frog on the gantry.
+export function step(run: Run): Run {
+  return repeatDue(settle(arrive(recycle(moveWalls(run)))));
+}
+
+// One input, at the run's own tick. There is one frog for now, player 0's.
+export function applyInput(run: Run, { tick, player, input }: TimedInput): Run {
+  if (tick !== run.tick) throw new Error(`An input for tick ${String(tick)} reached the run at tick ${String(run.tick)}`);
+  if (player !== 0) throw new Error(`There is no frog for player ${String(player)}`);
+  switch (input.kind) {
+    case "act":
+      return applyAction(run, input.action);
+    case "press":
+      return pressHeld(run, input.action);
+    case "release":
+      return releaseHeld(run, input.action);
+    case "releaseAll":
+      return releaseHeld(run);
+  }
+}
+
+// Where the log's inputs after `tick` start.
+function firstAfter(log: InputLog, tick: number): number {
+  let low = 0;
+  let high = log.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (log[mid].tick <= tick) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+// Plays the run on to `tick`, a tick at a time, applying each of the log's
+// inputs as the run reaches its tick. The inputs stamped with the run's own
+// tick are taken to be in it already.
+export function playTo(run: Run, tick: number, log: InputLog = NO_INPUTS): Run {
+  if (tick < run.tick) throw new Error(`A run at tick ${String(run.tick)} can't play back to ${String(tick)}`);
+  let next = run;
+  let i = firstAfter(log, run.tick);
+  while (next.tick < tick) {
+    next = step(next);
+    for (; i < log.length && log[i].tick <= next.tick; i++) {
+      if (log[i].tick < next.tick) throw new Error("The input log is out of tick order");
+      next = applyInput(next, log[i]);
+    }
+  }
+  return next;
+}
+
+// The run from `start`, at the start of its log, to `tick`, with every
+// input of the log applied at its own tick.
+export function replay(start: Run, log: InputLog, tick: number): Run {
+  let first = start;
+  for (const input of log) if (input.tick === start.tick) first = applyInput(first, input);
+  return playTo(first, tick, log);
 }

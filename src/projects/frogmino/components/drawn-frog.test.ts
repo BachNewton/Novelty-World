@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MOVE_HOP_HEIGHT, moveDuration } from "../frog/moves";
-import { advance, applyAction, createRun, hopHeight, pressHeld, type RuleFrog, type RuleRow, type Run } from "../run";
+import { applyAction, createRun, hopHeight, playTo, pressHeld, type RuleFrog, type RuleRow, type Run } from "../run";
+import { frameTicks, toSeconds } from "../ticks";
 import { TUNING } from "../tuning";
 import {
   BONK_DURATION,
@@ -38,7 +39,7 @@ describe("a gate's new piece in the drawn frog", () => {
     moveHops: [4.1],
     seen: { kind: "L", rotation: 0, col: 3, depth: 6.5 },
     hopAt: 4,
-    bonk: { time: 3, depth: 8 },
+    bonk: { tick: 300, depth: 8 },
     bonkMotion: { from: 8, to: 5, startedAt: 3 },
     drop: { fromDepth: -1, fromLevel: 2, startedAt: 1, landed: true },
     leap: null,
@@ -154,8 +155,10 @@ describe("the drawn frog's moves", () => {
 });
 
 // The drawn frog frame by frame with the real rules, as the scene steps it:
-// the rules move on, then the drawn frog sees a bonk and the moves, and
-// follows in depth and hop. The camera follows the drawn depth.
+// the rules run the frame's ticks, then the drawn frog sees a bonk and the
+// moves, and follows in depth and hop, on the drawing's clock. The frames
+// are shorter than a tick, so some run none, and the drawing must still move
+// on smoothly between ticks. The camera follows the drawn depth.
 interface Frame {
   depth: number;
   lift: number;
@@ -182,15 +185,19 @@ function runWith(row: Omit<RuleRow, "gap">, gap: number): Run {
 // each frame.
 function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => run): { run: Run; frames: Frame[] } {
   let run = first;
+  let carry = 0;
   let drawn = snapped(run);
   const frames: Frame[] = [];
   for (let k = 1; k * FRAME < seconds; k++) {
-    run = act(advance(run, FRAME));
+    const due = frameTicks(carry, FRAME, TUNING.maxFrameDelta);
+    carry = due.carry;
+    run = act(playTo(run, run.tick + due.ticks));
+    const now = toSeconds(run.tick + carry);
     const bonked = run.lastBonk !== drawn.bonk;
-    drawn = seeMoves(seeBonk(drawn, run), run.frog, run.time, !bonked);
-    const pose = bonkPose(drawn.bonkMotion, run);
+    drawn = seeMoves(seeBonk(drawn, run), run.frog, now, !bonked);
+    const pose = bonkPose(drawn.bonkMotion, run, now);
     if (pose === null) drawn = { ...drawn, bonkMotion: null };
-    drawn = withHop(run, followDepth(drawn, run, pose, FRAME));
+    drawn = withHop(run, followDepth(drawn, run, now, pose, FRAME), now);
     frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: hopHeight(run.frog) === 1 });
   }
   return { run, frames };
@@ -200,7 +207,7 @@ function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => ru
 function at(time: number, action: (run: Run) => Run): (run: Run) => Run {
   let done = false;
   return (run) => {
-    if (done || run.time < time) return run;
+    if (done || toSeconds(run.tick) < time) return run;
     done = true;
     return action(run);
   };
@@ -238,7 +245,7 @@ describe("the drawn frog riding a row and jumping off it", () => {
     const { run, frames } = play();
     expect(run.walls[0].passed).toBe(true);
     expect(run.frog.depth).toBe(5 + 2 * TUNING.depthStep);
-    expect(run.frog.latestHop?.landedAt).toBeCloseTo(secondJump, 1);
+    expect(toSeconds(run.frog.latestHop?.landedAt ?? 0)).toBeCloseTo(secondJump, 1);
     expect(frames.some((frame) => !frame.up && frame.among)).toBe(true);
   });
 
@@ -278,7 +285,7 @@ describe("the drawn frog bonked while it moves", () => {
 
   it("knocks a frog standing still back smoothly", () => {
     const { run, frames } = drive(runWith(solid, 6), 1);
-    expect(run.lastBonk?.time).toBeCloseTo(0.4, 1);
+    expect(toSeconds(run.lastBonk?.tick ?? 0)).toBeCloseTo(0.4, 1);
     expectSmooth(frames, fastest);
     expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
   });
@@ -295,7 +302,7 @@ describe("the drawn frog bonked while it moves", () => {
   it("knocks a frog back from mid-glide when a row arrives before the glide is done", () => {
     // The jump at 0.5 s glides from 5 to 6.5; the row reaches 6.5 at 0.6 s.
     const { run, frames } = drive(runWith(solid, 8), 1, at(0.5, forward));
-    expect(run.lastBonk?.time).toBeCloseTo(0.6, 1);
+    expect(toSeconds(run.lastBonk?.tick ?? 0)).toBeCloseTo(0.6, 1);
     expect(Math.max(...frames.map((frame) => frame.depth))).toBeLessThan(6.5);
     expectSmooth(frames, fastest);
     expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);

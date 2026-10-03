@@ -23,6 +23,7 @@ import { moveDuration } from "../frog/moves";
 import { cellKey, frogCells } from "../logic";
 import { FROG_THICKNESS, crossedFinish, frogShape, nextWall } from "../run";
 import { useFrogminoStore } from "../store";
+import { tickTiming, toSeconds } from "../ticks";
 import { rowLength } from "../traffic";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
@@ -145,9 +146,10 @@ function follow(camera: CameraImpl, d: DrawnFrog, delta: number, snap: boolean):
   camera.position.y = snap ? eye.y : easedCameraHeight(camera.position.y, eye.y, delta);
 }
 
-// Runs the game each frame: advances the rules, then eases the drawn frog
-// toward its rule state and places the traffic, all without React
-// re-rendering.
+// Runs the game each frame: runs the rules' ticks the frame has brought due,
+// then eases the drawn frog toward its rule state and places the traffic, all
+// without React re-rendering. Everything is drawn at `now`, the rules' time
+// and on into the tick under way, so nothing steps at the tick rate.
 function Game() {
   const stream = useFrogminoStore((s) => s.stream);
   // Which row of the stream each wall is: changes only when a wall is
@@ -194,8 +196,10 @@ function Game() {
   const drawnRunId = useRef(-1);
 
   useFrame((state, delta) => {
-    useFrogminoStore.getState().tick(delta);
-    const { run, runId } = useFrogminoStore.getState();
+    useFrogminoStore.getState().frame(delta);
+    const { run, runId, carry } = useFrogminoStore.getState();
+    const now = toSeconds(run.tick + carry);
+    const timing = tickTiming(run.tuning);
     const play = (action: Parameters<FrogHandle["play"]>[0]): void => {
       bodyRef.current?.play(action);
       silhouetteRef.current?.play(action);
@@ -243,11 +247,11 @@ function Game() {
       if (run.lastBonk !== null) play("bonk");
     }
     if (run.droppedAt !== null && d.drop === null && d.level > 0) {
-      d.drop = { fromDepth: d.depth, fromLevel: d.level, startedAt: run.droppedAt, landed: false };
+      d.drop = { fromDepth: d.depth, fromLevel: d.level, startedAt: toSeconds(run.droppedAt), landed: false };
       play("hop");
     }
     if (run.finishedAt !== null && d.leap === null) {
-      d.leap = { fromDepth: d.depth, fromLevel: d.level, startedAt: run.finishedAt, landed: false };
+      d.leap = { fromDepth: d.depth, fromLevel: d.level, startedAt: toSeconds(run.finishedAt), landed: false };
       play("hop");
     }
 
@@ -257,7 +261,7 @@ function Game() {
     // A slide or a jump is drawn as a move: a glide to its new place, with
     // a small hop. A bonk's knock-back, the drop and the finish leap move the
     // frog too, and are drawn as their own motions.
-    const seen = seeMoves(d, run.frog, run.time, !bonked && !leaping && !crossedFinish(run));
+    const seen = seeMoves(d, run.frog, now, !bonked && !leaping && !crossedFinish(run));
     if (seen.moveHops !== d.moveHops) {
       bodyRef.current?.move(stride);
       silhouetteRef.current?.move(stride);
@@ -267,8 +271,8 @@ function Game() {
     if (modelPosed) {
       const slide = d.glideX;
       if (slide !== null && slide.to === target.x) {
-        d.x = glideAt(slide, run.time, stride);
-        if (arrived(slide, run.time, stride)) d.glideX = null;
+        d.x = glideAt(slide, now, stride);
+        if (arrived(slide, now, stride)) d.glideX = null;
       } else {
         d.glideX = null;
         d.x = MathUtils.damp(d.x, target.x, lambda, delta);
@@ -277,13 +281,13 @@ function Game() {
       d.swing = MathUtils.damp(d.swing, 0, lambda, delta);
     }
 
-    const pose = bonkPose(d.bonkMotion, run);
+    const pose = bonkPose(d.bonkMotion, run, now);
     if (pose === null) d.bonkMotion = null;
     let height = d.level;
     let spin = 0;
     if (leaping) {
-      const duration = leap === d.leap ? run.tuning.finishLeapDuration : run.tuning.dropDuration;
-      const progress = leapProgress(run.time - leap.startedAt, duration);
+      const duration = toSeconds(leap === d.leap ? timing.finishLeap : timing.dropDuration);
+      const progress = leapProgress(now - leap.startedAt, duration);
       const at =
         leap === d.leap ? finishLeapPose(leap, courseLength, progress) : dropPose(leap, target.depth, progress);
       d.depth = at.depth;
@@ -295,7 +299,7 @@ function Game() {
         play("land");
       }
     } else if (!crossedFinish(run)) {
-      d = followDepth(d, run, pose, delta);
+      d = followDepth(d, run, now, pose, delta);
       drawn.current = d;
     }
 
@@ -313,13 +317,13 @@ function Game() {
       d.swing = 0;
       d.glideX = null;
     }
-    d = withHop(run, d);
+    d = withHop(run, d, now);
     drawn.current = d;
     if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
     // A move's hop never lifts the frog among vehicles, and never plays over
     // a bonk's knock-back, the drop or the finish leap. A hop's arc already
     // lifts it higher, so the two never add up.
-    const stepLift = among || pose !== null || leaping ? 0 : moveLift(d.moveHops, run.time, stride);
+    const stepLift = among || pose !== null || leaping ? 0 : moveLift(d.moveHops, now, stride);
 
     const frog = frogRef.current;
     if (frog !== null) {
@@ -330,9 +334,11 @@ function Game() {
     }
     follow(state.camera, d, delta, newRun);
 
+    // The traffic is drawn as far on into the tick as real time has got.
+    const travel = run.tuning.wallSpeed * toSeconds(carry);
     run.walls.forEach((wall, i) => {
       const group = wallRefs.current[i];
-      if (group) group.position.z = -wall.depth;
+      if (group) group.position.z = -(wall.depth - travel);
     });
 
     const fit = fitRef.current;
@@ -340,7 +346,7 @@ function Game() {
     const next = nextWall(run);
     fit.visible = next !== null && !crossedFinish(run);
     if (next === null) return;
-    fit.position.z = -run.walls[next].depth + FIT_OUTLINE_LIFT;
+    fit.position.z = -(run.walls[next].depth - travel) + FIT_OUTLINE_LIFT;
     const cells = frogCells(frogShape(run.frog));
     const shape = cells.map(cellKey).join(";");
     if (shape !== fitShape.current) {

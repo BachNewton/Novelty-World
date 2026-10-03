@@ -38,7 +38,7 @@ export function soundCues(before: GameMoment, after: GameMoment, streak: number)
     cues.push({ sound: "pass", semitones: passStreakSemitones(next) });
     next++;
   }
-  if (now.lastBonk !== null && now.lastBonk.time !== was.lastBonk?.time) {
+  if (now.lastBonk !== null && now.lastBonk.tick !== was.lastBonk?.tick) {
     cues.push({ sound: "bonk" });
     next = 0;
   }

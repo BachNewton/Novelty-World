@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { advance, applyAction, createRun, pressHeld, type RuleRow, type RuleRows, type Run } from "../run";
+import { applyAction, createRun, playTo, pressHeld, type RuleRow, type RuleRows, type Run } from "../run";
+import { toTicks } from "../ticks";
 import { TUNING } from "../tuning";
 import type { Cell, Gate } from "../types";
 import { soundCues, type GameMoment, type SoundCue } from "./cues";
 
-const FRAME = 1 / 60;
+// Two ticks a frame.
+const FRAME = 0.02;
+
+function advance(run: Run, seconds: number): Run {
+  return playTo(run, run.tick + toTicks(seconds));
+}
 // The row comes this far ahead of where the drop lands the frog.
 const ROW_AHEAD = 12;
 const WALL_DEPTH = TUNING.dropDistance + ROW_AHEAD;
@@ -87,7 +93,7 @@ describe("soundCues", () => {
     const moment = (run: Run): GameMoment => ({ run, runId: 0 });
     expect(soundCues(moment(before), moment(passed), 0)).toEqual({ cues: [{ sound: "pass", semitones: 0 }], streak: 1 });
     expect(soundCues(moment(before), moment(passed), 3).cues).toEqual([{ sound: "pass", semitones: 7 }]);
-    const bonked: Run = { ...before, lastBonk: { time: before.time, depth: WALL_DEPTH } };
+    const bonked: Run = { ...before, lastBonk: { tick: before.tick, depth: WALL_DEPTH } };
     expect(soundCues(moment(before), moment(bonked), 4)).toEqual({ cues: [{ sound: "bonk" }], streak: 0 });
   });
 
