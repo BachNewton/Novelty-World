@@ -138,6 +138,13 @@ export const PROJECTS: Project[] = [
     categorySlug: "tools",
     icon: "Users",
   },
+  {
+    name: "Controller Tester",
+    slug: "controller-tester",
+    description: "Check every button, stick and trigger of a game controller",
+    categorySlug: "tools",
+    icon: "Gamepad2",
+  },
 ];
 
 /** Build the full URL path for a project (e.g., "/games/monopoly") */

@@ -40,6 +40,9 @@ const PROJECT_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   frogmino: dynamic(() =>
     import("@/projects/frogmino").then((m) => ({ default: m.Frogmino })),
   ),
+  "controller-tester": dynamic(() =>
+    import("@/projects/controller-tester").then((m) => ({ default: m.ControllerTester })),
+  ),
 };
 
 interface Props {
