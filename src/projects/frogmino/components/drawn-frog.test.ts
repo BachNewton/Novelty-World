@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOVE_HOP_HEIGHT, moveDuration } from "../frog/moves";
-import { applyAction, createRun, hopHeight, playTo, pressHeld, type RuleFrog, type RuleRow, type Run } from "../run";
+import { applyAction, createRun, hopHeight, playTo, pressHeld, type PlacedFrog, type RuleRow, type Run } from "../run";
 import { frameTicks, toSeconds } from "../ticks";
 import { TUNING } from "../tuning";
 import {
@@ -8,6 +8,7 @@ import {
   amongVehicles,
   arrived,
   bonkPose,
+  drawnRuleFrog,
   followDepth,
   frogTarget,
   glideAt,
@@ -44,7 +45,7 @@ describe("a gate's new piece in the drawn frog", () => {
     drop: { fromDepth: -1, fromLevel: 2, startedAt: 1, landed: true },
     leap: null,
   };
-  const frog: RuleFrog = { kind: "I", col: 4, rotation: 1, depth: 8, latestHop: { startedAt: 4, landedAt: null } };
+  const frog: PlacedFrog = { kind: "I", col: 4, rotation: 1, depth: 8, latestHop: { startedAt: 4, landedAt: null } };
 
   it("draws the new piece at once, in its rule pose", () => {
     const next = withPiece(drawn, frog);
@@ -71,7 +72,7 @@ describe("a gate's new piece in the drawn frog", () => {
 
 describe("the drawn frog's moves", () => {
   const stride = moveDuration(TUNING);
-  const start: RuleFrog = { kind: "T", col: 2, rotation: 0, depth: 3, latestHop: null };
+  const start: PlacedFrog = { kind: "T", col: 2, rotation: 0, depth: 3, latestHop: null };
   const resting: DrawnFrog = {
     ...frogTarget(start),
     kind: "T",
@@ -98,7 +99,7 @@ describe("the drawn frog's moves", () => {
   });
 
   it("glides from where the frog is drawn to where the rules put it, with a hop", () => {
-    const jumped: RuleFrog = { ...start, depth: 4.5, col: 3 };
+    const jumped: PlacedFrog = { ...start, depth: 4.5, col: 3 };
     const next = seeMoves(resting, jumped, 10, true);
     expect(next.glideDepth).toEqual({ from: 3, to: 4.5, startedAt: 10 });
     expect(next.glideX).toEqual({ from: resting.x, to: frogTarget(jumped).x, startedAt: 10 });
@@ -178,7 +179,7 @@ const KNOCK_BACK_FRAME = (2 * TUNING.bonkKnockback * TUNING.depthStep * FRAME) /
 // the stream out of reach, with the frog dropped onto the road at depth 5.
 function runWith(row: Omit<RuleRow, "gap">, gap: number): Run {
   const start = createRun((index) => ({ ...row, gap: index === 0 ? gap : 1e6 }), TUNING);
-  return { ...start, droppedAt: 0, frog: { ...start.frog, depth: 5 } };
+  return { ...start, droppedAt: 0, depth: 5 };
 }
 
 // Plays `seconds` from `first`, acting with `act` before the drawn frog looks
@@ -194,11 +195,11 @@ function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => ru
     run = act(playTo(run, run.tick + due.ticks));
     const now = toSeconds(run.tick + carry);
     const bonked = run.lastBonk !== drawn.bonk;
-    drawn = seeMoves(seeBonk(drawn, run), run.frog, now, !bonked);
+    drawn = seeMoves(seeBonk(drawn, run), drawnRuleFrog(run), now, !bonked);
     const pose = bonkPose(drawn.bonkMotion, run, now);
     if (pose === null) drawn = { ...drawn, bonkMotion: null };
     drawn = withHop(run, followDepth(drawn, run, now, pose, FRAME), now);
-    frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: hopHeight(run.frog) === 1 });
+    frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: hopHeight(run.frogs[0]) === 1 });
   }
   return { run, frames };
 }
@@ -244,8 +245,8 @@ describe("the drawn frog riding a row and jumping off it", () => {
   it("lands by the rules while the drawn frog is still among the car", () => {
     const { run, frames } = play();
     expect(run.walls[0].passed).toBe(true);
-    expect(run.frog.depth).toBe(5 + 2 * TUNING.depthStep);
-    expect(toSeconds(run.frog.latestHop?.landedAt ?? 0)).toBeCloseTo(secondJump, 1);
+    expect(run.depth).toBe(5 + 2 * TUNING.depthStep);
+    expect(toSeconds(run.frogs[0].latestHop?.landedAt ?? 0)).toBeCloseTo(secondJump, 1);
     expect(frames.some((frame) => !frame.up && frame.among)).toBe(true);
   });
 
@@ -287,7 +288,7 @@ describe("the drawn frog bonked while it moves", () => {
     const { run, frames } = drive(runWith(solid, 6), 1);
     expect(toSeconds(run.lastBonk?.tick ?? 0)).toBeCloseTo(0.4, 1);
     expectSmooth(frames, fastest);
-    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.depth);
   });
 
   it("knocks a jump forward into a row's face back from where the frog is drawn, short of the face", () => {
@@ -296,7 +297,7 @@ describe("the drawn frog bonked while it moves", () => {
     expect(run.lastBonk?.depth).toBeGreaterThan(5.5);
     expect(Math.max(...frames.map((frame) => frame.depth))).toBeLessThanOrEqual(5);
     expectSmooth(frames, fastest);
-    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.depth);
   });
 
   it("knocks a frog back from mid-glide when a row arrives before the glide is done", () => {
@@ -305,7 +306,7 @@ describe("the drawn frog bonked while it moves", () => {
     expect(toSeconds(run.lastBonk?.tick ?? 0)).toBeCloseTo(0.6, 1);
     expect(Math.max(...frames.map((frame) => frame.depth))).toBeLessThan(6.5);
     expectSmooth(frames, fastest);
-    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.depth);
   });
 
   it("keeps a held jump smooth through the bonk and the jumps after it, mid-knock-back", () => {

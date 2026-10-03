@@ -1,4 +1,5 @@
-import { cellKey, frogCells, frogPasses, pieceSize } from "../logic";
+import { cellKey, frogCells, frogPasses } from "../logic";
+import { startPlacements } from "../run";
 import { rowOpening, type Row } from "../traffic";
 import { TUNING } from "../tuning";
 import type { Frog, HopHeight, Rotation, TetrominoKind } from "../types";
@@ -99,14 +100,8 @@ export function passingPoses(row: Row, lanes: number, kinds: readonly TetrominoK
   return place([], new Set());
 }
 
-// The frogs as they wait on the overpass: upright, each in the middle of its
-// own share of the road.
+// The frogs as they wait on the overpass, where the rules start them: each
+// in the middle of its own share of the road.
 export function startPoses(lanes: number, kinds: readonly TetrominoKind[]): Frog[] {
-  const share = lanes / kinds.length;
-  return kinds.map((kind, i) => ({
-    kind,
-    col: Math.floor(i * share + (share - pieceSize(kind, 0).width) / 2),
-    rotation: 0,
-    hop: 0,
-  }));
+  return startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, hop: 0 }));
 }

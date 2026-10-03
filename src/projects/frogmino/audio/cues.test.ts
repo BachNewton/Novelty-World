@@ -106,7 +106,7 @@ describe("soundCues", () => {
   it("sounds the gate once as the frog passes through one and becomes its piece", () => {
     // The upright L lined up with the gate.
     const lined = applyAction(applyAction(createRun(gateRow(), TUNING), "rotateCw"), "right");
-    expect(lined.frog).toMatchObject({ col: 3, rotation: 1 });
+    expect(lined.frogs[0]).toMatchObject({ col: 3, rotation: 1 });
     expect(soundsOf(hearFrames(applyAction(lined, "forward")))).toEqual(["pass", "gate"]);
   });
 
@@ -120,9 +120,9 @@ describe("soundCues", () => {
     expect(back.walls[0].passed).toBe(false);
     expect(soundCues({ run, runId: 0 }, { run: back, runId: 0 }, 0).cues).toEqual([]);
     // As an L, going back through the gate turns it into the O, once.
-    const asL: Run = { ...run, frog: { ...run.frog, kind: "L", rotation: 1 } };
+    const asL: Run = { ...run, frogs: [{ ...run.frogs[0], kind: "L", rotation: 1 }] };
     const turned = applyAction(asL, "back");
-    expect(turned.frog.kind).toBe("O");
+    expect(turned.frogs[0].kind).toBe("O");
     expect(soundsOf(soundCues({ run: asL, runId: 0 }, { run: turned, runId: 0 }, 0).cues)).toEqual(["gate"]);
   });
 

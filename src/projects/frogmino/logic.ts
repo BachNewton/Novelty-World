@@ -80,21 +80,32 @@ export function insideLanes(kind: TetrominoKind, placement: Placement, lanes: La
   return placement.col >= lanes.first && placement.col + width - 1 <= lanes.last;
 }
 
-// Turns a piece about its middle, kept inside the lanes. A turn that would
-// poke out of them is nudged one lane back in (a Tetris-style wall kick); if
-// it still doesn't fit, the turn fails and this returns null. Clockwise
-// rounds the recentring one way and counter-clockwise the other, so turning
-// and turning back returns the piece to its lane.
-export function rotateInCorridor(
+// The lane offsets a turn tries, in order, from where the turned piece is
+// centred: Tetris-style kicks. Only sideways: a frog's height is its hop's,
+// so a kick never lifts or drops it. Two lanes is the most any piece needs to
+// turn against the road's edge (the I, between four lanes wide and one). A
+// clockwise turn tries right first and a counter-clockwise turn left first,
+// so a turn and its mirror image kick mirror-image ways.
+export function turnKicks(turn: Turn): readonly number[] {
+  return turn === 1 ? [0, 1, -1, 2, -2] : [0, -1, 1, -2, 2];
+}
+
+// Turns a piece about its middle, to the first of its kicks where `fits`
+// holds; null if none does, and the turn fails. Clockwise rounds the
+// recentring one way and counter-clockwise the other, so turning and turning
+// back in open space returns the piece to its lane.
+export function turnWithKicks(
   kind: TetrominoKind,
   placement: Placement,
   turn: Turn,
-  lanes: Lanes,
+  fits: (placement: Placement) => boolean,
 ): Placement | null {
   const rotation = ((placement.rotation + turn + 4) % 4) as Rotation;
   const shift = (pieceSize(kind, placement.rotation).width - pieceSize(kind, rotation).width) / 2;
   const centred = placement.col + (turn === 1 ? Math.floor(shift) : Math.ceil(shift));
-  if (insideLanes(kind, { col: centred, rotation }, lanes)) return { col: centred, rotation };
-  const kicked = centred < lanes.first ? centred + 1 : centred - 1;
-  return insideLanes(kind, { col: kicked, rotation }, lanes) ? { col: kicked, rotation } : null;
+  for (const kick of turnKicks(turn)) {
+    const kicked = { col: centred + kick, rotation };
+    if (fits(kicked)) return kicked;
+  }
+  return null;
 }

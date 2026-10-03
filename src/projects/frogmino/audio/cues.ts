@@ -24,9 +24,9 @@ export interface Heard {
 // The sounds between two moments of the game. A restart is silent and starts
 // the streak over. Each pass of a row sounds once (a row the traffic brings
 // round again is a new pass, and one going by beneath the frog on the
-// overpass or the gantry is no pass), each bonk once, a hop as it starts, the
+// overpass or the gantry is no pass), each bonk once, a hop as any frog starts one, the
 // drop from the overpass, a change of piece (only a gate changes it, so each
-// transformation sounds once, whichever way the frog went through) and
+// transformation sounds once, whichever way a frog went through) and
 // crossing the finish line.
 export function soundCues(before: GameMoment, after: GameMoment, streak: number): Heard {
   if (after.runId !== before.runId) return { cues: [], streak: 0 };
@@ -42,10 +42,10 @@ export function soundCues(before: GameMoment, after: GameMoment, streak: number)
     cues.push({ sound: "bonk" });
     next = 0;
   }
-  const hop = now.frog.latestHop;
-  if (hop !== null && hop.startedAt !== was.frog.latestHop?.startedAt) cues.push({ sound: "hop" });
+  const hopped = now.frogs.some((frog, i) => frog.latestHop !== null && frog.latestHop.startedAt !== was.frogs[i].latestHop?.startedAt);
+  if (hopped) cues.push({ sound: "hop" });
   if (now.droppedAt !== null && was.droppedAt === null) cues.push({ sound: "drop" });
-  if (now.frog.kind !== was.frog.kind) cues.push({ sound: "gate" });
+  if (now.frogs.some((frog, i) => frog.kind !== was.frogs[i].kind)) cues.push({ sound: "gate" });
   if (crossedFinish(now) && !crossedFinish(was)) cues.push({ sound: "finish" });
   return { cues, streak: next };
 }

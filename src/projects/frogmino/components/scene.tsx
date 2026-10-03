@@ -31,7 +31,9 @@ import { DECK_TOP } from "../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
 import {
   type DrawnFrog,
+  DRAWN_PLAYER,
   amongVehicles,
+  drawnRuleFrog,
   arrived,
   bonkPose,
   followDepth,
@@ -155,8 +157,8 @@ function Game() {
   // Which row of the stream each wall is: changes only when a wall is
   // recycled as the next row.
   const traffic = useFrogminoStore(useShallow((s) => s.run.walls.map((wall) => wall.index)));
-  const kind = useFrogminoStore((s) => s.run.frog.kind);
-  const rotation = useFrogminoStore((s) => s.run.frog.rotation);
+  const kind = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].kind);
+  const rotation = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].rotation);
 
   const assets = useMemo(() => makeAssets(), []);
   const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
@@ -198,6 +200,7 @@ function Game() {
   useFrame((state, delta) => {
     useFrogminoStore.getState().frame(delta);
     const { run, runId, carry } = useFrogminoStore.getState();
+    const ruleFrog = drawnRuleFrog(run);
     const now = toSeconds(run.tick + carry);
     const timing = tickTiming(run.tuning);
     const play = (action: Parameters<FrogHandle["play"]>[0]): void => {
@@ -217,9 +220,9 @@ function Game() {
     // new piece or rotation only from the frame after the rules take it.
     // Until then the drawn frog holds its pose, or the old model would be
     // drawn for a frame in the new pose's place.
-    const modelPosed = kind === run.frog.kind && rotation === run.frog.rotation;
+    const modelPosed = kind === ruleFrog.kind && rotation === ruleFrog.rotation;
     if (modelPosed && d.kind !== kind) {
-      d = withPiece(d, run.frog);
+      d = withPiece(d, ruleFrog);
       drawn.current = d;
     } else if (modelPosed && d.rotation !== rotation) {
       // The frog is drawn at once in its new rotation, so it starts swung
@@ -232,10 +235,10 @@ function Game() {
     // duration, for what isn't drawn as a move's glide: a turn's swing and
     // shift, and anything else that moves the frog.
     const lambda = 3 / run.tuning.easeDuration;
-    const target = frogTarget(run.frog);
+    const target = frogTarget(ruleFrog);
     const stride = moveDuration(run.tuning);
 
-    const hop = run.frog.latestHop;
+    const hop = ruleFrog.latestHop;
     if (hop !== null && hop.startedAt !== d.hopAt) {
       d.hopAt = hop.startedAt;
       play("hop");
@@ -261,7 +264,7 @@ function Game() {
     // A slide or a jump is drawn as a move: a glide to its new place, with
     // a small hop. A bonk's knock-back, the drop and the finish leap move the
     // frog too, and are drawn as their own motions.
-    const seen = seeMoves(d, run.frog, now, !bonked && !leaping && !crossedFinish(run));
+    const seen = seeMoves(d, ruleFrog, now, !bonked && !leaping && !crossedFinish(run));
     if (seen.moveHops !== d.moveHops) {
       bodyRef.current?.move(stride);
       silhouetteRef.current?.move(stride);
@@ -347,7 +350,7 @@ function Game() {
     fit.visible = next !== null && !crossedFinish(run);
     if (next === null) return;
     fit.position.z = -(run.walls[next].depth - travel) + FIT_OUTLINE_LIFT;
-    const cells = frogCells(frogShape(run.frog));
+    const cells = frogCells(frogShape(ruleFrog));
     const shape = cells.map(cellKey).join(";");
     if (shape !== fitShape.current) {
       fitShape.current = shape;

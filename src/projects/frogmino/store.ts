@@ -22,7 +22,7 @@ const STREAM = rowStream(COURSE_SEED, TUNING);
 const PLAYER = 0;
 
 function freshRun(): Run {
-  return createRun(STREAM.row, TUNING, { kind: STREAM.start });
+  return createRun(STREAM.row, TUNING, { kinds: [STREAM.start] });
 }
 
 interface FrogminoStore {

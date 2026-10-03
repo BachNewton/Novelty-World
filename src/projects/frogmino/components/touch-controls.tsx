@@ -4,6 +4,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronsUp, MoveHorizontal, RotateCcw, RotateCw } from "lucide-react";
 import { isDone } from "../run";
 import { useFrogminoStore } from "../store";
+import { DRAWN_PLAYER } from "./drawn-frog";
 import { useFrogTouch } from "./use-frog-touch";
 
 // The hint gets out of the way once the player has made this many gestures.
@@ -74,8 +75,8 @@ export function TouchControls() {
   }, []);
   const handlers = useFrogTouch(countGesture);
   const done = useFrogminoStore((s) => isDone(s.run));
-  const depth = useFrogminoStore((s) => s.run.frog.depth);
-  const hoppedAt = useFrogminoStore((s) => s.run.frog.latestHop?.startedAt ?? null);
+  const depth = useFrogminoStore((s) => s.run.depth);
+  const hoppedAt = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].latestHop?.startedAt ?? null);
 
   return (
     <>
