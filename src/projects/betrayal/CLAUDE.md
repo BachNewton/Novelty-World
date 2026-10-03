@@ -104,6 +104,8 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 
 `design/haunt-survey.md` is the evidence base for the engine: every haunt broken down against the parts kit. It gives the coverage, the override questions the engine must answer (ranked by how many haunts use them), the parts kit, the engine capabilities beyond overrides, and the outliers that need custom code.
 
+`design/engine.md` is the engine design built on it: layers, game state, decisions and events, randomness, the rules interface, the haunt format, the content pipeline, server, client sync, testing and build order, with the lessons from Monopoly folded in.
+
 ## Next step
 
-Write the engine design doc from the survey, the decisions in this file, and the critical review of Monopoly, for the owner to review before any code.
+The owner reviews `design/engine.md` and settles its open questions. Then building starts at its first milestone.
