@@ -69,6 +69,13 @@ export const PROJECTS: Project[] = [
     icon: "Grid3x3",
   },
   {
+    name: "Betrayal at House on the Hill",
+    slug: "betrayal",
+    description: "Explore a haunted house until one friend turns traitor",
+    categorySlug: "board-games",
+    icon: "Ghost",
+  },
+  {
     name: "Flag Game",
     slug: "flag-game",
     description: "Test your knowledge of world flags",

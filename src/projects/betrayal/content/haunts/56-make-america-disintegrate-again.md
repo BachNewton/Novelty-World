@@ -1,0 +1,57 @@
+# 56 — Make America Disintegrate Again
+
+Summary: A presidential candidate is really a lich performing a ritual to rule over life and death, with one of the heroes' friends turned to his side; the heroes must destroy all his Phylacteries before the ritual is completed.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- Your explorer is still in the game but has turned traitor.
+- You are a campaign manager for a Lich running for president of the United States. Set aside the Madman (representing the Lich), and put one Obstacle token (representing Power) on it.
+- Put three pentagonal item tokens (representing the Lich's Phylacteries) anywhere in the house.
+- From now on you must speak only in bombastic political talking points.
+
+### Rules
+#### You must do this on your turn
+- At the end of each of the original traitor's turns, add a Power token to the Madman card for each traitor still living, including yourself.
+
+#### Special attack rules
+- Traitors now deal all their damage to Sanity. If a hero is reduced to 0 Sanity, the hero becomes a traitor instead of dying, with all traits reset to their starting values. Traitors can only speak in empty talking points, as you do.
+- When attacking, a traitor can offer "The Choice": the damage can be dealt to the targeted hero, or split between the other heroes, rounded up. Example: in a game with three heroes, if you would deal 2 Sanity damage to a hero, you can offer The Choice, and that hero can instead have 1 Sanity damage dealt to each of the other two heroes. If The Choice is accepted, gain 1 Sanity.
+- Instead of dealing damage, you can force the explorer to move away from his or her current room, a number of tiles equal to the damage you would have dealt. You choose where the explorer goes.
+
+> Note: "rounded up" is only shown with an even split (2 damage between 2 heroes); the rounding for uneven splits is not spelled out.
+> Note: The targeted hero accepts or refuses The Choice (per the example). "Gain 1 Sanity" reads as the attacking traitor gaining it.
+> Note: The printed wording is "move the same number of tiles away from his or her current room for each point of damage that you would have done"; restated above as one tile per point.
+> Note: The Phylacteries are placed but have no rules in this half.
+
+#### If you would be reduced to zero Sanity
+- You stay at 1 point above your Sanity skull symbol.
+
+### Traitor wins when
+- All the heroes are dead or traitors, or twenty Power tokens are stacked on top of the Madman card, completing the Rites of Ascension.
+
+### What they know about the other side
+- The heroes are trying to stop the ritual.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- The heroes may redistribute item cards among themselves.
+- The heroes may redistribute the points of their current Sanity values among themselves.
+
+### Rules
+#### How to destroy a Phylactery
+- Each Phylactery is a pentagonal item token.
+- To destroy a Phylactery, all remaining heroes must be in the same room as it.
+#### Special attack rules
+- When you take Sanity damage, a traitor may give you the choice of spreading it among any other heroes, rounded up. If you decline, you take all of the damage.
+- Redistribution happens before any hero suffers the damage.
+
+> Note: "rounded up" is not explained further; it presumably applies when the damage is split into shares that aren't whole numbers.
+
+### Heroes win when
+- You destroy all of the lich's Phylacteries before the traitor completes the Rites of Ascension.
+
+### What they know about the other side
+- The candidate wants control of the country and of life and death. When the ritual is complete, the lich becomes President and Overlord of America and chaos spreads.
+- One of the heroes' friends has been won over by the candidate (called "the Madman") and turned against them, trying to bring them over to his side or die trying.

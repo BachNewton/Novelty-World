@@ -1,0 +1,71 @@
+# 7 — Carnivorous Ivy
+
+Summary: Carnivorous vines (Creepers) are growing through the house to grab the heroes; the heroes must brew Plant Spray and use it to kill enough Creepers.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- Your explorer stays in the game but is now the traitor.
+- If you are carrying the Book, you must drop it, and you can never pick it up again.
+- Set aside numbered pairs of small orange monster tokens (Roots) and small green monster tokens (Tips): the number of pairs is twice the number of players, to a maximum of 10 pairs. Each matching Root/Tip pair is one Creeper.
+- Place one Root token in each of these **Creeper rooms**: Entrance Hall, Balcony, Bedroom, Chapel, Conservatory, Dining Room, Gardens, Grand Staircase, Graveyard, Master Bedroom, Patio, and Tower.
+  - At most one Root token per room.
+  - If more Creeper rooms are in play than you have Root tokens, you choose which rooms get Roots.
+  - If you have more Root tokens than Creeper rooms in play, you may place extra Roots as further Creeper rooms are discovered.
+- Place a Tip token in every room that has a Root token.
+
+### Monsters
+- Creepers — Speed 2 · Might 5 · Sanity 3
+  - A Creeper grows by moving its Tip; its Root never leaves its starting room.
+  - If a Tip enters the Mystic Elevator, the Elevator does not work until the Tip leaves.
+  - Roots do not slow explorer movement; Tips do.
+
+### Rules
+#### Special Attack Rules
+- Roots never move, cannot attack and cannot be attacked. Tips can do all of those.
+- If a Tip beats a hero in physical combat, the hero takes no damage and is instead grabbed by the Tip. The grabbed hero drops all items, which stay in that room. The Tip's movement then ends.
+- Other Tips cannot attack a hero who is already grabbed, but you (the traitor) can.
+- When a Tip starts its turn holding a grabbed hero, that turn it moves 2 spaces toward its matching Root instead of moving normally. It may take any path back to the Root. A Tip holding a grabbed hero cannot attack.
+- At the start of a Creeper's turn, every grabbed hero at that Creeper's Root is killed ("mulched"). Then remove that Creeper (Root and Tip).
+- The Bell has no effect on grabbed heroes. The Spirit Board has no effect on Tips.
+
+> Note: the book prints "The Ttip then ends its movement" (typo for "Tip").
+> Resolution (unresolved): no errata found. It is evidently a typo for "Tip". The revised 1st-edition text has no such sentence.
+> Note: the book says only that the Tip moves 2 spaces toward its Root and calls these "Tips carrying grabbed heroes"; it does not state outright that the grabbed hero moves with the Tip (interpretation: it does, since grabbed heroes are later killed "at that Creeper's Root").
+> Resolution (community): yes, the grabbed hero moves with the Tip. BGG answers treat grabbed heroes as "carried" by the Tip and argue only about whether they slow its movement; no one disputes that they travel with it. The revised 1st-edition Secrets of Survival likewise has a stunned Tip drop "whoever it's carrying". Source: https://boardgamegeek.com/thread/2791390, https://boardgamegeek.com/thread/2799116, http://web.archive.org/web/20060110122045/http://www.wizards.com:80/avalonhill/rules/BHH_SurvivalRev_120105.pdf
+
+#### Destroying the heroes' special item
+- To destroy the heroes' special item, first steal it from the hero holding it (see "Special Attacks" on page 13 of the rulebook). Then end your turn in the Chasm, Furnace Room or Underground Lake to destroy it.
+
+### Traitor wins when
+- All the heroes are dead, or
+- The special item the heroes made has been destroyed.
+
+### What they know about the other side
+- The heroes are working on something that can destroy your vines. They can make a special item using rules in the Secrets of Survival booklet.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Set aside a pentagonal item token to represent the Plant Spray.
+### Rules
+#### How to Create Plant Spray
+- Carry the Book to the Research Laboratory or the Kitchen. Once during their turn, a hero who is in one of those rooms and carrying the Book can attempt a Knowledge roll of 5+ to create the Plant Spray. On a success, take the Plant Spray token.
+- Plant Spray can be created only once. If it is destroyed, no more can be made.
+#### Special Attack Rules
+- A hero can automatically kill a Creeper by taking the Plant Spray into a room with a Root or Tip token and using it in place of making an attack that turn. There is enough Plant Spray to attack all the Creepers.
+- Roots can't attack and are not affected by normal attacks, only by the Plant Spray. Tips can attack and be attacked normally.
+- If a Tip defeats a hero in physical combat, the hero takes no damage. Instead the Tip grabs the hero, and the hero drops all items, which stay in that room. The Tip then ends its movement.
+- When a hero defeats a Tip in combat, the Tip is stunned and drops any grabbed hero it is carrying.
+- Roots don't slow hero movement; Tips do.
+> Note: "There is enough Plant Spray to attack all the Creepers" reads as the spray not being used up. It is not stated whether one use kills only the one Creeper whose Root or Tip is in the room.
+> Resolution (community, with disagreement): no source suggests the spray is used up. On how many Creepers one use kills, two answers say one, citing the text's "a creeper" and the general rule that an attack has one target. One group removed every Creeper piece in the room instead. One Creeper per use is the better-supported reading. Source: https://boardgamegeek.com/thread/1403966, https://boardgamegeek.com/thread/1290452
+#### You Must Do This on Your Turn
+- While grabbed, a hero can't use items but can still attack the Tip that is grabbing them.
+  - If the hero defeats the Tip, the Tip is stunned and drops the hero, who can then move and take the rest of their turn.
+  - If the Tip defeats the hero, the hero takes no damage, but the hero's turn is over.
+### Heroes win when
+- They use the Plant Spray to kill a number of Creepers equal to the number of players.
+### What they know about the other side
+- Each Root/Tip pair in the house is one Creeper. Creepers will try to grab the heroes.
+- The carnivorous plants feed on fertilizer made from dead bodies.

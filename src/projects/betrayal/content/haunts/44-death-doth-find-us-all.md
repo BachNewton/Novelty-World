@@ -1,0 +1,69 @@
+# 44 — Death Doth Find Us All
+
+Summary: The heroes are aging unnaturally fast while the traitor grows younger; they must complete the Ritual of Rejuvenation before age kills them.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer stays in the game, now as the traitor.
+- Every hero immediately ages 10 years, including the explorer who has the Medallion. The traitor consults the aging table (below) and tells each hero how to adjust his or her traits.
+
+### Rules
+#### At the End of Your Turn
+- At the end of the traitor's turn, each hero rolls 1 die and ages that many decades.
+- The book adds that this happens "even if you have been killed" (see the note below).
+- Whenever a hero enters a new decade, apply that decade's effect from this table:
+
+| Decade | Effect |
+|---|---|
+| 20s | Gain 1 Might and 1 Speed. |
+| 30s | Gain 1 Sanity and 1 Knowledge. |
+| 40s | Lose 1 Speed and gain 1 Sanity. |
+| 50s | Lose 1 point from a physical trait and 1 point from a mental trait. |
+| 60s | Lose 1 Might and 1 Speed, and lose 1 point from a mental trait. |
+| 70s+ | Lose 1 point from each of your four traits. |
+
+- Effects stack: a hero who passes through several decades in one turn applies the effect of every decade entered, in order. Book example: a hero going from his 40s to his 60s in one turn chooses to lose 1 Might and 1 Knowledge on entering his 50s, then loses 1 Might, 1 Speed and 1 Knowledge on entering his 60s.
+- Where an effect says "a physical trait" or "a mental trait", the hero chooses which one (per the book's example).
+> Note: A hero's starting age is the age on their character card (stated in the heroes' half). The book does not say whether the 70s+ effect is applied again for each further decade entered (80s, 90s, ...) or only once.
+> Resolution (community): The "+" means the 70s effect repeats. On entering the 70s, and on entering each later decade (80s, 90s, ...), the hero loses 1 point from each of the four traits. A well-known rules answerer gave this ruling, the asker accepted it, and no one disputed it. Source: https://boardgamegeek.com/thread/2069227
+> Note: "This happens even if you have been killed" is written to the traitor ("you"), so the likely reading is that heroes keep aging at the end of the traitor's turn even after the traitor is dead. That is interpretation; the sentence follows "each hero rolls", so it could also be read as dead heroes still rolling.
+> Resolution (official (1st-edition FAQ)): The heroes keep aging after the traitor dies. The official 1st-edition FAQ rules that a dead traitor still takes a turn and can still win, unless the heroes' win condition is killing the traitor, which it isn't here. Several BGG answers apply this to this haunt: killing the traitor does not stop the aging, and only the ritual wins. No source reads the sentence as meaning that dead heroes still roll. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/430261, https://boardgamegeek.com/thread/1489014
+#### Feeding off Death
+- Whenever a hero dies, for any reason, the traitor immediately rolls 3 dice and adds the total to any one trait or split it across any combination of traits.
+#### The Medallion
+- The traitor can't pick up, steal, or carry the Medallion.
+
+### Traitor wins when
+- All the heroes are dead.
+
+### What they know about the other side
+- The heroes are aging fast, but they have found a Medallion that somehow thwarts the aging.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Set aside 5 triangular Sanity Roll tokens and 5 triangular Knowledge Roll tokens.
+- Set aside a number of pentagonal item tokens; these become **aging tokens**.
+- Each hero (including the hero with the Medallion) puts one aging token on their character card now.
+- Each hero's age is the starting age on their character card plus 10 years for each aging token on that card. The traitor will tell the heroes the effect of their aging.
+### Rules
+#### You Must Do This On Your Turn
+- For each decade a hero ages, put an aging token on that hero's character card. The traitor will tell the hero the effect of aging.
+#### How to Stop the Aging Process
+- The heroes must complete the Ritual of Rejuvenation.
+- Completing the ritual requires a number of successful **ritual rolls** equal to the number of players.
+- Each ritual roll requires a specific room and is either a Sanity roll or a Knowledge roll. A result of 5+ succeeds.
+- Each hero can attempt only one ritual roll during their turn.
+- A ritual roll can be attempted only while in one of these rooms: Catacombs, Charred Room, Crypt, Gallery, Kitchen, Pentagram Chamber, or Tower.
+- Each time a ritual roll succeeds, put a Sanity Roll or Knowledge Roll token (matching the trait used) on the room tile used for that part of the ritual.
+- Once any hero has successfully used a room for a ritual roll, no hero can use that room in the ritual again.
+#### The Medallion
+- If a hero is carrying the Medallion, subtract 1 from the number of decades that hero aged during the traitor's turn, to a minimum of 0.
+- Each time a hero dies, whoever is carrying the Medallion ages 1 decade.
+> Note: Only 5 Sanity Roll and 5 Knowledge Roll tokens are set aside, while 7 rooms are eligible; the book doesn't say what happens if one kind runs out.
+> Resolution (unresolved): no ruling found. Searched the official 1st-edition FAQ and BGG threads on haunt 44 (https://boardgamegeek.com/thread/2058861, https://boardgamegeek.com/thread/1496847, https://boardgamegeek.com/thread/430261, https://boardgamegeek.com/thread/1476180). One player notes that a supply of 5 tokens looks like a cap of 5 rituals in a 6-player game, but no one rules on what happens when one kind runs out.
+### Heroes win when
+- They stop the supernatural aging process (by completing the Ritual of Rejuvenation).
+### What they know about the other side
+- The traitor isn't aging; in fact, he or she seems to be younger than ever.

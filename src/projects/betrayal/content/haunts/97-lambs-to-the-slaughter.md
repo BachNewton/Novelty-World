@@ -1,0 +1,44 @@
+# 97 — Lambs to the Slaughter
+
+Summary: Wolves are besieging the house through barricaded doors, and one explorer — who doesn't know it — was raised by the Wolves; everyone defends the Barricades while secretly trying to learn who the lost pup is.
+
+## Traitor (Traitor's Tome)
+
+### Rules
+- This haunt uses the hidden traitor rules described on page 17 of the base game rulebook.
+- All remaining rules for this haunt are in Secrets of Survival.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Take small yellow monster tokens (they represent Origins) numbered from 1 up to the number of explorers. Shuffle them face down and deal one to each explorer, but do not look at them.
+- If there are fewer than five open doors on the ground floor (counting the front door), draw ground floor room tiles and put them into play until there are five such doors.
+- Put a small red monster token (it represents a Wolf) "outside" each of five different open doors on the ground floor. These are now called Barricaded doors.
+- Set aside the Obstacle tokens (they represent Barricades) numbered 1 to 16. Take the tokens numbered 12 to 16 and put one of them face down, at random, on top of each of the five Barricaded doors. Then put one of the remaining eleven Barricades face down at random next to each of the five Barricaded doors. Each Barricaded door should now have two Barricades. Shuffle each door's two Barricades and put them in a stack on that door.
+- Shuffle the rest of the Obstacle tokens into a face-down stack. This is the Shed.
+- In turn order, starting with the haunt revealer, each explorer puts their figure in a different landing or room with a dumbwaiter [dumbwaiter symbol].
+### Monsters
+- Wolves (small red monster tokens) — no stats printed on this page
+### Rules
+#### You must do this on your turn
+- At the end of your turn, the Wolves attack. Choose one Barricaded door with the most Barricades (your choice if tied) and reveal one Barricade.
+  - If its number is between 1 and 5, it is sabotaged: put it and the next Barricade token in that door's stack into the Shed, then shuffle the Shed.
+  - For any other number, roll 1 die. If the roll is blank, shuffle the Barricade face down back into the door's stack; otherwise, shuffle it face down into the Shed.
+  - If no Barricades remain at that door and a non-blank side was rolled, the Wolves come in and kill all the explorers except their lost pup.
+  > Note: the printed rule says "If no Barricades remain", which can be read as no Barricades left anywhere in the house. The text above carries the official correction.
+  > Resolution (official): errata. It is that one door: the Wolves come in when the door just checked has no Barricades left. The FAQ adds "at that door". Source: https://www.dropbox.com/s/3y34f1s2tn6o4mx/Widow%27s%20Walk%20FAQ%20KB%2012.6.161.pdf?dl=0
+- At the end of your turn, if you and exactly one other explorer are alone in a room together ("by yourselves"), you may look at that explorer's Origin and give it back face down. You may say anything you like about what you learned, even if it isn't true.
+> Note: The book says "reveal a Barricade" without saying which one; the stack is face down, so presumably the top one. "If no Barricades remain" is presumably checked after the revealed Barricade is resolved; the book doesn't spell out the timing.
+#### Special action rules
+- Once during your turn, while in a room with a Barricaded door, you may build or inspect a Barricade.
+  - To build a Barricade: draw three Barricades from the Shed and choose one to shuffle into the door's stack. Shuffle the other tokens back into the Shed without revealing their numbers.
+  - To inspect a Barricade: look at the top Barricade of the door's stack and put it either on top or on the bottom of that stack, without revealing it.
+#### Special movement rules
+- You can't move through, see through, or discover rooms on the other side of Barricaded doors.
+### Heroes win when
+- If you were not raised by Wolves: you win when you kill the traitor. Each time an explorer dies, reveal their Origin; if it is numbered 1, the other explorers win.
+- If you were raised by Wolves: you win when you have the Origin numbered 1 and either all the other heroes are dead or the Wolves have broken into the house.
+### What they know about the other side
+- One explorer was raised by the Wolves, but no one can tell who — not even that explorer.
+- The traitor will try to build sabotaged Barricades to hide their Origin, which is revealed if the traitor dies.
+> Note: Neither book defines "the traitor" here beyond this: the Traitor's Tome only points to the hidden traitor rules (base rulebook page 17), and no one, including the Wolf-raised explorer, knows who holds Origin 1. Presumably "the traitor" is whoever holds Origin 1, so killing the traitor is what the reveal-on-death rule detects. But the page also says the traitor will deliberately build sabotaged Barricades to hide their Origin, which suggests someone who knows. The book doesn't reconcile the two.

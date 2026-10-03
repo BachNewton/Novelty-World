@@ -1,0 +1,88 @@
+# 22 — The Abyss Gazes Back
+
+Summary: The traitor has opened a portal to Hell beneath the house, and the house collapses room by room into the Abyss while the heroes try to stop it.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer stays in the game and is now the traitor.
+- Choose any unoccupied basement room that has an omen [raven symbol] or event [spiral symbol] symbol. If no such room is in the house, draw cards from the room stack until you draw the first legal basement room, then place it in the basement. This room is where the Abyss starts. Tell everyone, then shuffle the room stack.
+> Note: "Legal basement room" is not defined further; it reads as a room that can go in the basement and meets the omen-or-event-symbol condition.
+> Resolution (unresolved): no ruling found. The 1st-edition revised Traitor's Tome uses the same phrase without defining it. Searched: BGG haunt 22 threads (2069197, 3069298, 161855, 318232, 638043, 1902512, 2500224), the 1st-edition Errata & FAQ, the Widow's Walk FAQ. Source: http://web.archive.org/web/2010/http://www.wizards.com/avalonhill/rules/BHH_TraitorRev_120105.pdf
+- Set up the Turn/Damage track with a plastic clip at 0 to track time.
+
+### Rules
+#### You must do this on your turn
+- At the end of the traitor's first turn, the house begins collapsing into the Abyss. The first room to collapse must be the basement room tile where the Abyss starts. To collapse a room, turn the room tile face down (its back showing).
+- The traitor keeps collapsing rooms on their turn (and can still win) even after being killed.
+- At the end of each of the traitor's turns, advance the Turn/Damage track to the next number, starting with 1.
+- If the traitor draws an event card while in the basement, the traitor may search the event stack and take the Secret Stairs or Secret Passage card instead of drawing normally, if either is available. Then shuffle the event stack.
+
+#### Each player must do this every turn
+- Starting on Turn 2, at the end of each living hero's turn, that hero's player must collapse part of the house. A room can collapse only if it is adjacent to a room that has already collapsed; the two rooms do not need connecting doors.
+- Rooms collapse at this rate per player:
+
+| Turn | Rooms collapsed |
+|---|---|
+| Turn 2 | Each player collapses one room. |
+| Turn 3 | Each player rolls 2 dice and collapses that many rooms. |
+| Turn 4 | Each player rolls 3 dice and collapses that many rooms. |
+| Turn 5 On | Each player rolls 4 dice and collapses that many rooms. |
+
+- Once an entire floor has collapsed, begin collapsing the next floor up, starting with an unoccupied room of the collapsing player's choice that has an unexplored door.
+- The Entrance Hall, Foyer and Grand Staircase each count as a separate room. Mark each one with a pentagonal item token when it is sucked into the Abyss.
+- If any explorer (the traitor included) is in a room when the Abyss engulfs it, that explorer must attempt a Speed roll of 4+.
+  - On a success, the explorer escapes by jumping into an adjacent discovered room that has a connecting door (if there is one) and is not collapsing.
+  - If the roll fails, or there is no room that fits that description, the explorer is sucked into the Abyss and killed.
+- If an event or the Mystic Elevator sends an explorer to a room or floor that has collapsed, that explorer falls into the Abyss and is killed.
+> Note: "Each Player Must Do This Every Turn" names "each living hero", but the rate table says "each player". The traitor's own collapsing is covered separately under "You Must Do This On Your Turn", which does not give a count beyond the first room; whether the traitor also follows the per-turn rate is not stated on this page.
+> Resolution (unresolved): no ruling found on whether the traitor also collapses rooms at the per-turn rate. For context, the 1st-edition revised Traitor's Tome said "At the end of each player's turn, that player must destroy part of the house". The 2nd edition (also in the 2020 Hasbro reprint) narrows that sentence to "each living hero" but keeps "each player" in the rate table. One BGG answer adds that a dead hero takes no turn and so collapses nothing. Searched: BGG haunt 22 threads, the 1st-edition Errata & FAQ. Source: http://web.archive.org/web/2010/http://www.wizards.com/avalonhill/rules/BHH_TraitorRev_120105.pdf, https://www.hasbro.com/common/documents/60D52426B94D40B98A9E78EE4DD8BF94/38E7C8028AA2455CBE6D25E68FF9C18E.pdf, https://boardgamegeek.com/thread/318232, https://boardgamegeek.com/thread/2069197
+> Note: The track is advanced only at the end of the traitor's turns, so "Turn 2" etc. refers to the Turn/Damage track value.
+> Resolution (community): yes. The track counts the traitor's completed turns: it goes to 1 at the end of the traitor's first turn, so the heroes' next turns are "Turn 2" and the heroes start collapsing rooms then. Several answers agree. Source: https://boardgamegeek.com/thread/3069298, https://boardgamegeek.com/thread/2069197
+
+### Traitor wins when
+- All the heroes are dead.
+
+### What they know about the other side
+- The heroes are trying to perform an exorcism to stop the house from being sucked into the Abyss.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Set aside triangular Sanity Roll tokens equal to the number of players.
+- Set aside the same number of triangular Knowledge Roll tokens.
+
+### Rules
+
+#### How To Perform the Exorcism
+- The heroes must make a number of successful "exorcism rolls" equal to the number of players.
+- Each exorcism roll needs a specific room or item and is either a Sanity roll or a Knowledge roll.
+- Each hero may make only one exorcism roll per turn.
+- Sanity roll of 5+: allowed while in the Chapel, Crypt or Pentagram Chamber, or while carrying the Holy Symbol or the Ring.
+- Knowledge roll of 5+: allowed while in the Library or Research Laboratory, or while carrying the Book or the Crystal Ball.
+- After each successful exorcism roll, put a Sanity Roll token or a Knowledge Roll token (matching the trait rolled) on the room tile or item card used for that roll.
+  - The token still counts toward the total even if that room or item is later destroyed.
+- Once an item or room has been used in a successful exorcism roll, no hero may use that item or room for an exorcism roll again. (Example from the book: after a successful Sanity roll in the Chapel, the Chapel cannot be used again.)
+- When the heroes have placed tokens equal to the number of players, the house stops collapsing.
+
+#### You Must Do This on Your Turn
+- At the end of each hero's turn, the traitor tells that hero to turn over one or more room tiles in the house. Those rooms have collapsed and are now part of the Abyss.
+
+#### Dealing with the Abyss
+- The traitor tracks the passage of time on the Turn/Damage track.
+- A hero carrying the Holy Symbol who is in a room adjacent to a destroyed room may sacrifice the Holy Symbol instead of turning over room tiles.
+  - Adjacent here means connected by a connecting door.
+  - Discard the Holy Symbol card; that hero no longer has to turn over those tiles.
+  - This also keeps the house from collapsing until the end of that hero's next turn.
+  - It does not stop the Turn/Damage track from advancing.
+- A hero in a room when the Abyss engulfs it must attempt a Speed roll of 4+.
+  - On a success, the hero escapes by jumping to an adjacent discovered room that has a connecting door (if there is one) and is not collapsing.
+  - If the roll fails, or there is no such room, the hero is sucked into the Abyss and killed.
+- If an event or the Mystic Elevator sends a hero to a room or floor that has collapsed, that hero plummets into the Abyss and is killed.
+- The Entrance Hall, Foyer and Grand Staircase each count as a separate room. Use a pentagonal item token to mark each one when it is sucked into the Abyss.
+
+### Heroes win when
+- They successfully perform the exorcism, keeping the house from collapsing.
+
+### What they know about the other side
+- The traitor welcomes the Abyss and wants everyone else to go along with it.

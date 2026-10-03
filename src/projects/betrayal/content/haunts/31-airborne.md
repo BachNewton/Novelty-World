@@ -1,0 +1,41 @@
+# 31 — Airborne
+
+Summary: A gigantic bird has seized the house and is carrying it into the sky; there are not enough parachutes for everyone, and each hero needs one to get out alive.
+
+## Traitor (Traitor's Tome)
+
+### Rules
+- This haunt has no traitor, only heroes, and all of them are trying to escape the house.
+- All of its rules are in the Secrets of Survival booklet.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Set aside pentagonal item tokens equal to half the number of players, rounded down. These are Parachutes.
+- Remove every basement tile from the house. Any explorers in the basement are moved to the Mystic Elevator, and that tile is placed next to any ground-floor door. If the Mystic Elevator is not in play, search the room stack for it, place it on the ground or upper floor, then shuffle the stack.
+
+### Rules
+#### Finding a Parachute
+- Heroes may keep exploring and discovering new rooms, but may not enter the basement. If the next room tile can only be placed in the basement, discard it and keep drawing until a tile can be placed.
+- To search for a Parachute, make a Knowledge or Speed roll of 4+ in any room with an omen symbol [raven symbol]. On a success, take a Parachute token and put it on your character card.
+- Each room can yield at most one Parachute.
+- A hero who finds or steals a Parachute can move no farther that turn.
+- A hero can carry only one Parachute at a time.
+#### Special Attack Rules
+- A hero can steal a Parachute from another hero either by a Might attack (resisted by Might, as usual) or by tricking them with Knowledge (resisted by Knowledge).
+- Unlike the normal item-stealing rules, the attacker takes the Parachute if they win by 1 or more.
+- The loser of this attack takes no damage. The attacker's turn ends after this attack whether or not it succeeded.
+- Heroes may instead attack other heroes to inflict damage, using the normal rules.
+- A hero who dies while carrying a Parachute drops it, and any other hero can pick it up.
+- Heroes slow each other as if they were monsters.
+#### Exiting the House
+- A hero carrying a Parachute can exit the house: move to the Entrance Hall, Balcony, Tower, Coal Chute or Collapsed Room and spend 1 space of movement, then make a Knowledge roll or a Sanity roll of 4+. On a success, the hero exits safely.
+
+### Heroes win when
+- A hero wins by exiting the house with a Parachute. Heroes who never find a Parachute are killed.
+
+### What they know about the other side
+- This haunt has no traitor; every player is a hero. Even so, only some of the heroes can survive.
+
+> Note: The book does not say what happens on a failed exit roll beyond not exiting (presumably the hero may try again later).
+> Resolution (community): A failed exit roll just means the hero does not jump: they keep the Parachute and stay in the house. Because the rulebook bars attempting the same roll more than once per turn, they can try again on a later turn but not the same one. This rests on one unchallenged forum reply plus that general rule; nothing official addresses it. Source: https://boardgamegeek.com/thread/1221334, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf

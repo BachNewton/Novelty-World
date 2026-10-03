@@ -1,0 +1,67 @@
+# 68 — He Who Must Not Be Read
+
+Summary: The traitor is possessed by Maldovo, a dark sorcerer who wrote himself back into the world through a book, and must protect his soul, hidden inside a chain of nested containers, while killing the heroes.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer stays in the game, now as the traitor.
+- Raise each of the traitor's traits that is not at least 2 above its starting value up to 2 above its starting value.
+- Set aside pentagonal item tokens 1 to 5 (Soulcruxes, the containers for the traitor's soul).
+- Put item 1 (the Chest) in a room of the traitor's choice. Keep the other item tokens nearby.
+
+> Note: The setup reads "Raise all of your traits that are not at least 2 above their starting values to that value", interpreted here as raising each such trait to starting value + 2.
+
+### Rules
+#### Special Attack Rules
+- The traitor cannot take damage. The traitor can still attack heroes, and heroes can still steal from the traitor.
+- The traitor may attack with Might or Sanity. A Might attack deals physical damage; a Sanity attack deals mental damage. (Official errata.)
+- When a hero dies, the hero drops all their cards and becomes a Wraith, with traits equal to that explorer's starting values (official errata), and joins the traitor's side.
+  - A Wraith cannot draw, carry, or use cards.
+  - A stunned Wraith is removed from the game.
+  - If the hero had any companions (Cat, Dog, Girl, or Madman) when they became a Wraith, turn those companion cards face down. Each face-down card adds 1 die to the Wraith's trait rolls, one per companion.
+- After all the haunt instructions have been read, if any hero says the traitor's name, Maldovo, the traitor may make a Sanity attack against that hero. The traitor need not explain why they are making the attack, only that they are.
+
+> Note: The printed book does not say which trait Maldovo attacks with, or what traits a Wraith has. Both points are corrected by the official Widow's Walk FAQ, and the rules above follow it.
+> Resolution (official): the FAQ adds, after the first Special Attack Rules bullet, that the traitor may attack with Might or Sanity, a Might attack dealing physical damage and a Sanity attack mental damage; and, after "becomes a Wraith", that the Wraith has traits equal to the explorer's starting values. Source: https://media.wizards.com/2016/downloads/widows_walk_faq.pdf
+
+#### Special Movement Rules
+- The traitor can move through a room containing a Soulcrux but cannot end their turn there. Wraiths can end their turn in such a room.
+- The traitor, the Wraiths, and any of the special items below (the Rabbit, Duck, and Egg) can discover new rooms and operate the Mystic Elevator, and need not attempt any special rolls to enter or exit rooms.
+
+#### Special Item Rules
+When a hero enters the room containing the Chest, the traitor announces what is inside and plays it out as follows.
+
+- When the Chest is found: the Chest is locked. A hero may try a Might roll of 4+ to break the lock, or open it automatically with the Key.
+- When the Chest is opened: a Rabbit runs out (replace item #1 with #2). It takes its turn in order right after the hero who opened the Chest, and runs from the heroes as a monster with Speed 4. A hero may try a Speed roll of 3+ to kill it.
+- When the Rabbit is killed: a Duck flies out (replace item #2 with #3). It takes its turn in order right after the hero who killed the Rabbit, and runs from the heroes as a monster with Speed 5. A hero may try a Might roll of 4+ to kill it.
+- When the Duck is killed: an Egg rolls out (replace item #3 with #4). It takes its turn in order right after the explorer who killed the Duck, and runs from the heroes as a monster with Speed 1. A hero may try a Knowledge roll of 5+ to break it open.
+- When the Egg is broken: the traitor's soul is inside, in the form of a Pen (replace item #4 with #5). A hero may try a Sanity roll of 6+ to destroy it.
+
+Destroying a Soulcrux ends a hero's turn.
+
+> Note: the printed book doesn't say whether a hero can get through several Soulcruxes in one turn. The sentence above is official errata.
+> Resolution (official): errata. They can't: destroying a Soulcrux ends the hero's turn. The FAQ adds this as an unbulleted paragraph under the Special Item Rules bullets. Source: https://www.dropbox.com/s/3y34f1s2tn6o4mx/Widow%27s%20Walk%20FAQ%20KB%2012.6.161.pdf?dl=0
+
+> Note: The Rabbit, Duck and Egg "flee from the heroes"; the page gives them only a Speed value and says nothing else about who moves them (presumably the traitor, on its own turn in the order given). The Duck's turn follows the "hero" who killed the Rabbit, but the Egg's follows the "explorer" who killed the Duck, as printed.
+
+### Traitor wins when
+- All the heroes are dead.
+
+### What they know about the other side
+- The heroes plan to find and destroy the traitor's hidden soul.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- If the traitor has the Key card, choose a hero to take it.
+### Rules
+#### Special attack rules
+- Maldovo cannot take damage.
+### Heroes win when
+- They destroy Maldovo's soul.
+- The soul is hidden in a series of Soulcruxes: the soul is inside an egg, inside a duck, inside a rabbit, inside a locked chest. The heroes must find a way to open the chest, then kill the rabbit, kill the duck, break the egg, and destroy the soul inside.
+### What they know about the other side
+- In the children's story, a young wizard won by destroying the necromancer Maldovo's hidden soul.
+- The soul is secured somewhere in the house; Maldovo will hunt the heroes down and consume their souls.
+> Note: The book's win text says to "kill the rabbit, kill the duck, break the egg" in that order after opening the chest. The heroes' half gives no mechanics for finding or opening the chest or for the Soulcruxes; those are presumably in the Traitor's Tome.

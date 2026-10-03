@@ -25,6 +25,7 @@ import {
   Sailboat,
   Blocks,
   Gamepad2,
+  Ghost,
   ChevronRight,
   type LucideIcon,
 } from "lucide-react";
@@ -50,6 +51,7 @@ const ICON_MAP: Partial<Record<string, LucideIcon>> = {
   Sailboat,
   Blocks,
   Gamepad2,
+  Ghost,
 };
 
 interface ProjectRowProps {

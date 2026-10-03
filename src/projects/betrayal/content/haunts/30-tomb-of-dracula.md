@@ -1,0 +1,64 @@
+# 30 — Tomb of Dracula
+
+Summary: Dracula is waking in his coffin, and the traitor and the Girl have become his vampire servants; the heroes must destroy the vampires before they are killed or turned.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer stays in the game and is now the traitor.
+- The traitor is now a Vampire. Add 1 to each of the traitor's traits.
+- Put the large circular Dracula token in the Crypt or the Graveyard. If neither room is in the house, put the Dracula token in an unoccupied room at least 4 rooms from the closest explorer. (If no room is that far away, place it as far away as possible.)
+- Discard the Girl card and put a small magenta monster token in the traitor's room to represent the Bride.
+- Set up the Turn/Damage track with a plastic clip at 0 to track time.
+
+### Monsters
+- Dracula — Speed 5 · Might 8 · Sanity 6
+- The Bride — Speed 4 · Might 4 · Sanity 4
+
+### Rules
+#### Vampires
+- Dracula needs time to awaken. He does not move or attack normally until Turn 2 (he can still defend against attacks).
+- Each time Dracula, the Bride, or any other Vampire (the traitor included) tries to enter the Chapel, or any room with a hero carrying the Holy Symbol, it must attempt a Sanity roll of 6+. If it fails, it cannot enter that room. (If the Holy Symbol is in the Chapel, the Vampire rolls only once.)
+
+#### Special Attack Rules
+- Domination: when any Vampire (including Dracula, the Bride, and the traitor) attacks a hero of the opposite sex, it may attempt a Sanity attack to dominate that hero.
+  - If the Vampire defeats the hero, the hero takes Speed damage instead of mental damage.
+  - If the hero defeats the Vampire, the Vampire takes no damage.
+  - A Domination attack can also be made from an adjacent room that has a connecting door. If that attack succeeds, the Vampire may also move the defeated hero into the Vampire's room.
+- Once a hero's Speed has dropped to the skull symbol because of Domination, that explorer becomes a Vampire and is no longer a hero. (That player reads this haunt in the Traitor's Tome.) Raise that character's Speed to its starting value. The new Vampire then adds 1 to each trait and is controlled by its player, acting on that player's turns.
+- Vampires can also attack and kill heroes normally. A hero killed by a Vampire does not become a Vampire.
+
+#### You must do this
+- At the start of each of the traitor's turns, advance the Turn/Damage track to the next number, starting with 1.
+
+### Traitor wins when
+- All the heroes are dead or turned into Vampires.
+- If the traitor wins, any other player controlling a Vampire who has killed a hero also wins.
+
+### What they know about the other side
+- The sun will rise soon. The traitor must kill the heroes quickly, because the Vampires weaken as the sun climbs. When that happens, the heroes will tell the traitor how sunlight affects the Vampires.
+
+## Heroes (Secrets of Survival)
+
+### Rules
+#### How to Destroy Vampires
+- A hero who defeats a Vampire with a Might attack while using the Spear stakes it through the heart, and that Vampire is killed.
+- Any other successful attack works as normal: it inflicts damage on the traitor, or stuns Count Dracula and the Bride.
+- The traitor tracks how many turns have passed since the haunt began. Right after the traitor advances the Turn/Damage track, one of the other explorers (not the traitor) rolls dice equal to the number of players. If that result is lower than the current turn number, the sun comes up.
+- Once the sun is up, the Vampires weaken: at the start of every traitor turn after sunrise, each Vampire (Dracula, the Bride and the traitor included) loses 1 from each of its traits.
+- The traitor should record Dracula's and the Bride's traits on a piece of paper.
+- When any trait of a Vampire drops to 0 or to the skull symbol, it bursts into flames at once and is destroyed.
+#### Special Attack Rules
+- Defeating a Vampire in an attack inflicts damage normally.
+- If the attacker is also carrying the Holy Symbol, they may additionally force that Vampire to move 1 room away from them (through a connecting door) for each point of damage inflicted.
+
+### Heroes win when
+- Dracula and the Bride have both been destroyed.
+
+### What they know about the other side
+- The traitor and the Girl (now the Bride) are both Vampires allied with Dracula.
+- Dracula is very powerful but wakes slowly, so the heroes have a couple of turns to act before he is fully conscious.
+- Dracula and his minions will try to kill the heroes or turn them into Vampires.
+
+> Note: The heroes' win condition names only Dracula and the Bride; it does not require the traitor to be destroyed.
+> Resolution (official): correct; the traitor need not be destroyed. The rulebook says a haunt's goal doesn't necessarily require killing the traitor, and the 1st-edition FAQ says killing the traitor doesn't help the heroes unless their win condition says so. Source: https://www.hasbro.com/common/documents/60D52426B94D40B98A9E78EE4DD8BF94/38E7C8028AA2455CBE6D25E68FF9C18E.pdf (rulebook, Winning the Game), http://web.archive.org/web/20151204092838/http://www.wizards.com:80/default.asp?x=ah/faqs/hoth

@@ -1,0 +1,54 @@
+# 21 — House of the Living Dead
+
+Summary: Zombies led by an ancient Zombie Lord rise through the house, and the heroes must destroy the Zombie Lord or every Zombie.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer is dead. The traitor drops all their items and replaces their explorer figure with the large circular Zombie Lord token.
+- Take small red monster tokens (Zombies) equal in number to the number of players. Place them one per room, in this order, in those of the following rooms that have been discovered: Crypt, Graveyard, Entrance Hall, Underground Lake, Gardens, Chapel, Conservatory, Pentagram Chamber.
+  - If there are more players than discovered rooms from that list, go through the discovered rooms again in the same order, adding one more Zombie token to each, until all the tokens are placed.
+- After those tokens are placed, put one additional Zombie token in each room that has one (again placing them in the listed order).
+- Take the Turn/Damage track and a plastic clip to track damage (to the Zombie Lord).
+> Note: The book does not say what happens if none of the listed rooms has been discovered.
+> Resolution (official): the case cannot arise. The rulebook's setup puts the Entrance Hall/Foyer/Grand Staircase tile in play at the start of every game, and the Entrance Hall is on the list, so at least one listed room is always discovered. Community answers confirm that when few listed rooms are out, all the Zombies stack in those rooms (all of them in one room if only one is out). Source: https://www.hasbro.com/common/documents/60D52426B94D40B98A9E78EE4DD8BF94/38E7C8028AA2455CBE6D25E68FF9C18E.pdf (rulebook, Setup), https://boardgamegeek.com/thread/2359241, https://boardgamegeek.com/thread/2382045
+
+### Monsters
+- Zombies — Speed 2 · Might 5 · Sanity 2
+  - A Zombie is killed when defeated by a weapon that requires a Might attack. Dynamite also kills Zombies. Any other attack that defeats a Zombie stuns it as normal.
+  - If a hero dies, that hero becomes a Zombie (and from then on has the same traits as a Zombie). That player reads the Traitor's Tome and continues to move that Zombie during his or her regular turn. If the traitor wins and that player's Zombie has killed a hero, that player also wins.
+  - Zombies cannot operate the Mystic Elevator.
+- Zombie Lord — Speed 3 · Might 7 · Sanity 2
+  - The traitor controls the Zombie Lord. It follows all the normal monster rules: it rolls for movement, and cannot pick up items, explore new rooms, and so on.
+  - The Zombie Lord can operate the Mystic Elevator.
+  - The Zombie Lord can be harmed only by an explorer carrying the Medallion.
+  - It takes damage instead of being stunned. 7 points of damage kill it. Record its damage on the Turn/Damage track. Damage does not reduce the Zombie Lord's traits.
+
+### Traitor wins when
+- All the heroes are dead.
+
+### What they know about the other side
+- The heroes will fight. Avoid explorers who have weapons, if possible.
+
+## Heroes (Secrets of Survival)
+
+### Rules
+
+#### Special Attack Rules
+- A hero who is killed becomes a Zombie on his or her next turn. The traitor then tells that player the new traits, and that player reads this haunt in the Traitor's Tome.
+- A Zombie is destroyed when a hero defeats it in combat with any weapon that requires a Might attack. Dynamite can also kill Zombies.
+- Defeating a Zombie any other way only stuns it.
+- When a Zombie damages a hero, it makes no difference whether the hero has one of these weapons.
+- Whenever a hero has the opportunity to draw an item card, that hero may instead draw three item cards, keep one, and put the other two on the bottom of the stack.
+- While a hero carries the Holy Symbol, every Zombie making a Might attack against that hero rolls 2 fewer dice. The Holy Symbol has no effect on the Zombie Lord.
+- Only a hero carrying the Medallion can damage the Zombie Lord.
+  - The Medallion holder needs no weapon to damage the Zombie Lord, but a weapon he or she wields works normally against it.
+  - The traitor tracks the damage done to the Zombie Lord and announces when it is destroyed.
+- Attacks by heroes not carrying the Medallion have no effect on the Zombie Lord; they do not even stun it.
+
+### Heroes win when
+- They destroy either the Zombie Lord or all the Zombies.
+
+### What they know about the other side
+- The enemies are Zombies, which are slow but tough, and want to kill all the heroes.
+- An ancient Zombie Lord controls them.

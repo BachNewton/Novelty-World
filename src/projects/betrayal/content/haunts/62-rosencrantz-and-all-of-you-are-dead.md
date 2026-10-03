@@ -1,0 +1,70 @@
+# 62 — Rosencrantz and All of You Are Dead
+
+Summary: The traitor becomes Hamlet, bent on revenge against the heroes for the death of his father, and wins by delivering his famous lines and then dying dramatically at the heroes' hands.
+
+## Traitor (Traitor's Tome)
+
+### Setup
+- The traitor's explorer stays in the game, now as the traitor.
+- Any of the traitor's traits lower than their current Speed value are raised to that value.
+
+### Rules
+#### How to Die
+- The traitor must get the heroes to kill them, but only after saying three lines out loud, in this order:
+  1. Go to the room with pentagonal item token 1 (the Mirror) and say out loud: "O, that this too solid flesh would melt!"
+  2. Go to the room with pentagonal item token 2 (the Dagger) and say: "To be, or not to be: That is the question."
+  3. Get killed by one of the explorers, saying: "O, I die, Horatio! . . . The rest is silence."
+- Saying the third line as the traitor dies wins the game.
+
+> Note: This half does not say who places the Mirror and Dagger item tokens; presumably the heroes' setup in Secrets of Survival does.
+
+#### Special Attack Rules
+- After the traitor attacks a hero, if that hero is still alive, the hero immediately makes an attack on the traitor. (The book points out this helps the traitor get killed, but the lines should be said first.)
+- The traitor can die only from attacking or being attacked. Any other effect that would kill the traitor instead lowers the affected trait to the lowest value above the skull symbol.
+
+#### Special Movement Rules
+- The traitor is not required to ignore negative room text. The book notes this is not a change from normal rules, just a reminder.
+
+#### Special Rhyming Rules
+- When the traitor takes an action and describes it out loud in rhyme, they get +2 to the roll, or +2 to the relevant trait.
+- This can be used only once during each of the traitor's turns.
+
+### Traitor wins when
+- The traitor has said the lines and dies at the end of a duel, or
+- All the heroes are dead.
+
+> Note: "Duel" is not defined on this page; it presumably means an attack between the traitor and a hero.
+
+### What they know about the other side
+- The heroes killed the traitor's father, King Hamlet of Denmark.
+- The heroes may rush through the five acts and end the haunt before the traitor's big death scene.
+
+## Heroes (Secrets of Survival)
+
+### Setup
+- Put pentagonal item token 1 (the Mirror) and pentagonal item token 2 (the Dagger) face up, in different rooms.
+### Rules
+#### How to stop all this drama
+- The play has five acts. To complete an act, a hero goes to one of the listed rooms and says that act's line out loud.
+- Each hero can complete one act per turn, and the act need not be on that hero's own turn, but the acts must be completed in order (Act 1 through Act 5).
+- If none of an act's rooms is in play yet, keep exploring until one is found.
+
+| Act | Rooms | What happens | Line |
+|---|---|---|---|
+| Act 1 | Balcony, Roof Landing, or Widow's Walk | See King Hamlet's ghost | "Something is rotten in the state of Denmark." |
+| Act 2 | Drawing Room, Library, or Study | Discuss Hamlet's mental disorder | "Though this be madness, yet there is method in't." |
+| Act 3 | Gallery, Solarium, or Theater | Get upset about a play | "The lady doth protest too much, methinks." |
+| Act 4 | Kitchen, Larder, or Storm Cellar | Talk about wanting to poison or stab Hamlet | "If I gall him slightly, it may be death." |
+| Act 5 | Hamlet's room | Duel Hamlet: the heroes must attempt at least three attacks on him during this act, he must survive, and then they say the final line to end the act | "Good night, sweet prince. And flights of angels sing thee to thy rest!" |
+
+- When all five acts are complete the haunt ends; if Hamlet is still alive at that point, the heroes win.
+#### Special attack rules
+- After Hamlet attacks you, if you are still alive, you immediately make an attack on Hamlet.
+- In Act 5 you may attack or defend against Hamlet with any number of dice from 1 up to your Might value (you must roll at least 1 die). The heroes are trying not to kill Hamlet.
+### Heroes win when
+- They say their lines and finish the story before Hamlet can say his lines and die.
+- Alternatively, they kill Hamlet before he says his three classic lines (the book says this may be hard).
+### What they know about the other side
+- The heroes conspired to kill the traitor's father, the King of Denmark. The traitor is Hamlet.
+- Hamlet will sulk for a while, but after that he will try to kill the heroes and himself.
+> Note: The book both offers a win by killing Hamlet before his three lines, and requires Hamlet to be alive when Act 5 ends ("you are trying not to kill Hamlet"). Read together: killing him early wins; killing him during the Act 5 duel (or otherwise once he has said his lines) does not. "Hamlet's room" is not defined in either half; presumably it is whatever room the traitor (Hamlet) is in, but the owner must rule on this.
