@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronsUp, MoveHorizontal, RotateCcw, RotateCw } from "lucide-react";
-import { isDone } from "../run";
-import { useFrogminoStore } from "../store";
-import { DRAWN_PLAYER } from "./drawn-frog";
-import { useFrogTouch } from "./use-frog-touch";
+import { ArrowUp, MoveHorizontal, MoveVertical, RotateCcw, RotateCw } from "lucide-react";
+import type { InputSink } from "../input/devices";
+import { useTouchSource } from "../input/use-touch-source";
 
 // The hint gets out of the way once the player has made this many gestures.
 const HINT_GESTURES = 3;
@@ -31,7 +29,7 @@ function Gesture({ icon, label }: { icon: ReactNode; label: string }) {
 const ICON = "h-5 w-5 text-brand-green";
 const SMALL_ICON = "h-4 w-4 text-brand-green";
 
-// The three tap zones and the swipes, drawn over the play area until the
+// The three tap zones and the drags, drawn over the play area until the
 // player has got going. Touch screens only; the keyboard legend serves the rest.
 function TouchHint() {
   return (
@@ -44,11 +42,9 @@ function TouchHint() {
           <b>Tap</b>
           <span className="text-text-secondary">rotate</span>
         </Zone>
-        <Zone icon={<ChevronsUp className={ICON} />}>
+        <Zone icon={<ArrowUp className={ICON} />}>
           <b>Tap</b>
-          <span className="text-text-secondary">jump</span>
-          <b className="mt-2">Hold</b>
-          <span className="text-text-secondary">keep jumping</span>
+          <span className="text-text-secondary">hop</span>
         </Zone>
         <Zone icon={<RotateCw className={ICON} />}>
           <b>Tap</b>
@@ -57,8 +53,7 @@ function TouchHint() {
       </div>
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 rounded-xl bg-surface-secondary/80 px-3 py-2">
         <Gesture icon={<MoveHorizontal className={SMALL_ICON} />} label="drag: move" />
-        <Gesture icon={<ArrowUp className={SMALL_ICON} />} label="swipe: hop" />
-        <Gesture icon={<ArrowDown className={SMALL_ICON} />} label="swipe: back" />
+        <Gesture icon={<MoveVertical className={SMALL_ICON} />} label="drag: jump" />
       </div>
     </div>
   );
@@ -67,16 +62,13 @@ function TouchHint() {
 // The touch layer over the play area: it takes every finger that lands on
 // the game, stops the browser scrolling, zooming or selecting, and shows the
 // hint. It sits under the other overlays, so the mute button and the done
-// screen keep their own taps.
-export function TouchControls() {
+// screen keep their own taps. Touch plays solo only.
+export function TouchControls({ sink, done }: { sink: InputSink; done: boolean }) {
   const [gestures, setGestures] = useState(0);
   const countGesture = useCallback(() => {
     setGestures((n) => n + 1);
   }, []);
-  const handlers = useFrogTouch(countGesture);
-  const done = useFrogminoStore((s) => isDone(s.run));
-  const depth = useFrogminoStore((s) => s.run.depth);
-  const hoppedAt = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].latestHop?.startedAt ?? null);
+  const handlers = useTouchSource(sink, countGesture);
 
   return (
     <>
@@ -86,8 +78,6 @@ export function TouchControls() {
           e.preventDefault();
         }}
         data-testid="frogmino-touch"
-        data-frog-depth={depth}
-        data-hopped-at={hoppedAt ?? ""}
         className="absolute inset-0 touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none]"
       />
       {!done && gestures < HINT_GESTURES && <TouchHint />}

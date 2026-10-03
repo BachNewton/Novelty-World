@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { PerspectiveCamera } from "@react-three/drei";
 import {
@@ -10,19 +11,18 @@ import {
   MathUtils,
   MeshBasicMaterial,
   Object3D,
-  type Camera as CameraImpl,
   type Group,
   type InstancedMesh,
 } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { GROUND_CLEARANCE } from "../clearance";
 import { dropPose, finishLeapPose, leapProgress } from "../frog/leaps";
-import { FROG_LOOKS } from "../frog/look";
+import { FROG_LOOKS, FROG_VARIANTS, type FrogVariant } from "../frog/look";
 import { frogModel, frogPivot } from "../frog/model";
 import { moveDuration } from "../frog/moves";
 import { cellKey, frogCells } from "../logic";
-import { FROG_THICKNESS, crossedFinish, frogShape, nextWall } from "../run";
-import { useFrogminoStore } from "../store";
+import { FROG_THICKNESS, crossedFinish, frogShape, nextWall, placedFrog } from "../run";
+import type { Session } from "../session";
 import { tickTiming, toSeconds } from "../ticks";
 import { rowLength } from "../traffic";
 import { TUNING } from "../tuning";
@@ -31,9 +31,7 @@ import { DECK_TOP } from "../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
 import {
   type DrawnFrog,
-  DRAWN_PLAYER,
   amongVehicles,
-  drawnRuleFrog,
   arrived,
   bonkPose,
   followDepth,
@@ -47,7 +45,7 @@ import {
   withPiece,
 } from "./drawn-frog";
 import { FrogBody, type FrogHandle } from "./frog/frog-body";
-import { frogDrawnIn, makeFrogAssets } from "./frog/frog-assets";
+import { frogDrawnIn, makeFrogAssets, type FrogDrawing } from "./frog/frog-assets";
 import { GateView, makeGateAssets } from "./gate";
 import { Vehicle } from "./vehicle";
 import { makeVehicleAssets } from "./vehicle-assets";
@@ -59,13 +57,27 @@ import { FrogminoWorld } from "./world/world";
 // of its own, each as deep as the rules count it, so the two touch when their
 // depths meet and overlap exactly when the rules say they do. Everything drawn
 // in the cell grid stands the ground clearance above the ground under it.
-const { corridorCols, courseLength } = TUNING;
-const CENTER_X = (corridorCols - 1) / 2;
+const { courseLength } = TUNING;
 const INITIAL_EYE = cameraEye(TUNING, 0, DECK_TOP);
-const INITIAL_CAMERA: [number, number, number] = [CENTER_X, INITIAL_EYE.y, INITIAL_EYE.z];
 
-// Solo play is the first player's frog.
-const VARIANT = "p1";
+// The road's middle, which the camera rides over.
+function roadMiddle(lanes: number): number {
+  return (lanes - 1) / 2;
+}
+
+// Each frame runs in this order: the rules' ticks and the traffic, then each
+// drawn frog, then the camera following the team. Negative priorities order
+// the frame without taking over rendering.
+const STEP_PRIORITY = -2;
+const FROG_PRIORITY = -1;
+
+// Each player's frog is their variant: P1 Sprout, P2 Splash.
+function variantOf(player: number): FrogVariant {
+  const variant = FROG_VARIANTS[player] as FrogVariant | undefined;
+  if (variant === undefined) throw new Error(`No frog looks for player ${String(player)}`);
+  return variant;
+}
+
 // The frog's silhouette draws after the traffic and the world, so it sees
 // what hides the frog in the depth buffer, and before the frog itself, so
 // the frog never hides its own parts from it.
@@ -78,7 +90,8 @@ const FIT_OUTLINE_LIFT = 0.03;
 // The longest perimeter of any tetromino, in cell edges.
 const MAX_PERIMETER = 10;
 
-// The scene's own things: the fit outline and the frog's silhouette.
+// The scene's own things: the fit outline and each frog's silhouette, in
+// its own colour.
 function makeAssets() {
   return {
     fitEdge: new BoxGeometry(1 + FIT_LINE_WIDTH, FIT_LINE_WIDTH, FIT_LINE_WIDTH),
@@ -86,24 +99,30 @@ function makeAssets() {
     // Drawn only where something nearer the camera hides the frog: before
     // the frog itself, so only the traffic and the structures are in the
     // depth buffer yet, and without writing depth, so it never hides the frog.
-    silhouette: new MeshBasicMaterial({
-      color: themeColor("--color-frogmino-frog-silhouette"),
-      depthFunc: GreaterDepth,
-      depthWrite: false,
-      fog: false,
-    }),
+    silhouettes: Object.fromEntries(
+      FROG_VARIANTS.map((variant) => [
+        variant,
+        new MeshBasicMaterial({
+          color: themeColor(`--color-frogmino-frog-${variant}-silhouette`),
+          depthFunc: GreaterDepth,
+          depthWrite: false,
+          fog: false,
+        }),
+      ]),
+    ) as Record<FrogVariant, MeshBasicMaterial>,
   };
 }
+type SceneAssets = ReturnType<typeof makeAssets>;
 
-function Camera() {
+function Camera({ lanes }: { lanes: number }) {
   const aspect = useThree((s) => s.size.width / s.size.height);
   return (
     <PerspectiveCamera
       makeDefault
-      fov={fittedFov(aspect, corridorCols)}
+      fov={fittedFov(aspect, lanes)}
       near={CAMERA_NEAR}
       far={CAMERA_FAR}
-      position={INITIAL_CAMERA}
+      position={[roadMiddle(lanes), INITIAL_EYE.y, INITIAL_EYE.z]}
       rotation={[CAMERA_PITCH, 0, 0]}
     />
   );
@@ -140,67 +159,58 @@ function placeEdges(mesh: InstancedMesh, edges: readonly Edge[]): void {
   mesh.instanceMatrix.needsUpdate = true;
 }
 
-// The camera follows the drawn frog from behind, over the middle of the
-// road, rising and falling with the ground under it.
-function follow(camera: CameraImpl, d: DrawnFrog, delta: number, snap: boolean): void {
-  const eye = cameraEye(TUNING, d.depth, d.level);
-  camera.position.z = eye.z;
-  camera.position.y = snap ? eye.y : easedCameraHeight(camera.position.y, eye.y, delta);
-}
+// Where each player's frog is drawn this frame, along the road and the ground
+// under it, for the camera following the team.
+type DrawnTeam = (Pick<DrawnFrog, "depth" | "level"> | null)[];
 
-// Runs the game each frame: runs the rules' ticks the frame has brought due,
-// then eases the drawn frog toward its rule state and places the traffic, all
-// without React re-rendering. Everything is drawn at `now`, the rules' time
-// and on into the tick under way, so nothing steps at the tick rate.
-function Game() {
-  const stream = useFrogminoStore((s) => s.stream);
-  // Which row of the stream each wall is: changes only when a wall is
-  // recycled as the next row.
-  const traffic = useFrogminoStore(useShallow((s) => s.run.walls.map((wall) => wall.index)));
-  const kind = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].kind);
-  const rotation = useFrogminoStore((s) => s.run.frogs[DRAWN_PLAYER].rotation);
-
-  const assets = useMemo(() => makeAssets(), []);
-  const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
-  const frogAssets = useMemo(() => makeFrogAssets(), []);
-  const gateAssets = useMemo(() => makeGateAssets(), []);
-  const silhouette = useMemo(() => frogDrawnIn(frogAssets, assets.silhouette), [frogAssets, assets]);
-  useEffect(
-    () => () => {
-      Object.values(assets).forEach((asset) => {
-        asset.dispose();
-      });
-    },
-    [assets],
-  );
-  useEffect(
-    () => () => {
-      vehicleAssets.dispose();
-      frogAssets.dispose();
-      gateAssets.dispose();
-    },
-    [vehicleAssets, frogAssets, gateAssets],
-  );
+// One player's frog: eases its drawn frog toward the rule frog each frame
+// and places it, its silhouette and its fit outline, all without React
+// re-rendering. Everything is drawn at `now`, the rules' time and on into
+// the tick under way, so nothing steps at the tick rate.
+function TeamFrog({
+  session,
+  player,
+  assets,
+  frogAssets,
+  silhouette,
+  onDrawn,
+}: {
+  session: Session;
+  player: number;
+  assets: SceneAssets;
+  frogAssets: FrogDrawing;
+  silhouette: FrogDrawing;
+  // Hears where the frog is drawn each frame, and null once it is gone.
+  onDrawn: (player: number, drawn: DrawnFrog | null) => void;
+}) {
+  const variant = variantOf(player);
+  const kind = useStore(session.store, (s) => s.run.frogs[player].kind);
+  const rotation = useStore(session.store, (s) => s.run.frogs[player].rotation);
 
   // The frog turns about the middle of its cells.
   const pivot = useMemo(() => {
-    const look = FROG_LOOKS[VARIANT];
+    const look = FROG_LOOKS[variant];
     return frogPivot(frogModel(kind, rotation, { markings: look.markings, pupil: look.pupil, clearance: GROUND_CLEARANCE }));
-  }, [kind, rotation]);
+  }, [kind, rotation, variant]);
 
   const frogRef = useRef<Group>(null);
   const bodyRef = useRef<FrogHandle>(null);
   const silhouetteRef = useRef<FrogHandle>(null);
-  const wallRefs = useRef<(Group | null)[]>([]);
   const fitRef = useRef<InstancedMesh>(null);
   const fitShape = useRef("");
   const drawn = useRef<DrawnFrog | null>(null);
   const drawnRunId = useRef(-1);
 
-  useFrame((state, delta) => {
-    useFrogminoStore.getState().frame(delta);
-    const { run, runId, carry } = useFrogminoStore.getState();
-    const ruleFrog = drawnRuleFrog(run);
+  useEffect(
+    () => () => {
+      onDrawn(player, null);
+    },
+    [onDrawn, player],
+  );
+
+  useFrame((_, delta) => {
+    const { run, runId, carry } = session.store.getState();
+    const ruleFrog = placedFrog(run, player);
     const now = toSeconds(run.tick + carry);
     const timing = tickTiming(run.tuning);
     const play = (action: Parameters<FrogHandle["play"]>[0]): void => {
@@ -211,7 +221,7 @@ function Game() {
     const newRun = drawn.current === null || drawnRunId.current !== runId;
     if (newRun) {
       if (drawnRunId.current !== runId) play("idle");
-      drawn.current = snapped(run);
+      drawn.current = snapped(run, player);
       drawnRunId.current = runId;
     }
     let d = drawn.current;
@@ -322,6 +332,7 @@ function Game() {
     }
     d = withHop(run, d, now);
     drawn.current = d;
+    onDrawn(player, d);
     if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
     // A move's hop never lifts the frog among vehicles, and never plays over
     // a bonk's knock-back, the drop or the finish leap. A hop's arc already
@@ -335,20 +346,13 @@ function Game() {
       frog.position.set(d.x, height + GROUND_CLEARANCE + d.y + lift, -d.depth + FROG_THICKNESS / 2);
       frog.rotation.set(0, spin, d.swing);
     }
-    follow(state.camera, d, delta, newRun);
-
-    // The traffic is drawn as far on into the tick as real time has got.
-    const travel = run.tuning.wallSpeed * toSeconds(carry);
-    run.walls.forEach((wall, i) => {
-      const group = wallRefs.current[i];
-      if (group) group.position.z = -(wall.depth - travel);
-    });
 
     const fit = fitRef.current;
     if (fit === null) return;
     const next = nextWall(run);
     fit.visible = next !== null && !crossedFinish(run);
     if (next === null) return;
+    const travel = run.tuning.wallSpeed * toSeconds(carry);
     fit.position.z = -(run.walls[next].depth - travel) + FIT_OUTLINE_LIFT;
     const cells = frogCells(frogShape(ruleFrog));
     const shape = cells.map(cellKey).join(";");
@@ -356,51 +360,32 @@ function Game() {
       fitShape.current = shape;
       placeEdges(fit, perimeterEdges(cells));
     }
-  });
+  }, FROG_PRIORITY);
 
   return (
     <>
-      <FrogminoWorld courseLength={courseLength} seed={stream.seed} lanes={corridorCols} />
       <group ref={frogRef}>
         <group position={[-pivot[0], -pivot[1], -pivot[2]]}>
           <FrogBody
             ref={silhouetteRef}
             kind={kind}
             rotation={rotation}
-            variant={VARIANT}
+            variant={variant}
+            seed={player}
             renderOrder={SILHOUETTE_ORDER}
             assets={silhouette}
           />
-          <FrogBody ref={bodyRef} kind={kind} rotation={rotation} variant={VARIANT} renderOrder={FROG_ORDER} assets={frogAssets} />
+          <FrogBody
+            ref={bodyRef}
+            kind={kind}
+            rotation={rotation}
+            variant={variant}
+            seed={player}
+            renderOrder={FROG_ORDER}
+            assets={frogAssets}
+          />
         </group>
       </group>
-      {traffic.map((index, i) => (
-        <group
-          key={i}
-          ref={(group) => {
-            wallRefs.current[i] = group;
-          }}
-        >
-          {stream.row(index).vehicles.map(({ id, lane }) => (
-            <Vehicle
-              key={`${String(index)}:${String(lane)}`}
-              id={id}
-              lane={lane}
-              depth={0}
-              assets={vehicleAssets}
-              rumbleSeed={`${String(index)}:${String(lane)}`}
-            />
-          ))}
-          {stream.row(index).gates.map((gate) => (
-            <GateView
-              key={`${String(index)}:${String(gate.lane)}`}
-              gate={gate}
-              length={rowLength(stream.row(index).solids)}
-              assets={gateAssets}
-            />
-          ))}
-        </group>
-      ))}
       <instancedMesh
         ref={fitRef}
         args={[assets.fitEdge, assets.fitMaterial, MAX_PERIMETER]}
@@ -411,14 +396,134 @@ function Game() {
   );
 }
 
-export function FrogminoScene() {
+// Runs the game each frame: runs the rules' ticks the frame has brought due
+// and places the traffic, then each frog draws itself, then the camera
+// follows the team, all without React re-rendering.
+function Game({ session }: { session: Session }) {
+  const course = useStore(session.store, (s) => s.course);
+  const players = useStore(session.store, (s) => s.run.frogs.length);
+  // Which row of the course each wall is: changes only when a wall is
+  // recycled as the next row.
+  const traffic = useStore(session.store, useShallow((s) => s.run.walls.map((wall) => wall.index)));
+
+  const assets = useMemo(() => makeAssets(), []);
+  const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
+  const frogAssets = useMemo(() => makeFrogAssets(), []);
+  const gateAssets = useMemo(() => makeGateAssets(), []);
+  const silhouettes = useMemo(
+    () => Object.fromEntries(FROG_VARIANTS.map((variant) => [variant, frogDrawnIn(frogAssets, assets.silhouettes[variant])])) as Record<FrogVariant, FrogDrawing>,
+    [frogAssets, assets],
+  );
+  useEffect(
+    () => () => {
+      assets.fitEdge.dispose();
+      assets.fitMaterial.dispose();
+      Object.values(assets.silhouettes).forEach((material) => {
+        material.dispose();
+      });
+    },
+    [assets],
+  );
+  useEffect(
+    () => () => {
+      vehicleAssets.dispose();
+      frogAssets.dispose();
+      gateAssets.dispose();
+    },
+    [vehicleAssets, frogAssets, gateAssets],
+  );
+
+  const wallRefs = useRef<(Group | null)[]>([]);
+  const team = useRef<DrawnTeam>([]);
+  const onDrawn = useCallback((player: number, drawn: DrawnFrog | null) => {
+    team.current[player] = drawn;
+  }, []);
+  const cameraRunId = useRef(-1);
+
+  useFrame((_, delta) => {
+    session.frame(delta);
+    const { run, carry } = session.store.getState();
+    // The traffic is drawn as far on into the tick as real time has got.
+    const travel = run.tuning.wallSpeed * toSeconds(carry);
+    run.walls.forEach((wall, i) => {
+      const group = wallRefs.current[i];
+      if (group) group.position.z = -(wall.depth - travel);
+    });
+  }, STEP_PRIORITY);
+
+  // The camera follows the team from behind, over the middle of the road,
+  // rising and falling with the ground under it. The frogs share a depth, so
+  // their drawn depths are as one; it follows their middle.
+  useFrame((state, delta) => {
+    const drawnFrogs = team.current.filter((d) => d !== null);
+    if (drawnFrogs.length === 0) return;
+    const mean = (of: (d: Pick<DrawnFrog, "depth" | "level">) => number): number =>
+      drawnFrogs.reduce((sum, d) => sum + of(d), 0) / drawnFrogs.length;
+    const eye = cameraEye(TUNING, mean((d) => d.depth), mean((d) => d.level));
+    const { runId } = session.store.getState();
+    const snap = cameraRunId.current !== runId;
+    cameraRunId.current = runId;
+    state.camera.position.z = eye.z;
+    state.camera.position.y = snap ? eye.y : easedCameraHeight(state.camera.position.y, eye.y, delta);
+  });
+
+  return (
+    <>
+      <FrogminoWorld courseLength={courseLength} seed={course.seed} lanes={course.lanes} />
+      {Array.from({ length: players }, (_, player) => (
+        <TeamFrog
+          key={player}
+          session={session}
+          player={player}
+          assets={assets}
+          frogAssets={frogAssets}
+          silhouette={silhouettes[variantOf(player)]}
+          onDrawn={onDrawn}
+        />
+      ))}
+      {traffic.map((index, i) => {
+        const row = course.row(index);
+        return (
+          <group
+            key={i}
+            ref={(group) => {
+              wallRefs.current[i] = group;
+            }}
+          >
+            {row.vehicles.map(({ id, lane }) => (
+              <Vehicle
+                key={`${String(index)}:${String(lane)}`}
+                id={id}
+                lane={lane}
+                depth={0}
+                assets={vehicleAssets}
+                rumbleSeed={`${String(index)}:${String(lane)}`}
+              />
+            ))}
+            {row.gates.map((gate) => (
+              <GateView
+                key={`${String(index)}:${String(gate.lane)}`}
+                gate={gate}
+                length={rowLength(row.solids)}
+                assets={gateAssets}
+              />
+            ))}
+          </group>
+        );
+      })}
+    </>
+  );
+}
+
+export function FrogminoScene({ session }: { session: Session }) {
+  const lanes = useStore(session.store, (s) => s.course.lanes);
   // Flat: no tone mapping, so the design tokens show as authored.
   return (
     <Canvas flat>
-      <Camera />
+      <Camera lanes={lanes} />
       <ambientLight intensity={1.5} />
       <directionalLight position={[4, 10, 6]} intensity={1.8} />
-      <Game />
+      <Game session={session} />
     </Canvas>
   );
 }

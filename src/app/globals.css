@@ -135,13 +135,14 @@
   --color-frogmino-frog-pupil: #1c1d26;
 }
 
-/* Frogmino: the frog's silhouette, drawn flat and unlit wherever a vehicle,
+/* Frogmino: each frog's silhouette, drawn flat and unlit wherever a vehicle,
    the overpass or the finish gantry hides the frog from the camera, so the
-   player never loses it. A bright, light green, a step off the skin, reads
-   as the frog through any paint. Read only by the 3D scene through
-   themeColor, so declared outside @theme. */
+   player never loses it. A bright, light tint a step off each frog's skin
+   (Sprout's green, Splash's azure) reads as that frog through any paint.
+   Read only by the 3D scene through themeColor, so declared outside @theme. */
 :root {
-  --color-frogmino-frog-silhouette: #b4f59a;
+  --color-frogmino-frog-p1-silhouette: #b4f59a;
+  --color-frogmino-frog-p2-silhouette: #9fd0ff;
 }
 
 /* Frogmino: the world around the road, a mountain road at golden hour. Soft

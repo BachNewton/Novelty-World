@@ -26,6 +26,7 @@ describe("a gate's new piece in the drawn frog", () => {
   // Mid-jump, mid-hop, swinging out of a turn and knocked back by a bonk,
   // after the drop: everything a piece change could catch in progress.
   const drawn: DrawnFrog = {
+    player: 0,
     kind: "L",
     rotation: 0,
     x: 3.4,
@@ -75,6 +76,7 @@ describe("the drawn frog's moves", () => {
   const start: PlacedFrog = { kind: "T", col: 2, rotation: 0, depth: 3, latestHop: null };
   const resting: DrawnFrog = {
     ...frogTarget(start),
+    player: 0,
     kind: "T",
     rotation: 0,
     level: 0,
@@ -187,7 +189,7 @@ function runWith(row: Omit<RuleRow, "gap">, gap: number): Run {
 function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => run): { run: Run; frames: Frame[] } {
   let run = first;
   let carry = 0;
-  let drawn = snapped(run);
+  let drawn = snapped(run, 0);
   const frames: Frame[] = [];
   for (let k = 1; k * FRAME < seconds; k++) {
     const due = frameTicks(carry, FRAME, TUNING.maxFrameDelta);
@@ -195,7 +197,7 @@ function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => ru
     run = act(playTo(run, run.tick + due.ticks));
     const now = toSeconds(run.tick + carry);
     const bonked = run.lastBonk !== drawn.bonk;
-    drawn = seeMoves(seeBonk(drawn, run), drawnRuleFrog(run), now, !bonked);
+    drawn = seeMoves(seeBonk(drawn, run), drawnRuleFrog(run, drawn), now, !bonked);
     const pose = bonkPose(drawn.bonkMotion, run, now);
     if (pose === null) drawn = { ...drawn, bonkMotion: null };
     drawn = withHop(run, followDepth(drawn, run, now, pose, FRAME), now);

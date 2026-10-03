@@ -43,18 +43,20 @@ export interface Glide {
   startedAt: number;
 }
 
-// The game draws player 0's frog: solo's, until co-op play draws the team.
-export const DRAWN_PLAYER = 0;
+// The game draws every frog of the team, each its own drawn frog following
+// its player's rule frog.
 
-// The rule frog the drawn frog follows, at the team's depth.
-export function drawnRuleFrog(run: Run): PlacedFrog {
-  return placedFrog(run, DRAWN_PLAYER);
+// The rule frog a drawn frog follows, at the team's depth.
+export function drawnRuleFrog(run: Run, drawn: Pick<DrawnFrog, "player">): PlacedFrog {
+  return placedFrog(run, drawn.player);
 }
 
 // What the drawn frog last saw of the rule frog, to tell what has moved.
 export type SeenFrog = Pick<PlacedFrog, "kind" | "rotation" | "col" | "depth">;
 
 export interface DrawnFrog {
+  // Whose frog it is.
+  player: number;
   // The piece and rotation drawn.
   kind: TetrominoKind;
   rotation: Rotation;
@@ -99,21 +101,23 @@ function seenOf({ kind, rotation, col, depth }: PlacedFrog): SeenFrog {
   return { kind, rotation, col, depth };
 }
 
-// The drawn frog at the start of a run: exactly as the rules have it.
-export function snapped(run: Run): DrawnFrog {
+// A player's drawn frog at the start of a run: exactly as the rules have it.
+export function snapped(run: Run, player: number): DrawnFrog {
+  const frog = placedFrog(run, player);
   return {
-    ...frogTarget(drawnRuleFrog(run)),
-    kind: drawnRuleFrog(run).kind,
-    rotation: drawnRuleFrog(run).rotation,
+    ...frogTarget(frog),
+    player,
+    kind: frog.kind,
+    rotation: frog.rotation,
     level: onOverpass(run) ? DECK_TOP : 0,
     swing: 0,
-    lift: hopHeight(drawnRuleFrog(run)),
+    lift: hopHeight(frog),
     rodeUntil: null,
     glideX: null,
     glideDepth: null,
     moveHops: [],
-    seen: seenOf(drawnRuleFrog(run)),
-    hopAt: drawnRuleFrog(run).latestHop?.startedAt ?? null,
+    seen: seenOf(frog),
+    hopAt: frog.latestHop?.startedAt ?? null,
     bonk: run.lastBonk,
     bonkMotion: null,
     drop: null,
@@ -203,8 +207,8 @@ export function amongVehicles(run: Run, depth: number): boolean {
 // Whether the frog in its rule pose, `hop` cells up and drawn at `depth`,
 // would be inside a vehicle overlapping it there, across a gate's post, or
 // above the face.
-function drawnInVehicle(run: Run, depth: number, hop: HopHeight): boolean {
-  const cells = frogCells({ ...frogShape(drawnRuleFrog(run)), hop });
+function drawnInVehicle(run: Run, drawn: DrawnFrog, depth: number, hop: HopHeight): boolean {
+  const cells = frogCells({ ...frogShape(drawnRuleFrog(run, drawn)), hop });
   const onFace = cells.every((cell) => cell.row < run.tuning.wallRows);
   return run.walls.some((wall) => {
     const solids = overlappingDrawn(wall, depth);
@@ -219,16 +223,16 @@ function drawnInVehicle(run: Run, depth: number, hop: HopHeight): boolean {
 // glide trails the rules, so the drawn frog can still be among the row's
 // vehicles then; dropping it there would put it inside them.
 function heightAmong(run: Run, drawn: DrawnFrog, depth: number): HopHeight {
-  if (hopHeight(drawnRuleFrog(run)) === 1) return 1;
-  return drawn.lift === 1 && !drawnInVehicle(run, depth, 1) ? 1 : 0;
+  if (hopHeight(drawnRuleFrog(run, drawn)) === 1) return 1;
+  return drawn.lift === 1 && !drawnInVehicle(run, drawn, depth, 1) ? 1 : 0;
 }
 
 // A frog that has just jumped clear of a vehicle and then slid into its
 // lane would be drawn inside it while its glide trails behind, so it is
 // drawn at its rule depth at once.
 export function keptOutOfVehicles(run: Run, drawn: DrawnFrog): DrawnFrog {
-  if (!inPlay(run) || !drawnInVehicle(run, drawn.depth, heightAmong(run, drawn, drawn.depth))) return drawn;
-  return { ...drawn, depth: frogTarget(drawnRuleFrog(run)).depth, glideDepth: null };
+  if (!inPlay(run) || !drawnInVehicle(run, drawn, drawn.depth, heightAmong(run, drawn, drawn.depth))) return drawn;
+  return { ...drawn, depth: frogTarget(drawnRuleFrog(run, drawn)).depth, glideDepth: null };
 }
 
 // The drawn frog's hop at `now`. Among vehicles it is exactly as high as it
@@ -237,7 +241,7 @@ export function keptOutOfVehicles(run: Run, drawn: DrawnFrog): DrawnFrog {
 // later, when it last rode on among the row. Each only ever moves the drawn
 // frog one way, so it carries on smoothly from wherever it was left.
 export function withHop(run: Run, drawn: DrawnFrog, now: number): DrawnFrog {
-  const hop = drawnRuleFrog(run).latestHop;
+  const hop = drawnRuleFrog(run, drawn).latestHop;
   if (hop === null) return { ...drawn, lift: 0 };
   if (amongVehicles(run, drawn.depth)) {
     const height = heightAmong(run, drawn, drawn.depth);
@@ -291,7 +295,7 @@ export function bonkPose(motion: BonkMotion | null, run: Run, now: number): Bonk
 // draw it their own way.
 export function followDepth(drawn: DrawnFrog, run: Run, now: number, pose: BonkPose | null, delta: number): DrawnFrog {
   if (pose !== null) return { ...drawn, depth: pose.depth };
-  const target = frogTarget(drawnRuleFrog(run)).depth;
+  const target = frogTarget(drawnRuleFrog(run, drawn)).depth;
   const stride = moveDuration(run.tuning);
   const jump = drawn.glideDepth;
   const gliding = jump !== null && jump.to === target;

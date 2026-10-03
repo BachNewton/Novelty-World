@@ -21,11 +21,11 @@ import { useCoopStore } from "../coop-store";
 import { CoopRoom } from "./coop-room";
 
 /**
- * The screen before the game: play solo, host a co-op game, or join one from
- * the live list of open games. A hosted game is listed until it has a
+ * The screen before the game: play solo, play local co-op on this computer,
+ * host an online co-op game, or join one from the live list of open games. A hosted game is listed until it has a
  * partner or starts; the host picks the course seed and sends it with Start.
  */
-export function FrogminoLobby({ onPlaySolo }: { onPlaySolo: () => void }) {
+export function FrogminoLobby({ onPlaySolo, onLocalCoop }: { onPlaySolo: () => void; onLocalCoop: () => void }) {
   const profile = useProfile();
   const seat = useCoopStore((s) => s.seat);
   const notice = useCoopStore((s) => s.notice);
@@ -109,9 +109,14 @@ export function FrogminoLobby({ onPlaySolo }: { onPlaySolo: () => void }) {
         title="Frogmino"
         subtitle="Hop, turn and squeeze through the traffic, alone or with a friend"
         actions={
-          <Button onClick={onPlaySolo} className="bg-brand-green hover:bg-brand-green/90">
-            Play solo
-          </Button>
+          <>
+            <Button onClick={onPlaySolo} className="bg-brand-green hover:bg-brand-green/90">
+              Play solo
+            </Button>
+            <Button onClick={onLocalCoop} className="bg-brand-blue hover:bg-brand-blue/90">
+              Local co-op
+            </Button>
+          </>
         }
         onCreate={host}
         createLabel="Host co-op"

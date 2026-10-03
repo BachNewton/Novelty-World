@@ -123,6 +123,8 @@ export interface Hold {
 
 export interface Run {
   tuning: Tuning;
+  // How many lanes wide the road is: the course's width.
+  lanes: number;
   // Ticks of play so far.
   tick: number;
   // The team, one frog per player in player order; solo is a team of one.
@@ -193,6 +195,10 @@ export interface RunOptions {
   // Each frog's starting piece, one per player; a lone L unless the course
   // says otherwise.
   kinds?: readonly TetrominoKind[];
+  // The road's width in lanes, which a course sets; the tuning's corridor
+  // width, which the row stream is built for, unless the course says
+  // otherwise.
+  lanes?: number;
 }
 
 const ROTATIONS: readonly Rotation[] = [0, 1, 2, 3];
@@ -229,12 +235,14 @@ function lineUpTraffic(rows: RuleRows, tuning: Tuning): Wall[] {
 
 export function createRun(rows: RuleRows, tuning: Tuning, options: RunOptions = {}): Run {
   checkTuning(tuning);
-  const { kinds = ["L"] } = options;
+  const { kinds = ["L"], lanes = tuning.corridorCols } = options;
   if (kinds.length === 0) throw new Error("A run needs at least one frog");
+  if (!Number.isInteger(lanes) || lanes < 1) throw new Error(`A road can't be ${String(lanes)} lanes wide`);
   return {
     tuning,
+    lanes,
     tick: 0,
-    frogs: startPlacements(kinds, tuning.corridorCols).map((placement, i) => ({ kind: kinds[i], ...placement, latestHop: null })),
+    frogs: startPlacements(kinds, lanes).map((placement, i) => ({ kind: kinds[i], ...placement, latestHop: null })),
     depth: 0,
     walls: lineUpTraffic(rows, tuning),
     rows,
@@ -297,7 +305,7 @@ export function nextWall(run: Run): number | null {
 
 // The traffic lanes, across the road from 0.
 function roadLanes(run: Run): Lanes {
-  return { first: 0, last: run.tuning.corridorCols - 1 };
+  return { first: 0, last: run.lanes - 1 };
 }
 
 // The pass test against some of a row's solids, for a player's frog taking

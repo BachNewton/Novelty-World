@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useFrogminoStore } from "../store";
+import type { Session } from "../session";
 import { soundCues } from "./cues";
 import { loadSounds, playSound, unlockAudio } from "./sound-board";
 
@@ -11,14 +11,14 @@ import { loadSounds, playSound, unlockAudio } from "./sound-board";
 const UNLOCKING_EVENTS = ["keydown", "pointerdown", "pointerup"] as const;
 
 // Plays the game's sounds: loads them as the game opens, unlocks audio on the
-// player's input, and turns each change in the store's state into its sound
+// player's input, and turns each change in the session's state into its sound
 // cues.
-export function useGameSounds(): void {
+export function useGameSounds(session: Session): void {
   useEffect(() => {
     void loadSounds();
     for (const type of UNLOCKING_EVENTS) window.addEventListener(type, unlockAudio, { capture: true });
     let streak = 0;
-    const unsubscribe = useFrogminoStore.subscribe((after, before) => {
+    const unsubscribe = session.store.subscribe((after, before) => {
       const heard = soundCues(before, after, streak);
       streak = heard.streak;
       for (const { sound, semitones } of heard.cues) playSound(sound, { semitones });
@@ -27,5 +27,5 @@ export function useGameSounds(): void {
       unsubscribe();
       for (const type of UNLOCKING_EVENTS) window.removeEventListener(type, unlockAudio, { capture: true });
     };
-  }, []);
+  }, [session]);
 }
