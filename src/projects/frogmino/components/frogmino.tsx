@@ -20,6 +20,7 @@ const FrogminoScene = dynamic(() => import("./scene").then((m) => m.FrogminoScen
 const Garage = dynamic(() => import("./garage").then((m) => m.Garage), { ssr: false });
 const WorldPreview = dynamic(() => import("./world/world-preview").then((m) => m.WorldPreview), { ssr: false });
 const SoundLab = dynamic(() => import("../audio/sound-lab").then((m) => m.SoundLab), { ssr: false });
+const MusicLab = dynamic(() => import("../audio/music/music-lab").then((m) => m.MusicLab), { ssr: false });
 const FrogPreview = dynamic(() => import("./frog/frog-preview").then((m) => m.FrogPreview), { ssr: false });
 
 function KeyLegend() {
@@ -57,38 +58,34 @@ function subscribeToNothing(): () => void {
   return () => undefined;
 }
 
-// `?garage` in the URL shows the fleet instead of the game, `?world` the world
-// preview, `?sounds` the sound audition and `?frog` the frog preview. The
-// server render never has any
-// of them, so the page hydrates as the game and switches after.
-function useUrlFlag(flag: string): boolean {
-  return useSyncExternalStore(
-    subscribeToNothing,
-    () => new URLSearchParams(window.location.search).has(flag),
-    () => false,
-  );
-}
-
+// The page opens on the screen its URL names (see `view.ts`): the lobby, solo
+// play with `?play=solo`, or a dev view in place of the game. The server
+// render has no URL, so it renders nothing and the page picks after
+// hydrating.
 export function Frogmino() {
-  const garage = useUrlFlag("garage");
-  const world = useUrlFlag("world");
-  const sounds = useUrlFlag("sounds");
-  const frog = useUrlFlag("frog");
-  if (garage) return <Garage />;
-  if (world) return <WorldPreview />;
-  if (sounds) return <SoundLab />;
-  if (frog) return <FrogPreview />;
-  return <FrogminoEntry />;
+  const view = useSyncExternalStore(subscribeToNothing, () => frogminoView(window.location.search), () => null);
+  switch (view) {
+    case null:
+      return null;
+    case "garage":
+      return <Garage />;
+    case "world":
+      return <WorldPreview />;
+    case "sounds":
+      return <SoundLab />;
+    case "music":
+      return <MusicLab />;
+    case "frog":
+      return <FrogPreview />;
+    case "lobby":
+    case "solo":
+      return <FrogminoEntry solo={view === "solo"} />;
+  }
 }
 
-// The page opens on the lobby, or straight into solo play with `?play=solo`
-// (see `view.ts`). The server render has no URL, so it renders nothing and
-// the page picks after hydrating.
-function FrogminoEntry() {
-  const view = useSyncExternalStore(subscribeToNothing, () => frogminoView(window.location.search), () => null);
+function FrogminoEntry({ solo }: { solo: boolean }) {
   const [soloChosen, setSoloChosen] = useState(false);
-  if (view === null) return null;
-  if (soloChosen || view === "solo") return <FrogminoGame />;
+  if (soloChosen || solo) return <FrogminoGame />;
   return <FrogminoLobby onPlaySolo={() => setSoloChosen(true)} />;
 }
 

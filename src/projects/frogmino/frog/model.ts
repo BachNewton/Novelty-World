@@ -4,7 +4,7 @@ import { FROG_THICKNESS } from "../run";
 import type { Cell, Rotation, TetrominoKind } from "../types";
 import { DECAL, type Vec3 } from "../vehicles/parts";
 import type { FrogRole, Markings, Pupil } from "./look";
-import type { PupilOrbit } from "./motion";
+import { PUPIL_ORBIT, type PupilOrbit } from "./motion";
 
 // The frog is built in its own frame, like a vehicle: x runs across the
 // lanes and y up, so the cell at (col, row) fills x from col to col + 1. Every
@@ -17,8 +17,8 @@ import type { PupilOrbit } from "./motion";
 // row, with the eyes on top of it, and the legs are always under the bottom
 // row, on the road. Seen head-on, every cell is a full square and nothing
 // reaches into an empty cell: the eyes bulge up from a dip in the back of the
-// head, never above it, and look ahead down the road, away from the camera
-// (see the frog in CLAUDE.md).
+// head, never above it, with their pupils turned up to the camera (see the
+// frog in CLAUDE.md).
 
 // The head's snout: a full-height ridge across the front of the top row,
 // which keeps each head cell a full square seen head-on.
@@ -27,19 +27,20 @@ const SNOUT_DEPTH = 0.1;
 // bulge up out of it.
 const HEAD_DIP = 0.22;
 
-// The camera is behind the frog, which looks down the road at the traffic,
-// so the eyes look that way too. Each eye is a skin bump on the head, just
-// behind the snout, which the camera sees from behind. Its eyeball bulges
-// out of the bump's outer front, as a real frog's eyes sit on the sides of
-// its head, with the pupil in the middle of the bulge: from behind, only a
-// sliver of white shows round each bump's side.
+// The camera is behind and above the frog, which faces down the road. Each
+// eye is a skin bump on the head, just behind the snout, with its eyeball
+// bulging out of the bump's top, toward the outside and a touch back, as a
+// frog's eyes sit high on its head, and the pupil in the middle of that
+// bulge, looking up and out. So the gameplay camera sees each pupil on the
+// far, outer side of its eyeball, as a frog seen from behind looking ahead
+// and out, and the turntable shows the frog from the front looking up.
 const EYE_RADIUS = 0.2;
 // The two eyes' centres are half a cell apart, centred on the head row.
 const EYE_SPACING = 0.5;
 const EYE_Z = 0.33;
-// Which way the right eye looks: out, ahead down the road, and a little up.
-// The left eye's mirrors it.
-const GAZE: Vec3 = [0.75, 0.2, -0.63];
+// Which way the right eye looks: up, out, and a touch back toward the
+// camera, enough to turn its pupil to it. The left eye's mirrors it.
+const GAZE: Vec3 = [0.6, 0.75, 0.2];
 const WHITE_RADIUS = 0.11;
 // How far the white's middle sits from the bump's, along the gaze. The white
 // stands well out of the bump, so its rim crosses the bump's skin steeply: a
@@ -47,10 +48,12 @@ const WHITE_RADIUS = 0.11;
 // through it.
 const WHITE_OUT = 0.145;
 // Each pupil's size, and how far its middle is from the white's: it stands
-// out of the white far enough that its rim crosses the white steeply.
+// out of the white far enough that its rim crosses the white steeply. The bar
+// is wide across the road and thin along it, so the camera, looking down on
+// the eye, sees it lying across.
 const PUPILS: Record<Pupil, { radii: Vec3; distance: number }> = {
   round: { radii: [0.045, 0.045, 0.045], distance: 0.08 },
-  bar: { radii: [0.05, 0.026, 0.04], distance: 0.095 },
+  bar: { radii: [0.05, 0.04, 0.026], distance: 0.095 },
 };
 
 const MARK_SIZE = 0.42;
@@ -98,8 +101,11 @@ export interface FrogCell {
 }
 
 export interface FrogLeg {
-  // Where the leg tucks toward: its top, against the body's underside.
+  // Where the leg tucks toward and kicks out from: its top, against the
+  // body's underside.
   hip: Vec3;
+  // A hind leg, which kicks out behind on a hop.
+  hind: boolean;
   parts: FrogPart[];
 }
 
@@ -137,11 +143,22 @@ function ellipsoid(centre: Vec3, radii: Vec3, role: FrogRole): FrogPart {
   };
 }
 
+// How far an eye reaches above its bump's middle: its bump, its white, or
+// its pupil anywhere on the dazed circle, whichever is highest, for either
+// pupil, so both frogs' eyes sit alike.
+const EYE_REACH = Math.max(
+  EYE_RADIUS,
+  unit(GAZE)[1] * WHITE_OUT + WHITE_RADIUS,
+  ...Object.values(PUPILS).map(
+    ({ radii, distance }) => unit(GAZE)[1] * (WHITE_OUT + distance) + PUPIL_ORBIT + radii[1],
+  ),
+);
+
 // An eye at `x` across, peaking at `top`, on the `side` of the head it
 // looks out of: -1 left, 1 right.
 function eye(x: number, top: number, side: -1 | 1, pupil: Pupil): FrogEye {
   const outward = (v: Vec3): Vec3 => [side * v[0], v[1], v[2]];
-  const centre: Vec3 = [x, top - EYE_RADIUS, EYE_Z];
+  const centre: Vec3 = [x, top - EYE_REACH, EYE_Z];
   const gaze = unit(outward(GAZE));
   const whiteCentre = add(centre, times(gaze, WHITE_OUT));
   return {
@@ -194,22 +211,37 @@ function topMarks(col: number, top: number, depth: number, markings: Markings): 
     : [disc("drumY", [x - d, top, z - d], FRECKLE_SIZE), disc("drumY", [x + d, top, z + d], FRECKLE_SIZE)];
 }
 
-// Two hind legs at the ends of the bottom row, with big webbed feet reaching
-// back toward the camera, and two small front feet: all in the clearance
-// under the bottom row. A frog with no clearance has no legs.
+// Two hind legs at the ends of the bottom row and two small front legs, all
+// in the clearance under the bottom row, and all facing down the road with
+// the frog. A sitting frog's hind leg folds under it in a Z: the haunch along
+// the body's underside, back from the hip to the knee, and the long webbed
+// foot back on the road from the toes, fanned out ahead and to the side, to
+// the heel under the knee. Only the back of the clearance shows past the body
+// from the gameplay camera, so it sees each haunch with its heel below it,
+// never toes pointing at it. A hind leg tucks toward and kicks out from its
+// hip, at the haunch's front, so a kick stretches it back along the road.
+// A frog with no clearance has no legs.
 function legs(from: number, to: number, clearance: number): FrogLeg[] {
   const c = clearance;
   if (c <= 0) return [];
-  const hind = (x: number): FrogLeg => ({
-    hip: [x, c, 0.66],
+  const toeHeight = Math.min(0.1, c * 0.4);
+  // `side` is the way out from the frog's middle: -1 left, 1 right.
+  const hind = (x: number, side: -1 | 1): FrogLeg => ({
+    hip: [x, c, 0.46],
+    hind: true,
     parts: [
-      { shape: "sphere", min: [x - 0.17, c * 0.2, 0.42], max: [x + 0.17, c, 0.9], role: "skin" },
-      { shape: "sphere", min: [x - 0.15, 0, 0.62], max: [x + 0.15, c * 0.24, 0.96], role: "foot" },
-      ...[-0.1, 0, 0.1].map(
-        (dx): FrogPart => ({
+      { shape: "sphere", min: [x - 0.17, c * 0.3, 0.46], max: [x + 0.17, c, 0.96], role: "skin" },
+      { shape: "sphere", min: [x - 0.1, 0, 0.46], max: [x + 0.1, c * 0.24, 0.99], role: "foot" },
+      // The toes, inner to outer: the outer ones reach furthest out and ahead.
+      ...[
+        [-0.08, 0.42],
+        [0.03, 0.36],
+        [0.12, 0.38],
+      ].map(
+        ([out, front]): FrogPart => ({
           shape: "sphere",
-          min: [x + dx - 0.05, 0, 0.9],
-          max: [x + dx + 0.05, Math.min(0.1, c * 0.4), 1],
+          min: [x + side * out - 0.05, 0, front],
+          max: [x + side * out + 0.05, toeHeight, front + 0.14],
           role: "foot",
         }),
       ),
@@ -217,12 +249,13 @@ function legs(from: number, to: number, clearance: number): FrogLeg[] {
   });
   const front = (x: number): FrogLeg => ({
     hip: [x, c, 0.16],
+    hind: false,
     parts: [
       { shape: "sphere", min: [x - 0.07, c * 0.2, 0.08], max: [x + 0.07, c, 0.24], role: "skin" },
       { shape: "sphere", min: [x - 0.1, 0, 0.02], max: [x + 0.1, c * 0.2, 0.26], role: "foot" },
     ],
   });
-  return [hind(from + 0.21), hind(to - 0.21), front(from + 0.34), front(to - 0.34)];
+  return [hind(from + 0.21, -1), hind(to - 0.21, 1), front(from + 0.34), front(to - 0.34)];
 }
 
 export function frogModel(kind: TetrominoKind, rotation: Rotation, options: FrogModelOptions): FrogModel {

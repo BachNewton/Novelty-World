@@ -3,10 +3,10 @@ import { TUNING } from "../tuning";
 import {
   GROUND_DROP,
   ROAD_LEFT,
-  ROAD_RIGHT,
   VERGE,
   box,
   boxArea,
+  roadRight,
   sideX,
   type Area,
   type WorldBox,
@@ -17,7 +17,7 @@ import type { WorldPaint } from "./paints";
 // the finish gantry it ends on. Both are decks the frog can stand on, high
 // enough that the tallest vehicle, lifted off the road by the ground
 // clearance, drives clearly underneath, on pillars that stay outside the
-// traffic lanes and the verges.
+// traffic lanes and the verges, however many lanes the road has.
 
 export const DECK_TOP = 5;
 const DECK_THICKNESS = 0.45;
@@ -82,17 +82,17 @@ function layer(x0: number, x1: number, near: number, far: number, paint: WorldPa
   return span(x0, x1, DECK_TOP, DECK_TOP + level * MARK_THICKNESS, near, far, paint);
 }
 
-export function overpassBoxes(): WorldBox[] {
+export function overpassBoxes(lanes: number): WorldBox[] {
   const [near, far] = [OVERPASS_NEAR, OVERPASS_FAR];
   const deckOut = ABUTMENT_OUT + EMBANKMENT_STEPS[0].out;
-  const [x0, x1] = [sideX("left", deckOut), sideX("right", deckOut)];
-  const [deckLeft, deckRight] = [sideX("left", ABUTMENT_OUT), sideX("right", ABUTMENT_OUT)];
+  const [x0, x1] = [sideX(lanes, "left", deckOut), sideX(lanes, "right", deckOut)];
+  const [deckLeft, deckRight] = [sideX(lanes, "left", ABUTMENT_OUT), sideX(lanes, "right", ABUTMENT_OUT)];
   const boxes: WorldBox[] = [
     span(deckLeft, deckRight, DECK_UNDERSIDE, DECK_TOP, near + STRIPE_DEPTH, far - STRIPE_DEPTH, "bridge"),
     // The crossing road on top, with its centre line running across.
     layer(x0, x1, near + 0.15, far - 0.15, "asphalt"),
     // A hazard lip marks the edge the frog jumps down from.
-    span(ROAD_LEFT - PIER_IN, ROAD_RIGHT + PIER_IN, DECK_TOP, DECK_TOP + LIP_HEIGHT, far - 0.15, far, "sign"),
+    span(ROAD_LEFT - PIER_IN, roadRight(lanes) + PIER_IN, DECK_TOP, DECK_TOP + LIP_HEIGHT, far - 0.15, far, "sign"),
     ...faceStripes(deckLeft, deckRight, DECK_UNDERSIDE, DECK_TOP, far, -1, ["sign", "sign-ink"]),
     ...faceStripes(deckLeft, deckRight, DECK_UNDERSIDE, DECK_TOP, near, 1, ["sign", "sign-ink"]),
   ];
@@ -112,10 +112,10 @@ export function overpassBoxes(): WorldBox[] {
   boxes.push(box([(x0 + x1) / 2, DECK_TOP + 0.32, -near - 0.1], [x1 - x0, 0.08, 0.06], "rail"));
 
   for (const side of ["left", "right"] as const) {
-    const [a, b] = [sideX(side, PIER_IN), sideX(side, ABUTMENT_OUT)];
+    const [a, b] = [sideX(lanes, side, PIER_IN), sideX(lanes, side, ABUTMENT_OUT)];
     boxes.push(span(Math.min(a, b), Math.max(a, b), -GROUND_DROP, DECK_UNDERSIDE, near - 0.4, far + 0.4, "bridge-dark"));
     EMBANKMENT_STEPS.forEach((step, i) => {
-      const [c, d] = [sideX(side, ABUTMENT_OUT + i * EMBANKMENT_STEP_IN), sideX(side, ABUTMENT_OUT + step.out)];
+      const [c, d] = [sideX(lanes, side, ABUTMENT_OUT + i * EMBANKMENT_STEP_IN), sideX(lanes, side, ABUTMENT_OUT + step.out)];
       const spread = EMBANKMENT_SPREAD * (i + 1);
       boxes.push(span(Math.min(c, d), Math.max(c, d), -GROUND_DROP, step.height, near - spread, far + spread, i === 0 ? "bridge" : "meadow-deep"));
     });
@@ -131,17 +131,17 @@ const FLAG_POLE = 1.3;
 
 // The finish gantry: a chequered beam across the road on two chequered
 // towers, with pink flags on top and a deck to stand on.
-export function gantryBoxes(courseLength: number): WorldBox[] {
+export function gantryBoxes(lanes: number, courseLength: number): WorldBox[] {
   const [near, far] = [courseLength, courseLength + DECK_LENGTH];
-  const [x0, x1] = [sideX("left", TOWER_IN + TOWER_WIDTH), sideX("right", TOWER_IN + TOWER_WIDTH)];
+  const [x0, x1] = [sideX(lanes, "left", TOWER_IN + TOWER_WIDTH), sideX(lanes, "right", TOWER_IN + TOWER_WIDTH)];
   const boxes: WorldBox[] = [
     span(x0, x1, DECK_UNDERSIDE, DECK_TOP, near + STRIPE_DEPTH, far - STRIPE_DEPTH, "bridge"),
-    layer(sideX("left", TOWER_IN), sideX("right", TOWER_IN), near + 0.1, far - 0.1, "finish-light"),
+    layer(sideX(lanes, "left", TOWER_IN), sideX(lanes, "right", TOWER_IN), near + 0.1, far - 0.1, "finish-light"),
     ...faceStripes(x0, x1, DECK_UNDERSIDE, DECK_TOP, near, 1, ["finish-light", "finish-dark"], 2),
     ...faceStripes(x0, x1, DECK_UNDERSIDE, DECK_TOP, far, -1, ["finish-light", "finish-dark"], 2),
   ];
   for (const side of ["left", "right"] as const) {
-    const [a, b] = [sideX(side, TOWER_IN), sideX(side, TOWER_IN + TOWER_WIDTH)];
+    const [a, b] = [sideX(lanes, side, TOWER_IN), sideX(lanes, side, TOWER_IN + TOWER_WIDTH)];
     for (let level = 0; level < TOWER_BLOCKS; level++) {
       const [y0, y1] = [level === 0 ? -GROUND_DROP : level * TOWER_BLOCK, (level + 1) * TOWER_BLOCK];
       // The deck passes through the towers, so a block stops at the deck
@@ -174,9 +174,8 @@ export function finishZone(courseLength: number): { near: number; far: number } 
   return { near: courseLength + SPRING_PAD_NEAR, far: courseLength + FINISH_LINE.far };
 }
 
-export function finishMarkings(courseLength: number): WorldBox[] {
+export function finishMarkings(lanes: number, courseLength: number): WorldBox[] {
   const marks: WorldBox[] = [];
-  const lanes = ROAD_RIGHT - ROAD_LEFT;
   const lineNear = courseLength + FINISH_LINE.near;
   for (let col = 0; col < lanes / CHECK; col++) {
     for (let row = 0; row < (FINISH_LINE.far - FINISH_LINE.near) / CHECK; row++) {
@@ -188,7 +187,7 @@ export function finishMarkings(courseLength: number): WorldBox[] {
   // up the course, like a boost pad.
   const padNear = courseLength + SPRING_PAD_NEAR;
   const padFar = lineNear - 0.15;
-  marks.push(mark((ROAD_LEFT + ROAD_RIGHT) / 2, (padNear + padFar) / 2, lanes - 0.1, padFar - padNear, "spring-pad"));
+  marks.push(mark((ROAD_LEFT + roadRight(lanes)) / 2, (padNear + padFar) / 2, lanes - 0.1, padFar - padNear, "spring-pad"));
   const middle = (padNear + padFar) / 2;
   for (let lane = 0; lane < lanes; lane++) {
     for (const [dx, yaw] of [[-0.14, Math.PI / 4], [0.14, -Math.PI / 4]] as const) {
@@ -212,9 +211,9 @@ export function mark(x: number, depth: number, width: number, length: number, pa
 }
 
 // The ground the structures stand on, which roadside decorations keep clear of.
-export function structureKeepOuts(courseLength: number): Area[] {
+export function structureKeepOuts(lanes: number, courseLength: number): Area[] {
   const margin = 1;
-  return [overpassBoxes(), gantryBoxes(courseLength)].map((boxes) => {
+  return [overpassBoxes(lanes), gantryBoxes(lanes, courseLength)].map((boxes) => {
     const areas = boxes.map(boxArea);
     return {
       minX: Math.min(...areas.map((a) => a.minX)) - margin,

@@ -3,7 +3,8 @@ import { GROUND_CLEARANCE } from "../clearance";
 import { dropPose, leapProgress } from "../frog/leaps";
 import { FROG_THICKNESS } from "../run";
 import { TUNING } from "../tuning";
-import { ROAD_LEFT, ROAD_RIGHT } from "../world/geometry";
+import { ROAD_LEFT, roadRight } from "../world/geometry";
+import { PREVIEW_LANES } from "../world/preview-rows";
 import { DECK_TOP, OVERPASS_FAR, VEHICLE_TOP, overpassBoxes } from "../world/structures";
 import { CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
 
@@ -34,8 +35,9 @@ interface Point {
   y: number;
 }
 
-const OVERPASS: Rect[] = overpassBoxes()
-  .filter(({ center, size }) => center[0] + size[0] / 2 > ROAD_LEFT && center[0] - size[0] / 2 < ROAD_RIGHT)
+const LANES = TUNING.corridorCols;
+const OVERPASS: Rect[] = overpassBoxes(LANES)
+  .filter(({ center, size }) => center[0] + size[0] / 2 > ROAD_LEFT && center[0] - size[0] / 2 < roadRight(LANES))
   .map(({ center, size }) => ({
     near: -center[2] - size[2] / 2,
     far: -center[2] + size[2] / 2,
@@ -112,16 +114,16 @@ describe("the camera through the drop", () => {
     }
   });
 
-  it("keeps even the tallest frog in view, below the top of a wide screen's view", () => {
-    const top = -CAMERA_PITCH - (fittedFov(WIDE_ASPECT) / 2) * DEGREES;
+  it.each(PREVIEW_LANES)("keeps even the tallest frog in view, below the top of a wide screen's view, on a road %d lanes wide", (lanes) => {
+    const top = -CAMERA_PITCH - (fittedFov(WIDE_ASPECT, lanes) / 2) * DEGREES;
     for (const { eye, frogTop } of frames) {
       const below = Math.atan2(eye.y - frogTop.y, frogTop.depth - eye.depth);
       expect(below).toBeGreaterThan(top);
     }
   });
 
-  it("never looks back past itself, so a deck behind it is out of view", () => {
-    expect(-CAMERA_PITCH + (fittedFov(NARROWEST_ASPECT) / 2) * DEGREES).toBeLessThan(Math.PI / 2);
+  it.each(PREVIEW_LANES)("never looks back past itself, so a deck behind it is out of view, on a road %d lanes wide", (lanes) => {
+    expect(-CAMERA_PITCH + (fittedFov(NARROWEST_ASPECT, lanes) / 2) * DEGREES).toBeLessThan(Math.PI / 2);
   });
 
   it("is past the overpass when the frog lands, and still is after a bonk as it lands", () => {

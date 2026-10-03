@@ -8,7 +8,9 @@ import type { Cell } from "../types";
 // rows, so the cell at (col, row) fills x from col to col + 1 and y from row
 // to row + 1. Its front face is at z = 0 and it stretches back to z = -length.
 // Every body cell is a solid box through the whole length, so the front
-// silhouette is the same all along the vehicle. Everything else is a part:
+// silhouette is the same all along the vehicle, but for its two outer sides,
+// on the lane lines either side of it, which stand a hair inside the lines
+// (see SIDE_INSET). Everything else is a part:
 // a small box or disc on the body's surface. The vehicle rides the ground
 // clearance above the road, at y = -GROUND_CLEARANCE in this frame, and only
 // its wheels reach down through that gap to the road.
@@ -80,6 +82,13 @@ export const LAYER = 0.02;
 export const layers = (count: number): number => count * LAYER;
 export const DECAL = layers(1);
 export const OVERLAY = layers(2);
+// A vehicle's outer sides, on the lane lines either side of it, stand this
+// far inside the lines, and nothing on them stands prouder: its details,
+// wheels included, reach the lane line at most and never cross it. So two
+// vehicles side by side share no space, and none of the one's faces lies in
+// a plane of the other's, however each rumbles; nor do the frog or a gate's
+// post beside it. Two layers, as a wheel's hub and an overlay stand proud.
+export const SIDE_INSET = layers(2);
 
 // A rectangle on a face in the cell's own units, 0 to 1 across each way.
 // On the front and back: [left, bottom, right, top] as the frog sees it.
@@ -96,6 +105,9 @@ export type Look = "flat" | "round";
 export interface VehicleFrame {
   cells: readonly Cell[];
   length: number;
+  // The solid box a body cell fills: the cell the whole length, its outer
+  // sides inset from the lane lines.
+  bodyBox: (cell: Cell) => { min: Vec3; max: Vec3 };
   front: (col: number, row: number, rect: FaceRect, paint: Paint, look?: Look, proud?: number) => Part;
   back: (col: number, row: number, rect: FaceRect, paint: Paint, look?: Look, proud?: number) => Part;
   side: (col: number, row: number, side: Side, rect: SideRect, paint: Paint, look?: Look, proud?: number) => Part;
@@ -127,21 +139,31 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
   const filled = new Set(cells.map(cellKey));
   const exposed = (col: number, row: number, side: Side): boolean =>
     !filled.has(cellKey({ col: side === "left" ? col - 1 : col + 1, row }));
+  const lastCol = Math.max(...cells.map((cell) => cell.col));
+  // Where a cell's body face is on that side, across the lanes.
+  const faceX = (col: number, which: Side): number =>
+    which === "left" ? col + (col === 0 ? SIDE_INSET : 0) : col + 1 - (col === lastCol ? SIDE_INSET : 0);
+  // A rectangle's u, 0 to 1 across a cell's face, as x.
+  const across = (col: number, u: number): number => faceX(col, "left") + u * (faceX(col, "right") - faceX(col, "left"));
 
+  const bodyBox: VehicleFrame["bodyBox"] = ({ col, row }) => ({
+    min: [faceX(col, "left"), row, -length],
+    max: [faceX(col, "right"), row + 1, 0],
+  });
   const front: VehicleFrame["front"] = (col, row, [u0, v0, u1, v1], paint, look = "flat", proud = DECAL) => ({
     shape: drumFor(look, "drumZ"),
-    min: [col + u0, row + v0, 0],
-    max: [col + u1, row + v1, proud],
+    min: [across(col, u0), row + v0, 0],
+    max: [across(col, u1), row + v1, proud],
     paint,
   });
   const back: VehicleFrame["back"] = (col, row, [u0, v0, u1, v1], paint, look = "flat", proud = DECAL) => ({
     shape: drumFor(look, "drumZ"),
-    min: [col + u0, row + v0, -length - proud],
-    max: [col + u1, row + v1, -length],
+    min: [across(col, u0), row + v0, -length - proud],
+    max: [across(col, u1), row + v1, -length],
     paint,
   });
   const side: VehicleFrame["side"] = (col, row, which, [z0, v0, z1, v1], paint, look = "flat", proud = DECAL) => {
-    const x = which === "left" ? col : col + 1;
+    const x = faceX(col, which);
     const out = which === "left" ? -proud : proud;
     return {
       shape: drumFor(look, "drumX"),
@@ -152,19 +174,19 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
   };
   const top: VehicleFrame["top"] = (col, row, [u0, z0, u1, z1], paint, proud = DECAL) => ({
     shape: "box",
-    min: [col + u0, row + 1, -z1],
-    max: [col + u1, row + 1 + proud, -z0],
+    min: [across(col, u0), row + 1, -z1],
+    max: [across(col, u1), row + 1 + proud, -z0],
     paint,
   });
   const under: VehicleFrame["under"] = (col, row, [u0, z0, u1, z1], paint, proud = DECAL) => ({
     shape: "box",
-    min: [col + u0, row - proud, -z1],
-    max: [col + u1, row, -z0],
+    min: [across(col, u0), row - proud, -z1],
+    max: [across(col, u1), row, -z0],
     paint,
   });
 
   const wheel: VehicleFrame["wheel"] = (col, which, from, radius = WHEEL_RADIUS) => {
-    const outer = which === "left" ? col : col + 1;
+    const outer = faceX(col, which);
     const outward = which === "left" ? -1 : 1;
     const span = (a: number, b: number): [number, number] => [
       Math.min(outer + outward * a, outer + outward * b),
@@ -204,7 +226,7 @@ export function vehicleFrame(cells: readonly Cell[], length: number): VehicleFra
       );
   };
 
-  return { cells, length, front, back, side, top, under, exposed, wheel, wheels };
+  return { cells, length, bodyBox, front, back, side, top, under, exposed, wheel, wheels };
 }
 
 // Evenly spaced stripes across a face rectangle, `count` of them alternating

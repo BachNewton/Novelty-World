@@ -2,13 +2,14 @@
 // lobby; the switches exist so a developer lands straight on what they are
 // working on.
 
-export type FrogminoView = "lobby" | "solo" | "garage" | "world" | "sounds";
+export type FrogminoView = "lobby" | "solo" | DevView;
 
 /** `?play=solo` skips the lobby into solo play. */
 export const PLAY_PARAM = "play";
 
 /** Dev views that replace the game entirely, in order of precedence. */
-const DEV_VIEWS = ["garage", "world", "sounds"] as const;
+const DEV_VIEWS = ["garage", "world", "sounds", "music", "frog"] as const;
+type DevView = (typeof DEV_VIEWS)[number];
 
 export function frogminoView(search: string): FrogminoView {
   const params = new URLSearchParams(search);

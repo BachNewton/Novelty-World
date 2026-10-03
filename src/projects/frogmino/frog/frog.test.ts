@@ -3,12 +3,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cellKey, pieceCells } from "../logic";
 import type { Rotation, TetrominoKind } from "../types";
-import { DEPTH_RESOLUTION, SURFACE_TOLERANCE } from "../vehicles/parts";
+import { DEPTH_RESOLUTION, SURFACE_TOLERANCE, type Vec3 } from "../vehicles/parts";
 import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
 import type { Placement } from "../world/geometry";
 import { FROG_LOOKS, FROG_ROLES, FROG_VARIANTS, type FrogVariant } from "./look";
 import { GROUND_CLEARANCE } from "../clearance";
-import { frogModel, pupilCentre, type FrogEye, type FrogModel, type FrogPart } from "./model";
+import { frogModel, partMiddle, pupilCentre, type FrogEye, type FrogModel, type FrogPart } from "./model";
 import {
   BONK_DURATION,
   EYES_SHUT,
@@ -18,7 +18,9 @@ import {
   PUPIL_ORBIT,
   THROAT_PUFF,
   frogMotion,
+  legScale,
   type FrogAction,
+  type FrogMotion,
 } from "./motion";
 
 const KINDS: readonly TetrominoKind[] = ["I", "O", "T", "S", "Z", "J", "L"];
@@ -55,6 +57,13 @@ function pokesOut(rect: Rect, allowed: readonly Rect[]): boolean {
     }
   }
   return false;
+}
+
+// A part scaled by `scale` about `about`, as a leg tucks or kicks about its hip.
+function scaledAbout(part: FrogPart, about: Vec3, scale: Vec3): FrogPart {
+  const along = (p: Vec3, i: number): number => about[i] + (p[i] - about[i]) * scale[i];
+  const at = (p: Vec3): Vec3 => [along(p, 0), along(p, 1), along(p, 2)];
+  return { ...part, min: at(part.min), max: at(part.max) };
 }
 
 function bottomSpan(model: FrogModel): [number, number] {
@@ -191,6 +200,42 @@ describe.each(FROG_VARIANTS)("the %s frog", (variant) => {
       }
     });
 
+    it("points its hind feet down the road, toes ahead and heels toward the camera", () => {
+      const hind = model.legs.filter((leg) => leg.hind);
+      expect(hind).toHaveLength(2);
+      for (const leg of hind) {
+        const feet = leg.parts.filter((part) => part.role === "foot");
+        const volume = (part: FrogPart): number =>
+          (part.max[0] - part.min[0]) * (part.max[1] - part.min[1]) * (part.max[2] - part.min[2]);
+        const sole = feet.reduce((big, part) => (volume(part) > volume(big) ? part : big));
+        const toes = feet.filter((part) => part !== sole);
+        expect(toes.length).toBeGreaterThan(1);
+        for (const toe of toes) {
+          expect(toe.min[2]).toBeLessThan(sole.min[2]);
+          expect(toe.max[2]).toBeLessThan(partMiddle(sole)[2]);
+        }
+        // Fanned out wider than the sole, and the heel is the leg's back.
+        expect(Math.max(...toes.map((t) => t.max[0])) - Math.min(...toes.map((t) => t.min[0]))).toBeGreaterThan(
+          sole.max[0] - sole.min[0],
+        );
+        expect(sole.max[2]).toBe(Math.max(...leg.parts.map((part) => part.max[2])));
+      }
+    });
+
+    it("kicks its hind legs out back along the road, never across or up", () => {
+      const allowed = allowedSpace(model);
+      const kicked: FrogMotion = { ...frogMotion({ time: 0, action: "idle", since: 0, seed: 1 }), tuck: 0, kick: 1 };
+      for (const leg of model.legs) {
+        const scale = legScale(kicked, leg.hind);
+        const parts = leg.parts.map((part) => scaledAbout(part, leg.hip, scale));
+        expect(parts.filter((part) => pokesOut(faceOf(part), allowed))).toEqual([]);
+        for (const part of parts) expect(part.min[1]).toBeGreaterThanOrEqual(0);
+        const back = Math.max(...parts.map((part) => part.max[2]));
+        if (leg.hind) expect(back).toBeGreaterThan(model.depth);
+        else expect(back).toBeLessThan(model.depth);
+      }
+    });
+
     it("fills every cell's square head-on with its skin", () => {
       const c = model.clearance;
       for (const { cell, body } of model.cells) {
@@ -210,7 +255,9 @@ describe.each(FROG_VARIANTS)("the %s frog", (variant) => {
       expect(eyes).toHaveLength(2);
       for (const { cell, eye } of eyes) {
         expect(cell.row).toBe(model.height - 1);
-        expect(eye.bump.max[1]).toBeCloseTo(model.height + model.clearance);
+        const peak = Math.max(eye.bump.max[1], eye.white.max[1], pupilReach(eye)[3]);
+        expect(peak).toBeLessThanOrEqual(model.height + model.clearance + SURFACE_TOLERANCE);
+        expect(peak).toBeGreaterThan(model.height + model.clearance - 0.02);
       }
       expect(model.cells.filter((cell) => cell.throat !== null)).toHaveLength(1);
     });
@@ -279,6 +326,7 @@ describe("the frog's motion", () => {
             within(m.eyeball, EYES_SHUT, 1) &&
             within(m.throat, 1, THROAT_PUFF) &&
             within(m.tuck, 0, 1) &&
+            within(m.kick, 0, 1) &&
             (m.pupilOrbit === null || m.pupilOrbit.radius <= PUPIL_ORBIT);
           if (!ok) broken.push(`${action} since=${String(since)} move=${JSON.stringify(move)} t=${String(time)}`);
         }
@@ -305,20 +353,27 @@ describe("the frog's motion", () => {
     }
   });
 
-  it("tucks its legs away for the whole hop, and puts them down on landing", () => {
+  it("kicks its hind legs out on takeoff, then tucks its legs away for the whole hop, and folds them back on landing", () => {
     const hop = (since: number) => frogMotion({ time: 1, action: "hop", since, seed: 1 });
     expect(hop(0).tuck).toBe(0);
+    expect(Math.max(...[0.02, 0.05, 0.08, 0.1].map((since) => hop(since).kick))).toBeGreaterThan(0.9);
+    expect(hop(HOP_DURATION + 2).kick).toBe(0);
+    const land = (since: number) => frogMotion({ time: 1, action: "land", since, seed: 1 });
+    expect(land(0.05).kick).toBeGreaterThan(land(0.15).kick);
+    expect(land(LAND_DURATION).kick).toBe(0);
     expect(hop(HOP_DURATION + 2).tuck).toBe(1);
     expect(hop(HOP_DURATION + 2).cell).toEqual(frogMotion({ time: 1, action: "idle", since: 0, seed: 1 }).cell);
     expect(frogMotion({ time: 1, action: "land", since: 0, seed: 1 }).tuck).toBe(1);
     expect(frogMotion({ time: 1, action: "land", since: LAND_DURATION, seed: 1 }).tuck).toBe(0);
   });
 
-  it("hops a little on a move, legs half up, and settles once it has landed", () => {
+  it("hops a little on a move, legs a little up and kicked out, and settles once it has landed", () => {
     const idle = frogMotion({ time: 1, action: "idle", since: 0, seed: 1 });
     const move = (since: number) => frogMotion({ time: 1, action: "idle", since: 0, seed: 1, move: { since, duration: STRIDE } });
     expect(move(0)).toEqual(idle);
-    expect(move(STRIDE / 2).tuck).toBeCloseTo(0.5);
+    expect(move(STRIDE / 2).tuck).toBeGreaterThan(0);
+    expect(move(STRIDE / 2).tuck).toBeLessThan(0.5);
+    expect(move(STRIDE / 2).kick).toBeGreaterThan(0.3);
     expect(move(STRIDE / 2).cell[0]).toBeLessThan(idle.cell[0]);
     expect(move(STRIDE + MOVE_LANDING / 2).cell[1]).toBeLessThan(idle.cell[1]);
     expect(move(STRIDE + MOVE_LANDING)).toEqual(idle);

@@ -21,30 +21,26 @@ import { FROG_LOOKS } from "../frog/look";
 import { frogModel, frogPivot } from "../frog/model";
 import { moveDuration } from "../frog/moves";
 import { cellKey, frogCells } from "../logic";
-import {
-  FROG_THICKNESS,
-  crossedFinish,
-  frogShape,
-  hopHeight,
-  inPlay,
-  nextWall,
-  type Run,
-} from "../run";
+import { FROG_THICKNESS, crossedFinish, frogShape, nextWall } from "../run";
 import { useFrogminoStore } from "../store";
-import { keepsClear, rowLength } from "../traffic";
+import { rowLength } from "../traffic";
 import { TUNING } from "../tuning";
 import type { Cell } from "../types";
 import { DECK_TOP } from "../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, CAMERA_PITCH, cameraEye, easedCameraHeight, fittedFov } from "./camera-fit";
 import {
-  type BonkMotion,
   type DrawnFrog,
+  amongVehicles,
   arrived,
+  bonkPose,
+  followDepth,
   frogTarget,
   glideAt,
   moveLift,
   seeMoves,
+  seeBonk,
   snapped,
+  withHop,
   withPiece,
 } from "./drawn-frog";
 import { FrogBody, type FrogHandle } from "./frog/frog-body";
@@ -79,16 +75,6 @@ const FIT_OUTLINE_LIFT = 0.03;
 // The longest perimeter of any tetromino, in cell edges.
 const MAX_PERIMETER = 10;
 
-// A bonk knocks the drawn frog back along a low arc; the frog itself
-// flattens against the row and is left dazed.
-const BONK_DURATION = 0.3;
-const BONK_ARC_HEIGHT = 0.8;
-
-// The hop arc overshoots a sine and is capped at one cell, so the drawn frog
-// rises quickly to a full cell, as the rules count it, and falls the same way
-// once the rules land it.
-const HOP_ARC_OVERSHOOT = 1.3;
-
 // The scene's own things: the fit outline and the frog's silhouette.
 function makeAssets() {
   return {
@@ -111,7 +97,7 @@ function Camera() {
   return (
     <PerspectiveCamera
       makeDefault
-      fov={fittedFov(aspect)}
+      fov={fittedFov(aspect, corridorCols)}
       near={CAMERA_NEAR}
       far={CAMERA_FAR}
       position={INITIAL_CAMERA}
@@ -149,66 +135,6 @@ function placeEdges(mesh: InstancedMesh, edges: readonly Edge[]): void {
   });
   mesh.count = edges.length;
   mesh.instanceMatrix.needsUpdate = true;
-}
-
-// The rising half of the hop arc, `seconds` into it.
-function hopArc(seconds: number, airtime: number): number {
-  const progress = MathUtils.clamp(seconds / airtime, 0, 0.5);
-  return Math.min(1, HOP_ARC_OVERSHOOT * Math.sin(Math.PI * progress));
-}
-
-// How long the arc takes to reach a full cell.
-function hopRiseTime(airtime: number): number {
-  return (airtime * Math.asin(1 / HOP_ARC_OVERSHOOT)) / Math.PI;
-}
-
-// The drawn frog rises along the arc while the rules have it up, and falls
-// back along it once they land it. Each only ever moves the drawn frog one
-// way, so it carries on smoothly from wherever it was left.
-function hopLift(run: Run, drawnLift: number): number {
-  const hop = run.frog.latestHop;
-  if (hop === null) return 0;
-  const airtime = run.tuning.hopAirtime;
-  if (hop.landedAt === null) return Math.max(drawnLift, hopArc(run.time - hop.startedAt, airtime));
-  return Math.min(drawnLift, hopArc(hopRiseTime(airtime) - (run.time - hop.landedAt), airtime));
-}
-
-// Whether any vehicle overlaps the drawn frog.
-function overlapsDrawnFrog(run: Run, frogDepth: number): boolean {
-  return run.walls.some(
-    (wall) =>
-      wall.depth < frogDepth && wall.solids.some((solid) => wall.depth + solid.length > frogDepth - FROG_THICKNESS),
-  );
-}
-
-// Whether the frog, drawn at `frogDepth` in its rule pose, would be inside
-// a vehicle or across a gate's post overlapping it there. A move's glide
-// trails the rules, so a frog that has just jumped clear of a vehicle and then
-// slid into its lane would be drawn inside it, were it still gliding.
-function drawnInVehicle(run: Run, frogDepth: number): boolean {
-  const cells = frogCells(frogShape(run.frog));
-  return run.walls.some((wall) => {
-    if (wall.depth >= frogDepth) return false;
-    const solids = wall.solids.filter((solid) => wall.depth + solid.length > frogDepth - FROG_THICKNESS);
-    return !keepsClear(cells, cells, solids);
-  });
-}
-
-interface BonkPose {
-  depth: number;
-  lift: number;
-}
-
-// Where a bonk's knock-back has the drawn frog now; null once it is over, or
-// once the frog has jumped away from where the bonk put it.
-function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
-  if (motion === null || run.frog.depth !== motion.to) return null;
-  const progress = (run.time - motion.startedAt) / BONK_DURATION;
-  if (progress >= 1) return null;
-  return {
-    depth: MathUtils.lerp(motion.from, motion.to, 1 - (1 - progress) ** 2),
-    lift: BONK_ARC_HEIGHT * Math.sin(Math.PI * progress),
-  };
 }
 
 // The camera follows the drawn frog from behind, over the middle of the
@@ -310,14 +236,11 @@ function Game() {
       d.hopAt = hop.startedAt;
       play("hop");
     }
-    const bonk = run.lastBonk;
-    const bonked = bonk !== d.bonk;
+    const bonked = run.lastBonk !== d.bonk;
     if (bonked) {
-      d.bonk = bonk;
-      if (bonk !== null) {
-        d.bonkMotion = { from: bonk.depth, to: run.frog.depth, startedAt: bonk.time };
-        play("bonk");
-      }
+      d = seeBonk(d, run);
+      drawn.current = d;
+      if (run.lastBonk !== null) play("bonk");
     }
     if (run.droppedAt !== null && d.drop === null && d.level > 0) {
       d.drop = { fromDepth: d.depth, fromLevel: d.level, startedAt: run.droppedAt, landed: false };
@@ -372,45 +295,31 @@ function Game() {
         play("land");
       }
     } else if (!crossedFinish(run)) {
-      const jump = d.glideDepth;
-      if (pose !== null) {
-        d.depth = pose.depth;
-      } else if (jump !== null && jump.to === target.depth) {
-        d.depth = glideAt(jump, run.time, stride);
-        if (arrived(jump, run.time, stride)) d.glideDepth = null;
-      } else {
-        d.glideDepth = null;
-        d.depth = MathUtils.damp(d.depth, target.depth, lambda, delta);
-      }
-      if (pose === null && inPlay(run) && drawnInVehicle(run, d.depth)) {
-        d.depth = target.depth;
-        d.glideDepth = null;
-      }
+      d = followDepth(d, run, pose, delta);
+      drawn.current = d;
     }
 
     // Eased moves could cut through a vehicle (a turn swings the piece
     // through cells outside both of its poses), and a move made just before
     // a row arrives may not have finished easing. So while a vehicle overlaps
-    // the drawn frog in play, it is drawn exactly as the rules have it, and
-    // the rules keep that inside the opening.
+    // the drawn frog in play, it is drawn exactly as the rules have it across
+    // the face, and the rules keep that inside the opening. Its height is the
+    // rules' too, unless it rides on past their landing (see `withHop`).
     const wasUp = d.lift > 0;
-    const amongVehicles = inPlay(run) && overlapsDrawnFrog(run, d.depth);
-    if (amongVehicles) {
-      if (modelPosed) {
-        d.x = target.x;
-        d.y = target.y;
-        d.swing = 0;
-        d.glideX = null;
-      }
-      d.lift = hopHeight(run.frog);
-    } else {
-      d.lift = hopLift(run, d.lift);
+    const among = amongVehicles(run, d.depth);
+    if (among && modelPosed) {
+      d.x = target.x;
+      d.y = target.y;
+      d.swing = 0;
+      d.glideX = null;
     }
+    d = withHop(run, d);
+    drawn.current = d;
     if (wasUp && d.lift === 0 && (leap === null || leap.landed)) play("land");
     // A move's hop never lifts the frog among vehicles, and never plays over
     // a bonk's knock-back, the drop or the finish leap. A hop's arc already
     // lifts it higher, so the two never add up.
-    const stepLift = amongVehicles || pose !== null || leaping ? 0 : moveLift(d.moveHops, run.time, stride);
+    const stepLift = among || pose !== null || leaping ? 0 : moveLift(d.moveHops, run.time, stride);
 
     const frog = frogRef.current;
     if (frog !== null) {
@@ -442,7 +351,7 @@ function Game() {
 
   return (
     <>
-      <FrogminoWorld courseLength={courseLength} seed={stream.seed} />
+      <FrogminoWorld courseLength={courseLength} seed={stream.seed} lanes={corridorCols} />
       <group ref={frogRef}>
         <group position={[-pivot[0], -pivot[1], -pivot[2]]}>
           <FrogBody

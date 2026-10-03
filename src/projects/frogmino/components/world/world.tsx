@@ -65,9 +65,9 @@ function Ground({ palette }: { palette: WorldPalette }) {
 // structures, the overpass at the start and the finish gantry. It is drawn in
 // the game scene's axes and needs the scene's lights. The road and land are
 // rebuilt around the camera as it moves, so they go on forever both ways.
-export function FrogminoWorld({ courseLength, seed }: { courseLength: number; seed: number }) {
+export function FrogminoWorld({ courseLength, seed, lanes }: { courseLength: number; seed: number; lanes: number }) {
   const { palette, materials } = useWorldAssets();
-  const plan: WorldPlan = useMemo(() => ({ seed, courseLength }), [seed, courseLength]);
+  const plan: WorldPlan = useMemo(() => ({ seed, courseLength, lanes }), [seed, courseLength, lanes]);
   const roadKeys = useTilesAroundCamera(roadTiles);
   const sceneryKeys = useTilesAroundCamera(sceneryTiles);
 
@@ -96,8 +96,8 @@ export function FrogminoWorld({ courseLength, seed }: { courseLength: number; se
 }
 
 // Just the overpass and the finish gantry, for a scene without the world.
-export function FrogminoStructures({ courseLength }: { courseLength: number }) {
+export function FrogminoStructures({ courseLength, lanes }: { courseLength: number; lanes: number }) {
   const { palette, materials } = useWorldAssets();
-  const boxes = useMemo(() => [...overpassBoxes(), ...gantryBoxes(courseLength)], [courseLength]);
+  const boxes = useMemo(() => [...overpassBoxes(lanes), ...gantryBoxes(lanes, courseLength)], [courseLength, lanes]);
   return <BoxInstances boxes={boxes} palette={palette} material={materials.scenery} />;
 }

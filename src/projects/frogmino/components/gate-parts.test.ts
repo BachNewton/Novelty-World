@@ -10,7 +10,7 @@ import type { Gate, TetrominoKind } from "../types";
 import { vehicleModel } from "../vehicles";
 import { DEPTH_RESOLUTION } from "../vehicles/parts";
 import { faceClashes, spanning } from "../world/coplanar";
-import { ROAD_LEFT, ROAD_RIGHT, VERGE, sideX, type Placement } from "../world/geometry";
+import { ROAD_LEFT, VERGE, roadRight, sideX, type Placement } from "../world/geometry";
 import { DECK_TOP, DECK_UNDERSIDE, VEHICLE_TOP } from "../world/structures";
 import { END_INSET, GATE_TOKENS, POST_HALF, gapBox, gateParts, type GatePart } from "./gate-parts";
 
@@ -36,7 +36,7 @@ describe("a gate's frame", () => {
       const lines = gatePostLines(gate).map((line) => line - 0.5);
       for (const part of parts) {
         const { x, y } = bounds(part);
-        const onRoad = x[1] > ROAD_LEFT && x[0] < ROAD_RIGHT;
+        const onRoad = x[1] > ROAD_LEFT && x[0] < roadRight(TUNING.corridorCols);
         if (!onRoad || y[0] > VEHICLE_TOP) continue;
         expect(lines.some((line) => x[0] >= line - POST_HALF - 1e-9 && x[1] <= line + POST_HALF + 1e-9)).toBe(true);
       }
@@ -70,8 +70,8 @@ describe("a gate's frame", () => {
       for (const part of parts) {
         const { x, y } = bounds(part);
         expect(y[1]).toBeLessThan(DECK_UNDERSIDE);
-        expect(x[0]).toBeGreaterThan(sideX("left", pillars));
-        expect(x[1]).toBeLessThan(sideX("right", pillars));
+        expect(x[0]).toBeGreaterThan(sideX(TUNING.corridorCols, "left", pillars));
+        expect(x[1]).toBeLessThan(sideX(TUNING.corridorCols, "right", pillars));
       }
     }
   });
@@ -112,7 +112,7 @@ describe("a gate's frame", () => {
       ] as const) {
         const shift = at(lane);
         const vehicle = [
-          ...model.body.map(({ cell }) => spanning(shift([cell.col, cell.row, -model.length]), shift([cell.col + 1, cell.row + 1, 0]))),
+          ...model.body.map(({ min, max }) => spanning(shift(min), shift(max))),
           ...model.parts.map((part) => spanning(shift(part.min), shift(part.max))),
         ].map((box) => ({ ...box, what: `${id}` }));
         for (const length of LENGTHS.filter((l) => l >= model.length)) {

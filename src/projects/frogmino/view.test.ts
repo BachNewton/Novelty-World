@@ -24,9 +24,16 @@ describe("frogminoView", () => {
     expect(frogminoView("?sounds")).toBe("sounds");
   });
 
-  it("gives the garage precedence, then the world, then the sounds", () => {
-    expect(frogminoView("?sounds&world&garage")).toBe("garage");
-    expect(frogminoView("?sounds&world")).toBe("world");
+  it("shows the music ideas with ?music and the frog preview with ?frog", () => {
+    expect(frogminoView("?music")).toBe("music");
+    expect(frogminoView("?frog")).toBe("frog");
+  });
+
+  it("gives the garage precedence, then the world, the sounds, the music and the frog", () => {
+    expect(frogminoView("?frog&music&sounds&world&garage")).toBe("garage");
+    expect(frogminoView("?frog&music&sounds&world")).toBe("world");
+    expect(frogminoView("?frog&music&sounds")).toBe("sounds");
+    expect(frogminoView("?frog&music")).toBe("music");
   });
 
   it("lets a dev view win over ?play=solo", () => {

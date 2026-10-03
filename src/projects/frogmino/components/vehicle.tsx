@@ -48,13 +48,13 @@ export function Vehicle({
   return (
     <group position={[lane - 0.5, GROUND_CLEARANCE, -depth]}>
       <group ref={body}>
-        {model.body.map(({ cell, paint }) => (
+        {model.body.map(({ cell, paint, min, max }) => (
           <mesh
             key={`${String(cell.col)},${String(cell.row)}`}
             geometry={assets.cube}
             material={assets.body[paint]}
-            position={[cell.col + 0.5, cell.row + 0.5, -model.length / 2]}
-            scale={[1, 1, model.length]}
+            position={[(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]}
+            scale={[max[0] - min[0], max[1] - min[1], max[2] - min[2]]}
           />
         ))}
         {parts.map(({ paint, geometry }) => (

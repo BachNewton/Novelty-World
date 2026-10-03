@@ -97,12 +97,12 @@ function terraces(rng: Rng, layer: HillLayer, x: number, depth: number, yaw: num
   return boxes;
 }
 
-function hillsOnSide(rng: Rng, layer: HillLayer, side: Side, near: number, far: number): WorldBox[] {
+function hillsOnSide(rng: Rng, layer: HillLayer, lanes: number, side: Side, near: number, far: number): WorldBox[] {
   const boxes: WorldBox[] = [];
   for (let depth = near + between(rng, 0, layer.step[0]); depth < far; depth += between(rng, ...layer.step)) {
     const width = layer.width[1];
     const offset = between(rng, ...layer.offset[side]) + width / 2;
-    boxes.push(...terraces(rng, layer, sideX(side, offset), depth, between(rng, -HILL_YAW, HILL_YAW)));
+    boxes.push(...terraces(rng, layer, sideX(lanes, side, offset), depth, between(rng, -HILL_YAW, HILL_YAW)));
   }
   return boxes;
 }
@@ -110,12 +110,12 @@ function hillsOnSide(rng: Rng, layer: HillLayer, side: Side, near: number, far: 
 // Faint darker patches on the meadow, so the ground isn't one flat colour.
 // Patches all lie at one height, so one that would overlap another, or reach
 // into the next tile's, is left out rather than fight it for the same plane.
-function meadowPatches(rng: Rng, near: number, far: number): WorldBox[] {
+function meadowPatches(rng: Rng, lanes: number, near: number, far: number): WorldBox[] {
   const boxes: WorldBox[] = [];
   for (const side of ["left", "right"] as const) {
     for (let i = 0; i < 6; i++) {
       const [w, l] = [between(rng, 2, 7), between(rng, 2, 7)];
-      const x = sideX(side, between(rng, 5, 30) + w / 2);
+      const x = sideX(lanes, side, between(rng, 5, 30) + w / 2);
       const depth = between(rng, near, far);
       const patch = box([x, -GROUND_DROP + 0.02, -depth], [w, 0.04, l], "meadow-deep", 0, between(rng, -0.4, 0.4));
       const area = boxArea(patch);
@@ -154,8 +154,8 @@ function landmarks(plan: WorldPlan): { depth: number; boxes: WorldBox[] }[] {
   const frogDepth = plan.courseLength * 0.45;
   const mesaDepth = plan.courseLength * 0.85;
   return [
-    { depth: frogDepth, boxes: frogRock(sideX("left", 62), frogDepth) },
-    { depth: mesaDepth, boxes: tMesa(sideX("right", 80), mesaDepth) },
+    { depth: frogDepth, boxes: frogRock(sideX(plan.lanes, "left", 62), frogDepth) },
+    { depth: mesaDepth, boxes: tMesa(sideX(plan.lanes, "right", 80), mesaDepth) },
   ];
 }
 
@@ -163,9 +163,9 @@ export function sceneryTile(plan: WorldPlan, index: number): WorldBox[] {
   const [near, far] = [index * SCENERY_TILE, (index + 1) * SCENERY_TILE];
   const boxes = LAYERS.flatMap((layer) => {
     const rng = tileRng(plan.seed, layer.name, index);
-    return [...hillsOnSide(rng, layer, "left", near, far), ...hillsOnSide(rng, layer, "right", near, far)];
+    return [...hillsOnSide(rng, layer, plan.lanes, "left", near, far), ...hillsOnSide(rng, layer, plan.lanes, "right", near, far)];
   });
-  boxes.push(...meadowPatches(tileRng(plan.seed, "patches", index), near, far));
+  boxes.push(...meadowPatches(tileRng(plan.seed, "patches", index), plan.lanes, near, far));
   for (const landmark of landmarks(plan)) {
     if (landmark.depth >= near && landmark.depth < far) boxes.push(...landmark.boxes);
   }

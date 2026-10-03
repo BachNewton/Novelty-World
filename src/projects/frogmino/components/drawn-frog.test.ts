@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { MOVE_HOP_HEIGHT, moveDuration } from "../frog/moves";
-import type { RuleFrog } from "../run";
+import { advance, applyAction, createRun, hopHeight, pressHeld, type RuleFrog, type RuleRow, type Run } from "../run";
 import { TUNING } from "../tuning";
-import { arrived, frogTarget, glideAt, moveLift, movesSince, seeMoves, withPiece, type DrawnFrog } from "./drawn-frog";
+import {
+  BONK_DURATION,
+  amongVehicles,
+  arrived,
+  bonkPose,
+  followDepth,
+  frogTarget,
+  glideAt,
+  moveLift,
+  movesSince,
+  seeBonk,
+  seeMoves,
+  snapped,
+  withHop,
+  withPiece,
+  type DrawnFrog,
+} from "./drawn-frog";
 
 describe("a gate's new piece in the drawn frog", () => {
   // Mid-jump, mid-hop, swinging out of a turn and knocked back by a bonk,
@@ -16,6 +32,7 @@ describe("a gate's new piece in the drawn frog", () => {
     level: 0,
     swing: 0.3,
     lift: 0.6,
+    rodeUntil: null,
     glideX: { from: 3, to: 3.5, startedAt: 4.1 },
     glideDepth: { from: 5, to: 6.5, startedAt: 4.1 },
     moveHops: [4.1],
@@ -61,6 +78,7 @@ describe("the drawn frog's moves", () => {
     level: 0,
     swing: 0,
     lift: 0,
+    rodeUntil: null,
     glideX: null,
     glideDepth: null,
     moveHops: [],
@@ -132,5 +150,160 @@ describe("the drawn frog's moves", () => {
     expect(moveLift([0, stride / 4], stride / 2, stride)).toBeCloseTo(MOVE_HOP_HEIGHT * Math.sin(Math.PI / 2));
     expect(moveLift([0], stride, stride)).toBe(0);
     expect(moveLift([], 1, stride)).toBe(0);
+  });
+});
+
+// The drawn frog frame by frame with the real rules, as the scene steps it:
+// the rules move on, then the drawn frog sees a bonk and the moves, and
+// follows in depth and hop. The camera follows the drawn depth.
+interface Frame {
+  depth: number;
+  lift: number;
+  among: boolean;
+  up: boolean;
+}
+
+const FRAME = 1 / 120;
+const stride = moveDuration(TUNING);
+// The fastest the drawn frog may go in a frame: a glide peaks at 1.5 times
+// its average speed, and a knock-back starts at twice its own, over at most
+// the knock-back's distance.
+const GLIDE_FRAME = (1.5 * TUNING.depthStep * FRAME) / stride;
+const KNOCK_BACK_FRAME = (2 * TUNING.bonkKnockback * TUNING.depthStep * FRAME) / BONK_DURATION;
+
+// One row of `row` with its front `gap` ahead of the start, and the rest of
+// the stream out of reach, with the frog dropped onto the road at depth 5.
+function runWith(row: Omit<RuleRow, "gap">, gap: number): Run {
+  const start = createRun((index) => ({ ...row, gap: index === 0 ? gap : 1e6 }), TUNING);
+  return { ...start, droppedAt: 0, frog: { ...start.frog, depth: 5 } };
+}
+
+// Plays `seconds` from `first`, acting with `act` before the drawn frog looks
+// each frame.
+function drive(first: Run, seconds: number, act: (run: Run) => Run = (run) => run): { run: Run; frames: Frame[] } {
+  let run = first;
+  let drawn = snapped(run);
+  const frames: Frame[] = [];
+  for (let k = 1; k * FRAME < seconds; k++) {
+    run = act(advance(run, FRAME));
+    const bonked = run.lastBonk !== drawn.bonk;
+    drawn = seeMoves(seeBonk(drawn, run), run.frog, run.time, !bonked);
+    const pose = bonkPose(drawn.bonkMotion, run);
+    if (pose === null) drawn = { ...drawn, bonkMotion: null };
+    drawn = withHop(run, followDepth(drawn, run, pose, FRAME));
+    frames.push({ depth: drawn.depth, lift: drawn.lift, among: amongVehicles(run, drawn.depth), up: hopHeight(run.frog) === 1 });
+  }
+  return { run, frames };
+}
+
+// Acts once, on the first frame at or after `time`.
+function at(time: number, action: (run: Run) => Run): (run: Run) => Run {
+  let done = false;
+  return (run) => {
+    if (done || run.time < time) return run;
+    done = true;
+    return action(run);
+  };
+}
+
+const steps = (values: number[]) => values.slice(1).map((value, i) => value - values[i]);
+
+// The camera follows the drawn depth, so it never steps further in a frame
+// than the drawn frog's own glides and knock-backs.
+function expectSmooth(frames: readonly Frame[], fastest: number): void {
+  for (const move of steps(frames.map((frame) => frame.depth))) expect(Math.abs(move)).toBeLessThanOrEqual(fastest * 1.01);
+}
+
+describe("the drawn frog riding a row and jumping off it", () => {
+  // A low car across every lane, three long, its front a unit ahead of the
+  // frog: the frog must hop to pass it, and rides it once passed.
+  const lowCar = {
+    solids: [{ cells: Array.from({ length: TUNING.corridorCols }, (_, col) => ({ col, row: 0 })), length: 3 }],
+    gates: [],
+  };
+  // Riding from when the car arrives, the first jump forward keeps the frog
+  // on it and the second carries it clear, where the rules land it, while the
+  // drawn frog is still gliding after it among the car.
+  const firstJump = 0.8;
+  const secondJump = firstJump + stride;
+  const forward = (run: Run) => applyAction(run, "forward");
+
+  function play() {
+    const first = at(firstJump, forward);
+    const second = at(secondJump, forward);
+    return drive(applyAction(runWith(lowCar, 6), "hop"), 2.5, (run) => second(first(run)));
+  }
+
+  it("lands by the rules while the drawn frog is still among the car", () => {
+    const { run, frames } = play();
+    expect(run.walls[0].passed).toBe(true);
+    expect(run.frog.depth).toBe(5 + 2 * TUNING.depthStep);
+    expect(run.frog.latestHop?.landedAt).toBeCloseTo(secondJump, 1);
+    expect(frames.some((frame) => !frame.up && frame.among)).toBe(true);
+  });
+
+  it("glides on, never snapping forward, so the camera following it never jumps", () => {
+    const { frames } = play();
+    for (const move of steps(frames.map((frame) => frame.depth))) expect(move).toBeGreaterThanOrEqual(0);
+    expectSmooth(frames, GLIDE_FRAME);
+    expect(frames.at(-1)?.depth).toBeCloseTo(5 + 2 * TUNING.depthStep);
+  });
+
+  it("rides on up until the car has gone by it too, then falls smoothly along the arc", () => {
+    const { frames } = play();
+    for (const frame of frames) if (frame.among) expect(frame.lift).toBe(1);
+    // The arc's steepest slope is its overshoot times pi over the airtime.
+    const steepest = (1.3 * Math.PI * FRAME) / TUNING.hopAirtime;
+    for (const change of steps(frames.map((frame) => frame.lift))) expect(Math.abs(change)).toBeLessThanOrEqual(steepest * 1.01);
+    expect(frames.at(-1)?.lift).toBe(0);
+  });
+});
+
+describe("the drawn frog bonked while it moves", () => {
+  // A row filling the whole face, two long: the frog never fits it.
+  const solid = {
+    solids: [
+      {
+        cells: Array.from({ length: TUNING.corridorCols * TUNING.wallRows }, (_, i) => ({
+          col: i % TUNING.corridorCols,
+          row: Math.floor(i / TUNING.corridorCols),
+        })),
+        length: 2,
+      },
+    ],
+    gates: [],
+  };
+  const forward = (run: Run) => applyAction(run, "forward");
+  const fastest = Math.max(GLIDE_FRAME, KNOCK_BACK_FRAME);
+
+  it("knocks a frog standing still back smoothly", () => {
+    const { run, frames } = drive(runWith(solid, 6), 1);
+    expect(run.lastBonk?.time).toBeCloseTo(0.4, 1);
+    expectSmooth(frames, fastest);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+  });
+
+  it("knocks a jump forward into a row's face back from where the frog is drawn, short of the face", () => {
+    // From 5, the jump at 0.1 s reaches the face at 5.95 and bonks.
+    const { run, frames } = drive(runWith(solid, 6.2), 1, at(0.1, forward));
+    expect(run.lastBonk?.depth).toBeGreaterThan(5.5);
+    expect(Math.max(...frames.map((frame) => frame.depth))).toBeLessThanOrEqual(5);
+    expectSmooth(frames, fastest);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+  });
+
+  it("knocks a frog back from mid-glide when a row arrives before the glide is done", () => {
+    // The jump at 0.5 s glides from 5 to 6.5; the row reaches 6.5 at 0.6 s.
+    const { run, frames } = drive(runWith(solid, 8), 1, at(0.5, forward));
+    expect(run.lastBonk?.time).toBeCloseTo(0.6, 1);
+    expect(Math.max(...frames.map((frame) => frame.depth))).toBeLessThan(6.5);
+    expectSmooth(frames, fastest);
+    expect(frames.at(-1)?.depth).toBeCloseTo(run.frog.depth);
+  });
+
+  it("keeps a held jump smooth through the bonk and the jumps after it, mid-knock-back", () => {
+    const { run, frames } = drive(runWith(solid, 9), 3, at(0.05, (r) => pressHeld(r, "forward")));
+    expect(run.lastBonk).not.toBeNull();
+    expectSmooth(frames, fastest);
   });
 });

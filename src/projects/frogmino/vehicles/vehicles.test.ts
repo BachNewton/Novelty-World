@@ -3,11 +3,13 @@ import { Object3D, Vector3 } from "three";
 import { GROUND_CLEARANCE } from "../clearance";
 import { cellKey } from "../logic";
 import { VEHICLE_IDS, vehicleCells } from "../fleet";
+import { vehicleWidth } from "../traffic";
+import { TUNING } from "../tuning";
 import type { Cell } from "../types";
 import { faceClashes, spanning, type FaceClash } from "../world/coplanar";
 import type { Placement } from "../world/geometry";
 import { VEHICLES, vehicleModel, type VehicleModel } from "./index";
-import { DEPTH_RESOLUTION, LAYER, SURFACE_TOLERANCE, layers, type Paint, type Part, type Vec3 } from "./parts";
+import { DEPTH_RESOLUTION, LAYER, SIDE_INSET, SURFACE_TOLERANCE, layers, type Paint, type Part, type Vec3 } from "./parts";
 import { RUMBLE_DROP, applyRumble, rumbleFor, rumblePose, type RumblePose } from "./rumble";
 
 // Every way a part's front view pokes into a cell the vehicle doesn't fill,
@@ -87,8 +89,8 @@ interface ScanBox extends Placement {
 function scanBoxes(model: VehicleModel): ScanBox[] {
   const at = (p: Vec3): string => p.map((n) => n.toFixed(3)).join(",");
   return [
-    ...model.body.map(({ cell, paint }) => ({
-      ...spanning([cell.col, cell.row, -model.length], [cell.col + 1, cell.row + 1, 0]),
+    ...model.body.map(({ cell, paint, min, max }) => ({
+      ...spanning(min, max),
       paint,
       what: `body ${cellKey(cell)}`,
       body: true,
@@ -123,7 +125,7 @@ describe("the vehicles' face scan", () => {
   });
 
   const clashesOf = (parts: Part[], minGap = COPLANAR): number => {
-    const model: VehicleModel = { ...vehicleModel("T0"), body: [{ cell: { col: 0, row: 0 }, paint: "cream" }], parts };
+    const model: VehicleModel = { ...vehicleModel("T0"), body: [{ cell: { col: 0, row: 0 }, paint: "cream", min: [0, 0, -2], max: [1, 1, 0] }], parts };
     return faceClashes(scanBoxes(model), minGap, EYE).filter(fights).length;
   };
   const part = (min: Vec3, max: Vec3, paint: Paint): Part => ({ shape: "box", min, max, paint });
@@ -170,13 +172,7 @@ function rumbled(part: Part, pose: RumblePose): Part {
   return { ...part, min: bound((v) => Math.min(...v)), max: bound((v) => Math.max(...v)) };
 }
 
-const bodyParts = (model: VehicleModel): Part[] =>
-  model.body.map(({ cell, paint }) => ({
-    shape: "box",
-    min: [cell.col, cell.row, -model.length],
-    max: [cell.col + 1, cell.row + 1, 0],
-    paint,
-  }));
+const bodyParts = (model: VehicleModel): Part[] => model.body.map(({ paint, min, max }) => ({ shape: "box", min, max, paint }));
 
 describe("the rumble", () => {
   it("only ever settles each end of a vehicle, by no more than the drop", () => {
@@ -208,6 +204,22 @@ describe.each(VEHICLE_IDS)("vehicle %s", (id) => {
 
   it("has a solid body cell for exactly each of its four cells", () => {
     expect(model.body.map(({ cell }) => cellKey(cell)).sort()).toEqual(vehicleCells(id).map(cellKey).sort());
+  });
+
+  it("fills each body cell but for its outer sides, inset from the lane lines", () => {
+    const width = vehicleWidth(id);
+    for (const { cell, min, max } of model.body) {
+      expect([min[1], max[1], min[2], max[2]]).toEqual([cell.row, cell.row + 1, -model.length, 0]);
+      expect(min[0]).toBeCloseTo(cell.col === 0 ? SIDE_INSET : cell.col);
+      expect(max[0]).toBeCloseTo(cell.col === width - 1 ? width - SIDE_INSET : cell.col + 1);
+    }
+  });
+
+  it("never crosses the lane lines either side of it, its body or any part", () => {
+    for (const part of [...bodyParts(model), ...model.parts]) {
+      expect(part.min[0]).toBeGreaterThanOrEqual(-1e-9);
+      expect(part.max[0]).toBeLessThanOrEqual(vehicleWidth(id) + 1e-9);
+    }
   });
 
   it("keeps every part inside its four cells, seen head-on", () => {
@@ -277,6 +289,51 @@ describe("the fleet's designs", () => {
     for (const kind of ["I", "S", "Z", "T", "J", "L"]) {
       const paints = VEHICLE_IDS.filter((id) => id[0] === kind).map(mainPaint);
       expect(new Set(paints).size).toBe(paints.length);
+    }
+  });
+});
+
+// Vehicles side by side in a row, fronts lined up, in every pair the road
+// has room for, each rumbling on its own: at rest, at every mix of the two's
+// rumble extremes, and through a stretch of driving with their own seeds.
+// Neither crosses the lane line between them, so they share no space and
+// the scan finds nothing; it catches a vehicle that breaks that. The scan
+// only compares faces turned exactly alike, so faces tipped apart by the
+// rumble rely on that separation, which holds for any rumble: the tip leans
+// a vehicle along the road and the drop moves it down, never across.
+describe("two vehicles side by side", () => {
+  // A vehicle's scan boxes moved over `lane` lanes and into a rumble pose,
+  // which turns the vehicle about its frame's origin (see rumble.ts).
+  const placedAt = (model: VehicleModel, lane: number, pose: RumblePose, who: string): ScanBox[] => {
+    const [c, s] = [Math.cos(pose.tip), Math.sin(pose.tip)];
+    return scanBoxes(model).map((box) => {
+      const [x, y, z] = box.center;
+      return { ...box, center: [x + lane, y * c - z * s - pose.drop, y * s + z * c], pitch: pose.tip, what: `${who} ${box.what}` };
+    });
+  };
+  const pairs = VEHICLE_IDS.flatMap((left) =>
+    VEHICLE_IDS.filter((right) => vehicleWidth(left) + vehicleWidth(right) <= TUNING.corridorCols).map((right) => [left, right] as const),
+  );
+  const DRIVING = Array.from({ length: 6 }, (_, i) => 0.37 + i * 0.113);
+  // Two boxes can only lay faces together where they come near each other
+  // across the lanes, and the rumble never moves anything across them, so
+  // only the boxes near the lane line between the two are scanned.
+  const NEAR_LINE = 2 * SURFACE_TOLERANCE;
+  const nearLine = (line: number) => (box: ScanBox): boolean => Math.abs(box.center[0] - line) - box.size[0] / 2 < NEAR_LINE;
+
+  it.each(pairs)("lays no face of %s where the depth buffer can't tell it from one of %s on its right", (left, right) => {
+    const [a, b] = [vehicleModel(left), vehicleModel(right)];
+    const still: RumblePose = { drop: 0, tip: 0 };
+    const extremes = rumbleExtremes(a.length).flatMap((pa) => rumbleExtremes(b.length).map((pb) => [pa, pb] as const));
+    const [ra, rb] = [rumbleFor(`0:${left}`), rumbleFor(`0:${right}`)];
+    const driving = DRIVING.map((time) => [rumblePose(ra, time, a.length), rumblePose(rb, time, b.length)] as const);
+    for (const [pa, pb] of [[still, still] as const, ...extremes, ...driving]) {
+      const line = vehicleWidth(left);
+      const boxes = [...placedAt(a, 0, pa, `left ${left}`), ...placedAt(b, line, pb, `right ${right}`)].filter(nearLine(line));
+      const across = faceClashes(boxes, DEPTH_RESOLUTION, EYE).filter(
+        (clash) => fights(clash) && clash.a.what.startsWith("left") !== clash.b.what.startsWith("left"),
+      );
+      expect(across.map(describeClash)).toEqual([]);
     }
   });
 });

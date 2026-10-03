@@ -28,10 +28,18 @@ const times = (a: Vec3, k: number): Vec3 => [a[0] * k, a[1] * k, a[2] * k];
 const dot = (a: Vec3, b: Vec3): number => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const unit = (a: Vec3): Vec3 => times(a, 1 / Math.hypot(...a));
 
+// Toward the gameplay camera from the frog, which it follows from behind and
+// above, and the way up its picture.
+const TO_CAMERA = unit([0, TUNING.cameraHeight, TUNING.cameraFollow]);
+const CAMERA_UP = unit([0, TO_CAMERA[2], -TO_CAMERA[1]]);
+
 interface Field {
   name: string;
-  // Signed distance from the surface, negative inside, and the outward
-  // normal there.
+  // The surface's highest point.
+  top: number;
+  // Signed distance from the surface, negative inside.
+  distance: (p: Vec3) => number;
+  // The same, with the outward normal there.
   at: (p: Vec3) => { distance: number; normal: Vec3 };
 }
 
@@ -49,16 +57,14 @@ const sunk = (ball: Ball, about: Vec3, scale: number): Ball => ({
 });
 
 function ballField(name: string, { centre, radii }: Ball): Field {
-  return {
-    name,
-    at(p) {
-      const q = minus(p, centre);
-      const f = (q[0] / radii[0]) ** 2 + (q[1] / radii[1]) ** 2 + (q[2] / radii[2]) ** 2 - 1;
-      const gradient: Vec3 = [(2 * q[0]) / radii[0] ** 2, (2 * q[1]) / radii[1] ** 2, (2 * q[2]) / radii[2] ** 2];
-      const length = Math.hypot(...gradient);
-      return { distance: f / length, normal: times(gradient, 1 / length) };
-    },
+  const at = (p: Vec3) => {
+    const q = minus(p, centre);
+    const f = (q[0] / radii[0]) ** 2 + (q[1] / radii[1]) ** 2 + (q[2] / radii[2]) ** 2 - 1;
+    const gradient: Vec3 = [(2 * q[0]) / radii[0] ** 2, (2 * q[1]) / radii[1] ** 2, (2 * q[2]) / radii[2] ** 2];
+    const length = Math.hypot(...gradient);
+    return { distance: f / length, normal: times(gradient, 1 / length) };
   };
+  return { name, top: centre[1] + radii[1], distance: (p) => at(p).distance, at };
 }
 
 function boxField(name: string, { min, max }: FrogPart): Field {
@@ -69,6 +75,8 @@ function boxField(name: string, { min, max }: FrogPart): Field {
   };
   return {
     name,
+    top: max[1],
+    distance,
     at(p) {
       const h = 1e-5;
       const d = distance(p);
@@ -109,7 +117,17 @@ function eyeState(eye: FrogEye, head: FrogPart[], scale: number, orbit: PupilOrb
   };
 }
 
-const hiddenBy = (p: Vec3, fields: readonly Field[]): boolean => fields.some((field) => field.at(p).distance < -NEAR);
+const hiddenBy = (p: Vec3, fields: readonly Field[]): boolean => fields.some((field) => field.distance(p) < -NEAR);
+
+// Whether nothing in `fields` stands between a point and the gameplay camera:
+// a march toward the camera, which rises, until it is above them all.
+function inView(p: Vec3, fields: readonly Field[]): boolean {
+  const top = Math.max(...fields.map((field) => field.top));
+  for (let at = plus(p, times(TO_CAMERA, 0.01)); at[1] <= top; at = plus(at, times(TO_CAMERA, 0.01))) {
+    if (hiddenBy(at, fields)) return false;
+  }
+  return true;
+}
 
 // Where a part's surface meets another paint's, out in the open, and runs
 // alongside it rather than crossing it steeply.
@@ -193,11 +211,34 @@ describe.each(EYES)("the eye $name", ({ eye, head }) => {
     expect(surface(white).filter(({ point }) => !hiddenBy(point, skin))).toEqual([]);
   });
 
-  it("looks out and ahead down the road, away from the gameplay camera", () => {
+  it("turns its pupil to the gameplay camera, on the far, outer side of its eye", () => {
     const outward = Math.sign(partMiddle(eye.white)[0] - eye.centre[0]);
-    const toCamera = unit([0, TUNING.cameraHeight, TUNING.cameraFollow]);
     expect(Math.sign(eye.gaze[0])).toBe(outward);
-    expect(eye.gaze[2]).toBeLessThan(0);
-    expect(dot(eye.gaze, toCamera)).toBeLessThan(-0.3);
+    expect(dot(eye.gaze, TO_CAMERA)).toBeGreaterThan(0.5);
+    // Up on the camera's picture is away down the road, so a pupil there
+    // reads as the frog looking ahead.
+    expect(dot(eye.gaze, CAMERA_UP)).toBeGreaterThan(0.3);
+  });
+
+  it("shows its pupil to the gameplay camera, open and dazed, past its bump and head", () => {
+    for (const [scale, orbits] of [
+      [1, [null]],
+      [DAZED_EYES, DAZED_ORBITS],
+    ] as const) {
+      for (const orbit of orbits) {
+        const { white, pupil, skin } = eyeState(eye, head, scale, orbit);
+        if (pupil === null) throw new Error("The pupil is gone with the eye open");
+        const blockers = [...skin, ballField("white", white)];
+        // The pupil's bare surface, standing out of its white, that turns squarely
+        // to the camera.
+        const facing = surface(pupil).filter(
+          ({ point, normal }) => dot(normal, TO_CAMERA) > 0.5 && !hiddenBy(point, blockers),
+        );
+        const seen = facing.filter(({ point }) => inView(point, blockers));
+        const pose = `eye ${scale.toFixed(2)} open, orbit ${JSON.stringify(orbit)}`;
+        expect(facing.length, pose).toBeGreaterThan(4 * SAMPLES);
+        expect(seen.length / facing.length, pose).toBeGreaterThan(0.9);
+      }
+    }
   });
 });

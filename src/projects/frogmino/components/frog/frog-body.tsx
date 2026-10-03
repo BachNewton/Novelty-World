@@ -9,7 +9,7 @@ import type { Vec3 } from "../../vehicles/parts";
 import { FROG_LOOKS, type FrogVariant } from "../../frog/look";
 import { GROUND_CLEARANCE } from "../../clearance";
 import { frogModel, partMiddle, pupilCentre, type FrogPart } from "../../frog/model";
-import { frogMotion, type FrogAction, type MoveHop } from "../../frog/motion";
+import { frogMotion, legScale, type FrogAction, type MoveHop } from "../../frog/motion";
 import type { FrogDrawing } from "./frog-assets";
 
 // Starts one of the frog's reactions; "idle" cuts one short. `move` starts
@@ -126,10 +126,10 @@ export function FrogBody({
     cells.current.forEach((group) => group?.scale.set(...motion.cell));
     eyeballs.current.forEach((group) => group?.scale.setScalar(motion.eyeball));
     throat.current?.scale.setScalar(motion.throat);
-    legs.current.forEach((group) => {
+    legs.current.forEach((group, l) => {
       if (group === null) return;
       group.visible = motion.tuck < 1;
-      group.scale.setScalar(1 - motion.tuck);
+      group.scale.set(...legScale(motion, model.legs[l].hind));
     });
     pupils.current.forEach((pupil, i) => {
       if (pupil === null) return;

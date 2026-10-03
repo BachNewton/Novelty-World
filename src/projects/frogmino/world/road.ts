@@ -3,7 +3,6 @@ import {
   GROUND_DROP,
   KERB_HEIGHT,
   ROAD_LEFT,
-  ROAD_RIGHT,
   SHOULDER_WIDTH,
   TALL_OFFSET,
   VERGE,
@@ -11,6 +10,7 @@ import {
   boxArea,
   overlaps,
   roadArea,
+  roadRight,
   sideX,
   type Area,
   type Side,
@@ -28,6 +28,8 @@ import type { WorldPaint } from "./paints";
 export interface WorldPlan {
   seed: number;
   courseLength: number;
+  // How many lanes wide the road is.
+  lanes: number;
 }
 
 export const ROAD_TILE = 24;
@@ -131,10 +133,10 @@ function surfaceBox(x0: number, x1: number, top: number, near: number, far: numb
 }
 
 // The road's shoulders and kerbs run unbroken along both edges.
-function roadSurfaces(near: number, far: number): WorldBox[] {
-  const surfaces = [surfaceBox(ROAD_LEFT, ROAD_RIGHT, 0, near, far, "asphalt")];
+function roadSurfaces(lanes: number, near: number, far: number): WorldBox[] {
+  const surfaces = [surfaceBox(ROAD_LEFT, roadRight(lanes), 0, near, far, "asphalt")];
   for (const side of ["left", "right"] as const) {
-    const [edge, shoulder, kerb] = [sideX(side, 0), sideX(side, SHOULDER_WIDTH), sideX(side, VERGE)];
+    const [edge, shoulder, kerb] = [sideX(lanes, side, 0), sideX(lanes, side, SHOULDER_WIDTH), sideX(lanes, side, VERGE)];
     surfaces.push(surfaceBox(Math.min(edge, shoulder), Math.max(edge, shoulder), 0, near, far, "shoulder"));
     // Kerb blocks alternate light and dark on a fixed rhythm along the road.
     for (let k = Math.floor(near / KERB_BLOCK); k * KERB_BLOCK < far; k++) {
@@ -150,7 +152,7 @@ function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
   const finish = finishZone(plan.courseLength);
   const marks: WorldBox[] = [];
   // Faint dashes between the lanes, stopping for the finish.
-  for (let lane = 1; lane < ROAD_RIGHT - ROAD_LEFT; lane++) {
+  for (let lane = 1; lane < plan.lanes; lane++) {
     const x = ROAD_LEFT + lane;
     for (let n = Math.floor(near / DASH_PERIOD); n * DASH_PERIOD < far; n++) {
       const [d0, d1] = [n * DASH_PERIOD, n * DASH_PERIOD + DASH_LENGTH];
@@ -163,17 +165,17 @@ function roadMarkings(plan: WorldPlan, near: number, far: number): WorldBox[] {
   // edge to edge.
   const finishLine: [number, number] = [plan.courseLength + FINISH_LINE.near, plan.courseLength + FINISH_LINE.far];
   for (const side of ["left", "right"] as const) {
-    const x = sideX(side, 0);
+    const x = sideX(plan.lanes, side, 0);
     for (const [a, b] of cutGaps(near, far, [finishLine])) marks.push(mark(x, (a + b) / 2, EDGE_LINE_WIDTH, b - a, "edge-line"));
   }
-  if (plan.courseLength >= near && plan.courseLength < far) marks.push(...finishMarkings(plan.courseLength));
+  if (plan.courseLength >= near && plan.courseLength < far) marks.push(...finishMarkings(plan.lanes, plan.courseLength));
   return marks;
 }
 
 // Where the roadside may not put anything: the road and the structures'
 // footprints.
 export function keepOuts(plan: WorldPlan, near: number, far: number): Area[] {
-  return [roadArea(near - 1, far + 1), ...structureKeepOuts(plan.courseLength)];
+  return [roadArea(plan.lanes, near - 1, far + 1), ...structureKeepOuts(plan.lanes, plan.courseLength)];
 }
 
 function allowed(boxes: readonly WorldBox[], blocked: readonly Area[]): boolean {
@@ -183,10 +185,10 @@ function allowed(boxes: readonly WorldBox[], blocked: readonly Area[]): boolean 
   });
 }
 
-function placeProps(rng: Rng, near: number, far: number): Prop[] {
+function placeProps(rng: Rng, lanes: number, near: number, far: number): Prop[] {
   const props: Prop[] = [];
   const at = (kind: PropKind, side: Side, offset: number, depth: number, scale = 1, yaw = 0): void => {
-    props.push({ kind, x: sideX(side, offset), depth, yaw, scale });
+    props.push({ kind, x: sideX(lanes, side, offset), depth, yaw, scale });
   };
 
   // Frogs crossing: every so often a sign, on either side.
@@ -237,16 +239,16 @@ function placeProps(rng: Rng, near: number, far: number): Prop[] {
 
 export function roadTile(plan: WorldPlan, index: number): RoadTile {
   const [near, far] = [index * ROAD_TILE, (index + 1) * ROAD_TILE];
-  const layBy = layByIn(tileRng(plan.seed, "lay-by", index), near, far, structureKeepOuts(plan.courseLength));
-  const blocked = [...keepOuts(plan, near, far), ...(layBy === null ? [] : [layByKeepOut(layBy)])];
-  const props = placeProps(tileRng(plan.seed, "road", index), near, far)
+  const layBy = layByIn(tileRng(plan.seed, "lay-by", index), plan.lanes, near, far, structureKeepOuts(plan.lanes, plan.courseLength));
+  const blocked = [...keepOuts(plan, near, far), ...(layBy === null ? [] : [layByKeepOut(plan.lanes, layBy)])];
+  const props = placeProps(tileRng(plan.seed, "road", index), plan.lanes, near, far)
     .map(propBoxes)
     .filter((boxes) => allowed(boxes, blocked))
     .flat();
   return {
-    surfaces: [...roadSurfaces(near, far), ...(layBy === null ? [] : [layBySurface(layBy)])],
+    surfaces: [...roadSurfaces(plan.lanes, near, far), ...(layBy === null ? [] : [layBySurface(plan.lanes, layBy)])],
     markings: roadMarkings(plan, near, far),
-    props: [...props, ...(layBy === null ? [] : layByProps(layBy))],
+    props: [...props, ...(layBy === null ? [] : layByProps(plan.lanes, layBy))],
     layBy,
   };
 }
@@ -255,7 +257,7 @@ export function roadTile(plan: WorldPlan, index: number): RoadTile {
 export function structuresNear(plan: WorldPlan, tiles: readonly number[]): WorldBox[] {
   const [near, far] = [tiles[0] * ROAD_TILE, (tiles[tiles.length - 1] + 1) * ROAD_TILE];
   return [
-    ...(near <= 0 && far >= 0 ? overpassBoxes() : []),
-    ...(near <= plan.courseLength && far >= plan.courseLength ? gantryBoxes(plan.courseLength) : []),
+    ...(near <= 0 && far >= 0 ? overpassBoxes(plan.lanes) : []),
+    ...(near <= plan.courseLength && far >= plan.courseLength ? gantryBoxes(plan.lanes, plan.courseLength) : []),
   ];
 }

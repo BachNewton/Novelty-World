@@ -10,7 +10,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 // lanes, and the tip only leans the vehicle along the road, so seen head-on
 // every point moves straight down by no more than the drop. That stays within
 // the surface-detail tolerance, so the rumble never misstates the opening.
-export const RUMBLE_DROP = 0.025;
+export const RUMBLE_DROP = 0.018;
 
 // Each end's bounce is a slower swing with a quicker shiver on top, in hertz.
 const SWING_RATE = [4, 6] as const;

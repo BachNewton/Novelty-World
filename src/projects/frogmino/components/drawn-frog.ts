@@ -1,8 +1,19 @@
 import type { LeapStart } from "../frog/leaps";
-import { glide, moveHopLift, moveProgress } from "../frog/moves";
-import { pieceSize } from "../logic";
-import { hopHeight, onOverpass, type Bonk, type RuleFrog, type Run } from "../run";
-import type { Rotation, TetrominoKind } from "../types";
+import { glide, moveDuration, moveHopLift, moveProgress } from "../frog/moves";
+import { frogCells, pieceSize } from "../logic";
+import {
+  FROG_THICKNESS,
+  frogShape,
+  hopHeight,
+  inPlay,
+  onOverpass,
+  type Bonk,
+  type RuleFrog,
+  type Run,
+  type Wall,
+} from "../run";
+import { keepsClear } from "../traffic";
+import type { HopHeight, Rotation, Solid, TetrominoKind } from "../types";
 import { DECK_TOP } from "../world/structures";
 
 export interface BonkMotion {
@@ -42,6 +53,10 @@ export interface DrawnFrog {
   // which the frog is already drawn in.
   swing: number;
   lift: number;
+  // The latest time the drawn frog rode on up among a row's vehicles after
+  // the rules had landed it; its fall starts from then, not from the rules'
+  // landing.
+  rodeUntil: number | null;
   // The glides of the latest slide and jump, until they arrive.
   glideX: Glide | null;
   glideDepth: Glide | null;
@@ -78,6 +93,7 @@ export function snapped(run: Run): DrawnFrog {
     level: onOverpass(run) ? DECK_TOP : 0,
     swing: 0,
     lift: hopHeight(run.frog),
+    rodeUntil: null,
     glideX: null,
     glideDepth: null,
     moveHops: [],
@@ -140,4 +156,131 @@ export function arrived({ startedAt }: Glide, time: number, duration: number): b
 // other short.
 export function moveLift(hops: readonly number[], time: number, duration: number): number {
   return Math.max(0, ...hops.map((startedAt) => moveHopLift(moveProgress(time - startedAt, duration))));
+}
+
+// The hop arc overshoots a sine and is capped at one cell, so the drawn frog
+// rises quickly to a full cell, as the rules count it, and falls the same way
+// once it comes down.
+const HOP_ARC_OVERSHOOT = 1.3;
+
+// The rising half of the hop arc, `seconds` into it.
+function hopArc(seconds: number, airtime: number): number {
+  const progress = Math.min(0.5, Math.max(0, seconds / airtime));
+  return Math.min(1, HOP_ARC_OVERSHOOT * Math.sin(Math.PI * progress));
+}
+
+// How long the arc takes to reach a full cell.
+function hopRiseTime(airtime: number): number {
+  return (airtime * Math.asin(1 / HOP_ARC_OVERSHOOT)) / Math.PI;
+}
+
+// A wall's solids overlapping the frog drawn with its front at `depth`.
+function overlappingDrawn(wall: Wall, depth: number): readonly Solid[] {
+  if (wall.depth >= depth) return [];
+  return wall.solids.filter((solid) => wall.depth + solid.length > depth - FROG_THICKNESS);
+}
+
+// Whether any vehicle overlaps the frog drawn at `depth`, in play.
+export function amongVehicles(run: Run, depth: number): boolean {
+  return inPlay(run) && run.walls.some((wall) => overlappingDrawn(wall, depth).length > 0);
+}
+
+// Whether the frog in its rule pose, `hop` cells up and drawn at `depth`,
+// would be inside a vehicle overlapping it there, across a gate's post, or
+// above the face.
+function drawnInVehicle(run: Run, depth: number, hop: HopHeight): boolean {
+  const cells = frogCells({ ...frogShape(run.frog), hop });
+  const onFace = cells.every((cell) => cell.row < run.tuning.wallRows);
+  return run.walls.some((wall) => {
+    const solids = overlappingDrawn(wall, depth);
+    return solids.length > 0 && !(onFace && keepsClear(cells, cells, solids));
+  });
+}
+
+// How high the drawn frog is among vehicles at `depth`: as high as the rules
+// have it, except that a drawn frog riding a row, a full cell up, rides on
+// while it stays clear. The rules land a riding frog the instant the row
+// goes by its rule depth, or a jump forward carries it clear, but a move's
+// glide trails the rules, so the drawn frog can still be among the row's
+// vehicles then; dropping it there would put it inside them.
+function heightAmong(run: Run, drawn: DrawnFrog, depth: number): HopHeight {
+  if (hopHeight(run.frog) === 1) return 1;
+  return drawn.lift === 1 && !drawnInVehicle(run, depth, 1) ? 1 : 0;
+}
+
+// A frog that has just jumped clear of a vehicle and then slid into its
+// lane would be drawn inside it while its glide trails behind, so it is
+// drawn at its rule depth at once.
+export function keptOutOfVehicles(run: Run, drawn: DrawnFrog): DrawnFrog {
+  if (!inPlay(run) || !drawnInVehicle(run, drawn.depth, heightAmong(run, drawn, drawn.depth))) return drawn;
+  return { ...drawn, depth: frogTarget(run.frog).depth, glideDepth: null };
+}
+
+// The drawn frog's hop now. Among vehicles it is exactly as high as it is
+// there. Otherwise it rises along the arc while the rules have it up, and
+// falls back along it once it has come down: when the rules landed it, or
+// later, when it last rode on among the row. Each only ever moves the drawn
+// frog one way, so it carries on smoothly from wherever it was left.
+export function withHop(run: Run, drawn: DrawnFrog): DrawnFrog {
+  const hop = run.frog.latestHop;
+  if (hop === null) return { ...drawn, lift: 0 };
+  if (amongVehicles(run, drawn.depth)) {
+    const height = heightAmong(run, drawn, drawn.depth);
+    const ridingOn = height === 1 && hop.landedAt !== null;
+    return { ...drawn, lift: height, rodeUntil: ridingOn ? run.time : drawn.rodeUntil };
+  }
+  const airtime = run.tuning.hopAirtime;
+  if (hop.landedAt === null) return { ...drawn, lift: Math.max(drawn.lift, hopArc(run.time - hop.startedAt, airtime)) };
+  const down = Math.max(hop.landedAt, drawn.rodeUntil ?? hop.landedAt);
+  return { ...drawn, lift: Math.min(drawn.lift, hopArc(hopRiseTime(airtime) - (run.time - down), airtime)) };
+}
+
+// A bonk knocks the drawn frog back along a low arc over this long; the frog
+// itself flattens against the row and is left dazed.
+export const BONK_DURATION = 0.3;
+const BONK_ARC_HEIGHT = 0.8;
+
+// The drawn frog seeing the rules' latest bonk. A new one knocks it back from
+// where it is drawn to where the rules knocked it. That is not the row's face
+// whenever the bonk interrupts a move: a jump forward into the face, or a row
+// arriving mid-glide, finds the drawn frog still short of it.
+export function seeBonk(drawn: DrawnFrog, run: Run): DrawnFrog {
+  const bonk = run.lastBonk;
+  if (bonk === drawn.bonk) return drawn;
+  if (bonk === null) return { ...drawn, bonk };
+  return { ...drawn, bonk, bonkMotion: { from: drawn.depth, to: run.frog.depth, startedAt: bonk.time } };
+}
+
+export interface BonkPose {
+  depth: number;
+  lift: number;
+}
+
+// Where a bonk's knock-back has the drawn frog now; null once it is over, or
+// once the frog has jumped away from where the bonk put it.
+export function bonkPose(motion: BonkMotion | null, run: Run): BonkPose | null {
+  if (motion === null || run.frog.depth !== motion.to) return null;
+  const progress = (run.time - motion.startedAt) / BONK_DURATION;
+  if (progress >= 1) return null;
+  const eased = 1 - (1 - progress) ** 2;
+  return {
+    depth: motion.from + (motion.to - motion.from) * eased,
+    lift: BONK_ARC_HEIGHT * Math.sin(Math.PI * progress),
+  };
+}
+
+// The drawn frog's depth on the road, `delta` seconds on: along a bonk's
+// knock-back, a jump's glide, or else easing to the rule depth, and kept out
+// of the vehicles. The drop and the finish leap draw it their own way.
+export function followDepth(drawn: DrawnFrog, run: Run, pose: BonkPose | null, delta: number): DrawnFrog {
+  if (pose !== null) return { ...drawn, depth: pose.depth };
+  const target = frogTarget(run.frog).depth;
+  const stride = moveDuration(run.tuning);
+  const jump = drawn.glideDepth;
+  const gliding = jump !== null && jump.to === target;
+  const depth = gliding
+    ? glideAt(jump, run.time, stride)
+    : target + (drawn.depth - target) * Math.exp((-3 / run.tuning.easeDuration) * delta);
+  const glideDepth = gliding && !arrived(jump, run.time, stride) ? jump : null;
+  return keptOutOfVehicles(run, { ...drawn, depth, glideDepth });
 }

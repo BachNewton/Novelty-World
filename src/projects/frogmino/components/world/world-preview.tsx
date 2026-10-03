@@ -3,32 +3,48 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
-import { MeshLambertMaterial, type Group, type Mesh } from "three";
+import type { Group, Mesh } from "three";
 import { themeColor } from "@/shared/lib/three/theme-color";
 import { COURSE_SEED } from "../../course";
+import { FROG_VARIANTS } from "../../frog/look";
 import { dropPose, type LeapStart } from "../../frog/leaps";
-import { frogCells } from "../../logic";
+import { cellKey, frogCells } from "../../logic";
 import type { Row } from "../../traffic";
 import { TUNING } from "../../tuning";
 import type { Frog } from "../../types";
 import { VEHICLES } from "../../vehicles";
-import { PREVIEW_ROWS, passingPose } from "../../world/preview-rows";
+import {
+  PREVIEW_LANES,
+  PREVIEW_PIECES,
+  PREVIEW_ROWS,
+  passingPoses,
+  startPoses,
+  type PreviewLanes,
+  type PreviewTeam,
+} from "../../world/preview-rows";
 import { DECK_TOP, OVERPASS_FAR, OVERPASS_NEAR } from "../../world/structures";
 import { CAMERA_FAR, CAMERA_NEAR, cameraEye, cameraPitch, fittedFov, type CameraKnobs } from "../camera-fit";
+import { makeFrogAssets } from "../frog/frog-assets";
+import { FrogBody } from "../frog/frog-body";
 import { Vehicle } from "../vehicle";
-import { borderMask, makeVehicleAssets } from "../vehicle-assets";
+import { makeVehicleAssets } from "../vehicle-assets";
 import { CAMERA_KNOB_KEYS, CAMERA_KNOB_RANGES, TUNED_CAMERA, formatKnob, tuningSnippet } from "./camera-knobs";
 import { FrogminoStructures, FrogminoWorld } from "./world";
 
 // `?world`: the world around the road, seen from the gameplay camera as it
-// drives down the road, with rows of traffic coming at a stand-in frog that
-// always takes the pose that fits the next row. It is for judging whether
-// the world frames the gameplay without distracting from it, so it can be
-// switched off to compare against the bare road. Its camera controls drive
-// the gameplay camera's own maths with live knobs, for tuning by eye.
+// drives down the road, with rows of traffic coming at the player's frog, or
+// at the co-op pair side by side, always in the poses that fit the next row.
+// It is for judging whether the world frames the gameplay without distracting
+// from it, so it can be switched off to compare against the bare road, and
+// how wide a road reads right for co-op. Its camera controls drive the
+// gameplay camera's own maths with live knobs, for tuning by eye.
 
-const { corridorCols, courseLength, wallSpeed } = TUNING;
-const CENTER_X = (corridorCols - 1) / 2;
+const { courseLength, wallSpeed } = TUNING;
+
+// The camera rides over the middle of the road.
+function roadMiddle(lanes: number): number {
+  return (lanes - 1) / 2;
+}
 
 const DRIVES = {
   reverse: { label: "◀◀ Back", speed: -6 },
@@ -38,14 +54,15 @@ const DRIVES = {
 } as const;
 type Drive = keyof typeof DRIVES;
 
-// The frog waits on the overpass's deck a moment, then jumps down to the road.
+const TEAMS: Record<PreviewTeam, string> = { solo: "Solo", coop: "Co-op pair" };
+
+// The frogs wait on the overpass's deck a moment, then jump down to the road.
 const FROG_DECK_DEPTH = (OVERPASS_NEAR + OVERPASS_FAR) / 2 + 0.5;
 const DECK_WAIT = 2.5;
 const DROP_START: LeapStart = { fromDepth: FROG_DECK_DEPTH, fromLevel: DECK_TOP };
 const DROP_LANDING = FROG_DECK_DEPTH + TUNING.dropDistance;
-const START_POSE: Frog = { kind: "L", col: 2, rotation: 0, hop: 0 };
 
-// A few rows loop around the frog: they vanish well behind the camera and
+// A few rows loop around the frogs: they vanish well behind the camera and
 // come back far up the road.
 const ROW_SPACING = 17;
 const ROWS_BEHIND = 30;
@@ -57,7 +74,7 @@ interface Motion {
   y: number;
   // The level the camera rides above.
   level: number;
-  // Seconds left on the deck; null once the frog has jumped down.
+  // Seconds left on the deck; null once the frogs have jumped down.
   deckWait: number | null;
   // How far through the jump down, from 0 to 1; null when not jumping.
   drop: number | null;
@@ -71,8 +88,8 @@ function rowLength(row: Row): number {
   return Math.max(...row.map((v) => VEHICLES[v.id].length));
 }
 
-function rowOffset(index: number, time: number, frogDepth: number): number {
-  const span = PREVIEW_ROWS.length * ROW_SPACING;
+function rowOffset(index: number, rowCount: number, time: number, frogDepth: number): number {
+  const span = rowCount * ROW_SPACING;
   const depth = ROWS_FIRST + index * ROW_SPACING - wallSpeed * time;
   return ((((depth - frogDepth + ROWS_BEHIND) % span) + span) % span) - ROWS_BEHIND;
 }
@@ -102,9 +119,9 @@ function advanceMotion(m: Motion, speed: number, delta: number): void {
 
 const DEGREES = 180 / Math.PI;
 
-function PreviewCamera({ knobs, onFov }: { knobs: CameraKnobs; onFov: (fov: number) => void }) {
+function PreviewCamera({ knobs, lanes, onFov }: { knobs: CameraKnobs; lanes: number; onFov: (fov: number) => void }) {
   const aspect = useThree((s) => s.size.width / s.size.height);
-  const fov = fittedFov(aspect);
+  const fov = fittedFov(aspect, lanes);
   useEffect(() => onFov(fov), [fov, onFov]);
   const eye = cameraEye(knobs, FROG_DECK_DEPTH, DECK_TOP);
   return (
@@ -113,78 +130,88 @@ function PreviewCamera({ knobs, onFov }: { knobs: CameraKnobs; onFov: (fov: numb
       fov={fov}
       near={CAMERA_NEAR}
       far={CAMERA_FAR}
-      position={[CENTER_X, eye.y, eye.z]}
+      position={[roadMiddle(lanes), eye.y, eye.z]}
       rotation={[cameraPitch(knobs), 0, 0]}
     />
   );
 }
 
+// The frogs' poses as one comparable string.
+function posesKey(frogs: readonly Frog[]): string {
+  return frogs.map((frog) => frogCells(frog).map(cellKey).join(";")).join("|");
+}
+
+// The traffic and the frogs, from the start: it is mounted afresh for each
+// road width, team and restart.
 function PreviewTraffic({
   drive,
-  restarts,
   knobs,
+  lanes,
+  team,
   onDepth,
 }: {
   drive: Drive;
-  restarts: number;
   knobs: CameraKnobs;
+  lanes: PreviewLanes;
+  team: PreviewTeam;
   onDepth: (depth: number) => void;
 }) {
+  const kinds = PREVIEW_PIECES[team];
   const rows = useMemo(
     () =>
-      PREVIEW_ROWS.map((vehicles) => {
-        const pose = passingPose(vehicles);
-        if (pose === null) throw new Error("A preview row lets no frog through");
-        return { vehicles, pose, length: rowLength(vehicles) };
+      PREVIEW_ROWS[team][lanes].map((vehicles) => {
+        const poses = passingPoses(vehicles, lanes, kinds);
+        if (poses === null) throw new Error("A preview row doesn't let its frogs through");
+        return { vehicles, poses, length: rowLength(vehicles) };
       }),
-    [],
+    [team, lanes, kinds],
   );
-  const assets = useMemo(() => makeVehicleAssets(), []);
-  const frogMask = useMemo(() => borderMask("all"), []);
-  const frogMaterial = useMemo(
-    () => new MeshLambertMaterial({ color: themeColor("--color-brand-green"), map: frogMask }),
-    [frogMask],
-  );
+  const start = useMemo(() => startPoses(lanes, kinds), [lanes, kinds]);
+  const vehicleAssets = useMemo(() => makeVehicleAssets(), []);
+  const frogAssets = useMemo(() => makeFrogAssets(), []);
   useEffect(
     () => () => {
-      assets.dispose();
-      frogMask.dispose();
-      frogMaterial.dispose();
+      vehicleAssets.dispose();
+      frogAssets.dispose();
     },
-    [assets, frogMask, frogMaterial],
+    [vehicleAssets, frogAssets],
   );
 
+  // A new pose rebuilds the frogs' models, so it goes through React, and only
+  // when it changes.
+  const [poses, setPoses] = useState(start);
+  const shownPoses = useRef(posesKey(start));
   const motion = useRef(startMotion());
-  useEffect(() => {
-    motion.current = startMotion();
-  }, [restarts]);
   const rowRefs = useRef<(Group | null)[]>([]);
-  const cubeRefs = useRef<(Mesh | null)[]>([]);
+  const frogsRef = useRef<Group>(null);
 
   useFrame(({ camera }, delta) => {
     const m = motion.current;
     advanceMotion(m, DRIVES[drive].speed, Math.min(delta, TUNING.maxFrameDelta));
-    const offsets = rows.map((_, i) => rowOffset(i, m.time, m.depth));
+    const offsets = rows.map((_, i) => rowOffset(i, rows.length, m.time, m.depth));
     rows.forEach((_, i) => {
       const group = rowRefs.current[i];
       if (group) group.position.z = -(m.depth + offsets[i]);
     });
 
-    // On the road, the frog takes the pose that fits the next row to reach it.
-    let pose = START_POSE;
+    // On the road, the frogs take the poses that fit the next row to reach them.
+    let next = start;
     if (m.deckWait === null && m.drop === null) {
       const coming = rows
         .map((row, i) => ({ row, offset: offsets[i] }))
         .filter(({ row, offset }) => offset + row.length > -1)
         .sort((a, b) => a.offset - b.offset);
-      if (coming.length > 0) pose = coming[0].row.pose;
+      if (coming.length > 0) next = coming[0].row.poses;
     }
-    frogCells(pose).forEach((cell, i) => {
-      cubeRefs.current[i]?.position.set(cell.col, m.y + cell.row + 0.5, -m.depth + 0.5);
-    });
+    const key = posesKey(next);
+    if (key !== shownPoses.current) {
+      shownPoses.current = key;
+      setPoses(next);
+    }
+    frogsRef.current?.position.set(0, m.y, -m.depth);
 
     const eye = cameraEye(knobs, m.depth, m.level);
-    camera.position.set(CENTER_X, eye.y, eye.z);
+    camera.position.set(roadMiddle(lanes), eye.y, eye.z);
     onDepth(m.depth);
   });
 
@@ -198,27 +225,25 @@ function PreviewTraffic({
           }}
         >
           {row.vehicles.map(({ id, lane }) => (
-            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={assets} rumbleSeed={`${String(i)}:${String(lane)}`} />
+            <Vehicle key={lane} id={id} lane={lane} depth={0} assets={vehicleAssets} rumbleSeed={`${String(i)}:${String(lane)}`} />
           ))}
         </group>
       ))}
-      {[0, 1, 2, 3].map((i) => (
-        <mesh
-          key={i}
-          ref={(mesh) => {
-            cubeRefs.current[i] = mesh;
-          }}
-          material={frogMaterial}
-        >
-          <boxGeometry />
-        </mesh>
-      ))}
+      {/* The frogs move as one; each stands in its own lanes, a cell up when its pose hops. */}
+      <group ref={frogsRef}>
+        {poses.map((frog, i) => (
+          <group key={i} position={[frog.col - 0.5, frog.hop, 0]}>
+            <FrogBody kind={frog.kind} rotation={frog.rotation} variant={FROG_VARIANTS[i]} seed={i} assets={frogAssets} />
+          </group>
+        ))}
+      </group>
     </>
   );
 }
 
-// Without the world: the bare road the game draws today, following the camera.
-function BareRoad() {
+// Without the world: the bare road the game drew before it, following the
+// camera.
+function BareRoad({ lanes }: { lanes: number }) {
   const colors = useMemo(
     () => ({ background: themeColor("--color-surface-primary"), road: themeColor("--color-surface-tertiary") }),
     [],
@@ -230,11 +255,11 @@ function BareRoad() {
   return (
     <>
       <color attach="background" args={[colors.background]} />
-      <mesh ref={roadRef} rotation={[-Math.PI / 2, 0, 0]} position={[CENTER_X, 0, 0]}>
-        <planeGeometry args={[corridorCols, 500]} />
+      <mesh ref={roadRef} rotation={[-Math.PI / 2, 0, 0]} position={[roadMiddle(lanes), 0, 0]}>
+        <planeGeometry args={[lanes, 500]} />
         <meshBasicMaterial color={colors.road} />
       </mesh>
-      <FrogminoStructures courseLength={courseLength} />
+      <FrogminoStructures courseLength={courseLength} lanes={lanes} />
     </>
   );
 }
@@ -322,6 +347,8 @@ export function WorldPreview() {
   const [world, setWorld] = useState(true);
   const [drive, setDrive] = useState<Drive>("forward");
   const [restarts, setRestarts] = useState(0);
+  const [lanes, setLanes] = useState<PreviewLanes>(PREVIEW_LANES[0]);
+  const [team, setTeam] = useState<PreviewTeam>("solo");
   const [knobs, setKnobs] = useState<CameraKnobs>(TUNED_CAMERA);
   const [fov, setFov] = useState<number | null>(null);
   const readout = useRef<HTMLSpanElement>(null);
@@ -330,20 +357,25 @@ export function WorldPreview() {
     const element = readout.current;
     if (element !== null) element.textContent = `depth ${depth.toFixed(0)}`;
   }, []);
+  // Each change of road or team starts the drive over, from the overpass.
+  const restart = () => {
+    setRestarts((n) => n + 1);
+    setDrive("forward");
+  };
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-surface-primary">
       <div className="absolute inset-0">
         <Canvas flat>
-          <PreviewCamera knobs={knobs} onFov={setFov} />
+          <PreviewCamera knobs={knobs} lanes={lanes} onFov={setFov} />
           <ambientLight intensity={1.5} />
           <directionalLight position={[4, 10, 6]} intensity={1.8} />
           {world ? (
-            <FrogminoWorld courseLength={courseLength} seed={COURSE_SEED} />
+            <FrogminoWorld courseLength={courseLength} seed={COURSE_SEED} lanes={lanes} />
           ) : (
-            <BareRoad />
+            <BareRoad lanes={lanes} />
           )}
-          <PreviewTraffic drive={drive} restarts={restarts} knobs={knobs} onDepth={showDepth} />
+          <PreviewTraffic key={restarts} drive={drive} knobs={knobs} lanes={lanes} team={team} onDepth={showDepth} />
         </Canvas>
       </div>
       <div className="pointer-events-none absolute inset-x-4 top-4 flex flex-col items-start gap-2">
@@ -355,24 +387,47 @@ export function WorldPreview() {
         </div>
         <CameraPanel knobs={knobs} onChange={setKnobs} fov={fov} />
       </div>
-      <div className="absolute inset-x-4 bottom-4 flex flex-wrap gap-2">
-        {(Object.keys(DRIVES) as Drive[]).map((key) => (
-          <PreviewButton key={key} active={drive === key} onClick={() => setDrive(key)}>
-            {DRIVES[key].label}
+      <div className="absolute inset-x-4 bottom-4 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-surface-secondary/85 px-2 py-1.5 text-xs font-bold text-text-secondary">Lanes</span>
+          {PREVIEW_LANES.map((width) => (
+            <PreviewButton
+              key={width}
+              active={lanes === width}
+              onClick={() => {
+                setLanes(width);
+                restart();
+              }}
+            >
+              {String(width)}
+            </PreviewButton>
+          ))}
+          {(Object.keys(TEAMS) as PreviewTeam[]).map((key) => (
+            <PreviewButton
+              key={key}
+              active={team === key}
+              onClick={() => {
+                setTeam(key);
+                restart();
+              }}
+            >
+              {TEAMS[key]}
+            </PreviewButton>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(DRIVES) as Drive[]).map((key) => (
+            <PreviewButton key={key} active={drive === key} onClick={() => setDrive(key)}>
+              {DRIVES[key].label}
+            </PreviewButton>
+          ))}
+          <PreviewButton active={false} onClick={restart}>
+            ↺ Restart
           </PreviewButton>
-        ))}
-        <PreviewButton
-          active={false}
-          onClick={() => {
-            setRestarts((n) => n + 1);
-            setDrive("forward");
-          }}
-        >
-          ↺ Restart
-        </PreviewButton>
-        <PreviewButton active={world} onClick={() => setWorld((on) => !on)}>
-          {world ? "World: on" : "World: off"}
-        </PreviewButton>
+          <PreviewButton active={world} onClick={() => setWorld((on) => !on)}>
+            {world ? "World: on" : "World: off"}
+          </PreviewButton>
+        </div>
       </div>
     </div>
   );

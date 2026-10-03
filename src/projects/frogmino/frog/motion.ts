@@ -40,6 +40,9 @@ export interface FrogMotion {
   // (gone): they tuck away for the whole hop, so a frog riding a vehicle
   // sits on its roof rather than standing in it.
   tuck: number;
+  // How far the hind legs are kicked out behind, from 0 (folded) to 1: they
+  // kick out as the frog takes off and fold back as it lands.
+  kick: number;
 }
 
 export interface FrogMotionInput {
@@ -71,13 +74,17 @@ const DOUBLE_BLINK_CHANCE = 0.3;
 const PUFF_SLOT = 5.2;
 const PUFF_DURATION = 0.7;
 
-// Takeoff narrows the frog as it stretches up and tucks its legs away until
-// it lands; a landing puts them down again and squashes it; a bonk flattens it against the row, then leaves it dazed
-// with circling pupils and drooping lids.
+// Takeoff narrows the frog as it stretches up, kicks its hind legs out
+// behind and then tucks its legs away until it lands; a landing puts them
+// down again, still kicked out, folds them back and squashes it; a bonk
+// flattens it against the row, then leaves it dazed with circling pupils and
+// drooping lids.
 export const HOP_DURATION = 0.24;
 const HOP_NARROW = 0.08;
 const TUCK_TIME = 0.1;
+const TAKEOFF_KICK = 0.2;
 export const LAND_DURATION = 0.22;
+const LANDING_KICK = 0.6;
 const LAND_SQUASH = 0.1;
 export const BONK_DURATION = 1.5;
 const BONK_FLATTEN_TIME = 0.35;
@@ -88,12 +95,14 @@ const BONK_SQUASH = 0.08;
 export const DAZED_EYES = 0.9;
 const DAZED_TURNS_PER_SECOND = 2.2;
 
-// A move's hop narrows the frog a touch and draws its legs half up while it
-// is in the air, and squashes it a touch as it lands. Held moves chain, each
-// taking off as the last lands, so the landing squash shows only after the
-// last of them.
+// A move's hop narrows the frog a touch, draws its legs a little up and
+// kicks its hind legs out behind while it is in the air, folding them back
+// as it comes down, and squashes it a touch as it lands. Held moves chain,
+// each taking off as the last lands, so the landing squash shows only after
+// the last of them.
 const MOVE_NARROW = 0.05;
-const MOVE_TUCK = 0.5;
+const MOVE_TUCK = 0.3;
+const MOVE_KICK = 0.6;
 const MOVE_SQUASH = 0.06;
 export const MOVE_LANDING = 0.12;
 
@@ -102,6 +111,19 @@ export const MOVE_LANDING = 0.12;
 // from its full size with the eye open as far as the dazed lids leave it, to
 // nothing just before the white goes under.
 const PUPIL_GONE = 0.8;
+
+// A kicked-out hind leg stretches back along the road and lifts off it,
+// about its hip: never across or up, so it stays in the clearance under the
+// bottom row, seen head-on.
+const KICK_STRETCH = 0.8;
+const KICK_LIFT = 0.4;
+
+// A leg's scale about its hip: tucked away, and for a hind leg kicked out.
+export function legScale({ tuck, kick }: FrogMotion, hind: boolean): Vec3 {
+  const size = 1 - tuck;
+  const out = hind ? kick : 0;
+  return [size, size * (1 - KICK_LIFT * out), size * (1 + KICK_STRETCH * out)];
+}
 
 export function pupilScale(eyeball: number): number {
   return Math.min(1, Math.max(0, (eyeball - PUPIL_GONE) / (DAZED_EYES - PUPIL_GONE)));
@@ -138,16 +160,19 @@ export function frogMotion({ time, action, since, seed, move = null }: FrogMotio
   const breathing = BREATH.depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * BREATH.hz * time + phase));
   let [x, y, z] = [1, 1 - breathing, 1];
   let tuck = 0;
+  let kick = 0;
   let pupilOrbit: FrogMotion["pupilOrbit"] = null;
   let eyeball = 1 - (1 - EYES_SHUT) * blink(time, seed);
 
   if (action === "hop") {
     const lift = pulse(since, HOP_DURATION);
     x *= 1 - HOP_NARROW * lift;
-    tuck = Math.min(1, since / TUCK_TIME);
+    kick = pulse(since, TAKEOFF_KICK);
+    tuck = Math.min(1, Math.max(0, (since - TAKEOFF_KICK / 2) / TUCK_TIME));
   } else if (action === "land") {
     y *= 1 - LAND_SQUASH * pulse(since, LAND_DURATION);
     tuck = 1 - Math.min(1, since / TUCK_TIME);
+    kick = LANDING_KICK * Math.max(0, 1 - since / LAND_DURATION);
   } else if (action === "bonk" && since < BONK_DURATION) {
     const left = (1 - Math.min(1, since / BONK_FLATTEN_TIME)) ** 2;
     z *= 1 - BONK_FLATTEN * left;
@@ -163,6 +188,7 @@ export function frogMotion({ time, action, since, seed, move = null }: FrogMotio
     z *= 1 - MOVE_NARROW * air;
     y *= 1 - MOVE_SQUASH * pulse(move.since - move.duration, MOVE_LANDING);
     tuck = Math.max(tuck, MOVE_TUCK * air);
+    kick = Math.max(kick, MOVE_KICK * air);
   }
 
   return {
@@ -172,5 +198,6 @@ export function frogMotion({ time, action, since, seed, move = null }: FrogMotio
     pupilOrbit,
     throat: 1 + (THROAT_PUFF - 1) * puff(time, seed),
     tuck,
+    kick,
   };
 }

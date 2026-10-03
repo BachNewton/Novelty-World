@@ -1,14 +1,17 @@
-import { TUNING } from "../tuning";
 import type { WorldPaint } from "./paints";
 
 // The world is laid out in the game scene's axes: x across the road, one unit
 // per lane, with lane k centred on x = k; y up from the road's surface; and
 // z = -depth, so the road runs away from the camera toward -z. Depth is
 // measured along the course from its start, and the road runs on forever in
-// both directions.
+// both directions. The road is `lanes` wide: the game's own width is
+// `corridorCols` in `tuning.ts`, and the world preview tries others.
 
 export const ROAD_LEFT = -0.5;
-export const ROAD_RIGHT = TUNING.corridorCols - 0.5;
+
+export function roadRight(lanes: number): number {
+  return lanes - 0.5;
+}
 
 // Beyond each road edge: a gravel shoulder, then a low kerb.
 export const SHOULDER_WIDTH = 0.6;
@@ -29,12 +32,14 @@ export type Side = "left" | "right";
 export type Vec3 = readonly [number, number, number];
 
 // One box of the world, in the scene's axes. It is turned by `roll` about z
-// first and then by `yaw` about y, as Three applies an Euler of (0, yaw, roll).
+// first, then by `yaw` about y, then by `pitch` about x, as Three applies an
+// Euler of (pitch, yaw, roll). Only a rumbling vehicle's boxes pitch.
 export interface WorldBox {
   center: Vec3;
   size: Vec3;
   yaw: number;
   roll: number;
+  pitch?: number;
   paint: WorldPaint;
 }
 
@@ -68,7 +73,9 @@ export function boxPoint(b: Placement, [x0, y0, z0]: Vec3): Vec3 {
   const [cy, sy] = [Math.cos(b.yaw), Math.sin(b.yaw)];
   const [x1, y1] = [x0 * cr - y0 * sr, x0 * sr + y0 * cr];
   const [x2, z2] = [x1 * cy + z0 * sy, -x1 * sy + z0 * cy];
-  return [b.center[0] + x2, b.center[1] + y1, b.center[2] + z2];
+  const [cp, sp] = [Math.cos(b.pitch ?? 0), Math.sin(b.pitch ?? 0)];
+  const [y3, z3] = [y1 * cp - z2 * sp, y1 * sp + z2 * cp];
+  return [b.center[0] + x2, b.center[1] + y3, b.center[2] + z3];
 }
 
 function corners(b: WorldBox): Vec3[] {
@@ -98,27 +105,19 @@ export function boxBottom(b: WorldBox): number {
   return Math.min(...corners(b).map((p) => p[1]));
 }
 
-// x at `offset` beyond the road's edge on `side`.
-export function sideX(side: Side, offset: number): number {
-  return side === "left" ? ROAD_LEFT - offset : ROAD_RIGHT + offset;
-}
-
-// How far beyond the nearer road edge an area starts; negative when it
-// reaches onto the road.
-export function offsetFromRoad(area: Area): number {
-  if (area.maxX <= ROAD_LEFT) return ROAD_LEFT - area.maxX;
-  if (area.minX >= ROAD_RIGHT) return area.minX - ROAD_RIGHT;
-  return -1;
+// x at `offset` beyond the edge on `side` of a road `lanes` wide.
+export function sideX(lanes: number, side: Side, offset: number): number {
+  return side === "left" ? ROAD_LEFT - offset : roadRight(lanes) + offset;
 }
 
 // Everything on the ground between two offsets beyond the road edge on one
 // side, over a stretch of the course.
-export function sideArea(side: Side, from: number, to: number, near: number, far: number): Area {
-  const [a, b] = [sideX(side, from), sideX(side, to)];
+export function sideArea(lanes: number, side: Side, from: number, to: number, near: number, far: number): Area {
+  const [a, b] = [sideX(lanes, side, from), sideX(lanes, side, to)];
   return { minX: Math.min(a, b), maxX: Math.max(a, b), minDepth: near, maxDepth: far };
 }
 
 // The road itself, lanes, shoulders and kerbs, over a stretch of the course.
-export function roadArea(near: number, far: number): Area {
-  return { minX: ROAD_LEFT - VERGE, maxX: ROAD_RIGHT + VERGE, minDepth: near, maxDepth: far };
+export function roadArea(lanes: number, near: number, far: number): Area {
+  return { minX: ROAD_LEFT - VERGE, maxX: roadRight(lanes) + VERGE, minDepth: near, maxDepth: far };
 }

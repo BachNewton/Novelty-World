@@ -1,8 +1,9 @@
 import { TUNING, type Tuning } from "../tuning";
 
 // The gameplay camera's placement, pitch, field of view and clipping planes,
-// from the camera knobs in `tuning.ts`: it follows the frog from behind and
-// above, and looks down at the floor a look-ahead in front of it. The game
+// from the camera knobs in `tuning.ts` and the road's width: it follows the
+// frog from behind and above, over the middle of the road, and looks down at
+// the floor a look-ahead in front of it. The game
 // passes `TUNING`; the world preview passes its live overrides, so both run
 // the same maths.
 export type CameraKnobs = Pick<Tuning, "cameraHeight" | "cameraFollow" | "cameraLookAhead">;
@@ -29,14 +30,16 @@ export function easedCameraHeight(from: number, to: number, delta: number): numb
 }
 
 // Vertical field of view on wide screens. Narrow portrait screens widen it so
-// the corridor always fits across.
+// a road `lanes` wide always fits across: 55° across fits a road of 7 lanes,
+// and a wider road widens the tangent of half that angle in proportion, which
+// keeps the same share of the road in view at every distance.
 const BASE_FOV = 50;
-const MIN_HORIZONTAL_FOV = 55;
+const ROAD_FIT = { horizontalFov: 55, lanes: 7 };
 const DEGREES = 180 / Math.PI;
 
-export function fittedFov(aspect: number): number {
-  const halfHorizontal = MIN_HORIZONTAL_FOV / 2 / DEGREES;
-  const narrowFov = 2 * Math.atan(Math.tan(halfHorizontal) / aspect) * DEGREES;
+export function fittedFov(aspect: number, lanes: number): number {
+  const halfTan = Math.tan(ROAD_FIT.horizontalFov / 2 / DEGREES) * (lanes / ROAD_FIT.lanes);
+  const narrowFov = 2 * Math.atan(halfTan / aspect) * DEGREES;
   return Math.max(BASE_FOV, narrowFov);
 }
 

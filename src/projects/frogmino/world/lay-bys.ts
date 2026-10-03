@@ -37,29 +37,29 @@ const CHANCE = 0.3;
 const RIGHT_CHANCE = 0.7;
 
 // The tile's lay-by, if it has one, somewhere between `near` and `far` and
-// clear of `blocked`.
-export function layByIn(rng: Rng, near: number, far: number, blocked: readonly Area[]): LayBy | null {
+// clear of `blocked`, beside a road `lanes` wide.
+export function layByIn(rng: Rng, lanes: number, near: number, far: number, blocked: readonly Area[]): LayBy | null {
   if (rng.next() >= CHANCE) return null;
   const side: Side = rng.next() < RIGHT_CHANCE ? "right" : "left";
   const start = near + TILE_MARGIN + rng.next() * (far - near - 2 * TILE_MARGIN - LAY_BY_LENGTH);
   const layBy: LayBy = { side, near: start, far: start + LAY_BY_LENGTH };
-  return blocked.some((area) => overlaps(layByKeepOut(layBy), area)) ? null : layBy;
+  return blocked.some((area) => overlaps(layByKeepOut(lanes, layBy), area)) ? null : layBy;
 }
 
 // The gravel.
-export function layByArea(layBy: LayBy): Area {
-  return sideArea(layBy.side, LAY_BY_INNER, LAY_BY_OUTER, layBy.near, layBy.far);
+export function layByArea(lanes: number, layBy: LayBy): Area {
+  return sideArea(lanes, layBy.side, LAY_BY_INNER, LAY_BY_OUTER, layBy.near, layBy.far);
 }
 
 // The ground other decorations keep clear of: the gravel, its rail, and a
 // margin round them.
-export function layByKeepOut(layBy: LayBy): Area {
-  return sideArea(layBy.side, RAIL_OFFSET - CLEARANCE.across, LAY_BY_OUTER + CLEARANCE.across, layBy.near - CLEARANCE.along, layBy.far + CLEARANCE.along);
+export function layByKeepOut(lanes: number, layBy: LayBy): Area {
+  return sideArea(lanes, layBy.side, RAIL_OFFSET - CLEARANCE.across, LAY_BY_OUTER + CLEARANCE.across, layBy.near - CLEARANCE.along, layBy.far + CLEARANCE.along);
 }
 
 // The gravel, as a surface.
-export function layBySurface(layBy: LayBy): WorldBox {
-  const area = layByArea(layBy);
+export function layBySurface(lanes: number, layBy: LayBy): WorldBox {
+  const area = layByArea(lanes, layBy);
   const height = GRAVEL_TOP + GROUND_DROP;
   return box(
     [(area.minX + area.maxX) / 2, GRAVEL_TOP - height / 2, -(area.minDepth + area.maxDepth) / 2],
@@ -84,11 +84,11 @@ function bench(x: number, depth: number, side: Side): WorldBox[] {
 
 // Everything standing in a lay-by: the guard rail between it and the road,
 // end to end along its whole length, and a bench or two looking out.
-export function layByProps(layBy: LayBy): WorldBox[] {
+export function layByProps(lanes: number, layBy: LayBy): WorldBox[] {
   const rail = Array.from({ length: RAIL_SEGMENTS }, (_, i) =>
-    propBoxes({ kind: "guardRail", x: sideX(layBy.side, RAIL_OFFSET), depth: layBy.near + (i + 0.5) * RAIL_SEGMENT, yaw: 0, scale: 1 }),
+    propBoxes({ kind: "guardRail", x: sideX(lanes, layBy.side, RAIL_OFFSET), depth: layBy.near + (i + 0.5) * RAIL_SEGMENT, yaw: 0, scale: 1 }),
   ).flat();
-  const benchX = sideX(layBy.side, (LAY_BY_INNER + LAY_BY_OUTER) / 2);
+  const benchX = sideX(lanes, layBy.side, (LAY_BY_INNER + LAY_BY_OUTER) / 2);
   const benches = [layBy.near + LAY_BY_LENGTH / 3, layBy.near + (2 * LAY_BY_LENGTH) / 3].flatMap((depth) => bench(benchX, depth, layBy.side));
   return [...rail, ...benches];
 }

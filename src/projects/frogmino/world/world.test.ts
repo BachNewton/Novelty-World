@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { frogCells } from "../logic";
 import { TUNING } from "../tuning";
+import type { Frog } from "../types";
 import { faceClashes, type EyeHeights, type FaceClash } from "./coplanar";
 import {
   GROUND_DROP,
   NEAR_HEIGHT_LIMIT,
   ROAD_LEFT,
-  ROAD_RIGHT,
   TALL_OFFSET,
   box,
   boxArea,
@@ -15,279 +16,284 @@ import {
   boxTop,
   overlaps,
   roadArea,
+  roadRight,
   sideX,
   type Area,
   type WorldBox,
 } from "./geometry";
 import { LAY_BY_INNER, layByArea, layByProps, layBySurface, type LayBy } from "./lay-bys";
 import { WORLD_PAINTS, worldToken } from "./paints";
-import { PREVIEW_ROWS, passingPose } from "./preview-rows";
+import { PREVIEW_LANES, PREVIEW_PIECES, PREVIEW_ROWS, passingPoses, type PreviewTeam } from "./preview-rows";
 import { propBoxes, type PropKind } from "./props";
 import { ROAD_TILE, roadTile, roadTiles, structuresNear, type WorldPlan } from "./road";
 import { SCENERY_TILE, cloudPlace, clouds, sceneryTile } from "./scenery";
 import { DECK_TOP, DECK_UNDERSIDE, HEADROOM, MARK_THICKNESS, VEHICLE_TOP, gantryBoxes, overpassBoxes } from "./structures";
 
-const PLAN: WorldPlan = { seed: 20260930, courseLength: 214 };
+// The world is laid out for a road of any width: the game's own, and the
+// wider roads the preview tries for co-op.
+describe.each(PREVIEW_LANES)("beside a road %d lanes wide", (lanes) => {
+  const PLAN: WorldPlan = { seed: 20260930, courseLength: 214, lanes };
 
-// Every tile from well behind the start to well past the finish.
-const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
+  // Every tile from well behind the start to well past the finish.
+  const COURSE_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
 
-function propsOf(plan: WorldPlan): WorldBox[] {
-  return COURSE_TILES.flatMap((k) => roadTile(plan, k).props);
-}
+  function propsOf(plan: WorldPlan): WorldBox[] {
+    return COURSE_TILES.flatMap((k) => roadTile(plan, k).props);
+  }
 
-function layBysOf(plan: WorldPlan): LayBy[] {
-  return COURSE_TILES.flatMap((k) => {
-    const { layBy } = roadTile(plan, k);
-    return layBy === null ? [] : [layBy];
-  });
-}
+  function layBysOf(plan: WorldPlan): LayBy[] {
+    return COURSE_TILES.flatMap((k) => {
+      const { layBy } = roadTile(plan, k);
+      return layBy === null ? [] : [layBy];
+    });
+  }
 
-const lanes: Area = { minX: ROAD_LEFT, maxX: ROAD_RIGHT, minDepth: -Infinity, maxDepth: Infinity };
+  const laneArea: Area = { minX: ROAD_LEFT, maxX: roadRight(lanes), minDepth: -Infinity, maxDepth: Infinity };
 
-describe("the roadside", () => {
-  it("is the same for the same seed, and differs for another", () => {
-    expect(propsOf(PLAN)).toEqual(propsOf(PLAN));
-    expect(propsOf({ ...PLAN, seed: 1 })).not.toEqual(propsOf(PLAN));
-    expect(sceneryTile(PLAN, 2)).toEqual(sceneryTile(PLAN, 2));
-  });
+  describe("the roadside", () => {
+    it("is the same for the same seed, and differs for another", () => {
+      expect(propsOf(PLAN)).toEqual(propsOf(PLAN));
+      expect(propsOf({ ...PLAN, seed: 1 })).not.toEqual(propsOf(PLAN));
+      expect(sceneryTile(PLAN, 2)).toEqual(sceneryTile(PLAN, 2));
+    });
 
-  it("puts something along every side of the course", () => {
-    const props = propsOf(PLAN);
-    expect(props.some((b) => b.center[0] < ROAD_LEFT)).toBe(true);
-    expect(props.some((b) => b.center[0] > ROAD_RIGHT)).toBe(true);
-  });
+    it("puts something along every side of the course", () => {
+      const props = propsOf(PLAN);
+      expect(props.some((b) => b.center[0] < ROAD_LEFT)).toBe(true);
+      expect(props.some((b) => b.center[0] > roadRight(lanes))).toBe(true);
+    });
 
-  it("keeps everything off the road", () => {
-    const road = roadArea(-Infinity, Infinity);
-    expect(propsOf(PLAN).filter((b) => overlaps(boxArea(b), road))).toEqual([]);
-  });
+    it("keeps everything off the road", () => {
+      const road = roadArea(lanes, -Infinity, Infinity);
+      expect(propsOf(PLAN).filter((b) => overlaps(boxArea(b), road))).toEqual([]);
+    });
 
-  it("keeps the land beyond out of the lanes and the lay-bys too", () => {
-    const blocked = [lanes, ...layBysOf(PLAN).map(layByArea)];
-    const scenery = [-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(PLAN, k));
-    expect(scenery.filter((b) => blocked.some((area) => overlaps(boxArea(b), area)))).toEqual([]);
-  });
-});
-
-describe("the lay-bys", () => {
-  const TILES = Array.from({ length: 200 }, (_, i) => i - 100);
-  const tiles = TILES.map((k) => roadTile(PLAN, k));
-  const layBys = tiles.flatMap((tile) => (tile.layBy === null ? [] : [tile.layBy]));
-
-  it("come now and then along the road, more on the valley side than the mountain side", () => {
-    expect(layBys.length).toBeGreaterThan(TILES.length / 6);
-    expect(layBys.length).toBeLessThan(TILES.length / 2);
-    const right = layBys.filter((l) => l.side === "right").length;
-    expect(right).toBeGreaterThan(layBys.length - right);
-    expect(right).toBeLessThan(layBys.length);
+    it("keeps the land beyond out of the lanes and the lay-bys too", () => {
+      const blocked = [laneArea, ...layBysOf(PLAN).map((layBy) => layByArea(lanes, layBy))];
+      const scenery = [-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(PLAN, k));
+      expect(scenery.filter((b) => blocked.some((area) => overlaps(boxArea(b), area)))).toEqual([]);
+    });
   });
 
-  it("lie beyond the kerb, off the road and clear of the structures", () => {
-    for (const layBy of layBys) {
-      const area = layByArea(layBy);
-      expect(overlaps(area, roadArea(-Infinity, Infinity))).toBe(false);
-      expect(Math.min(Math.abs(area.minX - ROAD_LEFT), Math.abs(area.minX - ROAD_RIGHT), Math.abs(area.maxX - ROAD_LEFT), Math.abs(area.maxX - ROAD_RIGHT))).toBeCloseTo(LAY_BY_INNER);
-      for (const structure of [...overpassBoxes(), ...gantryBoxes(PLAN.courseLength)]) expect(overlaps(area, boxArea(structure))).toBe(false);
-    }
-  });
+  describe("the lay-bys", () => {
+    const TILES = Array.from({ length: 200 }, (_, i) => i - 100);
+    const tiles = TILES.map((k) => roadTile(PLAN, k));
+    const layBys = tiles.flatMap((tile) => (tile.layBy === null ? [] : [tile.layBy]));
 
-  it("are fenced off from the road by a guard rail with no gap, and a kerb that runs on unbroken", () => {
-    tiles.forEach((tile, i) => {
-      const k = TILES[i];
-      const kerbs = tile.surfaces.filter((b) => b.paint === "kerb" || b.paint === "kerb-dark");
-      for (const side of ["left", "right"] as const) {
-        const covered = kerbs
-          .filter((b) => (side === "left" ? b.center[0] < ROAD_LEFT : b.center[0] > ROAD_RIGHT))
+    it("come now and then along the road, more on the valley side than the mountain side", () => {
+      expect(layBys.length).toBeGreaterThan(TILES.length / 6);
+      expect(layBys.length).toBeLessThan(TILES.length / 2);
+      const right = layBys.filter((l) => l.side === "right").length;
+      expect(right).toBeGreaterThan(layBys.length - right);
+      expect(right).toBeLessThan(layBys.length);
+    });
+
+    it("lie beyond the kerb, off the road and clear of the structures", () => {
+      for (const layBy of layBys) {
+        const area = layByArea(lanes, layBy);
+        expect(overlaps(area, roadArea(lanes, -Infinity, Infinity))).toBe(false);
+        expect(Math.min(Math.abs(area.minX - ROAD_LEFT), Math.abs(area.minX - roadRight(lanes)), Math.abs(area.maxX - ROAD_LEFT), Math.abs(area.maxX - roadRight(lanes)))).toBeCloseTo(LAY_BY_INNER);
+        for (const structure of [...overpassBoxes(lanes), ...gantryBoxes(lanes, PLAN.courseLength)]) expect(overlaps(area, boxArea(structure))).toBe(false);
+      }
+    });
+
+    it("are fenced off from the road by a guard rail with no gap, and a kerb that runs on unbroken", () => {
+      tiles.forEach((tile, i) => {
+        const k = TILES[i];
+        const kerbs = tile.surfaces.filter((b) => b.paint === "kerb" || b.paint === "kerb-dark");
+        for (const side of ["left", "right"] as const) {
+          const covered = kerbs
+            .filter((b) => (side === "left" ? b.center[0] < ROAD_LEFT : b.center[0] > roadRight(lanes)))
+            .map((b) => boxArea(b))
+            .sort((a, b) => a.minDepth - b.minDepth);
+          expect(covered[0].minDepth).toBeCloseTo(k * ROAD_TILE);
+          for (let j = 1; j < covered.length; j++) expect(covered[j].minDepth).toBeCloseTo(covered[j - 1].maxDepth);
+          expect(covered[covered.length - 1].maxDepth).toBeCloseTo((k + 1) * ROAD_TILE);
+        }
+        if (tile.layBy === null) return;
+        const layBy: LayBy = tile.layBy;
+        const gravel = layByArea(lanes, layBy);
+        const between = (b: WorldBox): boolean => {
+          const area = boxArea(b);
+          return layBy.side === "left" ? area.minX >= gravel.maxX && area.maxX <= ROAD_LEFT : area.minX >= roadRight(lanes) && area.maxX <= gravel.minX;
+        };
+        const rails = layByProps(lanes, layBy)
+          .filter((b) => b.paint === "rail" && between(b))
           .map((b) => boxArea(b))
           .sort((a, b) => a.minDepth - b.minDepth);
-        expect(covered[0].minDepth).toBeCloseTo(k * ROAD_TILE);
-        for (let j = 1; j < covered.length; j++) expect(covered[j].minDepth).toBeCloseTo(covered[j - 1].maxDepth);
-        expect(covered[covered.length - 1].maxDepth).toBeCloseTo((k + 1) * ROAD_TILE);
+        expect(rails[0].minDepth).toBeLessThanOrEqual(gravel.minDepth + 1e-9);
+        for (let j = 1; j < rails.length; j++) expect(rails[j].minDepth).toBeLessThanOrEqual(rails[j - 1].maxDepth + 1e-9);
+        expect(rails[rails.length - 1].maxDepth).toBeGreaterThanOrEqual(gravel.maxDepth - 1e-9);
+      });
+    });
+
+    it("keep the rest of the roadside off their gravel", () => {
+      for (const tile of tiles) {
+        if (tile.layBy === null) continue;
+        const own = new Set(layByProps(lanes, tile.layBy).map((b) => JSON.stringify(b)));
+        const gravel = layByArea(lanes, tile.layBy);
+        const others = tile.props.filter((b) => !own.has(JSON.stringify(b)));
+        expect(others.filter((b) => overlaps(boxArea(b), gravel))).toEqual([]);
       }
-      if (tile.layBy === null) return;
-      const layBy: LayBy = tile.layBy;
-      const gravel = layByArea(layBy);
-      const between = (b: WorldBox): boolean => {
+    });
+
+    it("stay low, as everything near the road does", () => {
+      for (const layBy of layBys) {
+        for (const b of [layBySurface(lanes, layBy), ...layByProps(lanes, layBy)]) expect(boxTop(b)).toBeLessThanOrEqual(NEAR_HEIGHT_LIMIT);
+      }
+    });
+
+    it("stays low near the road, with anything taller standing back", () => {
+      const tooTall = [...propsOf(PLAN), ...[-1, 0, 1, 2, 3].flatMap((k) => sceneryTile(PLAN, k))].filter((b) => {
+        if (boxTop(b) <= NEAR_HEIGHT_LIMIT) return false;
         const area = boxArea(b);
-        return layBy.side === "left" ? area.minX >= gravel.maxX && area.maxX <= ROAD_LEFT : area.minX >= ROAD_RIGHT && area.maxX <= gravel.minX;
+        return area.maxX > sideX(lanes, "left", TALL_OFFSET) && area.minX < sideX(lanes, "right", TALL_OFFSET);
+      });
+      expect(tooTall).toEqual([]);
+    });
+  });
+
+  describe("the road", () => {
+    function covered(camera: number): [number, number][] {
+      return roadTiles(camera)
+        .flatMap((k) => roadTile(PLAN, k).surfaces)
+        .filter((b) => b.paint === "asphalt")
+        .map((b) => {
+          const area = boxArea(b);
+          return [area.minDepth, area.maxDepth] as [number, number];
+        })
+        .sort((a, b) => a[0] - b[0]);
+    }
+
+    it.each([-100000, -5000, -45, -3, 0, 107, 214, 900, 100000])("runs unbroken around a camera at depth %d", (camera) => {
+      const pieces = covered(camera);
+      for (let i = 1; i < pieces.length; i++) expect(pieces[i][0]).toBeCloseTo(pieces[i - 1][1]);
+      expect(pieces[0][0]).toBeLessThanOrEqual(camera - 20);
+      expect(pieces[pieces.length - 1][1]).toBeGreaterThanOrEqual(camera + 520);
+    });
+
+    it.each([-5000, 5000])("keeps its roadside and land far from the course, around depth %d", (camera) => {
+      const tiles = roadTiles(camera).filter((k) => Math.abs(k * ROAD_TILE - camera) < 100);
+      const props = tiles.flatMap((k) => roadTile(PLAN, k).props);
+      expect(props.some((b) => b.center[0] < ROAD_LEFT)).toBe(true);
+      expect(props.some((b) => b.center[0] > roadRight(lanes))).toBe(true);
+      expect(sceneryTile(PLAN, Math.floor(camera / SCENERY_TILE)).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("the structures", () => {
+    it("let the tallest vehicle, lifted, pass under with headroom", () => {
+      expect(DECK_UNDERSIDE).toBeGreaterThanOrEqual(VEHICLE_TOP + HEADROOM);
+    });
+
+    it("stand clear of the lanes and verges below their decks", () => {
+      for (const boxes of [overpassBoxes(lanes), gantryBoxes(lanes, PLAN.courseLength)]) {
+        const below = boxes.filter((b) => boxBottom(b) < DECK_UNDERSIDE - 1e-9);
+        expect(below.filter((b) => overlaps(boxArea(b), roadArea(lanes, -Infinity, Infinity)))).toEqual([]);
+      }
+    });
+
+    it("have decks wide and deep enough for a frog across every lane", () => {
+      const deck = (boxes: WorldBox[]): Area => boxArea(boxes[0]);
+      for (const area of [deck(overpassBoxes(lanes)), deck(gantryBoxes(lanes, PLAN.courseLength))]) {
+        expect(area.minX).toBeLessThan(ROAD_LEFT);
+        expect(area.maxX).toBeGreaterThan(roadRight(lanes));
+        expect(area.maxDepth - area.minDepth).toBeGreaterThanOrEqual(2);
+      }
+    });
+
+    it("appear when the camera is near them", () => {
+      expect(structuresNear(PLAN, roadTiles(-8)).length).toBeGreaterThan(0);
+      expect(structuresNear(PLAN, roadTiles(-5000))).toEqual([]);
+    });
+  });
+
+  describe("depth fighting", () => {
+    // The camera rides at its height above the road, or above a deck.
+    const EYE: EyeHeights = { lowest: TUNING.cameraHeight, highest: DECK_TOP + TUNING.cameraHeight };
+    // The land under everything, drawn as a plane whose top is this box's.
+    const ground = box([0, -GROUND_DROP - 0.5, 0], [4000, 1, 4000], "meadow");
+    const ALL_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
+
+    function roadOf(plan: WorldPlan, tiles: readonly number[]) {
+      const road = tiles.map((k) => roadTile(plan, k));
+      return {
+        surfaces: road.flatMap((t) => t.surfaces),
+        markings: road.flatMap((t) => t.markings),
+        props: road.flatMap((t) => t.props),
       };
-      const rails = layByProps(layBy)
-        .filter((b) => b.paint === "rail" && between(b))
-        .map((b) => boxArea(b))
-        .sort((a, b) => a.minDepth - b.minDepth);
-      expect(rails[0].minDepth).toBeLessThanOrEqual(gravel.minDepth + 1e-9);
-      for (let j = 1; j < rails.length; j++) expect(rails[j].minDepth).toBeLessThanOrEqual(rails[j - 1].maxDepth + 1e-9);
-      expect(rails[rails.length - 1].maxDepth).toBeGreaterThanOrEqual(gravel.maxDepth - 1e-9);
+    }
+
+    // Paint over the same paint, in the plain markings material, is one colour
+    // whichever wins, so it can't flicker: the arms of a chevron overlap.
+    function visible(clashes: FaceClash[], markings: readonly WorldBox[]): FaceClash[] {
+      const marks = new Set(markings);
+      return clashes.filter(({ a, b }) => !(a.paint === b.paint && marks.has(a) && marks.has(b)));
+    }
+
+    const describeClash = ({ a, b, gap }: FaceClash): string => `${a.paint} at ${a.center.join(",")} ~ ${b.paint} at ${b.center.join(",")}, ${gap.toFixed(4)} apart`;
+
+    it("the scanner finds faces sharing a plane, and only those", () => {
+      const slab = box([0, 0.5, 0], [2, 1, 2], "rock");
+      const scan = (boxes: WorldBox[], minGap = 0.01) => faceClashes(boxes, minGap, EYE).length;
+      // A decal lying in the slab's top, and one lifted a layer clear of it.
+      expect(scan([slab, box([0, 0.995, 0], [1, 0.01, 1], "sign")])).toBe(1);
+      expect(scan([slab, box([0, 1.005, 0], [1, 0.01, 1], "sign")])).toBe(0);
+      expect(scan([slab, box([0, 1.005, 0], [1, 0.01, 1], "sign")], 0.02)).toBe(1);
+      // A turned decal still overlaps.
+      expect(scan([slab, { ...box([0, 0.995, 0], [1, 0.01, 1], "sign"), yaw: 0.7 }])).toBe(1);
+      // Stacked, or side by side: faces meet looking opposite ways, or only
+      // along an edge.
+      expect(scan([slab, box([0, 1.5, 0], [2, 1, 2], "rock")])).toBe(0);
+      expect(scan([slab, box([2, 0.5, 0], [2, 1, 2], "rock")])).toBe(0);
+      // A box set into another, flush with its top, shares that plane; the
+      // bottoms they share look down, away from a camera above them.
+      expect(scan([slab, box([0, 0.5, 0], [1, 1, 1], "sign")])).toBe(1);
+      // A decal on the slab's front, and a smaller one laid over it: their backs
+      // lie against the slab, buried, but their fronts must stand apart.
+      const decal = box([0, 0.5, 1.01], [1, 0.5, 0.02], "sign");
+      expect(scan([slab, decal, box([0, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(0);
+      expect(scan([slab, decal, box([0, 0.5, 1.0125], [0.5, 0.25, 0.025], "sign-ink")])).toBe(1);
+      // Laid over it edge to edge, the two decals' sides share a plane.
+      expect(scan([slab, decal, box([0.25, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(1);
     });
-  });
 
-  it("keep the rest of the roadside off their gravel", () => {
-    for (const tile of tiles) {
-      if (tile.layBy === null) continue;
-      const own = new Set(layByProps(tile.layBy).map((b) => JSON.stringify(b)));
-      const gravel = layByArea(tile.layBy);
-      const others = tile.props.filter((b) => !own.has(JSON.stringify(b)));
-      expect(others.filter((b) => overlaps(boxArea(b), gravel))).toEqual([]);
-    }
-  });
+    it("keeps the hand-built parts at least a paint layer apart", () => {
+      const finishTiles = [-1, 0, Math.floor(PLAN.courseLength / ROAD_TILE), Math.floor(PLAN.courseLength / ROAD_TILE) + 1];
+      const road = roadOf(PLAN, finishTiles);
+      const built = [ground, ...road.surfaces, ...road.markings, ...overpassBoxes(lanes), ...gantryBoxes(lanes, PLAN.courseLength)];
+      expect(visible(faceClashes(built, MARK_THICKNESS, EYE), road.markings).map(describeClash)).toEqual([]);
 
-  it("stay low, as everything near the road does", () => {
-    for (const layBy of layBys) {
-      for (const b of [layBySurface(layBy), ...layByProps(layBy)]) expect(boxTop(b)).toBeLessThanOrEqual(NEAR_HEIGHT_LIMIT);
-    }
-  });
-
-  it("stays low near the road, with anything taller standing back", () => {
-    const tooTall = [...propsOf(PLAN), ...[-1, 0, 1, 2, 3].flatMap((k) => sceneryTile(PLAN, k))].filter((b) => {
-      if (boxTop(b) <= NEAR_HEIGHT_LIMIT) return false;
-      const area = boxArea(b);
-      return area.maxX > sideX("left", TALL_OFFSET) && area.minX < sideX("right", TALL_OFFSET);
+      const kinds: PropKind[] = ["guardRail", "reflectorPost", "frogSign", "blockSign", "cone", "rock", "shrub", "mailbox", "roundTree", "pine"];
+      for (const kind of kinds) {
+        const parts = propBoxes({ kind, x: 0, depth: 0, yaw: 0, scale: 1 });
+        expect(faceClashes([ground, ...parts], MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
+      }
+      for (const side of ["left", "right"] as const) {
+        const layBy: LayBy = { side, near: 10, far: 18 };
+        const parts = [ground, ...roadTile(PLAN, 0).surfaces.filter((b) => b.paint !== "lay-by"), layBySurface(lanes, layBy), ...layByProps(lanes, layBy)];
+        expect(faceClashes(parts, MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
+      }
     });
-    expect(tooTall).toEqual([]);
-  });
-});
 
-describe("the road", () => {
-  function covered(camera: number): [number, number][] {
-    return roadTiles(camera)
-      .flatMap((k) => roadTile(PLAN, k).surfaces)
-      .filter((b) => b.paint === "asphalt")
-      .map((b) => {
-        const area = boxArea(b);
-        return [area.minDepth, area.maxDepth] as [number, number];
-      })
-      .sort((a, b) => a[0] - b[0]);
-  }
-
-  it.each([-100000, -5000, -45, -3, 0, 107, 214, 900, 100000])("runs unbroken around a camera at depth %d", (camera) => {
-    const pieces = covered(camera);
-    for (let i = 1; i < pieces.length; i++) expect(pieces[i][0]).toBeCloseTo(pieces[i - 1][1]);
-    expect(pieces[0][0]).toBeLessThanOrEqual(camera - 20);
-    expect(pieces[pieces.length - 1][1]).toBeGreaterThanOrEqual(camera + 520);
-  });
-
-  it.each([-5000, 5000])("keeps its roadside and land far from the course, around depth %d", (camera) => {
-    const tiles = roadTiles(camera).filter((k) => Math.abs(k * ROAD_TILE - camera) < 100);
-    const props = tiles.flatMap((k) => roadTile(PLAN, k).props);
-    expect(props.some((b) => b.center[0] < ROAD_LEFT)).toBe(true);
-    expect(props.some((b) => b.center[0] > ROAD_RIGHT)).toBe(true);
-    expect(sceneryTile(PLAN, Math.floor(camera / SCENERY_TILE)).length).toBeGreaterThan(0);
-  });
-});
-
-describe("the structures", () => {
-  it("let the tallest vehicle, lifted, pass under with headroom", () => {
-    expect(DECK_UNDERSIDE).toBeGreaterThanOrEqual(VEHICLE_TOP + HEADROOM);
-  });
-
-  it("stand clear of the lanes and verges below their decks", () => {
-    for (const boxes of [overpassBoxes(), gantryBoxes(PLAN.courseLength)]) {
-      const below = boxes.filter((b) => boxBottom(b) < DECK_UNDERSIDE - 1e-9);
-      expect(below.filter((b) => overlaps(boxArea(b), roadArea(-Infinity, Infinity)))).toEqual([]);
-    }
-  });
-
-  it("have decks wide and deep enough for a frog across every lane", () => {
-    const deck = (boxes: WorldBox[]): Area => boxArea(boxes[0]);
-    for (const area of [deck(overpassBoxes()), deck(gantryBoxes(PLAN.courseLength))]) {
-      expect(area.minX).toBeLessThan(ROAD_LEFT);
-      expect(area.maxX).toBeGreaterThan(ROAD_RIGHT);
-      expect(area.maxDepth - area.minDepth).toBeGreaterThanOrEqual(2);
-    }
-  });
-
-  it("appear when the camera is near them", () => {
-    expect(structuresNear(PLAN, roadTiles(-8)).length).toBeGreaterThan(0);
-    expect(structuresNear(PLAN, roadTiles(-5000))).toEqual([]);
-  });
-});
-
-describe("depth fighting", () => {
-  // The camera rides at its height above the road, or above a deck.
-  const EYE: EyeHeights = { lowest: TUNING.cameraHeight, highest: DECK_TOP + TUNING.cameraHeight };
-  // The land under everything, drawn as a plane whose top is this box's.
-  const ground = box([0, -GROUND_DROP - 0.5, 0], [4000, 1, 4000], "meadow");
-  const ALL_TILES = Array.from({ length: 16 }, (_, i) => i - 4);
-
-  function roadOf(plan: WorldPlan, tiles: readonly number[]) {
-    const road = tiles.map((k) => roadTile(plan, k));
-    return {
-      surfaces: road.flatMap((t) => t.surfaces),
-      markings: road.flatMap((t) => t.markings),
-      props: road.flatMap((t) => t.props),
-    };
-  }
-
-  // Paint over the same paint, in the plain markings material, is one colour
-  // whichever wins, so it can't flicker: the arms of a chevron overlap.
-  function visible(clashes: FaceClash[], markings: readonly WorldBox[]): FaceClash[] {
-    const marks = new Set(markings);
-    return clashes.filter(({ a, b }) => !(a.paint === b.paint && marks.has(a) && marks.has(b)));
-  }
-
-  const describeClash = ({ a, b, gap }: FaceClash): string => `${a.paint} at ${a.center.join(",")} ~ ${b.paint} at ${b.center.join(",")}, ${gap.toFixed(4)} apart`;
-
-  it("the scanner finds faces sharing a plane, and only those", () => {
-    const slab = box([0, 0.5, 0], [2, 1, 2], "rock");
-    const scan = (boxes: WorldBox[], minGap = 0.01) => faceClashes(boxes, minGap, EYE).length;
-    // A decal lying in the slab's top, and one lifted a layer clear of it.
-    expect(scan([slab, box([0, 0.995, 0], [1, 0.01, 1], "sign")])).toBe(1);
-    expect(scan([slab, box([0, 1.005, 0], [1, 0.01, 1], "sign")])).toBe(0);
-    expect(scan([slab, box([0, 1.005, 0], [1, 0.01, 1], "sign")], 0.02)).toBe(1);
-    // A turned decal still overlaps.
-    expect(scan([slab, { ...box([0, 0.995, 0], [1, 0.01, 1], "sign"), yaw: 0.7 }])).toBe(1);
-    // Stacked, or side by side: faces meet looking opposite ways, or only
-    // along an edge.
-    expect(scan([slab, box([0, 1.5, 0], [2, 1, 2], "rock")])).toBe(0);
-    expect(scan([slab, box([2, 0.5, 0], [2, 1, 2], "rock")])).toBe(0);
-    // A box set into another, flush with its top, shares that plane; the
-    // bottoms they share look down, away from a camera above them.
-    expect(scan([slab, box([0, 0.5, 0], [1, 1, 1], "sign")])).toBe(1);
-    // A decal on the slab's front, and a smaller one laid over it: their backs
-    // lie against the slab, buried, but their fronts must stand apart.
-    const decal = box([0, 0.5, 1.01], [1, 0.5, 0.02], "sign");
-    expect(scan([slab, decal, box([0, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(0);
-    expect(scan([slab, decal, box([0, 0.5, 1.0125], [0.5, 0.25, 0.025], "sign-ink")])).toBe(1);
-    // Laid over it edge to edge, the two decals' sides share a plane.
-    expect(scan([slab, decal, box([0.25, 0.5, 1.0175], [0.5, 0.25, 0.035], "sign-ink")])).toBe(1);
-  });
-
-  it("keeps the hand-built parts at least a paint layer apart", () => {
-    const finishTiles = [-1, 0, Math.floor(PLAN.courseLength / ROAD_TILE), Math.floor(PLAN.courseLength / ROAD_TILE) + 1];
-    const road = roadOf(PLAN, finishTiles);
-    const built = [ground, ...road.surfaces, ...road.markings, ...overpassBoxes(), ...gantryBoxes(PLAN.courseLength)];
-    expect(visible(faceClashes(built, MARK_THICKNESS, EYE), road.markings).map(describeClash)).toEqual([]);
-
-    const kinds: PropKind[] = ["guardRail", "reflectorPost", "frogSign", "blockSign", "cone", "rock", "shrub", "mailbox", "roundTree", "pine"];
-    for (const kind of kinds) {
-      const parts = propBoxes({ kind, x: 0, depth: 0, yaw: 0, scale: 1 });
-      expect(faceClashes([ground, ...parts], MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
-    }
-    for (const side of ["left", "right"] as const) {
-      const layBy: LayBy = { side, near: 10, far: 18 };
-      const parts = [ground, ...roadTile(PLAN, 0).surfaces.filter((b) => b.paint !== "lay-by"), layBySurface(layBy), ...layByProps(layBy)];
-      expect(faceClashes(parts, MARK_THICKNESS, EYE).map(describeClash)).toEqual([]);
-    }
-  });
-
-  it.each([PLAN.seed, 1, 2, 3])("lays no two faces of the whole world in one plane, for seed %d", (seed) => {
-    const plan = { ...PLAN, seed };
-    const road = roadOf(plan, ALL_TILES);
-    const sky = clouds(seed).flatMap((cloud) => {
-      const { x, depth } = cloudPlace(cloud, 0, 0);
-      return cloud.boxes.map((b) => box([x + b.center[0], cloud.y + b.center[1], -depth + b.center[2]], b.size, b.paint));
+    it.each([PLAN.seed, 1, 2, 3])("lays no two faces of the whole world in one plane, for seed %d", (seed) => {
+      const plan = { ...PLAN, seed };
+      const road = roadOf(plan, ALL_TILES);
+      const sky = clouds(seed).flatMap((cloud) => {
+        const { x, depth } = cloudPlace(cloud, 0, 0);
+        return cloud.boxes.map((b) => box([x + b.center[0], cloud.y + b.center[1], -depth + b.center[2]], b.size, b.paint));
+      });
+      const world = [
+        ground,
+        ...road.surfaces,
+        ...road.markings,
+        ...road.props,
+        ...structuresNear(plan, ALL_TILES),
+        ...[-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(plan, k)),
+        ...sky,
+      ];
+      expect(visible(faceClashes(world, 1e-4, EYE), road.markings).map(describeClash)).toEqual([]);
     });
-    const world = [
-      ground,
-      ...road.surfaces,
-      ...road.markings,
-      ...road.props,
-      ...structuresNear(plan, ALL_TILES),
-      ...[-2, -1, 0, 1, 2, 3, 4].flatMap((k) => sceneryTile(plan, k)),
-      ...sky,
-    ];
-    expect(visible(faceClashes(world, 1e-4, EYE), road.markings).map(describeClash)).toEqual([]);
   });
 });
 
@@ -299,7 +305,21 @@ describe("the world's paints", () => {
 });
 
 describe("the preview's rows", () => {
-  it.each(PREVIEW_ROWS.map((row, i) => [i, row] as const))("row %d lets an L through", (_, row) => {
-    expect(passingPose(row)).not.toBeNull();
+  const TEAMS: readonly PreviewTeam[] = ["solo", "coop"];
+  const cases = TEAMS.flatMap((team) => PREVIEW_LANES.flatMap((lanes) => PREVIEW_ROWS[team][lanes].map((row, i) => [team, lanes, i, row] as const)));
+
+  it.each(cases)("%s, %d lanes: row %d lets its frogs through together, on the road", (team, lanes, _, row) => {
+    expect(passingPoses(row, lanes, PREVIEW_PIECES[team])).not.toBeNull();
+  });
+
+  it.each(PREVIEW_LANES)("for the co-op pair on %d lanes, alternate side by side and interlocked", (lanes) => {
+    const span = (frog: Frog) => frogCells(frog).map((cell) => cell.col);
+    PREVIEW_ROWS.coop[lanes].forEach((row, i) => {
+      const poses = passingPoses(row, lanes, PREVIEW_PIECES.coop);
+      if (poses === null) throw new Error(`Row ${String(i)} lets the pair through nowhere`);
+      const [a, b] = poses.map(span);
+      const sideBySide = Math.max(...a) < Math.min(...b) || Math.max(...b) < Math.min(...a);
+      expect(sideBySide).toBe(i % 2 === 0);
+    });
   });
 });
