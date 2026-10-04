@@ -51,6 +51,9 @@ export interface NumberQuestions {
   };
   /** Spaces of movement a turn allows. */
   movement: { figure: FigureId };
+  /** Extra spaces of movement it costs a figure to leave the place it is
+   *  in, past the 1 every move costs. */
+  leaveCost: { figure: FigureId; from: Place };
 }
 
 export interface PermissionQuestions {
@@ -193,6 +196,12 @@ export interface StructuredQuestions {
     question: { figure: FigureId; trait: Trait; cause: RuleRef };
     answer: LethalOutcome;
   };
+  /** Whether a figure in a room makes leaving it cost another figure more:
+   *  an opponent does, unless it is stunned (p. 17). */
+  hinders: {
+    question: { hinderer: FigureId; mover: FigureId };
+    answer: boolean;
+  };
   /** The ways a figure may attack another. */
   attackModes: {
     question: { attacker: FigureId; defender: FigureId };
@@ -283,6 +292,21 @@ const NUMBER_BASE: {
   damageAmount: (_engine, _state, { amount }) => amount,
   movement: (engine, state, { figure }) =>
     traitValue(engine, state, figure, "speed"),
+  // After the haunt starts, leaving a room costs 1 extra space for each
+  // opponent in it that gets in the way (p. 17).
+  leaveCost: (engine, state, { figure, from }) => {
+    if (state.status === "exploring") return 0;
+    const here = { ...figureOf(state, figure), place: from };
+    return Object.values(state.figures).filter(
+      (other) =>
+        other.id !== figure &&
+        together(other, here) &&
+        askStructured(engine, state, "hinders", {
+          hinderer: other.id,
+          mover: figure,
+        }),
+    ).length;
+  },
 };
 
 interface Applied<C> {
@@ -533,6 +557,17 @@ const STRUCTURED_BASE: {
       mine !== theirs
     );
   },
+  hinders: (engine, state, { hinderer, mover }) => {
+    const figure = figureOf(state, hinderer);
+    return (
+      figure.alive &&
+      !figure.stunned &&
+      askStructured(engine, state, "isOpponent", {
+        figure: mover,
+        other: hinderer,
+      })
+    );
+  },
   // Before the haunt no one can die: a trait stops at its lowest value. From
   // the haunt on, a trait at the skull kills (p. 5).
   lethalOutcome: (_engine, state) =>
@@ -608,6 +643,26 @@ export function askStructured<Q extends keyof StructuredQuestions>(
     ))
       answer = transform(state, subject, answer, source);
   return answer;
+}
+
+/** The spaces a figure's next move out of its room costs: 1, and whatever
+ *  leaving costs on top (opponents in the way, p. 17). */
+export function moveCost(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): number {
+  return (
+    1 +
+    askNumber(engine, state, "leaveCost", {
+      figure,
+      from: figureOf(state, figure).place ?? noPlace(figure),
+    })
+  );
+}
+
+function noPlace(figure: FigureId): never {
+  throw new Error(`${figure} isn't on the board`);
 }
 
 /** A figure's value in a trait, as the rules stand. */

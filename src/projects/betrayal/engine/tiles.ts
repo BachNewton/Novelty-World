@@ -30,6 +30,7 @@ import {
 import {
   arrived,
   chooseSide,
+  spendMove,
   continueWith,
   defineDecision,
   defineStep,
@@ -180,10 +181,9 @@ export function discoverRoom(
       : how.side;
   if (barrier && side === null)
     throw new Error(`No side to enter the barrier room ${room} on`);
+  if (how.moved) spendMove(state, ctx, figure);
   ctx.emit("left", rule, { figure, room: from, moved: how.moved });
   putFigure(state, figure, { room, side });
-  if (how.moved && state.turn)
-    state.turn.moved[figure] = (state.turn.moved[figure] ?? 0) + 1;
   ctx.emit("discovered", rule, { figure, room });
   const symbols = how.draws
     ? (ctx.engine.behaviours.rooms[room]?.discoveryDraws ??

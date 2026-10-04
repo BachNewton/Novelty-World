@@ -417,6 +417,12 @@ export function describeEvent(
       ];
       return sentence(`${who(d.figure)} ${parts.join(" and ")}`);
     }
+    case "slowed": {
+      const d = data<{ figure: FigureId; room: string; extra: number }>(event);
+      return sentence(
+        `${who(d.figure)} spends ${d.extra} more ${d.extra === 1 ? "space" : "spaces"} of movement to get past opponents in the ${words.room(d.room)}`,
+      );
+    }
     case "died": {
       const d = data<{
         figure: FigureId;

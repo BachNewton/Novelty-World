@@ -36,6 +36,7 @@ import {
 } from "./figures";
 import {
   arrived,
+  spendMove,
   defineDecision,
   defineStep,
   gainCard,
@@ -52,6 +53,7 @@ import {
   askPermission,
   askSet,
   controllerOf,
+  moveCost,
 } from "./questions";
 import {
   atSource,
@@ -192,6 +194,15 @@ function movementLeft(
   return (
     askNumber(engine, state, "movement", { figure }) - (turn.moved[figure] ?? 0)
   );
+}
+
+/** Whether a figure has the movement left to leave its room. However much
+ *  opponents slow it, a figure can always move at least 1 space a turn
+ *  (p. 17). */
+function canLeave(engine: Engine, state: GameState, figure: FigureId): boolean {
+  const left = movementLeft(engine, state, figure);
+  if (left >= moveCost(engine, state, figure)) return true;
+  return (state.turn?.moved[figure] ?? 0) === 0 && left >= 1;
 }
 
 /** A tile in the stack or the discard pile that can go on this floor through this doorway without sealing it (p. 9). */
@@ -364,7 +375,7 @@ function takeTurnChoice(
   const room = placeOf(state, figure).room;
   switch (choice.act) {
     case "move": {
-      if (movementLeft(engine, state, figure) <= 0) return "No movement left";
+      if (!canLeave(engine, state, figure)) return "No movement left";
       if (
         !moves(engine, state, figure).some(
           (p) => p.room === choice.to && p.side === choice.side,
@@ -387,7 +398,7 @@ function takeTurnChoice(
       ];
     }
     case "discover": {
-      if (movementLeft(engine, state, figure) <= 0) return "No movement left";
+      if (!canLeave(engine, state, figure)) return "No movement left";
       const doorway = { room, direction: choice.direction };
       if (
         !freeDoorways(state.board, engine.catalog, floorOf(state, room)).some(
@@ -615,14 +626,13 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
+    spendMove(state, ctx, p.figure);
     ctx.emit("left", RULEBOOK(6), {
       figure: p.figure,
       room: placeOf(state, p.figure).room,
       moved: true,
     });
     putFigure(state, p.figure, { room: p.to, side: p.side });
-    if (state.turn)
-      state.turn.moved[p.figure] = (state.turn.moved[p.figure] ?? 0) + 1;
     ctx.emit("entered", RULEBOOK(6), {
       figure: p.figure,
       room: p.to,

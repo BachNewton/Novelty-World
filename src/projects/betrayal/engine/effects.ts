@@ -29,6 +29,7 @@ import {
   barrierSides,
   controllerOf,
   MAX_DICE,
+  moveCost,
   onTurn,
 } from "./questions";
 import {
@@ -118,6 +119,25 @@ export function handle(state: GameState, card: string): void {
 
 export function isHandled(state: GameState, card: string): boolean {
   return state.turn?.handled.includes(card) ?? false;
+}
+
+/** Spends a move's spaces as a figure leaves its room under its own
+ *  movement: 1, plus whatever leaving costs (opponents in the way, p. 17).
+ *  Called while the figure is still in the room it leaves. */
+export function spendMove(
+  state: GameState,
+  ctx: StepContext,
+  figure: FigureId,
+): void {
+  const cost = moveCost(ctx.engine, state, figure);
+  if (cost > 1)
+    ctx.emit(
+      "slowed",
+      { source: "rulebook", page: 17 },
+      { figure, room: placeOf(state, figure).room, extra: cost - 1 },
+    );
+  if (state.turn)
+    state.turn.moved[figure] = (state.turn.moved[figure] ?? 0) + cost;
 }
 
 /** Ends a figure's movement for the rest of the turn. */
