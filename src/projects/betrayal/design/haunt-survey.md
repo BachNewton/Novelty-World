@@ -67,7 +67,7 @@ Each row is one engine question. "Merged from" names the batch hooks whose entri
 | turnOrder | Who takes the next turn, and what does each turn consist of? | 8 | 12 | 20 | monster turn after the revealer (12), an extra traitor turn (33), creatures act right after a given explorer (68), the traitor never takes a turn (76), the traitor after every hero (77), a player takes a turn at once (81) | turnOrder |
 | traitChange | Does this trait change happen, and where do trait values come from? | 11 | 7 | 18 | traits frozen (12, 42, 87), traits live on the Turn/Damage track (18), no Sanity at all (85), Might lost raises Speed (95) | traitChange, traitBounds (non-clamp) |
 | movementAllowance | How many spaces may this figure move this turn? | 9 | 9 | 18 | −1 per attached Bat (24), flooded floors (36), doubled (93), can't move at all (4, 45) | movementAllowance |
-| damageRouting | Which traits does this damage come off, and who takes it? | 9 | 7 | 16 | Speed until its floor, then Might (1), a Might attack deals mental damage (13), physical becomes mental (49, 64), damage split with another figure (56, 79) | damageType, damageAmount (splits) |
+| damageRouting | Which traits does this damage come off, and who takes it? | 9 | 7 | 16 | Speed until its floor, then Might (1), a Might attack deals mental damage (13), physical becomes mental (49, 64), damage split with another figure (56, 79) | damageType, damageAmount (splits) Haunt 13 is built without it: combatOutcome carries the damage kind, and the kit's `dealsDamageAs` changes it. |
 | monsterTurn | What does this monster do on its turn besides moving? | 10 | 6 | 16 | must attack if able (1, 4), spawns (24, 38), the Blob spreads (27), plays chess (37), a forced-target attack (84) | monsterTurn |
 | cardDraw | What is drawn, and how? | 9 | 6 | 15 | search the stack instead (4, 22), draw three keep one (21), weapons are redrawn (51, 98), no draws at all (35) | cardDraw, onDiscoverRoom, canCarry |
 | canEnterOrLeave | May this figure enter, leave, or end its turn in this room, and does that need a roll? | 8 | 7 | 15 | forbidden room (26, 37), roll to enter (30), roll to leave (57), may not end a turn there (68), may not re-enter a room left this turn (77), trapped (100) | canMoveThrough, onTurnEnd |
@@ -80,7 +80,7 @@ Each row is one engine question. "Merged from" names the batch hooks whose entri
 | canUseItem | May this figure use this card? | 5 | 2 | 7 | grabbed heroes (7, 23), Souls (49), Owls (93) | canUseItem |
 | roomDraw | How is the next room tile drawn or placed? | 2 | 4 | 6 | pick any room from the stack (19), choose one of the next five (54), reshuffle a tile that would touch a marked room (96) | tilePlacement |
 | isOpponent | Are these two figures opponents? | 3 | 2 | 5 | every hero is every other's opponent (31, 50), team-relative opponents (100) | canAttack |
-| canAct | May this player act at all this turn (including after death)? | 2 | 2 | 4 | asleep (13), petrified (55), a dead traitor keeps acting (22, 85) | canAct, onDeath, turnOrder |
+| canAct | May this player act at all this turn (including after death)? | 2 | 2 | 4 | asleep (13), petrified (55), a dead traitor keeps acting (22, 85) | canAct, onDeath, turnOrder Haunt 13's asleep is the kit status `ASLEEP` (canAct, canCarry and canBeMoved denied, hinders false). |
 | attacksPerTurn | How many attacks may this figure make, and against whom? | 3 | 1 | 4 | two attacks (15), one per hero reached (17), chain until a failure (18), one per Ghost (71) | canAttack |
 | lineOfSight | What blocks or extends line of sight? | 0 | 4 | 4 | blocked by Nodes or Barricades (79, 97), not blocked by face-down tiles (91), across the outside perimeter (95) | lineOfSight, visibility |
 | attackRedirect | May an attack on this figure go to another figure instead? | 0 | 2 | 2 | bodyguards (51), a Snow Monster (75) | canAttack |
@@ -135,8 +135,8 @@ The parts the haunts actually use, grouped by role. "Uses" lists the haunts that
 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
-| Count expression | A number derived from the game, used for token counts, targets and thresholds. | basis (players, heroes, explorers, traitors, living heroes); when it is fixed (at haunt start, or live); arithmetic (×2, half rounded up or down, +1, 6 − heroes, 9 − starting heroes, a cap) | 61 haunts, e.g. 4, 7, 8, 13, 26, 79, 75. 23 haunts specify the count at haunt start (e.g. 9, 17, 25, 35, 96) |
-| Find a named room | At setup, if a room isn't in the house, search the room stack, place it under a constraint, reshuffle. | room names (one, or any of several); who places; constraint (floor, connected to, far from) | 28 haunts: 2, 9, 13, 14, 18, 20, 22, 23, 24, 29, 31, 32, 33, 39, 43, 46, 49, 53, 54, 55, 60, 61, 67, 80, 82, 86, 89, 91 |
+| Count expression | A number derived from the game, used for token counts, targets and thresholds. | basis (players, heroes, explorers, traitors, living heroes); when it is fixed (at haunt start, or live); arithmetic (×2, half rounded up or down, +1, 6 − heroes, 9 − starting heroes, a cap) | 61 haunts, e.g. 4, 7, 8, 13, 26, 79, 75. 23 haunts specify the count at haunt start (e.g. 9, 17, 25, 35, 96) Built as `Count` (engine/haunt.ts), which also counts the rooms in the house matching a `RoomMatch`. |
+| Find a named room | At setup, if a room isn't in the house, search the room stack, place it under a constraint, reshuffle. | room names (one, or any of several); who places; constraint (floor, connected to, far from) | 28 haunts: 2, 9, 13, 14, 18, 20, 22, 23, 24, 29, 31, 32, 33, 39, 43, 46, 49, 53, 54, 55, 60, 61, 67, 80, 82, 86, 89, 91 Haunt 13's top-up is the kit setup part `rooms` (`topUpRooms`), the traitor choosing and placing. |
 | Fill the house | At setup, place tiles from the stack until a floor or the house meets a count. | floor; count (rooms, open doors, item-symbol rooms) | 40, 86, 90, 91, 94, 97 |
 | Placement rule | Where a token or figure goes, chosen by whom. | room list in priority order (cycling when tokens remain); room filter (symbol, floor, unoccupied, no token yet); distance (at least N from, as far as possible, within N); chooser (traitor, heroes, revealer, split: one side picks the floor, the other the room, 88); spread (per floor, no two adjacent, 66); deferred placement on discovery | e.g. 1, 7, 15, 19, 21, 26, 28, 34, 37, 50, 61, 66, 78, 81, 88 |
 | Deferred placement | A token waits for its room to be discovered. | room filter; tokens remaining | 3, 7, 11, 15, 19, 34, 37, 50, 75, 100 |
@@ -152,7 +152,7 @@ The parts the haunts actually use, grouped by role. "Uses" lists the haunts that
 | Ally | A non-explorer figure on the heroes' side, often moved by heroes. | who moves it and when; what it does | 16, 42, 46, 51, 55, 87, 88 |
 | Linked figures | Figures tied to each other or to a hero. | link (Root and Tip, Arm and Sucker; twin to hero; two bodies of one player) | 7, 12, 23, 49, 79, 87 |
 | Attackable object | A target with a trait value and a hit counter that is not a figure. | trait and value; hits needed; who may attack it | 4 (web), 36 (Rowboat), 61 (Chest), 84 and 86 (rooms) |
-| Spawner | New monsters enter play over time. | where; how many (dice, a count expression, a supply cap); when (each monster turn, on an action, on discovery, on a track step) | 16, 24, 33, 38, 39, 53, 54, 60, 64, 67, 70, 75, 86 |
+| Spawner | New monsters enter play over time. | where; how many (dice, a count expression, a supply cap); when (each monster turn, on an action, on discovery, on a track step) | 16, 24, 33, 38, 39, 53, 54, 60, 64, 67, 70, 75, 86 Haunt 13's replacement on a kill or escape is the kit's `replaceWhenLost`, capped by `supplyOf`. |
 
 ### Movement policies
 
@@ -175,7 +175,7 @@ A status is a named condition on an explorer that blocks some actions, may bind 
 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
-| Status | A condition with rule effects. | blocks (move, act, attack, use items, draw, discover); turn-start and turn-end effects; how it ends (an escape roll, an action by another hero, a timer, never); permanence | about 25 haunts, above |
+| Status | A condition with rule effects. | blocks (move, act, attack, use items, draw, discover); turn-start and turn-end effects; how it ends (an escape roll, an action by another hero, a timer, never); permanence | about 25 haunts, above Built: statuses are rule sources; shared ones live in `kit/statuses.ts`. |
 | Controlled | A seat other than the figure's owner decides for it: plays its turn, moves it, or answers its choices. The engine asks the controller question, whose base answer is the owner, and a status changes the answer. | controller; what the controlled figure may do; how it ends | 16 haunts: 2, 6, 28, 35, 42, 46, 51, 55, 79, 87, 88, 90, 95, 96, 98, star (e.g. the Ghost's summoner, 2; mind-controlled heroes, 6; Demons taken with the Ring, 28; the Victims, moved by the player left of the traitor, 46; Hoplites, 55; the Siblings, 87) |
 | Carried | An explorer (or their corpse) travels as cargo of another figure and has no agency while carried. | carrier; capacity; how it ends | 3, 7, 23, 35, 87, 95 |
 | Grabbed / captured | An explorer held by a specific monster: immobile, items dropped, an escape contest at turn start, a delayed kill or a drag toward an anchor. | holder; escape roll; fate and when | 7, 23, 35, 80 |
@@ -197,7 +197,7 @@ A status is a named condition on an explorer that blocks some actions, may bind 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
 | Timer | A track that advances (or counts down) at a turn boundary and does something at a value. | start; step and boundary (end of the traitor's turn, start of the revealer's turn, each hero turn, each explorer turn); conditions that skip or add steps; effects at values | 4, 16, 20, 22, 23, 25, 30, 34, 36, 39, 40, 43, 44, 45, 52, 53, 56, 65, 72, 75, 76, 82, 85, 89, 100, star |
-| Counter to threshold | Successes counted toward a target, often "the number of players". | target (a count expression); what adds and removes; per-figure or shared; what reaching it does | most haunts, e.g. 2, 8, 11, 13, 15, 17, 22, 26, 33, 38, 44, 47, 49, 58, 61, 66, 67, 87 |
+| Counter to threshold | Successes counted toward a target, often "the number of players". | target (a count expression); what adds and removes; per-figure or shared; what reaching it does | most haunts, e.g. 2, 8, 11, 13, 15, 17, 22, 26, 33, 38, 44, 47, 49, 58, 61, 66, 67, 87 Built: kit goals on a counter (`{ counter, atLeast }`), plus a dead explorer and a card out of the game; a task roll is the kit's `taskRoll`. |
 | Track as a table key | A track value selects a row of a table that sets monster stats, rooms to collapse, flood levels or effects. | table | 4, 22, 23, 36, 75 |
 | Track as traits | A figure's trait lives on the track. | which trait; what moves it | 17, 18 |
 | Staged objective | An ordered list of steps; each unlocks the next, sometimes swapping the token. | steps (location, roll, token) | 1, 2, 20, 24, 27, 62, 68, 72, 84 |
@@ -209,7 +209,7 @@ A status is a named condition on an explorer that blocks some actions, may bind 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
 | Spreading area | A set of rooms that grows each step: fire, collapse, Blob, storm, flood. | seed; growth rule (adjacent with or without doors, through extra links, by floor order); rate (fixed, by track, by dice); what happens to occupants and tokens; floor fallback when a floor is gone; connectivity of detached patches | 2, 18, 22, 27, 50, 57, 65, 91; per-floor flooding by track: 36 |
-| Outside | Leaving the house. Either an exit that removes the figure with an outcome, or a zone outside that figures can occupy and return from. | exit rooms or edges (front door, windows, outside rooms); door state (locked, opened by a roll or a count); whether return is allowed; what it counts as | exit: 4, 6, 13, 16, 31, 35, 36, 64, 74, 89, 98; zone with return: 18, 46, 95 |
+| Outside | Leaving the house. Either an exit that removes the figure with an outcome, or a zone outside that figures can occupy and return from. | exit rooms or edges (front door, windows, outside rooms); door state (locked, opened by a roll or a count); whether return is allowed; what it counts as | exit: 4, 6, 13, 16, 31, 35, 36, 64, 74, 89, 98; zone with return: 18, 46, 95 Haunt 13's exit is the kit's `escapeAction`, which leaves a marker and steps a counter. |
 | Forced move | Move a figure other than by its own movement. | figure; distance (fixed, = damage, = margin); direction (any, toward, to a room filter, within line of sight); hindrance ignored or not | 6, 9, 18, 22, 30, 40, 51, 56, 64, 70, 73, 77, 79, 80, 87, 91, 95, 96, 100 |
 | Room state | A per-room value: flooded, burned, reception bars, used for a search. | value; created lazily (85) | 31, 36, 65, 85 |
 

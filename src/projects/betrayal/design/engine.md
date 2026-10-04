@@ -141,7 +141,7 @@ One attack shows how the questions chain:
 2. attackModes gives the ways to attack: the trait both sides roll, the card the attacker uses (a weapon, the Ring), and how far it reaches (the attacker's own room, or a line of sight for the Revolver). A trait either side lacks is no way to attack (p. 13).
 3. dicePool sizes each side's roll, then the dice are rolled.
 4. rollResult adjusts the totals.
-5. combatOutcome turns the comparison into what the loser suffers: damage of a kind (physical or mental) and its points, a stun, or a kill, each with the rule that says so, and whether the attacker may steal instead. Grab, push and convert join it when a haunt needs them. Its base answer is the rulebook's: the difference as damage, of the kind the trait gives; a stun for a figure that takes no damage on its traits (a monster, p. 18); nothing for an attacker beaten from another room or by a stunned monster. Because the outcome carries the damage's kind, a haunt changes it there: haunt 13's Nightmares deal mental damage whichever side they are on, with no separate routing question.
+5. combatOutcome turns the comparison into what the loser suffers: damage of a kind (physical or mental) and its points, a stun, or a kill, each with the rule that says so, and whether the attacker may steal instead. Grab, push and convert join it when a haunt needs them. Its base answer is the rulebook's: the difference as damage, of the kind the trait gives; a stun for a figure that takes no damage on its traits (a monster, p. 18); nothing for an attacker beaten from another room or by a stunned monster. Because the outcome carries the damage's kind, a haunt changes it there: haunt 13's Nightmares deal mental damage whichever side they are on, with no separate routing question. A figure steals only if it can hold cards.
 6. damageAmount sizes any damage, and the loser's controller splits it.
 7. traitChange moves the clips.
 8. lethalOutcome decides what a skull means, asked per trait, with the cause.
@@ -200,35 +200,37 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
 - **Identity:** number, name, set, and a reference to its content file.
 - **Its text:** each side's half, its content file's Traitor's Tome and Secrets of Survival sections word for word, notes included. They are read out of `content/haunts/` into one generated file per haunt in `data/haunt-texts/`, which a snapshot test keeps in step with `content/` (as `data/rule-notes.json` is), and the definition imports its own file, so only built haunts' text is bundled. A test holds each definition's text to its content file.
 - **Sides:** the chart's traitor rule, unless the definition gives its own (a hidden traitor, several traitors, or none). Each side reads its own half of the haunt text.
-- **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, put a number of the haunt's figures in the room of a group's explorer (owned by a group's seat, numbered from their definition, and no more than the supply question allows in play), or run a local step. Still to come: find a named room, fill the house, placement rules, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret) is worked out when its step runs, so setup fixes it at the haunt's start.
+- **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, put a number of the haunt's figures in the room of a group's explorer (owned by a group's seat, numbered from their definition, and no more than the supply question allows in play), drop a group's items where they stand, set its companions aside out of the game, top up the rooms in the house that match a set (named rooms, rooms with windows, outside rooms) to a count, with a group's seat choosing each room from the stack and the discards and placing it by the one placement rule, or run a local step. Each part may name the content ruling its events cite. Still to come: fill the house, placement constraints beyond the one rule, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret, the matching rooms in the house) is worked out when its step runs, so setup fixes it at the haunt's start; the question a setup step can't kill through is a modifier (lethalOutcome while the setup runs).
 - **Figures:** monster and ally definitions (traits or a stats table, a movement policy, an attack rule, a defeat response, flags).
 - **Tracks and counters**, with their count expressions.
 - **Statuses** the haunt applies.
-- **Actions:** objective actions (who, where, cost, roll, limit, effect on success and failure).
-- **Modifiers**, **triggers** and **conditions**, as in section 5. Win conditions are goals: a side and a test (a counter reaching a count, or a local test), compiled to conditions that declare that side's seats the winners.
+- **Actions:** objective actions (who, where, cost, roll, limit, effect on success and failure). The kit makes the common ones: a task roll (one action per trait that can make it, at most one attempt a turn) and an escape from the house (a move out of the room, at a move's cost, leaving a marker and stepping a counter).
+- **Modifiers**, **triggers** and **conditions**, as in section 5. A number change may be worked out from the game when it is asked (a supply of one per player). Win conditions are goals: a side and a test (a counter reaching a count, an explorer of a group dead, a card out of the game, or a local test), compiled to conditions that declare that side's seats the winners, and that may show everyone a secret as they are met.
 - **Knowledge:** the secret values and who sees them.
 - **Phases** (optional): the rules active in each phase, and the condition that switches between them.
 - **Local functions:** named steps or modifier functions for what the kit doesn't cover, kept in the haunt's own file.
 - **Rulings:** references to the content notes the definition depends on, each with its settled answer.
 
-**Haunt 13, Perchance to Dream (pure data).**
+**Haunt 13, Perchance to Dream (pure data, as built in `data/haunts/`).**
 - *Sides:* the chart's traitor rule.
-- *Setup:*
-  - The traitor's explorer gets an "asleep" status that blocks moving and acting, and drops its items.
-  - Companions are set aside, with a clamp above the skull.
+- *Setup (the traitor's):*
+  - The traitor's explorer gets the kit's asleep status: it takes no actions, can't be handed cards, can't be moved by any effect (the canBeMoved question), and hinders no one; its seat still makes the traitor's choices.
+  - It drops its items and sets its companions aside, out of the game; the haunt's lethalOutcome clamp while the setup runs keeps either from killing it.
   - Nightmares are spawned in the dreamer's room, one per player.
-  - Escape rooms are counted with a count expression over a room filter (the window and outside rooms the haunt lists), fixed at haunt start. A find-named-room step tops the count up to the number of players.
-  - The count becomes a secret value known to the traitor's seat.
-- *Figures:* Nightmare, with Speed 5, Might 4 and Sanity 4, moved by the traitor under the default monster rules.
+  - The escape rooms (rooms with windows, outside rooms and the Entrance Hall) are topped up to the number of players, the traitor choosing and placing each from the stack and the discards; the stack is then shuffled.
+  - Their count, after the top-up, becomes a secret known to the traitor's seat, and the escapes counter starts at 0. The heroes' setup starts the wake counter.
+- *Figures:* the Nightmare, with Speed 5, Might 4 and Sanity 4, moved by the traitor under the default monster rules.
 - *Actions:*
-  - The Nightmares' escape: in an unmarked escape room, at a cost of 1 movement. It removes the Nightmare, places an escape token and steps the escape counter.
-  - The heroes' wake: in the dreamer's room while a hero there holds the Holy Symbol. It is a Sanity or Might roll of 5+, a task roll once per turn, and steps a counter with the matching token.
+  - The Nightmares' escape: in an escape room with no marker, as the move out of the room (1 space plus 1 per hero in the way, but always possible before moving). It takes the Nightmare out of play, leaves a marker and steps the escapes.
+  - The heroes' wake: a task roll, Sanity or Might 5+, in the dreamer's room while a hero there carries the Holy Symbol. Success steps the wake counter, whichever token it wins.
 - *Modifiers:*
-  - combatOutcome: every point of damage a Nightmare deals is mental, attacking or defending.
-  - combatOutcome: a Nightmare that loses to an attacking hero is killed, not stunned.
-  - itemEffect: the Smelling Salts can't wake the dreamer.
-- *Triggers:* a Nightmare killed or escaped raises a traitor decision to unleash another, within the token supply.
-- *Conditions:* the traitor wins when escapes reach the secret value (which reveals it); the heroes win when the wake counter reaches the number of players.
+  - combatOutcome: every point of damage a Nightmare deals is mental, attacking or defending (`dealsDamageAs`).
+  - combatOutcome: a Nightmare that loses to an attacking hero is killed, not stunned (`killedWhenBeatenBy`).
+  - supply: Nightmares in play never outnumber the players.
+  - The Smelling Salts need no rule: only the wake roll steps the counter.
+- *Triggers:* a Nightmare killed or escaped offers the traitor's seat, at once, the choice to bring in another beside the body; a chance not taken is lost (`replaceWhenLost`).
+- *Goals:* the traitor wins when escapes reach the secret (which reveals it), when the dreamer dies, or when the Holy Symbol leaves the game; the heroes win when the wake counter reaches the number of players. The rulebook's goal covers every hero dead.
+- *Rulings:* each event names its note in the haunt's file (`> Note [h13-…]`), and "why?" shows that ruling only.
 
 **Haunt 22, The Abyss Gazes Back (data plus small functions).** This is one of the harder base haunts: a mutable board, a timer, obligations on other players' turns, and two unresolved notes.
 - *Setup:*

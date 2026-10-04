@@ -66,7 +66,10 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
             <dt className="text-(--bt-muted)">Counters</dt>
             <dd>
               {Object.entries(view.haunt.counters)
-                .map(([id, value]) => `${id}: ${value}`)
+                .map(
+                  ([id, value]) =>
+                    `${engine.haunts[view.haunt?.number ?? 0]?.counters[id]?.name ?? id}: ${value}`,
+                )
                 .join(", ") || "none"}
             </dd>
             <dt className="text-(--bt-muted)">Secrets</dt>
@@ -103,6 +106,9 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
                 : []),
               figure.alive ? null : "Dead",
               figure.stunned ? "Stunned" : null,
+              ...figure.statuses.map(
+                (status) => engine.behaviours.statuses[status.id]?.name ?? status.id,
+              ),
               figure.place === null
                 ? "Off the board"
                 : `In the ${rooms[figure.place.room].name}`,
