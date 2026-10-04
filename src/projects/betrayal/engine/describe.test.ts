@@ -16,6 +16,37 @@ const text = (e: GameEvent, state: GameState = testGame()) =>
   describeEvent(ENGINE, state, e);
 
 describe("describeEvent", () => {
+  it("tells of a card set aside out of the game, and a death no trait caused", () => {
+    expect(
+      text(
+        event(
+          "card-lost",
+          { source: "haunt", haunt: 13, section: "Setup" },
+          {
+            figure: "zoe-ingstrom",
+            card: "dog",
+            destination: { to: "aside", room: null },
+          },
+        ),
+      ),
+    ).toBe("Zoe Ingstrom's Dog is set aside, out of the game.");
+    expect(
+      text(
+        event(
+          "died",
+          { source: "rulebook", page: 5 },
+          {
+            figure: "ox-bellows",
+            trait: null,
+            cause: { source: "haunt", haunt: 22, section: "Rules" },
+            killer: null,
+            room: "foyer",
+          },
+        ),
+      ),
+    ).toBe("Ox Bellows dies in the Foyer (Haunt 22, Rules).");
+  });
+
   it("says what happened and names the room, card or token rule behind it", () => {
     expect(
       text(
