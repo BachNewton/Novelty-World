@@ -56,9 +56,12 @@ export const PHANTOM: FigureDefinition = {
   token: null,
 };
 
+/** The toy haunt under a number. `phantom: false` leaves its monster out,
+ *  for haunts with no traitor to put it beside. */
 export function toyHaunt(
   number: number,
   changes: Partial<HauntDefinition> = {},
+  { phantom = true }: { phantom?: boolean } = {},
 ): HauntDefinition {
   const rule = hauntRule(number, "Rules");
   return {
@@ -76,13 +79,17 @@ export function toyHaunt(
     setup: {
       traitor: [
         { part: "status", who: "traitor", status: "dozing" },
-        {
-          part: "spawn",
-          figure: "phantom",
-          count: 1,
-          at: "traitor",
-          owner: "traitor",
-        },
+        ...(phantom
+          ? [
+              {
+                part: "spawn",
+                figure: "phantom",
+                count: 1,
+                at: "traitor",
+                owner: "traitor",
+              } as const,
+            ]
+          : []),
         { part: "counter", counter: "escapes", start: 0 },
         {
           part: "secret",
@@ -165,8 +172,10 @@ export function toyHaunt(
 export const TOY_ENGINE: Engine = withHaunts(ENGINE, [toyHaunt(13), toyHaunt(6)]);
 
 /** The real engine with the toy haunt built under every number on the
- *  chart, so random play goes through the haunt to its end. */
+ *  chart, so random play goes through the haunt to its end. Its Phantom is
+ *  left out until monsters move: the Bell's and Spirit Board's pulls fail
+ *  loudly while a monster is in play. */
 export const ALL_TOY_ENGINE: Engine = withHaunts(
   ENGINE,
-  hauntNumbers(ENGINE.catalog).map((n) => toyHaunt(n)),
+  hauntNumbers(ENGINE.catalog).map((n) => toyHaunt(n, {}, { phantom: false })),
 );

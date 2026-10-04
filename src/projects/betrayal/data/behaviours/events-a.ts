@@ -302,7 +302,7 @@ export const EVENTS_A: BehaviourGroup = {
               : chooseOne(
                   p.figure,
                   targets.map((e) => ({
-                    label: `Attack ${figureName(CATALOG, state, e.id)}`,
+                    label: `Attack ${figureName(ctx.catalog, state, e.id)}`,
                     steps: [attackOn(e.id)],
                   })),
                   rule,
