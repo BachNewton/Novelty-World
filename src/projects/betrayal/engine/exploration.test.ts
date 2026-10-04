@@ -302,9 +302,9 @@ describe("the choices offered are exactly the legal ones", () => {
   // full decks, that every listed choice applies and every candidate left out
   // doesn't. simulation.slow.test.ts sweeps many more seeds.
   it.each(["a", "b", "c"])(
-    "over random play to the haunt or a full house, seed %s",
+    "over random play to the haunt (played out if it is built) or a full house, seed %s",
     (seed) => {
-      expect(["haunt", "house-full"]).toContain(simulate(seed).ending);
+      expect(["haunt", "finished", "house-full"]).toContain(simulate(seed).ending);
     },
     GAME_TIMEOUT,
   );

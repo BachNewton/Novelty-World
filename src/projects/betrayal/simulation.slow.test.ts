@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NO_HAUNT_ENGINE, simulate, type SimulationResult } from "./simulation";
+import { ENGINE } from "./game";
 import { ALL_TOY_ENGINE } from "./test/toy-haunt";
 
 // Whole games over many seeds, a random but legal policy on every seat (see
@@ -18,11 +19,14 @@ const played = (result: SimulationResult) => {
   return result;
 };
 
+// A haunt that is built is played out to its end; any other stops the game.
 describe("random play to the haunt, or until the house is full", () => {
   it.each(seeds(400))(
     "seed %s",
     (seed) => {
-      expect(["haunt", "house-full"]).toContain(played(simulate(seed)).ending);
+      expect(["haunt", "finished", "house-full"]).toContain(
+        played(simulate(seed)).ending,
+      );
     },
     GAME_TIMEOUT,
   );
@@ -38,8 +42,24 @@ describe("random play with the haunt held off until the house is full", () => {
   );
 });
 
-// No real haunt is built yet, so the haunt framework is swept with the toy
-// haunt (test/toy-haunt.ts) standing in for every haunt on the chart.
+// Haunt 13 started at once, by a revealer the seed picks, and played to its
+// end: the traitor's top-up, the monster turns, escapes, unleashing and the
+// heroes' wake rolls, under the choices-match-legality check at every
+// decision.
+describe("random play through haunt 13 to its end", () => {
+  it.each(seeds(40).map((s) => `h13-${s}`))(
+    "seed %s",
+    (seed) => {
+      expect(played(simulate(seed, ENGINE, undefined, { haunt: 13 })).ending).toBe(
+        "finished",
+      );
+    },
+    GAME_TIMEOUT,
+  );
+});
+
+// The haunt framework is swept with the toy haunt (test/toy-haunt.ts)
+// standing in for every haunt on the chart, built or not.
 describe("random play through a toy haunt to the game's end, or a full house", () => {
   it.each(seeds(100))(
     "seed %s",
@@ -70,6 +90,7 @@ it("answers every kind of decision, on and off turn", () => {
       "turn:end",
       "turn:activate",
       "turn:done",
+      "replace-figure",
       "rotation",
       "place-tile",
       "trade-offer",
