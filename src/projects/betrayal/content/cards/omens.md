@@ -105,6 +105,12 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   > Note: The card doesn't say where an item ends up after the Dog's trip, or what becomes of an item it carries when it is lost or its holder dies.
   > Resolution (project): the Dog's trip is one action that ends back with its holder, so it never holds an item between turns. An item it picks up (from an item pile, in a room it reaches) goes straight into its holder's possession when it returns; an item its holder gives it can be dropped in a room it reaches, onto that room's item pile. It doesn't trade with other explorers, since the card names only picking up, carrying and dropping. With nothing ever left on the Dog, losing it or its holder's death moves no item except as the usual rules say for the holder's own items. The one BGG answer on how the Dog works reads it the same way, as a six-room "boomerang" fetch. Source: https://boardgamegeek.com/thread/610370, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+  > Note: the card says the Dog may pick up, carry or drop "1 item", and doesn't say whether an omen counts.
+  > Resolution (project): items only, never an omen. The rulebook names omens beside items wherever a rule covers both ("a tradable item or omen", p. 13), so "1 item" on its own means an item card, and most omens only "work like items" (p. 20) without being them. Research: no ruling found.
+
+  > Note: the official list says the Dog can't go "through" the Collapsed Room or the Gallery, which both have ordinary doors as well as a one-way fall.
+  > Resolution (project): the Dog may go into either room, and on through it, by its doors, but never takes the fall. What makes them one-way is the fall, as with the Mystic Slide, whose room the Dog is never kept out of; the Coal Chute differs because entering it is the slide. The card already limits the Dog to doors and stairs, so this keeps the official list's sense without closing off rooms an explorer walks through freely. Research: only the official FAQ list above.
+
 ## Girl
 - Deck: omen
 - Set: base
@@ -246,6 +252,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   - Make a haunt roll now.
   > Note: "you don't have to move those monsters" when you are the traitor reads as the traitor's movement being optional; the card gives no further detail.
   > Resolution (project): moving the monsters is optional for the traitor: any number of them, zero included, 1 space closer, as the card says ("you don't have to move those monsters"). Stunned monsters can be moved this way (https://boardgamegeek.com/thread/994104). Research: no ruling found. Forum threads on the Spirit Board settle only that the looked-at tile stays on top of the stack. Source: https://boardgamegeek.com/thread/1872346, https://boardgamegeek.com/thread/854312
+
+  > Note: "before you move" doesn't say whether being put in another room without spending movement (a fall, a card, crossing a barrier) counts as moving.
+  > Resolution (project): you have moved once you have spent movement this turn; being put somewhere without spending any doesn't count, so the board can still be used after it. The board is for planning where you will explore, which spending movement is, and a fall or a card's move doesn't use up any of that. Research: no ruling found.
 
 ## Vial
 - Deck: omen

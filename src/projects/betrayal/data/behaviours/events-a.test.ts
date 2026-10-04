@@ -488,6 +488,23 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
     state.explorers[0].clips.knowledge = 0; // Zoe's lowest Knowledge is 1.
     expect(pool(state, 0, "knowledge")).toBe(1);
   });
+
+  it("stops at 1 die without lifting a roll another rule took lower", () => {
+    const state = drawEvent("drip-drip-drip");
+    // Zoe's Speed is 4. A rule taking 3 dice leaves 1, which the Drip can't
+    // lower; one taking all 4 leaves none, which the Drip doesn't raise.
+    const withFewer = (extraDice: number) =>
+      askNumber(ENGINE, state, "dicePool", {
+        seat: 0,
+        roll: {
+          spec: { kind: "trait", trait: "speed" },
+          rule: { source: "card", card: "groundskeeper" },
+          extraDice,
+        },
+      });
+    expect(withFewer(-3)).toBe(1);
+    expect(withFewer(-4)).toBe(0);
+  });
 });
 
 describe("Footsteps (cards/events.md)", () => {

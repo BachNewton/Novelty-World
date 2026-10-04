@@ -67,6 +67,9 @@ interface SetItems {
 export type NumberChange =
   | { set: number }
   | { add: number }
+  /** Takes away up to `fewer`, never below `minimum`, and never lifts an
+   *  answer already at or below it ("1 fewer die, to a minimum of 1"). */
+  | { fewer: number; minimum: number }
   | { multiply: number }
   | { atMost: number }
   | { atLeast: number }
@@ -272,6 +275,9 @@ export function askNumber<Q extends keyof NumberQuestions>(
   const set = highest(changes, "set", question);
   if (set !== undefined) answer = set;
   for (const { change } of changes) if ("add" in change) answer += change.add;
+  for (const { change } of changes)
+    if ("fewer" in change && answer > change.minimum)
+      answer = Math.max(answer - change.fewer, change.minimum);
   for (const { change } of changes)
     if ("multiply" in change) answer *= change.multiply;
   for (const { change } of changes)

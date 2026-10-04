@@ -570,7 +570,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     ctx.push(
       ...turn.omens.map((o) =>
         step<HauntRoll>("haunt-roll", {
-          seat: p.seat,
+          seat: o.seat,
           omen: o.card,
           room: o.room,
         }),

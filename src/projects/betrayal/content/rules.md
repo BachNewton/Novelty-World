@@ -186,6 +186,9 @@
 > Note: the rules don't say whether the crossing roll may be tried with no movement left, or after something has ended your movement (drawing a card), or which side an explorer is on after moving in through a door.
 > Resolution (project): crossing is part of moving, so it can't be tried once your movement has ended for the turn (a card drawn, a failed roll), but it spends no movement, so it can be tried with no spaces left. Moving in through a door puts you on that door's side, and only the door on your own side leads on. This follows the rule's own wording (a failure "ends your movement", and you may "go back the way you came"), the way the Gallery's and the Collapsed Room's falls are settled, and keeps the barrier a real obstacle rather than something crossed for free after exploring. Research: none beyond the rulebook.
 
+> Note: the rules don't say whether a rule for everyone "in this room" (the Drip, the Smoke, an open Music Box) reaches both sides of a barrier room.
+> Resolution (project): it reaches both sides. The barrier stops moving across it and explorers dealing with each other (attacks, trades, helping each other); a room's own condition, such as water dripping, smoke or music filling it, isn't one explorer interacting with another, and the cards name the room, not a side. Research: none beyond the rulebook.
+
 #### Entrance Hall, Foyer, and Grand Staircase (p. 7)
 
 - These three share one tile but are three separate rooms. Moving from one to the adjacent one on the tile costs 1 space.
@@ -436,6 +439,9 @@
 
 > Note: the glossary entry "haunt roll" (p. 21) gives a different procedure (roll dice equal to the number of omen cards in play, haunt begins if the result is lower than that number). The two are not reconciled in the book; see the note under that glossary entry. The owner must choose which to implement.
 > Resolution (community): p. 15 is the rule and the p. 21 glossary entry is a typo. At the end of a turn on which you drew an omen, roll 6 dice. The haunt starts if the result is less than the number of omen cards drawn so far this game, counting the one just drawn. The 1st edition, which has no glossary, has the same rule, and its official FAQ confirms the worked example on p. 15. No erratum was ever issued, and Hasbro's current printing of the 2nd edition still has the typo. The glossary's version (dice equal to the number of omens) resembles the haunt roll of Betrayal at Baldur's Gate and Betrayal Legacy. Source: https://boardgamegeek.com/thread/2338612, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://instructions.hasbro.com/api/download/F3148_en-us_avalon-hill-betrayal-at-house-on-the-hill-second-edition-cooperative-board-game.pdf
+
+> Note: the rule says "you" roll "at the end of your turn", which doesn't fit an omen drawn on someone else's turn.
+> Resolution (project): whoever drew the omen makes its haunt roll, at the end of the turn on which they drew it, and so becomes the haunt revealer if it starts the haunt. The chart is read from the room "the haunt revealer's explorer was in when that omen was drawn" (p. 15), which ties the roll to the drawer, and rolling when that turn ends keeps every haunt roll at a turn's end as the rule has it, rather than holding it for the drawer's own next turn. Research: no ruling found.
 
 ### Revealing the Haunt (p. 15)
 - The haunt revealer looks up the haunt chart on the first two pages of the Traitor's Tome booklet. The chart gives the haunt revealed and who the traitor is.

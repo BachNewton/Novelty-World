@@ -152,6 +152,12 @@ describe("Bell (cards/items.md)", () => {
     state = choose(state, "Drop the Bell");
     expect(state.explorers[ZOE].clips.sanity).toBe(sanity);
   });
+
+  it("can't be rung before the haunt is revealed", () => {
+    expect(labels(holding(["bell"]))).not.toContain(
+      "Ring the Bell (Sanity roll)",
+    );
+  });
 });
 
 describe("Bottle (cards/items.md)", () => {
@@ -188,12 +194,13 @@ describe("Bottle (cards/items.md)", () => {
     }
   });
 
-  it("on a 6, puts your explorer in a room of your choice", () => {
+  it("on a 6, puts your explorer in a room of your choice, your own included", () => {
     let state = actWithNamedRoll(inTheHaunt(), "Drink from the Bottle", 6);
     expect(pendingDecision(state).kind).toBe("choose-one");
     expect(labels(state)).toContain("Put your explorer in the Foyer");
-    expect(labels(state)).not.toContain(
-      "Put your explorer in the Entrance Hall",
+    expect(labels(state)).toContain("Stay in the Entrance Hall");
+    expect(choose(state, "Stay in the Entrance Hall").explorers[ZOE].room).toBe(
+      "entrance-hall",
     );
     state = choose(state, "Put your explorer in the Foyer");
     expect(state.explorers[ZOE].room).toBe("foyer");
@@ -211,6 +218,29 @@ describe("Dark Dice (cards/items.md)", () => {
     state.explorers[OX].room = "foyer";
     const after = roll(state, 6);
     expect(after.explorers[ZOE].room).toBe("foyer");
+  });
+
+  it("on a 6, can take you across a barrier to an explorer on its other side", () => {
+    const state = holding(["dark-dice", "angel-feather"]);
+    state.board.tiles.push({
+      tile: "chasm",
+      floor: "basement",
+      x: 9,
+      y: 9,
+      rotation: 0,
+    });
+    const [near, far] = ENGINE.catalog.rooms.chasm.doors;
+    state.explorers[ZOE].room = "chasm";
+    state.explorers[ZOE].side = near;
+    state.explorers[OX].room = "chasm";
+    state.explorers[OX].side = far;
+    state.explorers[2].room = "chasm";
+    state.explorers[2].side = near;
+    // Father Rhinehardt, on Zoe's own side, is already where she is: Ox is
+    // the only explorer to move to, so the move is forced.
+    const after = roll(state, 6);
+    expect(after.explorers[ZOE].room).toBe("chasm");
+    expect(after.explorers[ZOE].side).toBe(far);
   });
 
   it("on a 5, moves another explorer in your room into an adjacent room", () => {

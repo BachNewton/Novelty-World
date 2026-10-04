@@ -256,8 +256,9 @@ export const ROOMS: BehaviourGroup = {
           label: "Fall down to the Ballroom (1 die of physical damage)",
           available: (state) => placed(state.board, "ballroom") !== undefined,
           steps: (_state, seat, source) => [
-            relocate(seat, "ballroom", source.rule),
-            damage(seat, "physical", { dice: 1 }, source.rule),
+            relocate(seat, "ballroom", source.rule, null, [
+              damage(seat, "physical", { dice: 1 }, source.rule),
+            ]),
           ],
         },
       },
@@ -313,8 +314,7 @@ export const ROOMS: BehaviourGroup = {
           const below = state.tokens.find((t) => t.token === BELOW);
           if (below) {
             ctx.push(
-              relocate(p.seat, below.room, rule, below.side ?? null),
-              hurt,
+              relocate(p.seat, below.room, rule, below.side ?? null, [hurt]),
             );
             return;
           }
@@ -349,9 +349,10 @@ export const ROOMS: BehaviourGroup = {
                 .map((t) => ({
                   label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [
-                    relocate(p.seat, t.tile, rule),
-                    local(COLLAPSED, "mark", p),
-                    damage(p.seat, "physical", { dice: 1 }, rule),
+                    relocate(p.seat, t.tile, rule, null, [
+                      local(COLLAPSED, "mark", p),
+                      damage(p.seat, "physical", { dice: 1 }, rule),
+                    ]),
                   ],
                 })),
               rule,

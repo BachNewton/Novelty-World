@@ -85,7 +85,9 @@ const DOG = card("dog");
 const DOG_TOKEN = "monster-magenta";
 /** Rooms the Dog can't go into: the one-way Coal Chute and the Mystic
  *  Elevator (the card's official ruling), and the rooms that take a roll to
- *  leave, as it could never come back out (the card's project ruling). */
+ *  leave, as it could never come back out (the card's project ruling). The
+ *  Gallery and the Collapsed Room are one-way only by their falls, which the
+ *  Dog never takes, so it may go in by their doors (project ruling). */
 const NO_DOG = [
   "coal-chute",
   "mystic-elevator",
@@ -127,8 +129,9 @@ type DogRun = { seat: number; room: string };
 type DogCarry = DogRun & { card: string };
 
 /** The Dog: its token follows its holder, and once a turn it runs to a room
- *  and back, fetching or leaving one item. The run ends back with its holder,
- *  so it never holds an item between turns (the card's project ruling). */
+ *  and back, fetching or leaving one item, never an omen. The run ends back
+ *  with its holder, so it never holds an item between turns (the card's
+ *  project rulings). */
 const DOG_BEHAVIOUR: Behaviour = {
   onGain: (state, seat) => [
     ...dogTraits(seat, 1),
@@ -171,15 +174,17 @@ const DOG_BEHAVIOUR: Behaviour = {
     }),
     there: defineStep<DogRun>((state, p, ctx) => {
       ctx.emit("dog-ran", DOG, p);
+      const isItem = (c: string) => CATALOG.cards[c].type === "item";
       const fetch = (state.piles[p.room] ?? [])
-        .filter((c) => !isHandled(state, c))
+        .filter((c) => isItem(c) && !isHandled(state, c))
         .map((c) => ({
           label: `The Dog brings back the ${CATALOG.cards[c].name}`,
           steps: [local("dog", "fetch", { ...p, card: c })],
         }));
       const leave = explorerAt(state, p.seat)
         .cards.filter(
-          (c) => CATALOG.cards[c].transfer.drop && !isHandled(state, c),
+          (c) =>
+            isItem(c) && CATALOG.cards[c].transfer.drop && !isHandled(state, c),
         )
         .map((c) => ({
           label: `The Dog leaves your ${CATALOG.cards[c].name} there`,

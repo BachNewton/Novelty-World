@@ -241,11 +241,13 @@ describe("The Beckoning", () => {
     expect(state.board.stack).not.toContain("patio");
     state = choose(state, "Put the Patio");
     expect(roomOf(state, 1)).toBe("patio");
-    // The Patio's event symbol: discovering it draws Night View for Ox.
-    expect(state.decks.event.discard).toContain("night-view");
+    // The damage comes from the jump, as Ox lands.
     expect(rolls(state).some((r) => r.seat === 1 && r.dice.length === 1)).toBe(
       true,
     );
+    state = takeDamage(state);
+    // The Patio's event symbol: discovering it draws Night View for Ox.
+    expect(state.decks.event.discard).toContain("night-view");
   });
 
   it("on 0-2 jumps straight to a Patio already in the house", () => {
@@ -266,6 +268,33 @@ describe("The Beckoning", () => {
     );
     expect(roomOf(withPatio, 1)).toBe("patio");
     expect(eventTypes(withPatio)).not.toContain("room-placed");
+  });
+
+  it("takes the damage from the jump only: an explorer the Graveyard keeps takes none", () => {
+    // Ox, in the Graveyard, fails both the card's Sanity roll and the Graveyard's roll to leave.
+    const kept = findSeed(
+      (seed) =>
+        drawEvent("the-beckoning", {
+          seed,
+          setUp: (s) => {
+            s.board.tiles.push(
+              { tile: "graveyard", floor: "ground", x: 9, y: 9, rotation: 0 },
+              { tile: "patio", floor: "ground", x: 2, y: 1, rotation: 0 },
+            );
+            s.board.stack = s.board.stack.filter(
+              (t) => t !== "patio" && t !== "graveyard",
+            );
+            s.explorers[1].room = "graveyard";
+          },
+        }),
+      (s) =>
+        rolls(s)[0].result <= 2 && labels(s).includes("Stay in the Graveyard"),
+    );
+    const state = choose(kept, "Stay in the Graveyard");
+    expect(roomOf(state, 1)).toBe("graveyard");
+    expect(kind(state)).not.toBe("split-damage");
+    expect(rolls(state)).toEqual([]);
+    expect(state.explorers[1].clips).toEqual(kept.explorers[1].clips);
   });
 });
 
@@ -300,8 +329,9 @@ describe("Mystic Slide", () => {
     );
     state = choose(state, "Put the Larder");
     expect(roomOf(state)).toBe("larder");
-    expect(state.explorers[0].cards).toContain("axe");
     expect(rolls(state).some((r) => r.dice.length === 1)).toBe(true);
+    state = takeDamage(state);
+    expect(state.explorers[0].cards).toContain("axe");
   });
 
   it("on 0-4 with no basement tile left, you choose a basement room in play", () => {
@@ -335,6 +365,45 @@ describe("Mystic Slide", () => {
     const fallen = choose(state, "Put the Larder");
     expect(roomOf(fallen, 1)).toBe("larder");
     expect(fallen.explorers[1].cards).toEqual([]);
+  });
+
+  /** Zoe stands in the Attic, where a Slide lies, with no basement tile left to draw. */
+  function inTheAttic(seed: string): GameState {
+    const state = testGame({ seed });
+    state.board.tiles.push({
+      tile: "attic",
+      floor: "upper",
+      x: 9,
+      y: 9,
+      rotation: 0,
+    });
+    state.board.stack = state.board.stack.filter(
+      (t) => t !== "attic" && !BASEMENT_TILES.includes(t),
+    );
+    state.explorers[0].room = "attic";
+    state.tokens.push({ token: "slide", room: "attic" });
+    return choose(state, "Use the Slide");
+  }
+
+  it("takes the fall's damage only on landing: an explorer the Attic keeps takes none", () => {
+    // The Might roll fails, so Zoe falls; the Attic's Speed roll to leave fails too.
+    const kept = findSeed(
+      inTheAttic,
+      (s) => rolls(s)[0].result <= 4 && labels(s).includes("Stay in the Attic"),
+    );
+    const state = choose(kept, "Stay in the Attic");
+    expect(roomOf(state)).toBe("attic");
+    expect(kind(state)).toBe("turn");
+    expect(state.explorers[0].clips).toEqual(kept.explorers[0].clips);
+  });
+
+  it("is the same roll each time, so it can be tried only once a turn", () => {
+    const kept = findSeed(
+      inTheAttic,
+      (s) => rolls(s)[0].result <= 4 && labels(s).includes("Stay in the Attic"),
+    );
+    const state = choose(kept, "Stay in the Attic");
+    expect(labels(state)).not.toContain("Use the Slide (Might roll)");
   });
 
   it("is discarded when every explorer is in the basement", () => {
@@ -517,10 +586,33 @@ describe("Collapsed Room", () => {
       token: "below-collapsed-room",
       room: "larder",
     });
-    expect(state.explorers[0].cards).toContain("axe");
     expect(rolls(state).some((r) => r.dice.length === 1)).toBe(true);
+    state = takeDamage(state);
+    expect(state.explorers[0].cards).toContain("axe");
     // Falling spends no movement: only the exploration counted.
     expect(state.turn?.moved).toBe(1);
+  });
+
+  it("marks the room the faller lands in, even when its card sends them on", () => {
+    // The Crypt's event is The Walls, which puts Zoe in the next tile drawn.
+    let state = findSeed(
+      (seed) => {
+        const s = testGame({
+          seed,
+          stack: ["collapsed-room", "crypt", "game-room"],
+          decks: { event: ["the-walls"] },
+        });
+        return choose(s, "Explore through the north door");
+      },
+      (s) => rolls(s)[0]?.result < 5,
+    );
+    state = takeDamage(choose(state, "Put the Crypt"));
+    while (kind(state) === "place-tile") state = choose(state, "Put the");
+    expect(roomOf(state)).toBe("game-room");
+    expect(state.tokens).toContainEqual({
+      token: "below-collapsed-room",
+      room: "crypt",
+    });
   });
 
   it("lets a later explorer fall on purpose, to the marked room, without a new tile", () => {

@@ -233,6 +233,12 @@ describe("Gallery (rooms.md)", () => {
     expect(labels(state)).toContain("Move to the Entrance Hall");
   });
 
+  it("deals the damage as you land in the Ballroom", () => {
+    const state = choose(inGallery(), FALL);
+    expect(roomOf(state)).toBe("ballroom");
+    expect(kind(state)).toBe("split-damage");
+  });
+
   it("can be done with no movement left", () => {
     const state = inGallery();
     if (state.turn) state.turn.moved = 4;
@@ -433,6 +439,35 @@ describe("Dog (cards/omens.md)", () => {
     expect(runs).toContain("Send the Dog to the Upper Landing");
     expect(runs).not.toContain("Send the Dog to the Junk Room");
     expect(runs).not.toContain("Send the Dog to the Basement Landing");
+  });
+
+  it("fetches or leaves an item, never an omen (the card's project ruling)", () => {
+    const state = withDog((s) => {
+      s.piles.foyer = ["axe", "skull"];
+      s.explorers[0].cards = ["revolver", "book"];
+      s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "revolver");
+      s.decks.omen.draw = s.decks.omen.draw.filter(
+        (c) => c !== "skull" && c !== "book",
+      );
+    });
+    const options = labels(
+      choose(choose(state, SEND), "Send the Dog to the Foyer"),
+    );
+    expect(options).toContain("The Dog brings back the Axe");
+    expect(options).toContain("The Dog leaves your Revolver there");
+    expect(options.some((l) => l.includes("Skull"))).toBe(false);
+    expect(options.some((l) => l.includes("Book"))).toBe(false);
+  });
+
+  it("goes into the Collapsed Room by its doors, since only its fall is one-way (the card's project ruling)", () => {
+    const state = withDog((s) => {
+      lay(s, [
+        { tile: "collapsed-room", floor: "ground", x: 1, y: -1, rotation: 0 },
+      ]);
+    });
+    expect(labels(choose(state, SEND))).toContain(
+      "Send the Dog to the Collapsed Room",
+    );
   });
 
   it("takes its token away when its holder loses it", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attack } from "../../engine/combat";
-import { damage, discardCard } from "../../engine/effects";
+import { damage, discardCard, relocate, step } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import { choose, offered, pendingDecision, testGame } from "../../testing";
@@ -79,6 +79,16 @@ describe("Spirit Board (cards/omens.md)", () => {
     // The tile stays on top of the stack.
     expect(state.board.stack[0]).toBe("ballroom");
     expect(labels(state)).not.toContain(
+      "Use the Spirit Board: look at the top room tile",
+    );
+  });
+
+  it("can still be used after being put in a room without spending movement (the card's project ruling)", () => {
+    const state = start(ENGINE, { ...holding(), pending: null }, [
+      relocate(0, "foyer", { source: "card", card: "dark-dice" }),
+      step("turn-menu", { seat: 0 }),
+    ]);
+    expect(labels(state)).toContain(
       "Use the Spirit Board: look at the top room tile",
     );
   });

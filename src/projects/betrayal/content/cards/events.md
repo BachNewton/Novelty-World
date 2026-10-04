@@ -741,6 +741,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: the table is for the 3-dice roll, not the Knowledge roll. The card doesn't say what happens to drawn tiles that are not for the target floor.
 > Resolution (project): draw from the top of the room stack, putting tiles that aren't for the rolled floor face down on the room discard pile, as when exploring. This card prints its own end ("if you reach the end of the stack"), and a card's rule beats the rulebook (p. 12), so this is one pass through the stack with no reshuffle; then you go to the Entrance Hall. Research: no ruling found on the skipped tiles. The 1st-edition FAQ rules on neighbouring points only: you go to the destination even with no clear path, and if the room you are sent into is newly discovered and has a symbol, you draw that card too. A BGG answer adds that the card's effect lasts only the turn it is drawn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1782077
 
+> Note: the card doesn't say what happens to a tile for the rolled floor that has no legal spot on it (every doorway it could face closed, or it would seal the floor).
+> Resolution (project): it is skipped like a tile for another floor, onto the discard pile, and the search goes on. The card has you "put that tile in the house", which a tile with no legal spot can't be, and every "draw until a room fits" effect treats a tile that can't go on the floor the same way (see Mystic Slide). Research: no ruling found.
+
 ## The Voice
 - Deck: event
 - Set: base

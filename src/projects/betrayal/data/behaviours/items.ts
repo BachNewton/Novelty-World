@@ -395,17 +395,20 @@ export const ITEMS: BehaviourGroup = {
         },
       },
       steps: {
+        // Any room, your own included: choosing it leaves you where you are.
         anywhere: defineStep<{ seat: number }>((state, p, ctx) => {
           const here = explorerAt(state, p.seat).room;
           ctx.push(
             chooseOne(
               p.seat,
-              state.board.tiles
-                .filter((t) => t.tile !== here)
-                .map((t) => ({
-                  label: `Put your explorer in the ${roomName(t.tile)}`,
-                  steps: [relocate(p.seat, t.tile, card("bottle"))],
-                })),
+              state.board.tiles.map((t) =>
+                t.tile === here
+                  ? { label: `Stay in the ${roomName(t.tile)}`, steps: [] }
+                  : {
+                      label: `Put your explorer in the ${roomName(t.tile)}`,
+                      steps: [relocate(p.seat, t.tile, card("bottle"))],
+                    },
+              ),
               card("bottle"),
             ),
           );
@@ -507,9 +510,9 @@ export const ITEMS: BehaviourGroup = {
             throw new Error(
               "The Dark Dice's 6 excludes the traitor, and the haunt doesn't record one yet",
             );
-          const here = explorerAt(state, p.seat).room;
+          const you = explorerAt(state, p.seat);
           const options = state.explorers
-            .filter((e) => e.seat !== p.seat && e.room !== here)
+            .filter((e) => e.seat !== p.seat && !together(e, you))
             .map((e) => ({
               label: `Move to ${explorerName(e)} in the ${roomName(e.room)}`,
               steps: [

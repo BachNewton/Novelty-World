@@ -266,8 +266,9 @@ export interface Turn {
   attacked: boolean;
   /** Something ended the turn early: the turn ends at the next chance to act. */
   over: boolean;
-  /** Omens drawn this turn, and the room each was drawn in, for the haunt roll. */
-  omens: { card: string; room: string }[];
+  /** Omens drawn this turn, who drew each and the room they drew it in: the
+   *  drawer makes its haunt roll at the end of the turn. */
+  omens: { card: string; seat: number; room: string }[];
 }
 
 export interface Haunt {

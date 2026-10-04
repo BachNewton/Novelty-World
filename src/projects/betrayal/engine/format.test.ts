@@ -46,6 +46,28 @@ describe("migrate", () => {
     expect(migrate({ format: 2, turn: null })).toMatchObject({ turn: null });
   });
 
+  it("upgrades a format 3 state: the turn's omens were drawn by its own explorer", () => {
+    const saved = {
+      format: 3,
+      gameId: "g",
+      turn: {
+        seat: 2,
+        attacked: false,
+        omens: [{ card: "book", room: "attic" }],
+      },
+    };
+    expect(migrate(saved)).toEqual({
+      format: STATE_FORMAT,
+      gameId: "g",
+      turn: {
+        seat: 2,
+        attacked: false,
+        omens: [{ card: "book", seat: 2, room: "attic" }],
+      },
+    });
+    expect(migrate({ format: 3, turn: null })).toMatchObject({ turn: null });
+  });
+
   it("refuses a state with no format number", () => {
     expect(() => migrate({ gameId: "g" })).toThrow(/format/);
   });

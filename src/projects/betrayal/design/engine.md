@@ -166,7 +166,7 @@ Each answer type composes in a fixed way. Composing like this is what makes stac
 
 | Answer type | Composition |
 |---|---|
-| Number (dice, movement, damage, allowance) | base, then **set** (the highest layer's set wins), then **add** (all deltas summed), then **multiply**, then **bound** (the tightest cap), then **fix** (a final fixed value, such as 91's result of 5; the highest layer wins) |
+| Number (dice, movement, damage, allowance) | base, then **set** (the highest layer's set wins), then **add** (all deltas summed), then **fewer** (a cut "to a minimum of N", which stops at N and never lifts an answer already at or below it), then **multiply**, then **bound** (the tightest cap), then **fix** (a final fixed value, such as 91's result of 5; the highest layer wins) |
 | Permission (canAttack, canCarry, canEnterOrLeave…) | deny or allow with reasons. Within a layer, a deny beats an allow. A higher layer may explicitly overrule a lower one (the traitor ignores harmful room text) |
 | Set (targets, traits, connections) | add and remove in layer order |
 | Structured result (combatOutcome, lethalOutcome, movementPolicy, damageRouting) | each modifier transforms the previous result, in layer order |

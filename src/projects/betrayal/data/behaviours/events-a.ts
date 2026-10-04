@@ -177,32 +177,47 @@ function floorOf(state: GameState, room: string) {
   return tile.floor;
 }
 
-/** Using the Slide in a room: a Might roll. On 5+ you choose where you land
- *  below it; otherwise you fall to a new basement room. Off your turn, you
- *  don't draw for that room. */
-function slideRoll(seat: number, room: string, draws: boolean): Step {
+/** Using the Slide in a room: a Might roll, the same roll each time, so it
+ *  is made once a turn (p. 12). On 5+ you choose where you land below it;
+ *  otherwise you fall to a new basement room. Off your turn, you don't draw
+ *  for that room. */
+function slideRoll(
+  state: GameState,
+  seat: number,
+  room: string,
+  draws: boolean,
+): Step {
   const rule = card(SLIDE);
-  return traitRoll(seat, "might", SLIDE, [
-    { min: 5, max: null, steps: [local(SLIDE, "control", { seat, room })] },
-    {
-      min: 0,
-      max: 4,
-      steps: [
-        drawRoomTile(
-          seat,
-          { kind: "doorways", floors: ["basement"], except: null },
-          rule,
-          {
-            then: enterNewRoom(seat, null, rule, {
-              draws,
-              after: [damage(seat, "physical", { dice: 1 }, rule)],
-            }),
-            otherwise: [local(SLIDE, "fall-to-basement", { seat })],
-          },
-        ),
-      ],
-    },
-  ]);
+  // The card's own roll on drawing it is made even when a Slide was already
+  // used this turn; it then has nothing new to record.
+  const id = state.turn?.rolls.includes(SLIDE) ? undefined : SLIDE;
+  return roll(
+    seat,
+    { kind: "trait", trait: "might" },
+    rule,
+    table([
+      { min: 5, max: null, steps: [local(SLIDE, "control", { seat, room })] },
+      {
+        min: 0,
+        max: 4,
+        steps: [
+          drawRoomTile(
+            seat,
+            { kind: "doorways", floors: ["basement"], except: null },
+            rule,
+            {
+              then: enterNewRoom(seat, null, rule, {
+                draws,
+                after: [damage(seat, "physical", { dice: 1 }, rule)],
+              }),
+              otherwise: [local(SLIDE, "fall-to-basement", { seat })],
+            },
+          ),
+        ],
+      },
+    ]),
+    { id },
+  );
 }
 
 /** Event cards A of the base game, from content/cards/events.md. */
@@ -933,7 +948,7 @@ export const EVENTS_A: BehaviourGroup = {
         const room = explorerAt(state, affected).room;
         return [
           placeToken("slide", room, card(SLIDE)),
-          slideRoll(affected, room, state.turn?.seat === affected),
+          slideRoll(state, affected, room, state.turn?.seat === affected),
         ];
       },
       steps: {
@@ -962,8 +977,9 @@ export const EVENTS_A: BehaviourGroup = {
                 .map((t) => ({
                   label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [
-                    relocate(p.seat, t.tile, rule),
-                    damage(p.seat, "physical", { dice: 1 }, rule),
+                    relocate(p.seat, t.tile, rule, null, [
+                      damage(p.seat, "physical", { dice: 1 }, rule),
+                    ]),
                   ],
                 })),
               rule,
@@ -1000,10 +1016,10 @@ export const EVENTS_A: BehaviourGroup = {
       actions: {
         use: {
           label: "Use the Slide (Might roll)",
-          available: () => true,
-          steps: (_state, seat, source) => {
+          available: (state) => !(state.turn?.rolls.includes(SLIDE) ?? true),
+          steps: (state, seat, source) => {
             if (source.room === null) throw new Error("The Slide has no room");
-            return [slideRoll(seat, source.room, true)];
+            return [slideRoll(state, seat, source.room, true)];
           },
         },
       },
@@ -1043,14 +1059,7 @@ export const EVENTS_A: BehaviourGroup = {
           when: (state, { seat, roll: r }, source) =>
             r.spec.kind === "trait" &&
             explorerAt(state, seat).room === source.room,
-          change: { add: -1 },
-        },
-        {
-          question: "dicePool",
-          when: (state, { seat, roll: r }, source) =>
-            r.spec.kind === "trait" &&
-            explorerAt(state, seat).room === source.room,
-          change: { atLeast: 1 },
+          change: { fewer: 1, minimum: 1 },
         },
       ],
     },

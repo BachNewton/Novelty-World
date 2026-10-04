@@ -155,10 +155,12 @@ export function drawRoom(
 type Arrive = { seat: number; room: string; moved: boolean; rule: RuleRef };
 
 /** An explorer goes into a room just put in the house, which discovers it.
- *  They draw the cards for its symbols before its own text applies (p. 9),
- *  then enter it; `after` runs once they are in. Moving in through a door of
- *  a barrier room puts them on that door's side; being put in one, they are
- *  on `side`, which they chose (p. 7). */
+ *  `after` runs as they land, so what lands with them (a fall's damage, a
+ *  token marking where they fell) is done before a card drawn there can send
+ *  them on. They draw the cards for its symbols before its own text applies
+ *  (p. 9), then enter it. Moving in through a door of a barrier room puts
+ *  them on that door's side; being put in one, they are on `side`, which
+ *  they chose (p. 7). */
 export function discoverRoom(
   state: GameState,
   ctx: StepContext,
@@ -185,9 +187,9 @@ export function discoverRoom(
       ctx.catalog.rooms[room].symbols)
     : [];
   ctx.push(
+    ...how.after,
     ...symbols.map((type) => drawCard(seat, type, RULEBOOK(10))),
     step<Arrive>("arrive", { seat, room, moved: how.moved, rule }),
-    ...how.after,
   );
 }
 
@@ -205,7 +207,8 @@ type EnterNewRoom = {
 /** Puts an explorer in a room a card has just put in the house, without
  *  moving there. It counts as discovering the room, so they draw for its
  *  symbols (1st-edition FAQ) unless the card says otherwise. Leaving their room
- *  first runs its rules for leaving; `after` runs only once they are in. */
+ *  first runs its rules for leaving; `after` runs only once they are in, as
+ *  they land and before they draw for the room. */
 export function enterNewRoom(
   seat: number,
   room: string | null,

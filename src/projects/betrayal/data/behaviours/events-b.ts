@@ -710,7 +710,7 @@ export const EVENTS_B: BehaviourGroup = {
           const rule = card("the-beckoning");
           const hurt = damage(p.seat, "physical", { dice: 1 }, rule);
           if (placed(state.board, "patio")) {
-            ctx.push(relocate(p.seat, "patio", rule), hurt);
+            ctx.push(relocate(p.seat, "patio", rule, null, [hurt]));
             return;
           }
           const where: Where = {
@@ -983,14 +983,7 @@ export const EVENTS_B: BehaviourGroup = {
           when: (state, { seat, roll }, source) =>
             roll.spec.kind === "trait" &&
             explorerAt(state, seat).room === source.room,
-          change: { add: -2 },
-        },
-        {
-          question: "dicePool",
-          when: (state, { seat, roll }, source) =>
-            roll.spec.kind === "trait" &&
-            explorerAt(state, seat).room === source.room,
-          change: { atLeast: 1 },
+          change: { fewer: 2, minimum: 1 },
         },
         {
           // Sight is mutual, so the Smoke blocks it into, out of and through

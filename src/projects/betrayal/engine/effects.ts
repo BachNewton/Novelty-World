@@ -550,18 +550,24 @@ type Relocate = {
   room: string;
   rule: RuleRef;
   side: Edge | null;
+  after: Step[];
 };
 
 /** Puts an explorer in a room without moving there: no movement is spent.
- *  Leaving their room first runs its rules for leaving, as any departure does.
+ *  Leaving their room first runs its rules for leaving, as any departure does,
+ *  so `after` runs only once they are in.
  *  Landing in a barrier room, they go to `side`, or else choose one (p. 7). */
 export function relocate(
   seat: number,
   room: string,
   rule: RuleRef,
   side: Edge | null = null,
+  after: Step[] = [],
 ): Step {
-  return leaveRoom(seat, step<Relocate>("relocate", { seat, room, rule, side }));
+  return leaveRoom(
+    seat,
+    step<Relocate>("relocate", { seat, room, rule, side, after }),
+  );
 }
 
 /** Has an explorer landing in a barrier room choose which side they land on
@@ -814,7 +820,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       return;
     }
     if (p.type === "omen" && state.status === "exploring" && state.turn) {
-      state.turn.omens.push({ card, room: explorer.room });
+      state.turn.omens.push({ card, seat: p.seat, room: explorer.room });
     }
     if (p.type === "omen") state.omensDrawn += 1;
     ctx.push(
@@ -1014,6 +1020,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       side: sides.length > 0 ? p.side : null,
     });
     ctx.emit("entered", p.rule, { seat: p.seat, room: p.room, moved: false });
+    ctx.push(...p.after);
   }),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {

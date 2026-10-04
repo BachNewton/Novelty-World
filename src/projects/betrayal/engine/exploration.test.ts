@@ -24,6 +24,7 @@ import {
   markCard,
   returnToDeck,
   startOngoing,
+  step,
 } from "./effects";
 import { NO_HAUNT_ENGINE, simulate } from "../simulation";
 import { choices, start } from "./step-loop";
@@ -147,6 +148,32 @@ describe("omens and the haunt roll", () => {
       room: "abandoned-room",
     });
     expect(state.pending).toBeNull();
+  });
+
+  it("has whoever drew the omen make its roll, at the end of the turn it was drawn on (rules.md's project ruling)", () => {
+    const base = testGame({ decks: { omen: ["book"] } });
+    base.board.tiles.push({
+      tile: "abandoned-room",
+      floor: "ground",
+      x: 9,
+      y: 9,
+      rotation: 0,
+    });
+    base.explorers[1].room = "abandoned-room";
+    base.omensDrawn = 12;
+    // Ox draws the Book on Zoe's turn.
+    let state = start(ENGINE, { ...base, pending: null }, [
+      drawCard(1, "omen", { source: "rulebook", page: 10 }),
+      step("turn-menu", { seat: 0 }),
+    ]);
+    state = choose(state, "End your turn");
+    const rolled = state.lastEvents.find((e) => e.type === "rolled");
+    expect((rolled?.data as { seat: number }).seat).toBe(1);
+    expect(state.haunt).toMatchObject({
+      revealer: 1,
+      omen: "book",
+      room: "abandoned-room",
+    });
   });
 
   it("holds the haunt off when the roll isn't under the omens drawn", () => {
