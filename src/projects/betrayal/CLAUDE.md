@@ -1,6 +1,6 @@
 # Betrayal at House on the Hill
 
-A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. The engine is being built, milestone by milestone, from `design/engine.md`; until a game is playable its page shows the "Coming soon" placeholder. What follows is the decided design direction.
+A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. The engine is being built, milestone by milestone, from `design/engine.md`; until the real UI exists, its page is a plain hot-seat debug view. What follows is the decided design direction.
 
 ## Haunts
 
@@ -112,4 +112,7 @@ Keep the main session thin. Delegate each substantial unit of work (a phase, an 
 
 ## Next step
 
-Building starts at the first milestone of `design/engine.md`.
+Milestones 1 and 2 are built: the engine plays the whole game before the haunt, and stops when the haunt is revealed. Next:
+
+1. **Playtesting tools.** The debug view is too bare to check the engine by hand. Add a way to start from a scenario (stacked decks, a chosen room, "start haunt N"), a readable log built on `describe`, and a clearer board. This is tooling, not the visual design, which starts at milestone 4.
+2. **Milestone 3: haunt 13 end to end.** This means sides, the traitor role and turn order; the reveal as a ready wait; haunt definitions built from the parts kit; conditions and results; `viewFor`; the turn's own attack action; and the cards held back for the haunt.
