@@ -1,6 +1,7 @@
 import type {
   FigureDefinition,
   FigureId,
+  HauntTexts,
   GameState,
   Json,
   RuleRef,
@@ -93,6 +94,9 @@ export interface HauntDefinition {
   set: SetId;
   /** Its file under content/haunts/. */
   content: string;
+  /** Each side's half of its text: the content file's generated
+   *  data/haunt-texts/ JSON, imported (a test holds the two together). */
+  texts: HauntTexts;
   /** Who becomes the traitor, where the haunt says otherwise than its chart
    *  entry. */
   traitor?: TraitorRule;
@@ -215,6 +219,7 @@ export function compileHaunt(definition: HauntDefinition): HauntRules {
   return {
     number: definition.number,
     name: definition.name,
+    texts: definition.texts,
     traitor: definition.traitor ?? null,
     behaviour,
     setup: {

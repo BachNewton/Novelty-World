@@ -108,6 +108,22 @@ export interface HauntChart {
   traitors: Record<number, TraitorRule>;
 }
 
+/** One side's half of a haunt's rules, as content/haunts/ writes it. */
+export interface HauntHalf {
+  /** The book it stands for: "Traitor's Tome" or "Secrets of Survival". */
+  title: string;
+  /** The half's markdown, notes and rulings included. */
+  text: string;
+}
+
+/** A haunt's text, read out of its content/haunts/ file. Each side may read
+ *  only its own half. */
+export interface HauntTexts {
+  name: string;
+  traitor: HauntHalf;
+  heroes: HauntHalf;
+}
+
 /** Where a figure's traits come from: clips on printed tracks (an
  *  explorer's character card), or fixed values (a monster's stats). A trait
  *  a figure lacks is left out. */

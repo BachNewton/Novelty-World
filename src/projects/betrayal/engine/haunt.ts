@@ -3,6 +3,7 @@ import type {
   FigureId,
   GameState,
   HauntReveal,
+  HauntTexts,
   InsertedTurn,
   Json,
   RuleRef,
@@ -34,6 +35,8 @@ import type { Engine, StepContext, StepHandler } from "./step-loop";
 export interface HauntRules {
   number: number;
   name: string;
+  /** Each side's half of its rules, for the seats that may read it. */
+  texts: HauntTexts;
   /** Who becomes the traitor, where the haunt says otherwise than its
    *  chart entry. */
   traitor: TraitorRule | null;

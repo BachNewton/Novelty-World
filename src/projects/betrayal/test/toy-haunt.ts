@@ -22,7 +22,13 @@ import {
   type ObjectiveAction,
 } from "../kit/haunt";
 import { choose, put, ready, testGame, type TestGame } from "../testing";
-import type { FigureDefinition, FigureId, GameState, TurnKind } from "../types";
+import type {
+  FigureDefinition,
+  FigureId,
+  GameState,
+  HauntTexts,
+  TurnKind,
+} from "../types";
 
 // A small haunt built from the kit, for testing the haunt framework without
 // any real haunt's rules. The traitor dozes (can't act, slows no one) beside
@@ -34,6 +40,17 @@ import type { FigureDefinition, FigureId, GameState, TurnKind } from "../types";
 // down (the players).
 // A few objective actions reach the framework's corners: an extra turn, both
 // goals met in one step, and a hero dropping dead.
+
+/** Words only the traitor's half holds, and only the heroes', so a test
+ *  can look for them in what a seat sees. */
+export const TRAITOR_ONLY = "toy-tome-3f7a";
+export const HEROES_ONLY = "toy-survival-91c2";
+
+const TOY_TEXTS: HauntTexts = {
+  name: "Toy haunt",
+  traitor: { title: "Traitor's Tome", text: `The traitor dozes (${TRAITOR_ONLY}).` },
+  heroes: { title: "Secrets of Survival", text: `Wake the traitor (${HEROES_ONLY}).` },
+};
 
 /** One status for every copy of the toy haunt, as a kit status shared by
  *  several haunts is one entry. */
@@ -77,6 +94,7 @@ export function toyHaunt(
     name: "Toy haunt",
     set: "base",
     content: "(a test haunt)",
+    texts: TOY_TEXTS,
     statuses: { dozing: DOZING },
     figures: [PHANTOM],
     counters: {
@@ -179,6 +197,24 @@ export function toyHaunt(
  *  except the revealer, on the chart) and haunt 6 (lowest Sanity). */
 export const TOY_ENGINE: Engine = withHaunts(ENGINE, [toyHaunt(13), toyHaunt(6)]);
 
+/** A secret value no other number in a game takes, so a test can look for
+ *  it in what a seat sees. */
+export const SIGIL = 7_340_033;
+
+/** The toy haunt with one more secret, the sigil, which only the traitor
+ *  knows and no rule reads. */
+export function withSigil(definition: HauntDefinition): HauntDefinition {
+  const part = { part: "secret", secret: "sigil", value: SIGIL, knownBy: "traitor" } as const;
+  return {
+    ...definition,
+    secrets: { ...definition.secrets, sigil: { name: "sigil" } },
+    setup: {
+      ...definition.setup,
+      traitor: [...(definition.setup?.traitor ?? []), part],
+    },
+  };
+}
+
 /** The toy haunt as the sweep plays it: two Phantoms, so a monster turn
  *  has several monsters to act in turn; the heroes need more wake tokens
  *  and the game-ending actions wait for two monster turns, so random play
@@ -221,10 +257,11 @@ const SWEEP_WAKES = 10;
 
 /** The real engine with the toy haunt built under every number on the
  *  chart, so random play goes through the haunt to its end. Its Phantom
- *  stays out of the haunts with no traitor to put it beside. */
+ *  stays out of the haunts with no traitor to put it beside. The sigil is
+ *  there for the views' leak checks. */
 export const ALL_TOY_ENGINE: Engine = withHaunts(
   ENGINE,
-  hauntNumbers(ENGINE.catalog).map(sweptToyHaunt),
+  hauntNumbers(ENGINE.catalog).map((n) => withSigil(sweptToyHaunt(n))),
 );
 
 /** A toy haunt game begun and everyone ready, on Father Rhinehardt's turn:
