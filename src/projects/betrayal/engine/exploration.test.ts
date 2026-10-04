@@ -25,7 +25,8 @@ import {
   returnToDeck,
   startOngoing,
 } from "./effects";
-import { apply, choices, start } from "./step-loop";
+import { NO_HAUNT_ENGINE, simulate } from "../simulation";
+import { choices, start } from "./step-loop";
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
 
@@ -260,26 +261,27 @@ describe("effects", () => {
 });
 
 describe("the choices offered are exactly the legal ones", () => {
-  it("over random play, every offered choice applies", () => {
-    for (const seed of ["a", "b", "c", "d", "e"]) {
-      // Only cards with behaviours so far: one event, and items and omens whose text needs none to be held.
-      let state = testGame({ seed });
-      state.decks.event.draw = Array.from({ length: 10 }, () => "angry-being");
-      for (let i = 0; i < 400 && state.pending?.type === "decision"; i++) {
-        const options = choices(ENGINE, state, waitingOn(state));
-        expect(options.length).toBeGreaterThan(0);
-        const pick = options[(i * 7 + seed.charCodeAt(0)) % options.length];
-        const result = apply(ENGINE, state, {
-          kind: "choose",
-          decision: pendingDecision(state).id,
-          seat: waitingOn(state),
-          choice: pick.choice,
-        });
-        expect(result.ok).toBe(true);
-        if (result.ok) state = result.state;
-      }
-    }
-  });
+  /** A whole game takes a few seconds. */
+  const GAME_TIMEOUT = 30_000;
+
+  // The simulation checks, at every decision of a whole game played with the
+  // full decks, that every listed choice applies and every candidate left out
+  // doesn't. simulation.slow.test.ts sweeps many more seeds.
+  it.each(["a", "b", "c"])(
+    "over random play to the haunt or a full house, seed %s",
+    (seed) => {
+      expect(["haunt", "house-full"]).toContain(simulate(seed).ending);
+    },
+    GAME_TIMEOUT,
+  );
+
+  it.each(["a", "b"])(
+    "over random play with the haunt held off until the house is full, seed %s",
+    (seed) => {
+      expect(simulate(seed, NO_HAUNT_ENGINE).ending).toBe("house-full");
+    },
+    GAME_TIMEOUT,
+  );
 });
 
 describe("cards changing hands", () => {
