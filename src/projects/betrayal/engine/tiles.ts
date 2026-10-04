@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import {
   COMPASS,
+  doorToward,
   doorwaySpot,
   EDGES,
   FLOOR_NAMES,
@@ -26,6 +27,7 @@ import {
   type Spot,
 } from "./board";
 import {
+  chooseSide,
   continueWith,
   defineDecision,
   defineStep,
@@ -33,7 +35,8 @@ import {
   leaveRoom,
   step,
 } from "./effects";
-import { explorerAt } from "./explorers";
+import { explorerAt, putExplorer } from "./explorers";
+import { barrierSides } from "./questions";
 import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
 
 // Putting room tiles in the house and moving them: discovering through a
@@ -153,21 +156,34 @@ type Arrive = { seat: number; room: string; moved: boolean; rule: RuleRef };
 
 /** An explorer goes into a room just put in the house, which discovers it.
  *  They draw the cards for its symbols before its own text applies (p. 9),
- *  then enter it; `after` runs once they are in. */
+ *  then enter it; `after` runs once they are in. Moving in through a door of
+ *  a barrier room puts them on that door's side; being put in one, they are
+ *  on `side`, which they chose (p. 7). */
 export function discoverRoom(
   state: GameState,
   ctx: StepContext,
   seat: number,
   room: string,
   rule: RuleRef,
-  how: { moved: boolean; draws: boolean; after: Step[] },
+  how: { moved: boolean; draws: boolean; after: Step[]; side: Edge | null },
 ): void {
-  const explorer = explorerAt(state, seat);
-  ctx.emit("left", rule, { seat, room: explorer.room, moved: how.moved });
-  explorer.room = room;
+  const from = explorerAt(state, seat).room;
+  const barrier = barrierSides(ctx.engine, room).length > 0;
+  const side = !barrier
+    ? null
+    : how.moved
+      ? doorToward(state.board, ctx.catalog, room, from)
+      : how.side;
+  if (barrier && side === null)
+    throw new Error(`No side to enter the barrier room ${room} on`);
+  ctx.emit("left", rule, { seat, room: from, moved: how.moved });
+  putExplorer(state, seat, { room, side });
   if (how.moved && state.turn) state.turn.moved += 1;
   ctx.emit("discovered", rule, { seat, room });
-  const symbols = how.draws ? ctx.catalog.rooms[room].symbols : [];
+  const symbols = how.draws
+    ? (ctx.engine.behaviours.rooms[room]?.discoveryDraws ??
+      ctx.catalog.rooms[room].symbols)
+    : [];
   ctx.push(
     ...symbols.map((type) => drawCard(seat, type, RULEBOOK(10))),
     step<Arrive>("arrive", { seat, room, moved: how.moved, rule }),
@@ -182,6 +198,8 @@ type EnterNewRoom = {
   rule: RuleRef;
   draws: boolean;
   after: Step[];
+  /** The side of a barrier room they land on, once chosen. */
+  side: Edge | null;
 };
 
 /** Puts an explorer in a room a card has just put in the house, without
@@ -200,6 +218,7 @@ export function enterNewRoom(
     rule,
     draws: how.draws,
     after: how.after ?? [],
+    side: null,
   });
 }
 
@@ -283,10 +302,26 @@ export const TILE_STEPS: Record<string, StepHandler> = {
 
   "into-new-room": defineStep<EnterNewRoom>((state, p, ctx) => {
     if (p.room === null) throw new Error("No room to enter");
+    const sides = barrierSides(ctx.engine, p.room);
+    if (sides.length > 0 && p.side === null) {
+      ctx.push(
+        chooseSide(
+          state,
+          p.seat,
+          p.room,
+          sides,
+          p.rule,
+          step<EnterNewRoom>("into-new-room", p),
+          ctx.catalog.rooms[p.room].name,
+        ),
+      );
+      return;
+    }
     discoverRoom(state, ctx, p.seat, p.room, p.rule, {
       moved: false,
       draws: p.draws,
       after: p.after,
+      side: p.side,
     });
   }),
 

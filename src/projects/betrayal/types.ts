@@ -194,10 +194,19 @@ export interface Seat {
   controller: "human";
 }
 
+/** Where a figure is: a room, and in a barrier room the side it is on, named
+ *  by the printed edge of that side's door. Null outside barrier rooms. */
+export type Place = {
+  room: string;
+  side: Edge | null;
+};
+
 export interface Explorer {
   seat: number;
   character: string;
   room: string;
+  /** In a barrier room, the side they are on (see Place). */
+  side?: Edge;
   /** Each trait's clip, as an index into the character's track. */
   clips: Record<Trait, number>;
   /** Spaces a card pushed a trait past its printed maximum. Losing the card takes these first (p. 11). */
@@ -229,6 +238,12 @@ export interface RoomToken {
    *  the printed edge of the room's tile it sits on, or the two edges of the
    *  corner it sits on. It moves and turns with the tile. */
   wall?: Edge[];
+  /** In a barrier room, the side it lies on (see Place). */
+  side?: Edge;
+  /** Where the other end of a linked pair is (Secret Passage, Secret Stairs). */
+  link?: Place;
+  /** A token that goes wherever this seat's explorer goes (the Dog). */
+  holder?: number;
 }
 
 /** What has happened this turn, for the rules that limit actions per turn. */

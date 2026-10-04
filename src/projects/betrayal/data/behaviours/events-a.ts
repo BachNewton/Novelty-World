@@ -1,4 +1,4 @@
-import { adjacent, distances, FLOORS, placed } from "../../engine/board";
+import { FLOORS, placed } from "../../engine/board";
 import {
   chooseOne,
   damage,
@@ -16,7 +16,14 @@ import {
   table,
   type TableRow,
 } from "../../engine/effects";
-import { explorerAt, TRAITS } from "../../engine/explorers";
+import {
+  explorerAt,
+  placeOf,
+  together,
+  TRAITS,
+} from "../../engine/explorers";
+import { distanceTo } from "../../engine/movement";
+import { askSet } from "../../engine/questions";
 import {
   eventData,
   local,
@@ -214,9 +221,12 @@ export const EVENTS_A: BehaviourGroup = {
         ]),
       ],
       steps: {
-        attack: defineStep<{ seat: number }>((state, p) => {
+        attack: defineStep<{ seat: number }>((state, p, ctx) => {
           const room = explorerAt(state, p.seat).room;
-          const reach = [room, ...adjacent(state.board, room)];
+          const reach = [
+            room,
+            ...askSet(ctx.engine, state, "adjacency", { room }),
+          ];
           const target = state.explorers.some(
             (e) => e.seat !== p.seat && reach.includes(e.room),
           );
@@ -366,23 +376,27 @@ export const EVENTS_A: BehaviourGroup = {
         nearest: defineStep<{ seat: number; trait: Trait; amount: number }>(
           (state, p, ctx) => {
             const rule = card("footsteps");
-            const away = distances(
-              state.board,
-              ctx.catalog,
-              explorerAt(state, p.seat).room,
-            );
-            const others = state.explorers.filter(
-              (e) => e.seat !== p.seat && e.room in away,
-            );
+            const from = placeOf(state, p.seat);
+            const others = state.explorers.flatMap((e) => {
+              if (e.seat === p.seat) return [];
+              const distance = distanceTo(
+                ctx.engine,
+                state,
+                { kind: "explorer", seat: p.seat },
+                from,
+                e.room,
+              );
+              return distance === null ? [] : [{ e, distance }];
+            });
             if (others.length === 0)
               throw new Error("Footsteps found no explorer reachable by route");
-            const closest = Math.min(...others.map((e) => away[e.room]));
+            const closest = Math.min(...others.map((o) => o.distance));
             ctx.push(
               chooseOne(
                 p.seat,
                 others
-                  .filter((e) => away[e.room] === closest)
-                  .map((e) => ({
+                  .filter((o) => o.distance === closest)
+                  .map(({ e }) => ({
                     label: `${explorerName(state, e.seat)} is the nearest explorer`,
                     steps: [gain(e.seat, p.trait, p.amount, rule)],
                   })),
@@ -765,7 +779,9 @@ export const EVENTS_A: BehaviourGroup = {
         ...holderTurnEnded(
           (state, seat, room) =>
             room === "furnace-room" ||
-            state.explorers.some((e) => e.seat !== seat && e.room === room),
+            state.explorers.some(
+              (e) => e.seat !== seat && together(e, explorerAt(state, seat)),
+            ),
           "lights-out",
         ),
         {

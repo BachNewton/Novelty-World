@@ -1,4 +1,12 @@
-import type { GameState, RuleRef } from "../types";
+import type { Edge, GameState, Place, RuleRef } from "../types";
+import {
+  adjacent,
+  connections,
+  doorToward,
+  lineOfSight,
+  placed,
+  turn,
+} from "./board";
 import { traitValue } from "./explorers";
 import {
   LAYERS,
@@ -32,6 +40,26 @@ export interface PermissionQuestions {
   canAct: { seat: number };
   /** Whether an explorer may move from one room to another. */
   canMove: { seat: number; from: string; to: string };
+}
+
+/** What moves: an explorer, or a companion token travelling for its holder (the Dog). */
+export type Mover =
+  | { kind: "explorer"; seat: number }
+  | { kind: "companion"; card: string; seat: number };
+
+export interface SetQuestions {
+  /** The places one space of movement away. */
+  connections: { mover: Mover; from: Place };
+  /** Rooms sharing a side with a room: the rulebook's "adjacent". */
+  adjacency: { room: string };
+  /** Rooms in line of sight of a room (p. 22). */
+  lineOfSight: { room: string };
+}
+
+interface SetItems {
+  connections: Place;
+  adjacency: string;
+  lineOfSight: string;
 }
 
 export type NumberChange =
@@ -69,7 +97,34 @@ type PermissionModifier = {
   };
 }[keyof PermissionQuestions];
 
-export type Modifier = NumberModifier | PermissionModifier;
+type SetModifier = {
+  [Q in keyof SetQuestions]: {
+    question: Q;
+    when?: (
+      state: GameState,
+      subject: SetQuestions[Q],
+      source: Source,
+    ) => boolean;
+    change:
+      | {
+          add: (
+            state: GameState,
+            subject: SetQuestions[Q],
+            source: Source,
+          ) => SetItems[Q][];
+        }
+      /** Rooms taken out of the answer. */
+      | {
+          remove: (
+            state: GameState,
+            subject: SetQuestions[Q],
+            source: Source,
+          ) => string[];
+        };
+  };
+}[keyof SetQuestions];
+
+export type Modifier = NumberModifier | PermissionModifier | SetModifier;
 
 export interface Permission {
   allowed: boolean;
@@ -231,4 +286,98 @@ export function askPermission<Q extends keyof PermissionQuestions>(
       answer = { allowed: true, because: here.map((c) => c.rule) };
   }
   return answer;
+}
+
+/** A barrier room's sides, one by each door, named by its printed edge
+ *  (p. 7). Any other room has none. */
+export function barrierSides(engine: Engine, room: string): Edge[] {
+  return engine.behaviours.rooms[room]?.barrier
+    ? engine.catalog.rooms[room].doors
+    : [];
+}
+
+const SET_BASE: {
+  [Q in keyof SetQuestions]: (
+    engine: Engine,
+    state: GameState,
+    subject: SetQuestions[Q],
+  ) => SetItems[Q][];
+} = {
+  // Through a barrier room only its own side's door leads on; arriving in one
+  // through a door puts you on that door's side.
+  connections: (engine, state, { from }) => {
+    const { board } = state;
+    const sides = barrierSides(engine, from.room);
+    let directions: Edge[] | undefined;
+    if (sides.length > 0) {
+      const tile = placed(board, from.room);
+      if (!tile || from.side === null)
+        throw new Error(`No side given in the barrier room ${from.room}`);
+      directions = [turn(from.side, tile.rotation)];
+    }
+    return connections(board, engine.catalog, from.room, directions).map(
+      (room) => ({
+        room,
+        side:
+          barrierSides(engine, room).length > 0
+            ? doorToward(board, engine.catalog, room, from.room)
+            : null,
+      }),
+    );
+  },
+  adjacency: (_engine, state, { room }) => adjacent(state.board, room),
+  lineOfSight: (engine, state, { room }) =>
+    lineOfSight(state.board, engine.catalog, room),
+};
+
+const itemRoom = (item: Place | string) =>
+  typeof item === "string" ? item : item.room;
+
+/** The base answer, then each layer's additions and removals in layer order.
+ *  Within a layer a removal beats an addition. */
+export function askSet<Q extends keyof SetQuestions>(
+  engine: Engine,
+  state: GameState,
+  question: Q,
+  subject: SetQuestions[Q],
+): SetItems[Q][] {
+  type Change =
+    | { add: (s: GameState, subject: unknown, source: Source) => SetItems[Q][] }
+    | { remove: (s: GameState, subject: unknown, source: Source) => string[] };
+  const changes: (Applied<Change> & { source: Source })[] = [];
+  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+    for (const modifier of behaviour.modifiers ?? []) {
+      if (modifier.question !== question) continue;
+      // The modifier's own type ties `when` and its change to this question.
+      const when = modifier.when as
+        | ((s: GameState, subject: unknown, source: Source) => boolean)
+        | undefined;
+      if (when && !when(state, subject, source)) continue;
+      changes.push({
+        layer: source.layer,
+        change: modifier.change as Change,
+        rule: source.rule,
+        source,
+      });
+    }
+  }
+  const answer = new Map<string, SetItems[Q]>();
+  for (const item of SET_BASE[question](engine, state, subject))
+    answer.set(JSON.stringify(item), item);
+  for (const layer of LAYERS) {
+    const here = changes.filter((c) => c.layer === layer);
+    for (const { change, source } of here)
+      if ("add" in change)
+        for (const item of change.add(state, subject, source))
+          answer.set(JSON.stringify(item), item);
+    for (const { change, source } of here)
+      if ("remove" in change) {
+        const rooms = change.remove(state, subject, source);
+        for (const [key, item] of answer)
+          if (rooms.includes(itemRoom(item))) answer.delete(key);
+      }
+  }
+  return [...answer.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([, item]) => item);
 }

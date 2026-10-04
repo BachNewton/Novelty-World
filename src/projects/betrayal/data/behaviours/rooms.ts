@@ -1,9 +1,11 @@
-import { FLOOR_NAMES } from "../../engine/board";
-import { explorerAt } from "../../engine/explorers";
+import { FLOOR_NAMES, placed } from "../../engine/board";
+import { explorerAt, placeOf } from "../../engine/explorers";
 import {
   chooseOne,
   damage,
   defineStep,
+  drawCard,
+  endMovement,
   gain,
   placeToken,
   relocate,
@@ -18,6 +20,7 @@ import {
   type BehaviourGroup,
   type Source,
 } from "../../engine/sources";
+import { crossBarrier } from "../../engine/movement";
 import {
   drawRoomTile,
   enterNewRoom,
@@ -136,6 +139,53 @@ function rollToLeave(trait: Trait, target: number, loss: Trait): Behaviour {
   };
 }
 
+/** A barrier room, split in two with one side by each door (p. 7). Once a
+ *  turn an explorer may try the room's roll to cross to the other side.
+ *  Crossing is part of moving, so it can't be tried once their movement has
+ *  ended, but it spends none, so it can be tried with no spaces left; failing
+ *  ends their movement (rules.md's project ruling). */
+function barrierRoom(trait: Trait, target: number): Behaviour {
+  const id = (room: string) => `cross-${room}`;
+  return {
+    barrier: { trait, target },
+    actions: {
+      cross: {
+        label: `Try to cross (${traitName(trait)} roll of ${target}+)`,
+        available: (state, _seat, source) =>
+          state.turn !== null &&
+          !state.turn.movementEnded &&
+          !state.turn.rolls.includes(id(source.id)),
+        steps: (state, seat, source) => {
+          const side = explorerAt(state, seat).side;
+          const other = CATALOG.rooms[source.id].doors.find((d) => d !== side);
+          if (side === undefined || other === undefined)
+            throw new Error(`No other side of the ${source.id} to cross to`);
+          return [
+            roll(
+              seat,
+              { kind: "trait", trait },
+              source.rule,
+              table([
+                {
+                  min: target,
+                  max: null,
+                  steps: [crossBarrier(seat, other, source.rule)],
+                },
+                {
+                  min: 0,
+                  max: target - 1,
+                  steps: [endMovement(seat, source.rule)],
+                },
+              ]),
+              { id: id(source.id) },
+            ),
+          ];
+        },
+      },
+    },
+  };
+}
+
 type Seat = { seat: number };
 type Entered = { seat: number; room: string; discovered?: boolean };
 
@@ -157,6 +207,61 @@ export const ROOMS: BehaviourGroup = {
     attic: rollToLeave("speed", 3, "might"),
     graveyard: rollToLeave("sanity", 4, "knowledge"),
     "pentagram-chamber": rollToLeave("knowledge", 4, "sanity"),
+
+    tower: barrierRoom("might", 3),
+    chasm: barrierRoom("speed", 3),
+    catacombs: barrierRoom("sanity", 6),
+
+    // Its two item symbols are what is locked inside, so discovering it
+    // draws only the event; opening it draws the items (rooms.md). Everyone
+    // in it is outside the vault door (p. 8), and no one goes in to empty it,
+    // so the engine tracks no sides here (rooms.md's project ruling).
+    vault: {
+      discoveryDraws: ["event"],
+      actions: {
+        open: {
+          label: "Try to open the Vault (Knowledge roll of 6+)",
+          available: (state) =>
+            !state.tokens.some((t) => t.token === "vault-empty") &&
+            !(state.turn?.rolls.includes("vault") ?? true),
+          steps: (_state, seat, source) => [
+            roll(
+              seat,
+              { kind: "trait", trait: "knowledge" },
+              source.rule,
+              table([
+                {
+                  min: 6,
+                  max: null,
+                  steps: [
+                    drawCard(seat, "item", source.rule),
+                    drawCard(seat, "item", source.rule),
+                    placeToken("vault-empty", source.id, source.rule),
+                  ],
+                },
+                { min: 0, max: 5, steps: [] },
+              ]),
+              { id: "vault" },
+            ),
+          ],
+        },
+      },
+    },
+
+    // Falling spends no movement, so it can be done with none left and
+    // movement goes on afterwards (rooms.md's official ruling).
+    gallery: {
+      actions: {
+        fall: {
+          label: "Fall down to the Ballroom (1 die of physical damage)",
+          available: (state) => placed(state.board, "ballroom") !== undefined,
+          steps: (_state, seat, source) => [
+            relocate(seat, "ballroom", source.rule),
+            damage(seat, "physical", { dice: 1 }, source.rule),
+          ],
+        },
+      },
+    },
 
     crypt: endTurnDamage("mental"),
     "furnace-room": endTurnDamage("physical"),
@@ -207,7 +312,10 @@ export const ROOMS: BehaviourGroup = {
           const hurt = damage(p.seat, "physical", { dice: 1 }, rule);
           const below = state.tokens.find((t) => t.token === BELOW);
           if (below) {
-            ctx.push(relocate(p.seat, below.room, rule), hurt);
+            ctx.push(
+              relocate(p.seat, below.room, rule, below.side ?? null),
+              hurt,
+            );
             return;
           }
           ctx.push(
@@ -225,10 +333,10 @@ export const ROOMS: BehaviourGroup = {
             ),
           );
         }),
+        // In a barrier room the token stays on the side they landed on (p. 7).
         mark: defineStep<Seat>((state, p, ctx) => {
-          ctx.push(
-            placeToken(BELOW, explorerAt(state, p.seat).room, COLLAPSED_RULE),
-          );
+          const { room, side } = placeOf(state, p.seat);
+          ctx.push(placeToken(BELOW, room, COLLAPSED_RULE, { side }));
         }),
         // Every basement tile is placed: the faller chooses a basement room.
         land: defineStep<Seat>((state, p, ctx) => {
@@ -242,7 +350,7 @@ export const ROOMS: BehaviourGroup = {
                   label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [
                     relocate(p.seat, t.tile, rule),
-                    placeToken(BELOW, t.tile, rule),
+                    local(COLLAPSED, "mark", p),
                     damage(p.seat, "physical", { dice: 1 }, rule),
                   ],
                 })),

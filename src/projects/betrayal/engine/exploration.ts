@@ -10,14 +10,21 @@ import type {
 } from "../types";
 import {
   COMPASS,
-  connections,
   doorwaySpot,
   freeDoorways,
   placed,
+  sideName,
   startingBoard,
+  turn,
   type Doorway,
 } from "./board";
-import { explorerAt, TRAITS } from "./explorers";
+import {
+  explorerAt,
+  placeOf,
+  putExplorer,
+  together,
+  TRAITS,
+} from "./explorers";
 import {
   defineDecision,
   defineStep,
@@ -28,8 +35,9 @@ import {
   leaveRoom,
   roll,
   step,
+  takeFromPile,
 } from "./effects";
-import { askNumber, askPermission } from "./questions";
+import { askNumber, askPermission, askSet } from "./questions";
 import { atSource, liveSources, type Source } from "./sources";
 import { emptyState } from "./state";
 import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
@@ -99,7 +107,7 @@ function daysUntil(
 // ---------------------------------------------------------------------------
 
 export type TurnChoice =
-  | { act: "move"; to: string }
+  | { act: "move"; to: string; side: Edge | null }
   | { act: "discover"; direction: Edge }
   | { act: "action"; source: Source["kind"]; id: string; action: string }
   | { act: "trade"; with: number; give: string | null; take: string | null }
@@ -150,7 +158,7 @@ function cardActions(
     for (const [action, definition] of Object.entries(
       behaviour.actions ?? {},
     )) {
-      if (definition.available(state, seat, source))
+      if (definition.available(state, seat, source, engine))
         result.push({ source, action });
     }
   }
@@ -164,6 +172,23 @@ function canMoveItem(
   how: "trade" | "drop",
 ): boolean {
   return engine.catalog.cards[card].transfer[how] && !isHandled(state, card);
+}
+
+/** Where an explorer can move one space to. */
+function moves(engine: Engine, state: GameState, seat: number) {
+  return askSet(engine, state, "connections", {
+    mover: { kind: "explorer", seat },
+    from: placeOf(state, seat),
+  });
+}
+
+/** In a barrier room only the door on your own side is in reach (p. 7). */
+function inReach(state: GameState, seat: number, direction: Edge): boolean {
+  const { room, side } = placeOf(state, seat);
+  if (side === null) return true;
+  const tile = placed(state.board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  return turn(side, tile.rotation) === direction;
 }
 
 function floorOf(state: GameState, room: string): FloorId {
@@ -181,21 +206,21 @@ function turnCandidates(
   if (!askPermission(engine, state, "canAct", { seat }).allowed) return [end];
   const explorer = explorerAt(state, seat);
   const choices: TurnChoice[] = [];
-  for (const to of connections(state.board, engine.catalog, explorer.room))
-    choices.push({ act: "move", to });
+  for (const to of moves(engine, state, seat))
+    choices.push({ act: "move", to: to.room, side: to.side });
   for (const doorway of freeDoorways(
     state.board,
     engine.catalog,
     floorOf(state, explorer.room),
   )) {
-    if (doorway.room === explorer.room)
+    if (doorway.room === explorer.room && inReach(state, seat, doorway.direction))
       choices.push({ act: "discover", direction: doorway.direction });
   }
   for (const { source, action } of cardActions(engine, state, seat)) {
     choices.push({ act: "action", source: source.kind, id: source.id, action });
   }
   for (const other of state.explorers) {
-    if (other.seat === seat || other.room !== explorer.room) continue;
+    if (other.seat === seat || !together(other, explorer)) continue;
     const gives = [
       null,
       ...explorer.cards.filter((c) => canMoveItem(engine, state, c, "trade")),
@@ -230,8 +255,8 @@ function takeTurnChoice(
     case "move": {
       if (movementLeft(engine, state, seat) <= 0) return "No movement left";
       if (
-        !connections(state.board, engine.catalog, explorer.room).includes(
-          choice.to,
+        !moves(engine, state, seat).some(
+          (p) => p.room === choice.to && p.side === choice.side,
         )
       )
         return "That room isn't connected";
@@ -243,7 +268,12 @@ function takeTurnChoice(
         }).allowed
       )
         return "Something stops that move";
-      return [leaveRoom(seat, step<Move>("move", { seat, to: choice.to }))];
+      return [
+        leaveRoom(
+          seat,
+          step<Move>("move", { seat, to: choice.to, side: choice.side }),
+        ),
+      ];
     }
     case "discover": {
       if (movementLeft(engine, state, seat) <= 0) return "No movement left";
@@ -259,6 +289,8 @@ function takeTurnChoice(
       ) {
         return "That doorway doesn't open onto anything";
       }
+      if (!inReach(state, seat, choice.direction))
+        return "That door is across the barrier";
       if (
         ![...state.board.stack, ...state.board.discards].some((tile) =>
           fits(engine, state, tile, doorway),
@@ -292,7 +324,7 @@ function takeTurnChoice(
     case "trade": {
       if (turn.traded) return "You have already traded this turn";
       const other = state.explorers.find((e) => e.seat === choice.with);
-      if (!other || other.room !== explorer.room)
+      if (!other || !together(other, explorer))
         return "You can only trade with an explorer in your room";
       if (
         choice.give !== null &&
@@ -352,7 +384,9 @@ function describeTurnChoice(
     engine.catalog.characters[explorerAt(state, s).character].name;
   switch (choice.act) {
     case "move":
-      return `Move to the ${room(choice.to)}`;
+      return choice.side === null
+        ? `Move to the ${room(choice.to)}`
+        : `Move to the ${room(choice.to)}, on its ${sideName(state.board, choice.to, choice.side)} side`;
     case "discover":
       return `Explore through the ${COMPASS[choice.direction]} door of the ${room(explorerAt(state, seat).room)}`;
     case "action": {
@@ -382,7 +416,7 @@ function describeTurnChoice(
 // Steps
 // ---------------------------------------------------------------------------
 
-type Move = { seat: number; to: string };
+type Move = { seat: number; to: string; side: Edge | null };
 type Discover = { seat: number; direction: Edge };
 type Rotation = { seat: number; tile: string; doorway: Doorway };
 type Trade = {
@@ -453,7 +487,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       room: explorer.room,
       moved: true,
     });
-    explorer.room = p.to;
+    putExplorer(state, p.seat, { room: p.to, side: p.side });
     if (state.turn) state.turn.moved += 1;
     ctx.emit("entered", RULEBOOK(6), { seat: p.seat, room: p.to, moved: true });
   }),
@@ -489,9 +523,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
 
   pickup: defineStep<Drop>((state, p, ctx) => {
     const explorer = explorerAt(state, p.seat);
-    const pile = (state.piles[explorer.room] ?? []).filter((c) => c !== p.card);
-    if (pile.length > 0) state.piles[explorer.room] = pile;
-    else delete state.piles[explorer.room];
+    takeFromPile(state, explorer.room, p.card);
     handle(state, p.card);
     if (state.turn) state.turn.pickupRoom = explorer.room;
     ctx.push(gainCard(p.seat, p.card, "picked-up", RULEBOOK(11)));
@@ -605,6 +637,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
         moved: true,
         draws: true,
         after: [],
+        side: null,
       });
       return null;
     },

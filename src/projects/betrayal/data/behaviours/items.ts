@@ -1,4 +1,3 @@
-import { adjacent } from "../../engine/board";
 import {
   cardFlag,
   chooseOne,
@@ -15,7 +14,15 @@ import {
   table,
   type Option,
 } from "../../engine/effects";
-import { explorerAt, MENTAL, PHYSICAL, TRAITS } from "../../engine/explorers";
+import {
+  explorerAt,
+  MENTAL,
+  PHYSICAL,
+  together,
+  TRAITS,
+} from "../../engine/explorers";
+import { moveCloser } from "../../engine/movement";
+import { askSet } from "../../engine/questions";
 import {
   eventData,
   local,
@@ -47,12 +54,19 @@ function discardAfterUse(id: string): Reaction {
   };
 }
 
+/** The heroes, once the haunt gives the explorers sides. */
+function heroes(_state: GameState): Explorer[] {
+  throw new Error(
+    "Heroes are a side, and the engine doesn't give explorers sides yet",
+  );
+}
+
 /** You, and the other explorers in your room. */
 function yourselfAndRoommates(state: GameState, seat: number): Explorer[] {
   const you = explorerAt(state, seat);
   return [
     you,
-    ...state.explorers.filter((e) => e.seat !== seat && e.room === you.room),
+    ...state.explorers.filter((e) => e.seat !== seat && together(e, you)),
   ];
 }
 
@@ -224,6 +238,60 @@ export const ITEMS: BehaviourGroup = {
       onLose: (_state, seat) => [
         gain(seat, "sanity", -1, card("bell"), "bell"),
       ],
+      actions: {
+        ring: {
+          label: "Ring the Bell (Sanity roll)",
+          available: (state) =>
+            state.status === "haunt" && !state.turn?.rolls.includes("bell"),
+          steps: (_state, seat) => [
+            roll(
+              seat,
+              { kind: "trait", trait: "sanity" },
+              card("bell"),
+              table([
+                {
+                  min: 5,
+                  max: null,
+                  steps: [local("bell", "call-heroes", { seat })],
+                },
+                {
+                  min: 0,
+                  max: 4,
+                  steps: [local("bell", "call-monsters", { seat })],
+                },
+              ]),
+              { id: "bell" },
+            ),
+          ],
+        },
+      },
+      steps: {
+        // The ringer picks which heroes come, each 1 space closer to them.
+        "call-heroes": defineStep<{ seat: number }>((state, p, ctx) => {
+          const rule = card("bell");
+          const here = explorerAt(state, p.seat).room;
+          ctx.push(
+            ...heroes(state).map((hero) =>
+              chooseOne(
+                p.seat,
+                [
+                  {
+                    label: `Call ${explorerName(hero)} 1 space closer`,
+                    steps: [moveCloser(hero.seat, here, p.seat, rule)],
+                  },
+                  { label: `Leave ${explorerName(hero)} be`, steps: [] },
+                ],
+                rule,
+              ),
+            ),
+          );
+        }),
+        "call-monsters": () => {
+          throw new Error(
+            "The Bell's 0-4 moves monsters, which the engine doesn't have yet",
+          );
+        },
+      },
     },
 
     bottle: {
@@ -384,17 +452,21 @@ export const ITEMS: BehaviourGroup = {
             .filter((e) => e.seat !== p.seat && e.room !== here)
             .map((e) => ({
               label: `Move to ${explorerName(e)} in the ${roomName(e.room)}`,
-              steps: [relocate(p.seat, e.room, card("dark-dice"))],
+              steps: [
+                relocate(p.seat, e.room, card("dark-dice"), e.side ?? null),
+              ],
             }));
           if (options.length > 0)
             ctx.push(chooseOne(p.seat, options, card("dark-dice")));
         }),
         push: defineStep<{ seat: number }>((state, p, ctx) => {
-          const here = explorerAt(state, p.seat).room;
+          const you = explorerAt(state, p.seat);
           const options = state.explorers
-            .filter((e) => e.seat !== p.seat && e.room === here)
+            .filter((e) => e.seat !== p.seat && together(e, you))
             .flatMap((e) =>
-              adjacent(state.board, here).map((room) => ({
+              askSet(ctx.engine, state, "adjacency", {
+                room: you.room,
+              }).map((room) => ({
                 label: `Move ${explorerName(e)} into the ${roomName(room)}`,
                 steps: [relocate(e.seat, room, card("dark-dice"))],
               })),
@@ -403,10 +475,9 @@ export const ITEMS: BehaviourGroup = {
             ctx.push(chooseOne(p.seat, options, card("dark-dice")));
         }),
         step: defineStep<{ seat: number }>((state, p, ctx) => {
-          const options = adjacent(
-            state.board,
-            explorerAt(state, p.seat).room,
-          ).map((room) => ({
+          const options = askSet(ctx.engine, state, "adjacency", {
+            room: explorerAt(state, p.seat).room,
+          }).map((room) => ({
             label: `Move into the ${roomName(room)}`,
             steps: [relocate(p.seat, room, card("dark-dice"))],
           }));

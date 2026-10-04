@@ -135,6 +135,10 @@ export function describeEvent(
           : `${who(d.seat)} is put in the ${words.room(d.room)}`,
       );
     }
+    case "crossed": {
+      const d = data<{ seat: number; room: string }>(event);
+      return sentence(`${who(d.seat)} crosses the ${words.room(d.room)}`);
+    }
     case "discovered": {
       const d = data<{ seat: number; room: string }>(event);
       return sentence(`${who(d.seat)} discovers the ${words.room(d.room)}`);

@@ -6,6 +6,8 @@ import {
   neighbourCell,
   placed,
   roomAt,
+  sideName,
+  sightLines,
   turn,
 } from "../../engine/board";
 import {
@@ -24,8 +26,14 @@ import {
   table,
   type TableRow,
 } from "../../engine/effects";
-import { explorerAt, TRAITS } from "../../engine/explorers";
-import { local, type BehaviourGroup } from "../../engine/sources";
+import { explorerAt, placeOf, TRAITS } from "../../engine/explorers";
+import { barrierSides } from "../../engine/questions";
+import {
+  local,
+  type Behaviour,
+  type BehaviourGroup,
+} from "../../engine/sources";
+import type { Engine } from "../../engine/step-loop";
 import {
   drawRoomTile,
   enterNewRoom,
@@ -37,7 +45,9 @@ import {
 import type {
   Catalog,
   Edge,
+  FloorId,
   GameState,
+  Place,
   RuleRef,
   Step,
   Trait,
@@ -98,6 +108,127 @@ function heldItems(state: GameState, seat: number): string[] {
 }
 
 type SeatParams = { seat: number };
+
+/** Every place in these rooms: each side of a barrier room, as a token there
+ *  lies on one side (p. 7). */
+function placesIn(engine: Engine, rooms: string[]): Place[] {
+  return rooms.flatMap((room): Place[] => {
+    const sides = barrierSides(engine, room);
+    return sides.length === 0
+      ? [{ room, side: null }]
+      : sides.map((side) => ({ room, side }));
+  });
+}
+
+function placeLabel(state: GameState, place: Place): string {
+  const room = `the ${CATALOG.rooms[place.room].name}`;
+  return place.side === null
+    ? room
+    : `${room}, on its ${sideName(state.board, place.room, place.side)} side`;
+}
+
+type Linked = { seat: number; there: Place };
+
+/** A card that links two rooms with a pair of tokens (Secret Passage, Secret
+ *  Stairs): one goes in the drawer's room, on their side, and the other where
+ *  they choose among `rooms`. Then they may go through at once, even with no
+ *  movement left, followed by `after` once they are there. */
+function linkRooms(
+  id: string,
+  token: string,
+  after: (seat: number) => Step[],
+) {
+  const rule = card(id);
+  return {
+    otherEnd: (
+      engine: Engine,
+      state: GameState,
+      seat: number,
+      rooms: string[],
+    ): Step =>
+      chooseOne(
+        seat,
+        placesIn(engine, rooms).map((there) => ({
+          label: `Put the other ${CATALOG.tokens[token].name} token in ${placeLabel(state, there)}`,
+          steps: [local(id, "link", { seat, there })],
+        })),
+        rule,
+      ),
+    steps: {
+      link: defineStep<Linked>((state, p, ctx) => {
+        const here = placeOf(state, p.seat);
+        const same = here.room === p.there.room && here.side === p.there.side;
+        ctx.push(
+          placeToken(token, here.room, rule, {
+            side: here.side,
+            link: p.there,
+          }),
+          placeToken(token, p.there.room, rule, {
+            side: p.there.side,
+            link: here,
+          }),
+          ...(same
+            ? []
+            : [
+                chooseOne(
+                  p.seat,
+                  [
+                    {
+                      label: `Go through to ${placeLabel(state, p.there)}`,
+                      steps: [
+                        relocate(p.seat, p.there.room, rule, p.there.side),
+                        local(id, "arrived", p),
+                      ],
+                    },
+                    { label: "Stay here", steps: [] },
+                  ],
+                  rule,
+                ),
+              ]),
+        );
+      }),
+      // A rule for leaving may have kept them where they were.
+      arrived: defineStep<Linked>((state, p, ctx) => {
+        if (explorerAt(state, p.seat).room === p.there.room)
+          ctx.push(...after(p.seat));
+      }),
+    },
+  };
+}
+
+const SECRET_PASSAGE = linkRooms("secret-passage", "secret-passage", () => []);
+// Only the drawer, only going through at once, draws (the card's resolution).
+const SECRET_STAIRS = linkRooms("secret-stairs", "secret-stairs", (seat) => [
+  drawCard(seat, "event", card("secret-stairs")),
+]);
+
+/** A linked token joins its room, on its side, to where the other one lies:
+ *  going through counts as one space. Any explorer may use it. */
+const LINKED_TOKEN: Behaviour = {
+  modifiers: [
+    {
+      question: "connections",
+      when: (_state, { mover, from }, source) =>
+        mover.kind === "explorer" &&
+        source.token !== null &&
+        source.token.room === from.room &&
+        (source.token.side ?? null) === from.side,
+      change: {
+        add: (_state, { from }, source) => {
+          const link = source.token?.link;
+          return link && !(link.room === from.room && link.side === from.side)
+            ? [link]
+            : [];
+        },
+      },
+    },
+  ],
+};
+
+const roomsOn = (state: GameState, floors: FloorId[] | null) =>
+  state.board.tiles
+    .filter((t) => floors === null || floors.includes(t.floor))
+    .map((t) => t.tile);
 
 /** Where a Wall Switch can go, as printed edges of the room's tile: each wall
  *  with no exit, and each corner (cards/events.md, Revolving Wall). */
@@ -407,8 +538,64 @@ export const EVENTS_B: BehaviourGroup = {
       },
     },
 
-    // The Smoke token's dice penalty is its own behaviour, under tokens. Its blocking of
-    // line of sight waits for the engine to ask a line-of-sight question.
+    "secret-passage": {
+      onDraw: (_state, seat) => {
+        const on = (floors: FloorId[] | null) => [
+          local("secret-passage", "other-end", { seat, floors }),
+        ];
+        return [
+          roll(
+            seat,
+            { kind: "dice", count: 3 },
+            card("secret-passage"),
+            table([
+              { min: 6, max: null, steps: on(null) },
+              { min: 4, max: 5, steps: on(["upper"]) },
+              { min: 2, max: 3, steps: on(["ground"]) },
+              { min: 0, max: 1, steps: on(["basement"]) },
+            ]),
+          ),
+        ];
+      },
+      steps: {
+        ...SECRET_PASSAGE.steps,
+        "other-end": defineStep<{ seat: number; floors: FloorId[] | null }>(
+          (state, p, ctx) => {
+            ctx.push(
+              SECRET_PASSAGE.otherEnd(
+                ctx.engine,
+                state,
+                p.seat,
+                roomsOn(state, p.floors),
+              ),
+            );
+          },
+        ),
+      },
+    },
+
+    "secret-stairs": {
+      onDraw: (_state, seat) => [local("secret-stairs", "other-end", { seat })],
+      steps: {
+        ...SECRET_STAIRS.steps,
+        "other-end": defineStep<SeatParams>((state, p, ctx) => {
+          const floor = floorOf(state, explorerAt(state, p.seat).room);
+          ctx.push(
+            SECRET_STAIRS.otherEnd(
+              ctx.engine,
+              state,
+              p.seat,
+              roomsOn(
+                state,
+                FLOORS.filter((f) => f !== floor),
+              ),
+            ),
+          );
+        }),
+      },
+    },
+
+    // The Smoke token's rules are its own behaviour, under tokens.
     smoke: {
       onDraw: (state, seat) => [
         placeToken("smoke", explorerAt(state, seat).room, card("smoke")),
@@ -684,6 +871,9 @@ export const EVENTS_B: BehaviourGroup = {
   },
 
   tokens: {
+    "secret-passage": LINKED_TOKEN,
+    "secret-stairs": LINKED_TOKEN,
+
     "wall-switch": {
       actions: {
         use: {
@@ -768,6 +958,21 @@ export const EVENTS_B: BehaviourGroup = {
             roll.spec.kind === "trait" &&
             explorerAt(state, seat).room === source.room,
           change: { atLeast: 1 },
+        },
+        {
+          // Sight is mutual, so the Smoke blocks it into, out of and through
+          // its room (the card's project ruling).
+          question: "lineOfSight",
+          change: {
+            remove: (state, { room }, source) => {
+              const lines = sightLines(state.board, CATALOG, room);
+              if (room === source.room) return lines.flat();
+              return lines.flatMap((line) => {
+                const at = line.findIndex((r) => r === source.room);
+                return at < 0 ? [] : line.slice(at);
+              });
+            },
+          },
         },
       ],
     },

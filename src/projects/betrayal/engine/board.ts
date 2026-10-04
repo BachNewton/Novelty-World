@@ -97,17 +97,19 @@ function through(
   return undefined;
 }
 
-/** Rooms one space away by movement: through matching openings, and by the
- *  fixed links (stairs) once both ends are in the house. */
+/** Rooms one space away by movement: through matching openings (only those
+ *  facing `directions`, when given), and by the fixed links (stairs) once both
+ *  ends are in the house. */
 export function connections(
   board: Board,
   catalog: Catalog,
   room: string,
+  directions: readonly Edge[] = EDGES,
 ): string[] {
   const tile = placed(board, room);
   if (!tile) return [];
   const result = new Set<string>();
-  for (const direction of EDGES) {
+  for (const direction of directions) {
     const next = through(board, catalog, tile, direction);
     if (next) result.add(next.tile);
   }
@@ -139,17 +141,45 @@ export function lineOfSight(
   catalog: Catalog,
   room: string,
 ): string[] {
+  return sightLines(board, catalog, room).flat().sort();
+}
+
+/** Each straight line of doors leading out of a room, nearest room first. */
+export function sightLines(
+  board: Board,
+  catalog: Catalog,
+  room: string,
+): string[][] {
   const tile = placed(board, room);
   if (!tile) return [];
-  const result: string[] = [];
+  const result: string[][] = [];
   for (const direction of EDGES) {
+    const line: string[] = [];
     let current = through(board, catalog, tile, direction);
     while (current) {
-      result.push(current.tile);
+      line.push(current.tile);
       current = through(board, catalog, current, direction);
     }
+    if (line.length > 0) result.push(line);
   }
-  return result.sort();
+  return result;
+}
+
+/** The printed door edge of a room that opens onto another room, if a door
+ *  joins them. */
+export function doorToward(
+  board: Board,
+  catalog: Catalog,
+  room: string,
+  other: string,
+): Edge | null {
+  const tile = placed(board, room);
+  if (!tile) return null;
+  for (const door of catalog.rooms[room].doors) {
+    const direction = turn(door, tile.rotation);
+    if (through(board, catalog, tile, direction)?.tile === other) return door;
+  }
+  return null;
 }
 
 /** Spaces of movement from a room to every room reachable from it. */
@@ -217,6 +247,14 @@ export const FLOOR_NAMES: Record<FloorId, string> = {
   upper: "upper floor",
   roof: "roof",
 };
+
+/** Which way a side of a placed room faces: a printed edge, as the board
+ *  sees it once the tile is turned. */
+export function sideName(board: Board, room: string, side: Edge): string {
+  const tile = placed(board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  return COMPASS[turn(side, tile.rotation)];
+}
 
 /** Floors bottom to top. */
 export const FLOORS: readonly FloorId[] = [

@@ -198,7 +198,9 @@ describe("items", () => {
   it("won't let a companion be traded or dropped", () => {
     const state = testGame();
     state.explorers[0].cards = ["dog"];
-    expect(labels(state).filter((l) => l.includes("Dog"))).toEqual([]);
+    expect(
+      labels(state).filter((l) => /^(Drop|Offer|Give).*Dog/.test(l)),
+    ).toEqual([]);
   });
 });
 

@@ -2,6 +2,7 @@ import { CATALOG } from "./data";
 import { BEHAVIOURS } from "./data/behaviours";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
+import { MOVEMENT_STEPS } from "./engine/movement";
 import { localStep, type Behaviours } from "./engine/sources";
 import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
 import type { Engine, Rules, StepHandler } from "./engine/step-loop";
@@ -20,7 +21,12 @@ function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
 }
 
 export function buildRules(behaviours: Behaviours): Rules {
-  const steps = { ...EFFECT_STEPS, ...EXPLORATION_STEPS, ...TILE_STEPS };
+  const steps = {
+    ...EFFECT_STEPS,
+    ...EXPLORATION_STEPS,
+    ...TILE_STEPS,
+    ...MOVEMENT_STEPS,
+  };
   for (const [name, handler] of Object.entries(localSteps(behaviours))) {
     if (name in steps) throw new Error(`Step ${name} is registered twice`);
     steps[name] = handler;

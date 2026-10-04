@@ -4,13 +4,21 @@ import type {
   Edge,
   GameState,
   Json,
+  Place,
   RuleRef,
   Step,
   Trait,
 } from "../types";
+import { sideName } from "./board";
 import { rollName, traitName } from "./describe";
-import { explorerAt, MENTAL, moveClip, PHYSICAL } from "./explorers";
-import { askNumber, MAX_DICE } from "./questions";
+import {
+  explorerAt,
+  MENTAL,
+  moveClip,
+  PHYSICAL,
+  putExplorer,
+} from "./explorers";
+import { askNumber, barrierSides, MAX_DICE } from "./questions";
 import {
   liveSources,
   type RollOption,
@@ -98,6 +106,19 @@ export function handle(state: GameState, card: string): void {
 
 export function isHandled(state: GameState, card: string): boolean {
   return state.turn?.handled.includes(card) ?? false;
+}
+
+/** Takes a card out of a room's item pile. */
+export function takeFromPile(
+  state: GameState,
+  room: string,
+  card: string,
+): void {
+  const pile = state.piles[room] ?? [];
+  if (!pile.includes(card)) throw new Error(`No ${card} in the ${room} pile`);
+  const rest = pile.filter((c) => c !== card);
+  if (rest.length > 0) state.piles[room] = rest;
+  else delete state.piles[room];
 }
 
 // ---------------------------------------------------------------------------
@@ -448,11 +469,30 @@ type PlaceToken = {
   token: string;
   room: string;
   wall: Edge[] | null;
+  side: Edge | null;
+  link: Place | null;
+  holder: number | null;
   rule: RuleRef;
 };
 
-export function placeToken(token: string, room: string, rule: RuleRef): Step {
-  return step<PlaceToken>("place-token", { token, room, wall: null, rule });
+/** Puts a token in a room: in a barrier room, on one `side`; one of a linked
+ *  pair, with a `link` to where the other lies; or following a `holder`
+ *  wherever their explorer goes. */
+export function placeToken(
+  token: string,
+  room: string,
+  rule: RuleRef,
+  how: { side?: Edge | null; link?: Place; holder?: number } = {},
+): Step {
+  return step<PlaceToken>("place-token", {
+    token,
+    room,
+    wall: null,
+    side: how.side ?? null,
+    link: how.link ?? null,
+    holder: how.holder ?? null,
+    rule,
+  });
 }
 
 /** Puts a token on a wall of a room (printed edges of its tile: one for a
@@ -463,7 +503,15 @@ export function placeWallToken(
   wall: Edge[],
   rule: RuleRef,
 ): Step {
-  return step<PlaceToken>("place-token", { token, room, wall, rule });
+  return step<PlaceToken>("place-token", {
+    token,
+    room,
+    wall,
+    side: null,
+    link: null,
+    holder: null,
+    rule,
+  });
 }
 
 export function removeToken(token: string, room: string, rule: RuleRef): Step {
@@ -474,16 +522,43 @@ export function removeToken(token: string, room: string, rule: RuleRef): Step {
   });
 }
 
+type Relocate = {
+  seat: number;
+  room: string;
+  rule: RuleRef;
+  side: Edge | null;
+};
+
 /** Puts an explorer in a room without moving there: no movement is spent.
- *  Leaving their room first runs its rules for leaving, as any departure does. */
-export function relocate(seat: number, room: string, rule: RuleRef): Step {
-  return leaveRoom(
+ *  Leaving their room first runs its rules for leaving, as any departure does.
+ *  Landing in a barrier room, they go to `side`, or else choose one (p. 7). */
+export function relocate(
+  seat: number,
+  room: string,
+  rule: RuleRef,
+  side: Edge | null = null,
+): Step {
+  return leaveRoom(seat, step<Relocate>("relocate", { seat, room, rule, side }));
+}
+
+/** Has an explorer landing in a barrier room choose which side they land on
+ *  (p. 7), continuing into `then` with it as `side`. */
+export function chooseSide(
+  state: GameState,
+  seat: number,
+  room: string,
+  sides: Edge[],
+  rule: RuleRef,
+  then: Step,
+  roomName: string,
+): Step {
+  return chooseOne(
     seat,
-    step<{ seat: number; room: string; rule: RuleRef }>("relocate", {
-      seat,
-      room,
-      rule,
-    }),
+    sides.map((side) => ({
+      label: `Land on the ${sideName(state.board, room, side)} side of the ${roomName}`,
+      steps: [continueWith(then, { side })],
+    })),
+    rule,
   );
 }
 
@@ -794,11 +869,14 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "place-token": defineStep<PlaceToken>((state, p, ctx) => {
-    state.tokens.push(
-      p.wall
-        ? { token: p.token, room: p.room, wall: p.wall }
-        : { token: p.token, room: p.room },
-    );
+    state.tokens.push({
+      token: p.token,
+      room: p.room,
+      ...(p.wall && { wall: p.wall }),
+      ...(p.side && { side: p.side }),
+      ...(p.link && { link: p.link }),
+      ...(p.holder !== null && { holder: p.holder }),
+    });
     ctx.emit("token-placed", p.rule, {
       token: p.token,
       room: p.room,
@@ -865,18 +943,33 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     });
   }),
 
-  relocate: defineStep<{ seat: number; room: string; rule: RuleRef }>(
-    (state, p, ctx) => {
-      const explorer = explorerAt(state, p.seat);
-      ctx.emit("left", p.rule, {
-        seat: p.seat,
-        room: explorer.room,
-        moved: false,
-      });
-      explorer.room = p.room;
-      ctx.emit("entered", p.rule, { seat: p.seat, room: p.room, moved: false });
-    },
-  ),
+  relocate: defineStep<Relocate>((state, p, ctx) => {
+    const sides = barrierSides(ctx.engine, p.room);
+    if (sides.length > 0 && p.side === null) {
+      ctx.push(
+        chooseSide(
+          state,
+          p.seat,
+          p.room,
+          sides,
+          p.rule,
+          step<Relocate>("relocate", p),
+          ctx.catalog.rooms[p.room].name,
+        ),
+      );
+      return;
+    }
+    ctx.emit("left", p.rule, {
+      seat: p.seat,
+      room: explorerAt(state, p.seat).room,
+      moved: false,
+    });
+    putExplorer(state, p.seat, {
+      room: p.room,
+      side: sides.length > 0 ? p.side : null,
+    });
+    ctx.emit("entered", p.rule, { seat: p.seat, room: p.room, moved: false });
+  }),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {
     state.ongoing.push(p.card);

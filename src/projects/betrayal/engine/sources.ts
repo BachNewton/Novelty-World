@@ -1,14 +1,16 @@
 import type {
+  CardType,
   Edge,
   GameEvent,
   GameState,
   Json,
+  RoomToken,
   RuleRef,
   Step,
   Trait,
 } from "../types";
 import { beyondWall, roomAt } from "./board";
-import type { StepHandler } from "./step-loop";
+import type { Engine, StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
 
 // A rule source is anything in play whose text changes the game: a held or
@@ -29,6 +31,8 @@ export interface Source {
   /** For a token on a wall, the room on the wall's other side, if any. An
    *  explorer in either room is at the token. */
   beside: string | null;
+  /** The token itself, for a token source. */
+  token: RoomToken | null;
 }
 
 /** The rulebook's order for conflicts: a card beats the rulebook (p. 12), a haunt beats everything (p. 17). */
@@ -68,7 +72,12 @@ export interface RollContext {
 export interface SourceAction {
   label: string;
   /** Whether the seat may take it now. Being offered is not enough: the action must also apply. */
-  available: (state: GameState, seat: number, source: Source) => boolean;
+  available: (
+    state: GameState,
+    seat: number,
+    source: Source,
+    engine: Engine,
+  ) => boolean;
   steps: (state: GameState, seat: number, source: Source) => Step[];
 }
 
@@ -102,6 +111,12 @@ export interface Behaviour {
   ) => Step[];
   /** Its holder may take damage of the other kind as this kind instead (the Skull). */
   damageAs?: "physical" | "mental";
+  /** A barrier room: split in two, one side by each door, crossed by this
+   *  trait roll (p. 7). */
+  barrier?: { trait: Trait; target: number };
+  /** The cards discovering this room draws, where its text gives some of its
+   *  printed symbols another meaning (the Vault's items are its contents). */
+  discoveryDraws?: CardType[];
   /** Steps only this source uses, registered under the source's id. */
   steps?: Record<string, StepHandler>;
   /** A card lying in a room still acts from there (an open Music Box). Other
@@ -151,6 +166,7 @@ export function liveSources(
         holder: null,
         room: tile.tile,
         beside: null,
+        token: null,
       };
       result.push({ source, behaviour });
     }
@@ -187,6 +203,7 @@ export function liveSources(
         holder: null,
         room: token.room,
         beside: token.wall ? besideWall(state, token.room, token.wall) : null,
+        token,
       };
       result.push({ source, behaviour });
     }
@@ -203,6 +220,7 @@ function cardSource(card: string, holder: number | null): Source {
     holder,
     room: null,
     beside: null,
+    token: null,
   };
 }
 
