@@ -82,7 +82,7 @@ type Search = { seat: number; type: "item" | "event" };
 const DOG = card("dog");
 /** The small monster token standing for the Dog. Before the haunt no monster
  *  has a colour yet, so any colour differs from theirs. */
-const DOG_TOKEN = "monster-magenta";
+const DOG_TOKEN = "dog";
 /** Rooms the Dog can't go into: the one-way Coal Chute and the Mystic
  *  Elevator (the card's official ruling), and the rooms that take a roll to
  *  leave, as it could never come back out (the card's project ruling). The

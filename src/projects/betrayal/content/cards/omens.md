@@ -96,6 +96,8 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   - The Dog can't carry items that slow movement.
   - This omen can't be dropped, traded, or stolen.
   - Make a haunt roll now.
+  > Note: The card borrows a small monster token "whose color differs from any other monsters", but a haunt revealed later may bring monsters of that colour.
+  > Resolution (project): in this digital version the Dog has a marker of its own, not a monster token, so it can never be mistaken for a monster or counted among a haunt's tokens. The colour rule exists only to tell pieces apart on a physical table.
   > Note: The card does not list which rooms count as one-way passages or rooms that require a roll.
   > Resolution (official): the Dog can't go through the Collapsed Room, Coal Chute, Gallery or Mystic Slide (one-way), the Revolving Wall (needs a roll), or the Mystic Elevator. Monsters don't slow it, and it can't carry a haunt item that makes its carrier spend two moves to enter a room. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 

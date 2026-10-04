@@ -383,12 +383,12 @@ describe("Dog (cards/omens.md)", () => {
   }
   const SEND = "Send the Dog to a room up to 6 spaces away and back";
   const dogToken = (state: GameState) =>
-    state.tokens.find((t) => t.token === "monster-magenta");
+    state.tokens.find((t) => t.token === "dog");
 
   it("puts a token for the Dog in your room, which goes wherever you go", () => {
     let state = withDog();
     expect(dogToken(state)).toEqual({
-      token: "monster-magenta",
+      token: "dog",
       room: "dining-room",
       holder: 0,
     });
