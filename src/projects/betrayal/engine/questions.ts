@@ -413,7 +413,11 @@ function applicable<C>(
   subject: unknown,
 ): Applied<C>[] {
   const result: Applied<C>[] = [];
-  for (const { source, behaviour } of liveSources(engine, state)) {
+  for (const { source, behaviour } of liveSources(
+    engine,
+    state,
+    `modifiers:${question}`,
+  )) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` to this question's subject.
@@ -624,7 +628,11 @@ export function askSet<Q extends keyof SetQuestions>(
     | { add: (s: GameState, subject: unknown, source: Source) => SetItems[Q][] }
     | { remove: (s: GameState, subject: unknown, source: Source) => string[] };
   const changes: (Applied<Change> & { source: Source })[] = [];
-  for (const { source, behaviour } of liveSources(engine, state)) {
+  for (const { source, behaviour } of liveSources(
+    engine,
+    state,
+    `modifiers:${question}`,
+  )) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.
@@ -775,7 +783,11 @@ export function askStructured<Q extends keyof StructuredQuestions>(
     source: Source,
   ) => Answer;
   const changes: { layer: Layer; transform: Transform; source: Source }[] = [];
-  for (const { source, behaviour } of liveSources(engine, state)) {
+  for (const { source, behaviour } of liveSources(
+    engine,
+    state,
+    `modifiers:${question}`,
+  )) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.

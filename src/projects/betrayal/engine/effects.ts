@@ -230,7 +230,7 @@ function damageKinds(
   figure: FigureId,
   damage: "physical" | "mental",
 ): Source[] {
-  return liveSources(engine, state)
+  return liveSources(engine, state, "damageAs")
     .filter(
       ({ source, behaviour }) =>
         source.holder === figure &&
@@ -354,7 +354,11 @@ function rollOptions(
   // theirs, so none of their cards act on it.
   if (r.spec.kind === "attack" && r.spec.dice !== null) return result;
   const ownTurn = onTurn(engine, state, r.figure);
-  for (const { source, behaviour } of liveSources(engine, state)) {
+  for (const { source, behaviour } of liveSources(
+    engine,
+    state,
+    "rollOptions",
+  )) {
     if (
       source.kind !== "card" ||
       source.holder !== r.figure ||
@@ -1368,7 +1372,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     if (!takesPart(state, p.figure)) return;
     if (placeOf(state, p.figure).room !== p.room)
       throw new Error(`${p.figure} left ${p.room} before its rules said so`);
-    const next = liveSources(ctx.engine, state).find(
+    const next = liveSources(ctx.engine, state, "beforeLeave").find(
       ({ source, behaviour }) =>
         behaviour.beforeLeave !== undefined &&
         !p.heard.includes(`${source.kind}:${source.id}`) &&

@@ -89,7 +89,7 @@ export function start(
   state: GameState,
   work: Step[],
 ): GameState {
-  const draft = structuredClone(state);
+  const draft = copyState(state);
   const write = beginWrite(engine, draft, SETUP_KEY, SETUP_KEY);
   write.ctx.push(...work);
   run(engine, draft, write);
@@ -107,7 +107,7 @@ export function apply(
       return reject("That wait is no longer pending");
     if (!pending.seats.includes(action.seat))
       return reject("That seat isn't being waited on");
-    const draft = structuredClone(state);
+    const draft = copyState(state);
     const write = beginWrite(
       engine,
       draft,
@@ -135,7 +135,7 @@ export function apply(
   if (!offered.includes(JSON.stringify(action.choice)))
     return reject("That choice isn't offered");
 
-  const draft = structuredClone(state);
+  const draft = copyState(state);
   const write = beginWrite(
     engine,
     draft,
@@ -179,7 +179,7 @@ function tryAnswer(
   seat: number,
   choice: Json,
 ): string | null {
-  const draft = structuredClone(state);
+  const draft = copyState(state);
   const decision = draft.pending as Decision;
   return answer(
     engine,
@@ -324,7 +324,7 @@ function react(engine: Engine, draft: GameState, write: Write): void {
   const events = draft.lastEvents.slice(write.reacted);
   write.reacted = draft.lastEvents.length;
   if (events.length === 0) return;
-  const sources = liveSources(engine, draft);
+  const sources = liveSources(engine, draft, "reactions");
   const steps = events.flatMap((event) =>
     sources.flatMap(({ source, behaviour }) =>
       (behaviour.reactions ?? [])
@@ -337,6 +337,23 @@ function react(engine: Engine, draft: GameState, write: Write): void {
     ),
   );
   write.ctx.push(...steps);
+}
+
+/** A deep copy of the state, which is plain JSON throughout (the saved
+ *  format holds it as such). The engine copies it for every choice it
+ *  tries, and copying plain data by hand is many times faster than
+ *  structuredClone, which has to handle every kind of object. */
+function copyState(state: GameState): GameState {
+  return copyData(state) as GameState;
+}
+
+function copyData(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  if (Array.isArray(value)) return value.map(copyData);
+  const object = value as Record<string, unknown>;
+  const copy: Record<string, unknown> = {};
+  for (const key of Object.keys(object)) copy[key] = copyData(object[key]);
+  return copy;
 }
 
 function decisionKind(engine: Engine, kind: string): DecisionKind {

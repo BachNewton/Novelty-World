@@ -1,16 +1,17 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { NO_HAUNT_ENGINE, simulate, type SimulationResult } from "./simulation";
 import { ENGINE } from "./game";
 import { ALL_TOY_ENGINE } from "./test/toy-haunt";
+import type { GameState } from "./types";
 
 // Whole games over many seeds, a random but legal policy on every seat (see
 // simulation.ts for what is checked at every write). A failure names its
 // seed, which replays the same game: simulate("s123").
 
-/** A long game takes a few seconds; one that reaches a built haunt and
- *  plays it out, with every choice dry-run at every decision, can take a
- *  minute or more. */
-const GAME_TIMEOUT = 180_000;
+/** The longest game, seed s104, plays a long haunt 13 out in about 20
+ *  seconds, every choice dry-run at every decision; the rest take under 7. */
+const GAME_TIMEOUT = 40_000;
 
 const seeds = (count: number) =>
   Array.from({ length: count }, (_, i) => `s${i}`);
@@ -21,17 +22,32 @@ const played = (result: SimulationResult) => {
   return result;
 };
 
+/** Seed s104's game, every state it wrote in order, hashed. Speeding the
+ *  engine up must not change it; a deliberate change to the rules or the
+ *  policy that changes the game updates it. */
+const S104_WRITES =
+  "fc5ff3fbd69ba3340d9317f22e7b505640a86641c2ecb181e1974e25a25ac241";
+const writes = createHash("sha256");
+const hashWrites = (state: GameState) => {
+  writes.update(JSON.stringify(state));
+};
+
 // A haunt that is built is played out to its end; any other stops the game.
 describe("random play to the haunt, or until the house is full", () => {
   it.each(seeds(400))(
     "seed %s",
     (seed) => {
       expect(["haunt", "finished", "house-full"]).toContain(
-        played(simulate(seed)).ending,
+        played(simulate(seed, ENGINE, seed === "s104" ? hashWrites : undefined))
+          .ending,
       );
     },
     GAME_TIMEOUT,
   );
+});
+
+it("plays seed s104 to the same states", () => {
+  expect(writes.digest("hex")).toBe(S104_WRITES);
 });
 
 describe("random play with the haunt held off until the house is full", () => {

@@ -590,7 +590,7 @@ export function checkConditions(
   if (state.status !== "haunt" || state.turn === null) return;
   const sources = [
     { source: RULEBOOK_SOURCE, behaviour: { conditions: [ALL_HEROES_DEAD] } },
-    ...liveSources(engine, state),
+    ...liveSources(engine, state, "conditions"),
   ];
   const fired = state.memory.conditions;
   const goals: Goal[] = [];

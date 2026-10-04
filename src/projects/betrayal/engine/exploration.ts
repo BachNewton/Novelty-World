@@ -263,7 +263,11 @@ function cardActions(
 ): { source: Source; action: string; definition: SourceAction }[] {
   const result: { source: Source; action: string; definition: SourceAction }[] =
     [];
-  for (const { source, behaviour } of liveSources(engine, state)) {
+  for (const { source, behaviour } of liveSources(
+    engine,
+    state,
+    "actions",
+  )) {
     for (const [action, definition] of Object.entries(
       behaviour.actions ?? {},
     )) {
@@ -590,7 +594,7 @@ function describeTurnChoice(
     case "discover":
       return `Explore through the ${COMPASS[choice.direction]} door of the ${room(placeOf(state, acting(state)).room)}`;
     case "action": {
-      const behaviour = liveSources(engine, state).find(
+      const behaviour = liveSources(engine, state, "actions").find(
         (s) => s.source.kind === choice.source && s.source.id === choice.id,
       )?.behaviour;
       return behaviour?.actions?.[choice.action]?.label ?? choice.action;

@@ -259,110 +259,191 @@ export function hauntSourceId(haunt: number): string {
   return `haunt-${haunt}`;
 }
 
-/** Every source in play that has a behaviour, in a stable order. */
+/** What a reader of the live sources looks for. A source whose behaviour
+ *  lacks it would contribute nothing, so it is left out: the questions are
+ *  asked many times for every choice tried, and most sources have no say in
+ *  most of them. */
+export type Facet =
+  | `modifiers:${string}`
+  | "conditions"
+  | "reactions"
+  | "rollOptions"
+  | "actions"
+  | "damageAs"
+  | "beforeLeave";
+
+type Group = Partial<Record<string, Behaviour>>;
+
+function hasFacet(behaviour: Behaviour, facet: Facet): boolean {
+  if (facet.startsWith("modifiers:")) {
+    const question = facet.slice("modifiers:".length);
+    return (behaviour.modifiers ?? []).some((m) => m.question === question);
+  }
+  return (
+    behaviour[facet as Exclude<Facet, `modifiers:${string}`>] !== undefined
+  );
+}
+
+const withFacet = new WeakMap<Group, Map<Facet, Group | null>>();
+
+/** The behaviours of one kind (every card's, say) that have a facet, or null
+ *  for none. Worked out once: the content's behaviours never change while
+ *  the engine runs. */
+function only(group: Group, facet: Facet): Group | null {
+  let known = withFacet.get(group);
+  if (!known) withFacet.set(group, (known = new Map()));
+  let found = known.get(facet);
+  if (found === undefined) {
+    const entries = Object.entries(group).filter(
+      ([, b]) => b !== undefined && hasFacet(b, facet),
+    );
+    found = entries.length === 0 ? null : Object.fromEntries(entries);
+    known.set(facet, found);
+  }
+  return found;
+}
+
+const rulebookOrder = new WeakMap<
+  Group,
+  { id: string; behaviour: Behaviour; page: number }[]
+>();
+
+/** The rulebook's own sources in order of id. */
+function rulebookRules(
+  rulebook: Group,
+): { id: string; behaviour: Behaviour; page: number }[] {
+  let rules = rulebookOrder.get(rulebook);
+  if (!rules) {
+    rules = Object.entries(rulebook)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .flatMap(([id, behaviour]) => {
+        if (!behaviour) return [];
+        if (behaviour.page === undefined)
+          throw new Error(`The rulebook rule ${id} names no page`);
+        return [{ id, behaviour, page: behaviour.page }];
+      });
+    rulebookOrder.set(rulebook, rules);
+  }
+  return rules;
+}
+
+/** Every source in play whose behaviour has a facet, in a stable order. */
 export function liveSources(
   engine: Engine,
   state: GameState,
+  facet: Facet,
 ): { source: Source; behaviour: Behaviour }[] {
   const { behaviours } = engine;
   const result: { source: Source; behaviour: Behaviour }[] = [];
-  const rules = Object.entries(behaviours.rulebook).sort(([a], [b]) =>
-    a < b ? -1 : 1,
-  );
-  for (const [id, behaviour] of rules) {
-    if (!behaviour) continue;
-    if (behaviour.page === undefined)
-      throw new Error(`The rulebook rule ${id} names no page`);
-    const source: Source = {
-      layer: "rulebook",
-      kind: "rulebook",
-      id,
-      rule: { source: "rulebook", page: behaviour.page },
-      holder: null,
-      room: null,
-      beside: null,
-      token: null,
-      status: null,
-    };
-    result.push({ source, behaviour });
-  }
-  for (const tile of state.board.tiles) {
-    const behaviour = behaviours.rooms[tile.tile];
-    if (behaviour) {
+  const rulebook = only(behaviours.rulebook, facet);
+  if (rulebook)
+    for (const { id, behaviour, page } of rulebookRules(rulebook)) {
       const source: Source = {
-        layer: "room",
-        kind: "room",
-        id: tile.tile,
-        rule: { source: "room", room: tile.tile },
+        layer: "rulebook",
+        kind: "rulebook",
+        id,
+        rule: { source: "rulebook", page },
         holder: null,
-        room: tile.tile,
+        room: null,
         beside: null,
         token: null,
         status: null,
       };
       result.push({ source, behaviour });
     }
-  }
-  // A dead figure's cards and statuses do nothing more: it takes no further
-  // part (p. 16).
-  for (const figure of allFigures(state).filter((f) => f.alive)) {
-    for (const card of figure.cards) {
-      const behaviour = behaviours.cards[card];
-      if (behaviour)
-        result.push({ source: cardSource(card, figure.id), behaviour });
-    }
-    for (const status of figure.statuses) {
-      const behaviour = behaviours.statuses[status.id];
+  const rooms = only(behaviours.rooms, facet);
+  if (rooms)
+    for (const tile of state.board.tiles) {
+      const behaviour = rooms[tile.tile];
       if (behaviour) {
         const source: Source = {
-          layer: LAYER_OF[status.rule.source],
-          kind: "status",
-          id: status.id,
-          rule: status.rule,
-          holder: figure.id,
-          room: null,
+          layer: "room",
+          kind: "room",
+          id: tile.tile,
+          rule: { source: "room", room: tile.tile },
+          holder: null,
+          room: tile.tile,
           beside: null,
           token: null,
-          status,
+          status: null,
         };
         result.push({ source, behaviour });
       }
     }
-  }
-  for (const card of state.ongoing) {
-    const behaviour = behaviours.cards[card];
-    if (behaviour) result.push({ source: cardSource(card, null), behaviour });
-  }
-  const piles = Object.entries(state.piles).sort(([a], [b]) =>
-    a < b ? -1 : 1,
-  );
-  for (const [room, pile] of piles) {
-    for (const card of pile) {
-      const behaviour = behaviours.cards[card];
-      if (behaviour?.actsFromRoom)
-        result.push({ source: { ...cardSource(card, null), room }, behaviour });
+  const cards = only(behaviours.cards, facet);
+  const statuses = only(behaviours.statuses, facet);
+  // A dead figure's cards and statuses do nothing more: it takes no further
+  // part (p. 16).
+  if (cards || statuses)
+    for (const figure of allFigures(state).filter((f) => f.alive)) {
+      if (cards)
+        for (const card of figure.cards) {
+          const behaviour = cards[card];
+          if (behaviour)
+            result.push({ source: cardSource(card, figure.id), behaviour });
+        }
+      if (statuses)
+        for (const status of figure.statuses) {
+          const behaviour = statuses[status.id];
+          if (behaviour) {
+            const source: Source = {
+              layer: LAYER_OF[status.rule.source],
+              kind: "status",
+              id: status.id,
+              rule: status.rule,
+              holder: figure.id,
+              room: null,
+              beside: null,
+              token: null,
+              status,
+            };
+            result.push({ source, behaviour });
+          }
+        }
+    }
+  if (cards) {
+    for (const card of state.ongoing) {
+      const behaviour = cards[card];
+      if (behaviour) result.push({ source: cardSource(card, null), behaviour });
+    }
+    const piles = Object.entries(state.piles).sort(([a], [b]) =>
+      a < b ? -1 : 1,
+    );
+    for (const [room, pile] of piles) {
+      for (const card of pile) {
+        const behaviour = cards[card];
+        if (behaviour?.actsFromRoom)
+          result.push({
+            source: { ...cardSource(card, null), room },
+            behaviour,
+          });
+      }
     }
   }
-  for (const token of state.tokens) {
-    const behaviour = behaviours.tokens[token.token];
-    if (behaviour) {
-      const source: Source = {
-        layer: "card",
-        kind: "token",
-        id: token.token,
-        rule: { source: "token", token: token.token },
-        holder: null,
-        room: token.room,
-        beside: token.wall ? besideWall(state, token.room, token.wall) : null,
-        token,
-        status: null,
-      };
-      result.push({ source, behaviour });
+  const tokens = only(behaviours.tokens, facet);
+  if (tokens)
+    for (const token of state.tokens) {
+      const behaviour = tokens[token.token];
+      if (behaviour) {
+        const source: Source = {
+          layer: "card",
+          kind: "token",
+          id: token.token,
+          rule: { source: "token", token: token.token },
+          holder: null,
+          room: token.room,
+          beside: token.wall
+            ? besideWall(state, token.room, token.wall)
+            : null,
+          token,
+          status: null,
+        };
+        result.push({ source, behaviour });
+      }
     }
-  }
   const haunt = state.status === "haunt" ? state.haunt : null;
   const hauntRules = haunt === null ? undefined : engine.haunts[haunt.number];
-  if (haunt !== null && hauntRules) {
+  if (haunt !== null && hauntRules && hasFacet(hauntRules.behaviour, facet)) {
     const source: Source = {
       layer: "haunt",
       kind: "haunt",
