@@ -13,6 +13,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: the card says "trait rolls" without saying whether an attack, which is rolled on a trait, counts as one; and it names only heroes, so whether a traitor in the room gets the extra die rests on that one word.
 > Resolution (official): attacks are not trait rolls, so the Blessing never adds a die to combat; and the bonus is for heroes only, not the traitor (the 1st-edition card said "each explorer" and the FAQ corrected it to "each hero", which the 2nd-edition card now prints). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: there are no heroes before the haunt starts (rules p. 3: explorers become heroes or the traitor when the haunt is revealed), so read literally the Blessing does nothing until then.
+> Resolution (project): before the haunt every explorer counts as a hero for this card, and from the haunt on only the heroes do. The 1st-edition card gave the die to "each explorer", and the FAQ changed it to "each hero" only to keep it from the traitor; nothing suggests the designers meant a card drawn in the exploration phase to sit idle until the haunt. Research: no ruling found on BGG or in the FAQ. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
 ## Acupuncture
 - Deck: event
 - Set: Widow's Walk

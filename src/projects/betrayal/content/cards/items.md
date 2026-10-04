@@ -311,6 +311,9 @@ Drawn when an explorer discovers a room with an item symbol.
 > Note: The title is printed "PICKPOKET'S GLOVES", a misprint of "Pickpocket's". It's kept as printed here. Haunt 100 (Let's Play a Game) names the card "Pickpocket Gloves".
 > Resolution (official): The name is a misprint: Haunt 100 spells it with "Pickpocket", and the open-source card data (tkindy/betrayal) uses "Pickpocket's Gloves". Search for the card under either spelling. Source: https://github.com/tkindy/betrayal
 
+> Note: the card says "take", not "steal", so it is unclear whether items and omens that can't be stolen (the Armor, the Box, the companions) are protected from it, and whether the Blood Dagger's "if it is stolen" damage applies.
+> Resolution (project): taking with the gloves is stealing, without the attack. The gloves can take any item or omen the other explorer could lose to a steal: not the Armor, not an omen marked "can't be stolen", but the Blood Dagger (its holder takes the 2 dice of physical damage) and any tradable omen or haunt item token, unless a haunt forbids stealing. The take counts as the steal action for that item this turn. Otherwise a single discarded card would undo every "can't be stolen" line in the game, which those lines exist to prevent; the one BGG answer on omens (thread 610370) also lets the gloves take whatever the stealing rules allow, and thread 1414426 treats the take as a steal for the one-action limit. Source: https://boardgamegeek.com/thread/610370, https://boardgamegeek.com/thread/1414426
+
 ## Puzzle Box
 - Deck: item
 - Set: base

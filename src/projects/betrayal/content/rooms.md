@@ -268,6 +268,9 @@ Every room tile of the base game (44 tiles, plus the three-room Entrance Hall / 
 - Marks: none
 - Text: You may try a Knowledge roll of 6+ to open the vault and empty it.
 
+> Note: the tile doesn't say what "empty it" gives you, or how many cards. The tile shows an event symbol and two item symbols, and the rulebook's symbol rule would have the discoverer draw all three.
+> Resolution (community): the two item symbols are the vault's contents. Discovering the Vault draws only its event card; the explorer who opens it draws 2 item cards, and the Vault Empty token goes on the tile. The 1st-edition FAQ says that on the turn you discover the Vault you draw an event card and may then try to open it, and BGG players describe opening it as drawing two item cards. The 1st-edition tile text is the same ("open and empty the vault"). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://daviau1.rssing.com/chan-5960803/article58898.html (BGG thread "Purpose of Vault Empty token?")
+
 ## Attic
 - Set: base
 - Floors: Upper
@@ -307,6 +310,9 @@ Every room tile of the base game (44 tiles, plus the three-room Entrance Hall / 
 - Symbols: omen
 - Marks: none
 - Text: You may choose to fall down to the Ballroom, if the Ballroom is in the house. If you do, take 1 die of physical damage.
+
+> Note: the tile doesn't say whether falling to the Ballroom costs a space of movement, or whether you can fall with no movement left.
+> Resolution (official): falling spends no movement. The 1st-edition FAQ, answering a question about climbing up with the Rope, takes as given that going down from the Gallery or the Collapsed Room doesn't take a move, and the 2nd-edition rulebook says the same of the Collapsed Room (p. 7). It follows that you may fall during your move even with no movement left, and keep moving afterwards with whatever movement you had. Climbing back up costs a move. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Master Bedroom
 - Set: base

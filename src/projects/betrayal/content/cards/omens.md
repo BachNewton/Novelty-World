@@ -99,6 +99,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   > Note: The card does not list which rooms count as one-way passages or rooms that require a roll.
   > Resolution (official): the Dog can't go through the Collapsed Room, Coal Chute, Gallery or Mystic Slide (one-way), the Revolving Wall (needs a roll), or the Mystic Elevator. Monsters don't slow it, and it can't carry a haunt item that makes its carrier spend two moves to enter a room. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+  > Note: The card doesn't say where an item ends up after the Dog's trip, or what becomes of an item it carries when it is lost or its holder dies.
+  > Resolution (project): the Dog's trip is one action that ends back with its holder, so it never holds an item between turns. An item it picks up (from an item pile, in a room it reaches) goes straight into its holder's possession when it returns; an item its holder gives it can be dropped in a room it reaches, onto that room's item pile. It doesn't trade with other explorers, since the card names only picking up, carrying and dropping. With nothing ever left on the Dog, losing it or its holder's death moves no item except as the usual rules say for the holder's own items. The one BGG answer on how the Dog works reads it the same way, as a six-room "boomerang" fetch. Source: https://boardgamegeek.com/thread/610370, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
 ## Girl
 - Deck: omen
 - Set: base

@@ -253,6 +253,9 @@
   - Larder: a door on the top edge and one on the bottom edge, a symbol (item symbol, a horned skull), the room name, and rules text reading "If you end your turn here, gain 1 Might."
   - This diagram is an illustration of tile anatomy; the room tiles themselves are the source for each room's rules text.
 - False doors cannot be moved through. False windows do not count as windows for any card or haunt effect, unless a haunt says otherwise.
+
+> Note: several cards and haunts (Shrieking Wind, The Beckoning, haunts 11, 13, 18, 24, 35, 50) speak of a room with an "outside-facing window" without defining it.
+> Resolution (official): an outside-facing window is a window on an edge with no room placed against it. A window against any placed room is a false feature and doesn't count as a window, so a window room counts only while at least one of its windows faces an empty space. Haunts 13 and 24 say explicitly when a false-window room still counts, and haunt 11 removes a Specter when its window "becomes false (blocked by another room)", which confirms the default. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf (p. 8 rule: "False windows between rooms do not count as windows for the purposes of any scenario or card")
 - If the top room tile cannot be placed on your current floor, put it face down on a room discard pile. Keep discarding until you reach a tile that can go on your floor. (Some tiles are legal on more than one floor.)
 - You may move through a door only when it connects to a door of an adjacent room. Doors are always open, with one exception: the **front door**, which is always locked. You cannot leave the house or use the front door unless a haunt says otherwise. "Outside" rooms such as the Patio still count as part of the house.
 - Staircases link floors:
