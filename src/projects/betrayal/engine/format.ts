@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 5;
+export const STATE_FORMAT = 6;
 
 type JsonObject = { [key: string]: Json };
 
@@ -146,6 +146,32 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
             }
           : null,
       lastEvents: [],
+    };
+  },
+  // Format 6 gives seats a side, roles and who knows them, all unset before
+  // the haunt, and records rule memory and cards set aside. Statuses gain a
+  // shape that carries their rule and data; format 5 never stored one.
+  5: (state) => {
+    const figures = isObject(state.figures) ? state.figures : {};
+    for (const figure of Object.values(figures))
+      if (
+        isObject(figure) &&
+        Array.isArray(figure.statuses) &&
+        figure.statuses.length > 0
+      )
+        throw new Error("A format 5 figure has statuses, which it never stored");
+    const seats = state.seats;
+    return {
+      ...state,
+      ...(Array.isArray(seats) && {
+        seats: seats.map((seat) =>
+          isObject(seat)
+            ? { ...seat, side: null, roles: [], knownBy: null }
+            : seat,
+        ),
+      }),
+      memory: { deaths: [] },
+      aside: [],
     };
   },
 };

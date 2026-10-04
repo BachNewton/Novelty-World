@@ -12,7 +12,12 @@ import type { Engine, Rules, StepHandler } from "./engine/step-loop";
 /** Every source's own steps, registered under the source's id. */
 function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
   const result: Record<string, StepHandler> = {};
-  for (const group of [behaviours.cards, behaviours.rooms, behaviours.tokens]) {
+  for (const group of [
+    behaviours.cards,
+    behaviours.rooms,
+    behaviours.tokens,
+    behaviours.statuses,
+  ]) {
     for (const [id, behaviour] of Object.entries(group)) {
       for (const [name, handler] of Object.entries(behaviour?.steps ?? {})) {
         result[localStep(id, name)] = handler;

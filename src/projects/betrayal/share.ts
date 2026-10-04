@@ -130,6 +130,7 @@ function scenario(value: unknown): Scenario {
   const s = record(value, "game.scenario");
   const decks = optional(s.decks, (v) => record(v, "scenario.decks"));
   const haunt = optional(s.haunt, (v) => record(v, "scenario.haunt"));
+  const sides = optional(s.sides, (v) => list(v, "scenario.sides"));
   return {
     first: optional(s.first, (v) => number(v, "scenario.first")),
     decks: decks && {
@@ -165,7 +166,36 @@ function scenario(value: unknown): Scenario {
       omen: optional(haunt.omen, (v) => text(v, "scenario.haunt.omen")),
       room: optional(haunt.room, (v) => text(v, "scenario.haunt.room")),
     },
+    sides: sides?.map((entry, i) => {
+      const field = `scenario.sides[${i}]`;
+      const x = record(entry, field);
+      return {
+        seat: number(x.seat, `${field}.seat`),
+        side: oneOf(x.side, `${field}.side`, ["heroes", "traitor", "neutral"]),
+        roles: optional(x.roles, (r) =>
+          list(r, `${field}.roles`).map((role, j) =>
+            oneOf(role, `${field}.roles[${j}]`, ["traitor"]),
+          ),
+        ),
+        knownBy: optional(x.knownBy, (k) =>
+          list(k, `${field}.knownBy`).map((n, j) =>
+            number(n, `${field}.knownBy[${j}]`),
+          ),
+        ),
+      };
+    }),
   };
+}
+
+function oneOf<T extends string>(
+  value: unknown,
+  field: string,
+  allowed: readonly T[],
+): T {
+  const found = allowed.find((a) => a === value);
+  if (found === undefined)
+    throw new Error(`${field} should be one of ${allowed.join(", ")}`);
+  return found;
 }
 
 function action(value: unknown, i: number): Action {

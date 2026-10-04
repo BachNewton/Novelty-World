@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
 import { at, choose, explorer, offered, testGame } from "../testing";
 import { placed } from "./board";
+import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
 import { hauntCells, hauntNumbers } from "./scenario";
 
@@ -121,6 +122,49 @@ describe("start haunt N", () => {
     });
     expect(state.haunt?.room).toBe(cell.room);
     expect(at(state, 0).room).toBe("foyer");
+  });
+
+  it("sets seats' sides and roles before the haunt starts, secret ones known only to the seats named", () => {
+    const state = testGame({
+      haunt: { number: 13, revealer: 1 },
+      sides: [
+        { seat: 0, side: "traitor", roles: ["traitor"], knownBy: [0] },
+        { seat: 1, side: "heroes" },
+        { seat: 2, side: "heroes" },
+      ],
+    });
+    expect(state.seats.map((s) => [s.side, s.roles, s.knownBy])).toEqual([
+      ["traitor", ["traitor"], [0]],
+      ["heroes", [], null],
+      ["heroes", [], null],
+    ]);
+    const lines = state.lastEvents
+      .filter((e) => e.type === "side-set")
+      .map((e) => describeEvent(ENGINE, state, e));
+    expect(lines).toEqual([
+      "Scenario: Zoe Ingstrom is the traitor, which is kept secret.",
+      "Scenario: Ox Bellows is a hero.",
+      "Scenario: Father Rhinehardt is a hero.",
+    ]);
+  });
+
+  it("refuses sides without a haunt, and sides it can't give", () => {
+    expect(() => testGame({ sides: [{ seat: 0, side: "heroes" }] })).toThrow(
+      /sides come with a haunt/,
+    );
+    const haunt = { number: 13, revealer: 0 };
+    expect(() =>
+      testGame({
+        haunt,
+        sides: [
+          { seat: 0, side: "heroes" },
+          { seat: 0, side: "traitor" },
+        ],
+      }),
+    ).toThrow(/twice/);
+    expect(() =>
+      testGame({ haunt, sides: [{ seat: 0, side: "heroes", knownBy: [7] }] }),
+    ).toThrow(/seat 7/);
   });
 
   it("offers every haunt on the chart", () => {

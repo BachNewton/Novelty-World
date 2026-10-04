@@ -30,6 +30,9 @@ const zoeFigure = {
   alive: true,
 };
 
+/** What format 6 adds to every state: rule memory and cards set aside. */
+const format6 = { memory: { deaths: [] }, aside: [] };
+
 /** A format 5 turn ledger in which Zoe has done nothing yet. */
 const zoeLedger = {
   moved: { "zoe-ingstrom": 0 },
@@ -65,6 +68,7 @@ describe("migrate", () => {
       cardMarks: {},
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
+      ...format6,
       turn: {
         seat: 0,
         traded: false,
@@ -90,6 +94,7 @@ describe("migrate", () => {
       cardMarks: {},
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
+      ...format6,
       turn: { seat: 0, traded: true, over: false, ...zoeLedger },
     });
     expect(migrate({ format: 2, turn: null })).toMatchObject({ turn: null });
@@ -111,6 +116,7 @@ describe("migrate", () => {
       gameId: "g",
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
+      ...format6,
       turn: {
         seat: 0,
         moved: {},
@@ -212,6 +218,7 @@ describe("migrate", () => {
         work: [],
         pending,
         lastEvents: [],
+        ...format6,
       });
     });
 
@@ -236,6 +243,36 @@ describe("migrate", () => {
           pending: { ...pending, kind: "split-damage" },
         }),
       ).toThrow(/partway through an effect/);
+    });
+  });
+
+  describe("a format 5 state", () => {
+    const saved = {
+      format: 5,
+      gameId: "g",
+      seats: [{ name: "Ann", controller: "human" }],
+      figures: { "zoe-ingstrom": zoeFigure },
+    };
+
+    it("gives its seats no side or roles yet, known to everyone, and starts rule memory and cards set aside empty", () => {
+      expect(migrate(saved)).toEqual({
+        format: STATE_FORMAT,
+        gameId: "g",
+        seats: [
+          { name: "Ann", controller: "human", side: null, roles: [], knownBy: null },
+        ],
+        figures: { "zoe-ingstrom": zoeFigure },
+        ...format6,
+      });
+    });
+
+    it("is refused if a figure somehow has a status, which format 5 never stored", () => {
+      expect(() =>
+        migrate({
+          ...saved,
+          figures: { "zoe-ingstrom": { ...zoeFigure, statuses: ["asleep"] } },
+        }),
+      ).toThrow(/never stored/);
     });
   });
 

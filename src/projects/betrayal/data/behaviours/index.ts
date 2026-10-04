@@ -35,4 +35,5 @@ export const BEHAVIOURS: Behaviours = {
   cards: merge("cards"),
   rooms: merge("rooms"),
   tokens: merge("tokens"),
+  statuses: merge("statuses"),
 };

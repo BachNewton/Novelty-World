@@ -95,7 +95,13 @@ export interface NewGame {
 export function newGame(engine: Engine, game: NewGame): GameState {
   validateSeats(engine.catalog, game.seats);
   const state = emptyState(game.gameId, game.seed, game.sets);
-  state.seats = game.seats.map((s) => ({ name: s.name, controller: "human" }));
+  state.seats = game.seats.map((s) => ({
+    name: s.name,
+    controller: "human",
+    side: null,
+    roles: [],
+    knownBy: null,
+  }));
   const characters = game.seats.map((s) => s.character);
   return start(engine, state, [
     step<Setup>("setup", {

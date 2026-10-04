@@ -223,10 +223,24 @@ export interface GameEvent {
   data: Json;
 }
 
+/** Which side a seat plays for, once the haunt gives it one. A neutral seat
+ *  is no one's opponent. */
+export type Side = "heroes" | "traitor" | "neutral";
+
+/** What a seat is, beyond its side: the traitor is a role a seat holds, not
+ *  a seat number. */
+export type Role = "traitor";
+
 /** A player. Seats are in table order; turns pass to the left, which is the next seat. */
 export interface Seat {
   name: string;
   controller: "human";
+  /** None before the haunt. */
+  side: Side | null;
+  roles: Role[];
+  /** Who knows this seat's side and roles: null when everyone does;
+   *  otherwise the seats that do, which may leave out the seat itself. */
+  knownBy: number[] | null;
 }
 
 /** Where a figure is: a room, and in a barrier room the side it is on, named
@@ -256,6 +270,17 @@ export type FigureTraits =
     }
   | { kind: "fixed" };
 
+/** A named condition a rule puts on a figure (asleep, controlled). It is a
+ *  rule source in its own right, in the layer of the rule that applied it. */
+export interface Status {
+  id: string;
+  /** The rule that put it on the figure. */
+  rule: RuleRef;
+  /** What the status needs to know, such as the seat a controlled figure
+   *  answers to. Its own behaviour reads it. */
+  params: Json;
+}
+
 export interface Figure {
   id: FigureId;
   kind: FigureKind;
@@ -269,8 +294,8 @@ export interface Figure {
   traits: FigureTraits;
   /** Items, omens, and events the figure keeps, in the order gained. */
   cards: string[];
-  /** Statuses rule sources have put on it, by id. */
-  statuses: string[];
+  /** Statuses rule sources have put on it. */
+  statuses: Status[];
   stunned: boolean;
   alive: boolean;
 }
@@ -332,6 +357,31 @@ export interface Turn {
   omens: { card: string; figure: FigureId; room: string }[];
 }
 
+/** A figure's death, as later rules read it ("all heroes dead", kills). */
+export interface Death {
+  figure: FigureId;
+  /** The trait that reached the skull, or null for a death no trait caused. */
+  trait: Trait | null;
+  /** The rule whose effect killed it: an attack's, a card's, a room's. */
+  cause: RuleRef;
+  /** The figure that dealt the killing damage, if one did. */
+  killer: FigureId | null;
+  room: string;
+}
+
+/** What later rules read about the game so far. */
+export interface RuleMemory {
+  deaths: Death[];
+}
+
+/** A card out of play but not in a deck: a dead explorer's companion left
+ *  in the room where they died, for the next explorer to come in (p. 19), or,
+ *  with no room, set aside out of the game. */
+export interface AsideCard {
+  card: string;
+  room: string | null;
+}
+
 export type Haunt = {
   number: number;
   revealer: number;
@@ -355,12 +405,14 @@ export interface GameState {
   tokens: RoomToken[];
   /** Ongoing event cards in play that no explorer holds. */
   ongoing: string[];
+  aside: AsideCard[];
   /** Counters and flags on cards in play, by card id, then by name. */
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;
   /** Every omen card drawn this game, for the haunt roll (p. 15). */
   omensDrawn: number;
   haunt: Haunt | null;
+  memory: RuleMemory;
   /** Counter for decision and wait ids, so every client computes the same ids. */
   nextId: number;
   /** Unfinished work, top of the stack last. */

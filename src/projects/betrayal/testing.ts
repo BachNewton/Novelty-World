@@ -89,6 +89,19 @@ export function choose(
   return result.state;
 }
 
+/** Puts a game into the haunt, as a test's setup: `traitor` holds the
+ *  traitor role on the traitor's side and every other seat is a hero, all of
+ *  it public. Whatever is pending stays, so the test can play on. */
+export function inHaunt(state: GameState, traitor: number): GameState {
+  state.status = "haunt";
+  state.seats = state.seats.map((seat, i) =>
+    i === traitor
+      ? { ...seat, side: "traitor", roles: ["traitor"], knownBy: null }
+      : { ...seat, side: "heroes", roles: [], knownBy: null },
+  );
+  return state;
+}
+
 /** Event types emitted by the latest write. */
 export function eventTypes(state: GameState): string[] {
   return state.lastEvents.map((e) => e.type);

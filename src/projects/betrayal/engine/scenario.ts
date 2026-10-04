@@ -3,8 +3,10 @@ import type {
   CardType,
   GameState,
   Haunt,
+  Role,
   RuleRef,
   SetId,
+  Side,
   Trait,
 } from "../types";
 import { placed } from "./board";
@@ -44,6 +46,15 @@ export interface HauntStart {
   room?: string;
 }
 
+/** A seat's side and roles once the haunt starts. */
+export interface SideSetup {
+  seat: number;
+  side: Side;
+  roles?: Role[];
+  /** Keep the side and roles secret, known only to these seats. */
+  knownBy?: number[];
+}
+
 export interface Scenario {
   /** The seat that goes first, instead of the next birthday. */
   first?: number;
@@ -56,6 +67,9 @@ export interface Scenario {
   explorers?: ExplorerSetup[];
   /** Start with this haunt revealed, as if its haunt roll had just been made. */
   haunt?: HauntStart;
+  /** Seats' sides and roles in that haunt, set before it starts. Sides come
+   *  with the haunt, so they need one. */
+  sides?: SideSetup[];
 }
 
 /** A checked scenario with every default worked out, as step parameters. */
@@ -71,9 +85,17 @@ export type PreparedScenario = {
     cards: string[];
   }[];
   haunt: Haunt | null;
+  sides: {
+    seat: number;
+    side: Side;
+    roles: Role[];
+    knownBy: number[] | null;
+  }[];
 };
 
 const CARD_TYPES: readonly CardType[] = ["omen", "item", "event"];
+const SIDES: readonly Side[] = ["heroes", "traitor", "neutral"];
+const ROLES: readonly Role[] = ["traitor"];
 
 /** Checks a scenario against the catalogue and the seats, and works out its
  *  defaults. Throws, naming the problem, when it can't be set up. */
@@ -193,7 +215,31 @@ export function prepareScenario(
     if (!used.has(cell.omen)) setup.cards.push(card(cell.omen, what, "omen"));
   }
 
+  const sided = new Set<number>();
+  const sides = (scenario.sides ?? []).map((setup) => {
+    const what = `Seat ${setup.seat}'s side`;
+    if (haunt === null) throw new Error(`${what}: sides come with a haunt`);
+    seat(setup.seat, what);
+    if (sided.has(setup.seat)) throw new Error(`${what} is set twice`);
+    sided.add(setup.seat);
+    if (!SIDES.includes(setup.side))
+      throw new Error(`${what}: no side ${setup.side}`);
+    const roles = setup.roles ?? [];
+    for (const role of roles)
+      if (!ROLES.includes(role)) throw new Error(`${what}: no role ${role}`);
+    return {
+      seat: setup.seat,
+      side: setup.side,
+      roles,
+      knownBy:
+        setup.knownBy === undefined
+          ? null
+          : setup.knownBy.map((n) => seat(n, `${what}, known by`)),
+    };
+  });
+
   return {
+    sides,
     first: scenario.first === undefined ? null : seat(scenario.first, "First player"),
     decks,
     stack,
@@ -281,6 +327,10 @@ export const SCENARIO_STEPS: Record<string, StepHandler> = {
         gainCard(seatExplorer(state, setup.seat), card, "given", SCENARIO_RULE),
       ),
     );
+    for (const { seat, side, roles, knownBy } of p.sides) {
+      state.seats[seat] = { ...state.seats[seat], side, roles, knownBy };
+      ctx.emit("side-set", SCENARIO_RULE, { seat, side, roles, secret: knownBy !== null });
+    }
     state.omensDrawn += p.explorers
       .flatMap((e) => e.cards)
       .filter((card) => ctx.catalog.cards[card].type === "omen").length;

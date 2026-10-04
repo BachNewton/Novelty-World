@@ -7,6 +7,7 @@ import type {
   Json,
   RoomToken,
   RuleRef,
+  Status,
   Step,
   Trait,
 } from "../types";
@@ -17,17 +18,17 @@ import type { Engine, StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
 
 // A rule source is anything in play whose text changes the game: a held or
-// ongoing card, a room on the board, a token in a room. Its behaviour is code
+// ongoing card, a room on the board, a token in a room, a status on a figure. Its behaviour is code
 // in the content catalogue; everything it does to the game goes through steps,
 // so the game stays serializable.
 
 /** Where a live source is, and who holds it. */
 export interface Source {
   layer: Layer;
-  kind: "room" | "card" | "token";
+  kind: "room" | "card" | "token" | "status";
   id: string;
   rule: RuleRef;
-  /** The figure holding a card, if any. */
+  /** The figure holding a card, or bearing a status, if any. */
   holder: FigureId | null;
   /** The room a room source is, a token sits in, or a card lies in. */
   room: string | null;
@@ -36,11 +37,25 @@ export interface Source {
   beside: string | null;
   /** The token itself, for a token source. */
   token: RoomToken | null;
+  /** The status itself, for a status source. */
+  status: Status | null;
 }
 
 /** The rulebook's order for conflicts: a card beats the rulebook (p. 12), a haunt beats everything (p. 17). */
 export type Layer = "rulebook" | "room" | "card" | "haunt";
 export const LAYERS: readonly Layer[] = ["rulebook", "room", "card", "haunt"];
+
+/** The layer a rule's own source belongs to: a status sits in the layer of
+ *  the rule that applied it. */
+export const LAYER_OF: Record<RuleRef["source"], Layer> = {
+  rulebook: "rulebook",
+  room: "room",
+  card: "card",
+  token: "card",
+  haunt: "haunt",
+  // A scenario only sets a game up and never changes an answer.
+  scenario: "rulebook",
+};
 
 /** What a roll is, so effects can tell rolls apart. */
 export type RollSpec =
@@ -185,12 +200,14 @@ export interface BehaviourGroup {
   cards?: Record<string, Behaviour>;
   rooms?: Record<string, Behaviour>;
   tokens?: Record<string, Behaviour>;
+  statuses?: Record<string, Behaviour>;
 }
 
 export interface Behaviours {
   cards: Partial<Record<string, Behaviour>>;
   rooms: Partial<Record<string, Behaviour>>;
   tokens: Partial<Record<string, Behaviour>>;
+  statuses: Partial<Record<string, Behaviour>>;
 }
 
 /** Every source in play that has a behaviour, in a stable order. */
@@ -211,6 +228,7 @@ export function liveSources(
         room: tile.tile,
         beside: null,
         token: null,
+        status: null,
       };
       result.push({ source, behaviour });
     }
@@ -220,6 +238,23 @@ export function liveSources(
       const behaviour = behaviours.cards[card];
       if (behaviour)
         result.push({ source: cardSource(card, figure.id), behaviour });
+    }
+    for (const status of figure.statuses) {
+      const behaviour = behaviours.statuses[status.id];
+      if (behaviour) {
+        const source: Source = {
+          layer: LAYER_OF[status.rule.source],
+          kind: "status",
+          id: status.id,
+          rule: status.rule,
+          holder: figure.id,
+          room: null,
+          beside: null,
+          token: null,
+          status,
+        };
+        result.push({ source, behaviour });
+      }
     }
   }
   for (const card of state.ongoing) {
@@ -248,6 +283,7 @@ export function liveSources(
         room: token.room,
         beside: token.wall ? besideWall(state, token.room, token.wall) : null,
         token,
+        status: null,
       };
       result.push({ source, behaviour });
     }
@@ -265,6 +301,7 @@ function cardSource(card: string, holder: FigureId | null): Source {
     room: null,
     beside: null,
     token: null,
+    status: null,
   };
 }
 
@@ -282,6 +319,13 @@ export function atSource(source: Source, room: string): boolean {
 /** An event's data, typed by the event's contract. Events are stored as JSON, so the type is the emitter's promise. */
 export function eventData<T extends Json>(event: GameEvent): T {
   return event.data as T;
+}
+
+/** A status source's data, typed by its behaviour's contract. Statuses are
+ *  stored as JSON, so the type is the applying rule's promise. */
+export function statusData<T extends Json>(source: Source): T {
+  if (source.status === null) throw new Error(`${source.id} isn't a status`);
+  return source.status.params as T;
 }
 
 /** The figure a turn event is about: the turn's seat's explorer, if it has

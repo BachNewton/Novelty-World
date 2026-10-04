@@ -7,7 +7,9 @@ import type {
   GameEvent,
   GameState,
   Json,
+  Role,
   RuleRef,
+  Side,
   Trait,
 } from "../types";
 import type { Attacker } from "./combat";
@@ -86,6 +88,12 @@ function withRule(
   if (rule.source === "card" && rule.card === about) return sentence;
   return `${describeRule(engine, rule)}: ${sentence}`;
 }
+
+const SIDE_WORDS: Record<Side, string> = {
+  heroes: "is a hero",
+  traitor: "is on the traitor's side",
+  neutral: "is on no one's side",
+};
 
 const STACK: Record<CardType, string> = {
   event: "event stack",
@@ -407,6 +415,20 @@ export function describeEvent(
         ...(traits.length === 0 ? [] : [`starts with ${list(traits)}`]),
       ];
       return sentence(`${who(d.figure)} ${parts.join(" and ")}`);
+    }
+    case "side-set": {
+      const d = data<{
+        seat: number;
+        side: Side;
+        roles: Role[];
+        secret: boolean;
+      }>(event);
+      const what = d.roles.includes("traitor")
+        ? "is the traitor"
+        : SIDE_WORDS[d.side];
+      return sentence(
+        `${seat(d.seat)} ${what}${d.secret ? ", which is kept secret" : ""}`,
+      );
     }
     case "haunt-started": {
       const d = data<{

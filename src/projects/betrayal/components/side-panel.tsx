@@ -1,8 +1,21 @@
-import type { GameState } from "../types";
+import type { GameState, Seat, Side } from "../types";
 import { allFigures, figureName, TRAITS } from "../engine/figures";
 import { traitValue } from "../engine/questions";
 import type { Engine } from "../engine/step-loop";
 import { seatLabel } from "./describe";
+
+/** A seat's side and roles, as the debug view shows them: secrets too. */
+function allegiance(seat: Seat): string[] {
+  if (seat.side === null) return [];
+  const what = seat.roles.includes("traitor") ? "Traitor" : SIDE_NAMES[seat.side];
+  return [seat.knownBy === null ? what : `${what} (secret)`];
+}
+
+const SIDE_NAMES: Record<Side, string> = {
+  heroes: "Hero",
+  traitor: "Traitor's side",
+  neutral: "Neutral",
+};
 
 export function SidePanel({
   engine,
@@ -45,9 +58,17 @@ export function SidePanel({
               {figureName(engine.catalog, state, figure.id)}
             </h3>
             <p className="text-(--bt-muted)">
-              {figure.place === null
-                ? "Off the board"
-                : `In the ${rooms[figure.place.room].name}`}
+              {[
+                ...(figure.owner === null
+                  ? []
+                  : allegiance(state.seats[figure.owner])),
+                figure.alive ? null : "Dead",
+                figure.place === null
+                  ? "Off the board"
+                  : `In the ${rooms[figure.place.room].name}`,
+              ]
+                .filter((part) => part !== null)
+                .join(" · ")}
             </p>
             <ul className="mt-1 grid grid-cols-2 gap-x-3">
               {TRAITS.map((trait) => (

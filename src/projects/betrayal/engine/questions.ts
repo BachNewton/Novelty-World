@@ -4,6 +4,7 @@ import type {
   GameState,
   Place,
   RuleRef,
+  Side,
   Trait,
 } from "../types";
 import {
@@ -22,6 +23,7 @@ import {
   trackTraits,
 } from "./figures";
 import {
+  LAYER_OF,
   LAYERS,
   liveSources,
   type Layer,
@@ -169,6 +171,17 @@ export interface StructuredQuestions {
   controller: {
     question: { figure: FigureId };
     answer: number | null;
+  };
+  /** The side a figure is on, if any. */
+  side: {
+    question: { figure: FigureId };
+    answer: Side | null;
+  };
+  /** Whether one figure is another's opponent: one that wants to stop its
+   *  movement or interfere with it (p. 22). */
+  isOpponent: {
+    question: { figure: FigureId; other: FigureId };
+    answer: boolean;
   };
   /** The ways a figure may attack another. */
   attackModes: {
@@ -321,16 +334,6 @@ export function askNumber<Q extends keyof NumberQuestions>(
   if (question === "dicePool") answer = Math.min(Math.max(answer, 0), MAX_DICE);
   return answer;
 }
-
-const LAYER_OF: Record<RuleRef["source"], Layer> = {
-  rulebook: "rulebook",
-  room: "room",
-  card: "card",
-  token: "card",
-  haunt: "haunt",
-  // A scenario only sets a game up and never changes an answer.
-  scenario: "rulebook",
-};
 
 /** A change the subject carries itself: dice the rule asking for one roll
  *  adds or takes away ("an explorer in the Gardens rolls 2 fewer dice"). The
@@ -500,6 +503,26 @@ const STRUCTURED_BASE: {
   ) => StructuredQuestions[Q]["answer"];
 } = {
   controller: (_engine, state, { figure }) => figureOf(state, figure).owner,
+  // A figure is on its owning seat's side; one no seat owns is on none
+  // unless a rule says otherwise.
+  side: (_engine, state, { figure }) => {
+    const owner = figureOf(state, figure).owner;
+    return owner === null ? null : state.seats[owner].side;
+  },
+  // Monsters and the traitor are the heroes' opponents, and the heroes
+  // theirs (p. 22): figures on two different sides, neither of them neutral.
+  isOpponent: (engine, state, { figure, other }) => {
+    if (figure === other) return false;
+    const mine = askStructured(engine, state, "side", { figure });
+    const theirs = askStructured(engine, state, "side", { figure: other });
+    return (
+      mine !== null &&
+      theirs !== null &&
+      mine !== "neutral" &&
+      theirs !== "neutral" &&
+      mine !== theirs
+    );
+  },
   // All attacks use Might unless a card or ability says otherwise (p. 13).
   attackModes: () => [{ trait: "might", card: null }],
   // The higher result deals the difference as damage to the loser; a tie

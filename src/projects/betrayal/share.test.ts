@@ -30,6 +30,29 @@ describe("a shared game", () => {
     expect(decodeGame(code)).toEqual(shared);
   });
 
+  it("carries a haunt scenario's sides and roles, secrets included", () => {
+    const haunted: SharedGame = {
+      ...shared,
+      game: {
+        ...shared.game,
+        scenario: {
+          haunt: { number: 13, revealer: 0 },
+          sides: [
+            { seat: 0, side: "traitor", roles: ["traitor"], knownBy: [0] },
+            { seat: 1, side: "heroes" },
+          ],
+        },
+      },
+    };
+    expect(decodeGame(encodeGame(haunted))).toEqual(haunted);
+    const [state] = replay(ENGINE, haunted, "a");
+    expect(state.seats[0]).toMatchObject({
+      side: "traitor",
+      roles: ["traitor"],
+      knownBy: [0],
+    });
+  });
+
   it("replays to exactly the same game", () => {
     let [state] = replay(ENGINE, shared, "a");
     const actions: Action[] = [];
