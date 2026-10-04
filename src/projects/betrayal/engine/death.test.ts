@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { eventTypes, explorer, inHaunt, testGame, spectator } from "../testing";
+import { choose, eventTypes, explorer, inHaunt, testGame, spectator } from "../testing";
 import type { GameState, RuleRef, Step } from "../types";
 import { describeEvent } from "./describe";
-import { damage, die, discardCard, gain, leaveRoom, relocate, step } from "./effects";
+import {
+  chooseOne,
+  damage,
+  die,
+  discardCard,
+  gain,
+  leaveRoom,
+  relocate,
+  roll,
+  step,
+} from "./effects";
 import { explorersFrom } from "./figures";
 import { start, type Engine } from "./step-loop";
 
@@ -190,5 +200,31 @@ describe("work queued for a figure that has since died", () => {
     expect(state.piles.foyer).toEqual(["bottle"]);
     expect(state.decks.item.discard).not.toContain("bottle");
     expect(eventTypes(state)).not.toContain("left");
+  });
+});
+
+describe("a roll whose roller dies partway through it", () => {
+  it("lapses: the Idol's cost kills before the dice, so nothing is rolled and its outcome isn't asked", () => {
+    const state = inHaunt(
+      testGame({
+        explorers: [
+          { seat: 0, room: "foyer", clips: { sanity: 0 }, cards: ["idol"] },
+        ],
+      }),
+      1,
+    );
+    const outcome = chooseOne(
+      ZOE,
+      [
+        { label: "Keep going", steps: [] },
+        { label: "Stay", steps: [] },
+      ],
+      BELL,
+    );
+    const asked = run(state, [roll(ZOE, { kind: "trait", trait: "sanity" }, BELL, outcome)]);
+    const after = choose(asked, "Use Idol");
+    expect(after.figures[ZOE].alive).toBe(false);
+    expect(eventTypes(after)).not.toContain("rolled");
+    expect(after.pending?.type === "decision" && after.pending.kind).not.toBe("choose-one");
   });
 });

@@ -1089,7 +1089,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
+  // The roller can die between the roll's steps (the Idol's cost, paid as
+  // it is used), and a roll a dead figure was to make lapses.
   "roll-before": defineStep<RollInProgress>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     if (rollOptions(ctx.engine, state, p, "before").length === 0)
       ctx.push(step("roll-dice", p));
     else
@@ -1102,11 +1105,13 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "roll-dice": defineStep<RollInProgress>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     const dice = p.named === null ? ctx.random.dice(p.pool) : [];
     ctx.push(step<RollInProgress>("roll-after", { ...p, dice }));
   }),
 
   "roll-after": defineStep<RollInProgress>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     const offered =
       rollOptions(ctx.engine, state, p, "after").some(
         (o) => o.option.effect.kind === "reroll",
@@ -1122,6 +1127,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "roll-done": defineStep<RollInProgress>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     const result = rollTotal(p);
     learnTrait(state, ctx, p);
     ctx.emit("rolled", p.rule, {
