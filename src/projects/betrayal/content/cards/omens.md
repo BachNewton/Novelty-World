@@ -255,6 +255,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   > Note: "you don't have to move those monsters" when you are the traitor reads as the traitor's movement being optional; the card gives no further detail.
   > Resolution (project): moving the monsters is optional for the traitor: any number of them, zero included, 1 space closer, as the card says ("you don't have to move those monsters"). Stunned monsters can be moved this way (https://boardgamegeek.com/thread/994104). Research: no ruling found. Forum threads on the Spirit Board settle only that the looked-at tile stays on top of the stack. Source: https://boardgamegeek.com/thread/1872346, https://boardgamegeek.com/thread/854312
 
+  > Note: the card doesn't say what moving a monster "1 space closer" involves.
+  > Resolution (project): the same as the Bell's pull (cards/items.md): one room nearer along a route, through a connecting door. It spends no movement, ignores the slowing from opponents, and gives the monster no attack or other action.
+
   > Note: "before you move" doesn't say whether being put in another room without spending movement (a fall, a card, crossing a barrier) counts as moving.
   > Resolution (project): you have moved once you have spent movement this turn; being put somewhere without spending any doesn't count, so the board can still be used after it. The board is for planning where you will explore, which spending movement is, and a fall or a card's move doesn't use up any of that. Research: no ruling found.
 

@@ -480,6 +480,9 @@ At the start of the haunt:
 - All other players become heroes. They look up the same-numbered haunt in Secrets of Survival and read it together, and should briefly discuss a survival plan.
 - When everyone (traitor included) is ready, the traitor returns. Heroes and traitor carry out whatever the haunt's "Right Now" section tells them to do (for example, placing tokens in the house or drawing cards).
 
+> Note: the rulebook doesn't give the order of the steps between a successful haunt roll and the first hero turn: when the traitor is picked, when the Traitor's New Powers apply, or whether the traitor's "Right Now" or the heroes' comes first when both have one.
+> Resolution (project): the haunt roll comes at the end of the revealer's turn, so that turn is over. Then, in order: the chart gives the haunt, and the traitor is picked from traits as they stand at that moment. The traitor's New Powers apply at once, freeing them from impeding events (p. 17). Everyone reads their own half, and the engine waits until every player has said they are ready. Then the traitor's "Right Now" is carried out, then the heroes'. Play then starts with the player on the traitor's left (p. 16), whoever had the last turn. The traitor goes first because the traitor's setup usually builds the scenario the heroes' setup refers to: it places monsters, adds rooms and sets secrets. A haunt that orders its setup differently is followed as written. Research: no ruling found; the 1st-edition FAQ and the Widow's Walk FAQs don't address it.
+
 ### Heroes and Secrets (p. 16)
 - Heroes should not tell the traitor their goals, unless they are sure the traitor already knows them or they are doing something the haunt requires.
 - Until the group knows how a given haunt works, heroes should not disclose that haunt's Secrets of Survival text. (Keeping it secret can give the heroes an advantage, since the traitor doesn't know what they are trying to do.)
@@ -492,6 +495,9 @@ At the start of the haunt:
 - Explorers can die once the haunt has begun. If any one of an explorer's four traits drops to the skull symbol [skull symbol], that explorer dies.
 - In some haunts, a hero's "death" turns that explorer into a traitor instead.
 - Some haunts require something to be done a number of times equal to the number of explorers; that count includes explorers who have died.
+
+> Note: the rulebook doesn't say whether a dead hero's seat still takes turns, or whether the traitor's seat takes its turns when the traitor can't act (asleep, transformed or dead).
+> Resolution (official (1st-edition FAQ)): the traitor's seat always takes its traitor turn and then its monster turn, even when the traitor is dead or out of play. Page 17 says a traitor transformed or removed at the start still gets a turn after the heroes, and the 1st-edition FAQ says a dead traitor still moves monsters on their turn. A traitor turn in which the traitor can do nothing passes at once. A dead hero's seat takes no more turns, unless the haunt gives a dead player something to do, and play skips over it (project: a dead explorer has nothing left to do on a turn, and the one BGG answer on the point, under haunt 22, says the same). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/318232
 
 ### What Happens if a Haunt's Rules and the Regular Rules Conflict? (p. 17)
 - The haunt's rules win.
@@ -548,6 +554,12 @@ At the start of the haunt:
   - Monsters often attack with a trait other than Might.
   - Monsters can't make any of the special attacks listed on page 13 (unless a haunt says otherwise).
 
+> Note: the rules don't say when in the monster turn the movement rolls are made, whether a monster that enters play partway through the monster turn acts in it, whether a monster may keep moving after it attacks, or when a monster stunned during its own turn recovers.
+> Resolution (project): at the start of the monster turn, before any monster moves, one movement roll is made for each type of monster that has one that isn't stunned. Monsters a haunt places at the start of the monster turn are placed before those rolls and act normally. A monster that enters play once the rolls are made (unleashed or spawned during the turn) doesn't move or attack until the next monster turn. One BGG answer plays haunt 13's unleashed Nightmares this way, and it keeps a monster from acting on a roll made before it existed. A monster may attack partway through its move and then go on moving, as an explorer may (p. 6), and the 1st-edition FAQ has each monster take all its actions before the next goes. A monster stunned during its own turn (one that loses its attack) stops at once, misses the next monster turn and turns back over at the end of it. A monster stunned on another turn misses the coming monster turn and turns back over at its end. Either way it misses exactly one monster turn. Source: https://boardgamegeek.com/thread/1536030, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
+> Note: the rules don't say whether the heroes know a monster's traits before it rolls them.
+> Resolution (official (1st-edition FAQ)): the heroes learn a monster's trait value when it rolls dice for that trait, since all rolls are open. The haunt's monster stats are on the traitor's side. Whether a monster has a trait at all is public: an attack with a trait the target lacks isn't allowed (p. 13), so a hero has to know which attacks are possible. Once a monster of a type has rolled a trait, every seat knows that trait's value for the whole type. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
 ## The Haunt (continued, p. 19)
 
 ### How Monsters Work (continued, p. 19)
@@ -581,6 +593,9 @@ Boxed sidebar.
 - At least one hero must survive for the heroes to win.
 - Some haunts' goals let the traitor win even after the traitor dies; for example, the monsters the traitor's player controls may be able to win without the traitor.
 - When a side completes its goals, a player from the winning side reads aloud the "If You Win . . ." section from that side's haunt book.
+
+> Note: the rules don't say whether the game ends the moment a goal is met, even partway through a turn or a move, what happens if one step meets both sides' goals, or what happens when every hero is dead and the traitor's goal isn't yet met.
+> Resolution (project): the game ends the moment a side's goal is met, partway through a move, an attack or a monster turn included, and nothing after that step happens. The engine applies effects one step at a time, so one goal is almost always met first. If a single step meets both sides' goals at once, the side whose turn it is wins, since its action caused it. When every hero is dead, the heroes can no longer win (at least one must survive), so the game ends at once with the traitor's side winning, unless the haunt says something else happens. With no hero left, nothing can stop the traitor, and playing out the remaining turns would change nothing. The Widow's Walk FAQ adds this same ending to haunt 89, where it was missing. Source: https://www.dropbox.com/s/3y34f1s2tn6o4mx/Widow%27s%20Walk%20FAQ%20KB%2012.6.161.pdf?dl=0
 
 ## Glossary (p. 20)
 The glossary defines terms used in the rulebook, the haunt booklets, and on the cards and tiles. In the book, a game term is printed in bold the first time it appears. Entries are alphabetical; sub-entries (italic in the book) are nested under their parent term. Each entry's printed page is given in brackets.

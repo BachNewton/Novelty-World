@@ -67,6 +67,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: the card doesn't say how its attack works on an explorer in an adjacent room rather than your own, or whether you may use a weapon in it.
 > Resolution (project): it is an ordinary attack that you make, so you may use a weapon or the Ring as in any attack, but an attack on an explorer in another room follows the distance-attack rules (rules p. 13): if they beat you, you take no damage, and you can't steal from them. The rulebook calls an attack on someone in another room a distance attack, and the designer's ruling that the card gives "a one-time attack into an adjacent room" adds reach, not a new kind of attack. Research: no ruling found.
 
+> Note: after the haunt, the card doesn't say whether its attack counts as your one attack of the turn, or whether it still happens if you have already attacked.
+> Resolution (project): it is the card's attack, outside your attack action. It doesn't use up your attack of the turn, and having attacked already doesn't stop it. "(if you can)" means a target you are able to attack: in reach, on your side of any barrier, and not one your attack's trait can't reach. The designer called the card's attack a one-time exception to the normal rules, which it already is before the haunt, when no one may attack at all. Heroes are explorers, so after the haunt the lowest-Might explorer in reach may be a fellow hero or a sleeping traitor, and the card makes you attack them. Source: https://boardgamegeek.com/thread/74215
+
 ## Burial Mound
 - Deck: event
 - Set: Widow's Walk

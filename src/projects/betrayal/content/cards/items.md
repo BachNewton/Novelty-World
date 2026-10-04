@@ -75,6 +75,9 @@ Drawn when an explorer discovers a room with an item symbol.
 | 5+ | Move any number of unimpeded heroes 1 space closer to you. |
 | 0–4 | The traitor may move any number of monsters 1 space closer to you. (If you are the traitor, this result has no effect.) If there is no traitor, all monsters move 1 space closer to you. |
 
+> Note: the card doesn't say what "1 space closer" means, which heroes are "unimpeded", or whether these moves cost movement, meet the slowing from opponents, or count as the moved figure's own move.
+> Resolution (project): a figure moved 1 space closer goes through a connecting door into an adjacent room that is one room nearer to you along a route. Distance is measured as for "nearest" elsewhere, in rooms entered (cards/events.md). A figure already in your room, or with no route to you, can't move. The Bell's user chooses which heroes move on a 5+, and the traitor chooses which monsters move on a 0–4, any number of them, zero included, and the route when several tie. "Unimpeded" heroes are those who could move on their own, not trapped by Webs, Debris or a monster's grip (1st-edition FAQ). The move is a pull, not the figure's own movement: it spends no one's movement, ignores the slowing from opponents, and gives the moved figure no other action. A monster pulled this way doesn't attack, and a haunt rule tied to spending movement (such as haunt 13's escapes) doesn't fire. The Spirit Board's monster pull works the same way. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
 ## Blood Dagger
 - Deck: item
 - Set: base
