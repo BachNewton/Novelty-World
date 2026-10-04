@@ -564,6 +564,8 @@ describe("Lights Out (cards/events.md)", () => {
     placeTile(state, "furnace-room", "basement", 0, -1);
     state.explorers[0].room = "furnace-room";
     state = choose(state, "End your turn");
+    // The Furnace Room's own end-of-turn damage asks first.
+    state = choose(state, "Take 1 Might and 0 Speed");
     expect(state.explorers[0].cards).not.toContain("lights-out");
   });
 
