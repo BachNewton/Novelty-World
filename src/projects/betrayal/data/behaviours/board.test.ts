@@ -14,6 +14,7 @@ import {
   put,
   testGame,
   waitingOn,
+  spectator,
 } from "../../testing";
 import type { GameState } from "../../types";
 
@@ -43,7 +44,7 @@ const kind = (state: GameState) =>
 /** Every event of the latest write reads as plain language. */
 function described(state: GameState): string[] {
   return state.lastEvents.flatMap((e) => {
-    const line = describeEvent(ENGINE, state, e);
+    const line = describeEvent(ENGINE, spectator(state, ENGINE), e);
     return line === null ? [] : [line];
   });
 }

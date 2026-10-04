@@ -1,28 +1,23 @@
-import type { GameEvent, GameState, TurnKind } from "../types";
+import type { GameEvent, TurnKind } from "../types";
 import { describeEvent } from "../engine/describe";
-import { explorerOf, figureName } from "../engine/figures";
+import { viewExplorer, type GameView } from "../engine/view";
 import type { Engine } from "../engine/step-loop";
 
-export function seatLabel(
-  engine: Engine,
-  state: GameState,
-  seat: number,
-): string {
-  const explorer = explorerOf(state, seat);
-  const name = state.seats[seat].name;
-  if (explorer === null) return name;
-  return `${name} (${figureName(engine.catalog, state, explorer)})`;
+export function seatLabel(view: GameView, seat: number): string {
+  const explorer = viewExplorer(view, seat);
+  const name = view.seats[seat].name;
+  return explorer === null ? name : `${name} (${explorer.name})`;
 }
 
-/** One log line, worded against the state the event was emitted into. */
+/** One log line, worded against the view of the write it came from. */
 export interface LogLine {
   event: GameEvent;
   text: string;
 }
 
-export function logLines(engine: Engine, state: GameState): LogLine[] {
-  return state.lastEvents.flatMap((event) => {
-    const text = describeEvent(engine, state, event);
+export function logLines(engine: Engine, view: GameView): LogLine[] {
+  return view.events.flatMap((event) => {
+    const text = describeEvent(engine, view, event);
     return text === null ? [] : [{ event, text }];
   });
 }
@@ -45,11 +40,7 @@ const KIND_TITLES: Record<TurnKind, string> = {
 };
 
 /** The log by turn, so it reads as the game's story. */
-export function logGroups(
-  engine: Engine,
-  state: GameState,
-  lines: LogLine[],
-): LogGroup[] {
+export function logGroups(view: GameView, lines: LogLine[]): LogGroup[] {
   const groups: LogGroup[] = [
     { key: "setup", title: "Setup", seat: null, lines: [] },
   ];
@@ -61,7 +52,7 @@ export function logGroups(
       const { seat, kind } = event.data as { seat: number; kind: TurnKind };
       groups.push({
         key: event.id,
-        title: `Turn ${turns}: ${seatLabel(engine, state, seat)}${KIND_TITLES[kind]}`,
+        title: `Turn ${turns}: ${seatLabel(view, seat)}${KIND_TITLES[kind]}`,
         seat,
         lines: [],
       });

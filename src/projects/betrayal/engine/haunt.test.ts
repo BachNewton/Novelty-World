@@ -10,6 +10,7 @@ import {
   ready,
   testGame,
   type TestGame,
+  spectator,
 } from "../testing";
 import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
@@ -48,7 +49,7 @@ const turnsStarted = (state: GameState) =>
     });
 
 const describeAll = (engine: Engine, state: GameState) =>
-  state.lastEvents.flatMap((e) => describeEvent(engine, state, e) ?? []);
+  state.lastEvents.flatMap((e) => describeEvent(engine, spectator(state, engine), e) ?? []);
 
 /** Takes a seat's explorer out of the game, as a test's setup. */
 function kill(state: GameState, figure: string): void {
@@ -168,7 +169,7 @@ describe("the haunt's reveal", () => {
     expect(state.seats[2].side).toBe("traitor");
     const unbuilt = state.lastEvents.find((e) => e.type === "haunt-unbuilt");
     if (!unbuilt) throw new Error("No haunt-unbuilt event");
-    expect(describeEvent(ENGINE, state, unbuilt)).toBe(
+    expect(describeEvent(ENGINE, spectator(state, ENGINE), unbuilt)).toBe(
       "Haunt 13 isn't built yet, so the game stops here.",
     );
   });
@@ -197,7 +198,7 @@ describe("the chart's traitor rule", () => {
     const event = tie(state);
     if (!event) throw new Error("No traitor-tie event");
     expect(event.rule).toEqual({ source: "rulebook", page: 15, ruling: "traitor-tie" });
-    expect(describeEvent(TOY_ENGINE, state, event)).toBe(
+    expect(describeEvent(TOY_ENGINE, spectator(state, TOY_ENGINE), event)).toBe(
       "Ox Bellows and Father Rhinehardt tie to be the traitor; it goes to Ox Bellows, nearest the revealer's left.",
     );
   });

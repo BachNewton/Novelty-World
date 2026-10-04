@@ -9,6 +9,7 @@ import {
   put,
   testGame,
   waitingOn,
+  spectator,
 } from "../testing";
 import type { GameState, RuleRef } from "../types";
 import { attack, cardAttack, playerOnRight } from "./combat";
@@ -122,11 +123,11 @@ describe("Make an Attack (rules.md, p. 13)", () => {
   it("explains the attack in plain language", () => {
     const started = attackOn(table());
     expect(
-      started.lastEvents.map((e) => describeEvent(ENGINE, started, e)),
+      started.lastEvents.map((e) => describeEvent(ENGINE, spectator(started, ENGINE), e)),
     ).toContain("Zoe Ingstrom attacks Ox Bellows.");
     const state = fight(8, (d) => d === 3);
     expect(
-      state.lastEvents.map((e) => describeEvent(ENGINE, state, e)),
+      state.lastEvents.map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e)),
     ).toContain("Zoe Ingstrom beats Ox Bellows, 8 to 3.");
   });
 });
@@ -213,7 +214,7 @@ describe("Distance Attacks (rules.md, p. 13)", () => {
     expect(
       state.lastEvents
         .filter((e) => e.type === "attack-outcome")
-        .map((e) => describeEvent(ENGINE, state, e)),
+        .map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e)),
     ).toEqual([
       "Ox Bellows beats Zoe Ingstrom, 4 to 0, but Zoe Ingstrom attacked from another room and takes no damage.",
     ]);
@@ -234,7 +235,7 @@ describe("Weapons (rules.md, p. 12)", () => {
 
   it("are optional, and only one is used per attack", () => {
     const state = holding("axe", "spear");
-    expect(describeDecision(ENGINE, state, pendingDecision(state))).toBe(
+    expect(describeDecision(ENGINE, spectator(state, ENGINE), pendingDecision(state))).toBe(
       "Zoe Ingstrom: how do you attack Ox Bellows?",
     );
     expect(labels(state)).toEqual([
@@ -259,7 +260,7 @@ describe("Weapons (rules.md, p. 12)", () => {
     const state = choose(holding("axe"), "using the Axe");
     expect(state.turn?.handled).toContain("axe");
     expect(
-      state.lastEvents.map((e) => describeEvent(ENGINE, state, e)),
+      state.lastEvents.map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e)),
     ).toContain("Zoe Ingstrom uses the Axe.");
   });
 

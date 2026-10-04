@@ -14,6 +14,11 @@ import type { Random } from "./random";
 
 export const EDGES: readonly Edge[] = ["top", "right", "bottom", "left"];
 
+/** What the board's queries read: the placed tiles, not the stack or the
+ *  discards, so a seat's view (which hides the stack's order) answers them
+ *  too. */
+export type Layout = Pick<Board, "tiles">;
+
 const STEP: Record<Edge, { dx: number; dy: number }> = {
   top: { dx: 0, dy: -1 },
   right: { dx: 1, dy: 0 },
@@ -60,12 +65,12 @@ export function neighbourCell(
   return { x: tile.x + STEP[direction].dx, y: tile.y + STEP[direction].dy };
 }
 
-export function placed(board: Board, room: string): PlacedTile | undefined {
+export function placed(board: Layout, room: string): PlacedTile | undefined {
   return board.tiles.find((t) => t.tile === room);
 }
 
 export function roomAt(
-  board: Board,
+  board: Layout,
   floor: FloorId,
   x: number,
   y: number,
@@ -84,7 +89,7 @@ export function openings(catalog: Catalog, tile: PlacedTile): Edge[] {
 /** The room through a direction, if both sides have an opening there. A
  *  mismatched side is a false feature and leads nowhere. */
 function through(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   tile: PlacedTile,
   direction: Edge,
@@ -101,7 +106,7 @@ function through(
  *  facing `directions`, when given), and by the fixed links (stairs) once both
  *  ends are in the house. */
 export function connections(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   room: string,
   directions: readonly Edge[] = EDGES,
@@ -125,7 +130,7 @@ export function connections(
 }
 
 /** Rooms sharing a side, doors or not: the rulebook's meaning of "adjacent". */
-export function adjacent(board: Board, room: string): string[] {
+export function adjacent(board: Layout, room: string): string[] {
   const tile = placed(board, room);
   if (!tile) return [];
   return EDGES.flatMap((direction) => {
@@ -137,7 +142,7 @@ export function adjacent(board: Board, room: string): string[] {
 
 /** Rooms along an unbroken straight line of doors, in every direction. */
 export function lineOfSight(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   room: string,
 ): string[] {
@@ -146,7 +151,7 @@ export function lineOfSight(
 
 /** Each straight line of doors leading out of a room, nearest room first. */
 export function sightLines(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   room: string,
 ): string[][] {
@@ -168,7 +173,7 @@ export function sightLines(
 /** The printed door edge of a room that opens onto another room, if a door
  *  joins them. */
 export function doorToward(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   room: string,
   other: string,
@@ -184,7 +189,7 @@ export function doorToward(
 
 /** Spaces of movement from a room to every room reachable from it. */
 export function distances(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   from: string,
 ): Record<string, number> {
@@ -211,7 +216,7 @@ export type Doorway = {
 
 /** Doors that open onto an empty cell: where a new room can be discovered. */
 export function freeDoorways(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   floor: FloorId,
 ): Doorway[] {
@@ -250,7 +255,7 @@ export const FLOOR_NAMES: Record<FloorId, string> = {
 
 /** Which way a side of a placed room faces: a printed edge, as the board
  *  sees it once the tile is turned. */
-export function sideName(board: Board, room: string, side: Edge): string {
+export function sideName(board: Layout, room: string, side: Edge): string {
   const tile = placed(board, room);
   if (!tile) throw new Error(`${room} is not on the board`);
   return COMPASS[turn(side, tile.rotation)];
@@ -265,7 +270,7 @@ export const FLOORS: readonly FloorId[] = [
 ];
 
 /** The board without a tile: what is left when it is picked up to move. */
-export function liftTile(board: Board, tileId: string): Board {
+export function liftTile<B extends Layout>(board: B, tileId: string): B {
   return { ...board, tiles: board.tiles.filter((t) => t.tile !== tileId) };
 }
 
@@ -279,7 +284,7 @@ export interface Placement {
 
 /** The empty cell through a doorway, and the direction back to the doorway's room. */
 export function doorwaySpot(
-  board: Board,
+  board: Layout,
   doorway: Doorway,
 ): { spot: Spot; back: Edge } {
   const from = placed(board, doorway.room);
@@ -300,7 +305,7 @@ export function doorwaySpot(
 /** The ways a tile can be placed through a doorway: every rotation that puts
  *  one of its doors back toward the room it was entered from. */
 export function placements(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   tileId: string,
   doorway: Doorway,
@@ -315,7 +320,7 @@ export function placements(
  *  first, so this is also where it can move to; a move must not seal the
  *  floor it leaves either. */
 export function placementsAt(
-  board: Board,
+  board: Layout,
   catalog: Catalog,
   tileId: string,
   spot: Spot,
@@ -335,7 +340,7 @@ export function placementsAt(
     const open = openings(catalog, tile);
     if (facing && !facing.some((direction) => open.includes(direction)))
       continue;
-    const after: Board = { ...lifted, tiles: [...lifted.tiles, tile] };
+    const after: Layout = { ...lifted, tiles: [...lifted.tiles, tile] };
     const matched = open.filter((direction) =>
       through(after, catalog, tile, direction),
     ).length;
@@ -352,7 +357,7 @@ export function placementsAt(
 
 /** The cell beyond a token on a room's wall: across one printed edge of the
  *  room's tile, or, on a corner, across two. It turns with the tile. */
-export function beyondWall(board: Board, room: string, wall: Edge[]): Spot {
+export function beyondWall(board: Layout, room: string, wall: Edge[]): Spot {
   const tile = placed(board, room);
   if (!tile) throw new Error(`${room} is not on the board`);
   let cell = { x: tile.x, y: tile.y };

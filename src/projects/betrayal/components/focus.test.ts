@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { choose, offered, testGame, waitingOn } from "../testing";
+import { choose, offered, spectator, testGame, waitingOn } from "../testing";
 import { apply } from "../engine/step-loop";
+import { viewFor } from "../engine/view";
 import { logGroups, logLines } from "./describe";
-import { boardFocus } from "./focus";
+import { boardFocus, NO_FOCUS } from "./focus";
 
 const focusOf = (state: ReturnType<typeof testGame>) =>
-  boardFocus(state, { seat: waitingOn(state), choices: offered(state) });
+  boardFocus(viewFor(ENGINE, state, waitingOn(state)));
 
 describe("boardFocus", () => {
   it("highlights the rooms a turn can move to and the doorways it can explore", () => {
@@ -20,6 +21,11 @@ describe("boardFocus", () => {
     expect(focus.doorways.length).toBe(
       offered(state).filter((c) => c.label.startsWith("Explore")).length,
     );
+  });
+
+  it("highlights nothing for a seat the decision isn't put to", () => {
+    const state = testGame();
+    expect(boardFocus(viewFor(ENGINE, state, 1))).toEqual(NO_FOCUS);
   });
 
   it("shows where a discovered room goes", () => {
@@ -36,8 +42,11 @@ describe("logGroups", () => {
   it("groups the log into the setup and then one stretch per turn", () => {
     const start = testGame();
     const next = choose(start, "End your turn");
-    const lines = [...logLines(ENGINE, start), ...logLines(ENGINE, next)];
-    const groups = logGroups(ENGINE, next, lines);
+    const lines = [
+      ...logLines(ENGINE, spectator(start)),
+      ...logLines(ENGINE, spectator(next)),
+    ];
+    const groups = logGroups(spectator(next), lines);
     expect(groups.map((g) => g.title)).toEqual([
       "Setup",
       "Turn 1: Player 1 (Zoe Ingstrom)",
@@ -48,7 +57,8 @@ describe("logGroups", () => {
 
   it("starts a stretch for the haunt", () => {
     const state = testGame({ haunt: { number: 13, revealer: 0 } });
-    const groups = logGroups(ENGINE, state, logLines(ENGINE, state));
+    const view = spectator(state);
+    const groups = logGroups(view, logLines(ENGINE, view));
     expect(groups.at(-1)?.title).toBe("The haunt");
   });
 });

@@ -1,11 +1,9 @@
 import type {
   CardType,
-  Decision,
   Edge,
   FigureId,
   FloorId,
   GameEvent,
-  GameState,
   Json,
   Role,
   RuleRef,
@@ -18,9 +16,8 @@ import type { CardDestination, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
+import type { FigureView, GameView } from "./view";
 import { FLOOR_NAMES, sideName } from "./board";
-import { explorerOf, figureName } from "./figures";
-import { traitValue } from "./questions";
 
 // Plain language for events and decisions, for the game log, the UI and AI
 // players alike. Each line names the rule behind it when that rule is a room,
@@ -66,16 +63,20 @@ export function describeRule(engine: Engine, rule: RuleRef): string {
   }
 }
 
-function wordsFor(engine: Engine, state: GameState): Words {
+function figureIn(view: GameView, figure: FigureId): FigureView {
+  const found = view.figures[figure] as FigureView | undefined;
+  if (!found) throw new Error(`There is no figure ${figure}`);
+  return found;
+}
+
+function wordsFor(engine: Engine, view: GameView): Words {
   const { rooms, cards } = engine.catalog;
   return {
-    figure: (figure) => figureName(engine.catalog, state, figure),
-    seat: (seat) => {
-      const explorer = explorerOf(state, seat);
-      return explorer === null
-        ? state.seats[seat].name
-        : figureName(engine.catalog, state, explorer);
-    },
+    figure: (figure) => figureIn(view, figure).name,
+    seat: (seat) =>
+      Object.values(view.figures).find(
+        (f) => f.kind === "explorer" && f.owner === seat,
+      )?.name ?? view.seats[seat].name,
     room: (room) => rooms[room].name,
     card: (card) => cards[card].name,
   };
@@ -108,11 +109,11 @@ const TURN_WORDS: Record<TurnKind, string> = {
 /** The name a haunt gives one of its counters or secrets. */
 function hauntName(
   engine: Engine,
-  state: GameState,
+  view: GameView,
   kind: "counters" | "secrets",
   id: string,
 ): string {
-  const haunt = state.haunt === null ? undefined : engine.haunts[state.haunt.number];
+  const haunt = view.haunt === null ? undefined : engine.haunts[view.haunt.number];
   const name = haunt?.[kind][id]?.name;
   if (name === undefined) throw new Error(`The haunt has no ${kind} entry ${id}`);
   return name;
@@ -139,10 +140,10 @@ function list(items: string[]): string {
  *  same write already tells (a drawn card's gain, a trade's two hand-overs). */
 export function describeEvent(
   engine: Engine,
-  state: GameState,
+  view: GameView,
   event: GameEvent,
 ): string | null {
-  const words = wordsFor(engine, state);
+  const words = wordsFor(engine, view);
   const own =
     event.rule.source === "card"
       ? engine.behaviours.cards[event.rule.card]?.describe?.[event.type]
@@ -186,8 +187,11 @@ export function describeEvent(
     case "ready":
       return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
     case "forced": {
-      const d = data<{ seat: number; label: string }>(event);
-      return sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
+      // Its one choice comes only to the seat it was put to.
+      const d = data<{ seat: number; label?: string }>(event);
+      return d.label === undefined
+        ? sentence(`${seat(d.seat)} has only one choice`)
+        : sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
     }
     case "left":
       return null;
@@ -422,7 +426,7 @@ export function describeEvent(
     case "side-chosen": {
       const d = data<{ figure: FigureId; room: string; side: Edge }>(event);
       return sentence(
-        `${who(d.figure)} stops on the ${sideName(state.board, d.room, d.side)} side of the ${words.room(d.room)}`,
+        `${who(d.figure)} stops on the ${sideName(view.board, d.room, d.side)} side of the ${words.room(d.room)}`,
       );
     }
     case "text-ignored": {
@@ -507,7 +511,7 @@ export function describeEvent(
         event,
       );
       const traits = d.traits.map(
-        (t) => `${traitName(t)} ${traitValue(engine, state, d.figure, t)}`,
+        (t) => `${traitName(t)} ${String(figureIn(view, d.figure).traits[t])}`,
       );
       const parts = [
         ...(d.room === null ? [] : [`starts in the ${words.room(d.room)}`]),
@@ -542,12 +546,15 @@ export function describeEvent(
       );
     }
     case "side-set": {
+      // A side set in secret comes without it for the seats it is kept from.
       const d = data<{
         seat: number;
-        side: Side;
-        roles: Role[];
+        side?: Side;
+        roles?: Role[];
         secret: boolean;
       }>(event);
+      if (d.side === undefined || d.roles === undefined)
+        return sentence(`${seat(d.seat)} is given a side in secret`);
       const what = d.roles.includes("traitor")
         ? "is the traitor"
         : SIDE_WORDS[d.side];
@@ -573,7 +580,7 @@ export function describeEvent(
     case "traitor-tie": {
       const d = data<{ tied: number[]; seat: number }>(event);
       return sentence(
-        `${list(d.tied.map(seat))} tie to be the traitor; it goes to ${seat(d.seat)}, ${d.seat === state.haunt?.revealer ? "who revealed the haunt" : "nearest the revealer's left"}`,
+        `${list(d.tied.map(seat))} tie to be the traitor; it goes to ${seat(d.seat)}, ${d.seat === view.haunt?.revealer ? "who revealed the haunt" : "nearest the revealer's left"}`,
       );
     }
     case "sides-dealt":
@@ -587,25 +594,28 @@ export function describeEvent(
           : "The heroes carry out the haunt's setup",
       );
     case "secret-set": {
-      const d = data<{ secret: string; knownBy: number[] | null }>(event);
+      // Who knows it is left out where it would give away a hidden side.
+      const d = data<{ secret: string; knownBy?: number[] | null }>(event);
+      const name = hauntName(engine, view, "secrets", d.secret);
+      if (d.knownBy === undefined)
+        return sentence(`The ${name} is written down in secret`);
       const who =
         d.knownBy === null ? "everyone" : list(d.knownBy.map(seat)) || "no one";
-      return sentence(
-        `The ${hauntName(engine, state, "secrets", d.secret)} is written down, known to ${who}`,
-      );
+      return sentence(`The ${name} is written down, known to ${who}`);
     }
     case "secret-revealed": {
       const d = data<{ secret: string }>(event);
-      const secret = state.haunt?.secrets.find((s) => s.id === d.secret);
-      if (!secret) throw new Error(`No haunt secret ${d.secret}`);
+      const secret = view.haunt?.secrets.find((s) => s.id === d.secret);
+      if (!secret?.known)
+        throw new Error(`The haunt secret ${d.secret} isn't known to this view`);
       return sentence(
-        `The ${hauntName(engine, state, "secrets", d.secret)} is shown to everyone: ${JSON.stringify(secret.value)}`,
+        `The ${hauntName(engine, view, "secrets", d.secret)} is shown to everyone: ${JSON.stringify(secret.value)}`,
       );
     }
     case "counter-changed": {
       const d = data<{ counter: string; value: number }>(event);
       return sentence(
-        `${capital(hauntName(engine, state, "counters", d.counter))}: ${d.value}`,
+        `${capital(hauntName(engine, view, "counters", d.counter))}: ${d.value}`,
       );
     }
     case "status-added":
@@ -686,19 +696,26 @@ function attackingFigure(attacker: Attacker): FigureId {
   return attacker.figure;
 }
 
-/** What a pending decision asks, and of whom. */
+/** A decision's question: its kind, its parameters and the rule that raised
+ *  it, which a view holds only for the seats it is put to. */
+export interface Question {
+  kind: string;
+  params: Json;
+  rule: RuleRef;
+}
 
+/** What a pending decision asks, and of whom. */
 export function describeDecision(
   engine: Engine,
-  state: GameState,
-  decision: Decision,
+  view: GameView,
+  decision: Question,
 ): string {
-  const words = wordsFor(engine, state);
+  const words = wordsFor(engine, view);
   const ask = (text: string) => withRule(engine, decision.rule, text);
   switch (decision.kind) {
     case "turn": {
       const p = decision.params as { seat: number };
-      const turn = state.turn;
+      const turn = view.turn;
       if (turn?.kind !== "monster")
         return ask(`${words.seat(p.seat)}'s turn: what next?`);
       return ask(
@@ -775,4 +792,16 @@ export function describeDecision(
     }
   }
   throw new Error(`No description for the decision kind ${decision.kind}`);
+}
+
+/** What everyone else sees of a decision put to other seats: whom the game
+ *  is waiting on, and what kind of question it is. */
+export function describeWaiting(
+  engine: Engine,
+  view: GameView,
+  decision: { seats: number[]; answered: number[]; kind: string },
+): string {
+  const words = wordsFor(engine, view);
+  const waiting = decision.seats.filter((s) => !decision.answered.includes(s));
+  return `Waiting for ${list(waiting.map(words.seat))} to decide (${decision.kind})`;
 }

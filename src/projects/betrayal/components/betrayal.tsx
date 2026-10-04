@@ -1,28 +1,37 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import type { Action, GameState } from "../types";
-import { ENGINE } from "../game";
+import { ENGINE, viewFor } from "../game";
 import { apply } from "../engine/step-loop";
+import type { GameView } from "../engine/view";
 import { decodeGame, replay, type SharedGame } from "../share";
-import { logLines, type LogLine } from "./describe";
+import { logLines, seatLabel, type LogLine } from "./describe";
 import { ErrorBox } from "./error-box";
 import { EventLog } from "./event-log";
-import { boardFocus, type Offer } from "./focus";
+import { boardFocus } from "./focus";
 import { House } from "./house";
-import { errorText, offersFor, PendingPanel } from "./pending-panel";
+import { errorText, PendingPanel } from "./pending-panel";
 import { SharePanel } from "./share-panel";
-import { SidePanel } from "./side-panel";
+import { HauntText, SidePanel } from "./side-panel";
 import { StartForm } from "./start-form";
 import { BETRAYAL_THEME } from "./theme";
 
-/** A game in this browser: how it started, what has been played, and where it is now. */
+/** Whose view: a seat, or a spectator (null). */
+type Viewer = number | null;
+
+/** A game in this browser: how it started, what has been played, and where
+ *  it is now. The page renders one seat's view, never the state (outside
+ *  the full-state toggle), so it keeps every seat's view of the latest
+ *  state, a spectator's last, and a log for each, worded from that seat's
+ *  own view of every write. */
 interface Session {
   game: SharedGame["game"];
   actions: Action[];
   state: GameState;
-  log: LogLine[];
+  views: GameView[];
+  logs: LogLine[][];
 }
 
 /** A rejected answer is the engine saying no; a thrown error is a bug or missing behaviour. */
@@ -49,14 +58,45 @@ export function Betrayal() {
   return bench ? <ArtBench room={bench} /> : <DebugGame code={params.get("game")} />;
 }
 
+function viewsOf(state: GameState): GameView[] {
+  return [...state.seats.map((_seat, i) => viewFor(state, i)), viewFor(state, null)];
+}
+
+/** Where a viewer's view and log are kept in a session. */
+function slot(state: GameState, viewer: Viewer): number {
+  return viewer ?? state.seats.length;
+}
+
+/** Each viewer's log, with one more write's lines. */
+function withWrite(logs: LogLine[][], views: GameView[]): LogLine[][] {
+  return views.map((view, i) => [...(logs.at(i) ?? []), ...logLines(ENGINE, view)]);
+}
+
+/** The seats the game is waiting on, any of whom the tester may be; with
+ *  nothing pending, any seat or a spectator. */
+function viewers(state: GameState): Viewer[] {
+  const pending = state.pending;
+  if (pending?.type === "ready") return pending.seats;
+  if (pending?.type === "decision")
+    return pending.seats.filter((seat) => !(seat in pending.answers));
+  return [...state.seats.map((_seat, i) => i), null];
+}
+
 /** Rebuilds a shared game by replaying it. */
 function open(shared: SharedGame): Session {
   const states = replay(ENGINE, shared, crypto.randomUUID());
+  let logs: LogLine[][] = [];
+  let views: GameView[] = [];
+  for (const state of states) {
+    views = viewsOf(state);
+    logs = withWrite(logs, views);
+  }
   return {
     game: shared.game,
     actions: shared.actions,
     state: states[states.length - 1],
-    log: states.flatMap((state) => logLines(ENGINE, state)),
+    views,
+    logs,
   };
 }
 
@@ -99,11 +139,13 @@ function DebugGame({ code }: { code: string | null }) {
         setProblem({ kind: "rejected", message: result.reason });
         return;
       }
+      const views = viewsOf(result.state);
       setSession({
         ...session,
         actions: [...session.actions, action],
         state: result.state,
-        log: [...session.log, ...logLines(ENGINE, result.state)],
+        views,
+        logs: withWrite(session.logs, views),
       });
       setProblem(null);
     } catch (error) {
@@ -151,7 +193,7 @@ function DebugGame({ code }: { code: string | null }) {
           }}
         />
       ) : (
-        <GameView
+        <PlayView
           session={session}
           problem={problem}
           onAction={act}
@@ -164,7 +206,9 @@ function DebugGame({ code }: { code: string | null }) {
   );
 }
 
-function GameView({
+/** One seat's view of the game: the seat being waited on, or, when a
+ *  question is put to several at once, whichever of them the tester picks. */
+function PlayView({
   session,
   problem,
   onAction,
@@ -176,50 +220,91 @@ function GameView({
   onRestart: () => void;
 }) {
   const { state } = session;
-  const offers = useMemo(() => offersFor(ENGINE, state), [state]);
-  const focus = boardFocus(
-    state,
-    offers.find((o): o is Offer => o.choices !== null) ?? null,
-  );
+  const [picked, setPicked] = useState<Viewer>(null);
+  const [fullState, setFullState] = useState(false);
+  const choosable = viewers(state);
+  const viewer = choosable.includes(picked) ? picked : choosable[0];
+  const view = session.views[slot(state, viewer)];
+  const log = session.logs[slot(state, viewer)];
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-      <div className="flex min-w-0 flex-col gap-4">
-        <Panel title="Pending">
-          {problem && (
-            <div className="mb-2">
-              <p className="text-sm font-semibold text-(--bt-danger)">
-                {problem.kind === "rejected"
-                  ? "Rejected by the engine"
-                  : "Engine error (state unchanged)"}
-              </p>
-              <ErrorBox message={problem.message} />
-            </div>
-          )}
-          <PendingPanel
-            engine={ENGINE}
-            state={state}
-            offers={offers}
-            onAction={onAction}
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-(--bt-muted)">Viewing as</span>
+        {choosable.map((seat) => (
+          <button
+            key={seat ?? "spectator"}
+            type="button"
+            aria-pressed={seat === viewer}
+            className={`rounded border px-2 py-0.5 ${seat === viewer ? "border-(--bt-accent) bg-(--bt-focus)" : "border-(--bt-line)"}`}
+            onClick={() => {
+              setPicked(seat);
+            }}
+          >
+            {seat === null ? "Spectator" : seatLabel(view, seat)}
+          </button>
+        ))}
+        <label className="ml-auto flex items-center gap-1.5 text-(--bt-muted)">
+          <input
+            type="checkbox"
+            checked={fullState}
+            onChange={(e) => {
+              setFullState(e.target.checked);
+            }}
           />
-        </Panel>
-        <Panel title="House">
-          <House engine={ENGINE} state={state} focus={focus} onAction={onAction} />
-        </Panel>
+          Show full state (debug)
+        </label>
       </div>
-      <div className="flex min-w-0 flex-col gap-4">
-        <Panel title="Log">
-          <EventLog engine={ENGINE} state={state} lines={session.log} />
+      {fullState && (
+        <Panel title="Full state: everything, secrets included">
+          <pre className="max-h-[32rem] overflow-auto text-xs">
+            {JSON.stringify(state, null, 1)}
+          </pre>
         </Panel>
-        <Panel title="Explorers">
-          <SidePanel engine={ENGINE} state={state} />
-        </Panel>
-        <Panel title="Share and replay">
-          <SharePanel
-            game={session.game}
-            actions={session.actions}
-            onRestart={onRestart}
-          />
-        </Panel>
+      )}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Panel title="Pending">
+            {problem && (
+              <div className="mb-2">
+                <p className="text-sm font-semibold text-(--bt-danger)">
+                  {problem.kind === "rejected"
+                    ? "Rejected by the engine"
+                    : "Engine error (state unchanged)"}
+                </p>
+                <ErrorBox message={problem.message} />
+              </div>
+            )}
+            <PendingPanel engine={ENGINE} view={view} onAction={onAction} />
+          </Panel>
+          <Panel title="House">
+            <House
+              engine={ENGINE}
+              view={view}
+              focus={boardFocus(view)}
+              onAction={onAction}
+            />
+          </Panel>
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <Panel title="Log">
+            <EventLog engine={ENGINE} view={view} lines={log} />
+          </Panel>
+          {view.haunt && (
+            <Panel title="Your haunt">
+              <HauntText view={view} />
+            </Panel>
+          )}
+          <Panel title="Explorers">
+            <SidePanel engine={ENGINE} view={view} />
+          </Panel>
+          <Panel title="Share and replay">
+            <SharePanel
+              game={session.game}
+              actions={session.actions}
+              onRestart={onRestart}
+            />
+          </Panel>
+        </div>
       </div>
     </div>
   );

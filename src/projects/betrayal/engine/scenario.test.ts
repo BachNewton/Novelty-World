@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { at, choose, explorer, offered, testGame } from "../testing";
+import { at, choose, explorer, offered, testGame, spectator } from "../testing";
 import { placed } from "./board";
 import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
@@ -140,7 +140,7 @@ describe("start haunt N", () => {
     ]);
     const lines = state.lastEvents
       .filter((e) => e.type === "side-set")
-      .map((e) => describeEvent(ENGINE, state, e));
+      .map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e));
     expect(lines).toEqual([
       "Scenario: Zoe Ingstrom is the traitor, which is kept secret.",
       "Scenario: Ox Bellows is a hero.",

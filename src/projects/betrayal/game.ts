@@ -11,6 +11,8 @@ import { SCENARIO_STEPS } from "./engine/scenario";
 import { localStep, type Behaviours } from "./engine/sources";
 import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
 import type { Engine, Rules, StepHandler } from "./engine/step-loop";
+import { viewFor as engineView, type GameView } from "./engine/view";
+import type { GameState } from "./types";
 import { withHaunts } from "./kit/haunt";
 
 /** Every source's own steps, registered under the source's id. */
@@ -67,3 +69,9 @@ export const ENGINE: Engine = withHaunts(
   },
   HAUNTS,
 );
+
+/** What a seat, or a spectator (null), may see of a game: all that the UI,
+ *  bots and AI players are given. */
+export function viewFor(state: GameState, seat: number | null): GameView {
+  return engineView(ENGINE, state, seat);
+}

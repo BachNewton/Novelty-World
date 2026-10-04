@@ -1,55 +1,39 @@
-import type { Action, GameState } from "../types";
-import { choices, type Choice, type Engine } from "../engine/step-loop";
-import { describeDecision, describeRule } from "../engine/describe";
+import type { Action } from "../types";
+import type { Choice, Engine } from "../engine/step-loop";
+import {
+  describeDecision,
+  describeRule,
+  describeWaiting,
+} from "../engine/describe";
+import type { GameView } from "../engine/view";
 import { seatLabel } from "./describe";
-import { ErrorBox } from "./error-box";
-import type { Offer } from "./focus";
 import { SEAT_BG } from "./theme";
 import { Why } from "./why";
-
-/** What the pending decision offers one seat still to answer it. Listing
- *  choices runs engine code, which throws for content with no behaviour yet,
- *  and the panel shows that error in place of the choices. */
-export type SeatOffer = Offer | { seat: number; choices: null; error: string };
-
-export function offersFor(engine: Engine, state: GameState): SeatOffer[] {
-  const pending = state.pending;
-  if (pending?.type !== "decision") return [];
-  return pending.seats
-    .filter((seat) => !(seat in pending.answers))
-    .map((seat) => {
-      try {
-        return { seat, choices: choices(engine, state, seat) };
-      } catch (error) {
-        return { seat, choices: null, error: errorText(error) };
-      }
-    });
-}
 
 export function errorText(error: unknown): string {
   if (error instanceof Error) return error.stack ?? error.message;
   return String(error);
 }
 
+/** The pending decision as the viewing seat sees it: its question and
+ *  choices when it is put to that seat, otherwise only whom it waits on. */
 export function PendingPanel({
   engine,
-  state,
-  offers,
+  view,
   onAction,
 }: {
   engine: Engine;
-  state: GameState;
-  offers: SeatOffer[];
+  view: GameView;
   onAction: (action: Action) => void;
 }) {
-  if (state.result) {
-    const { winners, rule } = state.result;
+  if (view.result) {
+    const { winners, rule } = view.result;
     return (
       <div className="font-semibold text-(--bt-danger)">
         The game is over.{" "}
         {winners.length === 0
           ? "No one wins."
-          : `Winners: ${winners.map((seat) => seatLabel(engine, state, seat)).join(", ")}.`}{" "}
+          : `Winners: ${winners.map((seat) => seatLabel(view, seat)).join(", ")}.`}{" "}
         <span className="text-xs font-normal text-(--bt-muted)">
           ({describeRule(engine, rule)})
         </span>
@@ -57,79 +41,87 @@ export function PendingPanel({
       </div>
     );
   }
-  const pending = state.pending;
-  if (!pending && state.haunt) {
+  const pending = view.pending;
+  if (!pending && view.haunt?.name === null) {
     return (
       <p className="font-semibold text-(--bt-danger)">
-        The haunt is revealed: haunt #{state.haunt.number}, which isn&apos;t
+        The haunt is revealed: haunt #{view.haunt.number}, which isn&apos;t
         built yet, so the game stops here.
       </p>
     );
   }
   if (!pending) return <p className="text-(--bt-muted)">Nothing pending.</p>;
+  const viewer = view.viewer;
 
   if (pending.type === "ready") {
     return (
       <div className="flex flex-col gap-2">
         <div>
-          Waiting for players to read and confirm{" "}
+          Waiting for {pending.seats.map((seat) => seatLabel(view, seat)).join(", ")}{" "}
+          to read and confirm{" "}
           <span className="text-(--bt-muted)">
             ({describeRule(engine, pending.rule)})
           </span>
           <Why engine={engine} rule={pending.rule} />
         </div>
-        <div className="flex flex-wrap gap-2">
-          {pending.seats.map((seat) => (
+        {viewer !== null && pending.seats.includes(viewer) && (
+          <div className="flex flex-wrap gap-2">
             <ChoiceButton
-              key={seat}
-              label={`Ready: ${seatLabel(engine, state, seat)}`}
+              label={`Ready: ${seatLabel(view, viewer)}`}
               onClick={() => {
-                onAction({ kind: "ready", wait: pending.id, seat });
+                onAction({ kind: "ready", wait: pending.id, seat: viewer });
               }}
             />
-          ))}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
 
+  const { detail } = pending;
+  if (detail === null || viewer === null) {
+    return (
+      <p>
+        {describeWaiting(engine, view, pending)}{" "}
+        <span className="text-xs text-(--bt-muted)">({pending.id})</span>
+      </p>
+    );
+  }
   return (
     <div className="flex flex-col gap-3">
       <div>
-        {describeDecision(engine, state, pending)}{" "}
+        {describeDecision(engine, view, { ...pending, params: detail.params })}{" "}
         <span className="text-xs text-(--bt-muted)">
           ({pending.id}, {describeRule(engine, pending.rule)})
         </span>
         <Why engine={engine} rule={pending.rule} />
       </div>
-      {offers.map((offer) => (
-        <div key={offer.seat} className="flex flex-col gap-1">
-          <h3 className="flex items-center gap-1.5 font-semibold">
-            <span className={`inline-block size-2.5 rounded-full ${SEAT_BG[offer.seat]}`} />
-            {seatLabel(engine, state, offer.seat)}
-          </h3>
-          {offer.choices === null ? (
-            <ErrorBox message={offer.error} />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {offer.choices.map((c: Choice) => (
-                <ChoiceButton
-                  key={JSON.stringify(c.choice)}
-                  label={c.label}
-                  onClick={() => {
-                    onAction({
-                      kind: "choose",
-                      decision: pending.id,
-                      seat: offer.seat,
-                      choice: c.choice,
-                    });
-                  }}
-                />
-              ))}
-            </div>
-          )}
+      <h3 className="flex items-center gap-1.5 font-semibold">
+        <span className={`inline-block size-2.5 rounded-full ${SEAT_BG[viewer]}`} />
+        {seatLabel(view, viewer)}
+      </h3>
+      {detail.answer !== null ? (
+        <p className="text-(--bt-muted)">
+          You have answered. {describeWaiting(engine, view, pending)}.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {detail.choices.map((c: Choice) => (
+            <ChoiceButton
+              key={JSON.stringify(c.choice)}
+              label={c.label}
+              onClick={() => {
+                onAction({
+                  kind: "choose",
+                  decision: pending.id,
+                  seat: viewer,
+                  choice: c.choice,
+                });
+              }}
+            />
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

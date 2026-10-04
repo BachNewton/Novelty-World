@@ -14,6 +14,7 @@ import {
   testGame,
   waitingOn,
   type TestGame,
+  spectator,
 } from "../testing";
 import type { GameEvent, GameState, RuleRef } from "../types";
 import { lineOfSight } from "./board";
@@ -147,7 +148,7 @@ function fight(
 }
 
 const describeAll = (engine: Engine, state: GameState) =>
-  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, state, e) ?? []);
+  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, spectator(state, engine), e) ?? []);
 
 describe("the turn's attack (rules.md, p. 13)", () => {
   it("is offered on each opponent in the room, once the haunt has begun", () => {

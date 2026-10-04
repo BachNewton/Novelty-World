@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { pendingDecision, testGame, waitingOn } from "../testing";
+import { pendingDecision, testGame, waitingOn, spectator } from "../testing";
 import type { GameEvent, GameState, Json, RuleRef } from "../types";
 import { describeDecision, describeEvent, describeRule } from "./describe";
 import { apply, choices } from "./step-loop";
@@ -13,7 +13,7 @@ const event = (type: string, rule: RuleRef, data: Json): GameEvent => ({
 });
 
 const text = (e: GameEvent, state: GameState = testGame()) =>
-  describeEvent(ENGINE, state, e);
+  describeEvent(ENGINE, spectator(state, ENGINE), e);
 
 describe("describeEvent", () => {
   it("tells of a card set aside out of the game, and a death no trait caused", () => {
@@ -211,11 +211,11 @@ describe("describeEvent", () => {
       state.decks.event.draw = Array.from({ length: 10 }, () => "angry-being");
       for (let i = 0; i < 300 && state.pending?.type === "decision"; i++) {
         for (const e of state.lastEvents) {
-          const line = describeEvent(ENGINE, state, e);
+          const line = describeEvent(ENGINE, spectator(state, ENGINE), e);
           if (line !== null) expect(line).toMatch(/\.$/);
         }
         expect(
-          describeDecision(ENGINE, state, pendingDecision(state)),
+          describeDecision(ENGINE, spectator(state, ENGINE), pendingDecision(state)),
         ).not.toBe("");
         const options = choices(ENGINE, state, waitingOn(state));
         const pick = options[(i * 7 + seed.charCodeAt(0)) % options.length];
@@ -235,7 +235,7 @@ describe("describeEvent", () => {
 describe("describeDecision", () => {
   it("says who is asked what", () => {
     const state = testGame();
-    expect(describeDecision(ENGINE, state, pendingDecision(state))).toBe(
+    expect(describeDecision(ENGINE, spectator(state, ENGINE), pendingDecision(state))).toBe(
       "Zoe Ingstrom's turn: what next?",
     );
   });

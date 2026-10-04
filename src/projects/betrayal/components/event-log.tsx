@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { GameState } from "../types";
 import type { Engine } from "../engine/step-loop";
+import type { GameView } from "../engine/view";
 import { describeRule } from "../engine/describe";
 import { logGroups, type LogLine } from "./describe";
 import { SEAT_BG } from "./theme";
@@ -10,11 +10,11 @@ import { Why } from "./why";
 
 export function EventLog({
   engine,
-  state,
+  view,
   lines,
 }: {
   engine: Engine;
-  state: GameState;
+  view: GameView;
   lines: LogLine[];
 }) {
   const list = useRef<HTMLDivElement>(null);
@@ -24,7 +24,7 @@ export function EventLog({
 
   return (
     <div ref={list} className="max-h-[32rem] overflow-y-auto text-sm">
-      {logGroups(engine, state, lines).map((group) => (
+      {logGroups(view, lines).map((group) => (
         <section key={group.key} className="mb-2">
           <h3 className="sticky top-0 flex items-center gap-1.5 bg-(--bt-panel) py-0.5 text-xs font-semibold tracking-wide text-(--bt-muted) uppercase">
             {group.seat !== null && (

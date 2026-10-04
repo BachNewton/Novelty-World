@@ -19,6 +19,7 @@ import {
   pendingDecision,
   put,
   waitingOn,
+  spectator,
 } from "../../testing";
 import type { GameEvent, GameState, RuleRef } from "../../types";
 
@@ -56,7 +57,7 @@ const labels = (state: GameState, engine: Engine) =>
     .filter((label) => !TOY_ACTIONS.includes(label));
 
 const describeAll = (engine: Engine, state: GameState) =>
-  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, state, e) ?? []);
+  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, spectator(state, engine), e) ?? []);
 
 /** Puts the Phantom somewhere, as a test's setup. */
 function phantomIn(state: GameState, room: string): void {

@@ -7,6 +7,7 @@ import { migrate } from "./engine/format";
 import { activeHaunt } from "./engine/haunt";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { bestPlacements } from "./engine/tiles";
+import { viewFor } from "./engine/view";
 import { ENGINE } from "./game";
 import type { Action, CardType, FloorId, GameState, Json } from "./types";
 
@@ -59,9 +60,12 @@ function holdOffHaunt(engine: Engine): Engine {
   };
 }
 
+/** Plays one game. `onWrite` is called with the state after every write,
+ *  for checks of a test's own. */
 export function simulate(
   seed: string,
   engine: Engine = ENGINE,
+  onWrite: (state: GameState) => void = () => {},
 ): SimulationResult {
   const rng = createRng(`simulation/${seed}`);
   const history: string[] = [];
@@ -79,6 +83,7 @@ export function simulate(
     });
     record(engine, state, history, "setup");
     checkState(engine, state);
+    onWrite(state);
     const kinds: Record<string, number> = {};
     let decisions = 0;
     let turns = 0;
@@ -158,6 +163,7 @@ export function simulate(
         action.kind === "ready" ? "ready" : "answer",
       );
       checkState(engine, state);
+      onWrite(state);
       if (state.turn && state.turn.seat !== turnSeat) {
         turnSeat = state.turn.seat;
         turns++;
@@ -168,7 +174,13 @@ export function simulate(
     const pending = state?.pending;
     const where =
       state && pending?.type === "decision"
-        ? safely(() => describeDecision(engine, state as GameState, pending))
+        ? safely(() =>
+            describeDecision(
+              engine,
+              viewFor(engine, state as GameState, null),
+              pending,
+            ),
+          )
         : JSON.stringify(pending ?? null);
     throw new Error(
       [
@@ -452,13 +464,14 @@ function record(
   what: string,
 ): void {
   history.push(`${what}:`);
-  for (const event of state.lastEvents) {
-    const text = describeEvent(engine, state, event);
+  const view = viewFor(engine, state, null);
+  for (const event of view.events) {
+    const text = describeEvent(engine, view, event);
     if (text !== null) history.push(`  ${text}`);
   }
   const pending = state.pending;
   if (pending?.type === "decision")
-    history.push(`  -> ${describeDecision(engine, state, pending)}`);
+    history.push(`  -> ${describeDecision(engine, view, pending)}`);
   if (history.length > HISTORY * 8)
     history.splice(0, history.length - HISTORY * 8);
 }

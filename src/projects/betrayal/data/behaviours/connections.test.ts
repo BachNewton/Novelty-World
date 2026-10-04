@@ -14,6 +14,7 @@ import {
   pendingDecision,
   put,
   testGame,
+  spectator,
 } from "../../testing";
 import type { GameState, PlacedTile, RuleRef } from "../../types";
 
@@ -42,7 +43,7 @@ const kind = (state: GameState) =>
 
 function described(state: GameState): string {
   return state.lastEvents
-    .map((e) => describeEvent(ENGINE, state, e))
+    .map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e))
     .filter((line) => line !== null)
     .join(" ");
 }

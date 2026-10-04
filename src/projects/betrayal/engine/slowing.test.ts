@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { at, choose, eventTypes, inHaunt, offered, testGame } from "../testing";
+import { at, choose, eventTypes, inHaunt, offered, testGame, spectator } from "../testing";
 import type { GameState } from "../types";
 import { describeEvent } from "./describe";
 
@@ -28,7 +28,7 @@ describe("leaving a room with opponents in it", () => {
     expect(moved(state)).toBe(2);
     const slowed = state.lastEvents.find((e) => e.type === "slowed");
     if (!slowed) throw new Error("No slowed event");
-    expect(describeEvent(ENGINE, state, slowed)).toBe(
+    expect(describeEvent(ENGINE, spectator(state, ENGINE), slowed)).toBe(
       "Zoe Ingstrom spends 1 more space of movement to get past opponents in the Entrance Hall.",
     );
     // No opponent in the Foyer, so the next move costs 1.

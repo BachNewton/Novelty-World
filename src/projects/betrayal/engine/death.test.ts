@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { eventTypes, explorer, inHaunt, testGame } from "../testing";
+import { eventTypes, explorer, inHaunt, testGame, spectator } from "../testing";
 import type { GameState, RuleRef, Step } from "../types";
 import { describeEvent } from "./describe";
 import { damage, die, discardCard, gain, leaveRoom, relocate, step } from "./effects";
@@ -37,7 +37,7 @@ function weakZoe(cards: string[] = []): GameState {
 
 const lines = (state: GameState) =>
   state.lastEvents
-    .map((e) => describeEvent(ENGINE, state, e))
+    .map((e) => describeEvent(ENGINE, spectator(state, ENGINE), e))
     .filter((line) => line !== null);
 
 describe("a trait at the skull", () => {

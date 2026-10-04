@@ -19,6 +19,7 @@ import {
   pendingDecision,
   put,
   waitingOn,
+  spectator,
 } from "../testing";
 import type {
   FigureDefinition,
@@ -100,7 +101,7 @@ const labels = (state: GameState, engine: Engine) =>
     .filter((label) => !TOY_ACTIONS.includes(label));
 
 const describeAll = (engine: Engine, state: GameState) =>
-  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, state, e) ?? []);
+  state.lastEvents.flatMap((e: GameEvent) => describeEvent(engine, spectator(state, engine), e) ?? []);
 
 /** Sets a monster type's movement for the turn, as a test's setup. */
 function moves(state: GameState, definition: string, spaces: number): void {
@@ -131,14 +132,14 @@ describe("the monster turn's start (rules.md, p. 18)", () => {
       "End the monster turn",
     ]);
     expect(describeAll(BUSY_ENGINE, state)).toContain("Ox Bellows's monster turn.");
-    expect(describeDecision(BUSY_ENGINE, state, pendingDecision(state))).toBe(
+    expect(describeDecision(BUSY_ENGINE, spectator(state, BUSY_ENGINE), pendingDecision(state))).toBe(
       "Ox Bellows's monster turn: which monster acts next?",
     );
     const acting = choose(state, "Act with Shade 1", BUSY_ENGINE);
     expect(describeAll(BUSY_ENGINE, acting)).toContain(
       "Shade 1 acts, from the Entrance Hall.",
     );
-    expect(describeDecision(BUSY_ENGINE, acting, pendingDecision(acting))).toBe(
+    expect(describeDecision(BUSY_ENGINE, spectator(acting, BUSY_ENGINE), pendingDecision(acting))).toBe(
       "Ox Bellows's monster turn: what next for Shade 1?",
     );
   });

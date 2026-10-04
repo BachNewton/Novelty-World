@@ -3,6 +3,7 @@ import { figureOf, placeOf, seatExplorer } from "./engine/figures";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { ENGINE } from "./game";
 import type { Scenario } from "./engine/scenario";
+import { viewFor, type GameView } from "./engine/view";
 import type {
   Decision,
   Edge,
@@ -50,6 +51,12 @@ export function pendingDecision(state: GameState): Decision {
   if (state.pending?.type !== "decision")
     throw new Error("No decision is pending");
   return state.pending;
+}
+
+/** What a spectator sees: public information only, as the log describes
+ *  events for anyone. */
+export function spectator(state: GameState, engine: Engine = ENGINE): GameView {
+  return viewFor(engine, state, null);
 }
 
 /** The seat the pending decision is waiting on. */

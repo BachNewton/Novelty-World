@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Action, Edge, FloorId, GameState, PlacedTile } from "../types";
+import type { Action, Edge, FloorId, PlacedTile } from "../types";
 import {
   COMPASS,
   neighbourCell,
@@ -11,7 +11,7 @@ import {
 } from "../engine/board";
 import type { Engine } from "../engine/step-loop";
 import type { Focus } from "./focus";
-import { allFigures, figureName } from "../engine/figures";
+import type { GameView } from "../engine/view";
 import { SEAT_BG } from "./theme";
 
 /** A figure's colour: its owning seat's, or a neutral one when no seat owns it. */
@@ -65,18 +65,18 @@ function wallPosition(tile: PlacedTile, wall: Edge[]): string {
 
 export function House({
   engine,
-  state,
+  view,
   focus,
   onAction,
 }: {
   engine: Engine;
-  state: GameState;
+  view: GameView;
   focus: Focus;
   onAction: (action: Action) => void;
 }) {
   const floors = FLOOR_ORDER.filter(
     (floor) =>
-      state.board.tiles.some((t) => t.floor === floor) ||
+      view.board.tiles.some((t) => t.floor === floor) ||
       focus.cells.some((c) => c.floor === floor),
   );
   return (
@@ -86,32 +86,32 @@ export function House({
           <Floor
             key={floor}
             engine={engine}
-            state={state}
+            view={view}
             floor={floor}
             focus={focus}
             onAction={onAction}
           />
         ))}
       </div>
-      <Legend engine={engine} state={state} />
+      <Legend view={view} />
     </div>
   );
 }
 
 function Floor({
   engine,
-  state,
+  view,
   floor,
   focus,
   onAction,
 }: {
   engine: Engine;
-  state: GameState;
+  view: GameView;
   floor: FloorId;
   focus: Focus;
   onAction: (action: Action) => void;
 }) {
-  const tiles = state.board.tiles.filter((t) => t.floor === floor);
+  const tiles = view.board.tiles.filter((t) => t.floor === floor);
   const cells = focus.cells.filter((c) => c.floor === floor);
   const spots = [...tiles, ...cells];
   const minX = Math.min(...spots.map((t) => t.x));
@@ -139,7 +139,7 @@ function Floor({
             <Room
               key={tile.tile}
               engine={engine}
-              state={state}
+              view={view}
               tile={tile}
               column={tile.x - minX + 1}
               row={tile.y - minY + 1}
@@ -184,9 +184,9 @@ function Floor({
 type Door = "joined" | "walled" | "unexplored";
 
 /** What the door on this board edge of a room opens onto. */
-function doorKind(engine: Engine, state: GameState, tile: PlacedTile, edge: Edge): Door {
+function doorKind(engine: Engine, view: GameView, tile: PlacedTile, edge: Edge): Door {
   const cell = neighbourCell(tile, edge);
-  const next = roomAt(state.board, tile.floor, cell.x, cell.y);
+  const next = roomAt(view.board, tile.floor, cell.x, cell.y);
   if (!next) return "unexplored";
   return openings(engine.catalog, next).includes(opposite(edge)) ? "joined" : "walled";
 }
@@ -202,7 +202,7 @@ const DOOR_LOOK: Record<Door, { className: string; title: string }> = {
 
 function Room({
   engine,
-  state,
+  view,
   tile,
   column,
   row,
@@ -210,7 +210,7 @@ function Room({
   onAction,
 }: {
   engine: Engine;
-  state: GameState;
+  view: GameView;
   tile: PlacedTile;
   column: number;
   row: number;
@@ -218,16 +218,16 @@ function Room({
   onAction: (action: Action) => void;
 }) {
   const room = engine.catalog.rooms[tile.tile];
-  const here = allFigures(state).filter((f) => f.place?.room === tile.tile);
-  const pile = state.piles[tile.tile] ?? [];
-  const tokens = state.tokens.filter((t) => t.room === tile.tile);
+  const here = Object.values(view.figures).filter((f) => f.place?.room === tile.tile);
+  const pile = view.piles[tile.tile] ?? [];
+  const tokens = view.tokens.filter((t) => t.room === tile.tile);
   const tokenName = (id: string) => engine.catalog.tokens[id].name;
   const stairs = room.links.filter((link) =>
-    state.board.tiles.some((t) => t.tile === link),
+    view.board.tiles.some((t) => t.tile === link),
   );
   const offered = focus.rooms.has(tile.tile);
   const action = focus.rooms.get(tile.tile) ?? null;
-  const current = state.turn?.seat;
+  const current = view.turn?.seat;
   const explorable = focus.doorways.filter((d) => d.room === tile.tile);
 
   const body = (
@@ -253,16 +253,16 @@ function Room({
       )}
       <span className="mt-auto flex flex-wrap gap-0.5">
         {here.map((f) => {
-          const name = figureName(engine.catalog, state, f.id);
+          const name = f.name;
           const side = f.place?.side
-            ? `, ${sideName(state.board, tile.tile, f.place.side)} side`
+            ? `, ${sideName(view.board, tile.tile, f.place.side)} side`
             : "";
           const theirs = f.owner !== null && f.owner === current;
           return (
             <span
               key={f.id}
               className={`rounded px-1 font-semibold text-(--bt-bg) ${figureBg(f.owner)} ${theirs ? "ring-2 ring-(--bt-ink)" : ""}`}
-              title={`${f.owner === null ? "" : `${state.seats[f.owner].name}: `}${name}${side}${theirs ? " (their turn)" : ""}`}
+              title={`${f.owner === null ? "" : `${view.seats[f.owner].name}: `}${name}${side}${theirs ? " (their turn)" : ""}`}
             >
               {theirs ? "▶ " : ""}
               {name.split(" ")[0]}
@@ -314,7 +314,7 @@ function Room({
               }}
             />
           );
-        const look = DOOR_LOOK[doorKind(engine, state, tile, edge)];
+        const look = DOOR_LOOK[doorKind(engine, view, tile, edge)];
         return (
           <span
             key={edge}
@@ -338,7 +338,7 @@ function Room({
   );
 }
 
-function Legend({ engine, state }: { engine: Engine; state: GameState }) {
+function Legend({ view }: { view: GameView }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-(--bt-muted)">
       <span className="flex items-center gap-1">
@@ -353,11 +353,11 @@ function Legend({ engine, state }: { engine: Engine; state: GameState }) {
         <span className="inline-block h-2 w-4 rounded-sm bg-(--bt-accent)" />{" "}
         highlighted: the pending choice (click to choose)
       </span>
-      {allFigures(state).map((f) => (
+      {Object.values(view.figures).map((f) => (
         <span key={f.id} className="flex items-center gap-1">
           <span className={`inline-block size-2.5 rounded-full ${figureBg(f.owner)}`} />
-          {f.owner === null ? "" : `${state.seats[f.owner].name}: `}
-          {figureName(engine.catalog, state, f.id)}
+          {f.owner === null ? "" : `${view.seats[f.owner].name}: `}
+          {f.name}
         </span>
       ))}
     </div>
