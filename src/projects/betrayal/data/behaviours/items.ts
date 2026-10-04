@@ -35,6 +35,7 @@ import {
   trackTraits,
   TRAITS,
 } from "../../engine/figures";
+import { pullMonsters } from "../../engine/monsters";
 import { distanceTo, moveCloser } from "../../engine/movement";
 import { askPermission, askSet, hasTrait } from "../../engine/questions";
 import { heroes, inPlay, revealedAs } from "../../engine/sides";
@@ -369,13 +370,11 @@ export const ITEMS: BehaviourGroup = {
             ),
           );
         }),
-        "call-monsters": defineStep<{ figure: FigureId }>((state) => {
-          // With no monster in play there is nothing to move.
-          if (!allFigures(state).some((f) => f.kind === "monster" && f.alive))
-            return;
-          throw new Error(
-            "The Bell's 0-4 moves monsters, which the engine doesn't have yet",
-          );
+        // The traitor may pull any number of monsters 1 space closer to
+        // the ringer; a traitor ringing it pulls none; with no traitor,
+        // every monster comes.
+        "call-monsters": defineStep<{ figure: FigureId }>((_state, p, ctx) => {
+          ctx.push(pullMonsters(p.figure, card("bell"), { skipOwn: true }));
         }),
       },
     },

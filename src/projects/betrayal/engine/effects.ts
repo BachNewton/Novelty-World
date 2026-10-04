@@ -20,6 +20,7 @@ import {
   MENTAL,
   moveClip,
   PHYSICAL,
+  takesDamage,
   trackTraits,
   placeOf,
   putFigure,
@@ -804,6 +805,33 @@ export function die(
   return step<Die>("die", { figure, trait: null, cause, killer });
 }
 
+type Harmful = {
+  figure: FigureId;
+  rule: RuleRef;
+  /** What is ignored, for the log ("the roll to leave"). */
+  what: string;
+  apply: Option;
+  ignore: Option;
+};
+
+/** Text that may harm or hold back a figure: whether it binds the figure
+ *  is the bindingText question. Binding, `apply` runs; ignored, `ignore`
+ *  runs; optional, the figure's controller chooses (the traitor's new
+ *  powers, p. 17; monsters, p. 19; ruling harmful-text). */
+export function harmful(
+  figure: FigureId,
+  rule: RuleRef,
+  text: { what: string; apply: Option; ignore: Option },
+): Step {
+  return step<Harmful>("harmful", { figure, rule, ...text });
+}
+
+/** Records a once-a-turn use made without a roll (passing the Wall Switch
+ *  without rolling), so it counts as that roll's attempt (p. 12). */
+export function attempt(id: string): Step {
+  return step<{ id: string }>("attempt", { id });
+}
+
 /** A figure is stunned (p. 18): it gets in no one's way, and misses its next
  *  monster turn, at whose end it recovers. */
 export function stun(figure: FigureId, rule: RuleRef): Step {
@@ -861,6 +889,74 @@ export function arrived(
   );
 }
 
+/** A drawn card's effect on its drawer, who may choose not to be affected
+ *  where the bindingText question allows it: the traitor, by an event card
+ *  or the Bite, deciding before any roll it asks for (p. 17, ruling
+ *  traitor-events). */
+function affectedBy(
+  state: GameState,
+  ctx: StepContext,
+  figure: FigureId,
+  card: string,
+  onDraw: (state: GameState, figure: FigureId, engine: Engine) => Step[],
+): Step {
+  const name = cardName(ctx.engine, card);
+  return harmful(figure, { source: "card", card }, {
+    what: "the card",
+    apply: {
+      label: `Be affected by the ${name}`,
+      steps: onDraw(state, figure, ctx.engine),
+    },
+    ignore: { label: `Don't be affected by the ${name}`, steps: [] },
+  });
+}
+
+/** The trait a roll rolls, if it rolls one's dice: a trait roll, a
+ *  movement roll (Speed), or an attack roll not standing in for a card. */
+function rolledTrait(spec: RollSpec): Trait | null {
+  switch (spec.kind) {
+    case "trait":
+      return spec.trait;
+    case "movement":
+      return "speed";
+    case "attack":
+      return spec.dice === null ? spec.trait : null;
+    case "dice":
+    case "haunt":
+      return null;
+  }
+}
+
+/** A monster's roll shows its trait to everyone, for every monster of its
+ *  type (ruling monster-traits-known). */
+function learnTrait(
+  state: GameState,
+  ctx: StepContext,
+  p: RollInProgress,
+): void {
+  const trait = rolledTrait(p.spec);
+  const { definition } = figureOf(state, p.figure);
+  if (
+    trait === null ||
+    !(definition in ctx.catalog.figures) ||
+    ctx.catalog.figures[definition].traits.kind !== "fixed" ||
+    state.memory.traitsKnown.some(
+      (k) => k.definition === definition && k.trait === trait,
+    )
+  )
+    return;
+  const value = askNumber(ctx.engine, state, "traitValue", {
+    figure: p.figure,
+    trait,
+  });
+  state.memory.traitsKnown.push({ definition, trait, value });
+  ctx.emit("trait-known", rulebook(18, "monster-traits-known"), {
+    definition,
+    trait,
+    value,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -868,6 +964,16 @@ export function arrived(
 export const EFFECT_STEPS: Record<string, StepHandler> = {
   gain: defineStep<Gain>((state, p, ctx) => {
     if (!takesPart(state, p.figure)) return;
+    // A monster's traits are fixed: it can't benefit from a gain (p. 19),
+    // and a loss that isn't damage leaves it as it is (ruling
+    // monster-traits).
+    if (figureOf(state, p.figure).traits.kind === "fixed") {
+      ctx.emit("traits-fixed", rulebook(19, "monster-traits"), {
+        figure: p.figure,
+        trait: p.trait,
+      });
+      return;
+    }
     const moved = moveClip(
       ctx.catalog,
       state,
@@ -935,6 +1041,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     });
     if (amount <= 0) {
       ctx.emit("damage-prevented", p.rule, { figure: p.figure, damage: p.damage });
+      return;
+    }
+    // A monster that would take any damage is stunned instead (p. 18).
+    if (!takesDamage(ctx.catalog, state, p.figure)) {
+      ctx.push(stun(p.figure, rulebook(18)));
       return;
     }
     ctx.decide(
@@ -1010,8 +1121,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     else ctx.push(step("roll-done", p));
   }),
 
-  "roll-done": defineStep<RollInProgress>((_state, p, ctx) => {
+  "roll-done": defineStep<RollInProgress>((state, p, ctx) => {
     const result = rollTotal(p);
+    learnTrait(state, ctx, p);
     ctx.emit("rolled", p.rule, {
       figure: p.figure,
       spec: p.spec,
@@ -1056,7 +1168,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       };
       if (!behaviour?.onDraw) throw new Error(`Event ${card} has no behaviour`);
       ctx.push(
-        ...behaviour.onDraw(state, p.figure, ctx.engine),
+        affectedBy(state, ctx, p.figure, card, behaviour.onDraw),
         step("settle-event", { card }),
       );
       return;
@@ -1067,7 +1179,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     if (p.type === "omen") state.omensDrawn += 1;
     ctx.push(
       gainCard(p.figure, card, "drawn", p.rule),
-      ...(behaviour?.onDraw?.(state, p.figure, ctx.engine) ?? []),
+      ...(behaviour?.onDraw
+        ? [affectedBy(state, ctx, p.figure, card, behaviour.onDraw)]
+        : []),
     );
   }),
 
@@ -1379,6 +1493,46 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       });
     },
   ),
+
+  harmful: defineStep<Harmful>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
+    const binding = askStructured(ctx.engine, state, "bindingText", {
+      figure: p.figure,
+      rule: p.rule,
+    });
+    const ignored = step<{ figure: FigureId; what: string; rule: RuleRef }>(
+      "text-ignored",
+      { figure: p.figure, what: p.what, rule: p.rule },
+    );
+    switch (binding) {
+      case "binding":
+        ctx.push(...p.apply.steps);
+        return;
+      case "ignored":
+        ctx.push(ignored, ...p.ignore.steps);
+        return;
+      case "optional":
+        ctx.push(
+          chooseOne(
+            p.figure,
+            [p.apply, { ...p.ignore, steps: [ignored, ...p.ignore.steps] }],
+            p.rule,
+          ),
+        );
+        return;
+    }
+  }),
+
+  "text-ignored": defineStep<{ figure: FigureId; what: string; rule: RuleRef }>(
+    (_state, p, ctx) => {
+      ctx.emit("text-ignored", p.rule, { figure: p.figure, what: p.what });
+    },
+  ),
+
+  attempt: defineStep<{ id: string }>((state, p) => {
+    if (state.turn && !state.turn.rolls.includes(p.id))
+      state.turn.rolls.push(p.id);
+  }),
 
   "end-turn-now": defineStep<{ figure: FigureId; rule: RuleRef }>(
     (state, p, ctx) => {

@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 8;
+export const STATE_FORMAT = 9;
 
 type JsonObject = { [key: string]: Json };
 
@@ -206,6 +206,54 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
         "A format 7 state paused partway through an attack can't be carried over",
       );
     return { ...state, lastEvents: [] };
+  },
+  // Format 9 gives turns the figures acting on them (a format 8 turn's was
+  // its seat's explorer, and a monster turn had none) and the monster
+  // turn's bookkeeping, and rule memory the monster traits made known and
+  // how many of each haunt figure have come into play, which format 8
+  // numbered from 1 by its figures.
+  8: (state) => {
+    const turn = state.turn;
+    const figures = isObject(state.figures) ? state.figures : {};
+    const memory = isObject(state.memory) ? state.memory : {};
+    const spawned: JsonObject = {};
+    for (const figure of Object.values(figures)) {
+      if (!isObject(figure) || figure.kind === "explorer") continue;
+      const { id, definition } = figure;
+      if (typeof id !== "string" || typeof definition !== "string") continue;
+      const number = Number(id.slice(definition.length + 1));
+      const known = spawned[definition];
+      spawned[definition] = Math.max(typeof known === "number" ? known : 0, number);
+    }
+    const explorer = isObject(turn)
+      ? Object.values(figures).find(
+          (f) =>
+            isObject(f) &&
+            f.kind === "explorer" &&
+            f.owner === turn.seat &&
+            f.alive === true &&
+            f.place !== null,
+        )
+      : undefined;
+    const actors =
+      isObject(turn) && turn.kind !== "monster" && isObject(explorer)
+        ? [explorer.id ?? null]
+        : [];
+    return {
+      ...state,
+      turn: isObject(turn)
+        ? {
+            ...turn,
+            actors,
+            acting: actors.at(0) ?? null,
+            done: [],
+            rolled: {},
+            recovering: [],
+            setUses: [],
+          }
+        : null,
+      memory: { ...memory, traitsKnown: [], spawned },
+    };
   },
 };
 

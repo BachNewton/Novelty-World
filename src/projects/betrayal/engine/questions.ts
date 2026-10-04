@@ -57,6 +57,9 @@ export interface NumberQuestions {
   /** Extra spaces of movement it costs a figure to leave the place it is
    *  in, past the 1 every move costs. */
   leaveCost: { figure: FigureId; from: Place };
+  /** How many figures of a definition may be in play at once: unlimited,
+   *  unless a haunt caps its tokens' supply (tokens.md). */
+  supply: { definition: string };
 }
 
 export interface PermissionQuestions {
@@ -68,6 +71,11 @@ export interface PermissionQuestions {
   canAttack: { attacker: FigureId; target: AttackTarget };
   /** Whether a figure may move from one room to another. */
   canMove: { figure: FigureId; from: string; to: string };
+  /** Whether a figure may discover new rooms. Monsters can't (p. 19). */
+  canDiscover: { figure: FigureId };
+  /** Whether a figure may hold cards: draw, pick up, trade or be given
+   *  them. Monsters can't, unless a haunt says so (p. 19). */
+  canCarry: { figure: FigureId };
 }
 
 /** What moves: a figure, or a companion token travelling for the figure
@@ -177,6 +185,11 @@ export type AttackMode = {
 
 export type DamageKind = "physical" | "mental";
 
+/** Whether a rule's harmful text binds a figure: it does; the figure's
+ *  controller may choose to ignore it (the traitor, p. 17); or it is
+ *  ignored without asking (a monster, p. 19, ruling harmful-text). */
+export type Binding = "binding" | "optional" | "ignored";
+
 /** What the loser of an attack suffers, and the rule that says so: damage,
  *  to split between the matching traits; being stunned, as a monster is
  *  instead of taking damage (p. 18); or being killed outright, where a haunt
@@ -201,6 +214,26 @@ export type CombatOutcome = {
 };
 
 export interface StructuredQuestions {
+  /** Whether the rulebook's "How Monsters Work" applies to a figure: it
+   *  rolls for movement on the monster turn, ignores harmful room text and
+   *  barriers, and climbs where only monsters can (pp. 18-19). */
+  monsterRules: {
+    question: { figure: FigureId };
+    answer: boolean;
+  };
+  /** Whether a figure moves through a barrier room as if it weren't split:
+   *  monsters always ignore barriers (p. 7). */
+  ignoresBarriers: {
+    question: { figure: FigureId };
+    answer: boolean;
+  };
+  /** Whether a rule's harmful text binds a figure, or may be ignored (the
+   *  traitor's new powers, p. 17; monsters, p. 19). The rule is the room,
+   *  token or card whose text it is. */
+  bindingText: {
+    question: { figure: FigureId; rule: RuleRef };
+    answer: Binding;
+  };
   /** The seat that decides for a figure: what it does, and every choice
    *  the rules give it. Null when no seat does. */
   controller: {
@@ -318,6 +351,8 @@ const NUMBER_BASE: {
         return roll.spec.count;
       case "haunt":
         return 6;
+      case "movement":
+        return traitValue(engine, state, figure, "speed");
       case "attack":
         return (
           roll.spec.dice ?? traitValue(engine, state, figure, roll.spec.trait)
@@ -325,8 +360,15 @@ const NUMBER_BASE: {
     }
   },
   damageAmount: (_engine, _state, { amount }) => amount,
-  movement: (engine, state, { figure }) =>
-    traitValue(engine, state, figure, "speed"),
+  // A figure whose type rolled for movement this turn moves that many
+  // spaces, at least 1 even on a roll of 0 (pp. 17-18); anyone else as
+  // many as its Speed.
+  movement: (engine, state, { figure }) => {
+    const rolled = state.turn?.rolled[figureOf(state, figure).definition];
+    return rolled === undefined
+      ? traitValue(engine, state, figure, "speed")
+      : Math.max(rolled, 1);
+  },
   // After the haunt starts, leaving a room costs 1 extra space for each
   // opponent in it that gets in the way (p. 17).
   leaveCost: (engine, state, { figure, from }) => {
@@ -342,6 +384,7 @@ const NUMBER_BASE: {
         }),
     ).length;
   },
+  supply: () => Number.POSITIVE_INFINITY,
 };
 
 interface Applied<C> {
@@ -450,7 +493,23 @@ function highest(
   return undefined;
 }
 
-/** Allowed unless a source denies it. Within a layer a denial beats an allowance; a higher layer's allowance overrules a lower denial. */
+const PERMISSION_BASE: {
+  [Q in keyof PermissionQuestions]: (
+    engine: Engine,
+    state: GameState,
+    subject: PermissionQuestions[Q],
+  ) => boolean;
+} = {
+  canAct: () => true,
+  canAttack: () => true,
+  canMove: () => true,
+  canDiscover: (engine, state, { figure }) =>
+    figureDefinition(engine.catalog, state, figure).explores,
+  canCarry: (engine, state, { figure }) =>
+    figureDefinition(engine.catalog, state, figure).carries,
+};
+
+/** The base answer, unless a source changes it. Within a layer a denial beats an allowance; a higher layer's allowance overrules a lower denial. */
 export function askPermission<Q extends keyof PermissionQuestions>(
   engine: Engine,
   state: GameState,
@@ -463,7 +522,10 @@ export function askPermission<Q extends keyof PermissionQuestions>(
     question,
     subject,
   );
-  let answer: Permission = { allowed: true, because: [] };
+  let answer: Permission = {
+    allowed: PERMISSION_BASE[question](engine, state, subject),
+    because: [],
+  };
   for (const layer of LAYERS) {
     const here = changes.filter((c) => c.layer === layer);
     const denials = here.filter((c) => "deny" in c.change);
@@ -492,11 +554,14 @@ const SET_BASE: {
 } = {
   // Through a barrier room only its own side's door leads on; arriving in one
   // through a door puts you on that door's side.
-  connections: (engine, state, { from }) => {
+  connections: (engine, state, { mover, from }) => {
     const { board } = state;
     const sides = barrierSides(engine, from.room);
     let directions: Edge[] | undefined;
-    if (sides.length > 0) {
+    const free =
+      mover.kind === "figure" &&
+      askStructured(engine, state, "ignoresBarriers", { figure: mover.figure });
+    if (sides.length > 0 && !free) {
       const tile = placed(board, from.room);
       if (!tile || from.side === null)
         throw new Error(`No side given in the barrier room ${from.room}`);
@@ -581,6 +646,15 @@ const STRUCTURED_BASE: {
     subject: StructuredQuestions[Q]["question"],
   ) => StructuredQuestions[Q]["answer"];
 } = {
+  // The one place a figure's kind decides a rule: the rulebook's monster
+  // rules are for monsters (p. 18), and a haunt changes who they reach.
+  monsterRules: (_engine, state, { figure }) =>
+    figureOf(state, figure).kind === "monster",
+  ignoresBarriers: (engine, state, { figure }) =>
+    askStructured(engine, state, "monsterRules", { figure }),
+  // Text binds everyone, until the rulebook's own rules for the traitor and
+  // for monsters, or a haunt, say otherwise.
+  bindingText: () => "binding",
   controller: (_engine, state, { figure }) => figureOf(state, figure).owner,
   // A figure is on its owning seat's side; one no seat owns is on none
   // unless a rule says otherwise.

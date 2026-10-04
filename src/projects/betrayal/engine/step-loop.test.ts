@@ -60,7 +60,7 @@ const RULES: Rules = {
 const ENGINE: Engine = {
   catalog: CATALOG,
   rules: RULES,
-  behaviours: { cards: {}, rooms: {}, tokens: {}, statuses: {} },
+  behaviours: { rulebook: {}, cards: {}, rooms: {}, tokens: {}, statuses: {} },
   haunts: {},
 };
 

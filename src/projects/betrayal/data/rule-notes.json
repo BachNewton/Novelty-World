@@ -3168,6 +3168,18 @@
     ],
     "rulings": [
      {
+      "id": "harmful-text",
+      "note": "the rule doesn't list which room text is harmful, whether the traitor is asked each time or simply never affected, or whether monsters, who \"can ignore\" it too (p. 19), are asked.",
+      "authority": "project",
+      "resolution": "harmful text is room text that can hurt a figure or hold it back: a roll to leave (Junk Room, Attic, Graveyard, Pentagram Chamber), damage at a turn's end (Crypt, Furnace Room), the Collapsed Room's roll on discovering it, the damage of a fall (Gallery, Collapsed Room) or of the Mystic Elevator shaking, a barrier room's roll to cross and the Wall Switch's roll to go through. Ignoring a roll that holds you back means passing without it, as the rule's Revolving Wall example has it, still once a turn where the roll was once a turn. The traitor is asked each time, since the rule says \"may\" and a real choice goes to the player. A monster always ignores it without being asked: for a monster, harmful room text can only stun it or hold it back, so there is nothing to choose. Beneficial text is used as anyone uses it, except that a monster can't benefit from text that raises a trait (p. 19). The Coal Chute's slide isn't harmful (the rule says so). The Mystic Elevator goes wherever the traitor or a monster chooses, without a roll, the first time either enters it in a traitor's turn and the monster turn after it (p. 8); only a hero rolls for it at the end of a turn spent in it. A hidden traitor has these powers once revealed (p. 18). Research: no ruling found beyond the rulebook's examples."
+     },
+     {
+      "id": "traitor-events",
+      "note": "the rule doesn't say what not being affected by an event card or the Bite does with the card.",
+      "authority": "project",
+      "resolution": "the card does nothing to the traitor: an event is discarded rather than kept or put in play, and the Bite's attack isn't made, though the Bite is still the traitor's omen card, as any drawn omen is. The traitor chooses as the card is drawn, before any roll it asks for, as the rule says. Research: no ruling found."
+     },
+     {
       "id": "traitor-freed",
       "note": "the rule names the Debris and the Webs as examples but doesn't list which event cards are \"impeding\" the new traitor, or what being freed does with the card.",
       "authority": "project",
@@ -3229,9 +3241,16 @@
       "resolution": "at the start of the monster turn, before any monster moves, one movement roll is made for each type of monster that has one that isn't stunned. Monsters a haunt places at the start of the monster turn are placed before those rolls and act normally. A monster that enters play once the rolls are made (unleashed or spawned during the turn) doesn't move or attack until the next monster turn. One BGG answer plays haunt 13's unleashed Nightmares this way, and it keeps a monster from acting on a roll made before it existed. A monster may attack partway through its move and then go on moving, as an explorer may (p. 6), and the 1st-edition FAQ has each monster take all its actions before the next goes. A monster stunned during its own turn (one that loses its attack) stops at once, misses the next monster turn and turns back over at the end of it. A monster stunned on another turn misses the coming monster turn and turns back over at its end. Either way it misses exactly one monster turn. Source: https://boardgamegeek.com/thread/1536030, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf"
      },
      {
+      "id": "monster-traits-known",
       "note": "the rules don't say whether the heroes know a monster's traits before it rolls them.",
       "authority": null,
       "resolution": null
+     },
+     {
+      "id": "monster-traits",
+      "note": "the rules say a monster can't benefit from room text that raises a trait (p. 19), but not what other changes to a monster's traits do, such as a card's or a room's \"lose 1 Speed\", or damage from something other than an attack.",
+      "authority": "project",
+      "resolution": "a monster's traits don't change. A gain doesn't benefit it, and a loss that isn't damage leaves it as it is: its traits are fixed numbers in the haunt with no track to move a clip along, and the rulebook's one way to weaken a monster is damage, which stuns it instead (p. 18). Damage from anything, a fall or a card as much as an attack, stuns it. Research: none beyond the rulebook."
      }
     ]
    }
@@ -3253,6 +3272,12 @@
      "This rule doesn't apply when the haunt lets monsters explore new rooms."
     ],
     "rulings": [
+     {
+      "id": "monster-climbs",
+      "note": "the rules don't say what moving \"up or down freely\" from the Coal Chute and the Collapsed Room, or climbing up to the Gallery, costs, or whether a monster that climbs into the Coal Chute slides straight back down.",
+      "authority": "project",
+      "resolution": "climbing up is a move like going through a door, 1 space: from the Basement Landing up into the Coal Chute, from the room beneath the Collapsed Room (the one with the Below Collapsed Room token) up into it, and from the Ballroom up to the Gallery. A monster that climbs into the Coal Chute stays there, since sliding is how the chute takes you down, and from the Coal Chute it may go back down to the Basement Landing for 1 space. Going down from the Collapsed Room or the Gallery is the room's own fall, which spends no movement and whose damage a monster ignores as harmful text. A monster that falls through the Collapsed Room before anyone has lands in an existing basement room its controller chooses, as page 7 says, and that room takes the Below Collapsed Room token. This keeps the rooms' own ways down for everyone and gives monsters only the ways up the book adds. Research: none beyond the rulebook."
+     },
      {
       "note": "The book says \"on the traitor's turn\" for the stuck-monster search, not on the monster turn.",
       "authority": null,

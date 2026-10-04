@@ -33,7 +33,7 @@ const zoeFigure = {
 /** What formats 6 and 7 add to every state: rule memory, cards set aside,
  *  inserted turns and a result, with the haunt's own state where it has one. */
 const later = {
-  memory: { deaths: [], conditions: [] },
+  memory: { deaths: [], conditions: [], traitsKnown: [], spawned: {} },
   aside: [],
   insertedTurns: [],
   haunt: null,
@@ -42,6 +42,16 @@ const later = {
 
 /** What format 7 adds to a turn: it was an explorer's, taken in order. */
 const inOrder = { kind: "explorer", follows: null };
+
+/** What format 9 adds to a turn: its seat's explorer acts on it. */
+const actedBy = (figure: string | null) => ({
+  actors: figure === null ? [] : [figure],
+  acting: figure,
+  done: [],
+  rolled: {},
+  recovering: [],
+  setUses: [],
+});
 
 /** A format 5 turn ledger in which Zoe has done nothing yet. */
 const zoeLedger = {
@@ -82,6 +92,7 @@ describe("migrate", () => {
       turn: {
         seat: 0,
         ...inOrder,
+        ...actedBy("zoe-ingstrom"),
         traded: false,
         over: false,
         ...zoeLedger,
@@ -106,7 +117,14 @@ describe("migrate", () => {
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
       ...later,
-      turn: { seat: 0, ...inOrder, traded: true, over: false, ...zoeLedger },
+      turn: {
+        seat: 0,
+        ...inOrder,
+        ...actedBy("zoe-ingstrom"),
+        traded: true,
+        over: false,
+        ...zoeLedger,
+      },
     });
     expect(migrate({ format: 2, turn: null })).toMatchObject({ turn: null });
   });
@@ -131,6 +149,7 @@ describe("migrate", () => {
       turn: {
         seat: 0,
         ...inOrder,
+        ...actedBy("zoe-ingstrom"),
         moved: {},
         movementEnded: [],
         attacked: [],
@@ -222,6 +241,7 @@ describe("migrate", () => {
         turn: {
           seat: 1,
           ...inOrder,
+          ...actedBy("ox-bellows"),
           moved: { "ox-bellows": 2 },
           movementEnded: ["ox-bellows"],
           attacked: ["ox-bellows"],
@@ -305,7 +325,7 @@ describe("migrate", () => {
         format: STATE_FORMAT,
         gameId: "g",
         status: "haunt",
-        turn: { seat: 2, moved: {}, ...inOrder },
+        turn: { seat: 2, moved: {}, ...inOrder, ...actedBy(null) },
         insertedTurns: [],
         haunt: {
           number: 13,
@@ -315,7 +335,7 @@ describe("migrate", () => {
           secrets: [],
           counters: {},
         },
-        memory: { deaths: [], conditions: [] },
+        memory: later.memory,
         result: null,
         lastEvents: [],
       });
@@ -344,6 +364,8 @@ describe("migrate", () => {
         pending: null,
         work: [],
         lastEvents: [],
+        turn: null,
+        memory: { traitsKnown: [], spawned: {} },
       });
     });
 
@@ -359,6 +381,47 @@ describe("migrate", () => {
           work: [{ kind: "attack-settle", params: {} }],
         }),
       ).toThrow(/attack/);
+    });
+  });
+
+  describe("a format 8 state", () => {
+    const phantom = (id: string, alive: boolean) => ({
+      ...zoeFigure,
+      id,
+      kind: "monster",
+      definition: "phantom",
+      owner: 1,
+      traits: { kind: "fixed" },
+      alive,
+      place: alive ? { room: "foyer", side: null } : null,
+    });
+    const saved = {
+      format: 8,
+      gameId: "g",
+      figures: {
+        "zoe-ingstrom": zoeFigure,
+        "phantom-1": phantom("phantom-1", false),
+        "phantom-2": phantom("phantom-2", true),
+      },
+      memory: { deaths: [], conditions: [] },
+      turn: { seat: 0, kind: "explorer", follows: null, moved: {} },
+    };
+
+    it("gives a turn its seat's explorer acting, and numbers new haunt figures on from the old", () => {
+      expect(migrate(saved)).toEqual({
+        ...saved,
+        format: STATE_FORMAT,
+        turn: { ...saved.turn, ...actedBy("zoe-ingstrom") },
+        memory: { ...later.memory, spawned: { phantom: 2 } },
+      });
+    });
+
+    it("leaves a monster turn with no one acting yet, as format 8 moved no monsters", () => {
+      const migrated = migrate({
+        ...saved,
+        turn: { ...saved.turn, seat: 1, kind: "monster" },
+      });
+      expect(migrated.turn).toMatchObject(actedBy(null));
     });
   });
 

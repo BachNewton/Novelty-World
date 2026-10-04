@@ -18,7 +18,7 @@ import type { CardDestination, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
-import { FLOOR_NAMES } from "./board";
+import { FLOOR_NAMES, sideName } from "./board";
 import { explorerOf, figureName } from "./figures";
 import { traitValue } from "./questions";
 
@@ -38,6 +38,8 @@ export function rollName(spec: RollSpec): string {
       return `${spec.count}-dice roll`;
     case "haunt":
       return "haunt roll";
+    case "movement":
+      return "movement roll";
     case "attack":
       return spec.dice === null
         ? `${traitName(spec.trait)} ${spec.role === "attacker" ? "attack" : "defence"} roll`
@@ -383,14 +385,62 @@ export function describeEvent(
         `${who(data<{ figure: FigureId }>(event).figure)} is stunned`,
       );
     case "spawned": {
-      const d = data<{ definition: string; figures: FigureId[]; room: string }>(
+      const d = data<{
+        definition: string;
+        figures: FigureId[];
+        room: string;
+        short: number;
+      }>(event);
+      const name = engine.catalog.figures[d.definition].name;
+      const where = `in the ${words.room(d.room)}`;
+      const appear =
+        d.figures.length === 0
+          ? `No ${name} can appear ${where}`
+          : d.figures.length === 1
+            ? `${list(d.figures.map(who))} appears ${where}`
+            : `${list(d.figures.map(who))} appear ${where}`;
+      return sentence(
+        d.short > 0
+          ? `${appear}: the supply of ${name} tokens has run out`
+          : appear,
+      );
+    }
+    case "turn-missed":
+      return sentence(
+        `${who(data<{ figure: FigureId }>(event).figure)} is stunned and misses this turn`,
+      );
+    case "recovered":
+      return sentence(
+        `${who(data<{ figure: FigureId }>(event).figure)} recovers from being stunned`,
+      );
+    case "acting": {
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(
+        `${who(d.figure)} acts, from the ${words.room(d.room)}`,
+      );
+    }
+    case "side-chosen": {
+      const d = data<{ figure: FigureId; room: string; side: Edge }>(event);
+      return sentence(
+        `${who(d.figure)} stops on the ${sideName(state.board, d.room, d.side)} side of the ${words.room(d.room)}`,
+      );
+    }
+    case "text-ignored": {
+      const d = data<{ figure: FigureId; what: string }>(event);
+      return sentence(`${who(d.figure)} ignores ${d.what}`);
+    }
+    case "traits-fixed": {
+      const d = data<{ figure: FigureId; trait: Trait }>(event);
+      return sentence(
+        `${who(d.figure)}'s ${traitName(d.trait)} doesn't change`,
+      );
+    }
+    case "trait-known": {
+      const d = data<{ definition: string; trait: Trait; value: number }>(
         event,
       );
-      const name = engine.catalog.figures[d.definition].name;
       return sentence(
-        d.figures.length === 1
-          ? `A ${name} appears in the ${words.room(d.room)}`
-          : `${d.figures.length} ${name}s appear in the ${words.room(d.room)}`,
+        `Everyone now knows the ${engine.catalog.figures[d.definition].name}'s ${traitName(d.trait)}: ${d.value}`,
       );
     }
     case "deck-empty":
@@ -648,7 +698,14 @@ export function describeDecision(
   switch (decision.kind) {
     case "turn": {
       const p = decision.params as { seat: number };
-      return ask(`${words.seat(p.seat)}'s turn: what next?`);
+      const turn = state.turn;
+      if (turn?.kind !== "monster")
+        return ask(`${words.seat(p.seat)}'s turn: what next?`);
+      return ask(
+        turn.acting === null
+          ? `${words.seat(p.seat)}'s monster turn: which monster acts next?`
+          : `${words.seat(p.seat)}'s monster turn: what next for ${words.figure(turn.acting)}?`,
+      );
     }
     case "rotation": {
       const p = decision.params as { figure: FigureId; tile: string };

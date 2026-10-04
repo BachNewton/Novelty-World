@@ -132,6 +132,13 @@ export interface FigureDefinition {
   /** The token that stands for this figure in a room, where a rule puts one
    *  down (an explorer's, in its character card's colour). */
   token: string | null;
+  /** Whether it may discover new rooms: explorers may, monsters can't
+   *  (p. 19). The canDiscover question's base answer. */
+  explores: boolean;
+  /** Whether it may hold cards (items, omens, kept events): explorers may,
+   *  monsters can't unless a haunt says so (p. 19). The canCarry question's
+   *  base answer. */
+  carries: boolean;
 }
 
 export interface Catalog {
@@ -355,6 +362,26 @@ export interface Turn {
   /** For an inserted turn, the turn in the order it came after, from which
    *  the order carries on. Null for a turn taken in order. */
   follows: TurnRef | null;
+  /** The figures that act on this turn, fixed as it starts: the seat's
+   *  explorer on its explorer or traitor turn; on its monster turn, its
+   *  monsters that aren't stunned. A figure that comes into play during the
+   *  turn waits for the next (rules p. 18's project ruling). */
+  actors: FigureId[];
+  /** The actor taking its actions now. On a monster turn each monster takes
+   *  all of its actions before the next goes (p. 18), so this is null
+   *  between them. */
+  acting: FigureId | null;
+  /** Actors that have finished acting. */
+  done: FigureId[];
+  /** Spaces rolled for movement at the start of a monster turn, by figure
+   *  definition: one roll for each type of monster (p. 18). */
+  rolled: Partial<Record<string, number>>;
+  /** Monsters stunned when this monster turn began: they miss it, and
+   *  recover at its end (p. 18). */
+  recovering: FigureId[];
+  /** Things used once over a seat's traitor turn and the monster turn after
+   *  it (the Mystic Elevator, p. 8), carried from the one to the other. */
+  setUses: string[];
   /** Spaces of movement each figure has spent. */
   moved: Partial<Record<FigureId, number>>;
   /** Figures whose movement has ended: drawing a card ends it for the rest of the turn (p. 6). */
@@ -390,8 +417,21 @@ export interface Death {
 }
 
 /** What later rules read about the game so far. */
+/** A monster trait every seat knows: its type has rolled it (rules p. 18's
+ *  official ruling). Whether a type has a trait at all is public. */
+export interface KnownTrait {
+  definition: string;
+  trait: Trait;
+  value: number;
+}
+
 export interface RuleMemory {
   deaths: Death[];
+  /** Monster traits made known by a roll, one entry per type and trait. */
+  traitsKnown: KnownTrait[];
+  /** How many of each haunt figure have come into play, by definition, so
+   *  every new one gets a number never used before in the game. */
+  spawned: Partial<Record<string, number>>;
   /** Conditions that have fired, by source and condition id: a once-only
    *  one stays for good, any other until it stops holding. */
   conditions: string[];

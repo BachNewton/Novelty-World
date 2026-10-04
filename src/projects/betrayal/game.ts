@@ -5,6 +5,7 @@ import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
 import { HAUNT_STEPS } from "./engine/haunt";
+import { MONSTER_STEPS } from "./engine/monsters";
 import { MOVEMENT_STEPS } from "./engine/movement";
 import { SCENARIO_STEPS } from "./engine/scenario";
 import { localStep, type Behaviours } from "./engine/sources";
@@ -16,6 +17,7 @@ import { withHaunts } from "./kit/haunt";
 function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
   const result: Record<string, StepHandler> = {};
   for (const group of [
+    behaviours.rulebook,
     behaviours.cards,
     behaviours.rooms,
     behaviours.tokens,
@@ -37,6 +39,7 @@ export function buildRules(behaviours: Behaviours): Rules {
     ...EXPLORATION_STEPS,
     ...TILE_STEPS,
     ...MOVEMENT_STEPS,
+    ...MONSTER_STEPS,
     ...SCENARIO_STEPS,
     ...HAUNT_STEPS,
   };

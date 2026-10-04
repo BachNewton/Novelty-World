@@ -23,6 +23,8 @@ function explorerDefinition(character: Character): FigureDefinition {
     kind: "explorer",
     traits: { kind: "tracks", tracks: character.tracks, start: character.start },
     token: `explorer-${character.card}`,
+    explores: true,
+    carries: true,
   };
 }
 

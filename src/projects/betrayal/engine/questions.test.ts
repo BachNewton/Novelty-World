@@ -96,6 +96,8 @@ const withMonster: Engine = {
         kind: "monster",
         traits: { kind: "fixed", values: { speed: 3, might: 6 } },
         token: null,
+        explores: false,
+        carries: false,
       },
     },
   },

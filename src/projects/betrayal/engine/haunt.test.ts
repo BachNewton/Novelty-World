@@ -27,6 +27,7 @@ const ZOE = "zoe-ingstrom";
 const OX = "ox-bellows";
 const FATHER = "father-rhinehardt";
 const VIVIAN = "vivian-lopez";
+const PHANTOM_1 = "phantom-1";
 
 /** Haunt 13 started by seat 0. Its chart rule is the lowest Sanity except
  *  the revealer, which with the default explorers is Ox, seat 1. */
@@ -98,7 +99,7 @@ describe("the haunt's reveal", () => {
       "Ox Bellows is ready.",
       "The traitor carries out the haunt's setup.",
       "Ox Bellows is now asleep.",
-      "A Phantom appears in the Entrance Hall.",
+      "Phantom 1 appears in the Entrance Hall.",
       "Escaped nightmares: 0.",
       "The number of escapes is written down, known to Ox Bellows.",
       "The heroes carry out the haunt's setup.",
@@ -251,7 +252,7 @@ describe("the chart's traitor rule", () => {
 describe("turn order after the haunt", () => {
   const FOUR = [ZOE, OX, FATHER, VIVIAN];
 
-  it("skips a dead hero, and gives an asleep traitor its traitor and monster turns, each passing at once", () => {
+  it("skips a dead hero, and gives an asleep traitor with no monsters its traitor and monster turns, each passing at once", () => {
     let state = readyAll(
       hauntGame({
         characters: FOUR,
@@ -261,6 +262,7 @@ describe("turn order after the haunt", () => {
     expect(state.seats[1].roles).toEqual(["traitor"]);
     expect(turnsStarted(state)).toEqual([[2, "explorer"]]);
     kill(state, VIVIAN);
+    kill(state, PHANTOM_1);
     state = choose(state, "End your turn", TOY_ENGINE);
     expect(turnsStarted(state)).toEqual([[0, "explorer"]]);
     state = choose(state, "End your turn", TOY_ENGINE);
@@ -273,7 +275,7 @@ describe("turn order after the haunt", () => {
     expect(describeAll(TOY_ENGINE, state)).toContain("Ox Bellows's traitor turn.");
   });
 
-  it("still gives a dead traitor's seat both of its turns", () => {
+  it("still gives a dead traitor's seat both of its turns, its monsters still its to move", () => {
     let state = readyAll(hauntGame());
     kill(state, OX);
     state = choose(state, "End your turn", TOY_ENGINE);
@@ -281,8 +283,13 @@ describe("turn order after the haunt", () => {
     expect(turnsStarted(state)).toEqual([
       [1, "traitor"],
       [1, "monster"],
-      [2, "explorer"],
     ]);
+    expect(offered(state, TOY_ENGINE).map((c) => c.label)).toEqual([
+      "Act with Phantom 1, in the Entrance Hall",
+      "End the monster turn",
+    ]);
+    state = choose(state, "End the monster turn", TOY_ENGINE);
+    expect(turnsStarted(state)).toEqual([[2, "explorer"]]);
   });
 
   it("takes an inserted turn at the next boundary, then carries on from the turn it followed", () => {

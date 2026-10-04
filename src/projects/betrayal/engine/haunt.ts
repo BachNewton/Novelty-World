@@ -13,7 +13,7 @@ import type {
 } from "../types";
 import { addStatus, defineStep, loseCard, step } from "./effects";
 import { explorerOf, figureOf, placeOf, startingTraits } from "./figures";
-import { traitValue } from "./questions";
+import { askNumber, traitValue } from "./questions";
 import { heroes } from "./sides";
 import {
   liveSources,
@@ -346,8 +346,11 @@ type Spawn = {
 
 /** Puts a number of a haunt's figures into the room of a group's first
  *  living explorer (haunt 13's Nightmares, with the sleeping traitor), owned
- *  by the one seat of a group, or by none. Each is numbered from its
- *  definition. */
+ *  by the one seat of a group, or by none: as many as asked, or as the
+ *  supply has left, counting the figures of that kind in play. Each is
+ *  numbered from its definition with a number never used before in the
+ *  game, so a figure that leaves play and one unleashed later never share an
+ *  id. */
 export function spawn(
   definition: string,
   how: { count: Count; at: FigureGroup; owner: SeatGroup | null },
@@ -657,13 +660,20 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
     const owners = p.owner === null ? [null] : seatsIn(state, p.owner);
     if (owners.length !== 1)
       throw new Error(`The ${String(p.owner)} are not one seat to own ${definition.name}`);
-    const taken = Object.values(state.figures).filter(
-      (f) => f.definition === p.definition,
+    const inPlay = Object.values(state.figures).filter(
+      (f) => f.definition === p.definition && f.alive && f.place !== null,
     ).length;
+    const supply = askNumber(ctx.engine, state, "supply", {
+      definition: p.definition,
+    });
+    const asked = count(ctx.engine, state, p.count);
+    const made = Math.max(0, Math.min(asked, supply - inPlay));
+    const taken = state.memory.spawned[p.definition] ?? 0;
     const ids = Array.from(
-      { length: count(ctx.engine, state, p.count) },
+      { length: made },
       (_, i) => `${p.definition}-${taken + i + 1}`,
     );
+    state.memory.spawned[p.definition] = taken + made;
     for (const id of ids) {
       const figure: Figure = {
         id,
@@ -683,6 +693,7 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
       definition: p.definition,
       figures: ids,
       room: place.room,
+      short: asked - made,
     });
   }),
 

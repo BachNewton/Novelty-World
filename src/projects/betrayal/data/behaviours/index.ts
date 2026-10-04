@@ -9,6 +9,7 @@ import { EVENTS_B } from "./events-b";
 import { ITEMS } from "./items";
 import { OMENS } from "./omens";
 import { ROOMS } from "./rooms";
+import { RULEBOOK } from "./rulebook";
 
 const GROUPS: BehaviourGroup[] = [
   EVENTS,
@@ -17,6 +18,7 @@ const GROUPS: BehaviourGroup[] = [
   ITEMS,
   OMENS,
   ROOMS,
+  RULEBOOK,
 ];
 
 function merge(kind: keyof BehaviourGroup): Record<string, Behaviour> {
@@ -32,6 +34,7 @@ function merge(kind: keyof BehaviourGroup): Record<string, Behaviour> {
 
 /** What every card, room and token does, by id. */
 export const BEHAVIOURS: Behaviours = {
+  rulebook: merge("rulebook"),
   cards: merge("cards"),
   rooms: merge("rooms"),
   tokens: merge("tokens"),

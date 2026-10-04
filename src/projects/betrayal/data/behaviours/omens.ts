@@ -17,6 +17,7 @@ import {
   type CardDestination,
 } from "../../engine/effects";
 import { figureOf, placeOf, roomOf } from "../../engine/figures";
+import { pullMonsters } from "../../engine/monsters";
 import { routeDistances } from "../../engine/movement";
 import type { Mover } from "../../engine/questions";
 import {
@@ -239,7 +240,9 @@ const DOG_BEHAVIOUR: Behaviour = {
 /** Omen cards, from content/cards/omens.md. Every omen also triggers the haunt roll, which the engine makes. */
 export const OMENS: BehaviourGroup = {
   cards: {
+    // The traitor may choose not to be affected by it (rules p. 17).
     bite: {
+      refusable: true,
       onDraw: (state, figure) => [
         cardAttack(figure, "might", 4, card("bite")),
       ],
@@ -396,17 +399,23 @@ export const OMENS: BehaviourGroup = {
 
     spear: { modifiers: attackWith("spear", "might", 2) },
 
+    // After the haunt, using it also lets the traitor pull any number of
+    // monsters 1 space closer to the user, the traitor's own use included;
+    // with no traitor, every monster comes.
     "spirit-board": {
       actions: {
         look: {
           label: "Use the Spirit Board: look at the top room tile",
-          // The card's effect after the haunt (moving monsters) waits for the haunt milestone.
           available: (state, figure) =>
-            state.status === "exploring" &&
             state.turn !== null &&
             (state.turn.moved[figure] ?? 0) === 0 &&
             state.board.stack.length > 0,
-          steps: (_state, figure) => [local("spirit-board", "look", { figure })],
+          steps: (state, figure) => [
+            local("spirit-board", "look", { figure }),
+            ...(state.status === "haunt"
+              ? [pullMonsters(figure, card("spirit-board"))]
+              : []),
+          ],
         },
       },
       steps: {

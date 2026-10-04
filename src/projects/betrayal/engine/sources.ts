@@ -65,6 +65,9 @@ export type RollSpec =
   | { kind: "trait"; trait: Trait }
   | { kind: "dice"; count: number }
   | { kind: "haunt" }
+  /** A roll for movement, of as many dice as the figure's Speed: a monster
+   *  type's, at the start of the monster turn (p. 18). */
+  | { kind: "movement" }
   /** One side's roll in an attack: not a trait roll, though it rolls a
    *  trait (p. 13). `card` is what the attacker attacks with (a weapon, the
    *  Ring). `dice` is set for an attacker a card stands in for ("a Might 4
@@ -201,6 +204,11 @@ export interface Behaviour {
   /** A kept event whose ongoing effect works against its holder (the
    *  Webs): the traitor is freed from it on becoming the traitor (p. 17). */
   impedes?: boolean;
+  /** An omen the traitor may choose not to be affected by, as by an event
+   *  card (the Bite, p. 17). */
+  refusable?: boolean;
+  /** For one of the rulebook's own rules, the page it is on. */
+  page?: number;
   /** What a status makes its bearer, in words ("asleep"), for the log. */
   name?: string;
   /** Steps only this source uses, registered under the source's id. */
@@ -226,6 +234,9 @@ export interface Words {
 
 /** Part of the content's behaviours, as one file contributes them. */
 export interface BehaviourGroup {
+  /** The rulebook's own rules that act as sources: the traitor's new
+   *  powers, how monsters work. Always live. */
+  rulebook?: Record<string, Behaviour>;
   cards?: Record<string, Behaviour>;
   rooms?: Record<string, Behaviour>;
   tokens?: Record<string, Behaviour>;
@@ -233,6 +244,7 @@ export interface BehaviourGroup {
 }
 
 export interface Behaviours {
+  rulebook: Partial<Record<string, Behaviour>>;
   cards: Partial<Record<string, Behaviour>>;
   rooms: Partial<Record<string, Behaviour>>;
   tokens: Partial<Record<string, Behaviour>>;
@@ -252,6 +264,26 @@ export function liveSources(
 ): { source: Source; behaviour: Behaviour }[] {
   const { behaviours } = engine;
   const result: { source: Source; behaviour: Behaviour }[] = [];
+  const rules = Object.entries(behaviours.rulebook).sort(([a], [b]) =>
+    a < b ? -1 : 1,
+  );
+  for (const [id, behaviour] of rules) {
+    if (!behaviour) continue;
+    if (behaviour.page === undefined)
+      throw new Error(`The rulebook rule ${id} names no page`);
+    const source: Source = {
+      layer: "rulebook",
+      kind: "rulebook",
+      id,
+      rule: { source: "rulebook", page: behaviour.page },
+      holder: null,
+      room: null,
+      beside: null,
+      token: null,
+      status: null,
+    };
+    result.push({ source, behaviour });
+  }
   for (const tile of state.board.tiles) {
     const behaviour = behaviours.rooms[tile.tile];
     if (behaviour) {
@@ -327,8 +359,8 @@ export function liveSources(
     }
   }
   const haunt = state.status === "haunt" ? state.haunt : null;
-  const rules = haunt === null ? undefined : engine.haunts[haunt.number];
-  if (haunt !== null && rules) {
+  const hauntRules = haunt === null ? undefined : engine.haunts[haunt.number];
+  if (haunt !== null && hauntRules) {
     const source: Source = {
       layer: "haunt",
       kind: "haunt",
@@ -340,7 +372,7 @@ export function liveSources(
       token: null,
       status: null,
     };
-    result.push({ source, behaviour: rules.behaviour });
+    result.push({ source, behaviour: hauntRules.behaviour });
   }
   return result;
 }

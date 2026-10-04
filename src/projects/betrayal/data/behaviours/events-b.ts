@@ -11,6 +11,7 @@ import {
   turn,
 } from "../../engine/board";
 import {
+  attempt,
   chooseOne,
   damage,
   defineStep,
@@ -18,6 +19,7 @@ import {
   drawCard,
   endMovement,
   gain,
+  harmful,
   keepCard,
   loseCard,
   placeToken,
@@ -36,7 +38,7 @@ import {
   trackTraits,
   TRAITS,
 } from "../../engine/figures";
-import { barrierSides } from "../../engine/questions";
+import { askPermission, barrierSides } from "../../engine/questions";
 import {
   local,
   type Behaviour,
@@ -246,6 +248,10 @@ function switchWalls(catalog: Catalog, room: string): Edge[][] {
 }
 
 const NORTH_SOUTH: Edge[] = ["top", "bottom"];
+
+/** The Wall Switch is used once a turn by each figure: on a monster turn
+ *  several figures act. */
+const switchUse = (figure: FigureId) => `wall-switch:${figure}`;
 
 /** A wall's name as the board shows it: "north wall", "north-east corner". */
 function wallName(state: GameState, room: string, wall: Edge[]): string {
@@ -910,31 +916,42 @@ export const EVENTS_B: BehaviourGroup = {
 
     "wall-switch": {
       actions: {
+        // The traitor and monsters may go through without rolling (rules
+        // pp. 17, 19), still once a turn each (ruling harmful-text).
         use: {
           label: "Use the Wall Switch (Knowledge roll)",
-          available: (state, _seat, source) =>
+          available: (state, figure, source) =>
             source.beside !== null &&
-            !(state.turn?.rolls.includes("wall-switch") ?? true),
+            !(state.turn?.rolls.includes(switchUse(figure)) ?? true),
           steps: (state, figure, source) => {
             const here = roomOf(state, figure);
             const other = here === source.room ? source.beside : source.room;
             if (other === null)
               throw new Error("The Wall Switch has no room beyond it");
+            const through = relocate(figure, other, source.rule);
             return [
-              traitRoll(
-                figure,
-                "knowledge",
-                source.rule,
-                [
-                  {
-                    min: 3,
-                    max: null,
-                    steps: [relocate(figure, other, source.rule)],
-                  },
-                  { min: 0, max: 2, steps: [] },
-                ],
-                "wall-switch",
-              ),
+              harmful(figure, source.rule, {
+                what: "the roll to find the switch",
+                apply: {
+                  label: "Make the Knowledge roll to find the switch",
+                  steps: [
+                    traitRoll(
+                      figure,
+                      "knowledge",
+                      source.rule,
+                      [
+                        { min: 3, max: null, steps: [through] },
+                        { min: 0, max: 2, steps: [] },
+                      ],
+                      switchUse(figure),
+                    ),
+                  ],
+                },
+                ignore: {
+                  label: "Go through without rolling",
+                  steps: [attempt(switchUse(figure)), through],
+                },
+              }),
             ];
           },
         },
@@ -943,9 +960,12 @@ export const EVENTS_B: BehaviourGroup = {
 
     skeletons: {
       actions: {
+        // What it finds is a card, which a monster can't hold (p. 19).
         search: {
           label: "Search the Skeletons (Sanity roll)",
-          available: (state) => !state.turn?.rolls.includes("skeletons"),
+          available: (state, figure, _source, engine) =>
+            !state.turn?.rolls.includes("skeletons") &&
+            askPermission(engine, state, "canCarry", { figure }).allowed,
           steps: (_state, figure, source) => {
             if (source.room === null)
               throw new Error("The Skeletons token isn't in a room");

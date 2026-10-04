@@ -2,7 +2,7 @@ import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { distances, doorwaySpot, freeDoorways } from "./engine/board";
 import { describeDecision, describeEvent } from "./engine/describe";
 import { newGame, type TurnChoice } from "./engine/exploration";
-import { allFigures, roomOf, seatExplorer } from "./engine/figures";
+import { allFigures, roomOf } from "./engine/figures";
 import { migrate } from "./engine/format";
 import { activeHaunt } from "./engine/haunt";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
@@ -226,8 +226,9 @@ function weight(
     case "discover":
       return 12;
     case "move": {
-      const seat = state.turn?.seat ?? 0;
-      const from = roomOf(state, seatExplorer(state, seat));
+      const acting = state.turn?.acting ?? null;
+      if (acting === null) throw new Error("A move with no one acting");
+      const from = roomOf(state, acting);
       return distanceTo(engine, state, turn.to, open) <
         distanceTo(engine, state, from, open)
         ? 8
@@ -243,6 +244,10 @@ function weight(
       return 0.5;
     case "drop":
       return 0.3;
+    case "activate":
+      return 4;
+    case "done":
+      return 0.2 + actionsThisTurn * 0.5;
     case "end":
       return 0.2 + actionsThisTurn * 0.5;
   }

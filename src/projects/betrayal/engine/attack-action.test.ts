@@ -153,7 +153,7 @@ describe("the turn's attack (rules.md, p. 13)", () => {
   it("is offered on each opponent in the room, once the haunt has begun", () => {
     const state = begun(TOY_ENGINE);
     expect(labels(state, TOY_ENGINE)).toEqual(
-      expect.arrayContaining(["Attack Ox Bellows", "Attack Phantom"]),
+      expect.arrayContaining(["Attack Ox Bellows", "Attack Phantom 1"]),
     );
     // Not a fellow hero.
     expect(labels(state, TOY_ENGINE)).not.toContain("Attack Zoe Ingstrom");
@@ -303,18 +303,18 @@ describe("the traitor attacks a hero", () => {
 
 describe("attacking a monster (rules.md, pp. 13 and 18)", () => {
   it("a beaten monster is stunned instead of damaged", () => {
-    const state = fight(TOY_ENGINE, ["Attack Phantom"], 8, (d) => d < 8);
+    const state = fight(TOY_ENGINE, ["Attack Phantom 1"], 8, (d) => d < 8);
     expect(outcome(state)).toMatchObject({
       loser: "defender",
       harm: { kind: "stun" },
     });
     expect(state.figures[PHANTOM_1].stunned).toBe(true);
     expect(eventTypes(state)).not.toContain("damaged");
-    expect(describeAll(TOY_ENGINE, state)).toContain("Phantom is stunned.");
+    expect(describeAll(TOY_ENGINE, state)).toContain("Phantom 1 is stunned.");
   });
 
   it("a monster that wins as defender deals physical damage", () => {
-    const state = fight(TOY_ENGINE, ["Attack Phantom"], 0, (d) => d === 1);
+    const state = fight(TOY_ENGINE, ["Attack Phantom 1"], 0, (d) => d === 1);
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
       params: { figure: FATHER, damage: "physical", by: PHANTOM_1 },
@@ -325,7 +325,7 @@ describe("attacking a monster (rules.md, pp. 13 and 18)", () => {
     // The Phantom has no Knowledge, but has Sanity, so the Ring works on it.
     const state = choose(
       begun(TOY_ENGINE, (s) => explorer(s, 2).cards.push("ring")),
-      "Attack Phantom",
+      "Attack Phantom 1",
       TOY_ENGINE,
     );
     expect(labels(state, TOY_ENGINE)).toEqual([
@@ -339,17 +339,17 @@ describe("attacking a monster (rules.md, pp. 13 and 18)", () => {
       s.figures[PHANTOM_1].stunned = true;
     };
     expect(labels(begun(TOY_ENGINE, stunned), TOY_ENGINE)).not.toContain(
-      "Attack Phantom",
+      "Attack Phantom 1",
     );
     expect(
       labels(begun(NIGHTMARE_ENGINE, stunned), NIGHTMARE_ENGINE),
-    ).toContain("Attack Phantom");
+    ).toContain("Attack Phantom 1");
   });
 
   it("a stunned monster defends, but the attacker who loses takes no damage", () => {
     const state = fight(
       NIGHTMARE_ENGINE,
-      ["Attack Phantom"],
+      ["Attack Phantom 1"],
       0,
       (d) => d > 0,
       (s) => {
@@ -360,14 +360,14 @@ describe("attacking a monster (rules.md, pp. 13 and 18)", () => {
     expect(eventTypes(state)).not.toContain("damaged");
     expect(waitingOn(state)).toBe(2);
     expect(describeAll(NIGHTMARE_ENGINE, state)).toContain(
-      `Phantom beats Father Rhinehardt, ${outcome(state).defenceResult} to 0, but Father Rhinehardt takes no damage.`,
+      `Phantom 1 beats Father Rhinehardt, ${outcome(state).defenceResult} to 0, but Father Rhinehardt takes no damage.`,
     );
   });
 });
 
 describe("a haunt's rules for its monster (haunt 13's, on the toy Phantom)", () => {
   it("a hero who beats it kills it: it leaves play, killed by the hero, under the haunt's rule", () => {
-    const state = fight(NIGHTMARE_ENGINE, ["Attack Phantom"], 8, (d) => d < 8);
+    const state = fight(NIGHTMARE_ENGINE, ["Attack Phantom 1"], 8, (d) => d < 8);
     expect(outcome(state).harm).toMatchObject({ kind: "kill" });
     expect(state.figures[PHANTOM_1]).toMatchObject({
       alive: false,
@@ -384,7 +384,7 @@ describe("a haunt's rules for its monster (haunt 13's, on the toy Phantom)", () 
   });
 
   it("everything it deals is mental, defending too", () => {
-    const state = fight(NIGHTMARE_ENGINE, ["Attack Phantom"], 0, (d) => d === 1);
+    const state = fight(NIGHTMARE_ENGINE, ["Attack Phantom 1"], 0, (d) => d === 1);
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
       params: { figure: FATHER, damage: "mental" },

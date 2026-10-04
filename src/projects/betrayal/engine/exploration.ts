@@ -28,7 +28,6 @@ import {
   figureOf,
   placeOf,
   putFigure,
-  seatExplorer,
   startingTraits,
   together,
 } from "./figures";
@@ -47,6 +46,14 @@ import {
   takeFromPile,
 } from "./effects";
 import { attackTargets, turnAttack } from "./combat";
+import {
+  activate,
+  finishActing,
+  monsterTurnStart,
+  readyActors,
+  recoverStunned,
+} from "./monsters";
+import { inPlay } from "./sides";
 import { revealHaunt } from "./haunt";
 import {
   askNumber,
@@ -169,6 +176,11 @@ export type TurnChoice =
   | { act: "trade"; with: FigureId; give: string | null; take: string | null }
   | { act: "drop"; card: string }
   | { act: "pickup"; card: string }
+  /** On a turn where the seat moves several figures one after another (the
+   *  monster turn), this one acts next. */
+  | { act: "activate"; figure: FigureId }
+  /** The figure acting has finished, and another may act. */
+  | { act: "done" }
   | { act: "end" };
 
 type TurnParams = { seat: number };
@@ -261,14 +273,32 @@ function cardActions(
   return result;
 }
 
-/** Trading is between explorers in one room (p. 11): monsters carry no
- *  items unless a haunt says so (p. 19). */
-function canTradeWith(explorer: Figure, other: Figure): boolean {
+/** Trading is between figures in one room that can both hold cards
+ *  (p. 11): monsters carry no items unless a haunt says so (p. 19). */
+function canTradeWith(
+  engine: Engine,
+  state: GameState,
+  figure: Figure,
+  other: Figure,
+): boolean {
   return (
-    other.id !== explorer.id &&
-    other.kind === "explorer" &&
-    together(other, explorer)
+    other.id !== figure.id &&
+    together(other, figure) &&
+    canCarry(engine, state, figure.id) &&
+    canCarry(engine, state, other.id)
   );
+}
+
+function canCarry(engine: Engine, state: GameState, figure: FigureId): boolean {
+  return askPermission(engine, state, "canCarry", { figure }).allowed;
+}
+
+function canDiscover(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): boolean {
+  return askPermission(engine, state, "canDiscover", { figure }).allowed;
 }
 
 function canMoveItem(
@@ -307,21 +337,26 @@ function floorOf(state: GameState, room: string): FloorId {
   return tile.floor;
 }
 
-function turnCandidates(
-  engine: Engine,
-  state: GameState,
-  seat: number,
-): TurnChoice[] {
+function turnCandidates(engine: Engine, state: GameState): TurnChoice[] {
   const end: TurnChoice = { act: "end" };
-  // A monster turn's monsters, and a dead explorer's turn, have nothing to
-  // offer yet, so the turn passes at once.
-  const figure = explorerOf(state, seat);
-  if (
-    state.turn?.kind === "monster" ||
-    figure === null ||
-    !figureOf(state, figure).alive
-  )
-    return [end];
+  const turn = state.turn;
+  if (turn === null) return [end];
+  // Between monsters, the next to act, or the end of the turn. A turn with
+  // no one left to act (a dead explorer's, a monster turn with no monster
+  // ready) passes at once.
+  const figure = turn.acting;
+  if (figure === null)
+    return [
+      ...readyActors(state).map(
+        (f): TurnChoice => ({ act: "activate", figure: f }),
+      ),
+      end,
+    ];
+  // Finishing one monster is a choice only while another can still act;
+  // otherwise it is the turn's end.
+  const finish: TurnChoice[] =
+    readyActors(state).length > 0 ? [{ act: "done" }, end] : [end];
+  if (!inPlay(figureOf(state, figure))) return finish;
   if (!askPermission(engine, state, "canAct", { figure }).allowed)
     return [
       ...cardActions(engine, state, figure)
@@ -334,28 +369,29 @@ function turnCandidates(
             action,
           }),
         ),
-      end,
+      ...finish,
     ];
   const explorer = figureOf(state, figure);
   const room = placeOf(state, figure).room;
   const choices: TurnChoice[] = [];
   for (const to of moves(engine, state, figure))
     choices.push({ act: "move", to: to.room, side: to.side });
-  for (const doorway of freeDoorways(
-    state.board,
-    engine.catalog,
-    floorOf(state, room),
-  )) {
-    if (doorway.room === room && inReach(state, figure, doorway.direction))
-      choices.push({ act: "discover", direction: doorway.direction });
-  }
+  if (canDiscover(engine, state, figure))
+    for (const doorway of freeDoorways(
+      state.board,
+      engine.catalog,
+      floorOf(state, room),
+    )) {
+      if (doorway.room === room && inReach(state, figure, doorway.direction))
+        choices.push({ act: "discover", direction: doorway.direction });
+    }
   for (const { source, action } of cardActions(engine, state, figure)) {
     choices.push({ act: "action", source: source.kind, id: source.id, action });
   }
   for (const target of attackTargets(engine, state, figure))
     choices.push({ act: "attack", target });
   for (const other of allFigures(state)) {
-    if (!canTradeWith(explorer, other)) continue;
+    if (!canTradeWith(engine, state, explorer, other)) continue;
     const gives = [
       null,
       ...explorer.cards.filter((c) => canMoveItem(engine, state, c, "trade")),
@@ -370,9 +406,10 @@ function turnCandidates(
           choices.push({ act: "trade", with: other.id, give, take });
   }
   for (const card of explorer.cards) choices.push({ act: "drop", card });
-  for (const card of state.piles[room] ?? [])
-    choices.push({ act: "pickup", card });
-  choices.push(end);
+  if (canCarry(engine, state, figure))
+    for (const card of state.piles[room] ?? [])
+      choices.push({ act: "pickup", card });
+  choices.push(...finish);
   return choices;
 }
 
@@ -385,9 +422,23 @@ function takeTurnChoice(
 ): string | Step[] {
   const turn = state.turn;
   if (!turn || turn.seat !== seat) return "It isn't this seat's turn";
-  if (choice.act === "end") return [step<TurnParams>("end-turn", { seat })];
-  if (turn.kind === "monster") return "Monsters have nothing to do yet";
-  const figure = seatExplorer(state, seat);
+  if (choice.act === "end")
+    return [
+      ...(turn.acting === null ? [] : [finishActing()]),
+      step<TurnParams>("end-turn", { seat }),
+    ];
+  if (choice.act === "activate") {
+    if (turn.acting !== null) return "Another figure is acting";
+    if (!readyActors(state).includes(choice.figure))
+      return "That figure can't act now";
+    return [activate(choice.figure)];
+  }
+  const figure = turn.acting;
+  if (figure === null) return "No figure is acting";
+  if (choice.act === "done") {
+    if (readyActors(state).length === 0) return "No one else is left to act";
+    return [finishActing()];
+  }
   const explorer = figureOf(state, figure);
   const room = placeOf(state, figure).room;
   switch (choice.act) {
@@ -415,6 +466,8 @@ function takeTurnChoice(
       ];
     }
     case "discover": {
+      if (!canDiscover(engine, state, figure))
+        return "This figure can't discover rooms";
       if (!canLeave(engine, state, figure)) return "No movement left";
       const doorway = { room, direction: choice.direction };
       if (
@@ -461,8 +514,8 @@ function takeTurnChoice(
       if (turn.traded) return "You have already traded this turn";
       const other =
         choice.with in state.figures ? state.figures[choice.with] : null;
-      if (other === null || !canTradeWith(explorer, other))
-        return "You can only trade with an explorer in your room";
+      if (other === null || !canTradeWith(engine, state, explorer, other))
+        return "You can only trade with someone in your room who can hold cards";
       if (
         choice.give !== null &&
         (!explorer.cards.includes(choice.give) ||
@@ -495,6 +548,8 @@ function takeTurnChoice(
       return [step<Drop>("drop", { figure, card: choice.card })];
     }
     case "pickup": {
+      if (!canCarry(engine, state, figure))
+        return "This figure can't hold cards";
       if (
         !(state.piles[room] ?? []).includes(choice.card) ||
         isHandled(state, choice.card)
@@ -507,10 +562,16 @@ function takeTurnChoice(
   }
 }
 
+/** The figure acting on the turn, for a choice that only it can make. */
+function acting(state: GameState): FigureId {
+  const figure = state.turn?.acting ?? null;
+  if (figure === null) throw new Error("No figure is acting");
+  return figure;
+}
+
 function describeTurnChoice(
   engine: Engine,
   state: GameState,
-  seat: number,
   choice: TurnChoice,
 ): string {
   const room = (id: string) => engine.catalog.rooms[id].name;
@@ -523,7 +584,7 @@ function describeTurnChoice(
         ? `Move to the ${room(choice.to)}`
         : `Move to the ${room(choice.to)}, on its ${sideName(state.board, choice.to, choice.side)} side`;
     case "discover":
-      return `Explore through the ${COMPASS[choice.direction]} door of the ${room(placeOf(state, seatExplorer(state, seat)).room)}`;
+      return `Explore through the ${COMPASS[choice.direction]} door of the ${room(placeOf(state, acting(state)).room)}`;
     case "action": {
       const behaviour = liveSources(engine, state).find(
         (s) => s.source.kind === choice.source && s.source.id === choice.id,
@@ -535,7 +596,7 @@ function describeTurnChoice(
         throw new Error("Only a figure can be attacked");
       const target = choice.target.figure;
       const there = figureOf(state, target).place;
-      const here = placeOf(state, seatExplorer(state, seat));
+      const here = placeOf(state, acting(state));
       return there !== null &&
         (there.room !== here.room || there.side !== here.side)
         ? `Attack ${name(target)}, in the ${room(there.room)}`
@@ -553,8 +614,14 @@ function describeTurnChoice(
       return `Drop the ${card(choice.card)}`;
     case "pickup":
       return `Pick up the ${card(choice.card)}`;
+    case "activate":
+      return `Act with ${name(choice.figure)}, in the ${room(placeOf(state, choice.figure).room)}`;
+    case "done":
+      return `Finish ${name(acting(state))}'s actions`;
     case "end":
-      return "End your turn";
+      return state.turn?.kind === "monster"
+        ? "End the monster turn"
+        : "End your turn";
   }
 }
 
@@ -634,10 +701,26 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   "turn-start": defineStep<TurnStart>((state, p, ctx) => {
+    const explorer = turnExplorer(state, p);
+    const actors =
+      explorer !== null && inPlay(figureOf(state, explorer)) ? [explorer] : [];
+    const previous = state.turn;
     state.turn = {
       seat: p.seat,
       kind: p.kind,
       follows: p.follows,
+      // A monster turn's monsters are set as it starts (engine/monsters.ts).
+      actors,
+      acting: actors.at(0) ?? null,
+      done: [],
+      rolled: {},
+      recovering: [],
+      setUses:
+        p.kind === "monster" &&
+        previous?.seat === p.seat &&
+        previous.kind === "traitor"
+          ? previous.setUses
+          : [],
       moved: {},
       movementEnded: [],
       rolls: [],
@@ -652,14 +735,32 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     ctx.emit("turn-started", p.kind === "explorer" ? RULEBOOK(5) : RULEBOOK(16), {
       seat: p.seat,
       kind: p.kind,
-      figure: turnExplorer(state, p),
+      figure: explorer,
     });
-    ctx.push(step<TurnParams>("turn-menu", { seat: p.seat }));
+    ctx.push(
+      ...(p.kind === "monster" ? [monsterTurnStart()] : []),
+      step<TurnParams>("turn-menu", { seat: p.seat }),
+    );
   }),
 
+  // A figure that can no longer act (dead, or a monster stunned on its own
+  // turn, which stops at once: p. 18's project ruling) finishes acting.
   "turn-menu": defineStep<TurnParams>((state, p, ctx) => {
-    if (state.turn?.over) ctx.push(step<TurnParams>("end-turn", p));
-    else ctx.decide([p.seat], "turn", p, RULEBOOK(6));
+    const turn = state.turn;
+    if (turn?.over) {
+      ctx.push(step<TurnParams>("end-turn", p));
+      return;
+    }
+    const figure = turn?.acting ?? null;
+    if (
+      turn?.kind === "monster" &&
+      figure !== null &&
+      (!inPlay(figureOf(state, figure)) || figureOf(state, figure).stunned)
+    ) {
+      ctx.push(finishActing(), step<TurnParams>("turn-menu", p));
+      return;
+    }
+    ctx.decide([p.seat], "turn", p, RULEBOOK(6));
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
@@ -669,11 +770,13 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       room: placeOf(state, p.figure).room,
       moved: true,
     });
+    const from = placeOf(state, p.figure).room;
     putFigure(state, p.figure, { room: p.to, side: p.side });
     ctx.emit("entered", RULEBOOK(6), {
       figure: p.figure,
       room: p.to,
       moved: true,
+      from,
     });
     arrived(state, ctx, p.figure, p.to);
   }),
@@ -736,6 +839,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
           room: o.room,
         }),
       ),
+      ...(turn.recovering.length > 0 ? [recoverStunned()] : []),
       step<null>("next-turn", null),
     );
   }),
@@ -811,10 +915,9 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
 
 export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
   turn: defineDecision<TurnParams, TurnChoice>({
-    candidates: (state, p, _seat, engine) =>
-      turnCandidates(engine, state, p.seat),
-    label: (state, p, choice, engine) =>
-      describeTurnChoice(engine, state, p.seat, choice),
+    candidates: (state, _p, _seat, engine) => turnCandidates(engine, state),
+    label: (state, _p, choice, engine) =>
+      describeTurnChoice(engine, state, choice),
     resolve: (state, p, choice, ctx) => {
       const work = takeTurnChoice(ctx.engine, state, p.seat, choice);
       if (typeof work === "string") return work;

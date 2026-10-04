@@ -31,6 +31,7 @@ import { distanceTo } from "../../engine/movement";
 import { sideOf } from "../../engine/sides";
 import {
   askNumber,
+  askPermission,
   askSet,
   onTurn,
   traitValue,
@@ -110,7 +111,8 @@ function holderTurnEnded(
   ];
 }
 
-/** A token's once-a-turn roll, offered to an explorer in its room. */
+/** A token's once-a-turn roll, offered to a figure in its room that can
+ *  hold the cards it may draw (monsters can't, p. 19). */
 function tokenRoll(
   label: string,
   rollId: string,
@@ -120,7 +122,9 @@ function tokenRoll(
     actions: {
       open: {
         label,
-        available: (state) => !(state.turn?.rolls.includes(rollId) ?? true),
+        available: (state, figure, _source, engine) =>
+          !(state.turn?.rolls.includes(rollId) ?? true) &&
+          askPermission(engine, state, "canCarry", { figure }).allowed,
         steps: (_state, figure, source) => {
           if (source.room === null) throw new Error(`${rollId} has no room`);
           return [makeRoll(figure, source.room)];
@@ -1025,7 +1029,11 @@ export const EVENTS_A: BehaviourGroup = {
       actions: {
         use: {
           label: "Use the Slide (Might roll)",
-          available: (state) => !(state.turn?.rolls.includes(SLIDE) ?? true),
+          // A slide may land in a new room, which only a figure that can
+          // discover rooms may find (monsters can't, p. 19).
+          available: (state, figure, _source, engine) =>
+            !(state.turn?.rolls.includes(SLIDE) ?? true) &&
+            askPermission(engine, state, "canDiscover", { figure }).allowed,
           steps: (state, figure, source) => {
             if (source.room === null) throw new Error("The Slide has no room");
             return [slideRoll(state, figure, source.room, true)];

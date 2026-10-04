@@ -16,13 +16,19 @@ import {
 } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
 import { ENGINE } from "../game";
-import { withHaunts, type HauntDefinition } from "../kit/haunt";
-import type { FigureDefinition, FigureId, TurnKind } from "../types";
+import {
+  withHaunts,
+  type HauntDefinition,
+  type ObjectiveAction,
+} from "../kit/haunt";
+import { choose, put, ready, testGame, type TestGame } from "../testing";
+import type { FigureDefinition, FigureId, GameState, TurnKind } from "../types";
 
 // A small haunt built from the kit, for testing the haunt framework without
 // any real haunt's rules. The traitor dozes (can't act, slows no one) beside
-// a Phantom, a monster with no Knowledge that the haunt places and never
-// moves; a hero moving into a room adds a wake token, and the heroes win
+// a Phantom, a monster with no Knowledge that moves and attacks under the
+// rulebook's monster rules on the traitor's monster turn; a hero moving
+// into a room adds a wake token, and the heroes win
 // with one per player; each monster turn a nightmare escapes, and the
 // traitor wins once as many have escaped as the number the traitor wrote
 // down (the players).
@@ -54,6 +60,8 @@ export const PHANTOM: FigureDefinition = {
   kind: "monster",
   traits: { kind: "fixed", values: { speed: 3, might: 4, sanity: 3 } },
   token: null,
+  explores: false,
+  carries: false,
 };
 
 /** The toy haunt under a number. `phantom: false` leaves its monster out,
@@ -171,11 +179,68 @@ export function toyHaunt(
  *  except the revealer, on the chart) and haunt 6 (lowest Sanity). */
 export const TOY_ENGINE: Engine = withHaunts(ENGINE, [toyHaunt(13), toyHaunt(6)]);
 
+/** The toy haunt as the sweep plays it: the heroes need more wake tokens
+ *  and the game-ending actions wait for two monster turns, so random play
+ *  reaches the monsters before the game ends. */
+function sweptToyHaunt(number: number): HauntDefinition {
+  const base = toyHaunt(
+    number,
+    {},
+    { phantom: ENGINE.catalog.chart.traitors[number].kind !== "none" },
+  );
+  const actions = base.actions ?? {};
+  const afterMonsters = (action: string): ObjectiveAction => {
+    const { [action]: found } = actions;
+    return {
+      ...found,
+      available: (state) => (state.haunt?.counters.escapes ?? 0) > 1,
+    };
+  };
+  return {
+    ...base,
+    actions: {
+      ...actions,
+      both: afterMonsters("both"),
+      perish: afterMonsters("perish"),
+    },
+    goals: (base.goals ?? []).map((goal) =>
+      goal.id === "woken"
+        ? { ...goal, when: { counter: "wakes", atLeast: SWEEP_WAKES } }
+        : goal,
+    ),
+  };
+}
+
+/** Wake tokens the heroes need in the sweep. */
+const SWEEP_WAKES = 10;
+
 /** The real engine with the toy haunt built under every number on the
- *  chart, so random play goes through the haunt to its end. Its Phantom is
- *  left out until monsters move: the Bell's and Spirit Board's pulls fail
- *  loudly while a monster is in play. */
+ *  chart, so random play goes through the haunt to its end. Its Phantom
+ *  stays out of the haunts with no traitor to put it beside. */
 export const ALL_TOY_ENGINE: Engine = withHaunts(
   ENGINE,
-  hauntNumbers(ENGINE.catalog).map((n) => toyHaunt(n, {}, { phantom: false })),
+  hauntNumbers(ENGINE.catalog).map(sweptToyHaunt),
 );
+
+/** A toy haunt game begun and everyone ready, on Father Rhinehardt's turn:
+ *  Ox, seat 1, is the traitor, beside Phantom 1 in the Entrance Hall, with
+ *  Zoe (seat 0) and Father (seat 2) there too. `setUp` changes it, as a
+ *  test's setup. */
+export function toyBegun(
+  engine: Engine,
+  setUp: (state: GameState) => void = () => {},
+  options: TestGame = {},
+): GameState {
+  let state = testGame({ engine, haunt: { number: 13, revealer: 0 }, ...options });
+  state = state.seats.reduce((s, _seat, i) => ready(s, i, engine), state);
+  // The revealer starts where the haunt was revealed; bring her back.
+  put(state, 0, "entrance-hall");
+  setUp(state);
+  return state;
+}
+
+/** Both heroes end their turns: a dozing traitor's turn passes at once, and
+ *  his seat's monster turn begins (and, with nothing to do, passes too). */
+export function toMonsterTurn(state: GameState, engine: Engine): GameState {
+  return choose(choose(state, "End your turn", engine), "End your turn", engine);
+}

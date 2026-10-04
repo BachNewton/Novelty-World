@@ -189,10 +189,16 @@ export function moveClip(
   return { spaces: after - before, skull: before + change < 0 };
 }
 
+/** A figure's name: its definition's, and for one of several numbered
+ *  from it (a haunt's monsters), its number too ("Nightmare 2"). */
 export function figureName(
   catalog: Catalog,
   state: GameState,
   id: FigureId,
 ): string {
-  return figureDefinition(catalog, state, id).name;
+  const { definition } = figureOf(state, id);
+  const { name } = figureDefinition(catalog, state, id);
+  return id.startsWith(`${definition}-`)
+    ? `${name} ${id.slice(definition.length + 1)}`
+    : name;
 }

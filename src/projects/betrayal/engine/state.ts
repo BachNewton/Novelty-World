@@ -30,7 +30,7 @@ export function emptyState(
     insertedTurns: [],
     omensDrawn: 0,
     haunt: null,
-    memory: { deaths: [], conditions: [] },
+    memory: { deaths: [], conditions: [], traitsKnown: [], spawned: {} },
     nextId: 0,
     work: [],
     pending: null,
