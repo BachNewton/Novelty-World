@@ -137,16 +137,18 @@ There is a fixed, named set of questions: the 33 override points of the survey, 
 Every question receives the whole state plus its subject, never a narrow argument list, because the survey shows answers read sides, held cards, tracks, history and the source of damage. Choice enumeration and `apply` ask the same questions, which keeps legality single-sourced.
 
 One attack shows how the questions chain:
-1. canAttack, attackReach and isOpponent build the target list.
-2. attackModes picks the trait both sides roll and the card the attacker uses (a weapon, the Ring).
+1. canAttack (may this figure attack that target at all), isOpponent and the reach of the ways to attack build the target list.
+2. attackModes gives the ways to attack: the trait both sides roll, the card the attacker uses (a weapon, the Ring), and how far it reaches (the attacker's own room, or a line of sight for the Revolver). A trait either side lacks is no way to attack (p. 13).
 3. dicePool sizes each side's roll, then the dice are rolled.
 4. rollResult adjusts the totals.
-5. combatOutcome turns the comparison into effects (damage, stun, steal, kill, grab, push, convert).
-6. damageAmount and damageRouting place any damage.
+5. combatOutcome turns the comparison into what the loser suffers: damage of a kind (physical or mental) and its points, a stun, or a kill, each with the rule that says so, and whether the attacker may steal instead. Grab, push and convert join it when a haunt needs them. Its base answer is the rulebook's: the difference as damage, of the kind the trait gives; a stun for a figure that takes no damage on its traits (a monster, p. 18); nothing for an attacker beaten from another room or by a stunned monster. Because the outcome carries the damage's kind, a haunt changes it there: haunt 13's Nightmares deal mental damage whichever side they are on, with no separate routing question.
+6. damageAmount sizes any damage, and the loser's controller splits it.
 7. traitChange moves the clips.
 8. lethalOutcome decides what a skull means, asked per trait, with the cause.
 
 Every step emits events that name the rule behind it.
+
+**The turn's attack.** From the haunt on, the figure whose turn it is may make one attack of its own (p. 13): a turn choice per legal target, an opponent in reach of some way it can attack them. Declaring it uses up that figure's attack in the turn's ledger, whatever then happens (a Sacrificial Dagger that twists in the hand), and the Dynamite's throw uses it instead. Attacks a card makes (the Bloody Vision's, the Bite's) are outside that allowance, and their own rule puts the target in reach. Which held weapon to use is a decision of its own, offered whenever there is more than one way. A stunned monster is a target only when beating it would do more than stun it again (ruling stunned-benefit), which the engine reads off the combat outcome of a win. A figure that doesn't take damage is beaten as in combat by any rule that beats it outside one, as the Dynamite's official ruling has it. A stun marks the figure, which then slows no one; its recovery belongs to the monster turn. A kill is a death like any other: the figure leaves play, its death goes into the rule memory with the killer, and the death's event names the rule behind the kill, for a haunt's triggers to react to.
 
 **Death.** Clips stop at a track's lowest value; going past it asks lethalOutcome, per trait, with the rule whose effect took it there, and before the haunt the base answer is to stop there (p. 5). A death is one step: the figure is no longer alive, its death goes into the rule memory with the trait, the cause and the killer (the figure that dealt the damage, which damage carries from an attack's winner), its items and item-like omens drop onto the room's pile, its companions wait in the room for the next explorer to come in, and the figure leaves the board. A dead figure takes no further part: its remaining cards and statuses are not live sources, and effects still queued for it lapse. Its turn, if it was its seat's, ends.
 
@@ -174,7 +176,7 @@ Each answer type composes in a fixed way. Composing like this is what makes stac
 | Number (dice, movement, damage, allowance) | base, then **set** (the highest layer's set wins), then **add** (all deltas summed), then **fewer** (a cut "to a minimum of N", which stops at N and never lifts an answer already at or below it), then **multiply**, then **bound** (the tightest cap), then **fix** (a final fixed value, such as 91's result of 5; the highest layer wins) |
 | Permission (canAttack, canCarry, canEnterOrLeave…) | deny or allow with reasons. Within a layer, a deny beats an allow. A higher layer may explicitly overrule a lower one (the traitor ignores harmful room text) |
 | Set (targets, traits, connections) | add and remove in layer order |
-| Structured result (combatOutcome, lethalOutcome, movementPolicy, damageRouting) | each modifier transforms the previous result, in layer order |
+| Structured result (combatOutcome, lethalOutcome, movementPolicy) | each modifier transforms the previous result, in layer order |
 
 Within a layer, modifiers run in a stable order (by source kind, then id). Sums and denials don't depend on that order. Two modifiers in the same layer that both **replace** a structured result, or both **set** or **fix** a number to different values, are a conflict the rulebook doesn't settle, so the engine **throws**, naming both rule references. That surfaces a real rules question (to be settled and recorded in `content/`) instead of quietly letting whichever ran last win.
 
@@ -193,7 +195,7 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
 **A definition's sections:**
 - **Identity:** number, name, set, and a reference to its content file.
 - **Sides:** the chart's traitor rule, unless the definition gives its own (a hidden traitor, several traitors, or none), and which half of the haunt text each side may read.
-- **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, or run a local step. Still to come: find a named room, fill the house, placement rules, spawn figures, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret) is worked out when its step runs, so setup fixes it at the haunt's start.
+- **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, put a number of the haunt's figures in the room of a group's explorer (owned by a group's seat, numbered from their definition), or run a local step. Still to come: find a named room, fill the house, placement rules, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret) is worked out when its step runs, so setup fixes it at the haunt's start.
 - **Figures:** monster and ally definitions (traits or a stats table, a movement policy, an attack rule, a defeat response, flags).
 - **Tracks and counters**, with their count expressions.
 - **Statuses** the haunt applies.
@@ -217,7 +219,7 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
   - The Nightmares' escape: in an unmarked escape room, at a cost of 1 movement. It removes the Nightmare, places an escape token and steps the escape counter.
   - The heroes' wake: in the dreamer's room while a hero there holds the Holy Symbol. It is a Sanity or Might roll of 5+, a task roll once per turn, and steps a counter with the matching token.
 - *Modifiers:*
-  - damageRouting: a Nightmare's Might attack deals mental damage.
+  - combatOutcome: every point of damage a Nightmare deals is mental, attacking or defending.
   - combatOutcome: a Nightmare that loses to an attacking hero is killed, not stunned.
   - itemEffect: the Smelling Salts can't wake the dreamer.
 - *Triggers:* a Nightmare killed or escaped raises a traitor decision to unleash another, within the token supply.
