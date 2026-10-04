@@ -200,6 +200,7 @@ export function describeEvent(
         "picked-up": `${who(d.figure)} picks up the ${words.card(d.card)}`,
         given: `${who(d.figure)} is given the ${words.card(d.card)}`,
         stolen: `${who(d.figure)} steals the ${words.card(d.card)}`,
+        custody: `${who(d.figure)} takes custody of the ${words.card(d.card)}, left where its explorer died`,
       };
       const text = gained[d.by];
       return text === null ? null : sentence(text, d.card);
@@ -416,6 +417,26 @@ export function describeEvent(
       ];
       return sentence(`${who(d.figure)} ${parts.join(" and ")}`);
     }
+    case "died": {
+      const d = data<{
+        figure: FigureId;
+        trait: Trait | null;
+        cause: RuleRef;
+        killer: FigureId | null;
+        room: string;
+      }>(event);
+      const how =
+        d.trait === null ? "" : ` as ${traitName(d.trait)} reaches the skull`;
+      const by =
+        d.killer === null
+          ? d.cause.source === "rulebook"
+            ? ""
+            : ` (${describeRule(engine, d.cause)})`
+          : `, killed by ${who(d.killer)}`;
+      return sentence(
+        `${who(d.figure)} dies in the ${words.room(d.room)}${how}${by}`,
+      );
+    }
     case "side-set": {
       const d = data<{
         seat: number;
@@ -474,6 +495,10 @@ function lostText(
       return `${who} leaves the ${name} in the ${words.room(where.room)}`;
     case "figure":
       return null;
+    case "aside":
+      return where.room === null
+        ? `${who}'s ${name} is set aside, out of the game`
+        : `${who}'s ${name} stays in the ${words.room(where.room)}, for the next explorer to come in`;
   }
 }
 

@@ -369,6 +369,7 @@ function checkState(engine: Engine, state: GameState): void {
     ...allFigures(state).flatMap((f) => f.cards),
     ...Object.values(state.piles).flat(),
     ...state.ongoing,
+    ...state.aside.map((a) => a.card),
   ];
   const cards = Object.values(engine.catalog.cards)
     .filter((c) => state.sets.includes(c.set))

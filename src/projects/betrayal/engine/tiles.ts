@@ -28,6 +28,7 @@ import {
   type Spot,
 } from "./board";
 import {
+  arrived,
   chooseSide,
   continueWith,
   defineDecision,
@@ -299,6 +300,7 @@ export const TILE_STEPS: Record<string, StepHandler> = {
       moved: p.moved,
       discovered: true,
     });
+    arrived(state, ctx, p.figure, p.room);
   }),
 
   "enter-new-room": defineStep<EnterNewRoom>((_state, p, ctx) => {

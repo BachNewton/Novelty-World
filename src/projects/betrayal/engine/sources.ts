@@ -233,7 +233,9 @@ export function liveSources(
       result.push({ source, behaviour });
     }
   }
-  for (const figure of allFigures(state)) {
+  // A dead figure's cards and statuses do nothing more: it takes no further
+  // part (p. 16).
+  for (const figure of allFigures(state).filter((f) => f.alive)) {
     for (const card of figure.cards) {
       const behaviour = behaviours.cards[card];
       if (behaviour)

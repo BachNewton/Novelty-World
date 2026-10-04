@@ -1,4 +1,5 @@
 import type {
+  Catalog,
   CardMark,
   CardType,
   Edge,
@@ -24,6 +25,7 @@ import {
 } from "./figures";
 import {
   askNumber,
+  askStructured,
   barrierSides,
   controllerOf,
   MAX_DICE,
@@ -167,13 +169,18 @@ type Damage = {
   amount: number | null;
   dice: number | null;
   rule: RuleRef;
+  /** The figure dealing it, if one is: the killer, should it kill. */
+  by: FigureId | null;
 };
 
+/** Damage to a figure, from a rule, and dealt by a figure where one deals
+ *  it (an attack's winner). */
 export function damage(
   figure: FigureId,
   kind: "physical" | "mental",
   amount: { points: number } | { dice: number },
   rule: RuleRef,
+  by: FigureId | null = null,
 ): Step {
   return step<Damage>("damage", {
     figure,
@@ -181,6 +188,7 @@ export function damage(
     amount: "points" in amount ? amount.points : null,
     dice: "dice" in amount ? amount.dice : null,
     rule,
+    by,
   });
 }
 
@@ -189,6 +197,7 @@ type DamageLands = {
   damage: "physical" | "mental";
   points: number;
   rule: RuleRef;
+  by: FigureId | null;
 };
 
 /** The cards that let a figure take this damage as the other kind instead. */
@@ -213,6 +222,7 @@ type Split = {
   damage: "physical" | "mental";
   amount: number;
   rule: RuleRef;
+  by: FigureId | null;
 };
 
 function splitOptions(
@@ -222,12 +232,23 @@ function splitOptions(
 ): { [trait: string]: number }[] {
   const [first, second] = split.damage === "physical" ? PHYSICAL : MENTAL;
   const clips = trackTraits(engine.catalog, state, split.figure).live.clips;
+  const kills = (trait: Trait, spaces: number) =>
+    clips[trait] - spaces < 0 &&
+    askStructured(engine, state, "lethalOutcome", {
+      figure: split.figure,
+      trait,
+      cause: split.rule,
+    }).kind === "death";
   const seen = new Set<string>();
   const options: { [trait: string]: number }[] = [];
   for (let onFirst = split.amount; onFirst >= 0; onFirst--) {
     const option = { [first]: onFirst, [second]: split.amount - onFirst };
-    // Before the haunt a trait stops at its lowest value, so different splits can land the same way.
-    const outcome = `${Math.max(clips[first] - onFirst, 0)}/${Math.max(clips[second] - option[second], 0)}`;
+    // A trait stops at its lowest value unless the skull kills, so different
+    // splits can land the same way, and every split that kills ends alike.
+    const outcome =
+      kills(first, onFirst) || kills(second, option[second])
+        ? "dead"
+        : `${Math.max(clips[first] - onFirst, 0)}/${Math.max(clips[second] - option[second], 0)}`;
     if (seen.has(outcome)) continue;
     seen.add(outcome);
     options.push(option);
@@ -370,9 +391,16 @@ export function drawCard(figure: FigureId, type: CardType, rule: RuleRef): Step 
   return step<DrawCard>("draw-card", { figure, type, rule });
 }
 
-/** How a card came to its holder. */
+/** How a card came to its holder. "custody": a dead explorer's companion,
+ *  taken by the next explorer to come into the room (p. 19). */
 export type GainedBy =
-  "drawn" | "kept" | "picked-up" | "traded" | "given" | "stolen";
+  | "drawn"
+  | "kept"
+  | "picked-up"
+  | "traded"
+  | "given"
+  | "stolen"
+  | "custody";
 
 type GainCard = { figure: FigureId; card: string; by: GainedBy; rule: RuleRef };
 
@@ -393,7 +421,10 @@ export type CardDestination =
   /** Back into its deck, which is then shuffled. */
   | { to: "deck" }
   | { to: "room"; room: string }
-  | { to: "figure"; figure: FigureId; by: GainedBy };
+  | { to: "figure"; figure: FigureId; by: GainedBy }
+  /** Set aside: in a room, waiting for the next explorer to come in (a dead
+   *  explorer's companion), or, with no room, out of the game. */
+  | { to: "aside"; room: string | null };
 
 type LoseCard = {
   figure: FigureId;
@@ -680,11 +711,115 @@ export function endTurnNow(figure: FigureId, rule: RuleRef): Step {
 }
 
 // ---------------------------------------------------------------------------
+// Death
+// ---------------------------------------------------------------------------
+
+const rulebook = (page: number, ruling?: string): RuleRef =>
+  ruling === undefined
+    ? { source: "rulebook", page }
+    : { source: "rulebook", page, ruling };
+
+/** Whether a figure still takes part. A dead explorer takes no further part
+ *  (p. 16): what was still to happen to it (more damage from the same card,
+ *  a roll it was to make, a card it was to draw) lapses. */
+function takesPart(state: GameState, figure: FigureId): boolean {
+  return figureOf(state, figure).alive;
+}
+
+type Die = {
+  figure: FigureId;
+  trait: Trait | null;
+  cause: RuleRef;
+  killer: FigureId | null;
+};
+
+/** A trait has gone past its lowest value: what the skull means is a
+ *  question, asked with the rule that took it there. */
+function reachSkull(
+  state: GameState,
+  ctx: StepContext,
+  figure: FigureId,
+  trait: Trait,
+  cause: RuleRef,
+  killer: FigureId | null,
+): void {
+  const outcome = askStructured(ctx.engine, state, "lethalOutcome", {
+    figure,
+    trait,
+    cause,
+  });
+  if (outcome.kind === "death")
+    ctx.push(step<Die>("die", { figure, trait, cause, killer }));
+}
+
+/** A figure dies, with the rule that killed it and the figure that dealt
+ *  the blow, if any. */
+export function die(
+  figure: FigureId,
+  cause: RuleRef,
+  killer: FigureId | null = null,
+): Step {
+  return step<Die>("die", { figure, trait: null, cause, killer });
+}
+
+/** Whether a card works as an item: every item, and every omen but the
+ *  companions and those that can't be traded, dropped or stolen at all (the
+ *  Bite), as the 1st-edition FAQ treats them. */
+function worksAsItem(catalog: Catalog, card: string): boolean {
+  const { type, label, transfer } = catalog.cards[card];
+  if (type === "item") return true;
+  return (
+    type === "omen" &&
+    label !== "companion" &&
+    (transfer.trade || transfer.drop || transfer.steal)
+  );
+}
+
+/** Where a dead explorer's card goes (p. 19): a companion stays in the room
+ *  for the next explorer to come in, and every card that works as an item
+ *  drops onto the room's item pile. Kept events and the Bite stay with the
+ *  body and do nothing more. */
+function dropOnDeath(
+  catalog: Catalog,
+  figure: FigureId,
+  card: string,
+  room: string,
+): Step[] {
+  if (catalog.cards[card].label === "companion")
+    return [loseCard(figure, card, { to: "aside", room }, rulebook(19))];
+  if (!worksAsItem(catalog, card)) return [];
+  const rule =
+    catalog.cards[card].type === "omen"
+      ? rulebook(19, "dead-explorers-omens")
+      : rulebook(19);
+  return [loseCard(figure, card, { to: "room", room }, rule)];
+}
+
+/** A figure has come into a room: a living explorer takes custody of any
+ *  dead explorer's companion waiting there (p. 19). */
+export function arrived(
+  state: GameState,
+  ctx: StepContext,
+  figure: FigureId,
+  room: string,
+): void {
+  const you = figureOf(state, figure);
+  if (you.kind !== "explorer" || !you.alive) return;
+  const waiting = state.aside.filter((a) => a.room === room);
+  if (waiting.length === 0) return;
+  state.aside = state.aside.filter((a) => a.room !== room);
+  ctx.push(
+    ...waiting.map((a) => gainCard(figure, a.card, "custody", rulebook(19))),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
 export const EFFECT_STEPS: Record<string, StepHandler> = {
   gain: defineStep<Gain>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     const moved = moveClip(
       ctx.catalog,
       state,
@@ -696,11 +831,13 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     ctx.emit("trait-changed", p.rule, {
       figure: p.figure,
       trait: p.trait,
-      spaces: moved,
+      spaces: moved.spaces,
     });
+    if (moved.skull) reachSkull(state, ctx, p.figure, p.trait, p.rule, null);
   }),
 
   damage: defineStep<Damage>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     if (p.dice !== null) {
       ctx.push(
         roll(
@@ -711,6 +848,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
             figure: p.figure,
             damage: p.damage,
             rule: p.rule,
+            by: p.by,
           }),
         ),
       );
@@ -724,12 +862,20 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       ctx.decide(
         [controllerOf(ctx.engine, state, p.figure)],
         "damage-kind",
-        { figure: p.figure, damage: p.damage, points, rule: p.rule },
+        { figure: p.figure, damage: p.damage, points, rule: p.rule, by: p.by },
         p.rule,
       );
       return;
     }
-    ctx.push(step<DamageLands>("damage-lands", { ...p, points }));
+    ctx.push(
+      step<DamageLands>("damage-lands", {
+        figure: p.figure,
+        damage: p.damage,
+        points,
+        rule: p.rule,
+        by: p.by,
+      }),
+    );
   }),
 
   "damage-lands": defineStep<DamageLands>((state, p, ctx) => {
@@ -746,7 +892,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     ctx.decide(
       [controllerOf(ctx.engine, state, p.figure)],
       "split-damage",
-      { figure: p.figure, damage: p.damage, amount, rule: p.rule },
+      { figure: p.figure, damage: p.damage, amount, rule: p.rule, by: p.by },
       p.rule,
     );
   }),
@@ -755,12 +901,14 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     figure: FigureId;
     damage: "physical" | "mental";
     rule: RuleRef;
+    by: FigureId | null;
     result: number;
   }>((_state, p, ctx) => {
-    ctx.push(damage(p.figure, p.damage, { points: p.result }, p.rule));
+    ctx.push(damage(p.figure, p.damage, { points: p.result }, p.rule, p.by));
   }),
 
   roll: defineStep<Roll>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     if (p.id !== null && state.turn) {
       if (state.turn.rolls.includes(p.id))
         throw new Error(`Roll ${p.id} was already attempted this turn`);
@@ -838,6 +986,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "draw-card": defineStep<DrawCard>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     const deck = state.decks[p.type];
     if (deck.draw.length === 0) {
       deck.draw = ctx.random.shuffle(deck.discard);
@@ -919,6 +1068,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         clearMarks(state, p.card, "holder");
         break;
       case "figure":
+        clearMarks(state, p.card, "holder");
+        break;
+      case "aside":
+        state.aside.push({ card: p.card, room: where.room });
         clearMarks(state, p.card, "holder");
         break;
     }
@@ -1070,7 +1223,31 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       side: sides.length > 0 ? p.side : null,
     });
     ctx.emit("entered", p.rule, { figure: p.figure, room: p.room, moved: false });
+    arrived(state, ctx, p.figure, p.room);
     ctx.push(...p.after);
+  }),
+
+  die: defineStep<Die>((state, p, ctx) => {
+    const figure = figureOf(state, p.figure);
+    // A figure dies once, however many of its traits reach the skull at once.
+    if (!figure.alive) return;
+    const room = placeOf(state, p.figure).room;
+    figure.alive = false;
+    state.memory.deaths.push({ ...p, room });
+    ctx.emit("died", rulebook(5), { ...p, room });
+    ctx.push(
+      ...figure.cards.flatMap((card) =>
+        dropOnDeath(ctx.catalog, p.figure, card, room),
+      ),
+      step<{ figure: FigureId }>("leave-board", { figure: p.figure }),
+      endTurnNow(p.figure, rulebook(16, "dead-seats-turns")),
+    );
+  }),
+
+  // A dead explorer's figure leaves the board: it is in no room, so it
+  // slows no one and nothing can reach it.
+  "leave-board": defineStep<{ figure: FigureId }>((state, p) => {
+    figureOf(state, p.figure).place = null;
   }),
 
   "start-ongoing": defineStep<{ card: string }>((state, p) => {
@@ -1130,10 +1307,15 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
         .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`)
         .join(" and ")}`,
     resolve: (state, p, split, ctx) => {
-      for (const [trait, spaces] of Object.entries(split)) {
-        moveClip(ctx.catalog, state, p.figure, trait as Trait, -spaces, null);
-      }
+      const skulls = Object.entries(split).flatMap(([trait, spaces]) =>
+        moveClip(ctx.catalog, state, p.figure, trait as Trait, -spaces, null)
+          .skull
+          ? [trait as Trait]
+          : [],
+      );
       ctx.emit("damaged", p.rule, { figure: p.figure, damage: p.damage, split });
+      for (const trait of skulls)
+        reachSkull(state, ctx, p.figure, trait, p.rule, p.by);
       return null;
     },
   }),

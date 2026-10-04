@@ -49,15 +49,17 @@ export function seatExplorer(state: GameState, seat: number): FigureId {
   return id;
 }
 
-/** Every seat's explorer in table order, starting with the seat that owns
- *  this figure and passing left. */
+/** Every seat's living explorer in table order, starting with the seat
+ *  that owns this figure and passing left. A dead explorer takes no further
+ *  part (p. 16). */
 export function explorersFrom(state: GameState, id: FigureId): FigureId[] {
   const start = figureOf(state, id).owner;
   if (start === null) throw new Error(`${id} has no seat to pass left from`);
   const count = state.seats.length;
-  return state.seats.flatMap(
-    (_seat, i) => explorerOf(state, (start + i) % count) ?? [],
-  );
+  return state.seats.flatMap((_seat, i) => {
+    const explorer = explorerOf(state, (start + i) % count);
+    return explorer !== null && figureOf(state, explorer).alive ? [explorer] : [];
+  });
 }
 
 /** Where a figure on the board is. */
@@ -120,10 +122,12 @@ export function trackTraits(
   return { tracks: source.tracks, start: source.start, live };
 }
 
-/** Moves a trait's clip by spaces. Before the haunt a clip stops at the track's lowest
- *  value (p. 5), and it never passes the highest. A gain from a card past the
- *  maximum is noted against that card, and a loss from that card takes the
- *  noted spaces first (p. 11). Returns the spaces the clip actually moved. */
+/** Moves a trait's clip by spaces. A clip stops at the track's lowest value
+ *  and never passes the highest; whether going past the lowest means death
+ *  is the caller's to ask (p. 5). A gain from a card past the maximum is
+ *  noted against that card, and a loss from that card takes the noted spaces
+ *  first (p. 11). Returns the spaces the clip actually moved, and whether the
+ *  change would have taken it to the skull. */
 export function moveClip(
   catalog: Catalog,
   state: GameState,
@@ -131,7 +135,7 @@ export function moveClip(
   trait: Trait,
   spaces: number,
   card: string | null,
-): number {
+): { spaces: number; skull: boolean } {
   const { tracks, live: traits } = trackTraits(catalog, state, id);
   const top = tracks[trait].length - 1;
   const before = traits.clips[trait];
@@ -157,7 +161,7 @@ export function moveClip(
     else traits.overTop.push({ card, trait, spaces: over });
   }
   traits.clips[trait] = after;
-  return after - before;
+  return { spaces: after - before, skull: before + change < 0 };
 }
 
 export function figureName(

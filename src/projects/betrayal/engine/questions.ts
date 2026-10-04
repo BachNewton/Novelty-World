@@ -155,6 +155,10 @@ export type AttackMode = {
   card: string | null;
 };
 
+/** A trait at the skull: the figure dies, or the trait stops at its lowest
+ *  value above the skull. */
+export type LethalOutcome = { kind: "death" } | { kind: "clamp" };
+
 /** What an attack's comparison leads to. */
 export type CombatOutcome = {
   /** Who lost, or null for a tie. */
@@ -182,6 +186,12 @@ export interface StructuredQuestions {
   isOpponent: {
     question: { figure: FigureId; other: FigureId };
     answer: boolean;
+  };
+  /** What a trait reaching the skull means, asked per trait with the rule
+   *  whose effect took it there. */
+  lethalOutcome: {
+    question: { figure: FigureId; trait: Trait; cause: RuleRef };
+    answer: LethalOutcome;
   };
   /** The ways a figure may attack another. */
   attackModes: {
@@ -523,6 +533,10 @@ const STRUCTURED_BASE: {
       mine !== theirs
     );
   },
+  // Before the haunt no one can die: a trait stops at its lowest value. From
+  // the haunt on, a trait at the skull kills (p. 5).
+  lethalOutcome: (_engine, state) =>
+    state.status === "exploring" ? { kind: "clamp" } : { kind: "death" },
   // All attacks use Might unless a card or ability says otherwise (p. 13).
   attackModes: () => [{ trait: "might", card: null }],
   // The higher result deals the difference as damage to the loser; a tie

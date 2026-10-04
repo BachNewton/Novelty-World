@@ -251,8 +251,11 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
 
   "attack-settle": defineStep<Settle>((_state, p, ctx) => {
     const { outcome } = p;
-    const loser =
-      outcome.loser === "defender" ? p.defender : subject(p).attacker;
+    const { attacker } = subject(p);
+    const [loser, winner] =
+      outcome.loser === "defender"
+        ? [p.defender, attacker]
+        : [attacker, p.defender];
     ctx.push(
       ...(outcome.damage && loser !== null
         ? [
@@ -261,6 +264,7 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
               outcome.damage.kind,
               { points: outcome.damage.points },
               p.rule,
+              winner,
             ),
           ]
         : []),

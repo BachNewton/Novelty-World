@@ -501,7 +501,7 @@ export const EVENTS_A: BehaviourGroup = {
             const rule = card("footsteps");
             const from = placeOf(state, p.figure);
             const others = allFigures(state).flatMap((e) => {
-              if (e.id === p.figure) return [];
+              if (e.id === p.figure || e.place === null) return [];
               const distance = distanceTo(
                 ctx.engine,
                 state,

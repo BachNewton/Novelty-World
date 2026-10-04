@@ -496,7 +496,7 @@ At the start of the haunt:
 - In some haunts, a hero's "death" turns that explorer into a traitor instead.
 - Some haunts require something to be done a number of times equal to the number of explorers; that count includes explorers who have died.
 
-> Note: the rulebook doesn't say whether a dead hero's seat still takes turns, or whether the traitor's seat takes its turns when the traitor can't act (asleep, transformed or dead).
+> Note [dead-seats-turns]: the rulebook doesn't say whether a dead hero's seat still takes turns, or whether the traitor's seat takes its turns when the traitor can't act (asleep, transformed or dead).
 > Resolution (official (1st-edition FAQ)): the traitor's seat always takes its traitor turn and then its monster turn, even when the traitor is dead or out of play. Page 17 says a traitor transformed or removed at the start still gets a turn after the heroes, and the 1st-edition FAQ says a dead traitor still moves monsters on their turn. A traitor turn in which the traitor can do nothing passes at once. A dead hero's seat takes no more turns, unless the haunt gives a dead player something to do, and play skips over it (project: a dead explorer has nothing left to do on a turn, and the one BGG answer on the point, under haunt 22, says the same). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/318232
 
 ### What Happens if a Haunt's Rules and the Regular Rules Conflict? (p. 17)
@@ -586,6 +586,9 @@ Boxed sidebar.
 
 > Note [dead-explorers-omens]: The sidebar speaks of items only; it doesn't say what happens to a dead explorer's non-companion omen cards. Whether they count among the "items" that drop is not stated here.
 > Resolution (community): an omen that works as an item drops into the item pile like an item card. That covers every omen except the Bite and the companions, and the companions stay in the room as the sidebar says. The 1st-edition FAQ already treats every omen except the Dog, Girl, Bite and Madman as droppable, tradable and stealable. No source rules on the Bite. Source: https://boardgamegeek.com/thread/2582950, https://boardgamegeek.com/thread/1498662, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
+> Note [dead-explorers-body]: the sidebar doesn't say what becomes of a dead explorer's kept event cards (the Webs, the Debris), of the Bite, or of the explorer's figure.
+> Resolution (project): kept events and the Bite stay with the dead explorer and do nothing more: they aren't items, so they don't drop, and a dead explorer takes no further part, so nothing on it acts. The figure leaves the board: it is in no room, slows no one, and can't be attacked, traded with or moved. Whatever else was still to happen to it (more damage from the same card, a roll, a card to draw) lapses. The game remembers the death, with the room, the trait that reached the skull, the rule that caused it and the figure that dealt the blow, for the haunts whose goals read it. This matches the ruling for haunt 13's sleeping dreamer, whose kept events and Bite stay with the body, and keeps a dead explorer's leftovers from acting on a game they've left. A haunt that gives the body a use (haunt 14's corpse) adds it. Research: no ruling found; the BGG answers on dying cover only items and companions. Source: https://boardgamegeek.com/thread/2582950
 
 ## Winning the Game (p. 19)
 - The first side (the traitor or the heroes) to complete its goals for the haunt wins the game.

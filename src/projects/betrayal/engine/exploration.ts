@@ -35,6 +35,7 @@ import {
   TRAITS,
 } from "./figures";
 import {
+  arrived,
   defineDecision,
   defineStep,
   gainCard,
@@ -627,6 +628,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       room: p.to,
       moved: true,
     });
+    arrived(state, ctx, p.figure, p.to);
   }),
 
   discover: defineStep<Discover>((state, p, ctx) => {

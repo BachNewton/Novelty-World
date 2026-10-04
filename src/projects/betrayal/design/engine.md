@@ -147,6 +147,8 @@ One attack shows how the questions chain:
 
 Every step emits events that name the rule behind it.
 
+**Death.** Clips stop at a track's lowest value; going past it asks lethalOutcome, per trait, with the rule whose effect took it there, and before the haunt the base answer is to stop there (p. 5). A death is one step: the figure is no longer alive, its death goes into the rule memory with the trait, the cause and the killer (the figure that dealt the damage, which damage carries from an attack's winner), its items and item-like omens drop onto the room's pile, its companions wait in the room for the next explorer to come in, and the figure leaves the board. A dead figure takes no further part: its remaining cards and statuses are not live sources, and effects still queued for it lapse. Its turn, if it was its seat's, ends.
+
 ### Rule sources and layers
 
 A **rule source** is anything that can modify answers or react to events: the rulebook, a room in play, a held card, an ongoing event, a status, a haunt figure's definition, and the active haunt and its phase. A source contributes **modifiers** (a question, an optional filter on the subject, a change to the answer, and its rule reference), **triggers** and **conditions**. Only the sources that are live in the state take part. A card counts only while someone holds it or it is ongoing, or, when its text acts from where it lies (an open Music Box), while it lies in a room. A room counts only while it is on the board and relevant to the subject. A status counts while it is on a figure, in the layer of the rule that applied it (a card's status in the card layer, a haunt's in the haunt layer), and its behaviour reads the status's own data.
