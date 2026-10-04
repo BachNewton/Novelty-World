@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 import type { PaletteKey } from "../palette";
-import { cylinder, flat, group, lathe } from "../shapes";
+import { figureBase } from "../explorers/figure";
+import { flat, group, lathe } from "../shapes";
 
 export interface PawnOptions {
   colour?: PaletteKey;
@@ -34,5 +35,5 @@ export function pawn({ colour = "bloodLight", rim = "boneDark" }: PawnOptions = 
     flat(colour),
     10,
   );
-  return group(cylinder(0.36, 0.08, flat(rim), [0, 0, 0], { top: 0.34, sides: 12 }), body);
+  return group(figureBase(rim), body);
 }

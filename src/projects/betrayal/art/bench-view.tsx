@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { useThreeScene } from "@/shared/lib/three/use-three-scene";
 import { BETRAYAL_THEME } from "../components/theme";
 import { createBench } from "./bench";
+import { BENCH_EXPLORERS } from "./explorers";
 import { BENCH_ROOMS } from "./rooms";
 import { roomTile } from "./stage";
 
@@ -48,6 +49,27 @@ export function ArtBench({ room }: { room: string }) {
             ))}
           </select>
         </label>
+        <label className="pointer-events-auto flex items-center gap-2 rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm">
+          <span className="text-(--bt-muted)">Explorer</span>
+          <select
+            className="bg-(--bt-panel) text-(--bt-ink)"
+            value={state.explorer}
+            onChange={(event) => bench.api.setExplorer(event.target.value)}
+          >
+            {BENCH_EXPLORERS.map((figure) => (
+              <option key={figure.id} value={figure.id}>
+                {figure.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => bench.api.setSubject(state.subject === "explorer" ? "room" : "explorer")}
+          className="pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm"
+        >
+          {state.subject === "explorer" ? "Framing: explorer" : "Framing: room"}
+        </button>
         <button
           type="button"
           onClick={() => bench.api.setCamera(state.camera === "free" ? "dollhouse" : "free")}

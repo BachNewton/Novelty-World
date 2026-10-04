@@ -35,13 +35,23 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   materials `flat`, `textured`, `glow` and `lightMaterial`.
 - `light-anchor.ts`: `lightAnchor` puts a real light inside a prop, so the
   light moves with it.
+- `animate.ts`: `animated` marks a piece the stage poses every frame from
+  the clock (a pure function of the seconds, so a frozen clock always shows
+  the same pose), the way `lightAnchor` marks a light.
 - `kit/`: pieces several rooms share (candles, a candelabra, table, chair,
   rug, picture frame, cobweb, the scale pawn).
+- `explorers/`: the explorer figures, rigid parts on pivots at the joints,
+  animated with `animated`; `figure.ts` holds their shared base, the
+  two-bone `reach` and the seeded `burst` for occasional movements.
+  `BENCH_EXPLORERS` lists who the bench can stand at a room's pawn spot.
 - `rooms/`: one file per room. `drawing-room.ts` is the reference for a
   room's shape; `chapel.ts` and `library.ts` hold most of the techniques
   that worked. Read all three closely before the first prop.
 - `bench.ts`: the art bench at `?bench=<room-id>` and its control surface,
-  `window.__betrayalBench`.
+  `window.__betrayalBench`: views, zoom, camera, resolution, which explorer
+  stands in the room (`setExplorer`), framing the room or the explorer
+  (`setSubject`), and `freezeClock` to stop flicker and animation at a fixed
+  time.
 
 The room's facts come from outside `art/`: its rule text and floors from
 `content/rooms.md`, its doors, windows and passages from `data/rooms.ts`
@@ -91,8 +101,9 @@ and `out` stands the piece off the wall face.
 
 A room is one file, `rooms/<room-id>.ts`, exporting one `RoomDefinition`:
 surfaces (floor, wall, optional wainscot, trim colour), props, lights of its
-own, mood, the close-up `focus`, and where the scale `pawn` stands (1.6 m,
-for judging proportions; keep it in an open spot). Props the room alone
+own, mood, the close-up `focus`, and where the explorer stands (`pawn`;
+keep it an open spot). The bench stands its first explorer there, a person
+at 1.6 m; shoot with `--explorer=pawn` for the plain scale pawn. Props the room alone
 needs are functions in that file, each with a one-line doc comment saying
 what it is and which way it faces. Give every seeded texture a seed of the
 room's own, so rooms don't repeat each other's pattern.
@@ -189,8 +200,13 @@ Add the definition to `BENCH_ROOMS` in `rooms/index.ts`; the bench and
 - **Shoot a labelled run:**
   `node src/projects/betrayal/tools/shots.mjs <room-id> <room-id>-v<n>`,
   a new label each round so rounds can be compared. It writes the four
-  dollhouse views, a close-up, a phone view and `contact-sheet.png` under
-  `src/projects/betrayal/.shots/<label>/<room-id>/` (gitignored). Read the
+  dollhouse views, a close-up, the explorer framed close, a phone view and
+  `contact-sheet.png` under
+  `src/projects/betrayal/.shots/<label>/<room-id>/` (gitignored). The
+  bench's clock is frozen for every shot, so two runs differ only where the
+  art does. `--explorer=<id>` picks who stands in the room; `--idle` adds
+  `idle-strip.png`, the explorer at a run of frozen times, for judging an
+  animation. Read the
   contact sheet, then the single shots it raises questions about. If
   building the room throws (a light limit, a pixel character missing from
   its legend, a room id the data doesn't have), the run stops at once with

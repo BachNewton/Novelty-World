@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { ROOMS } from "../data/rooms";
 import type { Edge, RoomTile } from "../types";
+import { animationOf, type Animation } from "./animate";
 import { pawn } from "./kit/pawn";
 import { anchoredLight } from "./light-anchor";
 import { paletteHex } from "./palette";
@@ -61,7 +62,10 @@ export interface Stage {
   background: THREE.Color;
   /** Cut down the walls between the camera and the room, for a camera looking from this horizontal direction. */
   setCutaway: (cameraDirection: THREE.Vector2) => void;
+  /** Poses everything that moves (flickering lights, animated pieces) for this moment. */
   update: (seconds: number) => void;
+  /** The explorer standing where the room puts its pawn, if it has a place for one. */
+  explorer: THREE.Object3D | null;
   /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
   ready: Promise<void>;
   dispose: () => void;
@@ -245,7 +249,16 @@ export function moonPosition(def: RoomDefinition): THREE.Vector3 {
   );
 }
 
-export function buildRoomStage(def: RoomDefinition): Stage {
+/** Builds an explorer figure. The seed gives each figure its own phase, so
+ *  several in one room never move in step. */
+export type ExplorerBuilder = (seed: string) => THREE.Object3D;
+
+export interface StageOptions {
+  /** Who stands at the room's pawn spot; the scale pawn unless told otherwise. */
+  explorer?: ExplorerBuilder;
+}
+
+export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = () => pawn() }: StageOptions = {}): Stage {
   const tile = roomTile(def.id);
   const root = group();
   const wallTexture = def.wall();
@@ -284,8 +297,9 @@ export function buildRoomStage(def: RoomDefinition): Stage {
     if (prop.walls && (prop.y ?? 0) >= CUT_HEIGHT) hung.push({ edges: prop.walls, object });
   }
 
+  let explorer: THREE.Object3D | null = null;
   if (def.pawn) {
-    const explorer = pawn();
+    explorer = buildExplorer(`${def.id}:explorer`);
     explorer.position.set(def.pawn[0], 0, def.pawn[1]);
     root.add(explorer);
   }
@@ -311,8 +325,11 @@ export function buildRoomStage(def: RoomDefinition): Stage {
   };
   root.updateMatrixWorld(true);
   const anchors: THREE.Object3D[] = [];
+  const animations: Animation[] = [];
   root.traverse((object) => {
     if (anchoredLight(object)) anchors.push(object);
+    const animation = animationOf(object);
+    if (animation) animations.push(animation);
   });
   for (const anchor of anchors) {
     const spec = anchoredLight(anchor);
@@ -359,7 +376,9 @@ export function buildRoomStage(def: RoomDefinition): Stage {
       for (const { light, base, flicker, phase } of live) {
         light.intensity = base * (1 + flicker * flickerAt(seconds, phase));
       }
+      for (const animation of animations) animation(seconds);
     },
+    explorer,
     ready,
     dispose: () => {
       root.traverse((object) => {

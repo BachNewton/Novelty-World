@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
+import { BENCH_EXPLORERS, type BenchExplorer } from "./explorers";
 import { DEFAULT_FOCUS, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { buildRoomStage, roomTile, type Stage } from "./stage";
@@ -19,10 +20,15 @@ const ROOM_HALF_WIDTH = 4.5;
 const ROOM_RADIUS = 4.1;
 const ROOM_CENTRE = new THREE.Vector3(0, 0.9, 0);
 const ZOOMS = [1, 1.6, 2.4];
+/** Framing the explorer: the height the camera aims at, and how far round it the frame reaches. */
+const EXPLORER_AIM = 0.85;
+const EXPLORER_RADIUS = 0.9;
 
 /** The dollhouse camera steps between four fixed views; the free camera is
  *  three's orbit controls, for looking around a room by hand. */
 export type CameraMode = "dollhouse" | "free";
+/** What the dollhouse camera frames: the whole room, or the explorer standing in it. */
+export type Subject = "room" | "explorer";
 
 export interface BenchSnapshot {
   roomId: string;
@@ -31,6 +37,10 @@ export interface BenchSnapshot {
   zoom: number;
   camera: CameraMode;
   resolution: Resolution;
+  explorer: string;
+  subject: Subject;
+  /** The animation clock stands still at this many seconds; null lets it run. */
+  frozenAt: number | null;
 }
 
 export interface BenchApi {
@@ -40,8 +50,15 @@ export interface BenchApi {
   setZoom: (zoom: number) => void;
   setCamera: (mode: CameraMode) => void;
   setResolution: (resolution: Resolution) => void;
+  /** Who stands at the room's pawn spot (see `explorers()`). */
+  setExplorer: (id: string) => void;
+  setSubject: (subject: Subject) => void;
+  /** Stops the animation clock (candle flicker, explorers) at a fixed time, so
+   *  screenshots differ only when the art does; null starts it again. */
+  freezeClock: (seconds: number | null) => void;
   isReady: () => boolean;
   rooms: () => string[];
+  explorers: () => string[];
 }
 
 declare global {
@@ -52,6 +69,12 @@ declare global {
 
 function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? BENCH_ROOMS[0];
+}
+
+function explorer(id: string): BenchExplorer {
+  const found = BENCH_EXPLORERS.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`The bench has no explorer "${id}"`);
+  return found;
 }
 
 /** The art bench: one room on its own, with an orbiting dollhouse camera.
@@ -65,6 +88,9 @@ export function createBench(initialRoom: string) {
     zoom: ZOOMS[0],
     camera: "dollhouse",
     resolution: DEFAULT_RESOLUTION,
+    explorer: BENCH_EXPLORERS[0].id,
+    subject: "room",
+    frozenAt: null,
   };
   const listeners = new Set<() => void>();
   let mounted: {
@@ -112,8 +138,22 @@ export function createBench(initialRoom: string) {
       update({ ...snapshot, resolution });
       mounted?.applyResolution();
     },
+    setExplorer: (id) => {
+      explorer(id);
+      update({ ...snapshot, explorer: id });
+      mounted?.rebuild();
+    },
+    setSubject: (subject) => {
+      api.setCamera("dollhouse");
+      update({ ...snapshot, subject });
+      mounted?.settle();
+    },
+    freezeClock: (seconds) => {
+      update({ ...snapshot, frozenAt: seconds });
+    },
     isReady: () => stageReady && settled,
     rooms: () => BENCH_ROOMS.map((room) => room.id),
+    explorers: () => BENCH_EXPLORERS.map((figure) => figure.id),
   };
 
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
@@ -133,7 +173,7 @@ export function createBench(initialRoom: string) {
         stage.dispose();
       }
       stageReady = false;
-      const built = buildRoomStage(definition(snapshot.roomId));
+      const built = buildRoomStage(definition(snapshot.roomId), { explorer: explorer(snapshot.explorer).build });
       stage = built;
       scene.add(built.root);
       scene.fog = built.fog;
@@ -165,6 +205,9 @@ export function createBench(initialRoom: string) {
     };
 
     const dollhouseTarget = () => {
+      if (snapshot.subject === "explorer" && stage?.explorer) {
+        return stage.explorer.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, EXPLORER_AIM, 0));
+      }
       const focus = new THREE.Vector3(...(definition(snapshot.roomId).focus ?? DEFAULT_FOCUS));
       return ROOM_CENTRE.clone().lerp(focus, 1 - 1 / zoom);
     };
@@ -190,13 +233,14 @@ export function createBench(initialRoom: string) {
         return;
       }
       const fit = fitDistance();
+      const distance = snapshot.subject === "explorer" && stage?.explorer ? (fit * EXPLORER_RADIUS) / ROOM_RADIUS : fit;
       const target = dollhouseTarget();
       const direction = new THREE.Vector3(
         Math.sin(angle) * Math.cos(ELEVATION),
         Math.sin(ELEVATION),
         Math.cos(angle) * Math.cos(ELEVATION),
       );
-      camera.position.copy(target).addScaledVector(direction, fit / zoom);
+      camera.position.copy(target).addScaledVector(direction, distance / zoom);
       camera.lookAt(target);
       frameRoom(target, fit);
     };
@@ -229,7 +273,7 @@ export function createBench(initialRoom: string) {
     return {
       onFrame: (delta) => {
         frames++;
-        seconds += delta;
+        seconds = snapshot.frozenAt ?? seconds + delta;
         stage?.update(seconds);
         if (snapshot.camera === "dollhouse") {
           let goal = viewAngle(snapshot.view);
