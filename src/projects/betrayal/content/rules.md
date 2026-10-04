@@ -208,6 +208,9 @@
 > Note: the Speed roll's target and the damage amount are printed on the tile, not in the rulebook. "Draws and places a basement tile" does not say whether to draw from the top of the stack or search it for a basement-legal tile.
 > Resolution (project): Draw from the top of the room stack, as when exploring: a tile that can't go on the floor goes face down on the room discard pile. If the stack runs out, shuffle the discard pile into a new stack (rules.md, p. 9) and keep drawing; only when no basement tile is left anywhere does the explorer choose an existing basement room instead. One rule covers every "draw until a room fits" effect, so players learn it once. The only official wording for such a draw, the Widow's Walk FAQ's Drawing Room answer ("discard tiles from the room stack until you find a room with an omen symbol"), discards. Research: no ruling found on whether the new basement tile comes off the top of the room stack (discarding non-basement tiles, as when exploring) or is searched for. The 1st-edition FAQ only says where it goes: next to any basement room, or else the Basement Landing. Searched: the 1st-edition FAQ, the Widow's Walk FAQ and every thread in the BGG Betrayal rules forum. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: the rulebook doesn't say where later explorers land when they fall on purpose, or when during a visit they may choose to.
+> Resolution (project): every later fall lands in the room with the Below Collapsed Room token, which marks where the first faller landed; the Rope's way back up starts from that room, which only makes sense if the falls lead there. An explorer may fall at any point of their own turn while in the room, as with the Gallery's fall, since falling spends no movement.
+
 #### Junk Room (p. 7)
 
 - If leaving the Junk Room lowers your Speed so that you would no longer have enough movement left to exit, you still get out: you stop on the tile adjacent to the Junk Room.
@@ -236,6 +239,9 @@
 
 > Note: the floor table, the "0" result and the damage amount are printed on the Mystic Elevator tile, not in the rulebook.
 > Resolution (unresolved): not a rules question (this is tile data, to be recorded from the tile), so there is nothing to settle; not researched.
+
+> Note: the rules don't say whether an explorer sent into the elevator off their own turn rolls for it, which floors "any floor" offers, or which way round it goes.
+> Resolution (project): only an explorer on their own turn rolls, since the elevator works once per turn and the rules tie its rolls to the turns a hero enters or spends in it. "Any floor" is any floor the tile's back lists. It goes against a free doorway of the floor rolled the way exploration places a tile: its one door toward that doorway, never sealing a floor; it is never put back where it stood, except by choosing to stay when the roll gives its own floor.
 
 #### Vault (p. 8)
 

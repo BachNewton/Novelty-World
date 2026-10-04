@@ -460,6 +460,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: on the 0–4 result the card does not say what happens to the non-basement tiles drawn before the basement room is found.
 > Resolution (project): Draw from the top of the room stack, as when exploring: a tile that can't go on the floor goes face down on the room discard pile. If the stack runs out, shuffle the discard pile into a new stack (rules.md, p. 9) and keep drawing; only when no basement tile is left anywhere do you choose a basement room in play, as the card says. This is the same rule as every "draw until a room fits" effect (see Collapsed Room in rules.md). Research: no ruling found. The 1st-edition FAQ rules only that "a floor below the Slide" means any lower floor (which the 2nd-edition wording already says), and the one BGG answer on placement says the sliding explorer chooses where the new basement room goes; neither covers the skipped tiles. Searched both FAQs and the BGG rules forum's Mystic Slide threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/3084734
 
+> Note: when the event passes to another explorer, the card doesn't say whose room "this room" is.
+> Resolution (project): the Slide goes in the room of the explorer the event affects, who makes the roll there. The redirect exists so that the Slide never starts in the basement, which only works if it goes where the affected explorer stands.
+
 ## Night View
 - Deck: event
 - Set: base
@@ -522,6 +525,9 @@ Drawn when an explorer discovers a room with an event symbol.
 
 > Note: the card does not say what happens to room tiles drawn that are not for this floor. It also doesn't say whether the move into the other room happens if the card was discarded for lack of rooms (presumably not, since the card is gone).
 > Resolution (project): Draw from the top of the room stack, as when exploring: a tile that can't go on the floor goes face down on the room discard pile. If the stack runs out, shuffle the discard pile into a new stack (rules.md, p. 9) and keep drawing. "This floor has no rooms left" means no tile for this floor is left in the stack or the discard pile; then the card is discarded, you don't move, and the Wall Switch token goes with the card. This is the same rule as every "draw until a room fits" effect (see Collapsed Room in rules.md). Research: no ruling found on either question. The 1st-edition FAQ's Revolving Wall errata (icons in the new room do affect you) corrects a sentence the 2nd-edition card no longer prints; BGG threads cover corner placement and how the new room must be oriented, not these points. Searched both FAQs and the BGG rules forum's Revolving Wall threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1696618, https://boardgamegeek.com/thread/1699848
+
+> Note: the card doesn't say which room lies beyond "a corner of this room", which spots may be chosen, how a new room beyond the switch is turned, or what happens to the switch when either room later moves (What The...?, the Mystic Elevator).
+> Resolution (project): a corner leads to the room diagonally beyond it, the only room a corner touches that a wall doesn't; it is how a room with an exit on every wall (the Ballroom) can have a switch at all. You choose any wall without an exit or any corner, but only one with a room beyond it or a room left that can go there, so the choice never strands the card. A new room beyond the switch goes any way round, lining up as many doors as it can without sealing a floor, as exploration places it, and you draw its card (the 1st-edition FAQ errata). The switch belongs to the wall of the room it was put on: it moves and turns with that room, and leads to whatever room lies beyond that wall, if any. A token on the room it marks is what moves with a tile everywhere else (rules.md, Mystic Elevator), so the switch does the same.
 
 ## Rotten
 - Deck: event
@@ -687,6 +693,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: unlike Shrieking Wind, the Patio is not in this card's list of affected rooms.
 > Resolution (project): an explorer on the Patio is not affected, as printed. The result is a jump to the Patio, which means nothing to someone already there. Research: no ruling found on whether the omission is deliberate; no source treats it as an error. The one BGG thread on the card says the Patio, if not yet in play, is placed legally on the ground floor rather than against the window jumped from. The 1st-edition FAQ adds that you go to the Patio even with no clear path. Source: https://boardgamegeek.com/thread/2311916, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: the card says to search the room stack for the Patio, not the room discard pile, and doesn't say what happens if the Patio can't be placed anywhere.
+> Resolution (project): search the discard pile too: tiles set aside while exploring are still waiting to enter the house, and a Patio skipped earlier is no less "not in the house". The Patio goes at a legal spot on the ground floor that the jumping explorer chooses, as exploration places it, and they draw its event, as for any room discovered through a card. If it has no legal spot, there is nowhere to jump: nothing happens to that explorer, and the damage, which comes from the jump, isn't taken.
+
 ## The Left Hand
 - Deck: event
 - Set: Widow's Walk
@@ -744,6 +753,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Resolution (official): you do draw for the new room. The 1st-edition FAQ names The Walls and rules that a room discovered through an event card's effect makes you draw the card for its symbol. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 > Resolution (community): the tile must go on a floor its back allows, at any legal spot on such a floor (not necessarily your current one); three independent answers across two BGG threads agree. No source covers a tile that has no legal spot at all. Source: https://boardgamegeek.com/thread/2315267, https://boardgamegeek.com/thread/3736269
 
+> Note: no source covers a drawn tile that has no legal spot anywhere in the house.
+> Resolution (project): the card draws as every "draw until a room fits" effect does: a tile with no legal spot goes face down on the room discard pile and you draw again, reshuffling the discards when the stack runs out (rules.md, p. 9). If no tile left can go anywhere, nothing happens and you stay where you are. One draw rule for every card keeps the house legal and is the one players already know from exploring; the card's point is a new room, so a tile that can't be placed is skipped rather than ending it.
+
 ## The Walls Have Eyes
 - Deck: event
 - Set: Widow's Walk
@@ -790,6 +802,9 @@ Drawn when an explorer discovers a room with an event symbol.
   - Pick up the tile of the room you are in, first setting aside everything on it.
   - Place it elsewhere on the same floor so that its door connects to a different unexplored doorway, then put back everything you set aside.
   - If there is no unexplored doorway on this floor, move the room to a different floor.
+
+> Note: the card doesn't say whether the starting tiles can be picked up, which way round the moved room goes, or what happens when no floor has an unexplored doorway for it.
+> Resolution (project): the starting tiles (the Entrance Hall, Foyer and Grand Staircase tile, and each landing) never move: the first is one tile holding three rooms, and each landing is what its floor is built from, so moving one would pull the house apart. In one of them nothing happens. Otherwise the room goes against a different free doorway on its floor, or, with none, on another floor its back allows, placed as exploration places a tile: a door toward the doorway, as many doors lined up as possible, and no floor sealed, including the one it leaves. With no legal spot anywhere it stays where it is.
 
 ## What Year Is It?!
 - Deck: event
