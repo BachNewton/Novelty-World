@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import type { Engine } from "../engine/step-loop";
-import { describeRule, type LogLine } from "./describe";
+import { describeRule } from "../engine/describe";
+import type { LogLine } from "./describe";
 
 export function EventLog({
   engine,
@@ -17,18 +18,14 @@ export function EventLog({
   }, [lines.length]);
 
   return (
-    <ol ref={list} className="max-h-96 overflow-y-auto font-mono text-xs">
-      {/* The log only grows, so a line's position is a stable key. Event ids
-          repeat when several seats answer one shared decision. */}
-      {lines.map(({ event, text }, index) => (
+    <ol ref={list} className="max-h-96 overflow-y-auto text-sm">
+      {lines.map(({ event, text }) => (
         <li
-          key={index}
+          key={event.id}
           className="border-b border-(--bt-line) py-0.5 break-words"
         >
-          <span className="text-(--bt-muted)">{event.id} </span>
-          <span className="font-semibold text-(--bt-accent)">{event.type}</span>
-          {text && <span> {text}</span>}
-          <span className="text-(--bt-muted)">
+          {text}
+          <span className="text-xs text-(--bt-muted)">
             {" "}
             [{describeRule(engine, event.rule)}]
           </span>

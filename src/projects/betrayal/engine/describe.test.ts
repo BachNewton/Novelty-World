@@ -1,0 +1,152 @@
+import { describe, expect, it } from "vitest";
+import { ENGINE } from "../game";
+import { pendingDecision, testGame, waitingOn } from "../testing";
+import type { GameEvent, GameState, Json, RuleRef } from "../types";
+import { describeDecision, describeEvent, describeRule } from "./describe";
+import { apply, choices } from "./step-loop";
+
+const event = (type: string, rule: RuleRef, data: Json): GameEvent => ({
+  id: "d0.0:0",
+  type,
+  rule,
+  data,
+});
+
+const text = (e: GameEvent, state: GameState = testGame()) =>
+  describeEvent(ENGINE, state, e);
+
+describe("describeEvent", () => {
+  it("says what happened and names the room, card or token rule behind it", () => {
+    expect(
+      text(
+        event(
+          "rolled",
+          { source: "room", room: "junk-room" },
+          {
+            seat: 0,
+            spec: { kind: "trait", trait: "might" },
+            dice: [1, 2, 0],
+            named: null,
+            bonus: 0,
+            result: 3,
+          },
+        ),
+      ),
+    ).toBe("Junk Room: Zoe Ingstrom's Might roll: rolls 3 (dice 1, 2, 0).");
+    expect(
+      text(
+        event(
+          "trait-changed",
+          { source: "card", card: "bell" },
+          { seat: 1, trait: "sanity", spaces: 1 },
+        ),
+      ),
+    ).toBe("Bell: Ox Bellows gains 1 Sanity.");
+  });
+
+  it("leaves out the rulebook, and a card's name where the sentence already says it", () => {
+    expect(
+      text(
+        event(
+          "entered",
+          { source: "rulebook", page: 6 },
+          { seat: 0, room: "foyer", moved: true },
+        ),
+      ),
+    ).toBe("Zoe Ingstrom enters the Foyer.");
+    expect(
+      text(
+        event(
+          "card-lost",
+          { source: "card", card: "angel-feather" },
+          { seat: 0, card: "angel-feather", destination: { to: "discard" } },
+        ),
+      ),
+    ).toBe("Zoe Ingstrom discards the Angel Feather.");
+  });
+
+  it("is silent for bookkeeping another event already tells", () => {
+    const rule: RuleRef = { source: "rulebook", page: 10 };
+    expect(
+      text(event("card-gained", rule, { seat: 0, card: "axe", by: "drawn" })),
+    ).toBeNull();
+    expect(
+      text(
+        event("card-gained", rule, { seat: 0, card: "axe", by: "picked-up" }),
+      ),
+    ).toBe("Zoe Ingstrom picks up the Axe.");
+  });
+
+  it("uses a card's own wording where it gives one", () => {
+    expect(
+      text(
+        event(
+          "card-marked",
+          { source: "card", card: "mask" },
+          { card: "mask", name: "worn", value: true },
+        ),
+      ),
+    ).toBe("Mask: The Mask is put on.");
+  });
+
+  it("says what a forced step chose", () => {
+    const forced = event(
+      "forced",
+      { source: "card", card: "angry-being" },
+      { kind: "split-damage", choice: null, label: "Take 1 Might and 0 Speed" },
+    );
+    expect(text(forced)).toBe(
+      "Angry Being: Take 1 Might and 0 Speed (the only choice).",
+    );
+  });
+
+  it("fails loudly on an event type it can't describe", () => {
+    expect(() =>
+      text(event("nonsense", { source: "rulebook", page: 1 }, null)),
+    ).toThrow(/nonsense/);
+  });
+
+  it("describes every event and decision of random play", () => {
+    for (const seed of ["a", "b", "c", "d", "e"]) {
+      let state = testGame({ seed });
+      state.decks.event.draw = Array.from({ length: 10 }, () => "angry-being");
+      for (let i = 0; i < 300 && state.pending?.type === "decision"; i++) {
+        for (const e of state.lastEvents) {
+          const line = describeEvent(ENGINE, state, e);
+          if (line !== null) expect(line).toMatch(/\.$/);
+        }
+        expect(
+          describeDecision(ENGINE, state, pendingDecision(state)),
+        ).not.toBe("");
+        const options = choices(ENGINE, state, waitingOn(state));
+        const pick = options[(i * 7 + seed.charCodeAt(0)) % options.length];
+        const result = apply(ENGINE, state, {
+          kind: "choose",
+          decision: pendingDecision(state).id,
+          seat: waitingOn(state),
+          choice: pick.choice,
+        });
+        if (!result.ok) throw new Error(result.reason);
+        state = result.state;
+      }
+    }
+  });
+});
+
+describe("describeDecision", () => {
+  it("says who is asked what", () => {
+    const state = testGame();
+    expect(describeDecision(ENGINE, state, pendingDecision(state))).toBe(
+      "Zoe Ingstrom's turn: what next?",
+    );
+  });
+});
+
+describe("describeRule", () => {
+  it("names the rule's source", () => {
+    expect(describeRule(ENGINE, { source: "rulebook", page: 6 })).toBe(
+      "Rulebook, p. 6",
+    );
+    expect(describeRule(ENGINE, { source: "card", card: "bell" })).toBe("Bell");
+  });
+});

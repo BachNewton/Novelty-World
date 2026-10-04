@@ -7,6 +7,7 @@ import type {
   Step,
   Trait,
 } from "../types";
+import { rollName, traitName } from "./describe";
 import { explorerAt, MENTAL, moveClip, PHYSICAL } from "./explorers";
 import { askNumber } from "./questions";
 import { liveSources, type RollOption, type RollSpec } from "./sources";
@@ -263,17 +264,6 @@ function rerollChoices(dice: number[], max: number | null): number[][] {
 
 function rollTotal(r: RollInProgress): number {
   return (r.named ?? r.dice.reduce((a, b) => a + b, 0)) + r.bonus;
-}
-
-function describeRoll(spec: RollSpec): string {
-  switch (spec.kind) {
-    case "trait":
-      return `${spec.trait[0].toUpperCase()}${spec.trait.slice(1)} roll`;
-    case "dice":
-      return `${spec.count}-dice roll`;
-    case "haunt":
-      return "haunt roll";
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +752,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     candidates: (state, p) => splitOptions(state, p),
     label: (_state, _p, split) =>
       `Take ${Object.entries(split)
-        .map(([trait, n]) => `${n} ${trait[0].toUpperCase()}${trait.slice(1)}`)
+        .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`)
         .join(" and ")}`,
     resolve: (state, p, split, ctx) => {
       for (const [trait, spaces] of Object.entries(split)) {
@@ -809,7 +799,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     },
     label: (_state, r, c, engine) => {
       if (c.card === null)
-        return `Make the ${describeRoll(r.spec)} (${r.pool} dice)`;
+        return `Make the ${rollName(r.spec)} (${r.pool} dice)`;
       return c.value === null
         ? `Use ${cardName(engine, c.card)}`
         : `Use ${cardName(engine, c.card)}: the result is ${c.value}`;

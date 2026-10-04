@@ -287,6 +287,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
         write.ctx.emit("forced", pending.rule, {
           kind: pending.kind,
           choice: legal[0].choice,
+          label: legal[0].label,
         });
         const reason = answer(
           engine,

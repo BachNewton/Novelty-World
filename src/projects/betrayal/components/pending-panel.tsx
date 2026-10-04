@@ -1,6 +1,7 @@
 import type { Action, GameState } from "../types";
 import { choices, type Choice, type Engine } from "../engine/step-loop";
-import { describeRule, seatLabel } from "./describe";
+import { describeDecision, describeRule } from "../engine/describe";
+import { seatLabel } from "./describe";
 import { ErrorBox } from "./error-box";
 
 /** Listing choices runs engine code, which throws for content with no behaviour yet. */
@@ -69,8 +70,8 @@ export function PendingPanel({
   return (
     <div className="flex flex-col gap-3">
       <p>
-        Decision <span className="font-mono">{pending.kind}</span>{" "}
-        <span className="text-(--bt-muted)">
+        {describeDecision(engine, state, pending)}{" "}
+        <span className="text-xs text-(--bt-muted)">
           ({pending.id}, {describeRule(engine, pending.rule)})
         </span>
       </p>
