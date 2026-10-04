@@ -506,6 +506,61 @@ describe("Hideous Shriek (cards/events.md)", () => {
   });
 });
 
+describe("Image in the Mirror, the one that gives (cards/events.md)", () => {
+  const hand = (state: GameState, seat: number, cards: string[]) => {
+    for (const c of cards) {
+      state.decks.item.draw = state.decks.item.draw.filter((d) => d !== c);
+      state.decks.omen.draw = state.decks.omen.draw.filter((d) => d !== c);
+    }
+    state.explorers[seat].cards.push(...cards);
+  };
+
+  it("puts one of your item cards into the item stack, shuffles it, and you gain 1 Knowledge", () => {
+    const state = drawEvent("image-in-the-mirror-give", {
+      setUp: (s) => {
+        hand(s, 0, ["axe", "bell"]);
+      },
+    });
+    expect(labels(state)).toEqual([
+      "Put the Axe back in the item stack",
+      "Put the Bell back in the item stack",
+    ]);
+    const before = clip(state, "knowledge");
+    const after = choose(state, "Put the Axe back");
+    expect(after.explorers[0].cards).toEqual(["bell"]);
+    expect(after.decks.item.draw).toContain("axe");
+    expect(clip(after, "knowledge")).toBe(before + 1);
+    expect(after.decks.event.discard).toContain("image-in-the-mirror-give");
+  });
+
+  it("an omen isn't an item card: with none, it affects the next explorer to your left who has one", () => {
+    const state = drawEvent("image-in-the-mirror-give", {
+      setUp: (s) => {
+        hand(s, 0, ["book"]);
+        hand(s, 2, ["axe"]);
+      },
+    });
+    // Father Rhinehardt's only item goes back without a choice, and he gains the Knowledge.
+    expect(state.explorers[2].cards).toEqual([]);
+    expect(state.decks.item.draw).toContain("axe");
+    expect(clip(state, "knowledge", 2)).toBe(
+      testGame().explorers[2].clips.knowledge + 1,
+    );
+    expect(clip(state, "knowledge")).toBe(
+      testGame().explorers[0].clips.knowledge,
+    );
+  });
+
+  it("is discarded when no explorer has an item card", () => {
+    const state = drawEvent("image-in-the-mirror-give");
+    expect(state.explorers.map((e) => e.cards)).toEqual([[], [], []]);
+    expect(state.decks.event.discard).toContain("image-in-the-mirror-give");
+    expect(clip(state, "knowledge")).toBe(
+      testGame().explorers[0].clips.knowledge,
+    );
+  });
+});
+
 describe("Image in the Mirror, the one that draws (cards/events.md)", () => {
   it("draws an item card", () => {
     const state = drawEvent("image-in-the-mirror-take", {

@@ -362,11 +362,19 @@ export function markCard(
   return step<MarkCard>("mark-card", { card, name, value, lasts, rule });
 }
 
-export function cardFlag(state: GameState, card: string, name: string): boolean {
+export function cardFlag(
+  state: GameState,
+  card: string,
+  name: string,
+): boolean {
   return state.cardMarks[card]?.[name]?.value === true;
 }
 
-export function cardCount(state: GameState, card: string, name: string): number {
+export function cardCount(
+  state: GameState,
+  card: string,
+  name: string,
+): number {
   const value = state.cardMarks[card]?.[name]?.value;
   return typeof value === "number" ? value : 0;
 }

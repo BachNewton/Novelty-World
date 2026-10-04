@@ -10,6 +10,7 @@ import {
   placeToken,
   relocate,
   removeToken,
+  returnToDeck,
   roll,
   table,
   type TableRow,
@@ -476,6 +477,29 @@ export const EVENTS_A: BehaviourGroup = {
             },
           ]),
         );
+      },
+    },
+
+    "image-in-the-mirror-give": {
+      onDraw: (state, seat) => {
+        const rule = card("image-in-the-mirror-give");
+        const items = (s: number) =>
+          explorerAt(state, s).cards.filter(
+            (c) => CATALOG.cards[c].type === "item",
+          );
+        const affected = fromSeat(state, seat).find((s) => items(s).length > 0);
+        if (affected === undefined) return [];
+        return [
+          chooseOne(
+            affected,
+            items(affected).map((item) => ({
+              label: `Put the ${CATALOG.cards[item].name} back in the item stack`,
+              steps: [returnToDeck(affected, item, rule)],
+            })),
+            rule,
+          ),
+          gain(affected, "knowledge", 1, rule),
+        ];
       },
     },
 

@@ -1,11 +1,20 @@
-import { chooseOne, defineStep, gain, roll, table } from "../../engine/effects";
+import {
+  cardFlag,
+  chooseOne,
+  defineStep,
+  gain,
+  markCard,
+  roll,
+  table,
+} from "../../engine/effects";
 import { explorerAt } from "../../engine/explorers";
 import {
+  eventData,
   local,
   type Behaviour,
   type BehaviourGroup,
 } from "../../engine/sources";
-import type { GameState, RuleRef, Trait } from "../../types";
+import type { GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
@@ -22,6 +31,25 @@ function heldTraits(id: string, changes: [Trait, number][]): Behaviour {
     onLose: (_state, seat) => apply(seat, -1),
   };
 }
+
+/** Putting the Mask on: gain 2 Knowledge and lose 2 Sanity. Taking it off reverses that. Only the
+ *  gain is tied to the card, as with the omens that change traits while held. */
+function maskTraits(seat: number, sign: 1 | -1): Step[] {
+  return [
+    gain(seat, "knowledge", 2 * sign, card("mask"), "mask"),
+    gain(seat, "sanity", -2 * sign, card("mask")),
+  ];
+}
+
+const maskOn = (seat: number): Step[] => [
+  ...maskTraits(seat, 1),
+  markCard("mask", "worn", true, "holder", card("mask")),
+];
+
+const maskOff = (seat: number): Step[] => [
+  ...maskTraits(seat, -1),
+  markCard("mask", "worn", false, "holder", card("mask")),
+];
 
 const MEDALLION_ROOMS = ["pentagram-chamber", "crypt", "graveyard"];
 
@@ -131,6 +159,61 @@ export const OMENS: BehaviourGroup = {
             card: p.card,
           });
         }),
+      },
+    },
+
+    mask: {
+      actions: {
+        use: {
+          label: "Use the Mask (Sanity roll)",
+          available: () => true,
+          steps: (_state, seat) => [
+            roll(
+              seat,
+              { kind: "trait", trait: "sanity" },
+              card("mask"),
+              table([
+                {
+                  min: 4,
+                  max: null,
+                  steps: [local("mask", "put-on-or-off", { seat })],
+                },
+                { min: 0, max: 3, steps: [] },
+              ]),
+            ),
+          ],
+        },
+      },
+      steps: {
+        "put-on-or-off": defineStep<{ seat: number }>(
+          (state, { seat }, ctx) => {
+            const worn = cardFlag(state, "mask", "worn");
+            ctx.push(
+              chooseOne(
+                seat,
+                [
+                  worn
+                    ? { label: "Take off the Mask", steps: maskOff(seat) }
+                    : { label: "Put on the Mask", steps: maskOn(seat) },
+                  {
+                    label: worn ? "Keep the Mask on" : "Leave the Mask off",
+                    steps: [],
+                  },
+                ],
+                card("mask"),
+              ),
+            );
+          },
+        ),
+      },
+      // A project ruling: losing the Mask while wearing it takes it off.
+      onLose: (state, seat) =>
+        cardFlag(state, "mask", "worn") ? maskTraits(seat, -1) : [],
+      describe: {
+        "card-marked": (event) =>
+          eventData<{ value: boolean }>(event).value
+            ? "The Mask is put on"
+            : "The Mask is taken off",
       },
     },
 

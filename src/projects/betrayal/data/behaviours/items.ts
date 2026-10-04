@@ -1,10 +1,14 @@
 import { adjacent } from "../../engine/board";
 import {
+  cardFlag,
   chooseOne,
   defineStep,
   discardCard,
   drawCard,
+  endTurnNow,
   gain,
+  loseCard,
+  markCard,
   relocate,
   roll,
   table,
@@ -17,6 +21,7 @@ import {
   type Behaviour,
   type BehaviourGroup,
   type Reaction,
+  type Source,
 } from "../../engine/sources";
 import type { Explorer, GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
@@ -113,6 +118,44 @@ function chooseTrait(
       steps: [gain(seat, t, 1, rule)],
     })),
     rule,
+  );
+}
+
+/** The Bell, the Book (the omen: see the Candle's note) and the Candle. */
+const SET = ["bell", "book", "candle"];
+const SET_BONUS = "set-bonus";
+
+/** The seat holding a card source that only acts while held. */
+function holder(source: Source): number {
+  if (source.holder === null) throw new Error(`${source.id} isn't held`);
+  return source.holder;
+}
+
+/** Gain 2 in each trait for the full set, or lose them again. */
+function setBonus(seat: number, sign: 1 | -1): Step[] {
+  const rule = card("candle");
+  return [
+    ...TRAITS.map((t) => gain(seat, t, 2 * sign, rule, "candle")),
+    markCard("candle", SET_BONUS, sign > 0, "holder", rule),
+  ];
+}
+
+/** The room the Music Box is in: its holder's, or the room it lies in. */
+function musicBoxRoom(state: GameState, source: Source): string | null {
+  if (source.holder !== null) return explorerAt(state, source.holder).room;
+  return source.room;
+}
+
+/** An explorer in the open Music Box's room makes a Sanity roll of 4+, or is mesmerized. */
+function hearMusicBox(seat: number): Step {
+  return roll(
+    seat,
+    { kind: "trait", trait: "sanity" },
+    card("music-box"),
+    table([
+      { min: 4, max: null, steps: [] },
+      { min: 0, max: 3, steps: [local("music-box", "mesmerized", { seat })] },
+    ]),
   );
 }
 
@@ -239,6 +282,36 @@ export const ITEMS: BehaviourGroup = {
           );
         }),
       },
+    },
+
+    // The Candle's extra die for an event's trait rolls is a roll modifier, not built yet.
+    candle: {
+      reactions: [
+        {
+          event: "card-gained",
+          when: (state, event, source) =>
+            eventData<{ seat: number }>(event).seat === source.holder &&
+            !cardFlag(state, "candle", SET_BONUS) &&
+            SET.every((c) =>
+              explorerAt(state, holder(source)).cards.includes(c),
+            ),
+          steps: (_state, _event, source) => setBonus(holder(source), 1),
+        },
+        {
+          event: "card-lost",
+          when: (state, event, source) => {
+            const lost = eventData<{ seat: number; card: string }>(event);
+            return (
+              lost.seat === source.holder &&
+              SET.includes(lost.card) &&
+              cardFlag(state, "candle", SET_BONUS)
+            );
+          },
+          steps: (_state, _event, source) => setBonus(holder(source), -1),
+        },
+      ],
+      onLose: (state, seat) =>
+        cardFlag(state, "candle", SET_BONUS) ? setBonus(seat, -1) : [],
     },
 
     "dark-dice": {
@@ -426,6 +499,73 @@ export const ITEMS: BehaviourGroup = {
             if (options.length > 0) ctx.push(chooseOne(p.seat, options, rule));
           },
         ),
+      },
+    },
+
+    "music-box": {
+      actsFromRoom: true,
+      actions: {
+        open: {
+          label: "Open the Music Box",
+          available: (state) => !cardFlag(state, "music-box", "open"),
+          steps: () => [
+            markCard("music-box", "open", true, "play", card("music-box")),
+          ],
+        },
+        close: {
+          label: "Close the Music Box",
+          available: (state) => cardFlag(state, "music-box", "open"),
+          steps: () => [
+            markCard("music-box", "open", false, "play", card("music-box")),
+          ],
+        },
+      },
+      reactions: [
+        {
+          event: "entered",
+          when: (state, event, source) =>
+            cardFlag(state, "music-box", "open") &&
+            eventData<{ room: string }>(event).room ===
+              musicBoxRoom(state, source),
+          steps: (_state, event) => [
+            hearMusicBox(eventData<{ seat: number }>(event).seat),
+          ],
+        },
+        {
+          event: "turn-started",
+          when: (state, event, source) =>
+            cardFlag(state, "music-box", "open") &&
+            explorerAt(state, eventData<{ seat: number }>(event).seat).room ===
+              musicBoxRoom(state, source),
+          steps: (_state, event) => [
+            hearMusicBox(eventData<{ seat: number }>(event).seat),
+          ],
+        },
+      ],
+      steps: {
+        mesmerized: defineStep<{ seat: number }>((state, { seat }, ctx) => {
+          const rule = card("music-box");
+          const explorer = explorerAt(state, seat);
+          ctx.push(
+            ...(explorer.cards.includes("music-box")
+              ? [
+                  loseCard(
+                    seat,
+                    "music-box",
+                    { to: "room", room: explorer.room },
+                    rule,
+                  ),
+                ]
+              : []),
+            endTurnNow(seat, rule),
+          );
+        }),
+      },
+      describe: {
+        "card-marked": (event) =>
+          eventData<{ value: boolean }>(event).value
+            ? "The Music Box is opened"
+            : "The Music Box is closed",
       },
     },
 

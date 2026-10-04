@@ -140,3 +140,55 @@ describe("Crystal Ball (cards/omens.md)", () => {
     expect(seen.has("lose 1")).toBe(true);
   });
 });
+
+describe("Mask (cards/omens.md)", () => {
+  /** Zoe, mid-track on every trait, holds the Mask and the Angel Feather, which names the Mask's roll. */
+  function masked(): GameState {
+    const state = testGame();
+    state.explorers[0].clips = { speed: 3, might: 3, sanity: 3, knowledge: 3 };
+    state.explorers[0].cards.push("mask", "angel-feather");
+    return state;
+  }
+  const useWith = (state: GameState, result: number) =>
+    choose(
+      choose(state, "Use the Mask"),
+      `Use Angel Feather: the result is ${result}`,
+    );
+
+  it("on a Sanity roll of 4+, you may put it on: gain 2 Knowledge and lose 2 Sanity", () => {
+    const rolled = useWith(masked(), 4);
+    expect(labels(rolled)).toEqual(["Put on the Mask", "Leave the Mask off"]);
+    const worn = choose(rolled, "Put on the Mask");
+    expect(worn.explorers[0].clips).toMatchObject({ sanity: 1, knowledge: 5 });
+    // Once during your turn.
+    expect(labels(worn).some((l) => l.startsWith("Use the Mask"))).toBe(false);
+  });
+
+  it("on 0-3, you can't use it this turn", () => {
+    const failed = useWith(masked(), 3);
+    expect(failed.explorers[0].clips).toMatchObject({
+      sanity: 3,
+      knowledge: 3,
+    });
+    expect(labels(failed).some((l) => l.startsWith("Use the Mask"))).toBe(
+      false,
+    );
+  });
+
+  it("takes it off on a later turn: gain 2 Sanity and lose 2 Knowledge", () => {
+    let state = choose(useWith(masked(), 5), "Put on the Mask");
+    for (let i = 0; i < 3; i++) state = choose(state, "End your turn");
+    state.explorers[0].cards.push("angel-feather");
+    const rolled = useWith(state, 6);
+    expect(labels(rolled)).toEqual(["Take off the Mask", "Keep the Mask on"]);
+    const off = choose(rolled, "Take off the Mask");
+    expect(off.explorers[0].clips).toMatchObject({ sanity: 3, knowledge: 3 });
+  });
+
+  it("losing it while you wear it takes it off", () => {
+    const worn = choose(useWith(masked(), 4), "Put on the Mask");
+    const lost = lose(worn, "mask");
+    expect(lost.explorers[0].clips).toMatchObject({ sanity: 3, knowledge: 3 });
+    expect(lost.cardMarks.mask).toBeUndefined();
+  });
+});

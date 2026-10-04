@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { adjacent } from "../../engine/board";
+import { discardCard } from "../../engine/effects";
 import { askNumber } from "../../engine/questions";
+import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   choose,
@@ -390,5 +392,144 @@ describe("Rabbit's Foot (cards/items.md)", () => {
     } as const;
     expect(rabbit?.applies(state, OX, roll)).toBe(false);
     expect(rabbit?.applies(state, ZOE, roll)).toBe(true);
+  });
+});
+
+describe("Candle (cards/items.md)", () => {
+  // Zoe's traits sit mid-track, so gains and losses of 2 aren't capped.
+  function withSet(cards: string[]): GameState {
+    const state = holding(cards);
+    state.explorers[ZOE].clips = {
+      speed: 3,
+      might: 3,
+      sanity: 3,
+      knowledge: 3,
+    };
+    return state;
+  }
+  const clips = (state: GameState) => state.explorers[ZOE].clips;
+  const each = (n: number) => ({ speed: n, might: n, sanity: n, knowledge: n });
+
+  it("with the Bell, the Book and the Candle, you gain 2 in each trait", () => {
+    const state = withSet(["bell", "book"]);
+    state.piles["entrance-hall"] = ["candle"];
+    expect(clips(choose(state, "Pick up the Candle"))).toEqual(each(5));
+  });
+
+  it("the first time you lose one of the three later, you lose 2 from each trait", () => {
+    const state = withSet(["bell", "candle"]);
+    state.piles["entrance-hall"] = ["book"];
+    let after = choose(state, "Pick up the Book");
+    // The Book itself: gain 2 Knowledge.
+    expect(clips(after)).toEqual({ ...each(5), knowledge: 7 });
+    after = choose(after, "Drop the Bell");
+    // The Bell itself: lose 1 Sanity.
+    expect(clips(after)).toEqual({ ...each(3), sanity: 2, knowledge: 5 });
+    // The Book was picked up this turn, so it can't also be dropped: an event takes it.
+    after = start(ENGINE, { ...after, pending: null }, [
+      discardCard(ZOE, "book"),
+    ]);
+    // Only the Book's own loss now: lose 2 Knowledge.
+    expect(clips(after)).toEqual({ ...each(3), sanity: 2 });
+  });
+
+  it("losing the Candle itself also costs the set's 2 in each trait", () => {
+    const state = withSet(["bell", "book"]);
+    state.piles["entrance-hall"] = ["candle"];
+    const after = choose(choose(state, "Pick up the Candle"), "End your turn");
+    const dropped = choose(
+      choose(choose(after, "End your turn"), "End your turn"),
+      "Drop the Candle",
+    );
+    expect(clips(dropped)).toEqual(each(3));
+  });
+});
+
+describe("Music Box (cards/items.md)", () => {
+  const SEEDS = Array.from({ length: 300 }, (_, i) => `${i}`);
+  const sanityRolls = (state: GameState) =>
+    state.lastEvents
+      .filter(
+        (e) =>
+          e.type === "rolled" &&
+          (e.data as { spec: { kind: string; trait?: string } }).spec.trait ===
+            "sanity",
+      )
+      .map((e) => e.data as { seat: number; result: number });
+
+  /** The first seed whose play passes. */
+  function firstSeed(
+    play: (seed: string) => GameState,
+    passes: (state: GameState) => boolean,
+  ): GameState {
+    for (const seed of SEEDS) {
+      const state = play(seed);
+      if (passes(state)) return state;
+    }
+    throw new Error("No seed passes");
+  }
+
+  it("opens and closes once per turn", () => {
+    let state = holding(["music-box"]);
+    expect(labels(state)).toContain("Open the Music Box");
+    state = choose(state, "Open the Music Box");
+    expect(labels(state)).not.toContain("Close the Music Box");
+    expect(labels(state)).not.toContain("Open the Music Box");
+  });
+
+  it("while open, an explorer starting a turn in its room makes a Sanity roll of 4+, and on a fail their turn ends", () => {
+    const failed = firstSeed(
+      (seed) =>
+        choose(
+          choose(holding(["music-box"], { seed }), "Open the Music Box"),
+          "End your turn",
+        ),
+      (state) => sanityRolls(state)[0]?.result < 4,
+    );
+    const rolls = sanityRolls(failed);
+    expect(rolls[0].seat).toBe(OX);
+    // Ox's turn ended at once, so Father Rhinehardt's turn has begun, and he heard it too.
+    expect(rolls[1].seat).toBe(2);
+    expect(failed.lastEvents.map((e) => e.type)).toContain("turn-cut-short");
+  });
+
+  it("an explorer entering its room makes the roll; passing, they carry on", () => {
+    const passed = firstSeed(
+      (seed) => {
+        const state = holding([], { seed });
+        state.explorers[OX].cards.push("music-box");
+        state.explorers[OX].room = "foyer";
+        state.cardMarks["music-box"] = { open: { value: true, lasts: "play" } };
+        return choose(state, "Move to the Foyer");
+      },
+      (state) => sanityRolls(state)[0]?.result >= 4,
+    );
+    expect(sanityRolls(passed)[0].seat).toBe(ZOE);
+    expect(pendingDecision(passed).kind).toBe("turn");
+    expect(passed.turn?.seat).toBe(ZOE);
+  });
+
+  it("a carrier who is mesmerized drops it, and it stays open", () => {
+    const failed = firstSeed(
+      (seed) => {
+        const state = holding(["music-box"], { seed });
+        state.cardMarks["music-box"] = { open: { value: true, lasts: "play" } };
+        // Carrying the open box into a room is entering the box's room.
+        return choose(state, "Move to the Foyer");
+      },
+      (state) => sanityRolls(state)[0]?.result < 4,
+    );
+    expect(failed.explorers[ZOE].cards).not.toContain("music-box");
+    expect(failed.piles.foyer).toEqual(["music-box"]);
+    expect(failed.cardMarks["music-box"]).toEqual({
+      open: { value: true, lasts: "play" },
+    });
+    expect(failed.turn?.seat).toBe(OX);
+  });
+
+  it("does nothing while closed", () => {
+    const state = holding(["music-box"]);
+    const after = choose(state, "End your turn");
+    expect(sanityRolls(after)).toEqual([]);
   });
 });

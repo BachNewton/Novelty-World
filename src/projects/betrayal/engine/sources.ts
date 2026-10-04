@@ -86,7 +86,9 @@ export interface Behaviour {
   actsFromRoom?: boolean;
   /** Plain-language wording for events this source names as their rule,
    *  where the general wording of the event type would say too little. */
-  describe?: Partial<Record<string, (event: GameEvent, words: Words) => string>>;
+  describe?: Partial<
+    Record<string, (event: GameEvent, words: Words) => string>
+  >;
 }
 
 /** Names for the things an event refers to by id. */
