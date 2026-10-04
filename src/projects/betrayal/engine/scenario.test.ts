@@ -96,11 +96,11 @@ describe("a scenario", () => {
 
 describe("start haunt N", () => {
   it("starts with the haunt revealed, as a haunt roll would leave it", () => {
-    const state = testGame({ haunt: { number: 13, revealer: 1 } });
-    const cell = hauntCells(ENGINE.catalog, 13)[0];
+    const state = testGame({ haunt: { number: 14, revealer: 1 } });
+    const cell = hauntCells(ENGINE.catalog, 14)[0];
     expect(state.status).toBe("haunt");
     expect(state.haunt).toMatchObject({
-      number: 13,
+      number: 14,
       revealer: 1,
       omen: cell.omen,
       room: cell.room,
@@ -114,10 +114,10 @@ describe("start haunt N", () => {
   });
 
   it("uses the chosen omen and room, and keeps the revealer where the scenario puts them", () => {
-    const cell = hauntCells(ENGINE.catalog, 13).at(-1);
-    if (!cell) throw new Error("Haunt 13 isn't on the chart");
+    const cell = hauntCells(ENGINE.catalog, 14).at(-1);
+    if (!cell) throw new Error("Haunt 14 isn't on the chart");
     const state = testGame({
-      haunt: { number: 13, revealer: 0, omen: cell.omen, room: cell.room },
+      haunt: { number: 14, revealer: 0, omen: cell.omen, room: cell.room },
       explorers: [{ seat: 0, room: "foyer" }],
     });
     expect(state.haunt?.room).toBe(cell.room);
@@ -126,7 +126,7 @@ describe("start haunt N", () => {
 
   it("sets seats' sides and roles before the haunt starts, secret ones known only to the seats named", () => {
     const state = testGame({
-      haunt: { number: 13, revealer: 1 },
+      haunt: { number: 14, revealer: 1 },
       sides: [
         { seat: 0, side: "traitor", roles: ["traitor"], knownBy: [0] },
         { seat: 1, side: "heroes" },
@@ -152,7 +152,7 @@ describe("start haunt N", () => {
     expect(() => testGame({ sides: [{ seat: 0, side: "heroes" }] })).toThrow(
       /sides come with a haunt/,
     );
-    const haunt = { number: 13, revealer: 0 };
+    const haunt = { number: 14, revealer: 0 };
     expect(() =>
       testGame({
         haunt,

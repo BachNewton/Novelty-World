@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ENGINE } from "../game";
+import { BASE_ENGINE, ENGINE } from "../game";
 import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
 import { ALL_TOY_ENGINE, TOY_ENGINE, toyHaunt } from "../test/toy-haunt";
@@ -135,7 +135,7 @@ describe("the haunt's reveal", () => {
   it("ends the revealer's turn: after a haunt roll, play starts on the traitor's left", () => {
     // Haunt 7's traitor is Father Rhinehardt, seat 2, so play starts with
     // seat 0, who revealed it, rather than going on to seat 1.
-    const engine = withHaunts(ENGINE, [toyHaunt(7)]);
+    const engine = withHaunts(BASE_ENGINE, [toyHaunt(7)]);
     let state = testGame({
       engine,
       stack: ["abandoned-room"],
@@ -161,7 +161,7 @@ describe("the haunt's reveal", () => {
 
   it("stops at the reveal of a haunt that isn't built, keeping a scenario's sides", () => {
     const state = testGame({
-      haunt: { number: 13, revealer: 0 },
+      haunt: { number: 14, revealer: 0 },
       sides: [{ seat: 2, side: "traitor", roles: ["traitor"] }],
     });
     expect(state.status).toBe("haunt");
@@ -170,7 +170,7 @@ describe("the haunt's reveal", () => {
     const unbuilt = state.lastEvents.find((e) => e.type === "haunt-unbuilt");
     if (!unbuilt) throw new Error("No haunt-unbuilt event");
     expect(describeEvent(ENGINE, spectator(state, ENGINE), unbuilt)).toBe(
-      "Haunt 13 isn't built yet, so the game stops here.",
+      "Haunt 14 isn't built yet, so the game stops here.",
     );
   });
 
@@ -233,7 +233,7 @@ describe("the chart's traitor rule", () => {
   });
 
   it("deals a hidden traitor, known only to themself, and play goes on from the revealer's left", () => {
-    const engine = withHaunts(ENGINE, [toyHaunt(34)]);
+    const engine = withHaunts(BASE_ENGINE, [toyHaunt(34)]);
     let state = testGame({ engine, haunt: { number: 34, revealer: 0 } });
     const traitor = traitorOf(state);
     expect(traitor).toBeGreaterThanOrEqual(0);
@@ -342,7 +342,7 @@ describe("conditions and the result", () => {
     );
 
     // An awake traitor meets both on the traitor turn.
-    const awake = withHaunts(ENGINE, [
+    const awake = withHaunts(BASE_ENGINE, [
       toyHaunt(13, {
         setup: {
           traitor: [

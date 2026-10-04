@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { logLines } from "../components/describe";
-import { ENGINE } from "../game";
+import { BASE_ENGINE, ENGINE } from "../game";
 import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
 import { choose, testGame, waitingOn } from "../testing";
@@ -22,7 +22,7 @@ import { viewFor } from "./view";
 // Each kind of hidden material is looked for in the serialized view itself:
 // absent for the seats that may not see it, present for those that may.
 
-const SIGIL_ENGINE = withHaunts(ENGINE, [withSigil(toyHaunt(13))]);
+const SIGIL_ENGINE = withHaunts(BASE_ENGINE, [withSigil(toyHaunt(13))]);
 
 const json = (engine: Engine, state: GameState, seat: number | null) =>
   JSON.stringify(viewFor(engine, state, seat));

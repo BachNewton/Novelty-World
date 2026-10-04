@@ -10,17 +10,23 @@ import type {
   Step,
   TraitorRule,
 } from "../types";
+import { explorerOf, figureOf } from "../engine/figures";
 import {
   count,
   counterValue,
+  dropItems,
   hauntRule,
+  seatsIn,
+  setAsideCompanions,
   setCounter,
   setSecret,
   spawn,
   statusOnGroup,
+  topUpRooms,
   type Count,
   type FigureGroup,
   type HauntRules,
+  type RoomMatch,
   type SeatGroup,
 } from "../engine/haunt";
 import type { Modifier } from "../engine/questions";
@@ -41,8 +47,9 @@ import type { Engine, StepHandler } from "../engine/step-loop";
 // definition compiles into the rules the engine runs (`HauntRules`), and its
 // figures and statuses register in the catalogue beside every other one.
 
-/** One step of a side's "Right Now". */
-export type SetupPart =
+/** One step of a side's "Right Now", naming the content ruling its events
+ *  cite where one ruling of the haunt settles it. */
+export type SetupPart = (
   /** Start a counter (a track, or a count of tokens taken). */
   | { part: "counter"; counter: string; start: Count }
   /** Write down a value only some seats know. */
@@ -58,13 +65,28 @@ export type SetupPart =
       at: FigureGroup;
       owner: SeatGroup | null;
     }
+  /** Each explorer of a group drops every card that works as an item
+   *  where it stands. */
+  | { part: "drop-items"; who: FigureGroup }
+  /** Each explorer of a group sets its companions aside, out of the game. */
+  | { part: "set-aside-companions"; who: FigureGroup }
+  /** Tops up the rooms in the house that match to at least a number, the
+   *  rooms chosen from the stack and the discards and placed by the seat
+   *  of a group's explorer. */
+  | { part: "rooms"; match: RoomMatch; atLeast: Count; chooser: FigureGroup }
   /** One of the haunt's own steps, for what the kit doesn't cover. */
-  | { part: "local"; step: string; params?: Json };
+  | { part: "local"; step: string; params?: Json }
+) & { ruling?: string };
 
 /** When a goal is met. */
 export type GoalTest =
   /** A counter has reached a number. */
   | { counter: string; atLeast: Count }
+  /** The explorer of a seat in a group has died. */
+  | { explorerDead: SeatGroup }
+  /** A card has left the game: discarded, or set aside out of the game.
+   *  One still in its stack can still be drawn. */
+  | { cardOutOfGame: string }
   /** A test the kit doesn't cover. */
   | { local: (state: GameState, engine: Engine) => boolean };
 
@@ -73,6 +95,10 @@ export interface Goal {
   id: string;
   side: Exclude<Side, "neutral">;
   when: GoalTest;
+  /** Secrets shown to everyone as it is met. */
+  reveals?: string[];
+  /** The content ruling it rests on, for the result's "why?". */
+  ruling?: string;
 }
 
 /** An objective action: something a figure on a side can do on its turn to
@@ -139,8 +165,10 @@ function setupSteps(
   definition: HauntDefinition,
   side: "traitor" | "heroes",
 ): Step[] {
-  const rule = hauntRule(definition.number, SETUP_SECTION[side]);
+  const section = hauntRule(definition.number, SETUP_SECTION[side]);
   return (definition.setup?.[side] ?? []).map((part) => {
+    const rule =
+      part.ruling === undefined ? section : { ...section, ruling: part.ruling };
     switch (part.part) {
       case "counter":
         return setCounter(part.counter, part.start, rule);
@@ -158,6 +186,12 @@ function setupSteps(
           { count: part.count, at: part.at, owner: part.owner },
           rule,
         );
+      case "drop-items":
+        return dropItems(part.who, rule);
+      case "set-aside-companions":
+        return setAsideCompanions(part.who, rule);
+      case "rooms":
+        return topUpRooms(part.match, part.atLeast, part.chooser, rule);
       case "local":
         return local(
           hauntSourceId(definition.number),
@@ -168,20 +202,37 @@ function setupSteps(
   });
 }
 
+function goalMet(state: GameState, engine: Engine, when: GoalTest): boolean {
+  if ("local" in when) return when.local(state, engine);
+  if ("explorerDead" in when)
+    return seatsIn(state, when.explorerDead).some((seat) => {
+      const explorer = explorerOf(state, seat);
+      return explorer !== null && !figureOf(state, explorer).alive;
+    });
+  if ("cardOutOfGame" in when) {
+    const { cardOutOfGame: card } = when;
+    const type = engine.catalog.cards[card].type;
+    return (
+      state.decks[type].discard.includes(card) ||
+      state.aside.some((a) => a.card === card && a.room === null)
+    );
+  }
+  return counterValue(state, when.counter) >= count(engine, state, when.atLeast);
+}
+
 function goalCondition(definition: HauntDefinition, goal: Goal): Condition {
-  const { when } = goal;
-  const rule: RuleRef = hauntRule(definition.number, GOAL_SECTION[goal.side]);
+  const section = hauntRule(definition.number, GOAL_SECTION[goal.side]);
+  const rule: RuleRef =
+    goal.ruling === undefined ? section : { ...section, ruling: goal.ruling };
   return {
     id: goal.id,
     once: true,
     rule,
-    holds: (state, _source, engine) =>
-      "local" in when
-        ? when.local(state, engine)
-        : counterValue(state, when.counter) >= count(engine, state, when.atLeast),
+    holds: (state, _source, engine) => goalMet(state, engine, goal.when),
     then: {
       win: (state) =>
         state.seats.flatMap((seat, i) => (seat.side === goal.side ? [i] : [])),
+      ...(goal.reveals === undefined ? {} : { reveal: goal.reveals }),
     },
   };
 }

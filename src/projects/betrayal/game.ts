@@ -4,7 +4,7 @@ import { HAUNTS } from "./data/haunts";
 import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
-import { HAUNT_STEPS } from "./engine/haunt";
+import { HAUNT_DECISIONS, HAUNT_STEPS } from "./engine/haunt";
 import { MONSTER_STEPS } from "./engine/monsters";
 import { MOVEMENT_STEPS } from "./engine/movement";
 import { SCENARIO_STEPS } from "./engine/scenario";
@@ -56,19 +56,21 @@ export function buildRules(behaviours: Behaviours): Rules {
       ...COMBAT_DECISIONS,
       ...EXPLORATION_DECISIONS,
       ...TILE_DECISIONS,
+      ...HAUNT_DECISIONS,
     },
   };
 }
 
-export const ENGINE: Engine = withHaunts(
-  {
-    catalog: CATALOG,
-    rules: buildRules(BEHAVIOURS),
-    behaviours: BEHAVIOURS,
-    haunts: {},
-  },
-  HAUNTS,
-);
+/** The engine with the whole catalogue and no haunt built, for tests that
+ *  build haunts of their own. */
+export const BASE_ENGINE: Engine = {
+  catalog: CATALOG,
+  rules: buildRules(BEHAVIOURS),
+  behaviours: BEHAVIOURS,
+  haunts: {},
+};
+
+export const ENGINE: Engine = withHaunts(BASE_ENGINE, HAUNTS);
 
 /** What a seat, or a spectator (null), may see of a game: all that the UI,
  *  bots and AI players are given. */

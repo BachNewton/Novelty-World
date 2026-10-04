@@ -1,6 +1,6 @@
 import type { Edge, FigureId, GameState, Place, RuleRef, Step } from "../types";
 import { sideName } from "./board";
-import { chooseOne, defineStep, relocate, step } from "./effects";
+import { chooseOne, defineStep, displace, relocate, step } from "./effects";
 import { figureName, figureOf, placeOf } from "./figures";
 import { askSet, barrierSides, type Mover } from "./questions";
 import type { Engine, StepHandler } from "./step-loop";
@@ -87,7 +87,10 @@ export function moveCloser(
   chooser: FigureId,
   rule: RuleRef,
 ): Step {
-  return step<Closer>("move-closer", { figure, toward, chooser, rule });
+  return displace(
+    figure,
+    step<Closer>("move-closer", { figure, toward, chooser, rule }),
+  );
 }
 
 type Cross = { figure: FigureId; side: Edge; rule: RuleRef };

@@ -29,10 +29,14 @@ export interface RuleNotes {
   tokens: Record<string, RuleText>;
   /** Rulebook sections by page. */
   pages: Partial<Record<string, RuleText[]>>;
+  /** A haunt's rulings that the engine cites by id, by haunt number: only
+   *  the rulings, never the halves' text, which each side reads for itself
+   *  (engine/view.ts). */
+  haunts: Partial<Record<string, RuleText[]>>;
 }
 
-/** What content/ says about a rule source. A haunt's own text isn't read yet,
- *  and a scenario is no rule at all. */
+/** What content/ says about a rule source. Of a haunt, only a ruling it is
+ *  cited by, and a scenario is no rule at all. */
 export function ruleTexts(notes: RuleNotes, rule: RuleRef): RuleText[] {
   const one = (entry: RuleText | undefined) => (entry ? [entry] : []);
   switch (rule.source) {
@@ -45,6 +49,7 @@ export function ruleTexts(notes: RuleNotes, rule: RuleRef): RuleText[] {
     case "token":
       return one(notes.tokens[rule.token]);
     case "haunt":
+      return rule.ruling === undefined ? [] : (notes.haunts[rule.haunt] ?? []);
     case "scenario":
       return [];
   }

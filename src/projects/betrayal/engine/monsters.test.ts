@@ -10,7 +10,7 @@ import {
   toyBegun,
   toyHaunt,
 } from "../test/toy-haunt";
-import { ENGINE } from "../game";
+import { BASE_ENGINE } from "../game";
 import {
   choose,
   eventTypes,
@@ -56,7 +56,7 @@ const SHADE: FigureDefinition = {
 /** The toy haunt with a Shade beside the Phantom, and an action that
  *  unleashes another Phantom, for a monster to take partway through its
  *  turn. */
-const BUSY_ENGINE: Engine = withHaunts(ENGINE, [
+const BUSY_ENGINE: Engine = withHaunts(BASE_ENGINE, [
   toyHaunt(13, {
     figures: [PHANTOM, SHADE],
     setup: {
@@ -83,7 +83,7 @@ const BUSY_ENGINE: Engine = withHaunts(ENGINE, [
 ]);
 
 /** The toy haunt with at most one Phantom in play at a time. */
-const SCARCE_ENGINE: Engine = withHaunts(ENGINE, [
+const SCARCE_ENGINE: Engine = withHaunts(BASE_ENGINE, [
   toyHaunt(13, {
     statuses: { dozing: DOZING },
     modifiers: [{ question: "supply", change: { set: 1 } }],

@@ -27,6 +27,7 @@ import {
 } from "./figures";
 import {
   askNumber,
+  askPermission,
   askStructured,
   barrierSides,
   controllerOf,
@@ -641,10 +642,29 @@ export function relocate(
   side: Edge | null = null,
   after: Step[] = [],
 ): Step {
-  return leaveRoom(
+  return displace(
     figure,
-    step<Relocate>("relocate", { figure, room, rule, side, after }),
+    leaveRoom(
+      figure,
+      step<Relocate>("relocate", { figure, room, rule, side, after }),
+    ),
   );
+}
+
+/** An effect moves a figure out of its room by running `then`, unless the
+ *  canBeMoved question says nothing may (haunt 13's sleeping body): then the
+ *  figure stays where it is, and the move lapses. */
+export function displace(figure: FigureId, then: Step): Step {
+  return step<{ figure: FigureId; then: Step }>("displace", { figure, then });
+}
+
+/** Whether an effect may move a figure out of its room. */
+export function canBeMoved(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): boolean {
+  return askPermission(engine, state, "canBeMoved", { figure }).allowed;
 }
 
 /** Has the controller of a figure landing in a barrier room choose which
@@ -702,6 +722,15 @@ export function endOngoing(card: string): Step {
 
 export type Option = { label: string; steps: Step[] };
 
+type ChooseOne = {
+  figure: FigureId;
+  options: Option[];
+  rule: RuleRef;
+  /** What is being chosen, for the question ("choose a room to add to the
+   *  house"), where "choose one" says too little. */
+  prompt?: string;
+};
+
 /** A choice among options worked out when the effect runs: a room, a trait,
  *  a figure. Each option carries its own steps. The seat controlling
  *  `figure` chooses. */
@@ -709,10 +738,13 @@ export function chooseOne(
   figure: FigureId,
   options: Option[],
   rule: RuleRef,
+  prompt?: string,
 ): Step {
-  return step<{ figure: FigureId; options: Option[]; rule: RuleRef }>(
+  return step<ChooseOne>(
     "choose-one",
-    { figure, options, rule },
+    prompt === undefined
+      ? { figure, options, rule }
+      : { figure, options, rule, prompt },
   );
 }
 
@@ -841,7 +873,7 @@ export function stun(figure: FigureId, rule: RuleRef): Step {
 /** Whether a card works as an item: every item, and every omen but the
  *  companions and those that can't be traded, dropped or stolen at all (the
  *  Bite), as the 1st-edition FAQ treats them. */
-function worksAsItem(catalog: Catalog, card: string): boolean {
+export function worksAsItem(catalog: Catalog, card: string): boolean {
   const { type, label, transfer } = catalog.cards[card];
   if (type === "item") return true;
   return (
@@ -1362,6 +1394,24 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
+  displace: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
+    const moved = askPermission(ctx.engine, state, "canBeMoved", {
+      figure: p.figure,
+    });
+    if (moved.allowed) {
+      ctx.push(p.then);
+      return;
+    }
+    const rule = moved.because.at(0);
+    if (rule === undefined)
+      throw new Error(`Nothing says why ${p.figure} can't be moved`);
+    ctx.emit("not-moved", rule, {
+      figure: p.figure,
+      room: placeOf(state, p.figure).room,
+    });
+  }),
+
   stay: defineStep<{ figure: FigureId; rule: RuleRef }>((state, p, ctx) => {
     endMovementOf(state, p.figure);
     ctx.emit("stayed", p.rule, {
@@ -1454,7 +1504,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  "choose-one": defineStep<{ figure: FigureId; options: Option[]; rule: RuleRef }>(
+  "choose-one": defineStep<ChooseOne>(
     (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
       ctx.decide(
@@ -1603,10 +1653,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     },
   }),
 
-  "choose-one": defineDecision<
-    { figure: FigureId; options: Option[]; rule: RuleRef },
-    number
-  >({
+  "choose-one": defineDecision<ChooseOne, number>({
     candidates: (_state, p) => p.options.map((_option, index) => index),
     label: (_state, p, index) => p.options[index].label,
     resolve: (_state, p, index, ctx) => {

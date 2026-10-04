@@ -15,7 +15,7 @@ import {
   type Behaviour,
 } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
-import { ENGINE } from "../game";
+import { BASE_ENGINE } from "../game";
 import {
   withHaunts,
   type HauntDefinition,
@@ -195,7 +195,7 @@ export function toyHaunt(
 
 /** The real engine with the toy haunt built as haunt 13 (lowest Sanity,
  *  except the revealer, on the chart) and haunt 6 (lowest Sanity). */
-export const TOY_ENGINE: Engine = withHaunts(ENGINE, [toyHaunt(13), toyHaunt(6)]);
+export const TOY_ENGINE: Engine = withHaunts(BASE_ENGINE, [toyHaunt(13), toyHaunt(6)]);
 
 /** A secret value no other number in a game takes, so a test can look for
  *  it in what a seat sees. */
@@ -223,7 +223,7 @@ function sweptToyHaunt(number: number): HauntDefinition {
   const base = toyHaunt(
     number,
     {},
-    { phantom: ENGINE.catalog.chart.traitors[number].kind !== "none" },
+    { phantom: BASE_ENGINE.catalog.chart.traitors[number].kind !== "none" },
   );
   const actions = base.actions ?? {};
   const afterMonsters = (action: string): ObjectiveAction => {
@@ -260,8 +260,8 @@ const SWEEP_WAKES = 10;
  *  stays out of the haunts with no traitor to put it beside. The sigil is
  *  there for the views' leak checks. */
 export const ALL_TOY_ENGINE: Engine = withHaunts(
-  ENGINE,
-  hauntNumbers(ENGINE.catalog).map((n) => withSigil(sweptToyHaunt(n))),
+  BASE_ENGINE,
+  hauntNumbers(BASE_ENGINE.catalog).map((n) => withSigil(sweptToyHaunt(n))),
 );
 
 /** A toy haunt game begun and everyone ready, on Father Rhinehardt's turn:

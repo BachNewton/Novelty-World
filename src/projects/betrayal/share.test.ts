@@ -36,7 +36,7 @@ describe("a shared game", () => {
       game: {
         ...shared.game,
         scenario: {
-          haunt: { number: 13, revealer: 0 },
+          haunt: { number: 14, revealer: 0 },
           sides: [
             { seat: 0, side: "traitor", roles: ["traitor"], knownBy: [0] },
             { seat: 1, side: "heroes" },

@@ -1,6 +1,8 @@
 import type {
+  Catalog,
   Figure,
   FigureId,
+  FloorId,
   GameState,
   HauntReveal,
   HauntTexts,
@@ -12,7 +14,16 @@ import type {
   Step,
   TraitorRule,
 } from "../types";
-import { addStatus, defineStep, loseCard, step } from "./effects";
+import {
+  addStatus,
+  chooseOne,
+  defineDecision,
+  defineStep,
+  loseCard,
+  spendMove,
+  step,
+  worksAsItem,
+} from "./effects";
 import { explorerOf, figureOf, placeOf, startingTraits } from "./figures";
 import { askNumber, traitValue } from "./questions";
 import { heroes } from "./sides";
@@ -23,7 +34,13 @@ import {
   type Source,
 } from "./sources";
 import type { Random } from "./random";
-import type { Engine, StepContext, StepHandler } from "./step-loop";
+import type {
+  DecisionKind,
+  Engine,
+  StepContext,
+  StepHandler,
+} from "./step-loop";
+import { placeOptions, placeRoom } from "./tiles";
 
 // The haunt, from its reveal to the end of the game: choosing the traitor,
 // the ready wait, each side's setup, the haunt's own state (secrets and
@@ -234,7 +251,42 @@ export type Count =
   | { of: "players" }
   | { of: "living-heroes" }
   | { of: "counter"; counter: string }
-  | { of: "secret"; secret: string };
+  | { of: "secret"; secret: string }
+  /** The rooms in the house that match. */
+  | { of: "rooms"; match: RoomMatch };
+
+/** Rooms a haunt's rule names: by name, or by what their tiles show
+ *  (windows, being outside, as rooms.md records them). A room matches when
+ *  any part does. */
+export type RoomMatch = {
+  rooms?: string[];
+  windows?: boolean;
+  outside?: boolean;
+};
+
+export function matchesRoom(
+  catalog: Catalog,
+  room: string,
+  match: RoomMatch,
+): boolean {
+  const tile = catalog.rooms[room];
+  return (
+    (match.rooms?.includes(room) ?? false) ||
+    (match.windows === true && tile.windows.length > 0) ||
+    (match.outside === true && tile.outside)
+  );
+}
+
+/** The rooms in the house that match, in placement order. */
+export function roomsInHouse(
+  catalog: Catalog,
+  state: GameState,
+  match: RoomMatch,
+): string[] {
+  return state.board.tiles
+    .map((t) => t.tile)
+    .filter((room) => matchesRoom(catalog, room, match));
+}
 
 export function count(engine: Engine, state: GameState, value: Count): number {
   if (typeof value === "number") return value;
@@ -251,6 +303,8 @@ export function count(engine: Engine, state: GameState, value: Count): number {
         throw new Error(`The secret ${value.secret} isn't a number`);
       return secret;
     }
+    case "rooms":
+      return roomsInHouse(engine.catalog, state, value.match).length;
   }
 }
 
@@ -285,7 +339,7 @@ export function seatsIn(state: GameState, group: SeatGroup): number[] {
  *  heroes', or the revealer's, those alive. */
 export type FigureGroup = "traitor" | "heroes" | "revealer";
 
-function figuresIn(state: GameState, group: FigureGroup): FigureId[] {
+export function figuresIn(state: GameState, group: FigureGroup): FigureId[] {
   const seats =
     group === "revealer" ? [hauntState(state).revealer] : seatsIn(state, group);
   return seats.flatMap((seat) => {
@@ -367,6 +421,129 @@ export function insertTurn(turn: InsertedTurn): Step {
   return step<InsertedTurn>("insert-turn", turn);
 }
 
+/** Whether the haunt's setup is under way: it has been revealed and its
+ *  first turn hasn't begun. */
+export function settingUp(state: GameState): boolean {
+  return state.status === "haunt" && state.turn === null;
+}
+
+type TopUp = {
+  match: RoomMatch;
+  atLeast: Count;
+  /** Whose seat chooses and places the rooms: the controller of this
+   *  group's first living explorer. */
+  chooser: FigureGroup;
+  rule: RuleRef;
+  /** The stack has been searched, so it is shuffled once the top-up ends. */
+  searched: boolean;
+};
+
+/** Tops up the rooms in the house that match to at least a number: while
+ *  there are fewer, the chooser picks one from the room stack and the
+ *  discard pile, and puts it where it may go on a floor its back allows,
+ *  by the one placement rule (rules pp. 6, 9). A tile with nowhere to go
+ *  can't be added. Added rooms draw no cards. The stack is shuffled after a
+ *  search. */
+export function topUpRooms(
+  match: RoomMatch,
+  atLeast: Count,
+  chooser: FigureGroup,
+  rule: RuleRef,
+): Step {
+  return step<TopUp>("top-up-rooms", {
+    match,
+    atLeast,
+    chooser,
+    rule,
+    searched: false,
+  });
+}
+
+type GroupRule = { who: FigureGroup; rule: RuleRef };
+
+/** Each explorer of a group drops every card that works as an item onto
+ *  its room's pile, as a dead explorer's would (rules p. 19). */
+export function dropItems(who: FigureGroup, rule: RuleRef): Step {
+  return step<GroupRule>("drop-items", { who, rule });
+}
+
+/** Each explorer of a group sets its companions aside, out of the game. */
+export function setAsideCompanions(who: FigureGroup, rule: RuleRef): Step {
+  return step<GroupRule>("set-aside-companions", { who, rule });
+}
+
+type Escape = {
+  figure: FigureId;
+  /** The token left in the room, marking it used. */
+  marker: string;
+  counter: string;
+  /** The secret the counter is racing, if any, for the log. */
+  of: string | null;
+  rule: RuleRef;
+};
+
+/** A figure leaves the house through its room, spending a move's spaces
+ *  as it goes: a marker is left in the room and a counter steps. It leaves
+ *  play without dying. */
+export function escape(
+  figure: FigureId,
+  how: { marker: string; counter: string; of: string | null },
+  rule: RuleRef,
+): Step {
+  return step<Escape>("escape", { figure, ...how, rule });
+}
+
+type Replacement = {
+  definition: string;
+  at: FigureGroup;
+  owner: SeatGroup;
+  rule: RuleRef;
+};
+
+/** The owning seat may at once put another of a haunt's figures beside a
+ *  group's explorer, within the supply. A chance not taken is lost. */
+export function offerReplacement(
+  definition: string,
+  how: { at: FigureGroup; owner: SeatGroup },
+  rule: RuleRef,
+): Step {
+  return step<Replacement>("offer-replacement", { definition, ...how, rule });
+}
+
+type TaskResult = {
+  figure: FigureId;
+  /** What the roll is for, in words ("wake the dreamer"). */
+  task: string;
+  success: boolean;
+  /** The token won, if a success wins one. */
+  token: string | null;
+  rule: RuleRef;
+};
+
+/** A task roll's outcome, for the log. */
+export function taskResult(
+  figure: FigureId,
+  task: string,
+  outcome: { success: boolean; token: string | null },
+  rule: RuleRef,
+): Step {
+  return step<TaskResult>("task-result", { figure, task, ...outcome, rule });
+}
+
+/** How many figures of a definition are in play. */
+export function figuresInPlay(state: GameState, definition: string): number {
+  return Object.values(state.figures).filter(
+    (f) => f.definition === definition && f.alive && f.place !== null,
+  ).length;
+}
+
+/** Where a top-up may put a tile: against a free doorway on a floor its
+ *  back allows. */
+function topUpPlaces(catalog: Catalog, tile: string) {
+  const floors: FloorId[] = catalog.rooms[tile].floors;
+  return { kind: "doorways", floors, except: null } as const;
+}
+
 // ---------------------------------------------------------------------------
 // Conditions and the end of the game
 // ---------------------------------------------------------------------------
@@ -397,7 +574,7 @@ const RULEBOOK_SOURCE: Source = {
   status: null,
 };
 
-type Goal = { winners: number[]; rule: RuleRef };
+type Goal = { winners: number[]; rule: RuleRef; reveal: string[] };
 
 /** Re-checks every live condition, after every step, once the haunt is set
  *  up and its first turn has begun (until then its counters and secrets
@@ -438,6 +615,7 @@ export function checkConditions(
             (a, b) => a - b,
           ),
           rule: condition.rule ?? source.rule,
+          reveal: then.reveal ?? [],
         });
       else steps.push(...then.steps(state, source, engine));
     }
@@ -474,6 +652,13 @@ function endGame(
   ctx: StepContext,
   goal: Goal & { tied: boolean },
 ): void {
+  // A goal may show everyone a secret as it is met (haunt 13's number).
+  for (const id of goal.reveal) {
+    const secret = hauntState(state).secrets.find((s) => s.id === id);
+    if (!secret) throw new Error(`No haunt secret ${id} to reveal`);
+    secret.knownBy = null;
+    ctx.emit("secret-revealed", goal.rule, { secret: id });
+  }
   state.status = "finished";
   state.result = { winners: goal.winners, rule: goal.rule };
   state.work = [];
@@ -663,9 +848,7 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
     const owners = p.owner === null ? [null] : seatsIn(state, p.owner);
     if (owners.length !== 1)
       throw new Error(`The ${String(p.owner)} are not one seat to own ${definition.name}`);
-    const inPlay = Object.values(state.figures).filter(
-      (f) => f.definition === p.definition && f.alive && f.place !== null,
-    ).length;
+    const inPlay = figuresInPlay(state, p.definition);
     const supply = askNumber(ctx.engine, state, "supply", {
       definition: p.definition,
     });
@@ -703,5 +886,144 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
   "insert-turn": defineStep<InsertedTurn>((state, p, ctx) => {
     state.insertedTurns.push(p);
     ctx.emit("turn-inserted", p.rule, { seat: p.seat, kind: p.kind });
+  }),
+
+  // The candidates are offered by name, never in stack order, which stays
+  // hidden.
+  "top-up-rooms": defineStep<TopUp>((state, p, ctx) => {
+    const have = roomsInHouse(ctx.catalog, state, p.match).length;
+    const wanted = count(ctx.engine, state, p.atLeast);
+    const candidates = [...state.board.stack, ...state.board.discards]
+      .filter(
+        (tile) =>
+          matchesRoom(ctx.catalog, tile, p.match) &&
+          placeOptions(ctx.catalog, state.board, tile, topUpPlaces(ctx.catalog, tile))
+            .length > 0,
+      )
+      .sort();
+    if (have < wanted && candidates.length > 0) {
+      const chooser = figuresIn(state, p.chooser).at(0);
+      if (chooser === undefined)
+        throw new Error(`No explorer of the ${p.chooser} to add rooms`);
+      ctx.push(
+        chooseOne(
+          chooser,
+          candidates.map((tile) => ({
+            label: `Add the ${ctx.catalog.rooms[tile].name} to the house`,
+            steps: [
+              step<{ tile: string }>("take-room-tile", { tile }),
+              placeRoom(chooser, tile, topUpPlaces(ctx.catalog, tile), p.rule, {
+                then: [step<TopUp>("top-up-rooms", { ...p, searched: true })],
+              }),
+            ],
+          })),
+          p.rule,
+          "choose a room to add to the house",
+        ),
+      );
+      return;
+    }
+    // Neither how many there are nor how many were wanted: the count may
+    // be a secret.
+    if (have < wanted) ctx.emit("rooms-short", p.rule, {});
+    if (p.searched) {
+      state.board.stack = ctx.random.shuffle(state.board.stack);
+      ctx.emit("room-stack-shuffled", p.rule, {});
+    }
+  }),
+
+  "take-room-tile": defineStep<{ tile: string }>((state, p) => {
+    const { board } = state;
+    if (board.stack.includes(p.tile))
+      board.stack = board.stack.filter((t) => t !== p.tile);
+    else if (board.discards.includes(p.tile))
+      board.discards = board.discards.filter((t) => t !== p.tile);
+    else
+      throw new Error(`The ${p.tile} is in neither the stack nor the discards`);
+  }),
+
+  "drop-items": defineStep<GroupRule>((state, p, ctx) => {
+    ctx.push(
+      ...figuresIn(state, p.who).flatMap((figure) => {
+        const room = placeOf(state, figure).room;
+        return figureOf(state, figure)
+          .cards.filter((card) => worksAsItem(ctx.catalog, card))
+          .map((card) => loseCard(figure, card, { to: "room", room }, p.rule));
+      }),
+    );
+  }),
+
+  "set-aside-companions": defineStep<GroupRule>((state, p, ctx) => {
+    ctx.push(
+      ...figuresIn(state, p.who).flatMap((figure) =>
+        figureOf(state, figure)
+          .cards.filter((card) => ctx.catalog.cards[card].label === "companion")
+          .map((card) =>
+            loseCard(figure, card, { to: "aside", room: null }, p.rule),
+          ),
+      ),
+    );
+  }),
+
+  escape: defineStep<Escape>((state, p, ctx) => {
+    const room = placeOf(state, p.figure).room;
+    spendMove(state, ctx, p.figure);
+    state.tokens.push({ token: p.marker, room });
+    const value = counterValue(state, p.counter) + 1;
+    hauntState(state).counters[p.counter] = value;
+    figureOf(state, p.figure).place = null;
+    ctx.emit("escaped", p.rule, {
+      figure: p.figure,
+      room,
+      marker: p.marker,
+      counter: p.counter,
+      value,
+      of: p.of,
+    });
+  }),
+
+  "offer-replacement": defineStep<Replacement>((state, p, ctx) => {
+    const seats = seatsIn(state, p.owner);
+    if (seats.length !== 1)
+      throw new Error(
+        `The ${p.owner} are not one seat to bring in ${p.definition}`,
+      );
+    ctx.decide(seats, "replace-figure", p, p.rule);
+  }),
+
+  "task-result": defineStep<TaskResult>((_state, p, ctx) => {
+    const { rule, ...data } = p;
+    ctx.emit("task-result", rule, data);
+  }),
+};
+
+export const HAUNT_DECISIONS: Record<string, DecisionKind> = {
+  "replace-figure": defineDecision<Replacement, boolean>({
+    candidates: () => [true, false],
+    label: (state, p, unleash, engine) => {
+      const name = engine.catalog.figures[p.definition].name;
+      if (!unleash) return `Don't bring in another ${name}: the chance is lost`;
+      const beside = figuresIn(state, p.at).at(0);
+      return beside === undefined
+        ? `Bring in another ${name}`
+        : `Bring in another ${name}, in the ${engine.catalog.rooms[placeOf(state, beside).room].name}`;
+    },
+    resolve: (state, p, unleash, ctx) => {
+      if (!unleash) {
+        ctx.emit("replacement-declined", p.rule, { definition: p.definition });
+        return null;
+      }
+      if (figuresIn(state, p.at).length === 0)
+        return `No explorer of the ${p.at} to put it beside`;
+      const supply = askNumber(ctx.engine, state, "supply", {
+        definition: p.definition,
+      });
+      if (figuresInPlay(state, p.definition) >= supply)
+        return "None is left in the supply";
+      ctx.push(
+        spawn(p.definition, { count: 1, at: p.at, owner: p.owner }, p.rule),
+      );
+      return null;
+    },
   }),
 };

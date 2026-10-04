@@ -648,6 +648,64 @@ export function describeEvent(
           : winners,
       );
     }
+    case "not-moved": {
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(
+        `${who(d.figure)} can't be moved out of the ${words.room(d.room)}`,
+      );
+    }
+    case "escaped": {
+      const d = data<{
+        figure: FigureId;
+        room: string;
+        marker: string;
+        counter: string;
+        value: number;
+        of: string | null;
+      }>(event);
+      const room = words.room(d.room);
+      const tile = engine.catalog.rooms[d.room];
+      const way =
+        tile.windows.length > 0
+          ? `through the ${room}'s window`
+          : tile.frontDoor !== null
+            ? `through the ${room}'s front door`
+            : `out of the ${room}`;
+      const secret =
+        d.of === null
+          ? undefined
+          : view.haunt?.secrets.find((s) => s.id === d.of);
+      const target =
+        secret === undefined ? "" : ` of ${secret.known ? JSON.stringify(secret.value) : "?"}`;
+      return sentence(
+        `${who(d.figure)} escapes from the house ${way}, and the ${engine.catalog.tokens[d.marker].name} token left there marks it used: ${d.value}${target} ${hauntName(engine, view, "counters", d.counter)}`,
+      );
+    }
+    case "rooms-short":
+      return sentence("No more of the rooms the haunt asks for can be put in the house");
+    case "room-stack-shuffled":
+      return sentence("The room stack is shuffled");
+    case "replacement-declined": {
+      const d = data<{ definition: string }>(event);
+      return sentence(
+        `No other ${engine.catalog.figures[d.definition].name} is brought in: the chance is lost`,
+      );
+    }
+    case "task-result": {
+      const d = data<{
+        figure: FigureId;
+        task: string;
+        success: boolean;
+        token: string | null;
+      }>(event);
+      const won =
+        d.token === null ? "" : `, and takes a ${engine.catalog.tokens[d.token].name} token`;
+      return sentence(
+        d.success
+          ? `${who(d.figure)}'s roll to ${d.task} succeeds${won}`
+          : `${who(d.figure)}'s roll to ${d.task} fails`,
+      );
+    }
     case "haunt-revealed": {
       const d = data<{
         figure: FigureId;
@@ -763,8 +821,8 @@ export function describeDecision(
       );
     }
     case "choose-one": {
-      const p = decision.params as { figure: FigureId };
-      return ask(`${words.figure(p.figure)}: choose one`);
+      const p = decision.params as { figure: FigureId; prompt?: string };
+      return ask(`${words.figure(p.figure)}: ${p.prompt ?? "choose one"}`);
     }
     case "roll-before": {
       const p = decision.params as { figure: FigureId; spec: RollSpec };
@@ -782,6 +840,12 @@ export function describeDecision(
       const p = decision.params as { defender: FigureId; attacker: Attacker };
       return ask(
         `${words.figure(attackingFigure(p.attacker))}: deal the damage, or steal an item from ${words.figure(p.defender)} instead?`,
+      );
+    }
+    case "replace-figure": {
+      const p = decision.params as { definition: string };
+      return ask(
+        `One of the ${engine.catalog.figures[p.definition].name}s has left play: bring in another now, or lose the chance?`,
       );
     }
     case "roll-after": {

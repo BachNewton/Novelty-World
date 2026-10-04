@@ -5,6 +5,7 @@ import {
   mayAttackNow,
 } from "../../engine/combat";
 import {
+  canBeMoved,
   cardFlag,
   chooseOne,
   damage,
@@ -578,7 +579,10 @@ export const ITEMS: BehaviourGroup = {
           const options = allFigures(state)
             .filter(
               (e) =>
-                e.id !== p.figure && e.kind === "explorer" && together(e, you),
+                e.id !== p.figure &&
+                e.kind === "explorer" &&
+                together(e, you) &&
+                canBeMoved(ctx.engine, state, e.id),
             )
             .flatMap((e) =>
               askSet(ctx.engine, state, "adjacency", {

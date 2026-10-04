@@ -204,7 +204,11 @@ function movementLeft(
 /** Whether a figure has the movement left to leave its room. However much
  *  opponents slow it, a figure can always move at least 1 space a turn
  *  (p. 17). */
-function canLeave(engine: Engine, state: GameState, figure: FigureId): boolean {
+export function canLeave(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): boolean {
   const left = movementLeft(engine, state, figure);
   if (left >= moveCost(engine, state, figure)) return true;
   return (state.turn?.moved[figure] ?? 0) === 0 && left >= 1;

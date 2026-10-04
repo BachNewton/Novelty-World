@@ -3,7 +3,7 @@ import { connections } from "../../engine/board";
 import { describeEvent } from "../../engine/describe";
 import { drawCard, gain } from "../../engine/effects";
 import { start, type Engine } from "../../engine/step-loop";
-import { ENGINE } from "../../game";
+import { BASE_ENGINE, ENGINE } from "../../game";
 import { withHaunts } from "../../kit/haunt";
 import {
   TOY_ENGINE,
@@ -36,7 +36,7 @@ const RULE: RuleRef = { source: "haunt", haunt: 13, section: "Rules" };
 const DRAW_RULE: RuleRef = { source: "rulebook", page: 10 };
 
 /** The toy haunt with the traitor awake, taking turns of his own. */
-const AWAKE_ENGINE: Engine = withHaunts(ENGINE, [
+const AWAKE_ENGINE: Engine = withHaunts(BASE_ENGINE, [
   toyHaunt(13, {
     setup: {
       traitor: [

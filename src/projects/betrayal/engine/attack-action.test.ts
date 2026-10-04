@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { withHaunts } from "../kit/haunt";
 import { checkListedAreLegal } from "../simulation";
 import { DOZING, PHANTOM, TOY_ENGINE, toyHaunt } from "../test/toy-haunt";
-import { ENGINE } from "../game";
+import { BASE_ENGINE, ENGINE } from "../game";
 import {
   choose,
   eventTypes,
@@ -41,7 +41,7 @@ const HAUNT_RULE: RuleRef = { source: "haunt", haunt: 13, section: "Rules" };
 /** The toy haunt with haunt 13's two rules for Nightmares, given to its
  *  Phantom: everything a Phantom deals is mental, and a hero who beats one
  *  kills it. */
-const NIGHTMARE_ENGINE: Engine = withHaunts(ENGINE, [
+const NIGHTMARE_ENGINE: Engine = withHaunts(BASE_ENGINE, [
   toyHaunt(13, {
     modifiers: [
       {
@@ -85,7 +85,7 @@ const HELD: Behaviour = {
     },
   ],
 };
-const HELD_ENGINE: Engine = withHaunts(ENGINE, [
+const HELD_ENGINE: Engine = withHaunts(BASE_ENGINE, [
   toyHaunt(13, { statuses: { dozing: DOZING, held: HELD } }),
 ]);
 

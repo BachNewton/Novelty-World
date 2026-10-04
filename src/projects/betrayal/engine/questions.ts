@@ -76,6 +76,10 @@ export interface PermissionQuestions {
   /** Whether a figure may hold cards: draw, pick up, trade or be given
    *  them. Monsters can't, unless a haunt says so (p. 19). */
   canCarry: { figure: FigureId };
+  /** Whether an effect may move a figure out of its room: a card or room
+   *  that puts it somewhere, pushes it, or pulls it closer. Its own movement
+   *  is the canAct and canMove questions'. */
+  canBeMoved: { figure: FigureId };
 }
 
 /** What moves: a figure, or a companion token travelling for the figure
@@ -122,7 +126,16 @@ type NumberModifier = {
       source: Source,
       engine: Engine,
     ) => boolean;
-    change: NumberChange;
+    /** The change, or how to work it out from the game when it depends on
+     *  it (a haunt's supply of one figure per player). */
+    change:
+      | NumberChange
+      | ((
+          state: GameState,
+          subject: NumberQuestions[Q],
+          source: Source,
+          engine: Engine,
+        ) => NumberChange);
   };
 }[keyof NumberQuestions];
 
@@ -413,9 +426,22 @@ function applicable<C>(
           ) => boolean)
         | undefined;
       if (when && !when(state, subject, source, engine)) continue;
+      // A number change may be worked out from the game; the modifier's own
+      // type ties it to this question's subject.
+      const change = modifier.change as
+        | C
+        | ((s: GameState, subject: unknown, source: Source, engine: Engine) => C);
       result.push({
         layer: source.layer,
-        change: modifier.change as C,
+        change:
+          typeof change === "function"
+            ? (change as (s: GameState, subject: unknown, source: Source, engine: Engine) => C)(
+                state,
+                subject,
+                source,
+                engine,
+              )
+            : change,
         rule: source.rule,
       });
     }
@@ -507,6 +533,7 @@ const PERMISSION_BASE: {
     figureDefinition(engine.catalog, state, figure).explores,
   canCarry: (engine, state, { figure }) =>
     figureDefinition(engine.catalog, state, figure).carries,
+  canBeMoved: () => true,
 };
 
 /** The base answer, unless a source changes it. Within a layer a denial beats an allowance; a higher layer's allowance overrules a lower denial. */

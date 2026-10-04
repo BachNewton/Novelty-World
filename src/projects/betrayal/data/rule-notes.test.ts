@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CARDS } from "./cards";
+import { HAUNTS } from "./haunts";
 import { readContent as readRaw, sections } from "./content-reader";
 import {
   ruleDetail,
@@ -131,11 +132,32 @@ function buildRuleNotes(): RuleNotes {
     (pages[page[1]] ??= []).push(text);
   }
 
+  const haunts: Record<string, RuleText[]> = {};
+  const files = readdirSync(path.join(__dirname, "..", "content", "haunts"));
+  for (const file of files.sort()) {
+    const number = /^(\d+)-/.exec(file)?.[1];
+    if (number === undefined) continue;
+    const text = readContent(`haunts/${file}`);
+    const cited = text
+      .split(/^#{2,4} /m)
+      .slice(1)
+      .flatMap((chunk) => {
+        const newline = chunk.indexOf("\n");
+        const found = rulings(chunk.slice(newline)).filter(
+          (r) => r.id !== undefined,
+        );
+        return found.length === 0
+          ? []
+          : [{ title: chunk.slice(0, newline).trim(), lines: [], rulings: found }];
+      });
+    if (cited.length > 0) haunts[String(Number(number))] = cited;
+  }
   return {
     rooms: sorted(rooms),
     cards: sorted(cards),
     tokens: sorted(tokens),
     pages: sorted(pages),
+    haunts: sorted(haunts),
   };
 }
 
@@ -165,8 +187,8 @@ describe("rule-notes.json", () => {
  *  a reference is written `ruling: "<id>"`. */
 function citedRulings(): string[] {
   const root = path.join(__dirname, "..");
-  const files = ["engine", "data"].flatMap((dir) =>
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/ and data/ folders
+  const files = ["engine", "kit", "data"].flatMap((dir) =>
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/, kit/ and data/ folders
     readdirSync(path.join(root, dir), { recursive: true, encoding: "utf8" })
       .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
       .map((f) => path.join(root, dir, f)),
@@ -186,6 +208,7 @@ describe("ruling ids", () => {
     ...Object.values(notes.cards),
     ...Object.values(notes.tokens),
     ...Object.values(notes.pages).flatMap((texts) => texts ?? []),
+    ...Object.values(notes.haunts).flatMap((texts) => texts ?? []),
   ].flatMap((text) => text.rulings.flatMap((r) => r.id ?? []));
 
   it("are read from the note's brackets, and are unique", () => {
@@ -195,6 +218,17 @@ describe("ruling ids", () => {
 
   it("cited by the code all exist, so a renamed note fails here", () => {
     for (const id of citedRulings()) expect(ids).toContain(id);
+  });
+
+  it("that a built haunt depends on are its own, and settled", () => {
+    for (const haunt of HAUNTS) {
+      const own = (notes.haunts[haunt.number] ?? []).flatMap((t) => t.rulings);
+      for (const id of haunt.rulings ?? []) {
+        const ruling = own.find((r) => r.id === id);
+        expect(ruling, `haunt ${haunt.number}: ${id}`).toBeDefined();
+        expect(ruling?.authority).not.toBe("unresolved");
+      }
+    }
   });
 
   it("narrow \"why?\" to the one ruling, and throw on one the source lacks", () => {

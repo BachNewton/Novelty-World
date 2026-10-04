@@ -34,6 +34,7 @@ import {
   continueWith,
   defineDecision,
   defineStep,
+  displace,
   drawCard,
   leaveRoom,
   step,
@@ -308,7 +309,12 @@ export const TILE_STEPS: Record<string, StepHandler> = {
 
   "enter-new-room": defineStep<EnterNewRoom>((_state, p, ctx) => {
     if (p.room === null) throw new Error("No room to enter");
-    ctx.push(leaveRoom(p.figure, step<EnterNewRoom>("into-new-room", p)));
+    ctx.push(
+      displace(
+        p.figure,
+        leaveRoom(p.figure, step<EnterNewRoom>("into-new-room", p)),
+      ),
+    );
   }),
 
   "into-new-room": defineStep<EnterNewRoom>((state, p, ctx) => {

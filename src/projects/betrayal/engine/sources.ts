@@ -158,6 +158,8 @@ export interface Condition {
     | {
         /** A goal: the game ends at once, and these seats win. */
         win: (state: GameState, source: Source, engine: Engine) => number[];
+        /** Secrets shown to everyone as it is met. */
+        reveal?: string[];
       }
     | { steps: (state: GameState, source: Source, engine: Engine) => Step[] };
 }

@@ -61,25 +61,35 @@ function holdOffHaunt(engine: Engine): Engine {
 }
 
 /** Plays one game. `onWrite` is called with the state after every write,
- *  for checks of a test's own. */
+ *  for checks of a test's own. `haunt` starts the game with that haunt
+ *  revealed, by a seat the seed picks, as the page's "start haunt N" does. */
 export function simulate(
   seed: string,
   engine: Engine = ENGINE,
   onWrite: (state: GameState) => void = () => {},
+  { haunt }: { haunt?: number } = {},
 ): SimulationResult {
   const rng = createRng(`simulation/${seed}`);
   const history: string[] = [];
   let state: GameState | null = null;
   try {
+    const characters = pickCharacters(engine, rng);
     state = newGame(engine, {
       gameId: `sim-${seed}`,
       seed,
       sets: ["base"],
-      seats: pickCharacters(engine, rng).map((character, i) => ({
+      seats: characters.map((character, i) => ({
         name: `Player ${i + 1}`,
         character,
       })),
       today: { month: 1 + below(rng, 12), day: 1 + below(rng, 28) },
+      ...(haunt === undefined
+        ? {}
+        : {
+            scenario: {
+              haunt: { number: haunt, revealer: below(rng, characters.length) },
+            },
+          }),
     });
     record(engine, state, history, "setup");
     checkState(engine, state);

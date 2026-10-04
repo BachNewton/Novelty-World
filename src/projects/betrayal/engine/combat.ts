@@ -473,9 +473,13 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
         together(figureOf(state, attacker), figureOf(state, p.defender)),
     });
     const settle: Settle = { ...attack, outcome };
+    // Only a figure that can hold cards can steal one: monsters can't
+    // (p. 19).
     if (
       outcome.steal &&
       attacker !== null &&
+      askPermission(ctx.engine, state, "canCarry", { figure: attacker })
+        .allowed &&
       figureOf(state, p.defender).cards.some((c) =>
         stealable(ctx.engine, state, c),
       )
