@@ -114,7 +114,7 @@ Every roll and shuffle draws from a generator seeded from the game seed, the id 
 Consequences:
 - Applying your own action locally computes the real roll, and the server computes the same one. Another player's action can't change it, because the inputs are only the seed and your decision's id. A roll on screen is never revised.
 - Only actions that answer your own pending decision are applied locally (section 9), so a prediction is never based on someone else's unconfirmed move.
-- A client can work out dice from the seed. Under the good-faith model this is accepted, as `CLAUDE.md` says.
+- A client can work out dice from the seed. Under the good-faith model this is accepted, as `CLAUDE.md` says. A seat's view leaves the seed out, for the readers that aren't trusted (section 10).
 - A game replays from its seed and its actions, which gives tests, simulation and bug reports for free.
 
 ## 5. The rules interface
@@ -198,7 +198,8 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
 
 **A definition's sections:**
 - **Identity:** number, name, set, and a reference to its content file.
-- **Sides:** the chart's traitor rule, unless the definition gives its own (a hidden traitor, several traitors, or none), and which half of the haunt text each side may read.
+- **Its text:** each side's half, its content file's Traitor's Tome and Secrets of Survival sections word for word, notes included. They are read out of `content/haunts/` into one generated file per haunt in `data/haunt-texts/`, which a snapshot test keeps in step with `content/` (as `data/rule-notes.json` is), and the definition imports its own file, so only built haunts' text is bundled. A test holds each definition's text to its content file.
+- **Sides:** the chart's traitor rule, unless the definition gives its own (a hidden traitor, several traitors, or none). Each side reads its own half of the haunt text.
 - **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, put a number of the haunt's figures in the room of a group's explorer (owned by a group's seat, numbered from their definition, and no more than the supply question allows in play), or run a local step. Still to come: find a named room, fill the house, placement rules, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret) is worked out when its step runs, so setup fixes it at the haunt's start.
 - **Figures:** monster and ally definitions (traits or a stats table, a movement policy, an attack rule, a defeat response, flags).
 - **Tracks and counters**, with their count expressions.
@@ -274,6 +275,7 @@ How they are kept in agreement:
 
   A small test-side reader handles the bullet-and-table format these files already use.
 - **Coverage both ways.** Every heading in `content/` that names a room, card, character or haunt has a typed entry, and every typed entry points back at its heading. Additions and renames fail a test until both sides match.
+- **Text the players read is generated.** Where the game shows `content/`'s own words (the "why?" rule notes, each side's half of a haunt), a test reads them into generated JSON and fails until the JSON is rewritten after `content/` changes.
 - **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled before the rule they affect is implemented. Where research finds no answer, the ruling is made for this adaptation and recorded with the authority **project** (the project's `CLAUDE.md` says how).
 - **Effects are tested from the rules.** Each card's, room's and haunt's behaviour gets unit tests written from its content entry, not from its own implementation.
 
@@ -409,16 +411,16 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 - **Results belong to seats.** A game result is a set of winning seats, and a side win is the common case of that.
 - **Seats change hands freely.** Seats are tied to a browser's profile id, so any player in a game may hand a seat to another profile, from the game list or the seat menu, for example after changing device. The good-faith model keeps this from being abused.
 - **Controllers** are human, bot or AI, and all of them answer asynchronously through the same route. The engine never calls a controller (section 8).
-- **`viewFor(state, seat)`** returns what a seat may see. It hides:
-  - the order of the stacks and decks, from everyone;
-  - other seats' secret sides and secret values, unless the seat knows them;
-  - the other side's half of the haunt rules;
-  - tokens the seat hasn't seen;
-  - other seats' answers to a decision that is still open.
+- **`viewFor(state, seat)`** returns what a seat may see (`engine/view.ts`; `game.ts` binds it to the built engine). The good-faith model trusts people not to look past what the UI shows, but a view may also go to a reader that isn't trusted: an AI agent a player connects from outside (`ai-players.md`). So `viewFor` is the boundary itself, not a hint the UI applies: what it leaves out must be absent from its result, never present and merely unrendered. The view is a type of its own, built field by field, never the state with fields blanked, so a field added to the state stays out of every view until it is added on purpose. It hides:
+  - the order of the room stack and the decks, from everyone: only their sizes show. Discard piles are face up;
+  - other seats' secret sides and roles, unless the seat knows them; a monster's owner, where owning it would give a hidden side away; and who knows a secret, where that list would;
+  - secret values the seat doesn't know. That a secret exists is public, as the heroes' half always says what the traitor has written down. A haunt whose secret's very existence must be hidden will need a kit flag for it;
+  - the other side's half of the haunt text. A seat reads its own side's half, once it knows its side; before the haunt, and for a spectator, there is none;
+  - a monster's trait values from the other side, until a roll makes them known to everyone (the rule memory's known traits). That it has a trait at all is public, and its own side knows them;
+  - other seats' answers to a shared decision that is still open: everyone sees who has answered, and an addressee sees its own answer;
+  - the seed. Under the good-faith model a client may work out dice from it (section 4), but a reader given only a view could otherwise foresee every roll a choice would lead to, so the view leaves it out, with the step stack, the answers ledger and the rule memory beyond its deaths and known traits.
 
-  It shows the pending decision in full only to its addressees. Everyone else sees whom the game is waiting on and what kind of decision it is. The UI, bots and AI all receive this view. A spectator view, with no seat, shows only public information.
-
-  The good-faith model trusts people not to look past what the UI shows, but a view may also go to a reader that isn't trusted: an AI agent a player connects from outside (`ai-players.md`). So `viewFor` is the boundary itself, not a hint the UI applies: what it leaves out must be absent from its result, never present and merely unrendered.
+  It shows the pending decision in full (its parameters and the seat's legal choices, labelled) only to its addressees. Everyone else sees whom the game is waiting on and what kind of decision it is. Events are the latest write's, with what only some seats may see taken out of the rest's copy: a side set in secret, the card a Crystal Ball put on top or the room tile a Spirit Board saw (for all but the seat that looked), and a forced step's one choice, which is a decision's choices and so its addressee's alone. Tokens the seat hasn't seen wait for Widow's Walk, which brings the first hidden tokens. A spectator view, with no seat, shows only public information. The UI, bots and AI all receive this view, and `describe` words the log and the pending question from the view alone. A test checks every seat's view and a spectator's after every write of random games, hidden-traitor haunts included, by looking for the hidden material itself in the serialized view.
 
 ## 11. Testing
 
