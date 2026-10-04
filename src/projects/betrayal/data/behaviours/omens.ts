@@ -1,3 +1,4 @@
+import { attackWith, cardAttack } from "../../engine/combat";
 import {
   cardFlag,
   chooseOne,
@@ -233,6 +234,11 @@ const DOG_BEHAVIOUR: Behaviour = {
 /** Omen cards, from content/cards/omens.md. Every omen also triggers the haunt roll, which the engine makes. */
 export const OMENS: BehaviourGroup = {
   cards: {
+    bite: {
+      onDraw: (state, seat) => [
+        cardAttack(state, seat, "might", 4, card("bite")),
+      ],
+    },
     book: heldTraits("book", [["knowledge", 2]]),
     dog: DOG_BEHAVIOUR,
     girl: heldTraits("girl", [
@@ -377,7 +383,13 @@ export const OMENS: BehaviourGroup = {
       },
     },
 
+    // The explorer you attack is your opponent for the Ring, before the
+    // haunt too (the card's project ruling).
+    ring: { modifiers: attackWith("ring", "sanity", 0) },
+
     skull: { damageAs: "physical" },
+
+    spear: { modifiers: attackWith("spear", "might", 2) },
 
     "spirit-board": {
       actions: {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adjacent } from "../../engine/board";
+import { attack } from "../../engine/combat";
 import { discardCard } from "../../engine/effects";
 import { traitValue } from "../../engine/explorers";
 import { askNumber } from "../../engine/questions";
@@ -7,6 +8,7 @@ import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
   choose,
+  eventTypes,
   offered,
   pendingDecision,
   testGame,
@@ -52,6 +54,26 @@ function rolled(state: GameState): {
 }
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
+
+/** Starts Zoe's attack on Ox in the middle of her turn. */
+function attackOx(state: GameState): GameState {
+  return start(ENGINE, { ...state, pending: null }, [
+    attack({ kind: "explorer", seat: ZOE }, OX, {
+      source: "rulebook",
+      page: 13,
+    }),
+  ]);
+}
+
+/** Each roll made in the latest write: who rolled and how many dice. */
+function rollsMade(state: GameState): { seat: number; dice: number }[] {
+  return state.lastEvents
+    .filter((e) => e.type === "rolled")
+    .map((e) => {
+      const d = e.data as { seat: number; dice: number[] };
+      return { seat: d.seat, dice: d.dice.length };
+    });
+}
 
 /** Uses an item whose roll the Angel Feather then names. */
 function actWithNamedRoll(state: GameState, action: string, result: number) {
@@ -384,16 +406,10 @@ describe("Rabbit's Foot (cards/items.md)", () => {
   });
 
   it("is not offered on another explorer's turn", () => {
-    const state = holding([]);
+    const state = testGame();
     state.explorers[OX].cards.push("rabbits-foot");
-    const rabbit = ENGINE.behaviours.cards["rabbits-foot"]?.rollOptions?.[0];
-    const roll = {
-      spec: { kind: "trait", trait: "speed" },
-      rule: { source: "card", card: "angry-being" },
-      extraDice: 0,
-    } as const;
-    expect(rabbit?.applies(state, OX, roll)).toBe(false);
-    expect(rabbit?.applies(state, ZOE, roll)).toBe(true);
+    // Ox defends against Zoe's attack on her turn: no reroll is offered.
+    expect(eventTypes(attackOx(state))).toContain("attack-outcome");
   });
 });
 
@@ -642,5 +658,187 @@ describe("Music Box (cards/items.md)", () => {
     const state = holding(["music-box"]);
     const after = choose(state, "End your turn");
     expect(sanityRolls(after)).toEqual([]);
+  });
+});
+
+describe("Axe (cards/items.md)", () => {
+  it("rolls 1 extra die on a Might attack made with it", () => {
+    const state = choose(attackOx(holding(["axe"])), "using the Axe");
+    // Zoe's Might is 3; Ox defends with his 5 Might, no Axe for him.
+    expect(rollsMade(state)).toEqual([
+      { seat: ZOE, dice: 4 },
+      { seat: OX, dice: 5 },
+    ]);
+  });
+});
+
+describe("Sacrificial Dagger (cards/items.md)", () => {
+  const attackWithDagger = (result: number, setUp?: (s: GameState) => void) => {
+    const state = holding(["sacrificial-dagger", "angel-feather"]);
+    setUp?.(state);
+    const next = choose(attackOx(state), "using the Sacrificial Dagger");
+    // The Knowledge roll comes first.
+    expect(pendingDecision(next).params).toMatchObject({
+      spec: { kind: "trait", trait: "knowledge" },
+    });
+    return choose(next, `the result is ${result}`);
+  };
+
+  it("on 6+, the attack goes ahead with 3 extra dice", () => {
+    const state = attackWithDagger(6);
+    expect(rollsMade(state).slice(1)).toEqual([
+      { seat: ZOE, dice: 6 },
+      { seat: OX, dice: 5 },
+    ]);
+  });
+
+  it("never past 8 dice", () => {
+    const state = attackWithDagger(
+      6,
+      (s) => (s.explorers[ZOE].clips.might = 7),
+    );
+    expect(rollsMade(state)[1]).toEqual({ seat: ZOE, dice: 8 });
+  });
+
+  it("on 3-5, you lose 1 from a mental trait, then attack", () => {
+    let state = attackWithDagger(4);
+    expect(labels(state)).toEqual(["Lose 1 Sanity", "Lose 1 Knowledge"]);
+    state = choose(state, "Lose 1 Knowledge");
+    expect(state.explorers[ZOE].clips.knowledge).toBe(1);
+    expect(eventTypes(state)).toContain("attack-outcome");
+  });
+
+  it("on 0-2, you take 2 dice of physical damage and can't attack", () => {
+    const state = attackWithDagger(2);
+    expect(rollsMade(state)[1]).toEqual({ seat: ZOE, dice: 2 });
+    expect(eventTypes(state)).not.toContain("attack-outcome");
+  });
+});
+
+describe("Blood Dagger (cards/items.md)", () => {
+  it("rolls 3 extra dice on a Might attack, and using it costs 1 Speed", () => {
+    const state = choose(
+      attackOx(holding(["blood-dagger"])),
+      "using the Blood Dagger",
+    );
+    expect(state.explorers[ZOE].clips.speed).toBe(2);
+    expect(rollsMade(state)).toEqual([
+      { seat: ZOE, dice: 6 },
+      { seat: OX, dice: 5 },
+    ]);
+  });
+
+  it("is optional: attacking without it costs nothing", () => {
+    const state = choose(
+      attackOx(holding(["blood-dagger"])),
+      "Attack with Might",
+    );
+    expect(state.explorers[ZOE].clips.speed).toBe(3);
+  });
+
+  it("can't be traded or dropped", () => {
+    const state = holding(["blood-dagger"]);
+    expect(labels(state).some((l) => l.includes("Blood Dagger"))).toBe(false);
+  });
+});
+
+describe("Revolver (cards/items.md)", () => {
+  it("attacks with Speed and 1 extra die; the opponent defends with Speed", () => {
+    let state = attackOx(holding(["revolver"]));
+    expect(labels(state)).toEqual([
+      "Attack with Might",
+      "Attack with Speed, using the Revolver",
+    ]);
+    state = choose(state, "using the Revolver");
+    // Zoe's Speed is 4, Ox's is 4.
+    expect(rollsMade(state)).toEqual([
+      { seat: ZOE, dice: 5 },
+      { seat: OX, dice: 4 },
+    ]);
+    const outcome = state.lastEvents.find((e) => e.type === "attack-outcome")
+      ?.data as { damage: { kind: string } | null };
+    if (outcome.damage) expect(outcome.damage.kind).toBe("physical");
+  });
+});
+
+describe("Dynamite (cards/items.md)", () => {
+  const THROW =
+    "Throw the Dynamite into an adjacent room, instead of attacking";
+  const armed = (status: GameState["status"]) => {
+    const state = holding(["dynamite"]);
+    state.status = status;
+    state.explorers[OX].room = "foyer";
+    return state;
+  };
+
+  it("takes the place of an attack, so it can't be thrown before the haunt", () => {
+    expect(labels(armed("exploring"))).not.toContain(THROW);
+  });
+
+  it("is thrown through a door into an adjacent room, where everyone makes a Speed roll, and is discarded", () => {
+    // The Foyer is the only room it can go into, so it is thrown there.
+    const state = choose(armed("haunt"), THROW);
+    expect(rollsMade(state)[0]).toEqual({ seat: OX, dice: 4 });
+    expect(state.explorers[ZOE].cards).not.toContain("dynamite");
+    expect(state.decks.item.discard).toContain("dynamite");
+    expect(state.turn?.attacked).toBe(true);
+    const result = (
+      state.lastEvents.find((e) => e.type === "rolled")?.data as {
+        result: number;
+      }
+    ).result;
+    // 0-4: 4 points of physical damage; 5+: none.
+    if (result <= 4)
+      expect(pendingDecision(state).params).toMatchObject({
+        seat: OX,
+        amount: 4,
+      });
+    else expect(eventTypes(state)).not.toContain("damaged");
+  });
+
+  it("can't be thrown once the turn's attack is made", () => {
+    const state = armed("haunt");
+    if (state.turn) state.turn.attacked = true;
+    expect(labels(state)).not.toContain(THROW);
+  });
+});
+
+describe("Pickpoket's Gloves (cards/items.md)", () => {
+  const GLOVES =
+    "Discard the Pickpocket's Gloves to take an item from an explorer in your room";
+  const withOx = (cards: string[]) => {
+    const state = holding(["pickpokets-gloves"]);
+    state.explorers[OX].cards.push(...cards);
+    return state;
+  };
+
+  it("discards the gloves to take an item from an explorer in your room", () => {
+    let state = choose(withOx(["axe", "spear", "armor"]), GLOVES);
+    // Taking is stealing: not the Armor, which can't be stolen.
+    expect(labels(state)).toEqual([
+      "Take Ox Bellows's Axe",
+      "Take Ox Bellows's Spear",
+    ]);
+    state = choose(state, "Take Ox Bellows's Axe");
+    expect(state.explorers[ZOE].cards).toEqual(["axe"]);
+    expect(state.explorers[OX].cards).toEqual(["spear", "armor"]);
+    expect(state.decks.item.discard).toContain("pickpokets-gloves");
+    // The take is the Axe's one action this turn.
+    expect(labels(state).some((l) => l.includes("Axe"))).toBe(false);
+  });
+
+  it("can take the Blood Dagger, whose owner takes 2 dice of physical damage", () => {
+    // The only thing to take, so it is taken.
+    const state = choose(withOx(["blood-dagger"]), GLOVES);
+    expect(rollsMade(state)).toEqual([{ seat: OX, dice: 2 }]);
+    const taken = state.pending === null ? state : choose(state, "Take");
+    expect(taken.explorers[ZOE].cards).toContain("blood-dagger");
+  });
+
+  it("isn't offered with nothing to take in your room", () => {
+    expect(labels(withOx(["armor"]))).not.toContain(GLOVES);
+    const away = withOx(["axe"]);
+    away.explorers[OX].room = "upper-landing";
+    expect(labels(away)).not.toContain(GLOVES);
   });
 });

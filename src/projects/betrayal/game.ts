@@ -1,5 +1,6 @@
 import { CATALOG } from "./data";
 import { BEHAVIOURS } from "./data/behaviours";
+import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
 import { MOVEMENT_STEPS } from "./engine/movement";
@@ -23,6 +24,7 @@ function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
 export function buildRules(behaviours: Behaviours): Rules {
   const steps = {
     ...EFFECT_STEPS,
+    ...COMBAT_STEPS,
     ...EXPLORATION_STEPS,
     ...TILE_STEPS,
     ...MOVEMENT_STEPS,
@@ -35,6 +37,7 @@ export function buildRules(behaviours: Behaviours): Rules {
     steps,
     decisions: {
       ...EFFECT_DECISIONS,
+      ...COMBAT_DECISIONS,
       ...EXPLORATION_DECISIONS,
       ...TILE_DECISIONS,
     },

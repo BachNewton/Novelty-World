@@ -16,7 +16,9 @@ import {
   defineStep,
   discardCard,
   drawCard,
+  endMovement,
   gain,
+  keepCard,
   loseCard,
   placeToken,
   placeWallToken,
@@ -53,6 +55,7 @@ import type {
   Trait,
 } from "../../types";
 import { CATALOG } from "..";
+import { markFailed, trap } from "./trapped";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
 
@@ -818,6 +821,36 @@ export const EVENTS_B: BehaviourGroup = {
           ),
         ];
       },
+    },
+
+    webs: {
+      // The Might roll on drawing is your first attempt to break free (the
+      // card's resolution), so it can't be tried again this turn.
+      onDraw: (_state, seat) => {
+        const rule = card("webs");
+        return [
+          roll(
+            seat,
+            { kind: "trait", trait: "might" },
+            rule,
+            table([
+              { min: 4, max: null, steps: [gain(seat, "might", 1, rule)] },
+              {
+                min: 0,
+                max: 3,
+                steps: [keepCard(seat, "webs"), markFailed("webs", 1)],
+              },
+            ]),
+            { id: "webs" },
+          ),
+        ];
+      },
+      // A rescuer must be in your room (the card's resolution).
+      ...trap(
+        "webs",
+        "Make a Might roll to free the explorer stuck in the Webs",
+        (seat, rule) => [endMovement(seat, rule)],
+      ),
     },
 
     "what-the": {

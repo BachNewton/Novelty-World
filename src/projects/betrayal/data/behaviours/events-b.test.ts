@@ -719,3 +719,85 @@ describe("Whoops!", () => {
     expect(state.explorers[0].cards).toEqual(["book"]);
   });
 });
+
+describe("Webs (cards/events.md)", () => {
+  const FREE = "Make a Might roll to free the explorer stuck in the Webs";
+  const labels = (state: GameState) => offered(state).map((c) => c.label);
+
+  /** The first seed whose draw makes a first roll in the range. */
+  function landing(min: number, max: number): GameState {
+    for (const seed of SEEDS) {
+      const state = drawEvent("webs", seed);
+      const result = rolls(state)[0].result;
+      if (result >= min && result <= max) return state;
+    }
+    throw new Error("No seed lands there");
+  }
+
+  /** Zoe's turn, stuck in the Entrance Hall with the others after failing the draw's roll. */
+  const stuck = (setUp: (s: GameState) => void = () => undefined) => {
+    const state = testGame();
+    state.explorers[0].cards.push("webs");
+    state.cardMarks.webs = { failed: { value: 1, lasts: "holder" } };
+    setUp(state);
+    return state;
+  };
+
+  it("on 4+ you break free: gain 1 Might and discard it", () => {
+    const state = landing(4, 8);
+    expect(state.explorers[0].clips.might).toBe(4);
+    expect(state.decks.event.discard).toContain("webs");
+  });
+
+  it("on 0-3 you're stuck: you keep it, the roll was your first attempt, and your turn is over", () => {
+    const state = landing(0, 3);
+    expect(state.explorers[0].cards).toContain("webs");
+    expect(state.cardMarks.webs?.failed.value).toBe(1);
+    expect(state.turn?.seat).toBe(1);
+  });
+
+  it("while stuck you can do nothing but try to break free, once a turn", () => {
+    const state = stuck((s) => s.explorers[0].cards.push("axe"));
+    expect(labels(state)).toEqual([FREE, "End your turn"]);
+  });
+
+  it("another explorer in your room may try on their turn; 4+ frees you without the Might", () => {
+    let state = stuck((s) => s.explorers[1].cards.push("angel-feather"));
+    state = choose(state, "End your turn");
+    state = choose(choose(state, FREE), "the result is 5");
+    expect(state.explorers[0].cards).not.toContain("webs");
+    expect(state.explorers[0].clips.might).toBe(3);
+    expect(state.decks.event.discard).toContain("webs");
+  });
+
+  it("anyone who fails can't move for the rest of that turn", () => {
+    // Ox also holds the Axe, so his turn doesn't end by itself.
+    let state = stuck((s) => s.explorers[1].cards.push("angel-feather", "axe"));
+    state = choose(state, "End your turn");
+    state = choose(choose(state, FREE), "the result is 3");
+    expect(state.cardMarks.webs?.failed.value).toBe(2);
+    expect(state.turn?.seat).toBe(1);
+    expect(labels(state).some((l) => l.startsWith("Move"))).toBe(false);
+  });
+
+  it("after 3 failed attempts you break free on your next turn and take it normally", () => {
+    let state = stuck((s) => s.explorers[1].cards.push("angel-feather"));
+    state = choose(state, "End your turn");
+    // Ox fails, and with nothing left to do his turn ends.
+    state = choose(choose(state, FREE), "the result is 0");
+    expect(state.turn?.seat).toBe(2);
+    // Father Rhinehardt fails too: the third attempt. Zoe's turn comes.
+    state = firstFailure(state);
+    expect(state.turn?.seat).toBe(0);
+    expect(state.explorers[0].cards).not.toContain("webs");
+    expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
+  });
+
+  function firstFailure(state: GameState): GameState {
+    for (const seed of SEEDS) {
+      const next = choose({ ...state, seed }, FREE);
+      if (rolls(next)[0].result < 4) return next;
+    }
+    throw new Error("No seed fails");
+  }
+});

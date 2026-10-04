@@ -1,6 +1,8 @@
+import { attackWith } from "../../engine/combat";
 import {
   cardFlag,
   chooseOne,
+  damage,
   defineStep,
   discardCard,
   drawCard,
@@ -11,6 +13,8 @@ import {
   markCard,
   relocate,
   roll,
+  steal,
+  stealable,
   table,
   type Option,
 } from "../../engine/effects";
@@ -18,6 +22,7 @@ import {
   explorerAt,
   MENTAL,
   PHYSICAL,
+  placeOf,
   together,
   TRAITS,
 } from "../../engine/explorers";
@@ -31,7 +36,15 @@ import {
   type Reaction,
   type Source,
 } from "../../engine/sources";
-import type { Explorer, GameState, RuleRef, Step, Trait } from "../../types";
+import type { Engine } from "../../engine/step-loop";
+import type {
+  Explorer,
+  GameState,
+  Place,
+  RuleRef,
+  Step,
+  Trait,
+} from "../../types";
 import { CATALOG } from "..";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
@@ -52,6 +65,38 @@ function discardAfterUse(id: string): Reaction {
     steps: (_state, _event, source) =>
       source.holder === null ? [] : [discardCard(source.holder, id)],
   };
+}
+
+/** The places the Dynamite can be thrown into: through a connecting door
+ *  into an adjacent room. */
+function dynamiteTargets(
+  engine: Engine,
+  state: GameState,
+  seat: number,
+): Place[] {
+  const from = placeOf(state, seat);
+  const beside = askSet(engine, state, "adjacency", { room: from.room });
+  return askSet(engine, state, "connections", {
+    mover: { kind: "explorer", seat },
+    from,
+  }).filter((place) => beside.includes(place.room));
+}
+
+/** What the Pickpocket's Gloves can take: anything an explorer in your room
+ *  could lose to a steal. */
+function glovesTakes(
+  engine: Engine,
+  state: GameState,
+  seat: number,
+): { from: number; item: string }[] {
+  const you = explorerAt(state, seat);
+  return state.explorers
+    .filter((e) => e.seat !== seat && together(e, you))
+    .flatMap((e) =>
+      e.cards
+        .filter((c) => stealable(engine, state, c))
+        .map((item) => ({ from: e.seat, item })),
+    );
 }
 
 /** The heroes, once the haunt gives the explorers sides. */
@@ -215,6 +260,7 @@ export const ITEMS: BehaviourGroup = {
       rollOptions: [
         {
           timing: "before",
+          offTurn: true,
           applies: () => true,
           effect: { kind: "name", min: 0, max: 8 },
         },
@@ -232,6 +278,8 @@ export const ITEMS: BehaviourGroup = {
         },
       ],
     },
+
+    axe: { modifiers: attackWith("axe", "might", 1) },
 
     bell: {
       onGain: (_state, seat) => [gain(seat, "sanity", 1, card("bell"), "bell")],
@@ -292,6 +340,18 @@ export const ITEMS: BehaviourGroup = {
           );
         },
       },
+    },
+
+    "blood-dagger": {
+      modifiers: attackWith("blood-dagger", "might", 3),
+      beforeAttack: (_state, seat, go) => [
+        gain(seat, "speed", -1, card("blood-dagger")),
+        go,
+      ],
+      onLose: (_state, seat, destination) =>
+        destination.to === "explorer" && destination.by === "stolen"
+          ? [damage(seat, "physical", { dice: 2 }, card("blood-dagger"))]
+          : [],
     },
 
     bottle: {
@@ -495,6 +555,66 @@ export const ITEMS: BehaviourGroup = {
       },
     },
 
+    dynamite: {
+      actions: {
+        throw: {
+          label:
+            "Throw the Dynamite into an adjacent room, instead of attacking",
+          available: (state, seat, _source, engine) =>
+            state.status === "haunt" &&
+            state.turn?.attacked === false &&
+            dynamiteTargets(engine, state, seat).length > 0,
+          steps: (_state, seat) => [local("dynamite", "aim", { seat })],
+        },
+      },
+      steps: {
+        aim: defineStep<{ seat: number }>((state, p, ctx) => {
+          const rule = card("dynamite");
+          if (state.turn) state.turn.attacked = true;
+          ctx.push(
+            chooseOne(
+              p.seat,
+              dynamiteTargets(ctx.engine, state, p.seat).map((place) => ({
+                label: `Throw the Dynamite into the ${roomName(place.room)}`,
+                steps: [local("dynamite", "blast", place)],
+              })),
+              rule,
+            ),
+            discardCard(p.seat, "dynamite"),
+          );
+        }),
+        // Monsters join the blast once the haunt brings them.
+        blast: defineStep<Place>((state, place, ctx) => {
+          const rule = card("dynamite");
+          ctx.push(
+            ...state.explorers
+              .filter((e) => {
+                const at = placeOf(state, e.seat);
+                return (
+                  at.room === place.room &&
+                  (place.side === null || at.side === place.side)
+                );
+              })
+              .map((e) =>
+                roll(
+                  e.seat,
+                  { kind: "trait", trait: "speed" },
+                  rule,
+                  table([
+                    { min: 5, max: null, steps: [] },
+                    {
+                      min: 0,
+                      max: 4,
+                      steps: [damage(e.seat, "physical", { points: 4 }, rule)],
+                    },
+                  ]),
+                ),
+              ),
+          );
+        }),
+      },
+    },
+
     "healing-salve": restorer(
       "healing-salve",
       "Apply the Healing Salve",
@@ -505,9 +625,11 @@ export const ITEMS: BehaviourGroup = {
       rollOptions: [
         {
           timing: "before",
-          // Combat rolls join these once the engine has combat.
+          // Defence rolls too: it isn't a weapon (the card's resolution).
+          offTurn: true,
           applies: (_state, _seat, roll) =>
             roll.spec.kind === "trait" ||
+            roll.spec.kind === "attack" ||
             (roll.rule.source === "card" &&
               CATALOG.cards[roll.rule.card].type === "event"),
           effect: { kind: "dice", amount: 2 },
@@ -534,6 +656,7 @@ export const ITEMS: BehaviourGroup = {
       rollOptions: [
         {
           timing: "after",
+          offTurn: true,
           applies: () => true,
           effect: { kind: "reroll", max: null },
         },
@@ -679,6 +802,39 @@ export const ITEMS: BehaviourGroup = {
       },
     },
 
+    "pickpokets-gloves": {
+      actions: {
+        take: {
+          label:
+            "Discard the Pickpocket's Gloves to take an item from an explorer in your room",
+          available: (state, seat, _source, engine) =>
+            glovesTakes(engine, state, seat).length > 0,
+          steps: (_state, seat) => [
+            local("pickpokets-gloves", "take", { seat }),
+          ],
+        },
+      },
+      steps: {
+        // Taking is stealing without an attack (the card's project ruling).
+        take: defineStep<{ seat: number }>((state, p, ctx) => {
+          const rule = card("pickpokets-gloves");
+          ctx.push(
+            chooseOne(
+              p.seat,
+              glovesTakes(ctx.engine, state, p.seat).map(({ from, item }) => ({
+                label: `Take ${explorerName(explorerAt(state, from))}'s ${CATALOG.cards[item].name}`,
+                steps: [
+                  discardCard(p.seat, "pickpokets-gloves"),
+                  steal(from, p.seat, item, rule),
+                ],
+              })),
+              rule,
+            ),
+          );
+        }),
+      },
+    },
+
     "puzzle-box": {
       actions: {
         open: {
@@ -714,10 +870,50 @@ export const ITEMS: BehaviourGroup = {
       rollOptions: [
         {
           timing: "after",
-          applies: (state, seat) => state.turn?.seat === seat,
+          applies: () => true,
           effect: { kind: "reroll", max: 1 },
         },
       ],
+    },
+
+    revolver: { modifiers: attackWith("revolver", "speed", 1) },
+
+    "sacrificial-dagger": {
+      modifiers: attackWith("sacrificial-dagger", "might", 3),
+      beforeAttack: (_state, seat, go) => {
+        const rule = card("sacrificial-dagger");
+        return [
+          roll(
+            seat,
+            { kind: "trait", trait: "knowledge" },
+            rule,
+            table([
+              { min: 6, max: null, steps: [go] },
+              {
+                min: 3,
+                max: 5,
+                steps: [
+                  chooseOne(
+                    seat,
+                    MENTAL.map((t) => ({
+                      label: `Lose 1 ${capitalised(t)}`,
+                      steps: [gain(seat, t, -1, rule)],
+                    })),
+                    rule,
+                  ),
+                  go,
+                ],
+              },
+              // The dagger twists in your hand, and the attack is off.
+              {
+                min: 0,
+                max: 2,
+                steps: [damage(seat, "physical", { dice: 2 }, rule)],
+              },
+            ]),
+          ),
+        ];
+      },
     },
 
     "smelling-salts": restorer("smelling-salts", "Use the Smelling Salts", [

@@ -38,7 +38,12 @@ import {
   takeFromPile,
 } from "./effects";
 import { askNumber, askPermission, askSet } from "./questions";
-import { atSource, liveSources, type Source } from "./sources";
+import {
+  atSource,
+  liveSources,
+  type Source,
+  type SourceAction,
+} from "./sources";
 import { emptyState } from "./state";
 import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
 import {
@@ -142,24 +147,39 @@ function doorwayPlacements(
   return bestPlacements(engine.catalog, state.board, tile, spot, [back]);
 }
 
+/** Whether a source's action is offered to this explorer: a card's to its
+ *  holder while the card is unused this turn, or to anyone with its holder
+ *  when it says so; a room's or token's to an explorer there. */
+function offeredHere(
+  state: GameState,
+  seat: number,
+  source: Source,
+  definition: SourceAction,
+): boolean {
+  const explorer = explorerAt(state, seat);
+  if (source.kind !== "card") return atSource(source, explorer.room);
+  if (source.holder === null) return false;
+  if (definition.offeredTo === "room")
+    return together(explorerAt(state, source.holder), explorer);
+  return source.holder === seat && !isHandled(state, source.id);
+}
+
 function cardActions(
   engine: Engine,
   state: GameState,
   seat: number,
-): { source: Source; action: string }[] {
-  const room = explorerAt(state, seat).room;
-  const result: { source: Source; action: string }[] = [];
+): { source: Source; action: string; definition: SourceAction }[] {
+  const result: { source: Source; action: string; definition: SourceAction }[] =
+    [];
   for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
-    const here =
-      source.kind === "card"
-        ? source.holder === seat && !isHandled(state, source.id)
-        : atSource(source, room);
-    if (!here) continue;
     for (const [action, definition] of Object.entries(
       behaviour.actions ?? {},
     )) {
-      if (definition.available(state, seat, source, engine))
-        result.push({ source, action });
+      if (
+        offeredHere(state, seat, source, definition) &&
+        definition.available(state, seat, source, engine)
+      )
+        result.push({ source, action, definition });
     }
   }
   return result;
@@ -203,7 +223,20 @@ function turnCandidates(
   seat: number,
 ): TurnChoice[] {
   const end: TurnChoice = { act: "end" };
-  if (!askPermission(engine, state, "canAct", { seat }).allowed) return [end];
+  if (!askPermission(engine, state, "canAct", { seat }).allowed)
+    return [
+      ...cardActions(engine, state, seat)
+        .filter(({ definition }) => definition.escape === true)
+        .map(
+          ({ source, action }): TurnChoice => ({
+            act: "action",
+            source: source.kind,
+            id: source.id,
+            action,
+          }),
+        ),
+      end,
+    ];
   const explorer = explorerAt(state, seat);
   const choices: TurnChoice[] = [];
   for (const to of moves(engine, state, seat))
@@ -313,13 +346,10 @@ function takeTurnChoice(
           a.action === choice.action,
       );
       if (!found) return "That action isn't available";
-      const behaviour = liveSources(engine.behaviours, state).find(
-        (s) => s.source.kind === choice.source && s.source.id === choice.id,
-      )?.behaviour;
-      const definition = behaviour?.actions?.[choice.action];
-      if (!definition) return "That action isn't available";
-      if (found.source.kind === "card") handle(state, found.source.id);
-      return definition.steps(state, seat, found.source);
+      const { source, definition } = found;
+      if (source.kind === "card" && definition.offeredTo !== "room")
+        handle(state, source.id);
+      return definition.steps(state, seat, source);
     }
     case "trade": {
       if (turn.traded) return "You have already traded this turn";
@@ -468,6 +498,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       dropRoom: null,
       pickupRoom: null,
       traded: false,
+      attacked: false,
       over: false,
       omens: [],
     };

@@ -25,9 +25,25 @@ describe("migrate", () => {
       gameId: "g",
       ongoing: [],
       cardMarks: {},
-      turn: { seat: 0, moved: 1, traded: false, over: false },
+      turn: { seat: 0, moved: 1, traded: false, over: false, attacked: false },
     });
     expect(migrate({ format: 1, turn: null })).toMatchObject({ turn: null });
+  });
+
+  it("upgrades a format 2 state: the turn's attack hasn't been made", () => {
+    const saved = {
+      format: 2,
+      gameId: "g",
+      cardMarks: {},
+      turn: { seat: 1, moved: 0, traded: true, over: false },
+    };
+    expect(migrate(saved)).toEqual({
+      format: STATE_FORMAT,
+      gameId: "g",
+      cardMarks: {},
+      turn: { seat: 1, moved: 0, traded: true, over: false, attacked: false },
+    });
+    expect(migrate({ format: 2, turn: null })).toMatchObject({ turn: null });
   });
 
   it("refuses a state with no format number", () => {

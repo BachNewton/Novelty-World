@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { attack } from "../../engine/combat";
 import { damage, discardCard } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
@@ -239,5 +240,74 @@ describe("Skull (cards/omens.md)", () => {
       damage: "physical",
       amount: 1,
     });
+  });
+});
+
+/** Starts Zoe's attack on Ox in the middle of her turn. */
+function attackOx(state: GameState): GameState {
+  return start(ENGINE, { ...state, pending: null }, [
+    attack({ kind: "explorer", seat: 0 }, 1, { source: "rulebook", page: 13 }),
+  ]);
+}
+
+function rollsMade(state: GameState): { seat: number; dice: number }[] {
+  return state.lastEvents
+    .filter((e) => e.type === "rolled")
+    .map((e) => {
+      const d = e.data as { seat: number; dice: number[] };
+      return { seat: d.seat, dice: d.dice.length };
+    });
+}
+
+describe("Bite (cards/omens.md)", () => {
+  it("when drawn, the player on your right makes a Might 4 attack against you, and you defend with your Might", () => {
+    const state = drawOmen("bite");
+    // Father Rhinehardt sits on Zoe's right; Zoe's Might is 3.
+    expect(rollsMade(state)).toEqual([
+      { seat: 2, dice: 4 },
+      { seat: 0, dice: 3 },
+    ]);
+    expect(state.explorers[0].cards).toContain("bite");
+  });
+
+  it("can't be dropped, traded or stolen", () => {
+    expect(ENGINE.catalog.cards.bite.transfer).toEqual({
+      trade: false,
+      drop: false,
+      steal: false,
+    });
+  });
+});
+
+describe("Ring (cards/omens.md)", () => {
+  it("attacks with Sanity instead of Might; the opponent defends with Sanity, and the damage is mental", () => {
+    const state = testGame();
+    state.explorers[0].cards.push("ring");
+    let next = attackOx(state);
+    expect(labels(next)).toEqual([
+      "Attack with Might",
+      "Attack with Sanity, using the Ring",
+    ]);
+    next = choose(next, "using the Ring");
+    // Zoe's Sanity is 5, Ox's 3.
+    expect(rollsMade(next)).toEqual([
+      { seat: 0, dice: 5 },
+      { seat: 1, dice: 3 },
+    ]);
+    const outcome = next.lastEvents.find((e) => e.type === "attack-outcome")
+      ?.data as { damage: { kind: string } | null };
+    if (outcome.damage) expect(outcome.damage.kind).toBe("mental");
+  });
+});
+
+describe("Spear (cards/omens.md)", () => {
+  it("rolls 2 extra dice on a Might attack made with it", () => {
+    const state = testGame();
+    state.explorers[0].cards.push("spear");
+    const next = choose(attackOx(state), "using the Spear");
+    expect(rollsMade(next)).toEqual([
+      { seat: 0, dice: 5 },
+      { seat: 1, dice: 5 },
+    ]);
   });
 });

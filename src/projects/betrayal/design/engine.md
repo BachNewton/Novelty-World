@@ -137,7 +137,7 @@ Every question receives the whole state plus its subject, never a narrow argumen
 
 One attack shows how the questions chain:
 1. canAttack, attackReach and isOpponent build the target list.
-2. attackTrait picks the traits.
+2. attackModes picks the trait both sides roll and the card the attacker uses (a weapon, the Ring).
 3. dicePool sizes each side's roll, then the dice are rolled.
 4. rollResult adjusts the totals.
 5. combatOutcome turns the comparison into effects (damage, stun, steal, kill, grab, push, convert).
@@ -266,10 +266,11 @@ How they are kept in agreement:
 
 Every card, room and token with rules text has a **behaviour**, kept with the content (`data/behaviours/`) and keyed by its id. A behaviour can:
 - run steps when its card is drawn, gained or lost;
-- offer actions: on its holder's turn for a card, or to an explorer in its room for a room or token;
+- offer actions: on its holder's turn for a card, or to an explorer in its room for a room or token; a card may instead offer one to anyone with its holder, which they take without using the card (freeing the holder from the Webs), and an action that is the way out of what stops an explorer is offered even while they can't act;
 - react to events (a turn ending in this room, this card being used);
 - modify the answers to questions (section 5), which is how a passive card such as one that adds a die or stops movement works;
-- offer options around a roll its holder makes: something to add, extra dice or a number to use instead before the dice, or a reroll after;
+- offer options around a roll its holder makes: something to add, extra dice or a number to use instead before the dice, or a reroll after. Only on its holder's own turn, unless its text allows it on another's (a defence roll's Angel Feather): the roll's decision is then put to the holder, whoever's turn it is;
+- have a say when its holder attacks with it (the Sacrificial Dagger's roll first), which may call the attack off;
 - have a say before an explorer leaves its room (a room's roll to leave), which may keep them there;
 - let its holder take damage of one kind as the other before it is split;
 - for a room, make it a barrier room, split in two with one side by each door and crossed by a trait roll, or say which of its printed symbols a discoverer draws for, where its text gives some another meaning (the Vault's items are its contents);

@@ -172,8 +172,11 @@ describe("cards agree with content/cards/", () => {
         expect(card.transfer).toEqual({
           trade: !cant("traded"),
           drop: !cant("dropped"),
-          // A card that can't be traded can't be stolen either (rules.md, p. 13).
-          steal: !cant("stolen") && !cant("traded"),
+          // A card that can't be traded can't be stolen either (rules.md,
+          // p. 13), except the Blood Dagger, whose card says what happens
+          // when it is stolen (its official resolution).
+          steal:
+            !cant("stolen") && (!cant("traded") || card.id === "blood-dagger"),
         });
       }
     }

@@ -286,6 +286,10 @@ function rollOptions(
   timing: "before" | "after",
 ): { card: string; index: number; option: RollOption }[] {
   const result: { card: string; index: number; option: RollOption }[] = [];
+  // A card's attacker's dice are thrown by a player, but the roll is not
+  // theirs, so none of their cards act on it.
+  if (r.spec.kind === "attack" && r.spec.dice !== null) return result;
+  const ownTurn = state.turn?.seat === r.seat;
   for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
     if (
       source.kind !== "card" ||
@@ -297,6 +301,7 @@ function rollOptions(
     (behaviour.rollOptions ?? []).forEach((option, index) => {
       if (
         option.timing === timing &&
+        (ownTurn || option.offTurn === true) &&
         option.applies(state, r.seat, {
           spec: r.spec,
           rule: r.rule,
@@ -346,7 +351,8 @@ export function drawCard(seat: number, type: CardType, rule: RuleRef): Step {
 }
 
 /** How a card came to its holder. */
-export type GainedBy = "drawn" | "kept" | "picked-up" | "traded" | "given";
+export type GainedBy =
+  "drawn" | "kept" | "picked-up" | "traded" | "given" | "stolen";
 
 type GainCard = { seat: number; card: string; by: GainedBy; rule: RuleRef };
 
@@ -400,6 +406,21 @@ export function discardCard(seat: number, card: string): Step {
 /** Its holder puts a card back into its deck, and the deck is shuffled. */
 export function returnToDeck(seat: number, card: string, rule: RuleRef): Step {
   return loseCard(seat, card, { to: "deck" }, rule);
+}
+
+/** Whether an item or omen can be stolen now: its card allows it, and it
+ *  hasn't been used, traded, dropped or picked up this turn (p. 11). */
+export function stealable(engine: Engine, state: GameState, card: string): boolean {
+  return engine.catalog.cards[card].transfer.steal && !isHandled(state, card);
+}
+
+/** An explorer steals a card from another: stealing is that card's one
+ *  action this turn (p. 11). */
+export function steal(from: number, to: number, card: string, rule: RuleRef): Step {
+  return step<{ from: number; to: number; card: string; rule: RuleRef }>(
+    "steal",
+    { from, to, card, rule },
+  );
 }
 
 type MarkCard = {
@@ -821,7 +842,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       throw new Error(`Seat ${p.seat} doesn't hold ${p.card}`);
     // Worked out while the card is still held, so it can read the card's marks.
     const onLose =
-      ctx.engine.behaviours.cards[p.card]?.onLose?.(state, p.seat) ?? [];
+      ctx.engine.behaviours.cards[p.card]?.onLose?.(
+        state,
+        p.seat,
+        p.destination,
+      ) ?? [];
     explorer.cards = explorer.cards.filter((c) => c !== p.card);
     const deck = state.decks[ctx.catalog.cards[p.card].type];
     const where = p.destination;
@@ -854,6 +879,22 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         : []),
     );
   }),
+
+  steal: defineStep<{ from: number; to: number; card: string; rule: RuleRef }>(
+    (state, p, ctx) => {
+      if (!stealable(ctx.engine, state, p.card))
+        throw new Error(`${p.card} can't be stolen now`);
+      handle(state, p.card);
+      ctx.push(
+        loseCard(
+          p.from,
+          p.card,
+          { to: "explorer", seat: p.to, by: "stolen" },
+          p.rule,
+        ),
+      );
+    },
+  ),
 
   "mark-card": defineStep<MarkCard>((state, p, ctx) => {
     const marks = { ...state.cardMarks[p.card] };

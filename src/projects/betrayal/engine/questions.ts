@@ -1,4 +1,4 @@
-import type { Edge, GameState, Place, RuleRef } from "../types";
+import type { Edge, GameState, Place, RuleRef, Trait } from "../types";
 import {
   adjacent,
   connections,
@@ -7,7 +7,7 @@ import {
   placed,
   turn,
 } from "./board";
-import { traitValue } from "./explorers";
+import { PHYSICAL, together, explorerAt, traitValue } from "./explorers";
 import {
   LAYERS,
   liveSources,
@@ -38,6 +38,8 @@ export interface NumberQuestions {
 export interface PermissionQuestions {
   /** Whether an explorer may take any action on their turn. */
   canAct: { seat: number };
+  /** Whether an attacker may attack this explorer. */
+  canAttack: { attacker: number; defender: number };
   /** Whether an explorer may move from one room to another. */
   canMove: { seat: number; from: string; to: string };
 }
@@ -124,7 +126,70 @@ type SetModifier = {
   };
 }[keyof SetQuestions];
 
-export type Modifier = NumberModifier | PermissionModifier | SetModifier;
+/** What an attack is made with: the trait both sides roll, and the card the
+ *  attacker uses for it (a weapon, the Ring), if any. */
+export type AttackMode = {
+  trait: Trait;
+  card: string | null;
+};
+
+/** What an attack's comparison leads to. */
+export type CombatOutcome = {
+  /** Who lost, or null for a tie. */
+  loser: "attacker" | "defender" | null;
+  /** The damage the loser takes, if any. */
+  damage: { kind: "physical" | "mental"; points: number } | null;
+  /** Whether the attacker may steal an item instead of dealing the damage. */
+  steal: boolean;
+};
+
+export interface StructuredQuestions {
+  /** The ways an explorer may attack another. */
+  attackModes: {
+    question: { attacker: number; defender: number };
+    answer: AttackMode[];
+  };
+  /** What an attack's two results lead to. */
+  combatOutcome: {
+    question: {
+      attack: AttackSubject;
+      mode: AttackMode;
+      attackResult: number;
+      defenceResult: number;
+    };
+    answer: CombatOutcome;
+  };
+}
+
+/** Who attacks whom: an explorer, or an attacker a card stands in for. */
+export type AttackSubject = {
+  attacker: number | null;
+  defender: number;
+  rule: RuleRef;
+};
+
+type StructuredModifier = {
+  [Q in keyof StructuredQuestions]: {
+    question: Q;
+    when?: (
+      state: GameState,
+      subject: StructuredQuestions[Q]["question"],
+      source: Source,
+    ) => boolean;
+    /** Turns the answer so far into this source's answer. */
+    change: {
+      transform: (
+        state: GameState,
+        subject: StructuredQuestions[Q]["question"],
+        answer: StructuredQuestions[Q]["answer"],
+        source: Source,
+      ) => StructuredQuestions[Q]["answer"];
+    };
+  };
+}[keyof StructuredQuestions];
+
+export type Modifier =
+  NumberModifier | PermissionModifier | SetModifier | StructuredModifier;
 
 export interface Permission {
   allowed: boolean;
@@ -150,6 +215,11 @@ const NUMBER_BASE: {
         return roll.spec.count;
       case "haunt":
         return 6;
+      case "attack":
+        return (
+          roll.spec.dice ??
+          traitValue(engine.catalog, state, seat, roll.spec.trait)
+        );
     }
   },
   damageAmount: (_engine, _state, { amount }) => amount,
@@ -380,4 +450,84 @@ export function askSet<Q extends keyof SetQuestions>(
   return [...answer.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([, item]) => item);
+}
+
+const STRUCTURED_BASE: {
+  [Q in keyof StructuredQuestions]: (
+    engine: Engine,
+    state: GameState,
+    subject: StructuredQuestions[Q]["question"],
+  ) => StructuredQuestions[Q]["answer"];
+} = {
+  // All attacks use Might unless a card or ability says otherwise (p. 13).
+  attackModes: () => [{ trait: "might", card: null }],
+  // The higher result deals the difference as damage to the loser; a tie
+  // hurts no one. Sanity and Knowledge attacks deal mental damage (p. 13).
+  combatOutcome: (
+    _engine,
+    state,
+    { attack, mode, attackResult, defenceResult },
+  ) => {
+    const margin = attackResult - defenceResult;
+    if (margin === 0) return { loser: null, damage: null, steal: false };
+    const kind = PHYSICAL.includes(mode.trait) ? "physical" : "mental";
+    const defender = explorerAt(state, attack.defender);
+    // An attack on someone in another room is a distance attack: an
+    // attacker it beats takes no damage, and nothing can be stolen (p. 13).
+    const near =
+      attack.attacker !== null &&
+      together(explorerAt(state, attack.attacker), defender);
+    if (margin > 0)
+      return {
+        loser: "defender",
+        damage: { kind, points: margin },
+        steal: near && kind === "physical" && margin >= 2,
+      };
+    return {
+      loser: "attacker",
+      // Nor is an attacker a card stands in for damaged: it has no traits.
+      damage: near ? { kind, points: -margin } : null,
+      steal: false,
+    };
+  },
+};
+
+/** The base answer, then each layer's modifiers transforming it in layer order. */
+export function askStructured<Q extends keyof StructuredQuestions>(
+  engine: Engine,
+  state: GameState,
+  question: Q,
+  subject: StructuredQuestions[Q]["question"],
+): StructuredQuestions[Q]["answer"] {
+  type Answer = StructuredQuestions[Q]["answer"];
+  type Transform = (
+    s: GameState,
+    subject: unknown,
+    answer: Answer,
+    source: Source,
+  ) => Answer;
+  const changes: { layer: Layer; transform: Transform; source: Source }[] = [];
+  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+    for (const modifier of behaviour.modifiers ?? []) {
+      if (modifier.question !== question) continue;
+      // The modifier's own type ties `when` and its change to this question.
+      const when = modifier.when as
+        | ((s: GameState, subject: unknown, source: Source) => boolean)
+        | undefined;
+      if (when && !when(state, subject, source)) continue;
+      const change = modifier.change as { transform: Transform };
+      changes.push({
+        layer: source.layer,
+        transform: change.transform,
+        source,
+      });
+    }
+  }
+  let answer = STRUCTURED_BASE[question](engine, state, subject) as Answer;
+  for (const layer of LAYERS)
+    for (const { transform, source } of changes.filter(
+      (c) => c.layer === layer,
+    ))
+      answer = transform(state, subject, answer, source);
+  return answer;
 }

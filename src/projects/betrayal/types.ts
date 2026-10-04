@@ -261,6 +261,9 @@ export interface Turn {
   dropRoom: string | null;
   pickupRoom: string | null;
   traded: boolean;
+  /** The turn's one attack, after the haunt, has been made (p. 13), or
+   *  something used it instead (the Dynamite). */
+  attacked: boolean;
   /** Something ended the turn early: the turn ends at the next chance to act. */
   over: boolean;
   /** Omens drawn this turn, and the room each was drawn in, for the haunt roll. */

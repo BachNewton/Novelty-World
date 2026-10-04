@@ -6,7 +6,8 @@ const KEPT: Card["transfer"] = { trade: false, drop: false, steal: false };
 /** Cards whose text limits trading, dropping or stealing. Events are never items, so they can't move at all. */
 const RESTRICTED: Partial<Record<string, Card["transfer"]>> = {
   armor: { trade: true, drop: true, steal: false },
-  "blood-dagger": KEPT,
+  // It can be stolen, though it can't be traded (the card's resolution).
+  "blood-dagger": { trade: false, drop: false, steal: true },
   bite: KEPT,
   box: { trade: true, drop: true, steal: false },
   cat: KEPT,

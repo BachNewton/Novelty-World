@@ -10,6 +10,7 @@ import type {
   Trait,
 } from "../types";
 import { beyondWall, roomAt } from "./board";
+import type { CardDestination } from "./effects";
 import type { Engine, StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
 
@@ -43,10 +44,24 @@ export const LAYERS: readonly Layer[] = ["rulebook", "room", "card", "haunt"];
 export type RollSpec =
   | { kind: "trait"; trait: Trait }
   | { kind: "dice"; count: number }
-  | { kind: "haunt" };
+  | { kind: "haunt" }
+  /** One side's roll in an attack: not a trait roll, though it rolls a
+   *  trait (p. 13). `card` is what the attacker attacks with (a weapon, the
+   *  Ring). `dice` is set for an attacker a card stands in for ("a Might 4
+   *  attack"): a player throws its dice, but the roll isn't theirs. */
+  | {
+      kind: "attack";
+      trait: Trait;
+      role: "attacker" | "defender";
+      card: string | null;
+      dice: number | null;
+    };
 
 export interface RollOption {
   timing: "before" | "after";
+  /** It may be used on a roll its holder makes on another explorer's turn,
+   *  such as a defence roll. Other options are for its holder's own turn. */
+  offTurn?: boolean;
   /** Whether this option can act on this roll. */
   applies: (state: GameState, seat: number, roll: RollContext) => boolean;
   effect:
@@ -71,6 +86,13 @@ export interface RollContext {
 
 export interface SourceAction {
   label: string;
+  /** Who a card's action is offered to: its holder (the default), or any
+   *  explorer with the holder, who takes it without using the card (freeing
+   *  the holder from the Webs). */
+  offeredTo?: "holder" | "room";
+  /** Offered even while its explorer can't act, being the way out of what
+   *  stops them. */
+  escape?: boolean;
   /** Whether the seat may take it now. Being offered is not enough: the action must also apply. */
   available: (
     state: GameState,
@@ -92,8 +114,12 @@ export interface Behaviour {
   onDraw?: (state: GameState, seat: number) => Step[];
   /** When an explorer gets an item or omen, however: drawing, picking up, trading or stealing. */
   onGain?: (state: GameState, seat: number) => Step[];
-  /** When its holder loses it, however. */
-  onLose?: (state: GameState, seat: number) => Step[];
+  /** When its holder loses it, however, and where it goes. */
+  onLose?: (
+    state: GameState,
+    seat: number,
+    destination: CardDestination,
+  ) => Step[];
   /** Actions it offers on its holder's turn, or, for a room or token, to an explorer there. Using a card's action uses the card (p. 11). */
   actions?: Record<string, SourceAction>;
   reactions?: Reaction[];
@@ -109,6 +135,10 @@ export interface Behaviour {
     source: Source,
     go: Step,
   ) => Step[];
+  /** When its holder attacks with it: the steps to run before the dice (the
+   *  Sacrificial Dagger's roll). They continue the attack by running `go`,
+   *  or call it off by leaving it out. */
+  beforeAttack?: (state: GameState, seat: number, go: Step) => Step[];
   /** Its holder may take damage of the other kind as this kind instead (the Skull). */
   damageAs?: "physical" | "mental";
   /** A barrier room: split in two, one side by each door, crossed by this

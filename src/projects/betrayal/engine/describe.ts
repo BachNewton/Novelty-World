@@ -9,6 +9,7 @@ import type {
   RuleRef,
   Trait,
 } from "../types";
+import type { Attacker } from "./combat";
 import type { CardDestination, GainedBy } from "./effects";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
@@ -30,6 +31,10 @@ export function rollName(spec: RollSpec): string {
       return `${spec.count}-dice roll`;
     case "haunt":
       return "haunt roll";
+    case "attack":
+      return spec.dice === null
+        ? `${traitName(spec.trait)} ${spec.role === "attacker" ? "attack" : "defence"} roll`
+        : `${traitName(spec.trait)} ${spec.dice} attack roll`;
   }
 }
 
@@ -83,6 +88,8 @@ const STACK: Record<CardType, string> = {
 };
 
 const data = <T extends Json>(event: GameEvent): T => event.data as T;
+
+const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
 /** One event in plain language, or null for bookkeeping another event in the
  *  same write already tells (a drawn card's gain, a trade's two hand-overs). */
@@ -168,6 +175,7 @@ export function describeEvent(
         kept: `${who(d.seat)} keeps the ${words.card(d.card)}`,
         "picked-up": `${who(d.seat)} picks up the ${words.card(d.card)}`,
         given: `${who(d.seat)} is given the ${words.card(d.card)}`,
+        stolen: `${who(d.seat)} steals the ${words.card(d.card)}`,
       };
       const text = gained[d.by];
       return text === null ? null : sentence(text, d.card);
@@ -266,7 +274,47 @@ export function describeEvent(
         d.named === null
           ? `rolls ${d.result}${d.dice.length > 0 ? ` (dice ${d.dice.join(", ")}${d.bonus ? `, +${d.bonus}` : ""})` : ""}`
           : `names the result: ${d.result}`;
+      // A card's attacker's dice are thrown for it by a player.
+      if (d.spec.kind === "attack" && d.spec.dice !== null)
+        return sentence(
+          `${who(d.seat)} throws the dice for the ${rollName(d.spec)}: ${how}`,
+        );
       return sentence(`${who(d.seat)}'s ${rollName(d.spec)}: ${how}`);
+    }
+    case "attacked": {
+      const d = data<{ attacker: Attacker; defender: number }>(event);
+      return sentence(
+        d.attacker.kind === "explorer"
+          ? `${who(d.attacker.seat)} attacks ${who(d.defender)}`
+          : `${who(d.attacker.roller)} makes a ${traitName(d.attacker.trait)} ${d.attacker.dice} attack against ${who(d.defender)} on the card's behalf`,
+      );
+    }
+    case "attack-outcome": {
+      const d = data<{
+        attacker: number | null;
+        defender: number;
+        attackResult: number;
+        defenceResult: number;
+        loser: "attacker" | "defender" | null;
+        damage: { kind: string; points: number } | null;
+      }>(event);
+      const attacker = d.attacker === null ? "the attack" : who(d.attacker);
+      const defender = who(d.defender);
+      const score = (a: number, b: number) => `${a} to ${b}`;
+      if (d.loser === null)
+        return sentence(
+          `A tie, ${score(d.attackResult, d.defenceResult)}: no one is hurt`,
+        );
+      if (d.loser === "defender")
+        return sentence(
+          `${capital(attacker)} beats ${defender}, ${score(d.attackResult, d.defenceResult)}`,
+        );
+      const beaten = `${defender} beats ${attacker}, ${score(d.defenceResult, d.attackResult)}`;
+      return sentence(
+        d.damage === null && d.attacker !== null
+          ? `${beaten}, but ${attacker} attacked from another room and takes no damage`
+          : beaten,
+      );
     }
     case "deck-empty":
       return sentence(
@@ -422,6 +470,22 @@ export function describeDecision(
       const p = decision.params as { seat: number; spec: RollSpec };
       return ask(
         `${words.explorer(p.seat)}: use something before the ${rollName(p.spec)}?`,
+      );
+    }
+    case "attack-mode": {
+      const p = decision.params as { defender: number; attacker: Attacker };
+      const attacker =
+        p.attacker.kind === "explorer" ? p.attacker.seat : p.attacker.roller;
+      return ask(
+        `${words.explorer(attacker)}: how do you attack ${words.explorer(p.defender)}?`,
+      );
+    }
+    case "attack-steal": {
+      const p = decision.params as { defender: number; attacker: Attacker };
+      const attacker =
+        p.attacker.kind === "explorer" ? p.attacker.seat : p.attacker.roller;
+      return ask(
+        `${words.explorer(attacker)}: deal the damage, or steal an item from ${words.explorer(p.defender)} instead?`,
       );
     }
     case "roll-after": {

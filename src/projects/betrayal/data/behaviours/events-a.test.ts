@@ -23,6 +23,9 @@ const clip = (state: GameState, trait: Trait, seat = 0) =>
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
 
+const attacked = (events: GameEvent[]) =>
+  events.filter((e) => e.type === "attacked").map((e) => e.data);
+
 interface Draw {
   seed?: string;
   setUp?: (state: GameState) => void;
@@ -140,10 +143,44 @@ describe("Bloody Vision (cards/events.md)", () => {
     expect(pendingDecision(state).kind).toBe("turn");
   });
 
-  it("fails loudly on 0-1 with an explorer in reach, because the attack isn't built", () => {
-    const seed = landing(0, 1, draw).seed;
-    // The Ballroom shares a side with the Entrance Hall, where the others stand.
-    expect(() => drawEvent("bloody-vision", { seed })).toThrow(/needs combat/);
+  // The Ballroom shares a side with the Entrance Hall, where the others stand.
+  const inReach = (seed: string, setUp?: (s: GameState) => void) =>
+    drawEvent("bloody-vision", { seed, setUp });
+
+  it("on 0-1, you attack the explorer in reach with the lowest Might", () => {
+    const state = landing(0, 1, (seed) => inReach(seed));
+    // Father Rhinehardt's Might is 2, Ox's is 5.
+    expect(attacked(state.lastEvents)).toEqual([
+      { attacker: { kind: "explorer", seat: 0 }, defender: 2 },
+    ]);
+  });
+
+  it("you choose among explorers tied for the lowest Might", () => {
+    const tied = (s: GameState) => {
+      s.explorers[1].clips.might = 0;
+      s.explorers[2].clips.might = 3;
+    };
+    const state = landing(0, 1, (seed) => inReach(seed, tied));
+    // Both have Might 4.
+    expect(labels(state)).toEqual([
+      "Attack Ox Bellows",
+      "Attack Father Rhinehardt",
+    ]);
+    expect(attacked(choose(state, "Attack Ox Bellows").lastEvents)).toEqual([
+      { attacker: { kind: "explorer", seat: 0 }, defender: 1 },
+    ]);
+  });
+
+  it("an explorer in your own room counts too", () => {
+    const state = landing(0, 1, (seed) =>
+      inReach(seed, (s) => {
+        s.explorers[1].room = "ballroom";
+        s.explorers[2].room = "upper-landing";
+      }),
+    );
+    expect(attacked(state.lastEvents)).toEqual([
+      { attacker: { kind: "explorer", seat: 0 }, defender: 1 },
+    ]);
   });
 });
 
@@ -228,21 +265,126 @@ describe("Creepy Crawlies (cards/events.md)", () => {
   });
 });
 
+describe("Creepy Puppet (cards/events.md)", () => {
+  const play = (seed: string, setUp?: (s: GameState) => void) =>
+    drawEvent("creepy-puppet", { seed, setUp });
+  const outcome = (state: GameState) =>
+    state.lastEvents.find((e) => e.type === "attack-outcome")?.data as
+      { loser: string | null } | undefined;
+  const ox = (s: GameState) => s.explorers[1].cards.push("spear");
+
+  it("the player on your right makes a Might 4 attack against you", () => {
+    const state = play("test-seed");
+    expect(attacked(state.lastEvents)).toEqual([
+      {
+        attacker: { kind: "card", trait: "might", dice: 4, roller: 2 },
+        defender: 0,
+      },
+    ]);
+  });
+
+  it("if it deals you damage, the explorer with the Spear gains 2 Might", () => {
+    const hurt = firstSeed(
+      (seed) => play(seed, ox),
+      (s) => outcome(s)?.loser === "defender",
+    );
+    const { state } = settle(hurt);
+    expect(clip(state, "might", 1)).toBe(4);
+  });
+
+  it("not if it deals you none", () => {
+    const missed = firstSeed(
+      (seed) => play(seed, ox),
+      (s) => outcome(s)?.loser !== "defender",
+    );
+    expect(clip(missed, "might", 1)).toBe(2);
+  });
+
+  it("not if you have the Spear yourself", () => {
+    const hurt = firstSeed(
+      (seed) => play(seed, (s) => s.explorers[0].cards.push("spear")),
+      (s) => outcome(s)?.loser === "defender",
+    );
+    const { events } = settle(hurt);
+    expect(
+      events.filter(
+        (e) =>
+          e.type === "trait-changed" &&
+          (e.data as { spaces: number }).spaces > 0,
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("Debris (cards/events.md)", () => {
-  it("gains 1 Speed on 3+, and fails loudly on 0-2 because burying isn't built", () => {
-    const seen = new Set<string>();
-    for (const seed of SEEDS.slice(0, 40)) {
-      try {
-        const state = drawEvent("debris", { seed });
-        expect(rolls(state.lastEvents)[0].result).toBeGreaterThanOrEqual(3);
-        expect(clip(state, "speed")).toBe(4);
-        seen.add("gained");
-      } catch (error) {
-        expect(String(error)).toMatch(/Debris can't bury/);
-        seen.add("buried");
-      }
-    }
-    expect(seen).toEqual(new Set(["gained", "buried"]));
+  const draw = (seed: string) => drawEvent("debris", { seed });
+  const DIG = "Make a Might roll to dig out the buried explorer";
+
+  it("gains 1 Speed on 3+", () => {
+    const state = landing(3, 8, draw);
+    expect(clip(state, "speed")).toBe(4);
+    expect(state.decks.event.discard).toContain("debris");
+  });
+
+  it("buries you on 1-2, with 1 die of physical damage", () => {
+    const { state, events } = settle(landing(1, 2, draw));
+    expect(state.explorers[0].cards).toContain("debris");
+    expect(rolls(events)[1].spec).toEqual({ kind: "dice", count: 1 });
+  });
+
+  it("buries you on 0, with 2 dice of physical damage", () => {
+    const { state, events } = settle(landing(0, 0, draw));
+    expect(state.explorers[0].cards).toContain("debris");
+    expect(rolls(events)[1].spec).toEqual({ kind: "dice", count: 2 });
+  });
+
+  /** Zoe's turn, buried in the Entrance Hall with the others. */
+  const buried = (setUp: (s: GameState) => void = () => undefined) => {
+    const state = testGame();
+    state.explorers[0].cards.push("debris");
+    setUp(state);
+    return state;
+  };
+
+  it("while buried you can do nothing but try to dig yourself out, once a turn", () => {
+    const state = buried((s) => s.explorers[0].cards.push("axe"));
+    expect(labels(state)).toEqual([DIG, "End your turn"]);
+    // A failed attempt leaves only the end of the turn.
+    const failed = firstSeed(
+      (seed) => choose({ ...state, seed }, DIG),
+      (s) => rolls(s.lastEvents)[0].result < 4,
+    );
+    expect(failed.turn?.seat).toBe(1);
+    expect(failed.cardMarks.debris?.failed.value).toBe(1);
+  });
+
+  it("an explorer in your room may make the Might roll on their turn; 4+ frees you", () => {
+    let state = buried((s) => s.explorers[1].cards.push("angel-feather"));
+    state = choose(state, "End your turn");
+    expect(labels(state)).toContain(DIG);
+    state = choose(choose(state, DIG), "the result is 4");
+    expect(state.explorers[0].cards).not.toContain("debris");
+    expect(state.decks.event.discard).toContain("debris");
+    // Ox may still move: Debris doesn't stop a rescuer who fails, nor one who succeeds.
+    expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
+  });
+
+  it("an explorer elsewhere can't help", () => {
+    let state = buried((s) => (s.explorers[1].room = "upper-landing"));
+    state = choose(state, "End your turn");
+    expect(labels(state)).not.toContain(DIG);
+  });
+
+  it("after 3 failed attempts you break free on your next turn and take it normally", () => {
+    const state = endTurns(
+      buried((s) => {
+        s.cardMarks.debris = { failed: { value: 3, lasts: "holder" } };
+      }),
+      3,
+    );
+    expect(state.turn?.seat).toBe(0);
+    expect(state.explorers[0].cards).not.toContain("debris");
+    expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
   });
 });
 
@@ -355,6 +497,18 @@ describe("Footsteps (cards/events.md)", () => {
     const might = clip(state, "might", 1);
     state = choose(state, "Ox Bellows");
     expect(clip(state, "might", 1)).toBe(might + 1);
+  });
+
+  it("with no explorer reachable by any route, only you gain", () => {
+    const cutOff = (s: GameState) => {
+      placeTile(s, "crypt", "basement", 5, 5);
+      s.explorers[1].room = "crypt";
+      s.explorers[2].room = "crypt";
+    };
+    const state = landing(4, 4, (seed) => inChapel(seed, cutOff));
+    expect(clip(state, "might")).toBe(4);
+    expect(clip(state, "might", 1)).toBe(2);
+    expect(pendingDecision(state).kind).toBe("turn");
   });
 
   it("on 3, you gain 1 Might and the nearest explorer loses 1 Sanity", () => {
@@ -717,6 +871,25 @@ describe("Mists from the Walls (cards/events.md)", () => {
 });
 
 describe("Groundskeeper (cards/events.md)", () => {
+  it("on 0-3, the player on your right makes a Might 4 attack against you, and you defend with your Might", () => {
+    let state = drawEvent("groundskeeper", {
+      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+    });
+    state = choose(state, "the result is 3");
+    expect(attacked(state.lastEvents)).toEqual([
+      {
+        attacker: { kind: "card", trait: "might", dice: 4, roller: 2 },
+        defender: 0,
+      },
+    ]);
+    const [, attack, defence] = rolls(state.lastEvents);
+    expect(attack).toMatchObject({ seat: 2 });
+    expect(attack.dice).toHaveLength(4);
+    // Zoe's Might is 3.
+    expect(defence).toMatchObject({ seat: 0 });
+    expect(defence.dice).toHaveLength(3);
+  });
+
   it("makes a Knowledge roll; on 4+ you draw an item", () => {
     let state = drawEvent("groundskeeper", {
       setUp: (s) => s.explorers[0].cards.push("angel-feather"),

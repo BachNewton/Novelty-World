@@ -16,14 +16,21 @@ import {
   table,
   type TableRow,
 } from "../../engine/effects";
+import { attack, cardAttack } from "../../engine/combat";
 import {
   explorerAt,
   placeOf,
   together,
+  traitValue,
   TRAITS,
 } from "../../engine/explorers";
 import { distanceTo } from "../../engine/movement";
-import { askSet } from "../../engine/questions";
+import {
+  askNumber,
+  askPermission,
+  askSet,
+  type CombatOutcome,
+} from "../../engine/questions";
 import {
   eventData,
   local,
@@ -35,6 +42,7 @@ import type { StepHandler } from "../../engine/step-loop";
 import { drawRoomTile, enterNewRoom } from "../../engine/tiles";
 import type { CardType, GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
+import { trap } from "./trapped";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
 
@@ -221,19 +229,47 @@ export const EVENTS_A: BehaviourGroup = {
         ]),
       ],
       steps: {
+        // An explorer comes first, the one with the lowest Might (the card's
+        // project ruling).
         attack: defineStep<{ seat: number }>((state, p, ctx) => {
-          const room = explorerAt(state, p.seat).room;
-          const reach = [
-            room,
-            ...askSet(ctx.engine, state, "adjacency", { room }),
-          ];
-          const target = state.explorers.some(
-            (e) => e.seat !== p.seat && reach.includes(e.room),
+          const rule = card("bloody-vision");
+          const you = explorerAt(state, p.seat);
+          const adjacent = askSet(ctx.engine, state, "adjacency", {
+            room: you.room,
+          });
+          const targets = state.explorers.filter(
+            (e) =>
+              e.seat !== p.seat &&
+              (together(e, you) || adjacent.includes(e.room)) &&
+              askPermission(ctx.engine, state, "canAttack", {
+                attacker: p.seat,
+                defender: e.seat,
+              }).allowed,
           );
-          // Before the haunt there are no monsters, so an empty reach means no attack.
-          if (state.status === "exploring" && !target) return;
-          throw new Error(
-            "Bloody Vision's attack needs combat, which the engine doesn't have yet",
+          if (targets.length === 0) {
+            // Before the haunt there are no monsters, so no one in reach means no attack.
+            if (state.status === "exploring") return;
+            throw new Error(
+              "Bloody Vision's attack on a monster needs monsters, which come with the haunt",
+            );
+          }
+          const might = (seat: number) =>
+            traitValue(ctx.catalog, state, seat, "might");
+          const lowest = Math.min(...targets.map((e) => might(e.seat)));
+          const weakest = targets.filter((e) => might(e.seat) === lowest);
+          const attackOn = (seat: number) =>
+            attack({ kind: "explorer", seat: p.seat }, seat, rule);
+          ctx.push(
+            weakest.length === 1
+              ? attackOn(weakest[0].seat)
+              : chooseOne(
+                  p.seat,
+                  weakest.map((e) => ({
+                    label: `Attack ${explorerName(state, e.seat)}`,
+                    steps: [attackOn(e.seat)],
+                  })),
+                  rule,
+                ),
           );
         }),
       },
@@ -269,6 +305,43 @@ export const EVENTS_A: BehaviourGroup = {
       ],
     },
 
+    "creepy-puppet": {
+      onDraw: (state, seat) => [
+        cardAttack(
+          state,
+          seat,
+          "might",
+          4,
+          card("creepy-puppet"),
+          local("creepy-puppet", "spear", { seat }),
+        ),
+      ],
+      steps: {
+        // The Spear's holder gains only if the attack dealt the drawer
+        // damage; with no holder the gain lapses (the card's project ruling).
+        spear: defineStep<{ seat: number; outcome: CombatOutcome }>(
+          (state, p, ctx) => {
+            const rule = card("creepy-puppet");
+            const { loser, damage: dealt } = p.outcome;
+            const hurt =
+              loser === "defender" &&
+              dealt !== null &&
+              askNumber(ctx.engine, state, "damageAmount", {
+                seat: p.seat,
+                damage: dealt.kind,
+                amount: dealt.points,
+                rule,
+              }) > 0;
+            const spear = state.explorers.find((e) =>
+              e.cards.includes("spear"),
+            );
+            if (hurt && spear && spear.seat !== p.seat)
+              ctx.push(gain(spear.seat, "might", 2, rule));
+          },
+        ),
+      },
+    },
+
     "creepy-crawlies": {
       onDraw: (_state, seat) => {
         const rule = card("creepy-crawlies");
@@ -290,16 +363,27 @@ export const EVENTS_A: BehaviourGroup = {
             max: null,
             steps: [gain(seat, "speed", 1, card("debris"))],
           },
-          { min: 0, max: 2, steps: [local("debris", "buried")] },
+          {
+            min: 1,
+            max: 2,
+            steps: [
+              keepCard(seat, "debris"),
+              damage(seat, "physical", { dice: 1 }, card("debris")),
+            ],
+          },
+          {
+            min: 0,
+            max: 0,
+            steps: [
+              keepCard(seat, "debris"),
+              damage(seat, "physical", { dice: 2 }, card("debris")),
+            ],
+          },
         ]),
       ],
-      steps: {
-        buried: () => {
-          throw new Error(
-            "Debris can't bury yet: the engine can't offer a held card's action to other explorers, or count failed attempts",
-          );
-        },
-      },
+      // The Speed roll on drawing isn't an attempt to free you: those are the
+      // Might rolls (the card's resolution).
+      ...trap("debris", "Make a Might roll to dig out the buried explorer", () => []),
     },
 
     "disquieting-sounds": {
@@ -388,8 +472,9 @@ export const EVENTS_A: BehaviourGroup = {
               );
               return distance === null ? [] : [{ e, distance }];
             });
-            if (others.length === 0)
-              throw new Error("Footsteps found no explorer reachable by route");
+            // With no explorer reachable by any route, no one is nearest
+            // (the card's project ruling).
+            if (others.length === 0) return;
             const closest = Math.min(...others.map((o) => o.distance));
             ctx.push(
               chooseOne(
@@ -512,7 +597,9 @@ export const EVENTS_A: BehaviourGroup = {
               {
                 min: 0,
                 max: 3,
-                steps: [local("groundskeeper", "attack", { seat })],
+                steps: [
+                  cardAttack(state, seat, "might", 4, card("groundskeeper")),
+                ],
               },
             ]),
             {
@@ -520,13 +607,6 @@ export const EVENTS_A: BehaviourGroup = {
             },
           ),
         ];
-      },
-      steps: {
-        attack: defineStep(() => {
-          throw new Error(
-            "The Groundskeeper's attack needs combat, which the engine doesn't have yet",
-          );
-        }),
       },
     },
 

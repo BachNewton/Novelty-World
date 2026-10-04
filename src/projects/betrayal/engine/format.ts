@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 2;
+export const STATE_FORMAT = 3;
 
 /** Migrations by the format they upgrade from, each to the next format. */
 type Migration = (state: { [key: string]: Json }) => { [key: string]: Json };
@@ -16,6 +16,17 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
       turn:
         turn !== null && typeof turn === "object" && !Array.isArray(turn)
           ? { ...turn, over: false }
+          : null,
+    };
+  },
+  // Format 3 records whether the turn's attack has been made.
+  2: (state) => {
+    const turn = state.turn;
+    return {
+      ...state,
+      turn:
+        turn !== null && typeof turn === "object" && !Array.isArray(turn)
+          ? { ...turn, attacked: false }
           : null,
     };
   },
