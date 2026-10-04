@@ -395,6 +395,10 @@
 - You may attack a stunned monster if there is another benefit to doing so (for example, stealing an item from it, or killing it with a special item).
 - A stunned monster still rolls dice to defend, but if the attacking hero loses, the hero takes no damage.
 - In the same turn you may both take a haunt-specific action (as described in the haunt's rules) and attack.
+  > Note: the rulebook doesn't say in what order the two sides roll, or when each may use a card that changes their own roll (the Angel Feather, the Lucky Stone, the Idol).
+  > Resolution (project): the attacker rolls first, using any card that changes their roll, and the defender rolls second, knowing the attacker's result when deciding on theirs. The attacker has already committed to the attack, and the cards a defender may use on another player's turn are reactions by nature; a fixed order also avoids two players choosing in secret at once, which a turn-based game would otherwise have to hold as a hidden shared choice. Research: no ruling found.
+  > Note: the Creepy Puppet, the Groundskeeper and the Bite have "the player on your right" make "a Might 4 attack against you on behalf of" something. The rulebook doesn't say whether that player's own cards may change those dice, or what happens when you win.
+  > Resolution (project): the player on your right only throws the attack's 4 dice. The roll is the card's, not theirs, so none of their cards act on it, and nothing happens to them either way. If you win, no one takes damage: the attacker has no traits to damage. Play passes to the left (p. 23), so the player on your right is the one whose turn comes before yours. Research: no ruling found.
 
 ### Special Attacks (p. 13)
 
@@ -409,6 +413,8 @@
 - An item's or omen's card says if it cannot be traded (and so cannot be stolen).
 - Items and omens cannot be stolen with a distance attack.
 - Some haunts have special stealing rules.
+  > Note: the rule doesn't say whether a defender who wins by 2 or more may steal instead of dealing damage.
+  > Resolution (project): no. Only the attacker may steal: the rule speaks of "your attack" and of the "defeated opponent", and a defender who wins deals damage as normal (the 1st-edition FAQ ruling under "Make an Attack"). Research: no ruling found.
 
 ## On Your Turn (continued, p. 14)
 

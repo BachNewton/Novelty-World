@@ -64,6 +64,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: the 0–1 result does not say what happens when several monsters (and no explorer) qualify, or whether a monster can be chosen over an explorer; it only says to prefer the lowest-Might explorer "if possible".
 > Resolution (project): an explorer comes first. If any explorer is in your room or an adjacent one, you must attack the one with the lowest Might, choosing among ties; only when no explorer is in reach do you attack a monster, of your choice. "If possible, pick the explorer" reads as a preference for explorers, and the card's horror is turning on a companion. One BGG reply reads it as a free choice between explorers and monsters (https://boardgamegeek.com/thread/2133898); it is a single post, not a consensus. Earlier research: no ruling found on choosing among monsters or between a monster and an explorer. The designer did confirm that the card overrides the normal rules, giving a one-time attack into an adjacent room. Source: https://boardgamegeek.com/thread/74215
 
+> Note: the card doesn't say how its attack works on an explorer in an adjacent room rather than your own, or whether you may use a weapon in it.
+> Resolution (project): it is an ordinary attack that you make, so you may use a weapon or the Ring as in any attack, but an attack on an explorer in another room follows the distance-attack rules (rules p. 13): if they beat you, you take no damage, and you can't steal from them. The rulebook calls an attack on someone in another room a distance attack, and the designer's ruling that the card gives "a one-time attack into an adjacent room" adds reach, not a new kind of attack. Research: no ruling found.
+
 ## Burial Mound
 - Deck: event
 - Set: Widow's Walk
@@ -224,6 +227,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: "Nearest explorer" has no tie-break rule.
 > Resolution (project): nearest means the fewest rooms entered along the route (movement penalties don't count), and when explorers tie, you choose among them. Every haunt that breaks a nearest or closest tie gives the choice to the player choosing (10, 29, 66, the star haunt), and haunts 11 and 28 measure closest along a route. No card-specific source exists at any level. Earlier research: no ruling found.
 
+> Note: the card doesn't say what happens when no other explorer can be reached by any route (all of them cut off in a part of the house there is no way into from yours).
+> Resolution (project): then no explorer is nearest, and the part of the result that names them does nothing; you still gain your 1 Might. Nearness is measured along routes (the ruling above), so an explorer with no route to them is not near at all, and the card's own gain doesn't depend on anyone else's. Research: the case isn't discussed anywhere.
+
 ## Funeral
 - Deck: event
 - Set: base
@@ -342,6 +348,9 @@ Drawn when an explorer discovers a room with an event symbol.
 
 > Note: Option 2 says "one future die roll of your choice that you attempt", which leaves open whether a roll someone else makes against you (for example, an attack's opposing roll) can be replaced.
 > Resolution (official): only a roll you make yourself can be replaced. The 1st-edition FAQ ruled this, and the 2nd-edition card's "that you attempt" wording carries it. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
+> Note: the card doesn't say whether the recorded number can replace a roll you make on another player's turn, such as a defence roll.
+> Resolution (official): it can't. The Angel Feather, the Lucky Stone and the Skull omen are the only cards a player may use outside their own turn (the 1st-edition FAQ, quoted under the Angel Feather). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Jonah's Turn
 - Deck: event
@@ -796,6 +805,9 @@ Drawn when an explorer discovers a room with an event symbol.
 > Note: the card doesn't say whether a rescuer must be in your room, or whether your own initial failed roll counts toward the 3 unsuccessful attempts.
 > Resolution (community): a rescuer must be in your room. Two independent BGG answers in separate threads say so and none disagrees, though one later poster asked again without getting an answer, so the support is thin. Source: https://boardgamegeek.com/thread/598908, https://boardgamegeek.com/thread/1107717
 > Resolution (official, implied): the Might roll you make on drawing the card counts as your first attempt, so 2 more failed attempts free you. The 1st-edition FAQ answers a question that counts the draw roll as "the first attempt to escape" and later rolls as "the second or third attempt", without correcting it. The question concerns the 1st-edition card; the 2nd edition keeps the same rule. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+
+> Note: "Once during an explorer's turn, any explorer may make a Might roll to free you" doesn't say whose turn the attempt is made on.
+> Resolution (project): as with the Debris, each explorer may try once during their own turn, and you may try on yours. An explorer acts only on their own turn (rules p. 6), and the Debris, whose mechanism is the same, says so in as many words. Research: no ruling found.
 
 ## What The . . . ?
 - Deck: event

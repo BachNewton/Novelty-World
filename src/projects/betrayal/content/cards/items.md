@@ -231,6 +231,9 @@ Drawn when an explorer discovers a room with an item symbol.
 > Note: The card doesn't say what physical damage does to a monster, which normally isn't damaged but stunned or killed when defeated.
 > Resolution (official): A monster that fails the roll is treated as if it had been defeated in physical combat, so it is stunned or killed as its haunt says. A monster that can't be attacked physically, such as a ghost, or that starts the haunt without a Might or a Speed, is unaffected. The traitor can't ignore the Dynamite, since it is an item, not an event. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: the card says you throw it "instead of attacking", and no one may attack before the haunt (rules p. 13). It doesn't say whether it can be thrown before the haunt.
+> Resolution (project): it can't. Throwing it takes the place of your one attack of the turn, so it can be thrown only when you could attack instead, and it uses up that attack. Research: no ruling found.
+
 ## Effigy
 - Deck: item
 - Set: Widow's Walk

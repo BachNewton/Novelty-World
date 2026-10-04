@@ -198,6 +198,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   - When you attack an opponent that has a Sanity trait, you may attack with Sanity instead of Might. The opponent then defends with Sanity, and the damage is mental instead of physical.
   - Make a haunt roll now.
 
+> Note: the card speaks of attacking "an opponent", and before the haunt no one is anyone's opponent; yet a card can make you attack before the haunt (the Bloody Vision).
+> Resolution (project): the explorer you attack is your opponent for that attack, so the Ring can be used in any attack you make, before the haunt too. The card's limit is the opponent's Sanity trait, not their side. Research: no ruling found.
+
 ## Rope
 - Deck: omen
 - Set: Widow's Walk
