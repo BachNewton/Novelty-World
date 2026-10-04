@@ -208,6 +208,16 @@ function slideRoll(seat: number, room: string, draws: boolean): Step {
 /** Event cards A of the base game, from content/cards/events.md. */
 export const EVENTS_A: BehaviourGroup = {
   cards: {
+    "a-moment-of-hope": {
+      onDraw: (state, seat) => [
+        placeToken(
+          "blessing",
+          explorerAt(state, seat).room,
+          card("a-moment-of-hope"),
+        ),
+      ],
+    },
+
     "bloody-vision": {
       onDraw: (_state, seat) => [
         traitRoll(seat, "sanity", "bloody-vision", [
@@ -965,6 +975,27 @@ export const EVENTS_A: BehaviourGroup = {
   },
 
   tokens: {
+    // Before the haunt every explorer counts as a hero (project ruling,
+    // cards/events.md); attacks aren't trait rolls, so they get no die.
+    blessing: {
+      modifiers: [
+        {
+          question: "dicePool",
+          when: (state, { seat, roll: r }, source) => {
+            if (state.status !== "exploring")
+              throw new Error(
+                "The Blessing is for heroes only, and the haunt doesn't record sides yet",
+              );
+            return (
+              r.spec.kind === "trait" &&
+              explorerAt(state, seat).room === source.room
+            );
+          },
+          change: { add: 1 },
+        },
+      ],
+    },
+
     slide: {
       actions: {
         use: {

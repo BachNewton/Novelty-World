@@ -124,6 +124,45 @@ function endTurns(start: GameState, count: number): GameState {
 
 // Zoe starts with Speed 4, Might 3, Sanity 5 and Knowledge 3 (clips 3, 3, 2, 2).
 
+describe("A Moment of Hope (cards/events.md)", () => {
+  const pool = (state: GameState, seat: number, kind: "trait" | "attack") =>
+    askNumber(ENGINE, state, "dicePool", {
+      seat,
+      roll: {
+        spec:
+          kind === "trait"
+            ? { kind: "trait", trait: "speed" }
+            : {
+                kind: "attack",
+                trait: "might",
+                role: "attacker",
+                card: null,
+                dice: null,
+              },
+        rule: { source: "card", card: "angry-being" },
+        extraDice: 0,
+      },
+    });
+
+  it("puts the Blessing in the room, and an explorer there rolls 1 extra die on trait rolls before the haunt", () => {
+    const state = drawEvent("a-moment-of-hope");
+    expect(state.tokens).toContainEqual({
+      token: "blessing",
+      room: "ballroom",
+    });
+    // Zoe's Speed is 4; Ox, in the Entrance Hall, gets nothing.
+    expect(pool(state, 0, "trait")).toBe(5);
+    expect(pool(state, 1, "trait")).toBe(pool(testGame(), 1, "trait"));
+  });
+
+  it("adds no die to an attack, and never takes a roll past 8 dice", () => {
+    const state = drawEvent("a-moment-of-hope");
+    expect(pool(state, 0, "attack")).toBe(pool(testGame(), 0, "attack"));
+    state.explorers[0].clips.speed = 7; // Zoe's highest Speed is 8.
+    expect(pool(state, 0, "trait")).toBe(8);
+  });
+});
+
 describe("Bloody Vision (cards/events.md)", () => {
   const alone = (s: GameState) => {
     s.explorers[1].room = "upper-landing";
