@@ -155,8 +155,8 @@ export function MusicLab() {
           <p className="text-sm text-text-secondary">
             Short themes to listen to and pick from; none of them plays in the game yet. Each is made with ZzFXM, a tiny
             tracker built on ZzFX, the library behind the sound effects, so it is code, not an audio file. Most are
-            original tunes borrowing the <em>style</em> of the arcade Frogger and Game Boy Tetris music (listed on each
-            card), never their melodies; the two Frog Polkkas arrange the Finnish folk tune Ievan Polkka, as Tetris did a
+            original tunes borrowing the <em>style</em> of the arcade Frogger and Game Boy Tetris music, or of Grant Kirkhope (listed
+            on each card), never their melodies; the two Frog Polkkas arrange the Finnish folk tune Ievan Polkka, as Tetris did a
             Russian one, in the sound of its Loituma and Hatsune Miku recordings. A theme renders the first time it plays. &ldquo;Copy for the tracker&rdquo; copies the song
             for the ZzFXM tracker, which plays it a little brighter, since it has no low-pass filter. Edit the themes in{" "}
             <code>audio/music/</code>.
