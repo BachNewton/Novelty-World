@@ -1,6 +1,6 @@
 # Betrayal at House on the Hill
 
-A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. No game code exists yet, so its page shows the "Coming soon" placeholder. What follows is the decided design direction.
+A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. The engine is being built, milestone by milestone, from `design/engine.md`; until a game is playable its page shows the "Coming soon" placeholder. What follows is the decided design direction.
 
 ## Haunts
 
@@ -90,7 +90,7 @@ These are rules specs, not copies of the books. Data is recorded exactly: number
 
 `rules.md` headings carry book page numbers, because the haunts refer to rules by page.
 
-Where the books are ambiguous or contradict themselves, the files say so in a `> Note:`. A `> Resolution (...)` line under each note gives the answer found by research, labelled with its authority (official, designer, community, owner or unresolved) and its source. There is no official 2nd-edition FAQ. Official errata (the Widow's Walk FAQ, both its short version and the long one with haunt corrections, and the 1st-edition FAQ where the rule is unchanged) is applied to the rule text itself. Settle unresolved notes with the owner before implementing the rule they affect, and record the answer with the authority owner. The engine is definitive: the rulebook's "agree, or flip a coin" for unclear rules is never put to players at runtime. The Widow's Walk haunt and rule-sheet notes haven't been researched yet; do that when Widow's Walk is built.
+Where the books are ambiguous or contradict themselves, the files say so in a `> Note:`. A `> Resolution (...)` line under each note gives the answer found by research, labelled with its authority (official, designer, community, project or unresolved) and its source. There is no official 2nd-edition FAQ. Official errata (the Widow's Walk FAQ, both its short version and the long one with haunt corrections, and the 1st-edition FAQ where the rule is unchanged) is applied to the rule text itself. Settle every unresolved note before implementing the rule it affects. Research comes first: an official, designer or community answer is recorded with that authority. When research finds nothing conclusive, the ruling is Claude's to make, as a game designer would: keep the heart of the game in mind, weigh it from the players' and the designers' standpoint, and draw on modern board game design and digital adaptations. Record it with the authority project, with its reasoning. The owner's expertise is the architecture and the UI, not game design, so bring a ruling to the owner only when it would fork the engine or the technical architecture. The engine is definitive: the rulebook's "agree, or flip a coin" for unclear rules is never put to players at runtime. The Widow's Walk haunt and rule-sheet notes haven't been researched yet; do that when Widow's Walk is built.
 
 ## Scope
 

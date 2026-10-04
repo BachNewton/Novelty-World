@@ -171,7 +171,7 @@ Each answer type composes in a fixed way. Composing like this is what makes stac
 | Set (targets, traits, connections) | add and remove in layer order |
 | Structured result (combatOutcome, lethalOutcome, movementPolicy, damageRouting) | each modifier transforms the previous result, in layer order |
 
-Within a layer, modifiers run in a stable order (by source kind, then id). Sums and denials don't depend on that order. Two modifiers in the same layer that both **replace** a structured result, or both **set** or **fix** a number to different values, are a conflict the rulebook doesn't settle, so the engine **throws**, naming both rule references. That surfaces a real rules question (to be settled with the owner and recorded in `content/`) instead of quietly letting whichever ran last win.
+Within a layer, modifiers run in a stable order (by source kind, then id). Sums and denials don't depend on that order. Two modifiers in the same layer that both **replace** a structured result, or both **set** or **fix** a number to different values, are a conflict the rulebook doesn't settle, so the engine **throws**, naming both rule references. That surfaces a real rules question (to be settled and recorded in `content/`) instead of quietly letting whichever ran last win.
 
 ### Triggers and conditions
 
@@ -259,7 +259,7 @@ How they are kept in agreement:
 
   A small test-side reader handles the bullet-and-table format these files already use.
 - **Coverage both ways.** Every heading in `content/` that names a room, card, character or haunt has a typed entry, and every typed entry points back at its heading. Additions and renames fail a test until both sides match.
-- **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled with the owner before the rule they affect is implemented. Where research finds no answer, the owner's ruling is recorded with the authority **owner**.
+- **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled before the rule they affect is implemented. Where research finds no answer, the ruling is made for this adaptation and recorded with the authority **project** (the project's `CLAUDE.md` says how).
 - **Effects are tested from the rules.** Each card's, room's and haunt's behaviour gets unit tests written from its content entry, not from its own implementation.
 
 ## 8. Server
@@ -410,7 +410,7 @@ This is brief, because the UI gets its own design.
 
 Each milestone ends with something playable and tested.
 
-1. **Foundations.** The model types, the state format with migrations, the randomness, the board with its queries (connection, adjacency, line of sight, distance by route), and the step loop. Typed data for rooms, characters, cards, tokens and the chart, with the agreement tests. Before this, settle with the owner the unresolved notes that exploration touches (for example, how the Collapsed Room's basement tile is drawn, and whether the Mystic Elevator may leave a floor if leaving would seal it off).
+1. **Foundations.** The model types, the state format with migrations, the randomness, the board with its queries (connection, adjacency, line of sight, distance by route), and the step loop. Typed data for rooms, characters, cards, tokens and the chart, with the agreement tests. Before this, settle the unresolved notes that exploration touches (for example, how the Collapsed Room's basement tile is drawn, and whether the Mystic Elevator may leave a floor if leaving would seal it off).
 2. **Exploration, no haunt.** Setup, turns, moving, discovering, room text, every card, traits, item rules and the haunt roll. When a roll succeeds, the game shows the haunt number and stops. Played in one browser on a plain debug UI.
 3. **One haunt end to end.** The questions and layers, starting with combat and death; sides and turn order; the kit parts haunt 13 needs; conditions and results; `viewFor`. A dev-only "start haunt N" makes haunt work quick to reach. After the base game, the same path becomes the rulebook's optional "select the haunt" rule (p. 16), a per-game setting. Haunt 13 played start to finish in one browser.
 4. **Online.** The SQL, the commit routine and route, the sync reducer and store, the shared game-list lobby extracted from Monopoly, seats, and the two-client e2e. The UI design starts here, in parallel.

@@ -85,7 +85,7 @@ Not tokens, but listed with the pieces for completeness: 6 plastic explorer figu
 > Resolution (official): confirmed by the number ranges printed on the owner's tokens. The haunts corroborate parts of it: haunt 24 (haunts/24-fly-away-home.md) sets aside all 24 red; haunt 27 (haunts/27-amok-flesh.md) needs at least 20 orange; haunts 47 (haunts/47-worm-ouroboros.md) and 70 (haunts/70-to-reach-the-cosmos.md) set aside all the green, 16 in haunt 47; haunt 53 (haunts/53-till-morning-light.md) uses blue 1 to 9; haunt 97 (haunts/97-lambs-to-the-slaughter.md) deals yellow numbered 1 up to the number of explorers (6 at six players).
 
 > Note: haunt 11 (Let Them In) puts a face-down small purple token in the Entrance Hall and in every room with an outside-facing window. Only 6 purple tokens exist. The base game has exactly six such rooms (the Entrance Hall plus the five window rooms haunt 24 lists: Grand Staircase, Master Bedroom, Bedroom, Chapel, Dining Room), so the base game fits exactly. Widow's Walk adds the Drawing Room and Sewing Room to the window rooms (widows-walk-rules.md, Glossary Update: Window), so with the expansion haunt 11 can need up to 8 purple tokens, 2 more than exist.
-> Resolution (owner): every eligible room gets its token. In this digital version, supply is unlimited unless a haunt makes its limit a rule, and haunt 11 doesn't.
+> Resolution (project): every eligible room gets its token. In this digital version, supply is unlimited unless a haunt makes its limit a rule, and haunt 11 doesn't.
 
 ## Small circular explorer tokens (Widow's Walk)
 
@@ -120,7 +120,7 @@ Not tokens, but listed with the pieces for completeness: 6 plastic explorer figu
 | Wall Switch | 1 | event: Revolving Wall |
 
 > Note: the rulebook counts 14 square tokens without splitting them, and the cards and tiles that place them name 12 different tokens. The total of 14 works only if the Secret Passage and Secret Stairs each come as a pair (their cards place two tokens) and the Wall Switch is a single token (its card places one token, on a wall shared by two rooms). The per-token counts are inferred from the cards.
-> Resolution (unresolved): not researched beyond the cards; the inferred split is the only one that makes 14.
+> Resolution (project): the split is informational. Supply is unlimited unless a haunt makes running out a rule, and no base haunt caps these tokens. Research: not researched beyond the cards; the inferred split is the only one that makes 14.
 
 ### Widow's Walk (36)
 
@@ -168,7 +168,7 @@ A token prints only its name, so its rules come from the card or tile that place
 | 0–1 | Draw an event card and remove the Closet token. |
 
 > Note: the card doesn't say the explorer must be in the Closet's room to roll (see Closet Door in cards/events.md).
-> Resolution (unresolved): see the resolution under Closet Door in cards/events.md.
+> Resolution (project): you must be in the Closet's room to roll; see Closet Door in cards/events.md. Research: see the resolution under Closet Door in cards/events.md.
 
 ### Drip (base)
 - While an explorer is in the Drip's room, that explorer rolls 1 fewer die on every trait roll, to a minimum of 1 die. Attacks are not trait rolls.
@@ -278,7 +278,7 @@ A token prints only its name, so its rules come from the card or tile that place
 - Base total 18, matching the rulebook.
 
 > Note: the rulebook counts 18 triangular tokens without splitting them, so the per-trait count of 6 is inferred: 18 split evenly over the three base traits. It fits the haunts, which ask for up to "the number of players" (6) of one trait, and in haunt 49 for 6 Knowledge Roll and 6 Sanity Roll tokens at once. No base haunt uses a Speed Roll token.
-> Resolution (unresolved): not researched; the inferred split is the only even one.
+> Resolution (project): the split is informational. Supply is unlimited unless a haunt makes running out a rule (see the top of this file). Research: not researched; the inferred split is the only even one.
 > Note: the Speed Roll tokens were meant for the Widow's Walk sheet but were left off it. The FAQ says to use an item token in their place, or print the replacement sheet.
 > Resolution (official): Widow's Walk FAQ. Source: the Widow's Walk FAQ (One of the Master's Affairs; Seasons of the Witch).
 

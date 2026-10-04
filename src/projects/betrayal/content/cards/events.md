@@ -59,7 +59,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–1 | If an explorer or monster is in your room or an adjacent room, you must attack it "(if you can)". If possible, pick the explorer with the lowest Might. |
 
 > Note: the 0–1 result does not say what happens when several monsters (and no explorer) qualify, or whether a monster can be chosen over an explorer; it only says to prefer the lowest-Might explorer "if possible".
-> Resolution (unresolved): no ruling found on choosing among monsters or between a monster and an explorer. The designer did confirm that the card overrides the normal rules, giving a one-time attack into an adjacent room. Source: https://boardgamegeek.com/thread/74215
+> Resolution (project): an explorer comes first. If any explorer is in your room or an adjacent one, you must attack the one with the lowest Might, choosing among ties; only when no explorer is in reach do you attack a monster, of your choice. "If possible, pick the explorer" reads as a preference for explorers, and the card's horror is turning on a companion. One BGG reply reads it as a free choice between explorers and monsters (https://boardgamegeek.com/thread/2133898); it is a single post, not a consensus. Earlier research: no ruling found on choosing among monsters or between a monster and an explorer. The designer did confirm that the card overrides the normal rules, giving a one-time attack into an adjacent room. Source: https://boardgamegeek.com/thread/74215
 
 ## Burial Mound
 - Deck: event
@@ -100,7 +100,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–1 | Draw an event card and remove the Closet token. |
 
 > Note: the card does not say the explorer must be in the Closet's room to roll; presumably they must be.
-> Resolution (unresolved): no ruling found. BGG threads on the Closet ask other questions (whether drawing from it ends your movement) and leave even that unsettled. Source: https://boardgamegeek.com/thread/930903
+> Resolution (project): you must be in the Closet's room to roll. The token marks a place in the house, and a roll from anywhere would make it pointless. Research: no ruling found. BGG threads on the Closet ask other questions (whether drawing from it ends your movement) and leave even that unsettled. Source: https://boardgamegeek.com/thread/930903
 
 ## Contract
 - Deck: event
@@ -143,7 +143,7 @@ Drawn when an explorer discovers a room with an event symbol.
   - If this attack deals you any damage, the explorer who has the Spear gains 2 Might, unless you are the one with the Spear.
 
 > Note: if nobody has the Spear, the Might gain has no recipient; the card does not address this.
-> Resolution (unresolved): no ruling found on the no-Spear case. The one BGG thread on the card only confirms points the card already prints: it resolves once, when drawn, and the drawer gains nothing if they hold the Spear. Source: https://boardgamegeek.com/thread/547560
+> Resolution (project): nobody gains the 2 Might; the attack and its damage still happen. The gain belongs to the Spear's holder, so with no holder it lapses. Research: no ruling found on the no-Spear case. The one BGG thread on the card only confirms points the card already prints: it resolves once, when drawn, and the drawer gains nothing if they hold the Spear. Source: https://boardgamegeek.com/thread/547560
 
 ## Debris
 - Deck: event
@@ -164,7 +164,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0 | You are buried. Take 2 dice of physical damage. |
 
 > Note: the card does not say whether a helping explorer must be in your room to attempt the Might roll.
-> Resolution (unresolved): no official or designer ruling found, and BGG players split: some require the helper to be in the buried explorer's room, others play it from anywhere because the card doesn't require it. Separately, the 1st-edition FAQ rules that while buried the only thing you may do is roll to free yourself. Source: https://boardgamegeek.com/thread/923197, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (community): a helper must be in your room. BGG threads 598908, 923197 and 1107717 read it so against one dissenter, who concedes "logically the player needs to be in the same room", and the 1st-edition haunt 17 web rule, worded like this card, says "in the same room" (https://www.orderofgamers.com/downloads/BetrayalHouseHill_v4.2.pdf). The Speed roll you make on drawing the card is not an attempt to free you: those are the Might rolls, so 3 of them must fail before you break free. Source: https://boardgamegeek.com/thread/598908, https://boardgamegeek.com/thread/923197, https://boardgamegeek.com/thread/1107717
 
 ## Disquieting Sounds
 - Deck: event
@@ -219,7 +219,7 @@ Drawn when an explorer discovers a room with an event symbol.
 > Resolution (community): the extra die goes only to the explorer who drew the card, and only if that explorer is in the Chapel; another explorer standing in the Chapel rolls nothing. Without it, only results 0–2 are possible. Several independent BGG answers agree. Source: https://boardgamegeek.com/thread/1237066, https://boardgamegeek.com/thread/688194
 
 > Note: "Nearest explorer" has no tie-break rule.
-> Resolution (unresolved): no ruling found.
+> Resolution (project): nearest means the fewest rooms entered along the route (movement penalties don't count), and when explorers tie, you choose among them. Every haunt that breaks a nearest or closest tie gives the choice to the player choosing (10, 29, 66, the star haunt), and haunts 11 and 28 measure closest along a route. No card-specific source exists at any level. Earlier research: no ruling found.
 
 ## Funeral
 - Deck: event
@@ -391,7 +391,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–1 | Take 2 dice of physical damage. The Safe stays closed. |
 
 > Note: as with Closet Door, the card does not say the explorer must be in the Safe's room to roll.
-> Resolution (unresolved): no ruling found. The 1st-edition FAQ only confirms that the Safe and a room's own roll (such as the Vault's) can both be tried on the same turn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (project): you must be in the Safe's room to roll, as with the Closet. Research: no ruling found. The 1st-edition FAQ only confirms that the Safe and a room's own roll (such as the Vault's) can both be tried on the same turn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Misty Arch
 - Deck: event
@@ -428,7 +428,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0 | Take 1 die of mental damage, plus 2 more dice of damage if that explorer is in a room with an event symbol. |
 
 > Note: the extra dice are printed only as "additional dice of damage" without saying mental; read in context they are most likely mental damage too.
-> Resolution (unresolved): no ruling found. Searched the 1st-edition FAQ, the Widow's Walk FAQ and the BGG Betrayal rules forum (no thread discusses this card); tkindy/betrayal's card data has the same wording. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (project): the additional dice are mental damage. The whole card is a Sanity roll dealing mental damage, and "additional" adds to that damage. Research: no ruling found. Searched the 1st-edition FAQ, the Widow's Walk FAQ and the BGG Betrayal rules forum (no thread discusses this card); tkindy/betrayal's card data has the same wording. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Mutant Housepet
 - Deck: event
@@ -455,7 +455,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–4 | Draw room tiles from the stack until you draw a basement room, and place that tile (if the stack has no basement rooms, choose a basement room already in play). You fall to that room and take 1 die of physical damage. If it is not your turn, don't draw a card for that room. |
 
 > Note: on the 0–4 result the card does not say what happens to the non-basement tiles drawn before the basement room is found.
-> Resolution (unresolved): no ruling found. The 1st-edition FAQ rules only that "a floor below the Slide" means any lower floor (which the 2nd-edition wording already says), and the one BGG answer on placement says the sliding explorer chooses where the new basement room goes; neither covers the skipped tiles. Searched both FAQs and the BGG rules forum's Mystic Slide threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/3084734
+> Resolution (project): Draw from the top of the room stack, as when exploring: a tile that can't go on the floor goes face down on the room discard pile. If the stack runs out, shuffle the discard pile into a new stack (rules.md, p. 9) and keep drawing; only when no basement tile is left anywhere do you choose a basement room in play, as the card says. This is the same rule as every "draw until a room fits" effect (see Collapsed Room in rules.md). Research: no ruling found. The 1st-edition FAQ rules only that "a floor below the Slide" means any lower floor (which the 2nd-edition wording already says), and the one BGG answer on placement says the sliding explorer chooses where the new basement room goes; neither covers the skipped tiles. Searched both FAQs and the BGG rules forum's Mystic Slide threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/3084734
 
 ## Night View
 - Deck: event
@@ -499,7 +499,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–3 | The chosen trait drops to its lowest value (not to the skull). If that trait is already at its lowest value, lower a different trait to its lowest value instead. |
 
 > Note: on 4+ the card says "a trait of your choice", so the gained trait need not be the one you rolled. On 0–3 the card doesn't say who picks the "different trait"; presumably you do.
-> Resolution (unresolved): no ruling found. Searched the 1st-edition FAQ, the Widow's Walk FAQ and the BGG rules forum; no thread discusses this card. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (project): you choose the different trait, as you choose every other trait on this card. Research: no ruling found. Searched the 1st-edition FAQ, the Widow's Walk FAQ and the BGG rules forum; no thread discusses this card. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Revolving Wall
 - Deck: event
@@ -518,7 +518,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–2 | That explorer can't find the switch and can't go through. |
 
 > Note: the card does not say what happens to room tiles drawn that are not for this floor. It also doesn't say whether the move into the other room happens if the card was discarded for lack of rooms (presumably not, since the card is gone).
-> Resolution (unresolved): no ruling found on either question. The 1st-edition FAQ's Revolving Wall errata (icons in the new room do affect you) corrects a sentence the 2nd-edition card no longer prints; BGG threads cover corner placement and how the new room must be oriented, not these points. Searched both FAQs and the BGG rules forum's Revolving Wall threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1696618, https://boardgamegeek.com/thread/1699848
+> Resolution (project): Draw from the top of the room stack, as when exploring: a tile that can't go on the floor goes face down on the room discard pile. If the stack runs out, shuffle the discard pile into a new stack (rules.md, p. 9) and keep drawing. "This floor has no rooms left" means no tile for this floor is left in the stack or the discard pile; then the card is discarded, you don't move, and the Wall Switch token goes with the card. This is the same rule as every "draw until a room fits" effect (see Collapsed Room in rules.md). Research: no ruling found on either question. The 1st-edition FAQ's Revolving Wall errata (icons in the new room do affect you) corrects a sentence the 2nd-edition card no longer prints; BGG threads cover corner placement and how the new room must be oriented, not these points. Searched both FAQs and the BGG rules forum's Revolving Wall threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1696618, https://boardgamegeek.com/thread/1699848
 
 ## Rotten
 - Deck: event
@@ -554,7 +554,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–1 | Any existing basement room. |
 
 > Note: the card doesn't say who chooses the room within the rolled floor (presumably you).
-> Resolution (unresolved): no ruling found. The 1st-edition FAQ settles only that the second token goes in an already-discovered room, uses no door, and costs one space to cross. Searched both FAQs and the BGG rules forum's Secret Passage threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (project): you choose the room on the rolled floor; you are the card's "you". Research: no ruling found. The 1st-edition FAQ settles only that the second token goes in an already-discovered room, uses no door, and costs one space to cross. Searched both FAQs and the BGG rules forum's Secret Passage threads. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Secret Stairs
 - Deck: event
@@ -615,7 +615,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–4 | Nothing found; take 1 die of mental damage. |
 
 > Note: the card doesn't explicitly require the searching explorer to be in the Skeletons' room, though that is the evident intent.
-> Resolution (unresolved): no ruling found. Searched both FAQs and the BGG rules forum; the Skeletons threads cover traitors and whether drawing an item ends movement, not where the searcher must stand. Source: https://boardgamegeek.com/thread/2353297, https://boardgamegeek.com/thread/930903
+> Resolution (project): you must be in the room with the Skeletons token to search, as with the Closet. Research: no ruling found. Searched both FAQs and the BGG rules forum; the Skeletons threads cover traitors and whether drawing an item ends movement, not where the searcher must stand. Source: https://boardgamegeek.com/thread/2353297, https://boardgamegeek.com/thread/930903
 
 ## Smoke
 - Deck: event
@@ -682,7 +682,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–2 | You jump to the Patio. If the Patio isn't in the house, search the room stack for it, put it in the house, and shuffle the stack. Put your explorer in the Patio and take 1 die of physical damage. |
 
 > Note: unlike Shrieking Wind, the Patio is not in this card's list of affected rooms.
-> Resolution (unresolved): no ruling found on whether the omission is deliberate; no source treats it as an error. The one BGG thread on the card says the Patio, if not yet in play, is placed legally on the ground floor rather than against the window jumped from. The 1st-edition FAQ adds that you go to the Patio even with no clear path. Source: https://boardgamegeek.com/thread/2311916, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (project): an explorer on the Patio is not affected, as printed. The result is a jump to the Patio, which means nothing to someone already there. Research: no ruling found on whether the omission is deliberate; no source treats it as an error. The one BGG thread on the card says the Patio, if not yet in play, is placed legally on the ground floor rather than against the window jumped from. The 1st-edition FAQ adds that you go to the Patio even with no clear path. Source: https://boardgamegeek.com/thread/2311916, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## The Left Hand
 - Deck: event
@@ -715,7 +715,7 @@ Drawn when an explorer discovers a room with an event symbol.
 | 0–1 | Draw room tiles until you find a basement room. |
 
 > Note: the table is for the 3-dice roll, not the Knowledge roll. The card doesn't say what happens to drawn tiles that are not for the target floor.
-> Resolution (unresolved): no ruling found on the skipped tiles. The 1st-edition FAQ rules on neighbouring points only: you go to the destination even with no clear path, and if the room you are sent into is newly discovered and has a symbol, you draw that card too. A BGG answer adds that the card's effect lasts only the turn it is drawn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1782077
+> Resolution (project): draw from the top of the room stack, putting tiles that aren't for the rolled floor face down on the room discard pile, as when exploring. This card prints its own end ("if you reach the end of the stack"), and a card's rule beats the rulebook (p. 12), so this is one pass through the stack with no reshuffle; then you go to the Entrance Hall. Research: no ruling found on the skipped tiles. The 1st-edition FAQ rules on neighbouring points only: you go to the destination even with no clear path, and if the room you are sent into is newly discovered and has a symbol, you draw that card too. A BGG answer adds that the card's effect lasts only the turn it is drawn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://boardgamegeek.com/thread/1782077
 
 ## The Voice
 - Deck: event
@@ -777,7 +777,7 @@ Drawn when an explorer discovers a room with an event symbol.
 
 > Note: the card doesn't say whether a rescuer must be in your room, or whether your own initial failed roll counts toward the 3 unsuccessful attempts.
 > Resolution (community): a rescuer must be in your room. Two independent BGG answers in separate threads say so and none disagrees, though one later poster asked again without getting an answer, so the support is thin. Source: https://boardgamegeek.com/thread/598908, https://boardgamegeek.com/thread/1107717
-> Resolution (unresolved): no ruling found on whether the initial roll counts toward the 3 attempts. The 1st-edition FAQ rules only that the 1 Might is gained solely on the initial roll, as the 2nd-edition card already says. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
+> Resolution (official, implied): the Might roll you make on drawing the card counts as your first attempt, so 2 more failed attempts free you. The 1st-edition FAQ answers a question that counts the draw roll as "the first attempt to escape" and later rolls as "the second or third attempt", without correcting it. The question concerns the 1st-edition card; the 2nd edition keeps the same rule. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## What The . . . ?
 - Deck: event

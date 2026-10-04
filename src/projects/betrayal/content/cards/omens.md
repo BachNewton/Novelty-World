@@ -230,7 +230,7 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
   - If there is no traitor, all monsters move 1 space closer to you.
   - Make a haunt roll now.
   > Note: "you don't have to move those monsters" when you are the traitor reads as the traitor's movement being optional; the card gives no further detail.
-  > Resolution (unresolved): no ruling found. Forum threads on the Spirit Board settle only that the looked-at tile stays on top of the stack. Source: https://boardgamegeek.com/thread/1872346, https://boardgamegeek.com/thread/854312
+  > Resolution (project): moving the monsters is optional for the traitor: any number of them, zero included, 1 space closer, as the card says ("you don't have to move those monsters"). Stunned monsters can be moved this way (https://boardgamegeek.com/thread/994104). Research: no ruling found. Forum threads on the Spirit Board settle only that the looked-at tile stays on top of the stack. Source: https://boardgamegeek.com/thread/1872346, https://boardgamegeek.com/thread/854312
 
 ## Vial
 - Deck: omen

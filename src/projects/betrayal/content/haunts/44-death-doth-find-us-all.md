@@ -62,7 +62,7 @@ Summary: The heroes are aging unnaturally fast while the traitor grows younger; 
 - If a hero is carrying the Medallion, subtract 1 from the number of decades that hero aged during the traitor's turn, to a minimum of 0.
 - Each time a hero dies, whoever is carrying the Medallion ages 1 decade.
 > Note: Only 5 Sanity Roll and 5 Knowledge Roll tokens are set aside, while 7 rooms are eligible; the book doesn't say what happens if one kind runs out.
-> Resolution (owner): the token supply doesn't limit rituals. The haunt never states the five as a cap, so a ritual room gets its Roll token even when the five of that kind are used up. In this digital version, supply is unlimited unless a haunt makes its limit a rule (tokens.md).
+> Resolution (project): the token supply doesn't limit rituals. The haunt never states the five as a cap, so a ritual room gets its Roll token even when the five of that kind are used up. In this digital version, supply is unlimited unless a haunt makes its limit a rule (tokens.md).
 ### Heroes win when
 - They stop the supernatural aging process (by completing the Ritual of Rejuvenation).
 ### What they know about the other side

@@ -34,6 +34,43 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // Betrayal's engine and content must be deterministic: a game is a function
+  // of its seed and its actions, replayed identically on client and server.
+  {
+    files: ["src/projects/betrayal/{engine,kit,data}/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "Math",
+          property: "random",
+          message: "Use the game's seeded randomness (engine/random.ts).",
+        },
+        {
+          object: "Date",
+          property: "now",
+          message: "The engine has no clock.",
+        },
+        {
+          object: "performance",
+          property: "now",
+          message: "The engine has no clock.",
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message: "The engine has no clock.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='localeCompare']",
+          message: "Locale-dependent order differs between machines.",
+        },
+      ],
+    },
+  },
   {
     files: ["**/*.mjs", "public/**/*.js"],
     languageOptions: {
