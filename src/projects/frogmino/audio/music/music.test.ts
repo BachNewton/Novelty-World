@@ -127,12 +127,12 @@ describe("the themes", () => {
     }
   });
 
-  it("are short loops, and shorter jingles", () => {
+  it("loop for at most two minutes, and jingles are short", () => {
     for (const theme of THEMES) {
       const seconds = themeSeconds(theme);
       if (theme.kind === "loop") {
         expect(seconds, theme.id).toBeGreaterThanOrEqual(15);
-        expect(seconds, theme.id).toBeLessThanOrEqual(40);
+        expect(seconds, theme.id).toBeLessThanOrEqual(120);
       } else {
         expect(seconds, theme.id).toBeLessThanOrEqual(6);
       }

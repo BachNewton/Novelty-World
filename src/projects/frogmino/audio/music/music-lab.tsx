@@ -153,7 +153,7 @@ export function MusicLab() {
         <header className="flex flex-col gap-3">
           <h1 className="text-2xl font-bold text-brand-green">Frogmino music ideas</h1>
           <p className="text-sm text-text-secondary">
-            Short themes to listen to and pick from; none of them plays in the game yet. Each is made with ZzFXM, a tiny
+            Themes to listen to and pick from; none of them plays in the game yet. Each is made with ZzFXM, a tiny
             tracker built on ZzFX, the library behind the sound effects, so it is code, not an audio file. Most are
             original tunes borrowing the <em>style</em> of the arcade Frogger and Game Boy Tetris music, or of Grant Kirkhope (listed
             on each card), never their melodies; the two Frog Polkkas arrange the Finnish folk tune Ievan Polkka, as Tetris did a
