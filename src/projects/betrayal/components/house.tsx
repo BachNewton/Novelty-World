@@ -1,6 +1,17 @@
-import type { Edge, FloorId, GameState, PlacedTile } from "../types";
-import { openings, turn } from "../engine/board";
+import type { CSSProperties } from "react";
+import type { Action, Edge, FloorId, GameState, PlacedTile } from "../types";
+import {
+  COMPASS,
+  neighbourCell,
+  openings,
+  opposite,
+  roomAt,
+  sideName,
+  turn,
+} from "../engine/board";
 import type { Engine } from "../engine/step-loop";
+import type { Focus } from "./focus";
+import { SEAT_BG } from "./theme";
 
 /** Top of the house first, the way the floors stack. */
 const FLOOR_ORDER: FloorId[] = ["roof", "upper", "ground", "basement"];
@@ -12,11 +23,12 @@ const FLOOR_NAMES: Record<FloorId, string> = {
   basement: "Basement",
 };
 
+/** A door's mark straddles the edge, reaching into the gap toward the next room. */
 const DOOR_POSITION: Record<Edge, string> = {
-  top: "top-0 left-1/2 h-1 w-6 -translate-x-1/2",
-  bottom: "bottom-0 left-1/2 h-1 w-6 -translate-x-1/2",
-  left: "left-0 top-1/2 w-1 h-6 -translate-y-1/2",
-  right: "right-0 top-1/2 w-1 h-6 -translate-y-1/2",
+  top: "-top-1.5 left-1/2 h-3 w-5 -translate-x-1/2",
+  bottom: "-bottom-1.5 left-1/2 h-3 w-5 -translate-x-1/2",
+  left: "-left-1.5 top-1/2 h-5 w-3 -translate-y-1/2",
+  right: "-right-1.5 top-1/2 h-5 w-3 -translate-y-1/2",
 };
 
 /** Where a token on a wall sits: a quarter of the way along the wall, clear
@@ -34,6 +46,8 @@ const CORNER_POSITION: Record<string, string> = {
   "left,top": "top-0 left-0",
 };
 
+const GAP_REM = 0.5;
+
 function wallPosition(tile: PlacedTile, wall: Edge[]): string {
   const sides = wall.map((edge) => turn(edge, tile.rotation));
   if (sides.length === 1) return WALL_POSITION[sides[0]];
@@ -44,21 +58,37 @@ function wallPosition(tile: PlacedTile, wall: Edge[]): string {
   return CORNER_POSITION[key];
 }
 
-export function House({ engine, state }: { engine: Engine; state: GameState }) {
-  const floors = FLOOR_ORDER.filter((floor) =>
-    state.board.tiles.some((t) => t.floor === floor),
+export function House({
+  engine,
+  state,
+  focus,
+  onAction,
+}: {
+  engine: Engine;
+  state: GameState;
+  focus: Focus;
+  onAction: (action: Action) => void;
+}) {
+  const floors = FLOOR_ORDER.filter(
+    (floor) =>
+      state.board.tiles.some((t) => t.floor === floor) ||
+      focus.cells.some((c) => c.floor === floor),
   );
   return (
-    <div className="flex flex-col gap-4">
-      {floors.map((floor) => (
-        <Floor
-          key={floor}
-          engine={engine}
-          state={state}
-          floor={floor}
-          tiles={state.board.tiles.filter((t) => t.floor === floor)}
-        />
-      ))}
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-4 2xl:grid-cols-2">
+        {floors.map((floor) => (
+          <Floor
+            key={floor}
+            engine={engine}
+            state={state}
+            floor={floor}
+            focus={focus}
+            onAction={onAction}
+          />
+        ))}
+      </div>
+      <Legend engine={engine} state={state} />
     </div>
   );
 }
@@ -67,26 +97,39 @@ function Floor({
   engine,
   state,
   floor,
-  tiles,
+  focus,
+  onAction,
 }: {
   engine: Engine;
   state: GameState;
   floor: FloorId;
-  tiles: PlacedTile[];
+  focus: Focus;
+  onAction: (action: Action) => void;
 }) {
-  const minX = Math.min(...tiles.map((t) => t.x));
-  const minY = Math.min(...tiles.map((t) => t.y));
-  const columns = Math.max(...tiles.map((t) => t.x)) - minX + 1;
+  const tiles = state.board.tiles.filter((t) => t.floor === floor);
+  const cells = focus.cells.filter((c) => c.floor === floor);
+  const spots = [...tiles, ...cells];
+  const minX = Math.min(...spots.map((t) => t.x));
+  const minY = Math.min(...spots.map((t) => t.y));
+  const columns = Math.max(...spots.map((t) => t.x)) - minX + 1;
+  // Rooms shrink to fit the panel, down to a size their names still fit;
+  // a wider floor than that scrolls sideways.
+  const size = {
+    "--cell": `clamp(4.5rem, calc((100cqw - ${(columns - 1) * GAP_REM}rem) / ${columns}), 7.5rem)`,
+    gridTemplateColumns: `repeat(${columns}, var(--cell))`,
+    gridAutoRows: "var(--cell)",
+    gap: `${GAP_REM}rem`,
+  } as CSSProperties;
   return (
-    <section>
+    <section className="@container min-w-0">
       <h3 className="mb-1 text-sm font-semibold text-(--bt-muted)">
-        {FLOOR_NAMES[floor]}
+        {FLOOR_NAMES[floor]}{" "}
+        <span className="font-normal">
+          ({tiles.length} room{tiles.length === 1 ? "" : "s"})
+        </span>
       </h3>
-      <div className="overflow-x-auto pb-1">
-        <div
-          className="grid w-max auto-rows-[6rem] gap-0.5"
-          style={{ gridTemplateColumns: `repeat(${columns}, 6rem)` }}
-        >
+      <div className="overflow-x-auto p-2">
+        <div className="grid w-max" style={size}>
           {tiles.map((tile) => (
             <Room
               key={tile.tile}
@@ -95,13 +138,62 @@ function Floor({
               tile={tile}
               column={tile.x - minX + 1}
               row={tile.y - minY + 1}
+              focus={focus}
+              onAction={onAction}
             />
           ))}
+          {cells.map((cell) => {
+            const name = engine.catalog.rooms[cell.tile].name;
+            const style = {
+              gridColumn: cell.x - minX + 1,
+              gridRow: cell.y - minY + 1,
+            };
+            const className =
+              "flex items-center justify-center rounded border-2 border-dashed border-(--bt-accent) bg-(--bt-focus) p-1 text-center text-[0.65rem] leading-tight";
+            const action = cell.action;
+            return action ? (
+              <button
+                key={`${cell.x},${cell.y}`}
+                type="button"
+                className={`${className} hover:bg-(--bt-room)`}
+                style={style}
+                title={`Put the ${name} here`}
+                onClick={() => {
+                  onAction(action);
+                }}
+              >
+                The {name} can go here
+              </button>
+            ) : (
+              <div key={`${cell.x},${cell.y}`} className={className} style={style}>
+                The {name} can go here (choose how below)
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
   );
 }
+
+type Door = "joined" | "walled" | "unexplored";
+
+/** What the door on this board edge of a room opens onto. */
+function doorKind(engine: Engine, state: GameState, tile: PlacedTile, edge: Edge): Door {
+  const cell = neighbourCell(tile, edge);
+  const next = roomAt(state.board, tile.floor, cell.x, cell.y);
+  if (!next) return "unexplored";
+  return openings(engine.catalog, next).includes(opposite(edge)) ? "joined" : "walled";
+}
+
+const DOOR_LOOK: Record<Door, { className: string; title: string }> = {
+  joined: { className: "bg-(--bt-door)", title: "door" },
+  walled: { className: "bg-(--bt-line)", title: "door onto a wall: leads nowhere" },
+  unexplored: {
+    className: "border border-dashed border-(--bt-door) bg-(--bt-bg)",
+    title: "door, not yet explored",
+  },
+};
 
 function Room({
   engine,
@@ -109,12 +201,16 @@ function Room({
   tile,
   column,
   row,
+  focus,
+  onAction,
 }: {
   engine: Engine;
   state: GameState;
   tile: PlacedTile;
   column: number;
   row: number;
+  focus: Focus;
+  onAction: (action: Action) => void;
 }) {
   const room = engine.catalog.rooms[tile.tile];
   const here = state.explorers.filter((e) => e.room === tile.tile);
@@ -124,29 +220,13 @@ function Room({
   const stairs = room.links.filter((link) =>
     state.board.tiles.some((t) => t.tile === link),
   );
-  return (
-    <div
-      className="relative flex w-24 flex-col gap-0.5 overflow-hidden border border-(--bt-line) bg-(--bt-room) p-1.5 text-[0.65rem] leading-tight"
-      style={{ gridColumn: column, gridRow: row }}
-      title={`${room.name} (${tile.x}, ${tile.y}) rotated ${tile.rotation * 90}°`}
-    >
-      {openings(engine.catalog, tile).map((edge) => (
-        <span
-          key={edge}
-          className={`absolute bg-(--bt-door) ${DOOR_POSITION[edge]}`}
-        />
-      ))}
-      {tokens.flatMap((t) =>
-        t.wall
-          ? [
-              <span
-                key={`${t.token}-${t.wall.join()}`}
-                className={`absolute size-2 bg-(--bt-accent) ${wallPosition(tile, t.wall)}`}
-                title={`${tokenName(t.token)} token on this wall`}
-              />,
-            ]
-          : [],
-      )}
+  const offered = focus.rooms.has(tile.tile);
+  const action = focus.rooms.get(tile.tile) ?? null;
+  const current = state.turn?.seat;
+  const explorable = focus.doorways.filter((d) => d.room === tile.tile);
+
+  const body = (
+    <>
       <span className="font-semibold">{room.name}</span>
       {tokens.some((t) => !t.wall) && (
         <span className="text-(--bt-muted)">
@@ -158,7 +238,7 @@ function Room({
       )}
       {stairs.length > 0 && (
         <span className="text-(--bt-muted)">
-          to {stairs.map((s) => engine.catalog.rooms[s].name).join(", ")}
+          ↕ {stairs.map((s) => engine.catalog.rooms[s].name).join(", ")}
         </span>
       )}
       {pile.length > 0 && (
@@ -167,17 +247,110 @@ function Room({
         </span>
       )}
       <span className="mt-auto flex flex-wrap gap-0.5">
-        {here.map((e) => (
-          <span
-            key={e.seat}
-            className="rounded bg-(--bt-accent) px-1 text-(--bt-bg)"
-            title={engine.catalog.characters[e.character].name}
-          >
-            {e.seat}:{" "}
-            {engine.catalog.characters[e.character].name.split(" ")[0]}
-          </span>
-        ))}
+        {here.map((e) => {
+          const name = engine.catalog.characters[e.character].name;
+          const side = e.side ? `, ${sideName(state.board, e.room, e.side)} side` : "";
+          return (
+            <span
+              key={e.seat}
+              className={`rounded px-1 font-semibold text-(--bt-bg) ${SEAT_BG[e.seat]} ${e.seat === current ? "ring-2 ring-(--bt-ink)" : ""}`}
+              title={`${state.seats[e.seat].name}: ${name}${side}${e.seat === current ? " (their turn)" : ""}`}
+            >
+              {e.seat === current ? "▶ " : ""}
+              {name.split(" ")[0]}
+            </span>
+          );
+        })}
       </span>
+    </>
+  );
+
+  const frame = `relative flex min-w-0 flex-col gap-0.5 rounded-sm border p-1.5 text-left text-[0.65rem] leading-tight ${
+    offered
+      ? "border-2 border-(--bt-accent) bg-(--bt-focus)"
+      : "border-(--bt-line) bg-(--bt-room)"
+  }`;
+  const style = { gridColumn: column, gridRow: row };
+  const title = `${room.name}, turned ${tile.rotation * 90}°`;
+
+  return (
+    <div className="relative" style={style}>
+      {action ? (
+        <button
+          type="button"
+          className={`${frame} size-full hover:bg-(--bt-room)`}
+          title={`${title}: move here`}
+          onClick={() => {
+            onAction(action);
+          }}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className={`${frame} size-full`} title={title}>
+          {body}
+        </div>
+      )}
+      {openings(engine.catalog, tile).map((edge) => {
+        const explore = explorable.find((d) => d.direction === edge);
+        if (explore)
+          return (
+            <button
+              key={edge}
+              type="button"
+              className={`absolute z-10 rounded-sm bg-(--bt-accent) ${DOOR_POSITION[edge]}`}
+              title={`Explore through the ${COMPASS[edge]} door`}
+              aria-label={`Explore through the ${COMPASS[edge]} door of the ${room.name}`}
+              onClick={() => {
+                onAction(explore.action);
+              }}
+            />
+          );
+        const look = DOOR_LOOK[doorKind(engine, state, tile, edge)];
+        return (
+          <span
+            key={edge}
+            className={`absolute z-10 rounded-sm ${DOOR_POSITION[edge]} ${look.className}`}
+            title={`${COMPASS[edge]} ${look.title}`}
+          />
+        );
+      })}
+      {tokens.flatMap((t) =>
+        t.wall
+          ? [
+              <span
+                key={`${t.token}-${t.wall.join()}`}
+                className={`absolute z-10 size-2 bg-(--bt-accent) ${wallPosition(tile, t.wall)}`}
+                title={`${tokenName(t.token)} token on this wall`}
+              />,
+            ]
+          : [],
+      )}
+    </div>
+  );
+}
+
+function Legend({ engine, state }: { engine: Engine; state: GameState }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-(--bt-muted)">
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-2 w-4 rounded-sm bg-(--bt-door)" /> door
+        joining two rooms
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-2 w-4 rounded-sm border border-dashed border-(--bt-door)" />{" "}
+        door to explore
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-2 w-4 rounded-sm bg-(--bt-accent)" />{" "}
+        highlighted: the pending choice (click to choose)
+      </span>
+      {state.explorers.map((e) => (
+        <span key={e.seat} className="flex items-center gap-1">
+          <span className={`inline-block size-2.5 rounded-full ${SEAT_BG[e.seat]}`} />
+          {state.seats[e.seat].name}: {engine.catalog.characters[e.character].name}
+        </span>
+      ))}
     </div>
   );
 }

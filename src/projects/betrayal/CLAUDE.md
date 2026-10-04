@@ -118,7 +118,6 @@ Keep the main session thin. Delegate each substantial unit of work (a phase, an 
 
 ## Next step
 
-Milestones 1 and 2 are built: the engine plays the whole game before the haunt, and stops when the haunt is revealed. Next:
+Milestones 1 and 2 are built: the engine plays the whole game before the haunt, and stops when the haunt is revealed. The playtesting tools are built too: the page can start from a scenario (stacked decks and room stack, rooms in the house, explorers placed with chosen traits and cards, or "start haunt N"), set up by the engine's own setup so it stays reproducible; a game can be shared as a link (`?game=<code>`) that replays it from its seed, scenario and actions; the log reads by turn and each line can show "why?" (the rule's text and its rulings, from `data/rule-notes.json`); and the board highlights what the pending decision offers. Next:
 
-1. **Playtesting tools.** The debug view is too bare to check the engine by hand. Add a way to start from a scenario (stacked decks, a chosen room, "start haunt N"), a readable log built on `describe`, and a clearer board. This is tooling, not the visual design, which starts at milestone 4.
-2. **Milestone 3: haunt 13 end to end.** This means sides, the traitor role and turn order; the reveal as a ready wait; haunt definitions built from the parts kit; conditions and results; `viewFor`; the turn's own attack action; and the cards held back for the haunt.
+1. **Milestone 3: haunt 13 end to end.** This means sides, the traitor role and turn order; the reveal as a ready wait; haunt definitions built from the parts kit; conditions and results; `viewFor`; the turn's own attack action; and the cards held back for the haunt. "Start haunt N" enters through the same reveal as the haunt roll, so the haunt's setup hangs off that one place.

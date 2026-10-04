@@ -25,3 +25,43 @@ export function logLines(engine: Engine, state: GameState): LogLine[] {
     return text === null ? [] : [{ event, text }];
   });
 }
+
+/** A stretch of the log: the setup, one turn, or the haunt. */
+export interface LogGroup {
+  key: string;
+  title: string;
+  /** Whose turn it is, for a turn. */
+  seat: number | null;
+  lines: LogLine[];
+}
+
+const HAUNT_EVENTS = new Set(["haunt-revealed", "haunt-started"]);
+
+/** The log by turn, so it reads as the game's story. */
+export function logGroups(
+  engine: Engine,
+  state: GameState,
+  lines: LogLine[],
+): LogGroup[] {
+  const groups: LogGroup[] = [
+    { key: "setup", title: "Setup", seat: null, lines: [] },
+  ];
+  let turns = 0;
+  for (const line of lines) {
+    const { event } = line;
+    if (event.type === "turn-started") {
+      turns += 1;
+      const seat = (event.data as { seat: number }).seat;
+      groups.push({
+        key: event.id,
+        title: `Turn ${turns}: ${seatLabel(engine, state, seat)}`,
+        seat,
+        lines: [],
+      });
+    } else if (HAUNT_EVENTS.has(event.type)) {
+      groups.push({ key: event.id, title: "The haunt", seat: null, lines: [] });
+    }
+    groups[groups.length - 1].lines.push(line);
+  }
+  return groups.filter((g) => g.lines.length > 0);
+}
