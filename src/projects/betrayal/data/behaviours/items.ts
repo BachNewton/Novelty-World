@@ -5,6 +5,7 @@ import {
   defineStep,
   discardCard,
   drawCard,
+  drawnBy,
   endTurnNow,
   gain,
   loseCard,
@@ -284,8 +285,17 @@ export const ITEMS: BehaviourGroup = {
       },
     },
 
-    // The Candle's extra die for an event's trait rolls is a roll modifier, not built yet.
     candle: {
+      modifiers: [
+        {
+          question: "dicePool",
+          when: (state, { seat, roll }, source) =>
+            seat === source.holder &&
+            roll.spec.kind === "trait" &&
+            drawnBy(state, roll.rule) === seat,
+          change: { add: 1 },
+        },
+      ],
       reactions: [
         {
           event: "card-gained",
@@ -419,6 +429,35 @@ export const ITEMS: BehaviourGroup = {
       "Apply the Healing Salve",
       PHYSICAL,
     ),
+
+    idol: {
+      rollOptions: [
+        {
+          timing: "before",
+          // Combat rolls join these once the engine has combat.
+          applies: (_state, _seat, roll) =>
+            roll.spec.kind === "trait" ||
+            (roll.rule.source === "card" &&
+              CATALOG.cards[roll.rule.card].type === "event"),
+          effect: { kind: "dice", amount: 2 },
+        },
+      ],
+      reactions: [
+        {
+          event: "card-used",
+          when: (_state, event) =>
+            eventData<{ card: string }>(event).card === "idol",
+          steps: (_state, event) => [
+            gain(
+              eventData<{ seat: number }>(event).seat,
+              "sanity",
+              -1,
+              card("idol"),
+            ),
+          ],
+        },
+      ],
+    },
 
     "lucky-stone": {
       rollOptions: [

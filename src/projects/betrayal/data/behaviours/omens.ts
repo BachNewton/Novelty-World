@@ -217,6 +217,8 @@ export const OMENS: BehaviourGroup = {
       },
     },
 
+    skull: { damageAs: "physical" },
+
     "spirit-board": {
       actions: {
         look: {

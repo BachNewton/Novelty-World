@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { adjacent } from "../../engine/board";
 import { discardCard } from "../../engine/effects";
+import { traitValue } from "../../engine/explorers";
 import { askNumber } from "../../engine/questions";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
@@ -389,6 +390,7 @@ describe("Rabbit's Foot (cards/items.md)", () => {
     const roll = {
       spec: { kind: "trait", trait: "speed" },
       rule: { source: "card", card: "angry-being" },
+      extraDice: 0,
     } as const;
     expect(rabbit?.applies(state, OX, roll)).toBe(false);
     expect(rabbit?.applies(state, ZOE, roll)).toBe(true);
@@ -442,6 +444,115 @@ describe("Candle (cards/items.md)", () => {
       "Drop the Candle",
     );
     expect(clips(dropped)).toEqual(each(3));
+  });
+
+  /** The Sanity rolls made from drawing the event until the next turn
+   *  decision, as [seat, dice], splitting damage the first way offered. */
+  function sanityRolls(start: GameState): [number, number][] {
+    let state = start;
+    const seen = [...state.lastEvents];
+    while (pendingDecision(state).kind === "split-damage") {
+      state = choose(state, "Take");
+      seen.push(...state.lastEvents);
+    }
+    return seen
+      .filter((e) => e.type === "rolled")
+      .map(
+        (e) =>
+          e.data as { seat: number; spec: { kind: string }; dice: number[] },
+      )
+      .filter((r) => r.spec.kind === "trait")
+      .map((r) => [r.seat, r.dice.length]);
+  }
+
+  it("rolls 1 extra die for the trait rolls of an event you draw", () => {
+    const state = drawEvent(holding(["candle"]), "angry-being");
+    // Zoe's Speed is 4.
+    expect(rolled(state).dice).toHaveLength(5);
+  });
+
+  it("adds nothing to another explorer's roll for an event you drew, or to yours for theirs", () => {
+    const sanity = (seat: number) =>
+      traitValue(ENGINE.catalog, testGame(), seat, "sanity");
+    // Hideous Shriek: every explorer makes a Sanity roll.
+    expect(
+      sanityRolls(drawEvent(holding(["candle"]), "hideous-shriek")),
+    ).toEqual([
+      [ZOE, sanity(ZOE) + 1],
+      [OX, sanity(OX)],
+      [2, sanity(2)],
+    ]);
+    const state = holding([]);
+    state.explorers[OX].cards.push("candle");
+    expect(sanityRolls(drawEvent(state, "hideous-shriek"))).toEqual([
+      [ZOE, sanity(ZOE)],
+      [OX, sanity(OX)],
+      [2, sanity(2)],
+    ]);
+  });
+
+  it("adds nothing to an event's dice that aren't a trait roll, or once the event is gone", () => {
+    const state = drawEvent(holding(["candle"]), "angry-being");
+    const pool = (
+      spec: { kind: "dice"; count: number } | { kind: "trait"; trait: "speed" },
+    ) =>
+      askNumber(ENGINE, state, "dicePool", {
+        seat: ZOE,
+        roll: {
+          spec,
+          rule: { source: "card", card: "angry-being" },
+          extraDice: 0,
+        },
+      });
+    expect(pool({ kind: "dice", count: 2 })).toBe(2);
+    // Angry Being has been discarded, so a roll naming it isn't for an event in play.
+    expect(state.decks.event.discard).toContain("angry-being");
+    expect(pool({ kind: "trait", trait: "speed" })).toBe(
+      traitValue(ENGINE.catalog, state, ZOE, "speed"),
+    );
+  });
+});
+
+describe("Idol (cards/items.md)", () => {
+  it("adds 2 dice to a trait roll, and each use costs 1 Sanity", () => {
+    let state = drawEvent(holding(["idol"]), "angry-being");
+    expect(labels(state)).toEqual([
+      "Make the Speed roll (4 dice)",
+      "Use Idol: add 2 dice",
+    ]);
+    const sanity = state.explorers[ZOE].clips.sanity;
+    state = choose(state, "Use Idol");
+    expect(rolled(state).dice).toHaveLength(6);
+    expect(state.explorers[ZOE].clips.sanity).toBe(sanity - 1);
+    expect(state.explorers[ZOE].cards).toContain("idol");
+  });
+
+  it("never takes a roll past 8 dice", () => {
+    const state = holding(["idol"]);
+    // Zoe's Speed of 8.
+    state.explorers[ZOE].clips.speed = 7;
+    const after = choose(drawEvent(state, "angry-being"), "Use Idol");
+    expect(rolled(after).dice).toHaveLength(8);
+  });
+
+  it("is for trait, combat and event rolls: not an item's dice or the haunt roll", () => {
+    const idol = ENGINE.behaviours.cards.idol?.rollOptions?.[0];
+    const state = holding(["idol"]);
+    const applies = (
+      spec: { kind: "dice"; count: number } | { kind: "haunt" },
+      card: string | null,
+    ) =>
+      idol?.applies(state, ZOE, {
+        spec,
+        rule:
+          card === null
+            ? { source: "rulebook", page: 15 }
+            : { source: "card", card },
+        extraDice: 0,
+      });
+    expect(applies({ kind: "dice", count: 2 }, "angry-being")).toBe(true);
+    expect(applies({ kind: "dice", count: 3 }, "dark-dice")).toBe(false);
+    expect(applies({ kind: "haunt" }, null)).toBe(false);
   });
 });
 

@@ -77,7 +77,8 @@ export interface Permission {
   because: RuleRef[];
 }
 
-const MAX_DICE = 8;
+/** The most dice any roll may have. */
+export const MAX_DICE = 8;
 
 const NUMBER_BASE: {
   [Q in keyof NumberQuestions]: (
@@ -138,7 +139,10 @@ export function askNumber<Q extends keyof NumberQuestions>(
   question: Q,
   subject: NumberQuestions[Q],
 ): number {
-  const changes = applicable<NumberChange>(engine, state, question, subject);
+  const changes = [
+    ...applicable<NumberChange>(engine, state, question, subject),
+    ...ownChanges(question, subject),
+  ];
   let answer = NUMBER_BASE[question](engine, state, subject);
   const set = highest(changes, "set", question);
   if (set !== undefined) answer = set;
@@ -153,6 +157,33 @@ export function askNumber<Q extends keyof NumberQuestions>(
   if (fix !== undefined) answer = fix;
   if (question === "dicePool") answer = Math.min(Math.max(answer, 0), MAX_DICE);
   return answer;
+}
+
+const LAYER_OF: Record<RuleRef["source"], Layer> = {
+  rulebook: "rulebook",
+  room: "room",
+  card: "card",
+  token: "card",
+  haunt: "haunt",
+};
+
+/** A change the subject carries itself: dice the rule asking for one roll
+ *  adds or takes away ("an explorer in the Gardens rolls 2 fewer dice"). The
+ *  rule needn't be live by the time the roll is made, so it isn't a source. */
+function ownChanges(
+  question: keyof NumberQuestions,
+  subject: NumberQuestions[keyof NumberQuestions],
+): Applied<NumberChange>[] {
+  if (question !== "dicePool") return [];
+  const { roll } = subject as NumberQuestions["dicePool"];
+  if (roll.extraDice === 0) return [];
+  return [
+    {
+      layer: LAYER_OF[roll.rule.source],
+      change: { add: roll.extraDice },
+      rule: roll.rule,
+    },
+  ];
 }
 
 /** The highest layer's value for an operation. Two different values in one layer are a rules conflict the rulebook doesn't settle. */

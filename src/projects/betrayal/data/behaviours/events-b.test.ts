@@ -649,6 +649,7 @@ describe("Smoke", () => {
   const traitRoll = (trait: Trait) => ({
     spec: { kind: "trait" as const, trait },
     rule: { source: "card" as const, card: "test" },
+    extraDice: 0,
   });
 
   it("puts the Smoke token in the room; trait rolls there get 2 fewer dice, to a minimum of 1", () => {
@@ -685,6 +686,7 @@ describe("Smoke", () => {
         roll: {
           spec: { kind: "dice", count: 3 },
           rule: { source: "card", card: "test" },
+          extraDice: 0,
         },
       }),
     ).toBe(3);

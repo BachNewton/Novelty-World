@@ -269,10 +269,12 @@ Every card, room and token with rules text has a **behaviour**, kept with the co
 - offer actions: on its holder's turn for a card, or to an explorer in its room for a room or token;
 - react to events (a turn ending in this room, this card being used);
 - modify the answers to questions (section 5), which is how a passive card such as one that adds a die or stops movement works;
-- offer options around a roll its holder makes: something to add before the dice, or a reroll after;
+- offer options around a roll its holder makes: something to add, extra dice or a number to use instead before the dice, or a reroll after;
+- have a say before an explorer leaves its room (a room's roll to leave), which may keep them there;
+- let its holder take damage of one kind as the other before it is split;
 - register steps of its own, named under its id.
 
-Everything a behaviour does to the game is a step built from the engine's effects (`engine/effects.ts`): gaining and losing traits, damage the player splits, a roll feeding an outcome table, drawing and keeping cards, placing tokens, moving an explorer without spending movement. So an effect that pauses for a decision halfway through is stored as data like any other work. When a card needs something the effects and the questions don't offer, the engine gains a general effect or question for it; the engine never branches on a card's id.
+Everything a behaviour does to the game is a step built from the engine's effects (`engine/effects.ts`): gaining and losing traits, damage the player splits, a roll feeding an outcome table, drawing and keeping cards, placing tokens, moving an explorer without spending movement. So an effect that pauses for a decision halfway through is stored as data like any other work. A rule that changes a single roll it asks for (fewer dice in one room) carries that change on the roll itself, since the card behind it may no longer be in play when the dice are rolled; an event card in play remembers who drew it, for rules that favour rolls for events their holder drew. When a card needs something the effects and the questions don't offer, the engine gains a general effect or question for it; the engine never branches on a card's id.
 
 Each behaviour's tests come from its `content/` entry, played through a scenario (`testing.ts`): stack the decks and the room stack, then pick the offered choices by their labels.
 

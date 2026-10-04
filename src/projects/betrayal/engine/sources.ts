@@ -42,8 +42,12 @@ export interface RollOption {
   applies: (state: GameState, seat: number, roll: RollContext) => boolean;
   effect:
     | { kind: "add"; amount: number }
+    /** Add dice to the roll, up to the most dice a roll may have. */
+    | { kind: "dice"; amount: number }
     /** Name the result instead of rolling. */
     | { kind: "name"; min: number; max: number }
+    /** Use a number already known instead of rolling, at most the roll's highest result. */
+    | { kind: "number"; value: (state: GameState) => number }
     /** Reroll some dice: at most this many, or any number. */
     | { kind: "reroll"; max: number | null };
 }
@@ -52,6 +56,8 @@ export interface RollContext {
   spec: RollSpec;
   /** The card or room whose rule asked for the roll. */
   rule: RuleRef;
+  /** Dice the rule asking for this one roll adds or takes away. */
+  extraDice: number;
 }
 
 export interface SourceAction {
@@ -79,6 +85,18 @@ export interface Behaviour {
   reactions?: Reaction[];
   modifiers?: Modifier[];
   rollOptions?: RollOption[];
+  /** Before an explorer leaves the room this source is in (or, for a card,
+   *  its holder's room): the steps to run instead of leaving at once. They
+   *  continue the departure by running `go`, or keep the explorer in the room
+   *  by leaving it out. */
+  beforeLeave?: (
+    state: GameState,
+    seat: number,
+    source: Source,
+    go: Step,
+  ) => Step[];
+  /** Its holder may take damage of the other kind as this kind instead (the Skull). */
+  damageAs?: "physical" | "mental";
   /** Steps only this source uses, registered under the source's id. */
   steps?: Record<string, StepHandler>;
   /** A card lying in a room still acts from there (an open Music Box). Other

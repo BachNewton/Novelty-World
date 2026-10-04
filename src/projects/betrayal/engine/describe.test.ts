@@ -89,6 +89,42 @@ describe("describeEvent", () => {
     ).toBe("Mask: The Mask is put on.");
   });
 
+  it("words staying in a room, changed damage and a reordered stack", () => {
+    expect(
+      text(
+        event(
+          "stayed",
+          { source: "room", room: "junk-room" },
+          { seat: 0, room: "junk-room" },
+        ),
+      ),
+    ).toBe(
+      "Junk Room: Zoe Ingstrom stays in the Junk Room and moves no further this turn.",
+    );
+    expect(
+      text(
+        event(
+          "damage-converted",
+          { source: "card", card: "skull" },
+          { seat: 0, from: "mental", to: "physical" },
+        ),
+      ),
+    ).toBe(
+      "Skull: Zoe Ingstrom takes the mental damage as physical damage instead.",
+    );
+    expect(
+      text(
+        event(
+          "stack-reordered",
+          { source: "card", card: "it-is-meant-to-be" },
+          { seat: 0, stack: "item" },
+        ),
+      ),
+    ).toBe(
+      "It Is Meant to Be: Zoe Ingstrom looks at the top of the item stack and puts them back in an order only they know.",
+    );
+  });
+
   it("says what a forced step chose", () => {
     const forced = event(
       "forced",

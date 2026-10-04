@@ -7,6 +7,7 @@ import {
   drawCard,
   gain,
   keepCard,
+  markCard,
   placeToken,
   relocate,
   removeToken,
@@ -24,7 +25,7 @@ import {
   type Reaction,
 } from "../../engine/sources";
 import type { StepHandler } from "../../engine/step-loop";
-import type { GameState, RuleRef, Step, Trait } from "../../types";
+import type { CardType, GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
@@ -97,6 +98,49 @@ function tokenRoll(
       },
     },
   };
+}
+
+const MEANT = "it-is-meant-to-be";
+const RECORDED = "recorded";
+
+/** The total It Is Meant to Be recorded, while its holder keeps it. */
+function recorded(state: GameState): number | null {
+  const value = state.cardMarks[MEANT]?.[RECORDED]?.value;
+  return typeof value === "number" ? value : null;
+}
+
+type Stack = "room" | CardType;
+const STACK_NAMES: Record<Stack, string> = {
+  room: "room stack",
+  event: "event stack",
+  item: "item stack",
+  omen: "omen stack",
+};
+
+/** A stack's undrawn tiles or cards, top first. */
+function stackOf(state: GameState, stack: Stack): string[] {
+  return stack === "room" ? state.board.stack : state.decks[stack].draw;
+}
+
+function stacks(state: GameState): Stack[] {
+  return (["room", "event", "item", "omen"] as const).filter(
+    (stack) => stackOf(state, stack).length > 0,
+  );
+}
+
+function stackItemName(stack: Stack, id: string): string {
+  return stack === "room" ? CATALOG.rooms[id].name : CATALOG.cards[id].name;
+}
+
+/** Every order of a few things. */
+function permutations(items: string[]): string[][] {
+  if (items.length <= 1) return [items];
+  return items.flatMap((first, i) =>
+    permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [
+      first,
+      ...rest,
+    ]),
+  );
 }
 
 const GRAVE_DIRT_ROOMS = [
@@ -404,6 +448,37 @@ export const EVENTS_A: BehaviourGroup = {
       steps: { discard: discardIfHeld("grave-dirt") },
     },
 
+    groundskeeper: {
+      onDraw: (state, seat) => {
+        const rule = card("groundskeeper");
+        return [
+          roll(
+            seat,
+            { kind: "trait", trait: "knowledge" },
+            rule,
+            table([
+              { min: 4, max: null, steps: [drawCard(seat, "item", rule)] },
+              {
+                min: 0,
+                max: 3,
+                steps: [local("groundskeeper", "attack", { seat })],
+              },
+            ]),
+            {
+              extraDice: explorerAt(state, seat).room === "gardens" ? -2 : 0,
+            },
+          ),
+        ];
+      },
+      steps: {
+        attack: defineStep(() => {
+          throw new Error(
+            "The Groundskeeper's attack needs combat, which the engine doesn't have yet",
+          );
+        }),
+      },
+    },
+
     "hanged-men": {
       onDraw: (_state, seat) => [
         local("hanged-men", "next", {
@@ -507,6 +582,119 @@ export const EVENTS_A: BehaviourGroup = {
       onDraw: (_state, seat) => [
         drawCard(seat, "item", card("image-in-the-mirror-take")),
       ],
+    },
+
+    "it-is-meant-to-be": {
+      onDraw: (state, seat) => {
+        const rule = card(MEANT);
+        return [
+          chooseOne(
+            seat,
+            [
+              ...(stacks(state).length > 0
+                ? [
+                    {
+                      label:
+                        "Look at the top 3 tiles or cards of a stack and put them back in any order",
+                      steps: [local(MEANT, "pick-stack", { seat })],
+                    },
+                  ]
+                : []),
+              {
+                label: "Roll 4 dice and record the total for a later roll",
+                steps: [
+                  roll(
+                    seat,
+                    { kind: "dice", count: 4 },
+                    rule,
+                    local(MEANT, "record", { seat }),
+                  ),
+                ],
+              },
+            ],
+            rule,
+          ),
+        ];
+      },
+      rollOptions: [
+        {
+          timing: "before",
+          applies: (state) => recorded(state) !== null,
+          effect: { kind: "number", value: (state) => recorded(state) ?? 0 },
+        },
+      ],
+      reactions: [
+        {
+          event: "card-used",
+          when: (_state, event) =>
+            eventData<{ card: string }>(event).card === MEANT,
+          steps: (_state, event) => [
+            discardCard(eventData<{ seat: number }>(event).seat, MEANT),
+          ],
+        },
+      ],
+      steps: {
+        "pick-stack": defineStep<{ seat: number }>((state, { seat }, ctx) => {
+          ctx.push(
+            chooseOne(
+              seat,
+              stacks(state).map((stack) => ({
+                label: `Look at the top of the ${STACK_NAMES[stack]}`,
+                steps: [local(MEANT, "look", { seat, stack })],
+              })),
+              card(MEANT),
+            ),
+          );
+        }),
+        look: defineStep<{ seat: number; stack: Stack }>((state, p, ctx) => {
+          const orders = permutations(stackOf(state, p.stack).slice(0, 3));
+          const putBack = (order: string[]) =>
+            local(MEANT, "put-back", { ...p, order });
+          if (orders.length === 1) {
+            ctx.push(putBack(orders[0]));
+            return;
+          }
+          ctx.push(
+            chooseOne(
+              p.seat,
+              orders.map((order) => ({
+                label: `Put them back, top first: ${order.map((id) => stackItemName(p.stack, id)).join(", ")}`,
+                steps: [putBack(order)],
+              })),
+              card(MEANT),
+            ),
+          );
+        }),
+        "put-back": defineStep<{ seat: number; stack: Stack; order: string[] }>(
+          (state, p, ctx) => {
+            const pile = stackOf(state, p.stack);
+            const top = pile.slice(0, p.order.length);
+            if ([...top].sort().join() !== [...p.order].sort().join())
+              throw new Error(`The top of the ${p.stack} stack has changed`);
+            pile.splice(0, p.order.length, ...p.order);
+            ctx.emit("stack-reordered", card(MEANT), {
+              seat: p.seat,
+              stack: p.stack,
+            });
+          },
+        ),
+        record: defineStep<{ seat: number; result: number }>(
+          (_state, p, ctx) => {
+            ctx.push(
+              keepCard(p.seat, MEANT),
+              markCard(MEANT, RECORDED, p.result, "holder", card(MEANT)),
+            );
+          },
+        ),
+      },
+      describe: {
+        "card-marked": (event) =>
+          `The total ${String(eventData<{ value: number }>(event).value)} is recorded for a later roll`,
+        "stack-reordered": (event, words) => {
+          const d = eventData<{ seat: number; stack: Stack }>(event);
+          return `${words.explorer(d.seat)} looks at the top of the ${STACK_NAMES[d.stack]} and puts them back in an order only they know`;
+        },
+      },
     },
 
     "jonahs-turn": {
@@ -616,7 +804,7 @@ export const EVENTS_A: BehaviourGroup = {
               ],
             },
           ]),
-          "closet",
+          { id: "closet" },
         );
       },
     ),
@@ -668,7 +856,7 @@ export const EVENTS_A: BehaviourGroup = {
             steps: [damage(seat, "physical", { dice: 2 }, rule)],
           },
         ]),
-        "safe",
+        { id: "safe" },
       );
     }),
   },

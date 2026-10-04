@@ -9,8 +9,13 @@ import type {
 } from "../types";
 import { rollName, traitName } from "./describe";
 import { explorerAt, MENTAL, moveClip, PHYSICAL } from "./explorers";
-import { askNumber } from "./questions";
-import { liveSources, type RollOption, type RollSpec } from "./sources";
+import { askNumber, MAX_DICE } from "./questions";
+import {
+  liveSources,
+  type RollOption,
+  type RollSpec,
+  type Source,
+} from "./sources";
 import type {
   DecisionKind,
   Engine,
@@ -140,6 +145,30 @@ export function damage(
   });
 }
 
+type DamageLands = {
+  seat: number;
+  damage: "physical" | "mental";
+  points: number;
+  rule: RuleRef;
+};
+
+/** The cards that let a seat take this damage as the other kind instead. */
+function damageKinds(
+  engine: Engine,
+  state: GameState,
+  seat: number,
+  damage: "physical" | "mental",
+): Source[] {
+  return liveSources(engine.behaviours, state)
+    .filter(
+      ({ source, behaviour }) =>
+        source.holder === seat &&
+        behaviour.damageAs !== undefined &&
+        behaviour.damageAs !== damage,
+    )
+    .map(({ source }) => source);
+}
+
 type Split = {
   seat: number;
   damage: "physical" | "mental";
@@ -177,6 +206,8 @@ type Roll = {
   then: Step;
   /** Names the roll for "the same roll only once a turn" (p. 12). */
   id: string | null;
+  /** Dice the rule adds to or takes from this one roll. */
+  extraDice: number;
 };
 
 type RollInProgress = Roll & {
@@ -188,15 +219,24 @@ type RollInProgress = Roll & {
   used: string[];
 };
 
-/** A roll whose result continues into `then`, added to its parameters as `result`. */
+/** A roll whose result continues into `then`, added to its parameters as
+ *  `result`. `id` names a roll that may be attempted only once a turn;
+ *  `extraDice` adds dice to (or, negative, takes them from) this one roll. */
 export function roll(
   seat: number,
   spec: RollSpec,
   rule: RuleRef,
   then: Step,
-  id: string | null = null,
+  options: { id?: string; extraDice?: number } = {},
 ): Step {
-  return step<Roll>("roll", { seat, spec, rule, then, id });
+  return step<Roll>("roll", {
+    seat,
+    spec,
+    rule,
+    then,
+    id: options.id ?? null,
+    extraDice: options.extraDice ?? 0,
+  });
 }
 
 /** A roll's outcome table: the first row whose range holds the result. */
@@ -235,7 +275,11 @@ function rollOptions(
     (behaviour.rollOptions ?? []).forEach((option, index) => {
       if (
         option.timing === timing &&
-        option.applies(state, r.seat, { spec: r.spec, rule: r.rule })
+        option.applies(state, r.seat, {
+          spec: r.spec,
+          rule: r.rule,
+          extraDice: r.extraDice,
+        })
       ) {
         result.push({ card: source.id, index, option });
       }
@@ -265,6 +309,9 @@ function rerollChoices(dice: number[], max: number | null): number[][] {
 function rollTotal(r: RollInProgress): number {
   return (r.named ?? r.dice.reduce((a, b) => a + b, 0)) + r.bonus;
 }
+
+/** A die shows 0, 1 or 2. */
+const highestResult = (pool: number) => pool * 2;
 
 // ---------------------------------------------------------------------------
 // Cards
@@ -341,7 +388,7 @@ type MarkCard = {
   rule: RuleRef;
 };
 
-/** Sets a counter or flag on a card in play. False and 0 clear it. */
+/** Sets a counter or flag on a card in play. False clears it. */
 export function markCard(
   card: string,
   name: string,
@@ -367,6 +414,16 @@ export function cardCount(
 ): number {
   const value = state.cardMarks[card]?.[name]?.value;
   return typeof value === "number" ? value : 0;
+}
+
+const DRAWN_BY = "drawn-by";
+
+/** The seat that drew an event card, while the card is in play: a rule may
+ *  favour rolls for events its holder drew (the Candle). */
+export function drawnBy(state: GameState, rule: RuleRef): number | null {
+  if (rule.source !== "card") return null;
+  const value = state.cardMarks[rule.card]?.[DRAWN_BY]?.value;
+  return typeof value === "number" ? value : null;
 }
 
 /** Clears a card's marks: those of its holder, or, as it leaves play, all of them. */
@@ -402,13 +459,39 @@ export function removeToken(token: string, room: string, rule: RuleRef): Step {
   });
 }
 
-/** Puts an explorer in a room without moving there: no movement is spent. */
+/** Puts an explorer in a room without moving there: no movement is spent.
+ *  Leaving their room first runs its rules for leaving, as any departure does. */
 export function relocate(seat: number, room: string, rule: RuleRef): Step {
-  return step<{ seat: number; room: string; rule: RuleRef }>("relocate", {
+  return leaveRoom(
     seat,
-    room,
-    rule,
-  });
+    step<{ seat: number; room: string; rule: RuleRef }>("relocate", {
+      seat,
+      room,
+      rule,
+    }),
+  );
+}
+
+type Leave = {
+  seat: number;
+  room: string;
+  /** The departure itself: the step that moves the explorer out. */
+  then: Step;
+  /** Sources whose say over this departure has been had, as kind:id. */
+  heard: string[];
+};
+
+/** An explorer leaves their room by running `then`, once every source with a
+ *  say over leaving it (a room's roll to leave) has had it. A source can keep
+ *  the explorer in the room by not continuing. */
+export function leaveRoom(seat: number, then: Step): Step {
+  return step<{ seat: number; then: Step }>("leave", { seat, then });
+}
+
+/** The explorer stays in the room they were leaving, and moves no further
+ *  this turn: they try again on a later turn. */
+export function stayInRoom(seat: number, rule: RuleRef): Step {
+  return step<{ seat: number; rule: RuleRef }>("stay", { seat, rule });
 }
 
 /** An event card that stays in play, held by no one, until something ends it. */
@@ -481,10 +564,27 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       );
       return;
     }
+    const points = p.amount ?? 0;
+    if (
+      points > 0 &&
+      damageKinds(ctx.engine, state, p.seat, p.damage).length > 0
+    ) {
+      ctx.decide(
+        [p.seat],
+        "damage-kind",
+        { seat: p.seat, damage: p.damage, points, rule: p.rule },
+        p.rule,
+      );
+      return;
+    }
+    ctx.push(step<DamageLands>("damage-lands", { ...p, points }));
+  }),
+
+  "damage-lands": defineStep<DamageLands>((state, p, ctx) => {
     const amount = askNumber(ctx.engine, state, "damageAmount", {
       seat: p.seat,
       damage: p.damage,
-      amount: p.amount ?? 0,
+      amount: p.points,
       rule: p.rule,
     });
     if (amount <= 0) {
@@ -516,7 +616,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     }
     const pool = askNumber(ctx.engine, state, "dicePool", {
       seat: p.seat,
-      roll: { spec: p.spec, rule: p.rule },
+      roll: { spec: p.spec, rule: p.rule, extraDice: p.extraDice },
     });
     ctx.push(
       step<RollInProgress>("roll-before", {
@@ -587,6 +687,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     ctx.emit("card-drawn", p.rule, { seat: p.seat, card, type: p.type });
     const behaviour = ctx.engine.behaviours.cards[card];
     if (p.type === "event") {
+      state.cardMarks[card] = {
+        ...state.cardMarks[card],
+        [DRAWN_BY]: { value: p.seat, lasts: "play" },
+      };
       if (!behaviour?.onDraw) throw new Error(`Event ${card} has no behaviour`);
       ctx.push(
         ...behaviour.onDraw(state, p.seat),
@@ -608,7 +712,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     const kept =
       state.explorers.some((e) => e.cards.includes(p.card)) ||
       state.ongoing.includes(p.card);
-    if (!kept) state.decks.event.discard.push(p.card);
+    if (kept) return;
+    state.decks.event.discard.push(p.card);
+    clearMarks(state, p.card, "all");
   }),
 
   "gain-card": defineStep<GainCard>((state, p, ctx) => {
@@ -661,7 +767,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
 
   "mark-card": defineStep<MarkCard>((state, p, ctx) => {
     const marks = { ...state.cardMarks[p.card] };
-    if (p.value === false || p.value === 0) delete marks[p.name];
+    if (p.value === false) delete marks[p.name];
     else marks[p.name] = { value: p.value, lasts: p.lasts };
     if (Object.keys(marks).length > 0) state.cardMarks[p.card] = marks;
     else delete state.cardMarks[p.card];
@@ -689,6 +795,54 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       ctx.emit("token-removed", p.rule, { token: p.token, room: p.room });
     },
   ),
+
+  leave: defineStep<{ seat: number; then: Step }>((state, p, ctx) => {
+    ctx.push(
+      step<Leave>("leave-heard", {
+        seat: p.seat,
+        room: explorerAt(state, p.seat).room,
+        then: p.then,
+        heard: [],
+      }),
+    );
+  }),
+
+  "leave-heard": defineStep<Leave>((state, p, ctx) => {
+    if (explorerAt(state, p.seat).room !== p.room)
+      throw new Error(`Seat ${p.seat} left ${p.room} before its rules said so`);
+    const next = liveSources(ctx.engine.behaviours, state).find(
+      ({ source, behaviour }) =>
+        behaviour.beforeLeave !== undefined &&
+        !p.heard.includes(`${source.kind}:${source.id}`) &&
+        ((source.kind === "room" && source.id === p.room) ||
+          (source.kind !== "room" && source.room === p.room) ||
+          source.holder === p.seat),
+    );
+    if (!next?.behaviour.beforeLeave) {
+      ctx.push(p.then);
+      return;
+    }
+    const { source } = next;
+    ctx.push(
+      ...next.behaviour.beforeLeave(
+        state,
+        p.seat,
+        source,
+        step<Leave>("leave-heard", {
+          ...p,
+          heard: [...p.heard, `${source.kind}:${source.id}`],
+        }),
+      ),
+    );
+  }),
+
+  stay: defineStep<{ seat: number; rule: RuleRef }>((state, p, ctx) => {
+    if (state.turn?.seat === p.seat) state.turn.movementEnded = true;
+    ctx.emit("stayed", p.rule, {
+      seat: p.seat,
+      room: explorerAt(state, p.seat).room,
+    });
+  }),
 
   relocate: defineStep<{ seat: number; room: string; rule: RuleRef }>(
     (state, p, ctx) => {
@@ -763,6 +917,35 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     },
   }),
 
+  "damage-kind": defineDecision<DamageLands, string | null>({
+    candidates: (state, p, _seat, engine) => [
+      null,
+      ...damageKinds(engine, state, p.seat, p.damage).map((s) => s.id),
+    ],
+    label: (_state, p, card, engine) => {
+      const other = p.damage === "physical" ? "mental" : "physical";
+      return card === null
+        ? `Take ${p.points} ${p.damage} damage`
+        : `Use ${cardName(engine, card)}: take ${p.points} ${other} damage instead`;
+    },
+    resolve: (state, p, card, ctx) => {
+      if (card === null) {
+        ctx.push(step<DamageLands>("damage-lands", p));
+        return null;
+      }
+      const to = ctx.engine.behaviours.cards[card]?.damageAs;
+      if (to === undefined || to === p.damage)
+        return "That card doesn't change this damage";
+      ctx.emit(
+        "damage-converted",
+        { source: "card", card },
+        { seat: p.seat, from: p.damage, to },
+      );
+      ctx.push(step<DamageLands>("damage-lands", { ...p, damage: to }));
+      return null;
+    },
+  }),
+
   "choose-one": defineDecision<
     { seat: number; options: Option[]; rule: RuleRef },
     number
@@ -784,8 +967,14 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
         r,
         "before",
       )) {
-        if (option.effect.kind === "add")
+        if (option.effect.kind === "add" || option.effect.kind === "dice")
           choices.push({ card, option: index, value: null });
+        if (option.effect.kind === "number")
+          choices.push({
+            card,
+            option: index,
+            value: Math.min(option.effect.value(state), highestResult(r.pool)),
+          });
         if (option.effect.kind === "name") {
           for (
             let value = option.effect.min;
@@ -799,7 +988,11 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
     },
     label: (_state, r, c, engine) => {
       if (c.card === null)
-        return `Make the ${rollName(r.spec)} (${r.pool} dice)`;
+        return `Make the ${rollName(r.spec)} (${r.pool} ${r.pool === 1 ? "die" : "dice"})`;
+      const effect =
+        engine.behaviours.cards[c.card]?.rollOptions?.[c.option]?.effect;
+      if (effect?.kind === "dice")
+        return `Use ${cardName(engine, c.card)}: add ${effect.amount} dice`;
       return c.value === null
         ? `Use ${cardName(engine, c.card)}`
         : `Use ${cardName(engine, c.card)}: the result is ${c.value}`;
@@ -820,7 +1013,10 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       );
       const next: RollInProgress = { ...r, used: [...r.used, c.card] };
       if (option.effect.kind === "add") next.bonus += option.effect.amount;
-      if (option.effect.kind === "name") next.named = c.value;
+      if (option.effect.kind === "dice")
+        next.pool = Math.min(next.pool + option.effect.amount, MAX_DICE);
+      if (option.effect.kind === "name" || option.effect.kind === "number")
+        next.named = c.value;
       ctx.push(step("roll-before", next));
       return null;
     },

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { discardCard } from "../../engine/effects";
+import { damage, discardCard } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
-import { choose, offered, testGame } from "../../testing";
+import { choose, offered, pendingDecision, testGame } from "../../testing";
 import type { GameState, Trait } from "../../types";
 
 // Each card's tests come from its content/cards/omens.md entry, not from its implementation.
@@ -190,5 +190,54 @@ describe("Mask (cards/omens.md)", () => {
     const lost = lose(worn, "mask");
     expect(lost.explorers[0].clips).toMatchObject({ sanity: 3, knowledge: 3 });
     expect(lost.cardMarks.mask).toBeUndefined();
+  });
+});
+
+describe("Skull (cards/omens.md)", () => {
+  const RULE = { source: "card", card: "angry-being" } as const;
+
+  /** Zoe holds these cards and takes damage. */
+  function damaged(
+    cards: string[],
+    kind: "physical" | "mental",
+    points: number,
+  ): GameState {
+    const state = testGame();
+    state.explorers[0].cards.push(...cards);
+    return start(ENGINE, { ...state, pending: null }, [
+      damage(0, kind, { points }, RULE),
+    ]);
+  }
+
+  it("lets you take mental damage as physical damage instead", () => {
+    let state = damaged(["skull"], "mental", 2);
+    expect(labels(state)).toEqual([
+      "Take 2 mental damage",
+      "Use Skull: take 2 physical damage instead",
+    ]);
+    state = choose(state, "Use Skull");
+    expect(pendingDecision(state).params).toMatchObject({
+      damage: "physical",
+      amount: 2,
+    });
+    expect(labels(state)[0]).toBe("Take 2 Might and 0 Speed");
+  });
+
+  it("may be passed up: the damage stays mental", () => {
+    const state = choose(damaged(["skull"], "mental", 2), "Take 2 mental");
+    expect(pendingDecision(state).params).toMatchObject({ damage: "mental" });
+  });
+
+  it("offers nothing for physical damage", () => {
+    const state = damaged(["skull"], "physical", 1);
+    expect(pendingDecision(state).kind).toBe("split-damage");
+  });
+
+  it("makes the damage physical, so the Armor takes 1 off it (project ruling)", () => {
+    const state = choose(damaged(["skull", "armor"], "mental", 2), "Use Skull");
+    expect(pendingDecision(state).params).toMatchObject({
+      damage: "physical",
+      amount: 1,
+    });
   });
 });

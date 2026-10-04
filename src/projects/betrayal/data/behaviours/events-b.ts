@@ -28,9 +28,9 @@ function traitRoll(
   trait: Trait,
   rule: RuleRef,
   rows: TableRow[],
-  id: string | null = null,
+  id?: string,
 ): Step {
-  return roll(seat, { kind: "trait", trait }, rule, table(rows), id);
+  return roll(seat, { kind: "trait", trait }, rule, table(rows), { id });
 }
 
 /** Every explorer, starting with the one who drew the card and going left. */

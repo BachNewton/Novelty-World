@@ -275,6 +275,7 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
       roll: {
         spec: { kind: "trait", trait },
         rule: { source: "card", card: "angry-being" },
+        extraDice: 0,
       },
     });
 
@@ -295,6 +296,7 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
         roll: {
           spec: { kind: "dice", count: 2 },
           rule: { source: "card", card: "closet-door" },
+          extraDice: 0,
         },
       }),
     ).toBe(2);
@@ -711,5 +713,127 @@ describe("Mists from the Walls (cards/events.md)", () => {
         father.result >= 4 ? null : father.result >= 1 ? 2 : 3,
       );
     }
+  });
+});
+
+describe("Groundskeeper (cards/events.md)", () => {
+  it("makes a Knowledge roll; on 4+ you draw an item", () => {
+    let state = drawEvent("groundskeeper", {
+      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+    });
+    expect(pendingDecision(state).params).toMatchObject({
+      spec: { kind: "trait", trait: "knowledge" },
+      // Zoe's Knowledge is 3.
+      pool: 3,
+    });
+    state = choose(state, "the result is 4");
+    expect(state.lastEvents).toContainEqual(
+      expect.objectContaining({
+        type: "card-drawn",
+        data: expect.objectContaining({ type: "item" }) as unknown,
+      }),
+    );
+  });
+
+  it("an explorer in the Gardens rolls 2 fewer dice", () => {
+    const state = drawEvent("groundskeeper", {
+      stack: ["gardens"],
+      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+    });
+    expect(pendingDecision(state).params).toMatchObject({ pool: 1 });
+  });
+});
+
+describe("It Is Meant to Be (cards/events.md)", () => {
+  it("offers its two options", () => {
+    expect(labels(drawEvent("it-is-meant-to-be"))).toEqual([
+      "Look at the top 3 tiles or cards of a stack and put them back in any order",
+      "Roll 4 dice and record the total for a later roll",
+    ]);
+  });
+
+  it("option 1: look at the top 3 of one stack and put them back in any order", () => {
+    let state = choose(drawEvent("it-is-meant-to-be"), "Look at the top 3");
+    expect(labels(state)).toEqual([
+      "Look at the top of the room stack",
+      "Look at the top of the event stack",
+      "Look at the top of the item stack",
+      "Look at the top of the omen stack",
+    ]);
+    const top = state.decks.item.draw.slice(0, 3);
+    const rest = state.decks.item.draw.slice(3);
+    state = choose(state, "item stack");
+    expect(labels(state)).toHaveLength(6);
+    const reversed = [...top].reverse();
+    const name = (id: string) => ENGINE.catalog.cards[id].name;
+    state = choose(
+      state,
+      `Put them back, top first: ${reversed.map(name).join(", ")}`,
+    );
+    expect(state.decks.item.draw).toEqual([...reversed, ...rest]);
+    expect(state.decks.event.discard).toContain("it-is-meant-to-be");
+  });
+
+  it("option 2: rolls 4 dice and keeps the card, with the total recorded", () => {
+    const state = choose(drawEvent("it-is-meant-to-be"), "Roll 4 dice");
+    const [roll] = rolls(state.lastEvents);
+    expect(roll.dice).toHaveLength(4);
+    expect(state.explorers[0].cards).toContain("it-is-meant-to-be");
+    expect(state.cardMarks["it-is-meant-to-be"]?.recorded.value).toBe(
+      roll.result,
+    );
+  });
+
+  /** Zoe keeps It Is Meant to Be with this total recorded, then draws an event: Angry Being (a Speed roll) unless told otherwise. */
+  function usingRecorded(
+    total: number,
+    event = "angry-being",
+    options: Draw = {},
+  ): GameState {
+    return drawEvent(event, {
+      ...options,
+      setUp: (s) => {
+        s.explorers[0].cards.push("it-is-meant-to-be");
+        s.decks.event.draw = s.decks.event.draw.filter(
+          (c) => c !== "it-is-meant-to-be",
+        );
+        s.cardMarks["it-is-meant-to-be"] = {
+          recorded: { value: total, lasts: "holder" },
+        };
+      },
+    });
+  }
+
+  it("a later roll you make may use the recorded number instead, then the card is discarded", () => {
+    let state = usingRecorded(5);
+    expect(labels(state)).toEqual([
+      "Make the Speed roll (4 dice)",
+      "Use It Is Meant to Be: the result is 5",
+    ]);
+    state = choose(state, "Use It Is Meant to Be");
+    expect(rolls(state.lastEvents)[0]).toMatchObject({ dice: [], result: 5 });
+    expect(state.explorers[0].cards).not.toContain("it-is-meant-to-be");
+    expect(state.decks.event.discard).toContain("it-is-meant-to-be");
+    expect(state.cardMarks["it-is-meant-to-be"]).toBeUndefined();
+  });
+
+  it("a number higher than the roll could make becomes that roll's highest result", () => {
+    // The Groundskeeper's Knowledge roll in the Gardens: 1 die, at most 2.
+    const state = usingRecorded(5, "groundskeeper", { stack: ["gardens"] });
+    expect(labels(state)).toEqual([
+      "Make the Knowledge roll (1 die)",
+      "Use It Is Meant to Be: the result is 2",
+    ]);
+  });
+
+  it("a recorded total of 0 is still a number to use", () => {
+    expect(labels(usingRecorded(0))).toContain(
+      "Use It Is Meant to Be: the result is 0",
+    );
+  });
+
+  it("may be kept for a later roll instead", () => {
+    const state = choose(usingRecorded(5), "Make the Speed roll");
+    expect(state.explorers[0].cards).toContain("it-is-meant-to-be");
   });
 });

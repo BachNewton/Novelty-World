@@ -136,6 +136,12 @@ export function describeEvent(
       const d = data<{ seat: number; room: string }>(event);
       return sentence(`${who(d.seat)} discovers the ${words.room(d.room)}`);
     }
+    case "stayed": {
+      const d = data<{ seat: number; room: string }>(event);
+      return sentence(
+        `${who(d.seat)} stays in the ${words.room(d.room)} and moves no further this turn`,
+      );
+    }
     case "movement-ended":
       return sentence(
         `${who(data<{ seat: number }>(event).seat)} can't move any further this turn`,
@@ -228,6 +234,12 @@ export function describeEvent(
         .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`);
       return sentence(
         `${who(d.seat)} takes ${total} ${d.damage} damage${parts.length > 0 ? `: ${parts.join(" and ")}` : ""}`,
+      );
+    }
+    case "damage-converted": {
+      const d = data<{ seat: number; from: string; to: string }>(event);
+      return sentence(
+        `${who(d.seat)} takes the ${d.from} damage as ${d.to} damage instead`,
       );
     }
     case "damage-prevented": {
@@ -352,6 +364,16 @@ export function describeDecision(
       };
       return ask(
         `${words.explorer(p.seat)}: how should ${p.amount} ${p.damage} damage be split?`,
+      );
+    }
+    case "damage-kind": {
+      const p = decision.params as {
+        seat: number;
+        damage: string;
+        points: number;
+      };
+      return ask(
+        `${words.explorer(p.seat)}: take ${p.points} ${p.damage} damage as it is, or change it?`,
       );
     }
     case "choose-one": {

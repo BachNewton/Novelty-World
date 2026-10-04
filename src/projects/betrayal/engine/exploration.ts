@@ -30,6 +30,7 @@ import {
   handle,
   loseCard,
   isHandled,
+  leaveRoom,
   roll,
   step,
 } from "./effects";
@@ -267,7 +268,7 @@ function takeTurnChoice(
         }).allowed
       )
         return "Something stops that move";
-      return [step<Move>("move", { seat, to: choice.to })];
+      return [leaveRoom(seat, step<Move>("move", { seat, to: choice.to }))];
     }
     case "discover": {
       if (movementLeft(engine, state, seat) <= 0) return "No movement left";
@@ -291,7 +292,10 @@ function takeTurnChoice(
         return "No room is left that can go there";
       }
       return [
-        step<Discover>("discover", { seat, direction: choice.direction }),
+        leaveRoom(
+          seat,
+          step<Discover>("discover", { seat, direction: choice.direction }),
+        ),
       ];
     }
     case "action": {

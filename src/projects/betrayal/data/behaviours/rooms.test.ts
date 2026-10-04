@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { neighbourCell, placed } from "../../engine/board";
+import { relocate } from "../../engine/effects";
+import { start } from "../../engine/step-loop";
+import { ENGINE } from "../../game";
 import {
   choose,
   eventTypes,
@@ -93,5 +97,115 @@ describe("Coal Chute (rooms.md, rules p. 7)", () => {
     expect(offered(state).map((c) => c.label)).toContain(
       "Explore through the north door of the Basement Landing",
     );
+  });
+});
+
+describe.each<[string, FloorId, Trait, number, Trait]>([
+  ["junk-room", "ground", "might", 3, "speed"],
+  ["attic", "upper", "speed", 3, "might"],
+  ["graveyard", "ground", "sanity", 4, "knowledge"],
+  ["pentagram-chamber", "basement", "knowledge", 4, "sanity"],
+])("%s (rooms.md)", (room, floor, trait, target, loss) => {
+  /** Zoe holds the Angel Feather, which names the roll's result, and a card puts her in the Entrance Hall. */
+  function leaving(): GameState {
+    const state = standingIn(room, floor);
+    state.explorers[0].cards.push("angel-feather");
+    return start(ENGINE, { ...state, pending: null }, [
+      relocate(0, "entrance-hall", { source: "card", card: "bottle" }),
+    ]);
+  }
+
+  it(`makes a ${trait} roll of ${target}+ to leave, even when an effect moves you out`, () => {
+    let state = leaving();
+    expect(pendingDecision(state).params).toMatchObject({
+      spec: { kind: "trait", trait },
+    });
+    const before = state.explorers[0].clips;
+    state = choose(state, `the result is ${target}`);
+    expect(state.explorers[0].room).toBe("entrance-hall");
+    expect(state.explorers[0].clips).toEqual(before);
+  });
+
+  it(`on a failure, loses 1 ${loss} and still leaves`, () => {
+    let state = choose(leaving(), `the result is ${target - 1}`);
+    expect(state.explorers[0].room).toBe(room);
+    const before = state.explorers[0].clips[loss];
+    state = choose(state, "and keep going");
+    expect(state.explorers[0].clips[loss]).toBe(before - 1);
+    expect(state.explorers[0].room).toBe("entrance-hall");
+  });
+
+  it("on a failure, may stay in the room instead, without the loss (official ruling)", () => {
+    let state = choose(leaving(), `the result is ${target - 1}`);
+    const before = state.explorers[0].clips;
+    state = choose(state, "Stay in the");
+    expect(state.explorers[0].room).toBe(room);
+    expect(state.explorers[0].clips).toEqual(before);
+    expect(eventTypes(state)).toContain("stayed");
+  });
+});
+
+describe("Junk Room (rooms.md, rules p. 7)", () => {
+  /** Zoe in the Junk Room, which is north of the Entrance Hall, holding the
+   *  Angel Feather, and the Axe, which she could drop, so her turn never ends by itself. */
+  function inJunkRoom(): GameState {
+    const state = testGame();
+    const hall = placed(state.board, "entrance-hall");
+    if (!hall) throw new Error("No Entrance Hall");
+    state.board.tiles.push({
+      tile: "junk-room",
+      floor: "ground",
+      ...neighbourCell(hall, "top"),
+      rotation: 0,
+    });
+    state.explorers[0].room = "junk-room";
+    state.explorers[0].cards.push("angel-feather", "axe");
+    state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
+    return state;
+  }
+
+  it("rolls before a move out of it", () => {
+    let state = choose(inJunkRoom(), "Move to the Entrance Hall");
+    expect(pendingDecision(state).kind).toBe("roll-before");
+    state = choose(state, "the result is 3");
+    expect(state.explorers[0].room).toBe("entrance-hall");
+    expect(state.turn?.moved).toBe(1);
+  });
+
+  it("an explorer who stays tries again on a later turn: no more movement this turn", () => {
+    let state = choose(inJunkRoom(), "Move to the Entrance Hall");
+    state = choose(choose(state, "the result is 2"), "Stay in the Junk Room");
+    expect(state.explorers[0].room).toBe("junk-room");
+    expect(state.turn?.moved).toBe(0);
+    const labels = offered(state).map((c) => c.label);
+    expect(labels.some((l) => l.startsWith("Move to"))).toBe(false);
+    expect(labels.some((l) => l.startsWith("Explore"))).toBe(false);
+    expect(labels).toContain("End your turn");
+  });
+
+  it("still lets you out when the Speed it costs leaves no movement (p. 7)", () => {
+    const state = inJunkRoom();
+    if (!state.turn) throw new Error("No turn");
+    // Speed 5, with 4 spaces moved: the loss brings it to 4, under the 5 spaces this move makes.
+    state.explorers[0].clips.speed = 4;
+    state.turn.moved = 4;
+    const out = choose(
+      choose(choose(state, "Move to the Entrance Hall"), "the result is 0"),
+      "Lose 1 Speed",
+    );
+    expect(out.explorers[0].room).toBe("entrance-hall");
+    expect(out.turn?.moved).toBe(5);
+  });
+});
+
+describe("Medallion and leaving (cards/omens.md)", () => {
+  it("leaves the Graveyard without a roll", () => {
+    const state = standingIn("graveyard", "ground");
+    state.explorers[0].cards.push("medallion");
+    const after = start(ENGINE, { ...state, pending: null }, [
+      relocate(0, "entrance-hall", { source: "card", card: "bottle" }),
+    ]);
+    expect(eventTypes(after)).not.toContain("rolled");
+    expect(after.explorers[0].room).toBe("entrance-hall");
   });
 });

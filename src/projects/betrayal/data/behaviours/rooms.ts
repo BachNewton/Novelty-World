@@ -1,5 +1,14 @@
 import { explorerAt } from "../../engine/explorers";
-import { damage, gain, placeToken, relocate } from "../../engine/effects";
+import {
+  chooseOne,
+  damage,
+  gain,
+  placeToken,
+  relocate,
+  roll,
+  stayInRoom,
+  table,
+} from "../../engine/effects";
 import {
   eventData,
   type Behaviour,
@@ -67,6 +76,50 @@ function endTurnDamage(kind: "physical" | "mental"): Behaviour {
   };
 }
 
+const traitName = (trait: Trait) =>
+  `${trait[0].toUpperCase()}${trait.slice(1)}`;
+
+/** Leaving this room takes a trait roll; failing it costs 1 in another trait,
+ *  or the explorer may stay instead and try again on a later turn (rooms.md's
+ *  official ruling). It applies however the explorer leaves. */
+function rollToLeave(trait: Trait, target: number, loss: Trait): Behaviour {
+  return {
+    beforeLeave: (state, seat, source, go) => {
+      if (immuneToRoom(state, seat, source.id)) return [go];
+      return [
+        roll(
+          seat,
+          { kind: "trait", trait },
+          source.rule,
+          table([
+            { min: target, max: null, steps: [go] },
+            {
+              min: 0,
+              max: target - 1,
+              steps: [
+                chooseOne(
+                  seat,
+                  [
+                    {
+                      label: `Lose 1 ${traitName(loss)} and keep going`,
+                      steps: [gain(seat, loss, -1, source.rule), go],
+                    },
+                    {
+                      label: `Stay in the ${CATALOG.rooms[source.id].name}`,
+                      steps: [stayInRoom(seat, source.rule)],
+                    },
+                  ],
+                  source.rule,
+                ),
+              ],
+            },
+          ]),
+        ),
+      ];
+    },
+  };
+}
+
 /** Room tiles with text, from content/rooms.md. */
 export const ROOMS: BehaviourGroup = {
   rooms: {
@@ -74,6 +127,11 @@ export const ROOMS: BehaviourGroup = {
     gymnasium: oncePerGame("speed"),
     chapel: oncePerGame("sanity"),
     library: oncePerGame("knowledge"),
+
+    "junk-room": rollToLeave("might", 3, "speed"),
+    attic: rollToLeave("speed", 3, "might"),
+    graveyard: rollToLeave("sanity", 4, "knowledge"),
+    "pentagram-chamber": rollToLeave("knowledge", 4, "sanity"),
 
     crypt: endTurnDamage("mental"),
     "furnace-room": endTurnDamage("physical"),
