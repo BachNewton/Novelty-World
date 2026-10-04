@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
-import type { RoomDefinition } from "./room";
+import { DEFAULT_FOCUS, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { buildRoomStage, roomTile, type Stage } from "./stage";
 
@@ -165,7 +165,7 @@ export function createBench(initialRoom: string) {
     };
 
     const dollhouseTarget = () => {
-      const focus = new THREE.Vector3(...(definition(snapshot.roomId).focus ?? [0, 0.4, 0]));
+      const focus = new THREE.Vector3(...(definition(snapshot.roomId).focus ?? DEFAULT_FOCUS));
       return ROOM_CENTRE.clone().lerp(focus, 1 - 1 / zoom);
     };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRng } from "./seeded-random";
+import { createRng, pick, uniform } from "./seeded-random";
 
 function draw(seedOrState: string | number, count: number): number[] {
   const rng = createRng(seedOrState);
@@ -62,5 +62,17 @@ describe("createRng", () => {
     const snapshot = a.getState();
     const expected = [a.next(), a.next(), a.next()];
     expect(draw(snapshot, 3)).toEqual(expected);
+  });
+});
+
+describe("uniform and pick", () => {
+  it("draw from the given range and items", () => {
+    const rng = createRng("helpers");
+    for (let i = 0; i < 200; i++) {
+      const value = uniform(rng, 2, 3);
+      expect(value).toBeGreaterThanOrEqual(2);
+      expect(value).toBeLessThan(3);
+      expect(["a", "b", "c"]).toContain(pick(rng, ["a", "b", "c"]));
+    }
   });
 });

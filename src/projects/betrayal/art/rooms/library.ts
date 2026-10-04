@@ -1,19 +1,11 @@
 import * as THREE from "three";
-import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { createRng, pick, uniform, type Rng } from "@/shared/lib/seeded-random";
 import type { Edge } from "../../types";
-import { candelabra, candle, chair, rug } from "../kit";
+import { candelabra, candle, chair, cobweb, FAN_WEB_PX, rug } from "../kit";
 import { RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, onWall, WAINSCOT_DEPTH, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, pixelPlane, textured, type Batch } from "../shapes";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
-
-function range(rng: Rng, low: number, high: number): number {
-  return low + rng.next() * (high - low);
-}
-
-function pick<T>(rng: Rng, items: readonly T[]): T {
-  return items[Math.floor(rng.next() * items.length)];
-}
 
 /** Bindings, weighted towards the dark leathers and cloths of an old library. */
 const BINDINGS: readonly PaletteKey[] = [
@@ -38,9 +30,9 @@ interface Book {
 function randomBook(rng: Rng, room: number): Book {
   const folio = rng.next() < 0.08;
   return {
-    w: range(rng, 0.028, folio ? 0.09 : 0.065),
-    h: room * (folio ? range(rng, 0.9, 0.97) : range(rng, 0.6, 0.9)),
-    d: range(rng, 0.14, 0.21),
+    w: uniform(rng, 0.028, folio ? 0.09 : 0.065),
+    h: room * (folio ? uniform(rng, 0.9, 0.97) : uniform(rng, 0.6, 0.9)),
+    d: uniform(rng, 0.14, 0.21),
     colour: pick(rng, BINDINGS),
     band: rng.next() < 0.4 ? pick(rng, BANDS) : null,
   };
@@ -88,37 +80,37 @@ function standing(x: number, y: number, z: number, lean = 0, pivot = 0): THREE.M
  * than stripes. `fill` below 1 leaves more of the shelf empty.
  */
 function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: number, front: number, fill = 1) {
-  let x = x0 + range(rng, 0, 0.03);
+  let x = x0 + uniform(rng, 0, 0.03);
   const fits = (width: number) => x + width <= x1;
   const finish = () => {
     while (x < x1 - 0.025) {
       const book = randomBook(rng, room);
       book.w = Math.min(book.w, x1 - x);
-      addBook(b, standing(x, y, front - range(rng, 0, 0.03)), book);
+      addBook(b, standing(x, y, front - uniform(rng, 0, 0.03)), book);
       x += book.w - OVERLAP;
     }
   };
   while (x < x1 - 0.03) {
     const roll = rng.next();
-    const pull = front - range(rng, 0, 0.04);
+    const pull = front - uniform(rng, 0, 0.04);
     if (roll > fill) {
-      x += range(rng, 0.08, 0.3);
+      x += uniform(rng, 0.08, 0.3);
     } else if (roll < 0.06 * fill) {
       // A book leaning left onto its neighbour, with a gap beyond it.
       const book = randomBook(rng, room * 0.95);
-      const lean = range(rng, 0.2, 0.5);
+      const lean = uniform(rng, 0.2, 0.5);
       const foot = book.h * Math.sin(lean);
       if (!fits(foot + book.w)) {
         finish();
         break;
       }
       addBook(b, standing(x + foot, y, pull, lean), book);
-      x += foot + book.w * Math.cos(lean) + range(rng, 0.04, 0.16);
+      x += foot + book.w * Math.cos(lean) + uniform(rng, 0.04, 0.16);
     } else if (roll < 0.11 * fill) {
       // A gap, then a book leaning right onto the next.
       const book = randomBook(rng, room * 0.95);
-      const lean = range(rng, 0.2, 0.45);
-      x += range(rng, 0.03, 0.12);
+      const lean = uniform(rng, 0.2, 0.45);
+      x += uniform(rng, 0.03, 0.12);
       const reach = book.w + book.h * Math.sin(lean);
       if (!fits(reach)) {
         finish();
@@ -128,27 +120,27 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
       x += reach;
     } else if (roll < 0.13 * fill) {
       // A short stack lying flat, spines out.
-      const length = range(rng, 0.17, 0.25);
+      const length = uniform(rng, 0.17, 0.25);
       if (!fits(length)) {
         finish();
         break;
       }
       let top = y;
       for (let i = 0, count = 2 + Math.floor(rng.next() * 3); i < count; i++) {
-        const book = { ...randomBook(rng, length), h: length - range(rng, 0, 0.04) };
+        const book = { ...randomBook(rng, length), h: length - uniform(rng, 0, 0.04) };
         if (top + book.w > y + room) break;
         const place = new THREE.Matrix4()
-          .makeTranslation(x + range(rng, -0.01, 0.01), top + book.w, pull)
+          .makeTranslation(x + uniform(rng, -0.01, 0.01), top + book.w, pull)
           .multiply(new THREE.Matrix4().makeRotationAxis(Z_TURN, -Math.PI / 2));
         addBook(b, place, book);
         top += book.w;
       }
-      x += length + range(rng, 0.01, 0.04);
+      x += length + uniform(rng, 0.01, 0.04);
     } else if (roll < 0.3 * fill) {
       // A matching set.
       const book = randomBook(rng, room);
       for (let i = 0, count = 3 + Math.floor(rng.next() * 5); i < count && fits(book.w); i++) {
-        addBook(b, standing(x, y, front - range(rng, 0, 0.012)), { ...book, h: book.h - range(rng, 0, 0.025) });
+        addBook(b, standing(x, y, front - uniform(rng, 0, 0.012)), { ...book, h: book.h - uniform(rng, 0, 0.025) });
         x += book.w - OVERLAP;
       }
     } else {
@@ -158,46 +150,9 @@ function fillShelf(b: Batch, rng: Rng, x0: number, x1: number, y: number, room: 
         break;
       }
       addBook(b, standing(x, y, pull), book);
-      x += book.w + (rng.next() < 0.12 ? range(rng, 0.015, 0.04) : -OVERLAP);
+      x += book.w + (rng.next() < 0.12 ? uniform(rng, 0.015, 0.04) : -OVERLAP);
     }
   }
-}
-
-const WEB_PX = 12;
-
-/** A corner cobweb as one-pixel threads: spokes from the corner at the top
- *  left, and two sagging rings tied to the edges. */
-function cobwebRows(size: number): string[] {
-  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => "."));
-  const line = ([x0, y0]: number[], [x1, y1]: number[]) => {
-    const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
-    for (let i = 0; i <= steps; i++) {
-      const x = Math.round(x0 + ((x1 - x0) * i) / steps);
-      const y = Math.round(y0 + ((y1 - y0) * i) / steps);
-      if (x < size && y < size) grid[y][x] = "#";
-    }
-  };
-  const angles = [0, 0.42, 0.85, 1.22, Math.PI / 2];
-  const point = (angle: number, r: number) => [Math.cos(angle) * r, Math.sin(angle) * r];
-  for (const angle of angles.slice(1, -1)) line([0, 0], point(angle, size));
-  for (const r of [size * 0.42, size * 0.82]) {
-    for (let i = 0; i < angles.length - 1; i++) {
-      const sag = (j: number) => (j === 0 || j === angles.length - 1 ? 1 : 0.86);
-      line(point(angles[i], r * sag(i)), point(angles[i + 1], r * sag(i + 1)));
-    }
-  }
-  return grid.map((row) => row.join(""));
-}
-
-/** A cobweb strung across a corner. Faces +z; its corner is at the origin,
- *  and it hangs down and to the right unless `flip`ped to hang left. */
-function cobweb(flip = false): THREE.Mesh {
-  const web = pixelPlane(pixelTexture(cobwebRows(WEB_PX), { "#": "stoneLight" }), { alpha: true });
-  const side = (web.geometry as THREE.PlaneGeometry).parameters.width;
-  web.geometry.translate(side / 2, -side / 2, 0);
-  if (flip) web.rotation.z = -Math.PI / 2;
-  web.userData.noShadow = true;
-  return web;
 }
 
 const UPPER_HEIGHT = 2.6;
@@ -267,16 +222,16 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
         let x = left + 0.02;
         while (x < left + span * 0.62) {
           const book = randomBook(rng, room * 0.8);
-          const lean = range(rng, -1.3, 1.3);
-          addBook(b, standing(x, floor + Math.abs(Math.sin(lean)) * book.w, depth - range(rng, 0.02, 0.08), lean), book);
-          x += range(rng, 0.04, 0.09);
+          const lean = uniform(rng, -1.3, 1.3);
+          addBook(b, standing(x, floor + Math.abs(Math.sin(lean)) * book.w, depth - uniform(rng, 0.02, 0.08), lean), book);
+          x += uniform(rng, 0.04, 0.09);
         }
         fillShelf(b, rng, left + span * 0.7, right, floor, room, depth - 0.02, fill);
         continue;
       }
       // A webbed corner stands empty, so the web shows against the dark back.
       const web = level === levels - 1 ? webs.find((w) => w.bay === bay)?.side : undefined;
-      const clear = WEB_PX / TEXELS_PER_METRE + 0.04;
+      const clear = FAN_WEB_PX / TEXELS_PER_METRE + 0.04;
       fillShelf(b, rng, web === "left" ? left + clear : left, web === "right" ? right - clear : right, floor, room, depth - 0.02, fill);
     }
   }
@@ -287,7 +242,7 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   }
   const result = group(b.mesh());
   for (const { bay, side } of webs) {
-    const web = cobweb(side === "right");
+    const web = cobweb({ form: "fan", flip: side === "right", colour: "stoneLight", lit: true });
     const x = side === "left" ? columns[bay] + POST / 2 : columns[bay + 1] - POST / 2;
     web.position.set(x, height - 0.12, depth - 0.01);
     result.add(web);
@@ -451,8 +406,8 @@ function bookPile(seed: string, count: number): THREE.Group {
   let y = 0;
   for (let i = 0; i < count; i++) {
     const book = randomBook(rng, 0.3);
-    const thick = range(rng, 0.04, 0.08);
-    const place = new THREE.Matrix4().makeRotationY(range(rng, -0.5, 0.5)).setPosition(range(rng, -0.04, 0.04), y + thick / 2, range(rng, -0.04, 0.04));
+    const thick = uniform(rng, 0.04, 0.08);
+    const place = new THREE.Matrix4().makeRotationY(uniform(rng, -0.5, 0.5)).setPosition(uniform(rng, -0.04, 0.04), y + thick / 2, uniform(rng, -0.04, 0.04));
     b.add([book.d + 0.06, thick, book.h * 0.9], book.colour, place);
     y += thick;
   }
@@ -467,8 +422,8 @@ function spill(seed: string, count: number, radius: number): THREE.Group {
     const book = randomBook(rng, 0.28);
     const angle = rng.next() * Math.PI * 2;
     const distance = Math.sqrt(rng.next()) * radius;
-    const thick = range(rng, 0.035, 0.07);
-    const tilt = rng.next() < 0.3 ? range(rng, 0.2, 0.6) : 0;
+    const thick = uniform(rng, 0.035, 0.07);
+    const tilt = rng.next() < 0.3 ? uniform(rng, 0.2, 0.6) : 0;
     const place = new THREE.Matrix4().compose(
       new THREE.Vector3(Math.cos(angle) * distance, thick / 2 + tilt * 0.1, Math.sin(angle) * distance),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(tilt, rng.next() * Math.PI * 2, 0)),

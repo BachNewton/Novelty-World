@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { createRng, type Rng } from "@/shared/lib/seeded-random";
+import { createRng, pick, type Rng } from "@/shared/lib/seeded-random";
 import { PALETTE, paletteHex, RAMPS, type PaletteKey, type Ramp } from "./palette";
 
 /** Every surface in every room shows this many texels per metre, so pixels are
@@ -55,10 +55,6 @@ function painter(context: CanvasRenderingContext2D): Paint {
     context.fillStyle = paletteHex(colour);
     context.fillRect(x, y, w, h);
   };
-}
-
-function pick<T>(rng: Rng, items: readonly T[]): T {
-  return items[Math.floor(rng.next() * items.length)];
 }
 
 function between(rng: Rng, low: number, high: number): number {

@@ -49,3 +49,13 @@ export function createRng(seedOrState: string | number): Rng {
     getState: () => state >>> 0,
   };
 }
+
+/** A uniform value in [low, high). */
+export function uniform(rng: Rng, low: number, high: number): number {
+  return low + rng.next() * (high - low);
+}
+
+/** One of `items`, each equally likely. */
+export function pick<T>(rng: Rng, items: readonly T[]): T {
+  return items[Math.floor(rng.next() * items.length)];
+}

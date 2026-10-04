@@ -36,7 +36,7 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `light-anchor.ts`: `lightAnchor` puts a real light inside a prop, so the
   light moves with it.
 - `kit/`: pieces several rooms share (candles, a candelabra, table, chair,
-  rug, picture frame, the scale pawn).
+  rug, picture frame, cobweb, the scale pawn).
 - `rooms/`: one file per room. `drawing-room.ts` is the reference for a
   room's shape; `chapel.ts` and `library.ts` hold most of the techniques
   that worked. Read all three closely before the first prop.

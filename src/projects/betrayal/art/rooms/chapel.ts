@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { candle, rug } from "../kit";
+import { candle, cobweb, rug } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import type { Edge } from "../../types";
 import { INNER, onWall, WINDOW_SILL, WINDOW_TOP, WINDOW_WIDTH, type PropPlacement, type RoomDefinition } from "../room";
 import { box, cylinder, flat, glow, group, lathe, lightMaterial, textured } from "../shapes";
 import { moonPosition } from "../stage";
-import { flagstones, pixelTexture, plaster, svgTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
+import { flagstones, plaster, svgTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
 
 /** The jewel colours of the glass, and so of the light it throws. */
 const GLASS: PaletteKey[] = ["blood", "amber", "verdigris", "moon", "bloodLight", "verdigrisLight"];
@@ -384,49 +384,12 @@ function banner(emblem: "cross" | "rose"): THREE.Group {
   return group(cloth, rod);
 }
 
-/** Cobweb rows: a web slung from the ceiling, sagging to a point, with its
- *  hub high in the middle and a few torn strands. */
-function cobwebRows(width: number, height: number): string[] {
-  const rows: string[] = [];
-  const hub = { x: width / 2, y: height * 0.3 };
-  const spokes = 9;
-  for (let y = 0; y < height; y++) {
-    let row = "";
-    for (let x = 0; x < width; x++) {
-      const across = Math.abs(x + 0.5 - width / 2) / (width / 2);
-      const inside = y + 0.5 < height * Math.pow(1 - across, 0.7);
-      const dx = x + 0.5 - hub.x;
-      const dy = y + 0.5 - hub.y;
-      const r = Math.hypot(dx, dy);
-      const turn = ((Math.atan2(dy, dx) / (Math.PI * 2)) * spokes + spokes) % 1;
-      const offSpoke = Math.min(turn, 1 - turn) * ((r * Math.PI * 2) / spokes);
-      const torn = (x * 7 + y * 3) % 11 === 0;
-      const ring = r > 1.5 && Math.abs((r % 3) - 1.5) < 0.5 && !torn;
-      row += inside && (offSpoke < 0.55 || ring) ? "w" : ".";
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-/** A cobweb strung across a corner, just under the ceiling. Pale and unlit,
- *  so it catches the eye in the dark the way real webs catch stray light. */
-function cobweb(): THREE.Group {
-  const width = 26;
-  const height = 16;
-  const material = glow("ash", pixelTexture(cobwebRows(width, height), { w: "ash" }));
-  material.side = THREE.DoubleSide;
-  const web = new THREE.Mesh(new THREE.PlaneGeometry(width / TEXELS_PER_METRE, height / TEXELS_PER_METRE), material);
-  web.position.y = -height / TEXELS_PER_METRE / 2;
-  return group(web);
-}
-
 /** A cobweb across a corner; `x` and `z` give the corner's signs. It hides
  *  when either of the corner's walls is cut away. */
 function cornerWeb(x: 1 | -1, z: 1 | -1): PropPlacement {
   const inset = INNER - 0.29;
   const walls: Edge[] = [x > 0 ? "right" : "left", z > 0 ? "bottom" : "top"];
-  return { build: cobweb, at: [x * inset, z * inset], y: 3.05, turn: x * z > 0 ? 45 : -45, walls };
+  return { build: () => cobweb({ form: "slung" }), at: [x * inset, z * inset], y: 3.05, turn: x * z > 0 ? 45 : -45, walls };
 }
 
 /** The Chapel: pews in two ranks down a red runner to a candlelit altar,

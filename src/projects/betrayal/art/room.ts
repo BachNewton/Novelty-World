@@ -65,6 +65,9 @@ export interface Mood {
   fog: { colour: PaletteKey; density: number };
 }
 
+/** The close-up's aim when a room names none: just above the middle of the floor. */
+export const DEFAULT_FOCUS: [x: number, y: number, z: number] = [0, 0.4, 0];
+
 export interface RoomDefinition {
   /** A room tile id from data/rooms.ts; its doors and windows come from there. */
   id: string;
@@ -77,7 +80,7 @@ export interface RoomDefinition {
   props: PropPlacement[];
   lights?: LightSpec[];
   mood: Mood;
-  /** Where the close-up looks. Defaults to the centre of the floor. */
+  /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
   /** Where the scale-reference explorer pawn stands. */
   pawn?: [x: number, z: number];
