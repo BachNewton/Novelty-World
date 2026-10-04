@@ -11,6 +11,7 @@ import {
   choose,
   eventTypes,
   explorer,
+  inHaunt,
   offered,
   pendingDecision,
   put,
@@ -159,6 +160,26 @@ describe("Bell (cards/items.md)", () => {
     expect(explorer(state, ZOE).traits.clips.sanity).toBe(sanity);
   });
 
+  it("on a 5+, calls any unimpeded heroes 1 space closer, as the ringer chooses", () => {
+    // Zoe and Father Rhinehardt are heroes, Ox the traitor; the others wait
+    // in the Foyer. Trapped by the Debris, Father Rhinehardt can't be called.
+    const state = inHaunt(holding(["bell", "angel-feather"]), 1);
+    put(state, OX, "foyer");
+    put(state, 2, "foyer");
+    explorer(state, 2).cards.push("debris");
+    let rung = actWithNamedRoll(state, "Ring the Bell (Sanity roll)", 5);
+    expect(eventTypes(rung)).not.toContain("entered");
+    explorer(state, 2).cards.pop();
+    rung = actWithNamedRoll(state, "Ring the Bell (Sanity roll)", 5);
+    expect(labels(rung)).toEqual([
+      "Call Father Rhinehardt 1 space closer",
+      "Leave Father Rhinehardt be",
+    ]);
+    rung = choose(rung, "Call Father Rhinehardt");
+    expect(at(rung, 2).room).toBe("entrance-hall");
+    expect(at(rung, OX).room).toBe("foyer");
+  });
+
   it("can't be rung before the haunt is revealed", () => {
     expect(labels(holding(["bell"]))).not.toContain(
       "Ring the Bell (Sanity roll)",
@@ -244,6 +265,21 @@ describe("Dark Dice (cards/items.md)", () => {
     const after = roll(state, 6);
     expect(at(after, ZOE).room).toBe("chasm");
     expect(at(after, ZOE).side).toBe(far);
+  });
+
+  it("on a 6, after the haunt, never moves you to a revealed traitor, but may to a hidden one", () => {
+    const state = inHaunt(holding(["dark-dice", "angel-feather"]), 1);
+    put(state, OX, "foyer");
+    put(state, 2, "upper-landing");
+    let after = roll(state, 6);
+    // Father Rhinehardt is the only explorer to move to: the move is forced.
+    expect(at(after, ZOE).room).toBe("upper-landing");
+    state.seats[1].knownBy = [1];
+    after = roll(state, 6);
+    expect(labels(after)).toEqual([
+      "Move to Ox Bellows in the Foyer",
+      "Move to Father Rhinehardt in the Upper Landing",
+    ]);
   });
 
   it("on a 5, moves another explorer in your room into an adjacent room", () => {

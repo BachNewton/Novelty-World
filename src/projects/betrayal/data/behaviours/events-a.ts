@@ -28,6 +28,7 @@ import {
   TRAITS,
 } from "../../engine/figures";
 import { distanceTo } from "../../engine/movement";
+import { sideOf } from "../../engine/sides";
 import {
   askNumber,
   askPermission,
@@ -1005,22 +1006,18 @@ export const EVENTS_A: BehaviourGroup = {
   },
 
   tokens: {
-    // Before the haunt every explorer counts as a hero (project ruling,
-    // cards/events.md); attacks aren't trait rolls, so they get no die.
+    // Only heroes get the die, and before the haunt every explorer counts
+    // as one (the card's rulings); attacks aren't trait rolls, so they get
+    // no die.
     blessing: {
       modifiers: [
         {
           question: "dicePool",
-          when: (state, { figure, roll: r }, source) => {
-            if (state.status !== "exploring")
-              throw new Error(
-                "The Blessing is for heroes only, and the haunt doesn't record sides yet",
-              );
-            return (
-              r.spec.kind === "trait" &&
-              roomOf(state, figure) === source.room
-            );
-          },
+          when: (state, { figure, roll: r }, source, engine) =>
+            r.spec.kind === "trait" &&
+            roomOf(state, figure) === source.room &&
+            (state.status === "exploring" ||
+              sideOf(engine, state, figure) === "heroes"),
           change: { add: 1 },
         },
       ],

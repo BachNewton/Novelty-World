@@ -107,6 +107,7 @@ type NumberModifier = {
       state: GameState,
       subject: NumberQuestions[Q],
       source: Source,
+      engine: Engine,
     ) => boolean;
     change: NumberChange;
   };
@@ -119,6 +120,7 @@ type PermissionModifier = {
       state: GameState,
       subject: PermissionQuestions[Q],
       source: Source,
+      engine: Engine,
     ) => boolean;
     change: PermissionChange;
   };
@@ -131,6 +133,7 @@ type SetModifier = {
       state: GameState,
       subject: SetQuestions[Q],
       source: Source,
+      engine: Engine,
     ) => boolean;
     change:
       | {
@@ -233,6 +236,7 @@ type StructuredModifier = {
       state: GameState,
       subject: StructuredQuestions[Q]["question"],
       source: Source,
+      engine: Engine,
     ) => boolean;
     /** Turns the answer so far into this source's answer. */
     change: {
@@ -327,9 +331,14 @@ function applicable<C>(
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` to this question's subject.
       const when = modifier.when as
-        | ((s: GameState, subject: unknown, source: Source) => boolean)
+        | ((
+            s: GameState,
+            subject: unknown,
+            source: Source,
+            engine: Engine,
+          ) => boolean)
         | undefined;
-      if (when && !when(state, subject, source)) continue;
+      if (when && !when(state, subject, source, engine)) continue;
       result.push({
         layer: source.layer,
         change: modifier.change as C,
@@ -497,9 +506,14 @@ export function askSet<Q extends keyof SetQuestions>(
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.
       const when = modifier.when as
-        | ((s: GameState, subject: unknown, source: Source) => boolean)
+        | ((
+            s: GameState,
+            subject: unknown,
+            source: Source,
+            engine: Engine,
+          ) => boolean)
         | undefined;
-      if (when && !when(state, subject, source)) continue;
+      if (when && !when(state, subject, source, engine)) continue;
       changes.push({
         layer: source.layer,
         change: modifier.change as Change,
@@ -625,9 +639,14 @@ export function askStructured<Q extends keyof StructuredQuestions>(
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.
       const when = modifier.when as
-        | ((s: GameState, subject: unknown, source: Source) => boolean)
+        | ((
+            s: GameState,
+            subject: unknown,
+            source: Source,
+            engine: Engine,
+          ) => boolean)
         | undefined;
-      if (when && !when(state, subject, source)) continue;
+      if (when && !when(state, subject, source, engine)) continue;
       const change = modifier.change as { transform: Transform };
       changes.push({
         layer: source.layer,

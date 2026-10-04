@@ -29,8 +29,9 @@ import {
   trackTraits,
   TRAITS,
 } from "../../engine/figures";
-import { moveCloser } from "../../engine/movement";
-import { askSet } from "../../engine/questions";
+import { distanceTo, moveCloser } from "../../engine/movement";
+import { askPermission, askSet } from "../../engine/questions";
+import { heroes, inPlay, revealedAs } from "../../engine/sides";
 import {
   eventData,
   local,
@@ -102,13 +103,6 @@ function glovesTakes(
         .filter((c) => stealable(engine, state, c))
         .map((item) => ({ from: e.id, item })),
     );
-}
-
-/** The heroes, once the haunt gives the explorers sides. */
-function heroes(_state: GameState): Figure[] {
-  throw new Error(
-    "Heroes are a side, and the engine doesn't give explorers sides yet",
-  );
 }
 
 /** You, and the other explorers in your room. */
@@ -331,12 +325,30 @@ export const ITEMS: BehaviourGroup = {
         },
       },
       steps: {
-        // The ringer picks which heroes come, each 1 space closer to them.
+        // The ringer picks which unimpeded heroes come, each 1 space closer
+        // to them: those who could move on their own (the card's ruling),
+        // and who have a way closer.
         "call-heroes": defineStep<{ figure: FigureId }>((state, p, ctx) => {
           const rule = card("bell");
           const here = roomOf(state, p.figure);
+          const callable = heroes(ctx.engine, state).filter((hero) => {
+            const away = distanceTo(
+              ctx.engine,
+              state,
+              { kind: "figure", figure: hero.id },
+              placeOf(state, hero.id),
+              here,
+            );
+            return (
+              hero.id !== p.figure &&
+              away !== null &&
+              away > 0 &&
+              askPermission(ctx.engine, state, "canAct", { figure: hero.id })
+                .allowed
+            );
+          });
           ctx.push(
-            ...heroes(state).map((hero) =>
+            ...callable.map((hero) =>
               chooseOne(
                 p.figure,
                 [
@@ -522,14 +534,19 @@ export const ITEMS: BehaviourGroup = {
         },
       },
       steps: {
+        // Any explorer still in play who isn't a revealed traitor: a hidden
+        // traitor can be joined, since no one knows.
         join: defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          if (state.status !== "exploring")
-            throw new Error(
-              "The Dark Dice's 6 excludes the traitor, and the haunt doesn't record one yet",
-            );
           const you = figureOf(state, p.figure);
           const options = allFigures(state)
-            .filter((e) => e.id !== p.figure && !together(e, you))
+            .filter(
+              (e) =>
+                e.kind === "explorer" &&
+                inPlay(e) &&
+                e.id !== p.figure &&
+                !together(e, you) &&
+                !revealedAs(state, e.id, "traitor"),
+            )
             .map((e) => ({
               label: `Move to ${explorerName(e)} in the ${roomName(placeOf(state, e.id).room)}`,
               steps: [

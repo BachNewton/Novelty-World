@@ -6,6 +6,7 @@ import {
   at,
   choose,
   explorer,
+  inHaunt,
   offered,
   pendingDecision,
   put,
@@ -164,6 +165,14 @@ describe("A Moment of Hope (cards/events.md)", () => {
       room: "ballroom",
     });
     // Zoe's Speed is 4; Ox, in the Entrance Hall, gets nothing.
+    expect(pool(state, 0, "trait")).toBe(5);
+    expect(pool(state, 1, "trait")).toBe(pool(testGame(), 1, "trait"));
+  });
+
+  it("after the haunt, gives its die to heroes only, never to the traitor", () => {
+    const state = drawEvent("a-moment-of-hope");
+    inHaunt(state, 1);
+    put(state, 1, "ballroom");
     expect(pool(state, 0, "trait")).toBe(5);
     expect(pool(state, 1, "trait")).toBe(pool(testGame(), 1, "trait"));
   });
