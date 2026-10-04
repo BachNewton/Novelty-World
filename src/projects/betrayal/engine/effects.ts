@@ -1,6 +1,7 @@
 import type {
   CardMark,
   CardType,
+  Edge,
   GameState,
   Json,
   RuleRef,
@@ -443,12 +444,26 @@ function clearMarks(
   else delete state.cardMarks[card];
 }
 
+type PlaceToken = {
+  token: string;
+  room: string;
+  wall: Edge[] | null;
+  rule: RuleRef;
+};
+
 export function placeToken(token: string, room: string, rule: RuleRef): Step {
-  return step<{ token: string; room: string; rule: RuleRef }>("place-token", {
-    token,
-    room,
-    rule,
-  });
+  return step<PlaceToken>("place-token", { token, room, wall: null, rule });
+}
+
+/** Puts a token on a wall of a room (printed edges of its tile: one for a
+ *  wall, two for a corner), between that room and whatever lies beyond. */
+export function placeWallToken(
+  token: string,
+  room: string,
+  wall: Edge[],
+  rule: RuleRef,
+): Step {
+  return step<PlaceToken>("place-token", { token, room, wall, rule });
 }
 
 export function removeToken(token: string, room: string, rule: RuleRef): Step {
@@ -778,12 +793,18 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     });
   }),
 
-  "place-token": defineStep<{ token: string; room: string; rule: RuleRef }>(
-    (state, p, ctx) => {
-      state.tokens.push({ token: p.token, room: p.room });
-      ctx.emit("token-placed", p.rule, { token: p.token, room: p.room });
-    },
-  ),
+  "place-token": defineStep<PlaceToken>((state, p, ctx) => {
+    state.tokens.push(
+      p.wall
+        ? { token: p.token, room: p.room, wall: p.wall }
+        : { token: p.token, room: p.room },
+    );
+    ctx.emit("token-placed", p.rule, {
+      token: p.token,
+      room: p.room,
+      wall: p.wall,
+    });
+  }),
 
   "remove-token": defineStep<{ token: string; room: string; rule: RuleRef }>(
     (state, p, ctx) => {

@@ -1,4 +1,13 @@
-import { neighbourCell, placed, roomAt, turn } from "../../engine/board";
+import {
+  beyondWall,
+  COMPASS,
+  EDGES,
+  FLOORS,
+  neighbourCell,
+  placed,
+  roomAt,
+  turn,
+} from "../../engine/board";
 import {
   chooseOne,
   damage,
@@ -8,6 +17,8 @@ import {
   gain,
   loseCard,
   placeToken,
+  placeWallToken,
+  relocate,
   removeToken,
   roll,
   table,
@@ -15,7 +26,22 @@ import {
 } from "../../engine/effects";
 import { explorerAt, TRAITS } from "../../engine/explorers";
 import { local, type BehaviourGroup } from "../../engine/sources";
-import type { Catalog, GameState, RuleRef, Step, Trait } from "../../types";
+import {
+  drawRoomTile,
+  enterNewRoom,
+  placeOptions,
+  placeRoom,
+  spotOf,
+  type Where,
+} from "../../engine/tiles";
+import type {
+  Catalog,
+  Edge,
+  GameState,
+  RuleRef,
+  Step,
+  Trait,
+} from "../../types";
 import { CATALOG } from "..";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
@@ -62,6 +88,8 @@ function hasOutsideWindow(
 }
 
 const OPEN_TO_THE_WIND = ["gardens", "graveyard", "patio", "tower", "balcony"];
+// Unlike Shrieking Wind, not the Patio (the card's resolution).
+const BECKONING_ROOMS = ["gardens", "graveyard", "tower", "balcony"];
 
 function heldItems(state: GameState, seat: number): string[] {
   return explorerAt(state, seat).cards.filter(
@@ -70,6 +98,45 @@ function heldItems(state: GameState, seat: number): string[] {
 }
 
 type SeatParams = { seat: number };
+
+/** Where a Wall Switch can go, as printed edges of the room's tile: each wall
+ *  with no exit, and each corner (cards/events.md, Revolving Wall). */
+function switchWalls(catalog: Catalog, room: string): Edge[][] {
+  const tile = catalog.rooms[room];
+  const walls = EDGES.filter(
+    (edge) => !tile.doors.includes(edge) && !tile.passages.includes(edge),
+  ).map((edge) => [edge]);
+  const corners = EDGES.map((edge, i) => [edge, EDGES[(i + 1) % 4]]);
+  return [...walls, ...corners];
+}
+
+const NORTH_SOUTH: Edge[] = ["top", "bottom"];
+
+/** A wall's name as the board shows it: "north wall", "north-east corner". */
+function wallName(state: GameState, room: string, wall: Edge[]): string {
+  const tile = placed(state.board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  const sides = wall
+    .map((edge) => turn(edge, tile.rotation))
+    .sort((a) => (NORTH_SOUTH.includes(a) ? -1 : 1))
+    .map((edge) => COMPASS[edge]);
+  return `${sides.join("-")} ${wall.length === 2 ? "corner" : "wall"}`;
+}
+
+/** The cell beyond a wall, and the room there if any. */
+function beyond(state: GameState, room: string, wall: Edge[]) {
+  const spot = beyondWall(state.board, room, wall);
+  return { spot, room: roomAt(state.board, spot.floor, spot.x, spot.y) };
+}
+
+/** Whether a tile from the stack or the discard pile can go there. */
+function roomCanGo(catalog: Catalog, state: GameState, where: Where): boolean {
+  return [...state.board.stack, ...state.board.discards].some(
+    (tile) => placeOptions(catalog, state.board, tile, where).length > 0,
+  );
+}
+
+type SwitchParams = { seat: number; room: string; wall: Edge[] };
 type PossessionParams = { seat: number; trait: Trait };
 
 /** Event cards B of the base game, from content/cards/events.md. */
@@ -173,6 +240,48 @@ export const EVENTS_B: BehaviourGroup = {
               })),
               rule,
             ),
+          );
+        }),
+      },
+    },
+
+    "revolving-wall": {
+      onDraw: (state, seat) => {
+        const rule = card("revolving-wall");
+        const room = explorerAt(state, seat).room;
+        // A wall with nothing beyond it is usable only if a room can go there.
+        // With none usable this floor has no rooms left: the card is discarded.
+        const usable = switchWalls(CATALOG, room).filter((wall) => {
+          const there = beyond(state, room, wall);
+          return (
+            there.room !== undefined ||
+            roomCanGo(CATALOG, state, { kind: "cell", spot: there.spot })
+          );
+        });
+        if (usable.length === 0) return [];
+        return [
+          chooseOne(
+            seat,
+            usable.map((wall) => ({
+              label: `Put the Wall Switch on the ${wallName(state, room, wall)} of the ${CATALOG.rooms[room].name}`,
+              steps: [local("revolving-wall", "switch", { seat, room, wall })],
+            })),
+            rule,
+          ),
+        ];
+      },
+      steps: {
+        switch: defineStep<SwitchParams>((state, p, ctx) => {
+          const rule = card("revolving-wall");
+          const there = beyond(state, p.room, p.wall);
+          ctx.push(
+            placeWallToken("wall-switch", p.room, p.wall, rule),
+            there.room
+              ? relocate(p.seat, there.room.tile, rule)
+              : drawRoomTile(p.seat, { kind: "cell", spot: there.spot }, rule, {
+                  then: enterNewRoom(p.seat, null, rule, { draws: true }),
+                  otherwise: null,
+                }),
           );
         }),
       },
@@ -384,6 +493,117 @@ export const EVENTS_B: BehaviourGroup = {
       },
     },
 
+    "the-beckoning": {
+      onDraw: (state, seat) => {
+        const rule = card("the-beckoning");
+        return fromDrawer(state, seat)
+          .filter((s) => {
+            const room = explorerAt(state, s).room;
+            return (
+              BECKONING_ROOMS.includes(room) ||
+              hasOutsideWindow(CATALOG, state, room)
+            );
+          })
+          .map((s) =>
+            traitRoll(s, "sanity", rule, [
+              { min: 3, max: null, steps: [] },
+              {
+                min: 0,
+                max: 2,
+                steps: [local("the-beckoning", "jump", { seat: s })],
+              },
+            ]),
+          );
+      },
+      steps: {
+        jump: defineStep<SeatParams>((state, p, ctx) => {
+          const rule = card("the-beckoning");
+          const hurt = damage(p.seat, "physical", { dice: 1 }, rule);
+          if (placed(state.board, "patio")) {
+            ctx.push(relocate(p.seat, "patio", rule), hurt);
+            return;
+          }
+          const where: Where = {
+            kind: "doorways",
+            floors: ["ground"],
+            except: null,
+          };
+          // With nowhere to put the Patio there is nowhere to jump (the card's resolution).
+          if (
+            placeOptions(ctx.catalog, state.board, "patio", where).length === 0
+          )
+            return;
+          const { stack, discards } = state.board;
+          if (![...stack, ...discards].includes("patio"))
+            throw new Error(
+              "The Patio is neither in the house nor left to draw",
+            );
+          state.board.stack = ctx.random.shuffle(
+            stack.filter((t) => t !== "patio"),
+          );
+          state.board.discards = discards.filter((t) => t !== "patio");
+          ctx.push(
+            placeRoom(p.seat, "patio", where, rule, {
+              then: [
+                enterNewRoom(p.seat, "patio", rule, {
+                  draws: true,
+                  after: [hurt],
+                }),
+              ],
+            }),
+          );
+        }),
+      },
+    },
+
+    "the-lost-one": {
+      onDraw: (_state, seat) => {
+        const rule = card("the-lost-one");
+        const led = (floor: "upper" | "basement") =>
+          drawRoomTile(
+            seat,
+            { kind: "doorways", floors: [floor], except: null },
+            rule,
+            {
+              // The card prints its own end: one pass through the stack, no reshuffle.
+              reshuffle: false,
+              then: enterNewRoom(seat, null, rule, { draws: true }),
+              otherwise: [relocate(seat, "entrance-hall", rule)],
+            },
+          );
+        return [
+          traitRoll(seat, "knowledge", rule, [
+            { min: 5, max: null, steps: [gain(seat, "knowledge", 1, rule)] },
+            {
+              min: 0,
+              max: 4,
+              steps: [
+                roll(
+                  seat,
+                  { kind: "dice", count: 3 },
+                  rule,
+                  table([
+                    {
+                      min: 6,
+                      max: 6,
+                      steps: [relocate(seat, "entrance-hall", rule)],
+                    },
+                    {
+                      min: 4,
+                      max: 5,
+                      steps: [relocate(seat, "upper-landing", rule)],
+                    },
+                    { min: 2, max: 3, steps: [led("upper")] },
+                    { min: 0, max: 1, steps: [led("basement")] },
+                  ]),
+                ),
+              ],
+            },
+          ]),
+        ];
+      },
+    },
+
     "the-voice": {
       onDraw: (_state, seat) => {
         const rule = card("the-voice");
@@ -393,6 +613,61 @@ export const EVENTS_B: BehaviourGroup = {
             { min: 0, max: 3, steps: [] },
           ]),
         ];
+      },
+    },
+
+    "the-walls": {
+      onDraw: (_state, seat) => {
+        const rule = card("the-walls");
+        return [
+          drawRoomTile(
+            seat,
+            { kind: "doorways", floors: [...FLOORS], except: null },
+            rule,
+            {
+              then: enterNewRoom(seat, null, rule, { draws: true }),
+              otherwise: [],
+            },
+          ),
+        ];
+      },
+    },
+
+    "what-the": {
+      onDraw: (_state, seat) => [local("what-the", "lift", { seat })],
+      steps: {
+        lift: defineStep<SeatParams>((state, p, ctx) => {
+          const rule = card("what-the");
+          const room = explorerAt(state, p.seat).room;
+          // The starting tiles never move (the card's resolution).
+          if (ctx.catalog.rooms[room].start !== null) {
+            ctx.emit("room-stayed", rule, { tile: room });
+            return;
+          }
+          const here = spotOf(state.board, room);
+          const sameFloor: Where = {
+            kind: "doorways",
+            floors: [here.floor],
+            except: here,
+          };
+          const otherFloors: Where = {
+            kind: "doorways",
+            floors: ctx.catalog.rooms[room].floors.filter(
+              (f) => f !== here.floor,
+            ),
+            except: null,
+          };
+          ctx.push(
+            placeRoom(
+              p.seat,
+              room,
+              placeOptions(ctx.catalog, state.board, room, sameFloor).length > 0
+                ? sameFloor
+                : otherFloors,
+              rule,
+            ),
+          );
+        }),
       },
     },
 
@@ -409,6 +684,39 @@ export const EVENTS_B: BehaviourGroup = {
   },
 
   tokens: {
+    "wall-switch": {
+      actions: {
+        use: {
+          label: "Use the Wall Switch (Knowledge roll)",
+          available: (state, _seat, source) =>
+            source.beside !== null &&
+            !(state.turn?.rolls.includes("wall-switch") ?? true),
+          steps: (state, seat, source) => {
+            const here = explorerAt(state, seat).room;
+            const other = here === source.room ? source.beside : source.room;
+            if (other === null)
+              throw new Error("The Wall Switch has no room beyond it");
+            return [
+              traitRoll(
+                seat,
+                "knowledge",
+                source.rule,
+                [
+                  {
+                    min: 3,
+                    max: null,
+                    steps: [relocate(seat, other, source.rule)],
+                  },
+                  { min: 0, max: 2, steps: [] },
+                ],
+                "wall-switch",
+              ),
+            ];
+          },
+        },
+      },
+    },
+
     skeletons: {
       actions: {
         search: {

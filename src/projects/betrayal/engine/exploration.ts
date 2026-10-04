@@ -1,5 +1,4 @@
 import type {
-  CardType,
   Catalog,
   Edge,
   FloorId,
@@ -10,22 +9,18 @@ import type {
   Trait,
 } from "../types";
 import {
+  COMPASS,
   connections,
-  EDGES,
+  doorwaySpot,
   freeDoorways,
-  neighbourCell,
   placed,
-  placements,
   startingBoard,
-  turn,
   type Doorway,
-  type Placement,
 } from "./board";
 import { explorerAt, TRAITS } from "./explorers";
 import {
   defineDecision,
   defineStep,
-  drawCard,
   gainCard,
   handle,
   loseCard,
@@ -35,8 +30,9 @@ import {
   step,
 } from "./effects";
 import { askNumber, askPermission } from "./questions";
-import { liveSources, type Source } from "./sources";
+import { atSource, liveSources, type Source } from "./sources";
 import { emptyState } from "./state";
+import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
 import {
   start,
   type DecisionKind,
@@ -125,38 +121,17 @@ function fits(
   tile: string,
   doorway: Doorway,
 ): boolean {
-  const floor = placed(state.board, doorway.room)?.floor;
-  if (floor === undefined || !engine.catalog.rooms[tile].floors.includes(floor))
-    return false;
-  return placements(state.board, engine.catalog, tile, doorway).some(
-    (p) => !p.seals,
-  );
+  return doorwayPlacements(engine, state, tile, doorway).length > 0;
 }
 
-/** The ways a tile may be placed: those that don't seal its floor, lining up as many
- *  doors as possible (p. 6). Rotations that leave the same doorways are one choice. */
-function bestPlacements(
+function doorwayPlacements(
   engine: Engine,
   state: GameState,
   tile: string,
   doorway: Doorway,
-): Placement[] {
-  const open = placements(state.board, engine.catalog, tile, doorway).filter(
-    (p) => !p.seals,
-  );
-  const most = Math.max(...open.map((p) => p.matched));
-  const seen = new Set<string>();
-  return open.filter((p) => {
-    if (p.matched !== most) return false;
-    const key = EDGES.filter((edge) =>
-      engine.catalog.rooms[tile].doors.some(
-        (door) => turn(door, p.rotation) === edge,
-      ),
-    ).join();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+) {
+  const { spot, back } = doorwaySpot(state.board, doorway);
+  return bestPlacements(engine.catalog, state.board, tile, spot, [back]);
 }
 
 function cardActions(
@@ -170,7 +145,7 @@ function cardActions(
     const here =
       source.kind === "card"
         ? source.holder === seat && !isHandled(state, source.id)
-        : source.room === room;
+        : atSource(source, room);
     if (!here) continue;
     for (const [action, definition] of Object.entries(
       behaviour.actions ?? {},
@@ -365,13 +340,6 @@ function takeTurnChoice(
   }
 }
 
-const COMPASS: Record<Edge, string> = {
-  top: "north",
-  right: "east",
-  bottom: "south",
-  left: "west",
-};
-
 function describeTurnChoice(
   engine: Engine,
   state: GameState,
@@ -417,7 +385,6 @@ function describeTurnChoice(
 type Move = { seat: number; to: string };
 type Discover = { seat: number; direction: Edge };
 type Rotation = { seat: number; tile: string; doorway: Doorway };
-type Arrive = { seat: number; room: string; symbols: CardType[] };
 type Trade = {
   from: number;
   to: number;
@@ -426,31 +393,6 @@ type Trade = {
 };
 type Drop = { seat: number; card: string };
 type HauntRoll = { seat: number; omen: string; room: string };
-
-/** Draws room tiles from the top of the stack until one passes, putting the
- *  rest on the discard pile; an empty stack is refilled from the shuffled
- *  discards (p. 8, p. 9). Null when no tile anywhere passes. */
-export function drawRoom(
-  state: GameState,
-  shuffle: <T>(items: readonly T[]) => T[],
-  passes: (tile: string) => boolean,
-): string | null {
-  if (![...state.board.stack, ...state.board.discards].some(passes))
-    return null;
-  for (;;) {
-    if (state.board.stack.length === 0) {
-      state.board.stack = shuffle(state.board.discards);
-      state.board.discards = [];
-    }
-    const tile = state.board.stack.shift();
-    if (tile === undefined)
-      throw new Error(
-        "Room stack ran dry with a passing tile still unaccounted for",
-      );
-    if (passes(tile)) return tile;
-    state.board.discards.push(tile);
-  }
-}
 
 export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   setup: defineStep<Setup>((state, p, ctx) => {
@@ -532,14 +474,6 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       { seat: p.seat, tile, doorway },
       RULEBOOK(6),
     );
-  }),
-
-  arrive: defineStep<Arrive>((state, p, ctx) => {
-    ctx.emit("entered", RULEBOOK(6), {
-      seat: p.seat,
-      room: p.room,
-      moved: true,
-    });
   }),
 
   "offer-trade": defineStep<Trade>((_state, p, ctx) => {
@@ -648,43 +582,30 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
 
   rotation: defineDecision<Rotation, number>({
     candidates: (state, p, _seat, engine) =>
-      bestPlacements(engine, state, p.tile, p.doorway).map(
+      doorwayPlacements(engine, state, p.tile, p.doorway).map(
         (placement) => placement.rotation,
       ),
     label: (_state, p, rotation, engine) =>
       `Place the ${engine.catalog.rooms[p.tile].name} turned ${rotation * 90}°`,
     resolve: (state, p, rotation, ctx) => {
-      const placement = bestPlacements(
+      const placement = doorwayPlacements(
         ctx.engine,
         state,
         p.tile,
         p.doorway,
       ).find((pl) => pl.rotation === rotation);
       if (!placement) return "That placement isn't allowed";
-      const from = placed(state.board, p.doorway.room);
-      if (!from) return "The doorway's room is gone";
-      const cell = neighbourCell(from, p.doorway.direction);
+      const { spot } = doorwaySpot(state.board, p.doorway);
       state.board.tiles.push({
         tile: p.tile,
-        floor: from.floor,
-        ...cell,
+        ...spot,
         rotation: placement.rotation,
       });
-      const explorer = explorerAt(state, p.seat);
-      ctx.emit("left", RULEBOOK(6), {
-        seat: p.seat,
-        room: explorer.room,
+      discoverRoom(state, ctx, p.seat, p.tile, RULEBOOK(6), {
         moved: true,
+        draws: true,
+        after: [],
       });
-      explorer.room = p.tile;
-      if (state.turn) state.turn.moved += 1;
-      ctx.emit("discovered", RULEBOOK(6), { seat: p.seat, room: p.tile });
-      // A new room's symbols are drawn before its own text applies (p. 9).
-      const symbols = ctx.catalog.rooms[p.tile].symbols;
-      ctx.push(
-        ...symbols.map((type) => drawCard(p.seat, type, RULEBOOK(10))),
-        step<Arrive>("arrive", { seat: p.seat, room: p.tile, symbols }),
-      );
       return null;
     },
   }),

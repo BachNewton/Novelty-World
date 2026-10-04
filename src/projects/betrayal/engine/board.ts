@@ -197,12 +197,66 @@ export function freeDoorways(
     );
 }
 
+/** A cell of a floor. */
+export type Spot = {
+  floor: FloorId;
+  x: number;
+  y: number;
+};
+
+export const COMPASS: Record<Edge, string> = {
+  top: "north",
+  right: "east",
+  bottom: "south",
+  left: "west",
+};
+
+export const FLOOR_NAMES: Record<FloorId, string> = {
+  basement: "basement",
+  ground: "ground floor",
+  upper: "upper floor",
+  roof: "roof",
+};
+
+/** Floors bottom to top. */
+export const FLOORS: readonly FloorId[] = [
+  "basement",
+  "ground",
+  "upper",
+  "roof",
+];
+
+/** The board without a tile: what is left when it is picked up to move. */
+export function liftTile(board: Board, tileId: string): Board {
+  return { ...board, tiles: board.tiles.filter((t) => t.tile !== tileId) };
+}
+
 export interface Placement {
   rotation: Rotation;
   /** Openings that meet an opening of a neighbouring room. */
   matched: number;
-  /** Placing it this way leaves its floor no free doorway (p. 9). */
+  /** Placing it this way leaves a floor no free doorway (p. 9). */
   seals: boolean;
+}
+
+/** The empty cell through a doorway, and the direction back to the doorway's room. */
+export function doorwaySpot(
+  board: Board,
+  doorway: Doorway,
+): { spot: Spot; back: Edge } {
+  const from = placed(board, doorway.room);
+  if (!from)
+    throw new Error(`Doorway room ${doorway.room} is not on the board`);
+  const cell = neighbourCell(from, doorway.direction);
+  if (roomAt(board, from.floor, cell.x, cell.y)) {
+    throw new Error(
+      `Doorway ${doorway.room} ${doorway.direction} doesn't open onto an empty cell`,
+    );
+  }
+  return {
+    spot: { floor: from.floor, ...cell },
+    back: opposite(doorway.direction),
+  };
 }
 
 /** The ways a tile can be placed through a doorway: every rotation that puts
@@ -213,35 +267,58 @@ export function placements(
   tileId: string,
   doorway: Doorway,
 ): Placement[] {
-  const from = placed(board, doorway.room);
-  if (!from)
-    throw new Error(`Doorway room ${doorway.room} is not on the board`);
-  const cell = neighbourCell(from, doorway.direction);
-  if (roomAt(board, from.floor, cell.x, cell.y)) {
+  const { spot, back } = doorwaySpot(board, doorway);
+  return placementsAt(board, catalog, tileId, spot, [back]);
+}
+
+/** The ways a tile can go on an empty cell. With `facing`, one of its
+ *  openings must face one of those directions (toward the doorways it joins);
+ *  null lets it go any way round. A tile already on the board is picked up
+ *  first, so this is also where it can move to; a move must not seal the
+ *  floor it leaves either. */
+export function placementsAt(
+  board: Board,
+  catalog: Catalog,
+  tileId: string,
+  spot: Spot,
+  facing: Edge[] | null,
+): Placement[] {
+  const lifted = liftTile(board, tileId);
+  if (roomAt(lifted, spot.floor, spot.x, spot.y))
     throw new Error(
-      `Doorway ${doorway.room} ${doorway.direction} doesn't open onto an empty cell`,
+      `${spot.floor} (${spot.x}, ${spot.y}) isn't an empty cell for ${tileId}`,
     );
-  }
-  const back = opposite(doorway.direction);
+  const floors = new Set([spot.floor]);
+  const origin = placed(board, tileId);
+  if (origin) floors.add(origin.floor);
   const result: Placement[] = [];
   for (const rotation of [0, 1, 2, 3] as const) {
-    const tile: PlacedTile = {
-      tile: tileId,
-      floor: from.floor,
-      ...cell,
-      rotation,
-    };
+    const tile: PlacedTile = { tile: tileId, ...spot, rotation };
     const open = openings(catalog, tile);
-    if (!open.includes(back)) continue;
-    const after: Board = { ...board, tiles: [...board.tiles, tile] };
+    if (facing && !facing.some((direction) => open.includes(direction)))
+      continue;
+    const after: Board = { ...lifted, tiles: [...lifted.tiles, tile] };
     const matched = open.filter((direction) =>
       through(after, catalog, tile, direction),
     ).length;
     result.push({
       rotation,
       matched,
-      seals: freeDoorways(after, catalog, from.floor).length === 0,
+      seals: [...floors].some(
+        (floor) => freeDoorways(after, catalog, floor).length === 0,
+      ),
     });
   }
   return result;
+}
+
+/** The cell beyond a token on a room's wall: across one printed edge of the
+ *  room's tile, or, on a corner, across two. It turns with the tile. */
+export function beyondWall(board: Board, room: string, wall: Edge[]): Spot {
+  const tile = placed(board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  let cell = { x: tile.x, y: tile.y };
+  for (const edge of wall)
+    cell = neighbourCell(cell, turn(edge, tile.rotation));
+  return { floor: tile.floor, ...cell };
 }

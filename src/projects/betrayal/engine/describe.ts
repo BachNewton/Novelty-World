@@ -1,6 +1,8 @@
 import type {
   CardType,
   Decision,
+  Edge,
+  FloorId,
   GameEvent,
   GameState,
   Json,
@@ -10,6 +12,7 @@ import type {
 import type { CardDestination, GainedBy } from "./effects";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
+import { FLOOR_NAMES } from "./board";
 
 // Plain language for events and decisions, for the game log, the UI and AI
 // players alike. Each line names the rule behind it when that rule is a room,
@@ -281,14 +284,39 @@ export function describeEvent(
       );
     case "token-placed":
     case "token-removed": {
-      const d = data<{ token: string; room: string }>(event);
+      const d = data<{ token: string; room: string; wall?: Edge[] | null }>(
+        event,
+      );
       const name = engine.catalog.tokens[d.token].name;
+      const where = d.wall
+        ? `on a ${d.wall.length === 2 ? "corner" : "wall"} of the ${words.room(d.room)}`
+        : `in the ${words.room(d.room)}`;
       return sentence(
         event.type === "token-placed"
-          ? `The ${name} token is placed in the ${words.room(d.room)}`
+          ? `The ${name} token is placed ${where}`
           : `The ${name} token is removed from the ${words.room(d.room)}`,
       );
     }
+    case "room-placed": {
+      const d = data<{ tile: string; floor: FloorId }>(event);
+      return sentence(
+        `The ${words.room(d.tile)} is put in the house, on the ${FLOOR_NAMES[d.floor]}`,
+      );
+    }
+    case "room-moved": {
+      const d = data<{ tile: string; from: FloorId; floor: FloorId }>(event);
+      return sentence(
+        d.from === d.floor
+          ? `The ${words.room(d.tile)} moves elsewhere on the ${FLOOR_NAMES[d.floor]}, with everything in it`
+          : `The ${words.room(d.tile)} moves to the ${FLOOR_NAMES[d.floor]}, with everything in it`,
+      );
+    }
+    case "room-stayed":
+      return sentence(
+        `The ${words.room(data<{ tile: string }>(event).tile)} stays where it is`,
+      );
+    case "room-not-found":
+      return sentence("No room tile is left that can go there");
     case "haunt-held-off": {
       const d = data<{ seat: number; result: number; omens: number }>(event);
       return sentence(
@@ -348,6 +376,12 @@ export function describeDecision(
       const p = decision.params as { seat: number; tile: string };
       return ask(
         `${words.explorer(p.seat)}: which way should the ${words.room(p.tile)} face?`,
+      );
+    }
+    case "place-tile": {
+      const p = decision.params as { seat: number; tile: string };
+      return ask(
+        `${words.explorer(p.seat)}: where should the ${words.room(p.tile)} go?`,
       );
     }
     case "trade-offer": {

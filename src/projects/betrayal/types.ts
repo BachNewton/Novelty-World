@@ -225,6 +225,10 @@ export interface CardMark {
 export interface RoomToken {
   token: string;
   room: string;
+  /** A token on one of the room's walls rather than in it (the Wall Switch):
+   *  the printed edge of the room's tile it sits on, or the two edges of the
+   *  corner it sits on. It moves and turns with the tile. */
+  wall?: Edge[];
 }
 
 /** What has happened this turn, for the rules that limit actions per turn. */

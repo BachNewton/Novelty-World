@@ -1,4 +1,4 @@
-import { adjacent, distances, placed } from "../../engine/board";
+import { adjacent, distances, FLOORS, placed } from "../../engine/board";
 import {
   chooseOne,
   damage,
@@ -25,6 +25,7 @@ import {
   type Reaction,
 } from "../../engine/sources";
 import type { StepHandler } from "../../engine/step-loop";
+import { drawRoomTile, enterNewRoom } from "../../engine/tiles";
 import type { CardType, GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
 
@@ -152,6 +153,42 @@ const GRAVE_DIRT_ROOMS = [
   "patio",
   "tower",
 ];
+
+const SLIDE = "mystic-slide";
+
+function floorOf(state: GameState, room: string) {
+  const tile = placed(state.board, room);
+  if (!tile) throw new Error(`${room} is not on the board`);
+  return tile.floor;
+}
+
+/** Using the Slide in a room: a Might roll. On 5+ you choose where you land
+ *  below it; otherwise you fall to a new basement room. Off your turn, you
+ *  don't draw for that room. */
+function slideRoll(seat: number, room: string, draws: boolean): Step {
+  const rule = card(SLIDE);
+  return traitRoll(seat, "might", SLIDE, [
+    { min: 5, max: null, steps: [local(SLIDE, "control", { seat, room })] },
+    {
+      min: 0,
+      max: 4,
+      steps: [
+        drawRoomTile(
+          seat,
+          { kind: "doorways", floors: ["basement"], except: null },
+          rule,
+          {
+            then: enterNewRoom(seat, null, rule, {
+              draws,
+              after: [damage(seat, "physical", { dice: 1 }, rule)],
+            }),
+            otherwise: [local(SLIDE, "fall-to-basement", { seat })],
+          },
+        ),
+      ],
+    },
+  ]);
+}
 
 /** Event cards A of the base game, from content/cards/events.md. */
 export const EVENTS_A: BehaviourGroup = {
@@ -779,9 +816,72 @@ export const EVENTS_A: BehaviourGroup = {
           });
       },
     },
+
+    "mystic-slide": {
+      onDraw: (state, seat) => {
+        // In the basement, the event passes left to the first explorer who isn't.
+        const affected = fromSeat(state, seat).find(
+          (each) => floorOf(state, explorerAt(state, each).room) !== "basement",
+        );
+        if (affected === undefined) return [];
+        const room = explorerAt(state, affected).room;
+        return [
+          placeToken("slide", room, card(SLIDE)),
+          slideRoll(affected, room, state.turn?.seat === affected),
+        ];
+      },
+      steps: {
+        control: defineStep<{ seat: number; room: string }>((state, p, ctx) => {
+          const below = FLOORS.slice(0, FLOORS.indexOf(floorOf(state, p.room)));
+          ctx.push(
+            chooseOne(
+              p.seat,
+              state.board.tiles
+                .filter((t) => below.includes(t.floor))
+                .map((t) => ({
+                  label: `Slide down to the ${ctx.catalog.rooms[t.tile].name}`,
+                  steps: [relocate(p.seat, t.tile, card(SLIDE))],
+                })),
+              card(SLIDE),
+            ),
+          );
+        }),
+        "fall-to-basement": defineStep<{ seat: number }>((state, p, ctx) => {
+          const rule = card(SLIDE);
+          ctx.push(
+            chooseOne(
+              p.seat,
+              state.board.tiles
+                .filter((t) => t.floor === "basement")
+                .map((t) => ({
+                  label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
+                  steps: [
+                    relocate(p.seat, t.tile, rule),
+                    damage(p.seat, "physical", { dice: 1 }, rule),
+                  ],
+                })),
+              rule,
+            ),
+          );
+        }),
+      },
+    },
   },
 
   tokens: {
+    slide: {
+      actions: {
+        use: {
+          label: "Use the Slide (Might roll)",
+          available: () => true,
+          steps: (_state, seat, source) => {
+            if (source.room === null) throw new Error("The Slide has no room");
+            return [slideRoll(seat, source.room, true)];
+          },
+        },
+      },
+    },
+
     // You must be in the Closet's room to roll (project ruling, cards/events.md).
     closet: tokenRoll(
       "Open the Closet (roll 2 dice)",

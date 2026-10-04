@@ -1,4 +1,5 @@
 import type {
+  Edge,
   GameEvent,
   GameState,
   Json,
@@ -6,6 +7,7 @@ import type {
   Step,
   Trait,
 } from "../types";
+import { beyondWall, roomAt } from "./board";
 import type { StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
 
@@ -24,6 +26,9 @@ export interface Source {
   holder: number | null;
   /** The room a room source is, a token sits in, or a card lies in. */
   room: string | null;
+  /** For a token on a wall, the room on the wall's other side, if any. An
+   *  explorer in either room is at the token. */
+  beside: string | null;
 }
 
 /** The rulebook's order for conflicts: a card beats the rulebook (p. 12), a haunt beats everything (p. 17). */
@@ -145,6 +150,7 @@ export function liveSources(
         rule: { source: "room", room: tile.tile },
         holder: null,
         room: tile.tile,
+        beside: null,
       };
       result.push({ source, behaviour });
     }
@@ -180,6 +186,7 @@ export function liveSources(
         rule: { source: "token", token: token.token },
         holder: null,
         room: token.room,
+        beside: token.wall ? besideWall(state, token.room, token.wall) : null,
       };
       result.push({ source, behaviour });
     }
@@ -195,7 +202,19 @@ function cardSource(card: string, holder: number | null): Source {
     rule: { source: "card", card },
     holder,
     room: null,
+    beside: null,
   };
+}
+
+function besideWall(state: GameState, room: string, wall: Edge[]) {
+  const cell = beyondWall(state.board, room, wall);
+  return roomAt(state.board, cell.floor, cell.x, cell.y)?.tile ?? null;
+}
+
+/** Whether an explorer in this room is at the source: in its room, or, for a
+ *  token on a wall, in the room on either side. */
+export function atSource(source: Source, room: string): boolean {
+  return source.room === room || source.beside === room;
 }
 
 /** An event's data, typed by the event's contract. Events are stored as JSON, so the type is the emitter's promise. */
