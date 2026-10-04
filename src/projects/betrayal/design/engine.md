@@ -49,14 +49,15 @@ One JSON value, kept in the game row. It holds identifiers and live values only.
 | Cards | Each deck's draw order and discard pile, what each figure holds, ongoing events, and the counters and flags kept on cards in play (a worn Mask, an open Music Box), each either the holder's, cleared when the card leaves them, or the card's own, cleared when it leaves play. Cards set aside: a dead explorer's companion waiting in the room where they died, or a card out of the game |
 | Tokens | Placed tokens by id. Supply is unlimited unless a haunt caps a kind, because its text makes running out a rule; the physical counts in `tokens.md` are what those caps cite |
 | Tracks | Named tracks and counters, with their values |
-| Haunt | Haunt id, phase, revealer, secret values with the seats that know them, and the haunt's own small typed data |
-| Turn | The current seat and turn kind (explorer, traitor or monster turn), and the turn's ledger: movement spent and the attack made, counted per figure, since a seat may move several; rolls attempted, items used, actions taken, and the rooms entered so far, in order. Plus a queue of inserted turns |
-| Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, condition flags already fired |
+| Haunt | Haunt number, revealer, and the omen and room that revealed it; its secrets (each an id, a value and the seats that know it), and its counters (tracks and counted tokens), by id. Decision parameters and events never carry a secret's value, only its id, so `viewFor` has one place to hide it |
+| Turn | The current seat and turn kind (explorer, traitor or monster turn), for an inserted turn the turn in the order it came after, and the turn's ledger: movement spent and the attack made, counted per figure, since a seat may move several; rolls attempted, items used, actions taken, and the rooms entered so far, in order |
+| Inserted turns | Turns a rule has put into the order, taken first, in order, at the next turn boundaries |
+| Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, and the conditions that have fired |
 | Work | The step stack: the engine's unfinished work, as data (section 3) |
 | Decision | The pending decision's id, its addressees, the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
 | Answers | The most recent answered decisions (decision id, seat, choice), for idempotent retries (section 8) |
 | Last events | The events from the latest write only, for animation |
-| Result | Winning seats and each seat's outcome, once the game ends |
+| Result | Once the game ends: the winning seats, and the rule whose goal was met |
 
 The randomness needs no stored stream: everything derives from the seed (section 4). Decision ids come from a counter in the state, so the client and the server compute the same ids when they apply the same action.
 
@@ -179,21 +180,25 @@ Within a layer, modifiers run in a stable order (by source kind, then id). Sums 
 
 ### Triggers and conditions
 
-A trigger is an event type, an optional filter and an effect. A condition is a predicate and an effect. Conditions fire when they change from false to true, and a once-only condition records that it fired in the rule memory, which keeps the check deterministic and replayable. An effect is either kit data (damage, gain, place a token, step a track, spawn, move, change side, raise a decision, declare winners) or a named local step. Effects push steps onto the step stack, so an effect may pause for a decision and resume.
+A trigger is an event type, an optional filter and an effect. A condition is a predicate and an effect. Conditions fire when they change from false to true, and the rule memory records which have fired: a once-only condition for good, any other until it stops holding, which keeps the check deterministic and replayable. An effect is either kit data (damage, gain, place a token, step a track, spawn, move, change side, raise a decision, declare winners) or a named local step. Effects push steps onto the step stack, so an effect may pause for a decision and resume.
+
+Conditions are re-checked after every step, from the haunt's first turn on (during the reveal its counters and secrets aren't all set yet). A condition that declares winners is a goal: meeting it ends the game at once, partway through a move or an attack included. The game is finished, its result is the set of winning seats with the goal's rule, and the unfinished work and any pending decision are dropped. If one step meets goals with different winners, the side whose turn it is wins. The rulebook holds one goal of its own for every haunt: with every hero dead, the traitor's side wins. All three come from the game-end ruling in `rules.md`.
 
 ## 6. The haunt format
 
-A haunt is one typed definition in `data/haunts/`, built from kit parts. The engine reads `state.haunt` to find the active definition and never branches on which haunt it is.
+A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`). The kit compiles each definition into the rules the engine runs and registers them in the engine by haunt number: its figure definitions among every other figure's, its statuses beside the cards', and its local steps under its source id. While the haunt is played, its compiled rules are a rule source on the haunt layer. The engine reads `state.haunt` to find the active rules and never branches on which haunt it is. A haunt that isn't built yet stops the game at its reveal.
+
+**The reveal** is the same whether a haunt roll or a scenario's "start haunt N" reveals it (the haunt-start ruling in `rules.md`). The revealing turn is over and exploration's remaining work is dropped. The chart's traitor rule (or the haunt's own) picks the traitor from the explorers as they stand, a tie going to the revealer or else to the nearest tied seat on the revealer's left. The traitor's side and role are set and everyone else becomes a hero. The traitor is freed from impeding events. Every seat confirms a ready wait, in any order. The traitor's setup runs, then the heroes', and the first turn goes to the traitor's left. A scenario never sets sides for a built haunt: the reveal decides them, and testers steer it through the revealer, the omen and the explorers' traits.
 
 **A definition's sections:**
 - **Identity:** number, name, set, and a reference to its content file.
-- **Sides:** how sides are assigned (from the chart's traitor rule, a hidden traitor, several traitors, or none), and which half of the haunt text each side may read.
-- **Setup:** an ordered list of kit setup parts, per side (find a named room, fill the house, placement rules, spawn figures, set aside tokens, start tracks, set secrets).
+- **Sides:** the chart's traitor rule, unless the definition gives its own (a hidden traitor, several traitors, or none), and which half of the haunt text each side may read.
+- **Setup:** an ordered list of kit setup parts, per side: start a counter, write down a secret known to a group of seats, put a status on a group's explorers, or run a local step. Still to come: find a named room, fill the house, placement rules, spawn figures, set aside tokens. A count in setup (the players, the living heroes, a counter, a secret) is worked out when its step runs, so setup fixes it at the haunt's start.
 - **Figures:** monster and ally definitions (traits or a stats table, a movement policy, an attack rule, a defeat response, flags).
 - **Tracks and counters**, with their count expressions.
 - **Statuses** the haunt applies.
 - **Actions:** objective actions (who, where, cost, roll, limit, effect on success and failure).
-- **Modifiers**, **triggers** and **conditions**, as in section 5. Win conditions are conditions that declare winners.
+- **Modifiers**, **triggers** and **conditions**, as in section 5. Win conditions are goals: a side and a test (a counter reaching a count, or a local test), compiled to conditions that declare that side's seats the winners.
 - **Knowledge:** the secret values and who sees them.
 - **Phases** (optional): the rules active in each phase, and the condition that switches between them.
 - **Local functions:** named steps or modifier functions for what the kit doesn't cover, kept in the haunt's own file.
@@ -394,7 +399,7 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 
 - **Sides are per seat and can change.** The traitor is a role a seat holds, not a seat number. A side may be secret, with its knowledge recorded per seat (including a side hidden from its own holder).
 - **Derived values are computed, never stored:** who is an opponent (the isOpponent question), which half of the haunt text a seat may read, and which win conditions apply to whom. Because they are derived, a side change takes effect everywhere at once.
-- **Turn order is recomputed at every turn boundary.** It comes from the current turn, the sides, the turnOrder question and the queue of inserted turns, rather than from a list saved at the haunt's start. A conversion in the middle of a round takes effect at the next boundary with no extra code.
+- **Turn order is recomputed at every turn boundary.** It comes from the current turn, the sides, the turnOrder question and the queue of inserted turns, rather than from a list saved at the haunt's start. A conversion in the middle of a round takes effect at the next boundary with no extra code. The turnOrder question's answer is one round. Before the haunt it is every seat in table order. After it, a hero turn for each seat whose explorer is alive, passing left from the traitor's left, then each seat publicly on the traitor's side takes its traitor turn and its monster turn, even while its explorer is asleep or dead (the dead-seats-turns ruling). A seat with nothing to do on a turn (a dead or sleeping traitor, a monster turn with no monsters) takes it as a forced step, so it passes at once. Without a traitor known to everyone (a hidden traitor, or none), the round starts on the revealer's left and every living explorer takes an explorer turn. An inserted turn is taken at the next boundary, and the order then carries on from the turn it followed. A turn the round no longer holds (its seat changed side) is placed where the rulebook's round would put it, and the order goes on from there.
 - **Results belong to seats.** A game result is a set of winning seats, and a side win is the common case of that.
 - **Seats change hands freely.** Seats are tied to a browser's profile id, so any player in a game may hand a seat to another profile, from the game list or the seat menu, for example after changing device. The good-faith model keeps this from being abused.
 - **Controllers** are human, bot or AI, and all of them answer asynchronously through the same route. The engine never calls a controller (section 8).

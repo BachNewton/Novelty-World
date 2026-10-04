@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NO_HAUNT_ENGINE, simulate, type SimulationResult } from "./simulation";
+import { ALL_TOY_ENGINE } from "./test/toy-haunt";
 
 // Whole games over many seeds, a random but legal policy on every seat (see
 // simulation.ts for what is checked at every write). A failure names its
@@ -32,6 +33,20 @@ describe("random play with the haunt held off until the house is full", () => {
     "seed %s",
     (seed) => {
       expect(played(simulate(seed, NO_HAUNT_ENGINE)).ending).toBe("house-full");
+    },
+    GAME_TIMEOUT,
+  );
+});
+
+// No real haunt is built yet, so the haunt framework is swept with the toy
+// haunt (test/toy-haunt.ts) standing in for every haunt on the chart.
+describe("random play through a toy haunt to the game's end, or a full house", () => {
+  it.each(seeds(100))(
+    "seed %s",
+    (seed) => {
+      expect(["finished", "house-full"]).toContain(
+        played(simulate(seed, ALL_TOY_ENGINE)).ending,
+      );
     },
     GAME_TIMEOUT,
   );
