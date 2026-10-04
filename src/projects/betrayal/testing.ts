@@ -1,8 +1,9 @@
 import { newGame } from "./engine/exploration";
+import { figureOf, placeOf, seatExplorer } from "./engine/figures";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { ENGINE } from "./game";
 import type { Scenario } from "./engine/scenario";
-import type { Decision, GameState } from "./types";
+import type { Decision, Edge, Figure, GameState, Place } from "./types";
 
 // Scenario helpers for tests: start a game from a scenario (stacked decks and
 // room stack, placed explorers, a haunt already revealed), then play it by
@@ -84,4 +85,25 @@ export function choose(
 /** Event types emitted by the latest write. */
 export function eventTypes(state: GameState): string[] {
   return state.lastEvents.map((e) => e.type);
+}
+
+/** The seat's explorer. */
+export function explorer(state: GameState, seat: number): Figure {
+  return figureOf(state, seatExplorer(state, seat));
+}
+
+/** Where the seat's explorer is. */
+export function at(state: GameState, seat: number): Place {
+  return placeOf(state, seatExplorer(state, seat));
+}
+
+/** Sets where the seat's explorer is, as a test's setup: nothing follows
+ *  them there. */
+export function put(
+  state: GameState,
+  seat: number,
+  room: string,
+  side: Edge | null = null,
+): void {
+  explorer(state, seat).place = { room, side };
 }

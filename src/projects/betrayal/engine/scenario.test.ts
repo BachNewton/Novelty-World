@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { choose, offered, testGame } from "../testing";
+import { at, choose, explorer, offered, testGame } from "../testing";
 import { placed } from "./board";
-import { traitValue } from "./explorers";
+import { traitValue } from "./figures";
 import { hauntCells, hauntNumbers } from "./scenario";
 
 describe("a scenario", () => {
@@ -25,10 +25,10 @@ describe("a scenario", () => {
     expect(placed(state.board, "larder")).toBeDefined();
     expect(placed(state.board, "chapel")).toBeDefined();
     expect(state.board.stack).not.toContain("chapel");
-    const ox = state.explorers[1];
-    expect(ox.room).toBe("chapel");
-    expect(ox.clips.might).toBe(0);
-    expect(traitValue(ENGINE.catalog, state, 1, "speed")).toBe(
+    const ox = explorer(state, 1);
+    expect(at(state, 1).room).toBe("chapel");
+    expect(ox.traits.clips.might).toBe(0);
+    expect(traitValue(ENGINE.catalog, state, "ox-bellows", "speed")).toBe(
       ENGINE.catalog.characters["ox-bellows"].tracks.speed[7],
     );
   });
@@ -38,15 +38,17 @@ describe("a scenario", () => {
     const state = testGame({
       explorers: [{ seat: 0, room: "chapel", cards: ["dog", "bell"] }],
     });
-    expect(state.explorers[0].cards).toEqual(["dog", "bell"]);
+    expect(explorer(state, 0).cards).toEqual(["dog", "bell"]);
     expect(state.decks.omen.draw).not.toContain("dog");
     expect(state.decks.item.draw).not.toContain("bell");
     expect(state.omensDrawn).toBe(1);
-    expect(traitValue(ENGINE.catalog, state, 0, "sanity")).toBeGreaterThan(
-      traitValue(ENGINE.catalog, plain, 0, "sanity"),
-    );
+    expect(
+      traitValue(ENGINE.catalog, state, "zoe-ingstrom", "sanity"),
+    ).toBeGreaterThan(traitValue(ENGINE.catalog, plain, "zoe-ingstrom", "sanity"));
     // The Dog's token goes where its holder is.
-    expect(state.tokens.find((t) => t.holder === 0)?.room).toBe("chapel");
+    expect(state.tokens.find((t) => t.holder === "zoe-ingstrom")?.room).toBe(
+      "chapel",
+    );
   });
 
   it("chooses who goes first", () => {
@@ -105,8 +107,8 @@ describe("start haunt N", () => {
     expect(state.pending).toBeNull();
     expect(state.work).toEqual([]);
     // The revealer drew the omen in the omen room.
-    expect(state.explorers[1].room).toBe(cell.room);
-    expect(state.explorers[1].cards).toContain(cell.omen);
+    expect(at(state, 1).room).toBe(cell.room);
+    expect(explorer(state, 1).cards).toContain(cell.omen);
     expect(placed(state.board, cell.room)).toBeDefined();
   });
 
@@ -118,7 +120,7 @@ describe("start haunt N", () => {
       explorers: [{ seat: 0, room: "foyer" }],
     });
     expect(state.haunt?.room).toBe(cell.room);
-    expect(state.explorers[0].room).toBe("foyer");
+    expect(at(state, 0).room).toBe("foyer");
   });
 
   it("offers every haunt on the chart", () => {

@@ -1,6 +1,8 @@
 import type {
   Catalog,
   Edge,
+  Figure,
+  FigureId,
   FloorId,
   GameState,
   Haunt,
@@ -20,12 +22,16 @@ import {
   type Doorway,
 } from "./board";
 import {
-  explorerAt,
+  allFigures,
+  explorerOf,
+  figureName,
+  figureOf,
   placeOf,
-  putExplorer,
+  putFigure,
+  seatExplorer,
   together,
   TRAITS,
-} from "./explorers";
+} from "./figures";
 import {
   defineDecision,
   defineStep,
@@ -38,7 +44,12 @@ import {
   step,
   takeFromPile,
 } from "./effects";
-import { askNumber, askPermission, askSet } from "./questions";
+import {
+  askNumber,
+  askPermission,
+  askSet,
+  controllerOf,
+} from "./questions";
 import {
   atSource,
   liveSources,
@@ -141,16 +152,23 @@ export type TurnChoice =
   | { act: "move"; to: string; side: Edge | null }
   | { act: "discover"; direction: Edge }
   | { act: "action"; source: Source["kind"]; id: string; action: string }
-  | { act: "trade"; with: number; give: string | null; take: string | null }
+  | { act: "trade"; with: FigureId; give: string | null; take: string | null }
   | { act: "drop"; card: string }
   | { act: "pickup"; card: string }
   | { act: "end" };
 
 type TurnParams = { seat: number };
 
-function movementLeft(engine: Engine, state: GameState, seat: number): number {
-  if (!state.turn || state.turn.movementEnded) return 0;
-  return askNumber(engine, state, "movement", { seat }) - state.turn.moved;
+function movementLeft(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): number {
+  const turn = state.turn;
+  if (!turn || turn.movementEnded.includes(figure)) return 0;
+  return (
+    askNumber(engine, state, "movement", { figure }) - (turn.moved[figure] ?? 0)
+  );
 }
 
 /** A tile in the stack or the discard pile that can go on this floor through this doorway without sealing it (p. 9). */
@@ -173,27 +191,30 @@ function doorwayPlacements(
   return bestPlacements(engine.catalog, state.board, tile, spot, [back]);
 }
 
-/** Whether a source's action is offered to this explorer: a card's to its
+/** Whether a source's action is offered to this figure: a card's to its
  *  holder while the card is unused this turn, or to anyone with its holder
- *  when it says so; a room's or token's to an explorer there. */
+ *  when it says so; a room's or token's to a figure there. */
 function offeredHere(
   state: GameState,
-  seat: number,
+  figure: FigureId,
   source: Source,
   definition: SourceAction,
 ): boolean {
-  const explorer = explorerAt(state, seat);
-  if (source.kind !== "card") return atSource(source, explorer.room);
+  if (source.kind !== "card")
+    return atSource(source, placeOf(state, figure).room);
   if (source.holder === null) return false;
   if (definition.offeredTo === "room")
-    return together(explorerAt(state, source.holder), explorer);
-  return source.holder === seat && !isHandled(state, source.id);
+    return together(
+      figureOf(state, source.holder),
+      figureOf(state, figure),
+    );
+  return source.holder === figure && !isHandled(state, source.id);
 }
 
 function cardActions(
   engine: Engine,
   state: GameState,
-  seat: number,
+  figure: FigureId,
 ): { source: Source; action: string; definition: SourceAction }[] {
   const result: { source: Source; action: string; definition: SourceAction }[] =
     [];
@@ -202,8 +223,8 @@ function cardActions(
       behaviour.actions ?? {},
     )) {
       if (
-        offeredHere(state, seat, source, definition) &&
-        definition.available(state, seat, source, engine)
+        offeredHere(state, figure, source, definition) &&
+        definition.available(state, figure, source, engine)
       )
         result.push({ source, action, definition });
     }
@@ -220,17 +241,21 @@ function canMoveItem(
   return engine.catalog.cards[card].transfer[how] && !isHandled(state, card);
 }
 
-/** Where an explorer can move one space to. */
-function moves(engine: Engine, state: GameState, seat: number) {
+/** Where a figure can move one space to. */
+function moves(engine: Engine, state: GameState, figure: FigureId) {
   return askSet(engine, state, "connections", {
-    mover: { kind: "explorer", seat },
-    from: placeOf(state, seat),
+    mover: { kind: "figure", figure },
+    from: placeOf(state, figure),
   });
 }
 
 /** In a barrier room only the door on your own side is in reach (p. 7). */
-function inReach(state: GameState, seat: number, direction: Edge): boolean {
-  const { room, side } = placeOf(state, seat);
+function inReach(
+  state: GameState,
+  figure: FigureId,
+  direction: Edge,
+): boolean {
+  const { room, side } = placeOf(state, figure);
   if (side === null) return true;
   const tile = placed(state.board, room);
   if (!tile) throw new Error(`${room} is not on the board`);
@@ -249,9 +274,10 @@ function turnCandidates(
   seat: number,
 ): TurnChoice[] {
   const end: TurnChoice = { act: "end" };
-  if (!askPermission(engine, state, "canAct", { seat }).allowed)
+  const figure = seatExplorer(state, seat);
+  if (!askPermission(engine, state, "canAct", { figure }).allowed)
     return [
-      ...cardActions(engine, state, seat)
+      ...cardActions(engine, state, figure)
         .filter(({ definition }) => definition.escape === true)
         .map(
           ({ source, action }): TurnChoice => ({
@@ -263,23 +289,24 @@ function turnCandidates(
         ),
       end,
     ];
-  const explorer = explorerAt(state, seat);
+  const explorer = figureOf(state, figure);
+  const room = placeOf(state, figure).room;
   const choices: TurnChoice[] = [];
-  for (const to of moves(engine, state, seat))
+  for (const to of moves(engine, state, figure))
     choices.push({ act: "move", to: to.room, side: to.side });
   for (const doorway of freeDoorways(
     state.board,
     engine.catalog,
-    floorOf(state, explorer.room),
+    floorOf(state, room),
   )) {
-    if (doorway.room === explorer.room && inReach(state, seat, doorway.direction))
+    if (doorway.room === room && inReach(state, figure, doorway.direction))
       choices.push({ act: "discover", direction: doorway.direction });
   }
-  for (const { source, action } of cardActions(engine, state, seat)) {
+  for (const { source, action } of cardActions(engine, state, figure)) {
     choices.push({ act: "action", source: source.kind, id: source.id, action });
   }
-  for (const other of state.explorers) {
-    if (other.seat === seat || !together(other, explorer)) continue;
+  for (const other of allFigures(state)) {
+    if (other.id === figure || !together(other, explorer)) continue;
     const gives = [
       null,
       ...explorer.cards.filter((c) => canMoveItem(engine, state, c, "trade")),
@@ -291,10 +318,10 @@ function turnCandidates(
     for (const give of gives)
       for (const take of takes)
         if (give !== null || take !== null)
-          choices.push({ act: "trade", with: other.seat, give, take });
+          choices.push({ act: "trade", with: other.id, give, take });
   }
   for (const card of explorer.cards) choices.push({ act: "drop", card });
-  for (const card of state.piles[explorer.room] ?? [])
+  for (const card of state.piles[room] ?? [])
     choices.push({ act: "pickup", card });
   choices.push(end);
   return choices;
@@ -309,46 +336,44 @@ function takeTurnChoice(
 ): string | Step[] {
   const turn = state.turn;
   if (!turn || turn.seat !== seat) return "It isn't this seat's turn";
-  const explorer = explorerAt(state, seat);
+  const figure = seatExplorer(state, seat);
+  const explorer = figureOf(state, figure);
+  const room = placeOf(state, figure).room;
   switch (choice.act) {
     case "move": {
-      if (movementLeft(engine, state, seat) <= 0) return "No movement left";
+      if (movementLeft(engine, state, figure) <= 0) return "No movement left";
       if (
-        !moves(engine, state, seat).some(
+        !moves(engine, state, figure).some(
           (p) => p.room === choice.to && p.side === choice.side,
         )
       )
         return "That room isn't connected";
       if (
         !askPermission(engine, state, "canMove", {
-          seat,
-          from: explorer.room,
+          figure,
+          from: room,
           to: choice.to,
         }).allowed
       )
         return "Something stops that move";
       return [
         leaveRoom(
-          seat,
-          step<Move>("move", { seat, to: choice.to, side: choice.side }),
+          figure,
+          step<Move>("move", { figure, to: choice.to, side: choice.side }),
         ),
       ];
     }
     case "discover": {
-      if (movementLeft(engine, state, seat) <= 0) return "No movement left";
-      const doorway = { room: explorer.room, direction: choice.direction };
+      if (movementLeft(engine, state, figure) <= 0) return "No movement left";
+      const doorway = { room, direction: choice.direction };
       if (
-        !freeDoorways(
-          state.board,
-          engine.catalog,
-          floorOf(state, explorer.room),
-        ).some(
+        !freeDoorways(state.board, engine.catalog, floorOf(state, room)).some(
           (d) => d.room === doorway.room && d.direction === doorway.direction,
         )
       ) {
         return "That doorway doesn't open onto anything";
       }
-      if (!inReach(state, seat, choice.direction))
+      if (!inReach(state, figure, choice.direction))
         return "That door is across the barrier";
       if (
         ![...state.board.stack, ...state.board.discards].some((tile) =>
@@ -359,13 +384,13 @@ function takeTurnChoice(
       }
       return [
         leaveRoom(
-          seat,
-          step<Discover>("discover", { seat, direction: choice.direction }),
+          figure,
+          step<Discover>("discover", { figure, direction: choice.direction }),
         ),
       ];
     }
     case "action": {
-      const found = cardActions(engine, state, seat).find(
+      const found = cardActions(engine, state, figure).find(
         (a) =>
           a.source.kind === choice.source &&
           a.source.id === choice.id &&
@@ -375,12 +400,13 @@ function takeTurnChoice(
       const { source, definition } = found;
       if (source.kind === "card" && definition.offeredTo !== "room")
         handle(state, source.id);
-      return definition.steps(state, seat, source);
+      return definition.steps(state, figure, source);
     }
     case "trade": {
       if (turn.traded) return "You have already traded this turn";
-      const other = state.explorers.find((e) => e.seat === choice.with);
-      if (!other || !together(other, explorer))
+      const other =
+        choice.with in state.figures ? state.figures[choice.with] : null;
+      if (other === null || other.id === figure || !together(other, explorer))
         return "You can only trade with an explorer in your room";
       if (
         choice.give !== null &&
@@ -396,7 +422,7 @@ function takeTurnChoice(
         return "They can't trade that";
       return [
         step<Trade>("offer-trade", {
-          from: seat,
+          from: figure,
           to: choice.with,
           give: choice.give,
           take: choice.take,
@@ -409,19 +435,19 @@ function takeTurnChoice(
         !canMoveItem(engine, state, choice.card, "drop")
       )
         return "You can't drop that";
-      if (turn.dropRoom !== null && turn.dropRoom !== explorer.room)
+      if (turn.dropRoom !== null && turn.dropRoom !== room)
         return "You have already dropped items elsewhere this turn";
-      return [step<Drop>("drop", { seat, card: choice.card })];
+      return [step<Drop>("drop", { figure, card: choice.card })];
     }
     case "pickup": {
       if (
-        !(state.piles[explorer.room] ?? []).includes(choice.card) ||
+        !(state.piles[room] ?? []).includes(choice.card) ||
         isHandled(state, choice.card)
       )
         return "You can't pick that up";
-      if (turn.pickupRoom !== null && turn.pickupRoom !== explorer.room)
+      if (turn.pickupRoom !== null && turn.pickupRoom !== room)
         return "You have already picked up items elsewhere this turn";
-      return [step<Drop>("pickup", { seat, card: choice.card })];
+      return [step<Drop>("pickup", { figure, card: choice.card })];
     }
     case "end":
       return [step<TurnParams>("end-turn", { seat })];
@@ -436,15 +462,15 @@ function describeTurnChoice(
 ): string {
   const room = (id: string) => engine.catalog.rooms[id].name;
   const card = (id: string) => engine.catalog.cards[id].name;
-  const name = (s: number) =>
-    engine.catalog.characters[explorerAt(state, s).character].name;
+  const name = (figure: FigureId) =>
+    figureName(engine.catalog, state, figure);
   switch (choice.act) {
     case "move":
       return choice.side === null
         ? `Move to the ${room(choice.to)}`
         : `Move to the ${room(choice.to)}, on its ${sideName(state.board, choice.to, choice.side)} side`;
     case "discover":
-      return `Explore through the ${COMPASS[choice.direction]} door of the ${room(explorerAt(state, seat).room)}`;
+      return `Explore through the ${COMPASS[choice.direction]} door of the ${room(placeOf(state, seatExplorer(state, seat)).room)}`;
     case "action": {
       const behaviour = liveSources(engine.behaviours, state).find(
         (s) => s.source.kind === choice.source && s.source.id === choice.id,
@@ -472,17 +498,17 @@ function describeTurnChoice(
 // Steps
 // ---------------------------------------------------------------------------
 
-type Move = { seat: number; to: string; side: Edge | null };
-type Discover = { seat: number; direction: Edge };
-type Rotation = { seat: number; tile: string; doorway: Doorway };
+type Move = { figure: FigureId; to: string; side: Edge | null };
+type Discover = { figure: FigureId; direction: Edge };
+type Rotation = { figure: FigureId; tile: string; doorway: Doorway };
 type Trade = {
-  from: number;
-  to: number;
+  from: FigureId;
+  to: FigureId;
   give: string | null;
   take: string | null;
 };
-type Drop = { seat: number; card: string };
-type HauntRoll = { seat: number; omen: string; room: string };
+type Drop = { figure: FigureId; card: string };
+type HauntRoll = { figure: FigureId; omen: string; room: string };
 
 export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   setup: defineStep<Setup>((state, p, ctx) => {
@@ -496,24 +522,40 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       state.decks[type] = { draw: random.shuffle(cards), discard: [] };
     }
     if (p.scenario) stackScenario(state, p.scenario);
-    state.explorers = p.characters.map((character, seat) => ({
-      seat,
-      character,
-      room: "entrance-hall",
-      clips: Object.fromEntries(
-        TRAITS.map((t) => [t, ctx.catalog.characters[character].start[t]]),
-      ) as Record<Trait, number>,
-      overTop: [],
-      cards: [],
-    }));
+    state.figures = Object.fromEntries(
+      p.characters.map((character, seat): [FigureId, Figure] => [
+        character,
+        {
+          id: character,
+          kind: "explorer",
+          definition: character,
+          owner: seat,
+          place: { room: "entrance-hall", side: null },
+          traits: {
+            kind: "track",
+            clips: Object.fromEntries(
+              TRAITS.map((t) => [
+                t,
+                ctx.catalog.characters[character].start[t],
+              ]),
+            ) as Record<Trait, number>,
+            overTop: [],
+          },
+          cards: [],
+          statuses: [],
+          stunned: false,
+          alive: true,
+        },
+      ]),
+    );
+    const birthday = (seat: number) =>
+      daysUntil(p.today, ctx.catalog.characters[p.characters[seat]].birthday);
     const chosen = p.scenario?.first ?? null;
     const first =
       chosen ??
-      [...state.explorers].sort(
-        (a, b) =>
-          daysUntil(p.today, ctx.catalog.characters[a.character].birthday) -
-          daysUntil(p.today, ctx.catalog.characters[b.character].birthday),
-      )[0].seat;
+      p.characters
+        .map((_character, seat) => seat)
+        .sort((a, b) => birthday(a) - birthday(b))[0];
     ctx.emit("game-started", chosen === null ? RULEBOOK(4) : SCENARIO_RULE, {
       first,
     });
@@ -535,18 +577,21 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   "turn-start": defineStep<TurnParams>((state, p, ctx) => {
     state.turn = {
       seat: p.seat,
-      moved: 0,
-      movementEnded: false,
+      moved: {},
+      movementEnded: [],
       rolls: [],
       handled: [],
       dropRoom: null,
       pickupRoom: null,
       traded: false,
-      attacked: false,
+      attacked: [],
       over: false,
       omens: [],
     };
-    ctx.emit("turn-started", RULEBOOK(5), { seat: p.seat });
+    ctx.emit("turn-started", RULEBOOK(5), {
+      seat: p.seat,
+      figure: explorerOf(state, p.seat),
+    });
     ctx.push(step<TurnParams>("turn-menu", p));
   }),
 
@@ -556,20 +601,23 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
     ctx.emit("left", RULEBOOK(6), {
-      seat: p.seat,
-      room: explorer.room,
+      figure: p.figure,
+      room: placeOf(state, p.figure).room,
       moved: true,
     });
-    putExplorer(state, p.seat, { room: p.to, side: p.side });
-    if (state.turn) state.turn.moved += 1;
-    ctx.emit("entered", RULEBOOK(6), { seat: p.seat, room: p.to, moved: true });
+    putFigure(state, p.figure, { room: p.to, side: p.side });
+    if (state.turn)
+      state.turn.moved[p.figure] = (state.turn.moved[p.figure] ?? 0) + 1;
+    ctx.emit("entered", RULEBOOK(6), {
+      figure: p.figure,
+      room: p.to,
+      moved: true,
+    });
   }),
 
   discover: defineStep<Discover>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
-    const doorway = { room: explorer.room, direction: p.direction };
+    const doorway = { room: placeOf(state, p.figure).room, direction: p.direction };
     const tile = drawRoom(state, ctx.random.shuffle, (t) =>
       fits(ctx.engine, state, t, doorway),
     );
@@ -578,43 +626,50 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
         `Nothing can be discovered through ${doorway.room} ${doorway.direction}`,
       );
     ctx.decide(
-      [p.seat],
+      [controllerOf(ctx.engine, state, p.figure)],
       "rotation",
-      { seat: p.seat, tile, doorway },
+      { figure: p.figure, tile, doorway },
       RULEBOOK(6),
     );
   }),
 
-  "offer-trade": defineStep<Trade>((_state, p, ctx) => {
-    ctx.decide([p.to], "trade-offer", p, RULEBOOK(11));
+  "offer-trade": defineStep<Trade>((state, p, ctx) => {
+    ctx.decide(
+      [controllerOf(ctx.engine, state, p.to)],
+      "trade-offer",
+      p,
+      RULEBOOK(11),
+    );
   }),
 
   drop: defineStep<Drop>((state, p, ctx) => {
-    const room = explorerAt(state, p.seat).room;
+    const room = placeOf(state, p.figure).room;
     handle(state, p.card);
     if (state.turn) state.turn.dropRoom = room;
-    ctx.push(loseCard(p.seat, p.card, { to: "room", room }, RULEBOOK(11)));
+    ctx.push(loseCard(p.figure, p.card, { to: "room", room }, RULEBOOK(11)));
   }),
 
   pickup: defineStep<Drop>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
-    takeFromPile(state, explorer.room, p.card);
+    const room = placeOf(state, p.figure).room;
+    takeFromPile(state, room, p.card);
     handle(state, p.card);
-    if (state.turn) state.turn.pickupRoom = explorer.room;
-    ctx.push(gainCard(p.seat, p.card, "picked-up", RULEBOOK(11)));
+    if (state.turn) state.turn.pickupRoom = room;
+    ctx.push(gainCard(p.figure, p.card, "picked-up", RULEBOOK(11)));
   }),
 
   "end-turn": defineStep<TurnParams>((state, p, ctx) => {
     const turn = state.turn;
     if (!turn) throw new Error("No turn to end");
+    const figure = explorerOf(state, p.seat);
     ctx.emit("turn-ended", RULEBOOK(6), {
       seat: p.seat,
-      room: explorerAt(state, p.seat).room,
+      figure,
+      room: figure === null ? null : (figureOf(state, figure).place?.room ?? null),
     });
     ctx.push(
       ...turn.omens.map((o) =>
         step<HauntRoll>("haunt-roll", {
-          seat: o.seat,
+          figure: o.figure,
           omen: o.card,
           room: o.room,
         }),
@@ -627,7 +682,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     if (state.status !== "exploring") return;
     ctx.push(
       roll(
-        p.seat,
+        p.figure,
         { kind: "haunt" },
         RULEBOOK(15),
         step<HauntRoll>("haunt-check", p),
@@ -638,7 +693,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   "haunt-check": defineStep<HauntRoll & { result: number }>((state, p, ctx) => {
     if (p.result >= state.omensDrawn) {
       ctx.emit("haunt-held-off", RULEBOOK(15), {
-        seat: p.seat,
+        figure: p.figure,
         result: p.result,
         omens: state.omensDrawn,
       });
@@ -649,14 +704,15 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       throw new Error(
         `The haunt chart has no cell for ${p.room} and ${p.omen}`,
       );
+    // The revealer is the player who made the roll.
     revealHaunt(state, {
       number,
-      revealer: p.seat,
+      revealer: controllerOf(ctx.engine, state, p.figure),
       omen: p.omen,
       room: p.room,
     });
     ctx.emit("haunt-revealed", RULEBOOK(15), {
-      seat: p.seat,
+      figure: p.figure,
       result: p.result,
       omens: state.omensDrawn,
       haunt: number,
@@ -711,7 +767,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
         ...spot,
         rotation: placement.rotation,
       });
-      discoverRoom(state, ctx, p.seat, p.tile, RULEBOOK(6), {
+      discoverRoom(state, ctx, p.figure, p.tile, RULEBOOK(6), {
         moved: true,
         draws: true,
         after: [],
@@ -730,7 +786,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
         ctx.emit("trade-declined", RULEBOOK(11), p);
         return null;
       }
-      const moves: [number, number, string | null][] = [
+      const moves: [FigureId, FigureId, string | null][] = [
         [p.from, p.to, p.give],
         [p.to, p.from, p.take],
       ];
@@ -744,7 +800,8 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
             loseCard(
               giver,
               card,
-              { to: "explorer", seat: taker, by: "traded" },
+              { to: "figure", figure: taker, by: "traded" },
+
               RULEBOOK(11),
             ),
           ];

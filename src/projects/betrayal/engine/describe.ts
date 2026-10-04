@@ -2,6 +2,7 @@ import type {
   CardType,
   Decision,
   Edge,
+  FigureId,
   FloorId,
   GameEvent,
   GameState,
@@ -14,6 +15,7 @@ import type { CardDestination, GainedBy } from "./effects";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { FLOOR_NAMES } from "./board";
+import { explorerOf, figureName, figureOf } from "./figures";
 
 // Plain language for events and decisions, for the game log, the UI and AI
 // players alike. Each line names the rule behind it when that rule is a room,
@@ -58,13 +60,14 @@ export function describeRule(engine: Engine, rule: RuleRef): string {
 }
 
 function wordsFor(engine: Engine, state: GameState): Words {
-  const { characters, rooms, cards } = engine.catalog;
+  const { rooms, cards } = engine.catalog;
   return {
-    explorer: (seat) => {
-      const explorer = state.explorers.find((e) => e.seat === seat);
-      return explorer
-        ? characters[explorer.character].name
-        : state.seats[seat].name;
+    figure: (figure) => figureName(engine.catalog, state, figure),
+    seat: (seat) => {
+      const explorer = explorerOf(state, seat);
+      return explorer === null
+        ? state.seats[seat].name
+        : figureName(engine.catalog, state, explorer);
     },
     room: (room) => rooms[room].name,
     card: (card) => cards[card].name,
@@ -114,88 +117,91 @@ export function describeEvent(
       : undefined;
   if (own) return withRule(engine, event.rule, `${own(event, words)}.`);
 
-  const who = (seat: number) => words.explorer(seat);
+  const who = (figure: FigureId) => words.figure(figure);
+  const seat = (n: number) => words.seat(n);
   const sentence = (text: string, about: string | null = null) =>
     withRule(engine, event.rule, `${text}.`, about);
 
   switch (event.type) {
     case "game-started":
       return sentence(
-        `The game begins. ${who(data<{ first: number }>(event).first)} goes first`,
+        `The game begins. ${seat(data<{ first: number }>(event).first)} goes first`,
       );
     case "turn-started":
-      return sentence(`${who(data<{ seat: number }>(event).seat)}'s turn`);
+      return sentence(`${seat(data<{ seat: number }>(event).seat)}'s turn`);
     case "turn-ended": {
-      const d = data<{ seat: number; room: string }>(event);
+      const d = data<{ seat: number; room: string | null }>(event);
       return sentence(
-        `${who(d.seat)} ends the turn in the ${words.room(d.room)}`,
+        d.room === null
+          ? `${seat(d.seat)} ends the turn`
+          : `${seat(d.seat)} ends the turn in the ${words.room(d.room)}`,
       );
     }
     case "turn-cut-short":
       return sentence(
-        `${who(data<{ seat: number }>(event).seat)}'s turn ends at once`,
+        `${seat(data<{ seat: number }>(event).seat)}'s turn ends at once`,
       );
     case "ready":
-      return sentence(`${who(data<{ seat: number }>(event).seat)} is ready`);
+      return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
     case "forced": {
       const d = data<{ seat: number; label: string }>(event);
-      return sentence(`${who(d.seat)}: ${d.label} (the only choice)`);
+      return sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
     }
     case "left":
       return null;
     case "entered": {
-      const d = data<{ seat: number; room: string; moved: boolean }>(event);
+      const d = data<{ figure: FigureId; room: string; moved: boolean }>(event);
       return sentence(
         d.moved
-          ? `${who(d.seat)} enters the ${words.room(d.room)}`
-          : `${who(d.seat)} is put in the ${words.room(d.room)}`,
+          ? `${who(d.figure)} enters the ${words.room(d.room)}`
+          : `${who(d.figure)} is put in the ${words.room(d.room)}`,
       );
     }
     case "crossed": {
-      const d = data<{ seat: number; room: string }>(event);
-      return sentence(`${who(d.seat)} crosses the ${words.room(d.room)}`);
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(`${who(d.figure)} crosses the ${words.room(d.room)}`);
     }
     case "discovered": {
-      const d = data<{ seat: number; room: string }>(event);
-      return sentence(`${who(d.seat)} discovers the ${words.room(d.room)}`);
+      const d = data<{ figure: FigureId; room: string }>(event);
+      return sentence(`${who(d.figure)} discovers the ${words.room(d.room)}`);
     }
     case "stayed": {
-      const d = data<{ seat: number; room: string }>(event);
+      const d = data<{ figure: FigureId; room: string }>(event);
       return sentence(
-        `${who(d.seat)} stays in the ${words.room(d.room)} and moves no further this turn`,
+        `${who(d.figure)} stays in the ${words.room(d.room)} and moves no further this turn`,
       );
     }
     case "movement-ended":
       return sentence(
-        `${who(data<{ seat: number }>(event).seat)} can't move any further this turn`,
+        `${who(data<{ figure: FigureId }>(event).figure)} can't move any further this turn`,
       );
     case "card-drawn": {
-      const d = data<{ seat: number; card: string; type: CardType }>(event);
+      const d = data<{ figure: FigureId; card: string; type: CardType }>(event);
       return sentence(
-        `${who(d.seat)} draws ${d.type === "event" ? "the event" : `the ${d.type}`} ${words.card(d.card)}`,
+        `${who(d.figure)} draws ${d.type === "event" ? "the event" : `the ${d.type}`} ${words.card(d.card)}`,
         d.card,
       );
     }
     case "card-gained": {
-      const d = data<{ seat: number; card: string; by: GainedBy }>(event);
+      const d = data<{ figure: FigureId; card: string; by: GainedBy }>(event);
       const gained: Record<GainedBy, string | null> = {
         drawn: null,
         traded: null,
-        kept: `${who(d.seat)} keeps the ${words.card(d.card)}`,
-        "picked-up": `${who(d.seat)} picks up the ${words.card(d.card)}`,
-        given: `${who(d.seat)} is given the ${words.card(d.card)}`,
-        stolen: `${who(d.seat)} steals the ${words.card(d.card)}`,
+        kept: `${who(d.figure)} keeps the ${words.card(d.card)}`,
+        "picked-up": `${who(d.figure)} picks up the ${words.card(d.card)}`,
+        given: `${who(d.figure)} is given the ${words.card(d.card)}`,
+        stolen: `${who(d.figure)} steals the ${words.card(d.card)}`,
       };
       const text = gained[d.by];
       return text === null ? null : sentence(text, d.card);
     }
     case "card-lost": {
       const d = data<{
-        seat: number;
+        figure: FigureId;
         card: string;
         destination: CardDestination;
       }>(event);
-      const text = lostText(engine, words, d.seat, d.card, d.destination);
+      const text = lostText(engine, words, d.figure, d.card, d.destination);
       return text === null ? null : sentence(text, d.card);
     }
     case "card-marked": {
@@ -208,8 +214,8 @@ export function describeEvent(
       );
     }
     case "card-used": {
-      const d = data<{ seat: number; card: string }>(event);
-      return sentence(`${who(d.seat)} uses the ${words.card(d.card)}`, d.card);
+      const d = data<{ figure: FigureId; card: string }>(event);
+      return sentence(`${who(d.figure)} uses the ${words.card(d.card)}`, d.card);
     }
     case "ongoing-ended": {
       const d = data<{ card: string }>(event);
@@ -217,8 +223,8 @@ export function describeEvent(
     }
     case "traded": {
       const d = data<{
-        from: number;
-        to: number;
+        from: FigureId;
+        to: FigureId;
         give: string | null;
         take: string | null;
       }>(event);
@@ -233,22 +239,22 @@ export function describeEvent(
         : sentence(`${who(d.to)} gives ${who(d.from)} ${take ?? ""}`);
     }
     case "trade-declined": {
-      const d = data<{ from: number; to: number }>(event);
+      const d = data<{ from: FigureId; to: FigureId }>(event);
       return sentence(`${who(d.to)} declines ${who(d.from)}'s trade`);
     }
     case "trait-changed": {
-      const d = data<{ seat: number; trait: Trait; spaces: number }>(event);
+      const d = data<{ figure: FigureId; trait: Trait; spaces: number }>(event);
       if (d.spaces === 0)
         return sentence(
-          `${who(d.seat)}'s ${traitName(d.trait)} can't go any further`,
+          `${who(d.figure)}'s ${traitName(d.trait)} can't go any further`,
         );
       return sentence(
-        `${who(d.seat)} ${d.spaces > 0 ? "gains" : "loses"} ${Math.abs(d.spaces)} ${traitName(d.trait)}`,
+        `${who(d.figure)} ${d.spaces > 0 ? "gains" : "loses"} ${Math.abs(d.spaces)} ${traitName(d.trait)}`,
       );
     }
     case "damaged": {
       const d = data<{
-        seat: number;
+        figure: FigureId;
         damage: string;
         split: { [trait: string]: number };
       }>(event);
@@ -257,22 +263,22 @@ export function describeEvent(
         .filter(([, n]) => n > 0)
         .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`);
       return sentence(
-        `${who(d.seat)} takes ${total} ${d.damage} damage${parts.length > 0 ? `: ${parts.join(" and ")}` : ""}`,
+        `${who(d.figure)} takes ${total} ${d.damage} damage${parts.length > 0 ? `: ${parts.join(" and ")}` : ""}`,
       );
     }
     case "damage-converted": {
-      const d = data<{ seat: number; from: string; to: string }>(event);
+      const d = data<{ figure: FigureId; from: string; to: string }>(event);
       return sentence(
-        `${who(d.seat)} takes the ${d.from} damage as ${d.to} damage instead`,
+        `${who(d.figure)} takes the ${d.from} damage as ${d.to} damage instead`,
       );
     }
     case "damage-prevented": {
-      const d = data<{ seat: number; damage: string }>(event);
-      return sentence(`${who(d.seat)} takes no ${d.damage} damage`);
+      const d = data<{ figure: FigureId; damage: string }>(event);
+      return sentence(`${who(d.figure)} takes no ${d.damage} damage`);
     }
     case "rolled": {
       const d = data<{
-        seat: number;
+        figure: FigureId;
         spec: RollSpec;
         dice: number[];
         named: number | null;
@@ -286,22 +292,26 @@ export function describeEvent(
       // A card's attacker's dice are thrown for it by a player.
       if (d.spec.kind === "attack" && d.spec.dice !== null)
         return sentence(
-          `${who(d.seat)} throws the dice for the ${rollName(d.spec)}: ${how}`,
+          `${who(d.figure)} throws the dice for the ${rollName(d.spec)}: ${how}`,
         );
-      return sentence(`${who(d.seat)}'s ${rollName(d.spec)}: ${how}`);
+      return sentence(`${who(d.figure)}'s ${rollName(d.spec)}: ${how}`);
     }
     case "attacked": {
-      const d = data<{ attacker: Attacker; defender: number }>(event);
+      const d = data<{
+        attacker: Attacker;
+        defender: FigureId;
+        roller: FigureId;
+      }>(event);
       return sentence(
-        d.attacker.kind === "explorer"
-          ? `${who(d.attacker.seat)} attacks ${who(d.defender)}`
-          : `${who(d.attacker.roller)} makes a ${traitName(d.attacker.trait)} ${d.attacker.dice} attack against ${who(d.defender)} on the card's behalf`,
+        d.attacker.kind === "figure"
+          ? `${who(d.attacker.figure)} attacks ${who(d.defender)}`
+          : `${who(d.roller)} makes a ${traitName(d.attacker.trait)} ${d.attacker.dice} attack against ${who(d.defender)} on the card's behalf`,
       );
     }
     case "attack-outcome": {
       const d = data<{
-        attacker: number | null;
-        defender: number;
+        attacker: FigureId | null;
+        defender: FigureId;
         attackResult: number;
         defenceResult: number;
         loser: "attacker" | "defender" | null;
@@ -330,18 +340,18 @@ export function describeEvent(
         `The ${STACK[data<{ type: CardType }>(event).type]} is empty`,
       );
     case "deck-stacked": {
-      const d = data<{ seat: number; type: CardType; card: string }>(event);
+      const d = data<{ figure: FigureId; type: CardType; card: string }>(event);
       return sentence(
-        `${who(d.seat)} puts a chosen card on top of the ${STACK[d.type]}`,
+        `${who(d.figure)} puts a chosen card on top of the ${STACK[d.type]}`,
       );
     }
     case "room-stack-seen":
       return sentence(
-        `${who(data<{ seat: number }>(event).seat)} looks at the top room tile`,
+        `${who(data<{ figure: FigureId }>(event).figure)} looks at the top room tile`,
       );
     case "search-found-nothing":
       return sentence(
-        `${who(data<{ seat: number }>(event).seat)} finds nothing to search`,
+        `${who(data<{ figure: FigureId }>(event).figure)} finds nothing to search`,
       );
     case "token-placed":
     case "token-removed": {
@@ -379,25 +389,25 @@ export function describeEvent(
     case "room-not-found":
       return sentence("No room tile is left that can go there");
     case "haunt-held-off": {
-      const d = data<{ seat: number; result: number; omens: number }>(event);
+      const d = data<{ figure: FigureId; result: number; omens: number }>(event);
       return sentence(
-        `${who(d.seat)} rolls ${d.result} for the haunt, not under the ${d.omens} omens drawn: the haunt holds off`,
+        `${who(d.figure)} rolls ${d.result} for the haunt, not under the ${d.omens} omens drawn: the haunt holds off`,
       );
     }
     case "explorer-set-up": {
-      const d = data<{ seat: number; room: string | null; traits: Trait[] }>(
+      const d = data<{ figure: FigureId; room: string | null; traits: Trait[] }>(
         event,
       );
-      const explorer = state.explorers[d.seat];
-      const track = engine.catalog.characters[explorer.character].tracks;
+      const figure = figureOf(state, d.figure);
+      const track = engine.catalog.characters[figure.definition].tracks;
       const traits = d.traits.map(
-        (t) => `${traitName(t)} ${track[t][explorer.clips[t]]}`,
+        (t) => `${traitName(t)} ${track[t][figure.traits.clips[t]]}`,
       );
       const parts = [
         ...(d.room === null ? [] : [`starts in the ${words.room(d.room)}`]),
         ...(traits.length === 0 ? [] : [`starts with ${list(traits)}`]),
       ];
-      return sentence(`${who(d.seat)} ${parts.join(" and ")}`);
+      return sentence(`${who(d.figure)} ${parts.join(" and ")}`);
     }
     case "haunt-started": {
       const d = data<{
@@ -407,18 +417,18 @@ export function describeEvent(
         room: string;
       }>(event);
       return sentence(
-        `Haunt ${d.number} begins, revealed by ${who(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
+        `Haunt ${d.number} begins, revealed by ${seat(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
       );
     }
     case "haunt-revealed": {
       const d = data<{
-        seat: number;
+        figure: FigureId;
         result: number;
         omens: number;
         haunt: number;
       }>(event);
       return sentence(
-        `${who(d.seat)} rolls ${d.result} for the haunt, under the ${d.omens} omens drawn: haunt ${d.haunt} begins`,
+        `${who(d.figure)} rolls ${d.result} for the haunt, under the ${d.omens} omens drawn: haunt ${d.haunt} begins`,
       );
     }
   }
@@ -428,11 +438,11 @@ export function describeEvent(
 function lostText(
   engine: Engine,
   words: Words,
-  seat: number,
+  figure: FigureId,
   card: string,
   where: CardDestination,
 ): string | null {
-  const who = words.explorer(seat);
+  const who = words.figure(figure);
   const name = words.card(card);
   switch (where.to) {
     case "discard":
@@ -441,12 +451,21 @@ function lostText(
       return `${who} puts the ${name} back in the ${STACK[engine.catalog.cards[card].type]}, which is shuffled`;
     case "room":
       return `${who} leaves the ${name} in the ${words.room(where.room)}`;
-    case "explorer":
+    case "figure":
       return null;
   }
 }
 
+/** The figure making an attack. Only a figure's attack asks its attacker
+ *  anything: a card's attacker has no choices. */
+function attackingFigure(attacker: Attacker): FigureId {
+  if (attacker.kind !== "figure")
+    throw new Error("A card's attacker is never asked a decision");
+  return attacker.figure;
+}
+
 /** What a pending decision asks, and of whom. */
+
 export function describeDecision(
   engine: Engine,
   state: GameState,
@@ -457,76 +476,72 @@ export function describeDecision(
   switch (decision.kind) {
     case "turn": {
       const p = decision.params as { seat: number };
-      return ask(`${words.explorer(p.seat)}'s turn: what next?`);
+      return ask(`${words.seat(p.seat)}'s turn: what next?`);
     }
     case "rotation": {
-      const p = decision.params as { seat: number; tile: string };
+      const p = decision.params as { figure: FigureId; tile: string };
       return ask(
-        `${words.explorer(p.seat)}: which way should the ${words.room(p.tile)} face?`,
+        `${words.figure(p.figure)}: which way should the ${words.room(p.tile)} face?`,
       );
     }
     case "place-tile": {
-      const p = decision.params as { seat: number; tile: string };
+      const p = decision.params as { figure: FigureId; tile: string };
       return ask(
-        `${words.explorer(p.seat)}: where should the ${words.room(p.tile)} go?`,
+        `${words.figure(p.figure)}: where should the ${words.room(p.tile)} go?`,
       );
     }
     case "trade-offer": {
-      const p = decision.params as { from: number; to: number };
+      const p = decision.params as { from: FigureId; to: FigureId };
       return ask(
-        `${words.explorer(p.to)}: accept ${words.explorer(p.from)}'s trade?`,
+        `${words.figure(p.to)}: accept ${words.figure(p.from)}'s trade?`,
       );
     }
     case "split-damage": {
       const p = decision.params as {
-        seat: number;
+        figure: FigureId;
         damage: string;
         amount: number;
       };
       return ask(
-        `${words.explorer(p.seat)}: how should ${p.amount} ${p.damage} damage be split?`,
+        `${words.figure(p.figure)}: how should ${p.amount} ${p.damage} damage be split?`,
       );
     }
     case "damage-kind": {
       const p = decision.params as {
-        seat: number;
+        figure: FigureId;
         damage: string;
         points: number;
       };
       return ask(
-        `${words.explorer(p.seat)}: take ${p.points} ${p.damage} damage as it is, or change it?`,
+        `${words.figure(p.figure)}: take ${p.points} ${p.damage} damage as it is, or change it?`,
       );
     }
     case "choose-one": {
-      const p = decision.params as { seat: number };
-      return ask(`${words.explorer(p.seat)}: choose one`);
+      const p = decision.params as { figure: FigureId };
+      return ask(`${words.figure(p.figure)}: choose one`);
     }
     case "roll-before": {
-      const p = decision.params as { seat: number; spec: RollSpec };
+      const p = decision.params as { figure: FigureId; spec: RollSpec };
       return ask(
-        `${words.explorer(p.seat)}: use something before the ${rollName(p.spec)}?`,
+        `${words.figure(p.figure)}: use something before the ${rollName(p.spec)}?`,
       );
     }
     case "attack-mode": {
-      const p = decision.params as { defender: number; attacker: Attacker };
-      const attacker =
-        p.attacker.kind === "explorer" ? p.attacker.seat : p.attacker.roller;
+      const p = decision.params as { defender: FigureId; attacker: Attacker };
       return ask(
-        `${words.explorer(attacker)}: how do you attack ${words.explorer(p.defender)}?`,
+        `${words.figure(attackingFigure(p.attacker))}: how do you attack ${words.figure(p.defender)}?`,
       );
     }
     case "attack-steal": {
-      const p = decision.params as { defender: number; attacker: Attacker };
-      const attacker =
-        p.attacker.kind === "explorer" ? p.attacker.seat : p.attacker.roller;
+      const p = decision.params as { defender: FigureId; attacker: Attacker };
       return ask(
-        `${words.explorer(attacker)}: deal the damage, or steal an item from ${words.explorer(p.defender)} instead?`,
+        `${words.figure(attackingFigure(p.attacker))}: deal the damage, or steal an item from ${words.figure(p.defender)} instead?`,
       );
     }
     case "roll-after": {
-      const p = decision.params as { seat: number; spec: RollSpec };
+      const p = decision.params as { figure: FigureId; spec: RollSpec };
       return ask(
-        `${words.explorer(p.seat)}: keep the ${rollName(p.spec)}, or reroll?`,
+        `${words.figure(p.figure)}: keep the ${rollName(p.spec)}, or reroll?`,
       );
     }
   }

@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import { placed } from "./board";
 import { defineStep, gainCard } from "./effects";
-import { putExplorer, TRAITS } from "./explorers";
+import { figureOf, putFigure, seatExplorer, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
 import type { Engine, StepHandler } from "./step-loop";
 import { placeOptions } from "./tiles";
@@ -22,6 +22,7 @@ import { placeOptions } from "./tiles";
 
 export const SCENARIO_RULE: RuleRef = { source: "scenario" };
 
+/** How the seat's explorer starts. */
 export interface ExplorerSetup {
   seat: number;
   /** Any room of the sets in play; one not yet in the house is put in it. */
@@ -257,22 +258,25 @@ export const SCENARIO_STEPS: Record<string, StepHandler> = {
       ctx.emit("room-placed", SCENARIO_RULE, { tile: id, floor: where.floor });
     }
     for (const setup of p.explorers) {
-      const explorer = state.explorers[setup.seat];
+      const figure = seatExplorer(state, setup.seat);
       if (setup.room !== null)
-        putExplorer(state, setup.seat, {
+        putFigure(state, figure, {
           room: setup.room,
           side: firstSide(ctx.engine, setup.room),
         });
-      for (const { trait, clip } of setup.clips) explorer.clips[trait] = clip;
+      for (const { trait, clip } of setup.clips)
+        figureOf(state, figure).traits.clips[trait] = clip;
       if (setup.room !== null || setup.clips.length > 0)
         ctx.emit("explorer-set-up", SCENARIO_RULE, {
-          seat: setup.seat,
+          figure,
           room: setup.room,
           traits: setup.clips.map((c) => c.trait),
         });
     }
     const gains = p.explorers.flatMap((setup) =>
-      setup.cards.map((card) => gainCard(setup.seat, card, "given", SCENARIO_RULE)),
+      setup.cards.map((card) =>
+        gainCard(seatExplorer(state, setup.seat), card, "given", SCENARIO_RULE),
+      ),
     );
     state.omensDrawn += p.explorers
       .flatMap((e) => e.cards)

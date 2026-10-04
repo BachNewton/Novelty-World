@@ -1,4 +1,11 @@
-import type { Edge, GameState, Place, RuleRef, Trait } from "../types";
+import type {
+  Edge,
+  FigureId,
+  GameState,
+  Place,
+  RuleRef,
+  Trait,
+} from "../types";
 import {
   adjacent,
   connections,
@@ -7,7 +14,7 @@ import {
   placed,
   turn,
 } from "./board";
-import { PHYSICAL, together, explorerAt, traitValue } from "./explorers";
+import { figureOf, PHYSICAL, together, traitValue } from "./figures";
 import {
   LAYERS,
   liveSources,
@@ -23,31 +30,32 @@ import type { Engine } from "./step-loop";
 
 export interface NumberQuestions {
   /** How many dice a roll gets. */
-  dicePool: { seat: number; roll: RollContext };
+  dicePool: { figure: FigureId; roll: RollContext };
   /** How much damage lands, before the player splits it. */
   damageAmount: {
-    seat: number;
+    figure: FigureId;
     damage: "physical" | "mental";
     amount: number;
     rule: RuleRef;
   };
   /** Spaces of movement a turn allows. */
-  movement: { seat: number };
+  movement: { figure: FigureId };
 }
 
 export interface PermissionQuestions {
-  /** Whether an explorer may take any action on their turn. */
-  canAct: { seat: number };
-  /** Whether an attacker may attack this explorer. */
-  canAttack: { attacker: number; defender: number };
-  /** Whether an explorer may move from one room to another. */
-  canMove: { seat: number; from: string; to: string };
+  /** Whether a figure may take any action on its turn. */
+  canAct: { figure: FigureId };
+  /** Whether an attacker may attack this figure. */
+  canAttack: { attacker: FigureId; defender: FigureId };
+  /** Whether a figure may move from one room to another. */
+  canMove: { figure: FigureId; from: string; to: string };
 }
 
-/** What moves: an explorer, or a companion token travelling for its holder (the Dog). */
+/** What moves: a figure, or a companion token travelling for the figure
+ *  holding its card (the Dog). */
 export type Mover =
-  | { kind: "explorer"; seat: number }
-  | { kind: "companion"; card: string; seat: number };
+  | { kind: "figure"; figure: FigureId }
+  | { kind: "companion"; card: string; holder: FigureId };
 
 export interface SetQuestions {
   /** The places one space of movement away. */
@@ -147,9 +155,15 @@ export type CombatOutcome = {
 };
 
 export interface StructuredQuestions {
-  /** The ways an explorer may attack another. */
+  /** The seat that decides for a figure: what it does, and every choice
+   *  the rules give it. Null when no seat does. */
+  controller: {
+    question: { figure: FigureId };
+    answer: number | null;
+  };
+  /** The ways a figure may attack another. */
   attackModes: {
-    question: { attacker: number; defender: number };
+    question: { attacker: FigureId; defender: FigureId };
     answer: AttackMode[];
   };
   /** What an attack's two results lead to. */
@@ -164,10 +178,10 @@ export interface StructuredQuestions {
   };
 }
 
-/** Who attacks whom: an explorer, or an attacker a card stands in for. */
+/** Who attacks whom: a figure, or (null) an attacker a card stands in for. */
 export type AttackSubject = {
-  attacker: number | null;
-  defender: number;
+  attacker: FigureId | null;
+  defender: FigureId;
   rule: RuleRef;
 };
 
@@ -210,10 +224,10 @@ const NUMBER_BASE: {
     subject: NumberQuestions[Q],
   ) => number;
 } = {
-  dicePool: (engine, state, { seat, roll }) => {
+  dicePool: (engine, state, { figure, roll }) => {
     switch (roll.spec.kind) {
       case "trait":
-        return traitValue(engine.catalog, state, seat, roll.spec.trait);
+        return traitValue(engine.catalog, state, figure, roll.spec.trait);
       case "dice":
         return roll.spec.count;
       case "haunt":
@@ -221,13 +235,13 @@ const NUMBER_BASE: {
       case "attack":
         return (
           roll.spec.dice ??
-          traitValue(engine.catalog, state, seat, roll.spec.trait)
+          traitValue(engine.catalog, state, figure, roll.spec.trait)
         );
     }
   },
   damageAmount: (_engine, _state, { amount }) => amount,
-  movement: (engine, state, { seat }) =>
-    traitValue(engine.catalog, state, seat, "speed"),
+  movement: (engine, state, { figure }) =>
+    traitValue(engine.catalog, state, figure, "speed"),
 };
 
 interface Applied<C> {
@@ -467,6 +481,7 @@ const STRUCTURED_BASE: {
     subject: StructuredQuestions[Q]["question"],
   ) => StructuredQuestions[Q]["answer"];
 } = {
+  controller: (_engine, state, { figure }) => figureOf(state, figure).owner,
   // All attacks use Might unless a card or ability says otherwise (p. 13).
   attackModes: () => [{ trait: "might", card: null }],
   // The higher result deals the difference as damage to the loser; a tie
@@ -479,12 +494,12 @@ const STRUCTURED_BASE: {
     const margin = attackResult - defenceResult;
     if (margin === 0) return { loser: null, damage: null, steal: false };
     const kind = PHYSICAL.includes(mode.trait) ? "physical" : "mental";
-    const defender = explorerAt(state, attack.defender);
+    const defender = figureOf(state, attack.defender);
     // An attack on someone in another room is a distance attack: an
     // attacker it beats takes no damage, and nothing can be stolen (p. 13).
     const near =
       attack.attacker !== null &&
-      together(explorerAt(state, attack.attacker), defender);
+      together(figureOf(state, attack.attacker), defender);
     if (margin > 0)
       return {
         loser: "defender",
@@ -538,4 +553,27 @@ export function askStructured<Q extends keyof StructuredQuestions>(
     ))
       answer = transform(state, subject, answer, source);
   return answer;
+}
+
+/** The seat that decides for a figure, where one must. */
+export function controllerOf(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): number {
+  const seat = askStructured(engine, state, "controller", { figure });
+  if (seat === null) throw new Error(`No seat controls ${figure}`);
+  return seat;
+}
+
+/** Whether it is the turn of the seat controlling a figure. */
+export function onTurn(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+): boolean {
+  return (
+    state.turn !== null &&
+    askStructured(engine, state, "controller", { figure }) === state.turn.seat
+  );
 }

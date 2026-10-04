@@ -3,10 +3,20 @@ import { attack } from "../../engine/combat";
 import { damage, discardCard, relocate, step } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
-import { choose, offered, pendingDecision, testGame } from "../../testing";
+import {
+  choose,
+  explorer,
+  offered,
+  pendingDecision,
+  testGame,
+} from "../../testing";
 import type { GameState, Trait } from "../../types";
 
 // Each card's tests come from its content/cards/omens.md entry, not from its implementation.
+
+const ZOE = "zoe-ingstrom";
+const OX = "ox-bellows";
+const FATHER = "father-rhinehardt";
 
 /** Zoe explores north from the Entrance Hall into the Abandoned Room, which has an omen symbol. */
 function drawOmen(omen: string): GameState {
@@ -18,7 +28,7 @@ function drawOmen(omen: string): GameState {
 }
 
 function lose(state: GameState, omen: string): GameState {
-  return start(ENGINE, { ...state, pending: null }, [discardCard(0, omen)]);
+  return start(ENGINE, { ...state, pending: null }, [discardCard(ZOE, omen)]);
 }
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
@@ -30,15 +40,15 @@ describe.each<[string, string, Partial<Record<Trait, number>>]>([
   ["madman", "Madman", { might: 2, sanity: -1 }],
 ])("%s (cards/omens.md)", (omen, name, changes) => {
   it(`changes traits when you get the ${name}, and reverses them when you lose it`, () => {
-    const before = testGame().explorers[0].clips;
+    const before = explorer(testGame(), 0).traits.clips;
     const drawn = drawOmen(omen);
     for (const [trait, amount] of Object.entries(changes) as [
       Trait,
       number,
     ][]) {
-      expect(drawn.explorers[0].clips[trait]).toBe(before[trait] + amount);
+      expect(explorer(drawn, 0).traits.clips[trait]).toBe(before[trait] + amount);
     }
-    expect(lose(drawn, omen).explorers[0].clips).toEqual(before);
+    expect(explorer(lose(drawn, omen), 0).traits.clips).toEqual(before);
   });
 });
 
@@ -56,17 +66,17 @@ describe("Madman (cards/omens.md)", () => {
       stack: ["abandoned-room"],
       decks: { omen: ["madman"] },
     });
-    state.explorers[0].clips.might = 6;
+    explorer(state, 0).traits.clips.might = 6;
     state = choose(state, "Explore through the north door");
-    expect(state.explorers[0].clips.might).toBe(7);
-    expect(lose(state, "madman").explorers[0].clips.might).toBe(6);
+    expect(explorer(state, 0).traits.clips.might).toBe(7);
+    expect(explorer(lose(state, "madman"), 0).traits.clips.might).toBe(6);
   });
 });
 
 describe("Spirit Board (cards/omens.md)", () => {
   function holding(): GameState {
     const state = testGame({ stack: ["ballroom", "kitchen"] });
-    state.explorers[0].cards.push("spirit-board");
+    explorer(state, 0).cards.push("spirit-board");
     return state;
   }
 
@@ -75,7 +85,7 @@ describe("Spirit Board (cards/omens.md)", () => {
     state = choose(state, "Use the Spirit Board");
     expect(
       state.lastEvents.find((e) => e.type === "room-stack-seen")?.data,
-    ).toEqual({ seat: 0, tile: "ballroom" });
+    ).toEqual({ figure: ZOE, tile: "ballroom" });
     // The tile stays on top of the stack.
     expect(state.board.stack[0]).toBe("ballroom");
     expect(labels(state)).not.toContain(
@@ -85,7 +95,7 @@ describe("Spirit Board (cards/omens.md)", () => {
 
   it("can still be used after being put in a room without spending movement (the card's project ruling)", () => {
     const state = start(ENGINE, { ...holding(), pending: null }, [
-      relocate(0, "foyer", { source: "card", card: "dark-dice" }),
+      relocate(ZOE, "foyer", { source: "card", card: "dark-dice" }),
       step("turn-menu", { seat: 0 }),
     ]);
     expect(labels(state)).toContain(
@@ -107,7 +117,7 @@ describe("Crystal Ball (cards/omens.md)", () => {
 
   function holding(seed: string): GameState {
     const state = testGame({ seed });
-    state.explorers[0].cards.push("crystal-ball");
+    explorer(state, 0).cards.push("crystal-ball");
     return state;
   }
 
@@ -120,7 +130,7 @@ describe("Crystal Ball (cards/omens.md)", () => {
     for (const seed of ["1", "2", "3", "4", "5", "6", "7", "8"]) {
       let state = holding(seed);
       state.status = "haunt";
-      const sanity = state.explorers[0].clips.sanity;
+      const sanity = explorer(state, 0).traits.clips.sanity;
       state = choose(state, LABEL);
       const rolled = state.lastEvents.find((e) => e.type === "rolled");
       const result = (rolled?.data as { result: number }).result;
@@ -138,10 +148,10 @@ describe("Crystal Ball (cards/omens.md)", () => {
         state = choose(state, options[options.length - 1].label);
         expect(state.decks.item.draw[0]).toBe(last);
         expect(state.decks.item.draw).toHaveLength(size);
-        expect(state.explorers[0].clips.sanity).toBe(sanity);
+        expect(explorer(state, 0).traits.clips.sanity).toBe(sanity);
       } else {
         seen.add(result === 0 ? "lose 2" : "lose 1");
-        expect(state.explorers[0].clips.sanity).toBe(
+        expect(explorer(state, 0).traits.clips.sanity).toBe(
           sanity - (result === 0 ? 2 : 1),
         );
       }
@@ -156,8 +166,8 @@ describe("Mask (cards/omens.md)", () => {
   /** Zoe, mid-track on every trait, holds the Mask and the Angel Feather, which names the Mask's roll. */
   function masked(): GameState {
     const state = testGame();
-    state.explorers[0].clips = { speed: 3, might: 3, sanity: 3, knowledge: 3 };
-    state.explorers[0].cards.push("mask", "angel-feather");
+    explorer(state, 0).traits.clips = { speed: 3, might: 3, sanity: 3, knowledge: 3 };
+    explorer(state, 0).cards.push("mask", "angel-feather");
     return state;
   }
   const useWith = (state: GameState, result: number) =>
@@ -170,14 +180,14 @@ describe("Mask (cards/omens.md)", () => {
     const rolled = useWith(masked(), 4);
     expect(labels(rolled)).toEqual(["Put on the Mask", "Leave the Mask off"]);
     const worn = choose(rolled, "Put on the Mask");
-    expect(worn.explorers[0].clips).toMatchObject({ sanity: 1, knowledge: 5 });
+    expect(explorer(worn, 0).traits.clips).toMatchObject({ sanity: 1, knowledge: 5 });
     // Once during your turn.
     expect(labels(worn).some((l) => l.startsWith("Use the Mask"))).toBe(false);
   });
 
   it("on 0-3, you can't use it this turn", () => {
     const failed = useWith(masked(), 3);
-    expect(failed.explorers[0].clips).toMatchObject({
+    expect(explorer(failed, 0).traits.clips).toMatchObject({
       sanity: 3,
       knowledge: 3,
     });
@@ -189,17 +199,17 @@ describe("Mask (cards/omens.md)", () => {
   it("takes it off on a later turn: gain 2 Sanity and lose 2 Knowledge", () => {
     let state = choose(useWith(masked(), 5), "Put on the Mask");
     for (let i = 0; i < 3; i++) state = choose(state, "End your turn");
-    state.explorers[0].cards.push("angel-feather");
+    explorer(state, 0).cards.push("angel-feather");
     const rolled = useWith(state, 6);
     expect(labels(rolled)).toEqual(["Take off the Mask", "Keep the Mask on"]);
     const off = choose(rolled, "Take off the Mask");
-    expect(off.explorers[0].clips).toMatchObject({ sanity: 3, knowledge: 3 });
+    expect(explorer(off, 0).traits.clips).toMatchObject({ sanity: 3, knowledge: 3 });
   });
 
   it("losing it while you wear it takes it off", () => {
     const worn = choose(useWith(masked(), 4), "Put on the Mask");
     const lost = lose(worn, "mask");
-    expect(lost.explorers[0].clips).toMatchObject({ sanity: 3, knowledge: 3 });
+    expect(explorer(lost, 0).traits.clips).toMatchObject({ sanity: 3, knowledge: 3 });
     expect(lost.cardMarks.mask).toBeUndefined();
   });
 });
@@ -214,9 +224,9 @@ describe("Skull (cards/omens.md)", () => {
     points: number,
   ): GameState {
     const state = testGame();
-    state.explorers[0].cards.push(...cards);
+    explorer(state, 0).cards.push(...cards);
     return start(ENGINE, { ...state, pending: null }, [
-      damage(0, kind, { points }, RULE),
+      damage(ZOE, kind, { points }, RULE),
     ]);
   }
 
@@ -256,16 +266,19 @@ describe("Skull (cards/omens.md)", () => {
 /** Starts Zoe's attack on Ox in the middle of her turn. */
 function attackOx(state: GameState): GameState {
   return start(ENGINE, { ...state, pending: null }, [
-    attack({ kind: "explorer", seat: 0 }, 1, { source: "rulebook", page: 13 }),
+    attack({ kind: "figure", figure: ZOE }, OX, {
+      source: "rulebook",
+      page: 13,
+    }),
   ]);
 }
 
-function rollsMade(state: GameState): { seat: number; dice: number }[] {
+function rollsMade(state: GameState): { figure: string; dice: number }[] {
   return state.lastEvents
     .filter((e) => e.type === "rolled")
     .map((e) => {
-      const d = e.data as { seat: number; dice: number[] };
-      return { seat: d.seat, dice: d.dice.length };
+      const d = e.data as { figure: string; dice: number[] };
+      return { figure: d.figure, dice: d.dice.length };
     });
 }
 
@@ -274,10 +287,10 @@ describe("Bite (cards/omens.md)", () => {
     const state = drawOmen("bite");
     // Father Rhinehardt sits on Zoe's right; Zoe's Might is 3.
     expect(rollsMade(state)).toEqual([
-      { seat: 2, dice: 4 },
-      { seat: 0, dice: 3 },
+      { figure: FATHER, dice: 4 },
+      { figure: ZOE, dice: 3 },
     ]);
-    expect(state.explorers[0].cards).toContain("bite");
+    expect(explorer(state, 0).cards).toContain("bite");
   });
 
   it("can't be dropped, traded or stolen", () => {
@@ -292,7 +305,7 @@ describe("Bite (cards/omens.md)", () => {
 describe("Ring (cards/omens.md)", () => {
   it("attacks with Sanity instead of Might; the opponent defends with Sanity, and the damage is mental", () => {
     const state = testGame();
-    state.explorers[0].cards.push("ring");
+    explorer(state, 0).cards.push("ring");
     let next = attackOx(state);
     expect(labels(next)).toEqual([
       "Attack with Might",
@@ -301,8 +314,8 @@ describe("Ring (cards/omens.md)", () => {
     next = choose(next, "using the Ring");
     // Zoe's Sanity is 5, Ox's 3.
     expect(rollsMade(next)).toEqual([
-      { seat: 0, dice: 5 },
-      { seat: 1, dice: 3 },
+      { figure: ZOE, dice: 5 },
+      { figure: OX, dice: 3 },
     ]);
     const outcome = next.lastEvents.find((e) => e.type === "attack-outcome")
       ?.data as { damage: { kind: string } | null };
@@ -313,11 +326,11 @@ describe("Ring (cards/omens.md)", () => {
 describe("Spear (cards/omens.md)", () => {
   it("rolls 2 extra dice on a Might attack made with it", () => {
     const state = testGame();
-    state.explorers[0].cards.push("spear");
+    explorer(state, 0).cards.push("spear");
     const next = choose(attackOx(state), "using the Spear");
     expect(rollsMade(next)).toEqual([
-      { seat: 0, dice: 5 },
-      { seat: 1, dice: 5 },
+      { figure: ZOE, dice: 5 },
+      { figure: OX, dice: 5 },
     ]);
   });
 });

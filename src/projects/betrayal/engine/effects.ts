@@ -2,6 +2,7 @@ import type {
   CardMark,
   CardType,
   Edge,
+  FigureId,
   GameState,
   Json,
   Place,
@@ -12,13 +13,21 @@ import type {
 import { sideName } from "./board";
 import { rollName, traitName } from "./describe";
 import {
-  explorerAt,
+  allFigures,
+  figureOf,
   MENTAL,
   moveClip,
   PHYSICAL,
-  putExplorer,
-} from "./explorers";
-import { askNumber, barrierSides, MAX_DICE } from "./questions";
+  placeOf,
+  putFigure,
+} from "./figures";
+import {
+  askNumber,
+  barrierSides,
+  controllerOf,
+  MAX_DICE,
+  onTurn,
+} from "./questions";
 import {
   liveSources,
   type RollOption,
@@ -108,7 +117,14 @@ export function isHandled(state: GameState, card: string): boolean {
   return state.turn?.handled.includes(card) ?? false;
 }
 
+/** Ends a figure's movement for the rest of the turn. */
+export function endMovementOf(state: GameState, figure: FigureId): void {
+  if (state.turn && !state.turn.movementEnded.includes(figure))
+    state.turn.movementEnded.push(figure);
+}
+
 /** Takes a card out of a room's item pile. */
+
 export function takeFromPile(
   state: GameState,
   room: string,
@@ -126,7 +142,7 @@ export function takeFromPile(
 // ---------------------------------------------------------------------------
 
 type Gain = {
-  seat: number;
+  figure: FigureId;
   trait: Trait;
   amount: number;
   card: string | null;
@@ -135,17 +151,17 @@ type Gain = {
 
 /** Gain (or, negative, lose) spaces on a trait. Name the card when the change comes from holding it (p. 11). */
 export function gain(
-  seat: number,
+  figure: FigureId,
   trait: Trait,
   amount: number,
   rule: RuleRef,
   card: string | null = null,
 ): Step {
-  return step<Gain>("gain", { seat, trait, amount, card, rule });
+  return step<Gain>("gain", { figure, trait, amount, card, rule });
 }
 
 type Damage = {
-  seat: number;
+  figure: FigureId;
   damage: "physical" | "mental";
   amount: number | null;
   dice: number | null;
@@ -153,13 +169,13 @@ type Damage = {
 };
 
 export function damage(
-  seat: number,
+  figure: FigureId,
   kind: "physical" | "mental",
   amount: { points: number } | { dice: number },
   rule: RuleRef,
 ): Step {
   return step<Damage>("damage", {
-    seat,
+    figure,
     damage: kind,
     amount: "points" in amount ? amount.points : null,
     dice: "dice" in amount ? amount.dice : null,
@@ -168,23 +184,23 @@ export function damage(
 }
 
 type DamageLands = {
-  seat: number;
+  figure: FigureId;
   damage: "physical" | "mental";
   points: number;
   rule: RuleRef;
 };
 
-/** The cards that let a seat take this damage as the other kind instead. */
+/** The cards that let a figure take this damage as the other kind instead. */
 function damageKinds(
   engine: Engine,
   state: GameState,
-  seat: number,
+  figure: FigureId,
   damage: "physical" | "mental",
 ): Source[] {
   return liveSources(engine.behaviours, state)
     .filter(
       ({ source, behaviour }) =>
-        source.holder === seat &&
+        source.holder === figure &&
         behaviour.damageAs !== undefined &&
         behaviour.damageAs !== damage,
     )
@@ -192,7 +208,7 @@ function damageKinds(
 }
 
 type Split = {
-  seat: number;
+  figure: FigureId;
   damage: "physical" | "mental";
   amount: number;
   rule: RuleRef;
@@ -203,7 +219,7 @@ function splitOptions(
   split: Split,
 ): { [trait: string]: number }[] {
   const [first, second] = split.damage === "physical" ? PHYSICAL : MENTAL;
-  const clips = explorerAt(state, split.seat).clips;
+  const clips = figureOf(state, split.figure).traits.clips;
   const seen = new Set<string>();
   const options: { [trait: string]: number }[] = [];
   for (let onFirst = split.amount; onFirst >= 0; onFirst--) {
@@ -222,7 +238,7 @@ function splitOptions(
 // ---------------------------------------------------------------------------
 
 type Roll = {
-  seat: number;
+  figure: FigureId;
   spec: RollSpec;
   rule: RuleRef;
   then: Step;
@@ -245,14 +261,14 @@ type RollInProgress = Roll & {
  *  `result`. `id` names a roll that may be attempted only once a turn;
  *  `extraDice` adds dice to (or, negative, takes them from) this one roll. */
 export function roll(
-  seat: number,
+  figure: FigureId,
   spec: RollSpec,
   rule: RuleRef,
   then: Step,
   options: { id?: string; extraDice?: number } = {},
 ): Step {
   return step<Roll>("roll", {
-    seat,
+    figure,
     spec,
     rule,
     then,
@@ -291,11 +307,11 @@ function rollOptions(
   // A card's attacker's dice are thrown by a player, but the roll is not
   // theirs, so none of their cards act on it.
   if (r.spec.kind === "attack" && r.spec.dice !== null) return result;
-  const ownTurn = state.turn?.seat === r.seat;
+  const ownTurn = onTurn(engine, state, r.figure);
   for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
     if (
       source.kind !== "card" ||
-      source.holder !== r.seat ||
+      source.holder !== r.figure ||
       r.used.includes(source.id) ||
       isHandled(state, source.id)
     )
@@ -304,7 +320,7 @@ function rollOptions(
       if (
         option.timing === timing &&
         (ownTurn || option.offTurn === true) &&
-        option.applies(state, r.seat, {
+        option.applies(state, r.figure, {
           spec: r.spec,
           rule: r.rule,
           extraDice: r.extraDice,
@@ -346,27 +362,27 @@ const highestResult = (pool: number) => pool * 2;
 // Cards
 // ---------------------------------------------------------------------------
 
-type DrawCard = { seat: number; type: CardType; rule: RuleRef };
+type DrawCard = { figure: FigureId; type: CardType; rule: RuleRef };
 
-export function drawCard(seat: number, type: CardType, rule: RuleRef): Step {
-  return step<DrawCard>("draw-card", { seat, type, rule });
+export function drawCard(figure: FigureId, type: CardType, rule: RuleRef): Step {
+  return step<DrawCard>("draw-card", { figure, type, rule });
 }
 
 /** How a card came to its holder. */
 export type GainedBy =
   "drawn" | "kept" | "picked-up" | "traded" | "given" | "stolen";
 
-type GainCard = { seat: number; card: string; by: GainedBy; rule: RuleRef };
+type GainCard = { figure: FigureId; card: string; by: GainedBy; rule: RuleRef };
 
-/** An explorer gets a card that is no longer anywhere else. Every way of
+/** A figure gets a card that is no longer anywhere else. Every way of
  *  getting a card goes through here, so "card-gained" covers them all. */
 export function gainCard(
-  seat: number,
+  figure: FigureId,
   card: string,
   by: GainedBy,
   rule: RuleRef,
 ): Step {
-  return step<GainCard>("gain-card", { seat, card, by, rule });
+  return step<GainCard>("gain-card", { figure, card, by, rule });
 }
 
 /** Where a card goes when its holder loses it. */
@@ -375,10 +391,10 @@ export type CardDestination =
   /** Back into its deck, which is then shuffled. */
   | { to: "deck" }
   | { to: "room"; room: string }
-  | { to: "explorer"; seat: number; by: GainedBy };
+  | { to: "figure"; figure: FigureId; by: GainedBy };
 
 type LoseCard = {
-  seat: number;
+  figure: FigureId;
   card: string;
   destination: CardDestination;
   rule: RuleRef;
@@ -387,27 +403,27 @@ type LoseCard = {
 /** Its holder loses a card, however: its onLose runs, the marks that belong
  *  to the holder are cleared, and the card goes to its destination. */
 export function loseCard(
-  seat: number,
+  figure: FigureId,
   card: string,
   destination: CardDestination,
   rule: RuleRef,
 ): Step {
-  return step<LoseCard>("lose-card", { seat, card, destination, rule });
+  return step<LoseCard>("lose-card", { figure, card, destination, rule });
 }
 
 /** An event card the drawer keeps in front of them (for example while buried). */
-export function keepCard(seat: number, card: string): Step {
-  return gainCard(seat, card, "kept", { source: "card", card });
+export function keepCard(figure: FigureId, card: string): Step {
+  return gainCard(figure, card, "kept", { source: "card", card });
 }
 
 /** Its holder loses a card, to its deck's discard pile. */
-export function discardCard(seat: number, card: string): Step {
-  return loseCard(seat, card, { to: "discard" }, { source: "card", card });
+export function discardCard(figure: FigureId, card: string): Step {
+  return loseCard(figure, card, { to: "discard" }, { source: "card", card });
 }
 
 /** Its holder puts a card back into its deck, and the deck is shuffled. */
-export function returnToDeck(seat: number, card: string, rule: RuleRef): Step {
-  return loseCard(seat, card, { to: "deck" }, rule);
+export function returnToDeck(figure: FigureId, card: string, rule: RuleRef): Step {
+  return loseCard(figure, card, { to: "deck" }, rule);
 }
 
 /** Whether an item or omen can be stolen now: its card allows it, and it
@@ -416,10 +432,15 @@ export function stealable(engine: Engine, state: GameState, card: string): boole
   return engine.catalog.cards[card].transfer.steal && !isHandled(state, card);
 }
 
-/** An explorer steals a card from another: stealing is that card's one
+/** A figure steals a card from another: stealing is that card's one
  *  action this turn (p. 11). */
-export function steal(from: number, to: number, card: string, rule: RuleRef): Step {
-  return step<{ from: number; to: number; card: string; rule: RuleRef }>(
+export function steal(
+  from: FigureId,
+  to: FigureId,
+  card: string,
+  rule: RuleRef,
+): Step {
+  return step<{ from: FigureId; to: FigureId; card: string; rule: RuleRef }>(
     "steal",
     { from, to, card, rule },
   );
@@ -463,12 +484,12 @@ export function cardCount(
 
 const DRAWN_BY = "drawn-by";
 
-/** The seat that drew an event card, while the card is in play: a rule may
- *  favour rolls for events its holder drew (the Candle). */
-export function drawnBy(state: GameState, rule: RuleRef): number | null {
+/** The figure that drew an event card, while the card is in play: a rule
+ *  may favour rolls for events its holder drew (the Candle). */
+export function drawnBy(state: GameState, rule: RuleRef): FigureId | null {
   if (rule.source !== "card") return null;
   const value = state.cardMarks[rule.card]?.[DRAWN_BY]?.value;
-  return typeof value === "number" ? value : null;
+  return typeof value === "string" ? value : null;
 }
 
 /** Clears a card's marks: those of its holder, or, as it leaves play, all of them. */
@@ -494,18 +515,18 @@ type PlaceToken = {
   wall: Edge[] | null;
   side: Edge | null;
   link: Place | null;
-  holder: number | null;
+  holder: FigureId | null;
   rule: RuleRef;
 };
 
 /** Puts a token in a room: in a barrier room, on one `side`; one of a linked
  *  pair, with a `link` to where the other lies; or following a `holder`
- *  wherever their explorer goes. */
+ *  figure wherever it goes. */
 export function placeToken(
   token: string,
   room: string,
   rule: RuleRef,
-  how: { side?: Edge | null; link?: Place; holder?: number } = {},
+  how: { side?: Edge | null; link?: Place; holder?: FigureId } = {},
 ): Step {
   return step<PlaceToken>("place-token", {
     token,
@@ -546,35 +567,36 @@ export function removeToken(token: string, room: string, rule: RuleRef): Step {
 }
 
 type Relocate = {
-  seat: number;
+  figure: FigureId;
   room: string;
   rule: RuleRef;
   side: Edge | null;
   after: Step[];
 };
 
-/** Puts an explorer in a room without moving there: no movement is spent.
- *  Leaving their room first runs its rules for leaving, as any departure does,
- *  so `after` runs only once they are in.
- *  Landing in a barrier room, they go to `side`, or else choose one (p. 7). */
+/** Puts a figure in a room without moving there: no movement is spent.
+ *  Leaving its room first runs its rules for leaving, as any departure does,
+ *  so `after` runs only once it is in.
+ *  Landing in a barrier room, it goes to `side`, or else its controller
+ *  chooses one (p. 7). */
 export function relocate(
-  seat: number,
+  figure: FigureId,
   room: string,
   rule: RuleRef,
   side: Edge | null = null,
   after: Step[] = [],
 ): Step {
   return leaveRoom(
-    seat,
-    step<Relocate>("relocate", { seat, room, rule, side, after }),
+    figure,
+    step<Relocate>("relocate", { figure, room, rule, side, after }),
   );
 }
 
-/** Has an explorer landing in a barrier room choose which side they land on
- *  (p. 7), continuing into `then` with it as `side`. */
+/** Has the controller of a figure landing in a barrier room choose which
+ *  side it lands on (p. 7), continuing into `then` with it as `side`. */
 export function chooseSide(
   state: GameState,
-  seat: number,
+  figure: FigureId,
   room: string,
   sides: Edge[],
   rule: RuleRef,
@@ -582,7 +604,7 @@ export function chooseSide(
   roomName: string,
 ): Step {
   return chooseOne(
-    seat,
+    figure,
     sides.map((side) => ({
       label: `Land on the ${sideName(state.board, room, side)} side of the ${roomName}`,
       steps: [continueWith(then, { side })],
@@ -592,25 +614,25 @@ export function chooseSide(
 }
 
 type Leave = {
-  seat: number;
+  figure: FigureId;
   room: string;
-  /** The departure itself: the step that moves the explorer out. */
+  /** The departure itself: the step that moves the figure out. */
   then: Step;
   /** Sources whose say over this departure has been had, as kind:id. */
   heard: string[];
 };
 
-/** An explorer leaves their room by running `then`, once every source with a
+/** A figure leaves its room by running `then`, once every source with a
  *  say over leaving it (a room's roll to leave) has had it. A source can keep
- *  the explorer in the room by not continuing. */
-export function leaveRoom(seat: number, then: Step): Step {
-  return step<{ seat: number; then: Step }>("leave", { seat, then });
+ *  the figure in the room by not continuing. */
+export function leaveRoom(figure: FigureId, then: Step): Step {
+  return step<{ figure: FigureId; then: Step }>("leave", { figure, then });
 }
 
-/** The explorer stays in the room they were leaving, and moves no further
- *  this turn: they try again on a later turn. */
-export function stayInRoom(seat: number, rule: RuleRef): Step {
-  return step<{ seat: number; rule: RuleRef }>("stay", { seat, rule });
+/** The figure stays in the room it was leaving, and moves no further this
+ *  turn: it tries again on a later turn. */
+export function stayInRoom(figure: FigureId, rule: RuleRef): Step {
+  return step<{ figure: FigureId; rule: RuleRef }>("stay", { figure, rule });
 }
 
 /** An event card that stays in play, held by no one, until something ends it. */
@@ -625,25 +647,34 @@ export function endOngoing(card: string): Step {
 
 export type Option = { label: string; steps: Step[] };
 
-/** A choice among options worked out when the effect runs: a room, a trait, an explorer. Each option carries its own steps. */
+/** A choice among options worked out when the effect runs: a room, a trait,
+ *  a figure. Each option carries its own steps. The seat controlling
+ *  `figure` chooses. */
 export function chooseOne(
-  seat: number,
+  figure: FigureId,
   options: Option[],
   rule: RuleRef,
 ): Step {
-  return step<{ seat: number; options: Option[]; rule: RuleRef }>(
+  return step<{ figure: FigureId; options: Option[]; rule: RuleRef }>(
     "choose-one",
-    { seat, options, rule },
+    { figure, options, rule },
   );
 }
 
-export function endMovement(seat: number, rule: RuleRef): Step {
-  return step<{ seat: number; rule: RuleRef }>("end-movement", { seat, rule });
+export function endMovement(figure: FigureId, rule: RuleRef): Step {
+  return step<{ figure: FigureId; rule: RuleRef }>("end-movement", {
+    figure,
+    rule,
+  });
 }
 
-/** Ends the explorer's turn at its next chance to act. Off their turn, it does nothing. */
-export function endTurnNow(seat: number, rule: RuleRef): Step {
-  return step<{ seat: number; rule: RuleRef }>("end-turn-now", { seat, rule });
+/** Ends the turn of the seat controlling the figure at its next chance to
+ *  act. Off that seat's turn, it does nothing. */
+export function endTurnNow(figure: FigureId, rule: RuleRef): Step {
+  return step<{ figure: FigureId; rule: RuleRef }>("end-turn-now", {
+    figure,
+    rule,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -655,13 +686,13 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     const moved = moveClip(
       ctx.catalog,
       state,
-      p.seat,
+      p.figure,
       p.trait,
       p.amount,
       p.card,
     );
     ctx.emit("trait-changed", p.rule, {
-      seat: p.seat,
+      figure: p.figure,
       trait: p.trait,
       spaces: moved,
     });
@@ -671,11 +702,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     if (p.dice !== null) {
       ctx.push(
         roll(
-          p.seat,
+          p.figure,
           { kind: "dice", count: p.dice },
           p.rule,
           step("damage-rolled", {
-            seat: p.seat,
+            figure: p.figure,
             damage: p.damage,
             rule: p.rule,
           }),
@@ -686,12 +717,12 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     const points = p.amount ?? 0;
     if (
       points > 0 &&
-      damageKinds(ctx.engine, state, p.seat, p.damage).length > 0
+      damageKinds(ctx.engine, state, p.figure, p.damage).length > 0
     ) {
       ctx.decide(
-        [p.seat],
+        [controllerOf(ctx.engine, state, p.figure)],
         "damage-kind",
-        { seat: p.seat, damage: p.damage, points, rule: p.rule },
+        { figure: p.figure, damage: p.damage, points, rule: p.rule },
         p.rule,
       );
       return;
@@ -701,30 +732,30 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
 
   "damage-lands": defineStep<DamageLands>((state, p, ctx) => {
     const amount = askNumber(ctx.engine, state, "damageAmount", {
-      seat: p.seat,
+      figure: p.figure,
       damage: p.damage,
       amount: p.points,
       rule: p.rule,
     });
     if (amount <= 0) {
-      ctx.emit("damage-prevented", p.rule, { seat: p.seat, damage: p.damage });
+      ctx.emit("damage-prevented", p.rule, { figure: p.figure, damage: p.damage });
       return;
     }
     ctx.decide(
-      [p.seat],
+      [controllerOf(ctx.engine, state, p.figure)],
       "split-damage",
-      { seat: p.seat, damage: p.damage, amount, rule: p.rule },
+      { figure: p.figure, damage: p.damage, amount, rule: p.rule },
       p.rule,
     );
   }),
 
   "damage-rolled": defineStep<{
-    seat: number;
+    figure: FigureId;
     damage: "physical" | "mental";
     rule: RuleRef;
     result: number;
   }>((_state, p, ctx) => {
-    ctx.push(damage(p.seat, p.damage, { points: p.result }, p.rule));
+    ctx.push(damage(p.figure, p.damage, { points: p.result }, p.rule));
   }),
 
   roll: defineStep<Roll>((state, p, ctx) => {
@@ -734,7 +765,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       state.turn.rolls.push(p.id);
     }
     const pool = askNumber(ctx.engine, state, "dicePool", {
-      seat: p.seat,
+      figure: p.figure,
       roll: { spec: p.spec, rule: p.rule, extraDice: p.extraDice },
     });
     ctx.push(
@@ -752,7 +783,13 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   "roll-before": defineStep<RollInProgress>((state, p, ctx) => {
     if (rollOptions(ctx.engine, state, p, "before").length === 0)
       ctx.push(step("roll-dice", p));
-    else ctx.decide([p.seat], "roll-before", p, p.rule);
+    else
+      ctx.decide(
+        [controllerOf(ctx.engine, state, p.figure)],
+        "roll-before",
+        p,
+        p.rule,
+      );
   }),
 
   "roll-dice": defineStep<RollInProgress>((state, p, ctx) => {
@@ -765,14 +802,20 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       rollOptions(ctx.engine, state, p, "after").some(
         (o) => o.option.effect.kind === "reroll",
       ) && p.dice.length > 0;
-    if (offered) ctx.decide([p.seat], "roll-after", p, p.rule);
+    if (offered)
+      ctx.decide(
+        [controllerOf(ctx.engine, state, p.figure)],
+        "roll-after",
+        p,
+        p.rule,
+      );
     else ctx.push(step("roll-done", p));
   }),
 
   "roll-done": defineStep<RollInProgress>((_state, p, ctx) => {
     const result = rollTotal(p);
     ctx.emit("rolled", p.rule, {
-      seat: p.seat,
+      figure: p.figure,
       spec: p.spec,
       dice: p.dice,
       named: p.named,
@@ -803,35 +846,35 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       ctx.emit("deck-empty", p.rule, { type: p.type });
       return;
     }
-    const explorer = explorerAt(state, p.seat);
-    if (state.turn?.seat === p.seat) state.turn.movementEnded = true;
-    ctx.emit("card-drawn", p.rule, { seat: p.seat, card, type: p.type });
+    const room = placeOf(state, p.figure).room;
+    endMovementOf(state, p.figure);
+    ctx.emit("card-drawn", p.rule, { figure: p.figure, card, type: p.type });
     const behaviour = ctx.engine.behaviours.cards[card];
     if (p.type === "event") {
       state.cardMarks[card] = {
         ...state.cardMarks[card],
-        [DRAWN_BY]: { value: p.seat, lasts: "play" },
+        [DRAWN_BY]: { value: p.figure, lasts: "play" },
       };
       if (!behaviour?.onDraw) throw new Error(`Event ${card} has no behaviour`);
       ctx.push(
-        ...behaviour.onDraw(state, p.seat),
+        ...behaviour.onDraw(state, p.figure, ctx.engine),
         step("settle-event", { card }),
       );
       return;
     }
     if (p.type === "omen" && state.status === "exploring" && state.turn) {
-      state.turn.omens.push({ card, seat: p.seat, room: explorer.room });
+      state.turn.omens.push({ card, figure: p.figure, room });
     }
     if (p.type === "omen") state.omensDrawn += 1;
     ctx.push(
-      gainCard(p.seat, card, "drawn", p.rule),
-      ...(behaviour?.onDraw?.(state, p.seat) ?? []),
+      gainCard(p.figure, card, "drawn", p.rule),
+      ...(behaviour?.onDraw?.(state, p.figure, ctx.engine) ?? []),
     );
   }),
 
   "settle-event": defineStep<{ card: string }>((state, p) => {
     const kept =
-      state.explorers.some((e) => e.cards.includes(p.card)) ||
+      allFigures(state).some((f) => f.cards.includes(p.card)) ||
       state.ongoing.includes(p.card);
     if (kept) return;
     state.decks.event.discard.push(p.card);
@@ -839,25 +882,25 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "gain-card": defineStep<GainCard>((state, p, ctx) => {
-    explorerAt(state, p.seat).cards.push(p.card);
-    ctx.emit("card-gained", p.rule, { seat: p.seat, card: p.card, by: p.by });
+    figureOf(state, p.figure).cards.push(p.card);
+    ctx.emit("card-gained", p.rule, { figure: p.figure, card: p.card, by: p.by });
     ctx.push(
-      ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.seat) ?? []),
+      ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.figure) ?? []),
     );
   }),
 
   "lose-card": defineStep<LoseCard>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
-    if (!explorer.cards.includes(p.card))
-      throw new Error(`Seat ${p.seat} doesn't hold ${p.card}`);
+    const holder = figureOf(state, p.figure);
+    if (!holder.cards.includes(p.card))
+      throw new Error(`${p.figure} doesn't hold ${p.card}`);
     // Worked out while the card is still held, so it can read the card's marks.
     const onLose =
       ctx.engine.behaviours.cards[p.card]?.onLose?.(
         state,
-        p.seat,
+        p.figure,
         p.destination,
       ) ?? [];
-    explorer.cards = explorer.cards.filter((c) => c !== p.card);
+    holder.cards = holder.cards.filter((c) => c !== p.card);
     const deck = state.decks[ctx.catalog.cards[p.card].type];
     const where = p.destination;
     switch (where.to) {
@@ -873,24 +916,29 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         state.piles[where.room] = [...(state.piles[where.room] ?? []), p.card];
         clearMarks(state, p.card, "holder");
         break;
-      case "explorer":
+      case "figure":
         clearMarks(state, p.card, "holder");
         break;
     }
     ctx.emit("card-lost", p.rule, {
-      seat: p.seat,
+      figure: p.figure,
       card: p.card,
       destination: where,
     });
     ctx.push(
       ...onLose,
-      ...(where.to === "explorer"
-        ? [gainCard(where.seat, p.card, where.by, p.rule)]
+      ...(where.to === "figure"
+        ? [gainCard(where.figure, p.card, where.by, p.rule)]
         : []),
     );
   }),
 
-  steal: defineStep<{ from: number; to: number; card: string; rule: RuleRef }>(
+  steal: defineStep<{
+    from: FigureId;
+    to: FigureId;
+    card: string;
+    rule: RuleRef;
+  }>(
     (state, p, ctx) => {
       if (!stealable(ctx.engine, state, p.card))
         throw new Error(`${p.card} can't be stolen now`);
@@ -899,7 +947,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         loseCard(
           p.from,
           p.card,
-          { to: "explorer", seat: p.to, by: "stolen" },
+          { to: "figure", figure: p.to, by: "stolen" },
           p.rule,
         ),
       );
@@ -946,11 +994,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     },
   ),
 
-  leave: defineStep<{ seat: number; then: Step }>((state, p, ctx) => {
+  leave: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
     ctx.push(
       step<Leave>("leave-heard", {
-        seat: p.seat,
-        room: explorerAt(state, p.seat).room,
+        figure: p.figure,
+        room: placeOf(state, p.figure).room,
         then: p.then,
         heard: [],
       }),
@@ -958,15 +1006,15 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "leave-heard": defineStep<Leave>((state, p, ctx) => {
-    if (explorerAt(state, p.seat).room !== p.room)
-      throw new Error(`Seat ${p.seat} left ${p.room} before its rules said so`);
+    if (placeOf(state, p.figure).room !== p.room)
+      throw new Error(`${p.figure} left ${p.room} before its rules said so`);
     const next = liveSources(ctx.engine.behaviours, state).find(
       ({ source, behaviour }) =>
         behaviour.beforeLeave !== undefined &&
         !p.heard.includes(`${source.kind}:${source.id}`) &&
         ((source.kind === "room" && source.id === p.room) ||
           (source.kind !== "room" && source.room === p.room) ||
-          source.holder === p.seat),
+          source.holder === p.figure),
     );
     if (!next?.behaviour.beforeLeave) {
       ctx.push(p.then);
@@ -976,7 +1024,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     ctx.push(
       ...next.behaviour.beforeLeave(
         state,
-        p.seat,
+        p.figure,
         source,
         step<Leave>("leave-heard", {
           ...p,
@@ -986,11 +1034,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  stay: defineStep<{ seat: number; rule: RuleRef }>((state, p, ctx) => {
-    if (state.turn?.seat === p.seat) state.turn.movementEnded = true;
+  stay: defineStep<{ figure: FigureId; rule: RuleRef }>((state, p, ctx) => {
+    endMovementOf(state, p.figure);
     ctx.emit("stayed", p.rule, {
-      seat: p.seat,
-      room: explorerAt(state, p.seat).room,
+      figure: p.figure,
+      room: placeOf(state, p.figure).room,
     });
   }),
 
@@ -1000,7 +1048,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       ctx.push(
         chooseSide(
           state,
-          p.seat,
+          p.figure,
           p.room,
           sides,
           p.rule,
@@ -1011,15 +1059,15 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       return;
     }
     ctx.emit("left", p.rule, {
-      seat: p.seat,
-      room: explorerAt(state, p.seat).room,
+      figure: p.figure,
+      room: placeOf(state, p.figure).room,
       moved: false,
     });
-    putExplorer(state, p.seat, {
+    putFigure(state, p.figure, {
       room: p.room,
       side: sides.length > 0 ? p.side : null,
     });
-    ctx.emit("entered", p.rule, { seat: p.seat, room: p.room, moved: false });
+    ctx.emit("entered", p.rule, { figure: p.figure, room: p.room, moved: false });
     ctx.push(...p.after);
   }),
 
@@ -1040,25 +1088,30 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     );
   }),
 
-  "choose-one": defineStep<{ seat: number; options: Option[]; rule: RuleRef }>(
-    (_state, p, ctx) => {
+  "choose-one": defineStep<{ figure: FigureId; options: Option[]; rule: RuleRef }>(
+    (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
-      ctx.decide([p.seat], "choose-one", p, p.rule);
+      ctx.decide(
+        [controllerOf(ctx.engine, state, p.figure)],
+        "choose-one",
+        p,
+        p.rule,
+      );
     },
   ),
 
-  "end-movement": defineStep<{ seat: number; rule: RuleRef }>(
+  "end-movement": defineStep<{ figure: FigureId; rule: RuleRef }>(
     (state, p, ctx) => {
-      if (state.turn?.seat === p.seat) state.turn.movementEnded = true;
-      ctx.emit("movement-ended", p.rule, { seat: p.seat });
+      endMovementOf(state, p.figure);
+      ctx.emit("movement-ended", p.rule, { figure: p.figure });
     },
   ),
 
-  "end-turn-now": defineStep<{ seat: number; rule: RuleRef }>(
+  "end-turn-now": defineStep<{ figure: FigureId; rule: RuleRef }>(
     (state, p, ctx) => {
-      if (state.turn?.seat !== p.seat) return;
+      if (!state.turn || !onTurn(ctx.engine, state, p.figure)) return;
       state.turn.over = true;
-      ctx.emit("turn-cut-short", p.rule, { seat: p.seat });
+      ctx.emit("turn-cut-short", p.rule, { seat: state.turn.seat });
     },
   ),
 };
@@ -1076,9 +1129,9 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
         .join(" and ")}`,
     resolve: (state, p, split, ctx) => {
       for (const [trait, spaces] of Object.entries(split)) {
-        moveClip(ctx.catalog, state, p.seat, trait as Trait, -spaces, null);
+        moveClip(ctx.catalog, state, p.figure, trait as Trait, -spaces, null);
       }
-      ctx.emit("damaged", p.rule, { seat: p.seat, damage: p.damage, split });
+      ctx.emit("damaged", p.rule, { figure: p.figure, damage: p.damage, split });
       return null;
     },
   }),
@@ -1086,7 +1139,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
   "damage-kind": defineDecision<DamageLands, string | null>({
     candidates: (state, p, _seat, engine) => [
       null,
-      ...damageKinds(engine, state, p.seat, p.damage).map((s) => s.id),
+      ...damageKinds(engine, state, p.figure, p.damage).map((s) => s.id),
     ],
     label: (_state, p, card, engine) => {
       const other = p.damage === "physical" ? "mental" : "physical";
@@ -1105,7 +1158,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       ctx.emit(
         "damage-converted",
         { source: "card", card },
-        { seat: p.seat, from: p.damage, to },
+        { figure: p.figure, from: p.damage, to },
       );
       ctx.push(step<DamageLands>("damage-lands", { ...p, damage: to }));
       return null;
@@ -1113,7 +1166,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
   }),
 
   "choose-one": defineDecision<
-    { seat: number; options: Option[]; rule: RuleRef },
+    { figure: FigureId; options: Option[]; rule: RuleRef },
     number
   >({
     candidates: (_state, p) => p.options.map((_option, index) => index),
@@ -1175,7 +1228,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       ctx.emit(
         "card-used",
         { source: "card", card: c.card },
-        { seat: r.seat, card: c.card },
+        { figure: r.figure, card: c.card },
       );
       const next: RollInProgress = { ...r, used: [...r.used, c.card] };
       if (option.effect.kind === "add") next.bonus += option.effect.amount;
@@ -1218,7 +1271,7 @@ export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
       ctx.emit(
         "card-used",
         { source: "card", card: c.card },
-        { seat: r.seat, card: c.card },
+        { figure: r.figure, card: c.card },
       );
       const dice = [...kept, ...ctx.random.dice(c.faces.length)];
       ctx.push(

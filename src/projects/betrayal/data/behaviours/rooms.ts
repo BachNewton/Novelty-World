@@ -1,5 +1,5 @@
 import { FLOOR_NAMES, placed } from "../../engine/board";
-import { explorerAt, placeOf } from "../../engine/explorers";
+import { allFigures, figureOf, placeOf } from "../../engine/figures";
 import {
   chooseOne,
   damage,
@@ -21,6 +21,8 @@ import {
   type Source,
 } from "../../engine/sources";
 import { crossBarrier } from "../../engine/movement";
+import { onTurn } from "../../engine/questions";
+import type { Engine } from "../../engine/step-loop";
 import {
   drawRoomTile,
   enterNewRoom,
@@ -28,6 +30,7 @@ import {
   spotOf,
 } from "../../engine/tiles";
 import type {
+  FigureId,
   FloorId,
   GameEvent,
   GameState,
@@ -37,12 +40,19 @@ import type {
 import { CATALOG } from "..";
 import { immuneToRoom } from "./omens";
 
-/** The explorer token that marks a seat in a room, in the colour of its character card. */
-function explorerToken(state: GameState, seat: number): string {
-  return `explorer-${CATALOG.characters[explorerAt(state, seat).character].card}`;
+/** The explorer token that marks a figure in a room, in the colour of its character card. */
+function explorerToken(state: GameState, figure: FigureId): string {
+  return `explorer-${CATALOG.characters[figureOf(state, figure).definition].card}`;
 }
 
-type TurnEnded = { seat: number; room: string };
+/** The figure that ended its seat's turn in this room, if one did: the
+ *  seat's explorer. */
+function endedHere(event: GameEvent, room: string): FigureId | null {
+  const ended = eventData<{ figure: FigureId | null; room: string | null }>(
+    event,
+  );
+  return ended.room === room ? ended.figure : null;
+}
 
 /** Once per game for each explorer, ending a turn here gains 1 in a trait; their explorer token marks that they have (Widow's Walk FAQ). */
 function oncePerGame(trait: Trait): Behaviour {
@@ -51,20 +61,21 @@ function oncePerGame(trait: Trait): Behaviour {
       {
         event: "turn-ended",
         when: (state, event, source) => {
-          const { seat, room } = eventData<TurnEnded>(event);
+          const figure = endedHere(event, source.id);
           return (
-            room === source.id &&
+            figure !== null &&
             !state.tokens.some(
               (t) =>
-                t.room === source.id && t.token === explorerToken(state, seat),
+                t.room === source.id && t.token === explorerToken(state, figure),
             )
           );
         },
         steps: (state, event, source) => {
-          const { seat } = eventData<TurnEnded>(event);
+          const figure = endedHere(event, source.id);
+          if (figure === null) return [];
           return [
-            gain(seat, trait, 1, source.rule),
-            placeToken(explorerToken(state, seat), source.id, source.rule),
+            gain(figure, trait, 1, source.rule),
+            placeToken(explorerToken(state, figure), source.id, source.rule),
           ];
         },
       },
@@ -79,17 +90,15 @@ function endTurnDamage(kind: "physical" | "mental"): Behaviour {
       {
         event: "turn-ended",
         when: (state, event, source) => {
-          const { seat, room } = eventData<TurnEnded>(event);
-          return room === source.id && !immuneToRoom(state, seat, source.id);
+          const figure = endedHere(event, source.id);
+          return figure !== null && !immuneToRoom(state, figure, source.id);
         },
-        steps: (_state, event, source) => [
-          damage(
-            eventData<TurnEnded>(event).seat,
-            kind,
-            { points: 1 },
-            source.rule,
-          ),
-        ],
+        steps: (_state, event, source) => {
+          const figure = endedHere(event, source.id);
+          return figure === null
+            ? []
+            : [damage(figure, kind, { points: 1 }, source.rule)];
+        },
       },
     ],
   };
@@ -103,11 +112,11 @@ const traitName = (trait: Trait) =>
  *  official ruling). It applies however the explorer leaves. */
 function rollToLeave(trait: Trait, target: number, loss: Trait): Behaviour {
   return {
-    beforeLeave: (state, seat, source, go) => {
-      if (immuneToRoom(state, seat, source.id)) return [go];
+    beforeLeave: (state, figure, source, go) => {
+      if (immuneToRoom(state, figure, source.id)) return [go];
       return [
         roll(
-          seat,
+          figure,
           { kind: "trait", trait },
           source.rule,
           table([
@@ -117,15 +126,15 @@ function rollToLeave(trait: Trait, target: number, loss: Trait): Behaviour {
               max: target - 1,
               steps: [
                 chooseOne(
-                  seat,
+                  figure,
                   [
                     {
                       label: `Lose 1 ${traitName(loss)} and keep going`,
-                      steps: [gain(seat, loss, -1, source.rule), go],
+                      steps: [gain(figure, loss, -1, source.rule), go],
                     },
                     {
                       label: `Stay in the ${CATALOG.rooms[source.id].name}`,
-                      steps: [stayInRoom(seat, source.rule)],
+                      steps: [stayInRoom(figure, source.rule)],
                     },
                   ],
                   source.rule,
@@ -151,30 +160,30 @@ function barrierRoom(trait: Trait, target: number): Behaviour {
     actions: {
       cross: {
         label: `Try to cross (${traitName(trait)} roll of ${target}+)`,
-        available: (state, _seat, source) =>
+        available: (state, figure, source) =>
           state.turn !== null &&
-          !state.turn.movementEnded &&
+          !state.turn.movementEnded.includes(figure) &&
           !state.turn.rolls.includes(id(source.id)),
-        steps: (state, seat, source) => {
-          const side = explorerAt(state, seat).side;
+        steps: (state, figure, source) => {
+          const { side } = placeOf(state, figure);
           const other = CATALOG.rooms[source.id].doors.find((d) => d !== side);
-          if (side === undefined || other === undefined)
+          if (side === null || other === undefined)
             throw new Error(`No other side of the ${source.id} to cross to`);
           return [
             roll(
-              seat,
+              figure,
               { kind: "trait", trait },
               source.rule,
               table([
                 {
                   min: target,
                   max: null,
-                  steps: [crossBarrier(seat, other, source.rule)],
+                  steps: [crossBarrier(figure, other, source.rule)],
                 },
                 {
                   min: 0,
                   max: target - 1,
-                  steps: [endMovement(seat, source.rule)],
+                  steps: [endMovement(figure, source.rule)],
                 },
               ]),
               { id: id(source.id) },
@@ -186,8 +195,17 @@ function barrierRoom(trait: Trait, target: number): Behaviour {
   };
 }
 
-type Seat = { seat: number };
-type Entered = { seat: number; room: string; discovered?: boolean };
+type Subject = { figure: FigureId };
+type Entered = { figure: FigureId; room: string; discovered?: boolean };
+
+/** The figure that entered this room, or ended its seat's turn in it. */
+function arrivedOrEnded(event: GameEvent, room: string): FigureId | null {
+  return event.type === "turn-ended"
+    ? endedHere(event, room)
+    : eventData<Entered>(event).room === room
+      ? eventData<Entered>(event).figure
+      : null;
+}
 
 const COLLAPSED = "collapsed-room";
 const COLLAPSED_RULE: RuleRef = { source: "room", room: COLLAPSED };
@@ -224,9 +242,9 @@ export const ROOMS: BehaviourGroup = {
           available: (state) =>
             !state.tokens.some((t) => t.token === "vault-empty") &&
             !(state.turn?.rolls.includes("vault") ?? true),
-          steps: (_state, seat, source) => [
+          steps: (_state, figure, source) => [
             roll(
-              seat,
+              figure,
               { kind: "trait", trait: "knowledge" },
               source.rule,
               table([
@@ -234,8 +252,8 @@ export const ROOMS: BehaviourGroup = {
                   min: 6,
                   max: null,
                   steps: [
-                    drawCard(seat, "item", source.rule),
-                    drawCard(seat, "item", source.rule),
+                    drawCard(figure, "item", source.rule),
+                    drawCard(figure, "item", source.rule),
                     placeToken("vault-empty", source.id, source.rule),
                   ],
                 },
@@ -255,9 +273,9 @@ export const ROOMS: BehaviourGroup = {
         fall: {
           label: "Fall down to the Ballroom (1 die of physical damage)",
           available: (state) => placed(state.board, "ballroom") !== undefined,
-          steps: (_state, seat, source) => [
-            relocate(seat, "ballroom", source.rule, null, [
-              damage(seat, "physical", { dice: 1 }, source.rule),
+          steps: (_state, figure, source) => [
+            relocate(figure, "ballroom", source.rule, null, [
+              damage(figure, "physical", { dice: 1 }, source.rule),
             ]),
           ],
         },
@@ -277,10 +295,10 @@ export const ROOMS: BehaviourGroup = {
             return d.room === source.id && d.discovered === true;
           },
           steps: (_state, event, source) => {
-            const { seat } = eventData<Entered>(event);
+            const { figure } = eventData<Entered>(event);
             return [
               roll(
-                seat,
+                figure,
                 { kind: "trait", trait: "speed" },
                 source.rule,
                 table([
@@ -288,7 +306,7 @@ export const ROOMS: BehaviourGroup = {
                   {
                     min: 0,
                     max: 4,
-                    steps: [local(COLLAPSED, "fall", { seat })],
+                    steps: [local(COLLAPSED, "fall", { figure })],
                   },
                 ]),
               ),
@@ -301,30 +319,30 @@ export const ROOMS: BehaviourGroup = {
         fall: {
           label: "Fall to the basement (1 die of physical damage)",
           available: () => true,
-          steps: (_state, seat) => [local(COLLAPSED, "fall", { seat })],
+          steps: (_state, figure) => [local(COLLAPSED, "fall", { figure })],
         },
       },
       steps: {
         // Falling spends no movement, but deals the damage (p. 7). Only the
         // first to fall puts a basement tile in the house, next to any
         // basement room, and marks where they land; later falls land there.
-        fall: defineStep<Seat>((state, p, ctx) => {
+        fall: defineStep<Subject>((state, p, ctx) => {
           const rule = COLLAPSED_RULE;
-          const hurt = damage(p.seat, "physical", { dice: 1 }, rule);
+          const hurt = damage(p.figure, "physical", { dice: 1 }, rule);
           const below = state.tokens.find((t) => t.token === BELOW);
           if (below) {
             ctx.push(
-              relocate(p.seat, below.room, rule, below.side ?? null, [hurt]),
+              relocate(p.figure, below.room, rule, below.side ?? null, [hurt]),
             );
             return;
           }
           ctx.push(
             drawRoomTile(
-              p.seat,
+              p.figure,
               { kind: "doorways", floors: ["basement"], except: null },
               rule,
               {
-                then: enterNewRoom(p.seat, null, rule, {
+                then: enterNewRoom(p.figure, null, rule, {
                   draws: true,
                   after: [local(COLLAPSED, "mark", p), hurt],
                 }),
@@ -334,24 +352,24 @@ export const ROOMS: BehaviourGroup = {
           );
         }),
         // In a barrier room the token stays on the side they landed on (p. 7).
-        mark: defineStep<Seat>((state, p, ctx) => {
-          const { room, side } = placeOf(state, p.seat);
+        mark: defineStep<Subject>((state, p, ctx) => {
+          const { room, side } = placeOf(state, p.figure);
           ctx.push(placeToken(BELOW, room, COLLAPSED_RULE, { side }));
         }),
         // Every basement tile is placed: the faller chooses a basement room.
-        land: defineStep<Seat>((state, p, ctx) => {
+        land: defineStep<Subject>((state, p, ctx) => {
           const rule = COLLAPSED_RULE;
           ctx.push(
             chooseOne(
-              p.seat,
+              p.figure,
               state.board.tiles
                 .filter((t) => t.floor === "basement")
                 .map((t) => ({
                   label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [
-                    relocate(p.seat, t.tile, rule, null, [
+                    relocate(p.figure, t.tile, rule, null, [
                       local(COLLAPSED, "mark", p),
-                      damage(p.seat, "physical", { dice: 1 }, rule),
+                      damage(p.figure, "physical", { dice: 1 }, rule),
                     ]),
                   ],
                 })),
@@ -367,26 +385,33 @@ export const ROOMS: BehaviourGroup = {
       // spent in it without moving; it works once a turn (pp. 7-8).
       reactions: (["entered", "turn-ended"] as const).map((type) => ({
         event: type,
-        when: (state: GameState, event: GameEvent, source: Source) => {
-          const { seat, room } = eventData<Entered>(event);
+        when: (
+          state: GameState,
+          event: GameEvent,
+          source: Source,
+          engine: Engine,
+        ) => {
+          const figure = arrivedOrEnded(event, source.id);
           return (
-            room === source.id &&
-            state.turn?.seat === seat &&
+            figure !== null &&
+            state.turn !== null &&
+            onTurn(engine, state, figure) &&
             !state.turn.rolls.includes(ELEVATOR)
           );
         },
-        steps: (_state: GameState, event: GameEvent) => [
-          local(ELEVATOR, "ride", { seat: eventData<Entered>(event).seat }),
-        ],
+        steps: (_state: GameState, event: GameEvent, source: Source) => {
+          const figure = arrivedOrEnded(event, source.id);
+          return figure === null ? [] : [local(ELEVATOR, "ride", { figure })];
+        },
       })),
       steps: {
-        ride: defineStep<Seat>((_state, p, ctx) => {
+        ride: defineStep<Subject>((_state, p, ctx) => {
           const rule = ELEVATOR_RULE;
           const go = (floor: FloorId, shake = false) =>
-            local(ELEVATOR, "move", { seat: p.seat, floor, shake });
+            local(ELEVATOR, "move", { figure: p.figure, floor, shake });
           ctx.push(
             roll(
-              p.seat,
+              p.figure,
               { kind: "dice", count: 2 },
               rule,
               table([
@@ -395,7 +420,7 @@ export const ROOMS: BehaviourGroup = {
                   max: 4,
                   steps: [
                     chooseOne(
-                      p.seat,
+                      p.figure,
                       ctx.catalog.rooms[ELEVATOR].floors.map((floor) => ({
                         label: `Send the elevator to the ${FLOOR_NAMES[floor]}`,
                         steps: [go(floor)],
@@ -415,12 +440,12 @@ export const ROOMS: BehaviourGroup = {
         }),
         // It goes next to an open door on the floor rolled, never sealing a
         // floor; with nowhere to go it stays. On its own floor it may stay.
-        move: defineStep<{ seat: number; floor: FloorId; shake: boolean }>(
+        move: defineStep<{ figure: FigureId; floor: FloorId; shake: boolean }>(
           (state, p, ctx) => {
             const here = spotOf(state.board, ELEVATOR);
             ctx.push(
               placeRoom(
-                p.seat,
+                p.figure,
                 ELEVATOR,
                 { kind: "doorways", floors: [p.floor], except: here },
                 ELEVATOR_RULE,
@@ -433,10 +458,10 @@ export const ROOMS: BehaviourGroup = {
         // On a 0, everyone in the elevator takes the damage (p. 8).
         shake: defineStep((state, _p, ctx) => {
           ctx.push(
-            ...state.explorers
-              .filter((e) => e.room === ELEVATOR)
+            ...allFigures(state)
+              .filter((e) => e.place?.room === ELEVATOR)
               .map((e) =>
-                damage(e.seat, "physical", { dice: 1 }, ELEVATOR_RULE),
+                damage(e.id, "physical", { dice: 1 }, ELEVATOR_RULE),
               ),
           );
         }),
@@ -452,7 +477,7 @@ export const ROOMS: BehaviourGroup = {
             eventData<{ room: string }>(event).room === source.id,
           steps: (_state, event, source) => [
             relocate(
-              eventData<{ seat: number }>(event).seat,
+              eventData<{ figure: FigureId }>(event).figure,
               "basement-landing",
               source.rule,
             ),

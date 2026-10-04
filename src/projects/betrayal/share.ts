@@ -13,7 +13,9 @@ export interface SharedGame {
   actions: Action[];
 }
 
-const SHARE_FORMAT = 1;
+/** Raise it whenever recorded actions may mean something else to the engine,
+ *  so an older code fails plainly instead of replaying into a different game. */
+const SHARE_FORMAT = 2;
 
 export function encodeGame(shared: SharedGame): string {
   const json = JSON.stringify({ format: SHARE_FORMAT, ...shared });
@@ -37,6 +39,10 @@ export function decodeGame(code: string): SharedGame {
     throw new Error("That isn't a shared game code");
   }
   const root = record(parsed, "the code");
+  if (typeof root.format === "number" && root.format < SHARE_FORMAT)
+    throw new Error(
+      "That game was shared from an older version of the engine and can't be replayed",
+    );
   if (root.format !== SHARE_FORMAT)
     throw new Error(`Unknown shared game format ${String(root.format)}`);
   const game = record(root.game, "game");

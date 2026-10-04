@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
-import { choose, offered, testGame } from "../testing";
+import { at, choose, offered, put, testGame } from "../testing";
 import type { GameState, RuleRef } from "../types";
 import { moveCloser, routeDistances } from "./movement";
 import { start } from "./step-loop";
 
 const RULE: RuleRef = { source: "card", card: "bell" };
+/** Seat 0's and seat 1's explorers, by figure id. */
+const ZOE = "zoe-ingstrom";
+const OX = "ox-bellows";
 
 const run = (state: GameState, ...steps: Parameters<typeof start>[2]) =>
   start(ENGINE, { ...state, pending: null }, steps);
@@ -16,7 +19,7 @@ describe("routeDistances", () => {
     const away = routeDistances(
       ENGINE,
       state,
-      { kind: "explorer", seat: 0 },
+      { kind: "figure", figure: ZOE },
       { room: "entrance-hall", side: null },
       true,
     );
@@ -35,7 +38,7 @@ describe("routeDistances", () => {
       { tile: "furnace-room", floor: "basement", x: 2, y: 0, rotation: 0 },
     );
     const from = { room: "basement-landing", side: null };
-    const mover = { kind: "explorer", seat: 0 } as const;
+    const mover = { kind: "figure", figure: ZOE } as const;
     const furnace = (cross: boolean) =>
       routeDistances(ENGINE, state, mover, from, cross).find(
         (r) => r.place.room === "furnace-room",
@@ -48,10 +51,10 @@ describe("routeDistances", () => {
 describe("moveCloser (the Bell's 5+)", () => {
   it("moves an explorer 1 space along the shortest route, spending none of their movement", () => {
     const state = testGame();
-    state.explorers[1].room = "upper-landing";
-    const after = run(state, moveCloser(1, "entrance-hall", 0, RULE));
-    expect(after.explorers[1].room).toBe("grand-staircase");
-    expect(after.turn?.moved).toBe(0);
+    put(state, 1, "upper-landing");
+    const after = run(state, moveCloser(OX, "entrance-hall", ZOE, RULE));
+    expect(at(after, 1).room).toBe("grand-staircase");
+    expect(after.turn?.moved).toEqual({});
   });
 
   it("lets the chooser pick between routes that tie", () => {
@@ -61,19 +64,19 @@ describe("moveCloser (the Bell's 5+)", () => {
       { tile: "ballroom", floor: "ground", x: 2, y: -1, rotation: 0 },
       { tile: "abandoned-room", floor: "ground", x: 1, y: -1, rotation: 0 },
     );
-    state.explorers[1].room = "abandoned-room";
-    const after = run(state, moveCloser(1, "entrance-hall", 0, RULE));
+    put(state, 1, "abandoned-room");
+    const after = run(state, moveCloser(OX, "entrance-hall", ZOE, RULE));
     expect(offered(after).map((c) => c.label)).toEqual([
       "Move Ox Bellows to the Ballroom",
       "Move Ox Bellows to the Foyer",
     ]);
-    expect(choose(after, "to the Foyer").explorers[1].room).toBe("foyer");
+    expect(at(choose(after, "to the Foyer"), 1).room).toBe("foyer");
   });
 
   it("leaves an explorer already there where they are", () => {
     const state = testGame();
-    const after = run(state, moveCloser(1, "entrance-hall", 0, RULE));
-    expect(after.explorers[1].room).toBe("entrance-hall");
+    const after = run(state, moveCloser(OX, "entrance-hall", ZOE, RULE));
+    expect(at(after, 1).room).toBe("entrance-hall");
     expect(after.lastEvents).toEqual([]);
   });
 });

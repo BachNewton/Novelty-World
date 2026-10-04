@@ -2,6 +2,7 @@ import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { distances, doorwaySpot, freeDoorways } from "./engine/board";
 import { describeDecision, describeEvent } from "./engine/describe";
 import { newGame, type TurnChoice } from "./engine/exploration";
+import { allFigures, roomOf, seatExplorer } from "./engine/figures";
 import { migrate } from "./engine/format";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { bestPlacements } from "./engine/tiles";
@@ -215,7 +216,7 @@ function weight(
       return 12;
     case "move": {
       const seat = state.turn?.seat ?? 0;
-      const from = state.explorers[seat].room;
+      const from = roomOf(state, seatExplorer(state, seat));
       return distanceTo(engine, state, turn.to, open) <
         distanceTo(engine, state, from, open)
         ? 8
@@ -329,8 +330,10 @@ function distanceTo(
 /** No explorer can reach a room that a room left can be discovered from. */
 function houseFull(engine: Engine, state: GameState): boolean {
   const open = openRooms(engine, state);
-  return state.explorers.every(
-    (e) => distanceTo(engine, state, e.room, open) === Infinity,
+  return allFigures(state).every(
+    (f) =>
+      f.place === null ||
+      distanceTo(engine, state, f.place.room, open) === Infinity,
   );
 }
 
@@ -363,7 +366,7 @@ function checkState(engine: Engine, state: GameState): void {
       ...state.decks[type].draw,
       ...state.decks[type].discard,
     ]),
-    ...state.explorers.flatMap((e) => e.cards),
+    ...allFigures(state).flatMap((f) => f.cards),
     ...Object.values(state.piles).flat(),
     ...state.ongoing,
   ];
@@ -398,10 +401,13 @@ function checkState(engine: Engine, state: GameState): void {
   if (tileMissing.length > 0)
     throw new Error(`Room tiles missing: ${tileMissing.join(", ")}`);
 
-  for (const explorer of state.explorers) {
-    if (!state.board.tiles.some((t) => t.tile === explorer.room))
+  for (const figure of allFigures(state)) {
+    if (
+      figure.place !== null &&
+      !state.board.tiles.some((t) => t.tile === figure.place?.room)
+    )
       throw new Error(
-        `Seat ${explorer.seat} is in ${explorer.room}, which isn't in the house`,
+        `${figure.id} is in ${figure.place.room}, which isn't in the house`,
       );
   }
 }

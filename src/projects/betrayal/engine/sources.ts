@@ -1,6 +1,7 @@
 import type {
   CardType,
   Edge,
+  FigureId,
   GameEvent,
   GameState,
   Json,
@@ -10,6 +11,7 @@ import type {
   Trait,
 } from "../types";
 import { beyondWall, roomAt } from "./board";
+import { allFigures } from "./figures";
 import type { CardDestination } from "./effects";
 import type { Engine, StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
@@ -25,12 +27,12 @@ export interface Source {
   kind: "room" | "card" | "token";
   id: string;
   rule: RuleRef;
-  /** The seat holding a card, if any. */
-  holder: number | null;
+  /** The figure holding a card, if any. */
+  holder: FigureId | null;
   /** The room a room source is, a token sits in, or a card lies in. */
   room: string | null;
   /** For a token on a wall, the room on the wall's other side, if any. An
-   *  explorer in either room is at the token. */
+   *  figure in either room is at the token. */
   beside: string | null;
   /** The token itself, for a token source. */
   token: RoomToken | null;
@@ -59,11 +61,11 @@ export type RollSpec =
 
 export interface RollOption {
   timing: "before" | "after";
-  /** It may be used on a roll its holder makes on another explorer's turn,
+  /** It may be used on a roll its holder makes on another seat's turn,
    *  such as a defence roll. Other options are for its holder's own turn. */
   offTurn?: boolean;
   /** Whether this option can act on this roll. */
-  applies: (state: GameState, seat: number, roll: RollContext) => boolean;
+  applies: (state: GameState, figure: FigureId, roll: RollContext) => boolean;
   effect:
     | { kind: "add"; amount: number }
     /** Add dice to the roll, up to the most dice a roll may have. */
@@ -87,58 +89,68 @@ export interface RollContext {
 export interface SourceAction {
   label: string;
   /** Who a card's action is offered to: its holder (the default), or any
-   *  explorer with the holder, who takes it without using the card (freeing
+   *  figure with the holder, who takes it without using the card (freeing
    *  the holder from the Webs). */
   offeredTo?: "holder" | "room";
-  /** Offered even while its explorer can't act, being the way out of what
-   *  stops them. */
+  /** Offered even while its figure can't act, being the way out of what
+   *  stops it. */
   escape?: boolean;
-  /** Whether the seat may take it now. Being offered is not enough: the action must also apply. */
+  /** Whether the figure may take it now. Being offered is not enough: the action must also apply. */
   available: (
     state: GameState,
-    seat: number,
+    figure: FigureId,
     source: Source,
     engine: Engine,
   ) => boolean;
-  steps: (state: GameState, seat: number, source: Source) => Step[];
+  steps: (state: GameState, figure: FigureId, source: Source) => Step[];
 }
 
 export interface Reaction {
   event: string;
-  when?: (state: GameState, event: GameEvent, source: Source) => boolean;
-  steps: (state: GameState, event: GameEvent, source: Source) => Step[];
+  when?: (
+    state: GameState,
+    event: GameEvent,
+    source: Source,
+    engine: Engine,
+  ) => boolean;
+  steps: (
+    state: GameState,
+    event: GameEvent,
+    source: Source,
+    engine: Engine,
+  ) => Step[];
 }
 
 export interface Behaviour {
   /** A card's effect when drawn: an event's whole text, or an omen's immediate effect. */
-  onDraw?: (state: GameState, seat: number) => Step[];
-  /** When an explorer gets an item or omen, however: drawing, picking up, trading or stealing. */
-  onGain?: (state: GameState, seat: number) => Step[];
+  onDraw?: (state: GameState, figure: FigureId, engine: Engine) => Step[];
+  /** When a figure gets an item or omen, however: drawing, picking up, trading or stealing. */
+  onGain?: (state: GameState, figure: FigureId) => Step[];
   /** When its holder loses it, however, and where it goes. */
   onLose?: (
     state: GameState,
-    seat: number,
+    figure: FigureId,
     destination: CardDestination,
   ) => Step[];
-  /** Actions it offers on its holder's turn, or, for a room or token, to an explorer there. Using a card's action uses the card (p. 11). */
+  /** Actions it offers on its holder's turn, or, for a room or token, to a figure there. Using a card's action uses the card (p. 11). */
   actions?: Record<string, SourceAction>;
   reactions?: Reaction[];
   modifiers?: Modifier[];
   rollOptions?: RollOption[];
-  /** Before an explorer leaves the room this source is in (or, for a card,
+  /** Before a figure leaves the room this source is in (or, for a card,
    *  its holder's room): the steps to run instead of leaving at once. They
-   *  continue the departure by running `go`, or keep the explorer in the room
+   *  continue the departure by running `go`, or keep the figure in the room
    *  by leaving it out. */
   beforeLeave?: (
     state: GameState,
-    seat: number,
+    figure: FigureId,
     source: Source,
     go: Step,
   ) => Step[];
   /** When its holder attacks with it: the steps to run before the dice (the
    *  Sacrificial Dagger's roll). They continue the attack by running `go`,
    *  or call it off by leaving it out. */
-  beforeAttack?: (state: GameState, seat: number, go: Step) => Step[];
+  beforeAttack?: (state: GameState, figure: FigureId, go: Step) => Step[];
   /** Its holder may take damage of the other kind as this kind instead (the Skull). */
   damageAs?: "physical" | "mental";
   /** A barrier room: split in two, one side by each door, crossed by this
@@ -161,7 +173,9 @@ export interface Behaviour {
 
 /** Names for the things an event refers to by id. */
 export interface Words {
-  explorer: (seat: number) => string;
+  figure: (figure: FigureId) => string;
+  /** A seat, by its explorer's name where it has one. */
+  seat: (seat: number) => string;
   room: (room: string) => string;
   card: (card: string) => string;
 }
@@ -201,11 +215,11 @@ export function liveSources(
       result.push({ source, behaviour });
     }
   }
-  for (const explorer of state.explorers) {
-    for (const card of explorer.cards) {
+  for (const figure of allFigures(state)) {
+    for (const card of figure.cards) {
       const behaviour = behaviours.cards[card];
       if (behaviour)
-        result.push({ source: cardSource(card, explorer.seat), behaviour });
+        result.push({ source: cardSource(card, figure.id), behaviour });
     }
   }
   for (const card of state.ongoing) {
@@ -241,7 +255,7 @@ export function liveSources(
   return result;
 }
 
-function cardSource(card: string, holder: number | null): Source {
+function cardSource(card: string, holder: FigureId | null): Source {
   return {
     layer: "card",
     kind: "card",
@@ -259,7 +273,7 @@ function besideWall(state: GameState, room: string, wall: Edge[]) {
   return roomAt(state.board, cell.floor, cell.x, cell.y)?.tile ?? null;
 }
 
-/** Whether an explorer in this room is at the source: in its room, or, for a
+/** Whether a figure in this room is at the source: in its room, or, for a
  *  token on a wall, in the room on either side. */
 export function atSource(source: Source, room: string): boolean {
   return source.room === room || source.beside === room;
@@ -268,6 +282,12 @@ export function atSource(source: Source, room: string): boolean {
 /** An event's data, typed by the event's contract. Events are stored as JSON, so the type is the emitter's promise. */
 export function eventData<T extends Json>(event: GameEvent): T {
   return event.data as T;
+}
+
+/** The figure a turn event is about: the turn's seat's explorer, if it has
+ *  one. */
+export function turnFigure(event: GameEvent): FigureId | null {
+  return eventData<{ figure: FigureId | null }>(event).figure;
 }
 
 /** The registered name of a source's own step. */

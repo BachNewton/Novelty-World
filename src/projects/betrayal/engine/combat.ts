@@ -1,4 +1,4 @@
-import type { GameState, RuleRef, Step, Trait } from "../types";
+import type { FigureId, GameState, RuleRef, Step, Trait } from "../types";
 import { traitName } from "./describe";
 import {
   continueWith,
@@ -12,9 +12,10 @@ import {
   stealable,
   step,
 } from "./effects";
-import { explorerAt } from "./explorers";
+import { figureOf, seatExplorer } from "./figures";
 import {
   askStructured,
+  controllerOf,
   type AttackMode,
   type AttackSubject,
   type CombatOutcome,
@@ -30,27 +31,29 @@ import type { DecisionKind, Engine, StepHandler } from "./step-loop";
 // happen only when a card makes one; the turn's own attack action comes with
 // the haunt, which says who is an opponent.
 
-/** Who attacks: an explorer, or an attacker a card stands in for ("a Might 4
+/** Who attacks: a figure, or an attacker a card stands in for ("a Might 4
  *  attack on behalf of the Creepy Puppet"), whose dice a player throws. */
 export type Attacker =
-  | { kind: "explorer"; seat: number }
-  | { kind: "card"; trait: Trait; dice: number; roller: number };
+  | { kind: "figure"; figure: FigureId }
+  | { kind: "card"; trait: Trait; dice: number };
 
 type Attack = {
   attacker: Attacker;
-  defender: number;
+  defender: FigureId;
   rule: RuleRef;
   /** Continues after the attack, with its `outcome` added. */
   then: Step | null;
 };
 
-type Moded = Attack & { mode: AttackMode };
+/** An attack under way: its mode, and the figure that rolls for the
+ *  attacker. */
+type Moded = Attack & { mode: AttackMode; roller: FigureId };
 
-/** An attack on an explorer. `then`, if given, runs once the attack is over,
+/** An attack on a figure. `then`, if given, runs once the attack is over,
  *  with the combat outcome added to its parameters as `outcome`. */
 export function attack(
   attacker: Attacker,
-  defender: number,
+  defender: FigureId,
   rule: RuleRef,
   then: Step | null = null,
 ): Step {
@@ -63,21 +66,25 @@ export function playerOnRight(state: GameState, seat: number): number {
   return (seat - 1 + count) % count;
 }
 
-/** A card's attack on an explorer: "the player on your right makes a Might 4
+/** A card's attack on a figure: "the player on your right makes a Might 4
  *  attack against you on behalf of" something the card names. */
 export function cardAttack(
-  state: GameState,
-  defender: number,
+  defender: FigureId,
   trait: Trait,
   dice: number,
   rule: RuleRef,
   then: Step | null = null,
 ): Step {
-  return attack(
-    { kind: "card", trait, dice, roller: playerOnRight(state, defender) },
-    defender,
-    rule,
-    then,
+  return attack({ kind: "card", trait, dice }, defender, rule, then);
+}
+
+/** The figure that rolls for the attacker: the attacking figure, or, for a
+ *  card's attacker, the explorer of the player on the defender's right. */
+function attackRoller(engine: Engine, state: GameState, p: Attack): FigureId {
+  if (p.attacker.kind === "figure") return p.attacker.figure;
+  return seatExplorer(
+    state,
+    playerOnRight(state, controllerOf(engine, state, p.defender)),
   );
 }
 
@@ -110,21 +117,21 @@ export function attackWith(
 
 function subject(p: Attack): AttackSubject {
   return {
-    attacker: p.attacker.kind === "explorer" ? p.attacker.seat : null,
+    attacker: p.attacker.kind === "figure" ? p.attacker.figure : null,
     defender: p.defender,
     rule: p.rule,
   };
 }
 
-/** The ways an explorer may attack: a card in a mode must be one they hold
- *  and haven't already used this turn. */
+/** The ways a figure may attack: a card in a mode must be one it holds and
+ *  hasn't already used this turn. */
 function attackModes(
   engine: Engine,
   state: GameState,
-  attacker: number,
-  defender: number,
+  attacker: FigureId,
+  defender: FigureId,
 ): AttackMode[] {
-  const held = explorerAt(state, attacker).cards;
+  const held = figureOf(state, attacker).cards;
   return askStructured(engine, state, "attackModes", {
     attacker,
     defender,
@@ -137,33 +144,37 @@ function attackModes(
 const sameMode = (a: AttackMode, b: AttackMode) =>
   a.trait === b.trait && a.card === b.card;
 
-/** The explorer who rolls for the attacker. */
-function attackRoller(attacker: Attacker): number {
-  return attacker.kind === "explorer" ? attacker.seat : attacker.roller;
-}
 
 export const COMBAT_STEPS: Record<string, StepHandler> = {
   attack: defineStep<Attack>((state, p, ctx) => {
+    const roller = attackRoller(ctx.engine, state, p);
     ctx.emit("attacked", p.rule, {
       attacker: p.attacker,
       defender: p.defender,
+      roller,
     });
     if (p.attacker.kind === "card") {
       ctx.push(
         step<Moded>("attack-roll", {
           ...p,
           mode: { trait: p.attacker.trait, card: null },
+          roller,
         }),
       );
       return;
     }
-    ctx.decide([p.attacker.seat], "attack-mode", p, p.rule);
+    ctx.decide(
+      [controllerOf(ctx.engine, state, p.attacker.figure)],
+      "attack-mode",
+      p,
+      p.rule,
+    );
   }),
 
   "attack-roll": defineStep<Moded>((_state, p, ctx) => {
     ctx.push(
       roll(
-        attackRoller(p.attacker),
+        p.roller,
         {
           kind: "attack",
           trait: p.mode.trait,
@@ -223,11 +234,16 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
     if (
       outcome.steal &&
       thief !== null &&
-      explorerAt(state, p.defender).cards.some((c) =>
+      figureOf(state, p.defender).cards.some((c) =>
         stealable(ctx.engine, state, c),
       )
     ) {
-      ctx.decide([thief], "attack-steal", settle, p.rule);
+      ctx.decide(
+        [controllerOf(ctx.engine, state, thief)],
+        "attack-steal",
+        settle,
+        p.rule,
+      );
       return;
     }
     ctx.push(step<Settle>("attack-settle", settle));
@@ -265,23 +281,25 @@ function cardName(engine: Engine, card: string): string {
 
 export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
   "attack-mode": defineDecision<Attack, AttackMode>({
-    candidates: (state, p, seat, engine) =>
-      attackModes(engine, state, seat, p.defender),
+    candidates: (state, p, _seat, engine) =>
+      p.attacker.kind === "figure"
+        ? attackModes(engine, state, p.attacker.figure, p.defender)
+        : [],
     label: (_state, _p, mode, engine) =>
       mode.card === null
         ? `Attack with ${traitName(mode.trait)}`
         : `Attack with ${traitName(mode.trait)}, using the ${cardName(engine, mode.card)}`,
     resolve: (state, p, mode, ctx) => {
-      if (p.attacker.kind !== "explorer")
+      if (p.attacker.kind !== "figure")
         return "A card's attacker has no choice";
-      const seat = p.attacker.seat;
+      const attacker = p.attacker.figure;
       if (
-        !attackModes(ctx.engine, state, seat, p.defender).some((m) =>
+        !attackModes(ctx.engine, state, attacker, p.defender).some((m) =>
           sameMode(m, mode),
         )
       )
         return "That attack isn't possible";
-      const go = step<Moded>("attack-roll", { ...p, mode });
+      const go = step<Moded>("attack-roll", { ...p, mode, roller: attacker });
       if (mode.card === null) {
         ctx.push(go);
         return null;
@@ -291,10 +309,10 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
       ctx.emit(
         "card-used",
         { source: "card", card: mode.card },
-        { seat, card: mode.card },
+        { figure: attacker, card: mode.card },
       );
       const before = ctx.engine.behaviours.cards[mode.card]?.beforeAttack;
-      ctx.push(...(before ? before(state, seat, go) : [go]));
+      ctx.push(...(before ? before(state, attacker, go) : [go]));
       return null;
     },
   }),
@@ -302,7 +320,7 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
   "attack-steal": defineDecision<Settle, string | null>({
     candidates: (state, p, _seat, engine) => [
       null,
-      ...explorerAt(state, p.defender).cards.filter((c) =>
+      ...figureOf(state, p.defender).cards.filter((c) =>
         stealable(engine, state, c),
       ),
     ],
@@ -320,7 +338,8 @@ export const COMBAT_DECISIONS: Record<string, DecisionKind> = {
       const thief = subject(p).attacker;
       if (
         thief === null ||
-        !explorerAt(state, p.defender).cards.includes(card) ||
+        !figureOf(state, p.defender).cards.includes(card) ||
+
         !stealable(ctx.engine, state, card)
       )
         return "That can't be stolen";

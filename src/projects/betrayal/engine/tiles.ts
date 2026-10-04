@@ -2,6 +2,7 @@ import type {
   Board,
   Catalog,
   Edge,
+  FigureId,
   FloorId,
   GameState,
   Rotation,
@@ -35,8 +36,8 @@ import {
   leaveRoom,
   step,
 } from "./effects";
-import { explorerAt, putExplorer } from "./explorers";
-import { barrierSides } from "./questions";
+import { placeOf, putFigure } from "./figures";
+import { barrierSides, controllerOf } from "./questions";
 import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
 
 // Putting room tiles in the house and moving them: discovering through a
@@ -152,24 +153,24 @@ export function drawRoom(
   }
 }
 
-type Arrive = { seat: number; room: string; moved: boolean; rule: RuleRef };
+type Arrive = { figure: FigureId; room: string; moved: boolean; rule: RuleRef };
 
-/** An explorer goes into a room just put in the house, which discovers it.
- *  `after` runs as they land, so what lands with them (a fall's damage, a
- *  token marking where they fell) is done before a card drawn there can send
- *  them on. They draw the cards for its symbols before its own text applies
- *  (p. 9), then enter it. Moving in through a door of a barrier room puts
- *  them on that door's side; being put in one, they are on `side`, which
- *  they chose (p. 7). */
+/** A figure goes into a room just put in the house, which discovers it.
+ *  `after` runs as it lands, so what lands with it (a fall's damage, a
+ *  token marking where it fell) is done before a card drawn there can send
+ *  it on. It draws the cards for the room's symbols before the room's own
+ *  text applies (p. 9), then enters it. Moving in through a door of a barrier
+ *  room puts it on that door's side; being put in one, it is on `side`,
+ *  which its controller chose (p. 7). */
 export function discoverRoom(
   state: GameState,
   ctx: StepContext,
-  seat: number,
+  figure: FigureId,
   room: string,
   rule: RuleRef,
   how: { moved: boolean; draws: boolean; after: Step[]; side: Edge | null },
 ): void {
-  const from = explorerAt(state, seat).room;
+  const from = placeOf(state, figure).room;
   const barrier = barrierSides(ctx.engine, room).length > 0;
   const side = !barrier
     ? null
@@ -178,45 +179,46 @@ export function discoverRoom(
       : how.side;
   if (barrier && side === null)
     throw new Error(`No side to enter the barrier room ${room} on`);
-  ctx.emit("left", rule, { seat, room: from, moved: how.moved });
-  putExplorer(state, seat, { room, side });
-  if (how.moved && state.turn) state.turn.moved += 1;
-  ctx.emit("discovered", rule, { seat, room });
+  ctx.emit("left", rule, { figure, room: from, moved: how.moved });
+  putFigure(state, figure, { room, side });
+  if (how.moved && state.turn)
+    state.turn.moved[figure] = (state.turn.moved[figure] ?? 0) + 1;
+  ctx.emit("discovered", rule, { figure, room });
   const symbols = how.draws
     ? (ctx.engine.behaviours.rooms[room]?.discoveryDraws ??
       ctx.catalog.rooms[room].symbols)
     : [];
   ctx.push(
     ...how.after,
-    ...symbols.map((type) => drawCard(seat, type, RULEBOOK(10))),
-    step<Arrive>("arrive", { seat, room, moved: how.moved, rule }),
+    ...symbols.map((type) => drawCard(figure, type, RULEBOOK(10))),
+    step<Arrive>("arrive", { figure, room, moved: how.moved, rule }),
   );
 }
 
 type EnterNewRoom = {
-  seat: number;
+  figure: FigureId;
   /** Null until the room is drawn: `drawRoomTile` fills it in. */
   room: string | null;
   rule: RuleRef;
   draws: boolean;
   after: Step[];
-  /** The side of a barrier room they land on, once chosen. */
+  /** The side of a barrier room it lands on, once chosen. */
   side: Edge | null;
 };
 
-/** Puts an explorer in a room a card has just put in the house, without
- *  moving there. It counts as discovering the room, so they draw for its
- *  symbols (1st-edition FAQ) unless the card says otherwise. Leaving their room
- *  first runs its rules for leaving; `after` runs only once they are in, as
- *  they land and before they draw for the room. */
+/** Puts a figure in a room a card has just put in the house, without
+ *  moving there. It counts as discovering the room, so it draws for the
+ *  room's symbols (1st-edition FAQ) unless the card says otherwise. Leaving
+ *  its room first runs its rules for leaving; `after` runs only once it is
+ *  in, as it lands and before it draws for the room. */
 export function enterNewRoom(
-  seat: number,
+  figure: FigureId,
   room: string | null,
   rule: RuleRef,
   how: { draws: boolean; after?: Step[] },
 ): Step {
   return step<EnterNewRoom>("enter-new-room", {
-    seat,
+    figure,
     room,
     rule,
     draws: how.draws,
@@ -226,7 +228,7 @@ export function enterNewRoom(
 }
 
 type DrawRoomTile = {
-  seat: number;
+  figure: FigureId;
   where: Where;
   reshuffle: boolean;
   rule: RuleRef;
@@ -234,17 +236,18 @@ type DrawRoomTile = {
   otherwise: Step[] | null;
 };
 
-/** Draws room tiles until one can go `where`, and has `seat` choose where it
- *  goes. `then` continues with the tile as `room`. When no tile can go there,
- *  `otherwise` runs; null means the rule never asks when none can. */
+/** Draws room tiles until one can go `where`, and has the seat controlling
+ *  `figure` choose where it goes. `then` continues with the tile as `room`.
+ *  When no tile can go there, `otherwise` runs; null means the rule never
+ *  asks when none can. */
 export function drawRoomTile(
-  seat: number,
+  figure: FigureId,
   where: Where,
   rule: RuleRef,
   next: { then: Step; otherwise: Step[] | null; reshuffle?: boolean },
 ): Step {
   return step<DrawRoomTile>("draw-room-tile", {
-    seat,
+    figure,
     where,
     reshuffle: next.reshuffle ?? true,
     rule,
@@ -254,7 +257,7 @@ export function drawRoomTile(
 }
 
 type PlaceRoom = {
-  seat: number;
+  figure: FigureId;
   tile: string;
   where: Where;
   /** A moving tile may also stay where it is. */
@@ -264,18 +267,18 @@ type PlaceRoom = {
   otherwise: Step[];
 };
 
-/** Has `seat` put a tile in the house, or move one already there, somewhere
- *  it may go. When it can go nowhere, a tile in the house stays put and
- *  `otherwise` runs. */
+/** Has the seat controlling `figure` put a tile in the house, or move one
+ *  already there, somewhere it may go. When it can go nowhere, a tile in the
+ *  house stays put and `otherwise` runs. */
 export function placeRoom(
-  seat: number,
+  figure: FigureId,
   tile: string,
   where: Where,
   rule: RuleRef,
   next: { then?: Step[]; otherwise?: Step[]; stay?: boolean } = {},
 ): Step {
   return step<PlaceRoom>("place-room", {
-    seat,
+    figure,
     tile,
     where,
     stay: next.stay ?? false,
@@ -287,11 +290,11 @@ export function placeRoom(
 
 export const TILE_STEPS: Record<string, StepHandler> = {
   arrive: defineStep<Arrive>((state, p, ctx) => {
-    // A card drawn for the room may have sent the explorer on (Mystic
-    // Slide): they are no longer there, so its text doesn't apply to them.
-    if (explorerAt(state, p.seat).room !== p.room) return;
+    // A card drawn for the room may have sent the figure on (Mystic
+    // Slide): it is no longer there, so the room's text doesn't apply to it.
+    if (placeOf(state, p.figure).room !== p.room) return;
     ctx.emit("entered", p.rule, {
-      seat: p.seat,
+      figure: p.figure,
       room: p.room,
       moved: p.moved,
       discovered: true,
@@ -300,7 +303,7 @@ export const TILE_STEPS: Record<string, StepHandler> = {
 
   "enter-new-room": defineStep<EnterNewRoom>((_state, p, ctx) => {
     if (p.room === null) throw new Error("No room to enter");
-    ctx.push(leaveRoom(p.seat, step<EnterNewRoom>("into-new-room", p)));
+    ctx.push(leaveRoom(p.figure, step<EnterNewRoom>("into-new-room", p)));
   }),
 
   "into-new-room": defineStep<EnterNewRoom>((state, p, ctx) => {
@@ -310,7 +313,7 @@ export const TILE_STEPS: Record<string, StepHandler> = {
       ctx.push(
         chooseSide(
           state,
-          p.seat,
+          p.figure,
           p.room,
           sides,
           p.rule,
@@ -320,7 +323,7 @@ export const TILE_STEPS: Record<string, StepHandler> = {
       );
       return;
     }
-    discoverRoom(state, ctx, p.seat, p.room, p.rule, {
+    discoverRoom(state, ctx, p.figure, p.room, p.rule, {
       moved: false,
       draws: p.draws,
       after: p.after,
@@ -338,12 +341,12 @@ export const TILE_STEPS: Record<string, StepHandler> = {
     if (tile === null) {
       if (p.otherwise === null)
         throw new Error("No room tile can go where the rule needs one");
-      ctx.emit("room-not-found", p.rule, { seat: p.seat });
+      ctx.emit("room-not-found", p.rule, { figure: p.figure });
       ctx.push(...p.otherwise);
       return;
     }
     ctx.push(
-      placeRoom(p.seat, tile, p.where, p.rule, {
+      placeRoom(p.figure, tile, p.where, p.rule, {
         then: [continueWith(p.then, { room: tile })],
       }),
     );
@@ -351,7 +354,12 @@ export const TILE_STEPS: Record<string, StepHandler> = {
 
   "place-room": defineStep<PlaceRoom>((state, p, ctx) => {
     if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
-      ctx.decide([p.seat], "place-tile", p, p.rule);
+      ctx.decide(
+        [controllerOf(ctx.engine, state, p.figure)],
+        "place-tile",
+        p,
+        p.rule,
+      );
       return;
     }
     if (placed(state.board, p.tile))

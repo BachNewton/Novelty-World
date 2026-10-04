@@ -1,5 +1,6 @@
 import type { GameEvent, GameState } from "../types";
 import { describeEvent } from "../engine/describe";
+import { explorerOf, figureName } from "../engine/figures";
 import type { Engine } from "../engine/step-loop";
 
 export function seatLabel(
@@ -7,10 +8,10 @@ export function seatLabel(
   state: GameState,
   seat: number,
 ): string {
-  const explorer = state.explorers.find((e) => e.seat === seat);
+  const explorer = explorerOf(state, seat);
   const name = state.seats[seat].name;
-  if (!explorer) return name;
-  return `${name} (${engine.catalog.characters[explorer.character].name})`;
+  if (explorer === null) return name;
+  return `${name} (${figureName(engine.catalog, state, explorer)})`;
 }
 
 /** One log line, worded against the state the event was emitted into. */

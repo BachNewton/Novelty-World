@@ -60,6 +60,14 @@ describe("a shared game", () => {
     ).toThrow(/game.seed/);
   });
 
+  it("refuses a code shared by an older engine rather than misreplay it", () => {
+    const bytes = new TextEncoder().encode(
+      JSON.stringify({ ...shared, format: 1 }),
+    );
+    const old = btoa(String.fromCharCode(...bytes));
+    expect(() => decodeGame(old)).toThrow(/older version/);
+  });
+
   it("names the action a replay rejects", () => {
     expect(() =>
       replay(

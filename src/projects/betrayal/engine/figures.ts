@@ -1,0 +1,151 @@
+import type {
+  Catalog,
+  Figure,
+  FigureId,
+  GameState,
+  Place,
+  Trait,
+} from "../types";
+
+export const TRAITS: readonly Trait[] = [
+  "speed",
+  "might",
+  "sanity",
+  "knowledge",
+];
+export const PHYSICAL: readonly Trait[] = ["might", "speed"];
+export const MENTAL: readonly Trait[] = ["sanity", "knowledge"];
+
+export function figureOf(state: GameState, id: FigureId): Figure {
+  if (!(id in state.figures)) throw new Error(`There is no figure ${id}`);
+  return state.figures[id];
+}
+
+/** Every figure, in a stable order: by owning seat in table order, figures
+ *  no seat owns last, then by id. The order never depends on how the state's
+ *  keys were stored. */
+export function allFigures(state: GameState): Figure[] {
+  const rank = (f: Figure) => f.owner ?? Number.MAX_SAFE_INTEGER;
+  return Object.values(state.figures).sort(
+    (a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+}
+
+/** The seat's own explorer, for the rules that mean exactly that. A seat
+ *  may have none. */
+export function explorerOf(state: GameState, seat: number): FigureId | null {
+  return (
+    allFigures(state).find((f) => f.kind === "explorer" && f.owner === seat)
+      ?.id ?? null
+  );
+}
+
+/** The seat's own explorer, where every seat has one. */
+export function seatExplorer(state: GameState, seat: number): FigureId {
+  const id = explorerOf(state, seat);
+  if (id === null) throw new Error(`Seat ${seat} has no explorer`);
+  return id;
+}
+
+/** Every seat's explorer in table order, starting with the seat that owns
+ *  this figure and passing left. */
+export function explorersFrom(state: GameState, id: FigureId): FigureId[] {
+  const start = figureOf(state, id).owner;
+  if (start === null) throw new Error(`${id} has no seat to pass left from`);
+  const count = state.seats.length;
+  return state.seats.flatMap(
+    (_seat, i) => explorerOf(state, (start + i) % count) ?? [],
+  );
+}
+
+/** Where a figure on the board is. */
+export function placeOf(state: GameState, id: FigureId): Place {
+  const place = figureOf(state, id).place;
+  if (place === null) throw new Error(`${id} isn't on the board`);
+  return place;
+}
+
+/** The room a figure on the board is in. */
+export function roomOf(state: GameState, id: FigureId): string {
+  return placeOf(state, id).room;
+}
+
+/** Puts a figure in a place, with every token that follows it. */
+export function putFigure(state: GameState, id: FigureId, place: Place): void {
+  figureOf(state, id).place = { room: place.room, side: place.side };
+  for (const token of state.tokens)
+    if (token.holder === id) token.room = place.room;
+}
+
+/** Whether two figures are together: in one room, and on one side of a
+ *  barrier room. Figures on opposite sides can't interact at all (p. 7). */
+export function together(a: Figure, b: Figure): boolean {
+  return (
+    a.place !== null &&
+    b.place !== null &&
+    a.place.room === b.place.room &&
+    a.place.side === b.place.side
+  );
+}
+
+export function traitValue(
+  catalog: Catalog,
+  state: GameState,
+  id: FigureId,
+  trait: Trait,
+): number {
+  const figure = figureOf(state, id);
+  return catalog.characters[figure.definition].tracks[trait][
+    figure.traits.clips[trait]
+  ];
+}
+
+/** Moves a trait's clip by spaces. Before the haunt a clip stops at the track's lowest
+ *  value (p. 5), and it never passes the highest. A gain from a card past the
+ *  maximum is noted against that card, and a loss from that card takes the
+ *  noted spaces first (p. 11). Returns the spaces the clip actually moved. */
+export function moveClip(
+  catalog: Catalog,
+  state: GameState,
+  id: FigureId,
+  trait: Trait,
+  spaces: number,
+  card: string | null,
+): number {
+  const figure = figureOf(state, id);
+  const traits = figure.traits;
+  const top = catalog.characters[figure.definition].tracks[trait].length - 1;
+  const before = traits.clips[trait];
+  let change = spaces;
+  if (card !== null && change < 0) {
+    const noted = traits.overTop.find(
+      (o) => o.card === card && o.trait === trait,
+    );
+    if (noted) {
+      const absorbed = Math.min(noted.spaces, -change);
+      noted.spaces -= absorbed;
+      change += absorbed;
+      traits.overTop = traits.overTop.filter((o) => o.spaces > 0);
+    }
+  }
+  const after = Math.min(Math.max(before + change, 0), top);
+  const over = before + change - top;
+  if (card !== null && over > 0) {
+    const noted = traits.overTop.find(
+      (o) => o.card === card && o.trait === trait,
+    );
+    if (noted) noted.spaces += over;
+    else traits.overTop.push({ card, trait, spaces: over });
+  }
+  traits.clips[trait] = after;
+  return after - before;
+}
+
+/** A figure's name: an explorer's is its character's. */
+export function figureName(
+  catalog: Catalog,
+  state: GameState,
+  id: FigureId,
+): string {
+  return catalog.characters[figureOf(state, id).definition].name;
+}

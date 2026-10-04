@@ -12,12 +12,12 @@ import {
   type Behaviour,
   type Source,
 } from "../../engine/sources";
-import type { GameState, RuleRef, Step } from "../../types";
+import type { FigureId, GameState, RuleRef, Step } from "../../types";
 
 const FAILED = "failed";
 const ATTEMPTS = 3;
 
-function holder(source: Source): number {
+function holder(source: Source): FigureId {
   if (source.holder === null) throw new Error(`${source.id} isn't held`);
   return source.holder;
 }
@@ -42,14 +42,14 @@ export function markFailed(id: string, count: number): Step {
 export function trap(
   id: string,
   label: string,
-  failing: (seat: number, rule: RuleRef) => Step[],
+  failing: (figure: FigureId, rule: RuleRef) => Step[],
 ): Behaviour {
   const rule: RuleRef = { source: "card", card: id };
   return {
     modifiers: [
       {
         question: "canAct",
-        when: (_state, { seat }, source) => seat === source.holder,
+        when: (_state, { figure }, source) => figure === source.holder,
         change: { deny: true },
       },
     ],
@@ -59,21 +59,21 @@ export function trap(
         offeredTo: "room",
         escape: true,
         available: (state) => !(state.turn?.rolls.includes(id) ?? true),
-        steps: (_state, seat, source) => [
+        steps: (_state, figure, source) => [
           roll(
-            seat,
+            figure,
             { kind: "trait", trait: "might" },
             rule,
             table([
               {
                 min: 4,
                 max: null,
-                steps: [local(id, "freed", { seat: holder(source) })],
+                steps: [local(id, "freed", { figure: holder(source) })],
               },
               {
                 min: 0,
                 max: 3,
-                steps: [local(id, "failed"), ...failing(seat, rule)],
+                steps: [local(id, "failed"), ...failing(figure, rule)],
               },
             ]),
             { id },
@@ -85,16 +85,16 @@ export function trap(
       {
         event: "turn-started",
         when: (state, event, source) =>
-          eventData<{ seat: number }>(event).seat === source.holder &&
+          eventData<{ figure: FigureId }>(event).figure === source.holder &&
           failedAttempts(state, id) >= ATTEMPTS,
         steps: (_state, event) => [
-          local(id, "freed", { seat: eventData<{ seat: number }>(event).seat }),
+          local(id, "freed", { figure: eventData<{ figure: FigureId }>(event).figure }),
         ],
       },
     ],
     steps: {
-      freed: defineStep<{ seat: number }>((_state, p, ctx) => {
-        ctx.push(discardCard(p.seat, id));
+      freed: defineStep<{ figure: FigureId }>((_state, p, ctx) => {
+        ctx.push(discardCard(p.figure, id));
       }),
       failed: defineStep((state, _p, ctx) => {
         ctx.push(markFailed(id, failedAttempts(state, id) + 1));
@@ -106,7 +106,7 @@ export function trap(
         return `${count} failed ${count === 1 ? "attempt" : "attempts"} to break free so far`;
       },
       "card-lost": (event, words) =>
-        `${words.explorer(eventData<{ seat: number }>(event).seat)} is free, and discards the card`,
+        `${words.figure(eventData<{ figure: FigureId }>(event).figure)} is free, and discards the card`,
     },
   };
 }

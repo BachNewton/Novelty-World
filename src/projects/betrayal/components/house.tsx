@@ -11,7 +11,12 @@ import {
 } from "../engine/board";
 import type { Engine } from "../engine/step-loop";
 import type { Focus } from "./focus";
+import { allFigures, figureName } from "../engine/figures";
 import { SEAT_BG } from "./theme";
+
+/** A figure's colour: its owning seat's, or a neutral one when no seat owns it. */
+const figureBg = (owner: number | null) =>
+  owner === null ? "bg-(--bt-muted)" : SEAT_BG[owner];
 
 /** Top of the house first, the way the floors stack. */
 const FLOOR_ORDER: FloorId[] = ["roof", "upper", "ground", "basement"];
@@ -213,7 +218,7 @@ function Room({
   onAction: (action: Action) => void;
 }) {
   const room = engine.catalog.rooms[tile.tile];
-  const here = state.explorers.filter((e) => e.room === tile.tile);
+  const here = allFigures(state).filter((f) => f.place?.room === tile.tile);
   const pile = state.piles[tile.tile] ?? [];
   const tokens = state.tokens.filter((t) => t.room === tile.tile);
   const tokenName = (id: string) => engine.catalog.tokens[id].name;
@@ -247,16 +252,19 @@ function Room({
         </span>
       )}
       <span className="mt-auto flex flex-wrap gap-0.5">
-        {here.map((e) => {
-          const name = engine.catalog.characters[e.character].name;
-          const side = e.side ? `, ${sideName(state.board, e.room, e.side)} side` : "";
+        {here.map((f) => {
+          const name = figureName(engine.catalog, state, f.id);
+          const side = f.place?.side
+            ? `, ${sideName(state.board, tile.tile, f.place.side)} side`
+            : "";
+          const theirs = f.owner !== null && f.owner === current;
           return (
             <span
-              key={e.seat}
-              className={`rounded px-1 font-semibold text-(--bt-bg) ${SEAT_BG[e.seat]} ${e.seat === current ? "ring-2 ring-(--bt-ink)" : ""}`}
-              title={`${state.seats[e.seat].name}: ${name}${side}${e.seat === current ? " (their turn)" : ""}`}
+              key={f.id}
+              className={`rounded px-1 font-semibold text-(--bt-bg) ${figureBg(f.owner)} ${theirs ? "ring-2 ring-(--bt-ink)" : ""}`}
+              title={`${f.owner === null ? "" : `${state.seats[f.owner].name}: `}${name}${side}${theirs ? " (their turn)" : ""}`}
             >
-              {e.seat === current ? "▶ " : ""}
+              {theirs ? "▶ " : ""}
               {name.split(" ")[0]}
             </span>
           );
@@ -345,10 +353,11 @@ function Legend({ engine, state }: { engine: Engine; state: GameState }) {
         <span className="inline-block h-2 w-4 rounded-sm bg-(--bt-accent)" />{" "}
         highlighted: the pending choice (click to choose)
       </span>
-      {state.explorers.map((e) => (
-        <span key={e.seat} className="flex items-center gap-1">
-          <span className={`inline-block size-2.5 rounded-full ${SEAT_BG[e.seat]}`} />
-          {state.seats[e.seat].name}: {engine.catalog.characters[e.character].name}
+      {allFigures(state).map((f) => (
+        <span key={f.id} className="flex items-center gap-1">
+          <span className={`inline-block size-2.5 rounded-full ${figureBg(f.owner)}`} />
+          {f.owner === null ? "" : `${state.seats[f.owner].name}: `}
+          {figureName(engine.catalog, state, f.id)}
         </span>
       ))}
     </div>

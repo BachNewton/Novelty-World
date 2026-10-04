@@ -1,5 +1,10 @@
 import type { GameState } from "../types";
-import { TRAITS, traitValue } from "../engine/explorers";
+import {
+  allFigures,
+  figureName,
+  TRAITS,
+  traitValue,
+} from "../engine/figures";
 import type { Engine } from "../engine/step-loop";
 import { seatLabel } from "./describe";
 
@@ -10,7 +15,7 @@ export function SidePanel({
   engine: Engine;
   state: GameState;
 }) {
-  const { rooms, cards, characters } = engine.catalog;
+  const { rooms, cards } = engine.catalog;
   const piles = Object.entries(state.piles);
   return (
     <div className="flex flex-col gap-3 text-sm">
@@ -31,34 +36,37 @@ export function SidePanel({
         </dd>
       </dl>
 
-      {state.explorers.map((explorer) => {
-        const character = characters[explorer.character];
+      {allFigures(state).map((figure) => {
         return (
           <section
-            key={explorer.seat}
+            key={figure.id}
             className="rounded border border-(--bt-line) p-2"
           >
             <h3 className="font-semibold">
-              {explorer.seat}. {state.seats[explorer.seat].name}:{" "}
-              {character.name}
+              {figure.owner === null
+                ? ""
+                : `${figure.owner}. ${state.seats[figure.owner].name}: `}
+              {figureName(engine.catalog, state, figure.id)}
             </h3>
             <p className="text-(--bt-muted)">
-              In the {rooms[explorer.room].name}
+              {figure.place === null
+                ? "Off the board"
+                : `In the ${rooms[figure.place.room].name}`}
             </p>
             <ul className="mt-1 grid grid-cols-2 gap-x-3">
               {TRAITS.map((trait) => (
                 <li key={trait} className="flex justify-between">
                   <span className="capitalize text-(--bt-muted)">{trait}</span>
                   <span>
-                    {traitValue(engine.catalog, state, explorer.seat, trait)}
+                    {traitValue(engine.catalog, state, figure.id, trait)}
                   </span>
                 </li>
               ))}
             </ul>
             <p className="mt-1">
               <span className="text-(--bt-muted)">Cards: </span>
-              {explorer.cards.length > 0
-                ? explorer.cards.map((c) => cards[c].name).join(", ")
+              {figure.cards.length > 0
+                ? figure.cards.map((c) => cards[c].name).join(", ")
                 : "none"}
             </p>
           </section>

@@ -1,7 +1,7 @@
-import type { Edge, GameState, Place, RuleRef, Step } from "../types";
+import type { Edge, FigureId, GameState, Place, RuleRef, Step } from "../types";
 import { sideName } from "./board";
 import { chooseOne, defineStep, relocate, step } from "./effects";
-import { explorerAt, placeOf } from "./explorers";
+import { figureName, figureOf, placeOf } from "./figures";
 import { askSet, barrierSides, type Mover } from "./questions";
 import type { Engine, StepHandler } from "./step-loop";
 
@@ -69,51 +69,60 @@ export function distanceTo(
     : Math.min(...there.map((r) => r.distance));
 }
 
-type Closer = { seat: number; toward: string; chooser: number; rule: RuleRef };
+type Closer = {
+  figure: FigureId;
+  toward: string;
+  chooser: FigureId;
+  rule: RuleRef;
+};
 
-/** Moves an explorer 1 space closer to a room, along a shortest route by the
- *  connections they could move through. `chooser` picks among routes that
- *  tie. Already there, or with no way closer, they stay. It spends none of
- *  their movement, and leaving their room runs its rules for leaving. */
+/** Moves a figure 1 space closer to a room, along a shortest route by the
+ *  connections it could move through. The seat controlling `chooser` picks
+ *  among routes that tie. Already there, or with no way closer, it stays. It
+ *  spends none of its movement, and leaving its room runs its rules for
+ *  leaving. */
 export function moveCloser(
-  seat: number,
+  figure: FigureId,
   toward: string,
-  chooser: number,
+  chooser: FigureId,
   rule: RuleRef,
 ): Step {
-  return step<Closer>("move-closer", { seat, toward, chooser, rule });
+  return step<Closer>("move-closer", { figure, toward, chooser, rule });
 }
 
-type Cross = { seat: number; side: Edge; rule: RuleRef };
+type Cross = { figure: FigureId; side: Edge; rule: RuleRef };
 
-/** An explorer crosses their barrier room to the other side. */
-export function crossBarrier(seat: number, side: Edge, rule: RuleRef): Step {
-  return step<Cross>("cross-barrier", { seat, side, rule });
+/** A figure crosses its barrier room to the other side. */
+export function crossBarrier(
+  figure: FigureId,
+  side: Edge,
+  rule: RuleRef,
+): Step {
+  return step<Cross>("cross-barrier", { figure, side, rule });
 }
 
 export const MOVEMENT_STEPS: Record<string, StepHandler> = {
   "move-closer": defineStep<Closer>((state, p, ctx) => {
-    const mover: Mover = { kind: "explorer", seat: p.seat };
+    const mover: Mover = { kind: "figure", figure: p.figure };
     const away = (from: Place) =>
       distanceTo(ctx.engine, state, mover, from, p.toward);
-    const now = away(placeOf(state, p.seat));
+    const now = away(placeOf(state, p.figure));
     if (now === null || now === 0) return;
     const closer = askSet(ctx.engine, state, "connections", {
       mover,
-      from: placeOf(state, p.seat),
+      from: placeOf(state, p.figure),
     }).filter((next) => {
       const distance = away(next);
       return distance !== null && distance < now;
     });
     if (closer.length === 0) return;
-    const name =
-      ctx.catalog.characters[explorerAt(state, p.seat).character].name;
+    const name = figureName(ctx.catalog, state, p.figure);
     ctx.push(
       chooseOne(
         p.chooser,
         closer.map((next) => ({
           label: `Move ${name} to the ${ctx.catalog.rooms[next.room].name}${next.side === null ? "" : `, on its ${sideName(state.board, next.room, next.side)} side`}`,
-          steps: [relocate(p.seat, next.room, p.rule, next.side)],
+          steps: [relocate(p.figure, next.room, p.rule, next.side)],
         })),
         p.rule,
       ),
@@ -121,14 +130,10 @@ export const MOVEMENT_STEPS: Record<string, StepHandler> = {
   }),
 
   "cross-barrier": defineStep<Cross>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
-    if (!barrierSides(ctx.engine, explorer.room).includes(p.side))
-      throw new Error(`${explorer.room} has no ${p.side} side to cross to`);
-    explorer.side = p.side;
-    ctx.emit("crossed", p.rule, {
-      seat: p.seat,
-      room: explorer.room,
-      side: p.side,
-    });
+    const { room } = placeOf(state, p.figure);
+    if (!barrierSides(ctx.engine, room).includes(p.side))
+      throw new Error(`${room} has no ${p.side} side to cross to`);
+    figureOf(state, p.figure).place = { room, side: p.side };
+    ctx.emit("crossed", p.rule, { figure: p.figure, room, side: p.side });
   }),
 };

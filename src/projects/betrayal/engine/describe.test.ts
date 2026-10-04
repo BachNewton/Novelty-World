@@ -23,7 +23,7 @@ describe("describeEvent", () => {
           "rolled",
           { source: "room", room: "junk-room" },
           {
-            seat: 0,
+            figure: "zoe-ingstrom",
             spec: { kind: "trait", trait: "might" },
             dice: [1, 2, 0],
             named: null,
@@ -38,7 +38,7 @@ describe("describeEvent", () => {
         event(
           "trait-changed",
           { source: "card", card: "bell" },
-          { seat: 1, trait: "sanity", spaces: 1 },
+          { figure: "ox-bellows", trait: "sanity", spaces: 1 },
         ),
       ),
     ).toBe("Bell: Ox Bellows gains 1 Sanity.");
@@ -50,7 +50,7 @@ describe("describeEvent", () => {
         event(
           "entered",
           { source: "rulebook", page: 6 },
-          { seat: 0, room: "foyer", moved: true },
+          { figure: "zoe-ingstrom", room: "foyer", moved: true },
         ),
       ),
     ).toBe("Zoe Ingstrom enters the Foyer.");
@@ -59,7 +59,7 @@ describe("describeEvent", () => {
         event(
           "card-lost",
           { source: "card", card: "angel-feather" },
-          { seat: 0, card: "angel-feather", destination: { to: "discard" } },
+          { figure: "zoe-ingstrom", card: "angel-feather", destination: { to: "discard" } },
         ),
       ),
     ).toBe("Zoe Ingstrom discards the Angel Feather.");
@@ -68,11 +68,11 @@ describe("describeEvent", () => {
   it("is silent for bookkeeping another event already tells", () => {
     const rule: RuleRef = { source: "rulebook", page: 10 };
     expect(
-      text(event("card-gained", rule, { seat: 0, card: "axe", by: "drawn" })),
+      text(event("card-gained", rule, { figure: "zoe-ingstrom", card: "axe", by: "drawn" })),
     ).toBeNull();
     expect(
       text(
-        event("card-gained", rule, { seat: 0, card: "axe", by: "picked-up" }),
+        event("card-gained", rule, { figure: "zoe-ingstrom", card: "axe", by: "picked-up" }),
       ),
     ).toBe("Zoe Ingstrom picks up the Axe.");
   });
@@ -95,7 +95,7 @@ describe("describeEvent", () => {
         event(
           "stayed",
           { source: "room", room: "junk-room" },
-          { seat: 0, room: "junk-room" },
+          { figure: "zoe-ingstrom", room: "junk-room" },
         ),
       ),
     ).toBe(
@@ -106,7 +106,7 @@ describe("describeEvent", () => {
         event(
           "damage-converted",
           { source: "card", card: "skull" },
-          { seat: 0, from: "mental", to: "physical" },
+          { figure: "zoe-ingstrom", from: "mental", to: "physical" },
         ),
       ),
     ).toBe(
@@ -117,7 +117,7 @@ describe("describeEvent", () => {
         event(
           "stack-reordered",
           { source: "card", card: "it-is-meant-to-be" },
-          { seat: 0, stack: "item" },
+          { figure: "zoe-ingstrom", stack: "item" },
         ),
       ),
     ).toBe(

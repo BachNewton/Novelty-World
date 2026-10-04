@@ -14,7 +14,7 @@ export function emptyState(
     sets,
     status: "exploring",
     seats: [],
-    explorers: [],
+    figures: {},
     board: { tiles: [], stack: [], discards: [] },
     decks: {
       omen: { draw: [], discard: [] },

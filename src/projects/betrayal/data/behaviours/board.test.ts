@@ -5,10 +5,13 @@ import { drawCard } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
+  at,
   choose,
   eventTypes,
+  explorer,
   offered,
   pendingDecision,
+  put,
   testGame,
   waitingOn,
 } from "../../testing";
@@ -19,9 +22,12 @@ import type { GameState } from "../../types";
 // card's content/cards/events.md entry or the room's content/rooms.md and
 // content/rules.md entries, not from the implementation.
 
+const ZOE = "zoe-ingstrom";
+const OX = "ox-bellows";
+
 const SEEDS = Array.from({ length: 300 }, (_, i) => `seed-${i}`);
 
-type Rolled = { seat: number; dice: number[]; result: number };
+type Rolled = { figure: string; dice: number[]; result: number };
 
 function rolls(state: GameState): Rolled[] {
   return state.lastEvents
@@ -77,7 +83,7 @@ function drawHere(state: GameState, event: string): GameState {
     ...state.decks.event.draw.filter((c) => c !== event),
   ];
   return start(ENGINE, { ...state, pending: null }, [
-    drawCard(0, "event", { source: "rulebook", page: 10 }),
+    drawCard(ZOE, "event", { source: "rulebook", page: 10 }),
   ]);
 }
 
@@ -93,7 +99,7 @@ function findSeed(
   throw new Error("No seed gives that outcome");
 }
 
-const roomOf = (state: GameState, seat = 0) => state.explorers[seat].room;
+const roomOf = (state: GameState, seat = 0) => at(state, seat).room;
 const floorOf = (state: GameState, room: string) =>
   placed(state.board, room)?.floor;
 
@@ -115,10 +121,10 @@ describe("The Walls", () => {
     state = choose(state, "Put the Larder");
     expect(floorOf(state, "larder")).toBe("basement");
     expect(roomOf(state)).toBe("larder");
-    expect(state.explorers[0].cards).toContain("axe");
+    expect(explorer(state, 0).cards).toContain("axe");
     expect(eventTypes(state)).toContain("discovered");
     // Being put there spends no movement: only the exploration into the Ballroom counted.
-    expect(state.turn?.moved).toBe(1);
+    expect(state.turn?.moved).toEqual({ [ZOE]: 1 });
     expect(described(state).join(" ")).toContain("Larder is put in the house");
   });
 
@@ -155,7 +161,7 @@ describe("The Lost One", () => {
       events: ["the-voice"],
       decks: { omen: ["book"], item: ["axe"] },
       setUp: (s) => {
-        s.explorers[0].clips.knowledge = 2;
+        explorer(s, 0).traits.clips.knowledge = 2;
         setUp?.(s);
       },
     });
@@ -163,7 +169,7 @@ describe("The Lost One", () => {
 
   it("on 5+ gains 1 Knowledge and nothing else happens", () => {
     const state = findSeed(play, (s) => rolls(s)[0].result >= 5);
-    expect(state.explorers[0].clips.knowledge).toBe(3);
+    expect(explorer(state, 0).traits.clips.knowledge).toBe(3);
     expect(roomOf(state)).toBe("ballroom");
   });
 
@@ -222,13 +228,13 @@ describe("The Beckoning", () => {
           y: 9,
           rotation: 0,
         });
-        s.explorers[1].room = "gardens";
+        put(s, 1, "gardens");
       },
     });
 
   it("makes only explorers outdoors or by an outside-facing window roll Sanity", () => {
     const state = play("test-seed");
-    expect(rolls(state)[0].seat).toBe(1);
+    expect(rolls(state)[0].figure).toBe(OX);
   });
 
   it("on 0-2 puts the Patio in the house from the room stack, and you jump to it for 1 die of physical damage", () => {
@@ -242,7 +248,7 @@ describe("The Beckoning", () => {
     state = choose(state, "Put the Patio");
     expect(roomOf(state, 1)).toBe("patio");
     // The damage comes from the jump, as Ox lands.
-    expect(rolls(state).some((r) => r.seat === 1 && r.dice.length === 1)).toBe(
+    expect(rolls(state).some((r) => r.figure === OX && r.dice.length === 1)).toBe(
       true,
     );
     state = takeDamage(state);
@@ -261,7 +267,7 @@ describe("The Beckoning", () => {
               { tile: "patio", floor: "ground", x: 2, y: 1, rotation: 0 },
             );
             s.board.stack = s.board.stack.filter((t) => t !== "patio");
-            s.explorers[1].room = "gardens";
+            put(s, 1, "gardens");
           },
         }),
       (s) => rolls(s)[0].result <= 2,
@@ -284,7 +290,7 @@ describe("The Beckoning", () => {
             s.board.stack = s.board.stack.filter(
               (t) => t !== "patio" && t !== "graveyard",
             );
-            s.explorers[1].room = "graveyard";
+            put(s, 1, "graveyard");
           },
         }),
       (s) =>
@@ -294,7 +300,7 @@ describe("The Beckoning", () => {
     expect(roomOf(state, 1)).toBe("graveyard");
     expect(kind(state)).not.toBe("split-damage");
     expect(rolls(state)).toEqual([]);
-    expect(state.explorers[1].clips).toEqual(kept.explorers[1].clips);
+    expect(explorer(state, 1).traits.clips).toEqual(explorer(kept, 1).traits.clips);
   });
 });
 
@@ -311,7 +317,7 @@ describe("Mystic Slide", () => {
     expect(state.tokens).toContainEqual({ token: "slide", room: "ballroom" });
     expect(rolls(state)[0].dice).toHaveLength(
       ENGINE.catalog.characters["zoe-ingstrom"].tracks.might[
-        state.explorers[0].clips.might
+        explorer(state, 0).traits.clips.might
       ],
     );
   });
@@ -331,7 +337,7 @@ describe("Mystic Slide", () => {
     expect(roomOf(state)).toBe("larder");
     expect(rolls(state).some((r) => r.dice.length === 1)).toBe(true);
     state = takeDamage(state);
-    expect(state.explorers[0].cards).toContain("axe");
+    expect(explorer(state, 0).cards).toContain("axe");
   });
 
   it("on 0-4 with no basement tile left, you choose a basement room in play", () => {
@@ -352,7 +358,7 @@ describe("Mystic Slide", () => {
 
   it("passes to the next explorer to your left not in the basement, who draws no card for a new room off their turn", () => {
     const base = testGame({ stack: ["larder"], decks: { item: ["axe"] } });
-    base.explorers[0].room = "basement-landing";
+    put(base, 0, "basement-landing");
     const state = findSeed(
       (seed) => drawHere({ ...structuredClone(base), seed }, "mystic-slide"),
       (s) => rolls(s)[0].result <= 4,
@@ -361,10 +367,10 @@ describe("Mystic Slide", () => {
       token: "slide",
       room: "entrance-hall",
     });
-    expect(rolls(state)[0].seat).toBe(1);
+    expect(rolls(state)[0].figure).toBe(OX);
     const fallen = choose(state, "Put the Larder");
     expect(roomOf(fallen, 1)).toBe("larder");
-    expect(fallen.explorers[1].cards).toEqual([]);
+    expect(explorer(fallen, 1).cards).toEqual([]);
   });
 
   /** Zoe stands in the Attic, where a Slide lies, with no basement tile left to draw. */
@@ -380,7 +386,7 @@ describe("Mystic Slide", () => {
     state.board.stack = state.board.stack.filter(
       (t) => t !== "attic" && !BASEMENT_TILES.includes(t),
     );
-    state.explorers[0].room = "attic";
+    put(state, 0, "attic");
     state.tokens.push({ token: "slide", room: "attic" });
     return choose(state, "Use the Slide");
   }
@@ -394,7 +400,7 @@ describe("Mystic Slide", () => {
     const state = choose(kept, "Stay in the Attic");
     expect(roomOf(state)).toBe("attic");
     expect(kind(state)).toBe("turn");
-    expect(state.explorers[0].clips).toEqual(kept.explorers[0].clips);
+    expect(explorer(state, 0).traits.clips).toEqual(explorer(kept, 0).traits.clips);
   });
 
   it("is the same roll each time, so it can be tried only once a turn", () => {
@@ -408,7 +414,7 @@ describe("Mystic Slide", () => {
 
   it("is discarded when every explorer is in the basement", () => {
     const base = testGame();
-    for (const e of base.explorers) e.room = "basement-landing";
+    for (const seat of [0, 1, 2]) put(base, seat, "basement-landing");
     const state = drawHere(base, "mystic-slide");
     expect(state.tokens).toEqual([]);
     expect(state.decks.event.discard).toContain("mystic-slide");
@@ -427,10 +433,10 @@ describe("Mystic Slide", () => {
       ),
     ).toBe(false);
     const seat = state.turn?.seat ?? -1;
-    state.explorers[seat].room = "ballroom";
+    put(state, seat, "ballroom");
     expect(labels(state)).toContain("Use the Slide (Might roll)");
     state = choose(state, "Use the Slide");
-    expect(rolls(state)[0].seat).toBe(seat);
+    expect(rolls(state)[0].figure).toBe(explorer(state, seat).id);
   });
 });
 
@@ -439,7 +445,7 @@ describe("Revolving Wall", () => {
     drawEvent("revolving-wall", {
       seed,
       stack: ["dusty-hallway"],
-      setUp: (s) => (s.explorers[0].clips.knowledge = 7),
+      setUp: (s) => (explorer(s, 0).traits.clips.knowledge = 7),
     });
 
   it("offers walls with no exit, or corners: the Ballroom has a door on every wall", () => {
@@ -485,7 +491,7 @@ describe("Revolving Wall", () => {
     state = choose(state, "End your turn");
     // Ox, in the Entrance Hall, moves to the Foyer, beside the switch.
     state = choose(state, "Move to the Foyer");
-    state.explorers[1].clips.knowledge = 7;
+    explorer(state, 1).traits.clips.knowledge = 7;
     const used = findSeed(
       (seed) => choose({ ...state, seed }, "Use the Wall Switch"),
       (s) => rolls(s)[0].result >= 3,
@@ -555,7 +561,7 @@ describe("What The . . . ?", () => {
       { tile: "graveyard", x: 2, y: 1, rotation: 2 },
     ] as const;
     for (const r of rooms) state.board.tiles.push({ ...r, floor: "ground" });
-    state.explorers[0].room = "chapel";
+    put(state, 0, "chapel");
     const moved = drawHere(state, "what-the");
     expect(kind(moved)).toBe("place-tile");
     expect(labels(moved).every((l) => l.includes("on the upper floor"))).toBe(
@@ -588,9 +594,9 @@ describe("Collapsed Room", () => {
     });
     expect(rolls(state).some((r) => r.dice.length === 1)).toBe(true);
     state = takeDamage(state);
-    expect(state.explorers[0].cards).toContain("axe");
+    expect(explorer(state, 0).cards).toContain("axe");
     // Falling spends no movement: only the exploration counted.
-    expect(state.turn?.moved).toBe(1);
+    expect(state.turn?.moved).toEqual({ [ZOE]: 1 });
   });
 
   it("marks the room the faller lands in, even when its card sends them on", () => {
@@ -619,7 +625,7 @@ describe("Collapsed Room", () => {
     let state = findSeed(play, (s) => rolls(s)[0]?.result < 5);
     state = takeDamage(choose(state, "Put the Larder"));
     state = choose(state, "End your turn");
-    state.explorers[1].room = "collapsed-room";
+    put(state, 1, "collapsed-room");
     expect(labels(state)).toContain(
       "Fall to the basement (1 die of physical damage)",
     );
@@ -651,7 +657,7 @@ describe("Collapsed Room", () => {
     let state = findSeed(play, (s) => rolls(s)[0]?.result >= 5);
     state = choose(state, "End your turn");
     state = choose(state, "Move to the Foyer");
-    state.explorers[1].room = "entrance-hall";
+    put(state, 1, "entrance-hall");
     state = choose(state, "Move to the Collapsed Room");
     expect(rolls(state)).toEqual([]);
   });
@@ -702,10 +708,10 @@ describe("Mystic Elevator", () => {
 
   it("on 0 goes to the basement, then everyone in it takes 1 die of physical damage", () => {
     let state = findSeed(play, (s) => result(s) === 0);
-    state.explorers[1].room = "mystic-elevator";
+    put(state, 1, "mystic-elevator");
     state = choose(state, "Put the Mystic Elevator");
     const damageRolls = rolls(state).filter((r) => r.dice.length === 1);
-    expect(damageRolls.map((r) => r.seat)).toContain(0);
+    expect(damageRolls.map((r) => r.figure)).toContain(ZOE);
     expect(roomOf(state, 1)).toBe("mystic-elevator");
   });
 
@@ -718,6 +724,6 @@ describe("Mystic Elevator", () => {
     state = choose(choose(state, "End your turn"), "End your turn");
     // Zoe's next turn, spent in the elevator without moving: it rolls at the end.
     state = choose(state, "End your turn");
-    expect(rolls(state)[0]?.seat).toBe(0);
+    expect(rolls(state)[0]?.figure).toBe(ZOE);
   });
 });

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import type { CardType, Trait } from "../types";
 import type { NewGame } from "../engine/exploration";
-import { TRAITS } from "../engine/explorers";
+import { TRAITS } from "../engine/figures";
 import { traitName } from "../engine/describe";
 import {
   hauntCells,

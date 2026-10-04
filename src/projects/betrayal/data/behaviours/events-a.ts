@@ -18,17 +18,21 @@ import {
 } from "../../engine/effects";
 import { attack, cardAttack } from "../../engine/combat";
 import {
-  explorerAt,
+  allFigures,
+  explorersFrom,
+  figureOf,
   placeOf,
+  roomOf,
   together,
-  traitValue,
   TRAITS,
-} from "../../engine/explorers";
+  traitValue,
+} from "../../engine/figures";
 import { distanceTo } from "../../engine/movement";
 import {
   askNumber,
   askPermission,
   askSet,
+  onTurn,
   type CombatOutcome,
 } from "../../engine/questions";
 import {
@@ -40,7 +44,14 @@ import {
 } from "../../engine/sources";
 import type { StepHandler } from "../../engine/step-loop";
 import { drawRoomTile, enterNewRoom } from "../../engine/tiles";
-import type { CardType, GameState, RuleRef, Step, Trait } from "../../types";
+import type {
+  CardType,
+  FigureId,
+  GameState,
+  RuleRef,
+  Step,
+  Trait,
+} from "../../types";
 import { CATALOG } from "..";
 import { trap } from "./trapped";
 
@@ -49,47 +60,49 @@ const card = (id: string): RuleRef => ({ source: "card", card: id });
 const traitName = (trait: Trait) =>
   `${trait[0].toUpperCase()}${trait.slice(1)}`;
 
-const explorerName = (state: GameState, seat: number) =>
-  CATALOG.characters[explorerAt(state, seat).character].name;
+const explorerName = (state: GameState, figure: FigureId) =>
+  CATALOG.characters[figureOf(state, figure).definition].name;
 
 function traitRoll(
-  seat: number,
+  figure: FigureId,
   trait: Trait,
   cardId: string,
   rows: TableRow[],
 ): Step {
-  return roll(seat, { kind: "trait", trait }, card(cardId), table(rows));
-}
-
-/** Every seat in table order, starting with this one and passing left. */
-function fromSeat(state: GameState, seat: number): number[] {
-  const count = state.explorers.length;
-  return state.explorers.map((_e, i) => (seat + i) % count);
+  return roll(figure, { kind: "trait", trait }, card(cardId), table(rows));
 }
 
 /** A kept card can be told to go by several triggers in one write; only the first discards it. */
 function discardIfHeld(cardId: string): StepHandler {
-  return defineStep<{ seat: number }>((state, p, ctx) => {
-    if (explorerAt(state, p.seat).cards.includes(cardId))
-      ctx.push(discardCard(p.seat, cardId));
+  return defineStep<{ figure: FigureId }>((state, p, ctx) => {
+    if (figureOf(state, p.figure).cards.includes(cardId))
+      ctx.push(discardCard(p.figure, cardId));
   });
 }
 
 /** A turn-ended reaction for the card's holder, in one of these rooms or meeting a condition. */
 function holderTurnEnded(
-  when: (state: GameState, seat: number, room: string) => boolean,
+  when: (state: GameState, figure: FigureId, room: string) => boolean,
   cardId: string,
 ): Reaction[] {
   return [
     {
       event: "turn-ended",
       when: (state, event, source) => {
-        const { seat, room } = eventData<{ seat: number; room: string }>(event);
-        return seat === source.holder && when(state, seat, room);
+        const { figure, room } = eventData<{
+          figure: FigureId | null;
+          room: string | null;
+        }>(event);
+        return (
+          figure !== null &&
+          room !== null &&
+          figure === source.holder &&
+          when(state, figure, room)
+        );
       },
       steps: (_state, event) => [
         local(cardId, "discard", {
-          seat: eventData<{ seat: number }>(event).seat,
+          figure: eventData<{ figure: FigureId }>(event).figure,
         }),
       ],
     },
@@ -100,16 +113,16 @@ function holderTurnEnded(
 function tokenRoll(
   label: string,
   rollId: string,
-  makeRoll: (seat: number, room: string) => Step,
+  makeRoll: (figure: FigureId, room: string) => Step,
 ): Behaviour {
   return {
     actions: {
       open: {
         label,
         available: (state) => !(state.turn?.rolls.includes(rollId) ?? true),
-        steps: (_state, seat, source) => {
+        steps: (_state, figure, source) => {
           if (source.room === null) throw new Error(`${rollId} has no room`);
-          return [makeRoll(seat, source.room)];
+          return [makeRoll(figure, source.room)];
         },
       },
     },
@@ -183,7 +196,7 @@ function floorOf(state: GameState, room: string) {
  *  for that room. */
 function slideRoll(
   state: GameState,
-  seat: number,
+  figure: FigureId,
   room: string,
   draws: boolean,
 ): Step {
@@ -192,25 +205,25 @@ function slideRoll(
   // used this turn; it then has nothing new to record.
   const id = state.turn?.rolls.includes(SLIDE) ? undefined : SLIDE;
   return roll(
-    seat,
+    figure,
     { kind: "trait", trait: "might" },
     rule,
     table([
-      { min: 5, max: null, steps: [local(SLIDE, "control", { seat, room })] },
+      { min: 5, max: null, steps: [local(SLIDE, "control", { figure, room })] },
       {
         min: 0,
         max: 4,
         steps: [
           drawRoomTile(
-            seat,
+            figure,
             { kind: "doorways", floors: ["basement"], except: null },
             rule,
             {
-              then: enterNewRoom(seat, null, rule, {
+              then: enterNewRoom(figure, null, rule, {
                 draws,
-                after: [damage(seat, "physical", { dice: 1 }, rule)],
+                after: [damage(figure, "physical", { dice: 1 }, rule)],
               }),
-              otherwise: [local(SLIDE, "fall-to-basement", { seat })],
+              otherwise: [local(SLIDE, "fall-to-basement", { figure })],
             },
           ),
         ],
@@ -224,51 +237,52 @@ function slideRoll(
 export const EVENTS_A: BehaviourGroup = {
   cards: {
     "a-moment-of-hope": {
-      onDraw: (state, seat) => [
+      onDraw: (state, figure) => [
         placeToken(
           "blessing",
-          explorerAt(state, seat).room,
+          roomOf(state, figure),
           card("a-moment-of-hope"),
         ),
       ],
     },
 
     "bloody-vision": {
-      onDraw: (_state, seat) => [
-        traitRoll(seat, "sanity", "bloody-vision", [
+      onDraw: (_state, figure) => [
+        traitRoll(figure, "sanity", "bloody-vision", [
           {
             min: 4,
             max: null,
-            steps: [gain(seat, "sanity", 1, card("bloody-vision"))],
+            steps: [gain(figure, "sanity", 1, card("bloody-vision"))],
           },
           {
             min: 2,
             max: 3,
-            steps: [gain(seat, "sanity", -1, card("bloody-vision"))],
+            steps: [gain(figure, "sanity", -1, card("bloody-vision"))],
           },
           {
             min: 0,
             max: 1,
-            steps: [local("bloody-vision", "attack", { seat })],
+            steps: [local("bloody-vision", "attack", { figure })],
           },
         ]),
       ],
       steps: {
         // An explorer comes first, the one with the lowest Might (the card's
         // project ruling).
-        attack: defineStep<{ seat: number }>((state, p, ctx) => {
+        attack: defineStep<{ figure: FigureId }>((state, p, ctx) => {
           const rule = card("bloody-vision");
-          const you = explorerAt(state, p.seat);
+          const you = figureOf(state, p.figure);
           const adjacent = askSet(ctx.engine, state, "adjacency", {
-            room: you.room,
+            room: roomOf(state, p.figure),
           });
-          const targets = state.explorers.filter(
+          const targets = allFigures(state).filter(
             (e) =>
-              e.seat !== p.seat &&
-              (together(e, you) || adjacent.includes(e.room)) &&
+              e.id !== p.figure &&
+              (together(e, you) ||
+                (e.place !== null && adjacent.includes(e.place.room))) &&
               askPermission(ctx.engine, state, "canAttack", {
-                attacker: p.seat,
-                defender: e.seat,
+                attacker: p.figure,
+                defender: e.id,
               }).allowed,
           );
           if (targets.length === 0) {
@@ -278,20 +292,20 @@ export const EVENTS_A: BehaviourGroup = {
               "Bloody Vision's attack on a monster needs monsters, which come with the haunt",
             );
           }
-          const might = (seat: number) =>
-            traitValue(ctx.catalog, state, seat, "might");
-          const lowest = Math.min(...targets.map((e) => might(e.seat)));
-          const weakest = targets.filter((e) => might(e.seat) === lowest);
-          const attackOn = (seat: number) =>
-            attack({ kind: "explorer", seat: p.seat }, seat, rule);
+          const might = (figure: FigureId) =>
+            traitValue(ctx.catalog, state, figure, "might");
+          const lowest = Math.min(...targets.map((e) => might(e.id)));
+          const weakest = targets.filter((e) => might(e.id) === lowest);
+          const attackOn = (figure: FigureId) =>
+            attack({ kind: "figure", figure: p.figure }, figure, rule);
           ctx.push(
             weakest.length === 1
-              ? attackOn(weakest[0].seat)
+              ? attackOn(weakest[0].id)
               : chooseOne(
-                  p.seat,
+                  p.figure,
                   weakest.map((e) => ({
-                    label: `Attack ${explorerName(state, e.seat)}`,
-                    steps: [attackOn(e.seat)],
+                    label: `Attack ${explorerName(state, e.id)}`,
+                    steps: [attackOn(e.id)],
                   })),
                   rule,
                 ),
@@ -301,22 +315,22 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "burning-man": {
-      onDraw: (_state, seat) => {
+      onDraw: (_state, figure) => {
         const rule = card("burning-man");
         return [
-          traitRoll(seat, "sanity", "burning-man", [
-            { min: 4, max: null, steps: [gain(seat, "sanity", 1, rule)] },
+          traitRoll(figure, "sanity", "burning-man", [
+            { min: 4, max: null, steps: [gain(figure, "sanity", 1, rule)] },
             {
               min: 2,
               max: 3,
-              steps: [relocate(seat, "entrance-hall", rule)],
+              steps: [relocate(figure, "entrance-hall", rule)],
             },
             {
               min: 0,
               max: 1,
               steps: [
-                damage(seat, "physical", { dice: 1 }, rule),
-                damage(seat, "mental", { dice: 1 }, rule),
+                damage(figure, "physical", { dice: 1 }, rule),
+                damage(figure, "mental", { dice: 1 }, rule),
               ],
             },
           ]),
@@ -325,26 +339,25 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "closet-door": {
-      onDraw: (state, seat) => [
-        placeToken("closet", explorerAt(state, seat).room, card("closet-door")),
+      onDraw: (state, figure) => [
+        placeToken("closet", roomOf(state, figure), card("closet-door")),
       ],
     },
 
     "creepy-puppet": {
-      onDraw: (state, seat) => [
+      onDraw: (state, figure) => [
         cardAttack(
-          state,
-          seat,
+          figure,
           "might",
           4,
           card("creepy-puppet"),
-          local("creepy-puppet", "spear", { seat }),
+          local("creepy-puppet", "spear", { figure }),
         ),
       ],
       steps: {
         // The Spear's holder gains only if the attack dealt the drawer
         // damage; with no holder the gain lapses (the card's project ruling).
-        spear: defineStep<{ seat: number; outcome: CombatOutcome }>(
+        spear: defineStep<{ figure: FigureId; outcome: CombatOutcome }>(
           (state, p, ctx) => {
             const rule = card("creepy-puppet");
             const { loser, damage: dealt } = p.outcome;
@@ -352,56 +365,56 @@ export const EVENTS_A: BehaviourGroup = {
               loser === "defender" &&
               dealt !== null &&
               askNumber(ctx.engine, state, "damageAmount", {
-                seat: p.seat,
+                figure: p.figure,
                 damage: dealt.kind,
                 amount: dealt.points,
                 rule,
               }) > 0;
-            const spear = state.explorers.find((e) =>
+            const spear = allFigures(state).find((e) =>
               e.cards.includes("spear"),
             );
-            if (hurt && spear && spear.seat !== p.seat)
-              ctx.push(gain(spear.seat, "might", 2, rule));
+            if (hurt && spear && spear.id !== p.figure)
+              ctx.push(gain(spear.id, "might", 2, rule));
           },
         ),
       },
     },
 
     "creepy-crawlies": {
-      onDraw: (_state, seat) => {
+      onDraw: (_state, figure) => {
         const rule = card("creepy-crawlies");
         return [
-          traitRoll(seat, "sanity", "creepy-crawlies", [
-            { min: 5, max: null, steps: [gain(seat, "sanity", 1, rule)] },
-            { min: 1, max: 4, steps: [gain(seat, "sanity", -1, rule)] },
-            { min: 0, max: 0, steps: [gain(seat, "sanity", -2, rule)] },
+          traitRoll(figure, "sanity", "creepy-crawlies", [
+            { min: 5, max: null, steps: [gain(figure, "sanity", 1, rule)] },
+            { min: 1, max: 4, steps: [gain(figure, "sanity", -1, rule)] },
+            { min: 0, max: 0, steps: [gain(figure, "sanity", -2, rule)] },
           ]),
         ];
       },
     },
 
     debris: {
-      onDraw: (_state, seat) => [
-        traitRoll(seat, "speed", "debris", [
+      onDraw: (_state, figure) => [
+        traitRoll(figure, "speed", "debris", [
           {
             min: 3,
             max: null,
-            steps: [gain(seat, "speed", 1, card("debris"))],
+            steps: [gain(figure, "speed", 1, card("debris"))],
           },
           {
             min: 1,
             max: 2,
             steps: [
-              keepCard(seat, "debris"),
-              damage(seat, "physical", { dice: 1 }, card("debris")),
+              keepCard(figure, "debris"),
+              damage(figure, "physical", { dice: 1 }, card("debris")),
             ],
           },
           {
             min: 0,
             max: 0,
             steps: [
-              keepCard(seat, "debris"),
-              damage(seat, "physical", { dice: 2 }, card("debris")),
+              keepCard(figure, "debris"),
+              damage(figure, "physical", { dice: 2 }, card("debris")),
             ],
           },
         ]),
@@ -412,60 +425,60 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "disquieting-sounds": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("disquieting-sounds");
         const omens = state.omensDrawn;
         const rows: TableRow[] = [
-          { min: omens, max: null, steps: [gain(seat, "sanity", 1, rule)] },
+          { min: omens, max: null, steps: [gain(figure, "sanity", 1, rule)] },
         ];
         if (omens > 0)
           rows.push({
             min: 0,
             max: omens - 1,
-            steps: [damage(seat, "mental", { dice: 1 }, rule)],
+            steps: [damage(figure, "mental", { dice: 1 }, rule)],
           });
-        return [roll(seat, { kind: "dice", count: 6 }, rule, table(rows))];
+        return [roll(figure, { kind: "dice", count: 6 }, rule, table(rows))];
       },
     },
 
     "drip-drip-drip": {
-      onDraw: (state, seat) => [
+      onDraw: (state, figure) => [
         placeToken(
           "drip",
-          explorerAt(state, seat).room,
+          roomOf(state, figure),
           card("drip-drip-drip"),
         ),
       ],
     },
 
     footsteps: {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("footsteps");
-        const inChapel = explorerAt(state, seat).room === "chapel";
+        const inChapel = roomOf(state, figure) === "chapel";
         const nearest = (trait: Trait, amount: number) =>
-          local("footsteps", "nearest", { seat, trait, amount });
+          local("footsteps", "nearest", { figure, trait, amount });
         return [
           roll(
-            seat,
+            figure,
             { kind: "dice", count: inChapel ? 2 : 1 },
             rule,
             table([
               {
                 min: 4,
                 max: 4,
-                steps: [gain(seat, "might", 1, rule), nearest("might", 1)],
+                steps: [gain(figure, "might", 1, rule), nearest("might", 1)],
               },
               {
                 min: 3,
                 max: 3,
-                steps: [gain(seat, "might", 1, rule), nearest("sanity", -1)],
+                steps: [gain(figure, "might", 1, rule), nearest("sanity", -1)],
               },
-              { min: 2, max: 2, steps: [gain(seat, "sanity", -1, rule)] },
-              { min: 1, max: 1, steps: [gain(seat, "speed", -1, rule)] },
+              { min: 2, max: 2, steps: [gain(figure, "sanity", -1, rule)] },
+              { min: 1, max: 1, steps: [gain(figure, "speed", -1, rule)] },
               {
                 min: 0,
                 max: 0,
-                steps: fromSeat(state, seat).map((each) =>
+                steps: explorersFrom(state, figure).map((each) =>
                   chooseOne(
                     each,
                     TRAITS.map((trait) => ({
@@ -482,18 +495,18 @@ export const EVENTS_A: BehaviourGroup = {
       },
       steps: {
         // Nearest is the fewest rooms along a route; the drawer breaks a tie.
-        nearest: defineStep<{ seat: number; trait: Trait; amount: number }>(
+        nearest: defineStep<{ figure: FigureId; trait: Trait; amount: number }>(
           (state, p, ctx) => {
             const rule = card("footsteps");
-            const from = placeOf(state, p.seat);
-            const others = state.explorers.flatMap((e) => {
-              if (e.seat === p.seat) return [];
+            const from = placeOf(state, p.figure);
+            const others = allFigures(state).flatMap((e) => {
+              if (e.id === p.figure) return [];
               const distance = distanceTo(
                 ctx.engine,
                 state,
-                { kind: "explorer", seat: p.seat },
+                { kind: "figure", figure: p.figure },
                 from,
-                e.room,
+                roomOf(state, e.id),
               );
               return distance === null ? [] : [{ e, distance }];
             });
@@ -503,12 +516,12 @@ export const EVENTS_A: BehaviourGroup = {
             const closest = Math.min(...others.map((o) => o.distance));
             ctx.push(
               chooseOne(
-                p.seat,
+                p.figure,
                 others
                   .filter((o) => o.distance === closest)
                   .map(({ e }) => ({
-                    label: `${explorerName(state, e.seat)} is the nearest explorer`,
-                    steps: [gain(e.seat, p.trait, p.amount, rule)],
+                    label: `${explorerName(state, e.id)} is the nearest explorer`,
+                    steps: [gain(e.id, p.trait, p.amount, rule)],
                   })),
                 rule,
               ),
@@ -519,9 +532,9 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     funeral: {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("funeral");
-        const here = explorerAt(state, seat).room;
+        const here = roomOf(state, figure);
         const rooms = ["graveyard", "crypt"].filter((room) =>
           placed(state.board, room),
         );
@@ -530,24 +543,24 @@ export const EVENTS_A: BehaviourGroup = {
             ? []
             : [
                 chooseOne(
-                  seat,
+                  figure,
                   rooms.map((room) => ({
                     label: `Go to the ${CATALOG.rooms[room].name}`,
-                    steps: room === here ? [] : [relocate(seat, room, rule)],
+                    steps: room === here ? [] : [relocate(figure, room, rule)],
                   })),
                   rule,
                 ),
               ];
         return [
-          traitRoll(seat, "sanity", "funeral", [
-            { min: 4, max: null, steps: [gain(seat, "sanity", 1, rule)] },
-            { min: 2, max: 3, steps: [gain(seat, "sanity", -1, rule)] },
+          traitRoll(figure, "sanity", "funeral", [
+            { min: 4, max: null, steps: [gain(figure, "sanity", 1, rule)] },
+            { min: 2, max: 3, steps: [gain(figure, "sanity", -1, rule)] },
             {
               min: 0,
               max: 1,
               steps: [
-                gain(seat, "sanity", -1, rule),
-                gain(seat, "might", -1, rule),
+                gain(figure, "sanity", -1, rule),
+                gain(figure, "might", -1, rule),
                 ...putIn,
               ],
             },
@@ -557,24 +570,24 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "grave-dirt": {
-      onDraw: (_state, seat) => [
-        traitRoll(seat, "might", "grave-dirt", [
+      onDraw: (_state, figure) => [
+        traitRoll(figure, "might", "grave-dirt", [
           {
             min: 4,
             max: null,
-            steps: [gain(seat, "might", 1, card("grave-dirt"))],
+            steps: [gain(figure, "might", 1, card("grave-dirt"))],
           },
-          { min: 0, max: 3, steps: [keepCard(seat, "grave-dirt")] },
+          { min: 0, max: 3, steps: [keepCard(figure, "grave-dirt")] },
         ]),
       ],
       reactions: [
         {
           event: "turn-started",
           when: (_state, event, source) =>
-            eventData<{ seat: number }>(event).seat === source.holder,
+            eventData<{ figure: FigureId }>(event).figure === source.holder,
           steps: (_state, event) => [
             damage(
-              eventData<{ seat: number }>(event).seat,
+              eventData<{ figure: FigureId }>(event).figure,
               "physical",
               { points: 1 },
               card("grave-dirt"),
@@ -584,12 +597,12 @@ export const EVENTS_A: BehaviourGroup = {
         {
           event: "trait-changed",
           when: (_state, event, source) => {
-            const { seat, spaces } = eventData<{
-              seat: number;
+            const { figure, spaces } = eventData<{
+              figure: FigureId;
               spaces: number;
             }>(event);
             return (
-              seat === source.holder &&
+              figure === source.holder &&
               spaces > 0 &&
               event.rule.source === "card" &&
               CATALOG.cards[event.rule.card].type === "item"
@@ -597,7 +610,7 @@ export const EVENTS_A: BehaviourGroup = {
           },
           steps: (_state, event) => [
             local("grave-dirt", "discard", {
-              seat: eventData<{ seat: number }>(event).seat,
+              figure: eventData<{ figure: FigureId }>(event).figure,
             }),
           ],
         },
@@ -610,25 +623,25 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     groundskeeper: {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("groundskeeper");
         return [
           roll(
-            seat,
+            figure,
             { kind: "trait", trait: "knowledge" },
             rule,
             table([
-              { min: 4, max: null, steps: [drawCard(seat, "item", rule)] },
+              { min: 4, max: null, steps: [drawCard(figure, "item", rule)] },
               {
                 min: 0,
                 max: 3,
                 steps: [
-                  cardAttack(state, seat, "might", 4, card("groundskeeper")),
+                  cardAttack(figure, "might", 4, card("groundskeeper")),
                 ],
               },
             ]),
             {
-              extraDice: explorerAt(state, seat).room === "gardens" ? -2 : 0,
+              extraDice: roomOf(state, figure) === "gardens" ? -2 : 0,
             },
           ),
         ];
@@ -636,21 +649,21 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "hanged-men": {
-      onDraw: (_state, seat) => [
+      onDraw: (_state, figure) => [
         local("hanged-men", "next", {
-          seat,
+          figure,
           traits: [...TRAITS],
           passed: true,
         }),
       ],
       steps: {
-        next: defineStep<{ seat: number; traits: Trait[]; passed: boolean }>(
+        next: defineStep<{ figure: FigureId; traits: Trait[]; passed: boolean }>(
           (_state, p, ctx) => {
             const rule = card("hanged-men");
             if (p.traits.length > 0) {
               ctx.push(
                 roll(
-                  p.seat,
+                  p.figure,
                   { kind: "trait", trait: p.traits[0] },
                   rule,
                   local("hanged-men", "rolled", p),
@@ -659,10 +672,10 @@ export const EVENTS_A: BehaviourGroup = {
             } else if (p.passed) {
               ctx.push(
                 chooseOne(
-                  p.seat,
+                  p.figure,
                   TRAITS.map((trait) => ({
                     label: `Gain 1 ${traitName(trait)}`,
-                    steps: [gain(p.seat, trait, 1, rule)],
+                    steps: [gain(p.figure, trait, 1, rule)],
                   })),
                   rule,
                 ),
@@ -671,17 +684,17 @@ export const EVENTS_A: BehaviourGroup = {
           },
         ),
         rolled: defineStep<{
-          seat: number;
+          figure: FigureId;
           traits: Trait[];
           passed: boolean;
           result: number;
         }>((_state, p, ctx) => {
           const [trait, ...rest] = p.traits;
           if (p.result <= 1)
-            ctx.push(gain(p.seat, trait, -1, card("hanged-men")));
+            ctx.push(gain(p.figure, trait, -1, card("hanged-men")));
           ctx.push(
             local("hanged-men", "next", {
-              seat: p.seat,
+              figure: p.figure,
               traits: rest,
               passed: p.passed && p.result >= 2,
             }),
@@ -691,9 +704,9 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "hideous-shriek": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("hideous-shriek");
-        return fromSeat(state, seat).map((each) =>
+        return explorersFrom(state, figure).map((each) =>
           traitRoll(each, "sanity", "hideous-shriek", [
             { min: 4, max: null, steps: [] },
             {
@@ -712,13 +725,13 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "image-in-the-mirror-give": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("image-in-the-mirror-give");
-        const items = (s: number) =>
-          explorerAt(state, s).cards.filter(
+        const items = (each: FigureId) =>
+          figureOf(state, each).cards.filter(
             (c) => CATALOG.cards[c].type === "item",
           );
-        const affected = fromSeat(state, seat).find((s) => items(s).length > 0);
+        const affected = explorersFrom(state, figure).find((s) => items(s).length > 0);
         if (affected === undefined) return [];
         return [
           chooseOne(
@@ -735,24 +748,24 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "image-in-the-mirror-take": {
-      onDraw: (_state, seat) => [
-        drawCard(seat, "item", card("image-in-the-mirror-take")),
+      onDraw: (_state, figure) => [
+        drawCard(figure, "item", card("image-in-the-mirror-take")),
       ],
     },
 
     "it-is-meant-to-be": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card(MEANT);
         return [
           chooseOne(
-            seat,
+            figure,
             [
               ...(stacks(state).length > 0
                 ? [
                     {
                       label:
                         "Look at the top 3 tiles or cards of a stack and put them back in any order",
-                      steps: [local(MEANT, "pick-stack", { seat })],
+                      steps: [local(MEANT, "pick-stack", { figure })],
                     },
                   ]
                 : []),
@@ -760,10 +773,10 @@ export const EVENTS_A: BehaviourGroup = {
                 label: "Roll 4 dice and record the total for a later roll",
                 steps: [
                   roll(
-                    seat,
+                    figure,
                     { kind: "dice", count: 4 },
                     rule,
-                    local(MEANT, "record", { seat }),
+                    local(MEANT, "record", { figure }),
                   ),
                 ],
               },
@@ -785,24 +798,24 @@ export const EVENTS_A: BehaviourGroup = {
           when: (_state, event) =>
             eventData<{ card: string }>(event).card === MEANT,
           steps: (_state, event) => [
-            discardCard(eventData<{ seat: number }>(event).seat, MEANT),
+            discardCard(eventData<{ figure: FigureId }>(event).figure, MEANT),
           ],
         },
       ],
       steps: {
-        "pick-stack": defineStep<{ seat: number }>((state, { seat }, ctx) => {
+        "pick-stack": defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
           ctx.push(
             chooseOne(
-              seat,
+              figure,
               stacks(state).map((stack) => ({
                 label: `Look at the top of the ${STACK_NAMES[stack]}`,
-                steps: [local(MEANT, "look", { seat, stack })],
+                steps: [local(MEANT, "look", { figure, stack })],
               })),
               card(MEANT),
             ),
           );
         }),
-        look: defineStep<{ seat: number; stack: Stack }>((state, p, ctx) => {
+        look: defineStep<{ figure: FigureId; stack: Stack }>((state, p, ctx) => {
           const orders = permutations(stackOf(state, p.stack).slice(0, 3));
           const putBack = (order: string[]) =>
             local(MEANT, "put-back", { ...p, order });
@@ -812,7 +825,7 @@ export const EVENTS_A: BehaviourGroup = {
           }
           ctx.push(
             chooseOne(
-              p.seat,
+              p.figure,
               orders.map((order) => ({
                 label: `Put them back, top first: ${order.map((id) => stackItemName(p.stack, id)).join(", ")}`,
                 steps: [putBack(order)],
@@ -821,7 +834,7 @@ export const EVENTS_A: BehaviourGroup = {
             ),
           );
         }),
-        "put-back": defineStep<{ seat: number; stack: Stack; order: string[] }>(
+        "put-back": defineStep<{ figure: FigureId; stack: Stack; order: string[] }>(
           (state, p, ctx) => {
             const pile = stackOf(state, p.stack);
             const top = pile.slice(0, p.order.length);
@@ -829,15 +842,15 @@ export const EVENTS_A: BehaviourGroup = {
               throw new Error(`The top of the ${p.stack} stack has changed`);
             pile.splice(0, p.order.length, ...p.order);
             ctx.emit("stack-reordered", card(MEANT), {
-              seat: p.seat,
+              figure: p.figure,
               stack: p.stack,
             });
           },
         ),
-        record: defineStep<{ seat: number; result: number }>(
+        record: defineStep<{ figure: FigureId; result: number }>(
           (_state, p, ctx) => {
             ctx.push(
-              keepCard(p.seat, MEANT),
+              keepCard(p.figure, MEANT),
               markCard(MEANT, RECORDED, p.result, "holder", card(MEANT)),
             );
           },
@@ -847,56 +860,56 @@ export const EVENTS_A: BehaviourGroup = {
         "card-marked": (event) =>
           `The total ${String(eventData<{ value: number }>(event).value)} is recorded for a later roll`,
         "stack-reordered": (event, words) => {
-          const d = eventData<{ seat: number; stack: Stack }>(event);
-          return `${words.explorer(d.seat)} looks at the top of the ${STACK_NAMES[d.stack]} and puts them back in an order only they know`;
+          const d = eventData<{ figure: FigureId; stack: Stack }>(event);
+          return `${words.figure(d.figure)} looks at the top of the ${STACK_NAMES[d.stack]} and puts them back in an order only they know`;
         },
       },
     },
 
     "jonahs-turn": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("jonahs-turn");
-        const holder = state.explorers.find((e) =>
+        const holder = allFigures(state).find((e) =>
           e.cards.includes("puzzle-box"),
         );
-        if (!holder) return [damage(seat, "mental", { dice: 1 }, rule)];
+        if (!holder) return [damage(figure, "mental", { dice: 1 }, rule)];
         return [
-          discardCard(holder.seat, "puzzle-box"),
-          drawCard(holder.seat, "item", rule),
-          gain(seat, "sanity", 1, rule),
+          discardCard(holder.id, "puzzle-box"),
+          drawCard(holder.id, "item", rule),
+          gain(figure, "sanity", 1, rule),
         ];
       },
     },
 
     "lights-out": {
-      onDraw: (state, seat) =>
-        explorerAt(state, seat).cards.includes("candle")
+      onDraw: (state, figure) =>
+        figureOf(state, figure).cards.includes("candle")
           ? []
-          : [keepCard(seat, "lights-out")],
+          : [keepCard(figure, "lights-out")],
       modifiers: [
         {
           question: "movement",
-          when: (_state, subject, source) => subject.seat === source.holder,
+          when: (_state, subject, source) => subject.figure === source.holder,
           change: { atMost: 1 },
         },
       ],
       reactions: [
         ...holderTurnEnded(
-          (state, seat, room) =>
+          (state, figure, room) =>
             room === "furnace-room" ||
-            state.explorers.some(
-              (e) => e.seat !== seat && together(e, explorerAt(state, seat)),
+            allFigures(state).some(
+              (e) => e.id !== figure && together(e, figureOf(state, figure)),
             ),
           "lights-out",
         ),
         {
           event: "card-gained",
           when: (_state, event, source) => {
-            const gained = eventData<{ seat: number; card: string }>(event);
-            return gained.card === "candle" && gained.seat === source.holder;
+            const gained = eventData<{ figure: FigureId; card: string }>(event);
+            return gained.card === "candle" && gained.figure === source.holder;
           },
           steps: (_state, _event, source) => [
-            local("lights-out", "discard", { seat: source.holder }),
+            local("lights-out", "discard", { figure: source.holder }),
           ],
         },
       ],
@@ -904,22 +917,22 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "locked-safe": {
-      onDraw: (state, seat) => [
-        placeToken("safe", explorerAt(state, seat).room, card("locked-safe")),
+      onDraw: (state, figure) => [
+        placeToken("safe", roomOf(state, figure), card("locked-safe")),
       ],
     },
 
     "mists-from-the-walls": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure) => {
         const rule = card("mists-from-the-walls");
-        return fromSeat(state, seat)
+        return explorersFrom(state, figure)
           .filter(
             (each) =>
-              placed(state.board, explorerAt(state, each).room)?.floor ===
+              placed(state.board, roomOf(state, each))?.floor ===
               "basement",
           )
           .map((each) => {
-            const room = explorerAt(state, each).room;
+            const room = roomOf(state, each);
             const extra = CATALOG.rooms[room].symbols.includes("event") ? 1 : 0;
             return traitRoll(each, "sanity", "mists-from-the-walls", [
               { min: 4, max: null, steps: [] },
@@ -939,46 +952,46 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "mystic-slide": {
-      onDraw: (state, seat) => {
+      onDraw: (state, figure, engine) => {
         // In the basement, the event passes left to the first explorer who isn't.
-        const affected = fromSeat(state, seat).find(
-          (each) => floorOf(state, explorerAt(state, each).room) !== "basement",
+        const affected = explorersFrom(state, figure).find(
+          (each) => floorOf(state, roomOf(state, each)) !== "basement",
         );
         if (affected === undefined) return [];
-        const room = explorerAt(state, affected).room;
+        const room = roomOf(state, affected);
         return [
           placeToken("slide", room, card(SLIDE)),
-          slideRoll(state, affected, room, state.turn?.seat === affected),
+          slideRoll(state, affected, room, onTurn(engine, state, affected)),
         ];
       },
       steps: {
-        control: defineStep<{ seat: number; room: string }>((state, p, ctx) => {
+        control: defineStep<{ figure: FigureId; room: string }>((state, p, ctx) => {
           const below = FLOORS.slice(0, FLOORS.indexOf(floorOf(state, p.room)));
           ctx.push(
             chooseOne(
-              p.seat,
+              p.figure,
               state.board.tiles
                 .filter((t) => below.includes(t.floor))
                 .map((t) => ({
                   label: `Slide down to the ${ctx.catalog.rooms[t.tile].name}`,
-                  steps: [relocate(p.seat, t.tile, card(SLIDE))],
+                  steps: [relocate(p.figure, t.tile, card(SLIDE))],
                 })),
               card(SLIDE),
             ),
           );
         }),
-        "fall-to-basement": defineStep<{ seat: number }>((state, p, ctx) => {
+        "fall-to-basement": defineStep<{ figure: FigureId }>((state, p, ctx) => {
           const rule = card(SLIDE);
           ctx.push(
             chooseOne(
-              p.seat,
+              p.figure,
               state.board.tiles
                 .filter((t) => t.floor === "basement")
                 .map((t) => ({
                   label: `Fall to the ${ctx.catalog.rooms[t.tile].name}`,
                   steps: [
-                    relocate(p.seat, t.tile, rule, null, [
-                      damage(p.seat, "physical", { dice: 1 }, rule),
+                    relocate(p.figure, t.tile, rule, null, [
+                      damage(p.figure, "physical", { dice: 1 }, rule),
                     ]),
                   ],
                 })),
@@ -997,14 +1010,14 @@ export const EVENTS_A: BehaviourGroup = {
       modifiers: [
         {
           question: "dicePool",
-          when: (state, { seat, roll: r }, source) => {
+          when: (state, { figure, roll: r }, source) => {
             if (state.status !== "exploring")
               throw new Error(
                 "The Blessing is for heroes only, and the haunt doesn't record sides yet",
               );
             return (
               r.spec.kind === "trait" &&
-              explorerAt(state, seat).room === source.room
+              roomOf(state, figure) === source.room
             );
           },
           change: { add: 1 },
@@ -1017,9 +1030,9 @@ export const EVENTS_A: BehaviourGroup = {
         use: {
           label: "Use the Slide (Might roll)",
           available: (state) => !(state.turn?.rolls.includes(SLIDE) ?? true),
-          steps: (state, seat, source) => {
+          steps: (state, figure, source) => {
             if (source.room === null) throw new Error("The Slide has no room");
-            return [slideRoll(state, seat, source.room, true)];
+            return [slideRoll(state, figure, source.room, true)];
           },
         },
       },
@@ -1029,20 +1042,20 @@ export const EVENTS_A: BehaviourGroup = {
     closet: tokenRoll(
       "Open the Closet (roll 2 dice)",
       "closet",
-      (seat, room) => {
+      (figure, room) => {
         const rule = card("closet-door");
         return roll(
-          seat,
+          figure,
           { kind: "dice", count: 2 },
           rule,
           table([
-            { min: 4, max: null, steps: [drawCard(seat, "item", rule)] },
-            { min: 2, max: 3, steps: [drawCard(seat, "event", rule)] },
+            { min: 4, max: null, steps: [drawCard(figure, "item", rule)] },
+            { min: 2, max: 3, steps: [drawCard(figure, "event", rule)] },
             {
               min: 0,
               max: 1,
               steps: [
-                drawCard(seat, "event", rule),
+                drawCard(figure, "event", rule),
                 removeToken("closet", room, rule),
               ],
             },
@@ -1056,19 +1069,19 @@ export const EVENTS_A: BehaviourGroup = {
       modifiers: [
         {
           question: "dicePool",
-          when: (state, { seat, roll: r }, source) =>
+          when: (state, { figure, roll: r }, source) =>
             r.spec.kind === "trait" &&
-            explorerAt(state, seat).room === source.room,
+            roomOf(state, figure) === source.room,
           change: { fewer: 1, minimum: 1 },
         },
       ],
     },
 
     // You must be in the Safe's room to roll (project ruling, cards/events.md).
-    safe: tokenRoll("Open the Safe (Knowledge roll)", "safe", (seat, room) => {
+    safe: tokenRoll("Open the Safe (Knowledge roll)", "safe", (figure, room) => {
       const rule = card("locked-safe");
       return roll(
-        seat,
+        figure,
         { kind: "trait", trait: "knowledge" },
         rule,
         table([
@@ -1076,20 +1089,20 @@ export const EVENTS_A: BehaviourGroup = {
             min: 5,
             max: null,
             steps: [
-              drawCard(seat, "item", rule),
-              drawCard(seat, "item", rule),
+              drawCard(figure, "item", rule),
+              drawCard(figure, "item", rule),
               removeToken("safe", room, rule),
             ],
           },
           {
             min: 2,
             max: 4,
-            steps: [damage(seat, "physical", { dice: 1 }, rule)],
+            steps: [damage(figure, "physical", { dice: 1 }, rule)],
           },
           {
             min: 0,
             max: 1,
-            steps: [damage(seat, "physical", { dice: 2 }, rule)],
+            steps: [damage(figure, "physical", { dice: 2 }, rule)],
           },
         ]),
         { id: "safe" },

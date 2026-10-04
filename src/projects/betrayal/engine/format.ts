@@ -2,10 +2,15 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 4;
+export const STATE_FORMAT = 5;
+
+type JsonObject = { [key: string]: Json };
+
+const isObject = (value: Json | undefined): value is JsonObject =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Migrations by the format they upgrade from, each to the next format. */
-type Migration = (state: { [key: string]: Json }) => { [key: string]: Json };
+type Migration = (state: JsonObject) => JsonObject;
 const MIGRATIONS: Partial<Record<number, Migration>> = {
   // Format 2 adds marks on cards and turns that end early.
   1: (state) => {
@@ -51,6 +56,96 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
             : o,
         ),
       },
+    };
+  },
+  // Format 5 keeps every piece on the board as a figure, by id (an
+  // explorer's is its character), where format 4 kept one explorer per seat,
+  // and counts the turn's movement and attack per figure. Work in progress
+  // names explorers by seat, and what it means can't be read from its data,
+  // so only a state with no work queued and no decision pending but the
+  // turn's own can be carried over. Last events are dropped: they name
+  // explorers by seat too, and only animate the write that made them.
+  4: (state) => {
+    const explorers = Array.isArray(state.explorers) ? state.explorers : [];
+    const pending = state.pending;
+    const work = state.work;
+    if (
+      (Array.isArray(work) && work.length > 0) ||
+      (isObject(pending) &&
+        pending.type === "decision" &&
+        pending.kind !== "turn")
+    )
+      throw new Error(
+        "A format 4 state paused partway through an effect can't be carried over",
+      );
+    const idOf = (seat: Json | undefined): string => {
+      const explorer = explorers.find((e) => isObject(e) && e.seat === seat);
+      if (!isObject(explorer) || typeof explorer.character !== "string")
+        throw new Error(`Seat ${JSON.stringify(seat)} has no explorer`);
+      return explorer.character;
+    };
+    const figures: JsonObject = {};
+    for (const e of explorers) {
+      if (!isObject(e) || typeof e.character !== "string") continue;
+      figures[e.character] = {
+        id: e.character,
+        kind: "explorer",
+        definition: e.character,
+        owner: e.seat ?? null,
+        place: { room: e.room ?? null, side: e.side ?? null },
+        traits: { kind: "track", clips: e.clips ?? {}, overTop: e.overTop ?? [] },
+        cards: e.cards ?? [],
+        statuses: [],
+        stunned: false,
+        alive: true,
+      };
+    }
+    const tokens = Array.isArray(state.tokens)
+      ? state.tokens.map((t) =>
+          isObject(t) && "holder" in t
+            ? { ...t, holder: idOf(t.holder) }
+            : t,
+        )
+      : state.tokens;
+    const marks = isObject(state.cardMarks)
+      ? Object.fromEntries(
+          Object.entries(state.cardMarks).map(([card, byName]) => {
+            if (!isObject(byName) || !isObject(byName["drawn-by"]))
+              return [card, byName];
+            const drawn = byName["drawn-by"];
+            return [
+              card,
+              { ...byName, "drawn-by": { ...drawn, value: idOf(drawn.value) } },
+            ];
+          }),
+        )
+      : state.cardMarks;
+    const turn = state.turn;
+    const mover = isObject(turn) ? idOf(turn.seat) : null;
+    const rest = { ...state };
+    delete rest.explorers;
+    return {
+      ...rest,
+      figures,
+      tokens,
+      cardMarks: marks,
+      turn:
+        isObject(turn) && mover !== null
+          ? {
+              ...turn,
+              moved: typeof turn.moved === "number" ? { [mover]: turn.moved } : {},
+              movementEnded: turn.movementEnded === true ? [mover] : [],
+              attacked: turn.attacked === true ? [mover] : [],
+              omens: Array.isArray(turn.omens)
+                ? turn.omens.map((o) => {
+                    if (!isObject(o)) return o;
+                    const { seat, ...omen } = o;
+                    return { ...omen, figure: idOf(seat) };
+                  })
+                : [],
+            }
+          : null,
+      lastEvents: [],
     };
   },
 };

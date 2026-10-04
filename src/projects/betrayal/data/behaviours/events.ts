@@ -8,26 +8,26 @@ const card = (id: string): RuleRef => ({ source: "card", card: id });
 export const EVENTS: BehaviourGroup = {
   cards: {
     "angry-being": {
-      onDraw: (_state, seat) => {
+      onDraw: (_state, figure) => {
         const rule = card("angry-being");
         return [
           roll(
-            seat,
+            figure,
             { kind: "trait", trait: "speed" },
             rule,
             table([
-              { min: 5, max: null, steps: [gain(seat, "speed", 1, rule)] },
+              { min: 5, max: null, steps: [gain(figure, "speed", 1, rule)] },
               {
                 min: 2,
                 max: 4,
-                steps: [damage(seat, "mental", { dice: 1 }, rule)],
+                steps: [damage(figure, "mental", { dice: 1 }, rule)],
               },
               {
                 min: 0,
                 max: 1,
                 steps: [
-                  damage(seat, "mental", { dice: 1 }, rule),
-                  damage(seat, "physical", { dice: 1 }, rule),
+                  damage(figure, "mental", { dice: 1 }, rule),
+                  damage(figure, "physical", { dice: 1 }, rule),
                 ],
               },
             ]),

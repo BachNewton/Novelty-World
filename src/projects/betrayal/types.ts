@@ -203,18 +203,40 @@ export type Place = {
   side: Edge | null;
 };
 
-export interface Explorer {
-  seat: number;
-  character: string;
-  room: string;
-  /** In a barrier room, the side they are on (see Place). */
-  side?: Edge;
+/** A piece on the board, and what rules act on: "you" in card and room text
+ *  means whoever is acting or affected, explorer or monster. An explorer's id
+ *  is its character's id. */
+export type FigureId = string;
+
+export type FigureKind = "explorer" | "monster" | "ally" | "object";
+
+/** A figure's traits. An explorer's are clip positions on its character's
+ *  tracks; other kinds of figure will add their own forms. */
+export type FigureTraits = {
+  kind: "track";
   /** Each trait's clip, as an index into the character's track. */
   clips: Record<Trait, number>;
   /** Spaces a card pushed a trait past its printed maximum. Losing the card takes these first (p. 11). */
   overTop: { card: string; trait: Trait; spaces: number }[];
-  /** Items, omens, and events the explorer keeps, in the order gained. */
+};
+
+export interface Figure {
+  id: FigureId;
+  kind: FigureKind;
+  /** What it is in the catalogue: an explorer's character. */
+  definition: string;
+  /** The seat whose piece it is, if any. Who controls it is a question, not
+   *  this field: its base answer is the owner. */
+  owner: number | null;
+  /** Null while it is off the board. */
+  place: Place | null;
+  traits: FigureTraits;
+  /** Items, omens, and events the figure keeps, in the order gained. */
   cards: string[];
+  /** Statuses rule sources have put on it, by id. */
+  statuses: string[];
+  stunned: boolean;
+  alive: boolean;
 }
 
 export interface Deck {
@@ -225,7 +247,7 @@ export interface Deck {
 
 /** A counter or flag kept on a card in play. */
 export interface CardMark {
-  value: number | boolean;
+  value: number | boolean | string;
   /** "holder": it belongs to whoever holds the card (a worn Mask), so it is
    *  cleared when the card leaves them. "play": it belongs to the card itself
    *  (an open Music Box), so it stays while the card lies in a room or changes
@@ -244,17 +266,18 @@ export interface RoomToken {
   side?: Edge;
   /** Where the other end of a linked pair is (Secret Passage, Secret Stairs). */
   link?: Place;
-  /** A token that goes wherever this seat's explorer goes (the Dog). */
-  holder?: number;
+  /** A token that goes wherever this figure goes (the Dog). */
+  holder?: FigureId;
 }
 
-/** What has happened this turn, for the rules that limit actions per turn. */
+/** What has happened this turn, for the rules that limit actions per turn.
+ *  The turn is a seat's; movement and the attack are counted per figure. */
 export interface Turn {
   seat: number;
-  /** Spaces of movement spent. */
-  moved: number;
-  /** Drawing a card ends movement for the rest of the turn (p. 6). */
-  movementEnded: boolean;
+  /** Spaces of movement each figure has spent. */
+  moved: Partial<Record<FigureId, number>>;
+  /** Figures whose movement has ended: drawing a card ends it for the rest of the turn (p. 6). */
+  movementEnded: FigureId[];
   /** Rolls attempted: the same roll can't be attempted twice in a turn (p. 12). */
   rolls: string[];
   /** Cards used, traded, dropped or picked up: each card allows one such action a turn (p. 11). */
@@ -263,14 +286,14 @@ export interface Turn {
   dropRoom: string | null;
   pickupRoom: string | null;
   traded: boolean;
-  /** The turn's one attack, after the haunt, has been made (p. 13), or
-   *  something used it instead (the Dynamite). */
-  attacked: boolean;
+  /** Figures whose one attack this turn, after the haunt, has been made
+   *  (p. 13), or that something used instead (the Dynamite). */
+  attacked: FigureId[];
   /** Something ended the turn early: the turn ends at the next chance to act. */
   over: boolean;
   /** Omens drawn this turn, who drew each and the room they drew it in: the
    *  drawer makes its haunt roll at the end of the turn. */
-  omens: { card: string; seat: number; room: string }[];
+  omens: { card: string; figure: FigureId; room: string }[];
 }
 
 export type Haunt = {
@@ -287,8 +310,8 @@ export interface GameState {
   sets: SetId[];
   status: "lobby" | "exploring" | "haunt" | "finished";
   seats: Seat[];
-  /** One per seat, in seat order. */
-  explorers: Explorer[];
+  /** Every piece on the board (or off it), by id. */
+  figures: Record<FigureId, Figure>;
   board: Board;
   decks: Record<CardType, Deck>;
   /** Item piles by room. */

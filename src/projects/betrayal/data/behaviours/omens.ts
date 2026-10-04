@@ -16,7 +16,7 @@ import {
   takeFromPile,
   type CardDestination,
 } from "../../engine/effects";
-import { explorerAt, placeOf } from "../../engine/explorers";
+import { figureOf, placeOf, roomOf } from "../../engine/figures";
 import { routeDistances } from "../../engine/movement";
 import type { Mover } from "../../engine/questions";
 import {
@@ -26,7 +26,7 @@ import {
   type BehaviourGroup,
 } from "../../engine/sources";
 import type { Engine } from "../../engine/step-loop";
-import type { GameState, RuleRef, Step, Trait } from "../../types";
+import type { FigureId, GameState, RuleRef, Step, Trait } from "../../types";
 import { CATALOG } from "..";
 
 const card = (id: string): RuleRef => ({ source: "card", card: id });
@@ -34,32 +34,32 @@ const card = (id: string): RuleRef => ({ source: "card", card: id });
 /** An omen that changes traits while you have it: the changes when you get it, reversed when you lose it.
  *  Only a gain is tied to the card, so that losing the card takes back the spaces it pushed past the maximum (p. 11). */
 function heldTraits(id: string, changes: [Trait, number][]): Behaviour {
-  const apply = (seat: number, sign: 1 | -1) =>
+  const apply = (figure: FigureId, sign: 1 | -1) =>
     changes.map(([trait, amount]) =>
-      gain(seat, trait, sign * amount, card(id), amount > 0 ? id : null),
+      gain(figure, trait, sign * amount, card(id), amount > 0 ? id : null),
     );
   return {
-    onGain: (_state, seat) => apply(seat, 1),
-    onLose: (_state, seat) => apply(seat, -1),
+    onGain: (_state, figure) => apply(figure, 1),
+    onLose: (_state, figure) => apply(figure, -1),
   };
 }
 
 /** Putting the Mask on: gain 2 Knowledge and lose 2 Sanity. Taking it off reverses that. Only the
  *  gain is tied to the card, as with the omens that change traits while held. */
-function maskTraits(seat: number, sign: 1 | -1): Step[] {
+function maskTraits(figure: FigureId, sign: 1 | -1): Step[] {
   return [
-    gain(seat, "knowledge", 2 * sign, card("mask"), "mask"),
-    gain(seat, "sanity", -2 * sign, card("mask")),
+    gain(figure, "knowledge", 2 * sign, card("mask"), "mask"),
+    gain(figure, "sanity", -2 * sign, card("mask")),
   ];
 }
 
-const maskOn = (seat: number): Step[] => [
-  ...maskTraits(seat, 1),
+const maskOn = (figure: FigureId): Step[] => [
+  ...maskTraits(figure, 1),
   markCard("mask", "worn", true, "holder", card("mask")),
 ];
 
-const maskOff = (seat: number): Step[] => [
-  ...maskTraits(seat, -1),
+const maskOff = (figure: FigureId): Step[] => [
+  ...maskTraits(figure, -1),
   markCard("mask", "worn", false, "holder", card("mask")),
 ];
 
@@ -68,16 +68,16 @@ const MEDALLION_ROOMS = ["pentagram-chamber", "crypt", "graveyard"];
 /** Whether an explorer is immune to a room's effects because they hold the Medallion. */
 export function immuneToRoom(
   state: GameState,
-  seat: number,
+  figure: FigureId,
   room: string,
 ): boolean {
   return (
     MEDALLION_ROOMS.includes(room) &&
-    explorerAt(state, seat).cards.includes("medallion")
+    figureOf(state, figure).cards.includes("medallion")
   );
 }
 
-type Search = { seat: number; type: "item" | "event" };
+type Search = { figure: FigureId; type: "item" | "event" };
 
 const DOG = card("dog");
 /** The small monster token standing for the Dog. Before the haunt no monster
@@ -98,18 +98,18 @@ const NO_DOG = [
 ];
 const DOG_RANGE = 6;
 
-const dogMover = (seat: number): Mover => ({
+const dogMover = (holder: FigureId): Mover => ({
   kind: "companion",
   card: "dog",
-  seat,
+  holder,
 });
 
 /** The rooms the Dog can run to, by doors and stairs: never across a barrier,
  *  which takes a roll, and never out of a room it couldn't leave. */
-function dogRuns(engine: Engine, state: GameState, seat: number): string[] {
-  const here = placeOf(state, seat);
+function dogRuns(engine: Engine, state: GameState, figure: FigureId): string[] {
+  const here = placeOf(state, figure);
   if (NO_DOG.includes(here.room)) return [];
-  const rooms = routeDistances(engine, state, dogMover(seat), here, false)
+  const rooms = routeDistances(engine, state, dogMover(figure), here, false)
     .filter(
       (r) =>
         r.distance > 0 &&
@@ -120,12 +120,12 @@ function dogRuns(engine: Engine, state: GameState, seat: number): string[] {
   return [...new Set(rooms)].sort();
 }
 
-const dogTraits = (seat: number, sign: 1 | -1) => [
-  gain(seat, "might", sign, DOG, sign > 0 ? "dog" : null),
-  gain(seat, "sanity", sign, DOG, sign > 0 ? "dog" : null),
+const dogTraits = (figure: FigureId, sign: 1 | -1) => [
+  gain(figure, "might", sign, DOG, sign > 0 ? "dog" : null),
+  gain(figure, "sanity", sign, DOG, sign > 0 ? "dog" : null),
 ];
 
-type DogRun = { seat: number; room: string };
+type DogRun = { figure: FigureId; room: string };
 type DogCarry = DogRun & { card: string };
 
 /** The Dog: its token follows its holder, and once a turn it runs to a room
@@ -133,13 +133,13 @@ type DogCarry = DogRun & { card: string };
  *  with its holder, so it never holds an item between turns (the card's
  *  project rulings). */
 const DOG_BEHAVIOUR: Behaviour = {
-  onGain: (state, seat) => [
-    ...dogTraits(seat, 1),
-    placeToken(DOG_TOKEN, explorerAt(state, seat).room, DOG, { holder: seat }),
+  onGain: (state, figure) => [
+    ...dogTraits(figure, 1),
+    placeToken(DOG_TOKEN, roomOf(state, figure), DOG, { holder: figure }),
   ],
-  onLose: (state, seat) => [
-    ...dogTraits(seat, -1),
-    removeToken(DOG_TOKEN, explorerAt(state, seat).room, DOG),
+  onLose: (state, figure) => [
+    ...dogTraits(figure, -1),
+    removeToken(DOG_TOKEN, roomOf(state, figure), DOG),
   ],
   modifiers: [
     {
@@ -147,26 +147,26 @@ const DOG_BEHAVIOUR: Behaviour = {
       when: (_state, { mover }, source) =>
         mover.kind === "companion" &&
         mover.card === "dog" &&
-        mover.seat === source.holder,
+        mover.holder === source.holder,
       change: { remove: () => NO_DOG },
     },
   ],
   actions: {
     run: {
       label: `Send the Dog to a room up to ${DOG_RANGE} spaces away and back`,
-      available: (state, seat, _source, engine) =>
-        dogRuns(engine, state, seat).length > 0,
-      steps: (_state, seat) => [local("dog", "run", { seat })],
+      available: (state, figure, _source, engine) =>
+        dogRuns(engine, state, figure).length > 0,
+      steps: (_state, figure) => [local("dog", "run", { figure })],
     },
   },
   steps: {
-    run: defineStep<{ seat: number }>((state, p, ctx) => {
+    run: defineStep<{ figure: FigureId }>((state, p, ctx) => {
       ctx.push(
         chooseOne(
-          p.seat,
-          dogRuns(ctx.engine, state, p.seat).map((room) => ({
+          p.figure,
+          dogRuns(ctx.engine, state, p.figure).map((room) => ({
             label: `Send the Dog to the ${CATALOG.rooms[room].name}`,
-            steps: [local("dog", "there", { seat: p.seat, room })],
+            steps: [local("dog", "there", { figure: p.figure, room })],
           })),
           DOG,
         ),
@@ -181,7 +181,7 @@ const DOG_BEHAVIOUR: Behaviour = {
           label: `The Dog brings back the ${CATALOG.cards[c].name}`,
           steps: [local("dog", "fetch", { ...p, card: c })],
         }));
-      const leave = explorerAt(state, p.seat)
+      const leave = figureOf(state, p.figure)
         .cards.filter(
           (c) =>
             isItem(c) && CATALOG.cards[c].transfer.drop && !isHandled(state, c),
@@ -192,7 +192,7 @@ const DOG_BEHAVIOUR: Behaviour = {
         }));
       ctx.push(
         chooseOne(
-          p.seat,
+          p.figure,
           [
             ...fetch,
             ...leave,
@@ -206,24 +206,24 @@ const DOG_BEHAVIOUR: Behaviour = {
     fetch: defineStep<DogCarry>((state, p, ctx) => {
       takeFromPile(state, p.room, p.card);
       handle(state, p.card);
-      ctx.push(gainCard(p.seat, p.card, "picked-up", DOG));
+      ctx.push(gainCard(p.figure, p.card, "picked-up", DOG));
     }),
     leave: defineStep<DogCarry>((state, p, ctx) => {
       handle(state, p.card);
-      ctx.push(loseCard(p.seat, p.card, { to: "room", room: p.room }, DOG));
+      ctx.push(loseCard(p.figure, p.card, { to: "room", room: p.room }, DOG));
     }),
   },
   describe: {
     "dog-ran": (event, words) => {
       const d = eventData<DogRun>(event);
-      return `${words.explorer(d.seat)}'s Dog runs to the ${words.room(d.room)}`;
+      return `${words.figure(d.figure)}'s Dog runs to the ${words.room(d.room)}`;
     },
     "token-placed": (event, words) =>
       `The Dog's token goes in the ${words.room(eventData<{ room: string }>(event).room)}, and goes wherever its holder goes`,
     "token-removed": () => "The Dog's token is taken away",
     "card-gained": (event, words) => {
-      const d = eventData<{ seat: number; card: string }>(event);
-      return `The Dog brings ${words.explorer(d.seat)} the ${words.card(d.card)}`;
+      const d = eventData<{ figure: FigureId; card: string }>(event);
+      return `The Dog brings ${words.figure(d.figure)} the ${words.card(d.card)}`;
     },
     "card-lost": (event, words) => {
       const d = eventData<{ card: string; destination: CardDestination }>(
@@ -240,8 +240,8 @@ const DOG_BEHAVIOUR: Behaviour = {
 export const OMENS: BehaviourGroup = {
   cards: {
     bite: {
-      onDraw: (state, seat) => [
-        cardAttack(state, seat, "might", 4, card("bite")),
+      onDraw: (state, figure) => [
+        cardAttack(figure, "might", 4, card("bite")),
       ],
     },
     book: heldTraits("book", [["knowledge", 2]]),
@@ -261,21 +261,21 @@ export const OMENS: BehaviourGroup = {
         gaze: {
           label: "Look into the Crystal Ball (Knowledge roll)",
           available: (state) => state.status === "haunt",
-          steps: (_state, seat) => {
+          steps: (_state, figure) => {
             const rule = card("crystal-ball");
             return [
               roll(
-                seat,
+                figure,
                 { kind: "trait", trait: "knowledge" },
                 rule,
                 table([
                   {
                     min: 4,
                     max: null,
-                    steps: [local("crystal-ball", "search", { seat })],
+                    steps: [local("crystal-ball", "search", { figure })],
                   },
-                  { min: 1, max: 3, steps: [gain(seat, "sanity", -1, rule)] },
-                  { min: 0, max: 0, steps: [gain(seat, "sanity", -2, rule)] },
+                  { min: 1, max: 3, steps: [gain(figure, "sanity", -1, rule)] },
+                  { min: 0, max: 0, steps: [gain(figure, "sanity", -2, rule)] },
                 ]),
               ),
             ];
@@ -284,34 +284,34 @@ export const OMENS: BehaviourGroup = {
       },
       steps: {
         // Only the undrawn stack is searched, never the discards (1st-edition FAQ).
-        search: defineStep<{ seat: number }>((state, { seat }, ctx) => {
+        search: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
           const rule = card("crystal-ball");
           const types = (["item", "event"] as const).filter(
             (type) => state.decks[type].draw.length > 0,
           );
           if (types.length === 0) {
-            ctx.emit("search-found-nothing", rule, { seat });
+            ctx.emit("search-found-nothing", rule, { figure });
             return;
           }
           ctx.push(
             chooseOne(
-              seat,
+              figure,
               types.map((type) => ({
                 label: `Search the ${type} stack`,
-                steps: [local("crystal-ball", "pick", { seat, type })],
+                steps: [local("crystal-ball", "pick", { figure, type })],
               })),
               rule,
             ),
           );
         }),
-        pick: defineStep<Search>((state, { seat, type }, ctx) => {
+        pick: defineStep<Search>((state, { figure, type }, ctx) => {
           ctx.push(
             chooseOne(
-              seat,
+              figure,
               state.decks[type].draw.map((chosen) => ({
                 label: `Put the ${CATALOG.cards[chosen].name} on top of the ${type} stack`,
                 steps: [
-                  local("crystal-ball", "stack", { seat, type, card: chosen }),
+                  local("crystal-ball", "stack", { figure, type, card: chosen }),
                 ],
               })),
               card("crystal-ball"),
@@ -325,7 +325,7 @@ export const OMENS: BehaviourGroup = {
             ...ctx.random.shuffle(deck.draw.filter((c) => c !== p.card)),
           ];
           ctx.emit("deck-stacked", card("crystal-ball"), {
-            seat: p.seat,
+            figure: p.figure,
             type: p.type,
             card: p.card,
           });
@@ -338,16 +338,16 @@ export const OMENS: BehaviourGroup = {
         use: {
           label: "Use the Mask (Sanity roll)",
           available: () => true,
-          steps: (_state, seat) => [
+          steps: (_state, figure) => [
             roll(
-              seat,
+              figure,
               { kind: "trait", trait: "sanity" },
               card("mask"),
               table([
                 {
                   min: 4,
                   max: null,
-                  steps: [local("mask", "put-on-or-off", { seat })],
+                  steps: [local("mask", "put-on-or-off", { figure })],
                 },
                 { min: 0, max: 3, steps: [] },
               ]),
@@ -356,16 +356,16 @@ export const OMENS: BehaviourGroup = {
         },
       },
       steps: {
-        "put-on-or-off": defineStep<{ seat: number }>(
-          (state, { seat }, ctx) => {
+        "put-on-or-off": defineStep<{ figure: FigureId }>(
+          (state, { figure }, ctx) => {
             const worn = cardFlag(state, "mask", "worn");
             ctx.push(
               chooseOne(
-                seat,
+                figure,
                 [
                   worn
-                    ? { label: "Take off the Mask", steps: maskOff(seat) }
-                    : { label: "Put on the Mask", steps: maskOn(seat) },
+                    ? { label: "Take off the Mask", steps: maskOff(figure) }
+                    : { label: "Put on the Mask", steps: maskOn(figure) },
                   {
                     label: worn ? "Keep the Mask on" : "Leave the Mask off",
                     steps: [],
@@ -378,8 +378,8 @@ export const OMENS: BehaviourGroup = {
         ),
       },
       // A project ruling: losing the Mask while wearing it takes it off.
-      onLose: (state, seat) =>
-        cardFlag(state, "mask", "worn") ? maskTraits(seat, -1) : [],
+      onLose: (state, figure) =>
+        cardFlag(state, "mask", "worn") ? maskTraits(figure, -1) : [],
       describe: {
         "card-marked": (event) =>
           eventData<{ value: boolean }>(event).value
@@ -401,17 +401,18 @@ export const OMENS: BehaviourGroup = {
         look: {
           label: "Use the Spirit Board: look at the top room tile",
           // The card's effect after the haunt (moving monsters) waits for the haunt milestone.
-          available: (state) =>
+          available: (state, figure) =>
             state.status === "exploring" &&
-            state.turn?.moved === 0 &&
+            state.turn !== null &&
+            (state.turn.moved[figure] ?? 0) === 0 &&
             state.board.stack.length > 0,
-          steps: (_state, seat) => [local("spirit-board", "look", { seat })],
+          steps: (_state, figure) => [local("spirit-board", "look", { figure })],
         },
       },
       steps: {
-        look: defineStep<{ seat: number }>((state, { seat }, ctx) => {
+        look: defineStep<{ figure: FigureId }>((state, { figure }, ctx) => {
           ctx.emit("room-stack-seen", card("spirit-board"), {
-            seat,
+            figure,
             tile: state.board.stack[0],
           });
         }),

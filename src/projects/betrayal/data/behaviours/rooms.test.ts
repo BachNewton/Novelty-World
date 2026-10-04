@@ -4,21 +4,26 @@ import { relocate } from "../../engine/effects";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
+  at,
   choose,
   eventTypes,
+  explorer,
   offered,
   pendingDecision,
+  put,
   testGame,
 } from "../../testing";
 import type { FloorId, GameState, Trait } from "../../types";
 
 // Each room's tests come from its content/rooms.md entry, not from its implementation.
 
+const ZOE = "zoe-ingstrom";
+
 /** Zoe, seat 0, standing in a room placed beside a starting tile on one of its floors. */
 function standingIn(room: string, floor: FloorId): GameState {
   const state = testGame();
   state.board.tiles.push({ tile: room, floor, x: 0, y: -1, rotation: 0 });
-  state.explorers[0].room = room;
+  put(state, 0, room);
   return state;
 }
 
@@ -34,12 +39,12 @@ describe.each<[string, FloorId, Trait]>([
 ])("%s (rooms.md)", (room, floor, trait) => {
   it(`gains 1 ${trait} for ending a turn there, once per game for each explorer`, () => {
     let state = standingIn(room, floor);
-    const before = state.explorers[0].clips[trait];
+    const before = explorer(state, 0).traits.clips[trait];
     state = choose(state, "End your turn");
-    expect(state.explorers[0].clips[trait]).toBe(before + 1);
+    expect(explorer(state, 0).traits.clips[trait]).toBe(before + 1);
     expect(state.tokens).toContainEqual({ token: "explorer-yellow", room });
     state = choose(roundTheTable(state), "End your turn");
-    expect(state.explorers[0].clips[trait]).toBe(before + 1);
+    expect(explorer(state, 0).traits.clips[trait]).toBe(before + 1);
   });
 });
 
@@ -55,10 +60,10 @@ describe.each<[string, "physical" | "mental", string[]]>([
       `Take 1 ${traits[0]} and 0 ${traits[1]}`,
       `Take 0 ${traits[0]} and 1 ${traits[1]}`,
     ]);
-    const before = state.explorers[0].clips;
+    const before = explorer(state, 0).traits.clips;
     state = choose(state, `Take 1 ${traits[0]}`);
     const trait = traits[0].toLowerCase() as Trait;
-    expect(state.explorers[0].clips[trait]).toBe(before[trait] - 1);
+    expect(explorer(state, 0).traits.clips[trait]).toBe(before[trait] - 1);
     expect(state.turn?.seat).toBe(1);
   });
 });
@@ -66,17 +71,17 @@ describe.each<[string, "physical" | "mental", string[]]>([
 describe("Medallion (cards/omens.md)", () => {
   it("makes its holder immune to the Crypt", () => {
     let state = standingIn("crypt", "basement");
-    state.explorers[0].cards.push("medallion");
-    const before = state.explorers[0].clips;
+    explorer(state, 0).cards.push("medallion");
+    const before = explorer(state, 0).traits.clips;
     state = choose(state, "End your turn");
     expect(eventTypes(state)).not.toContain("damaged");
-    expect(state.explorers[0].clips).toEqual(before);
+    expect(explorer(state, 0).traits.clips).toEqual(before);
     expect(state.turn?.seat).toBe(1);
   });
 
   it("doesn't protect from the Furnace Room", () => {
     let state = standingIn("furnace-room", "basement");
-    state.explorers[0].cards.push("medallion");
+    explorer(state, 0).cards.push("medallion");
     state = choose(state, "End your turn");
     expect(pendingDecision(state).kind).toBe("split-damage");
   });
@@ -86,8 +91,8 @@ describe("Coal Chute (rooms.md, rules p. 7)", () => {
   it("slides whoever enters it to the Basement Landing, the two together costing 1 space", () => {
     let state = testGame({ stack: ["coal-chute"] });
     state = choose(state, "Explore through the north door");
-    expect(state.explorers[0].room).toBe("basement-landing");
-    expect(state.turn?.moved).toBe(1);
+    expect(at(state, 0).room).toBe("basement-landing");
+    expect(state.turn?.moved).toEqual({ [ZOE]: 1 });
     expect(
       state.lastEvents
         .filter((e) => e.type === "entered")
@@ -109,9 +114,9 @@ describe.each<[string, FloorId, Trait, number, Trait]>([
   /** Zoe holds the Angel Feather, which names the roll's result, and a card puts her in the Entrance Hall. */
   function leaving(): GameState {
     const state = standingIn(room, floor);
-    state.explorers[0].cards.push("angel-feather");
+    explorer(state, 0).cards.push("angel-feather");
     return start(ENGINE, { ...state, pending: null }, [
-      relocate(0, "entrance-hall", { source: "card", card: "bottle" }),
+      relocate(ZOE, "entrance-hall", { source: "card", card: "bottle" }),
     ]);
   }
 
@@ -120,27 +125,27 @@ describe.each<[string, FloorId, Trait, number, Trait]>([
     expect(pendingDecision(state).params).toMatchObject({
       spec: { kind: "trait", trait },
     });
-    const before = state.explorers[0].clips;
+    const before = explorer(state, 0).traits.clips;
     state = choose(state, `the result is ${target}`);
-    expect(state.explorers[0].room).toBe("entrance-hall");
-    expect(state.explorers[0].clips).toEqual(before);
+    expect(at(state, 0).room).toBe("entrance-hall");
+    expect(explorer(state, 0).traits.clips).toEqual(before);
   });
 
   it(`on a failure, loses 1 ${loss} and still leaves`, () => {
     let state = choose(leaving(), `the result is ${target - 1}`);
-    expect(state.explorers[0].room).toBe(room);
-    const before = state.explorers[0].clips[loss];
+    expect(at(state, 0).room).toBe(room);
+    const before = explorer(state, 0).traits.clips[loss];
     state = choose(state, "and keep going");
-    expect(state.explorers[0].clips[loss]).toBe(before - 1);
-    expect(state.explorers[0].room).toBe("entrance-hall");
+    expect(explorer(state, 0).traits.clips[loss]).toBe(before - 1);
+    expect(at(state, 0).room).toBe("entrance-hall");
   });
 
   it("on a failure, may stay in the room instead, without the loss (official ruling)", () => {
     let state = choose(leaving(), `the result is ${target - 1}`);
-    const before = state.explorers[0].clips;
+    const before = explorer(state, 0).traits.clips;
     state = choose(state, "Stay in the");
-    expect(state.explorers[0].room).toBe(room);
-    expect(state.explorers[0].clips).toEqual(before);
+    expect(at(state, 0).room).toBe(room);
+    expect(explorer(state, 0).traits.clips).toEqual(before);
     expect(eventTypes(state)).toContain("stayed");
   });
 });
@@ -158,8 +163,8 @@ describe("Junk Room (rooms.md, rules p. 7)", () => {
       ...neighbourCell(hall, "top"),
       rotation: 0,
     });
-    state.explorers[0].room = "junk-room";
-    state.explorers[0].cards.push("angel-feather", "axe");
+    put(state, 0, "junk-room");
+    explorer(state, 0).cards.push("angel-feather", "axe");
     state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
     return state;
   }
@@ -168,15 +173,15 @@ describe("Junk Room (rooms.md, rules p. 7)", () => {
     let state = choose(inJunkRoom(), "Move to the Entrance Hall");
     expect(pendingDecision(state).kind).toBe("roll-before");
     state = choose(state, "the result is 3");
-    expect(state.explorers[0].room).toBe("entrance-hall");
-    expect(state.turn?.moved).toBe(1);
+    expect(at(state, 0).room).toBe("entrance-hall");
+    expect(state.turn?.moved).toEqual({ [ZOE]: 1 });
   });
 
   it("an explorer who stays tries again on a later turn: no more movement this turn", () => {
     let state = choose(inJunkRoom(), "Move to the Entrance Hall");
     state = choose(choose(state, "the result is 2"), "Stay in the Junk Room");
-    expect(state.explorers[0].room).toBe("junk-room");
-    expect(state.turn?.moved).toBe(0);
+    expect(at(state, 0).room).toBe("junk-room");
+    expect(state.turn?.moved).toEqual({});
     const labels = offered(state).map((c) => c.label);
     expect(labels.some((l) => l.startsWith("Move to"))).toBe(false);
     expect(labels.some((l) => l.startsWith("Explore"))).toBe(false);
@@ -187,25 +192,25 @@ describe("Junk Room (rooms.md, rules p. 7)", () => {
     const state = inJunkRoom();
     if (!state.turn) throw new Error("No turn");
     // Speed 5, with 4 spaces moved: the loss brings it to 4, under the 5 spaces this move makes.
-    state.explorers[0].clips.speed = 4;
-    state.turn.moved = 4;
+    explorer(state, 0).traits.clips.speed = 4;
+    state.turn.moved = { [ZOE]: 4 };
     const out = choose(
       choose(choose(state, "Move to the Entrance Hall"), "the result is 0"),
       "Lose 1 Speed",
     );
-    expect(out.explorers[0].room).toBe("entrance-hall");
-    expect(out.turn?.moved).toBe(5);
+    expect(at(out, 0).room).toBe("entrance-hall");
+    expect(out.turn?.moved).toEqual({ [ZOE]: 5 });
   });
 });
 
 describe("Medallion and leaving (cards/omens.md)", () => {
   it("leaves the Graveyard without a roll", () => {
     const state = standingIn("graveyard", "ground");
-    state.explorers[0].cards.push("medallion");
+    explorer(state, 0).cards.push("medallion");
     const after = start(ENGINE, { ...state, pending: null }, [
-      relocate(0, "entrance-hall", { source: "card", card: "bottle" }),
+      relocate(ZOE, "entrance-hall", { source: "card", card: "bottle" }),
     ]);
     expect(eventTypes(after)).not.toContain("rolled");
-    expect(after.explorers[0].room).toBe("entrance-hall");
+    expect(at(after, 0).room).toBe("entrance-hall");
   });
 });

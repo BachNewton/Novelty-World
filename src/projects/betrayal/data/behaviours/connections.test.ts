@@ -6,10 +6,13 @@ import { askSet } from "../../engine/questions";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
 import {
+  at,
   choose,
   eventTypes,
+  explorer,
   offered,
   pendingDecision,
+  put,
   testGame,
 } from "../../testing";
 import type { GameState, PlacedTile, RuleRef } from "../../types";
@@ -19,10 +22,13 @@ import type { GameState, PlacedTile, RuleRef } from "../../types";
 // the entry in content/cards/ or content/rooms.md and content/rules.md, not
 // from the implementation.
 
+const ZOE = "zoe-ingstrom";
+const OX = "ox-bellows";
+
 const SEEDS = Array.from({ length: 300 }, (_, i) => `seed-${i}`);
 const RULE: RuleRef = { source: "rulebook", page: 6 };
 
-type Rolled = { seat: number; result: number };
+type Rolled = { figure: string; result: number };
 
 const rolls = (state: GameState): Rolled[] =>
   state.lastEvents
@@ -70,14 +76,11 @@ function lay(state: GameState, tiles: PlacedTile[]): void {
 const run = (state: GameState, ...steps: Parameters<typeof start>[2]) =>
   start(ENGINE, { ...state, pending: null }, steps);
 
-const roomOf = (state: GameState, seat = 0) => state.explorers[seat].room;
+const roomOf = (state: GameState, seat = 0) => at(state, seat).room;
 const explorerMoves = (state: GameState, seat = 0) =>
   askSet(ENGINE, state, "connections", {
-    mover: { kind: "explorer", seat },
-    from: {
-      room: state.explorers[seat].room,
-      side: state.explorers[seat].side ?? null,
-    },
+    mover: { kind: "figure", figure: explorer(state, seat).id },
+    from: at(state, seat),
   }).map((p) => p.room);
 
 describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
@@ -89,7 +92,7 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
       { tile: "chasm", floor: "basement", x: 1, y: 0, rotation: 0 },
       { tile: "furnace-room", floor: "basement", x: 2, y: 0, rotation: 0 },
     ]);
-    state.explorers[0].room = "basement-landing";
+    put(state, 0, "basement-landing");
     return state;
   }
   const intoChasm = (seed?: string) =>
@@ -100,7 +103,7 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
     expect(labels(nextToChasm())).toContain(
       "Move to the Chasm, on its west side",
     );
-    expect(state.explorers[0].side).toBe("left");
+    expect(at(state, 0).side).toBe("left");
     expect(explorerMoves(state)).toEqual(["basement-landing"]);
     expect(labels(state)).toContain("Try to cross (Speed roll of 3+)");
   });
@@ -110,8 +113,8 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
       (seed) => choose(intoChasm(seed), "Try to cross"),
       (s) => rolls(s)[0].result >= 3,
     );
-    expect(state.explorers[0].side).toBe("right");
-    expect(state.turn?.moved).toBe(1);
+    expect(at(state, 0).side).toBe("right");
+    expect(state.turn?.moved).toEqual({ [ZOE]: 1 });
     expect(explorerMoves(state)).toEqual(["furnace-room"]);
     expect(described(state)).toContain("Zoe Ingstrom crosses the Chasm");
   });
@@ -121,7 +124,7 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
       (seed) => choose(intoChasm(seed), "Try to cross"),
       (s) => rolls(s)[0].result < 3,
     );
-    expect(state.explorers[0].side).toBe("left");
+    expect(at(state, 0).side).toBe("left");
     // Without movement, and with the roll tried, ending the turn is all that's left.
     expect(eventTypes(state)).toContain("movement-ended");
     expect(state.lastEvents).toContainEqual(
@@ -134,31 +137,31 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
 
   it("discovering it puts the explorer on the side of the door they came through", () => {
     const state = testGame({ stack: ["chasm"] });
-    state.explorers[0].room = "basement-landing";
+    put(state, 0, "basement-landing");
     const after = choose(state, "Explore through the east door");
     const tile = after.board.tiles.find((t) => t.tile === "chasm");
-    const side = after.explorers[0].side;
+    const side = at(after, 0).side;
     expect(tile && side && turn(side, tile.rotation)).toBe("left");
   });
 
   it("has an explorer put in it by a card choose their side", () => {
-    let state = run(nextToChasm(), relocate(0, "chasm", RULE));
+    let state = run(nextToChasm(), relocate(ZOE, "chasm", RULE));
     expect(labels(state)).toEqual([
       "Land on the west side of the Chasm",
       "Land on the east side of the Chasm",
     ]);
     state = choose(state, "east side");
     expect(roomOf(state)).toBe("chasm");
-    expect(state.explorers[0].side).toBe("right");
+    expect(at(state, 0).side).toBe("right");
   });
 
   it("keeps explorers on opposite sides from trading", () => {
     const state = nextToChasm();
-    state.explorers[0].cards = ["axe"];
-    Object.assign(state.explorers[0], { room: "chasm", side: "left" });
-    Object.assign(state.explorers[1], { room: "chasm", side: "right" });
+    explorer(state, 0).cards = ["axe"];
+    put(state, 0, "chasm", "left");
+    put(state, 1, "chasm", "right");
     expect(labels(state).some((l) => l.includes("Ox Bellows"))).toBe(false);
-    state.explorers[1].side = "left";
+    put(state, 1, at(state, 1).room, "left");
     expect(labels(state)).toContain("Give Ox Bellows your Axe");
   });
 });
@@ -171,15 +174,15 @@ describe("Vault (rooms.md)", () => {
       stack: ["vault"],
       decks: { event: ["creepy-crawlies"], item: ["axe", "revolver"] },
     });
-    state.explorers[0].room = "basement-landing";
-    state.explorers[0].clips.knowledge = 7;
+    put(state, 0, "basement-landing");
+    explorer(state, 0).traits.clips.knowledge = 7;
     return choose(state, "Explore through the north door");
   }
 
   it("draws only the event card when discovered", () => {
     const state = discover();
     expect(roomOf(state)).toBe("vault");
-    expect(state.explorers[0].cards).toEqual([]);
+    expect(explorer(state, 0).cards).toEqual([]);
     expect(state.decks.item.draw.slice(0, 2)).toEqual(["axe", "revolver"]);
     expect(labels(state)).toContain(
       "Try to open the Vault (Knowledge roll of 6+)",
@@ -191,7 +194,7 @@ describe("Vault (rooms.md)", () => {
       (seed) => choose(discover(seed), "Try to open the Vault"),
       (s) => rolls(s)[0].result >= 6,
     );
-    expect(state.explorers[0].cards).toEqual(["axe", "revolver"]);
+    expect(explorer(state, 0).cards).toEqual(["axe", "revolver"]);
     expect(state.tokens).toContainEqual({ token: "vault-empty", room: "vault" });
     expect(labels(state).some((l) => l.includes("open the Vault"))).toBe(false);
   });
@@ -201,7 +204,7 @@ describe("Vault (rooms.md)", () => {
       (seed) => choose(discover(seed), "Try to open the Vault"),
       (s) => rolls(s)[0].result < 6,
     );
-    expect(state.explorers[0].cards).toEqual([]);
+    expect(explorer(state, 0).cards).toEqual([]);
     expect(labels(state).some((l) => l.includes("open the Vault"))).toBe(false);
   });
 });
@@ -217,7 +220,7 @@ describe("Gallery (rooms.md)", () => {
         ? [{ tile: "ballroom", floor: "ground", x: 2, y: -1, rotation: 0 } as const]
         : []),
     ]);
-    state.explorers[0].room = "gallery";
+    put(state, 0, "gallery");
     return state;
   }
 
@@ -229,7 +232,7 @@ describe("Gallery (rooms.md)", () => {
   it("costs no movement, and you can keep moving afterwards", () => {
     const state = takeDamage(choose(inGallery(), FALL));
     expect(roomOf(state)).toBe("ballroom");
-    expect(state.turn?.moved).toBe(0);
+    expect(state.turn?.moved).toEqual({});
     expect(labels(state)).toContain("Move to the Entrance Hall");
   });
 
@@ -241,7 +244,7 @@ describe("Gallery (rooms.md)", () => {
 
   it("can be done with no movement left", () => {
     const state = inGallery();
-    if (state.turn) state.turn.moved = 4;
+    if (state.turn) state.turn.moved = { [ZOE]: 4 };
     expect(roomOf(takeDamage(choose(state, FALL)))).toBe("ballroom");
   });
 });
@@ -296,7 +299,7 @@ describe("Secret Passage (cards/events.md)", () => {
       "Stay here",
     );
     expect(explorerMoves(state)).toContain("basement-landing");
-    state.explorers[1].room = "basement-landing";
+    put(state, 1, "basement-landing");
     expect(explorerMoves(state, 1)).toContain("ballroom");
   });
 });
@@ -390,9 +393,9 @@ describe("Dog (cards/omens.md)", () => {
     expect(dogToken(state)).toEqual({
       token: "dog",
       room: "dining-room",
-      holder: 0,
+      holder: ZOE,
     });
-    state = run(state, relocate(0, "foyer", RULE));
+    state = run(state, relocate(ZOE, "foyer", RULE));
     expect(dogToken(state)?.room).toBe("foyer");
   });
 
@@ -401,7 +404,7 @@ describe("Dog (cards/omens.md)", () => {
     state = choose(state, "Send the Dog to the Foyer");
     expect(described(state)).toContain("Dog runs to the Foyer");
     state = choose(state, "The Dog brings back the Axe");
-    expect(state.explorers[0].cards).toEqual(["dog", "axe"]);
+    expect(explorer(state, 0).cards).toEqual(["dog", "axe"]);
     expect(state.piles.foyer).toBeUndefined();
     expect(dogToken(state)?.room).toBe("dining-room");
     expect(labels(state)).not.toContain(SEND);
@@ -409,12 +412,12 @@ describe("Dog (cards/omens.md)", () => {
 
   it("can leave an item its holder gives it in a room it reaches", () => {
     let state = withDog((s) => {
-      s.explorers[0].cards = ["revolver"];
+      explorer(s, 0).cards = ["revolver"];
       s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "revolver");
     });
     state = choose(choose(state, SEND), "Send the Dog to the Foyer");
     state = choose(state, "The Dog leaves your Revolver there");
-    expect(state.explorers[0].cards).toEqual(["dog"]);
+    expect(explorer(state, 0).cards).toEqual(["dog"]);
     expect(state.piles.foyer).toEqual(["axe", "revolver"]);
   });
 
@@ -444,7 +447,7 @@ describe("Dog (cards/omens.md)", () => {
   it("fetches or leaves an item, never an omen (the card's project ruling)", () => {
     const state = withDog((s) => {
       s.piles.foyer = ["axe", "skull"];
-      s.explorers[0].cards = ["revolver", "book"];
+      explorer(s, 0).cards = ["revolver", "book"];
       s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "revolver");
       s.decks.omen.draw = s.decks.omen.draw.filter(
         (c) => c !== "skull" && c !== "book",
@@ -471,12 +474,12 @@ describe("Dog (cards/omens.md)", () => {
   });
 
   it("takes its token away when its holder loses it", () => {
-    const state = run(withDog(), loseCard(0, "dog", { to: "discard" }, RULE));
+    const state = run(withDog(), loseCard(ZOE, "dog", { to: "discard" }, RULE));
     expect(dogToken(state)).toBeUndefined();
   });
 
   it("gives a token to whoever gains it", () => {
-    const state = run(testGame(), gainCard(1, "dog", "given", RULE));
-    expect(dogToken(state)).toMatchObject({ room: "entrance-hall", holder: 1 });
+    const state = run(testGame(), gainCard(OX, "dog", "given", RULE));
+    expect(dogToken(state)).toMatchObject({ room: "entrance-hall", holder: OX });
   });
 });

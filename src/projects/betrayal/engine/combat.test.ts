@@ -3,8 +3,10 @@ import { ENGINE } from "../game";
 import {
   choose,
   eventTypes,
+  explorer,
   offered,
   pendingDecision,
+  put,
   testGame,
   waitingOn,
 } from "../testing";
@@ -20,6 +22,10 @@ import { start } from "./step-loop";
 const ZOE = 0;
 const OX = 1;
 const FATHER = 2;
+/** The seats' explorers, by figure id. */
+const ZOE_FIGURE = "zoe-ingstrom";
+const OX_FIGURE = "ox-bellows";
+const FATHER_FIGURE = "father-rhinehardt";
 const RULE: RuleRef = { source: "rulebook", page: 13 };
 const SEEDS = Array.from({ length: 500 }, (_, i) => `${i}`);
 
@@ -30,7 +36,7 @@ type SetUp = (state: GameState) => void;
 /** Zoe's turn, everyone in the Entrance Hall, Zoe holding the Angel Feather. */
 function table(setUp: SetUp = () => {}, seed?: string): GameState {
   const state = testGame({ seed });
-  state.explorers[ZOE].cards.push("angel-feather");
+  explorer(state, ZOE).cards.push("angel-feather");
   setUp(state);
   return state;
 }
@@ -38,7 +44,7 @@ function table(setUp: SetUp = () => {}, seed?: string): GameState {
 /** Starts Zoe's attack on Ox in the middle of her turn. */
 function attackOn(state: GameState): GameState {
   return start(ENGINE, { ...state, pending: null }, [
-    attack({ kind: "explorer", seat: ZOE }, OX, RULE),
+    attack({ kind: "figure", figure: ZOE_FIGURE }, OX_FIGURE, RULE),
   ]);
 }
 
@@ -78,9 +84,9 @@ describe("Make an Attack (rules.md, p. 13)", () => {
     expect(labels(state)[0]).toBe("Make the Might attack roll (3 dice)");
     state = choose(state, "the result is 4");
     const defence = state.lastEvents.filter((e) => e.type === "rolled")[1]
-      .data as { seat: number; dice: number[] };
+      .data as { figure: string; dice: number[] };
     // Ox's Might is 5.
-    expect(defence).toMatchObject({ seat: OX });
+    expect(defence).toMatchObject({ figure: OX_FIGURE });
     expect(defence.dice).toHaveLength(5);
   });
 
@@ -127,7 +133,7 @@ describe("Make an Attack (rules.md, p. 13)", () => {
 
 describe("Stealing Items (rules.md, p. 13)", () => {
   const armed: SetUp = (s) =>
-    s.explorers[OX].cards.push("axe", "armor", "bite");
+    explorer(s, OX).cards.push("axe", "armor", "bite");
 
   it("an attack that would deal 2 or more physical damage may steal a tradable item instead", () => {
     let state = fight(8, (d) => d <= 6, { setUp: armed });
@@ -141,8 +147,8 @@ describe("Stealing Items (rules.md, p. 13)", () => {
       "Steal the Axe instead",
     ]);
     state = choose(state, "Steal the Axe");
-    expect(state.explorers[ZOE].cards).toContain("axe");
-    expect(state.explorers[OX].cards).not.toContain("axe");
+    expect(explorer(state, ZOE).cards).toContain("axe");
+    expect(explorer(state, OX).cards).not.toContain("axe");
     expect(eventTypes(state)).not.toContain("damaged");
     // Stealing is the Axe's one action this turn (p. 11).
     expect(state.turn?.handled).toContain("axe");
@@ -161,7 +167,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 
   it("not at a margin of 1", () => {
     const state = fight(8, (d) => d === 7, {
-      setUp: (s) => s.explorers[OX].cards.push("axe"),
+      setUp: (s) => explorer(s, OX).cards.push("axe"),
     });
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
@@ -171,7 +177,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 
   it("a defender who wins deals damage but never steals", () => {
     const state = fight(0, (d) => d >= 2, {
-      setUp: (s) => s.explorers[ZOE].cards.push("lucky-stone"),
+      setUp: (s) => explorer(s, ZOE).cards.push("lucky-stone"),
     });
     expect(pendingDecision(state)).toMatchObject({
       kind: "split-damage",
@@ -182,7 +188,7 @@ describe("Stealing Items (rules.md, p. 13)", () => {
   it("not from a mental attack", () => {
     const state = fight(8, (d) => d <= 6, {
       setUp: (s) => {
-        s.explorers[ZOE].cards.push("ring");
+        explorer(s, ZOE).cards.push("ring");
         armed(s);
       },
       mode: "using the Ring",
@@ -196,8 +202,8 @@ describe("Stealing Items (rules.md, p. 13)", () => {
 
 describe("Distance Attacks (rules.md, p. 13)", () => {
   const apart: SetUp = (s) => {
-    s.explorers[OX].room = "upper-landing";
-    s.explorers[OX].cards.push("axe");
+    put(s, OX, "upper-landing");
+    explorer(s, OX).cards.push("axe");
   };
 
   it("an attacker beaten by a target in another room takes no damage", () => {
@@ -224,7 +230,7 @@ describe("Distance Attacks (rules.md, p. 13)", () => {
 
 describe("Weapons (rules.md, p. 12)", () => {
   const holding = (...cards: string[]) =>
-    attackOn(table((s) => s.explorers[ZOE].cards.push(...cards)));
+    attackOn(table((s) => explorer(s, ZOE).cards.push(...cards)));
 
   it("are optional, and only one is used per attack", () => {
     const state = holding("axe", "spear");
@@ -240,12 +246,12 @@ describe("Weapons (rules.md, p. 12)", () => {
 
   it("are never used to defend", () => {
     const armed = testGame();
-    armed.explorers[OX].cards.push("axe");
+    explorer(armed, OX).cards.push("axe");
     const state = attackOn(armed);
     // Ox is offered nothing: he defends with his own 5 Might.
     const defence = state.lastEvents.filter((e) => e.type === "rolled")[1]
-      .data as { seat: number; dice: number[] };
-    expect(defence.seat).toBe(OX);
+      .data as { figure: string; dice: number[] };
+    expect(defence.figure).toBe(OX_FIGURE);
     expect(defence.dice).toHaveLength(5);
   });
 
@@ -260,7 +266,7 @@ describe("Weapons (rules.md, p. 12)", () => {
   it("one used this turn can't be used again", () => {
     const state = attackOn(
       table((s) => {
-        s.explorers[ZOE].cards.push("axe");
+        explorer(s, ZOE).cards.push("axe");
         s.turn?.handled.push("axe");
       }),
     );
@@ -273,7 +279,7 @@ describe("Using an item on another player's turn (cards/items.md)", () => {
   // Zoe holds nothing, so her attack roll is made at once and Ox defends.
   const defending = (...cards: string[]) => {
     const state = testGame();
-    state.explorers[OX].cards.push(...cards);
+    explorer(state, OX).cards.push(...cards);
     const after = attackOn(state);
     expect(after.turn?.seat).toBe(ZOE);
     return after;
@@ -314,15 +320,15 @@ describe("A card's attacker (cards that attack on behalf of something)", () => {
   });
 
   it("rolls its fixed dice, untouched by the roller's cards, and takes no damage when beaten", () => {
-    let state = table((s) => s.explorers[FATHER].cards.push("idol"));
+    let state = table((s) => explorer(s, FATHER).cards.push("idol"));
     state = start(ENGINE, { ...state, pending: null }, [
-      cardAttack(state, ZOE, "might", 4, { source: "card", card: "bite" }),
+      cardAttack(ZOE_FIGURE, "might", 4, { source: "card", card: "bite" }),
     ]);
     // Father Rhinehardt throws the attack's dice at once; Zoe defends.
     expect(waitingOn(state)).toBe(ZOE);
     const thrown = state.lastEvents.find((e) => e.type === "rolled")?.data as
-      { seat: number; dice: number[]; result: number } | undefined;
-    expect(thrown?.seat).toBe(FATHER);
+      { figure: string; dice: number[]; result: number } | undefined;
+    expect(thrown?.figure).toBe(FATHER_FIGURE);
     expect(thrown?.dice).toHaveLength(4);
     expect(labels(state)[0]).toBe("Make the Might defence roll (3 dice)");
   });
@@ -331,7 +337,7 @@ describe("A card's attacker (cards that attack on behalf of something)", () => {
     for (const seed of SEEDS) {
       let state = table(() => {}, seed);
       state = start(ENGINE, { ...state, pending: null }, [
-        cardAttack(state, ZOE, "might", 4, { source: "card", card: "bite" }),
+        cardAttack(ZOE_FIGURE, "might", 4, { source: "card", card: "bite" }),
       ]);
       state = choose(state, "the result is 8");
       if (outcome(state).loser !== "attacker") continue;

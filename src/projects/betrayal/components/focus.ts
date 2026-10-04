@@ -1,5 +1,6 @@
 import type { Action, Edge, FloorId, GameState, Json } from "../types";
 import { doorwaySpot, type Doorway } from "../engine/board";
+import { roomOf, seatExplorer } from "../engine/figures";
 import type { Choice } from "../engine/step-loop";
 import type { TurnChoice } from "../engine/exploration";
 import type { PlaceChoice } from "../engine/tiles";
@@ -52,7 +53,7 @@ export function boardFocus(state: GameState, offer: Offer | null): Focus {
       const turn = choice as TurnChoice;
       if (turn.act === "move") offerRoom(turn.to, choice);
       if (turn.act === "discover") {
-        const room = state.explorers[offer.seat].room;
+        const room = roomOf(state, seatExplorer(state, offer.seat));
         focus.doorways.push({
           room,
           direction: turn.direction,

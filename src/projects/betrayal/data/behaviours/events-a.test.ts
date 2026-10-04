@@ -1,13 +1,26 @@
 import { describe, expect, it } from "vitest";
+import { seatExplorer } from "../../engine/figures";
 import { askNumber } from "../../engine/questions";
 import { ENGINE } from "../../game";
-import { choose, offered, pendingDecision, testGame } from "../../testing";
+import {
+  at,
+  choose,
+  explorer,
+  offered,
+  pendingDecision,
+  put,
+  testGame,
+} from "../../testing";
 import type { CardType, GameEvent, GameState, Trait } from "../../types";
 
 // Each card's tests come from its content/cards/events.md entry, not from its implementation.
 
+const ZOE = "zoe-ingstrom";
+const OX = "ox-bellows";
+const FATHER = "father-rhinehardt";
+
 type Rolled = {
-  seat: number;
+  figure: string;
   spec: { kind: string; trait?: Trait; count?: number };
   dice: number[];
   result: number;
@@ -19,7 +32,7 @@ const rolls = (events: GameEvent[]): Rolled[] =>
 const SEEDS = Array.from({ length: 3000 }, (_, i) => `${i}`);
 
 const clip = (state: GameState, trait: Trait, seat = 0) =>
-  state.explorers[seat].clips[trait];
+  explorer(state, seat).traits.clips[trait];
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
 
@@ -75,7 +88,7 @@ function landing(
 /** Zoe also holds the Axe, which she could drop, so her turn never ends by itself. */
 function holdingAxe(state: GameState): void {
   state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "axe");
-  state.explorers[0].cards.push("axe");
+  explorer(state, 0).cards.push("axe");
 }
 
 /** Splits every damage the first way offered until something else is pending; returns every event on the way. */
@@ -95,12 +108,12 @@ function settle(start: GameState): { state: GameState; events: GameEvent[] } {
 /** Each sanity roll, with the dice count of the damage roll that follows it, if any. */
 function sanityRollsAndDamage(
   events: GameEvent[],
-): { seat: number; result: number; damageDice: number | null }[] {
-  const result: { seat: number; result: number; damageDice: number | null }[] =
+): { figure: string; result: number; damageDice: number | null }[] {
+  const result: { figure: string; result: number; damageDice: number | null }[] =
     [];
   for (const r of rolls(events)) {
     if (r.spec.kind === "trait")
-      result.push({ seat: r.seat, result: r.result, damageDice: null });
+      result.push({ figure: r.figure, result: r.result, damageDice: null });
     else result[result.length - 1].damageDice = r.spec.count ?? null;
   }
   return result;
@@ -127,7 +140,7 @@ function endTurns(start: GameState, count: number): GameState {
 describe("A Moment of Hope (cards/events.md)", () => {
   const pool = (state: GameState, seat: number, kind: "trait" | "attack") =>
     askNumber(ENGINE, state, "dicePool", {
-      seat,
+      figure: seatExplorer(state, seat),
       roll: {
         spec:
           kind === "trait"
@@ -158,15 +171,15 @@ describe("A Moment of Hope (cards/events.md)", () => {
   it("adds no die to an attack, and never takes a roll past 8 dice", () => {
     const state = drawEvent("a-moment-of-hope");
     expect(pool(state, 0, "attack")).toBe(pool(testGame(), 0, "attack"));
-    state.explorers[0].clips.speed = 7; // Zoe's highest Speed is 8.
+    explorer(state, 0).traits.clips.speed = 7; // Zoe's highest Speed is 8.
     expect(pool(state, 0, "trait")).toBe(8);
   });
 });
 
 describe("Bloody Vision (cards/events.md)", () => {
   const alone = (s: GameState) => {
-    s.explorers[1].room = "upper-landing";
-    s.explorers[2].room = "upper-landing";
+    put(s, 1, "upper-landing");
+    put(s, 2, "upper-landing");
   };
   const draw = (seed: string, setUp = alone) =>
     drawEvent("bloody-vision", { seed, setUp });
@@ -190,14 +203,14 @@ describe("Bloody Vision (cards/events.md)", () => {
     const state = landing(0, 1, (seed) => inReach(seed));
     // Father Rhinehardt's Might is 2, Ox's is 5.
     expect(attacked(state.lastEvents)).toEqual([
-      { attacker: { kind: "explorer", seat: 0 }, defender: 2 },
+      { attacker: { kind: "figure", figure: ZOE }, defender: FATHER, roller: ZOE },
     ]);
   });
 
   it("you choose among explorers tied for the lowest Might", () => {
     const tied = (s: GameState) => {
-      s.explorers[1].clips.might = 0;
-      s.explorers[2].clips.might = 3;
+      explorer(s, 1).traits.clips.might = 0;
+      explorer(s, 2).traits.clips.might = 3;
     };
     const state = landing(0, 1, (seed) => inReach(seed, tied));
     // Both have Might 4.
@@ -206,19 +219,19 @@ describe("Bloody Vision (cards/events.md)", () => {
       "Attack Father Rhinehardt",
     ]);
     expect(attacked(choose(state, "Attack Ox Bellows").lastEvents)).toEqual([
-      { attacker: { kind: "explorer", seat: 0 }, defender: 1 },
+      { attacker: { kind: "figure", figure: ZOE }, defender: OX, roller: ZOE },
     ]);
   });
 
   it("an explorer in your own room counts too", () => {
     const state = landing(0, 1, (seed) =>
       inReach(seed, (s) => {
-        s.explorers[1].room = "ballroom";
-        s.explorers[2].room = "upper-landing";
+        put(s, 1, "ballroom");
+        put(s, 2, "upper-landing");
       }),
     );
     expect(attacked(state.lastEvents)).toEqual([
-      { attacker: { kind: "explorer", seat: 0 }, defender: 1 },
+      { attacker: { kind: "figure", figure: ZOE }, defender: OX, roller: ZOE },
     ]);
   });
 });
@@ -231,7 +244,7 @@ describe("Burning Man (cards/events.md)", () => {
   });
 
   it("puts you in the Entrance Hall on 2-3", () => {
-    expect(landing(2, 3, draw).explorers[0].room).toBe("entrance-hall");
+    expect(at(landing(2, 3, draw), 0).room).toBe("entrance-hall");
   });
 
   it("deals 1 die of physical damage, then 1 die of mental, on 0-1", () => {
@@ -264,7 +277,7 @@ describe("Closet Door (cards/events.md)", () => {
     const state = drawEvent("closet-door", { decks });
     expect(state.tokens).toContainEqual({ token: "closet", room: "ballroom" });
     expect(labels(state)).toContain("Open the Closet (roll 2 dice)");
-    state.explorers[0].room = "entrance-hall";
+    put(state, 0, "entrance-hall");
     expect(labels(state).some((l) => l.includes("Closet"))).toBe(false);
   });
 
@@ -310,14 +323,15 @@ describe("Creepy Puppet (cards/events.md)", () => {
   const outcome = (state: GameState) =>
     state.lastEvents.find((e) => e.type === "attack-outcome")?.data as
       { loser: string | null } | undefined;
-  const ox = (s: GameState) => s.explorers[1].cards.push("spear");
+  const ox = (s: GameState) => explorer(s, 1).cards.push("spear");
 
   it("the player on your right makes a Might 4 attack against you", () => {
     const state = play("test-seed");
     expect(attacked(state.lastEvents)).toEqual([
       {
-        attacker: { kind: "card", trait: "might", dice: 4, roller: 2 },
-        defender: 0,
+        attacker: { kind: "card", trait: "might", dice: 4 },
+        defender: ZOE,
+        roller: FATHER,
       },
     ]);
   });
@@ -341,7 +355,7 @@ describe("Creepy Puppet (cards/events.md)", () => {
 
   it("not if you have the Spear yourself", () => {
     const hurt = firstSeed(
-      (seed) => play(seed, (s) => s.explorers[0].cards.push("spear")),
+      (seed) => play(seed, (s) => explorer(s, 0).cards.push("spear")),
       (s) => outcome(s)?.loser === "defender",
     );
     const { events } = settle(hurt);
@@ -367,26 +381,26 @@ describe("Debris (cards/events.md)", () => {
 
   it("buries you on 1-2, with 1 die of physical damage", () => {
     const { state, events } = settle(landing(1, 2, draw));
-    expect(state.explorers[0].cards).toContain("debris");
+    expect(explorer(state, 0).cards).toContain("debris");
     expect(rolls(events)[1].spec).toEqual({ kind: "dice", count: 1 });
   });
 
   it("buries you on 0, with 2 dice of physical damage", () => {
     const { state, events } = settle(landing(0, 0, draw));
-    expect(state.explorers[0].cards).toContain("debris");
+    expect(explorer(state, 0).cards).toContain("debris");
     expect(rolls(events)[1].spec).toEqual({ kind: "dice", count: 2 });
   });
 
   /** Zoe's turn, buried in the Entrance Hall with the others. */
   const buried = (setUp: (s: GameState) => void = () => undefined) => {
     const state = testGame();
-    state.explorers[0].cards.push("debris");
+    explorer(state, 0).cards.push("debris");
     setUp(state);
     return state;
   };
 
   it("while buried you can do nothing but try to dig yourself out, once a turn", () => {
-    const state = buried((s) => s.explorers[0].cards.push("axe"));
+    const state = buried((s) => explorer(s, 0).cards.push("axe"));
     expect(labels(state)).toEqual([DIG, "End your turn"]);
     // A failed attempt leaves only the end of the turn.
     const failed = firstSeed(
@@ -398,18 +412,18 @@ describe("Debris (cards/events.md)", () => {
   });
 
   it("an explorer in your room may make the Might roll on their turn; 4+ frees you", () => {
-    let state = buried((s) => s.explorers[1].cards.push("angel-feather"));
+    let state = buried((s) => explorer(s, 1).cards.push("angel-feather"));
     state = choose(state, "End your turn");
     expect(labels(state)).toContain(DIG);
     state = choose(choose(state, DIG), "the result is 4");
-    expect(state.explorers[0].cards).not.toContain("debris");
+    expect(explorer(state, 0).cards).not.toContain("debris");
     expect(state.decks.event.discard).toContain("debris");
     // Ox may still move: Debris doesn't stop a rescuer who fails, nor one who succeeds.
     expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
   });
 
   it("an explorer elsewhere can't help", () => {
-    let state = buried((s) => (s.explorers[1].room = "upper-landing"));
+    let state = buried((s) => (put(s, 1, "upper-landing")));
     state = choose(state, "End your turn");
     expect(labels(state)).not.toContain(DIG);
   });
@@ -422,7 +436,7 @@ describe("Debris (cards/events.md)", () => {
       3,
     );
     expect(state.turn?.seat).toBe(0);
-    expect(state.explorers[0].cards).not.toContain("debris");
+    expect(explorer(state, 0).cards).not.toContain("debris");
     expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
   });
 });
@@ -452,7 +466,7 @@ describe("Disquieting Sounds (cards/events.md)", () => {
 describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
   const pool = (state: GameState, seat: number, trait: Trait) =>
     askNumber(ENGINE, state, "dicePool", {
-      seat,
+      figure: seatExplorer(state, seat),
       roll: {
         spec: { kind: "trait", trait },
         rule: { source: "card", card: "angry-being" },
@@ -473,7 +487,7 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
     const state = drawEvent("drip-drip-drip");
     expect(
       askNumber(ENGINE, state, "dicePool", {
-        seat: 0,
+        figure: ZOE,
         roll: {
           spec: { kind: "dice", count: 2 },
           rule: { source: "card", card: "closet-door" },
@@ -485,7 +499,7 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
 
   it("never takes a roll below 1 die", () => {
     const state = drawEvent("drip-drip-drip");
-    state.explorers[0].clips.knowledge = 0; // Zoe's lowest Knowledge is 1.
+    explorer(state, 0).traits.clips.knowledge = 0; // Zoe's lowest Knowledge is 1.
     expect(pool(state, 0, "knowledge")).toBe(1);
   });
 
@@ -495,7 +509,7 @@ describe("Drip . . . Drip . . . Drip . . . (cards/events.md)", () => {
     // lower; one taking all 4 leaves none, which the Drip doesn't raise.
     const withFewer = (extraDice: number) =>
       askNumber(ENGINE, state, "dicePool", {
-        seat: 0,
+        figure: ZOE,
         roll: {
           spec: { kind: "trait", trait: "speed" },
           rule: { source: "card", card: "groundskeeper" },
@@ -516,7 +530,7 @@ describe("Footsteps (cards/events.md)", () => {
   it("rolls 1 die, and 1 more for an explorer in the Chapel", () => {
     expect(rolls(draw("test-seed").lastEvents)[0].dice).toHaveLength(1);
     const chapel = inChapel("test-seed");
-    expect(chapel.explorers[0].room).toBe("chapel");
+    expect(at(chapel, 0).room).toBe("chapel");
     expect(rolls(chapel.lastEvents)[0].dice).toHaveLength(2);
   });
 
@@ -533,7 +547,9 @@ describe("Footsteps (cards/events.md)", () => {
       "Lose 1 Sanity",
       "Lose 1 Knowledge",
     ]);
-    const before = state.explorers.map((e) => ({ ...e.clips }));
+    const before = [0, 1, 2].map((seat) => ({
+      ...explorer(state, seat).traits.clips,
+    }));
     state = choose(state, "Lose 1 Might");
     state = choose(state, "Lose 1 Speed");
     state = choose(state, "Lose 1 Knowledge");
@@ -558,8 +574,8 @@ describe("Footsteps (cards/events.md)", () => {
   it("with no explorer reachable by any route, only you gain", () => {
     const cutOff = (s: GameState) => {
       placeTile(s, "crypt", "basement", 5, 5);
-      s.explorers[1].room = "crypt";
-      s.explorers[2].room = "crypt";
+      put(s, 1, "crypt");
+      put(s, 2, "crypt");
     };
     const state = landing(4, 4, (seed) => inChapel(seed, cutOff));
     expect(clip(state, "might")).toBe(4);
@@ -568,7 +584,7 @@ describe("Footsteps (cards/events.md)", () => {
   });
 
   it("on 3, you gain 1 Might and the nearest explorer loses 1 Sanity", () => {
-    const farOx = (s: GameState) => (s.explorers[1].room = "upper-landing");
+    const farOx = (s: GameState) => (put(s, 1, "upper-landing"));
     const sanity = clip(testGame(), "sanity", 2);
     const state = landing(3, 3, (seed) => inChapel(seed, farOx));
     expect(clip(state, "might")).toBe(4);
@@ -590,14 +606,14 @@ describe("Funeral (cards/events.md)", () => {
     const state = landing(0, 1, draw);
     expect(clip(state, "sanity")).toBe(1);
     expect(clip(state, "might")).toBe(2);
-    expect(state.explorers[0].room).toBe("ballroom");
+    expect(at(state, 0).room).toBe("ballroom");
   });
 
   it("puts you in the Graveyard on 0-1 when it is the one discovered", () => {
     const state = landing(0, 1, (seed) =>
       draw(seed, (s) => placeTile(s, "graveyard", "ground", 5, 5)),
     );
-    expect(state.explorers[0].room).toBe("graveyard");
+    expect(at(state, 0).room).toBe("graveyard");
   });
 
   it("lets you choose between the Graveyard and the Crypt when both are discovered", () => {
@@ -609,7 +625,7 @@ describe("Funeral (cards/events.md)", () => {
     );
     expect(labels(state)).toEqual(["Go to the Graveyard", "Go to the Crypt"]);
     state = choose(state, "Go to the Crypt");
-    expect(state.explorers[0].room).toBe("crypt");
+    expect(at(state, 0).room).toBe("crypt");
   });
 });
 
@@ -621,12 +637,12 @@ describe("Grave Dirt (cards/events.md)", () => {
   it("gains 1 Might on 4+", () => {
     const state = landing(4, 8, draw);
     expect(clip(state, "might")).toBe(4);
-    expect(state.explorers[0].cards).not.toContain("grave-dirt");
+    expect(explorer(state, 0).cards).not.toContain("grave-dirt");
   });
 
   it("is kept on 0-3, and deals 1 point of physical damage at the start of each of your turns", () => {
     let state = kept();
-    expect(state.explorers[0].cards).toContain("grave-dirt");
+    expect(explorer(state, 0).cards).toContain("grave-dirt");
     state = endTurns(state, 3);
     expect(pendingDecision(state).kind).toBe("split-damage");
     expect(labels(state)).toEqual([
@@ -638,22 +654,22 @@ describe("Grave Dirt (cards/events.md)", () => {
   it("is discarded when you end your turn in one of its rooms", () => {
     let state = kept();
     placeTile(state, "larder", "basement", 0, -1);
-    state.explorers[0].room = "larder";
+    put(state, 0, "larder");
     state = choose(state, "End your turn");
-    expect(state.explorers[0].cards).not.toContain("grave-dirt");
+    expect(explorer(state, 0).cards).not.toContain("grave-dirt");
     expect(state.decks.event.discard).toContain("grave-dirt");
   });
 
   it("stays when you end your turn elsewhere", () => {
     const state = choose(kept(), "End your turn");
-    expect(state.explorers[0].cards).toContain("grave-dirt");
+    expect(explorer(state, 0).cards).toContain("grave-dirt");
   });
 
   it("is discarded once when an item card raises your traits", () => {
     let state = kept();
     state.piles.ballroom = ["amulet-of-the-ages"];
     state = choose(state, "Pick up the Amulet of the Ages");
-    expect(state.explorers[0].cards).not.toContain("grave-dirt");
+    expect(explorer(state, 0).cards).not.toContain("grave-dirt");
     expect(
       state.decks.event.discard.filter((c) => c === "grave-dirt"),
     ).toHaveLength(1);
@@ -662,7 +678,7 @@ describe("Grave Dirt (cards/events.md)", () => {
 
 describe("Hanged Men (cards/events.md)", () => {
   const draw = (seed: string) => drawEvent("hanged-men", { seed });
-  const start = testGame().explorers[0].clips;
+  const start = explorer(testGame(), 0).traits.clips;
 
   it("rolls each of your four traits, losing 1 from each that rolls 0-1", () => {
     for (const seed of SEEDS.slice(0, 10)) {
@@ -709,7 +725,7 @@ describe("Hideous Shriek (cards/events.md)", () => {
     for (const seed of SEEDS.slice(0, 10)) {
       const { events } = settle(drawEvent("hideous-shriek", { seed }));
       const made = sanityRollsAndDamage(events);
-      expect(made.map((r) => r.seat)).toEqual([0, 1, 2]);
+      expect(made.map((r) => r.figure)).toEqual([ZOE, OX, FATHER]);
       for (const r of made) {
         // 4+: nothing; 1-3: 1 die of mental damage; 0: 2 dice.
         expect(r.damageDice).toBe(r.result >= 4 ? null : r.result >= 1 ? 1 : 2);
@@ -724,7 +740,7 @@ describe("Image in the Mirror, the one that gives (cards/events.md)", () => {
       state.decks.item.draw = state.decks.item.draw.filter((d) => d !== c);
       state.decks.omen.draw = state.decks.omen.draw.filter((d) => d !== c);
     }
-    state.explorers[seat].cards.push(...cards);
+    explorer(state, seat).cards.push(...cards);
   };
 
   it("puts one of your item cards into the item stack, shuffles it, and you gain 1 Knowledge", () => {
@@ -739,7 +755,7 @@ describe("Image in the Mirror, the one that gives (cards/events.md)", () => {
     ]);
     const before = clip(state, "knowledge");
     const after = choose(state, "Put the Axe back");
-    expect(after.explorers[0].cards).toEqual(["bell"]);
+    expect(explorer(after, 0).cards).toEqual(["bell"]);
     expect(after.decks.item.draw).toContain("axe");
     expect(clip(after, "knowledge")).toBe(before + 1);
     expect(after.decks.event.discard).toContain("image-in-the-mirror-give");
@@ -753,22 +769,26 @@ describe("Image in the Mirror, the one that gives (cards/events.md)", () => {
       },
     });
     // Father Rhinehardt's only item goes back without a choice, and he gains the Knowledge.
-    expect(state.explorers[2].cards).toEqual([]);
+    expect(explorer(state, 2).cards).toEqual([]);
     expect(state.decks.item.draw).toContain("axe");
     expect(clip(state, "knowledge", 2)).toBe(
-      testGame().explorers[2].clips.knowledge + 1,
+      explorer(testGame(), 2).traits.clips.knowledge + 1,
     );
     expect(clip(state, "knowledge")).toBe(
-      testGame().explorers[0].clips.knowledge,
+      explorer(testGame(), 0).traits.clips.knowledge,
     );
   });
 
   it("is discarded when no explorer has an item card", () => {
     const state = drawEvent("image-in-the-mirror-give");
-    expect(state.explorers.map((e) => e.cards)).toEqual([[], [], []]);
+    expect([0, 1, 2].map((seat) => explorer(state, seat).cards)).toEqual([
+      [],
+      [],
+      [],
+    ]);
     expect(state.decks.event.discard).toContain("image-in-the-mirror-give");
     expect(clip(state, "knowledge")).toBe(
-      testGame().explorers[0].clips.knowledge,
+      explorer(testGame(), 0).traits.clips.knowledge,
     );
   });
 });
@@ -778,7 +798,7 @@ describe("Image in the Mirror, the one that draws (cards/events.md)", () => {
     const state = drawEvent("image-in-the-mirror-take", {
       decks: { item: ["candle"] },
     });
-    expect(state.explorers[0].cards).toEqual(["candle"]);
+    expect(explorer(state, 0).cards).toEqual(["candle"]);
   });
 });
 
@@ -796,10 +816,10 @@ describe("Jonah's Turn (cards/events.md)", () => {
       decks: { item: ["candle"] },
       setUp: (s) => {
         s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "puzzle-box");
-        s.explorers[1].cards.push("puzzle-box");
+        explorer(s, 1).cards.push("puzzle-box");
       },
     });
-    expect(state.explorers[1].cards).toEqual(["candle"]);
+    expect(explorer(state, 1).cards).toEqual(["candle"]);
     expect(state.decks.item.discard).toContain("puzzle-box");
     expect(clip(state, "sanity")).toBe(3);
   });
@@ -810,10 +830,10 @@ describe("Lights Out (cards/events.md)", () => {
 
   it("is kept, and its holder moves only 1 space a turn", () => {
     let state = draw();
-    expect(state.explorers[0].cards).toContain("lights-out");
+    expect(explorer(state, 0).cards).toContain("lights-out");
     // Zoe ends alone in the Ballroom, so she keeps it.
     state = endTurns(state, 3);
-    expect(state.explorers[0].cards).toContain("lights-out");
+    expect(explorer(state, 0).cards).toContain("lights-out");
     state = choose(state, "Move to the Entrance Hall");
     expect(labels(state).some((l) => l.startsWith("Move to"))).toBe(false);
   });
@@ -822,35 +842,35 @@ describe("Lights Out (cards/events.md)", () => {
     let state = endTurns(draw(), 3);
     state = choose(state, "Move to the Entrance Hall");
     state = choose(state, "End your turn");
-    expect(state.explorers[0].cards).not.toContain("lights-out");
+    expect(explorer(state, 0).cards).not.toContain("lights-out");
     expect(state.decks.event.discard).toContain("lights-out");
   });
 
   it("is discarded when you end your turn in the Furnace Room", () => {
     let state = draw();
     placeTile(state, "furnace-room", "basement", 0, -1);
-    state.explorers[0].room = "furnace-room";
+    put(state, 0, "furnace-room");
     state = choose(state, "End your turn");
     // The Furnace Room's own end-of-turn damage asks first.
     state = choose(state, "Take 1 Might and 0 Speed");
-    expect(state.explorers[0].cards).not.toContain("lights-out");
+    expect(explorer(state, 0).cards).not.toContain("lights-out");
   });
 
   it("is discarded when you get the Candle", () => {
     let state = draw();
     state.piles.ballroom = ["candle"];
     state = choose(state, "Pick up the Candle");
-    expect(state.explorers[0].cards).toEqual(["axe", "candle"]);
+    expect(explorer(state, 0).cards).toEqual(["axe", "candle"]);
   });
 
   it("is discarded at once if you already have the Candle", () => {
     const state = drawEvent("lights-out", {
       setUp: (s) => {
         s.decks.item.draw = s.decks.item.draw.filter((c) => c !== "candle");
-        s.explorers[0].cards.push("candle");
+        explorer(s, 0).cards.push("candle");
       },
     });
-    expect(state.explorers[0].cards).toEqual(["candle"]);
+    expect(explorer(state, 0).cards).toEqual(["candle"]);
     expect(state.decks.event.discard).toContain("lights-out");
   });
 });
@@ -876,13 +896,13 @@ describe("Locked Safe (cards/events.md)", () => {
     expect(labels(settle(opened).state).some((l) => l.includes("Safe"))).toBe(
       false,
     );
-    state.explorers[0].room = "entrance-hall";
+    put(state, 0, "entrance-hall");
     expect(labels(state).some((l) => l.includes("Safe"))).toBe(false);
   });
 
   it("draws 2 items and removes the Safe on 5+", () => {
     const state = landing(5, 8, open);
-    expect(state.explorers[0].cards).toEqual(["candle", "axe"]);
+    expect(explorer(state, 0).cards).toEqual(["candle", "axe"]);
     expect(state.tokens.some((t) => t.token === "safe")).toBe(false);
   });
 
@@ -909,14 +929,14 @@ describe("Mists from the Walls (cards/events.md)", () => {
           seed,
           setUp: (s) => {
             placeTile(s, "crypt", "basement", 0, 1);
-            s.explorers[1].room = "basement-landing"; // no event symbol
-            s.explorers[2].room = "crypt"; // an event symbol
+            put(s, 1, "basement-landing"); // no event symbol
+            put(s, 2, "crypt"); // an event symbol
           },
         }),
       );
       const made = sanityRollsAndDamage(events);
       // Zoe is on the ground floor and doesn't roll.
-      expect(made.map((r) => r.seat)).toEqual([1, 2]);
+      expect(made.map((r) => r.figure)).toEqual([OX, FATHER]);
       const [ox, father] = made;
       expect(ox.damageDice).toBe(ox.result >= 4 ? null : 1);
       expect(father.damageDice).toBe(
@@ -929,26 +949,27 @@ describe("Mists from the Walls (cards/events.md)", () => {
 describe("Groundskeeper (cards/events.md)", () => {
   it("on 0-3, the player on your right makes a Might 4 attack against you, and you defend with your Might", () => {
     let state = drawEvent("groundskeeper", {
-      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
     });
     state = choose(state, "the result is 3");
     expect(attacked(state.lastEvents)).toEqual([
       {
-        attacker: { kind: "card", trait: "might", dice: 4, roller: 2 },
-        defender: 0,
+        attacker: { kind: "card", trait: "might", dice: 4 },
+        defender: ZOE,
+        roller: FATHER,
       },
     ]);
     const [, attack, defence] = rolls(state.lastEvents);
-    expect(attack).toMatchObject({ seat: 2 });
+    expect(attack).toMatchObject({ figure: FATHER });
     expect(attack.dice).toHaveLength(4);
     // Zoe's Might is 3.
-    expect(defence).toMatchObject({ seat: 0 });
+    expect(defence).toMatchObject({ figure: ZOE });
     expect(defence.dice).toHaveLength(3);
   });
 
   it("makes a Knowledge roll; on 4+ you draw an item", () => {
     let state = drawEvent("groundskeeper", {
-      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
     });
     expect(pendingDecision(state).params).toMatchObject({
       spec: { kind: "trait", trait: "knowledge" },
@@ -967,7 +988,7 @@ describe("Groundskeeper (cards/events.md)", () => {
   it("an explorer in the Gardens rolls 2 fewer dice", () => {
     const state = drawEvent("groundskeeper", {
       stack: ["gardens"],
-      setUp: (s) => s.explorers[0].cards.push("angel-feather"),
+      setUp: (s) => explorer(s, 0).cards.push("angel-feather"),
     });
     expect(pendingDecision(state).params).toMatchObject({ pool: 1 });
   });
@@ -1007,7 +1028,7 @@ describe("It Is Meant to Be (cards/events.md)", () => {
     const state = choose(drawEvent("it-is-meant-to-be"), "Roll 4 dice");
     const [roll] = rolls(state.lastEvents);
     expect(roll.dice).toHaveLength(4);
-    expect(state.explorers[0].cards).toContain("it-is-meant-to-be");
+    expect(explorer(state, 0).cards).toContain("it-is-meant-to-be");
     expect(state.cardMarks["it-is-meant-to-be"]?.recorded.value).toBe(
       roll.result,
     );
@@ -1022,7 +1043,7 @@ describe("It Is Meant to Be (cards/events.md)", () => {
     return drawEvent(event, {
       ...options,
       setUp: (s) => {
-        s.explorers[0].cards.push("it-is-meant-to-be");
+        explorer(s, 0).cards.push("it-is-meant-to-be");
         s.decks.event.draw = s.decks.event.draw.filter(
           (c) => c !== "it-is-meant-to-be",
         );
@@ -1041,7 +1062,7 @@ describe("It Is Meant to Be (cards/events.md)", () => {
     ]);
     state = choose(state, "Use It Is Meant to Be");
     expect(rolls(state.lastEvents)[0]).toMatchObject({ dice: [], result: 5 });
-    expect(state.explorers[0].cards).not.toContain("it-is-meant-to-be");
+    expect(explorer(state, 0).cards).not.toContain("it-is-meant-to-be");
     expect(state.decks.event.discard).toContain("it-is-meant-to-be");
     expect(state.cardMarks["it-is-meant-to-be"]).toBeUndefined();
   });
@@ -1063,6 +1084,6 @@ describe("It Is Meant to Be (cards/events.md)", () => {
 
   it("may be kept for a later roll instead", () => {
     const state = choose(usingRecorded(5), "Make the Speed roll");
-    expect(state.explorers[0].cards).toContain("it-is-meant-to-be");
+    expect(explorer(state, 0).cards).toContain("it-is-meant-to-be");
   });
 });

@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { traitValue } from "../../engine/explorers";
+import { seatExplorer, traitValue } from "../../engine/figures";
 import { askNumber } from "../../engine/questions";
 import { ENGINE } from "../../game";
-import { choose, offered, pendingDecision, testGame } from "../../testing";
+import {
+  choose,
+  explorer,
+  offered,
+  pendingDecision,
+  put,
+  testGame,
+} from "../../testing";
 import type { GameState, Trait } from "../../types";
 
 // Each card's tests come from its content/cards/events.md entry, not from its implementation.
 
 const SEEDS = Array.from({ length: 200 }, (_, i) => `seed-${i}`);
 
-type Rolled = { seat: number; dice: number[]; result: number };
+const OX = "ox-bellows";
+const FATHER = "father-rhinehardt";
+
+type Rolled = { figure: string; dice: number[]; result: number };
 
 function rolls(state: GameState): Rolled[] {
   return state.lastEvents
@@ -44,7 +54,7 @@ function takeDamage(state: GameState): GameState {
 }
 
 function clipsOf(state: GameState, seat = 0) {
-  return { ...state.explorers[seat].clips };
+  return { ...explorer(state, seat).traits.clips };
 }
 
 function changes(before: GameState, after: GameState, seat = 0) {
@@ -105,7 +115,7 @@ function eachRow(
 }
 
 const value = (state: GameState, trait: Trait, seat = 0) =>
-  traitValue(ENGINE.catalog, state, seat, trait);
+  traitValue(ENGINE.catalog, state, seatExplorer(state, seat), trait);
 
 describe("Night View", () => {
   it("makes a Knowledge roll: 5+ gains 1 Knowledge, 0-4 nothing", () => {
@@ -125,7 +135,7 @@ describe("Night View", () => {
             expect(changes(before, after)).toEqual(NONE),
         },
       ],
-      { setUp: (s) => (s.explorers[0].clips.knowledge = 6) },
+      { setUp: (s) => (explorer(s, 0).traits.clips.knowledge = 6) },
     );
   });
 
@@ -216,9 +226,9 @@ describe("Possession", () => {
           max: 3,
           check: ({ before, after }) => {
             // The lowest value, not the skull: the first space of the track.
-            expect(after.explorers[0].clips.might).toBe(0);
-            expect(after.explorers[0].clips.speed).toBe(
-              before.explorers[0].clips.speed,
+            expect(explorer(after, 0).traits.clips.might).toBe(0);
+            expect(explorer(after, 0).traits.clips.speed).toBe(
+              explorer(before, 0).traits.clips.speed,
             );
           },
         },
@@ -231,8 +241,8 @@ describe("Possession", () => {
     let found = false;
     for (const seed of SEEDS) {
       let state = drawEvent("possession", seed, (s) => {
-        s.explorers[0].clips.might = 0;
-        s.explorers[0].clips.speed = 0;
+        explorer(s, 0).traits.clips.might = 0;
+        explorer(s, 0).traits.clips.speed = 0;
       });
       state = choose(state, "Make a Might roll");
       if (rolls(state)[0].result >= 4) continue;
@@ -243,8 +253,8 @@ describe("Possession", () => {
         "Lower Knowledge to its lowest value",
       ]);
       state = choose(state, "Lower Knowledge");
-      expect(state.explorers[0].clips.knowledge).toBe(0);
-      expect(state.explorers[0].clips.sanity).not.toBe(0);
+      expect(explorer(state, 0).traits.clips.knowledge).toBe(0);
+      expect(explorer(state, 0).traits.clips.sanity).not.toBe(0);
     }
     expect(found).toBe(true);
   });
@@ -293,10 +303,10 @@ describe("Rotten", () => {
       {
         characters: OX_FIRST,
         setUp: (s) => {
-          s.explorers[0].clips.sanity = 2;
-          s.explorers[0].clips.might = 3;
-          s.explorers[0].clips.speed = 3;
-          s.explorers[0].clips.knowledge = 3;
+          explorer(s, 0).traits.clips.sanity = 2;
+          explorer(s, 0).traits.clips.might = 3;
+          explorer(s, 0).traits.clips.speed = 3;
+          explorer(s, 0).traits.clips.knowledge = 3;
         },
       },
     );
@@ -335,8 +345,8 @@ describe("Something Slimy", () => {
       {
         characters: FATHER_FIRST,
         setUp: (s) => {
-          s.explorers[0].clips.speed = 1;
-          s.explorers[0].clips.might = 3;
+          explorer(s, 0).traits.clips.speed = 1;
+          explorer(s, 0).traits.clips.might = 3;
         },
       },
     );
@@ -375,7 +385,7 @@ describe("Spider", () => {
       ],
       {
         characters: OX_FIRST,
-        setUp: (s) => (s.explorers[0].clips.sanity = 2),
+        setUp: (s) => (explorer(s, 0).traits.clips.sanity = 2),
         then: (s) => choose(s, "Make a Sanity roll"),
       },
     );
@@ -389,8 +399,8 @@ describe("The Voice", () => {
         min: 4,
         max: 99,
         check: ({ after }) => {
-          expect(after.explorers[0].cards).toHaveLength(1);
-          expect(ENGINE.catalog.cards[after.explorers[0].cards[0]].type).toBe(
+          expect(explorer(after, 0).cards).toHaveLength(1);
+          expect(ENGINE.catalog.cards[explorer(after, 0).cards[0]].type).toBe(
             "item",
           );
         },
@@ -399,7 +409,7 @@ describe("The Voice", () => {
         min: 0,
         max: 3,
         check: ({ before, after }) => {
-          expect(after.explorers[0].cards).toEqual([]);
+          expect(explorer(after, 0).cards).toEqual([]);
           expect(changes(before, after)).toEqual(NONE);
         },
       },
@@ -429,7 +439,7 @@ describe("Something Hidden", () => {
           min: 4,
           max: 99,
           check: ({ after }) =>
-            expect(ENGINE.catalog.cards[after.explorers[0].cards[0]].type).toBe(
+            expect(ENGINE.catalog.cards[explorer(after, 0).cards[0]].type).toBe(
               "item",
             ),
         },
@@ -448,11 +458,11 @@ describe("Something Hidden", () => {
 describe("Silence", () => {
   it("makes every explorer in the basement, and only them, roll Sanity", () => {
     const state = drawEvent("silence", "test-seed", (s) => {
-      s.explorers[1].room = "basement-landing";
+      put(s, 1, "basement-landing");
     });
     const rolled = rolls(state);
-    expect(rolled[0].seat).toBe(1);
-    expect(rolled.every((r) => r.seat === 1)).toBe(true);
+    expect(rolled[0].figure).toBe(OX);
+    expect(rolled.every((r) => r.figure === OX)).toBe(true);
     expect(rolled[0].dice).toHaveLength(value(state, "sanity", 1));
   });
 
@@ -478,8 +488,8 @@ describe("Silence", () => {
       ],
       {
         setUp: (s) => {
-          s.explorers[1].room = "basement-landing";
-          s.explorers[1].clips.sanity = 2;
+          put(s, 1, "basement-landing");
+          explorer(s, 1).traits.clips.sanity = 2;
         },
       },
     );
@@ -496,7 +506,7 @@ describe("Shrieking Wind", () => {
   it("makes explorers outdoors or by an outside-facing window roll Might, and no one else", () => {
     const state = drawEvent("shrieking-wind", "test-seed", (s) => {
       // The Grand Staircase's window faces an empty space.
-      s.explorers[1].room = "grand-staircase";
+      put(s, 1, "grand-staircase");
       s.board.tiles.push({
         tile: "gardens",
         floor: "ground",
@@ -504,22 +514,22 @@ describe("Shrieking Wind", () => {
         y: 9,
         rotation: 0,
       });
-      s.explorers[2].room = "gardens";
+      put(s, 2, "gardens");
     });
     // Each roll and its damage settle before the next explorer rolls.
-    const seats = rolls(state).map((r) => r.seat);
+    const rollers = rolls(state).map((r) => r.figure);
     let next = state;
     while (pendingDecision(next).kind === "split-damage") {
       next = choose(next, "Take");
-      seats.push(...rolls(next).map((r) => r.seat));
+      rollers.push(...rolls(next).map((r) => r.figure));
     }
-    expect(seats[0]).toBe(1);
-    expect(new Set(seats)).toEqual(new Set([1, 2]));
+    expect(rollers[0]).toBe(OX);
+    expect(new Set(rollers)).toEqual(new Set([OX, FATHER]));
   });
 
   it("ignores a window with a room against it, which is a false window", () => {
     const state = drawEvent("shrieking-wind", "test-seed", (s) => {
-      s.explorers[1].room = "grand-staircase";
+      put(s, 1, "grand-staircase");
       s.board.tiles.push({
         tile: "dining-room",
         floor: "ground",
@@ -573,7 +583,7 @@ describe("Shrieking Wind", () => {
               "Put the Axe in the Entrance Hall",
             ]);
             state = choose(state, "Put the Axe");
-            expect(state.explorers[1].cards).toEqual(["bottle", "book"]);
+            expect(explorer(state, 1).cards).toEqual(["bottle", "book"]);
             expect(state.piles["entrance-hall"]).toEqual(["axe"]);
           },
         },
@@ -582,9 +592,9 @@ describe("Shrieking Wind", () => {
       {
         characters: FATHER_FIRST,
         setUp: (s) => {
-          s.explorers[1].room = "grand-staircase";
-          s.explorers[1].clips.might = 2;
-          s.explorers[1].cards = ["bottle", "axe", "book"];
+          put(s, 1, "grand-staircase");
+          explorer(s, 1).traits.clips.might = 2;
+          explorer(s, 1).cards = ["bottle", "axe", "book"];
         },
       },
     );
@@ -607,14 +617,14 @@ describe("Skeletons", () => {
     const hit = new Set<string>();
     for (const seed of SEEDS) {
       let state = takeDamage(drawEvent("skeletons", seed));
-      state.explorers[0].clips.sanity = 6;
+      explorer(state, 0).traits.clips.sanity = 6;
       const sanity = value(state, "sanity");
       state = choose(state, "Search the Skeletons");
       const rolled = rolls(state);
       expect(rolled[0].dice).toHaveLength(sanity);
       if (rolled[0].result >= 5) {
         hit.add("found");
-        expect(state.explorers[0].cards).toHaveLength(1);
+        expect(explorer(state, 0).cards).toHaveLength(1);
         expect(state.tokens).not.toContainEqual({
           token: "skeletons",
           room: "ballroom",
@@ -657,16 +667,16 @@ describe("Smoke", () => {
     expect(state.tokens).toContainEqual({ token: "smoke", room: "ballroom" });
     expect(
       askNumber(ENGINE, state, "dicePool", {
-        seat: 0,
+        figure: seatExplorer(state, 0),
         roll: traitRoll("speed"),
       }),
     ).toBe(value(state, "speed") - 2);
     // Zoe's Knowledge here is 2: two fewer would be none.
-    state.explorers[0].clips.knowledge = 1;
+    explorer(state, 0).traits.clips.knowledge = 1;
     expect(value(state, "knowledge")).toBe(2);
     expect(
       askNumber(ENGINE, state, "dicePool", {
-        seat: 0,
+        figure: seatExplorer(state, 0),
         roll: traitRoll("knowledge"),
       }),
     ).toBe(1);
@@ -676,13 +686,13 @@ describe("Smoke", () => {
     const state = drawEvent("smoke");
     expect(
       askNumber(ENGINE, state, "dicePool", {
-        seat: 1,
+        figure: seatExplorer(state, 1),
         roll: traitRoll("speed"),
       }),
     ).toBe(value(state, "speed", 1));
     expect(
       askNumber(ENGINE, state, "dicePool", {
-        seat: 0,
+        figure: seatExplorer(state, 0),
         roll: {
           spec: { kind: "dice", count: 3 },
           rule: { source: "card", card: "test" },
@@ -698,9 +708,9 @@ describe("Whoops!", () => {
     const lost = new Set<string>();
     for (const seed of SEEDS.slice(0, 20)) {
       const state = drawEvent("whoops", seed, (s) => {
-        s.explorers[0].cards = ["axe", "book", "bottle"];
+        explorer(s, 0).cards = ["axe", "book", "bottle"];
       });
-      const kept = state.explorers[0].cards;
+      const kept = explorer(state, 0).cards;
       expect(kept).toContain("book");
       expect(kept).toHaveLength(2);
       const gone = ["axe", "bottle"].find((c) => !kept.includes(c));
@@ -714,9 +724,9 @@ describe("Whoops!", () => {
 
   it("does nothing to an explorer with no items", () => {
     const state = drawEvent("whoops", "test-seed", (s) => {
-      s.explorers[0].cards = ["book"];
+      explorer(s, 0).cards = ["book"];
     });
-    expect(state.explorers[0].cards).toEqual(["book"]);
+    expect(explorer(state, 0).cards).toEqual(["book"]);
   });
 });
 
@@ -737,7 +747,7 @@ describe("Webs (cards/events.md)", () => {
   /** Zoe's turn, stuck in the Entrance Hall with the others after failing the draw's roll. */
   const stuck = (setUp: (s: GameState) => void = () => undefined) => {
     const state = testGame();
-    state.explorers[0].cards.push("webs");
+    explorer(state, 0).cards.push("webs");
     state.cardMarks.webs = { failed: { value: 1, lasts: "holder" } };
     setUp(state);
     return state;
@@ -745,34 +755,34 @@ describe("Webs (cards/events.md)", () => {
 
   it("on 4+ you break free: gain 1 Might and discard it", () => {
     const state = landing(4, 8);
-    expect(state.explorers[0].clips.might).toBe(4);
+    expect(explorer(state, 0).traits.clips.might).toBe(4);
     expect(state.decks.event.discard).toContain("webs");
   });
 
   it("on 0-3 you're stuck: you keep it, the roll was your first attempt, and your turn is over", () => {
     const state = landing(0, 3);
-    expect(state.explorers[0].cards).toContain("webs");
+    expect(explorer(state, 0).cards).toContain("webs");
     expect(state.cardMarks.webs?.failed.value).toBe(1);
     expect(state.turn?.seat).toBe(1);
   });
 
   it("while stuck you can do nothing but try to break free, once a turn", () => {
-    const state = stuck((s) => s.explorers[0].cards.push("axe"));
+    const state = stuck((s) => explorer(s, 0).cards.push("axe"));
     expect(labels(state)).toEqual([FREE, "End your turn"]);
   });
 
   it("another explorer in your room may try on their turn; 4+ frees you without the Might", () => {
-    let state = stuck((s) => s.explorers[1].cards.push("angel-feather"));
+    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather"));
     state = choose(state, "End your turn");
     state = choose(choose(state, FREE), "the result is 5");
-    expect(state.explorers[0].cards).not.toContain("webs");
-    expect(state.explorers[0].clips.might).toBe(3);
+    expect(explorer(state, 0).cards).not.toContain("webs");
+    expect(explorer(state, 0).traits.clips.might).toBe(3);
     expect(state.decks.event.discard).toContain("webs");
   });
 
   it("anyone who fails can't move for the rest of that turn", () => {
     // Ox also holds the Axe, so his turn doesn't end by itself.
-    let state = stuck((s) => s.explorers[1].cards.push("angel-feather", "axe"));
+    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather", "axe"));
     state = choose(state, "End your turn");
     state = choose(choose(state, FREE), "the result is 3");
     expect(state.cardMarks.webs?.failed.value).toBe(2);
@@ -781,7 +791,7 @@ describe("Webs (cards/events.md)", () => {
   });
 
   it("after 3 failed attempts you break free on your next turn and take it normally", () => {
-    let state = stuck((s) => s.explorers[1].cards.push("angel-feather"));
+    let state = stuck((s) => explorer(s, 1).cards.push("angel-feather"));
     state = choose(state, "End your turn");
     // Ox fails, and with nothing left to do his turn ends.
     state = choose(choose(state, FREE), "the result is 0");
@@ -789,7 +799,7 @@ describe("Webs (cards/events.md)", () => {
     // Father Rhinehardt fails too: the third attempt. Zoe's turn comes.
     state = firstFailure(state);
     expect(state.turn?.seat).toBe(0);
-    expect(state.explorers[0].cards).not.toContain("webs");
+    expect(explorer(state, 0).cards).not.toContain("webs");
     expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);
   });
 

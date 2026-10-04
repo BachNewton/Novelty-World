@@ -323,9 +323,10 @@ function react(engine: Engine, draft: GameState, write: Write): void {
       (behaviour.reactions ?? [])
         .filter(
           (r) =>
-            r.event === event.type && (!r.when || r.when(draft, event, source)),
+            r.event === event.type &&
+            (!r.when || r.when(draft, event, source, engine)),
         )
-        .flatMap((r) => r.steps(draft, event, source)),
+        .flatMap((r) => r.steps(draft, event, source, engine)),
     ),
   );
   write.ctx.push(...steps);
