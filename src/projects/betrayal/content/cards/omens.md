@@ -168,6 +168,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
 | 4+ | You may put on or take off the Mask. Putting it on: gain 2 Knowledge and lose 2 Sanity. Taking it off: gain 2 Sanity and lose 2 Knowledge. |
 | 0–3 | You can't use the Mask this turn. |
 
+> Note: The card doesn't say what happens to the traits it changed when you lose the Mask while wearing it.
+> Resolution (project): losing the Mask while wearing it takes it off, reversing the change, because the trait change belongs to wearing the card and a card you no longer hold can't be worn.
+
 ## Medallion
 - Deck: omen
 - Set: base
@@ -213,6 +216,9 @@ Drawn when an explorer discovers a room with an omen symbol. The haunt roll they
 - Text:
   - Whenever you take mental damage, you may take all of it as physical damage instead.
   - Make a haunt roll now.
+
+> Note: The card doesn't say whether damage taken as physical instead of mental counts as physical damage for other cards, such as the Armor.
+> Resolution (project): it does: the damage is physical from then on, so the Armor takes 1 off it, because "take it as physical damage" makes it physical damage in every respect.
 
 ## Spear
 - Deck: omen

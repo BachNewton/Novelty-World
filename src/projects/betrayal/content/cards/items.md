@@ -156,6 +156,12 @@ Drawn when an explorer discovers a room with an item symbol.
 > Note: The card doesn't say whether an event that makes you fight counts as one of "that event's trait rolls".
 > Resolution (official): It doesn't. Combat is not a trait roll, so the Candle adds no die to an attack or defense roll. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: The card doesn't say whether the set bonus comes back if you complete the set again after losing it.
+> Resolution (project): it comes back each time you hold all three again, and only the first loss after that takes it back, because the card's bonus and loss are tied to holding the set, and a set rebuilt is a set held.
+
+> Note: The card doesn't say which rolls count as "that event's trait rolls": only those made while the event is read, or also later ones, and whether another explorer's roll for your event counts.
+> Resolution (project): the extra die goes to every trait roll you make for an event you drew, for as long as that event is in play, and never to another explorer's roll, because the card ties the die to your drawing the event and to your rolls.
+
 ## Ceremonial Robe
 - Deck: item
 - Set: Widow's Walk
@@ -256,6 +262,9 @@ Drawn when an explorer discovers a room with an item symbol.
 > Note: The card says "once per turn", not "once during your turn", and doesn't say whether a combat roll includes a defense roll on another player's turn.
 > Resolution (community): It can be used when you defend, since it isn't a weapon, and "once per turn" allows one use in each player's turn. Two independent answers agree, with no official ruling. Source: https://boardgamegeek.com/thread/1909175
 
+> Note: The card doesn't define an "event roll".
+> Resolution (project): an event roll is any roll an event card has you make, its damage dice included; the haunt roll and an item's own dice are not, because the card names the source of the roll, not its kind.
+
 ## Locket
 - Deck: item
 - Set: Widow's Walk
@@ -300,6 +309,15 @@ Drawn when an explorer discovers a room with an item symbol.
   - Once per turn, you may open or close the Music Box.
   - While the Music Box is open, any explorer or monster with a Sanity trait that enters the Music Box's room, or starts its turn there, must make a Sanity roll of 4+. If it fails, that explorer or monster is mesmerized by the music and its turn ends.
   - If an explorer or monster carrying the Music Box is mesmerized, it drops the Music Box. If the Music Box was open when dropped, it stays open.
+
+> Note: The card doesn't say whether the explorer carrying an open Music Box is affected by it.
+> Resolution (project): they are affected like anyone else, including in each room they enter with it, because the music fills the room the box is in and the carrier is in that room.
+
+> Note: The card doesn't say what happens to an explorer mesmerized when it isn't their turn.
+> Resolution (project): they only drop the Music Box if they carry it; there is no turn of theirs to end, because the card's "its turn ends" can only cut short a turn being played.
+
+> Note: The card says only that an open box dropped by a mesmerized carrier stays open.
+> Resolution (project): the Music Box stays open through every drop and trade until someone closes it, because open is the box's own state and the card gives no other way to close it.
 
 ## Pickpoket's Gloves
 - Deck: item

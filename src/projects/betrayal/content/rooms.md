@@ -86,6 +86,9 @@ Every room tile of the base game (44 tiles, plus the three-room Entrance Hall / 
 > Note: the tile doesn't say whether the roll still applies when an effect moves you out of the room, or whether you can avoid the loss after failing.
 > Resolution (official): you roll however you leave, even when a card or other effect moves you out. Failing never stops you leaving. If you fail, you may instead choose to stay in the room, without the loss, and try again on a later turn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: The rulebook forbids attempting the same roll more than once a turn (p. 12), which leaves open whether you roll again on leaving this room a second time in one turn, and what staying instead of taking the loss does to the rest of your turn.
+> Resolution (project): you roll each time you leave, because the tile's "whenever you leave" is a cost of leaving, not a roll you choose to attempt; staying ends your movement for the turn, because the official ruling has you try again on a later turn. The same holds for the Attic, the Graveyard and the Pentagram Chamber.
+
 ## Mystic Elevator
 - Set: base
 - Floors: Upper, Ground, Basement
