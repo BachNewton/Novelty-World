@@ -21,7 +21,11 @@ Average players: neither first-timers nor experts. The game carries the rules so
 
 ## Visual style
 
-Betrayal has its own style, separate from Novelty World's bright, quirky one: it's a gothic haunted-house horror game, and its look should be dark, eerie and atmospheric. Its colours come from its own design tokens, scoped to the project. All art is original, never copied from the published game. The specific art direction (for example pixel art or illustrated SVG) is still to be chosen.
+Betrayal has its own style, separate from Novelty World's bright, quirky one: it's a gothic haunted-house horror game, and its look should be dark, eerie and atmospheric. Its colours come from its own design tokens, scoped to the project. All art is original, never copied from the published game.
+
+The house is shown in 3D with three.js: each room tile is a little room, seen as a dollhouse with the walls nearest the camera cut away. Claude makes all of the art, so all of it is built in code, playing to what Claude does well: low-poly geometry built from simple, adjustable shapes; small pixel-art textures drawn only from one limited palette and shown with hard pixel edges; SVG decals; and lighting (candles, moonlight, fog) to carry the mood. It avoids what Claude does badly: sculpted organic models and painted illustration. Explorers are stylised board-game pawns, not sculpted people.
+
+The art lives in `art/`. A room is a short data definition (materials, props, lights, mood) on a shared stage that builds the shell, with doors and windows taken from the room data. Props a single room needs live in that room's file; pieces several rooms share go in the kit. The art bench (`?bench=<room-id>`) shows one room on its own, and `tools/shots.mjs` screenshots it from every view so the art can be checked without a person looking.
 
 ## Presentation and input
 

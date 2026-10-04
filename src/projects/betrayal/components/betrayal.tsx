@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import type { Action, GameState } from "../types";
 import { ENGINE } from "../game";
 import { newGame, type NewGame } from "../engine/exploration";
@@ -27,8 +28,26 @@ function today(): NewGame["today"] {
   return { month: now.getMonth() + 1, day: now.getDate() };
 }
 
-/** Milestone 2's debug view: every seat played in this one browser, no server. */
+const ArtBench = dynamic(() => import("../art/bench-view").then((m) => m.ArtBench), { ssr: false });
+
+function subscribeToNothing(): () => void {
+  return () => undefined;
+}
+
+/** `?bench=<room-id>` opens the art bench instead of the game. The server
+ *  render has no URL, so it renders nothing and the page picks after hydrating. */
 export function Betrayal() {
+  const bench = useSyncExternalStore(
+    subscribeToNothing,
+    () => new URLSearchParams(window.location.search).get("bench") ?? "",
+    () => null,
+  );
+  if (bench === null) return null;
+  return bench ? <ArtBench room={bench} /> : <DebugGame />;
+}
+
+/** Milestone 2's debug view: every seat played in this one browser, no server. */
+function DebugGame() {
   const [session, setSession] = useState<Session | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
 
