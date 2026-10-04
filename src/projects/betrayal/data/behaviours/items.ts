@@ -26,6 +26,7 @@ import {
   placeOf,
   roomOf,
   together,
+  trackTraits,
   TRAITS,
 } from "../../engine/figures";
 import { moveCloser } from "../../engine/movement";
@@ -57,7 +58,7 @@ const capitalised = (trait: Trait) =>
   `${trait[0].toUpperCase()}${trait.slice(1)}`;
 
 const explorerName = (explorer: Figure) =>
-  CATALOG.characters[explorer.definition].name;
+  CATALOG.figures[explorer.definition].name;
 
 const roomName = (room: string) => CATALOG.rooms[room].name;
 
@@ -121,19 +122,19 @@ function yourselfAndRoommates(state: GameState, figure: FigureId): Figure[] {
 
 // A trait's starting value is a marked space on its track, and traits move by
 // spaces, so "below its starting value" means below that space.
-const spacesBelowStart = (explorer: Figure, trait: Trait) =>
-  Math.max(
-    CATALOG.characters[explorer.definition].start[trait] - explorer.traits.clips[trait],
-    0,
-  );
+function spacesBelowStart(state: GameState, explorer: Figure, trait: Trait) {
+  const { start, live } = trackTraits(CATALOG, state, explorer.id);
+  return Math.max(start[trait] - live.clips[trait], 0);
+}
 
 /** Options to raise any one or more of the traits below their starting value back to it. */
 function restoreOptions(
+  state: GameState,
   explorer: Figure,
   traits: readonly Trait[],
   id: string,
 ): Option[] {
-  const low = traits.filter((t) => spacesBelowStart(explorer, t) > 0);
+  const low = traits.filter((t) => spacesBelowStart(state, explorer, t) > 0);
   const subsets = low.flatMap((first, i) => [
     [first],
     ...low.slice(i + 1).map((second) => [first, second]),
@@ -141,7 +142,7 @@ function restoreOptions(
   return subsets.map((subset) => ({
     label: `Raise ${explorerName(explorer)}'s ${subset.map(capitalised).join(" and ")} to ${subset.length > 1 ? "their starting values" : "its starting value"}`,
     steps: subset.map((t) =>
-      gain(explorer.id, t, spacesBelowStart(explorer, t), card(id)),
+      gain(explorer.id, t, spacesBelowStart(state, explorer, t), card(id)),
     ),
   }));
 }
@@ -154,7 +155,7 @@ function restorer(
 ): Behaviour {
   const options = (state: GameState, figure: FigureId) =>
     yourselfAndRoommates(state, figure).flatMap((e) =>
-      restoreOptions(e, traits, id),
+      restoreOptions(state, e, traits, id),
     );
   return {
     actions: {
@@ -569,10 +570,10 @@ export const ITEMS: BehaviourGroup = {
             ctx.push(chooseOne(p.figure, options, card("dark-dice")));
         }),
         "bottom-out": defineStep<{ figure: FigureId }>((state, p, ctx) => {
-          const explorer = figureOf(state, p.figure);
+          const { clips } = trackTraits(ctx.catalog, state, p.figure).live;
           ctx.push(
             ...TRAITS.map((t) =>
-              gain(p.figure, t, -explorer.traits.clips[t], card("dark-dice")),
+              gain(p.figure, t, -clips[t], card("dark-dice")),
             ),
           );
         }),
@@ -695,7 +696,7 @@ export const ITEMS: BehaviourGroup = {
           label: "Use the Medical Kit",
           available: (state, figure) =>
             yourselfAndRoommates(state, figure).some((e) =>
-              PHYSICAL.some((t) => spacesBelowStart(e, t) > 0),
+              PHYSICAL.some((t) => spacesBelowStart(state, e, t) > 0),
             ),
           steps: (state, figure) => {
             const rule = card("medical-kit");
@@ -707,7 +708,7 @@ export const ITEMS: BehaviourGroup = {
                 figure,
                 yourselfAndRoommates(state, figure)
                   .filter((e) =>
-                    PHYSICAL.some((t) => spacesBelowStart(e, t) > 0),
+                    PHYSICAL.some((t) => spacesBelowStart(state, e, t) > 0),
                   )
                   .map((e) => ({
                     label: `Heal ${explorerName(e)}`,
@@ -736,8 +737,8 @@ export const ITEMS: BehaviourGroup = {
           (state, p, ctx) => {
             const rule = card("medical-kit");
             const target = figureOf(state, p.target);
-            const might = spacesBelowStart(target, "might");
-            const speed = spacesBelowStart(target, "speed");
+            const might = spacesBelowStart(state, target, "might");
+            const speed = spacesBelowStart(state, target, "speed");
             const options: Option[] = [];
             for (let m = Math.min(might, p.points); m >= 0; m--)
               for (let s = Math.min(speed, p.points - m); s >= 0; s--) {

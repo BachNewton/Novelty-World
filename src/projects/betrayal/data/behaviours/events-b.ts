@@ -33,6 +33,7 @@ import {
   figureOf,
   placeOf,
   roomOf,
+  trackTraits,
   TRAITS,
 } from "../../engine/figures";
 import { barrierSides } from "../../engine/questions";
@@ -357,7 +358,7 @@ export const EVENTS_B: BehaviourGroup = {
         // Read when the result lands, not when the card was drawn: the clip is wherever it is then.
         "drop-to-lowest": defineStep<PossessionParams>((state, p, ctx) => {
           const rule = card("possession");
-          const clips = figureOf(state, p.figure).traits.clips;
+          const clips = trackTraits(ctx.catalog, state, p.figure).live.clips;
           if (clips[p.trait] > 0) {
             ctx.push(gain(p.figure, p.trait, -clips[p.trait], rule));
             return;

@@ -14,7 +14,13 @@ import {
   placed,
   turn,
 } from "./board";
-import { figureOf, PHYSICAL, together, traitValue } from "./figures";
+import {
+  figureDefinition,
+  figureOf,
+  PHYSICAL,
+  together,
+  trackTraits,
+} from "./figures";
 import {
   LAYERS,
   liveSources,
@@ -29,6 +35,9 @@ import type { Engine } from "./step-loop";
 // and applying ask the same questions, so legality has one source.
 
 export interface NumberQuestions {
+  /** A figure's value in a trait: the number its clip points at, or its
+   *  fixed value. Ask `hasTrait` first for a figure that may lack one. */
+  traitValue: { figure: FigureId; trait: Trait };
   /** How many dice a roll gets. */
   dicePool: { figure: FigureId; roll: RollContext };
   /** How much damage lands, before the player splits it. */
@@ -224,24 +233,33 @@ const NUMBER_BASE: {
     subject: NumberQuestions[Q],
   ) => number;
 } = {
+  traitValue: (engine, state, { figure, trait }) => {
+    const source = figureDefinition(engine.catalog, state, figure).traits;
+    if (source.kind === "fixed") {
+      const value = source.values[trait];
+      if (value === undefined) throw new Error(`${figure} has no ${trait}`);
+      return value;
+    }
+    const { tracks, live } = trackTraits(engine.catalog, state, figure);
+    return tracks[trait][live.clips[trait]];
+  },
   dicePool: (engine, state, { figure, roll }) => {
     switch (roll.spec.kind) {
       case "trait":
-        return traitValue(engine.catalog, state, figure, roll.spec.trait);
+        return traitValue(engine, state, figure, roll.spec.trait);
       case "dice":
         return roll.spec.count;
       case "haunt":
         return 6;
       case "attack":
         return (
-          roll.spec.dice ??
-          traitValue(engine.catalog, state, figure, roll.spec.trait)
+          roll.spec.dice ?? traitValue(engine, state, figure, roll.spec.trait)
         );
     }
   },
   damageAmount: (_engine, _state, { amount }) => amount,
   movement: (engine, state, { figure }) =>
-    traitValue(engine.catalog, state, figure, "speed"),
+    traitValue(engine, state, figure, "speed"),
 };
 
 interface Applied<C> {
@@ -553,6 +571,28 @@ export function askStructured<Q extends keyof StructuredQuestions>(
     ))
       answer = transform(state, subject, answer, source);
   return answer;
+}
+
+/** A figure's value in a trait, as the rules stand. */
+export function traitValue(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+  trait: Trait,
+): number {
+  return askNumber(engine, state, "traitValue", { figure, trait });
+}
+
+/** Whether a figure has a trait at all: an explorer has all four, a monster
+ *  only those its definition gives (p. 13). */
+export function hasTrait(
+  engine: Engine,
+  state: GameState,
+  figure: FigureId,
+  trait: Trait,
+): boolean {
+  const source = figureDefinition(engine.catalog, state, figure).traits;
+  return source.kind === "tracks" || source.values[trait] !== undefined;
 }
 
 /** The seat that decides for a figure, where one must. */

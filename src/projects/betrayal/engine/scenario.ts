@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import { placed } from "./board";
 import { defineStep, gainCard } from "./effects";
-import { figureOf, putFigure, seatExplorer, TRAITS } from "./figures";
+import { putFigure, seatExplorer, trackTraits, TRAITS } from "./figures";
 import { barrierSides } from "./questions";
 import type { Engine, StepHandler } from "./step-loop";
 import { placeOptions } from "./tiles";
@@ -144,7 +144,10 @@ export function prepareScenario(
     seat(setup.seat, "An explorer");
     if (seen.has(setup.seat)) throw new Error(`${what} is set up twice`);
     seen.add(setup.seat);
-    const tracks = catalog.characters[characters[setup.seat]].tracks;
+    const traits = catalog.figures[characters[setup.seat]].traits;
+    if (traits.kind !== "tracks")
+      throw new Error(`${what}: ${characters[setup.seat]} has no tracks`);
+    const tracks = traits.tracks;
     const clips = TRAITS.flatMap((trait) => {
       const clip = setup.clips?.[trait];
       if (clip === undefined) return [];
@@ -265,7 +268,7 @@ export const SCENARIO_STEPS: Record<string, StepHandler> = {
           side: firstSide(ctx.engine, setup.room),
         });
       for (const { trait, clip } of setup.clips)
-        figureOf(state, figure).traits.clips[trait] = clip;
+        trackTraits(ctx.catalog, state, figure).live.clips[trait] = clip;
       if (setup.room !== null || setup.clips.length > 0)
         ctx.emit("explorer-set-up", SCENARIO_RULE, {
           figure,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ENGINE } from "../game";
 import { at, choose, explorer, offered, testGame } from "../testing";
 import { placed } from "./board";
-import { traitValue } from "./figures";
+import { traitValue } from "./questions";
 import { hauntCells, hauntNumbers } from "./scenario";
 
 describe("a scenario", () => {
@@ -28,7 +28,7 @@ describe("a scenario", () => {
     const ox = explorer(state, 1);
     expect(at(state, 1).room).toBe("chapel");
     expect(ox.traits.clips.might).toBe(0);
-    expect(traitValue(ENGINE.catalog, state, "ox-bellows", "speed")).toBe(
+    expect(traitValue(ENGINE, state, "ox-bellows", "speed")).toBe(
       ENGINE.catalog.characters["ox-bellows"].tracks.speed[7],
     );
   });
@@ -43,8 +43,8 @@ describe("a scenario", () => {
     expect(state.decks.item.draw).not.toContain("bell");
     expect(state.omensDrawn).toBe(1);
     expect(
-      traitValue(ENGINE.catalog, state, "zoe-ingstrom", "sanity"),
-    ).toBeGreaterThan(traitValue(ENGINE.catalog, plain, "zoe-ingstrom", "sanity"));
+      traitValue(ENGINE, state, "zoe-ingstrom", "sanity"),
+    ).toBeGreaterThan(traitValue(ENGINE, plain, "zoe-ingstrom", "sanity"));
     // The Dog's token goes where its holder is.
     expect(state.tokens.find((t) => t.holder === "zoe-ingstrom")?.room).toBe(
       "chapel",

@@ -15,7 +15,8 @@ import type { CardDestination, GainedBy } from "./effects";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { FLOOR_NAMES } from "./board";
-import { explorerOf, figureName, figureOf } from "./figures";
+import { explorerOf, figureName } from "./figures";
+import { traitValue } from "./questions";
 
 // Plain language for events and decisions, for the game log, the UI and AI
 // players alike. Each line names the rule behind it when that rule is a room,
@@ -398,10 +399,8 @@ export function describeEvent(
       const d = data<{ figure: FigureId; room: string | null; traits: Trait[] }>(
         event,
       );
-      const figure = figureOf(state, d.figure);
-      const track = engine.catalog.characters[figure.definition].tracks;
       const traits = d.traits.map(
-        (t) => `${traitName(t)} ${track[t][figure.traits.clips[t]]}`,
+        (t) => `${traitName(t)} ${traitValue(engine, state, d.figure, t)}`,
       );
       const parts = [
         ...(d.room === null ? [] : [`starts in the ${words.room(d.room)}`]),

@@ -1,10 +1,6 @@
 import type { GameState } from "../types";
-import {
-  allFigures,
-  figureName,
-  TRAITS,
-  traitValue,
-} from "../engine/figures";
+import { allFigures, figureName, TRAITS } from "../engine/figures";
+import { traitValue } from "../engine/questions";
 import type { Engine } from "../engine/step-loop";
 import { seatLabel } from "./describe";
 
@@ -58,7 +54,7 @@ export function SidePanel({
                 <li key={trait} className="flex justify-between">
                   <span className="capitalize text-(--bt-muted)">{trait}</span>
                   <span>
-                    {traitValue(engine.catalog, state, figure.id, trait)}
+                    {traitValue(engine, state, figure.id, trait)}
                   </span>
                 </li>
               ))}

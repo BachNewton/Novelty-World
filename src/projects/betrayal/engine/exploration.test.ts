@@ -12,7 +12,7 @@ import {
   waitingOn,
 } from "../testing";
 import type { GameState } from "../types";
-import { traitValue } from "./figures";
+import { traitValue } from "./questions";
 import {
   cardCount,
   cardFlag,
@@ -46,7 +46,7 @@ describe("setup", () => {
       "entrance-hall",
       "entrance-hall",
     ]);
-    expect(traitValue(ENGINE.catalog, state, ZOE, "speed")).toBe(4);
+    expect(traitValue(ENGINE, state, ZOE, "speed")).toBe(4);
     expect(state.turn?.seat).toBe(0);
     expect(waitingOn(state)).toBe(0);
     expect(state.decks.omen.draw).toHaveLength(13);

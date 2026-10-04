@@ -1,7 +1,9 @@
 import type {
   Catalog,
   Figure,
+  FigureDefinition,
   FigureId,
+  FigureTraits,
   GameState,
   Place,
   Trait,
@@ -88,16 +90,34 @@ export function together(a: Figure, b: Figure): boolean {
   );
 }
 
-export function traitValue(
+/** What a figure is, from the catalogue's figure definitions. */
+export function figureDefinition(
   catalog: Catalog,
   state: GameState,
   id: FigureId,
-  trait: Trait,
-): number {
-  const figure = figureOf(state, id);
-  return catalog.characters[figure.definition].tracks[trait][
-    figure.traits.clips[trait]
-  ];
+): FigureDefinition {
+  const definition = figureOf(state, id).definition;
+  if (!(definition in catalog.figures))
+    throw new Error(`There is no figure definition ${definition}`);
+  return catalog.figures[definition];
+}
+
+/** A figure's tracks and its clips on them, for the rules that move clips. A
+ *  figure with fixed traits has no clips to move. */
+export function trackTraits(
+  catalog: Catalog,
+  state: GameState,
+  id: FigureId,
+): {
+  tracks: Record<Trait, number[]>;
+  start: Record<Trait, number>;
+  live: Extract<FigureTraits, { kind: "track" }>;
+} {
+  const source = figureDefinition(catalog, state, id).traits;
+  const live = figureOf(state, id).traits;
+  if (source.kind !== "tracks" || live.kind !== "track")
+    throw new Error(`${id}'s traits aren't on tracks`);
+  return { tracks: source.tracks, start: source.start, live };
 }
 
 /** Moves a trait's clip by spaces. Before the haunt a clip stops at the track's lowest
@@ -112,9 +132,8 @@ export function moveClip(
   spaces: number,
   card: string | null,
 ): number {
-  const figure = figureOf(state, id);
-  const traits = figure.traits;
-  const top = catalog.characters[figure.definition].tracks[trait].length - 1;
+  const { tracks, live: traits } = trackTraits(catalog, state, id);
+  const top = tracks[trait].length - 1;
   const before = traits.clips[trait];
   let change = spaces;
   if (card !== null && change < 0) {
@@ -141,11 +160,10 @@ export function moveClip(
   return after - before;
 }
 
-/** A figure's name: an explorer's is its character's. */
 export function figureName(
   catalog: Catalog,
   state: GameState,
   id: FigureId,
 ): string {
-  return catalog.characters[figureOf(state, id).definition].name;
+  return figureDefinition(catalog, state, id).name;
 }

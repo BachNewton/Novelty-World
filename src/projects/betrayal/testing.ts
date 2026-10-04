@@ -3,7 +3,14 @@ import { figureOf, placeOf, seatExplorer } from "./engine/figures";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { ENGINE } from "./game";
 import type { Scenario } from "./engine/scenario";
-import type { Decision, Edge, Figure, GameState, Place } from "./types";
+import type {
+  Decision,
+  Edge,
+  Figure,
+  FigureTraits,
+  GameState,
+  Place,
+} from "./types";
 
 // Scenario helpers for tests: start a game from a scenario (stacked decks and
 // room stack, placed explorers, a haunt already revealed), then play it by
@@ -87,9 +94,19 @@ export function eventTypes(state: GameState): string[] {
   return state.lastEvents.map((e) => e.type);
 }
 
+/** An explorer: a figure whose traits are clips on tracks. */
+export type ExplorerFigure = Figure & {
+  traits: Extract<FigureTraits, { kind: "track" }>;
+};
+
+const onTracks = (figure: Figure): figure is ExplorerFigure =>
+  figure.traits.kind === "track";
+
 /** The seat's explorer. */
-export function explorer(state: GameState, seat: number): Figure {
-  return figureOf(state, seatExplorer(state, seat));
+export function explorer(state: GameState, seat: number): ExplorerFigure {
+  const figure = figureOf(state, seatExplorer(state, seat));
+  if (!onTracks(figure)) throw new Error(`${figure.id} has no clips`);
+  return figure;
 }
 
 /** Where the seat's explorer is. */

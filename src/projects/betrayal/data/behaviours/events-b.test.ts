@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { seatExplorer, traitValue } from "../../engine/figures";
+import { seatExplorer } from "../../engine/figures";
+import { traitValue } from "../../engine/questions";
 import { askNumber } from "../../engine/questions";
 import { ENGINE } from "../../game";
 import {
@@ -115,7 +116,7 @@ function eachRow(
 }
 
 const value = (state: GameState, trait: Trait, seat = 0) =>
-  traitValue(ENGINE.catalog, state, seatExplorer(state, seat), trait);
+  traitValue(ENGINE, state, seatExplorer(state, seat), trait);
 
 describe("Night View", () => {
   it("makes a Knowledge roll: 5+ gains 1 Knowledge, 0-4 nothing", () => {

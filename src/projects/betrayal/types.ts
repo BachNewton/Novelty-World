@@ -108,9 +108,37 @@ export interface HauntChart {
   traitors: Record<number, TraitorRule>;
 }
 
+/** Where a figure's traits come from: clips on printed tracks (an
+ *  explorer's character card), or fixed values (a monster's stats). A trait
+ *  a figure lacks is left out. */
+export type TraitSource =
+  | {
+      kind: "tracks";
+      /** Each track's values, lowest (next to the skull) first. */
+      tracks: Record<Trait, number[]>;
+      /** The starting clip position on each track, as an index into it. */
+      start: Record<Trait, number>;
+    }
+  | { kind: "fixed"; values: Partial<Record<Trait, number>> };
+
+/** What a figure is: every figure's definition is looked up the same way,
+ *  whatever kind of figure it is. Explorers come from the characters; a
+ *  haunt's figures register their own. */
+export interface FigureDefinition {
+  id: string;
+  name: string;
+  kind: FigureKind;
+  traits: TraitSource;
+  /** The token that stands for this figure in a room, where a rule puts one
+   *  down (an explorer's, in its character card's colour). */
+  token: string | null;
+}
+
 export interface Catalog {
   rooms: Record<string, RoomTile>;
   characters: Record<string, Character>;
+  /** Every figure's definition, by id. */
+  figures: Record<string, FigureDefinition>;
   cards: Record<string, Card>;
   tokens: Record<string, TokenKind>;
   chart: HauntChart;
@@ -210,20 +238,23 @@ export type FigureId = string;
 
 export type FigureKind = "explorer" | "monster" | "ally" | "object";
 
-/** A figure's traits. An explorer's are clip positions on its character's
- *  tracks; other kinds of figure will add their own forms. */
-export type FigureTraits = {
-  kind: "track";
-  /** Each trait's clip, as an index into the character's track. */
-  clips: Record<Trait, number>;
-  /** Spaces a card pushed a trait past its printed maximum. Losing the card takes these first (p. 11). */
-  overTop: { card: string; trait: Trait; spaces: number }[];
-};
+/** A figure's live traits, in the form its definition's trait source gives:
+ *  clip positions on its tracks, or nothing live for fixed values, which stay
+ *  in the catalogue. */
+export type FigureTraits =
+  | {
+      kind: "track";
+      /** Each trait's clip, as an index into the definition's track. */
+      clips: Record<Trait, number>;
+      /** Spaces a card pushed a trait past its printed maximum. Losing the card takes these first (p. 11). */
+      overTop: { card: string; trait: Trait; spaces: number }[];
+    }
+  | { kind: "fixed" };
 
 export interface Figure {
   id: FigureId;
   kind: FigureKind;
-  /** What it is in the catalogue: an explorer's character. */
+  /** Its figure definition in the catalogue: an explorer's is its character. */
   definition: string;
   /** The seat whose piece it is, if any. Who controls it is a question, not
    *  this field: its base answer is the owner. */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { adjacent } from "../../engine/board";
 import { attack } from "../../engine/combat";
 import { discardCard } from "../../engine/effects";
-import { traitValue } from "../../engine/figures";
+import { traitValue } from "../../engine/questions";
 import { askNumber } from "../../engine/questions";
 import { start } from "../../engine/step-loop";
 import { ENGINE } from "../../game";
@@ -537,7 +537,7 @@ describe("Candle (cards/items.md)", () => {
 
   it("adds nothing to another explorer's roll for an event you drew, or to yours for theirs", () => {
     const sanity = (figure: string) =>
-      traitValue(ENGINE.catalog, testGame(), figure, "sanity");
+      traitValue(ENGINE, testGame(), figure, "sanity");
     // Hideous Shriek: every explorer makes a Sanity roll.
     expect(
       sanityRolls(drawEvent(holding(["candle"]), "hideous-shriek")),
@@ -572,7 +572,7 @@ describe("Candle (cards/items.md)", () => {
     // Angry Being has been discarded, so a roll naming it isn't for an event in play.
     expect(state.decks.event.discard).toContain("angry-being");
     expect(pool({ kind: "trait", trait: "speed" })).toBe(
-      traitValue(ENGINE.catalog, state, ZOE_ID, "speed"),
+      traitValue(ENGINE, state, ZOE_ID, "speed"),
     );
   });
 });

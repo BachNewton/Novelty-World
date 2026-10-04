@@ -2,7 +2,9 @@ import type {
   Catalog,
   Edge,
   Figure,
+  FigureDefinition,
   FigureId,
+  FigureTraits,
   FloorId,
   GameState,
   Haunt,
@@ -118,6 +120,20 @@ function validateSeats(catalog: Catalog, seats: NewGame["seats"]): void {
       throw new Error(`Two explorers chosen from the ${found.card} card`);
     cards.add(found.card);
   }
+}
+
+/** A figure's traits as it comes into play: on tracks, each clip at its
+ *  starting position. */
+function startingTraits(definition: FigureDefinition): FigureTraits {
+  const source = definition.traits;
+  if (source.kind === "fixed") return { kind: "fixed" };
+  return {
+    kind: "track",
+    clips: Object.fromEntries(
+      TRAITS.map((t) => [t, source.start[t]]),
+    ) as Record<Trait, number>,
+    overTop: [],
+  };
 }
 
 type Setup = {
@@ -531,16 +547,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
           definition: character,
           owner: seat,
           place: { room: "entrance-hall", side: null },
-          traits: {
-            kind: "track",
-            clips: Object.fromEntries(
-              TRAITS.map((t) => [
-                t,
-                ctx.catalog.characters[character].start[t],
-              ]),
-            ) as Record<Trait, number>,
-            overTop: [],
-          },
+          traits: startingTraits(ctx.catalog.figures[character]),
           cards: [],
           statuses: [],
           stunned: false,

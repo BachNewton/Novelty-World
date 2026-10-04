@@ -1,5 +1,5 @@
 import { FLOOR_NAMES, placed } from "../../engine/board";
-import { allFigures, figureOf, placeOf } from "../../engine/figures";
+import { allFigures, figureDefinition, placeOf } from "../../engine/figures";
 import {
   chooseOne,
   damage,
@@ -40,9 +40,12 @@ import type {
 import { CATALOG } from "..";
 import { immuneToRoom } from "./omens";
 
-/** The explorer token that marks a figure in a room, in the colour of its character card. */
+/** The token that marks a figure in a room: an explorer's, in the colour of
+ *  its character card. */
 function explorerToken(state: GameState, figure: FigureId): string {
-  return `explorer-${CATALOG.characters[figureOf(state, figure).definition].card}`;
+  const token = figureDefinition(CATALOG, state, figure).token;
+  if (token === null) throw new Error(`${figure} has no token to mark it`);
+  return token;
 }
 
 /** The figure that ended its seat's turn in this room, if one did: the

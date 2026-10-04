@@ -20,12 +20,12 @@ import { attack, cardAttack } from "../../engine/combat";
 import {
   allFigures,
   explorersFrom,
+  figureName,
   figureOf,
   placeOf,
   roomOf,
   together,
   TRAITS,
-  traitValue,
 } from "../../engine/figures";
 import { distanceTo } from "../../engine/movement";
 import {
@@ -33,6 +33,7 @@ import {
   askPermission,
   askSet,
   onTurn,
+  traitValue,
   type CombatOutcome,
 } from "../../engine/questions";
 import {
@@ -61,7 +62,7 @@ const traitName = (trait: Trait) =>
   `${trait[0].toUpperCase()}${trait.slice(1)}`;
 
 const explorerName = (state: GameState, figure: FigureId) =>
-  CATALOG.characters[figureOf(state, figure).definition].name;
+  figureName(CATALOG, state, figure);
 
 function traitRoll(
   figure: FigureId,
@@ -293,7 +294,7 @@ export const EVENTS_A: BehaviourGroup = {
             );
           }
           const might = (figure: FigureId) =>
-            traitValue(ctx.catalog, state, figure, "might");
+            traitValue(ctx.engine, state, figure, "might");
           const lowest = Math.min(...targets.map((e) => might(e.id)));
           const weakest = targets.filter((e) => might(e.id) === lowest);
           const attackOn = (figure: FigureId) =>

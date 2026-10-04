@@ -3,7 +3,8 @@ import { ENGINE } from "../game";
 import { pendingDecision, testGame } from "../testing";
 import type { RuleRef } from "../types";
 import { damage } from "./effects";
-import { controllerOf, onTurn } from "./questions";
+import { figureName } from "./figures";
+import { askNumber, controllerOf, hasTrait, onTurn, traitValue } from "./questions";
 import { start, type Engine } from "./step-loop";
 
 // Who decides for a figure is the controller question, not a stored seat:
@@ -53,5 +54,86 @@ describe("the controller question", () => {
     const split = pendingDecision(hurt);
     expect(split.kind).toBe("split-damage");
     expect(split.seats).toEqual([2]);
+  });
+});
+
+// A figure's trait value is a question too: its base answer reads the
+// figure's definition (clips on tracks, or fixed values), so a rule that ties
+// a value to something else is a modifier, and every roll and allowance that
+// reads the trait follows it.
+
+/** The real engine, with a card that sets its holder's Speed to 2. */
+const slowed: Engine = {
+  ...ENGINE,
+  behaviours: {
+    ...ENGINE.behaviours,
+    cards: {
+      ...ENGINE.behaviours.cards,
+      bell: {
+        modifiers: [
+          {
+            question: "traitValue",
+            when: (_state, { figure, trait }, source) =>
+              figure === source.holder && trait === "speed",
+            change: { set: 2 },
+          },
+        ],
+      },
+    },
+  },
+};
+
+/** The real catalogue, with a monster of fixed traits and no Sanity. */
+const withMonster: Engine = {
+  ...ENGINE,
+  catalog: {
+    ...ENGINE.catalog,
+    figures: {
+      ...ENGINE.catalog.figures,
+      brute: {
+        id: "brute",
+        name: "Brute",
+        kind: "monster",
+        traits: { kind: "fixed", values: { speed: 3, might: 6 } },
+        token: null,
+      },
+    },
+  },
+};
+
+describe("the trait value question", () => {
+  it("reads an explorer's value off its track", () => {
+    const state = testGame({ explorers: [{ seat: 0, clips: { speed: 7 } }] });
+    expect(traitValue(ENGINE, state, ZOE, "speed")).toBe(
+      ENGINE.catalog.characters[ZOE].tracks.speed[7],
+    );
+  });
+
+  it("follows a modifier, and so does everything that reads the trait", () => {
+    const state = testGame({ engine: slowed, explorers: [{ seat: 0, cards: ["bell"] }] });
+    expect(traitValue(slowed, state, ZOE, "speed")).toBe(2);
+    expect(askNumber(slowed, state, "movement", { figure: ZOE })).toBe(2);
+  });
+
+  it("reads a figure with fixed traits from its definition, by the same lookup", () => {
+    const state = testGame({ engine: withMonster });
+    state.figures.brute = {
+      id: "brute",
+      kind: "monster",
+      definition: "brute",
+      owner: null,
+      place: { room: "foyer", side: null },
+      traits: { kind: "fixed" },
+      cards: [],
+      statuses: [],
+      stunned: false,
+      alive: true,
+    };
+    expect(figureName(withMonster.catalog, state, "brute")).toBe("Brute");
+    expect(traitValue(withMonster, state, "brute", "might")).toBe(6);
+    expect(hasTrait(withMonster, state, "brute", "sanity")).toBe(false);
+    expect(() => traitValue(withMonster, state, "brute", "sanity")).toThrow(
+      "brute has no sanity",
+    );
   });
 });

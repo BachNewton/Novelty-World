@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { seatExplorer, traitValue } from "../../engine/figures";
+import { seatExplorer } from "../../engine/figures";
+import { traitValue } from "../../engine/questions";
 import { ENGINE } from "../../game";
 import {
   choose,
@@ -18,7 +19,7 @@ const value = (
   state: GameState,
   trait: "speed" | "might" | "sanity" | "knowledge",
   seat = 0,
-) => traitValue(ENGINE.catalog, state, seatExplorer(state, seat), trait);
+) => traitValue(ENGINE, state, seatExplorer(state, seat), trait);
 
 /** Zoe explores north from the Entrance Hall into the Ballroom, which has four doors and an event symbol. */
 function drawEvent(

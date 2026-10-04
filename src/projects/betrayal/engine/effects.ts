@@ -18,6 +18,7 @@ import {
   MENTAL,
   moveClip,
   PHYSICAL,
+  trackTraits,
   placeOf,
   putFigure,
 } from "./figures";
@@ -215,11 +216,12 @@ type Split = {
 };
 
 function splitOptions(
+  engine: Engine,
   state: GameState,
   split: Split,
 ): { [trait: string]: number }[] {
   const [first, second] = split.damage === "physical" ? PHYSICAL : MENTAL;
-  const clips = figureOf(state, split.figure).traits.clips;
+  const clips = trackTraits(engine.catalog, state, split.figure).live.clips;
   const seen = new Set<string>();
   const options: { [trait: string]: number }[] = [];
   for (let onFirst = split.amount; onFirst >= 0; onFirst--) {
@@ -1122,7 +1124,7 @@ function cardName(engine: Engine, card: string): string {
 
 export const EFFECT_DECISIONS: Record<string, DecisionKind> = {
   "split-damage": defineDecision<Split, { [trait: string]: number }>({
-    candidates: (state, p) => splitOptions(state, p),
+    candidates: (state, p, _seat, engine) => splitOptions(engine, state, p),
     label: (_state, _p, split) =>
       `Take ${Object.entries(split)
         .map(([trait, n]) => `${n} ${traitName(trait as Trait)}`)
