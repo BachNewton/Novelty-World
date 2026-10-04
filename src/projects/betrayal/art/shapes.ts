@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { paletteHex, type PaletteKey } from "./palette";
 import { TEXELS_PER_METRE, textureMetres } from "./textures";
 
@@ -15,6 +16,27 @@ export function glow(colour: PaletteKey, map?: THREE.Texture): THREE.MeshBasicMa
     fog: false,
     transparent: Boolean(map),
     alphaTest: map ? 0.5 : 0,
+  });
+}
+
+/**
+ * Light rather than paint, for glass glow, lamp pools and light beams: it adds
+ * to whatever lies behind it, so the surface's own shading shows through the
+ * colour. `vertexColors` lets a beam fade along its length.
+ */
+export function lightMaterial(
+  opacity: number,
+  { map, vertexColors = false }: { map?: THREE.Texture; vertexColors?: boolean } = {},
+): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    map,
+    vertexColors,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+    side: THREE.DoubleSide,
   });
 }
 
@@ -101,6 +123,38 @@ export function lathe(profile: [number, number][], material: THREE.Material, sid
   const points = profile.map(([r, y]) => new THREE.Vector2(r, y));
   return new THREE.Mesh(new THREE.LatheGeometry(points, sides), material);
 }
+
+export type Size = [w: number, h: number, d: number];
+
+/**
+ * Many small boxes merged into one mesh, each tinted by vertex colour: a wall
+ * of books is thousands of pieces, far too many to draw one by one.
+ */
+export function batch() {
+  const parts: THREE.BufferGeometry[] = [];
+  const add = (size: Size, colour: PaletteKey, matrix: THREE.Matrix4) => {
+    const geometry = new THREE.BoxGeometry(...size).applyMatrix4(matrix);
+    const { r, g, b } = new THREE.Color(paletteHex(colour));
+    const count = geometry.getAttribute("position").count;
+    const colours = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) colours.set([r, g, b], i * 3);
+    geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+    parts.push(geometry);
+  };
+  return {
+    add,
+    /** A box standing on `at` (its base, not its centre), like `box`. */
+    block: (size: Size, colour: PaletteKey, at: [number, number, number]) => {
+      add(size, colour, new THREE.Matrix4().makeTranslation(at[0], at[1] + size[1] / 2, at[2]));
+    },
+    mesh: () => {
+      const merged = mergeGeometries(parts);
+      for (const part of parts) part.dispose();
+      return new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    },
+  };
+}
+export type Batch = ReturnType<typeof batch>;
 
 export function group(...children: THREE.Object3D[]): THREE.Group {
   const result = new THREE.Group();

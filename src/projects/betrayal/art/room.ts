@@ -14,6 +14,9 @@ export const WINDOW_WIDTH = 1.0;
 export const WINDOW_SILL = 1.0;
 export const WINDOW_TOP = 2.5;
 export const WAINSCOT_HEIGHT = 1.0;
+/** How far the wainscot panelling stands off the wall face. A piece backed
+ *  against a wall must not put a face in this plane, or the two fight. */
+export const WAINSCOT_DEPTH = 0.03;
 /** Half the walkable floor: props stay within ±INNER of the centre. */
 export const INNER = TILE / 2 - WALL_THICKNESS;
 
@@ -26,9 +29,10 @@ export interface Placement {
   at: [x: number, z: number];
   y?: number;
   turn?: number;
-  /** The wall it hangs on (set by `onWall`). Hung above the cut height, it
-   *  hides with the wall when the camera cuts that wall away. */
-  wall?: Edge;
+  /** The walls it hangs on: one (set by `onWall`), or two for a piece in a
+   *  corner. Hung above the cut height, it hides when the camera cuts away
+   *  any of them. */
+  walls?: Edge[];
 }
 
 export interface PropPlacement extends Placement {
@@ -94,7 +98,7 @@ export function onWall(edge: Edge, along: number, { y = 0, out = 0 } = {}): Plac
     bottom: [-along, depth],
     left: [-depth, -along],
   };
-  return { at: at[edge], y, turn: WALL_TURN[edge], wall: edge };
+  return { at: at[edge], y, turn: WALL_TURN[edge], walls: [edge] };
 }
 
 export function wallTurn(edge: Edge): number {

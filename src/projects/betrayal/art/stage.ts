@@ -9,6 +9,7 @@ import {
   DOOR_HEIGHT,
   DOOR_WIDTH,
   TILE,
+  WAINSCOT_DEPTH,
   WAINSCOT_HEIGHT,
   WALL_HEIGHT,
   WALL_THICKNESS,
@@ -123,6 +124,12 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
   const wall = group();
   const half = WALL_THICKNESS / 2;
   const face = half;
+  const casing = 0.1;
+  const doorEdges = holes.filter((hole) => hole.kind === "door").flatMap((hole) => [hole.centre - hole.width / 2, hole.centre + hole.width / 2]);
+  /** Panelling and skirting stop under a door's casing: ending flush with the
+   *  opening, their end faces would lie in the plane of the casing's inner
+   *  face and fight it. */
+  const underCasing = (x: number) => (doorEdges.some((edge) => Math.abs(edge - x) < 1e-6) ? casing : 0);
   for (const span of spans(length, holes, height)) {
     const w = span.x1 - span.x0;
     const h = span.y1 - span.y0;
@@ -130,12 +137,16 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
     const cx = (span.x0 + span.x1) / 2;
     wall.add(box([w, h, WALL_THICKNESS], parts.wall, [cx, span.y0, 0]));
     if (span.y0 === 0) {
+      const x0 = span.x0 + underCasing(span.x0);
+      const x1 = span.x1 - underCasing(span.x1);
+      const dressed = x1 - x0;
+      const dx = (x0 + x1) / 2;
       if (parts.wainscot) {
         const panel = Math.min(WAINSCOT_HEIGHT, span.y1);
-        wall.add(box([w, panel, 0.03], parts.wainscot, [cx, 0, face + 0.015]));
-        if (span.y1 > WAINSCOT_HEIGHT) wall.add(box([w, 0.05, 0.05], parts.trim, [cx, WAINSCOT_HEIGHT - 0.03, face + 0.025]));
+        wall.add(box([dressed, panel, WAINSCOT_DEPTH], parts.wainscot, [dx, 0, face + WAINSCOT_DEPTH / 2]));
+        if (span.y1 > WAINSCOT_HEIGHT) wall.add(box([dressed, 0.05, 0.05], parts.trim, [dx, WAINSCOT_HEIGHT - 0.03, face + 0.025]));
       }
-      wall.add(box([w, Math.min(0.16, span.y1), 0.05], parts.trim, [cx, 0, face + 0.025]));
+      wall.add(box([dressed, Math.min(0.16, span.y1), 0.05], parts.trim, [dx, 0, face + 0.025]));
     }
     if (span.y1 === WALL_HEIGHT) {
       wall.add(box([w, 0.12, 0.06], parts.trim, [cx, WALL_HEIGHT - 0.12, face + 0.03]));
@@ -144,7 +155,6 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
   for (const hole of holes) {
     const left = hole.centre - hole.width / 2;
     const right = hole.centre + hole.width / 2;
-    const casing = 0.1;
     const jambTop = Math.min(hole.top + casing, height);
     const jambBottom = hole.bottom > 0 ? hole.bottom - casing / 2 : 0;
     if (jambTop > jambBottom) {
@@ -156,7 +166,8 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
       wall.add(box([hole.width + casing * 2, casing, 0.07], parts.trim, [hole.centre, hole.top, face + 0.035]));
     }
     if (hole.kind === "window" && hole.bottom <= height) {
-      wall.add(box([hole.width + casing * 2, 0.05, WALL_THICKNESS + 0.1], parts.trim, [hole.centre, hole.bottom - 0.05, 0.05]));
+      // The sill stands a little above the wall it rests on, so their tops don't share a plane and fight.
+      wall.add(box([hole.width + casing * 2, 0.05, WALL_THICKNESS + 0.1], parts.trim, [hole.centre, hole.bottom - 0.04, 0.05]));
       const glassTop = Math.min(hole.top, height);
       if (glassTop > hole.bottom) {
         const pane = new THREE.Mesh(new THREE.PlaneGeometry(hole.width, glassTop - hole.bottom), glow("moon", pixelTexture(LEADED_GLASS, { l: "soot", m: "moon", d: "moonDark", g: "moonLight" })));
@@ -219,6 +230,21 @@ function pointLight(spec: Omit<LightSpec, "at">): THREE.PointLight {
   return light;
 }
 
+/**
+ * Where the room's moon stands; it shines towards the centre of the floor. The
+ * moonlight's direction is the reverse of this, so a piece built to line up
+ * with it (a shaft of light through a window) follows the stage's own moon.
+ */
+export function moonPosition(def: RoomDefinition): THREE.Vector3 {
+  const outward = OUTWARD[def.mood.moonFrom ?? roomTile(def.id).windows.at(0) ?? "top"];
+  const elevation = THREE.MathUtils.degToRad(50);
+  return new THREE.Vector3(
+    outward.x * Math.cos(elevation) * 12 + 1,
+    Math.sin(elevation) * 12,
+    outward.y * Math.cos(elevation) * 12 + 0.6,
+  );
+}
+
 export function buildRoomStage(def: RoomDefinition): Stage {
   const tile = roomTile(def.id);
   const root = group();
@@ -249,13 +275,13 @@ export function buildRoomStage(def: RoomDefinition): Stage {
     walls.push({ edge, full, cut });
   }
 
-  const hung: { edge: Edge; object: THREE.Object3D }[] = [];
+  const hung: { edges: Edge[]; object: THREE.Object3D }[] = [];
   for (const prop of def.props) {
     const object = prop.build();
     object.position.set(prop.at[0], prop.y ?? 0, prop.at[1]);
     object.rotation.y = THREE.MathUtils.degToRad(prop.turn ?? 0);
     root.add(object);
-    if (prop.wall && (prop.y ?? 0) >= CUT_HEIGHT) hung.push({ edge: prop.wall, object });
+    if (prop.walls && (prop.y ?? 0) >= CUT_HEIGHT) hung.push({ edges: prop.walls, object });
   }
 
   if (def.pawn) {
@@ -267,11 +293,8 @@ export function buildRoomStage(def: RoomDefinition): Stage {
   const { mood } = def;
   root.add(new THREE.HemisphereLight(paletteHex(mood.ambientColour), paletteHex("void"), mood.ambient * 6));
 
-  const moonFrom = mood.moonFrom ?? tile.windows.at(0) ?? "top";
   const moon = new THREE.DirectionalLight(paletteHex("moonLight"), mood.moon * 6);
-  const outward = OUTWARD[moonFrom];
-  const elevation = THREE.MathUtils.degToRad(50);
-  moon.position.set(outward.x * Math.cos(elevation) * 12 + 1, Math.sin(elevation) * 12, outward.y * Math.cos(elevation) * 12 + 0.6);
+  moon.position.copy(moonPosition(def));
   moon.castShadow = true;
   moon.shadow.mapSize.set(1024, 1024);
   Object.assign(moon.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 30 });
@@ -328,8 +351,8 @@ export function buildRoomStage(def: RoomDefinition): Stage {
         setShadowOnly(full, facing);
         cut.visible = facing;
       }
-      for (const { edge, object } of hung) {
-        object.visible = OUTWARD[edge].dot(cameraDirection) <= 0.01;
+      for (const { edges, object } of hung) {
+        object.visible = edges.every((edge) => OUTWARD[edge].dot(cameraDirection) <= 0.01);
       }
     },
     update: (seconds) => {

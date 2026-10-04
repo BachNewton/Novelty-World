@@ -1,42 +1,11 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import type { Edge } from "../../types";
 import { candelabra, candle, chair, rug } from "../kit";
-import { paletteHex, RAMPS, type PaletteKey } from "../palette";
-import { CUT_HEIGHT, onWall, type PropPlacement, type RoomDefinition } from "../room";
-import { box, cylinder, flat, group, pixelPlane, textured } from "../shapes";
+import { RAMPS, type PaletteKey } from "../palette";
+import { CUT_HEIGHT, onWall, WAINSCOT_DEPTH, type PropPlacement, type RoomDefinition } from "../room";
+import { batch, box, cylinder, flat, group, pixelPlane, textured, type Batch } from "../shapes";
 import { panelling, pixelTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
-
-type Size = [w: number, h: number, d: number];
-
-/** Many small boxes merged into one mesh, each tinted by vertex colour: a wall
- *  of books is thousands of pieces, far too many to draw one by one. */
-function batch() {
-  const parts: THREE.BufferGeometry[] = [];
-  const add = (size: Size, colour: PaletteKey, matrix: THREE.Matrix4) => {
-    const geometry = new THREE.BoxGeometry(...size).applyMatrix4(matrix);
-    const { r, g, b } = new THREE.Color(paletteHex(colour));
-    const count = geometry.getAttribute("position").count;
-    const colours = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) colours.set([r, g, b], i * 3);
-    geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-    parts.push(geometry);
-  };
-  return {
-    add,
-    /** A box standing on `at` (its base, not its centre), like `box`. */
-    block: (size: Size, colour: PaletteKey, at: [number, number, number]) => {
-      add(size, colour, new THREE.Matrix4().makeTranslation(at[0], at[1] + size[1] / 2, at[2]));
-    },
-    mesh: () => {
-      const merged = mergeGeometries(parts);
-      for (const part of parts) part.dispose();
-      return new THREE.Mesh(merged, new THREE.MeshLambertMaterial({ vertexColors: true }));
-    },
-  };
-}
-type Batch = ReturnType<typeof batch>;
 
 function range(rng: Rng, low: number, high: number): number {
   return low + rng.next() * (high - low);
@@ -77,16 +46,27 @@ function randomBook(rng: Rng, room: number): Book {
   };
 }
 
+const BAND = 0.024;
+
 /** One book in its own frame: the bottom-left corner of its spine at the
- *  origin, spine facing +z, pages running back into −z. */
+ *  origin, spine facing +z, pages running back into −z. Its bands are slices
+ *  of the book in their own colour, flush with the spine: a band standing
+ *  proud of it shows only a lip thinner than a pixel, drawn as a row of dots. */
 function addBook(b: Batch, place: THREE.Matrix4, book: Book) {
-  const local = (x: number, y: number, z: number) => place.clone().multiply(new THREE.Matrix4().makeTranslation(x, y, z));
-  b.add([book.w, book.h, book.d], book.colour, local(book.w / 2, book.h / 2, -book.d / 2));
+  const slice = (y0: number, y1: number, colour: PaletteKey) => {
+    const matrix = place.clone().multiply(new THREE.Matrix4().makeTranslation(book.w / 2, (y0 + y1) / 2, -book.d / 2));
+    b.add([book.w, y1 - y0, book.d], colour, matrix);
+  };
+  let y = 0;
   if (book.band) {
-    for (const at of book.h > 0.2 ? [0.84, 0.16] : [0.8]) {
-      b.add([book.w + 0.004, 0.024, 0.008], book.band, local(book.w / 2, book.h * at, 0.002));
+    for (const at of book.h > 0.2 ? [0.16, 0.84] : [0.8]) {
+      const centre = book.h * at;
+      slice(y, centre - BAND / 2, book.colour);
+      slice(centre - BAND / 2, centre + BAND / 2, book.band);
+      y = centre + BAND / 2;
     }
   }
+  slice(y, book.h, book.colour);
 }
 
 /** Neighbouring books overlap a little: two boxes that only touch leave a
@@ -226,6 +206,8 @@ const BASE_DEPTH = 0.42;
 const SHELF_PITCH = 0.36;
 const BOARD = 0.035;
 const POST = 0.05;
+/** The shelving's back stands just proud of the wainscot it hangs in front of. */
+const BACK = WAINSCOT_DEPTH + 0.01;
 
 interface CaseOptions {
   width: number;
@@ -260,7 +242,7 @@ function shelving({ width, height = UPPER_HEIGHT, depth = UPPER_DEPTH, seed, fil
   const columns = posts(width);
   const levels = Math.floor((height - 0.12) / SHELF_PITCH);
   const pitch = (height - 0.12) / levels;
-  b.block([width, height, 0.03], back, [0, 0, 0.015]);
+  b.block([width, height, BACK], back, [0, 0, BACK / 2]);
   for (const x of columns) b.block([POST, height, depth], "woodMid", [x, 0, depth / 2]);
   b.block([width + 0.06, 0.07, depth + 0.06], "woodDark", [0, height - 0.07, depth / 2 + 0.03]);
   b.block([width + 0.02, 0.05, depth + 0.03], "woodMid", [0, height - 0.12, depth / 2 + 0.015]);

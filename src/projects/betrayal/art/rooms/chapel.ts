@@ -2,8 +2,10 @@ import * as THREE from "three";
 import { candle, rug } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
-import { INNER, onWall, WINDOW_SILL, WINDOW_TOP, WINDOW_WIDTH, type RoomDefinition } from "../room";
-import { box, cylinder, flat, glow, group, lathe, textured } from "../shapes";
+import type { Edge } from "../../types";
+import { INNER, onWall, WINDOW_SILL, WINDOW_TOP, WINDOW_WIDTH, type PropPlacement, type RoomDefinition } from "../room";
+import { box, cylinder, flat, glow, group, lathe, lightMaterial, textured } from "../shapes";
+import { moonPosition } from "../stage";
 import { flagstones, pixelTexture, plaster, svgTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
 
 /** The jewel colours of the glass, and so of the light it throws. */
@@ -20,20 +22,6 @@ function archPath(x: number, top: number, w: number, bottom: number): string {
   const spring = top + w * 0.75;
   const cx = x + w / 2;
   return `M${x} ${bottom} L${x} ${spring} Q${x} ${top + w * 0.2} ${cx} ${top} Q${x + w} ${top + w * 0.2} ${x + w} ${spring} L${x + w} ${bottom} Z`;
-}
-
-/** Light rather than paint: it adds to whatever it falls on, so the floor's
- *  own shading shows through the colour. */
-function lightMaterial(opacity: number, map?: THREE.Texture): THREE.MeshBasicMaterial {
-  return new THREE.MeshBasicMaterial({
-    map,
-    transparent: true,
-    opacity,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    fog: false,
-    side: THREE.DoubleSide,
-  });
 }
 
 /** A lancet of leaded glass: a jewelled border, a field of diamond quarries,
@@ -120,11 +108,11 @@ function stainedWindow(): THREE.Group {
 }
 
 /** Where the moon, coming through the lancet, falls: a slanting shaft and a
- *  pool of coloured light on the floor. Built in room coordinates; it follows
- *  the stage's moon, which shines in from the bottom edge, high and a little
- *  from the right. */
+ *  pool of coloured light on the floor. Built in room coordinates, along the
+ *  stage's own moonlight. */
 function moonbeam(): THREE.Group {
-  const drop = (x: number, y: number): [number, number, number] => [x - 0.109 * y, 0.02, INNER - 0.904 * y];
+  const moon = moonPosition(CHAPEL);
+  const drop = (x: number, y: number): [number, number, number] => [x - (moon.x / moon.y) * y, 0.02, INNER - (moon.z / moon.y) * y];
   const half = WINDOW_WIDTH / 2;
   const low = 1.35;
   const sill: [number, number, number][] = [[-half, low, INNER], [half, low, INNER], [half, WINDOW_TOP, INNER], [-half, WINDOW_TOP, INNER]];
@@ -143,7 +131,7 @@ function moonbeam(): THREE.Group {
   poolGeometry.setAttribute("position", new THREE.Float32BufferAttribute(floor.flat(), 3));
   poolGeometry.setAttribute("uv", new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
   poolGeometry.setIndex([0, 1, 2, 0, 2, 3]);
-  const pool = new THREE.Mesh(poolGeometry, lightMaterial(0.75, svgTexture(svg(w, h, `<rect width="${w}" height="${h}" fill="${hex("void")}"/>${cells.join("")}`), w, h)));
+  const pool = new THREE.Mesh(poolGeometry, lightMaterial(0.75, { map: svgTexture(svg(w, h, `<rect width="${w}" height="${h}" fill="${hex("void")}"/>${cells.join("")}`), w, h) }));
 
   const shaftGeometry = new THREE.BufferGeometry();
   shaftGeometry.setAttribute("position", new THREE.Float32BufferAttribute([...sill.flat(), ...floor.flat()], 3));
@@ -156,9 +144,7 @@ function moonbeam(): THREE.Group {
   const bright = new THREE.Color(hex("moonDark"));
   const faded = new THREE.Color(hex("void"));
   shaftGeometry.setAttribute("color", new THREE.Float32BufferAttribute([...sill.flatMap(() => bright.toArray()), ...floor.flatMap(() => faded.toArray())], 3));
-  const shaftMaterial = lightMaterial(0.8);
-  shaftMaterial.vertexColors = true;
-  const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+  const shaft = new THREE.Mesh(shaftGeometry, lightMaterial(0.8, { vertexColors: true }));
   return group(pool, shaft);
 }
 
@@ -171,7 +157,7 @@ function pew(length = 1.6): THREE.Group {
   const result = group(
     box([span, 0.05, 0.42], boards, [0, 0.42, 0.02]),
     box([span, 0.08, 0.04], dark, [0, 0.33, 0.21]),
-    box([span, 0.52, 0.05], boards, [0, 0.47, -0.2]),
+    box([span, 0.49, 0.05], boards, [0, 0.47, -0.2]),
     box([span, 0.06, 0.09], dark, [0, 0.96, -0.2]),
     box([span, 0.03, 0.14], dark, [0, 0.74, -0.3]),
   );
@@ -435,10 +421,12 @@ function cobweb(): THREE.Group {
   return group(web);
 }
 
-/** A cobweb across a corner; `x` and `z` give the corner's signs. */
-function cornerWeb(x: 1 | -1, z: 1 | -1, wall: "top" | "bottom" | "left" | "right") {
+/** A cobweb across a corner; `x` and `z` give the corner's signs. It hides
+ *  when either of the corner's walls is cut away. */
+function cornerWeb(x: 1 | -1, z: 1 | -1): PropPlacement {
   const inset = INNER - 0.29;
-  return { build: cobweb, at: [x * inset, z * inset] as [number, number], y: 3.05, turn: x * z > 0 ? 45 : -45, wall };
+  const walls: Edge[] = [x > 0 ? "right" : "left", z > 0 ? "bottom" : "top"];
+  return { build: cobweb, at: [x * inset, z * inset], y: 3.05, turn: x * z > 0 ? 45 : -45, walls };
 }
 
 /** The Chapel: pews in two ranks down a red runner to a candlelit altar,
@@ -465,9 +453,9 @@ export const CHAPEL: RoomDefinition = {
     { build: crackedFont, at: [-2.2, -2.2] },
     { build: () => banner("cross"), ...onWall("left", -0.2, { y: 2.7 }) },
     { build: () => banner("rose"), ...onWall("right", 0.7, { y: 2.7 }) },
-    cornerWeb(-1, -1, "left"),
-    cornerWeb(1, 1, "bottom"),
-    cornerWeb(1, -1, "right"),
+    cornerWeb(-1, -1),
+    cornerWeb(1, 1),
+    cornerWeb(1, -1),
   ],
   mood: {
     ambient: 0.4,
