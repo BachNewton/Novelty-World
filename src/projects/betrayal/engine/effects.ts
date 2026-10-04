@@ -1084,6 +1084,9 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
 
   "lose-card": defineStep<LoseCard>((state, p, ctx) => {
     const holder = figureOf(state, p.figure);
+    // A figure that died since this was queued dropped its cards then;
+    // losing this one lapses (rules p. 19, dead-explorers-body).
+    if (!holder.alive && !holder.cards.includes(p.card)) return;
     if (!holder.cards.includes(p.card))
       throw new Error(`${p.figure} doesn't hold ${p.card}`);
     // Worked out while the card is still held, so it can read the card's marks.
@@ -1192,6 +1195,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   ),
 
   leave: defineStep<{ figure: FigureId; then: Step }>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     ctx.push(
       step<Leave>("leave-heard", {
         figure: p.figure,
@@ -1203,6 +1207,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   "leave-heard": defineStep<Leave>((state, p, ctx) => {
+    if (!takesPart(state, p.figure)) return;
     if (placeOf(state, p.figure).room !== p.room)
       throw new Error(`${p.figure} left ${p.room} before its rules said so`);
     const next = liveSources(ctx.engine, state).find(

@@ -363,11 +363,14 @@ export const ITEMS: BehaviourGroup = {
             ),
           );
         }),
-        "call-monsters": () => {
+        "call-monsters": defineStep<{ figure: FigureId }>((state) => {
+          // With no monster in play there is nothing to move.
+          if (!allFigures(state).some((f) => f.kind === "monster" && f.alive))
+            return;
           throw new Error(
             "The Bell's 0-4 moves monsters, which the engine doesn't have yet",
           );
-        },
+        }),
       },
     },
 

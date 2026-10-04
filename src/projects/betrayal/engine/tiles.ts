@@ -38,7 +38,7 @@ import {
   leaveRoom,
   step,
 } from "./effects";
-import { placeOf, putFigure } from "./figures";
+import { figureOf, placeOf, putFigure } from "./figures";
 import { barrierSides, controllerOf } from "./questions";
 import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
 
@@ -291,6 +291,9 @@ export function placeRoom(
 
 export const TILE_STEPS: Record<string, StepHandler> = {
   arrive: defineStep<Arrive>((state, p, ctx) => {
+    // A figure that died on the way (a card drawn for the room) takes no
+    // further part: its arrival lapses (rules p. 19, dead-explorers-body).
+    if (!figureOf(state, p.figure).alive) return;
     // A card drawn for the room may have sent the figure on (Mystic
     // Slide): it is no longer there, so the room's text doesn't apply to it.
     if (placeOf(state, p.figure).room !== p.room) return;

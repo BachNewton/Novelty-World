@@ -381,6 +381,10 @@ function checkState(engine: Engine, state: GameState): void {
   )
     throw new Error("An explorer took the attack action before the haunt");
 
+  // A game that has ended drops its unfinished work, cards and tiles in
+  // transit included, so only a game still being played is counted.
+  if (state.status === "finished") return;
+
   // Every card is in exactly one place.
   const places: string[] = [
     ...(["omen", "item", "event"] as CardType[]).flatMap((type) => [

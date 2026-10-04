@@ -3,7 +3,7 @@ import { ENGINE } from "../game";
 import { eventTypes, explorer, inHaunt, testGame } from "../testing";
 import type { GameState, RuleRef, Step } from "../types";
 import { describeEvent } from "./describe";
-import { damage, gain, relocate } from "./effects";
+import { damage, die, discardCard, gain, leaveRoom, relocate, step } from "./effects";
 import { explorersFrom } from "./figures";
 import { start, type Engine } from "./step-loop";
 
@@ -176,5 +176,19 @@ describe("a dead explorer's things (p. 19)", () => {
     expect(lines(after)).toContain(
       "Father Rhinehardt takes custody of the Girl, left where its explorer died.",
     );
+  });
+});
+
+describe("work queued for a figure that has since died", () => {
+  it("lapses: a card it was to lose has already dropped, and it leaves no room", () => {
+    // Drinking the Bottle can kill, and the Bottle is then to be discarded.
+    const state = run(weakZoe(["bottle"]), [
+      die(ZOE, BELL),
+      discardCard(ZOE, "bottle"),
+      leaveRoom(ZOE, step("end-turn-now", { figure: ZOE, rule: BELL })),
+    ]);
+    expect(state.piles.foyer).toEqual(["bottle"]);
+    expect(state.decks.item.discard).not.toContain("bottle");
+    expect(eventTypes(state)).not.toContain("left");
   });
 });
