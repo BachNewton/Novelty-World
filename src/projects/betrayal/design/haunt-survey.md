@@ -60,7 +60,7 @@ Each row is one engine question. "Merged from" names the batch hooks whose entri
 | canTransfer | May this be dropped, traded, given or stolen, and on what margin? | 14 | 13 | 27 | steal on a 2+ win including a companion (1), can't drop the Spirit Board (40), steal in any combat (61), forced pickup (94) | canDropTradeSteal |
 | attackTrait | Which traits may the attacker use, and with which trait does the defender answer? Includes immunity to a trait. | 11 | 16 | 27 | immune to Speed attacks (1, 28, 29), Sanity only (11), mental traits only (49), the Elector's colour picks the trait (66), defender uses the attacker's trait (71) | attackTrait, canAttack (immunities) |
 | movementCost | What does entering a room cost, and who hinders whom? | 17 | 9 | 26 | carrying a body costs 2 (14, 20, 42), doorways are spaces (35), monsters that don't hinder (7, 24, 38), a group counts as one opponent (98) | movementCost |
-| roomFeatureApplies | Does this room's printed rule, or a special connection like the Mystic Elevator, apply to this figure? | 15 | 10 | 25 | can't use the Mystic Elevator (5, 8, 21, 47), the Elevator stops while a monster is in it (7, 23, 70), ignore harmful room text (49, 64, 71), a room's own roll yields a Key (34) | roomFeatureApplies, canMoveThrough, onEnterRoom, tilePlacement |
+| roomFeatureApplies | Does this room's printed rule, or a special connection like the Mystic Elevator, apply to this figure? Room text reaches monsters as well as explorers by default (pp. 18–19), so the base answer already takes any figure, and these haunts change it. | 15 | 10 | 25 | can't use the Mystic Elevator (5, 8, 21, 47), the Elevator stops while a monster is in it (7, 23, 70), ignore harmful room text (49, 64, 71), a room's own roll yields a Key (34) | roomFeatureApplies, canMoveThrough, onEnterRoom, tilePlacement |
 | movementPolicy | Who decides where this figure moves, and by what rule? (Applies to monsters and to explorers being forced.) | 14 | 8 | 22 | chase the closest hero (28, 29), toward a room (9, 54), wall-hugging with a facing (8, 46), teleport (1, 17), moved by another player (42, 46, 96) | monsterMovement, movementAllowance (forced moves) |
 | damageAmount | How much damage does this figure take or deal? | 6 | 16 | 22 | halved (5), reduced (15), none for the traitor (42, 52, 68), none until a gate is met (63, 66) | damageAmount |
 | connections | Which rooms are connected for this figure? (Doors, walls, the front door, face-down tiles, blocked edges, extra links.) | 8 | 13 | 21 | through walls (2, 20, 49, 64, 71, 80, 91), the front door opens (4, 16, 18, 46, 74, 89, 95), face-down tiles have doors on every side (76, 86, 91), blocked doorways (79, 97), extra links (91) | canMoveThrough, roomConnections |
@@ -145,9 +145,10 @@ The parts the haunts actually use, grouped by role. "Uses" lists the haunts that
 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
-| Monster | A figure that is not an explorer. | traits (fixed, from a table keyed by a track, live from a track or from another figure's traits); count; side; movement policy; attack rule; defeat response; flags (can't be attacked, immune to a trait, doesn't hinder, can or can't discover, carry, use the Mystic Elevator) | 51 haunts |
+| Monster | A figure that is not an explorer. | traits (fixed, from a table keyed by a track, live from a track or from another figure's traits); count; side; owning seat, which may be none (12's Twins, the star haunt); movement policy; attack rule; defeat response; flags (can't be attacked, immune to a trait, doesn't hinder, can or can't discover, carry, use the Mystic Elevator) | 51 haunts |
 | Monster stats from a track | A monster's traits read from a table or value that changes during play. | track; table | 4, 17, 23, 60, 75, 89, 92 |
 | Transformed explorer | An explorer who keeps their seat but takes new rules: Werewolf, Frog, Ghost, Monkey, Owl, baby. | rule set; trait reset (to start, to start + N, a snapshot); what is dropped; whether it's permanent or reversible | 36 haunts, e.g. 3, 5, 9, 21, 30, 49, 71, 80, 93, 95 |
+| Replaced piece | The explorer's piece is swapped for another figure or split in two, or the traitor's explorer is replaced by a monster the traitor's seat plays. | what replaces it; what carries over (traits, cards, place); whether a body is left behind | swapped or split: 3, 47, 49; traitor replaced by a monster: 10, 21, 33, 43, 59, 61 |
 | Ally | A non-explorer figure on the heroes' side, often moved by heroes. | who moves it and when; what it does | 16, 42, 46, 51, 55, 87, 88 |
 | Linked figures | Figures tied to each other or to a hero. | link (Root and Tip, Arm and Sucker; twin to hero; two bodies of one player) | 7, 12, 23, 49, 79, 87 |
 | Attackable object | A target with a trait value and a hit counter that is not a figure. | trait and value; hits needed; who may attack it | 4 (web), 36 (Rowboat), 61 (Chest), 84 and 86 (rooms) |
@@ -175,7 +176,7 @@ A status is a named condition on an explorer that blocks some actions, may bind 
 | Part | Definition | Parameters | Uses |
 |---|---|---|---|
 | Status | A condition with rule effects. | blocks (move, act, attack, use items, draw, discover); turn-start and turn-end effects; how it ends (an escape roll, an action by another hero, a timer, never); permanence | about 25 haunts, above |
-| Controlled | Another seat plays this explorer's turn, or this figure's turn. | controller; what the controlled figure may do; how it ends | 2, 6, 12, 28, 98 |
+| Controlled | A seat other than the figure's owner decides for it: plays its turn, moves it, or answers its choices. The engine asks the controller question, whose base answer is the owner, and a status changes the answer. | controller; what the controlled figure may do; how it ends | 16 haunts: 2, 6, 28, 35, 42, 46, 51, 55, 79, 87, 88, 90, 95, 96, 98, star (e.g. the Ghost's summoner, 2; mind-controlled heroes, 6; Demons taken with the Ring, 28; the Victims, moved by the player left of the traitor, 46; Hoplites, 55; the Siblings, 87) |
 | Carried | An explorer (or their corpse) travels as cargo of another figure and has no agency while carried. | carrier; capacity; how it ends | 3, 7, 23, 35, 87, 95 |
 | Grabbed / captured | An explorer held by a specific monster: immobile, items dropped, an escape contest at turn start, a delayed kill or a drag toward an anchor. | holder; escape roll; fate and when | 7, 23, 35, 80 |
 
@@ -250,11 +251,11 @@ These are things the core model must support. No haunt data can supply them.
 | | Secret sides (including the traitor's own secret allegiance, and a side hidden from its own holder) | 34, 43, 81, 84, 97 | 5 (2 / 3) |
 | | No traitor at all, or none at the start | 9, 12, 31, 50, 57, 83, 92, 98, 99, 100, star | 11 (4 / 7) |
 | | Winners are players, not a side | 5, 12, 21, 30, 31, 43, 50, 51, 67, 83, 90, 92, 94, 100 | 14 (7 / 7) |
-| **Turn structure** | The traitor's seat has no explorer to move but still takes turns (plays monsters, or the house) | 4, 6, 10, 13, 21, 23, 24, 33, 47, 52, 61, 86 | 12 (9 / 3) |
+| **Turn structure** | The traitor's seat has no explorer to move but still takes turns (plays monsters, or the house) | 4, 6, 10, 13, 21, 22, 23, 24, 33, 41, 44, 47, 52, 61, 76, 83, 85, 86, 98, 99 | 20 (12 / 8) |
 | | The traitor takes no turns at all | 76 | 1 |
 | | A turn inserted after a specific player (monsters after the revealer, creatures after their releaser, the traitor after every hero, an immediate turn) | 12, 33, 68, 77, 81 | 5 (2 / 3) |
 | | Turn boundaries tied to a specific seat, including a dead one (track steps on the revealer's or a dead traitor's turn) | 34, 43, 56, 85, 100, star | 6 (2 / 4) |
-| | One player with two bodies | 49, 87 | 2 |
+| | One player with two bodies | 12, 47, 49, 79, 87 | 5 (3 / 2) |
 | | Decisions by a player who isn't taking the turn (reactions, interrupts, a forced counterattack) | 39, 51, 55, 60, 62, 70, 75, 85, 95, 96 | 10 (1 / 9) |
 | **Mutable board** | Rooms destroyed, collapsed, flipped, moved, rotated, stacked or removed mid-game | 2, 18, 22, 50, 52, 57, 76, 77, 80, 86, 91, 93, star | 13 (4 / 9) |
 | | Face-down tiles as a state with their own connectivity | 76, 86, 91, 93 | 4 (0 / 4) |
@@ -287,6 +288,8 @@ What these add up to:
 
 - **Side is per player, changeable and possibly secret,** and "the traitor" is a role a player holds, not a seat number. Whatever derives from sides must be recomputed whenever a side changes: the turn order, whose half of the rules a player may read, who counts as an opponent, and which win conditions apply to which player. A game result is a set of winning players; a side win is the common case of that.
 - **A turn belongs to a seat, not to a figure.** Seats may have no figure, two bodies, or monsters only; monsters may act after a named player; and the active player is not always the one deciding.
+- **What rules act on is a figure, not a seat.** "You" in card and room text means whoever is acting or affected, explorer or monster (`rules.md`; room text reaches monsters, pp. 18–19). About 56 haunts have figures other than explorers that move, attack or are attacked; five give a seat two bodies; about 19 leave a seat with no live figure; some replace an explorer with a new piece or leave a body behind; and 16 have a seat decide for a figure it doesn't own. So every question's subject, effect's target and event's subject is a figure, and who controls a figure is itself a question, never a stored seat number.
+
 - **The board is game state, not a fixed map.** Tiles can be flipped (with changed connections), removed, moved, rotated, stacked and built at setup, and the board must answer adjacency, connection, line of sight, distance by route, edge facing and connectivity on the current state. The base rules already need adjacency without doors and line of sight, so these are not Widow's Walk extras.
 - **The event log is game state.** Killer and cause of death, damage source, and "what did this player do this turn" are read by rules, so they can't live only in the presentation's log.
 

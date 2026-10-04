@@ -43,14 +43,14 @@ One JSON value, kept in the game row. It holds identifiers and live values only.
 | Part | Holds |
 |---|---|
 | Header | State format number, game id, seed, sets in play (base, Widow's Walk), status (lobby, exploring, haunt, finished) |
-| Seats | One per player, in table order: profile id and name, controller (human, bot, AI), character, side, roles (traitor, revealer), whether the side is secret and who knows it |
-| Figures | Explorers, monsters, allies and attackable objects. Each has a kind, its controlling seat, its position (room, and side for barrier rooms), its traits (an explorer's clip positions on its tracks; a monster's values), its statuses, whether it's stunned, what it holds and its links to other figures |
+| Seats | One per player, in table order: profile id and name, controller (human, bot, AI), side, roles (traitor, revealer), whether the side is secret and who knows it. A seat's explorer is the explorer figure it owns |
+| Figures | Every piece the rules act on, in one collection keyed by id: explorers, monsters, allies and attackable objects. An explorer's id is its character's id, which is unique in a game and survives its seat changing hands; a haunt's figures are numbered from their definition. Each has a kind, its definition, the seat that owns it (or none), its place (room, and side in barrier rooms, or off the board), its traits (an explorer's clip positions on its tracks; a monster's values), its statuses, whether it's stunned and alive, what it holds and its links to other figures. Who controls a figure and which side it is on are questions, not fields (section 10). "You" in card and room text means whoever is acting or affected, explorer or monster, so a rule never asks which kind it has. An attack's target is a figure, a room or a token, since haunts 84 and 86 attack rooms |
 | Board | Placed tiles (tile id, floor, grid position, rotation, face down or removed), tokens on rooms and on edges, the room stack and discard pile in order |
 | Cards | Each deck's draw order and discard pile, what each figure holds, ongoing events, and the counters and flags kept on cards in play (a worn Mask, an open Music Box), each either the holder's, cleared when the card leaves them, or the card's own, cleared when it leaves play |
 | Tokens | Placed tokens by id. Supply is unlimited unless a haunt caps a kind, because its text makes running out a rule; the physical counts in `tokens.md` are what those caps cite |
 | Tracks | Named tracks and counters, with their values |
 | Haunt | Haunt id, phase, revealer, secret values with the seats that know them, and the haunt's own small typed data |
-| Turn | The current seat and turn kind (explorer, traitor or monster turn), movement left, and the turn's ledger (rolls attempted, items used, attack made, actions taken, and the rooms entered so far, in order), plus a queue of inserted turns |
+| Turn | The current seat and turn kind (explorer, traitor or monster turn), and the turn's ledger: movement spent and the attack made, counted per figure, since a seat may move several; rolls attempted, items used, actions taken, and the rooms entered so far, in order. Plus a queue of inserted turns |
 | Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, condition flags already fired |
 | Work | The step stack: the engine's unfinished work, as data (section 3) |
 | Decision | The pending decision's id, its addressees, the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
@@ -77,7 +77,7 @@ A test builds a late-game Widow's Walk state (a full house, many monsters, every
 
 **The pending decision.** It has:
 - an id;
-- its addressees: one seat, or a set of seats who each answer once;
+- its addressees: one seat, or a set of seats who each answer once. A decision about a figure (how it splits damage, which side of a barrier room it lands on, what it steals) goes to the seat that controls it, by the controller question, so a possessed or carried figure's choices move with its control and the rule that raised them never changes;
 - a kind, with parameters;
 - the rule that raised it.
 
@@ -128,7 +128,7 @@ This is where the risk is. The survey separates three mechanisms, and the engine
 
 ### Questions
 
-There is a fixed, named set of questions: the 33 override points of the survey, among them combatOutcome, canAttack, lethalOutcome, dicePool and the others in its table. The set is closed and typed. Each question declares:
+There is a fixed, named set of questions: the 33 override points of the survey, among them combatOutcome, canAttack, lethalOutcome, dicePool and the others in its table, plus controller, the seat that decides for a figure. The set is closed and typed. A question about a piece takes a figure as its subject, never a seat. Each question declares:
 - its **subject** type (for example, an attacker, a target and a trait);
 - its **answer** type;
 - its **base answer**, written from `rules.md`.
@@ -266,17 +266,17 @@ How they are kept in agreement:
 
 Every card, room and token with rules text has a **behaviour**, kept with the content (`data/behaviours/`) and keyed by its id. A behaviour can:
 - run steps when its card is drawn, gained or lost;
-- offer actions: on its holder's turn for a card, or to an explorer in its room for a room or token; a card may instead offer one to anyone with its holder, which they take without using the card (freeing the holder from the Webs), and an action that is the way out of what stops an explorer is offered even while they can't act;
+- offer actions: on its holder's turn for a card, or to a figure in its room for a room or token; a card may instead offer one to anyone with its holder, which they take without using the card (freeing the holder from the Webs), and an action that is the way out of what stops a figure is offered even while it can't act;
 - react to events (a turn ending in this room, this card being used);
 - modify the answers to questions (section 5), which is how a passive card such as one that adds a die or stops movement works;
 - offer options around a roll its holder makes: something to add, extra dice or a number to use instead before the dice, or a reroll after. Only on its holder's own turn, unless its text allows it on another's (a defence roll's Angel Feather): the roll's decision is then put to the holder, whoever's turn it is;
 - have a say when its holder attacks with it (the Sacrificial Dagger's roll first), which may call the attack off;
-- have a say before an explorer leaves its room (a room's roll to leave), which may keep them there;
+- have a say before a figure leaves its room (a room's roll to leave), which may keep it there;
 - let its holder take damage of one kind as the other before it is split;
 - for a room, make it a barrier room, split in two with one side by each door and crossed by a trait roll, or say which of its printed symbols a discoverer draws for, where its text gives some another meaning (the Vault's items are its contents);
 - register steps of its own, named under its id.
 
-Everything a behaviour does to the game is a step built from the engine's effects (`engine/effects.ts`): gaining and losing traits, damage the player splits, a roll feeding an outcome table, drawing and keeping cards, placing tokens (in a room, on a wall between two rooms, on one side of a barrier room, one of a linked pair, or one that follows its holder), moving an explorer without spending movement or 1 space closer to a room (`engine/movement.ts`), and putting a room tile in the house or moving one (`engine/tiles.ts`). Every route, whether a player's move, a measured distance or a companion's trip, asks the connections question, so a card or a haunt that adds or blocks a connection changes them all; adjacency and line of sight are questions too. Every tile, whether discovered through a doorway, put in the house by a card or moved, goes by the one placement rule exploring uses, and figures, tokens and items in a moved room go with it. So an effect that pauses for a decision halfway through is stored as data like any other work. A rule that changes a single roll it asks for (fewer dice in one room) carries that change on the roll itself, since the card behind it may no longer be in play when the dice are rolled; an event card in play remembers who drew it, for rules that favour rolls for events their holder drew. When a card needs something the effects and the questions don't offer, the engine gains a general effect or question for it; the engine never branches on a card's id.
+Everything a behaviour does to the game is a step built from the engine's effects (`engine/effects.ts`): gaining and losing traits, damage the player splits, a roll feeding an outcome table, drawing and keeping cards, placing tokens (in a room, on a wall between two rooms, on one side of a barrier room, one of a linked pair, or one that follows the figure holding it), moving a figure without spending movement or 1 space closer to a room (`engine/movement.ts`), and putting a room tile in the house or moving one (`engine/tiles.ts`). Every route, whether a player's move, a measured distance or a companion's trip, asks the connections question, so a card or a haunt that adds or blocks a connection changes them all; adjacency and line of sight are questions too. Every tile, whether discovered through a doorway, put in the house by a card or moved, goes by the one placement rule exploring uses, and figures, tokens and items in a moved room go with it. So an effect that pauses for a decision halfway through is stored as data like any other work. A rule that changes a single roll it asks for (fewer dice in one room) carries that change on the roll itself, since the card behind it may no longer be in play when the dice are rolled; an event card in play remembers who drew it, for rules that favour rolls for events their holder drew. When a card needs something the effects and the questions don't offer, the engine gains a general effect or question for it; the engine never branches on a card's id.
 
 Each behaviour's tests come from its `content/` entry, played through a scenario (`testing.ts`): stack the decks and the room stack, then pick the offered choices by their labels.
 
@@ -384,7 +384,10 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 
 ## 10. Sides, seats and controllers
 
-- **A seat is a player.** A seat holds a side, roles and a controller, and takes turns. Figures are separate, so a seat may control no figures, one, two bodies, or monsters, and a turn belongs to a seat.
+- **A seat is a player.** A seat holds a side, roles and a controller, and takes turns. Figures are separate, so a seat may own no figures, one, two bodies, or monsters, and a turn belongs to a seat. Who decides stays a seat (decisions, ready waits, turns, sides, results); what the rules act on is a figure (every question's subject, effect's target and event's subject, a card's holder, a token that follows someone). An event about a turn names its seat, and the seat's explorer where it has one.
+- **Who controls a figure is a question.** The controller question's base answer is the figure's owner, and a status changes it: possession, control taken with the Ring, a hero carried by a monster. Every choice the rules give a figure goes to its controller. Which side a figure is on is a question as well, added with sides.
+- **"Your explorer" is a lookup** from a seat to the explorer figure it owns, used only where a rule means exactly that, such as the turn's own moves before the haunt. A seat may own none, so every caller says what that means for its rule, and fails loudly where the rules make it impossible.
+
 - **Sides are per seat and can change.** The traitor is a role a seat holds, not a seat number. A side may be secret, with its knowledge recorded per seat (including a side hidden from its own holder).
 - **Derived values are computed, never stored:** who is an opponent (the isOpponent question), which half of the haunt text a seat may read, and which win conditions apply to whom. Because they are derived, a side change takes effect everywhere at once.
 - **Turn order is recomputed at every turn boundary.** It comes from the current turn, the sides, the turnOrder question and the queue of inserted turns, rather than from a list saved at the haunt's start. A conversion in the middle of a round takes effect at the next boundary with no extra code.
