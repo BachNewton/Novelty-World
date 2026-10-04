@@ -7,8 +7,10 @@ import { ALL_TOY_ENGINE } from "./test/toy-haunt";
 // simulation.ts for what is checked at every write). A failure names its
 // seed, which replays the same game: simulate("s123").
 
-/** A long game takes a few seconds. */
-const GAME_TIMEOUT = 60_000;
+/** A long game takes a few seconds; one that reaches a built haunt and
+ *  plays it out, with every choice dry-run at every decision, can take a
+ *  minute or more. */
+const GAME_TIMEOUT = 180_000;
 
 const seeds = (count: number) =>
   Array.from({ length: count }, (_, i) => `s${i}`);
