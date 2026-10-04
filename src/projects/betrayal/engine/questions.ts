@@ -20,6 +20,7 @@ import {
   figureDefinition,
   figureOf,
   PHYSICAL,
+  takesDamage,
   together,
   trackTraits,
 } from "./figures";
@@ -47,7 +48,7 @@ export interface NumberQuestions {
   /** How much damage lands, before the player splits it. */
   damageAmount: {
     figure: FigureId;
-    damage: "physical" | "mental";
+    damage: DamageKind;
     amount: number;
     rule: RuleRef;
   };
@@ -61,8 +62,10 @@ export interface NumberQuestions {
 export interface PermissionQuestions {
   /** Whether a figure may take any action on its turn. */
   canAct: { figure: FigureId };
-  /** Whether an attacker may attack this figure. */
-  canAttack: { attacker: FigureId; defender: FigureId };
+  /** Whether a figure may attack this target at all, whoever makes the
+   *  attack happen. Who counts as an opponent, reach and the ways to attack
+   *  are their own questions. */
+  canAttack: { attacker: FigureId; target: AttackTarget };
   /** Whether a figure may move from one room to another. */
   canMove: { figure: FigureId; from: string; to: string };
 }
@@ -156,12 +159,32 @@ type SetModifier = {
   };
 }[keyof SetQuestions];
 
-/** What an attack is made with: the trait both sides roll, and the card the
- *  attacker uses for it (a weapon, the Ring), if any. */
+/** What an attack is aimed at. Haunts 84 and 86 attack rooms; so far only a
+ *  figure can be attacked. */
+export type AttackTarget =
+  | { kind: "figure"; figure: FigureId }
+  | { kind: "room"; room: string };
+
+/** What an attack is made with: the trait both sides roll, the card the
+ *  attacker uses for it (a weapon, the Ring), if any, and how far it
+ *  reaches: into the attacker's own room, or along a line of sight (the
+ *  Revolver, p. 13). */
 export type AttackMode = {
   trait: Trait;
   card: string | null;
+  reach: "room" | "sight";
 };
+
+export type DamageKind = "physical" | "mental";
+
+/** What the loser of an attack suffers, and the rule that says so: damage,
+ *  to split between the matching traits; being stunned, as a monster is
+ *  instead of taking damage (p. 18); or being killed outright, where a haunt
+ *  says so. */
+export type Harm =
+  | { kind: "damage"; damage: DamageKind; points: number; rule: RuleRef }
+  | { kind: "stun"; rule: RuleRef }
+  | { kind: "kill"; rule: RuleRef };
 
 /** A trait at the skull: the figure dies, or the trait stops at its lowest
  *  value above the skull. */
@@ -171,9 +194,9 @@ export type LethalOutcome = { kind: "death" } | { kind: "clamp" };
 export type CombatOutcome = {
   /** Who lost, or null for a tie. */
   loser: "attacker" | "defender" | null;
-  /** The damage the loser takes, if any. */
-  damage: { kind: "physical" | "mental"; points: number } | null;
-  /** Whether the attacker may steal an item instead of dealing the damage. */
+  /** What the loser suffers, if anything. */
+  harm: Harm | null;
+  /** Whether the attacker may steal an item instead of dealing the harm. */
   steal: boolean;
 };
 
@@ -596,17 +619,22 @@ const STRUCTURED_BASE: {
     state.status === "exploring" ? { kind: "clamp" } : { kind: "death" },
   turnOrder: (_engine, state) => baseRound(state),
   // All attacks use Might unless a card or ability says otherwise (p. 13).
-  attackModes: () => [{ trait: "might", card: null }],
+  attackModes: () => [{ trait: "might", card: null, reach: "room" }],
   // The higher result deals the difference as damage to the loser; a tie
-  // hurts no one. Sanity and Knowledge attacks deal mental damage (p. 13).
+  // hurts no one. Sanity and Knowledge attacks deal mental damage (p. 13). A
+  // monster that would take damage is stunned instead (p. 18).
   combatOutcome: (
-    _engine,
+    engine,
     state,
     { attack, mode, attackResult, defenceResult },
   ) => {
     const margin = attackResult - defenceResult;
-    if (margin === 0) return { loser: null, damage: null, steal: false };
+    if (margin === 0) return { loser: null, harm: null, steal: false };
     const kind = PHYSICAL.includes(mode.trait) ? "physical" : "mental";
+    const harm = (figure: FigureId, points: number): Harm =>
+      takesDamage(engine.catalog, state, figure)
+        ? { kind: "damage", damage: kind, points, rule: attack.rule }
+        : { kind: "stun", rule: { source: "rulebook", page: 18 } };
     const defender = figureOf(state, attack.defender);
     // An attack on someone in another room is a distance attack: an
     // attacker it beats takes no damage, and nothing can be stolen (p. 13).
@@ -616,13 +644,16 @@ const STRUCTURED_BASE: {
     if (margin > 0)
       return {
         loser: "defender",
-        damage: { kind, points: margin },
+        harm: harm(attack.defender, margin),
         steal: near && kind === "physical" && margin >= 2,
       };
+    // Nor is an attacker a card stands in for harmed: it has no traits. A
+    // stunned monster defends, but deals no damage when it wins (p. 13).
+    if (attack.attacker === null || !near || defender.stunned)
+      return { loser: "attacker", harm: null, steal: false };
     return {
       loser: "attacker",
-      // Nor is an attacker a card stands in for damaged: it has no traits.
-      damage: near ? { kind, points: -margin } : null,
+      harm: harm(attack.attacker, -margin),
       steal: false,
     };
   },

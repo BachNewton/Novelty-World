@@ -796,6 +796,7 @@ describe("Sacrificial Dagger (cards/items.md)", () => {
     const state = attackWithDagger(2);
     expect(rollsMade(state)[1]).toEqual({ figure: ZOE_ID, dice: 2 });
     expect(eventTypes(state)).not.toContain("attack-outcome");
+    expect(state.turn?.attacked).toEqual([ZOE_ID]);
   });
 });
 

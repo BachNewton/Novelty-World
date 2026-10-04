@@ -1,4 +1,9 @@
-import { attackWith } from "../../engine/combat";
+import {
+  attackSpent,
+  attackWith,
+  beaten,
+  mayAttackNow,
+} from "../../engine/combat";
 import {
   cardFlag,
   chooseOne,
@@ -25,12 +30,13 @@ import {
   PHYSICAL,
   placeOf,
   roomOf,
+  takesDamage,
   together,
   trackTraits,
   TRAITS,
 } from "../../engine/figures";
 import { distanceTo, moveCloser } from "../../engine/movement";
-import { askPermission, askSet } from "../../engine/questions";
+import { askPermission, askSet, hasTrait } from "../../engine/questions";
 import { heroes, inPlay, revealedAs } from "../../engine/sides";
 import {
   eventData,
@@ -606,9 +612,7 @@ export const ITEMS: BehaviourGroup = {
           label:
             "Throw the Dynamite into an adjacent room, instead of attacking",
           available: (state, figure, _source, engine) =>
-            state.status === "haunt" &&
-            state.turn !== null &&
-            !state.turn.attacked.includes(figure) &&
+            mayAttackNow(engine, state, figure) &&
             dynamiteTargets(engine, state, figure).length > 0,
           steps: (_state, figure) => [local("dynamite", "aim", { figure })],
         },
@@ -622,26 +626,37 @@ export const ITEMS: BehaviourGroup = {
               p.figure,
               dynamiteTargets(ctx.engine, state, p.figure).map((place) => ({
                 label: `Throw the Dynamite into the ${roomName(place.room)}`,
-                steps: [local("dynamite", "blast", place)],
+                steps: [
+                  local("dynamite", "blast", { place, thrower: p.figure }),
+                ],
               })),
               rule,
             ),
             discardCard(p.figure, "dynamite"),
           );
         }),
-        blast: defineStep<Place>((state, place, ctx) => {
-          const rule = card("dynamite");
-          ctx.push(
-            ...allFigures(state)
-              .filter((e) => {
-                const at = e.place;
-                return (
-                  at !== null &&
-                  at.room === place.room &&
-                  (place.side === null || at.side === place.side)
-                );
-              })
-              .map((e) =>
+        // Only a figure with both Might and Speed rolls, and one that can't
+        // be attacked is untouched. A monster that fails is beaten as if in
+        // physical combat by the thrower (the card's official ruling).
+        blast: defineStep<{ place: Place; thrower: FigureId }>(
+          (state, { place, thrower }, ctx) => {
+            const rule = card("dynamite");
+            const caught = allFigures(state).filter((e) => {
+              const at = e.place;
+              return (
+                at !== null &&
+                at.room === place.room &&
+                (place.side === null || at.side === place.side) &&
+                hasTrait(ctx.engine, state, e.id, "might") &&
+                hasTrait(ctx.engine, state, e.id, "speed") &&
+                askPermission(ctx.engine, state, "canAttack", {
+                  attacker: thrower,
+                  target: { kind: "figure", figure: e.id },
+                }).allowed
+              );
+            });
+            ctx.push(
+              ...caught.map((e) =>
                 roll(
                   e.id,
                   { kind: "trait", trait: "speed" },
@@ -651,13 +666,18 @@ export const ITEMS: BehaviourGroup = {
                     {
                       min: 0,
                       max: 4,
-                      steps: [damage(e.id, "physical", { points: 4 }, rule)],
+                      steps: [
+                        takesDamage(ctx.catalog, state, e.id)
+                          ? damage(e.id, "physical", { points: 4 }, rule, thrower)
+                          : beaten(thrower, e.id, 4, rule),
+                      ],
                     },
                   ]),
                 ),
               ),
-          );
-        }),
+            );
+          },
+        ),
       },
     },
 
@@ -922,7 +942,7 @@ export const ITEMS: BehaviourGroup = {
       ],
     },
 
-    revolver: { modifiers: attackWith("revolver", "speed", 1) },
+    revolver: { modifiers: attackWith("revolver", "speed", 1, "sight") },
 
     "sacrificial-dagger": {
       modifiers: attackWith("sacrificial-dagger", "might", 3),
@@ -950,11 +970,15 @@ export const ITEMS: BehaviourGroup = {
                   go,
                 ],
               },
-              // The dagger twists in your hand, and the attack is off.
+              // The dagger twists in your hand: the attack is off, and no
+              // other can be made this turn.
               {
                 min: 0,
                 max: 2,
-                steps: [damage(figure, "physical", { dice: 2 }, rule)],
+                steps: [
+                  attackSpent(figure),
+                  damage(figure, "physical", { dice: 2 }, rule),
+                ],
               },
             ]),
           ),

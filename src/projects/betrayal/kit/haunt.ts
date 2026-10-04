@@ -15,6 +15,7 @@ import {
   hauntRule,
   setCounter,
   setSecret,
+  spawn,
   statusOnGroup,
   type Count,
   type FigureGroup,
@@ -47,6 +48,15 @@ export type SetupPart =
   | { part: "secret"; secret: string; value: Count; knownBy: SeatGroup }
   /** Put a status, defined by the haunt, on a group's explorers. */
   | { part: "status"; who: FigureGroup; status: string; params?: Json }
+  /** Put a number of the haunt's figures in the room of a group's first
+   *  living explorer, owned by a group's one seat or by none. */
+  | {
+      part: "spawn";
+      figure: string;
+      count: Count;
+      at: FigureGroup;
+      owner: SeatGroup | null;
+    }
   /** One of the haunt's own steps, for what the kit doesn't cover. */
   | { part: "local"; step: string; params?: Json };
 
@@ -138,6 +148,12 @@ function setupSteps(
           rule,
           params: part.params ?? null,
         });
+      case "spawn":
+        return spawn(
+          part.figure,
+          { count: part.count, at: part.at, owner: part.owner },
+          rule,
+        );
       case "local":
         return local(
           hauntSourceId(definition.number),

@@ -52,7 +52,7 @@ type Outcome = {
   attackResult: number;
   defenceResult: number;
   loser: string | null;
-  damage: { kind: string; points: number } | null;
+  harm: { kind: string } | null;
 };
 
 function outcome(state: GameState): Outcome {
@@ -114,7 +114,7 @@ describe("Make an Attack (rules.md, p. 13)", () => {
 
   it("a tie hurts no one", () => {
     const state = fight(4, (d) => d === 4);
-    expect(outcome(state)).toMatchObject({ loser: null, damage: null });
+    expect(outcome(state)).toMatchObject({ loser: null, harm: null });
     expect(state.pending).toBeNull();
     expect(eventTypes(state)).not.toContain("damaged");
   });
@@ -208,7 +208,7 @@ describe("Distance Attacks (rules.md, p. 13)", () => {
 
   it("an attacker beaten by a target in another room takes no damage", () => {
     const state = fight(0, (d) => d === 4, { setUp: apart });
-    expect(outcome(state)).toMatchObject({ loser: "attacker", damage: null });
+    expect(outcome(state)).toMatchObject({ loser: "attacker", harm: null });
     expect(state.pending).toBeNull();
     expect(
       state.lastEvents
@@ -341,7 +341,7 @@ describe("A card's attacker (cards that attack on behalf of something)", () => {
       ]);
       state = choose(state, "the result is 8");
       if (outcome(state).loser !== "attacker") continue;
-      expect(outcome(state).damage).toBeNull();
+      expect(outcome(state).harm).toBeNull();
       expect(state.pending).toBeNull();
       return;
     }

@@ -396,6 +396,8 @@
 - Sometimes defeating an opponent lets you do something other than inflict damage, for example steal an item (see "Special Attacks," below).
 - Defeating a monster only stuns it, unless a haunt says it is killed (see "How Monsters Work," page 18).
 - You may attack a stunned monster if there is another benefit to doing so (for example, stealing an item from it, or killing it with a special item).
+  > Note [stunned-benefit]: the rule doesn't say what counts as "another benefit", or how a player is to know there is one.
+  > Resolution (project): a benefit is something beating the monster would do beyond stunning it again: killing it, where the haunt or the way you attack says a beaten monster is killed (haunt 13's Nightmares), or stealing an item it carries, where the haunt lets monsters carry items. Damage to a monster always becomes a stun (p. 18), so nothing else counts. The attack action offers a stunned monster only when beating it would do one of those things, so a player is never offered an attack that can only waste their turn's attack. Both of the rulebook's examples are of this kind, and the 1st-edition FAQ allows the attack on a monster that can be killed. Research: no ruling found beyond that FAQ. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 - A stunned monster still rolls dice to defend, but if the attacking hero loses, the hero takes no damage.
 - In the same turn you may both take a haunt-specific action (as described in the haunt's rules) and attack.
   > Note: the rulebook doesn't say in what order the two sides roll, or when each may use a card that changes their own roll (the Angel Feather, the Lucky Stone, the Idol).

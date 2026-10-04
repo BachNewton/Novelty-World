@@ -1,4 +1,5 @@
 import type {
+  Figure,
   FigureId,
   GameState,
   HauntReveal,
@@ -11,7 +12,7 @@ import type {
   TraitorRule,
 } from "../types";
 import { addStatus, defineStep, loseCard, step } from "./effects";
-import { explorerOf, figureOf } from "./figures";
+import { explorerOf, figureOf, placeOf, startingTraits } from "./figures";
 import { traitValue } from "./questions";
 import { heroes } from "./sides";
 import {
@@ -335,6 +336,26 @@ export function statusOnGroup(who: FigureGroup, status: Status): Step {
   return step<GroupStatus>("group-status", { who, status });
 }
 
+type Spawn = {
+  definition: string;
+  count: Count;
+  at: FigureGroup;
+  owner: SeatGroup | null;
+  rule: RuleRef;
+};
+
+/** Puts a number of a haunt's figures into the room of a group's first
+ *  living explorer (haunt 13's Nightmares, with the sleeping traitor), owned
+ *  by the one seat of a group, or by none. Each is numbered from its
+ *  definition. */
+export function spawn(
+  definition: string,
+  how: { count: Count; at: FigureGroup; owner: SeatGroup | null },
+  rule: RuleRef,
+): Step {
+  return step<Spawn>("spawn", { definition, ...how, rule });
+}
+
 /** Puts a turn into the order, taken at the next turn boundary. */
 export function insertTurn(turn: InsertedTurn): Step {
   return step<InsertedTurn>("insert-turn", turn);
@@ -623,6 +644,46 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
 
   "group-status": defineStep<GroupStatus>((state, p, ctx) => {
     ctx.push(...figuresIn(state, p.who).map((f) => addStatus(f, p.status)));
+  }),
+
+  spawn: defineStep<Spawn>((state, p, ctx) => {
+    if (!(p.definition in ctx.catalog.figures))
+      throw new Error(`There is no figure definition ${p.definition}`);
+    const definition = ctx.catalog.figures[p.definition];
+    const beside = figuresIn(state, p.at).at(0);
+    if (beside === undefined)
+      throw new Error(`No explorer of the ${p.at} to put ${definition.name} beside`);
+    const place = placeOf(state, beside);
+    const owners = p.owner === null ? [null] : seatsIn(state, p.owner);
+    if (owners.length !== 1)
+      throw new Error(`The ${String(p.owner)} are not one seat to own ${definition.name}`);
+    const taken = Object.values(state.figures).filter(
+      (f) => f.definition === p.definition,
+    ).length;
+    const ids = Array.from(
+      { length: count(ctx.engine, state, p.count) },
+      (_, i) => `${p.definition}-${taken + i + 1}`,
+    );
+    for (const id of ids) {
+      const figure: Figure = {
+        id,
+        kind: definition.kind,
+        definition: p.definition,
+        owner: owners[0],
+        place: { ...place },
+        traits: startingTraits(definition),
+        cards: [],
+        statuses: [],
+        stunned: false,
+        alive: true,
+      };
+      state.figures[id] = figure;
+    }
+    ctx.emit("spawned", p.rule, {
+      definition: p.definition,
+      figures: ids,
+      room: place.room,
+    });
   }),
 
   "insert-turn": defineStep<InsertedTurn>((state, p, ctx) => {

@@ -1,6 +1,6 @@
 import type { GameState, Seat, Side, TurnKind } from "../types";
 import { allFigures, figureName, TRAITS } from "../engine/figures";
-import { traitValue } from "../engine/questions";
+import { hasTrait, traitValue } from "../engine/questions";
 import type { Engine } from "../engine/step-loop";
 import { seatLabel } from "./describe";
 
@@ -100,6 +100,7 @@ export function SidePanel({
                   ? []
                   : allegiance(state.seats[figure.owner])),
                 figure.alive ? null : "Dead",
+                figure.stunned ? "Stunned" : null,
                 figure.place === null
                   ? "Off the board"
                   : `In the ${rooms[figure.place.room].name}`,
@@ -108,7 +109,9 @@ export function SidePanel({
                 .join(" · ")}
             </p>
             <ul className="mt-1 grid grid-cols-2 gap-x-3">
-              {TRAITS.map((trait) => (
+              {TRAITS.filter((trait) =>
+                hasTrait(engine, state, figure.id, trait),
+              ).map((trait) => (
                 <li key={trait} className="flex justify-between">
                   <span className="capitalize text-(--bt-muted)">{trait}</span>
                   <span>

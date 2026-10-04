@@ -2956,6 +2956,12 @@
       "resolution": null
      },
      {
+      "id": "stunned-benefit",
+      "note": "the rule doesn't say what counts as \"another benefit\", or how a player is to know there is one.",
+      "authority": "project",
+      "resolution": "a benefit is something beating the monster would do beyond stunning it again: killing it, where the haunt or the way you attack says a beaten monster is killed (haunt 13's Nightmares), or stealing an item it carries, where the haunt lets monsters carry items. Damage to a monster always becomes a stun (p. 18), so nothing else counts. The attack action offers a stunned monster only when beating it would do one of those things, so a player is never offered an attack that can only waste their turn's attack. Both of the rulebook's examples are of this kind, and the 1st-edition FAQ allows the attack on a monster that can be killed. Research: no ruling found beyond that FAQ. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf"
+     },
+     {
       "note": "the rulebook doesn't say in what order the two sides roll, or when each may use a card that changes their own roll (the Angel Feather, the Lucky Stone, the Idol).",
       "authority": "project",
       "resolution": "the attacker rolls first, using any card that changes their roll, and the defender rolls second, knowing the attacker's result when deciding on theirs. The attacker has already committed to the attack, and the cards a defender may use on another player's turn are reactions by nature; a fixed order also avoids two players choosing in secret at once, which a turn-based game would otherwise have to hold as a hidden shared choice. Research: no ruling found."

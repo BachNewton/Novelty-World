@@ -2,16 +2,13 @@ import type {
   Catalog,
   Edge,
   Figure,
-  FigureDefinition,
   FigureId,
-  FigureTraits,
   FloorId,
   GameState,
   HauntReveal,
   RuleRef,
   SetId,
   Step,
-  Trait,
   TurnRef,
 } from "../types";
 import {
@@ -32,8 +29,8 @@ import {
   placeOf,
   putFigure,
   seatExplorer,
+  startingTraits,
   together,
-  TRAITS,
 } from "./figures";
 import {
   arrived,
@@ -49,6 +46,7 @@ import {
   step,
   takeFromPile,
 } from "./effects";
+import { attackTargets, turnAttack } from "./combat";
 import { revealHaunt } from "./haunt";
 import {
   askNumber,
@@ -57,6 +55,7 @@ import {
   askStructured,
   controllerOf,
   moveCost,
+  type AttackTarget,
 } from "./questions";
 import {
   atSource,
@@ -142,20 +141,6 @@ function validateSeats(catalog: Catalog, seats: NewGame["seats"]): void {
   }
 }
 
-/** A figure's traits as it comes into play: on tracks, each clip at its
- *  starting position. */
-function startingTraits(definition: FigureDefinition): FigureTraits {
-  const source = definition.traits;
-  if (source.kind === "fixed") return { kind: "fixed" };
-  return {
-    kind: "track",
-    clips: Object.fromEntries(
-      TRAITS.map((t) => [t, source.start[t]]),
-    ) as Record<Trait, number>,
-    overTop: [],
-  };
-}
-
 type Setup = {
   characters: string[];
   today: { month: number; day: number };
@@ -180,6 +165,7 @@ export type TurnChoice =
   | { act: "move"; to: string; side: Edge | null }
   | { act: "discover"; direction: Edge }
   | { act: "action"; source: Source["kind"]; id: string; action: string }
+  | { act: "attack"; target: AttackTarget }
   | { act: "trade"; with: FigureId; give: string | null; take: string | null }
   | { act: "drop"; card: string }
   | { act: "pickup"; card: string }
@@ -275,6 +261,16 @@ function cardActions(
   return result;
 }
 
+/** Trading is between explorers in one room (p. 11): monsters carry no
+ *  items unless a haunt says so (p. 19). */
+function canTradeWith(explorer: Figure, other: Figure): boolean {
+  return (
+    other.id !== explorer.id &&
+    other.kind === "explorer" &&
+    together(other, explorer)
+  );
+}
+
 function canMoveItem(
   engine: Engine,
   state: GameState,
@@ -356,8 +352,10 @@ function turnCandidates(
   for (const { source, action } of cardActions(engine, state, figure)) {
     choices.push({ act: "action", source: source.kind, id: source.id, action });
   }
+  for (const target of attackTargets(engine, state, figure))
+    choices.push({ act: "attack", target });
   for (const other of allFigures(state)) {
-    if (other.id === figure || !together(other, explorer)) continue;
+    if (!canTradeWith(explorer, other)) continue;
     const gives = [
       null,
       ...explorer.cards.filter((c) => canMoveItem(engine, state, c, "trade")),
@@ -455,11 +453,15 @@ function takeTurnChoice(
         handle(state, source.id);
       return definition.steps(state, figure, source);
     }
+    case "attack": {
+      const work = turnAttack(engine, state, figure, choice.target);
+      return typeof work === "string" ? work : [work];
+    }
     case "trade": {
       if (turn.traded) return "You have already traded this turn";
       const other =
         choice.with in state.figures ? state.figures[choice.with] : null;
-      if (other === null || other.id === figure || !together(other, explorer))
+      if (other === null || !canTradeWith(explorer, other))
         return "You can only trade with an explorer in your room";
       if (
         choice.give !== null &&
@@ -527,6 +529,17 @@ function describeTurnChoice(
         (s) => s.source.kind === choice.source && s.source.id === choice.id,
       )?.behaviour;
       return behaviour?.actions?.[choice.action]?.label ?? choice.action;
+    }
+    case "attack": {
+      if (choice.target.kind !== "figure")
+        throw new Error("Only a figure can be attacked");
+      const target = choice.target.figure;
+      const there = figureOf(state, target).place;
+      const here = placeOf(state, seatExplorer(state, seat));
+      return there !== null &&
+        (there.room !== here.room || there.side !== here.side)
+        ? `Attack ${name(target)}, in the ${room(there.room)}`
+        : `Attack ${name(target)}`;
     }
     case "trade": {
       const give = choice.give === null ? null : `your ${card(choice.give)}`;

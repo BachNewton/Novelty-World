@@ -277,6 +277,7 @@ describe("migrate", () => {
         figures: { "zoe-ingstrom": zoeFigure },
         ...later,
         turn: null,
+        lastEvents: [],
       });
     });
 
@@ -316,7 +317,48 @@ describe("migrate", () => {
         },
         memory: { deaths: [], conditions: [] },
         result: null,
+        lastEvents: [],
       });
+    });
+  });
+
+  describe("a format 7 state", () => {
+    it("drops its last events, which an attack's old outcome may be among", () => {
+      const saved = {
+        format: 7,
+        gameId: "g",
+        pending: null,
+        work: [],
+        lastEvents: [
+          {
+            id: "d1.0:0",
+            type: "attack-outcome",
+            rule: { source: "rulebook", page: 13 },
+            data: { damage: { kind: "physical", points: 2 } },
+          },
+        ],
+      };
+      expect(migrate(saved)).toEqual({
+        format: STATE_FORMAT,
+        gameId: "g",
+        pending: null,
+        work: [],
+        lastEvents: [],
+      });
+    });
+
+    it("is refused while an attack is in progress: its modes have no reach", () => {
+      expect(() =>
+        migrate({
+          format: 7,
+          pending: {
+            type: "decision",
+            kind: "attack-mode",
+            params: { attacker: { kind: "figure", figure: "ox-bellows" } },
+          },
+          work: [{ kind: "attack-settle", params: {} }],
+        }),
+      ).toThrow(/attack/);
     });
   });
 

@@ -104,6 +104,31 @@ export function figureDefinition(
   return catalog.figures[definition];
 }
 
+/** Whether a figure takes damage on its traits: an explorer, whose traits
+ *  are clips on tracks. A figure with fixed traits (a monster) has nothing
+ *  to take it on, and is stunned instead (p. 18). */
+export function takesDamage(
+  catalog: Catalog,
+  state: GameState,
+  id: FigureId,
+): boolean {
+  return figureDefinition(catalog, state, id).traits.kind === "tracks";
+}
+
+/** A figure's traits as it comes into play: on tracks, each clip at its
+ *  starting position, or its definition's fixed values. */
+export function startingTraits(definition: FigureDefinition): FigureTraits {
+  const source = definition.traits;
+  if (source.kind === "fixed") return { kind: "fixed" };
+  return {
+    kind: "track",
+    clips: Object.fromEntries(
+      TRAITS.map((t) => [t, source.start[t]]),
+    ) as Record<Trait, number>,
+    overTop: [],
+  };
+}
+
 /** A figure's tracks and its clips on them, for the rules that move clips. A
  *  figure with fixed traits has no clips to move. */
 export function trackTraits(

@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 7;
+export const STATE_FORMAT = 8;
 
 type JsonObject = { [key: string]: Json };
 
@@ -192,6 +192,20 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
       memory: { ...memory, conditions: [] },
       result: null,
     };
+  },
+  // Format 8 gives an attack's modes a reach, an attack whether its
+  // attacker chose it, and its outcome what the loser suffers (damage, a stun
+  // or a kill) where format 7 gave only damage. An attack in progress can't
+  // be carried over, as its modes and outcome don't say what they would now
+  // mean. Last events are dropped: an attack's outcome among them would be
+  // described by its new shape, and they only animate the write that made
+  // them.
+  7: (state) => {
+    if (/"kind":"attack/.test(JSON.stringify([state.pending, state.work])))
+      throw new Error(
+        "A format 7 state paused partway through an attack can't be carried over",
+      );
+    return { ...state, lastEvents: [] };
   },
 };
 

@@ -52,8 +52,9 @@ describe("random play through a toy haunt to the game's end, or a full house", (
   );
 });
 
-// The sweep is only as good as what it reaches. Attacks before the haunt come
-// only from a few cards, so the attack decisions are left to combat's tests.
+// The sweep is only as good as what it reaches. The turn's attack comes with
+// the toy haunt; the choice of weapon and of stealing need cards held at the
+// right moment, so they are left to combat's tests.
 // Tests in a file run in order, so this one sees every game above.
 it("answers every kind of decision, on and off turn", () => {
   expect([...answered].sort()).toEqual(
@@ -61,6 +62,7 @@ it("answers every kind of decision, on and off turn", () => {
       "turn:discover",
       "turn:move",
       "turn:action",
+      "turn:attack",
       "turn:trade",
       "turn:drop",
       "turn:pickup",

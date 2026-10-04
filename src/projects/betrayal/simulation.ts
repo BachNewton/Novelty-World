@@ -235,6 +235,8 @@ function weight(
     }
     case "action":
       return 3;
+    case "attack":
+      return 2;
     case "pickup":
       return 2;
     case "trade":
@@ -269,7 +271,7 @@ function pickChoice(
 }
 
 /** Every listed choice applies; every candidate left out doesn't. */
-function checkListedAreLegal(
+export function checkListedAreLegal(
   engine: Engine,
   state: GameState,
   seat: number,

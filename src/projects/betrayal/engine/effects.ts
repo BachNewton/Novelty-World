@@ -804,6 +804,12 @@ export function die(
   return step<Die>("die", { figure, trait: null, cause, killer });
 }
 
+/** A figure is stunned (p. 18): it gets in no one's way, and misses its next
+ *  monster turn, at whose end it recovers. */
+export function stun(figure: FigureId, rule: RuleRef): Step {
+  return step<{ figure: FigureId; rule: RuleRef }>("stun", { figure, rule });
+}
+
 /** Whether a card works as an item: every item, and every omen but the
  *  companions and those that can't be traded, dropped or stolen at all (the
  *  Bite), as the 1st-edition FAQ treats them. */
@@ -1281,18 +1287,32 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     const room = placeOf(state, p.figure).room;
     figure.alive = false;
     state.memory.deaths.push({ ...p, room });
-    ctx.emit("died", rulebook(5), { ...p, room });
+    // A trait at the skull kills (p. 5); any other death is its cause's own
+    // rule (a haunt's monster killed when beaten).
+    ctx.emit("died", p.trait === null ? p.cause : rulebook(5), { ...p, room });
     ctx.push(
       ...figure.cards.flatMap((card) =>
         dropOnDeath(ctx.catalog, p.figure, card, room),
       ),
       step<{ figure: FigureId }>("leave-board", { figure: p.figure }),
-      endTurnNow(p.figure, rulebook(16, "dead-seats-turns")),
+      // A dead explorer's turn ends; a monster killed on its own turn
+      // leaves the rest of the monster turn to the others.
+      ...(figure.kind === "explorer"
+        ? [endTurnNow(p.figure, rulebook(16, "dead-seats-turns"))]
+        : []),
     );
   }),
 
-  // A dead explorer's figure leaves the board: it is in no room, so it
-  // slows no one and nothing can reach it.
+  // A figure already stunned stays so.
+  stun: defineStep<{ figure: FigureId; rule: RuleRef }>((state, p, ctx) => {
+    const figure = figureOf(state, p.figure);
+    if (!takesPart(state, p.figure) || figure.stunned) return;
+    figure.stunned = true;
+    ctx.emit("stunned", p.rule, { figure: p.figure });
+  }),
+
+  // A dead figure leaves the board: it is in no room, so it slows no one
+  // and nothing can reach it.
   "leave-board": defineStep<{ figure: FigureId }>((state, p) => {
     figureOf(state, p.figure).place = null;
   }),

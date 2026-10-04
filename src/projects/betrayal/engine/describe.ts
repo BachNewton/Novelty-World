@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import type { Attacker } from "./combat";
 import type { CardDestination, GainedBy } from "./effects";
+import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
 import { FLOOR_NAMES } from "./board";
@@ -355,7 +356,8 @@ export function describeEvent(
         attackResult: number;
         defenceResult: number;
         loser: "attacker" | "defender" | null;
-        damage: { kind: string; points: number } | null;
+        harm: Harm | null;
+        near: boolean;
       }>(event);
       const attacker = d.attacker === null ? "the attack" : who(d.attacker);
       const defender = who(d.defender);
@@ -369,10 +371,26 @@ export function describeEvent(
           `${capital(attacker)} beats ${defender}, ${score(d.attackResult, d.defenceResult)}`,
         );
       const beaten = `${defender} beats ${attacker}, ${score(d.defenceResult, d.attackResult)}`;
+      if (d.harm !== null || d.attacker === null) return sentence(beaten);
       return sentence(
-        d.damage === null && d.attacker !== null
-          ? `${beaten}, but ${attacker} attacked from another room and takes no damage`
-          : beaten,
+        d.near
+          ? `${beaten}, but ${attacker} takes no damage`
+          : `${beaten}, but ${attacker} attacked from another room and takes no damage`,
+      );
+    }
+    case "stunned":
+      return sentence(
+        `${who(data<{ figure: FigureId }>(event).figure)} is stunned`,
+      );
+    case "spawned": {
+      const d = data<{ definition: string; figures: FigureId[]; room: string }>(
+        event,
+      );
+      const name = engine.catalog.figures[d.definition].name;
+      return sentence(
+        d.figures.length === 1
+          ? `A ${name} appears in the ${words.room(d.room)}`
+          : `${d.figures.length} ${name}s appear in the ${words.room(d.room)}`,
       );
     }
     case "deck-empty":

@@ -16,7 +16,7 @@ import {
   table,
   type TableRow,
 } from "../../engine/effects";
-import { attack, cardAttack } from "../../engine/combat";
+import { attack, canBeAttacked, cardAttack } from "../../engine/combat";
 import {
   allFigures,
   explorersFrom,
@@ -31,7 +31,6 @@ import { distanceTo } from "../../engine/movement";
 import { sideOf } from "../../engine/sides";
 import {
   askNumber,
-  askPermission,
   askSet,
   onTurn,
   traitValue,
@@ -269,44 +268,41 @@ export const EVENTS_A: BehaviourGroup = {
         ]),
       ],
       steps: {
-        // An explorer comes first, the one with the lowest Might (the card's
-        // project ruling).
+        // An explorer comes first, the one with the lowest Might, a fellow
+        // hero or the sleeping traitor included; only with no explorer in
+        // reach is a monster attacked, of your choice. "If you can" is a
+        // target you are able to attack. The attack is the card's, outside
+        // your one attack of the turn (the card's project rulings).
         attack: defineStep<{ figure: FigureId }>((state, p, ctx) => {
           const rule = card("bloody-vision");
           const you = figureOf(state, p.figure);
           const adjacent = askSet(ctx.engine, state, "adjacency", {
             room: roomOf(state, p.figure),
           });
-          const targets = allFigures(state).filter(
+          const inReach = allFigures(state).filter(
             (e) =>
-              e.id !== p.figure &&
               (together(e, you) ||
                 (e.place !== null && adjacent.includes(e.place.room))) &&
-              askPermission(ctx.engine, state, "canAttack", {
-                attacker: p.figure,
-                defender: e.id,
-              }).allowed,
+              canBeAttacked(ctx.engine, state, p.figure, e.id),
           );
-          if (targets.length === 0) {
-            // Before the haunt there are no monsters, so no one in reach means no attack.
-            if (state.status === "exploring") return;
-            throw new Error(
-              "Bloody Vision's attack on a monster needs monsters, which come with the haunt",
-            );
-          }
+          const explorers = inReach.filter((e) => e.kind === "explorer");
           const might = (figure: FigureId) =>
             traitValue(ctx.engine, state, figure, "might");
-          const lowest = Math.min(...targets.map((e) => might(e.id)));
-          const weakest = targets.filter((e) => might(e.id) === lowest);
+          const lowest = Math.min(...explorers.map((e) => might(e.id)));
+          const targets =
+            explorers.length > 0
+              ? explorers.filter((e) => might(e.id) === lowest)
+              : inReach.filter((e) => e.kind === "monster");
+          if (targets.length === 0) return;
           const attackOn = (figure: FigureId) =>
             attack({ kind: "figure", figure: p.figure }, figure, rule);
           ctx.push(
-            weakest.length === 1
-              ? attackOn(weakest[0].id)
+            targets.length === 1
+              ? attackOn(targets[0].id)
               : chooseOne(
                   p.figure,
-                  weakest.map((e) => ({
-                    label: `Attack ${explorerName(state, e.id)}`,
+                  targets.map((e) => ({
+                    label: `Attack ${figureName(CATALOG, state, e.id)}`,
                     steps: [attackOn(e.id)],
                   })),
                   rule,
@@ -362,14 +358,14 @@ export const EVENTS_A: BehaviourGroup = {
         spear: defineStep<{ figure: FigureId; outcome: CombatOutcome }>(
           (state, p, ctx) => {
             const rule = card("creepy-puppet");
-            const { loser, damage: dealt } = p.outcome;
+            const { loser, harm } = p.outcome;
             const hurt =
               loser === "defender" &&
-              dealt !== null &&
+              harm?.kind === "damage" &&
               askNumber(ctx.engine, state, "damageAmount", {
                 figure: p.figure,
-                damage: dealt.kind,
-                amount: dealt.points,
+                damage: harm.damage,
+                amount: harm.points,
                 rule,
               }) > 0;
             const spear = allFigures(state).find((e) =>

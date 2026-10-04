@@ -17,19 +17,21 @@ import {
 import type { Engine } from "../engine/step-loop";
 import { ENGINE } from "../game";
 import { withHaunts, type HauntDefinition } from "../kit/haunt";
-import type { FigureId, TurnKind } from "../types";
+import type { FigureDefinition, FigureId, TurnKind } from "../types";
 
 // A small haunt built from the kit, for testing the haunt framework without
-// any real haunt's rules. The traitor dozes (can't act, slows no one); a hero
-// moving into a room adds a wake token, and the heroes win with one per
-// player; each monster turn a nightmare escapes, and the traitor wins once
-// as many have escaped as the number the traitor wrote down (the players).
+// any real haunt's rules. The traitor dozes (can't act, slows no one) beside
+// a Phantom, a monster with no Knowledge that the haunt places and never
+// moves; a hero moving into a room adds a wake token, and the heroes win
+// with one per player; each monster turn a nightmare escapes, and the
+// traitor wins once as many have escaped as the number the traitor wrote
+// down (the players).
 // A few objective actions reach the framework's corners: an extra turn, both
 // goals met in one step, and a hero dropping dead.
 
 /** One status for every copy of the toy haunt, as a kit status shared by
  *  several haunts is one entry. */
-const DOZING: Behaviour = {
+export const DOZING: Behaviour = {
   name: "asleep",
   modifiers: [
     {
@@ -45,6 +47,15 @@ const DOZING: Behaviour = {
   ],
 };
 
+/** The toy haunt's monster, one entry for every copy of the haunt. */
+export const PHANTOM: FigureDefinition = {
+  id: "phantom",
+  name: "Phantom",
+  kind: "monster",
+  traits: { kind: "fixed", values: { speed: 3, might: 4, sanity: 3 } },
+  token: null,
+};
+
 export function toyHaunt(
   number: number,
   changes: Partial<HauntDefinition> = {},
@@ -56,6 +67,7 @@ export function toyHaunt(
     set: "base",
     content: "(a test haunt)",
     statuses: { dozing: DOZING },
+    figures: [PHANTOM],
     counters: {
       wakes: { name: "wake tokens" },
       escapes: { name: "escaped nightmares" },
@@ -64,6 +76,13 @@ export function toyHaunt(
     setup: {
       traitor: [
         { part: "status", who: "traitor", status: "dozing" },
+        {
+          part: "spawn",
+          figure: "phantom",
+          count: 1,
+          at: "traitor",
+          owner: "traitor",
+        },
         { part: "counter", counter: "escapes", start: 0 },
         {
           part: "secret",
