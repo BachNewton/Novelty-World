@@ -501,8 +501,11 @@ export const EVENTS_A: BehaviourGroup = {
           (state, p, ctx) => {
             const rule = card("footsteps");
             const from = placeOf(state, p.figure);
+            // The card names explorers, so a monster is never the nearest
+            // (rules p. 5).
             const others = allFigures(state).flatMap((e) => {
-              if (e.id === p.figure || e.place === null) return [];
+              if (e.id === p.figure || e.place === null || e.kind !== "explorer")
+                return [];
               const distance = distanceTo(
                 ctx.engine,
                 state,
@@ -899,10 +902,14 @@ export const EVENTS_A: BehaviourGroup = {
       ],
       reactions: [
         ...holderTurnEnded(
+          // Another explorer: a monster isn't one (rules p. 5).
           (state, figure, room) =>
             room === "furnace-room" ||
             allFigures(state).some(
-              (e) => e.id !== figure && together(e, figureOf(state, figure)),
+              (e) =>
+                e.id !== figure &&
+                e.kind === "explorer" &&
+                together(e, figureOf(state, figure)),
             ),
           "lights-out",
         ),

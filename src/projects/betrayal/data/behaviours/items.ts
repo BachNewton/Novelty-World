@@ -112,12 +112,15 @@ function glovesTakes(
     );
 }
 
-/** You, and the other explorers in your room. */
+/** You, and the other explorers in your room: the card names explorers,
+ *  so a monster there isn't one of them (rules p. 5). */
 function yourselfAndRoommates(state: GameState, figure: FigureId): Figure[] {
   const you = figureOf(state, figure);
   return [
     you,
-    ...allFigures(state).filter((e) => e.id !== figure && together(e, you)),
+    ...allFigures(state).filter(
+      (e) => e.id !== figure && e.kind === "explorer" && together(e, you),
+    ),
   ];
 }
 
@@ -569,10 +572,14 @@ export const ITEMS: BehaviourGroup = {
           if (options.length > 0)
             ctx.push(chooseOne(p.figure, options, card("dark-dice")));
         }),
+        // One other explorer: a monster isn't one (rules p. 5).
         push: defineStep<{ figure: FigureId }>((state, p, ctx) => {
           const you = figureOf(state, p.figure);
           const options = allFigures(state)
-            .filter((e) => e.id !== p.figure && together(e, you))
+            .filter(
+              (e) =>
+                e.id !== p.figure && e.kind === "explorer" && together(e, you),
+            )
             .flatMap((e) =>
               askSet(ctx.engine, state, "adjacency", {
                 room: roomOf(state, p.figure),

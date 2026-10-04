@@ -179,6 +179,73 @@ describe("room text on a monster", () => {
   });
 });
 
+describe("card text naming explorers (rules.md, p. 5: a rule for one kind names it)", () => {
+  it("the Medical Kit heals explorers in the room, never a monster there", () => {
+    const state = toyBegun(TOY_ENGINE, (s) => {
+      explorer(s, 2).cards.push("medical-kit");
+      explorer(s, 0).traits.clips.might = 0;
+      explorer(s, 2).traits.clips.might = 0;
+    });
+    const healed = choose(state, "Use the Medical Kit", TOY_ENGINE);
+    expect(labels(healed, TOY_ENGINE)).toEqual([
+      "Heal Father Rhinehardt",
+      "Heal Zoe Ingstrom",
+    ]);
+  });
+
+  it("the Dark Dice's 5 moves another explorer, never a monster", () => {
+    let state = toyBegun(TOY_ENGINE, (s) => {
+      explorer(s, 2).cards.push("dark-dice", "angel-feather");
+    });
+    state = choose(state, "Dark Dice", TOY_ENGINE);
+    state = choose(state, "the result is 5", TOY_ENGINE);
+    const moved = labels(state, TOY_ENGINE);
+    expect(moved.length).toBeGreaterThan(0);
+    expect(moved.some((l) => l.includes("Phantom"))).toBe(false);
+  });
+
+  it("Lights Out stays with a hero who ends the turn beside only a monster", () => {
+    let state = toyBegun(TOY_ENGINE, (s) => {
+      put(s, 2, "foyer");
+      phantomIn(s, "foyer");
+      explorer(s, 2).cards.push("lights-out");
+    });
+    state = choose(state, "End your turn", TOY_ENGINE);
+    expect(state.figures[FATHER].cards).toContain("lights-out");
+  });
+
+  it("Footsteps' nearest explorer is never a monster", () => {
+    for (const seed of Array.from({ length: 100 }, (_, i) => `${i}`)) {
+      let state = toyBegun(
+        TOY_ENGINE,
+        // In the Chapel, Footsteps rolls 2 dice, so it can roll a 3 or 4.
+        (s) => {
+          put(s, 2, "chapel");
+          phantomIn(s, "chapel");
+        },
+        { seed, decks: { event: ["footsteps"] }, rooms: ["chapel"] },
+      );
+      state = start(TOY_ENGINE, { ...state, pending: null }, [
+        drawCard(FATHER, "event", DRAW_RULE),
+      ]);
+      const rolled = state.lastEvents.find((e) => e.type === "rolled");
+      const result = (rolled?.data as { result: number } | undefined)?.result;
+      if (result !== 3 && result !== 4) continue;
+      const touched = state.lastEvents.map(
+        (e) => (e.data as { figure?: string } | null)?.figure,
+      );
+      expect(touched).not.toContain(PHANTOM_1);
+      // Zoe and Ox, together in the Entrance Hall, tie as the nearest.
+      expect(labels(state, TOY_ENGINE)).toEqual([
+        "Zoe Ingstrom is the nearest explorer",
+        "Ox Bellows is the nearest explorer",
+      ]);
+      return;
+    }
+    throw new Error("No seed rolls a 3 or 4 for Footsteps");
+  });
+});
+
 describe("the Bell's and the Spirit Board's pulls (cards/items.md, cards/omens.md)", () => {
   /** Father, holding the card, a room away from the Phantom. */
   const holding = (card: string) => (s: GameState) => {
