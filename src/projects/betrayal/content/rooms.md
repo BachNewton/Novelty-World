@@ -274,6 +274,9 @@ Every room tile of the base game (44 tiles, plus the three-room Entrance Hall / 
 > Note: the tile doesn't say what "empty it" gives you, or how many cards. The tile shows an event symbol and two item symbols, and the rulebook's symbol rule would have the discoverer draw all three.
 > Resolution (community): the two item symbols are the vault's contents. Discovering the Vault draws only its event card; the explorer who opens it draws 2 item cards, and the Vault Empty token goes on the tile. The 1st-edition FAQ says that on the turn you discover the Vault you draw an event card and may then try to open it, and BGG players describe opening it as drawing two item cards. The 1st-edition tile text is the same ("open and empty the vault"). Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf, https://daviau1.rssing.com/chan-5960803/article58898.html (BGG thread "Purpose of Vault Empty token?")
 
+> Note: the Vault is a barrier room (rules.md, p. 7), but with one door its far side is only the inside of the vault, and the rules don't say whether opening it takes you in there.
+> Resolution (project): every explorer in the Vault is outside its door (rules.md, p. 8), and opening it empties it without anyone going in, so no explorer is ever on its far side and the game tracks no side in the Vault. With one door there is nothing beyond the far side to move on to, and the contents are the only reason to go in. Research: none beyond the rulebook.
+
 ## Attic
 - Set: base
 - Floors: Upper

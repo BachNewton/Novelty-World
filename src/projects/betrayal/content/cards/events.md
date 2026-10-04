@@ -635,6 +635,9 @@ Drawn when an explorer discovers a room with an event symbol.
   - The Smoke blocks line of sight from adjacent rooms.
   - While in this room, an explorer rolls 2 fewer dice on all trait rolls (minimum of 1 die).
 
+> Note: "blocks line of sight from adjacent rooms" doesn't say whether someone in the Smoke can see out, or whether the Smoke blocks a line that runs through its room.
+> Resolution (project): line of sight is mutual, so the Smoke blocks it into, out of and through its room. A distance attack needs line of sight between attacker and target whichever of them is in the Smoke, and smoke that hid a room but let sight pass through it would make no sense at the table. Research: no ruling found in the 1st-edition FAQ.
+
 ## Something Hidden
 - Deck: event
 - Set: base

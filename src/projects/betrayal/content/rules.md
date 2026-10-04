@@ -183,6 +183,9 @@
 - Monsters always ignore barriers. If a monster ends its movement in a barrier room, the traitor chooses which side it is on.
 - If a tile or card makes you land in a barrier room, you choose which side you end up on. If that arrival places a square token in the new room (as with the Collapsed Room or Secret Passage), the token stays permanently on the side you chose.
 
+> Note: the rules don't say whether the crossing roll may be tried with no movement left, or after something has ended your movement (drawing a card), or which side an explorer is on after moving in through a door.
+> Resolution (project): crossing is part of moving, so it can't be tried once your movement has ended for the turn (a card drawn, a failed roll), but it spends no movement, so it can be tried with no spaces left. Moving in through a door puts you on that door's side, and only the door on your own side leads on. This follows the rule's own wording (a failure "ends your movement", and you may "go back the way you came"), the way the Gallery's and the Collapsed Room's falls are settled, and keeps the barrier a real obstacle rather than something crossed for free after exploring. Research: none beyond the rulebook.
+
 #### Entrance Hall, Foyer, and Grand Staircase (p. 7)
 
 - These three share one tile but are three separate rooms. Moving from one to the adjacent one on the tile costs 1 space.
