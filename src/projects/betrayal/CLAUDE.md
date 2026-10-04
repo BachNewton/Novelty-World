@@ -106,6 +106,10 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 
 `design/engine.md` is the engine design built on it: layers, game state, decisions and events, randomness, the rules interface, the haunt format, the content pipeline, server, client sync, testing and build order, with the lessons from Monopoly folded in.
 
+## Working on long tasks
+
+Keep the main session thin. Delegate each substantial unit of work (a phase, an integration, an engine gap, a review) to a fresh agent with a self-contained written brief, and read back only a short report. The main session orchestrates and makes the decisions at each boundary. When its own context grows heavy, hand orchestration to a fresh agent through a written brief rather than pressing on or waiting for auto-compaction: a long context degrades judgement well before it fills. Decisions only the owner can make still come back to the owner through the reports.
+
 ## Next step
 
 Building starts at the first milestone of `design/engine.md`.
