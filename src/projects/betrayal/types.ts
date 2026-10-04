@@ -125,7 +125,9 @@ export type RuleRef =
   | { source: "room"; room: string }
   | { source: "card"; card: string }
   | { source: "token"; token: string }
-  | { source: "haunt"; haunt: number; section: string };
+  | { source: "haunt"; haunt: number; section: string }
+  /** A playtesting or test scenario set this up, not a rule. */
+  | { source: "scenario" };
 
 // ---------------------------------------------------------------------------
 // Game state: one JSON value, ids and live values only
@@ -271,12 +273,12 @@ export interface Turn {
   omens: { card: string; seat: number; room: string }[];
 }
 
-export interface Haunt {
+export type Haunt = {
   number: number;
   revealer: number;
   omen: string;
   room: string;
-}
+};
 
 export interface GameState {
   format: number;

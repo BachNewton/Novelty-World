@@ -52,6 +52,8 @@ export function describeRule(engine: Engine, rule: RuleRef): string {
       return `${tokens[rule.token].name} token`;
     case "haunt":
       return `Haunt ${rule.haunt}, ${rule.section}`;
+    case "scenario":
+      return "Scenario";
   }
 }
 
@@ -91,6 +93,13 @@ const data = <T extends Json>(event: GameEvent): T => event.data as T;
 
 const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
+/** "a", "a and b", "a, b and c". */
+function list(items: string[]): string {
+  return items.length < 2
+    ? items.join("")
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 /** One event in plain language, or null for bookkeeping another event in the
  *  same write already tells (a drawn card's gain, a trade's two hand-overs). */
 export function describeEvent(
@@ -128,10 +137,10 @@ export function describeEvent(
       );
     case "ready":
       return sentence(`${who(data<{ seat: number }>(event).seat)} is ready`);
-    case "forced":
-      return sentence(
-        `${data<{ label: string }>(event).label} (the only choice)`,
-      );
+    case "forced": {
+      const d = data<{ seat: number; label: string }>(event);
+      return sentence(`${who(d.seat)}: ${d.label} (the only choice)`);
+    }
     case "left":
       return null;
     case "entered": {
@@ -373,6 +382,32 @@ export function describeEvent(
       const d = data<{ seat: number; result: number; omens: number }>(event);
       return sentence(
         `${who(d.seat)} rolls ${d.result} for the haunt, not under the ${d.omens} omens drawn: the haunt holds off`,
+      );
+    }
+    case "explorer-set-up": {
+      const d = data<{ seat: number; room: string | null; traits: Trait[] }>(
+        event,
+      );
+      const explorer = state.explorers[d.seat];
+      const track = engine.catalog.characters[explorer.character].tracks;
+      const traits = d.traits.map(
+        (t) => `${traitName(t)} ${track[t][explorer.clips[t]]}`,
+      );
+      const parts = [
+        ...(d.room === null ? [] : [`starts in the ${words.room(d.room)}`]),
+        ...(traits.length === 0 ? [] : [`starts with ${list(traits)}`]),
+      ];
+      return sentence(`${who(d.seat)} ${parts.join(" and ")}`);
+    }
+    case "haunt-started": {
+      const d = data<{
+        number: number;
+        revealer: number;
+        omen: string;
+        room: string;
+      }>(event);
+      return sentence(
+        `Haunt ${d.number} begins, revealed by ${who(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
       );
     }
     case "haunt-revealed": {

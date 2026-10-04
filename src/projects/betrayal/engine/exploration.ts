@@ -3,6 +3,7 @@ import type {
   Edge,
   FloorId,
   GameState,
+  Haunt,
   RuleRef,
   SetId,
   Step,
@@ -44,6 +45,13 @@ import {
   type Source,
   type SourceAction,
 } from "./sources";
+import {
+  prepareScenario,
+  SCENARIO_RULE,
+  stackScenario,
+  type PreparedScenario,
+  type Scenario,
+} from "./scenario";
 import { emptyState } from "./state";
 import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
 import {
@@ -66,6 +74,8 @@ export interface NewGame {
   seats: { name: string; character: string }[];
   /** The first player is the one whose birthday comes next (p. 4), so setup needs the date. */
   today: { month: number; day: number };
+  /** Start somewhere other than the default deal (playtesting and tests). */
+  scenario?: Scenario;
 }
 
 /** Sets a game up and runs it to the first player's first decision. */
@@ -73,10 +83,14 @@ export function newGame(engine: Engine, game: NewGame): GameState {
   validateSeats(engine.catalog, game.seats);
   const state = emptyState(game.gameId, game.seed, game.sets);
   state.seats = game.seats.map((s) => ({ name: s.name, controller: "human" }));
+  const characters = game.seats.map((s) => s.character);
   return start(engine, state, [
     step<Setup>("setup", {
-      characters: game.seats.map((s) => s.character),
+      characters,
       today: game.today,
+      scenario: game.scenario
+        ? prepareScenario(engine.catalog, game.sets, characters, game.scenario)
+        : null,
     }),
   ]);
 }
@@ -95,7 +109,11 @@ function validateSeats(catalog: Catalog, seats: NewGame["seats"]): void {
   }
 }
 
-type Setup = { characters: string[]; today: { month: number; day: number } };
+type Setup = {
+  characters: string[];
+  today: { month: number; day: number };
+  scenario: PreparedScenario | null;
+};
 
 /** Days from today until a birthday; today's birthday comes next. */
 function daysUntil(
@@ -105,6 +123,14 @@ function daysUntil(
   const dayOfYear = (d: { month: number; day: number }) =>
     (d.month - 1) * 31 + d.day;
   return (dayOfYear(birthday) - dayOfYear(today) + 12 * 31) % (12 * 31);
+}
+
+/** The haunt begins: exploration's work is dropped. Both ways in, the haunt
+ *  roll and a scenario's "start haunt N", come through here. */
+function revealHaunt(state: GameState, haunt: Haunt): void {
+  state.haunt = haunt;
+  state.status = "haunt";
+  state.work = [];
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +495,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
         .sort();
       state.decks[type] = { draw: random.shuffle(cards), discard: [] };
     }
+    if (p.scenario) stackScenario(state, p.scenario);
     state.explorers = p.characters.map((character, seat) => ({
       seat,
       character,
@@ -479,13 +506,30 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       overTop: [],
       cards: [],
     }));
-    const first = [...state.explorers].sort(
-      (a, b) =>
-        daysUntil(p.today, ctx.catalog.characters[a.character].birthday) -
-        daysUntil(p.today, ctx.catalog.characters[b.character].birthday),
-    )[0];
-    ctx.emit("game-started", RULEBOOK(4), { first: first.seat });
-    ctx.push(step<TurnParams>("turn-start", { seat: first.seat }));
+    const chosen = p.scenario?.first ?? null;
+    const first =
+      chosen ??
+      [...state.explorers].sort(
+        (a, b) =>
+          daysUntil(p.today, ctx.catalog.characters[a.character].birthday) -
+          daysUntil(p.today, ctx.catalog.characters[b.character].birthday),
+      )[0].seat;
+    ctx.emit("game-started", chosen === null ? RULEBOOK(4) : SCENARIO_RULE, {
+      first,
+    });
+    const haunt = p.scenario?.haunt ?? null;
+    ctx.push(
+      ...(p.scenario ? [step<PreparedScenario>("scenario", p.scenario)] : []),
+      haunt
+        ? step<Haunt>("start-haunt", haunt)
+        : step<TurnParams>("turn-start", { seat: first }),
+    );
+  }),
+
+  /** A scenario's haunt, revealed as if by its haunt roll. */
+  "start-haunt": defineStep<Haunt>((state, p, ctx) => {
+    revealHaunt(state, p);
+    ctx.emit("haunt-started", SCENARIO_RULE, p);
   }),
 
   "turn-start": defineStep<TurnParams>((state, p, ctx) => {
@@ -605,9 +649,12 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       throw new Error(
         `The haunt chart has no cell for ${p.room} and ${p.omen}`,
       );
-    state.haunt = { number, revealer: p.seat, omen: p.omen, room: p.room };
-    state.status = "haunt";
-    state.work = [];
+    revealHaunt(state, {
+      number,
+      revealer: p.seat,
+      omen: p.omen,
+      room: p.room,
+    });
     ctx.emit("haunt-revealed", RULEBOOK(15), {
       seat: p.seat,
       result: p.result,

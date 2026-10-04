@@ -296,6 +296,8 @@ const LAYER_OF: Record<RuleRef["source"], Layer> = {
   card: "card",
   token: "card",
   haunt: "haunt",
+  // A scenario only sets a game up and never changes an answer.
+  scenario: "rulebook",
 };
 
 /** A change the subject carries itself: dice the rule asking for one roll

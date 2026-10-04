@@ -285,6 +285,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
         throw new Error(`Decision ${pending.kind} has no legal choice`);
       if (legal.length === 1) {
         write.ctx.emit("forced", pending.rule, {
+          seat: pending.seats[0],
           kind: pending.kind,
           choice: legal[0].choice,
           label: legal[0].label,

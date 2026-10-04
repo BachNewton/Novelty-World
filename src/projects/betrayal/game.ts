@@ -4,6 +4,7 @@ import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
 import { MOVEMENT_STEPS } from "./engine/movement";
+import { SCENARIO_STEPS } from "./engine/scenario";
 import { localStep, type Behaviours } from "./engine/sources";
 import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
 import type { Engine, Rules, StepHandler } from "./engine/step-loop";
@@ -28,6 +29,7 @@ export function buildRules(behaviours: Behaviours): Rules {
     ...EXPLORATION_STEPS,
     ...TILE_STEPS,
     ...MOVEMENT_STEPS,
+    ...SCENARIO_STEPS,
   };
   for (const [name, handler] of Object.entries(localSteps(behaviours))) {
     if (name in steps) throw new Error(`Step ${name} is registered twice`);

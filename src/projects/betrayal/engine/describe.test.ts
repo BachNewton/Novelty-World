@@ -129,10 +129,42 @@ describe("describeEvent", () => {
     const forced = event(
       "forced",
       { source: "card", card: "angry-being" },
-      { kind: "split-damage", choice: null, label: "Take 1 Might and 0 Speed" },
+      {
+        seat: 0,
+        kind: "split-damage",
+        choice: null,
+        label: "Take 1 Might and 0 Speed",
+      },
     );
     expect(text(forced)).toBe(
-      "Angry Being: Take 1 Might and 0 Speed (the only choice).",
+      "Angry Being: Zoe Ingstrom: Take 1 Might and 0 Speed (the only choice).",
+    );
+  });
+
+  it("tells a scenario's setup, naming the scenario as its source", () => {
+    const state = testGame({
+      first: 1,
+      explorers: [{ seat: 0, room: "chapel", clips: { might: 7 } }],
+      decks: { omen: ["dog"] },
+    });
+    const lines = state.lastEvents.map((e) => text(e, state));
+    expect(lines).toContain(
+      "Scenario: The game begins. Ox Bellows goes first.",
+    );
+    expect(lines).toContain(
+      "Scenario: The Chapel is put in the house, on the upper floor.",
+    );
+    expect(lines).toContain(
+      "Scenario: Zoe Ingstrom starts in the Chapel and starts with Might 7.",
+    );
+  });
+
+  it("tells a haunt a scenario starts", () => {
+    const state = testGame({ haunt: { number: 13, revealer: 1 } });
+    const started = state.lastEvents.find((e) => e.type === "haunt-started");
+    if (!started) throw new Error("No haunt-started event");
+    expect(text(started, state)).toMatch(
+      /^Scenario: Haunt 13 begins, revealed by Ox Bellows with the .+ in the .+\.$/,
     );
   });
 
@@ -184,5 +216,6 @@ describe("describeRule", () => {
       "Rulebook, p. 6",
     );
     expect(describeRule(ENGINE, { source: "card", card: "bell" })).toBe("Bell");
+    expect(describeRule(ENGINE, { source: "scenario" })).toBe("Scenario");
   });
 });

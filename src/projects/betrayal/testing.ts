@@ -1,19 +1,17 @@
 import { newGame } from "./engine/exploration";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { ENGINE } from "./game";
-import type { CardType, Decision, GameState } from "./types";
+import type { Scenario } from "./engine/scenario";
+import type { Decision, GameState } from "./types";
 
-// Scenario helpers for tests: start a game with chosen decks and room stack,
-// then play it by picking the offered choices.
+// Scenario helpers for tests: start a game from a scenario (stacked decks and
+// room stack, placed explorers, a haunt already revealed), then play it by
+// picking the offered choices.
 
-export interface TestGame {
+export interface TestGame extends Scenario {
   seed?: string;
   /** Characters in seat order. */
   characters?: string[];
-  /** Cards on top of each deck, top first. The rest of the deck follows in its shuffled order. */
-  decks?: Partial<Record<CardType, string[]>>;
-  /** Room tiles on top of the stack, top first. */
-  stack?: string[];
   engine?: Engine;
 }
 
@@ -24,37 +22,20 @@ export const DEFAULT_CHARACTERS = [
 ];
 
 export function testGame(options: TestGame = {}): GameState {
-  const characters = options.characters ?? DEFAULT_CHARACTERS;
-  const engine = options.engine ?? ENGINE;
-  const first = engine.catalog.characters[characters[0]].birthday;
-  const state = newGame(engine, {
+  const { seed, characters = DEFAULT_CHARACTERS, engine = ENGINE, ...scenario } =
+    options;
+  return newGame(engine, {
     gameId: "test",
-    seed: options.seed ?? "test-seed",
+    seed: seed ?? "test-seed",
     sets: ["base"],
     seats: characters.map((character, i) => ({
       name: `Player ${i + 1}`,
       character,
     })),
     // Seat 0's birthday is today, so seat 0 goes first.
-    today: first,
+    today: engine.catalog.characters[characters[0]].birthday,
+    scenario,
   });
-  for (const [type, top] of Object.entries(options.decks ?? {}) as [
-    CardType,
-    string[],
-  ][]) {
-    state.decks[type].draw = [
-      ...top,
-      ...state.decks[type].draw.filter((c) => !top.includes(c)),
-    ];
-  }
-  if (options.stack) {
-    const top = options.stack;
-    state.board.stack = [
-      ...top,
-      ...state.board.stack.filter((t) => !top.includes(t)),
-    ];
-  }
-  return state;
 }
 
 export function pendingDecision(state: GameState): Decision {
