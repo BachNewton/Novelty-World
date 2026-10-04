@@ -148,7 +148,7 @@ describe("omens and the haunt roll", () => {
     state = choose(state, "Explore through the north door");
     state = choose(state, "End your turn");
     expect(state.status).toBe("haunt");
-    expect(state.haunt).toEqual({
+    expect(state.haunt).toMatchObject({
       number: 7,
       revealer: 0,
       omen: "book",

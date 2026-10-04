@@ -3048,6 +3048,7 @@
     ],
     "rulings": [
      {
+      "id": "traitor-tie",
       "note": "the book says \"the player closest to the haunt revealer's left\" without repeating \"of those who could be the traitor\"; reading it as limited to the candidates is the natural sense, but it is not stated outright. It also says \"neither one\", worded for two candidates, though the rule covers \"two or more\".",
       "authority": "community",
       "resolution": "the tie-break is only among the tied candidates, and it works for any number of them. If the haunt revealer is one of the tied explorers, the revealer is the traitor. Otherwise the traitor is the first tied explorer going left (clockwise) from the revealer. Several independent BGG answers agree, and the 3rd-edition rulebook words the rule this way (\"the player closest to the haunt revealer (in turn order)\"). Source: https://boardgamegeek.com/thread/2936819, https://boardgamegeek.com/thread/1645119, https://boardgamegeek.com/thread/2326732"
@@ -3087,6 +3088,7 @@
     ],
     "rulings": [
      {
+      "id": "haunt-start",
       "note": "the rulebook doesn't give the order of the steps between a successful haunt roll and the first hero turn: when the traitor is picked, when the Traitor's New Powers apply, or whether the traitor's \"Right Now\" or the heroes' comes first when both have one.",
       "authority": "project",
       "resolution": "the haunt roll comes at the end of the revealer's turn, so that turn is over. Then, in order: the chart gives the haunt, and the traitor is picked from traits as they stand at that moment. The traitor's New Powers apply at once, freeing them from impeding events (p. 17). Everyone reads their own half, and the engine waits until every player has said they are ready. Then the traitor's \"Right Now\" is carried out, then the heroes'. Play then starts with the player on the traitor's left (p. 16), whoever had the last turn. The traitor goes first because the traitor's setup usually builds the scenario the heroes' setup refers to: it places monsters, adds rooms and sets secrets. A haunt that orders its setup differently is followed as written. Research: no ruling found; the 1st-edition FAQ and the Widow's Walk FAQs don't address it."
@@ -3158,7 +3160,14 @@
      "You may choose not to be affected by an event card or the Bite omen card. If you choose to be affected, you decide after reading the card but before making any rolls or taking any other action it states, and you must then accept the results of any rolls and any penalties.",
      "After you finish your turn, you move and attack with all of the monsters, if there are any. You still control the monsters even if the traitor dies. (In some haunts the monsters can still complete the haunt's goals after the traitor is dead.)"
     ],
-    "rulings": []
+    "rulings": [
+     {
+      "id": "traitor-freed",
+      "note": "the rule names the Debris and the Webs as examples but doesn't list which event cards are \"impeding\" the new traitor, or what being freed does with the card.",
+      "authority": "project",
+      "resolution": "an impeding event is a kept event card whose ongoing effect works against its holder: the Debris, the Webs, Grave Dirt and Lights Out, the four base events a player keeps to their cost. On becoming the traitor, the traitor discards each of them they hold, as the cards themselves say to when their effect ends, so nothing of them lingers. A kept card that helps its holder (It Is Meant to Be) is not impeding and stays. Being freed happens once, at the reveal; an impeding event the traitor draws later is handled by the traitor's choice not to be affected by event cards. Research: no ruling found; the 1st-edition FAQ and the Widow's Walk FAQs name no other cards."
+     }
+    ]
    },
    {
     "title": "Haunts with a Hidden Traitor (p. 17)",
@@ -3279,6 +3288,7 @@
     ],
     "rulings": [
      {
+      "id": "game-end",
       "note": "the rules don't say whether the game ends the moment a goal is met, even partway through a turn or a move, what happens if one step meets both sides' goals, or what happens when every hero is dead and the traitor's goal isn't yet met.",
       "authority": "project",
       "resolution": "the game ends the moment a side's goal is met, partway through a move, an attack or a monster turn included, and nothing after that step happens. The engine applies effects one step at a time, so one goal is almost always met first. If a single step meets both sides' goals at once, the side whose turn it is wins, since its action caused it. When every hero is dead, the heroes can no longer win (at least one must survive), so the game ends at once with the traitor's side winning, unless the haunt says something else happens. With no hero left, nothing can stop the traitor, and playing out the remaining turns would change nothing. The Widow's Walk FAQ adds this same ending to haunt 89, where it was missing. Source: https://www.dropbox.com/s/3y34f1s2tn6o4mx/Widow%27s%20Walk%20FAQ%20KB%2012.6.161.pdf?dl=0"

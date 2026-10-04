@@ -272,14 +272,14 @@ export type FigureTraits =
 
 /** A named condition a rule puts on a figure (asleep, controlled). It is a
  *  rule source in its own right, in the layer of the rule that applied it. */
-export interface Status {
+export type Status = {
   id: string;
   /** The rule that put it on the figure. */
   rule: RuleRef;
   /** What the status needs to know, such as the seat a controlled figure
    *  answers to. Its own behaviour reads it. */
   params: Json;
-}
+};
 
 export interface Figure {
   id: FigureId;
@@ -331,10 +331,30 @@ export interface RoomToken {
   holder?: FigureId;
 }
 
+/** A seat's explorer turn (every turn before the haunt, and a hero's
+ *  after it), the traitor's own turn, or the monster turn the traitor's seat
+ *  takes after it (p. 16). */
+export type TurnKind = "explorer" | "traitor" | "monster";
+
+/** Which turn: a seat's, of a kind. */
+export type TurnRef = {
+  seat: number;
+  kind: TurnKind;
+};
+
+/** A turn a rule puts into the order, taken at the next turn boundary. */
+export type InsertedTurn = TurnRef & {
+  rule: RuleRef;
+};
+
 /** What has happened this turn, for the rules that limit actions per turn.
  *  The turn is a seat's; movement and the attack are counted per figure. */
 export interface Turn {
   seat: number;
+  kind: TurnKind;
+  /** For an inserted turn, the turn in the order it came after, from which
+   *  the order carries on. Null for a turn taken in order. */
+  follows: TurnRef | null;
   /** Spaces of movement each figure has spent. */
   moved: Partial<Record<FigureId, number>>;
   /** Figures whose movement has ended: drawing a card ends it for the rest of the turn (p. 6). */
@@ -372,6 +392,9 @@ export interface Death {
 /** What later rules read about the game so far. */
 export interface RuleMemory {
   deaths: Death[];
+  /** Conditions that have fired, by source and condition id: a once-only
+   *  one stays for good, any other until it stops holding. */
+  conditions: string[];
 }
 
 /** A card out of play but not in a deck: a dead explorer's companion left
@@ -382,12 +405,36 @@ export interface AsideCard {
   room: string | null;
 }
 
-export type Haunt = {
+/** Which haunt the chart gave, and how it was revealed. */
+export type HauntReveal = {
   number: number;
   revealer: number;
   omen: string;
   room: string;
 };
+
+/** A value in the haunt only some seats know, such as the traitor's written
+ *  number. Decisions and events name it by id, never by value, so a seat's
+ *  view has one place to hide it. */
+export interface Secret {
+  id: string;
+  value: Json;
+  /** The seats that know it, or null once everyone does. */
+  knownBy: number[] | null;
+}
+
+export type Haunt = HauntReveal & {
+  secrets: Secret[];
+  /** The haunt's tracks and counted tokens, by id. */
+  counters: Record<string, number>;
+};
+
+/** How the game ended: the seats that won (a whole side, as a rule), and
+ *  the rule whose goal was met. */
+export interface GameResult {
+  winners: number[];
+  rule: RuleRef;
+}
 
 export interface GameState {
   format: number;
@@ -409,6 +456,9 @@ export interface GameState {
   /** Counters and flags on cards in play, by card id, then by name. */
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;
+  /** Turns rules have put into the order, taken first, in order, at the
+   *  next turn boundaries. */
+  insertedTurns: InsertedTurn[];
   /** Every omen card drawn this game, for the haunt roll (p. 15). */
   omensDrawn: number;
   haunt: Haunt | null;
@@ -421,6 +471,8 @@ export interface GameState {
   /** The most recent answers, newest last, for idempotent retries. */
   answered: Answered[];
   lastEvents: GameEvent[];
+  /** Set once a side's goal is met and the game is over. */
+  result: GameResult | null;
 }
 
 export type Json =

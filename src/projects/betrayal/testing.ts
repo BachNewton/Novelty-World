@@ -89,6 +89,22 @@ export function choose(
   return result.state;
 }
 
+/** A seat confirms the pending ready wait. */
+export function ready(
+  state: GameState,
+  seat: number,
+  engine: Engine = ENGINE,
+): GameState {
+  if (state.pending?.type !== "ready") throw new Error("No ready wait is pending");
+  const result = apply(engine, state, {
+    kind: "ready",
+    wait: state.pending.id,
+    seat,
+  });
+  if (!result.ok) throw new Error(`Seat ${seat} couldn't confirm: ${result.reason}`);
+  return result.state;
+}
+
 /** Puts a game into the haunt, as a test's setup: `traitor` holds the
  *  traitor role on the traitor's side and every other seat is a hero, all of
  *  it public. Whatever is pending stays, so the test can play on. */

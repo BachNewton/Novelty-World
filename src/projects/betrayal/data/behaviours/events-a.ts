@@ -572,6 +572,7 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "grave-dirt": {
+      impedes: true,
       onDraw: (_state, figure) => [
         traitRoll(figure, "might", "grave-dirt", [
           {
@@ -884,6 +885,7 @@ export const EVENTS_A: BehaviourGroup = {
     },
 
     "lights-out": {
+      impedes: true,
       onDraw: (state, figure) =>
         figureOf(state, figure).cards.includes("candle")
           ? []

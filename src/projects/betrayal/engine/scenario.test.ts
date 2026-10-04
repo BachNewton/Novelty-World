@@ -99,7 +99,7 @@ describe("start haunt N", () => {
     const state = testGame({ haunt: { number: 13, revealer: 1 } });
     const cell = hauntCells(ENGINE.catalog, 13)[0];
     expect(state.status).toBe("haunt");
-    expect(state.haunt).toEqual({
+    expect(state.haunt).toMatchObject({
       number: 13,
       revealer: 1,
       omen: cell.omen,

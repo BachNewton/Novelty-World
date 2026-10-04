@@ -8,6 +8,7 @@ import type {
   Json,
   Place,
   RuleRef,
+  Status,
   Step,
   Trait,
 } from "../types";
@@ -227,7 +228,7 @@ function damageKinds(
   figure: FigureId,
   damage: "physical" | "mental",
 ): Source[] {
-  return liveSources(engine.behaviours, state)
+  return liveSources(engine, state)
     .filter(
       ({ source, behaviour }) =>
         source.holder === figure &&
@@ -351,7 +352,7 @@ function rollOptions(
   // theirs, so none of their cards act on it.
   if (r.spec.kind === "attack" && r.spec.dice !== null) return result;
   const ownTurn = onTurn(engine, state, r.figure);
-  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+  for (const { source, behaviour } of liveSources(engine, state)) {
     if (
       source.kind !== "card" ||
       source.holder !== r.figure ||
@@ -728,6 +729,27 @@ export function endTurnNow(figure: FigureId, rule: RuleRef): Step {
     figure,
     rule,
   });
+}
+
+/** Puts a status on a figure: a named condition with its rule and its own
+ *  data, which acts as a rule source while the figure has it. */
+export function addStatus(figure: FigureId, status: Status): Step {
+  return step<{ figure: FigureId; status: Status }>("add-status", {
+    figure,
+    status,
+  });
+}
+
+/** Takes a status off a figure. */
+export function removeStatus(
+  figure: FigureId,
+  status: string,
+  rule: RuleRef,
+): Step {
+  return step<{ figure: FigureId; status: string; rule: RuleRef }>(
+    "remove-status",
+    { figure, status, rule },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,7 +1205,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   "leave-heard": defineStep<Leave>((state, p, ctx) => {
     if (placeOf(state, p.figure).room !== p.room)
       throw new Error(`${p.figure} left ${p.room} before its rules said so`);
-    const next = liveSources(ctx.engine.behaviours, state).find(
+    const next = liveSources(ctx.engine, state).find(
       ({ source, behaviour }) =>
         behaviour.beforeLeave !== undefined &&
         !p.heard.includes(`${source.kind}:${source.id}`) &&
@@ -1303,6 +1325,33 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       endMovementOf(state, p.figure);
       ctx.emit("movement-ended", p.rule, { figure: p.figure });
+    },
+  ),
+
+  // A figure has a status at most once, so its data is never ambiguous.
+  "add-status": defineStep<{ figure: FigureId; status: Status }>(
+    (state, p, ctx) => {
+      const figure = figureOf(state, p.figure);
+      if (figure.statuses.some((s) => s.id === p.status.id))
+        throw new Error(`${p.figure} already has the status ${p.status.id}`);
+      figure.statuses.push(p.status);
+      ctx.emit("status-added", p.status.rule, {
+        figure: p.figure,
+        status: p.status.id,
+      });
+    },
+  ),
+
+  "remove-status": defineStep<{ figure: FigureId; status: string; rule: RuleRef }>(
+    (state, p, ctx) => {
+      const figure = figureOf(state, p.figure);
+      if (!figure.statuses.some((s) => s.id === p.status))
+        throw new Error(`${p.figure} has no status ${p.status}`);
+      figure.statuses = figure.statuses.filter((s) => s.id !== p.status);
+      ctx.emit("status-removed", p.rule, {
+        figure: p.figure,
+        status: p.status,
+      });
     },
   ),
 

@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 6;
+export const STATE_FORMAT = 7;
 
 type JsonObject = { [key: string]: Json };
 
@@ -172,6 +172,25 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
       }),
       memory: { deaths: [] },
       aside: [],
+    };
+  },
+  // Format 7 gives turns a kind and a queue of inserted turns, a revealed
+  // haunt its secrets and counters, rule memory the conditions that have
+  // fired, and the game a result. A format 6 game never went past the
+  // reveal, so every turn was an explorer's taken in order.
+  6: (state) => {
+    const turn = state.turn;
+    const haunt = state.haunt;
+    const memory = isObject(state.memory) ? state.memory : {};
+    return {
+      ...state,
+      turn: isObject(turn)
+        ? { ...turn, kind: "explorer", follows: null }
+        : null,
+      insertedTurns: [],
+      haunt: isObject(haunt) ? { ...haunt, secrets: [], counters: {} } : null,
+      memory: { ...memory, conditions: [] },
+      result: null,
     };
   },
 };

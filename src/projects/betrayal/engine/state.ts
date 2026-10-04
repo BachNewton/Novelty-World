@@ -27,13 +27,15 @@ export function emptyState(
     aside: [],
     cardMarks: {},
     turn: null,
+    insertedTurns: [],
     omensDrawn: 0,
     haunt: null,
-    memory: { deaths: [] },
+    memory: { deaths: [], conditions: [] },
     nextId: 0,
     work: [],
     pending: null,
     answered: [],
     lastEvents: [],
+    result: null,
   };
 }

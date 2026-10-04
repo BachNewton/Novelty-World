@@ -6,6 +6,7 @@ import type {
   RuleRef,
   Side,
   Trait,
+  TurnRef,
 } from "../types";
 import {
   adjacent,
@@ -31,6 +32,7 @@ import {
   type Source,
 } from "./sources";
 import type { Engine } from "./step-loop";
+import { baseRound } from "./turns";
 
 // The engine never hard-codes a rule a card, room or haunt might change. It
 // asks a question, and every live source may change the answer. Choice listing
@@ -210,6 +212,12 @@ export interface StructuredQuestions {
     question: { attacker: FigureId; defender: FigureId };
     answer: AttackMode[];
   };
+  /** One round of turns, in order. The next turn is worked out from it at
+   *  every turn boundary, never saved. */
+  turnOrder: {
+    question: Record<string, never>;
+    answer: TurnRef[];
+  };
   /** What an attack's two results lead to. */
   combatOutcome: {
     question: {
@@ -326,7 +334,7 @@ function applicable<C>(
   subject: unknown,
 ): Applied<C>[] {
   const result: Applied<C>[] = [];
-  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+  for (const { source, behaviour } of liveSources(engine, state)) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` to this question's subject.
@@ -501,7 +509,7 @@ export function askSet<Q extends keyof SetQuestions>(
     | { add: (s: GameState, subject: unknown, source: Source) => SetItems[Q][] }
     | { remove: (s: GameState, subject: unknown, source: Source) => string[] };
   const changes: (Applied<Change> & { source: Source })[] = [];
-  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+  for (const { source, behaviour } of liveSources(engine, state)) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.
@@ -586,6 +594,7 @@ const STRUCTURED_BASE: {
   // the haunt on, a trait at the skull kills (p. 5).
   lethalOutcome: (_engine, state) =>
     state.status === "exploring" ? { kind: "clamp" } : { kind: "death" },
+  turnOrder: (_engine, state) => baseRound(state),
   // All attacks use Might unless a card or ability says otherwise (p. 13).
   attackModes: () => [{ trait: "might", card: null }],
   // The higher result deals the difference as damage to the loser; a tie
@@ -634,7 +643,7 @@ export function askStructured<Q extends keyof StructuredQuestions>(
     source: Source,
   ) => Answer;
   const changes: { layer: Layer; transform: Transform; source: Source }[] = [];
-  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+  for (const { source, behaviour } of liveSources(engine, state)) {
     for (const modifier of behaviour.modifiers ?? []) {
       if (modifier.question !== question) continue;
       // The modifier's own type ties `when` and its change to this question.

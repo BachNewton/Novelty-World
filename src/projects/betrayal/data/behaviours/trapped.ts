@@ -46,6 +46,7 @@ export function trap(
 ): Behaviour {
   const rule: RuleRef = { source: "card", card: id };
   return {
+    impedes: true,
     modifiers: [
       {
         question: "canAct",

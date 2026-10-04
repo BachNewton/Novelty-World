@@ -61,6 +61,7 @@ const ENGINE: Engine = {
   catalog: CATALOG,
   rules: RULES,
   behaviours: { cards: {}, rooms: {}, tokens: {}, statuses: {} },
+  haunts: {},
 };
 
 function fresh(): GameState {

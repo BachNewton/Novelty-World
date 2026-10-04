@@ -30,8 +30,18 @@ const zoeFigure = {
   alive: true,
 };
 
-/** What format 6 adds to every state: rule memory and cards set aside. */
-const format6 = { memory: { deaths: [] }, aside: [] };
+/** What formats 6 and 7 add to every state: rule memory, cards set aside,
+ *  inserted turns and a result, with the haunt's own state where it has one. */
+const later = {
+  memory: { deaths: [], conditions: [] },
+  aside: [],
+  insertedTurns: [],
+  haunt: null,
+  result: null,
+};
+
+/** What format 7 adds to a turn: it was an explorer's, taken in order. */
+const inOrder = { kind: "explorer", follows: null };
 
 /** A format 5 turn ledger in which Zoe has done nothing yet. */
 const zoeLedger = {
@@ -68,9 +78,10 @@ describe("migrate", () => {
       cardMarks: {},
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
-      ...format6,
+      ...later,
       turn: {
         seat: 0,
+        ...inOrder,
         traded: false,
         over: false,
         ...zoeLedger,
@@ -94,8 +105,8 @@ describe("migrate", () => {
       cardMarks: {},
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
-      ...format6,
-      turn: { seat: 0, traded: true, over: false, ...zoeLedger },
+      ...later,
+      turn: { seat: 0, ...inOrder, traded: true, over: false, ...zoeLedger },
     });
     expect(migrate({ format: 2, turn: null })).toMatchObject({ turn: null });
   });
@@ -116,9 +127,10 @@ describe("migrate", () => {
       gameId: "g",
       figures: { "zoe-ingstrom": zoeFigure },
       lastEvents: [],
-      ...format6,
+      ...later,
       turn: {
         seat: 0,
+        ...inOrder,
         moved: {},
         movementEnded: [],
         attacked: [],
@@ -209,6 +221,7 @@ describe("migrate", () => {
         },
         turn: {
           seat: 1,
+          ...inOrder,
           moved: { "ox-bellows": 2 },
           movementEnded: ["ox-bellows"],
           attacked: ["ox-bellows"],
@@ -218,7 +231,7 @@ describe("migrate", () => {
         work: [],
         pending,
         lastEvents: [],
-        ...format6,
+        ...later,
       });
     });
 
@@ -262,7 +275,8 @@ describe("migrate", () => {
           { name: "Ann", controller: "human", side: null, roles: [], knownBy: null },
         ],
         figures: { "zoe-ingstrom": zoeFigure },
-        ...format6,
+        ...later,
+        turn: null,
       });
     });
 
@@ -273,6 +287,36 @@ describe("migrate", () => {
           figures: { "zoe-ingstrom": { ...zoeFigure, statuses: ["asleep"] } },
         }),
       ).toThrow(/never stored/);
+    });
+  });
+
+  describe("a format 6 state", () => {
+    it("gives its turn a kind, taken in order, and its revealed haunt no secrets or counters yet", () => {
+      const saved = {
+        format: 6,
+        gameId: "g",
+        status: "haunt",
+        turn: { seat: 2, moved: {} },
+        haunt: { number: 13, revealer: 2, omen: "holy-symbol", room: "chapel" },
+        memory: { deaths: [] },
+      };
+      expect(migrate(saved)).toEqual({
+        format: STATE_FORMAT,
+        gameId: "g",
+        status: "haunt",
+        turn: { seat: 2, moved: {}, ...inOrder },
+        insertedTurns: [],
+        haunt: {
+          number: 13,
+          revealer: 2,
+          omen: "holy-symbol",
+          room: "chapel",
+          secrets: [],
+          counters: {},
+        },
+        memory: { deaths: [], conditions: [] },
+        result: null,
+      });
     });
   });
 

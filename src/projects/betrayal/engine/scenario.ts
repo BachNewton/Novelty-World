@@ -2,7 +2,7 @@ import type {
   Catalog,
   CardType,
   GameState,
-  Haunt,
+  HauntReveal,
   Role,
   RuleRef,
   SetId,
@@ -67,8 +67,10 @@ export interface Scenario {
   explorers?: ExplorerSetup[];
   /** Start with this haunt revealed, as if its haunt roll had just been made. */
   haunt?: HauntStart;
-  /** Seats' sides and roles in that haunt, set before it starts. Sides come
-   *  with the haunt, so they need one. */
+  /** Seats' sides and roles in that haunt, set before it starts, for a
+   *  haunt that isn't built yet. A built haunt's reveal decides them from
+   *  its traitor rule, so giving them as well is an error. Sides come with
+   *  the haunt, so they need one. */
   sides?: SideSetup[];
 }
 
@@ -84,7 +86,7 @@ export type PreparedScenario = {
     clips: { trait: Trait; clip: number }[];
     cards: string[];
   }[];
-  haunt: Haunt | null;
+  haunt: HauntReveal | null;
   sides: {
     seat: number;
     side: Side;
@@ -187,7 +189,7 @@ export function prepareScenario(
     };
   });
 
-  let haunt: Haunt | null = null;
+  let haunt: HauntReveal | null = null;
   if (scenario.haunt) {
     const h = scenario.haunt;
     const what = `Haunt ${h.number}`;

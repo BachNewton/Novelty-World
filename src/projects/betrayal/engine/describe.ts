@@ -11,6 +11,7 @@ import type {
   RuleRef,
   Side,
   Trait,
+  TurnKind,
 } from "../types";
 import type { Attacker } from "./combat";
 import type { CardDestination, GainedBy } from "./effects";
@@ -95,6 +96,25 @@ const SIDE_WORDS: Record<Side, string> = {
   neutral: "is on no one's side",
 };
 
+const TURN_WORDS: Record<TurnKind, string> = {
+  explorer: "turn",
+  traitor: "traitor turn",
+  monster: "monster turn",
+};
+
+/** The name a haunt gives one of its counters or secrets. */
+function hauntName(
+  engine: Engine,
+  state: GameState,
+  kind: "counters" | "secrets",
+  id: string,
+): string {
+  const haunt = state.haunt === null ? undefined : engine.haunts[state.haunt.number];
+  const name = haunt?.[kind][id]?.name;
+  if (name === undefined) throw new Error(`The haunt has no ${kind} entry ${id}`);
+  return name;
+}
+
 const STACK: Record<CardType, string> = {
   event: "event stack",
   item: "item stack",
@@ -123,7 +143,9 @@ export function describeEvent(
   const own =
     event.rule.source === "card"
       ? engine.behaviours.cards[event.rule.card]?.describe?.[event.type]
-      : undefined;
+      : event.rule.source === "haunt"
+        ? engine.haunts[event.rule.haunt]?.behaviour.describe?.[event.type]
+        : undefined;
   if (own) return withRule(engine, event.rule, `${own(event, words)}.`);
 
   const who = (figure: FigureId) => words.figure(figure);
@@ -136,8 +158,16 @@ export function describeEvent(
       return sentence(
         `The game begins. ${seat(data<{ first: number }>(event).first)} goes first`,
       );
-    case "turn-started":
-      return sentence(`${seat(data<{ seat: number }>(event).seat)}'s turn`);
+    case "turn-started": {
+      const d = data<{ seat: number; kind: TurnKind }>(event);
+      return sentence(`${seat(d.seat)}'s ${TURN_WORDS[d.kind]}`);
+    }
+    case "turn-inserted": {
+      const d = data<{ seat: number; kind: TurnKind }>(event);
+      return sentence(
+        `${seat(d.seat)} takes an extra ${TURN_WORDS[d.kind]} next`,
+      );
+    }
     case "turn-ended": {
       const d = data<{ seat: number; room: string | null }>(event);
       return sentence(
@@ -466,6 +496,78 @@ export function describeEvent(
       }>(event);
       return sentence(
         `Haunt ${d.number} begins, revealed by ${seat(d.revealer)} with the ${words.card(d.omen)} in the ${words.room(d.room)}`,
+      );
+    }
+    case "haunt-unbuilt":
+      return sentence(
+        `Haunt ${data<{ haunt: number }>(event).haunt} isn't built yet, so the game stops here`,
+      );
+    case "traitor-tie": {
+      const d = data<{ tied: number[]; seat: number }>(event);
+      return sentence(
+        `${list(d.tied.map(seat))} tie to be the traitor; it goes to ${seat(d.seat)}, ${d.seat === state.haunt?.revealer ? "who revealed the haunt" : "nearest the revealer's left"}`,
+      );
+    }
+    case "sides-dealt":
+      return sentence(
+        "The traitor is dealt in secret: each player looks at their own token",
+      );
+    case "haunt-setup":
+      return sentence(
+        data<{ side: "traitor" | "heroes" }>(event).side === "traitor"
+          ? "The traitor carries out the haunt's setup"
+          : "The heroes carry out the haunt's setup",
+      );
+    case "secret-set": {
+      const d = data<{ secret: string; knownBy: number[] | null }>(event);
+      const who =
+        d.knownBy === null ? "everyone" : list(d.knownBy.map(seat)) || "no one";
+      return sentence(
+        `The ${hauntName(engine, state, "secrets", d.secret)} is written down, known to ${who}`,
+      );
+    }
+    case "secret-revealed": {
+      const d = data<{ secret: string }>(event);
+      const secret = state.haunt?.secrets.find((s) => s.id === d.secret);
+      if (!secret) throw new Error(`No haunt secret ${d.secret}`);
+      return sentence(
+        `The ${hauntName(engine, state, "secrets", d.secret)} is shown to everyone: ${JSON.stringify(secret.value)}`,
+      );
+    }
+    case "counter-changed": {
+      const d = data<{ counter: string; value: number }>(event);
+      return sentence(
+        `${capital(hauntName(engine, state, "counters", d.counter))}: ${d.value}`,
+      );
+    }
+    case "status-added":
+    case "status-removed": {
+      const d = data<{ figure: FigureId; status: string }>(event);
+      const name = engine.behaviours.statuses[d.status]?.name;
+      if (name === undefined)
+        throw new Error(`The status ${d.status} has no name to describe it by`);
+      return sentence(
+        event.type === "status-added"
+          ? `${who(d.figure)} is now ${name}`
+          : `${who(d.figure)} is no longer ${name}`,
+      );
+    }
+    case "game-over": {
+      const d = data<{ winners: number[]; side: Side | null; tied: boolean }>(
+        event,
+      );
+      const winners =
+        d.side === "heroes"
+          ? "The heroes win"
+          : d.side === "traitor"
+            ? `The traitor's side wins: ${list(d.winners.map(seat))}`
+            : d.winners.length === 0
+              ? "No one wins"
+              : `${list(d.winners.map(seat))} ${d.winners.length === 1 ? "wins" : "win"}`;
+      return sentence(
+        d.tied
+          ? `${winners} (both sides' goals were met at once, on their turn)`
+          : winners,
       );
     }
     case "haunt-revealed": {

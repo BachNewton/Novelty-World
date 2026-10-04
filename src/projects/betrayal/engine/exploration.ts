@@ -7,11 +7,12 @@ import type {
   FigureTraits,
   FloorId,
   GameState,
-  Haunt,
+  HauntReveal,
   RuleRef,
   SetId,
   Step,
   Trait,
+  TurnRef,
 } from "../types";
 import {
   COMPASS,
@@ -48,10 +49,12 @@ import {
   step,
   takeFromPile,
 } from "./effects";
+import { revealHaunt } from "./haunt";
 import {
   askNumber,
   askPermission,
   askSet,
+  askStructured,
   controllerOf,
   moveCost,
 } from "./questions";
@@ -70,6 +73,7 @@ import {
 } from "./scenario";
 import { emptyState } from "./state";
 import { bestPlacements, discoverRoom, drawRoom } from "./tiles";
+import { turnAfter } from "./turns";
 import {
   start,
   type DecisionKind,
@@ -117,6 +121,13 @@ export function newGame(engine: Engine, game: NewGame): GameState {
   ]);
 }
 
+/** The explorer whose turn it is: the seat's own, on its explorer or
+ *  traitor turn. A monster turn is no explorer's, so rules that act at the
+ *  start or end of "your turn" don't fire on it. */
+function turnExplorer(state: GameState, turn: TurnRef): FigureId | null {
+  return turn.kind === "monster" ? null : explorerOf(state, turn.seat);
+}
+
 function validateSeats(catalog: Catalog, seats: NewGame["seats"]): void {
   if (seats.length < 3 || seats.length > 6)
     throw new Error("Betrayal is for 3 to 6 players");
@@ -161,14 +172,6 @@ function daysUntil(
   return (dayOfYear(birthday) - dayOfYear(today) + 12 * 31) % (12 * 31);
 }
 
-/** The haunt begins: exploration's work is dropped. Both ways in, the haunt
- *  roll and a scenario's "start haunt N", come through here. */
-function revealHaunt(state: GameState, haunt: Haunt): void {
-  state.haunt = haunt;
-  state.status = "haunt";
-  state.work = [];
-}
-
 // ---------------------------------------------------------------------------
 // Turn choices
 // ---------------------------------------------------------------------------
@@ -183,6 +186,10 @@ export type TurnChoice =
   | { act: "end" };
 
 type TurnParams = { seat: number };
+
+/** A turn about to start: whose, which kind, and for an inserted turn, the
+ *  turn in the order it comes after. */
+type TurnStart = TurnRef & { follows: TurnRef | null };
 
 function movementLeft(
   engine: Engine,
@@ -234,6 +241,8 @@ function offeredHere(
   source: Source,
   definition: SourceAction,
 ): boolean {
+  // The haunt's objective actions say for themselves where they can be taken.
+  if (source.kind === "haunt") return true;
   if (source.kind !== "card")
     return atSource(source, placeOf(state, figure).room);
   if (source.holder === null) return false;
@@ -252,7 +261,7 @@ function cardActions(
 ): { source: Source; action: string; definition: SourceAction }[] {
   const result: { source: Source; action: string; definition: SourceAction }[] =
     [];
-  for (const { source, behaviour } of liveSources(engine.behaviours, state)) {
+  for (const { source, behaviour } of liveSources(engine, state)) {
     for (const [action, definition] of Object.entries(
       behaviour.actions ?? {},
     )) {
@@ -308,7 +317,15 @@ function turnCandidates(
   seat: number,
 ): TurnChoice[] {
   const end: TurnChoice = { act: "end" };
-  const figure = seatExplorer(state, seat);
+  // A monster turn's monsters, and a dead explorer's turn, have nothing to
+  // offer yet, so the turn passes at once.
+  const figure = explorerOf(state, seat);
+  if (
+    state.turn?.kind === "monster" ||
+    figure === null ||
+    !figureOf(state, figure).alive
+  )
+    return [end];
   if (!askPermission(engine, state, "canAct", { figure }).allowed)
     return [
       ...cardActions(engine, state, figure)
@@ -370,6 +387,8 @@ function takeTurnChoice(
 ): string | Step[] {
   const turn = state.turn;
   if (!turn || turn.seat !== seat) return "It isn't this seat's turn";
+  if (choice.act === "end") return [step<TurnParams>("end-turn", { seat })];
+  if (turn.kind === "monster") return "Monsters have nothing to do yet";
   const figure = seatExplorer(state, seat);
   const explorer = figureOf(state, figure);
   const room = placeOf(state, figure).room;
@@ -483,8 +502,6 @@ function takeTurnChoice(
         return "You have already picked up items elsewhere this turn";
       return [step<Drop>("pickup", { figure, card: choice.card })];
     }
-    case "end":
-      return [step<TurnParams>("end-turn", { seat })];
   }
 }
 
@@ -506,7 +523,7 @@ function describeTurnChoice(
     case "discover":
       return `Explore through the ${COMPASS[choice.direction]} door of the ${room(placeOf(state, seatExplorer(state, seat)).room)}`;
     case "action": {
-      const behaviour = liveSources(engine.behaviours, state).find(
+      const behaviour = liveSources(engine, state).find(
         (s) => s.source.kind === choice.source && s.source.id === choice.id,
       )?.behaviour;
       return behaviour?.actions?.[choice.action]?.label ?? choice.action;
@@ -588,20 +605,26 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     ctx.push(
       ...(p.scenario ? [step<PreparedScenario>("scenario", p.scenario)] : []),
       haunt
-        ? step<Haunt>("start-haunt", haunt)
-        : step<TurnParams>("turn-start", { seat: first }),
+        ? step<HauntReveal>("start-haunt", haunt)
+        : step<TurnStart>("turn-start", {
+            seat: first,
+            kind: "explorer",
+            follows: null,
+          }),
     );
   }),
 
   /** A scenario's haunt, revealed as if by its haunt roll. */
-  "start-haunt": defineStep<Haunt>((state, p, ctx) => {
-    revealHaunt(state, p);
+  "start-haunt": defineStep<HauntReveal>((state, p, ctx) => {
+    revealHaunt(state, ctx, p);
     ctx.emit("haunt-started", SCENARIO_RULE, p);
   }),
 
-  "turn-start": defineStep<TurnParams>((state, p, ctx) => {
+  "turn-start": defineStep<TurnStart>((state, p, ctx) => {
     state.turn = {
       seat: p.seat,
+      kind: p.kind,
+      follows: p.follows,
       moved: {},
       movementEnded: [],
       rolls: [],
@@ -613,11 +636,12 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       over: false,
       omens: [],
     };
-    ctx.emit("turn-started", RULEBOOK(5), {
+    ctx.emit("turn-started", p.kind === "explorer" ? RULEBOOK(5) : RULEBOOK(16), {
       seat: p.seat,
-      figure: explorerOf(state, p.seat),
+      kind: p.kind,
+      figure: turnExplorer(state, p),
     });
-    ctx.push(step<TurnParams>("turn-menu", p));
+    ctx.push(step<TurnParams>("turn-menu", { seat: p.seat }));
   }),
 
   "turn-menu": defineStep<TurnParams>((state, p, ctx) => {
@@ -685,7 +709,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   "end-turn": defineStep<TurnParams>((state, p, ctx) => {
     const turn = state.turn;
     if (!turn) throw new Error("No turn to end");
-    const figure = explorerOf(state, p.seat);
+    const figure = turnExplorer(state, turn);
     ctx.emit("turn-ended", RULEBOOK(6), {
       seat: p.seat,
       figure,
@@ -699,7 +723,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
           room: o.room,
         }),
       ),
-      step<TurnParams>("next-turn", p),
+      step<null>("next-turn", null),
     );
   }),
 
@@ -730,7 +754,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
         `The haunt chart has no cell for ${p.room} and ${p.omen}`,
       );
     // The revealer is the player who made the roll.
-    revealHaunt(state, {
+    revealHaunt(state, ctx, {
       number,
       revealer: controllerOf(ctx.engine, state, p.figure),
       omen: p.omen,
@@ -744,11 +768,29 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     });
   }),
 
-  "next-turn": defineStep<TurnParams>((state, p, ctx) => {
-    if (state.status !== "exploring") return;
+  // The next turn is worked out afresh at every boundary: a turn a rule
+  // inserted comes first, then the order carries on from the last turn taken
+  // in order (rules p. 16).
+  "next-turn": defineStep<null>((state, _p, ctx) => {
+    const turn = state.turn;
+    const inserted = state.insertedTurns.shift();
+    const current: TurnRef | null =
+      turn === null ? null : (turn.follows ?? { seat: turn.seat, kind: turn.kind });
+    if (inserted) {
+      ctx.push(
+        step<TurnStart>("turn-start", {
+          seat: inserted.seat,
+          kind: inserted.kind,
+          follows: current,
+        }),
+      );
+      return;
+    }
+    const round = askStructured(ctx.engine, state, "turnOrder", {});
     ctx.push(
-      step<TurnParams>("turn-start", {
-        seat: (p.seat + 1) % state.seats.length,
+      step<TurnStart>("turn-start", {
+        ...turnAfter(state, round, current),
+        follows: null,
       }),
     );
   }),

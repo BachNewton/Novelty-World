@@ -4,6 +4,7 @@ import { describeDecision, describeEvent } from "./engine/describe";
 import { newGame, type TurnChoice } from "./engine/exploration";
 import { allFigures, roomOf, seatExplorer } from "./engine/figures";
 import { migrate } from "./engine/format";
+import { activeHaunt } from "./engine/haunt";
 import { apply, choices, type Choice, type Engine } from "./engine/step-loop";
 import { bestPlacements } from "./engine/tiles";
 import { ENGINE } from "./game";
@@ -15,7 +16,9 @@ import type { Action, CardType, FloorId, GameState, Json } from "./types";
 
 export interface SimulationResult {
   seed: string;
-  ending: "haunt" | "house-full";
+  /** "haunt": a haunt that isn't built yet was revealed, which stops the
+   *  game. "finished": a built haunt was played to its end. */
+  ending: "haunt" | "house-full" | "finished";
   turns: number;
   decisions: number;
   /** Decision kinds answered, with how many times; a turn choice also counts
@@ -83,25 +86,33 @@ export function simulate(
     let actionsThisTurn = 0;
     let fullAt: number | null = null;
     for (;;) {
-      if (state.status === "haunt") {
+      if (state.status === "finished")
+        return { seed, ending: "finished", turns, decisions, kinds };
+      if (state.status === "haunt" && state.pending === null)
         return { seed, ending: "haunt", turns, decisions, kinds };
-      }
-      if (fullAt === null && houseFull(engine, state)) fullAt = turns;
       if (
+        state.status === "exploring" &&
+        fullAt === null &&
+        houseFull(engine, state)
+      )
+        fullAt = turns;
+      if (
+        state.status === "exploring" &&
         fullAt !== null &&
         turns - fullAt >= ROUNDS_AFTER_FULL * state.seats.length
       )
         return { seed, ending: "house-full", turns, decisions, kinds };
       if (turns > TURN_LIMIT)
         throw new Error(
-          `Neither the haunt nor a full house after ${TURN_LIMIT} turns (${state.board.stack.length} rooms left in the stack)`,
+          `The game hasn't ended after ${TURN_LIMIT} turns (${state.status}, ${state.board.stack.length} rooms left in the stack)`,
         );
 
       const pending = state.pending;
       if (!pending) throw new Error("The game stopped with nothing pending");
       let action: Action;
       if (pending.type === "ready") {
-        action = { kind: "ready", wait: pending.id, seat: pending.seats[0] };
+        const seat = pending.seats[below(rng, pending.seats.length)];
+        action = { kind: "ready", wait: pending.id, seat };
       } else {
         const seat = pending.seats.find((s) => !(s in pending.answers));
         if (seat === undefined) throw new Error("Every addressee has answered");
@@ -346,11 +357,21 @@ function checkState(engine: Engine, state: GameState): void {
   if (state.status === "exploring") {
     if (state.haunt !== null)
       throw new Error("A haunt is recorded before the haunt");
-  } else if (state.status !== "haunt") {
+    if (state.pending === null)
+      throw new Error("Exploration stopped with nothing pending");
+  } else if (state.status === "haunt") {
+    // Only a haunt that isn't built yet stops the game at its reveal.
+    if (state.pending === null && activeHaunt(engine, state) !== null)
+      throw new Error("The haunt stopped with nothing pending");
+  } else if (state.status === "finished") {
+    if (state.result === null) throw new Error("A finished game has no result");
+    if (state.pending !== null || state.work.length > 0)
+      throw new Error("A finished game still has something to do");
+  } else {
     throw new Error(`Unexpected status ${state.status}`);
   }
-  if (state.status === "exploring" && state.pending === null)
-    throw new Error("Exploration stopped with nothing pending");
+  if (state.status !== "finished" && state.result !== null)
+    throw new Error("A game still being played has a result");
   // Before the haunt only a card or room may make an attack (p. 13).
   if (
     state.status === "exploring" &&

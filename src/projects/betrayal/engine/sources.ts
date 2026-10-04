@@ -18,14 +18,17 @@ import type { Engine, StepHandler } from "./step-loop";
 import type { Modifier } from "./questions";
 
 // A rule source is anything in play whose text changes the game: a held or
-// ongoing card, a room on the board, a token in a room, a status on a figure. Its behaviour is code
-// in the content catalogue; everything it does to the game goes through steps,
-// so the game stays serializable.
+// ongoing card, a room on the board, a token in a room, a status on a figure,
+// the haunt being played. Its behaviour is code in the content catalogue;
+// everything it does to the game goes through steps, so the game stays
+// serializable.
 
 /** Where a live source is, and who holds it. */
 export interface Source {
   layer: Layer;
-  kind: "room" | "card" | "token" | "status";
+  /** "rulebook" for the rulebook's own conditions, such as its goal for
+   *  every haunt. */
+  kind: "room" | "card" | "token" | "status" | "haunt" | "rulebook";
   id: string;
   rule: RuleRef;
   /** The figure holding a card, or bearing a status, if any. */
@@ -136,6 +139,26 @@ export interface Reaction {
   ) => Step[];
 }
 
+/** A predicate over the state, checked after every step (section 5 of the
+ *  engine design): when it turns true it fires, ending the game for its
+ *  winners or queueing its steps. */
+export interface Condition {
+  id: string;
+  /** Fires at most once a game. Any other condition fires again each time
+   *  it turns true after having stopped holding. */
+  once?: boolean;
+  /** The rule to name, where it is narrower than its source's (one section
+   *  of a haunt). */
+  rule?: RuleRef;
+  holds: (state: GameState, source: Source, engine: Engine) => boolean;
+  then:
+    | {
+        /** A goal: the game ends at once, and these seats win. */
+        win: (state: GameState, source: Source, engine: Engine) => number[];
+      }
+    | { steps: (state: GameState, source: Source, engine: Engine) => Step[] };
+}
+
 export interface Behaviour {
   /** A card's effect when drawn: an event's whole text, or an omen's immediate effect. */
   onDraw?: (state: GameState, figure: FigureId, engine: Engine) => Step[];
@@ -151,6 +174,7 @@ export interface Behaviour {
   actions?: Record<string, SourceAction>;
   reactions?: Reaction[];
   modifiers?: Modifier[];
+  conditions?: Condition[];
   rollOptions?: RollOption[];
   /** Before a figure leaves the room this source is in (or, for a card,
    *  its holder's room): the steps to run instead of leaving at once. They
@@ -174,6 +198,11 @@ export interface Behaviour {
   /** The cards discovering this room draws, where its text gives some of its
    *  printed symbols another meaning (the Vault's items are its contents). */
   discoveryDraws?: CardType[];
+  /** A kept event whose ongoing effect works against its holder (the
+   *  Webs): the traitor is freed from it on becoming the traitor (p. 17). */
+  impedes?: boolean;
+  /** What a status makes its bearer, in words ("asleep"), for the log. */
+  name?: string;
   /** Steps only this source uses, registered under the source's id. */
   steps?: Record<string, StepHandler>;
   /** A card lying in a room still acts from there (an open Music Box). Other
@@ -210,11 +239,18 @@ export interface Behaviours {
   statuses: Partial<Record<string, Behaviour>>;
 }
 
+/** The id the active haunt has as a rule source, and its own steps' names
+ *  are registered under. */
+export function hauntSourceId(haunt: number): string {
+  return `haunt-${haunt}`;
+}
+
 /** Every source in play that has a behaviour, in a stable order. */
 export function liveSources(
-  behaviours: Behaviours,
+  engine: Engine,
   state: GameState,
 ): { source: Source; behaviour: Behaviour }[] {
+  const { behaviours } = engine;
   const result: { source: Source; behaviour: Behaviour }[] = [];
   for (const tile of state.board.tiles) {
     const behaviour = behaviours.rooms[tile.tile];
@@ -289,6 +325,22 @@ export function liveSources(
       };
       result.push({ source, behaviour });
     }
+  }
+  const haunt = state.status === "haunt" ? state.haunt : null;
+  const rules = haunt === null ? undefined : engine.haunts[haunt.number];
+  if (haunt !== null && rules) {
+    const source: Source = {
+      layer: "haunt",
+      kind: "haunt",
+      id: hauntSourceId(haunt.number),
+      rule: { source: "haunt", haunt: haunt.number, section: "Rules" },
+      holder: null,
+      room: null,
+      beside: null,
+      token: null,
+      status: null,
+    };
+    result.push({ source, behaviour: rules.behaviour });
   }
   return result;
 }

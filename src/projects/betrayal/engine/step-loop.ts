@@ -8,6 +8,7 @@ import type {
   RuleRef,
   Step,
 } from "../types";
+import { checkConditions, type Haunts } from "./haunt";
 import { randomFor, SETUP_KEY, type Random } from "./random";
 import { liveSources, type Behaviours } from "./sources";
 
@@ -64,6 +65,8 @@ export interface Engine {
   catalog: Catalog;
   rules: Rules;
   behaviours: Behaviours;
+  /** Every haunt that has been built, compiled from its kit definition. */
+  haunts: Haunts;
 }
 
 export type ApplyResult =
@@ -272,11 +275,15 @@ function answer(
 }
 
 /** Runs queued work until the game pauses or the work runs out. A decision
- *  with exactly one legal choice is a forced step: the engine takes it. */
+ *  with exactly one legal choice is a forced step: the engine takes it.
+ *  Conditions are checked after every step, so a goal met partway through
+ *  a move ends the game there. */
 function run(engine: Engine, draft: GameState, write: Write): void {
   for (let count = 0; ; count++) {
     if (count > STEP_LIMIT)
       throw new Error(`Step loop exceeded ${STEP_LIMIT} steps without pausing`);
+    checkConditions(engine, draft, write.ctx);
+    if (draft.status === "finished") return;
     react(engine, draft, write);
     const pending = draft.pending;
     if (pending?.type === "decision" && pending.seats.length === 1) {
@@ -317,7 +324,7 @@ function react(engine: Engine, draft: GameState, write: Write): void {
   const events = draft.lastEvents.slice(write.reacted);
   write.reacted = draft.lastEvents.length;
   if (events.length === 0) return;
-  const sources = liveSources(engine.behaviours, draft);
+  const sources = liveSources(engine, draft);
   const steps = events.flatMap((event) =>
     sources.flatMap(({ source, behaviour }) =>
       (behaviour.reactions ?? [])

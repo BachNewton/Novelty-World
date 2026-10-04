@@ -1,13 +1,16 @@
 import { CATALOG } from "./data";
 import { BEHAVIOURS } from "./data/behaviours";
+import { HAUNTS } from "./data/haunts";
 import { COMBAT_DECISIONS, COMBAT_STEPS } from "./engine/combat";
 import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
 import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
+import { HAUNT_STEPS } from "./engine/haunt";
 import { MOVEMENT_STEPS } from "./engine/movement";
 import { SCENARIO_STEPS } from "./engine/scenario";
 import { localStep, type Behaviours } from "./engine/sources";
 import { TILE_DECISIONS, TILE_STEPS } from "./engine/tiles";
 import type { Engine, Rules, StepHandler } from "./engine/step-loop";
+import { withHaunts } from "./kit/haunt";
 
 /** Every source's own steps, registered under the source's id. */
 function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
@@ -35,6 +38,7 @@ export function buildRules(behaviours: Behaviours): Rules {
     ...TILE_STEPS,
     ...MOVEMENT_STEPS,
     ...SCENARIO_STEPS,
+    ...HAUNT_STEPS,
   };
   for (const [name, handler] of Object.entries(localSteps(behaviours))) {
     if (name in steps) throw new Error(`Step ${name} is registered twice`);
@@ -51,8 +55,12 @@ export function buildRules(behaviours: Behaviours): Rules {
   };
 }
 
-export const ENGINE: Engine = {
-  catalog: CATALOG,
-  rules: buildRules(BEHAVIOURS),
-  behaviours: BEHAVIOURS,
-};
+export const ENGINE: Engine = withHaunts(
+  {
+    catalog: CATALOG,
+    rules: buildRules(BEHAVIOURS),
+    behaviours: BEHAVIOURS,
+    haunts: {},
+  },
+  HAUNTS,
+);
