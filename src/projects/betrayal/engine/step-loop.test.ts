@@ -8,8 +8,8 @@ import type {
   RuleRef,
   Step,
 } from "../types";
-import { STATE_FORMAT } from "./format";
 import { randomFor } from "./random";
+import { emptyState } from "./state";
 import {
   ANSWERS_KEPT,
   apply,
@@ -57,22 +57,14 @@ const RULES: Rules = {
   },
 };
 
-const ENGINE: Engine = { catalog: CATALOG, rules: RULES };
+const ENGINE: Engine = {
+  catalog: CATALOG,
+  rules: RULES,
+  behaviours: { cards: {}, rooms: {}, tokens: {} },
+};
 
 function fresh(): GameState {
-  return {
-    format: STATE_FORMAT,
-    gameId: "g",
-    seed: "seed-1",
-    sets: ["base"],
-    status: "exploring",
-    board: { tiles: [], stack: [], discards: [] },
-    nextId: 0,
-    work: [],
-    pending: null,
-    answered: [],
-    lastEvents: [],
-  };
+  return emptyState("g", "seed-1", ["base"]);
 }
 
 const ask = (...opts: string[]): Step => ({

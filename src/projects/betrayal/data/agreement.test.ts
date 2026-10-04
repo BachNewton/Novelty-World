@@ -159,6 +159,26 @@ describe("cards agree with content/cards/", () => {
     },
   );
 
+  it("restrict trading, dropping and stealing exactly where the card's text does", () => {
+    for (const file of ["cards/items.md", "cards/omens.md"]) {
+      for (const section of sections(readContent(file))) {
+        const card = only(CARDS, section.heading);
+        // "This item can't be stolen." / "This omen can't be dropped, traded, or stolen." / "The Box can't be stolen."
+        const line =
+          /^ {2}- (?:This (?:item|omen)|The \w+) can't be ([^.]+)\./m.exec(
+            section.body,
+          )?.[1] ?? "";
+        const cant = (word: string) => line.includes(word);
+        expect(card.transfer).toEqual({
+          trade: !cant("traded"),
+          drop: !cant("dropped"),
+          // A card that can't be traded can't be stolen either (rules.md, p. 13).
+          steal: !cant("stolen") && !cant("traded"),
+        });
+      }
+    }
+  });
+
   it("match the rulebook's base counts: 13 omens, 22 items, 45 events", () => {
     const base = CARDS.filter((c) => c.set === "base");
     expect(

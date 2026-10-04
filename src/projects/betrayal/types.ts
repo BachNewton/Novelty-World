@@ -68,6 +68,8 @@ export interface Card {
   type: CardType;
   set: SetId;
   label: "weapon" | "companion" | null;
+  /** What its holder may do with it. A card that can't be traded can't be stolen either (p. 13). */
+  transfer: { trade: boolean; drop: boolean; steal: boolean };
 }
 
 export type TokenShape =
@@ -101,8 +103,8 @@ export type TraitorRule =
   | { kind: "none" };
 
 export interface HauntChart {
-  /** Haunt number by room id, then omen card id. */
-  cells: Record<string, Record<string, number>>;
+  /** Haunt number by room id, then omen card id. Rooms without an omen symbol have no row. */
+  cells: Partial<Record<string, Partial<Record<string, number>>>>;
   traitors: Record<number, TraitorRule>;
 }
 
@@ -122,6 +124,7 @@ export type RuleRef =
   | { source: "rulebook"; page: number }
   | { source: "room"; room: string }
   | { source: "card"; card: string }
+  | { source: "token"; token: string }
   | { source: "haunt"; haunt: number; section: string };
 
 // ---------------------------------------------------------------------------
@@ -145,10 +148,10 @@ export interface Board {
 }
 
 /** A unit of the engine's unfinished work: a registered kind and its parameters. */
-export interface Step {
+export type Step = {
   kind: string;
   params: Json;
-}
+};
 
 export interface Decision {
   type: "decision";
@@ -185,13 +188,81 @@ export interface GameEvent {
   data: Json;
 }
 
+/** A player. Seats are in table order; turns pass to the left, which is the next seat. */
+export interface Seat {
+  name: string;
+  controller: "human";
+}
+
+export interface Explorer {
+  seat: number;
+  character: string;
+  room: string;
+  /** Each trait's clip, as an index into the character's track. */
+  clips: Record<Trait, number>;
+  /** Spaces a card pushed a trait past its printed maximum. Losing the card takes these first (p. 11). */
+  overTop: { card: string; trait: Trait; spaces: number }[];
+  /** Items, omens, and events the explorer keeps, in the order gained. */
+  cards: string[];
+}
+
+export interface Deck {
+  /** Top first. */
+  draw: string[];
+  discard: string[];
+}
+
+export interface RoomToken {
+  token: string;
+  room: string;
+}
+
+/** What has happened this turn, for the rules that limit actions per turn. */
+export interface Turn {
+  seat: number;
+  /** Spaces of movement spent. */
+  moved: number;
+  /** Drawing a card ends movement for the rest of the turn (p. 6). */
+  movementEnded: boolean;
+  /** Rolls attempted: the same roll can't be attempted twice in a turn (p. 12). */
+  rolls: string[];
+  /** Cards used, traded, dropped or picked up: each card allows one such action a turn (p. 11). */
+  handled: string[];
+  /** Where this turn's drop and pick-up happened: each is one action a turn, in one room. */
+  dropRoom: string | null;
+  pickupRoom: string | null;
+  traded: boolean;
+  /** Omens drawn this turn, and the room each was drawn in, for the haunt roll. */
+  omens: { card: string; room: string }[];
+}
+
+export interface Haunt {
+  number: number;
+  revealer: number;
+  omen: string;
+  room: string;
+}
+
 export interface GameState {
   format: number;
   gameId: string;
   seed: string;
   sets: SetId[];
   status: "lobby" | "exploring" | "haunt" | "finished";
+  seats: Seat[];
+  /** One per seat, in seat order. */
+  explorers: Explorer[];
   board: Board;
+  decks: Record<CardType, Deck>;
+  /** Item piles by room. */
+  piles: Record<string, string[]>;
+  tokens: RoomToken[];
+  /** Ongoing event cards in play that no explorer holds. */
+  ongoing: string[];
+  turn: Turn | null;
+  /** Every omen card drawn this game, for the haunt roll (p. 15). */
+  omensDrawn: number;
+  haunt: Haunt | null;
   /** Counter for decision and wait ids, so every client computes the same ids. */
   nextId: number;
   /** Unfinished work, top of the stack last. */

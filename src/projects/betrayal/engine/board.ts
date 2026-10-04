@@ -174,10 +174,10 @@ export function distances(
   return result;
 }
 
-export interface Doorway {
+export type Doorway = {
   room: string;
   direction: Edge;
-}
+};
 
 /** Doors that open onto an empty cell: where a new room can be discovered. */
 export function freeDoorways(

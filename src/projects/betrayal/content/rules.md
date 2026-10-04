@@ -160,6 +160,9 @@
 
 - Diagram ("Possible floors"): a tile back shows UPPER, GROUND, BASEMENT; the floors the room may go on are lit.
 - Place each new tile as logically as possible, lining up doors with neighbouring rooms' doors to make adjacent rooms wherever possible.
+
+> Note: "as logically as possible" doesn't say whether lining up doors is required or only advice.
+> Resolution (project): required. A new tile goes in a way that lines up the most doors with its neighbours without sealing a floor (p. 9); the player chooses among placements that tie, and placements that leave the same doorways count as one choice. This keeps the house as connected as the rule intends, and spares players choices that change nothing.
 - If not all doors can be matched, the unmatched doorway becomes a **false feature** (e.g. a blocked door or a boarded-up window).
 
 > Note: the book does not spell it out, but a false feature is presumably not passable.

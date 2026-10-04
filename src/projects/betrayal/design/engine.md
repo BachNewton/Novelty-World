@@ -262,6 +262,20 @@ How they are kept in agreement:
 - **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled before the rule they affect is implemented. Where research finds no answer, the ruling is made for this adaptation and recorded with the authority **project** (the project's `CLAUDE.md` says how).
 - **Effects are tested from the rules.** Each card's, room's and haunt's behaviour gets unit tests written from its content entry, not from its own implementation.
 
+### Behaviours
+
+Every card, room and token with rules text has a **behaviour**, kept with the content (`data/behaviours/`) and keyed by its id. A behaviour can:
+- run steps when its card is drawn, gained or lost;
+- offer actions: on its holder's turn for a card, or to an explorer in its room for a room or token;
+- react to events (a turn ending in this room, this card being used);
+- modify the answers to questions (section 5), which is how a passive card such as one that adds a die or stops movement works;
+- offer options around a roll its holder makes: something to add before the dice, or a reroll after;
+- register steps of its own, named under its id.
+
+Everything a behaviour does to the game is a step built from the engine's effects (`engine/effects.ts`): gaining and losing traits, damage the player splits, a roll feeding an outcome table, drawing and keeping cards, placing tokens, moving an explorer without spending movement. So an effect that pauses for a decision halfway through is stored as data like any other work. When a card needs something the effects and the questions don't offer, the engine gains a general effect or question for it; the engine never branches on a card's id.
+
+Each behaviour's tests come from its `content/` entry, played through a scenario (`testing.ts`): stack the decks and the room stack, then pick the offered choices by their labels.
+
 ## 8. Server
 
 ### Route contract

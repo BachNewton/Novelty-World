@@ -1,7 +1,34 @@
 import { CATALOG } from "./data";
-import type { Engine, Rules } from "./engine/step-loop";
+import { BEHAVIOURS } from "./data/behaviours";
+import { EXPLORATION_DECISIONS, EXPLORATION_STEPS } from "./engine/exploration";
+import { EFFECT_DECISIONS, EFFECT_STEPS } from "./engine/effects";
+import { localStep, type Behaviours } from "./engine/sources";
+import type { Engine, Rules, StepHandler } from "./engine/step-loop";
 
-/** Every step and decision kind the game registers. Exploration adds the first ones. */
-const RULES: Rules = { steps: {}, decisions: {} };
+/** Every source's own steps, registered under the source's id. */
+function localSteps(behaviours: Behaviours): Record<string, StepHandler> {
+  const result: Record<string, StepHandler> = {};
+  for (const group of [behaviours.cards, behaviours.rooms, behaviours.tokens]) {
+    for (const [id, behaviour] of Object.entries(group)) {
+      for (const [name, handler] of Object.entries(behaviour?.steps ?? {})) {
+        result[localStep(id, name)] = handler;
+      }
+    }
+  }
+  return result;
+}
 
-export const ENGINE: Engine = { catalog: CATALOG, rules: RULES };
+export function buildRules(behaviours: Behaviours): Rules {
+  const steps = { ...EFFECT_STEPS, ...EXPLORATION_STEPS };
+  for (const [name, handler] of Object.entries(localSteps(behaviours))) {
+    if (name in steps) throw new Error(`Step ${name} is registered twice`);
+    steps[name] = handler;
+  }
+  return { steps, decisions: { ...EFFECT_DECISIONS, ...EXPLORATION_DECISIONS } };
+}
+
+export const ENGINE: Engine = {
+  catalog: CATALOG,
+  rules: buildRules(BEHAVIOURS),
+  behaviours: BEHAVIOURS,
+};

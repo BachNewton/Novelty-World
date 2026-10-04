@@ -9,9 +9,11 @@ import type {
   Step,
 } from "../types";
 import { randomFor, SETUP_KEY, type Random } from "./random";
+import { liveSources, type Behaviours } from "./sources";
 
 /** What a step or a decision's resolution can do while the engine works. */
 export interface StepContext {
+  engine: Engine;
   catalog: Catalog;
   random: Random;
   emit: (type: string, rule: RuleRef, data?: Json) => void;
@@ -36,13 +38,13 @@ export interface DecisionKind {
     state: GameState,
     decision: Decision,
     seat: number,
-    catalog: Catalog,
+    engine: Engine,
   ) => Json[];
   label: (
     state: GameState,
     decision: Decision,
     choice: Json,
-    catalog: Catalog,
+    engine: Engine,
   ) => string;
   /** Applies the answers once every addressee has given one. Returns why, when an answer can't apply. */
   resolve: (
@@ -61,6 +63,7 @@ export interface Rules {
 export interface Engine {
   catalog: Catalog;
   rules: Rules;
+  behaviours: Behaviours;
 }
 
 export type ApplyResult =
@@ -119,7 +122,7 @@ export function apply(
     return reject("This seat has already answered");
   const kind = decisionKind(engine, pending.kind);
   const offered = kind
-    .candidates(state, pending, action.seat, engine.catalog)
+    .candidates(state, pending, action.seat, engine)
     .map((c) => JSON.stringify(c));
   if (!offered.includes(JSON.stringify(action.choice)))
     return reject("That choice isn't offered");
@@ -147,11 +150,11 @@ export function choices(
     return [];
   const kind = decisionKind(engine, pending.kind);
   return kind
-    .candidates(state, pending, seat, engine.catalog)
+    .candidates(state, pending, seat, engine)
     .filter((choice) => tryAnswer(engine, state, seat, choice) === null)
     .map((choice) => ({
       choice,
-      label: kind.label(state, pending, choice, engine.catalog),
+      label: kind.label(state, pending, choice, engine),
     }));
 }
 
@@ -176,6 +179,8 @@ function tryAnswer(
 
 interface Write {
   ctx: StepContext;
+  /** Events emitted so far that live sources have had the chance to react to. */
+  reacted: number;
 }
 
 function beginWrite(engine: Engine, draft: GameState, key: string): Write {
@@ -183,6 +188,7 @@ function beginWrite(engine: Engine, draft: GameState, key: string): Write {
   const events: GameEvent[] = draft.lastEvents;
   const nextId = () => `${draft.nextId++}`;
   const ctx: StepContext = {
+    engine,
     catalog: engine.catalog,
     random: randomFor(draft.seed, key),
     emit: (type, rule, data = null) => {
@@ -208,7 +214,7 @@ function beginWrite(engine: Engine, draft: GameState, key: string): Write {
       draft.pending = { type: "ready", id: `w${nextId()}`, seats, rule };
     },
   };
-  return { ctx };
+  return { ctx, reacted: 0 };
 }
 
 function assertNothingPending(draft: GameState): void {
@@ -247,6 +253,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
   for (let count = 0; ; count++) {
     if (count > STEP_LIMIT)
       throw new Error(`Step loop exceeded ${STEP_LIMIT} steps without pausing`);
+    react(engine, draft, write);
     const pending = draft.pending;
     if (pending?.type === "decision" && pending.seats.length === 1) {
       const legal = choices(engine, draft, pending.seats[0]);
@@ -276,6 +283,26 @@ function run(engine: Engine, draft: GameState, write: Write): void {
     if (!handler) throw new Error(`No step kind named ${step.kind}`);
     handler(draft, step.params, write.ctx);
   }
+}
+
+/** Queues the reactions of live sources to the events emitted since the last
+ *  check, in event order, ahead of the work already queued. */
+function react(engine: Engine, draft: GameState, write: Write): void {
+  const events = draft.lastEvents.slice(write.reacted);
+  write.reacted = draft.lastEvents.length;
+  if (events.length === 0) return;
+  const sources = liveSources(engine.behaviours, draft);
+  const steps = events.flatMap((event) =>
+    sources.flatMap(({ source, behaviour }) =>
+      (behaviour.reactions ?? [])
+        .filter(
+          (r) =>
+            r.event === event.type && (!r.when || r.when(draft, event, source)),
+        )
+        .flatMap((r) => r.steps(draft, event, source)),
+    ),
+  );
+  write.ctx.push(...steps);
 }
 
 function decisionKind(engine: Engine, kind: string): DecisionKind {
