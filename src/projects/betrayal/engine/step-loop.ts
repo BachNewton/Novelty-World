@@ -87,7 +87,7 @@ export function start(
   work: Step[],
 ): GameState {
   const draft = structuredClone(state);
-  const write = beginWrite(engine, draft, SETUP_KEY);
+  const write = beginWrite(engine, draft, SETUP_KEY, SETUP_KEY);
   write.ctx.push(...work);
   run(engine, draft, write);
   return draft;
@@ -105,7 +105,12 @@ export function apply(
     if (!pending.seats.includes(action.seat))
       return reject("That seat isn't being waited on");
     const draft = structuredClone(state);
-    const write = beginWrite(engine, draft, action.wait);
+    const write = beginWrite(
+      engine,
+      draft,
+      action.wait,
+      writeKey(action.wait, action.seat),
+    );
     const wait = draft.pending as typeof pending;
     wait.seats = wait.seats.filter((seat) => seat !== action.seat);
     write.ctx.emit("ready", wait.rule, { seat: action.seat });
@@ -128,7 +133,12 @@ export function apply(
     return reject("That choice isn't offered");
 
   const draft = structuredClone(state);
-  const write = beginWrite(engine, draft, action.decision);
+  const write = beginWrite(
+    engine,
+    draft,
+    action.decision,
+    writeKey(action.decision, action.seat),
+  );
   const reason = answer(engine, draft, write, action.seat, action.choice);
   if (reason !== null) return reject(reason);
   run(engine, draft, write);
@@ -171,7 +181,7 @@ function tryAnswer(
   return answer(
     engine,
     draft,
-    beginWrite(engine, draft, decision.id),
+    beginWrite(engine, draft, decision.id, writeKey(decision.id, seat)),
     seat,
     choice,
   );
@@ -183,16 +193,30 @@ interface Write {
   reacted: number;
 }
 
-function beginWrite(engine: Engine, draft: GameState, key: string): Write {
+/** Names one write. Each seat answers a shared decision or a ready wait in a
+ *  write of its own, so the seat is part of the name. */
+function writeKey(pause: string, seat: number): string {
+  return `${pause}.${seat}`;
+}
+
+/** Starts a write. Its randomness comes from the pause it answers, so every
+ *  addressee of a shared decision draws from the same stream; its event ids
+ *  come from the write's own key, so they are unique across writes. */
+function beginWrite(
+  engine: Engine,
+  draft: GameState,
+  randomKey: string,
+  eventKey: string,
+): Write {
   draft.lastEvents = [];
   const events: GameEvent[] = draft.lastEvents;
   const nextId = () => `${draft.nextId++}`;
   const ctx: StepContext = {
     engine,
     catalog: engine.catalog,
-    random: randomFor(draft.seed, key),
+    random: randomFor(draft.seed, randomKey),
     emit: (type, rule, data = null) => {
-      events.push({ id: `${key}:${events.length}`, type, rule, data });
+      events.push({ id: `${eventKey}:${events.length}`, type, rule, data });
     },
     push: (...steps) => {
       draft.work.push(...[...steps].reverse());

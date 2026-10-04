@@ -148,7 +148,7 @@ describe("the step loop", () => {
     expect(once).toEqual(again);
     const id = pendingDecision(state).id;
     expect(once.lastEvents[0]).toEqual({
-      id: `${id}:0`,
+      id: `${id}.0:0`,
       type: "picked",
       rule: RULE,
       data: { choice: "a", roll: randomFor("seed-1", id).dice(3) },
@@ -229,5 +229,16 @@ describe("ready waits", () => {
     state = applied(state, { kind: "ready", wait, seat: 0 });
     expect(state.pending).toBeNull();
     expect(state.lastEvents.map((e) => e.type)).toEqual(["ready", "note"]);
+  });
+
+  it("gives each seat's write event ids of its own", () => {
+    let state = start(ENGINE, fresh(), [{ kind: "wait-all", params: null }]);
+    const wait = state.pending?.id ?? "";
+    state = applied(state, { kind: "ready", wait, seat: 1 });
+    const first = state.lastEvents;
+    state = applied(state, { kind: "ready", wait, seat: 0 });
+    const ids = [...first, ...state.lastEvents].map((e) => e.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
   });
 });
