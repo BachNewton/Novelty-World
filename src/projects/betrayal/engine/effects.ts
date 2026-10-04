@@ -261,7 +261,9 @@ export function roll(
   });
 }
 
-/** A roll's outcome table: the first row whose range holds the result. */
+/** A roll's outcome table: the first row whose range holds the result. A
+ *  result past the table's top (a number named with the Angel Feather, a bonus
+ *  on a roll whose top row is closed) takes the top row (cards/items.md). */
 export type TableRow = {
   min: number;
   /** Inclusive. Null for "or more". */
@@ -775,9 +777,11 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   }),
 
   table: defineStep<{ rows: TableRow[]; result: number }>((_state, p, ctx) => {
-    const row = p.rows.find(
-      (r) => p.result >= r.min && (r.max === null || p.result <= r.max),
-    );
+    const top = p.rows.reduce((a, b) => (b.min > a.min ? b : a));
+    const row =
+      p.rows.find(
+        (r) => p.result >= r.min && (r.max === null || p.result <= r.max),
+      ) ?? (top.max !== null && p.result > top.max ? top : undefined);
     if (!row) throw new Error(`No table row for a result of ${p.result}`);
     ctx.push(...row.steps);
   }),

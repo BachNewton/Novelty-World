@@ -32,6 +32,9 @@ Drawn when an explorer discovers a room with an item symbol.
 > Note: The card doesn't say whether it can be used outside your own turn, such as on a defense roll.
 > Resolution (official): It can. The Angel Feather, the Lucky Stone and the Skull omen are the only cards a player may use outside their own turn. Source: https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
+> Note: the number named can be higher than the roll's dice could make, and higher than the top row of the table the roll is read on (5 on the Mystic Elevator's 2 dice, whose table stops at 4). Nothing says what such a result does.
+> Resolution (project): a result above a table's top row takes the top row, as any bonus that pushes a roll past its table does. The card's 0 to 8 is kept as printed, since naming a high number is the card's whole point and the table's top row is what a player who names one is reaching for. Research: no ruling found on BGG or in the FAQ.
+
 ## Armor
 - Deck: item
 - Set: base

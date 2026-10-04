@@ -97,6 +97,21 @@ describe("Angel Feather (cards/items.md)", () => {
     expect(state.explorers[ZOE].cards).not.toContain("angel-feather");
     expect(state.decks.item.discard).toContain("angel-feather");
   });
+
+  it("takes a table's top row with a number past it (the card's project ruling)", () => {
+    // The Mystic Elevator rolls 2 dice, and its table stops at 4: any floor.
+    const state = choose(
+      holding(["angel-feather"], { stack: ["mystic-elevator"] }),
+      "Explore through the north door",
+    );
+    const named = choose(state, "the result is 5");
+    expect(rolled(named)).toMatchObject({ named: 5, result: 5 });
+    expect(labels(named)).toEqual([
+      "Send the elevator to the upper floor",
+      "Send the elevator to the ground floor",
+      "Send the elevator to the basement",
+    ]);
+  });
 });
 
 describe("Armor (cards/items.md)", () => {
