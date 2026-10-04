@@ -12,7 +12,8 @@ dimensions, small pixel textures drawn only from one palette and shown with
 hard pixel edges, SVG decals snapped to that palette, and lighting (candles,
 moonlight, fog) to carry the mood. It avoids Claude's weaknesses: nothing is
 sculpted and nothing is painted. Read "Visual style" in
-`src/projects/betrayal/CLAUDE.md` first; it is the decided direction.
+`src/projects/betrayal/CLAUDE.md` first. The 3D house is a prototype, not
+yet the decided presentation (see `design/presentation.md`).
 
 ## The foundation
 

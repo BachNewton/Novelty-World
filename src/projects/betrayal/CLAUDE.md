@@ -23,9 +23,9 @@ Average players: neither first-timers nor experts. The game carries the rules so
 
 Betrayal has its own style, separate from Novelty World's bright, quirky one: it's a gothic haunted-house horror game, and its look should be dark, eerie and atmospheric. Its colours come from its own design tokens, scoped to the project. All art is original, never copied from the published game.
 
-The house is shown in 3D with three.js: each room tile is a little room, seen as a dollhouse with the walls nearest the camera cut away. Claude makes all of the art, so all of it is built in code, playing to what Claude does well: low-poly geometry built from simple, adjustable shapes; small pixel-art textures drawn only from one limited palette and shown with hard pixel edges; SVG decals; and lighting (candles, moonlight, fog) to carry the mood. It avoids what Claude does badly: sculpted organic models and painted illustration. Explorers are stylised board-game pawns, not sculpted people.
+Claude makes all of the art, so all of it is built in code, playing to what Claude does well: simple shapes with adjustable dimensions, small pixel-art textures drawn only from one limited palette and shown with hard pixel edges, SVG decals, and lighting to carry the mood. It avoids what Claude does badly: sculpted organic models and painted illustration. Claude checks its own art from screenshots before the owner sees it.
 
-The art lives in `art/`. A room is a short data definition (materials, props, lights, mood) on a shared stage that builds the shell, with doors and windows taken from the room data. Props a single room needs live in that room's file; pieces several rooms share go in the kit. The art bench (`?bench=<room-id>`) shows one room on its own, and `tools/shots.mjs` screenshots it from every view so the art can be checked without a person looking.
+Whether the house is shown in 2D, 3D or both is not decided; `design/presentation.md` holds the proposals. A 3D prototype lives in `art/`: each room tile is a little room, seen as a dollhouse with the walls nearest the camera cut away. A room is a short data definition (materials, props, lights, mood) on a shared stage that builds the shell, with doors and windows taken from the room data. Props a single room needs live in that room's file; pieces several rooms share go in the kit. Explorers are miniatures on a base, built from rigid parts joined at pivots. Animation is procedural, driven by the stage's clock, with no skeletons or keyframe files. The art bench (`?bench=<room-id>`) shows one room on its own, and `tools/shots.mjs` freezes the clock and screenshots it from every view.
 
 ## Presentation and input
 
@@ -109,6 +109,8 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 `design/haunt-survey.md` is the evidence base for the engine: every haunt broken down against the parts kit. It gives the coverage, the override questions the engine must answer (ranked by how many haunts use them), the parts kit, the engine capabilities beyond overrides, and the outliers that need custom code.
 
 `design/engine.md` is the engine design built on it: layers, game state, decisions and events, randomness, the rules interface, the haunt format, the content pipeline, server, client sync, testing and build order, with the lessons from Monopoly folded in.
+
+`design/presentation.md` holds proposals for the screen, none of them decided: a UI built around the pending decision, layouts per device, one shared screen with phones as controllers, 2D or 3D or both, what still needs art, and the open questions.
 
 `design/ai-players.md` records a proof of concept with local models playing the exploration phase, what it showed about the view text an AI needs, and the options for AI seats later.
 
