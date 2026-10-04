@@ -24,7 +24,10 @@ export function buildRules(behaviours: Behaviours): Rules {
     if (name in steps) throw new Error(`Step ${name} is registered twice`);
     steps[name] = handler;
   }
-  return { steps, decisions: { ...EFFECT_DECISIONS, ...EXPLORATION_DECISIONS } };
+  return {
+    steps,
+    decisions: { ...EFFECT_DECISIONS, ...EXPLORATION_DECISIONS },
+  };
 }
 
 export const ENGINE: Engine = {

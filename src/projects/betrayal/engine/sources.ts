@@ -83,6 +83,13 @@ export interface Behaviour {
   steps?: Record<string, StepHandler>;
 }
 
+/** Part of the content's behaviours, as one file contributes them. */
+export interface BehaviourGroup {
+  cards?: Record<string, Behaviour>;
+  rooms?: Record<string, Behaviour>;
+  tokens?: Record<string, Behaviour>;
+}
+
 export interface Behaviours {
   cards: Partial<Record<string, Behaviour>>;
   rooms: Partial<Record<string, Behaviour>>;

@@ -1,6 +1,6 @@
 import { explorerAt } from "../../engine/explorers";
 import { gain, placeToken } from "../../engine/effects";
-import { eventData, type Behaviour } from "../../engine/sources";
+import { eventData, type BehaviourGroup } from "../../engine/sources";
 import type { GameState } from "../../types";
 import { CATALOG } from "..";
 
@@ -10,32 +10,34 @@ function explorerToken(state: GameState, seat: number): string {
 }
 
 /** Room tiles with text, from content/rooms.md. */
-export const ROOM_BEHAVIOURS: Record<string, Behaviour> = {
-  larder: {
-    reactions: [
-      {
-        // Once per game for each explorer; their explorer token marks that they have (Widow's Walk FAQ).
-        event: "turn-ended",
-        when: (state, event) => {
-          const { seat, room } = eventData<{ seat: number; room: string }>(
-            event,
-          );
-          return (
-            room === "larder" &&
-            !state.tokens.some(
-              (t) =>
-                t.room === "larder" && t.token === explorerToken(state, seat),
-            )
-          );
+export const ROOMS: BehaviourGroup = {
+  rooms: {
+    larder: {
+      reactions: [
+        {
+          // Once per game for each explorer; their explorer token marks that they have (Widow's Walk FAQ).
+          event: "turn-ended",
+          when: (state, event) => {
+            const { seat, room } = eventData<{ seat: number; room: string }>(
+              event,
+            );
+            return (
+              room === "larder" &&
+              !state.tokens.some(
+                (t) =>
+                  t.room === "larder" && t.token === explorerToken(state, seat),
+              )
+            );
+          },
+          steps: (state, event, source) => {
+            const { seat } = eventData<{ seat: number }>(event);
+            return [
+              gain(seat, "might", 1, source.rule),
+              placeToken(explorerToken(state, seat), "larder", source.rule),
+            ];
+          },
         },
-        steps: (state, event, source) => {
-          const { seat } = eventData<{ seat: number }>(event);
-          return [
-            gain(seat, "might", 1, source.rule),
-            placeToken(explorerToken(state, seat), "larder", source.rule),
-          ];
-        },
-      },
-    ],
+      ],
+    },
   },
 };

@@ -1,16 +1,29 @@
-import type { Behaviour, Behaviours } from "../../engine/sources";
+import type {
+  Behaviour,
+  BehaviourGroup,
+  Behaviours,
+} from "../../engine/sources";
 import { EVENTS } from "./events";
+import { EVENTS_A } from "./events-a";
+import { EVENTS_B } from "./events-b";
 import { ITEMS } from "./items";
 import { OMENS } from "./omens";
-import { ROOM_BEHAVIOURS } from "./rooms";
+import { ROOMS } from "./rooms";
 
-function merge(
-  ...groups: Record<string, Behaviour>[]
-): Record<string, Behaviour> {
+const GROUPS: BehaviourGroup[] = [
+  EVENTS,
+  EVENTS_A,
+  EVENTS_B,
+  ITEMS,
+  OMENS,
+  ROOMS,
+];
+
+function merge(kind: keyof BehaviourGroup): Record<string, Behaviour> {
   const result: Record<string, Behaviour> = {};
-  for (const group of groups) {
-    for (const [id, behaviour] of Object.entries(group)) {
-      if (id in result) throw new Error(`Two behaviours for ${id}`);
+  for (const group of GROUPS) {
+    for (const [id, behaviour] of Object.entries(group[kind] ?? {})) {
+      if (id in result) throw new Error(`Two behaviours for ${kind} ${id}`);
       result[id] = behaviour;
     }
   }
@@ -19,7 +32,7 @@ function merge(
 
 /** What every card, room and token does, by id. */
 export const BEHAVIOURS: Behaviours = {
-  cards: merge(EVENTS, ITEMS, OMENS),
-  rooms: ROOM_BEHAVIOURS,
-  tokens: {},
+  cards: merge("cards"),
+  rooms: merge("rooms"),
+  tokens: merge("tokens"),
 };
