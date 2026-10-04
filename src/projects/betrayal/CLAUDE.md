@@ -63,7 +63,7 @@ Under the good-faith model, a client being able to work out dice from the seed i
 Not required: "working end to end" means every seat is a human. A seat held by a rule-based bot, or by an AI model through an API, is a planned nice-to-have, so the architecture keeps it cheap to add later:
 
 - **A seat has a controller:** human, bot or AI. At first only "human" is used.
-- **Decisions describe themselves.** A pending decision lists its legal choices both as data the engine checks and as plain-language labels. The UI shows the labels, and an AI can read them.
+- **Decisions describe themselves.** A pending decision lists its legal choices both as data the engine checks and as plain-language labels, each with a one-line consequence (what taking it leads to). The UI shows the labels, and an AI can read them.
 - **A per-seat view.** `viewFor(state, seat)` returns what that seat may see. The UI renders it, and bots and AI receive the same view, so they play fair even though the full state is public.
 - **Every controller answers asynchronously.** The engine never calls a controller. It only holds a pending decision, and any controller (a human's click, a bot, an AI waiting on an API) answers later by submitting an action through the same route. A rule bot that answers at once is just an async controller that happens to be fast. This is a lesson from Monopoly, whose bots were synchronous, which made adding AI players hard: nothing may assume a non-human seat answers immediately.
 - **Answers are matched to decisions.** Each pending decision has an id, and an action names the decision it answers. An answer to a decision that is no longer pending is rejected, so a slow AI can't act on a game that has moved on.
@@ -109,6 +109,8 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 `design/haunt-survey.md` is the evidence base for the engine: every haunt broken down against the parts kit. It gives the coverage, the override questions the engine must answer (ranked by how many haunts use them), the parts kit, the engine capabilities beyond overrides, and the outliers that need custom code.
 
 `design/engine.md` is the engine design built on it: layers, game state, decisions and events, randomness, the rules interface, the haunt format, the content pipeline, server, client sync, testing and build order, with the lessons from Monopoly folded in.
+
+`design/ai-players.md` records a proof of concept with local models playing the exploration phase, what it showed about the view text an AI needs, and the options for AI seats later.
 
 ## Working on long tasks
 

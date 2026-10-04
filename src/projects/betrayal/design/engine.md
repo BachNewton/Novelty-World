@@ -50,7 +50,7 @@ One JSON value, kept in the game row. It holds identifiers and live values only.
 | Tokens | Placed tokens by id. Supply is unlimited unless a haunt caps a kind, because its text makes running out a rule; the physical counts in `tokens.md` are what those caps cite |
 | Tracks | Named tracks and counters, with their values |
 | Haunt | Haunt id, phase, revealer, secret values with the seats that know them, and the haunt's own small typed data |
-| Turn | The current seat and turn kind (explorer, traitor or monster turn), movement left, and the turn's ledger (rolls attempted, items used, attack made, actions taken), plus a queue of inserted turns |
+| Turn | The current seat and turn kind (explorer, traitor or monster turn), movement left, and the turn's ledger (rolls attempted, items used, attack made, actions taken, and the rooms entered so far, in order), plus a queue of inserted turns |
 | Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, condition flags already fired |
 | Work | The step stack: the engine's unfinished work, as data (section 3) |
 | Decision | The pending decision's id, its addressees, the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
@@ -87,7 +87,7 @@ A test builds a late-game Widow's Walk state (a full house, many monsters, every
 
 **There is no undo.** Choices are selected locally and only committing sends anything, so a misclick is caught before it counts, and an undo would have to take back rolls everyone has already seen.
 
-`choices(state)` lists the legal choices. Each choice is an action, given as data, with a plain-language label. The UI shows the labels and an AI reads them, so the two never disagree. The turn's own decision ("what next?") lists moving one space to each reachable room, discovering through each open doorway, each usable item, each attack, each haunt action, trading, dropping, picking up and ending the turn.
+`choices(state)` lists the legal choices. Each choice is an action, given as data, with a plain-language label and a one-line consequence: what taking it leads to ("a room already in the house, with 2 unexplored doorways; you were there earlier this turn", "places a new room and moves you in, ending your movement"). The decision kind that writes the label writes the consequence, so the two never disagree. The UI shows the labels, with the consequence as a hint, and an AI reads both. An AI proof of concept found the consequence lines more than halved needless backtracking (`ai-players.md`). The turn's own decision ("what next?") lists moving one space to each reachable room, discovering through each open doorway, each usable item, each attack, each haunt action, trading, dropping, picking up and ending the turn.
 
 **Actions are absolute.** An action names the decision it answers and states its answer outright ("move to room R", "split this damage as 2 Might and 1 Speed", "seat 3 is ready"). Nothing in an action is relative ("one more", "toggle"), so replaying it can't change what it means. Monopoly had to convert its toggles and bid increments after relative actions broke during replay.
 
@@ -400,6 +400,8 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 
   It shows the pending decision in full only to its addressees. Everyone else sees whom the game is waiting on and what kind of decision it is. The UI, bots and AI all receive this view. A spectator view, with no seat, shows only public information.
 
+  The good-faith model trusts people not to look past what the UI shows, but a view may also go to a reader that isn't trusted: an AI agent a player connects from outside (`ai-players.md`). So `viewFor` is the boundary itself, not a hint the UI applies: what it leaves out must be absent from its result, never present and merely unrendered.
+
 ## 11. Testing
 
 | Kind | What it proves |
@@ -449,5 +451,5 @@ Each milestone ends with something playable and tested.
 Each waits for the milestone that needs it. Nothing before that milestone depends on the answer.
 
 1. **What the star-haunt record is keyed by** (Widow's Walk). The book's chart has a row per character, and "every explorer in your group" (the star haunt's season gate) has to be read against it. The record stays out of the engine either way: the route copies what a game needs into its state at creation.
-2. **Which model plays an AI seat, and how it reaches the game** (AI players). A seat's job is to pick one of the pending decision's labelled legal choices from its view, which suits a schema-constrained "System One" model such as TypeSafe's Jev. Planning and bluffing over a whole haunt may need more reasoning than such a model offers. Whether the AI gets the game through an MCP server (tools to read its view, look up rules in `content/` and submit a choice) rather than one prompt per decision is part of the same question.
+2. **Which model plays an AI seat, and how it reaches the game** (AI players). A seat's job is to pick one of the pending decision's labelled legal choices from its view, which suits a schema-constrained "System One" model such as TypeSafe's Jev. Planning and bluffing over a whole haunt may need more reasoning than such a model offers. Whether the AI gets the game through an MCP server (tools to read its view, look up rules in `content/` and submit a choice) rather than one prompt per decision is part of the same question. `ai-players.md` records a proof of concept with local models and the options it leaves: where the model runs, players bringing their own agent over MCP, progress while an AI thinks, and a stated plan carried between decisions.
 3. **A drive's deadline** (bots). How many seconds a drive has to answer, and what happens once the deadline passes: whether the decision is claimed again, a fallback answers, or a human takes the seat.
