@@ -425,7 +425,7 @@ Bug fixes start with a regression test that fails first, a habit Monopoly showed
 This is brief, because the UI gets its own design.
 - The presentation renders `viewFor` and `describe` and nothing else, so it can be React components, a canvas or three.js without touching the engine.
 - Every input method (touch, mouse, keyboard, an Xbox controller through `gamepad`) picks among the pending decision's choices. Adding an input method never touches game logic.
-- Every automatic step appears in a readable log, in plain language, with its rule. Each log line can show "why?": the rule's source and, where a ruling applies, the ruling and its authority.
+- Every automatic step appears in a readable log, in plain language, with its rule. Each log line can show "why?": the rule's source and, where a ruling applies, the ruling and its authority. A rule reference may name the one ruling behind an event, by the id its note carries in `content/` (`> Note [id]:`); "why?" then shows only that ruling, and a test fails when the code cites an id no note has.
 - On phones, the board takes the screen and panels pull in when needed. On desktop, extra width goes to always-visible panels (character card, held cards, log), not to a stretched board.
 - The look follows Betrayal's own gothic style, from tokens scoped to the project.
 

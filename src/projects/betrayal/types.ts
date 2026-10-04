@@ -148,14 +148,19 @@ export interface Catalog {
 // Rule references: every event names the rule that caused it
 // ---------------------------------------------------------------------------
 
-export type RuleRef =
+export type RuleRef = (
   | { source: "rulebook"; page: number }
   | { source: "room"; room: string }
   | { source: "card"; card: string }
   | { source: "token"; token: string }
   | { source: "haunt"; haunt: number; section: string }
   /** A playtesting or test scenario set this up, not a rule. */
-  | { source: "scenario" };
+  | { source: "scenario" }
+) & {
+  /** The ruling in content/ behind this event, by the id its `> Note [id]:`
+   *  carries, when one ruling of the source applies rather than its text. */
+  ruling?: string;
+};
 
 // ---------------------------------------------------------------------------
 // Game state: one JSON value, ids and live values only

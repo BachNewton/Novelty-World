@@ -584,7 +584,7 @@ Boxed sidebar.
   - If another explorer enters that room, that explorer gains custody of the companion and takes its omen card.
 - **Other items:** all your other items drop in that room. Place an Item Pile token there and set the item cards aside. Other explorers can go to that room to pick up the items, taking their cards.
 
-> Note: The sidebar speaks of items only; it doesn't say what happens to a dead explorer's non-companion omen cards. Whether they count among the "items" that drop is not stated here.
+> Note [dead-explorers-omens]: The sidebar speaks of items only; it doesn't say what happens to a dead explorer's non-companion omen cards. Whether they count among the "items" that drop is not stated here.
 > Resolution (community): an omen that works as an item drops into the item pile like an item card. That covers every omen except the Bite and the companions, and the companions stay in the room as the sidebar says. The 1st-edition FAQ already treats every omen except the Dog, Girl, Bite and Madman as droppable, tradable and stealable. No source rules on the Bite. Source: https://boardgamegeek.com/thread/2582950, https://boardgamegeek.com/thread/1498662, https://media.wizards.com/2015/downloads/ah/FAQ_BHotH_102605-2.pdf
 
 ## Winning the Game (p. 19)

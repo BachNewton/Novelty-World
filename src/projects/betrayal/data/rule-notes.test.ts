@@ -1,7 +1,14 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CARDS } from "./cards";
 import { readContent as readRaw, sections } from "./content-reader";
-import type { RuleNotes, RuleText, Ruling } from "./rule-notes";
+import {
+  ruleDetail,
+  type RuleNotes,
+  type RuleText,
+  type Ruling,
+} from "./rule-notes";
 import { ROOMS } from "./rooms";
 import { TOKENS } from "./tokens";
 
@@ -12,18 +19,25 @@ import { TOKENS } from "./tokens";
 const readContent = (file: string) => readRaw(file).replace(/\r\n/g, "\n");
 
 const NOTE = /^\s*> Note: (.*)$/;
+/** A note the engine cites by id. */
+const CITED_NOTE = /^\s*> Note \[([a-z0-9-]+)\]: (.*)$/;
 const RESOLUTION = /^\s*> Resolution \(([^)]*)\): (.*)$/;
 
 function rulings(body: string): Ruling[] {
   const lines = body.split("\n");
   return lines.flatMap((line, i) => {
-    const note = NOTE.exec(line);
+    const cited = CITED_NOTE.exec(line);
+    const plain = NOTE.exec(line);
+    const note = cited
+      ? { id: cited[1], text: cited[2] }
+      : plain && { id: null, text: plain[1] };
     if (!note) return [];
     const next = lines.slice(i + 1).find((l) => l.trim() !== "") ?? "";
     const resolution = RESOLUTION.exec(next);
     return [
       {
-        note: note[1],
+        ...(note.id === null ? {} : { id: note.id }),
+        note: note.text,
         authority: resolution ? resolution[1] : null,
         resolution: resolution ? resolution[2] : null,
       },
@@ -143,6 +157,56 @@ describe("rule-notes.json", () => {
     );
     expect(notes.pages["15"]?.map((p) => p.title)).toContain(
       "Making a Haunt Roll (p. 15)",
+    );
+  });
+});
+
+/** Every ruling id the engine and the content code cite, from their source:
+ *  a reference is written `ruling: "<id>"`. */
+function citedRulings(): string[] {
+  const root = path.join(__dirname, "..");
+  const files = ["engine", "data"].flatMap((dir) =>
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/ and data/ folders
+    readdirSync(path.join(root, dir), { recursive: true, encoding: "utf8" })
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .map((f) => path.join(root, dir, f)),
+  );
+  return files.flatMap((file) =>
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- test-only scan of this project's own engine/ and data/ source files
+    [...readFileSync(file, "utf8").matchAll(/ruling: "([a-z0-9-]+)"/g)].map(
+      (m) => m[1],
+    ),
+  );
+}
+
+describe("ruling ids", () => {
+  const notes = buildRuleNotes();
+  const ids = [
+    ...Object.values(notes.rooms),
+    ...Object.values(notes.cards),
+    ...Object.values(notes.tokens),
+    ...Object.values(notes.pages).flatMap((texts) => texts ?? []),
+  ].flatMap((text) => text.rulings.flatMap((r) => r.id ?? []));
+
+  it("are read from the note's brackets, and are unique", () => {
+    expect(ids).toContain("dead-explorers-omens");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("cited by the code all exist, so a renamed note fails here", () => {
+    for (const id of citedRulings()) expect(ids).toContain(id);
+  });
+
+  it("narrow \"why?\" to the one ruling, and throw on one the source lacks", () => {
+    const rule = { source: "rulebook", page: 19 } as const;
+    const all = ruleDetail(notes, rule);
+    expect(all.length).toBeGreaterThan(1);
+    const one = ruleDetail(notes, { ...rule, ruling: "dead-explorers-omens" });
+    expect(one).toHaveLength(1);
+    expect(one[0].title).toBe("What Happens to My Stuff if I Die? (p. 19)");
+    expect(one[0].rulings.map((r) => r.id)).toEqual(["dead-explorers-omens"]);
+    expect(() => ruleDetail(notes, { ...rule, ruling: "no-such-ruling" })).toThrow(
+      "No ruling no-such-ruling",
     );
   });
 });

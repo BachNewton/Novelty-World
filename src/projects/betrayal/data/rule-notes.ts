@@ -7,6 +7,8 @@ import type { RuleRef } from "../types";
 
 /** A `> Note:` in content/ and the `> Resolution (authority):` under it. */
 export interface Ruling {
+  /** The note's id, written `> Note [id]:`, for the rules that cite it. */
+  id?: string;
   note: string;
   /** official, designer, community, project or unresolved. */
   authority: string | null;
@@ -46,6 +48,20 @@ export function ruleTexts(notes: RuleNotes, rule: RuleRef): RuleText[] {
     case "scenario":
       return [];
   }
+}
+
+/** What to show for "why?": the rule's texts, or, for a reference naming a
+ *  ruling, only the entry holding that ruling and only that ruling. A ruling
+ *  the source doesn't have is a broken reference, so it throws. */
+export function ruleDetail(notes: RuleNotes, rule: RuleRef): RuleText[] {
+  const texts = ruleTexts(notes, rule);
+  const id = rule.ruling;
+  if (id === undefined) return texts;
+  for (const text of texts) {
+    const ruling = text.rulings.find((r) => r.id === id);
+    if (ruling) return [{ ...text, rulings: [ruling] }];
+  }
+  throw new Error(`No ruling ${id} in ${JSON.stringify(rule)}`);
 }
 
 export async function loadRuleNotes(): Promise<RuleNotes> {

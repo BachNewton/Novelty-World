@@ -4,7 +4,7 @@ import { Suspense, use, useState } from "react";
 import type { RuleRef } from "../types";
 import { describeRule } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
-import { loadRuleNotes, ruleTexts, type RuleNotes } from "../data/rule-notes";
+import { loadRuleNotes, ruleDetail, type RuleNotes } from "../data/rule-notes";
 
 let notes: Promise<RuleNotes> | null = null;
 
@@ -43,7 +43,7 @@ export function Why({ engine, rule }: { engine: Engine; rule: RuleRef }) {
 }
 
 function RuleDetail({ rule }: { rule: RuleRef }) {
-  const texts = ruleTexts(use(ruleNotes()), rule);
+  const texts = ruleDetail(use(ruleNotes()), rule);
   if (rule.source === "scenario")
     return (
       <p className="text-(--bt-muted)">
