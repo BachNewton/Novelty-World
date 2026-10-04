@@ -1,10 +1,10 @@
 # Engine design
 
-The design for Betrayal's engine, server and client sync. It builds on the decisions in the project's `CLAUDE.md`, which it follows rather than reopens, and on `haunt-survey.md`, which gives the evidence for the rules interface and the haunt format. Where a choice avoids a problem Monopoly had, it says which one. Section 14 lists the questions only the owner can settle, each with a recommendation.
+The design for Betrayal's engine, server and client sync. It builds on the decisions in the project's `CLAUDE.md`, which it follows rather than reopens, and on `haunt-survey.md`, which gives the evidence for the rules interface and the haunt format. Where a choice avoids a problem Monopoly had, it says which one. Section 14 lists the questions deliberately left until the milestone that needs them.
 
 ## 1. Shape and layers
 
-Five layers, each depending only on the ones above it:
+Seven layers, each depending only on the ones above it:
 
 | Layer | What it is | Where it lives |
 |---|---|---|
@@ -31,7 +31,7 @@ This adapts the repo's project convention to the project's size. The engine is t
 
 **What it doesn't use:**
 - `peer` and `room-list`, because play is server-authoritative.
-- `GameLobby` as it stands, because it offers a typed code or presence-listed rooms, and Betrayal lists persisted games, as Monopoly does. Monopoly's game list should move into `src/shared/` as an option of the lobby (section 14).
+- `GameLobby` as it stands, because it offers a typed code or presence-listed rooms, and Betrayal lists persisted games, as Monopoly does. At the online milestone, Monopoly's game list moves into `src/shared/` as an option of the lobby, and both games use it; Monopoly's lobby is the refactor target.
 - The `ui/` primitives where they carry Novelty World's colours, because Betrayal styles from its own scoped tokens.
 
 **Determinism is enforced, not hoped for.** Code under `engine/`, `kit/` and `data/` may not use `Math.random` or the clock, and a lint restriction on those folders enforces it. Iteration over keyed collections goes in a sorted, stable order.
@@ -47,13 +47,13 @@ One JSON value, kept in the game row. It holds identifiers and live values only.
 | Figures | Explorers, monsters, allies and attackable objects. Each has a kind, its controlling seat, its position (room, and side for barrier rooms), its traits (an explorer's clip positions on its tracks; a monster's values), its statuses, whether it's stunned, what it holds and its links to other figures |
 | Board | Placed tiles (tile id, floor, grid position, rotation, face down or removed), tokens on rooms and on edges, the room stack and discard pile in order |
 | Cards | Each deck's draw order and discard pile, what each figure holds, ongoing events |
-| Tokens and supply | Placed tokens by id, and the remaining supply of each kind, so a haunt can run out (`tokens.md`) |
+| Tokens | Placed tokens by id. Supply is unlimited unless a haunt caps a kind, because its text makes running out a rule; the physical counts in `tokens.md` are what those caps cite |
 | Tracks | Named tracks and counters, with their values |
 | Haunt | Haunt id, phase, revealer, secret values with the seats that know them, and the haunt's own small typed data |
 | Turn | The current seat and turn kind (explorer, traitor or monster turn), movement left, and the turn's ledger (rolls attempted, items used, attack made, actions taken), plus a queue of inserted turns |
 | Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, condition flags already fired |
 | Work | The step stack: the engine's unfinished work, as data (section 3) |
-| Decision | The pending decision's id, its addressees and its question (a kind with parameters). Its choices are derived from the state, not stored |
+| Decision | The pending decision's id, its addressees, the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
 | Answers | The most recent answered decisions (decision id, seat, choice), for idempotent retries (section 8) |
 | Last events | The events from the latest write only, for animation |
 | Result | Winning seats and each seat's outcome, once the game ends |
@@ -71,13 +71,21 @@ The randomness needs no stored stream: everything derives from the seed (section
 
 A test builds a late-game Widow's Walk state (a full house, many monsters, every card dealt) and asserts that its serialized size stays under a fixed budget of tens of kilobytes, well inside Realtime's message limit. A change that breaks the budget fails the test rather than failing in production.
 
+**The engine is definitive.** The rulebook ends by telling a group to agree on anything the books don't clearly answer, or flip a coin (p. 23). The engine never does that. Every ambiguity a rule depends on is settled before the rule is built (section 7), and a conflict the engine meets at runtime throws (section 5): it is a bug to settle and fix, never a question put to the table.
+
 ## 3. Actions, decisions and events
 
 **The pending decision.** It has:
 - an id;
-- its addressees: one seat, or a set of seats who each answer once (section 14 explains why a set is allowed);
+- its addressees: one seat, or a set of seats who each answer once;
 - a kind, with parameters;
 - the rule that raised it.
+
+**Shared decisions.** Some questions are put to several seats at once and answered in any order: haunt 100's secret vote, where everyone chooses and then all reveal together, and haunt 92's secretly written notes. Each addressee answers once, the answers are recorded per seat and hidden from everyone until the last one is in, and only then does the engine go on. Asking one seat at a time would leak the earlier answers or make everyone wait in turn.
+
+**Ready waits are not decisions.** When the rules have players read something and carry on once everyone has, as at the haunt reveal ("everyone reads their half, then the traitor returns", p. 16), the engine holds a ready wait: the seats it is waiting for, each of whom confirms once. It offers no choice, so the forced-step rule below never applies to it. A decision is a pick among legal options; a ready wait gives people time to read and think.
+
+**There is no undo.** Choices are selected locally and only committing sends anything, so a misclick is caught before it counts, and an undo would have to take back rolls everyone has already seen.
 
 `choices(state)` lists the legal choices. Each choice is an action, given as data, with a plain-language label. The UI shows the labels and an AI reads them, so the two never disagree. The turn's own decision ("what next?") lists moving one space to each reachable room, discovering through each open doorway, each usable item, each attack, each haunt action, trading, dropping, picking up and ending the turn.
 
@@ -87,7 +95,7 @@ A test builds a late-game Widow's Walk state (a full house, many monsters, every
 
 **Forced steps.** After applying an action, the engine runs a step loop until it reaches a real decision or the end of the game:
 1. Pop the next step off the step stack and run it. A step may emit events, change state, push more steps, or raise a decision.
-2. If a raised decision has exactly one legal choice, take it, recorded as a forced step with the rule that forced it. Otherwise pause on it.
+2. If a raised decision has exactly one legal choice, take it, recorded as a forced step with the rule that forced it. Otherwise pause on it. A ready wait always pauses.
 3. After every step, re-check the conditions (section 5). Any that turned true push their effects.
 
 Monopoly gets credit here: separating real choices (actions) from obvious ones (the engine's own steps) worked well, and this loop does the same thing. The loop has a fixed step bound and throws if it exceeds it. An endless loop is a bug, and it must fail loudly rather than be cut short silently.
@@ -233,6 +241,8 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts. The eng
 
 **The "players decide" decision.** This is a decision kind whose choices are all the possible answers to a question software can't check, such as artwork, speech, free text or judgement. All of its choices are legal, so the invariant holds. The answer is recorded as an event that names the rule and the seat that answered. It is addressed to a named seat: the claimant, or the other side when it is a confirmation. It is needed by 11 haunts, 2 of them base (20 and 39, which can offer every legal room until it exists). It belongs with Widow's Walk.
 
+**Speech.** Players are assumed to be on a voice call outside the app, so there is no in-app chat. Where speaking is itself a game action, it becomes a decision: haunt 78's hero naming the Fiend, haunt 92's secret notes. Rules on how players talk (haunt 69's Wild West voice, haunt 91's whisper) stay on the call, in good faith, with "players decide" where one grants a bonus. Haunt 63 silences the heroes, who would gesture at a real table, so it needs an in-app way to signal without words. These are all Widow's Walk haunts, and how they look is a UI question for when they are built.
+
 **Custom haunts** use the same definition. What makes them custom is the size of their local functions. Where a one-off needs engine support (a clock event for 99, grid cells for 93, doorway spaces for 35), it gets a narrow, general hook (a new event type, a board capability) rather than a branch on the haunt.
 
 ## 7. Content pipeline
@@ -249,7 +259,7 @@ How they are kept in agreement:
 
   A small test-side reader handles the bullet-and-table format these files already use.
 - **Coverage both ways.** Every heading in `content/` that names a room, card, character or haunt has a typed entry, and every typed entry points back at its heading. Additions and renames fail a test until both sides match.
-- **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled with the owner before the rule they affect is implemented.
+- **Rulings are linked.** A typed rule that depends on a `> Note:` names that note. A test fails when a referenced note's resolution is still marked unresolved, which enforces the rule that unresolved notes are settled with the owner before the rule they affect is implemented. Where research finds no answer, the owner's ruling is recorded with the authority **owner**.
 - **Effects are tested from the rules.** Each card's, room's and haunt's behaviour gets unit tests written from its content entry, not from its own implementation.
 
 ## 8. Server
@@ -259,7 +269,7 @@ How they are kept in agreement:
 `POST /api/betrayal` takes lobby operations (create, join, take a seat, choose a character, set a controller, start) and game actions. A game action carries only the game id, the seat, the decision id it answers and the choice. **The client never sends or receives a version as a precondition.** Every operation goes through one commit routine:
 
 1. Read the row (state and version) and migrate the state if it's an older format.
-2. If the action's decision id isn't the pending one, look in the answers ledger. If the same seat already answered that decision with the same choice, reply **accepted** with the current state, since this is a retry of an action that already landed. Otherwise reply **rejected** with the current state.
+2. If the action's decision id isn't the pending one, look in the answers ledger. If the same seat already answered that decision with the same choice, reply **accepted** with the current state, since this is a retry of an action that already landed. Otherwise reply **rejected** with the current state. A shared decision that is still open gets the same check per seat: a seat that has already answered it is **accepted** when it repeats its answer and **rejected** when it sends a different one, so a retry never counts as a second answer.
 3. Apply the action. If the engine refuses it, reply **rejected** with the current state.
 4. Run the forced steps through to the next decision, all in this one write.
 5. Write the new state and that write's events in one database call that only succeeds if the version is unchanged. If another write got there first, go back to 1. The retry runs in a loop with a fixed number of attempts, and running out of attempts is an error that fails loudly. Re-reading is always correct, because the action names its decision: on the new state it either still applies or is now rejected.
@@ -276,13 +286,13 @@ Not needed for the first milestones. The design keeps it cheap:
 - **Drive is idempotent.** It reads the row. If the pending decision isn't for a non-human seat, it stops. Otherwise it claims the decision by inserting a (game, decision id) row into a claims table; the unique key makes a second claim fail, and a failed claim means someone else is on it. The winner computes the answer (a bot's pure policy, or one AI call given the seat's view, its labelled choices and the `content/` rules) and submits it through the same commit routine, under the decision id it claimed. An illegal or missing answer gets the legal fallback, and the log says so.
 - **The nudge.** Any client may call drive. A client does so when an event shows it a non-human seat's decision with no answer: on load, on resubscribe, or when a tab wakes. Duplicate calls are harmless, because claiming happens once per decision and the commit matches decision ids.
 - **One AI call per decision**, guaranteed by the claim. API keys stay on the server.
-- **A crashed drive.** A claim whose function died leaves a decision unanswered. That can't be observed as an event. Section 14 covers it.
+- **A deadline on every drive.** A drive's function can die after claiming (a time limit hit while an AI API hangs, a deploy, a platform error), leaving the claim in place and the decision unanswered, and nothing reports that as an event. So a drive has a deadline: once it passes, a nudge may claim the decision again. How long the deadline is, and what happens after it, wait for the bots milestone (section 14).
 
 Monopoly's clients acted as the game clock and drove the bots, with guard flags that stalled the game whenever an expected update never arrived. Here the server drives, and every client's only power is an idempotent nudge.
 
 ### The star-haunt record
 
-The record is a table of (character, haunt) completions, plus the game that earned each one, assuming the record is keyed by character (section 14). A game that ends in 57, 75, 86 or 93 includes the completions in its final commit, written in the same transaction. At game creation the route copies the record for the game's characters into the state. That keeps the engine pure (the star gate reads state, never the database) and the game replayable.
+The star haunt, Widow's Walk's finale, unlocks only once the explorers have played its four seasonal haunts (86, 57, 93 and 75), which the book tracks on a chart that fills up over many games. The record is that chart: a table of completions plus the game that earned each one. What it is keyed by waits for Widow's Walk (section 14); the book's chart has a row per character. A game that ends in 57, 75, 86 or 93 includes the completions in its final commit, written in the same transaction. At game creation the route copies the part of the record that game needs into the state. That keeps the engine pure (the star gate reads state, never the database) and the game replayable.
 
 ### Tables
 
@@ -293,7 +303,7 @@ The record is a table of (character, haunt) completions, plus the game that earn
 | `betrayal_games` | id, state (jsonb), version, status and a small summary (seats, characters, haunt) for the game list, updated time. In the Realtime publication |
 | `betrayal_events` | game id, version, events (jsonb), keyed by both. The readable log, and the source for filling gaps. Not broadcast |
 | `betrayal_drive_claims` | game id, decision id (the unique key), claimed time. Insert-only |
-| `betrayal_star_record` | character, haunt, game id, keyed by character and haunt |
+| `betrayal_star_record` | a completion (who, haunt) and the game id that earned it. Added with Widow's Walk |
 | `betrayal_commit` (function) | Writes the state, version and summary only if the version is unchanged, inserts the events, and upserts any record completions, all in one transaction. Executable by the service role only |
 
 Creating a game is an insert. A duplicate id means "load the existing one", as in Monopoly, where that proved sound.
@@ -324,6 +334,8 @@ Creating a game is an insert. A duplicate id means "load the existing one", as i
 - on `visibilitychange` (to visible), `online` and `pageshow`.
 
 Realtime doesn't resend changes missed while a connection was down, and a phone tab that wakes up has a dead socket. The fetched row goes in as an ordinary server state.
+
+**Connection loss.** Players are assumed to have a stable connection, so there is no offline mode. Two guarantees hold instead. A dropped connection never breaks the game on the server: the row only ever holds states the commit routine wrote, and a lost request is either fully committed or not at all. And a client can always recover by reloading, because a reload rebuilds everything from the row. A queued action the server later rejects drops away with a plain message, never a silent revert.
 
 **Events drive animation, without blocking.** Animation is a presentation layer on top of the state, never a third state that sync has to manage, which is how Monopoly stacked it:
 - Local applies supply events immediately.
@@ -359,6 +371,7 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 - **Derived values are computed, never stored:** who is an opponent (the isOpponent question), which half of the haunt text a seat may read, and which win conditions apply to whom. Because they are derived, a side change takes effect everywhere at once.
 - **Turn order is recomputed at every turn boundary.** It comes from the current turn, the sides, the turnOrder question and the queue of inserted turns, rather than from a list saved at the haunt's start. A conversion in the middle of a round takes effect at the next boundary with no extra code.
 - **Results belong to seats.** A game result is a set of winning seats, and a side win is the common case of that.
+- **Seats change hands freely.** Seats are tied to a browser's profile id, so any player in a game may hand a seat to another profile, from the game list or the seat menu, for example after changing device. The good-faith model keeps this from being abused.
 - **Controllers** are human, bot or AI, and all of them answer asynchronously through the same route. The engine never calls a controller (section 8).
 - **`viewFor(state, seat)`** returns what a seat may see. It hides:
   - the order of the stacks and decks, from everyone;
@@ -379,7 +392,7 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
 | Headless simulation | Full games through the same driver the server uses, with a random-legal policy on every seat. Checks that every game terminates within the step bound, the payload stays inside its budget, and no conflict between rule sources throws. This replaces the haunt-by-haunt playtesting a person would otherwise do |
 | Content agreement | The fact, coverage and rulings tests from section 7 |
 | Server | The commit routine against an in-memory database: decision-id checks, idempotent retries, a lost write retried, the retry bound, and drive claims |
-| Sync reducer | Deliveries reordered, duplicated and dropped; a response arriving before or after its echo; a rejection in the middle of the queue; a path chain interrupted by a forced roll |
+| Sync reducer | Deliveries reordered, duplicated and dropped; a response arriving before or after its echo; a rejection in the middle of the queue; a path chain interrupted by a forced roll; a retried answer to a shared decision that is still open |
 | Two-client e2e | Two browsers on the dev server against the real Supabase project, as Frogmino's lobby e2e already does, using game ids with an e2e prefix that teardown deletes. One client acts and the other sees it. Covers rejoin after reload, a rejected stale action, and a tab waking up |
 
 Bug fixes start with a regression test that fails first, a habit Monopoly showed is worth keeping.
@@ -399,8 +412,8 @@ Each milestone ends with something playable and tested.
 
 1. **Foundations.** The model types, the state format with migrations, the randomness, the board with its queries (connection, adjacency, line of sight, distance by route), and the step loop. Typed data for rooms, characters, cards, tokens and the chart, with the agreement tests. Before this, settle with the owner the unresolved notes that exploration touches (for example, how the Collapsed Room's basement tile is drawn, and whether the Mystic Elevator may leave a floor if leaving would seal it off).
 2. **Exploration, no haunt.** Setup, turns, moving, discovering, room text, every card, traits, item rules and the haunt roll. When a roll succeeds, the game shows the haunt number and stops. Played in one browser on a plain debug UI.
-3. **One haunt end to end.** The questions and layers, starting with combat and death; sides and turn order; the kit parts haunt 13 needs; conditions and results; `viewFor`. A dev-only "start haunt N" makes haunt work quick to reach. Haunt 13 played start to finish in one browser.
-4. **Online.** The SQL, the commit routine and route, the sync reducer and store, the game list and seats, and the two-client e2e. The UI design starts here, in parallel.
+3. **One haunt end to end.** The questions and layers, starting with combat and death; sides and turn order; the kit parts haunt 13 needs; conditions and results; `viewFor`. A dev-only "start haunt N" makes haunt work quick to reach. After the base game, the same path becomes the rulebook's optional "select the haunt" rule (p. 16), a per-game setting. Haunt 13 played start to finish in one browser.
+4. **Online.** The SQL, the commit routine and route, the sync reducer and store, the shared game-list lobby extracted from Monopoly, seats, and the two-client e2e. The UI design starts here, in parallel.
 5. **The remaining base haunts,** in batches by the kit parts they share, in the order the survey ranks them. Each batch first settles its unresolved notes and adds its kit parts. Haunt 35 comes last. Then add the real UI.
 
 **The base game, working end to end with every seat human, is the end of milestone 5.** After it:
@@ -413,18 +426,10 @@ Each milestone ends with something playable and tested.
    - its haunts in kit-part batches;
    - the custom haunts and the star haunt last.
 
-## 14. Open questions
+## 14. Deferred questions
 
-Each question comes with a recommendation.
+Each waits for the milestone that needs it. Nothing before that milestone depends on the answer.
 
-1. **What is the star-haunt record keyed by: characters or players?** *Recommendation: characters, in one record for the whole site.* That matches the physical game, which marks completions on a chart in the book for "your explorers", and a group of close friends shares one book. Player identities here are per-browser profile ids, so a record keyed by player would be lost whenever someone changes device.
-2. **What happens when an AI never answers?** *Recommendation:* make one AI call. If it errors or answers illegally, make one more call that includes the rejection reason. After that, the rule bot answers (before bots exist, the engine's default legal choice), and the log says so. Any human at the table may take over the seat at any time.
-3. **How are unresolved rules notes presented?** *Recommendation:* they aren't presented at runtime at all. Every note a rule depends on is settled with the owner before that rule is built, and recorded in `content/` as a resolution with a new authority, **owner** (a test enforces this, section 7). In play, the "why?" on a log line shows the rule's source and, when a ruling applies, the ruling and its authority. The rulebook's "agree or flip a coin" sidebar is not implemented as a runtime prompt.
-4. **Recovering a crashed drive needs a timeout.** A claim whose function died can't be observed as an event, so nothing short of a time limit can recover it. *Recommendation:* a nudge may re-claim a decision whose claim is older than the platform's maximum function duration. That isn't a guess that something has "probably finished": past that limit, the function is certainly dead. This is the same kind of timeout question the repo already leaves to the owner for PeerJS connections.
-5. **Decisions addressed to several seats.** `CLAUDE.md` says a decision names one seat. The haunt reveal ("everyone reads their half, then the traitor returns", p. 16), 100's secret vote and table confirmations are naturally one decision answered by several seats in any order, with each answer recorded per seat. *Recommendation:* allow a set of addressees, each answering once, with answers hidden until everyone has answered. Treat the reveal as a "ready" decision for all seats, so nobody's turn starts before everyone has read their half. The alternative, asking each seat in turn, works but makes everyone wait for each other.
-6. **The physical token supply limits.** *Recommendation:* keep them. Haunts use running out as a rule, and `tokens.md` records the counts. The shortfalls it notes need a ruling each when that haunt is built: haunt 34's Keys can outnumber the item tokens, and with Widow's Walk's extra window rooms haunt 11 can need more purple tokens than exist.
-7. **Table talk.** The game assumes everyone is at one table: heroes plan together, and the hidden-traitor rules forbid side conversations. *Recommendation:* assume the group is on a voice call, and build no in-app chat at first.
-8. **Undo.** *Recommendation:* no undo. Selections are made locally and only committing sends, so misclicks are caught before they count. An undo would have to unwind rolls that everyone has already seen.
-9. **The optional "select the haunt" rule, to avoid repeats.** *Recommendation:* leave it out of the base build. It needs a cross-game record of revealed haunts, and its procedure has an unresolved note. Add it later as a per-game setting if the group plays often enough to repeat haunts.
-10. **Taking a seat after changing device.** Seats are tied to the browser's profile id. *Recommendation:* in good faith, let any player in a game hand a seat to another profile, from the game list or the seat menu.
-11. **A shared lobby with a game list.** Monopoly and Betrayal both list persisted games, and `GameLobby` only offers typed codes or presence-listed rooms. *Recommendation:* when Betrayal's online milestone arrives, extract Monopoly's game list into a shared lobby option rather than build a second copy. Monopoly's lobby is the refactor target.
+1. **What the star-haunt record is keyed by** (Widow's Walk). The book's chart has a row per character, and "every explorer in your group" (the star haunt's season gate) has to be read against it. The record stays out of the engine either way: the route copies what a game needs into its state at creation.
+2. **Which model plays an AI seat, and how it reaches the game** (AI players). A seat's job is to pick one of the pending decision's labelled legal choices from its view, which suits a schema-constrained "System One" model such as TypeSafe's Jev. Planning and bluffing over a whole haunt may need more reasoning than such a model offers. Whether the AI gets the game through an MCP server (tools to read its view, look up rules in `content/` and submit a choice) rather than one prompt per decision is part of the same question.
+3. **A drive's deadline** (bots). How many seconds a drive has to answer, and what happens once the deadline passes: whether the decision is claimed again, a fallback answers, or a human takes the seat.

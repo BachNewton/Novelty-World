@@ -13,7 +13,7 @@ A haunt is mostly typed data built from that kit, with small local functions whe
 
 ## The rules engine
 
-Pure and deterministic, with a seeded random number generator in the game state, so a game is a function of its start and its actions. It pauses on a pending decision, with an id, that names which seat must answer and lists the legal choices. Legality has one source: a choice is legal exactly when applying it succeeds, and a test enforces that the listed choices match. A forced step, where the rules leave exactly one legal option, is taken by the engine itself, not offered as a decision. A real choice always goes to the player, even when one option is clearly better. Every event the engine emits names the rule that caused it (a room, card, haunt or rulebook rule), so the UI can explain it. The saved state's format is versioned from the start, because the Widow's Walk star-haunt record outlives individual games.
+Pure and deterministic, with a seeded random number generator in the game state, so a game is a function of its start and its actions. It pauses on a pending decision, with an id, that names which seat must answer (or which seats, each answering once, when a question is put to several at once) and lists the legal choices. Legality has one source: a choice is legal exactly when applying it succeeds, and a test enforces that the listed choices match. A forced step, where the rules leave exactly one legal option, is taken by the engine itself, not offered as a decision. A real choice always goes to the player, even when one option is clearly better. Every event the engine emits names the rule that caused it (a room, card, haunt or rulebook rule), so the UI can explain it. The saved state's format is versioned from the start, because the Widow's Walk star-haunt record outlives individual games.
 
 ## Who it's for
 
@@ -90,7 +90,7 @@ These are rules specs, not copies of the books. Data is recorded exactly: number
 
 `rules.md` headings carry book page numbers, because the haunts refer to rules by page.
 
-Where the books are ambiguous or contradict themselves, the files say so in a `> Note:`. A `> Resolution (...)` line under each note gives the answer found by research, labelled with its authority (official, designer, community or unresolved) and its source. There is no official 2nd-edition FAQ. Official errata (the Widow's Walk FAQ, both its short version and the long one with haunt corrections, and the 1st-edition FAQ where the rule is unchanged) is applied to the rule text itself. Settle unresolved notes with the owner before implementing the rule they affect. The Widow's Walk haunt and rule-sheet notes haven't been researched yet; do that when Widow's Walk is built.
+Where the books are ambiguous or contradict themselves, the files say so in a `> Note:`. A `> Resolution (...)` line under each note gives the answer found by research, labelled with its authority (official, designer, community, owner or unresolved) and its source. There is no official 2nd-edition FAQ. Official errata (the Widow's Walk FAQ, both its short version and the long one with haunt corrections, and the 1st-edition FAQ where the rule is unchanged) is applied to the rule text itself. Settle unresolved notes with the owner before implementing the rule they affect, and record the answer with the authority owner. The engine is definitive: the rulebook's "agree, or flip a coin" for unclear rules is never put to players at runtime. The Widow's Walk haunt and rule-sheet notes haven't been researched yet; do that when Widow's Walk is built.
 
 ## Scope
 
@@ -108,4 +108,4 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 
 ## Next step
 
-The owner reviews `design/engine.md` and settles its open questions. Then building starts at its first milestone.
+Building starts at the first milestone of `design/engine.md`.

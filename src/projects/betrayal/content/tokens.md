@@ -2,6 +2,8 @@
 
 Every cardboard token the game uses, base game and Widow's Walk. Counts come from the base rulebook's component list (rules.md, Game Components) and the Widow's Walk component list (widows-walk-rules.md, Game Components, also quoted in the Widow's Walk FAQ). Where a list gives only a total, the split is counted from the owner's own token set (numbered tokens print their numbers, so a kind's count is its number range) or worked out from the cards, tiles and haunts that use the tokens, the official FAQs and BoardGameGeek, and a note says how. Haunts and cards name tokens by shape, colour and size ("small purple monster token", "pentagonal item token", "triangular Sanity Roll token"); the headings below use those same words.
 
+The counts record the physical box. In this digital version they are not a global limit: supply is unlimited unless a haunt's text makes running out a rule (haunt 24's "never more than 24 Bats", haunt 27's recycled Blob tokens, the star haunt's "if one is available"). Where a shortfall comes only from the cardboard, every token the rules call for is placed.
+
 Haunts often give a token a role name ("the Girl token", "a Root token", "Bat tokens"). The role name never means a separate piece: the haunt's setup says which physical token stands for it.
 
 ## Totals
@@ -83,7 +85,7 @@ Not tokens, but listed with the pieces for completeness: 6 plastic explorer figu
 > Resolution (official): confirmed by the number ranges printed on the owner's tokens. The haunts corroborate parts of it: haunt 24 (haunts/24-fly-away-home.md) sets aside all 24 red; haunt 27 (haunts/27-amok-flesh.md) needs at least 20 orange; haunts 47 (haunts/47-worm-ouroboros.md) and 70 (haunts/70-to-reach-the-cosmos.md) set aside all the green, 16 in haunt 47; haunt 53 (haunts/53-till-morning-light.md) uses blue 1 to 9; haunt 97 (haunts/97-lambs-to-the-slaughter.md) deals yellow numbered 1 up to the number of explorers (6 at six players).
 
 > Note: haunt 11 (Let Them In) puts a face-down small purple token in the Entrance Hall and in every room with an outside-facing window. Only 6 purple tokens exist. The base game has exactly six such rooms (the Entrance Hall plus the five window rooms haunt 24 lists: Grand Staircase, Master Bedroom, Bedroom, Chapel, Dining Room), so the base game fits exactly. Widow's Walk adds the Drawing Room and Sewing Room to the window rooms (widows-walk-rules.md, Glossary Update: Window), so with the expansion haunt 11 can need up to 8 purple tokens, 2 more than exist.
-> Resolution (unresolved): what to do when the window rooms outnumber the purple tokens is the owner's call when Widow's Walk is built.
+> Resolution (owner): every eligible room gets its token. In this digital version, supply is unlimited unless a haunt makes its limit a rule, and haunt 11 doesn't.
 
 ## Small circular explorer tokens (Widow's Walk)
 
