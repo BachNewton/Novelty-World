@@ -42,15 +42,30 @@ export function PendingPanel({
   offers: SeatOffer[];
   onAction: (action: Action) => void;
 }) {
-  if (state.haunt) {
+  if (state.result) {
+    const { winners, rule } = state.result;
     return (
-      <p className="font-semibold text-(--bt-danger)">
-        The haunt is revealed: haunt #{state.haunt.number}. Exploration ends
-        here; haunts aren&apos;t built yet.
-      </p>
+      <div className="font-semibold text-(--bt-danger)">
+        The game is over.{" "}
+        {winners.length === 0
+          ? "No one wins."
+          : `Winners: ${winners.map((seat) => seatLabel(engine, state, seat)).join(", ")}.`}{" "}
+        <span className="text-xs font-normal text-(--bt-muted)">
+          ({describeRule(engine, rule)})
+        </span>
+        <Why engine={engine} rule={rule} />
+      </div>
     );
   }
   const pending = state.pending;
+  if (!pending && state.haunt) {
+    return (
+      <p className="font-semibold text-(--bt-danger)">
+        The haunt is revealed: haunt #{state.haunt.number}, which isn&apos;t
+        built yet, so the game stops here.
+      </p>
+    );
+  }
   if (!pending) return <p className="text-(--bt-muted)">Nothing pending.</p>;
 
   if (pending.type === "ready") {

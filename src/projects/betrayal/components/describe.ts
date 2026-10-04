@@ -1,4 +1,4 @@
-import type { GameEvent, GameState } from "../types";
+import type { GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "../engine/describe";
 import { explorerOf, figureName } from "../engine/figures";
 import type { Engine } from "../engine/step-loop";
@@ -38,6 +38,12 @@ export interface LogGroup {
 
 const HAUNT_EVENTS = new Set(["haunt-revealed", "haunt-started"]);
 
+const KIND_TITLES: Record<TurnKind, string> = {
+  explorer: "",
+  traitor: " (traitor turn)",
+  monster: " (monster turn)",
+};
+
 /** The log by turn, so it reads as the game's story. */
 export function logGroups(
   engine: Engine,
@@ -52,10 +58,10 @@ export function logGroups(
     const { event } = line;
     if (event.type === "turn-started") {
       turns += 1;
-      const seat = (event.data as { seat: number }).seat;
+      const { seat, kind } = event.data as { seat: number; kind: TurnKind };
       groups.push({
         key: event.id,
-        title: `Turn ${turns}: ${seatLabel(engine, state, seat)}`,
+        title: `Turn ${turns}: ${seatLabel(engine, state, seat)}${KIND_TITLES[kind]}`,
         seat,
         lines: [],
       });

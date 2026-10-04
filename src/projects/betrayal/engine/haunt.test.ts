@@ -14,7 +14,9 @@ import {
 import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
-import { apply, type Engine } from "./step-loop";
+import { removeStatus } from "./effects";
+import { revealSecret } from "./haunt";
+import { apply, start, type Engine } from "./step-loop";
 
 // The haunt framework, played through a toy haunt built from the kit
 // (test/toy-haunt.ts): the reveal in the order rules.md settles it, the
@@ -100,6 +102,20 @@ describe("the haunt's reveal", () => {
       "The heroes carry out the haunt's setup.",
       "Wake tokens: 0.",
       "Father Rhinehardt's turn.",
+    ]);
+  });
+
+  it("shows a secret to everyone, and takes a status off, saying so", () => {
+    const rule = { source: "haunt", haunt: 13, section: "Rules" } as const;
+    const state = start(TOY_ENGINE, { ...readyAll(hauntGame()), pending: null }, [
+      revealSecret("target", rule),
+      removeStatus(OX, "dozing", rule),
+    ]);
+    expect(state.haunt?.secrets[0].knownBy).toBeNull();
+    expect(state.figures[OX].statuses).toEqual([]);
+    expect(describeAll(TOY_ENGINE, state)).toEqual([
+      "The number of escapes is shown to everyone: 3.",
+      "Ox Bellows is no longer asleep.",
     ]);
   });
 
@@ -218,6 +234,9 @@ describe("the chart's traitor rule", () => {
     const traitor = traitorOf(state);
     expect(traitor).toBeGreaterThanOrEqual(0);
     expect(eventTypes(state)).toContain("sides-dealt");
+    expect(describeAll(engine, state)).toContain(
+      "The traitor is dealt in secret: each player looks at their own token.",
+    );
     expect(eventTypes(state)).not.toContain("side-set");
     state.seats.forEach((seat, i) => {
       expect(seat.knownBy).toEqual(i === traitor ? [i] : [i, traitor]);
@@ -268,6 +287,9 @@ describe("turn order after the haunt", () => {
     let state = readyAll(hauntGame());
     state = choose(state, "Take an extra turn after this one", TOY_ENGINE);
     expect(state.insertedTurns).toMatchObject([{ seat: 2, kind: "explorer" }]);
+    expect(describeAll(TOY_ENGINE, state)).toContain(
+      "Father Rhinehardt takes an extra turn next.",
+    );
     state = choose(state, "End your turn", TOY_ENGINE);
     expect(turnsStarted(state)).toEqual([[2, "explorer"]]);
     expect(state.turn?.follows).toEqual({ seat: 2, kind: "explorer" });

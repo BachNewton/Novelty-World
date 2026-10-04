@@ -1,4 +1,4 @@
-import type { GameState, Seat, Side } from "../types";
+import type { GameState, Seat, Side, TurnKind } from "../types";
 import { allFigures, figureName, TRAITS } from "../engine/figures";
 import { traitValue } from "../engine/questions";
 import type { Engine } from "../engine/step-loop";
@@ -10,6 +10,12 @@ function allegiance(seat: Seat): string[] {
   const what = seat.roles.includes("traitor") ? "Traitor" : SIDE_NAMES[seat.side];
   return [seat.knownBy === null ? what : `${what} (secret)`];
 }
+
+const TURN_NAMES: Record<TurnKind, string> = {
+  explorer: "explorer turn",
+  traitor: "traitor turn",
+  monster: "monster turn",
+};
 
 const SIDE_NAMES: Record<Side, string> = {
   heroes: "Hero",
@@ -35,7 +41,9 @@ export function SidePanel({
         <dd>{state.omensDrawn}</dd>
         <dt className="text-(--bt-muted)">Turn</dt>
         <dd>
-          {state.turn ? seatLabel(engine, state, state.turn.seat) : "none"}
+          {state.turn
+            ? `${seatLabel(engine, state, state.turn.seat)}, ${TURN_NAMES[state.turn.kind]}${state.turn.follows ? " (inserted)" : ""}`
+            : "none"}
         </dd>
         <dt className="text-(--bt-muted)">Haunt</dt>
         <dd>
@@ -43,6 +51,35 @@ export function SidePanel({
             ? `#${state.haunt.number}, revealed by ${seatLabel(engine, state, state.haunt.revealer)} (${cards[state.haunt.omen].name} in the ${rooms[state.haunt.room].name})`
             : "not yet"}
         </dd>
+        {state.haunt && (
+          <>
+            <dt className="text-(--bt-muted)">Counters</dt>
+            <dd>
+              {Object.entries(state.haunt.counters)
+                .map(([id, value]) => `${id}: ${value}`)
+                .join(", ") || "none"}
+            </dd>
+            <dt className="text-(--bt-muted)">Secrets</dt>
+            <dd>
+              {state.haunt.secrets
+                .map(
+                  (s) =>
+                    `${s.id}: ${JSON.stringify(s.value)} (${s.knownBy === null ? "everyone knows" : `known to ${s.knownBy.map((seat) => seatLabel(engine, state, seat)).join(", ") || "no one"}`})`,
+                )
+                .join("; ") || "none"}
+            </dd>
+          </>
+        )}
+        {state.result && (
+          <>
+            <dt className="text-(--bt-muted)">Result</dt>
+            <dd>
+              {state.result.winners.length === 0
+                ? "no one wins"
+                : `won by ${state.result.winners.map((seat) => seatLabel(engine, state, seat)).join(", ")}`}
+            </dd>
+          </>
+        )}
       </dl>
 
       {allFigures(state).map((figure) => {
