@@ -36,13 +36,19 @@ const browser = await chromium.launch({
     ? ["--use-angle=d3d11", "--ignore-gpu-blocklist", "--enable-gpu"]
     : ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
-const errors = [];
+// A room that throws while building never becomes ready, so without this the
+// run would end in a bare timeout instead of the room's own error.
+async function failOnPageError(error) {
+  console.error(`The bench threw while showing "${ROOM}":\n${error.stack ?? error.message}`);
+  await browser.close();
+  process.exit(1);
+}
 
 async function openBench(viewport) {
   const page = await browser.newPage({ viewport });
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (error) => void failOnPageError(error));
   page.on("console", (m) => {
-    if (m.type() === "error") errors.push(m.text());
+    if (m.type() === "error") console.error("page console error:", m.text());
   });
   await page.goto(`${BASE}?bench=${encodeURIComponent(ROOM)}`, { waitUntil: "networkidle" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
@@ -103,5 +109,4 @@ const sheetPath = join(OUTDIR, "contact-sheet.png");
 await sheet.screenshot({ path: sheetPath, fullPage: true });
 console.log("wrote", sheetPath);
 
-if (errors.length) console.log("page errors:\n" + errors.slice(0, 10).join("\n"));
 await browser.close();
