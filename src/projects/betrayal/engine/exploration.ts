@@ -26,7 +26,9 @@ import {
   defineDecision,
   defineStep,
   drawCard,
+  gainCard,
   handle,
+  loseCard,
   isHandled,
   roll,
   step,
@@ -486,14 +488,16 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       dropRoom: null,
       pickupRoom: null,
       traded: false,
+      over: false,
       omens: [],
     };
     ctx.emit("turn-started", RULEBOOK(5), { seat: p.seat });
     ctx.push(step<TurnParams>("turn-menu", p));
   }),
 
-  "turn-menu": defineStep<TurnParams>((_state, p, ctx) => {
-    ctx.decide([p.seat], "turn", p, RULEBOOK(6));
+  "turn-menu": defineStep<TurnParams>((state, p, ctx) => {
+    if (state.turn?.over) ctx.push(step<TurnParams>("end-turn", p));
+    else ctx.decide([p.seat], "turn", p, RULEBOOK(6));
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
@@ -539,21 +543,10 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   drop: defineStep<Drop>((state, p, ctx) => {
-    const explorer = explorerAt(state, p.seat);
-    explorer.cards = explorer.cards.filter((c) => c !== p.card);
-    state.piles[explorer.room] = [
-      ...(state.piles[explorer.room] ?? []),
-      p.card,
-    ];
+    const room = explorerAt(state, p.seat).room;
     handle(state, p.card);
-    if (state.turn) state.turn.dropRoom = explorer.room;
-    ctx.emit("dropped", RULEBOOK(11), {
-      seat: p.seat,
-      card: p.card,
-      room: explorer.room,
-    });
-    const onLose = ctx.engine.behaviours.cards[p.card]?.onLose;
-    if (onLose) ctx.push(...onLose(state, p.seat));
+    if (state.turn) state.turn.dropRoom = room;
+    ctx.push(loseCard(p.seat, p.card, { to: "room", room }, RULEBOOK(11)));
   }),
 
   pickup: defineStep<Drop>((state, p, ctx) => {
@@ -561,16 +554,9 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     const pile = (state.piles[explorer.room] ?? []).filter((c) => c !== p.card);
     if (pile.length > 0) state.piles[explorer.room] = pile;
     else delete state.piles[explorer.room];
-    explorer.cards.push(p.card);
     handle(state, p.card);
     if (state.turn) state.turn.pickupRoom = explorer.room;
-    ctx.emit("picked-up", RULEBOOK(11), {
-      seat: p.seat,
-      card: p.card,
-      room: explorer.room,
-    });
-    const onGain = ctx.engine.behaviours.cards[p.card]?.onGain;
-    if (onGain) ctx.push(...onGain(state, p.seat));
+    ctx.push(gainCard(p.seat, p.card, "picked-up", RULEBOOK(11)));
   }),
 
   "end-turn": defineStep<TurnParams>((state, p, ctx) => {
@@ -708,27 +694,23 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
         ctx.emit("trade-declined", RULEBOOK(11), p);
         return null;
       }
-      const from = explorerAt(state, p.from);
-      const to = explorerAt(state, p.to);
-      const moves: [typeof from, typeof to, string | null][] = [
-        [from, to, p.give],
-        [to, from, p.take],
+      const moves: [number, number, string | null][] = [
+        [p.from, p.to, p.give],
+        [p.to, p.from, p.take],
       ];
-      for (const [giver, taker, card] of moves) {
-        if (card === null) continue;
-        giver.cards = giver.cards.filter((c) => c !== card);
-        taker.cards.push(card);
-        handle(state, card);
-      }
       if (state.turn) state.turn.traded = true;
       ctx.emit("traded", RULEBOOK(11), p);
       ctx.push(
         ...moves.flatMap(([giver, taker, card]) => {
           if (card === null) return [];
-          const behaviour = ctx.engine.behaviours.cards[card];
+          handle(state, card);
           return [
-            ...(behaviour?.onLose?.(state, giver.seat) ?? []),
-            ...(behaviour?.onGain?.(state, taker.seat) ?? []),
+            loseCard(
+              giver,
+              card,
+              { to: "explorer", seat: taker, by: "traded" },
+              RULEBOOK(11),
+            ),
           ];
         }),
       );

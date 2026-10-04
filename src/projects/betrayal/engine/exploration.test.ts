@@ -10,7 +10,21 @@ import {
 } from "../testing";
 import type { GameState } from "../types";
 import { traitValue } from "./explorers";
-import { chooseOne, damage, endOngoing, gain, startOngoing } from "./effects";
+import {
+  cardCount,
+  cardFlag,
+  chooseOne,
+  damage,
+  discardCard,
+  drawCard,
+  endOngoing,
+  gain,
+  keepCard,
+  loseCard,
+  markCard,
+  returnToDeck,
+  startOngoing,
+} from "./effects";
 import { apply, choices, start } from "./step-loop";
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
@@ -263,5 +277,83 @@ describe("the choices offered are exactly the legal ones", () => {
         if (result.ok) state = result.state;
       }
     }
+  });
+});
+
+describe("cards changing hands", () => {
+  const rule = { source: "rulebook", page: 11 } as const;
+  const gained = (state: GameState) =>
+    state.lastEvents
+      .filter((e) => e.type === "card-gained")
+      .map((e) => e.data as { seat: number; card: string; by: string });
+  const idle = (state: GameState) => ({ ...state, pending: null });
+
+  it("raises card-gained however a card is gained", () => {
+    const base = testGame({ decks: { item: ["axe"] } });
+    const drawn = start(ENGINE, idle(base), [drawCard(0, "item", rule)]);
+    expect(gained(drawn)).toEqual([{ seat: 0, card: "axe", by: "drawn" }]);
+
+    const kept = start(ENGINE, idle(base), [keepCard(0, "lights-out")]);
+    expect(gained(kept)).toEqual([{ seat: 0, card: "lights-out", by: "kept" }]);
+
+    const pile = testGame();
+    pile.piles["entrance-hall"] = ["axe"];
+    expect(gained(choose(pile, "Pick up the Axe"))).toEqual([
+      { seat: 0, card: "axe", by: "picked-up" },
+    ]);
+
+    const trade = testGame();
+    trade.explorers[0].cards = ["axe"];
+    trade.explorers[1].cards = ["lucky-stone"];
+    const traded = choose(
+      choose(trade, "Offer Ox Bellows your Axe for their Lucky Stone"),
+      "Accept the trade",
+    );
+    expect(gained(traded)).toEqual([
+      { seat: 1, card: "axe", by: "traded" },
+      { seat: 0, card: "lucky-stone", by: "traded" },
+    ]);
+  });
+
+  it("keeps a card's marks for as long as they last", () => {
+    const state = testGame();
+    state.explorers[0].cards = ["axe", "lucky-stone"];
+    const marked = start(ENGINE, idle(state), [
+      markCard("axe", "held", true, "holder", rule),
+      markCard("axe", "count", 2, "play", rule),
+      markCard("lucky-stone", "count", 1, "play", rule),
+    ]);
+    expect(cardFlag(marked, "axe", "held")).toBe(true);
+    expect(cardCount(marked, "axe", "count")).toBe(2);
+
+    // Leaving its holder clears the holder's marks; the card's own stay with it.
+    const dropped = start(ENGINE, marked, [
+      loseCard(0, "axe", { to: "room", room: "entrance-hall" }, rule),
+    ]);
+    expect(cardFlag(dropped, "axe", "held")).toBe(false);
+    expect(cardCount(dropped, "axe", "count")).toBe(2);
+
+    // Leaving play clears them all.
+    const discarded = start(ENGINE, marked, [discardCard(0, "lucky-stone")]);
+    expect(discarded.cardMarks["lucky-stone"]).toBeUndefined();
+    expect(cardCount(discarded, "axe", "count")).toBe(2);
+  });
+
+  it("returns a held card to its deck, shuffles the deck, and runs the card's onLose", () => {
+    const state = testGame();
+    state.decks.item.draw = state.decks.item.draw.filter((c) => c !== "bell");
+    state.explorers[0].cards = ["bell"];
+    const before = state.explorers[0].clips.sanity;
+    const after = start(ENGINE, idle(state), [returnToDeck(0, "bell", rule)]);
+    expect(after.explorers[0].cards).toEqual([]);
+    expect([...after.decks.item.draw].sort()).toEqual(
+      [...state.decks.item.draw, "bell"].sort(),
+    );
+    expect(after.decks.item.draw).not.toEqual([
+      ...state.decks.item.draw,
+      "bell",
+    ]);
+    // The Bell: "If you lose the Bell, lose 1 Sanity."
+    expect(after.explorers[0].clips.sanity).toBe(before - 1);
   });
 });

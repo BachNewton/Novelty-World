@@ -24,6 +24,7 @@ export function emptyState(
     piles: {},
     tokens: [],
     ongoing: [],
+    cardMarks: {},
     turn: null,
     omensDrawn: 0,
     haunt: null,

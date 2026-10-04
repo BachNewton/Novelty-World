@@ -6,6 +6,7 @@ import {
   discardCard,
   drawCard,
   gain,
+  loseCard,
   placeToken,
   removeToken,
   roll,
@@ -69,7 +70,6 @@ function heldItems(state: GameState, seat: number): string[] {
 }
 
 type SeatParams = { seat: number };
-type ItemParams = { seat: number; card: string };
 type PossessionParams = { seat: number; trait: Trait };
 
 /** Event cards B of the base game, from content/cards/events.md. */
@@ -248,30 +248,17 @@ export const EVENTS_B: BehaviourGroup = {
               items.map((item) => ({
                 label: `Put the ${ctx.catalog.cards[item].name} in the Entrance Hall`,
                 steps: [
-                  local("shrieking-wind", "to-entrance-hall", {
-                    seat: p.seat,
-                    card: item,
-                  }),
+                  loseCard(
+                    p.seat,
+                    item,
+                    { to: "room", room: "entrance-hall" },
+                    card("shrieking-wind"),
+                  ),
                 ],
               })),
               card("shrieking-wind"),
             ),
           );
-        }),
-        "to-entrance-hall": defineStep<ItemParams>((state, p, ctx) => {
-          const explorer = explorerAt(state, p.seat);
-          explorer.cards = explorer.cards.filter((c) => c !== p.card);
-          state.piles["entrance-hall"] = [
-            ...(state.piles["entrance-hall"] ?? []),
-            p.card,
-          ];
-          ctx.emit("item-moved", card("shrieking-wind"), {
-            seat: p.seat,
-            card: p.card,
-            room: "entrance-hall",
-          });
-          const onLose = ctx.engine.behaviours.cards[p.card]?.onLose;
-          if (onLose) ctx.push(...onLose(state, p.seat));
         }),
       },
     },

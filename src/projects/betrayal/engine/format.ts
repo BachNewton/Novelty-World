@@ -2,11 +2,24 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 1;
+export const STATE_FORMAT = 2;
 
 /** Migrations by the format they upgrade from, each to the next format. */
 type Migration = (state: { [key: string]: Json }) => { [key: string]: Json };
-const MIGRATIONS: Partial<Record<number, Migration>> = {};
+const MIGRATIONS: Partial<Record<number, Migration>> = {
+  // Format 2 adds marks on cards and turns that end early.
+  1: (state) => {
+    const turn = state.turn;
+    return {
+      ...state,
+      cardMarks: {},
+      turn:
+        turn !== null && typeof turn === "object" && !Array.isArray(turn)
+          ? { ...turn, over: false }
+          : null,
+    };
+  },
+};
 
 /** Thrown for a state written by newer code than this bundle: the deploy has
  *  moved on, so the client reloads its code. */

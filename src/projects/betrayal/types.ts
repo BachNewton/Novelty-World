@@ -212,6 +212,16 @@ export interface Deck {
   discard: string[];
 }
 
+/** A counter or flag kept on a card in play. */
+export interface CardMark {
+  value: number | boolean;
+  /** "holder": it belongs to whoever holds the card (a worn Mask), so it is
+   *  cleared when the card leaves them. "play": it belongs to the card itself
+   *  (an open Music Box), so it stays while the card lies in a room or changes
+   *  hands, and is cleared when the card goes back to a deck or discard pile. */
+  lasts: "holder" | "play";
+}
+
 export interface RoomToken {
   token: string;
   room: string;
@@ -232,6 +242,8 @@ export interface Turn {
   dropRoom: string | null;
   pickupRoom: string | null;
   traded: boolean;
+  /** Something ended the turn early: the turn ends at the next chance to act. */
+  over: boolean;
   /** Omens drawn this turn, and the room each was drawn in, for the haunt roll. */
   omens: { card: string; room: string }[];
 }
@@ -259,6 +271,8 @@ export interface GameState {
   tokens: RoomToken[];
   /** Ongoing event cards in play that no explorer holds. */
   ongoing: string[];
+  /** Counters and flags on cards in play, by card id, then by name. */
+  cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   turn: Turn | null;
   /** Every omen card drawn this game, for the haunt roll (p. 15). */
   omensDrawn: number;

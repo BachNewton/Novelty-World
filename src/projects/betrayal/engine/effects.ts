@@ -1,4 +1,12 @@
-import type { CardType, GameState, Json, RuleRef, Step, Trait } from "../types";
+import type {
+  CardMark,
+  CardType,
+  GameState,
+  Json,
+  RuleRef,
+  Step,
+  Trait,
+} from "../types";
 import { explorerAt, MENTAL, moveClip, PHYSICAL } from "./explorers";
 import { askNumber } from "./questions";
 import { liveSources, type RollOption, type RollSpec } from "./sources";
@@ -278,14 +286,106 @@ export function drawCard(seat: number, type: CardType, rule: RuleRef): Step {
   return step<DrawCard>("draw-card", { seat, type, rule });
 }
 
+/** How a card came to its holder. */
+export type GainedBy = "drawn" | "kept" | "picked-up" | "traded" | "given";
+
+type GainCard = { seat: number; card: string; by: GainedBy; rule: RuleRef };
+
+/** An explorer gets a card that is no longer anywhere else. Every way of
+ *  getting a card goes through here, so "card-gained" covers them all. */
+export function gainCard(
+  seat: number,
+  card: string,
+  by: GainedBy,
+  rule: RuleRef,
+): Step {
+  return step<GainCard>("gain-card", { seat, card, by, rule });
+}
+
+/** Where a card goes when its holder loses it. */
+export type CardDestination =
+  | { to: "discard" }
+  /** Back into its deck, which is then shuffled. */
+  | { to: "deck" }
+  | { to: "room"; room: string }
+  | { to: "explorer"; seat: number; by: GainedBy };
+
+type LoseCard = {
+  seat: number;
+  card: string;
+  destination: CardDestination;
+  rule: RuleRef;
+};
+
+/** Its holder loses a card, however: its onLose runs, the marks that belong
+ *  to the holder are cleared, and the card goes to its destination. */
+export function loseCard(
+  seat: number,
+  card: string,
+  destination: CardDestination,
+  rule: RuleRef,
+): Step {
+  return step<LoseCard>("lose-card", { seat, card, destination, rule });
+}
+
 /** An event card the drawer keeps in front of them (for example while buried). */
 export function keepCard(seat: number, card: string): Step {
-  return step<{ seat: number; card: string }>("keep-card", { seat, card });
+  return gainCard(seat, card, "kept", { source: "card", card });
 }
 
 /** Its holder loses a card, to its deck's discard pile. */
 export function discardCard(seat: number, card: string): Step {
-  return step<{ seat: number; card: string }>("discard-card", { seat, card });
+  return loseCard(seat, card, { to: "discard" }, { source: "card", card });
+}
+
+/** Its holder puts a card back into its deck, and the deck is shuffled. */
+export function returnToDeck(seat: number, card: string, rule: RuleRef): Step {
+  return loseCard(seat, card, { to: "deck" }, rule);
+}
+
+type MarkCard = {
+  card: string;
+  name: string;
+  value: number | boolean;
+  lasts: CardMark["lasts"];
+  rule: RuleRef;
+};
+
+/** Sets a counter or flag on a card in play. False and 0 clear it. */
+export function markCard(
+  card: string,
+  name: string,
+  value: number | boolean,
+  lasts: CardMark["lasts"],
+  rule: RuleRef,
+): Step {
+  return step<MarkCard>("mark-card", { card, name, value, lasts, rule });
+}
+
+export function cardFlag(state: GameState, card: string, name: string): boolean {
+  return state.cardMarks[card]?.[name]?.value === true;
+}
+
+export function cardCount(state: GameState, card: string, name: string): number {
+  const value = state.cardMarks[card]?.[name]?.value;
+  return typeof value === "number" ? value : 0;
+}
+
+/** Clears a card's marks: those of its holder, or, as it leaves play, all of them. */
+function clearMarks(
+  state: GameState,
+  card: string,
+  which: "holder" | "all",
+): void {
+  const marks = state.cardMarks[card];
+  if (!marks) return;
+  const kept = Object.fromEntries(
+    Object.entries(marks).filter(
+      ([, mark]) => which === "holder" && mark.lasts === "play",
+    ),
+  );
+  if (Object.keys(kept).length > 0) state.cardMarks[card] = kept;
+  else delete state.cardMarks[card];
 }
 
 export function placeToken(token: string, room: string, rule: RuleRef): Step {
@@ -339,6 +439,11 @@ export function chooseOne(
 
 export function endMovement(seat: number, rule: RuleRef): Step {
   return step<{ seat: number; rule: RuleRef }>("end-movement", { seat, rule });
+}
+
+/** Ends the explorer's turn at its next chance to act. Off their turn, it does nothing. */
+export function endTurnNow(seat: number, rule: RuleRef): Step {
+  return step<{ seat: number; rule: RuleRef }>("end-turn-now", { seat, rule });
 }
 
 // ---------------------------------------------------------------------------
@@ -491,13 +596,12 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       );
       return;
     }
-    explorer.cards.push(card);
     if (p.type === "omen" && state.status === "exploring" && state.turn) {
       state.turn.omens.push({ card, room: explorer.room });
     }
     if (p.type === "omen") state.omensDrawn += 1;
     ctx.push(
-      ...(behaviour?.onGain?.(state, p.seat) ?? []),
+      gainCard(p.seat, card, "drawn", p.rule),
       ...(behaviour?.onDraw?.(state, p.seat) ?? []),
     );
   }),
@@ -509,26 +613,66 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     if (!kept) state.decks.event.discard.push(p.card);
   }),
 
-  "keep-card": defineStep<{ seat: number; card: string }>((state, p) => {
+  "gain-card": defineStep<GainCard>((state, p, ctx) => {
     explorerAt(state, p.seat).cards.push(p.card);
+    ctx.emit("card-gained", p.rule, { seat: p.seat, card: p.card, by: p.by });
+    ctx.push(
+      ...(ctx.engine.behaviours.cards[p.card]?.onGain?.(state, p.seat) ?? []),
+    );
   }),
 
-  "discard-card": defineStep<{ seat: number; card: string }>(
-    (state, p, ctx) => {
-      const explorer = explorerAt(state, p.seat);
-      if (!explorer.cards.includes(p.card))
-        throw new Error(`Seat ${p.seat} doesn't hold ${p.card}`);
-      explorer.cards = explorer.cards.filter((c) => c !== p.card);
-      state.decks[ctx.catalog.cards[p.card].type].discard.push(p.card);
-      ctx.emit(
-        "card-lost",
-        { source: "card", card: p.card },
-        { seat: p.seat, card: p.card },
-      );
-      const onLose = ctx.engine.behaviours.cards[p.card]?.onLose;
-      if (onLose) ctx.push(...onLose(state, p.seat));
-    },
-  ),
+  "lose-card": defineStep<LoseCard>((state, p, ctx) => {
+    const explorer = explorerAt(state, p.seat);
+    if (!explorer.cards.includes(p.card))
+      throw new Error(`Seat ${p.seat} doesn't hold ${p.card}`);
+    // Worked out while the card is still held, so it can read the card's marks.
+    const onLose =
+      ctx.engine.behaviours.cards[p.card]?.onLose?.(state, p.seat) ?? [];
+    explorer.cards = explorer.cards.filter((c) => c !== p.card);
+    const deck = state.decks[ctx.catalog.cards[p.card].type];
+    const where = p.destination;
+    switch (where.to) {
+      case "discard":
+        deck.discard.push(p.card);
+        clearMarks(state, p.card, "all");
+        break;
+      case "deck":
+        deck.draw = ctx.random.shuffle([...deck.draw, p.card]);
+        clearMarks(state, p.card, "all");
+        break;
+      case "room":
+        state.piles[where.room] = [...(state.piles[where.room] ?? []), p.card];
+        clearMarks(state, p.card, "holder");
+        break;
+      case "explorer":
+        clearMarks(state, p.card, "holder");
+        break;
+    }
+    ctx.emit("card-lost", p.rule, {
+      seat: p.seat,
+      card: p.card,
+      destination: where,
+    });
+    ctx.push(
+      ...onLose,
+      ...(where.to === "explorer"
+        ? [gainCard(where.seat, p.card, where.by, p.rule)]
+        : []),
+    );
+  }),
+
+  "mark-card": defineStep<MarkCard>((state, p, ctx) => {
+    const marks = { ...state.cardMarks[p.card] };
+    if (p.value === false || p.value === 0) delete marks[p.name];
+    else marks[p.name] = { value: p.value, lasts: p.lasts };
+    if (Object.keys(marks).length > 0) state.cardMarks[p.card] = marks;
+    else delete state.cardMarks[p.card];
+    ctx.emit("card-marked", p.rule, {
+      card: p.card,
+      name: p.name,
+      value: p.value,
+    });
+  }),
 
   "place-token": defineStep<{ token: string; room: string; rule: RuleRef }>(
     (state, p, ctx) => {
@@ -570,6 +714,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       throw new Error(`${p.card} isn't ongoing`);
     state.ongoing = state.ongoing.filter((c) => c !== p.card);
     state.decks.event.discard.push(p.card);
+    clearMarks(state, p.card, "all");
     ctx.emit(
       "ongoing-ended",
       { source: "card", card: p.card },
@@ -588,6 +733,14 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       if (state.turn?.seat === p.seat) state.turn.movementEnded = true;
       ctx.emit("movement-ended", p.rule, { seat: p.seat });
+    },
+  ),
+
+  "end-turn-now": defineStep<{ seat: number; rule: RuleRef }>(
+    (state, p, ctx) => {
+      if (state.turn?.seat !== p.seat) return;
+      state.turn.over = true;
+      ctx.emit("turn-cut-short", p.rule, { seat: p.seat });
     },
   ),
 };

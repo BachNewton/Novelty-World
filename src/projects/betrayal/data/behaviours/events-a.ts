@@ -519,16 +519,16 @@ export const EVENTS_A: BehaviourGroup = {
             state.explorers.some((e) => e.seat !== seat && e.room === room),
           "lights-out",
         ),
-        // Every way an explorer can get a card; a held Candle can only have just arrived.
-        ...["card-drawn", "picked-up", "traded"].map((event): Reaction => ({
-          event,
-          when: (state, _event, source) =>
-            source.holder !== null &&
-            explorerAt(state, source.holder).cards.includes("candle"),
+        {
+          event: "card-gained",
+          when: (_state, event, source) => {
+            const gained = eventData<{ seat: number; card: string }>(event);
+            return gained.card === "candle" && gained.seat === source.holder;
+          },
           steps: (_state, _event, source) => [
             local("lights-out", "discard", { seat: source.holder }),
           ],
-        })),
+        },
       ],
       steps: { discard: discardIfHeld("lights-out") },
     },

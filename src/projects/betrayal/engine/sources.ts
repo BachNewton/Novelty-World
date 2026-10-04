@@ -22,7 +22,7 @@ export interface Source {
   rule: RuleRef;
   /** The seat holding a card, if any. */
   holder: number | null;
-  /** The room a room source is, or a token sits in. */
+  /** The room a room source is, a token sits in, or a card lies in. */
   room: string | null;
 }
 
@@ -81,6 +81,19 @@ export interface Behaviour {
   rollOptions?: RollOption[];
   /** Steps only this source uses, registered under the source's id. */
   steps?: Record<string, StepHandler>;
+  /** A card lying in a room still acts from there (an open Music Box). Other
+   *  cards act only while someone holds them or they are ongoing. */
+  actsFromRoom?: boolean;
+  /** Plain-language wording for events this source names as their rule,
+   *  where the general wording of the event type would say too little. */
+  describe?: Partial<Record<string, (event: GameEvent, words: Words) => string>>;
+}
+
+/** Names for the things an event refers to by id. */
+export interface Words {
+  explorer: (seat: number) => string;
+  room: (room: string) => string;
+  card: (card: string) => string;
 }
 
 /** Part of the content's behaviours, as one file contributes them. */
@@ -126,6 +139,16 @@ export function liveSources(
   for (const card of state.ongoing) {
     const behaviour = behaviours.cards[card];
     if (behaviour) result.push({ source: cardSource(card, null), behaviour });
+  }
+  const piles = Object.entries(state.piles).sort(([a], [b]) =>
+    a < b ? -1 : 1,
+  );
+  for (const [room, pile] of piles) {
+    for (const card of pile) {
+      const behaviour = behaviours.cards[card];
+      if (behaviour?.actsFromRoom)
+        result.push({ source: { ...cardSource(card, null), room }, behaviour });
+    }
   }
   for (const token of state.tokens) {
     const behaviour = behaviours.tokens[token.token];
