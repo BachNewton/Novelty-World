@@ -34,7 +34,7 @@ export interface Theme {
   // Where in the game it would play.
   use: string;
   mood: string;
-  // The style traits it borrows; never a melody.
+  // The style traits it borrows, and the folk tune it arranges, if any.
   style: readonly string[];
   key: string;
   // A loop plays round and round; a jingle once.
