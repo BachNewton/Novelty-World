@@ -179,7 +179,8 @@ export function toyHaunt(
  *  except the revealer, on the chart) and haunt 6 (lowest Sanity). */
 export const TOY_ENGINE: Engine = withHaunts(ENGINE, [toyHaunt(13), toyHaunt(6)]);
 
-/** The toy haunt as the sweep plays it: the heroes need more wake tokens
+/** The toy haunt as the sweep plays it: two Phantoms, so a monster turn
+ *  has several monsters to act in turn; the heroes need more wake tokens
  *  and the game-ending actions wait for two monster turns, so random play
  *  reaches the monsters before the game ends. */
 function sweptToyHaunt(number: number): HauntDefinition {
@@ -196,8 +197,12 @@ function sweptToyHaunt(number: number): HauntDefinition {
       available: (state) => (state.haunt?.counters.escapes ?? 0) > 1,
     };
   };
+  const traitorSetup = (base.setup?.traitor ?? []).map((part) =>
+    part.part === "spawn" ? { ...part, count: 2 } : part,
+  );
   return {
     ...base,
+    setup: { ...base.setup, traitor: traitorSetup },
     actions: {
       ...actions,
       both: afterMonsters("both"),
