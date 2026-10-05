@@ -204,7 +204,7 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
 - **Figures:** monster and ally definitions (traits or a stats table, a movement policy, an attack rule, a defeat response, flags).
 - **Tracks and counters**, with their count expressions.
 - **Statuses** the haunt applies.
-- **Actions:** objective actions (who, where, cost, roll, limit, effect on success and failure). The kit makes the common ones: a task roll (one action per trait that can make it, at most one attempt a turn) and an escape from the house (a move out of the room, at a move's cost, leaving a marker and stepping a counter).
+- **Actions:** objective actions (who, where, cost, roll, limit, effect on success and failure). The kit makes the common ones: a task roll (one action per trait that can make it, at most one attempt a turn) and an escape from the house (for the figures of a side, or of one definition: the figure's own move out of the room, with no room to go to, so the canMove question, the room's rules for leaving and the cost of opponents in the way all apply as to any move; optionally leaving a marker that closes the room to later escapes, and stepping a counter).
 - **Modifiers**, **triggers** and **conditions**, as in section 5. A number change may be worked out from the game when it is asked (a supply of one per player). Win conditions are goals: a side and a test (a counter reaching a count, an explorer of a group dead, a card out of the game, or a local test), compiled to conditions that declare that side's seats the winners, and that may show everyone a secret as they are met.
 - **Knowledge:** the secret values and who sees them.
 - **Phases** (optional): the rules active in each phase, and the condition that switches between them.

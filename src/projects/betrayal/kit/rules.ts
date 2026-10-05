@@ -7,7 +7,7 @@ import type {
   Step,
   Trait,
 } from "../types";
-import { roll, table } from "../engine/effects";
+import { leaveRoom, roll, table } from "../engine/effects";
 import { canLeave } from "../engine/exploration";
 import { figureOf, together } from "../engine/figures";
 import {
@@ -19,11 +19,12 @@ import {
   settingUp,
   taskResult,
   type Count,
+  type EscapeMarks,
   type FigureGroup,
   type RoomMatch,
   type SeatGroup,
 } from "../engine/haunt";
-import type { DamageKind, Modifier } from "../engine/questions";
+import { askPermission, type DamageKind, type Modifier } from "../engine/questions";
 import { sideOf } from "../engine/sides";
 import { eventData, type Reaction } from "../engine/sources";
 import type { Engine } from "../engine/step-loop";
@@ -106,42 +107,51 @@ export const SETUP_CANT_KILL: Modifier = {
   change: { transform: () => ({ kind: "clamp" }) },
 };
 
-/** A figure of a definition leaves the house from a room that matches and
- *  has no marker yet, as its move out of the room: it costs a move's spaces
- *  of its own movement, opponents in the way included, but one that hasn't
- *  moved this turn can always go. A marker is left in the room and a
- *  counter steps (haunt 13's Nightmares escaping). */
-export function escapeAction(how: {
+/** A figure leaves the house from a room that matches, as its own move
+ *  out of the room: the move must be allowed (canMove, with no room to go
+ *  to), it costs a move's spaces, opponents in the way included, though one
+ *  that hasn't moved this turn can always go, and the room's rules for
+ *  leaving have their say. Who may escape: the figures on a side (any, by
+ *  default), of one definition if it names one. A marker, if any, is left
+ *  in the room, and no one escapes through a marked room again; a counter,
+ *  if any, steps (haunt 13's Nightmares escaping; heroes fleeing the house
+ *  in others). */
+export function escapeTheHouse(how: {
   label: string;
-  figure: string;
+  side?: Exclude<Side, "neutral"> | "any";
+  definition?: string;
   rooms: RoomMatch;
-  marker: string;
-  counter: string;
-  /** The secret the escapes race, for the log. */
-  of: string | null;
+  marker?: string;
+  /** The counter each escape steps, and the secret it races, for the log. */
+  counter?: { id: string; of: string | null };
   rule: RuleRef;
 }): ObjectiveAction {
+  const marks: EscapeMarks = {
+    marker: how.marker ?? null,
+    counter: how.counter ?? null,
+  };
   return {
     label: how.label,
-    side: "any",
+    side: how.side ?? "any",
     available: (state, figure, engine) => {
       const { place } = figureOf(state, figure);
-      if (!isA(state, figure, how.figure) || place === null) return false;
+      if (place === null) return false;
+      if (how.definition !== undefined && !isA(state, figure, how.definition))
+        return false;
       return (
         matchesRoom(engine.catalog, place.room, how.rooms) &&
         !state.tokens.some(
-          (t) => t.token === how.marker && t.room === place.room,
+          (t) => t.token === marks.marker && t.room === place.room,
         ) &&
-        canLeave(engine, state, figure)
+        canLeave(engine, state, figure) &&
+        askPermission(engine, state, "canMove", {
+          figure,
+          from: place.room,
+          to: null,
+        }).allowed
       );
     },
-    steps: (_state, figure) => [
-      escape(
-        figure,
-        { marker: how.marker, counter: how.counter, of: how.of },
-        how.rule,
-      ),
-    ],
+    steps: (_state, figure) => [leaveRoom(figure, escape(figure, marks, how.rule))],
   };
 }
 

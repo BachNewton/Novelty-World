@@ -69,8 +69,9 @@ export interface PermissionQuestions {
    *  attack happen. Who counts as an opponent, reach and the ways to attack
    *  are their own questions. */
   canAttack: { attacker: FigureId; target: AttackTarget };
-  /** Whether a figure may move from one room to another. */
-  canMove: { figure: FigureId; from: string; to: string };
+  /** Whether a figure may move from one room to another, or, with no room
+   *  to go to, out of the house (an escape). */
+  canMove: { figure: FigureId; from: string; to: string | null };
   /** Whether a figure may discover new rooms. Monsters can't (p. 19). */
   canDiscover: { figure: FigureId };
   /** Whether a figure may hold cards: draw, pick up, trade or be given

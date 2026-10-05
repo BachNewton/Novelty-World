@@ -3,7 +3,7 @@ import type { HauntDefinition } from "../../kit/haunt";
 import {
   carriedHere,
   dealsDamageAs,
-  escapeAction,
+  escapeTheHouse,
   killedWhenBeatenBy,
   replaceWhenLost,
   SETUP_CANT_KILL,
@@ -122,13 +122,12 @@ export const PERCHANCE_TO_DREAM: HauntDefinition = {
     rule: UNLEASH,
   }),
   actions: {
-    escape: escapeAction({
+    escape: escapeTheHouse({
       label: "Escape from the house",
-      figure: "nightmare",
+      definition: "nightmare",
       rooms: ESCAPE_ROOMS,
       marker: "item",
-      counter: "escapes",
-      of: "escape-rooms",
+      counter: { id: "escapes", of: "escape-rooms" },
       rule: ESCAPE,
     }),
     // Any hero in the dreamer's room, while a hero there carries the Holy

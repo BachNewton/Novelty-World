@@ -19,8 +19,8 @@ import {
   chooseOne,
   defineDecision,
   defineStep,
+  goOut,
   loseCard,
-  spendMove,
   step,
   worksAsItem,
 } from "./effects";
@@ -516,25 +516,21 @@ export function setAsideCompanions(who: FigureGroup, rule: RuleRef): Step {
   return step<GroupRule>("set-aside-companions", { who, rule });
 }
 
-type Escape = {
-  figure: FigureId;
-  /** The token left in the room, marking it used. */
-  marker: string;
-  counter: string;
-  /** The secret the counter is racing, if any, for the log. */
-  of: string | null;
-  rule: RuleRef;
+/** What an escape leaves behind: a token in the room, marking it used, and
+ *  a counter stepped, with the secret it races, for the log. */
+export type EscapeMarks = {
+  marker: string | null;
+  counter: { id: string; of: string | null } | null;
 };
 
-/** A figure leaves the house through its room, spending a move's spaces
- *  as it goes: a marker is left in the room and a counter steps. It leaves
- *  play without dying. */
-export function escape(
-  figure: FigureId,
-  how: { marker: string; counter: string; of: string | null },
-  rule: RuleRef,
-): Step {
-  return step<Escape>("escape", { figure, ...how, rule });
+type Escape = EscapeMarks & { figure: FigureId; rule: RuleRef };
+
+/** A figure leaves the house through its room, by its own move out of it,
+ *  leaving any marker and stepping any counter. It leaves play without
+ *  dying. Run it as a departure (`leaveRoom`), so the room's rules for
+ *  leaving have their say first. */
+export function escape(figure: FigureId, marks: EscapeMarks, rule: RuleRef): Step {
+  return step<Escape>("escape", { figure, ...marks, rule });
 }
 
 type Replacement = {
@@ -1013,19 +1009,21 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
   }),
 
   escape: defineStep<Escape>((state, p, ctx) => {
-    const room = placeOf(state, p.figure).room;
-    spendMove(state, ctx, p.figure);
-    state.tokens.push({ token: p.marker, room });
-    const value = counterValue(state, p.counter) + 1;
-    hauntState(state).counters[p.counter] = value;
+    const room = goOut(state, ctx, p.figure, p.rule, true);
+    if (p.marker !== null) state.tokens.push({ token: p.marker, room });
+    let value: number | null = null;
+    if (p.counter !== null) {
+      value = counterValue(state, p.counter.id) + 1;
+      hauntState(state).counters[p.counter.id] = value;
+    }
     figureOf(state, p.figure).place = null;
     ctx.emit("escaped", p.rule, {
       figure: p.figure,
       room,
       marker: p.marker,
-      counter: p.counter,
+      counter: p.counter?.id ?? null,
       value,
-      of: p.of,
+      of: p.counter?.of ?? null,
     });
   }),
 

@@ -58,7 +58,7 @@ export function trap(
       free: {
         label,
         offeredTo: "room",
-        escape: true,
+        whileUnable: true,
         available: (state) => !(state.turn?.rolls.includes(id) ?? true),
         steps: (_state, figure, source) => [
           roll(

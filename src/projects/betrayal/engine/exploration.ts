@@ -33,7 +33,7 @@ import {
 } from "./figures";
 import {
   arrived,
-  spendMove,
+  goOut,
   defineDecision,
   defineStep,
   gainCard,
@@ -368,7 +368,7 @@ function turnCandidates(engine: Engine, state: GameState): TurnChoice[] {
   if (!askPermission(engine, state, "canAct", { figure }).allowed)
     return [
       ...cardActions(engine, state, figure)
-        .filter(({ definition }) => definition.escape === true)
+        .filter(({ definition }) => definition.whileUnable === true)
         .map(
           ({ source, action }): TurnChoice => ({
             act: "action",
@@ -772,13 +772,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
-    spendMove(state, ctx, p.figure);
-    ctx.emit("left", RULEBOOK(6), {
-      figure: p.figure,
-      room: placeOf(state, p.figure).room,
-      moved: true,
-    });
-    const from = placeOf(state, p.figure).room;
+    const from = goOut(state, ctx, p.figure, RULEBOOK(6), true);
     putFigure(state, p.figure, { room: p.to, side: p.side });
     ctx.emit("entered", RULEBOOK(6), {
       figure: p.figure,

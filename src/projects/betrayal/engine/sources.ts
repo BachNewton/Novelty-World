@@ -114,8 +114,8 @@ export interface SourceAction {
    *  the holder from the Webs). */
   offeredTo?: "holder" | "room";
   /** Offered even while its figure can't act, being the way out of what
-   *  stops it. */
-  escape?: boolean;
+   *  stops it (freeing a figure from the Webs). */
+  whileUnable?: boolean;
   /** Whether the figure may take it now. Being offered is not enough: the action must also apply. */
   available: (
     state: GameState,

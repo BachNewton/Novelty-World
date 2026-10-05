@@ -144,6 +144,24 @@ export function spendMove(
     state.turn.moved[figure] = (state.turn.moved[figure] ?? 0) + cost;
 }
 
+/** A figure goes out of the room it is in, by whatever way: under its own
+ *  movement it spends a move's spaces, and the `left` event says so. Every
+ *  departure comes through here, after its rules for leaving have had
+ *  their say (`leaveRoom`). Returns the room it left, which it is still in
+ *  until the caller puts it somewhere. */
+export function goOut(
+  state: GameState,
+  ctx: StepContext,
+  figure: FigureId,
+  rule: RuleRef,
+  moved: boolean,
+): string {
+  const room = placeOf(state, figure).room;
+  if (moved) spendMove(state, ctx, figure);
+  ctx.emit("left", rule, { figure, room, moved });
+  return room;
+}
+
 /** Ends a figure's movement for the rest of the turn. */
 export function endMovementOf(state: GameState, figure: FigureId): void {
   if (state.turn && !state.turn.movementEnded.includes(figure))
@@ -1461,11 +1479,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       );
       return;
     }
-    ctx.emit("left", p.rule, {
-      figure: p.figure,
-      room: placeOf(state, p.figure).room,
-      moved: false,
-    });
+    goOut(state, ctx, p.figure, p.rule, false);
     putFigure(state, p.figure, {
       room: p.room,
       side: sides.length > 0 ? p.side : null,

@@ -109,7 +109,7 @@ export interface ObjectiveAction {
   /** Which side's figures may take it. */
   side: Exclude<Side, "neutral"> | "any";
   /** Offered even while the figure can't otherwise act. */
-  escape?: boolean;
+  whileUnable?: boolean;
   /** Where and when it can be taken, past being on the right side. */
   available?: (state: GameState, figure: FigureId, engine: Engine) => boolean;
   steps: (state: GameState, figure: FigureId) => Step[];
@@ -241,7 +241,7 @@ function goalCondition(definition: HauntDefinition, goal: Goal): Condition {
 function sourceAction(action: ObjectiveAction): SourceAction {
   return {
     label: action.label,
-    ...(action.escape === undefined ? {} : { escape: action.escape }),
+    ...(action.whileUnable === undefined ? {} : { whileUnable: action.whileUnable }),
     available: (state, figure, _source, engine) =>
       (action.side === "any" || sideOf(engine, state, figure) === action.side) &&
       (action.available?.(state, figure, engine) ?? true),

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BASE_ENGINE, ENGINE } from "../game";
 import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
-import { ALL_TOY_ENGINE, TOY_ENGINE, toyHaunt } from "../test/toy-haunt";
+import { ALL_TOY_ENGINE, TOY_ENGINE, toyBegun, toyHaunt } from "../test/toy-haunt";
 import {
   choose,
   eventTypes,
@@ -16,7 +16,8 @@ import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
 import { die, removeStatus } from "./effects";
-import { revealSecret } from "./haunt";
+import { hauntRule, revealSecret } from "./haunt";
+import { escapeTheHouse } from "../kit/rules";
 import { hauntSourceId, local } from "./sources";
 import { apply, start, type Engine } from "./step-loop";
 
@@ -439,6 +440,48 @@ describe("conditions and the result", () => {
     expect(state.result?.winners).toEqual([1]);
     expect(describeAll(TOY_ENGINE, state).at(-1)).toBe(
       "The traitor's side wins: Ox Bellows.",
+    );
+  });
+});
+
+describe("escaping the house (the kit's escapeTheHouse)", () => {
+  // Heroes may flee through the Entrance Hall's front door, leaving no
+  // marker and stepping no counter, unless a rule stops moving out.
+  const fleeing = (blocked: boolean) =>
+    withHaunts(BASE_ENGINE, [
+      toyHaunt(13, {
+        actions: {
+          flee: escapeTheHouse({
+            label: "Flee the house",
+            side: "heroes",
+            rooms: { rooms: ["entrance-hall"] },
+            rule: hauntRule(13, "Rules"),
+          }),
+        },
+        modifiers: blocked
+          ? [{ question: "canMove", when: (_s, { to }) => to === null, change: { deny: true } }]
+          : [],
+      }),
+    ]);
+
+  it("lets a hero leave play by its own move out of the room, through the one way out", () => {
+    const engine = fleeing(false);
+    let state = toyBegun(engine);
+    expect(state.turn?.seat).toBe(2);
+    state = choose(state, "Flee the house", engine);
+    expect(state.figures[FATHER]).toMatchObject({ place: null, alive: true });
+    const types = eventTypes(state);
+    expect(types.indexOf("left")).toBeLessThan(types.indexOf("escaped"));
+    expect(state.tokens).toEqual([]);
+    expect(describeAll(engine, state)).toContain(
+      "Father Rhinehardt escapes from the house through the Entrance Hall's front door.",
+    );
+  });
+
+  it("isn't offered where a rule stops the move out", () => {
+    const engine = fleeing(true);
+    expect(offered(toyBegun(engine), engine).map((c) => c.label)).not.toContain(
+      "Flee the house",
     );
   });
 });

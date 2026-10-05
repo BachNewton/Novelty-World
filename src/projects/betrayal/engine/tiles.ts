@@ -32,7 +32,7 @@ import {
   chooserSeat,
   chosenBy,
   chooseSide,
-  spendMove,
+  goOut,
   type Chooser,
   type ChosenBy,
   continueWith,
@@ -186,8 +186,7 @@ export function discoverRoom(
       : how.side;
   if (barrier && side === null)
     throw new Error(`No side to enter the barrier room ${room} on`);
-  if (how.moved) spendMove(state, ctx, figure);
-  ctx.emit("left", rule, { figure, room: from, moved: how.moved });
+  goOut(state, ctx, figure, rule, how.moved);
   putFigure(state, figure, { room, side });
   ctx.emit("discovered", rule, { figure, room });
   const symbols = how.draws

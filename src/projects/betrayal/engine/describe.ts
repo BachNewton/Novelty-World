@@ -658,9 +658,9 @@ export function describeEvent(
       const d = data<{
         figure: FigureId;
         room: string;
-        marker: string;
-        counter: string;
-        value: number;
+        marker: string | null;
+        counter: string | null;
+        value: number | null;
         of: string | null;
       }>(event);
       const room = words.room(d.room);
@@ -677,9 +677,15 @@ export function describeEvent(
           : view.haunt?.secrets.find((s) => s.id === d.of);
       const target =
         secret === undefined ? "" : ` of ${secret.known ? JSON.stringify(secret.value) : "?"}`;
-      return sentence(
-        `${who(d.figure)} escapes from the house ${way}, and the ${engine.catalog.tokens[d.marker].name} token left there marks it used: ${d.value}${target} ${hauntName(engine, view, "counters", d.counter)}`,
-      );
+      const marked =
+        d.marker === null
+          ? ""
+          : `, and the ${engine.catalog.tokens[d.marker].name} token left there marks it used`;
+      const counted =
+        d.counter === null
+          ? ""
+          : `: ${String(d.value)}${target} ${hauntName(engine, view, "counters", d.counter)}`;
+      return sentence(`${who(d.figure)} escapes from the house ${way}${marked}${counted}`);
     }
     case "rooms-short":
       return sentence("No more of the rooms the haunt asks for can be put in the house");
