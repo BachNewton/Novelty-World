@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { withHaunts } from "../kit/haunt";
+import { taskRoll } from "../kit/rules";
 import { checkListedAreLegal, simulate } from "../simulation";
 import {
   ALL_TOY_ENGINE,
@@ -336,6 +337,45 @@ describe("spawning a haunt's figures", () => {
     ]);
     expect(state.figures["phantom-2"]).toMatchObject({ alive: true, owner: 1 });
     expect(state.memory.spawned).toEqual({ phantom: 2 });
+  });
+});
+
+describe("a task roll on a monster turn", () => {
+  // Every monster may try the howl once a turn, and only once.
+  const HOWLING: Engine = withHaunts(BASE_ENGINE, [
+    toyHaunt(13, {
+      figures: [PHANTOM, SHADE],
+      setup: {
+        traitor: [
+          { part: "status", who: "traitor", status: "dozing" },
+          { part: "spawn", figure: "phantom", count: 1, at: "traitor", owner: "traitor" },
+          { part: "spawn", figure: "shade", count: 1, at: "traitor", owner: "traitor" },
+        ],
+      },
+      actions: taskRoll({
+        id: "howl",
+        task: "howl",
+        traits: ["might"],
+        target: 20,
+        side: "traitor",
+        success: () => ({ token: null, steps: [] }),
+        rule: RULE,
+      }),
+      reactions: [],
+      goals: [],
+    }),
+  ]);
+  const HOWL = "Make a Might roll of 20+ to howl";
+
+  it("is attempted once by each figure, not once for the whole turn", () => {
+    let state = toMonsterTurn(toyBegun(HOWLING), HOWLING);
+    state = choose(state, "Act with Phantom 1", HOWLING);
+    state = choose(state, HOWL, HOWLING);
+    expect(offered(state, HOWLING).map((c) => c.label)).not.toContain(HOWL);
+    state = choose(state, "Finish Phantom 1's actions", HOWLING);
+    state = choose(state, "Act with Shade 1", HOWLING);
+    expect(offered(state, HOWLING).map((c) => c.label)).toContain(HOWL);
+    expect(state.turn?.rolls).toEqual({ [PHANTOM_1]: ["howl"] });
   });
 });
 

@@ -245,7 +245,7 @@ describe("migrate", () => {
           moved: { "ox-bellows": 2 },
           movementEnded: ["ox-bellows"],
           attacked: ["ox-bellows"],
-          rolls: ["bell"],
+          rolls: { "ox-bellows": ["bell"] },
           omens: [{ card: "book", figure: "ox-bellows", room: "chasm" }],
         },
         work: [],
@@ -422,6 +422,28 @@ describe("migrate", () => {
         turn: { ...saved.turn, seat: 1, kind: "monster" },
       });
       expect(migrated.turn).toMatchObject(actedBy(null));
+    });
+  });
+
+  describe("a format 9 state", () => {
+    const turn = {
+      seat: 1,
+      kind: "monster",
+      actors: ["phantom-1", "phantom-2"],
+      acting: "phantom-2",
+      rolls: ["bell"],
+    };
+    const saved = { format: 9, gameId: "g", turn };
+
+    it("puts the turn's rolls down to the figure acting", () => {
+      expect(migrate(saved).turn?.rolls).toEqual({ "phantom-2": ["bell"] });
+      expect(migrate({ ...saved, turn: { ...turn, rolls: [] } }).turn?.rolls).toEqual({});
+    });
+
+    it("is refused when rolls were made and no figure is acting to have made them", () => {
+      expect(() =>
+        migrate({ ...saved, turn: { ...turn, acting: null } }),
+      ).toThrow(/can't be put down to a figure/);
     });
   });
 

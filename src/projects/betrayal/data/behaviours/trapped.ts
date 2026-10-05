@@ -3,6 +3,7 @@ import {
   defineStep,
   discardCard,
   markCard,
+  mayAttempt,
   roll,
   table,
 } from "../../engine/effects";
@@ -59,7 +60,7 @@ export function trap(
         label,
         offeredTo: "room",
         whileUnable: true,
-        available: (state) => !(state.turn?.rolls.includes(id) ?? true),
+        available: (state, figure) => mayAttempt(state, figure, id),
         steps: (_state, figure, source) => [
           roll(
             figure,

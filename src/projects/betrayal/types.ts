@@ -402,8 +402,9 @@ export interface Turn {
   moved: Partial<Record<FigureId, number>>;
   /** Figures whose movement has ended: drawing a card ends it for the rest of the turn (p. 6). */
   movementEnded: FigureId[];
-  /** Rolls attempted: the same roll can't be attempted twice in a turn (p. 12). */
-  rolls: string[];
+  /** Rolls attempted, by the figure that attempted them: a figure can't
+   *  attempt the same roll twice in a turn (p. 12). */
+  rolls: Partial<Record<FigureId, string[]>>;
   /** Cards used, traded, dropped or picked up: each card allows one such action a turn (p. 11). */
   handled: string[];
   /** Where this turn's drop and pick-up happened: each is one action a turn, in one room. */

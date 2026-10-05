@@ -902,9 +902,27 @@ export function harmful(
 }
 
 /** Records a once-a-turn use made without a roll (passing the Wall Switch
- *  without rolling), so it counts as that roll's attempt (p. 12). */
-export function attempt(id: string): Step {
-  return step<{ id: string }>("attempt", { id });
+ *  without rolling), so it counts as the figure's attempt at that roll
+ *  (p. 12). */
+export function attempt(figure: FigureId, id: string): Step {
+  return step<{ figure: FigureId; id: string }>("attempt", { figure, id });
+}
+
+/** Whether a figure has attempted a roll this turn: each may attempt the
+ *  same roll once a turn (p. 12). */
+export function attempted(state: GameState, figure: FigureId, id: string): boolean {
+  return state.turn?.rolls[figure]?.includes(id) ?? false;
+}
+
+/** Whether a figure may attempt a roll now: on a turn, and not yet this
+ *  turn. */
+export function mayAttempt(state: GameState, figure: FigureId, id: string): boolean {
+  return state.turn !== null && !attempted(state, figure, id);
+}
+
+function recordAttempt(state: GameState, figure: FigureId, id: string): void {
+  if (state.turn === null || attempted(state, figure, id)) return;
+  state.turn.rolls[figure] = [...(state.turn.rolls[figure] ?? []), id];
 }
 
 /** A figure is stunned (p. 18): it gets in no one's way, and misses its next
@@ -1143,10 +1161,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
 
   roll: defineStep<Roll>((state, p, ctx) => {
     if (!takesPart(state, p.figure)) return;
-    if (p.id !== null && state.turn) {
-      if (state.turn.rolls.includes(p.id))
-        throw new Error(`Roll ${p.id} was already attempted this turn`);
-      state.turn.rolls.push(p.id);
+    if (p.id !== null) {
+      if (attempted(state, p.figure, p.id))
+        throw new Error(`${p.figure} already attempted roll ${p.id} this turn`);
+      recordAttempt(state, p.figure, p.id);
     }
     const pool = askNumber(ctx.engine, state, "dicePool", {
       figure: p.figure,
@@ -1627,9 +1645,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     },
   ),
 
-  attempt: defineStep<{ id: string }>((state, p) => {
-    if (state.turn && !state.turn.rolls.includes(p.id))
-      state.turn.rolls.push(p.id);
+  attempt: defineStep<{ figure: FigureId; id: string }>((state, p) => {
+    recordAttempt(state, p.figure, p.id);
   }),
 
   "end-turn-now": defineStep<{ figure: FigureId; rule: RuleRef }>(

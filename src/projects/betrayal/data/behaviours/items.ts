@@ -5,6 +5,7 @@ import {
   mayAttackNow,
 } from "../../engine/combat";
 import {
+  attempted,
   canBeMoved,
   cardFlag,
   chooseOne,
@@ -17,12 +18,12 @@ import {
   gain,
   loseCard,
   markCard,
+  type Option,
   relocate,
   roll,
   steal,
   stealable,
   table,
-  type Option,
 } from "../../engine/effects";
 import {
   allFigures,
@@ -311,8 +312,8 @@ export const ITEMS: BehaviourGroup = {
       actions: {
         ring: {
           label: "Ring the Bell (Sanity roll)",
-          available: (state) =>
-            state.status === "haunt" && !state.turn?.rolls.includes("bell"),
+          available: (state, figure) =>
+            state.status === "haunt" && !attempted(state, figure, "bell"),
           steps: (_state, figure) => [
             roll(
               figure,

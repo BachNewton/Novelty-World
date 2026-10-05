@@ -2,13 +2,15 @@ import { FLOOR_NAMES, placed } from "../../engine/board";
 import { allFigures, figureDefinition, placeOf } from "../../engine/figures";
 import {
   attempt,
+  attempted,
   chooseOne,
   damage,
-  harmful,
   defineStep,
   drawCard,
   endMovement,
   gain,
+  harmful,
+  mayAttempt,
   placeToken,
   relocate,
   roll,
@@ -194,7 +196,7 @@ function barrierRoom(trait: Trait, target: number): Behaviour {
         available: (state, figure, source, engine) =>
           state.turn !== null &&
           !state.turn.movementEnded.includes(figure) &&
-          !state.turn.rolls.includes(id(source.id)) &&
+          !attempted(state, figure, id(source.id)) &&
           !askStructured(engine, state, "ignoresBarriers", { figure }),
         steps: (state, figure, source) => {
           const { side } = placeOf(state, figure);
@@ -226,7 +228,7 @@ function barrierRoom(trait: Trait, target: number): Behaviour {
               },
               ignore: {
                 label: "Cross without rolling",
-                steps: [attempt(id(source.id)), cross],
+                steps: [attempt(figure, id(source.id)), cross],
               },
             }),
           ];
@@ -328,7 +330,7 @@ export const ROOMS: BehaviourGroup = {
           label: "Try to open the Vault (Knowledge roll of 6+)",
           available: (state, figure, _source, engine) =>
             !state.tokens.some((t) => t.token === "vault-empty") &&
-            !(state.turn?.rolls.includes("vault") ?? true) &&
+            mayAttempt(state, figure, "vault") &&
             askPermission(engine, state, "canCarry", { figure }).allowed,
           steps: (_state, figure, source) => [
             roll(
@@ -520,7 +522,7 @@ export const ROOMS: BehaviourGroup = {
             return false;
           return freeRider(engine, state, figure)
             ? type === "entered" && !state.turn.setUses.includes(ELEVATOR)
-            : !state.turn.rolls.includes(ELEVATOR);
+            : !attempted(state, figure, ELEVATOR);
         },
         steps: (
           state: GameState,

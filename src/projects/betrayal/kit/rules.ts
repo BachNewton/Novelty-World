@@ -7,7 +7,7 @@ import type {
   Step,
   Trait,
 } from "../types";
-import { leaveRoom, roll, table } from "../engine/effects";
+import { leaveRoom, mayAttempt, roll, table } from "../engine/effects";
 import { canLeave } from "../engine/exploration";
 import { figureOf, together } from "../engine/figures";
 import {
@@ -176,7 +176,7 @@ export function replaceWhenLost(how: {
 }
 
 /** A task roll (rules p. 13): a trait roll against a target, attempted at
- *  most once on each of the figure's turns, with any one of the traits that
+ *  most once a turn by each figure, with any one of the traits that
  *  could do it. One objective action per trait, by id `<id>-<trait>`. */
 export function taskRoll(how: {
   id: string;
@@ -198,7 +198,7 @@ export function taskRoll(how: {
         label: `Make a ${trait[0].toUpperCase()}${trait.slice(1)} roll of ${how.target}+ to ${how.task}`,
         side: how.side,
         available: (state, figure, engine) =>
-          !(state.turn?.rolls.includes(how.id) ?? false) &&
+          mayAttempt(state, figure, how.id) &&
           (how.available?.(state, figure, engine) ?? true),
         steps: (_state, figure) => [
           roll(

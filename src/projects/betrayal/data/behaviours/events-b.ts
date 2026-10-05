@@ -12,6 +12,7 @@ import {
 } from "../../engine/board";
 import {
   attempt,
+  attempted,
   chooseOne,
   damage,
   defineStep,
@@ -22,6 +23,7 @@ import {
   harmful,
   keepCard,
   loseCard,
+  mayAttempt,
   placeToken,
   placeWallToken,
   relocate,
@@ -922,7 +924,7 @@ export const EVENTS_B: BehaviourGroup = {
           label: "Use the Wall Switch (Knowledge roll)",
           available: (state, figure, source) =>
             source.beside !== null &&
-            !(state.turn?.rolls.includes(switchUse(figure)) ?? true),
+            mayAttempt(state, figure, switchUse(figure)),
           steps: (state, figure, source) => {
             const here = roomOf(state, figure);
             const other = here === source.room ? source.beside : source.room;
@@ -949,7 +951,7 @@ export const EVENTS_B: BehaviourGroup = {
                 },
                 ignore: {
                   label: "Go through without rolling",
-                  steps: [attempt(switchUse(figure)), through],
+                  steps: [attempt(figure, switchUse(figure)), through],
                 },
               }),
             ];
@@ -964,7 +966,7 @@ export const EVENTS_B: BehaviourGroup = {
         search: {
           label: "Search the Skeletons (Sanity roll)",
           available: (state, figure, _source, engine) =>
-            !state.turn?.rolls.includes("skeletons") &&
+            !attempted(state, figure, "skeletons") &&
             askPermission(engine, state, "canCarry", { figure }).allowed,
           steps: (_state, figure, source) => {
             if (source.room === null)

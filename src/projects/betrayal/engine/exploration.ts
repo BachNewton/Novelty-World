@@ -731,7 +731,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
           : [],
       moved: {},
       movementEnded: [],
-      rolls: [],
+      rolls: {},
       handled: [],
       dropRoom: null,
       pickupRoom: null,

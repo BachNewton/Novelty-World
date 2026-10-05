@@ -1,5 +1,6 @@
 import { FLOORS, placed } from "../../engine/board";
 import {
+  attempted,
   chooseOne,
   damage,
   defineStep,
@@ -8,6 +9,7 @@ import {
   gain,
   keepCard,
   markCard,
+  mayAttempt,
   placeToken,
   relocate,
   removeToken,
@@ -123,7 +125,7 @@ function tokenRoll(
       open: {
         label,
         available: (state, figure, _source, engine) =>
-          !(state.turn?.rolls.includes(rollId) ?? true) &&
+          mayAttempt(state, figure, rollId) &&
           askPermission(engine, state, "canCarry", { figure }).allowed,
         steps: (_state, figure, source) => {
           if (source.room === null) throw new Error(`${rollId} has no room`);
@@ -208,7 +210,7 @@ function slideRoll(
   const rule = card(SLIDE);
   // The card's own roll on drawing it is made even when a Slide was already
   // used this turn; it then has nothing new to record.
-  const id = state.turn?.rolls.includes(SLIDE) ? undefined : SLIDE;
+  const id = attempted(state, figure, SLIDE) ? undefined : SLIDE;
   return roll(
     figure,
     { kind: "trait", trait: "might" },
@@ -1039,7 +1041,7 @@ export const EVENTS_A: BehaviourGroup = {
           // A slide may land in a new room, which only a figure that can
           // discover rooms may find (monsters can't, p. 19).
           available: (state, figure, _source, engine) =>
-            !(state.turn?.rolls.includes(SLIDE) ?? true) &&
+            mayAttempt(state, figure, SLIDE) &&
             askPermission(engine, state, "canDiscover", { figure }).allowed,
           steps: (state, figure, source) => {
             if (source.room === null) throw new Error("The Slide has no room");

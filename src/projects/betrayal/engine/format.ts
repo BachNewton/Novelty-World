@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 9;
+export const STATE_FORMAT = 10;
 
 type JsonObject = { [key: string]: Json };
 
@@ -254,6 +254,20 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
         : null,
       memory: { ...memory, traitsKnown: [], spawned },
     };
+  },
+  // Format 10 keeps the rolls attempted on a turn by the figure that
+  // attempted them. A format 9 turn's were its acting figure's, or, between
+  // a monster turn's monsters, can't be told apart.
+  9: (state) => {
+    const turn = state.turn;
+    if (!isObject(turn) || !Array.isArray(turn.rolls)) return state;
+    if (turn.rolls.length === 0) return { ...state, turn: { ...turn, rolls: {} } };
+    const roller = turn.acting;
+    if (typeof roller !== "string")
+      throw new Error(
+        "A format 9 turn's rolls can't be put down to a figure: none is acting",
+      );
+    return { ...state, turn: { ...turn, rolls: { [roller]: turn.rolls } } };
   },
 };
 
