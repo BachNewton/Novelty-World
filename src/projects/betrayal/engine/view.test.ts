@@ -7,10 +7,12 @@ import { choose, testGame, waitingOn } from "../testing";
 import {
   ALL_TOY_ENGINE,
   HEROES_ONLY,
+  HEROES_RULING,
   SIGIL,
   toyBegun,
   toyHaunt,
   TRAITOR_ONLY,
+  TRAITOR_RULING,
   withSigil,
 } from "../test/toy-haunt";
 import { checkViews } from "../test/view-checks";
@@ -87,6 +89,33 @@ describe("in a haunt", () => {
     const spectator = json(SIGIL_ENGINE, state, null);
     expect(spectator).not.toContain(TRAITOR_ONLY);
     expect(spectator).not.toContain(HEROES_ONLY);
+  });
+
+  it("names a haunt ruling only to the seats that may read its half", () => {
+    const traitor = json(SIGIL_ENGINE, state, 1);
+    expect(traitor).toContain(`"${TRAITOR_RULING}"`);
+    expect(traitor).not.toContain(`"${HEROES_RULING}"`);
+    for (const hero of [0, 2]) {
+      expect(json(SIGIL_ENGINE, state, hero)).toContain(`"${HEROES_RULING}"`);
+      expect(json(SIGIL_ENGINE, state, hero)).not.toContain(`"${TRAITOR_RULING}"`);
+    }
+    const spectator = json(SIGIL_ENGINE, state, null);
+    expect(spectator).not.toContain(`"${TRAITOR_RULING}"`);
+    expect(spectator).not.toContain(`"${HEROES_RULING}"`);
+
+    // The rest are told that a ruling they may not read applied.
+    const dozing = (seat: number | null) =>
+      viewFor(SIGIL_ENGINE, state, seat).figures["ox-bellows"].statuses[0].rule;
+    const setup = { source: "haunt", haunt: 13, section: "Traitor's setup" };
+    expect(dozing(1)).toEqual({ ...setup, ruling: TRAITOR_RULING });
+    for (const seat of [0, 2, null])
+      expect(dozing(seat)).toEqual({ ...setup, hiddenRuling: true });
+    const statusEvent = (seat: number | null) =>
+      viewFor(SIGIL_ENGINE, state, seat).events.find(
+        (e) => e.type === "status-added",
+      );
+    expect(statusEvent(1)?.rule).toEqual({ ...setup, ruling: TRAITOR_RULING });
+    expect(statusEvent(0)?.rule).toEqual({ ...setup, hiddenRuling: true });
   });
 
   it("shows a secret's value only to the seats that know it", () => {
@@ -300,6 +329,23 @@ describe("every view of random games", () => {
       simulate(seed, ALL_TOY_ENGINE, (state) => {
         checkViews(ALL_TOY_ENGINE, state);
       });
+    },
+    60_000,
+  );
+
+  // Haunt 13 cites rulings from both halves: h13-s1 ends with the dreamer
+  // dead (h13-game-end), h13-s4 reaches a wake roll (h13-wake).
+  it.each(["h13-s1", "h13-s4"])(
+    "seed %s through haunt 13",
+    (seed) => {
+      simulate(
+        seed,
+        ENGINE,
+        (state) => {
+          checkViews(ENGINE, state);
+        },
+        { haunt: 13 },
+      );
     },
     60_000,
   );

@@ -1,8 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { rulingHalves } from "../engine/haunt";
 import { CARDS } from "./cards";
 import { HAUNTS } from "./haunts";
+import { PERCHANCE_TO_DREAM } from "./haunts/13-perchance-to-dream";
 import { readContent as readRaw, sections } from "./content-reader";
 import {
   ruleDetail,
@@ -220,15 +222,22 @@ describe("ruling ids", () => {
     for (const id of citedRulings()) expect(ids).toContain(id);
   });
 
-  it("that a built haunt depends on are its own, and settled", () => {
+  it("that a built haunt depends on are its own, settled, and in one half", () => {
     for (const haunt of HAUNTS) {
       const own = (notes.haunts[haunt.number] ?? []).flatMap((t) => t.rulings);
+      const halves = rulingHalves(haunt.texts);
       for (const id of haunt.rulings ?? []) {
         const ruling = own.find((r) => r.id === id);
         expect(ruling, `haunt ${haunt.number}: ${id}`).toBeDefined();
         expect(ruling?.authority).not.toBe("unresolved");
+        expect(halves[id], `haunt ${haunt.number}: ${id}`).toBeDefined();
       }
     }
+    expect(rulingHalves(PERCHANCE_TO_DREAM.texts)).toMatchObject({
+      "h13-top-up": "traitor",
+      "h13-killed": "traitor",
+      "h13-wake": "heroes",
+    });
   });
 
   it("narrow \"why?\" to the one ruling, and throw on one the source lacks", () => {

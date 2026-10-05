@@ -30,8 +30,9 @@ export interface RuleNotes {
   /** Rulebook sections by page. */
   pages: Partial<Record<string, RuleText[]>>;
   /** A haunt's rulings that the engine cites by id, by haunt number: only
-   *  the rulings, never the halves' text, which each side reads for itself
-   *  (engine/view.ts). */
+   *  the rulings, never the halves' text, which each side reads for itself.
+   *  A view names a ruling only to the seats that may read the half it sits
+   *  in (engine/view.ts), so only they can look it up here. */
   haunts: Partial<Record<string, RuleText[]>>;
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { Suspense, use, useState } from "react";
-import type { RuleRef } from "../types";
 import { describeRule } from "../engine/describe";
 import type { Engine } from "../engine/step-loop";
+import type { RuleView } from "../engine/view";
 import { loadRuleNotes, ruleDetail, type RuleNotes } from "../data/rule-notes";
 
 let notes: Promise<RuleNotes> | null = null;
@@ -15,8 +15,9 @@ function ruleNotes(): Promise<RuleNotes> {
 }
 
 /** A "why?" toggle: the rule's source, what content/ says it does, and the
- *  rulings recorded against it, each with its authority. */
-export function Why({ engine, rule }: { engine: Engine; rule: RuleRef }) {
+ *  rulings recorded against it, each with its authority. A ruling from a
+ *  haunt half the viewer may not read is only said to have applied. */
+export function Why({ engine, rule }: { engine: Engine; rule: RuleView }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -42,8 +43,15 @@ export function Why({ engine, rule }: { engine: Engine; rule: RuleRef }) {
   );
 }
 
-function RuleDetail({ rule }: { rule: RuleRef }) {
+function RuleDetail({ rule }: { rule: RuleView }) {
   const texts = ruleDetail(use(ruleNotes()), rule);
+  if (rule.hiddenRuling)
+    return (
+      <p className="text-(--bt-muted)">
+        A ruling from one side&apos;s half of the haunt applied here, which
+        only that side may read.
+      </p>
+    );
   if (rule.source === "scenario")
     return (
       <p className="text-(--bt-muted)">

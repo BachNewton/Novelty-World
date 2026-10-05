@@ -54,6 +54,9 @@ export interface HauntRules {
   name: string;
   /** Each side's half of its rules, for the seats that may read it. */
   texts: HauntTexts;
+  /** The half each of its rulings sits in, by ruling id: only the seats
+   *  that may read a half may read its rulings. */
+  rulingHalves: Partial<Record<string, HauntHalfName>>;
   /** Who becomes the traitor, where the haunt says otherwise than its
    *  chart entry. */
   traitor: TraitorRule | null;
@@ -65,6 +68,26 @@ export interface HauntRules {
   /** Its counters and secrets, by id, with names for the log. */
   counters: Record<string, { name: string }>;
   secrets: Record<string, { name: string }>;
+}
+
+/** One side's half of a haunt's text. */
+export type HauntHalfName = "traitor" | "heroes";
+
+const RULING_NOTE = /^\s*> Note \[([a-z0-9-]+)\]:/gm;
+
+/** The half each ruling with an id sits in, read from where its note is in
+ *  the haunt's text. */
+export function rulingHalves(
+  texts: HauntTexts,
+): Partial<Record<string, HauntHalfName>> {
+  const halves: Partial<Record<string, HauntHalfName>> = {};
+  for (const half of ["traitor", "heroes"] as const)
+    for (const [, id] of texts[half].text.matchAll(RULING_NOTE)) {
+      if (id in halves)
+        throw new Error(`The ruling ${id} is in both halves of ${texts.name}`);
+      halves[id] = half;
+    }
+  return halves;
 }
 
 /** Every haunt that has been built, by number. */

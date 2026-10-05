@@ -230,7 +230,7 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
   - The Smelling Salts need no rule: only the wake roll steps the counter.
 - *Triggers:* a Nightmare killed or escaped offers the traitor's seat, at once, the choice to bring in another beside the body; a chance not taken is lost (`replaceWhenLost`).
 - *Goals:* the traitor wins when escapes reach the secret (which reveals it), when the dreamer dies, or when the Holy Symbol leaves the game; the heroes win when the wake counter reaches the number of players. The rulebook's goal covers every hero dead.
-- *Rulings:* each event names its note in the haunt's file (`> Note [h13-…]`), and "why?" shows that ruling only.
+- *Rulings:* each event names its note in the haunt's file (`> Note [h13-…]`), and "why?" shows that ruling only, to the seats that may read the half it sits in.
 
 **Haunt 22, The Abyss Gazes Back (data plus small functions).** This is one of the harder base haunts: a mutable board, a timer, obligations on other players' turns, and two unresolved notes.
 - *Setup:*
@@ -418,6 +418,7 @@ Input is never locked by sync. The UI may wait to show a decision's prompt until
   - other seats' secret sides and roles, unless the seat knows them; a monster's owner, where owning it would give a hidden side away; and who knows a secret, where that list would;
   - secret values the seat doesn't know. That a secret exists is public, as the heroes' half always says what the traitor has written down. A haunt whose secret's very existence must be hidden will need a kit flag for it;
   - the other side's half of the haunt text. A seat reads its own side's half, once it knows its side; before the haunt, and for a spectator, there is none;
+  - the rulings in the other side's half. Each haunt ruling belongs to the half its note sits in, read from the haunt's text when the haunt is compiled. Wherever a rule reference names one (an event, its data, the pending decision, a status, a death, the result), a seat that may not read that half gets the reference without the ruling's id and a mark that a hidden ruling applied, so "why?" can say only that;
   - a monster's trait values from the other side, until a roll makes them known to everyone (the rule memory's known traits). That it has a trait at all is public, and its own side knows them;
   - other seats' answers to a shared decision that is still open: everyone sees who has answered, and an addressee sees its own answer;
   - the seed. Under the good-faith model a client may work out dice from it (section 4), but a reader given only a view could otherwise foresee every roll a choice would lead to, so the view leaves it out, with the step stack, the answers ledger and the rule memory beyond its deaths and known traits.

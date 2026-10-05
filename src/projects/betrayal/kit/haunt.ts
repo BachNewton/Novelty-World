@@ -16,6 +16,7 @@ import {
   counterValue,
   dropItems,
   hauntRule,
+  rulingHalves,
   seatsIn,
   setAsideCompanions,
   setCounter,
@@ -271,6 +272,7 @@ export function compileHaunt(definition: HauntDefinition): HauntRules {
     number: definition.number,
     name: definition.name,
     texts: definition.texts,
+    rulingHalves: rulingHalves(definition.texts),
     traitor: definition.traitor ?? null,
     behaviour,
     setup: {

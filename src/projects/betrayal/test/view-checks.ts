@@ -116,6 +116,14 @@ export function checkView(engine: Engine, state: GameState, viewer: number | nul
   if (traitorHalf && side !== "traitor") fail("shows the traitor's half");
   if (heroesHalf && side !== "heroes") fail("shows the heroes' half");
 
+  // A haunt ruling, only to the seats that may read the half its note is in.
+  const texts = state.haunt && engine.haunts[state.haunt.number]?.texts;
+  for (const half of ["traitor", "heroes"] as const) {
+    if (!texts || half === side) continue;
+    for (const [, id] of texts[half].text.matchAll(/> Note \[([a-z0-9-]+)\]/g))
+      if (all.includes(id)) fail(`cites the ruling ${id} from the ${half} half`);
+  }
+
   // The pending decision: in full only for its addressees.
   const pending = state.pending;
   if (

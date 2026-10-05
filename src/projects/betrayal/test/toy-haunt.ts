@@ -46,10 +46,30 @@ import type {
 export const TRAITOR_ONLY = "toy-tome-3f7a";
 export const HEROES_ONLY = "toy-survival-91c2";
 
+/** A ruling in each half, cited by that side's setup. */
+export const TRAITOR_RULING = "toy-dozing";
+export const HEROES_RULING = "toy-waking";
+
 const TOY_TEXTS: HauntTexts = {
   name: "Toy haunt",
-  traitor: { title: "Traitor's Tome", text: `The traitor dozes (${TRAITOR_ONLY}).` },
-  heroes: { title: "Secrets of Survival", text: `Wake the traitor (${HEROES_ONLY}).` },
+  traitor: {
+    title: "Traitor's Tome",
+    text: [
+      `The traitor dozes (${TRAITOR_ONLY}).`,
+      "",
+      `> Note [${TRAITOR_RULING}]: how deeply?`,
+      "> Resolution (project): deeply enough.",
+    ].join("\n"),
+  },
+  heroes: {
+    title: "Secrets of Survival",
+    text: [
+      `Wake the traitor (${HEROES_ONLY}).`,
+      "",
+      `> Note [${HEROES_RULING}]: how?`,
+      "> Resolution (project): by counting.",
+    ].join("\n"),
+  },
 };
 
 /** One status for every copy of the toy haunt, as a kit status shared by
@@ -104,7 +124,12 @@ export function toyHaunt(
     secrets: { target: { name: "number of escapes" } },
     setup: {
       traitor: [
-        { part: "status", who: "traitor", status: "dozing" },
+        {
+          part: "status",
+          who: "traitor",
+          status: "dozing",
+          ruling: TRAITOR_RULING,
+        },
         ...(phantom
           ? [
               {
@@ -124,7 +149,9 @@ export function toyHaunt(
           knownBy: "traitor",
         },
       ],
-      heroes: [{ part: "counter", counter: "wakes", start: 0 }],
+      heroes: [
+        { part: "counter", counter: "wakes", start: 0, ruling: HEROES_RULING },
+      ],
     },
     reactions: [
       {

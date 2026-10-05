@@ -38,6 +38,13 @@ import { choices, type Choice, type Engine } from "./step-loop";
 // It is a type of its own, built field by field, so a field added to the
 // state stays out of every view until it is added here on purpose.
 
+/** A rule reference as a viewer sees it. A ruling from one side's half of
+ *  a haunt is that side's to read: for any other viewer its id is left out,
+ *  and `hiddenRuling` says that a ruling it may not read applied. */
+export type RuleView = RuleRef & { hiddenRuling?: true };
+
+export type EventView = GameEvent & { rule: RuleView };
+
 /** A seat as a viewer sees it. */
 export interface SeatView {
   name: string;
@@ -68,7 +75,7 @@ export interface FigureView {
    *  everyone. */
   traits: Partial<Record<Trait, number | null>>;
   cards: string[];
-  statuses: Status[];
+  statuses: (Status & { rule: RuleView })[];
   stunned: boolean;
   alive: boolean;
 }
@@ -98,7 +105,7 @@ export interface HauntView {
 
 /** The pending decision: in full only for the seats it is put to. */
 export type PendingView =
-  | { type: "ready"; id: string; seats: number[]; rule: RuleRef }
+  | { type: "ready"; id: string; seats: number[]; rule: RuleView }
   | {
       type: "decision";
       id: string;
@@ -107,7 +114,7 @@ export type PendingView =
        *  stays hidden until it closes. */
       answered: number[];
       kind: string;
-      rule: RuleRef;
+      rule: RuleView;
       /** The question and this viewer's part in it, when it is put to this
        *  viewer; null for everyone else. */
       detail: {
@@ -142,15 +149,15 @@ export interface GameView {
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
   /** Every part of the turn record is public. */
   turn: Turn | null;
-  insertedTurns: InsertedTurn[];
+  insertedTurns: (InsertedTurn & { rule: RuleView })[];
   omensDrawn: number;
   haunt: HauntView | null;
-  deaths: Death[];
+  deaths: (Death & { cause: RuleView })[];
   traitsKnown: KnownTrait[];
   pending: PendingView | null;
   /** The latest write's events, as this viewer may see them. */
-  events: GameEvent[];
-  result: GameResult | null;
+  events: EventView[];
+  result: (GameResult & { rule: RuleView }) | null;
 }
 
 /** Whether a viewer knows a seat's side and roles. */
@@ -170,6 +177,61 @@ function ownSide(state: GameState, viewer: number | null): Side | null {
   return viewer !== null && knowsSide(state, viewer, viewer)
     ? state.seats[viewer].side
     : null;
+}
+
+/** A rule reference as this viewer may see it. */
+function ruleView(
+  engine: Engine,
+  state: GameState,
+  viewer: number | null,
+  rule: RuleRef,
+): RuleView {
+  if (rule.source !== "haunt" || rule.ruling === undefined) return { ...rule };
+  const half = engine.haunts[rule.haunt]?.rulingHalves[rule.ruling];
+  if (half === undefined)
+    throw new Error(
+      `Haunt ${rule.haunt} has no ruling ${rule.ruling} in either half`,
+    );
+  if (ownSide(state, viewer) === half) return { ...rule };
+  const { ruling: _hidden, ...rest } = rule;
+  return { ...rest, hiddenRuling: true };
+}
+
+/** A haunt rule reference with a ruling, found by its shape: event data and
+ *  decision params are JSON shaped by each event type and decision kind,
+ *  and some carry the rule behind them (a death's cause, a status's rule). */
+function isHauntRuling(value: { [key: string]: Json }): boolean {
+  return (
+    value.source === "haunt" &&
+    typeof value.haunt === "number" &&
+    typeof value.section === "string" &&
+    typeof value.ruling === "string"
+  );
+}
+
+/** A copy of JSON with every rule reference in it as this viewer may see it. */
+function jsonView(
+  engine: Engine,
+  state: GameState,
+  viewer: number | null,
+  value: Json,
+): Json {
+  if (Array.isArray(value))
+    return value.map((item) => jsonView(engine, state, viewer, item));
+  if (typeof value !== "object" || value === null) return value;
+  if (isHauntRuling(value))
+    return ruleView(
+      engine,
+      state,
+      viewer,
+      value as unknown as RuleRef,
+    ) as unknown as Json;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [
+      key,
+      jsonView(engine, state, viewer, item),
+    ]),
+  );
 }
 
 function seatView(state: GameState, viewer: number | null, seat: number): SeatView {
@@ -222,7 +284,11 @@ function figureViews(
       place: figure.place === null ? null : { ...figure.place },
       traits,
       cards: [...figure.cards],
-      statuses: structuredClone(figure.statuses),
+      statuses: figure.statuses.map((status) => ({
+        id: status.id,
+        rule: ruleView(engine, state, viewer, status.rule),
+        params: jsonView(engine, state, viewer, status.params),
+      })),
       stunned: figure.stunned,
       alive: figure.alive,
     };
@@ -285,7 +351,7 @@ function pendingView(
       type: "ready",
       id: pending.id,
       seats: [...pending.seats],
-      rule: structuredClone(pending.rule),
+      rule: ruleView(engine, state, viewer, pending.rule),
     };
   const addressed = viewer !== null && pending.seats.includes(viewer);
   const answered = pending.seats.filter((seat) => seat in pending.answers);
@@ -295,10 +361,10 @@ function pendingView(
     seats: [...pending.seats],
     answered,
     kind: pending.kind,
-    rule: structuredClone(pending.rule),
+    rule: ruleView(engine, state, viewer, pending.rule),
     detail: addressed
       ? {
-          params: structuredClone(pending.params),
+          params: jsonView(engine, state, viewer, pending.params),
           choices: choices(engine, state, viewer),
           answer:
             viewer in pending.answers
@@ -359,14 +425,21 @@ function eventView(
   state: GameState,
   viewer: number | null,
   event: GameEvent,
-): GameEvent {
+): EventView {
   const redact = REDACTIONS[event.type];
-  const copy = structuredClone(event);
-  if (!redact) return copy;
-  const data = copy.data;
-  if (typeof data !== "object" || data === null || Array.isArray(data))
-    throw new Error(`The ${event.type} event has no data to redact`);
-  return { ...copy, data: redact(data, viewer, state, engine) };
+  const { data } = event;
+  let seen = data;
+  if (redact) {
+    if (typeof data !== "object" || data === null || Array.isArray(data))
+      throw new Error(`The ${event.type} event has no data to redact`);
+    seen = redact(data, viewer, state, engine);
+  }
+  return {
+    id: event.id,
+    type: event.type,
+    rule: ruleView(engine, state, viewer, event.rule),
+    data: jsonView(engine, state, viewer, seen),
+  };
 }
 
 /** What a seat may see of the game, or a spectator (null): public
@@ -401,14 +474,26 @@ export function viewFor(
     aside: structuredClone(state.aside),
     cardMarks: structuredClone(state.cardMarks),
     turn: structuredClone(state.turn),
-    insertedTurns: structuredClone(state.insertedTurns),
+    insertedTurns: state.insertedTurns.map((turn) => ({
+      ...structuredClone(turn),
+      rule: ruleView(engine, state, viewer, turn.rule),
+    })),
     omensDrawn: state.omensDrawn,
     haunt: hauntView(engine, state, viewer),
-    deaths: structuredClone(state.memory.deaths),
+    deaths: state.memory.deaths.map((death) => ({
+      ...structuredClone(death),
+      cause: ruleView(engine, state, viewer, death.cause),
+    })),
     traitsKnown: structuredClone(state.memory.traitsKnown),
     pending: pendingView(engine, state, viewer),
     events: state.lastEvents.map((e) => eventView(engine, state, viewer, e)),
-    result: structuredClone(state.result),
+    result:
+      state.result === null
+        ? null
+        : {
+            winners: [...state.result.winners],
+            rule: ruleView(engine, state, viewer, state.result.rule),
+          },
   };
 }
 
