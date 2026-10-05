@@ -4,7 +4,14 @@ import { pendingDecision, testGame } from "../testing";
 import type { RuleRef } from "../types";
 import { damage } from "./effects";
 import { figureName } from "./figures";
-import { askNumber, controllerOf, hasTrait, onTurn, traitValue } from "./questions";
+import {
+  askNumber,
+  askStructured,
+  controllerOf,
+  hasTrait,
+  onTurn,
+  traitValue,
+} from "./questions";
 import { start, type Engine } from "./step-loop";
 
 // Who decides for a figure is the controller question, not a stored seat:
@@ -26,7 +33,7 @@ const handedOver: Engine = {
           {
             question: "controller",
             when: (_state, { figure }, source) => figure === source.holder,
-            change: { transform: () => 2 },
+            change: { replace: () => 2 },
           },
         ],
       },
@@ -137,5 +144,71 @@ describe("the trait value question", () => {
     expect(() => traitValue(withMonster, state, "brute", "sanity")).toThrow(
       "brute has no sanity",
     );
+  });
+});
+
+// Several modifiers in one layer apply in an order that doesn't depend on
+// play history (by source kind, then id), and a structured answer may be
+// replaced by at most one of them (design/engine.md, section 5).
+
+/** The real engine, with the Bell and the Angel Feather each ruling who
+ *  controls their holder: the Bell hands it to seat 2, and the Feather
+ *  either hands it to seat 1 too or turns a seat-2 answer into seat 1. */
+const ruling = (feather: "replace" | "adjust"): Engine => ({
+  ...ENGINE,
+  behaviours: {
+    ...ENGINE.behaviours,
+    cards: {
+      ...ENGINE.behaviours.cards,
+      bell: {
+        modifiers: [
+          {
+            question: "controller",
+            when: (_state, { figure }, source) => figure === source.holder,
+            change: { replace: () => 2 },
+          },
+        ],
+      },
+      "angel-feather": {
+        modifiers: [
+          {
+            question: "controller",
+            when: (_state, { figure }, source) => figure === source.holder,
+            change:
+              feather === "replace"
+                ? { replace: () => 1 }
+                : { adjust: (_state, _subject, seat) => (seat === 2 ? 1 : seat) },
+          },
+        ],
+      },
+    },
+  },
+});
+
+describe("several modifiers in one layer", () => {
+  it("throws when two of them replace a structured answer", () => {
+    const engine = ruling("replace");
+    const state = testGame({ engine, explorers: [{ seat: 0, cards: ["bell", "angel-feather"] }] });
+    expect(() => controllerOf(engine, state, ZOE)).toThrow(
+      "Conflicting replacements of controller in the card layer",
+    );
+  });
+
+  it("applies the one replacement first, then the adjustments, whatever order they came in", () => {
+    const engine = ruling("adjust");
+    for (const cards of [["bell", "angel-feather"], ["angel-feather", "bell"]]) {
+      const state = testGame({ engine, explorers: [{ seat: 0, cards }] });
+      expect(controllerOf(engine, state, ZOE)).toBe(1);
+    }
+  });
+
+  it("adjust in source order, not the order the cards were picked up", () => {
+    const modes = (cards: string[]) =>
+      askStructured(ENGINE, testGame({ explorers: [{ seat: 0, cards }] }), "attackModes", {
+        attacker: ZOE,
+        defender: "ox-bellows",
+      });
+    expect(modes(["revolver", "axe"])).toEqual(modes(["axe", "revolver"]));
+    expect(modes(["revolver", "axe"]).map((m) => m.card)).toEqual([null, "axe", "revolver"]);
   });
 });

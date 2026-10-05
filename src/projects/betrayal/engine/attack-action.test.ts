@@ -47,7 +47,7 @@ const NIGHTMARE_ENGINE: Engine = withHaunts(BASE_ENGINE, [
       {
         question: "combatOutcome",
         change: {
-          transform: (state, { attack }, outcome) => {
+          adjust: (state, { attack }, outcome) => {
             const winner =
               outcome.loser === "defender" ? attack.attacker : attack.defender;
             return winner !== null &&
@@ -65,7 +65,7 @@ const NIGHTMARE_ENGINE: Engine = withHaunts(BASE_ENGINE, [
           sideOf(engine, state, attack.attacker) === "heroes" &&
           state.figures[attack.defender].definition === PHANTOM.id,
         change: {
-          transform: (_state, _subject, outcome, source) =>
+          adjust: (_state, _subject, outcome, source) =>
             outcome.loser === "defender"
               ? { ...outcome, harm: { kind: "kill", rule: source.rule } }
               : outcome,
@@ -81,7 +81,7 @@ const HELD: Behaviour = {
     {
       question: "controller",
       when: (_state, { figure }, source) => figure === source.holder,
-      change: { transform: () => 0 },
+      change: { replace: () => 0 },
     },
   ],
 };

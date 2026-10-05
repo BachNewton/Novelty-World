@@ -125,7 +125,7 @@ describe("a trait at the skull", () => {
               {
                 question: "lethalOutcome",
                 when: (_state, { figure }, source) => figure === source.holder,
-                change: { transform: () => ({ kind: "clamp" }) },
+                change: { replace: () => ({ kind: "clamp" }) },
               },
             ],
           },

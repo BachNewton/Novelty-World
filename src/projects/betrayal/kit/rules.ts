@@ -48,7 +48,7 @@ export function dealsDamageAs(
   return {
     question: "combatOutcome",
     change: {
-      transform: (state, { attack }, answer) => {
+      adjust: (state, { attack }, answer) => {
         if (answer.harm?.kind !== "damage" || answer.loser === null)
           return answer;
         const winner =
@@ -79,7 +79,7 @@ export function killedWhenBeatenBy(
       isA(state, attack.defender, definition) &&
       sideOf(engine, state, attack.attacker) === side,
     change: {
-      transform: (_state, _subject, answer) =>
+      adjust: (_state, _subject, answer) =>
         answer.loser === "defender" && answer.harm !== null
           ? { ...answer, harm: { kind: "kill", rule } }
           : answer,
@@ -104,7 +104,7 @@ export function supplyOf(definition: string, amount: Count): Modifier {
 export const SETUP_CANT_KILL: Modifier = {
   question: "lethalOutcome",
   when: (state) => settingUp(state),
-  change: { transform: () => ({ kind: "clamp" }) },
+  change: { replace: () => ({ kind: "clamp" }) },
 };
 
 /** A figure leaves the house from a room that matches, as its own move

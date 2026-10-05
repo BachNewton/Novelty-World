@@ -47,7 +47,7 @@ export const RULEBOOK: BehaviourGroup = {
             isTraitorsExplorer(state, figure) &&
             (isRoomText(rule) || isRefusableCard(engine, rule)),
           change: {
-            transform: (_state, _subject, answer) =>
+            adjust: (_state, _subject, answer) =>
               answer === "binding" ? "optional" : answer,
           },
         },
@@ -64,7 +64,7 @@ export const RULEBOOK: BehaviourGroup = {
           when: (state, { figure, rule }, _source, engine) =>
             isRoomText(rule) &&
             askStructured(engine, state, "monsterRules", { figure }),
-          change: { transform: () => "ignored" },
+          change: { replace: () => "ignored" },
         },
       ],
     },

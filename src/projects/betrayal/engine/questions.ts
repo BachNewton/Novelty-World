@@ -28,6 +28,7 @@ import {
   LAYER_OF,
   LAYERS,
   liveSources,
+  sourceOrder,
   type Layer,
   type RollContext,
   type Source,
@@ -316,15 +317,25 @@ type StructuredModifier = {
       source: Source,
       engine: Engine,
     ) => boolean;
-    /** Turns the answer so far into this source's answer. */
-    change: {
-      transform: (
-        state: GameState,
-        subject: StructuredQuestions[Q]["question"],
-        answer: StructuredQuestions[Q]["answer"],
-        source: Source,
-      ) => StructuredQuestions[Q]["answer"];
-    };
+    change:
+      /** This source's answer, whatever the answer so far: two in one
+       *  layer are a conflict the rules don't settle. */
+      | {
+          replace: (
+            state: GameState,
+            subject: StructuredQuestions[Q]["question"],
+            source: Source,
+          ) => StructuredQuestions[Q]["answer"];
+        }
+      /** Turns the answer so far into this source's answer. */
+      | {
+          adjust: (
+            state: GameState,
+            subject: StructuredQuestions[Q]["question"],
+            answer: StructuredQuestions[Q]["answer"],
+            source: Source,
+          ) => StructuredQuestions[Q]["answer"];
+        };
   };
 }[keyof StructuredQuestions];
 
@@ -407,13 +418,17 @@ interface Applied<C> {
   rule: RuleRef;
 }
 
-function applicable<C>(
+/** The modifiers live sources have on a question that apply to this
+ *  subject, each with its source, in the order they apply: by layer, then
+ *  within a layer by source (`sourceOrder`), so no answer depends on the
+ *  order sources came into play. */
+function modifiersOn(
   engine: Engine,
   state: GameState,
   question: string,
   subject: unknown,
-): Applied<C>[] {
-  const result: Applied<C>[] = [];
+): { modifier: Modifier; source: Source }[] {
+  const found: { modifier: Modifier; source: Source }[] = [];
   for (const { source, behaviour } of liveSources(
     engine,
     state,
@@ -431,12 +446,27 @@ function applicable<C>(
           ) => boolean)
         | undefined;
       if (when && !when(state, subject, source, engine)) continue;
+      found.push({ modifier, source });
+    }
+  }
+  // A stable sort: one source's modifiers keep their own order.
+  return found.sort((a, b) => sourceOrder(a.source, b.source));
+}
+
+function applicable<C>(
+  engine: Engine,
+  state: GameState,
+  question: string,
+  subject: unknown,
+): Applied<C>[] {
+  return modifiersOn(engine, state, question, subject).map(
+    ({ modifier, source }) => {
       // A number change may be worked out from the game; the modifier's own
       // type ties it to this question's subject.
       const change = modifier.change as
         | C
         | ((s: GameState, subject: unknown, source: Source, engine: Engine) => C);
-      result.push({
+      return {
         layer: source.layer,
         change:
           typeof change === "function"
@@ -448,10 +478,9 @@ function applicable<C>(
               )
             : change,
         rule: source.rule,
-      });
-    }
-  }
-  return result;
+      };
+    },
+  );
 }
 
 export function askNumber<Q extends keyof NumberQuestions>(
@@ -628,32 +657,14 @@ export function askSet<Q extends keyof SetQuestions>(
   type Change =
     | { add: (s: GameState, subject: unknown, source: Source) => SetItems[Q][] }
     | { remove: (s: GameState, subject: unknown, source: Source) => string[] };
-  const changes: (Applied<Change> & { source: Source })[] = [];
-  for (const { source, behaviour } of liveSources(
-    engine,
-    state,
-    `modifiers:${question}`,
-  )) {
-    for (const modifier of behaviour.modifiers ?? []) {
-      if (modifier.question !== question) continue;
-      // The modifier's own type ties `when` and its change to this question.
-      const when = modifier.when as
-        | ((
-            s: GameState,
-            subject: unknown,
-            source: Source,
-            engine: Engine,
-          ) => boolean)
-        | undefined;
-      if (when && !when(state, subject, source, engine)) continue;
-      changes.push({
-        layer: source.layer,
-        change: modifier.change as Change,
-        rule: source.rule,
-        source,
-      });
-    }
-  }
+  // The modifier's own type ties its change to this question.
+  const changes = modifiersOn(engine, state, question, subject).map(
+    ({ modifier, source }) => ({
+      layer: source.layer,
+      change: modifier.change as Change,
+      source,
+    }),
+  );
   const answer = new Map<string, SetItems[Q]>();
   for (const item of SET_BASE[question](engine, state, subject))
     answer.set(JSON.stringify(item), item);
@@ -769,7 +780,10 @@ const STRUCTURED_BASE: {
   },
 };
 
-/** The base answer, then each layer's modifiers transforming it in layer order. */
+/** The base answer, then each layer's modifiers in layer order. Within a
+ *  layer, the one modifier that replaces the answer, if any, applies first,
+ *  then those that adjust it, in source order; two that replace it are a
+ *  conflict the rules don't settle, so the engine throws. */
 export function askStructured<Q extends keyof StructuredQuestions>(
   engine: Engine,
   state: GameState,
@@ -777,44 +791,37 @@ export function askStructured<Q extends keyof StructuredQuestions>(
   subject: StructuredQuestions[Q]["question"],
 ): StructuredQuestions[Q]["answer"] {
   type Answer = StructuredQuestions[Q]["answer"];
-  type Transform = (
-    s: GameState,
-    subject: unknown,
-    answer: Answer,
-    source: Source,
-  ) => Answer;
-  const changes: { layer: Layer; transform: Transform; source: Source }[] = [];
-  for (const { source, behaviour } of liveSources(
-    engine,
-    state,
-    `modifiers:${question}`,
-  )) {
-    for (const modifier of behaviour.modifiers ?? []) {
-      if (modifier.question !== question) continue;
-      // The modifier's own type ties `when` and its change to this question.
-      const when = modifier.when as
-        | ((
-            s: GameState,
-            subject: unknown,
-            source: Source,
-            engine: Engine,
-          ) => boolean)
-        | undefined;
-      if (when && !when(state, subject, source, engine)) continue;
-      const change = modifier.change as { transform: Transform };
-      changes.push({
-        layer: source.layer,
-        transform: change.transform,
-        source,
-      });
-    }
-  }
+  type Change =
+    | { replace: (s: GameState, subject: unknown, source: Source) => Answer }
+    | {
+        adjust: (
+          s: GameState,
+          subject: unknown,
+          answer: Answer,
+          source: Source,
+        ) => Answer;
+      };
+  // The modifier's own type ties its change to this question.
+  const changes = modifiersOn(engine, state, question, subject).map(
+    ({ modifier, source }) => ({ change: modifier.change as Change, source }),
+  );
   let answer = STRUCTURED_BASE[question](engine, state, subject) as Answer;
-  for (const layer of LAYERS)
-    for (const { transform, source } of changes.filter(
-      (c) => c.layer === layer,
-    ))
-      answer = transform(state, subject, answer, source);
+  for (const layer of LAYERS) {
+    const here = changes.filter((c) => c.source.layer === layer);
+    const replacing = here.filter((c) => "replace" in c.change);
+    if (replacing.length > 1)
+      throw new Error(
+        `Conflicting replacements of ${question} in the ${layer} layer: ${JSON.stringify(replacing.map((c) => c.source.rule))}`,
+      );
+    for (const { change, source } of [
+      ...replacing,
+      ...here.filter((c) => "adjust" in c.change),
+    ])
+      answer =
+        "replace" in change
+          ? change.replace(state, subject, source)
+          : change.adjust(state, subject, answer, source);
+  }
   return answer;
 }
 

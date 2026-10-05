@@ -48,6 +48,32 @@ export interface Source {
 export type Layer = "rulebook" | "room" | "card" | "haunt";
 export const LAYERS: readonly Layer[] = ["rulebook", "room", "card", "haunt"];
 
+/** The order of source kinds within a layer. */
+const KIND_ORDER: readonly Source["kind"][] = [
+  "rulebook",
+  "room",
+  "card",
+  "token",
+  "status",
+  "haunt",
+];
+
+const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** The order sources' modifiers apply in: by layer, then within a layer by
+ *  source kind, then id, never by when a source came into play or where it
+ *  sits in the state. Copies of one source (a status on two figures, a
+ *  token in two rooms) go by the figure bearing it, then the room. */
+export function sourceOrder(a: Source, b: Source): number {
+  return (
+    LAYERS.indexOf(a.layer) - LAYERS.indexOf(b.layer) ||
+    KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
+    compare(a.id, b.id) ||
+    compare(a.holder ?? "", b.holder ?? "") ||
+    compare(a.room ?? "", b.room ?? "")
+  );
+}
+
 /** The layer a rule's own source belongs to: a status sits in the layer of
  *  the rule that applied it. */
 export const LAYER_OF: Record<RuleRef["source"], Layer> = {

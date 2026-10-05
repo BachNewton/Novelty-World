@@ -85,7 +85,7 @@ export const DOZING: Behaviour = {
     {
       question: "hinders",
       when: (_state, { hinderer }, source) => hinderer === source.holder,
-      change: { transform: () => false },
+      change: { replace: () => false },
     },
   ],
 };

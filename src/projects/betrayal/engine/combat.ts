@@ -133,7 +133,7 @@ export function attackWith(
       question: "attackModes",
       when: (_state, { attacker }, source) => attacker === source.holder,
       change: {
-        transform: (_state, _subject, modes) => [
+        adjust: (_state, _subject, modes) => [
           ...modes,
           { trait, card, reach },
         ],

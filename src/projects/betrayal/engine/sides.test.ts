@@ -80,7 +80,7 @@ const withControl: Engine = {
             question: "controller",
             when: (_state, { figure }, source) => figure === source.holder,
             change: {
-              transform: (_state, _subject, _answer, source) =>
+              replace: (_state, _subject, source) =>
                 statusData<{ seat: number }>(source).seat,
             },
           },
@@ -88,7 +88,7 @@ const withControl: Engine = {
             question: "side",
             when: (_state, { figure }, source) => figure === source.holder,
             change: {
-              transform: (state: GameState, _subject, _answer, source) =>
+              replace: (state: GameState, _subject, source) =>
                 state.seats[statusData<{ seat: number }>(source).seat].side,
             },
           },

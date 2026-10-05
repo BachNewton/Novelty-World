@@ -180,9 +180,9 @@ Each answer type composes in a fixed way. Composing like this is what makes stac
 | Number (dice, movement, damage, allowance) | base, then **set** (the highest layer's set wins), then **add** (all deltas summed), then **fewer** (a cut "to a minimum of N", which stops at N and never lifts an answer already at or below it), then **multiply**, then **bound** (the tightest cap), then **fix** (a final fixed value, such as 91's result of 5; the highest layer wins) |
 | Permission (canAttack, canCarry, canEnterOrLeave…) | deny or allow with reasons. Within a layer, a deny beats an allow. A higher layer may explicitly overrule a lower one (the traitor ignores harmful room text) |
 | Set (targets, traits, connections) | add and remove in layer order |
-| Structured result (combatOutcome, lethalOutcome, movementPolicy) | each modifier transforms the previous result, in layer order |
+| Structured result (combatOutcome, lethalOutcome, movementPolicy) | each modifier declares whether it **replaces** the result (asleep: hinders no one) or **adjusts** the previous one (every point a Nightmare deals is mental); in layer order, and within a layer the one replacement first, then the adjustments |
 
-Within a layer, modifiers run in a stable order (by source kind, then id). Sums and denials don't depend on that order. Two modifiers in the same layer that both **replace** a structured result, or both **set** or **fix** a number to different values, are a conflict the rulebook doesn't settle, so the engine **throws**, naming both rule references. That surfaces a real rules question (to be settled and recorded in `content/`) instead of quietly letting whichever ran last win.
+Within a layer, modifiers run in a stable order (by source kind, then id, and for copies of one source, such as a status on two figures, by the figure and the room), never by when a source came into play or where it sits in the state. Sums and denials don't depend on that order. Two modifiers in the same layer that both **replace** a structured result, or both **set** or **fix** a number to different values, are a conflict the rulebook doesn't settle, so the engine **throws**, naming both rule references. That surfaces a real rules question (to be settled and recorded in `content/`) instead of quietly letting whichever ran last win.
 
 ### Triggers and conditions
 
