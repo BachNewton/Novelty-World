@@ -34,6 +34,7 @@ import { chooseOne, damage, die, step } from "./effects";
 import { offerReplacement, spawn } from "./haunt";
 import { askNumber } from "./questions";
 import { start, type Engine } from "./step-loop";
+import { viewFor } from "./view";
 
 // The monster turn and how monsters work (rules.md, pp. 18-19, and their
 // project rulings), played through the toy haunt (test/toy-haunt.ts): Ox,
@@ -149,8 +150,9 @@ describe("the monster turn's start (rules.md, p. 18)", () => {
   it("makes a monster type's Speed known to everyone once it is rolled (ruling monster-traits-known)", () => {
     const state = toMonsterTurn(toyBegun(TOY_ENGINE), TOY_ENGINE);
     expect(state.memory.traitsKnown).toEqual([
-      { definition: "phantom", trait: "speed", value: 3 },
+      { definition: "phantom", trait: "speed" },
     ]);
+    expect(viewFor(TOY_ENGINE, state, 0).figures[PHANTOM_1].traits.speed).toBe(3);
     expect(describeAll(TOY_ENGINE, state)).toContain(
       "Everyone now knows the Phantom's Speed: 3.",
     );

@@ -447,6 +447,16 @@ describe("migrate", () => {
     });
   });
 
+  it("drops a format 10 known trait's value, which is worked out when needed", () => {
+    expect(
+      migrate({
+        format: 10,
+        gameId: "g",
+        memory: { traitsKnown: [{ definition: "phantom", trait: "speed", value: 3 }] },
+      }).memory.traitsKnown,
+    ).toEqual([{ definition: "phantom", trait: "speed" }]);
+  });
+
   it("refuses a state with no format number", () => {
     expect(() => migrate({ gameId: "g" })).toThrow(/format/);
   });

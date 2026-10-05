@@ -1042,7 +1042,7 @@ function learnTrait(
     figure: p.figure,
     trait,
   });
-  state.memory.traitsKnown.push({ definition, trait, value });
+  state.memory.traitsKnown.push({ definition, trait });
   ctx.emit("trait-known", rulebook(18, "monster-traits-known"), {
     definition,
     trait,

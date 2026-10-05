@@ -435,11 +435,11 @@ export interface Death {
 
 /** What later rules read about the game so far. */
 /** A monster trait every seat knows: its type has rolled it (rules p. 18's
- *  official ruling). Whether a type has a trait at all is public. */
+ *  official ruling). Whether a type has a trait at all is public. Its value
+ *  is the traitValue question's, asked when it is needed. */
 export interface KnownTrait {
   definition: string;
   trait: Trait;
-  value: number;
 }
 
 export interface RuleMemory {

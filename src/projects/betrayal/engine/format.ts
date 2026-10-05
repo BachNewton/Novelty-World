@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 10;
+export const STATE_FORMAT = 11;
 
 type JsonObject = { [key: string]: Json };
 
@@ -268,6 +268,23 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
         "A format 9 turn's rolls can't be put down to a figure: none is acting",
       );
     return { ...state, turn: { ...turn, rolls: { [roller]: turn.rolls } } };
+  },
+  // Format 11 stops keeping a known monster trait's value, which the
+  // traitValue question gives whenever it is needed.
+  10: (state) => {
+    const memory = state.memory;
+    if (!isObject(memory) || !Array.isArray(memory.traitsKnown)) return state;
+    return {
+      ...state,
+      memory: {
+        ...memory,
+        traitsKnown: memory.traitsKnown.map((known) => {
+          if (!isObject(known)) return known;
+          const { value: _derived, ...rest } = known;
+          return rest;
+        }),
+      },
+    };
   },
 };
 

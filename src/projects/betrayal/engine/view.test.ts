@@ -139,7 +139,7 @@ describe("in a haunt", () => {
       expect(traits(seat)).toEqual({ speed: null, might: null, sanity: null });
 
     const rolled = structuredClone(state);
-    rolled.memory.traitsKnown.push({ definition: "phantom", trait: "might", value: 4 });
+    rolled.memory.traitsKnown.push({ definition: "phantom", trait: "might" });
     expect(viewFor(SIGIL_ENGINE, rolled, 0).figures["phantom-1"].traits).toEqual({
       speed: null,
       might: 4,
