@@ -231,15 +231,16 @@ export function taskRoll(how: {
   );
 }
 
-/** Whether a figure is in the room of a group's first living explorer. */
+/** Whether a figure is in the room of one of a group's living explorers
+ *  ("in the dreamer's room"). */
 export function withExplorerOf(
   state: GameState,
   figure: FigureId,
   group: FigureGroup,
 ): boolean {
-  const there = figuresIn(state, group).at(0);
-  return (
-    there !== undefined && together(figureOf(state, figure), figureOf(state, there))
+  const here = figureOf(state, figure);
+  return figuresIn(state, group).some((there) =>
+    together(here, figureOf(state, there)),
   );
 }
 

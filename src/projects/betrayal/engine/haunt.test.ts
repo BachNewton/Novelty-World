@@ -15,7 +15,7 @@ import {
 import type { Action, GameEvent, GameState, TurnKind } from "../types";
 import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
-import { removeStatus } from "./effects";
+import { die, removeStatus } from "./effects";
 import { revealSecret } from "./haunt";
 import { hauntSourceId, local } from "./sources";
 import { apply, start, type Engine } from "./step-loop";
@@ -415,6 +415,19 @@ describe("conditions and the result", () => {
       rule: { source: "rulebook", page: 19, ruling: "game-end" },
     });
     expect(eventTypes(state).slice(-2)).toEqual(["died", "game-over"]);
+  });
+
+  it("counts a hero who changed sides with the traitor's side, who wins with it", () => {
+    const state = readyAll(hauntGame());
+    state.seats[2] = { ...state.seats[2], side: "traitor", roles: [] };
+    const after = start(TOY_ENGINE, { ...state, pending: null }, [
+      die(ZOE, { source: "scenario" }),
+    ]);
+    expect(after.result?.winners).toEqual([1, 2]);
+    expect(after.lastEvents.find((e) => e.type === "game-over")?.data).toMatchObject({
+      winners: [1, 2],
+      side: "traitor",
+    });
   });
 
   it("lets the traitor win on its own goal, on the monster turn", () => {

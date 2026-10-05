@@ -26,10 +26,11 @@ import type {
   GameEvent,
   GameState,
   RuleRef,
+  Step,
 } from "../types";
 import { describeDecision, describeEvent } from "./describe";
-import { damage, die, step } from "./effects";
-import { spawn } from "./haunt";
+import { chooseOne, damage, die, step } from "./effects";
+import { offerReplacement, spawn } from "./haunt";
 import { askNumber } from "./questions";
 import { start, type Engine } from "./step-loop";
 
@@ -335,6 +336,34 @@ describe("spawning a haunt's figures", () => {
     ]);
     expect(state.figures["phantom-2"]).toMatchObject({ alive: true, owner: 1 });
     expect(state.memory.spawned).toEqual({ phantom: 2 });
+  });
+});
+
+describe("a rule that names one seat or explorer of a group", () => {
+  it("fails loudly when the group has several, rather than picking one", () => {
+    const state = toyBegun(TOY_ENGINE);
+    state.seats[2] = { ...state.seats[2], side: "traitor", roles: [] };
+    const run = (steps: Step[]) =>
+      start(TOY_ENGINE, { ...state, pending: null }, steps);
+    expect(() =>
+      run([spawn("phantom", { count: 1, at: "traitor", owner: null }, RULE)]),
+    ).toThrow("The traitor have 2 living explorers, not one to put Phantom beside");
+    expect(() =>
+      run([offerReplacement("phantom", { at: "traitor", owner: "traitor" }, RULE)]),
+    ).toThrow("The traitor are 2 seats, not one to bring in phantom");
+  });
+
+  it("puts a seat's choice to that seat, whoever controls what", () => {
+    const state = start(TOY_ENGINE, { ...toyBegun(TOY_ENGINE), pending: null }, [
+      chooseOne({ seat: 0 }, [
+        { label: "Aye", steps: [] },
+        { label: "Nay", steps: [] },
+      ], RULE, "choose"),
+    ]);
+    expect(waitingOn(state)).toBe(0);
+    expect(describeDecision(TOY_ENGINE, spectator(state, TOY_ENGINE), pendingDecision(state))).toBe(
+      "Zoe Ingstrom: choose",
+    );
   });
 });
 

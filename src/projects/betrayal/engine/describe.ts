@@ -12,7 +12,7 @@ import type {
   TurnKind,
 } from "../types";
 import type { Attacker } from "./combat";
-import type { CardDestination, GainedBy } from "./effects";
+import type { CardDestination, ChosenBy, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
@@ -770,6 +770,8 @@ export function describeDecision(
 ): string {
   const words = wordsFor(engine, view);
   const ask = (text: string) => withRule(engine, decision.rule, text);
+  const chooser = (by: ChosenBy) =>
+    "seat" in by ? words.seat(by.seat) : words.figure(by.figure);
   switch (decision.kind) {
     case "turn": {
       const p = decision.params as { seat: number };
@@ -789,10 +791,8 @@ export function describeDecision(
       );
     }
     case "place-tile": {
-      const p = decision.params as { figure: FigureId; tile: string };
-      return ask(
-        `${words.figure(p.figure)}: where should the ${words.room(p.tile)} go?`,
-      );
+      const p = decision.params as ChosenBy & { tile: string };
+      return ask(`${chooser(p)}: where should the ${words.room(p.tile)} go?`);
     }
     case "trade-offer": {
       const p = decision.params as { from: FigureId; to: FigureId };
@@ -821,8 +821,8 @@ export function describeDecision(
       );
     }
     case "choose-one": {
-      const p = decision.params as { figure: FigureId; prompt?: string };
-      return ask(`${words.figure(p.figure)}: ${p.prompt ?? "choose one"}`);
+      const p = decision.params as ChosenBy & { prompt?: string };
+      return ask(`${chooser(p)}: ${p.prompt ?? "choose one"}`);
     }
     case "roll-before": {
       const p = decision.params as { figure: FigureId; spec: RollSpec };

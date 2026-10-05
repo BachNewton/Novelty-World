@@ -727,8 +727,28 @@ export function endOngoing(card: string): Step {
 
 export type Option = { label: string; steps: Step[] };
 
-type ChooseOne = {
-  figure: FigureId;
+/** Who makes a choice: the seat controlling a figure, for a choice the
+ *  rules give the figure (where it lands, whether it comes closer), or a
+ *  seat itself, for one the rules give a player ("the traitor chooses"). */
+export type Chooser = FigureId | { seat: number };
+
+/** A choice's chooser as stored in its parameters. */
+export type ChosenBy = { figure: FigureId } | { seat: number };
+
+export function chosenBy(chooser: Chooser): ChosenBy {
+  return typeof chooser === "string" ? { figure: chooser } : { seat: chooser.seat };
+}
+
+/** The seat that answers a choice. */
+export function chooserSeat(
+  engine: Engine,
+  state: GameState,
+  by: ChosenBy,
+): number {
+  return "seat" in by ? by.seat : controllerOf(engine, state, by.figure);
+}
+
+type ChooseOne = ChosenBy & {
   options: Option[];
   rule: RuleRef;
   /** What is being chosen, for the question ("choose a room to add to the
@@ -737,19 +757,19 @@ type ChooseOne = {
 };
 
 /** A choice among options worked out when the effect runs: a room, a trait,
- *  a figure. Each option carries its own steps. The seat controlling
- *  `figure` chooses. */
+ *  a figure. Each option carries its own steps. */
 export function chooseOne(
-  figure: FigureId,
+  chooser: Chooser,
   options: Option[],
   rule: RuleRef,
   prompt?: string,
 ): Step {
+  const by = chosenBy(chooser);
   return step<ChooseOne>(
     "choose-one",
     prompt === undefined
-      ? { figure, options, rule }
-      : { figure, options, rule, prompt },
+      ? { ...by, options, rule }
+      : { ...by, options, rule, prompt },
   );
 }
 
@@ -1516,7 +1536,7 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
       ctx.decide(
-        [controllerOf(ctx.engine, state, p.figure)],
+        [chooserSeat(ctx.engine, state, p)],
         "choose-one",
         p,
         p.rule,

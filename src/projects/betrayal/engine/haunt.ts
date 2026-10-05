@@ -343,23 +343,29 @@ export function secretValue(state: GameState, secret: string): Json {
   return found.value;
 }
 
-/** A set of seats a haunt's rule names by role. */
+/** A set of seats a haunt's rule names by side: the traitor's side (a hero
+ *  who changed sides among them), the heroes, or everyone. */
 export type SeatGroup = "traitor" | "heroes" | "everyone";
 
 export function seatsIn(state: GameState, group: SeatGroup): number[] {
   const all = state.seats.map((_seat, i) => i);
-  switch (group) {
-    case "traitor":
-      return all.filter((i) => state.seats[i].roles.includes("traitor"));
-    case "heroes":
-      return all.filter((i) => state.seats[i].side === "heroes");
-    case "everyone":
-      return all;
-  }
+  return group === "everyone"
+    ? all
+    : all.filter((i) => state.seats[i].side === group);
 }
 
-/** Explorers a haunt's rule names by their seat's role: the traitor's, the
- *  heroes', or the revealer's, those alive. */
+/** The one seat of a group, for a rule that gives one seat something to
+ *  own or decide. A group of several seats, or none, has no rule to pick
+ *  one by, so it fails loudly. */
+export function oneSeatIn(state: GameState, group: SeatGroup, what: string): number {
+  const seats = seatsIn(state, group);
+  if (seats.length !== 1)
+    throw new Error(`The ${group} are ${seats.length} seats, not one to ${what}`);
+  return seats[0];
+}
+
+/** Explorers a haunt's rule names by their seat's side (the traitor's
+ *  side's, the heroes'), or the revealer's, those alive. */
 export type FigureGroup = "traitor" | "heroes" | "revealer";
 
 export function figuresIn(state: GameState, group: FigureGroup): FigureId[] {
@@ -369,6 +375,22 @@ export function figuresIn(state: GameState, group: FigureGroup): FigureId[] {
     const id = explorerOf(state, seat);
     return id !== null && figureOf(state, id).alive ? [id] : [];
   });
+}
+
+/** The one living explorer of a group, for a rule that names a place by
+ *  it ("beside the dreamer"). Several, or none, fail loudly: no rule says
+ *  which to pick. */
+export function oneFigureIn(
+  state: GameState,
+  group: FigureGroup,
+  what: string,
+): FigureId {
+  const figures = figuresIn(state, group);
+  if (figures.length !== 1)
+    throw new Error(
+      `The ${group} have ${figures.length} living explorers, not one to ${what}`,
+    );
+  return figures[0];
 }
 
 type SetSecret = {
@@ -424,7 +446,7 @@ type Spawn = {
   rule: RuleRef;
 };
 
-/** Puts a number of a haunt's figures into the room of a group's first
+/** Puts a number of a haunt's figures into the room of a group's one
  *  living explorer (haunt 13's Nightmares, with the sleeping traitor), owned
  *  by the one seat of a group, or by none: as many as asked, or as the
  *  supply has left, counting the figures of that kind in play. Each is
@@ -453,9 +475,8 @@ export function settingUp(state: GameState): boolean {
 type TopUp = {
   match: RoomMatch;
   atLeast: Count;
-  /** Whose seat chooses and places the rooms: the controller of this
-   *  group's first living explorer. */
-  chooser: FigureGroup;
+  /** The group whose one seat chooses and places the rooms. */
+  chooser: SeatGroup;
   rule: RuleRef;
   /** The stack has been searched, so it is shuffled once the top-up ends. */
   searched: boolean;
@@ -470,7 +491,7 @@ type TopUp = {
 export function topUpRooms(
   match: RoomMatch,
   atLeast: Count,
-  chooser: FigureGroup,
+  chooser: SeatGroup,
   rule: RuleRef,
 ): Step {
   return step<TopUp>("top-up-rooms", {
@@ -870,13 +891,12 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
     if (!(p.definition in ctx.catalog.figures))
       throw new Error(`There is no figure definition ${p.definition}`);
     const definition = ctx.catalog.figures[p.definition];
-    const beside = figuresIn(state, p.at).at(0);
-    if (beside === undefined)
-      throw new Error(`No explorer of the ${p.at} to put ${definition.name} beside`);
-    const place = placeOf(state, beside);
-    const owners = p.owner === null ? [null] : seatsIn(state, p.owner);
-    if (owners.length !== 1)
-      throw new Error(`The ${String(p.owner)} are not one seat to own ${definition.name}`);
+    const place = placeOf(
+      state,
+      oneFigureIn(state, p.at, `put ${definition.name} beside`),
+    );
+    const owner =
+      p.owner === null ? null : oneSeatIn(state, p.owner, `own ${definition.name}`);
     const inPlay = figuresInPlay(state, p.definition);
     const supply = askNumber(ctx.engine, state, "supply", {
       definition: p.definition,
@@ -894,7 +914,7 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
         id,
         kind: definition.kind,
         definition: p.definition,
-        owner: owners[0],
+        owner,
         place: { ...place },
         traits: startingTraits(definition),
         cards: [],
@@ -931,9 +951,7 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
       )
       .sort();
     if (have < wanted && candidates.length > 0) {
-      const chooser = figuresIn(state, p.chooser).at(0);
-      if (chooser === undefined)
-        throw new Error(`No explorer of the ${p.chooser} to add rooms`);
+      const chooser = { seat: oneSeatIn(state, p.chooser, "add rooms") };
       ctx.push(
         chooseOne(
           chooser,
@@ -1012,12 +1030,12 @@ export const HAUNT_STEPS: Record<string, StepHandler> = {
   }),
 
   "offer-replacement": defineStep<Replacement>((state, p, ctx) => {
-    const seats = seatsIn(state, p.owner);
-    if (seats.length !== 1)
-      throw new Error(
-        `The ${p.owner} are not one seat to bring in ${p.definition}`,
-      );
-    ctx.decide(seats, "replace-figure", p, p.rule);
+    ctx.decide(
+      [oneSeatIn(state, p.owner, `bring in ${p.definition}`)],
+      "replace-figure",
+      p,
+      p.rule,
+    );
   }),
 
   "task-result": defineStep<TaskResult>((_state, p, ctx) => {
@@ -1032,10 +1050,12 @@ export const HAUNT_DECISIONS: Record<string, DecisionKind> = {
     label: (state, p, unleash, engine) => {
       const name = engine.catalog.figures[p.definition].name;
       if (!unleash) return `Don't bring in another ${name}: the chance is lost`;
-      const beside = figuresIn(state, p.at).at(0);
-      return beside === undefined
-        ? `Bring in another ${name}`
-        : `Bring in another ${name}, in the ${engine.catalog.rooms[placeOf(state, beside).room].name}`;
+      // With no one to put it beside, bringing one in doesn't apply; with
+      // several, it fails loudly.
+      const beside = figuresIn(state, p.at);
+      return beside.length === 1
+        ? `Bring in another ${name}, in the ${engine.catalog.rooms[placeOf(state, beside[0]).room].name}`
+        : `Bring in another ${name}`;
     },
     resolve: (state, p, unleash, ctx) => {
       if (!unleash) {

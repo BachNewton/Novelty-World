@@ -29,8 +29,12 @@ import {
 } from "./board";
 import {
   arrived,
+  chooserSeat,
+  chosenBy,
   chooseSide,
   spendMove,
+  type Chooser,
+  type ChosenBy,
   continueWith,
   defineDecision,
   defineStep,
@@ -40,7 +44,7 @@ import {
   step,
 } from "./effects";
 import { figureOf, placeOf, putFigure } from "./figures";
-import { barrierSides, controllerOf } from "./questions";
+import { barrierSides } from "./questions";
 import type { DecisionKind, StepContext, StepHandler } from "./step-loop";
 
 // Putting room tiles in the house and moving them: discovering through a
@@ -258,8 +262,7 @@ export function drawRoomTile(
   });
 }
 
-type PlaceRoom = {
-  figure: FigureId;
+type PlaceRoom = ChosenBy & {
   tile: string;
   where: Where;
   /** A moving tile may also stay where it is. */
@@ -269,18 +272,18 @@ type PlaceRoom = {
   otherwise: Step[];
 };
 
-/** Has the seat controlling `figure` put a tile in the house, or move one
- *  already there, somewhere it may go. When it can go nowhere, a tile in the
- *  house stays put and `otherwise` runs. */
+/** Has the chooser put a tile in the house, or move one already there,
+ *  somewhere it may go. When it can go nowhere, a tile in the house stays
+ *  put and `otherwise` runs. */
 export function placeRoom(
-  figure: FigureId,
+  chooser: Chooser,
   tile: string,
   where: Where,
   rule: RuleRef,
   next: { then?: Step[]; otherwise?: Step[]; stay?: boolean } = {},
 ): Step {
   return step<PlaceRoom>("place-room", {
-    figure,
+    ...chosenBy(chooser),
     tile,
     where,
     stay: next.stay ?? false,
@@ -366,7 +369,7 @@ export const TILE_STEPS: Record<string, StepHandler> = {
   "place-room": defineStep<PlaceRoom>((state, p, ctx) => {
     if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
       ctx.decide(
-        [controllerOf(ctx.engine, state, p.figure)],
+        [chooserSeat(ctx.engine, state, p)],
         "place-tile",
         p,
         p.rule,

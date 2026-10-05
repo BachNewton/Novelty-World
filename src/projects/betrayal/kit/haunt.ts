@@ -57,7 +57,7 @@ export type SetupPart = (
   | { part: "secret"; secret: string; value: Count; knownBy: SeatGroup }
   /** Put a status, defined by the haunt, on a group's explorers. */
   | { part: "status"; who: FigureGroup; status: string; params?: Json }
-  /** Put a number of the haunt's figures in the room of a group's first
+  /** Put a number of the haunt's figures in the room of a group's one
    *  living explorer, owned by a group's one seat or by none. */
   | {
       part: "spawn";
@@ -72,9 +72,9 @@ export type SetupPart = (
   /** Each explorer of a group sets its companions aside, out of the game. */
   | { part: "set-aside-companions"; who: FigureGroup }
   /** Tops up the rooms in the house that match to at least a number, the
-   *  rooms chosen from the stack and the discards and placed by the seat
-   *  of a group's explorer. */
-  | { part: "rooms"; match: RoomMatch; atLeast: Count; chooser: FigureGroup }
+   *  rooms chosen from the stack and the discards and placed by a group's
+   *  one seat. */
+  | { part: "rooms"; match: RoomMatch; atLeast: Count; chooser: SeatGroup }
   /** One of the haunt's own steps, for what the kit doesn't cover. */
   | { part: "local"; step: string; params?: Json }
 ) & { ruling?: string };
