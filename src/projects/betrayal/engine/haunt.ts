@@ -650,13 +650,19 @@ export function checkConditions(
   ctx.push(...steps);
 }
 
+/** The goal that ends the game. Goals met at once with the same winners
+ *  are one win, under the first one's rule, showing every secret any of
+ *  them reveals. */
 function pickGoal(state: GameState, goals: Goal[]): Goal & { tied: boolean } {
-  const distinct = goals.filter(
-    (goal, i) =>
-      goals.findIndex(
-        (other) => JSON.stringify(other.winners) === JSON.stringify(goal.winners),
-      ) === i,
-  );
+  const distinct: Goal[] = [];
+  for (const goal of goals) {
+    const same = distinct.find(
+      (other) => JSON.stringify(other.winners) === JSON.stringify(goal.winners),
+    );
+    if (same === undefined) distinct.push({ ...goal, reveal: [...goal.reveal] });
+    else
+      same.reveal.push(...goal.reveal.filter((id) => !same.reveal.includes(id)));
+  }
   if (distinct.length === 1) return { ...distinct[0], tied: false };
   const seat = state.turn?.seat;
   const ours = distinct.filter(

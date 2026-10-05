@@ -17,6 +17,7 @@ import { describeEvent } from "./describe";
 import { traitValue } from "./questions";
 import { removeStatus } from "./effects";
 import { revealSecret } from "./haunt";
+import { hauntSourceId, local } from "./sources";
 import { apply, start, type Engine } from "./step-loop";
 
 // The haunt framework, played through a toy haunt built from the kit
@@ -365,6 +366,43 @@ describe("conditions and the result", () => {
     expect(describeAll(awake, traitor).at(-1)).toBe(
       "The traitor's side wins: Ox Bellows (both sides' goals were met at once, on their turn).",
     );
+  });
+
+  it("shows every secret its goals reveal when goals with the same winners are met at once", () => {
+    // The last heroes fall in the step that brings the escapes up to the
+    // traitor's number: the rulebook's goal and the haunt's both go to the
+    // traitor, and the haunt's still shows everyone the number.
+    const doom = withHaunts(BASE_ENGINE, [
+      toyHaunt(13, {
+        goals: [
+          {
+            id: "escaped",
+            side: "traitor",
+            when: { counter: "escapes", atLeast: { of: "secret", secret: "target" } },
+            reveals: ["target"],
+          },
+        ],
+        actions: {
+          doom: {
+            label: "Bring doom",
+            side: "heroes",
+            steps: () => [local(hauntSourceId(13), "doom")],
+          },
+        },
+        steps: {
+          doom: (state) => {
+            for (const figure of [ZOE, FATHER]) kill(state, figure);
+            if (!state.haunt) throw new Error("No haunt");
+            state.haunt.counters.escapes = 3;
+          },
+        },
+      }),
+    ]);
+    let state = readyAll(hauntGame({ engine: doom }), doom);
+    state = choose(state, "Bring doom", doom);
+    expect(state.result?.winners).toEqual([1]);
+    expect(state.haunt?.secrets.find((s) => s.id === "target")?.knownBy).toBeNull();
+    expect(eventTypes(state).slice(-2)).toEqual(["secret-revealed", "game-over"]);
   });
 
   it("ends the game for the traitor's side once every hero is dead (ruling game-end)", () => {
