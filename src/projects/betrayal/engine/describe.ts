@@ -15,7 +15,13 @@ import type { CardDestination, ChosenBy, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
-import type { EventView, FigureView, GameView, RuleView } from "./view";
+import {
+  viewExplorer,
+  type EventView,
+  type FigureView,
+  type GameView,
+  type RuleView,
+} from "./view";
 import { FLOOR_NAMES, sideName } from "./board";
 
 // Plain language for events and decisions, for the game log, the UI and AI
@@ -74,10 +80,7 @@ function wordsFor(engine: Engine, view: GameView): Words {
   const { rooms, cards } = engine.catalog;
   return {
     figure: (figure) => figureIn(view, figure).name,
-    seat: (seat) =>
-      Object.values(view.figures).find(
-        (f) => f.kind === "explorer" && f.owner === seat,
-      )?.name ?? view.seats[seat].name,
+    seat: (seat) => viewExplorer(view, seat)?.name ?? view.seats[seat].name,
     room: (room) => rooms[room].name,
     card: (card) => cards[card].name,
   };

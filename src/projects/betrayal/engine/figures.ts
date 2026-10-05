@@ -34,11 +34,18 @@ export function allFigures(state: GameState): Figure[] {
 }
 
 /** The seat's own explorer, for the rules that mean exactly that. A seat
- *  may have none. */
-export function explorerOf(state: GameState, seat: number): FigureId | null {
+ *  may have none. It reads only the figures' kinds and owners, so it serves
+ *  a game state and a seat's view alike. */
+export function explorerOf(
+  game: { figures: Record<FigureId, Pick<Figure, "id" | "kind" | "owner">> },
+  seat: number,
+): FigureId | null {
   return (
-    allFigures(state).find((f) => f.kind === "explorer" && f.owner === seat)
-      ?.id ?? null
+    Object.values(game.figures)
+      .filter((f) => f.kind === "explorer" && f.owner === seat)
+      .map((f) => f.id)
+      .sort()
+      .at(0) ?? null
   );
 }
 

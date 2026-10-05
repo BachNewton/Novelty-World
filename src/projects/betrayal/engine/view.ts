@@ -26,7 +26,7 @@ import type {
   TurnKind,
   TurnRef,
 } from "../types";
-import { allFigures, figureName, TRAITS } from "./figures";
+import { allFigures, explorerOf, figureName, TRAITS } from "./figures";
 import { activeHaunt } from "./haunt";
 import { askStructured, hasTrait, traitValue } from "./questions";
 import { sideOf } from "./sides";
@@ -659,9 +659,6 @@ export function viewFor(
 
 /** The seat's own explorer in a view, where it has one. */
 export function viewExplorer(view: GameView, seat: number): FigureView | null {
-  return (
-    Object.values(view.figures).find(
-      (f) => f.kind === "explorer" && f.owner === seat,
-    ) ?? null
-  );
+  const id = explorerOf(view, seat);
+  return id === null ? null : view.figures[id];
 }
