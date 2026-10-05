@@ -29,7 +29,6 @@ import {
 } from "./board";
 import {
   arrived,
-  chooserSeat,
   chosenBy,
   chooseSide,
   goOut,
@@ -367,12 +366,8 @@ export const TILE_STEPS: Record<string, StepHandler> = {
 
   "place-room": defineStep<PlaceRoom>((state, p, ctx) => {
     if (placeOptions(ctx.catalog, state.board, p.tile, p.where).length > 0) {
-      ctx.decide(
-        [chooserSeat(ctx.engine, state, p)],
-        "place-tile",
-        p,
-        p.rule,
-      );
+      if ("seat" in p) ctx.decide([p.seat], "place-tile", p, p.rule);
+      else ctx.decideFor(p.figure, "place-tile", p, p.rule);
       return;
     }
     if (placed(state.board, p.tile))

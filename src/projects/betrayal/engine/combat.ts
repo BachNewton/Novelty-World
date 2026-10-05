@@ -402,12 +402,7 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
       );
       return;
     }
-    ctx.decide(
-      [controllerOf(ctx.engine, state, p.attacker.figure)],
-      "attack-mode",
-      p,
-      p.rule,
-    );
+    ctx.decideFor(p.attacker.figure, "attack-mode", p, p.rule);
   }),
 
   "attack-roll": defineStep<Moded>((_state, p, ctx) => {
@@ -484,12 +479,7 @@ export const COMBAT_STEPS: Record<string, StepHandler> = {
         stealable(ctx.engine, state, c),
       )
     ) {
-      ctx.decide(
-        [controllerOf(ctx.engine, state, attacker)],
-        "attack-steal",
-        settle,
-        p.rule,
-      );
+      ctx.decideFor(attacker, "attack-steal", settle, p.rule);
       return;
     }
     ctx.push(step<Settle>("attack-settle", settle));

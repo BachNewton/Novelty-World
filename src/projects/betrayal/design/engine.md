@@ -54,7 +54,7 @@ One JSON value, kept in the game row. It holds identifiers and live values only.
 | Inserted turns | Turns a rule has put into the order, taken first, in order, at the next turn boundaries |
 | Rule memory | What later rules read: deaths with killer and cause, damage sources, once-only flags, the conditions that have fired, the monster traits every seat knows (a type's trait, once rolled), and how many of each haunt figure have come into play |
 | Work | The step stack: the engine's unfinished work, as data (section 3) |
-| Decision | The pending decision's id, its addressees, the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
+| Decision | The pending decision's id, its addressees, the figure it is about (whose controller it was put to, or the turn's acting figure; none for one put to seats as players), the answers already given by addressees of a shared decision, and its question (a kind with parameters). Its choices are derived from the state, not stored. Or, instead of a decision, a ready wait: the seats still to confirm (section 3) |
 | Answers | The most recent answered decisions (decision id, seat, choice), for idempotent retries (section 8) |
 | Last events | The events from the latest write only, for animation |
 | Result | Once the game ends: the winning seats, and the rule whose goal was met |
@@ -211,26 +211,13 @@ A haunt is one typed definition in `data/haunts/`, built from kit parts (`kit/`)
 - **Local functions:** named steps or modifier functions for what the kit doesn't cover, kept in the haunt's own file.
 - **Rulings:** references to the content notes the definition depends on, each with its settled answer.
 
-**Haunt 13, Perchance to Dream (pure data, as built in `data/haunts/`).**
-- *Sides:* the chart's traitor rule.
-- *Setup (the traitor's):*
-  - The traitor's explorer gets the kit's asleep status: it takes no actions, can't be handed cards, can't be moved by any effect (the canBeMoved question), and hinders no one; its seat still makes the traitor's choices.
-  - It drops its items and sets its companions aside, out of the game; the haunt's lethalOutcome clamp while the setup runs keeps either from killing it.
-  - Nightmares are spawned in the dreamer's room, one per player.
-  - The escape rooms (rooms with windows, outside rooms and the Entrance Hall) are topped up to the number of players, the traitor choosing and placing each from the stack and the discards; the stack is then shuffled.
-  - Their count, after the top-up, becomes a secret known to the traitor's seat, and the escapes counter starts at 0. The heroes' setup starts the wake counter.
-- *Figures:* the Nightmare, with Speed 5, Might 4 and Sanity 4, moved by the traitor under the default monster rules.
-- *Actions:*
-  - The Nightmares' escape: in an escape room with no marker, as the move out of the room (1 space plus 1 per hero in the way, but always possible before moving). It takes the Nightmare out of play, leaves a marker and steps the escapes.
-  - The heroes' wake: a task roll, Sanity or Might 5+, in the dreamer's room while a hero there carries the Holy Symbol. Success steps the wake counter, whichever token it wins.
-- *Modifiers:*
-  - combatOutcome: every point of damage a Nightmare deals is mental, attacking or defending (`dealsDamageAs`).
-  - combatOutcome: a Nightmare that loses to an attacking hero is killed, not stunned (`killedWhenBeatenBy`).
-  - supply: Nightmares in play never outnumber the players.
-  - The Smelling Salts need no rule: only the wake roll steps the counter.
-- *Triggers:* a Nightmare killed or escaped offers the traitor's seat, at once, the choice to bring in another beside the body; a chance not taken is lost (`replaceWhenLost`).
-- *Goals:* the traitor wins when escapes reach the secret (which reveals it), when the dreamer dies, or when the Holy Symbol leaves the game; the heroes win when the wake counter reaches the number of players. The rulebook's goal covers every hero dead.
-- *Rulings:* each event names its note in the haunt's file (`> Note [h13-…]`), and "why?" shows that ruling only, to the seats that may read the half it sits in.
+**Haunt 13, Perchance to Dream (built in `data/haunts/`, pure data).** It shows that a haunt with a sleeping traitor, a race of monsters and a number only the traitor knows needs no code of its own: each of its rules is a kit part, or a modifier to a question the engine already asks.
+- *The sleeping traitor* is a shared kit status. It denies the questions that let a figure act, hold cards or be moved by an effect, and turns off hindering, while the seat keeps every choice the rules give the traitor, because who decides is a seat, not the body. Dropping the body's items and setting its companions aside are setup parts that can't kill it, since a lethalOutcome modifier clamps every trait while the setup runs.
+- *The Nightmares* are a figure definition with fixed traits, moved by the rulebook's monster rules. How they fight is two adjustments to combatOutcome (the damage they deal is mental; a hero who beats one while attacking kills it), and how many may be in play at once is the supply question.
+- *The race* is the kit's escape from the house, limited to Nightmares, marking each room it is used through and stepping a counter. One room match (rooms with windows, outside rooms and the Entrance Hall) serves three rules: the traitor's seat tops the house up to that many rooms at setup, their count becomes a secret only that seat knows, and it says where an escape may be made. Losing a Nightmare, killed or escaped, triggers an offer to the traitor's seat to bring in another beside the body.
+- *Waking the dreamer* is the kit's task roll for heroes, offered in the dreamer's room while a hero there carries the Holy Symbol; each success steps the wake counter.
+- *The ending* is four goals: a counter reaching the secret (which shows everyone the secret as it is met), a counter reaching the number of players, the dreamer's death and the Holy Symbol leaving the game. The rulebook's own goal covers every hero dead.
+- *Rulings:* each event cites the note in the haunt's file behind it, and "why?" shows that ruling only to the seats that may read the half it sits in.
 
 **Haunt 22, The Abyss Gazes Back (data plus small functions).** This is one of the harder base haunts: a mutable board, a timer, obligations on other players' turns, and two unresolved notes.
 - *Setup:*
@@ -477,3 +464,4 @@ Each waits for the milestone that needs it. Nothing before that milestone depend
 1. **What the star-haunt record is keyed by** (Widow's Walk). The book's chart has a row per character, and "every explorer in your group" (the star haunt's season gate) has to be read against it. The record stays out of the engine either way: the route copies what a game needs into its state at creation.
 2. **Which model plays an AI seat, and how it reaches the game** (AI players). A seat's job is to pick one of the pending decision's labelled legal choices from its view, which suits a schema-constrained "System One" model such as TypeSafe's Jev. Planning and bluffing over a whole haunt may need more reasoning than such a model offers. Whether the AI gets the game through an MCP server (tools to read its view, look up rules in `content/` and submit a choice) rather than one prompt per decision is part of the same question. `ai-players.md` records a proof of concept with local models and the options it leaves: where the model runs, players bringing their own agent over MCP, progress while an AI thinks, and a stated plan carried between decisions.
 3. **A drive's deadline** (bots). How many seconds a drive has to answer, and what happens once the deadline passes: whether the decision is claimed again, a fallback answers, or a human takes the seat.
+4. **Monster turns for a hidden traitor** (the batch of base haunts that builds 34 and 43). The turn order gives monster turns only to a seat everyone knows is on the traitor's side, so a hidden traitor's monsters never move on their own. When, and how, a seat whose side is secret moves its monsters without giving itself away waits for the first hidden-traitor haunt that has monsters. A view already keeps such a turn's seat, and the seat's decisions about its monsters, from the seats that don't know its side.

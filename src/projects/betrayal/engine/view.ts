@@ -30,12 +30,7 @@ import { allFigures, explorerOf, figureName, TRAITS } from "./figures";
 import { activeHaunt } from "./haunt";
 import { askStructured, hasTrait, traitValue } from "./questions";
 import { sideOf } from "./sides";
-import {
-  choices,
-  decisionSubjects,
-  type Choice,
-  type Engine,
-} from "./step-loop";
+import { choices, type Choice, type Engine } from "./step-loop";
 
 // What one seat may see of a game: the UI renders it, and bots and AI
 // players get nothing else. The full state is public under the good-faith
@@ -244,21 +239,21 @@ function ownerHidden(
   );
 }
 
-/** Whether a viewer may see that a decision about these figures is put to
- *  a seat. A seat whose side the viewer doesn't know may be seen deciding
- *  only about figures whose owners the viewer may see: a decision about a
- *  monster it owns, or one put to it for its side, gives the side away. */
+/** Whether a viewer may see that a decision about a figure, or about none,
+ *  is put to a seat. A seat whose side the viewer doesn't know may be seen
+ *  deciding only about a figure whose owner the viewer may see: a decision
+ *  about a monster it owns, or one put to it as a player ("the traitor
+ *  chooses"), gives the side away. */
 function seesAddressee(
   state: GameState,
   viewer: number | null,
   seat: number,
-  subjects: FigureId[],
+  about: FigureId | null,
 ): boolean {
   return (
     seat === viewer ||
     knowsSide(state, viewer, seat) ||
-    (subjects.length > 0 &&
-      subjects.every((figure) => !ownerHidden(state, viewer, figure)))
+    (about !== null && !ownerHidden(state, viewer, about))
   );
 }
 
@@ -467,9 +462,8 @@ function pendingView(
       rule: ruleView(engine, state, viewer, pending.rule),
     };
   const addressed = viewer !== null && pending.seats.includes(viewer);
-  const subjects = decisionSubjects(state, pending);
   const seats = pending.seats.filter((seat) =>
-    seesAddressee(state, viewer, seat, subjects),
+    seesAddressee(state, viewer, seat, pending.about),
   );
   return {
     type: "decision",
@@ -520,7 +514,7 @@ const REDACTIONS: Partial<
   // are its addressee's alone; whom it was put to, as for any decision.
   forced: (data, viewer, state) => {
     if (data.seat === viewer) return data;
-    const about = Array.isArray(data.about) ? (data.about as FigureId[]) : [];
+    const about = typeof data.about === "string" ? data.about : null;
     return seesAddressee(state, viewer, data.seat as number, about)
       ? { seat: data.seat, kind: data.kind }
       : { kind: data.kind };

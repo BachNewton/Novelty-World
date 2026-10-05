@@ -1,5 +1,5 @@
 import { viewFor, type GameView } from "../engine/view";
-import { decisionSubjects, type Engine } from "../engine/step-loop";
+import type { Engine } from "../engine/step-loop";
 import type { CardType, GameState, Json } from "../types";
 import { HEROES_ONLY, SIGIL, TRAITOR_ONLY } from "./toy-haunt";
 
@@ -92,20 +92,21 @@ export function checkView(engine: Engine, state: GameState, viewer: number | nul
     // it, whose monster turn it is, and the statuses on its figures.
     const ownerKept = (figure: string) =>
       state.figures[figure].kind !== "explorer" && state.figures[figure].owner === i;
-    const givesAway = (about: string[]) => about.length === 0 || about.some(ownerKept);
+    const givesAway = (about: string | null | undefined) =>
+      about === null || about === undefined || ownerKept(about);
     if (
       state.pending?.type === "decision" &&
       view.pending?.type === "decision" &&
       view.pending.seats.includes(i) &&
-      givesAway(decisionSubjects(state, state.pending))
+      givesAway(state.pending.about)
     )
       fail(`shows that seat ${i}, whose side it doesn't know, is asked a decision that gives it away`);
     for (const event of view.events) {
       const data = event.data as { [key: string]: Json };
       const raw = state.lastEvents.find((e) => e.id === event.id)?.data as {
-        about?: string[];
+        about?: string | null;
       };
-      if (event.type === "forced" && data.seat === i && givesAway(raw.about ?? []))
+      if (event.type === "forced" && data.seat === i && givesAway(raw.about))
         fail(`shows that seat ${i} was forced a choice that gives its side away`);
       if (
         ["turn-started", "turn-ended", "turn-cut-short", "turn-inserted"].includes(event.type) &&

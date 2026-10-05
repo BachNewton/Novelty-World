@@ -219,6 +219,11 @@ export interface Decision {
   kind: string;
   params: Json;
   rule: RuleRef;
+  /** The figure the decision is about, put to the seat controlling it
+   *  (how it splits damage, where it lands), or, for the turn's own
+   *  decision, the figure acting on it. Null for a decision put to seats
+   *  as players ("the traitor chooses", a shared vote). */
+  about: FigureId | null;
   /** Answers already given to a shared decision, by seat. */
   answers: Record<number, Json>;
 }

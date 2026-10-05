@@ -322,6 +322,7 @@ describe("a shared decision", () => {
       kind: "vote",
       params: null,
       rule: { source: "scenario" },
+      about: null,
       answers,
     };
     return { ...state, pending: decision, lastEvents: [] };

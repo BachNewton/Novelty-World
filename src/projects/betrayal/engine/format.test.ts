@@ -249,7 +249,7 @@ describe("migrate", () => {
           omens: [{ card: "book", figure: "ox-bellows", room: "chasm" }],
         },
         work: [],
-        pending,
+        pending: { ...pending, about: "ox-bellows" },
         lastEvents: [],
         ...later,
       });
@@ -455,6 +455,26 @@ describe("migrate", () => {
         memory: { traitsKnown: [{ definition: "phantom", trait: "speed", value: 3 }] },
       }).memory.traitsKnown,
     ).toEqual([{ definition: "phantom", trait: "speed" }]);
+  });
+
+  it("records what a format 11 pending decision is about, from where its kind kept it", () => {
+    const decision = (kind: string, params: Json) => ({
+      format: 11,
+      gameId: "g",
+      turn: { seat: 0, acting: "zoe-ingstrom" },
+      pending: { type: "decision", id: "d1", seats: [0], kind, params, answers: {} },
+    });
+    const about = (kind: string, params: Json) => {
+      const pending = migrate(decision(kind, params)).pending;
+      return pending?.type === "decision" ? pending.about : undefined;
+    };
+    expect(about("turn", { seat: 0 })).toBe("zoe-ingstrom");
+    expect(about("split-damage", { figure: "ox-bellows" })).toBe("ox-bellows");
+    expect(about("trade-offer", { from: "zoe-ingstrom", to: "ox-bellows" })).toBe("ox-bellows");
+    expect(about("attack-mode", { attacker: { kind: "figure", figure: "ox-bellows" } })).toBe(
+      "ox-bellows",
+    );
+    expect(about("replace-figure", { definition: "nightmare" })).toBeNull();
   });
 
   it("refuses a state with no format number", () => {

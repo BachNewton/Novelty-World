@@ -10,6 +10,7 @@ import type {
   Step,
 } from "../types";
 import { checkConditions, type Haunts } from "./haunt";
+import { controllerOf } from "./questions";
 import { randomFor, SETUP_KEY, type Random } from "./random";
 import { liveSources, type Behaviours } from "./sources";
 
@@ -21,8 +22,18 @@ export interface StepContext {
   emit: (type: string, rule: RuleRef, data?: Json) => void;
   /** Queue work. The steps run in the order given, before anything already queued. */
   push: (...steps: Step[]) => void;
-  /** Pause on a decision. The engine stops running steps until it is answered. */
-  decide: (seats: number[], kind: string, params: Json, rule: RuleRef) => void;
+  /** Pause on a decision put to seats. The engine stops running steps
+   *  until it is answered. `about` names the figure it is about, where it
+   *  is about one. */
+  decide: (
+    seats: number[],
+    kind: string,
+    params: Json,
+    rule: RuleRef,
+    about?: FigureId | null,
+  ) => void;
+  /** Pause on a decision about a figure, put to the seat controlling it. */
+  decideFor: (figure: FigureId, kind: string, params: Json, rule: RuleRef) => void;
   /** Pause until these seats have read something and confirmed. */
   waitForReady: (seats: number[], rule: RuleRef) => void;
 }
@@ -76,26 +87,6 @@ export type ApplyResult =
 export interface Choice {
   choice: Json;
   label: string;
-}
-
-/** The figures a decision is about: those its parameters name, and for the
- *  turn's own decision, the figures acting on the turn. A view reads them
- *  to tell whether putting the decision to its seat gives away whose a
- *  figure is. */
-export function decisionSubjects(
-  state: GameState,
-  decision: { kind: string; params: Json },
-): FigureId[] {
-  if (decision.kind === "turn") return [...(state.turn?.actors ?? [])];
-  const named = new Set<FigureId>();
-  const look = (value: Json) => {
-    if (typeof value === "string" && value in state.figures) named.add(value);
-    else if (Array.isArray(value)) value.forEach(look);
-    else if (typeof value === "object" && value !== null)
-      Object.values(value).forEach(look);
-  };
-  look(decision.params);
-  return [...named].sort();
 }
 
 /** A game that loops this long without pausing has a bug: it must fail loudly, not be cut short. */
@@ -235,6 +226,25 @@ function beginWrite(
   draft.lastEvents = [];
   const events: GameEvent[] = draft.lastEvents;
   const nextId = () => `${draft.nextId++}`;
+  const decide: StepContext["decide"] = (
+    seats,
+    kind,
+    params,
+    rule,
+    about = null,
+  ) => {
+    assertNothingPending(draft);
+    draft.pending = {
+      type: "decision",
+      id: `d${nextId()}`,
+      seats,
+      kind,
+      params,
+      rule,
+      about,
+      answers: {},
+    };
+  };
   const ctx: StepContext = {
     engine,
     catalog: engine.catalog,
@@ -245,17 +255,9 @@ function beginWrite(
     push: (...steps) => {
       draft.work.push(...[...steps].reverse());
     },
-    decide: (seats, kind, params, rule) => {
-      assertNothingPending(draft);
-      draft.pending = {
-        type: "decision",
-        id: `d${nextId()}`,
-        seats,
-        kind,
-        params,
-        rule,
-        answers: {},
-      };
+    decide,
+    decideFor: (figure, kind, params, rule) => {
+      decide([controllerOf(engine, draft, figure)], kind, params, rule, figure);
     },
     waitForReady: (seats, rule) => {
       assertNothingPending(draft);
@@ -315,7 +317,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
         write.ctx.emit("forced", pending.rule, {
           seat: pending.seats[0],
           kind: pending.kind,
-          about: decisionSubjects(draft, pending),
+          about: pending.about,
           choice: legal[0].choice,
           label: legal[0].label,
         });

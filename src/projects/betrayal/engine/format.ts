@@ -2,7 +2,7 @@ import type { GameState, Json } from "../types";
 
 /** The saved state's format. Raise it with every change to the state's shape,
  *  and add the migration from the previous format, tested with a saved fixture. */
-export const STATE_FORMAT = 11;
+export const STATE_FORMAT = 12;
 
 type JsonObject = { [key: string]: Json };
 
@@ -284,6 +284,29 @@ const MIGRATIONS: Partial<Record<number, Migration>> = {
           return rest;
         }),
       },
+    };
+  },
+  // Format 12 records the figure a pending decision is about: the turn's
+  // acting figure for the turn's own, the figure whose controller any other
+  // was put to, read from the parameter each kind kept it in, or none for
+  // one put to a seat as a player.
+  11: (state) => {
+    const pending = state.pending;
+    if (!isObject(pending) || pending.type !== "decision") return state;
+    const params = isObject(pending.params) ? pending.params : {};
+    const turn = isObject(state.turn) ? state.turn : {};
+    const attacker = isObject(params.attacker) ? params.attacker.figure : null;
+    const named =
+      pending.kind === "turn"
+        ? turn.acting
+        : pending.kind === "trade-offer"
+          ? params.to
+          : pending.kind === "attack-mode" || pending.kind === "attack-steal"
+            ? attacker
+            : params.figure;
+    return {
+      ...state,
+      pending: { ...pending, about: typeof named === "string" ? named : null },
     };
   },
 };

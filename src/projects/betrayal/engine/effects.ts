@@ -30,7 +30,6 @@ import {
   askPermission,
   askStructured,
   barrierSides,
-  controllerOf,
   MAX_DICE,
   moveCost,
   onTurn,
@@ -169,7 +168,6 @@ export function endMovementOf(state: GameState, figure: FigureId): void {
 }
 
 /** Takes a card out of a room's item pile. */
-
 export function takeFromPile(
   state: GameState,
   room: string,
@@ -757,15 +755,6 @@ export function chosenBy(chooser: Chooser): ChosenBy {
   return typeof chooser === "string" ? { figure: chooser } : { seat: chooser.seat };
 }
 
-/** The seat that answers a choice. */
-export function chooserSeat(
-  engine: Engine,
-  state: GameState,
-  by: ChosenBy,
-): number {
-  return "seat" in by ? by.seat : controllerOf(engine, state, by.figure);
-}
-
 type ChooseOne = ChosenBy & {
   options: Option[];
   rule: RuleRef;
@@ -1106,8 +1095,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       points > 0 &&
       damageKinds(ctx.engine, state, p.figure, p.damage).length > 0
     ) {
-      ctx.decide(
-        [controllerOf(ctx.engine, state, p.figure)],
+      ctx.decideFor(
+        p.figure,
         "damage-kind",
         { figure: p.figure, damage: p.damage, points, rule: p.rule, by: p.by },
         p.rule,
@@ -1141,8 +1130,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
       ctx.push(stun(p.figure, rulebook(18)));
       return;
     }
-    ctx.decide(
-      [controllerOf(ctx.engine, state, p.figure)],
+    ctx.decideFor(
+      p.figure,
       "split-damage",
       { figure: p.figure, damage: p.damage, amount, rule: p.rule, by: p.by },
       p.rule,
@@ -1189,8 +1178,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     if (rollOptions(ctx.engine, state, p, "before").length === 0)
       ctx.push(step("roll-dice", p));
     else
-      ctx.decide(
-        [controllerOf(ctx.engine, state, p.figure)],
+      ctx.decideFor(
+        p.figure,
         "roll-before",
         p,
         p.rule,
@@ -1210,8 +1199,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         (o) => o.option.effect.kind === "reroll",
       ) && p.dice.length > 0;
     if (offered)
-      ctx.decide(
-        [controllerOf(ctx.engine, state, p.figure)],
+      ctx.decideFor(
+        p.figure,
         "roll-after",
         p,
         p.rule,
@@ -1567,12 +1556,8 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
   "choose-one": defineStep<ChooseOne>(
     (state, p, ctx) => {
       if (p.options.length === 0) throw new Error("A choice with no options");
-      ctx.decide(
-        [chooserSeat(ctx.engine, state, p)],
-        "choose-one",
-        p,
-        p.rule,
-      );
+      if ("seat" in p) ctx.decide([p.seat], "choose-one", p, p.rule);
+      else ctx.decideFor(p.figure, "choose-one", p, p.rule);
     },
   ),
 

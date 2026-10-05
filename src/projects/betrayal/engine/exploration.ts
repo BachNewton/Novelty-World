@@ -768,7 +768,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       ctx.push(finishActing(), step<TurnParams>("turn-menu", p));
       return;
     }
-    ctx.decide([p.seat], "turn", p, RULEBOOK(6));
+    ctx.decide([p.seat], "turn", p, RULEBOOK(6), figure);
   }),
 
   move: defineStep<Move>((state, p, ctx) => {
@@ -792,8 +792,8 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
       throw new Error(
         `Nothing can be discovered through ${doorway.room} ${doorway.direction}`,
       );
-    ctx.decide(
-      [controllerOf(ctx.engine, state, p.figure)],
+    ctx.decideFor(
+      p.figure,
       "rotation",
       { figure: p.figure, tile, doorway },
       RULEBOOK(6),
@@ -801,8 +801,8 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
   }),
 
   "offer-trade": defineStep<Trade>((state, p, ctx) => {
-    ctx.decide(
-      [controllerOf(ctx.engine, state, p.to)],
+    ctx.decideFor(
+      p.to,
       "trade-offer",
       p,
       RULEBOOK(11),
