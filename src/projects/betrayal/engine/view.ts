@@ -23,12 +23,19 @@ import type {
   Status,
   Trait,
   Turn,
+  TurnKind,
+  TurnRef,
 } from "../types";
-import { allFigures, TRAITS } from "./figures";
+import { allFigures, figureName, TRAITS } from "./figures";
 import { activeHaunt } from "./haunt";
 import { askStructured, hasTrait, traitValue } from "./questions";
 import { sideOf } from "./sides";
-import { choices, type Choice, type Engine } from "./step-loop";
+import {
+  choices,
+  decisionSubjects,
+  type Choice,
+  type Engine,
+} from "./step-loop";
 
 // What one seat may see of a game: the UI renders it, and bots and AI
 // players get nothing else. The full state is public under the good-faith
@@ -40,10 +47,22 @@ import { choices, type Choice, type Engine } from "./step-loop";
 
 /** A rule reference as a viewer sees it. A ruling from one side's half of
  *  a haunt is that side's to read: for any other viewer its id is left out,
- *  and `hiddenRuling` says that a ruling it may not read applied. */
-export type RuleView = RuleRef & { hiddenRuling?: true };
+ *  and `hiddenRuling` says that a ruling it may not read applied. Where the
+ *  haunt section a rule comes from would give away a side kept from the
+ *  viewer (a status the traitor's setup put on a hidden traitor), the
+ *  section is left out too, and `hiddenSection` says so. */
+export type RuleView =
+  | (Exclude<RuleRef, { source: "haunt" }> & { hiddenRuling?: true })
+  | {
+      source: "haunt";
+      haunt: number;
+      section?: string;
+      ruling?: string;
+      hiddenRuling?: true;
+      hiddenSection?: true;
+    };
 
-export type EventView = GameEvent & { rule: RuleView };
+export type EventView = Omit<GameEvent, "rule"> & { rule: RuleView };
 
 /** A seat as a viewer sees it. */
 export interface SeatView {
@@ -75,7 +94,10 @@ export interface FigureView {
    *  everyone. */
   traits: Partial<Record<Trait, number | null>>;
   cards: string[];
-  statuses: (Status & { rule: RuleView })[];
+  /** Each status, with its rule and its own data. The data is left out
+   *  (null) unless this viewer knows every seat's side, as it may name a
+   *  seat (the one a controlled figure answers to). */
+  statuses: (Omit<Status, "rule"> & { rule: RuleView })[];
   stunned: boolean;
   alive: boolean;
 }
@@ -109,7 +131,13 @@ export type PendingView =
   | {
       type: "decision";
       id: string;
+      /** The seats it is put to, but for those this viewer may not see
+       *  deciding it: a seat whose side is kept from the viewer, asked about
+       *  a figure whose owner is kept from it too, or asked for its side
+       *  ("the traitor chooses"). */
       seats: number[];
+      /** Some addressees are left out of `seats`. */
+      unnamed: boolean;
       /** Addressees who have answered a shared decision; what they answered
        *  stays hidden until it closes. */
       answered: number[];
@@ -125,6 +153,16 @@ export type PendingView =
         answer: Json | null;
       } | null;
     };
+
+/** A turn as a viewer sees it: a monster turn's seat is left out (null) for
+ *  a viewer who doesn't know the seat's side, since only the traitor's side
+ *  has monster turns, and so is a turn it follows. */
+export type TurnRefView = Omit<TurnRef, "seat"> & { seat: number | null };
+
+export type TurnView = Omit<Turn, "seat" | "follows"> & {
+  seat: number | null;
+  follows: TurnRefView | null;
+};
 
 export interface GameView {
   gameId: string;
@@ -147,17 +185,20 @@ export interface GameView {
   ongoing: string[];
   aside: AsideCard[];
   cardMarks: Partial<Record<string, Record<string, CardMark>>>;
-  /** Every part of the turn record is public. */
-  turn: Turn | null;
-  insertedTurns: (InsertedTurn & { rule: RuleView })[];
+  /** Every part of the turn record is public, but a hidden side's seat. */
+  turn: TurnView | null;
+  insertedTurns: (Omit<InsertedTurn, "seat" | "rule"> & {
+    seat: number | null;
+    rule: RuleView;
+  })[];
   omensDrawn: number;
   haunt: HauntView | null;
-  deaths: (Death & { cause: RuleView })[];
+  deaths: (Omit<Death, "cause"> & { cause: RuleView })[];
   traitsKnown: KnownTrait[];
   pending: PendingView | null;
   /** The latest write's events, as this viewer may see them. */
   events: EventView[];
-  result: (GameResult & { rule: RuleView }) | null;
+  result: (Omit<GameResult, "rule"> & { rule: RuleView }) | null;
 }
 
 /** Whether a viewer knows a seat's side and roles. */
@@ -179,22 +220,96 @@ function ownSide(state: GameState, viewer: number | null): Side | null {
     : null;
 }
 
-/** A rule reference as this viewer may see it. */
+/** Whether the side of the seat owning a figure is kept from a viewer. */
+function sideHiddenOf(
+  state: GameState,
+  viewer: number | null,
+  figure: FigureId,
+): boolean {
+  const { owner } = state.figures[figure];
+  return owner !== null && !knowsSide(state, viewer, owner);
+}
+
+/** Whether a figure's owner is kept from a viewer: an explorer's seat is
+ *  public, but owning anything else (a monster) would give away a side kept
+ *  from the viewer. */
+function ownerHidden(
+  state: GameState,
+  viewer: number | null,
+  figure: FigureId,
+): boolean {
+  return (
+    state.figures[figure].kind !== "explorer" &&
+    sideHiddenOf(state, viewer, figure)
+  );
+}
+
+/** Whether a viewer may see that a decision about these figures is put to
+ *  a seat. A seat whose side the viewer doesn't know may be seen deciding
+ *  only about figures whose owners the viewer may see: a decision about a
+ *  monster it owns, or one put to it for its side, gives the side away. */
+function seesAddressee(
+  state: GameState,
+  viewer: number | null,
+  seat: number,
+  subjects: FigureId[],
+): boolean {
+  return (
+    seat === viewer ||
+    knowsSide(state, viewer, seat) ||
+    (subjects.length > 0 &&
+      subjects.every((figure) => !ownerHidden(state, viewer, figure)))
+  );
+}
+
+/** Whether a viewer may see whose turn this is: a monster turn is only the
+ *  traitor's side's, so its seat is kept from a viewer who doesn't know the
+ *  seat's side. */
+function seesTurnSeat(
+  state: GameState,
+  viewer: number | null,
+  turn: { seat: number; kind?: TurnKind },
+): boolean {
+  return (
+    turn.kind !== "monster" ||
+    turn.seat === viewer ||
+    knowsSide(state, viewer, turn.seat)
+  );
+}
+
+function turnRefView(
+  state: GameState,
+  viewer: number | null,
+  ref: TurnRef,
+): TurnRefView {
+  return { ...ref, seat: seesTurnSeat(state, viewer, ref) ? ref.seat : null };
+}
+
+/** A rule reference as this viewer may see it, its haunt section left out
+ *  where `hideSection` says it would give a side away. */
 function ruleView(
   engine: Engine,
   state: GameState,
   viewer: number | null,
   rule: RuleRef,
+  hideSection = false,
 ): RuleView {
-  if (rule.source !== "haunt" || rule.ruling === undefined) return { ...rule };
-  const half = engine.haunts[rule.haunt]?.rulingHalves[rule.ruling];
-  if (half === undefined)
-    throw new Error(
-      `Haunt ${rule.haunt} has no ruling ${rule.ruling} in either half`,
-    );
-  if (ownSide(state, viewer) === half) return { ...rule };
-  const { ruling: _hidden, ...rest } = rule;
-  return { ...rest, hiddenRuling: true };
+  if (rule.source !== "haunt") return { ...rule };
+  let seen: RuleView = { ...rule };
+  if (rule.ruling !== undefined) {
+    const half = engine.haunts[rule.haunt]?.rulingHalves[rule.ruling];
+    if (half === undefined)
+      throw new Error(
+        `Haunt ${rule.haunt} has no ruling ${rule.ruling} in either half`,
+      );
+    if (ownSide(state, viewer) !== half) {
+      const { ruling: _hidden, ...rest } = rule;
+      seen = { ...rest, hiddenRuling: true };
+    }
+  }
+  if (!hideSection) return seen;
+  const { section: _kept, ...rest } = seen;
+  return { ...rest, hiddenSection: true };
 }
 
 /** A haunt rule reference with a ruling, found by its shape: event data and
@@ -253,6 +368,7 @@ function figureViews(
   viewer: number | null,
 ): Record<FigureId, FigureView> {
   const side = ownSide(state, viewer);
+  const allSidesKnown = knowsAllSides(state, viewer);
   const views: Record<FigureId, FigureView> = {};
   for (const figure of allFigures(state)) {
     const definition = engine.catalog.figures[figure.definition];
@@ -269,25 +385,22 @@ function figureViews(
         );
       traits[trait] = known ? traitValue(engine, state, figure.id, trait) : null;
     }
-    const ownerHidden =
-      figure.kind !== "explorer" &&
-      figure.owner !== null &&
-      !knowsSide(state, viewer, figure.owner);
+    const sideHidden = sideHiddenOf(state, viewer, figure.id);
     views[figure.id] = {
       id: figure.id,
       kind: figure.kind,
       definition: figure.definition,
-      name: figure.id.startsWith(`${figure.definition}-`)
-        ? `${definition.name} ${figure.id.slice(figure.definition.length + 1)}`
-        : definition.name,
-      owner: ownerHidden ? null : figure.owner,
+      name: figureName(engine.catalog, state, figure.id),
+      owner: ownerHidden(state, viewer, figure.id) ? null : figure.owner,
       place: figure.place === null ? null : { ...figure.place },
       traits,
       cards: [...figure.cards],
       statuses: figure.statuses.map((status) => ({
         id: status.id,
-        rule: ruleView(engine, state, viewer, status.rule),
-        params: jsonView(engine, state, viewer, status.params),
+        rule: ruleView(engine, state, viewer, status.rule, sideHidden),
+        params: allSidesKnown
+          ? jsonView(engine, state, viewer, status.params)
+          : null,
       })),
       stunned: figure.stunned,
       alive: figure.alive,
@@ -354,12 +467,16 @@ function pendingView(
       rule: ruleView(engine, state, viewer, pending.rule),
     };
   const addressed = viewer !== null && pending.seats.includes(viewer);
-  const answered = pending.seats.filter((seat) => seat in pending.answers);
+  const subjects = decisionSubjects(state, pending);
+  const seats = pending.seats.filter((seat) =>
+    seesAddressee(state, viewer, seat, subjects),
+  );
   return {
     type: "decision",
     id: pending.id,
-    seats: [...pending.seats],
-    answered,
+    seats,
+    unnamed: seats.length < pending.seats.length,
+    answered: seats.filter((seat) => seat in pending.answers),
     kind: pending.kind,
     rule: ruleView(engine, state, viewer, pending.rule),
     detail: addressed
@@ -400,9 +517,19 @@ const REDACTIONS: Partial<
     return rest;
   },
   // A forced step is a decision with one choice, and a decision's choices
-  // are its addressee's alone.
-  forced: (data, viewer) =>
-    data.seat === viewer ? data : { seat: data.seat, kind: data.kind },
+  // are its addressee's alone; whom it was put to, as for any decision.
+  forced: (data, viewer, state) => {
+    if (data.seat === viewer) return data;
+    const about = Array.isArray(data.about) ? (data.about as FigureId[]) : [];
+    return seesAddressee(state, viewer, data.seat as number, about)
+      ? { seat: data.seat, kind: data.kind }
+      : { kind: data.kind };
+  },
+  // Whose monster turn it is.
+  "turn-started": (data, viewer, state) => turnSeat(data, viewer, state),
+  "turn-ended": (data, viewer, state) => turnSeat(data, viewer, state),
+  "turn-cut-short": (data, viewer, state) => turnSeat(data, viewer, state),
+  "turn-inserted": (data, viewer, state) => turnSeat(data, viewer, state),
   // The card put on top of a deck, and the top room tile, are seen only by
   // the seat that looked.
   "deck-stacked": (data, viewer, state, engine) =>
@@ -413,6 +540,26 @@ const REDACTIONS: Partial<
     looker(engine, state, data.figure as FigureId) === viewer
       ? data
       : { figure: data.figure },
+};
+
+/** A turn event's data, without its seat where the viewer may not see
+ *  whose turn it is. */
+function turnSeat(
+  data: { [key: string]: Json },
+  viewer: number | null,
+  state: GameState,
+): { [key: string]: Json } {
+  const turn = { seat: data.seat as number, kind: data.kind as TurnKind | undefined };
+  if (seesTurnSeat(state, viewer, turn)) return data;
+  const { seat: _hidden, ...rest } = data;
+  return rest;
+}
+
+/** Events whose rule's haunt section would give away the side of the
+ *  figure they are about: a status put on it, or taken off. */
+const SECTION_KEPT: Partial<Record<string, true>> = {
+  "status-added": true,
+  "status-removed": true,
 };
 
 /** The seat that saw what a figure looked at: the one controlling it. */
@@ -434,10 +581,13 @@ function eventView(
       throw new Error(`The ${event.type} event has no data to redact`);
     seen = redact(data, viewer, state, engine);
   }
+  const hideSection =
+    SECTION_KEPT[event.type] === true &&
+    sideHiddenOf(state, viewer, (data as { figure: FigureId }).figure);
   return {
     id: event.id,
     type: event.type,
-    rule: ruleView(engine, state, viewer, event.rule),
+    rule: ruleView(engine, state, viewer, event.rule, hideSection),
     data: jsonView(engine, state, viewer, seen),
   };
 }
@@ -473,9 +623,19 @@ export function viewFor(
     ongoing: [...state.ongoing],
     aside: structuredClone(state.aside),
     cardMarks: structuredClone(state.cardMarks),
-    turn: structuredClone(state.turn),
+    turn:
+      state.turn === null
+        ? null
+        : {
+            ...structuredClone(state.turn),
+            seat: seesTurnSeat(state, viewer, state.turn) ? state.turn.seat : null,
+            follows:
+              state.turn.follows === null
+                ? null
+                : turnRefView(state, viewer, state.turn.follows),
+          },
     insertedTurns: state.insertedTurns.map((turn) => ({
-      ...structuredClone(turn),
+      ...turnRefView(state, viewer, turn),
       rule: ruleView(engine, state, viewer, turn.rule),
     })),
     omensDrawn: state.omensDrawn,

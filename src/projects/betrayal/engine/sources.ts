@@ -247,7 +247,7 @@ export interface Behaviour {
   /** Plain-language wording for events this source names as their rule,
    *  where the general wording of the event type would say too little. */
   describe?: Partial<
-    Record<string, (event: GameEvent, words: Words) => string>
+    Record<string, (event: Pick<GameEvent, "type" | "data">, words: Words) => string>
   >;
 }
 
@@ -512,7 +512,7 @@ export function atSource(source: Source, room: string): boolean {
 }
 
 /** An event's data, typed by the event's contract. Events are stored as JSON, so the type is the emitter's promise. */
-export function eventData<T extends Json>(event: GameEvent): T {
+export function eventData<T extends Json>(event: Pick<GameEvent, "data">): T {
   return event.data as T;
 }
 

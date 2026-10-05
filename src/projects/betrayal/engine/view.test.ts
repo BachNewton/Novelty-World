@@ -3,7 +3,7 @@ import { logLines } from "../components/describe";
 import { BASE_ENGINE, ENGINE } from "../game";
 import { withHaunts } from "../kit/haunt";
 import { simulate } from "../simulation";
-import { choose, testGame, waitingOn } from "../testing";
+import { choose, put, testGame, waitingOn } from "../testing";
 import {
   ALL_TOY_ENGINE,
   HEROES_ONLY,
@@ -16,9 +16,11 @@ import {
   withSigil,
 } from "../test/toy-haunt";
 import { checkViews } from "../test/view-checks";
-import type { Decision, GameEvent, GameState, Json } from "../types";
+import type { Decision, GameEvent, GameState, Json, RuleRef, Step } from "../types";
 import { describeDecision, describeWaiting } from "./describe";
-import { apply, type Engine } from "./step-loop";
+import { offerReplacement } from "./haunt";
+import { pullMonsters } from "./monsters";
+import { apply, start, type Engine } from "./step-loop";
 import { viewFor } from "./view";
 
 // Each kind of hidden material is looked for in the serialized view itself:
@@ -197,6 +199,101 @@ describe("secret sides", () => {
 
   it("passes every leak check", () => {
     checkViews(ENGINE, state);
+  });
+});
+
+describe("a hidden traitor's monsters", () => {
+  // The toy haunt with a hidden traitor: the traitor dozes beside a
+  // Phantom it owns, and no hero knows which seat that is.
+  const HIDDEN_ENGINE = withHaunts(BASE_ENGINE, [
+    toyHaunt(13, { traitor: { kind: "hidden" } }),
+  ]);
+  const begun = toyBegun(HIDDEN_ENGINE);
+  const traitor = begun.seats.findIndex((s) => s.roles.includes("traitor"));
+  const heroes = [0, 1, 2].filter((seat) => seat !== traitor);
+  const hero = heroes[0];
+  const traitorsExplorer = Object.values(begun.figures).find(
+    (f) => f.kind === "explorer" && f.owner === traitor,
+  )?.id ?? "";
+  const run = (state: GameState, steps: Step[]) =>
+    start(HIDDEN_ENGINE, { ...state, pending: null }, steps);
+  const RULE: RuleRef = { source: "haunt", haunt: 13, section: "Rules" };
+
+  it("keeps the haunt section behind the traitor's status, and its data, from the heroes", () => {
+    for (const seat of heroes) {
+      const view = viewFor(HIDDEN_ENGINE, begun, seat);
+      expect(view.figures["phantom-1"].owner).toBeNull();
+      expect(view.figures[traitorsExplorer].statuses).toEqual([
+        {
+          id: "dozing",
+          rule: { source: "haunt", haunt: 13, hiddenRuling: true, hiddenSection: true },
+          params: null,
+        },
+      ]);
+      const added = view.events.find((e) => e.type === "status-added");
+      expect(added?.rule).toEqual({
+        source: "haunt",
+        haunt: 13,
+        hiddenRuling: true,
+        hiddenSection: true,
+      });
+    }
+    const own = viewFor(HIDDEN_ENGINE, begun, traitor).figures[traitorsExplorer];
+    expect(own.statuses[0].rule).toMatchObject({ section: "Traitor's setup" });
+    checkViews(HIDDEN_ENGINE, begun);
+  });
+
+  it("doesn't show the heroes that the traitor's seat is asked about its monster", () => {
+    const pulled = (() => {
+      const state = structuredClone(begun);
+      put(state, hero, "foyer");
+      const heroExplorer = Object.values(state.figures).find(
+        (f) => f.kind === "explorer" && f.owner === hero,
+      )?.id ?? "";
+      return run(state, [pullMonsters(heroExplorer, RULE)]);
+    })();
+    const replacing = run(begun, [
+      offerReplacement("phantom", { at: "traitor", owner: "traitor" }, RULE),
+    ]);
+    for (const state of [pulled, replacing]) {
+      expect(state.pending).toMatchObject({ type: "decision", seats: [traitor] });
+      for (const seat of heroes) {
+        const view = viewFor(HIDDEN_ENGINE, state, seat);
+        expect(view.pending).toMatchObject({ seats: [], unnamed: true, answered: [] });
+        expect(
+          describeWaiting(HIDDEN_ENGINE, view, view.pending as never),
+        ).toMatch(/^Waiting for a player to decide/);
+      }
+      expect(viewFor(HIDDEN_ENGINE, state, traitor).pending).toMatchObject({
+        seats: [traitor],
+        unnamed: false,
+      });
+      checkViews(HIDDEN_ENGINE, state);
+    }
+  });
+
+  it("doesn't show the heroes whose monster turn it is", () => {
+    const state = structuredClone(begun);
+    if (state.turn === null) throw new Error("No turn");
+    state.turn = { ...state.turn, seat: traitor, kind: "monster" };
+    state.lastEvents = [
+      {
+        id: "x:0",
+        type: "turn-started",
+        rule: { source: "rulebook", page: 16 },
+        data: { seat: traitor, kind: "monster", figure: null },
+      },
+    ];
+    for (const seat of heroes) {
+      const view = viewFor(HIDDEN_ENGINE, state, seat);
+      expect(view.turn?.seat).toBeNull();
+      expect(view.events[0].data).toEqual({ kind: "monster", figure: null });
+      expect(logLines(HIDDEN_ENGINE, view).map((l) => l.text)).toEqual([
+        "A player's monster turn.",
+      ]);
+    }
+    expect(viewFor(HIDDEN_ENGINE, state, traitor).turn?.seat).toBe(traitor);
+    checkViews(HIDDEN_ENGINE, state);
   });
 });
 

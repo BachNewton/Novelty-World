@@ -1,4 +1,4 @@
-import type { RuleRef } from "../types";
+import type { RuleView } from "../engine/view";
 
 // The rule text and rulings behind each rule source, so a log line can say
 // "why?". They are read out of content/ into rule-notes.json, which a test
@@ -38,7 +38,7 @@ export interface RuleNotes {
 
 /** What content/ says about a rule source. Of a haunt, only a ruling it is
  *  cited by, and a scenario is no rule at all. */
-export function ruleTexts(notes: RuleNotes, rule: RuleRef): RuleText[] {
+export function ruleTexts(notes: RuleNotes, rule: RuleView): RuleText[] {
   const one = (entry: RuleText | undefined) => (entry ? [entry] : []);
   switch (rule.source) {
     case "rulebook":
@@ -59,7 +59,7 @@ export function ruleTexts(notes: RuleNotes, rule: RuleRef): RuleText[] {
 /** What to show for "why?": the rule's texts, or, for a reference naming a
  *  ruling, only the entry holding that ruling and only that ruling. A ruling
  *  the source doesn't have is a broken reference, so it throws. */
-export function ruleDetail(notes: RuleNotes, rule: RuleRef): RuleText[] {
+export function ruleDetail(notes: RuleNotes, rule: RuleView): RuleText[] {
   const texts = ruleTexts(notes, rule);
   const id = rule.ruling;
   if (id === undefined) return texts;

@@ -1,6 +1,6 @@
-import type { GameEvent, TurnKind } from "../types";
+import type { TurnKind } from "../types";
 import { describeEvent } from "../engine/describe";
-import { viewExplorer, type GameView } from "../engine/view";
+import { viewExplorer, type EventView, type GameView } from "../engine/view";
 import type { Engine } from "../engine/step-loop";
 
 export function seatLabel(view: GameView, seat: number): string {
@@ -11,7 +11,7 @@ export function seatLabel(view: GameView, seat: number): string {
 
 /** One log line, worded against the view of the write it came from. */
 export interface LogLine {
-  event: GameEvent;
+  event: EventView;
   text: string;
 }
 
@@ -49,11 +49,12 @@ export function logGroups(view: GameView, lines: LogLine[]): LogGroup[] {
     const { event } = line;
     if (event.type === "turn-started") {
       turns += 1;
-      const { seat, kind } = event.data as { seat: number; kind: TurnKind };
+      // A hidden side's monster turn doesn't say whose it is.
+      const { seat, kind } = event.data as { seat?: number; kind: TurnKind };
       groups.push({
         key: event.id,
-        title: `Turn ${turns}: ${seatLabel(view, seat)}${KIND_TITLES[kind]}`,
-        seat,
+        title: `Turn ${turns}: ${seat === undefined ? "A player" : seatLabel(view, seat)}${KIND_TITLES[kind]}`,
+        seat: seat ?? null,
         lines: [],
       });
     } else if (HAUNT_EVENTS.has(event.type)) {

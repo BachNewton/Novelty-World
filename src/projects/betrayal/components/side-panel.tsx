@@ -52,7 +52,7 @@ export function SidePanel({ engine, view }: { engine: Engine; view: GameView }) 
         <dt className="text-(--bt-muted)">Turn</dt>
         <dd>
           {view.turn
-            ? `${seatLabel(view, view.turn.seat)}, ${TURN_NAMES[view.turn.kind]}${view.turn.follows ? " (inserted)" : ""}`
+            ? `${view.turn.seat === null ? "A player" : seatLabel(view, view.turn.seat)}, ${TURN_NAMES[view.turn.kind]}${view.turn.follows ? " (inserted)" : ""}`
             : "none"}
         </dd>
         <dt className="text-(--bt-muted)">Haunt</dt>

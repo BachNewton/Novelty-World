@@ -2,6 +2,7 @@ import type {
   Action,
   Catalog,
   Decision,
+  FigureId,
   GameEvent,
   GameState,
   Json,
@@ -75,6 +76,26 @@ export type ApplyResult =
 export interface Choice {
   choice: Json;
   label: string;
+}
+
+/** The figures a decision is about: those its parameters name, and for the
+ *  turn's own decision, the figures acting on the turn. A view reads them
+ *  to tell whether putting the decision to its seat gives away whose a
+ *  figure is. */
+export function decisionSubjects(
+  state: GameState,
+  decision: { kind: string; params: Json },
+): FigureId[] {
+  if (decision.kind === "turn") return [...(state.turn?.actors ?? [])];
+  const named = new Set<FigureId>();
+  const look = (value: Json) => {
+    if (typeof value === "string" && value in state.figures) named.add(value);
+    else if (Array.isArray(value)) value.forEach(look);
+    else if (typeof value === "object" && value !== null)
+      Object.values(value).forEach(look);
+  };
+  look(decision.params);
+  return [...named].sort();
 }
 
 /** A game that loops this long without pausing has a bug: it must fail loudly, not be cut short. */
@@ -294,6 +315,7 @@ function run(engine: Engine, draft: GameState, write: Write): void {
         write.ctx.emit("forced", pending.rule, {
           seat: pending.seats[0],
           kind: pending.kind,
+          about: decisionSubjects(draft, pending),
           choice: legal[0].choice,
           label: legal[0].label,
         });

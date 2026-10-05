@@ -1,5 +1,5 @@
 import { viewFor, type GameView } from "../engine/view";
-import type { Engine } from "../engine/step-loop";
+import { decisionSubjects, type Engine } from "../engine/step-loop";
 import type { CardType, GameState, Json } from "../types";
 import { HEROES_ONLY, SIGIL, TRAITOR_ONLY } from "./toy-haunt";
 
@@ -86,7 +86,58 @@ export function checkView(engine: Engine, state: GameState, viewer: number | nul
       if (event.type === "side-set" && data?.seat === i && "side" in data)
         fail(`shows seat ${i}'s side in an event`);
     }
+    if (i === viewer) return;
+
+    // Whose a monster is also shows through what its seat is asked about
+    // it, whose monster turn it is, and the statuses on its figures.
+    const ownerKept = (figure: string) =>
+      state.figures[figure].kind !== "explorer" && state.figures[figure].owner === i;
+    const givesAway = (about: string[]) => about.length === 0 || about.some(ownerKept);
+    if (
+      state.pending?.type === "decision" &&
+      view.pending?.type === "decision" &&
+      view.pending.seats.includes(i) &&
+      givesAway(decisionSubjects(state, state.pending))
+    )
+      fail(`shows that seat ${i}, whose side it doesn't know, is asked a decision that gives it away`);
+    for (const event of view.events) {
+      const data = event.data as { [key: string]: Json };
+      const raw = state.lastEvents.find((e) => e.id === event.id)?.data as {
+        about?: string[];
+      };
+      if (event.type === "forced" && data.seat === i && givesAway(raw.about ?? []))
+        fail(`shows that seat ${i} was forced a choice that gives its side away`);
+      if (
+        ["turn-started", "turn-ended", "turn-cut-short", "turn-inserted"].includes(event.type) &&
+        data.kind === "monster" &&
+        data.seat === i
+      )
+        fail(`shows that seat ${i} takes a monster turn`);
+      if (
+        (event.type === "status-added" || event.type === "status-removed") &&
+        state.figures[data.figure as string].owner === i &&
+        event.rule.source === "haunt" &&
+        event.rule.section !== undefined
+      )
+        fail(`names the haunt section behind a status on seat ${i}'s ${String(data.figure)}`);
+    }
+    if (state.turn?.kind === "monster" && state.turn.seat === i && view.turn?.seat !== null)
+      fail(`shows that seat ${i} takes a monster turn`);
+    for (const turn of view.insertedTurns)
+      if (turn.kind === "monster" && turn.seat === i)
+        fail(`shows that seat ${i} takes a monster turn`);
+    for (const figure of Object.values(view.figures)) {
+      if (state.figures[figure.id].owner !== i) continue;
+      for (const status of figure.statuses)
+        if (status.rule.source === "haunt" && status.rule.section !== undefined)
+          fail(`names the haunt section behind ${figure.id}'s ${status.id}`);
+    }
   });
+  if (anyHidden)
+    for (const figure of Object.values(view.figures))
+      for (const status of figure.statuses)
+        if (status.params !== null)
+          fail(`shows ${figure.id}'s ${status.id} data, which may name a hidden side's seat`);
   if (anyHidden) {
     for (const event of view.events)
       if (event.type === "secret-set" && "knownBy" in (event.data as object))

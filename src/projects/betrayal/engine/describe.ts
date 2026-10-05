@@ -6,7 +6,6 @@ import type {
   GameEvent,
   Json,
   Role,
-  RuleRef,
   Side,
   Trait,
   TurnKind,
@@ -16,7 +15,7 @@ import type { CardDestination, ChosenBy, GainedBy } from "./effects";
 import type { Harm } from "./questions";
 import type { RollSpec, Words } from "./sources";
 import type { Engine } from "./step-loop";
-import type { FigureView, GameView } from "./view";
+import type { EventView, FigureView, GameView, RuleView } from "./view";
 import { FLOOR_NAMES, sideName } from "./board";
 
 // Plain language for events and decisions, for the game log, the UI and AI
@@ -45,7 +44,7 @@ export function rollName(spec: RollSpec): string {
 }
 
 /** The rule's source, by name. */
-export function describeRule(engine: Engine, rule: RuleRef): string {
+export function describeRule(engine: Engine, rule: RuleView): string {
   const { rooms, cards, tokens } = engine.catalog;
   switch (rule.source) {
     case "rulebook":
@@ -57,7 +56,9 @@ export function describeRule(engine: Engine, rule: RuleRef): string {
     case "token":
       return `${tokens[rule.token].name} token`;
     case "haunt":
-      return `Haunt ${rule.haunt}, ${rule.section}`;
+      return rule.section === undefined
+        ? `Haunt ${rule.haunt}`
+        : `Haunt ${rule.haunt}, ${rule.section}`;
     case "scenario":
       return "Scenario";
   }
@@ -85,7 +86,7 @@ function wordsFor(engine: Engine, view: GameView): Words {
 /** Prefixes a sentence with the room, card or token rule behind it, unless the sentence is about that card already. */
 function withRule(
   engine: Engine,
-  rule: RuleRef,
+  rule: RuleView,
   sentence: string,
   about: string | null = null,
 ): string {
@@ -125,7 +126,8 @@ const STACK: Record<CardType, string> = {
   omen: "omen stack",
 };
 
-const data = <T extends Json>(event: GameEvent): T => event.data as T;
+const data = <T extends Json>(event: Pick<GameEvent, "data">): T =>
+  event.data as T;
 
 const capital = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
@@ -141,7 +143,7 @@ function list(items: string[]): string {
 export function describeEvent(
   engine: Engine,
   view: GameView,
-  event: GameEvent,
+  event: EventView,
 ): string | null {
   const words = wordsFor(engine, view);
   const own =
@@ -153,7 +155,10 @@ export function describeEvent(
   if (own) return withRule(engine, event.rule, `${own(event, words)}.`);
 
   const who = (figure: FigureId) => words.figure(figure);
-  const seat = (n: number) => words.seat(n);
+  // A seat a view keeps back (whose monster turn it is, who was put a
+  // decision that would give a side away) is "a player".
+  const seat = (n: number | undefined) =>
+    n === undefined ? "A player" : words.seat(n);
   const sentence = (text: string, about: string | null = null) =>
     withRule(engine, event.rule, `${text}.`, about);
 
@@ -163,17 +168,17 @@ export function describeEvent(
         `The game begins. ${seat(data<{ first: number }>(event).first)} goes first`,
       );
     case "turn-started": {
-      const d = data<{ seat: number; kind: TurnKind }>(event);
+      const d = data<{ seat?: number; kind: TurnKind }>(event);
       return sentence(`${seat(d.seat)}'s ${TURN_WORDS[d.kind]}`);
     }
     case "turn-inserted": {
-      const d = data<{ seat: number; kind: TurnKind }>(event);
+      const d = data<{ seat?: number; kind: TurnKind }>(event);
       return sentence(
         `${seat(d.seat)} takes an extra ${TURN_WORDS[d.kind]} next`,
       );
     }
     case "turn-ended": {
-      const d = data<{ seat: number; room: string | null }>(event);
+      const d = data<{ seat?: number; room: string | null }>(event);
       return sentence(
         d.room === null
           ? `${seat(d.seat)} ends the turn`
@@ -182,13 +187,13 @@ export function describeEvent(
     }
     case "turn-cut-short":
       return sentence(
-        `${seat(data<{ seat: number }>(event).seat)}'s turn ends at once`,
+        `${seat(data<{ seat?: number }>(event).seat)}'s turn ends at once`,
       );
     case "ready":
       return sentence(`${seat(data<{ seat: number }>(event).seat)} is ready`);
     case "forced": {
       // Its one choice comes only to the seat it was put to.
-      const d = data<{ seat: number; label?: string }>(event);
+      const d = data<{ seat?: number; label?: string }>(event);
       return d.label === undefined
         ? sentence(`${seat(d.seat)} has only one choice`)
         : sentence(`${seat(d.seat)}: ${d.label} (the only choice)`);
@@ -529,7 +534,7 @@ export function describeEvent(
       const d = data<{
         figure: FigureId;
         trait: Trait | null;
-        cause: RuleRef;
+        cause: RuleView;
         killer: FigureId | null;
         room: string;
       }>(event);
@@ -765,7 +770,7 @@ function attackingFigure(attacker: Attacker): FigureId {
 export interface Question {
   kind: string;
   params: Json;
-  rule: RuleRef;
+  rule: RuleView;
 }
 
 /** What a pending decision asks, and of whom. */
@@ -869,9 +874,18 @@ export function describeDecision(
 export function describeWaiting(
   engine: Engine,
   view: GameView,
-  decision: { seats: number[]; answered: number[]; kind: string },
+  decision: {
+    seats: number[];
+    unnamed: boolean;
+    answered: number[];
+    kind: string;
+  },
 ): string {
   const words = wordsFor(engine, view);
-  const waiting = decision.seats.filter((s) => !decision.answered.includes(s));
-  return `Waiting for ${list(waiting.map(words.seat))} to decide (${decision.kind})`;
+  const waiting = decision.seats
+    .filter((s) => !decision.answered.includes(s))
+    .map(words.seat);
+  // Seats the view keeps back are waited on too, unnamed.
+  if (decision.unnamed) waiting.push(waiting.length === 0 ? "a player" : "another player");
+  return `Waiting for ${list(waiting)} to decide (${decision.kind})`;
 }

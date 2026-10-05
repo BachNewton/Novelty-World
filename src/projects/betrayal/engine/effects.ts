@@ -1653,7 +1653,10 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
     (state, p, ctx) => {
       if (!state.turn || !onTurn(ctx.engine, state, p.figure)) return;
       state.turn.over = true;
-      ctx.emit("turn-cut-short", p.rule, { seat: state.turn.seat });
+      ctx.emit("turn-cut-short", p.rule, {
+        seat: state.turn.seat,
+        kind: state.turn.kind,
+      });
     },
   ),
 };

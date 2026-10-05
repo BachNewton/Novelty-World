@@ -830,6 +830,7 @@ export const EXPLORATION_STEPS: Record<string, StepHandler> = {
     const figure = turnExplorer(state, turn);
     ctx.emit("turn-ended", RULEBOOK(6), {
       seat: p.seat,
+      kind: turn.kind,
       figure,
       room: figure === null ? null : (figureOf(state, figure).place?.room ?? null),
     });
