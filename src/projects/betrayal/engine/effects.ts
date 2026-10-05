@@ -35,6 +35,7 @@ import {
   moveCost,
   onTurn,
 } from "./questions";
+import { readyActors } from "./monsters";
 import {
   liveSources,
   type RollOption,
@@ -1469,9 +1470,12 @@ export const EFFECT_STEPS: Record<string, StepHandler> = {
         dropOnDeath(ctx.catalog, p.figure, card, room),
       ),
       step<{ figure: FigureId }>("leave-board", { figure: p.figure }),
-      // A dead explorer's turn ends; a monster killed on its own turn
-      // leaves the rest of the monster turn to the others.
-      ...(figure.kind === "explorer"
+      // The turn's acting figure dying ends the turn, unless others are
+      // still to act on it: a monster killed on its own turn leaves the
+      // rest of the monster turn to the others. Any other figure's death,
+      // the seat's own explorer's on its monster turn included, leaves the
+      // turn as it is.
+      ...(state.turn?.acting === p.figure && readyActors(state).length === 0
         ? [endTurnNow(p.figure, rulebook(16, "dead-seats-turns"))]
         : []),
     );

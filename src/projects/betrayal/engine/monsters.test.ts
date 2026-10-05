@@ -28,7 +28,7 @@ import type {
   RuleRef,
 } from "../types";
 import { describeDecision, describeEvent } from "./describe";
-import { damage } from "./effects";
+import { damage, die, step } from "./effects";
 import { spawn } from "./haunt";
 import { askNumber } from "./questions";
 import { start, type Engine } from "./step-loop";
@@ -295,6 +295,19 @@ describe("a stunned monster (rules.md, p. 18)", () => {
       expect.arrayContaining(["turn-missed", "recovered"]),
     );
     expect(state.figures[PHANTOM_1].stunned).toBe(false);
+  });
+
+  it("goes on when the seat's explorer dies partway through it: only the acting figure's death ends a turn", () => {
+    let state = toMonsterTurn(toyBegun(TOY_ENGINE), TOY_ENGINE);
+    state = choose(state, "Act with Phantom 1", TOY_ENGINE);
+    state = start(TOY_ENGINE, { ...state, pending: null }, [
+      die("ox-bellows", RULE),
+      step<{ seat: number }>("turn-menu", { seat: 1 }),
+    ]);
+    expect(state.turn?.over).toBe(false);
+    expect(eventTypes(state)).not.toContain("turn-cut-short");
+    expect(state.turn).toMatchObject({ seat: 1, kind: "monster", acting: PHANTOM_1 });
+    expect(waitingOn(state)).toBe(1);
   });
 
   it("is stunned by damage from anything, not only an attack (p. 18, ruling monster-traits)", () => {
