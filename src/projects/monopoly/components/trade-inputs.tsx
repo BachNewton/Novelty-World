@@ -4,83 +4,43 @@ import { KeyRound, Minus, Plus } from "lucide-react";
 import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useMonopolyStore } from "../store";
-import { nudgeFigure, pairAmounts, pairFigure } from "../trade-cash";
 import type { CardSource, GameState, Player, TradeTerms } from "../types";
 import { CashKeypad } from "./cash-keypad";
-import { formatCash, PlayerTag, TRADE_ROW_STYLE } from "./trade-ui";
+import { PlayerTag, TRADE_ROW_STYLE, TradeCash } from "./trade-ui";
 
 // Cash step per +/- tap: a quick nudge; the keypad is for exact amounts.
 const CASH_STEP = 50;
 
-/** Which amount the keypad is editing: the pair's single figure, or one
- *  player's delta. */
-type KeypadTarget = { kind: "pair" } | { kind: "player"; player: Player };
-
-/** The proposer's input surface: who holds each Get-Out-of-Jail card, and the
- *  cash. Between exactly two parties (`pair`) the cash is one figure, "A pays B
- *  $X", written to both sides so it always balances; otherwise each player has
- *  their own row. Tapping an amount swaps the rows for the keypad. The caller
- *  keys this on the pair, so a change of parties drops an open keypad. */
+/** The proposer's input surface: who holds each Get-Out-of-Jail card, and each
+ *  player's cash. Tapping an amount swaps the rows for the keypad. */
 export function TradeInputs({
   state,
   terms,
   byId,
-  pair,
 }: {
   state: GameState;
   terms: TradeTerms;
   byId: ReadonlyMap<string, Player>;
-  pair: readonly [string, string] | null;
 }) {
   const setTradeCash = useMonopolyStore((s) => s.setTradeCash);
   const cycleTradeGojf = useMonopolyStore((s) => s.cycleTradeGojf);
-  const [editing, setEditing] = useState<KeypadTarget | null>(null);
-
-  const first = pair ? byId.get(pair[0]) : undefined;
-  const second = pair ? byId.get(pair[1]) : undefined;
-  const figure = pair ? pairFigure(terms.cashDelta, pair) : 0;
-  function setFigure(next: number) {
-    if (pair) setTradeCash(pairAmounts(pair, next));
-  }
+  const [editing, setEditing] = useState<Player | null>(null);
 
   if (editing) {
     const close = () => {
       setEditing(null);
     };
-    if (editing.kind === "pair" && first && second) {
-      return (
-        <CashKeypad
-          initial={figure}
-          describe={(negative) => (
-            <Pays payer={negative ? second : first} payee={negative ? first : second} />
-          )}
-          onCommit={(value) => {
-            setFigure(value);
-            close();
-          }}
-          onCancel={close}
-        />
-      );
-    }
-    if (editing.kind === "player") {
-      const { player } = editing;
-      return (
-        <CashKeypad
-          initial={terms.cashDelta[player.id] ?? 0}
-          describe={(negative) => (
-            <>
-              <PlayerTag player={player} />
-              <span style={{ opacity: 0.6 }}>{negative ? "pays" : "gets"}</span>
-            </>
-          )}
-          onCommit={(value) => {
-            setTradeCash({ [player.id]: value });
-            close();
-          }}
-          onCancel={close}
-        />
-      );
-    }
+    return (
+      <CashKeypad
+        initial={terms.cashDelta[editing.id] ?? 0}
+        label={<PlayerTag player={editing} />}
+        onCommit={(value) => {
+          setTradeCash(editing.id, value);
+          close();
+        }}
+        onCancel={close}
+      />
+    );
   }
 
   const heldCards = (["chance", "communityChest"] as const).filter(
@@ -107,77 +67,24 @@ export function TradeInputs({
       )}
 
       <div className="flex flex-col gap-1">
-        {first && second ? (
-          <CashRow
-            label={
-              figure < 0 ? (
-                <Pays payer={second} payee={first} />
-              ) : (
-                <Pays payer={first} payee={second} />
-              )
-            }
-            amountText={formatCash(Math.abs(figure))}
-            color="var(--mono-ink)"
-            subject={
-              figure < 0
-                ? `${second.name} pays ${first.name}`
-                : `${first.name} pays ${second.name}`
-            }
-            onBump={(step) => {
-              setFigure(nudgeFigure(figure, step));
-            }}
-            onOpen={() => {
-              setEditing({ kind: "pair" });
-            }}
-          />
-        ) : (
-          state.players
-            .filter((p) => !p.bankrupt)
-            .map((p) => {
-              const amount = terms.cashDelta[p.id] ?? 0;
-              return (
-                <CashRow
-                  key={p.id}
-                  label={<PlayerTag player={p} />}
-                  amountText={signedCash(amount)}
-                  color={signedColor(amount)}
-                  subject={`${p.name}'s cash`}
-                  onBump={(step) => {
-                    setTradeCash({ [p.id]: amount + step });
-                  }}
-                  onOpen={() => {
-                    setEditing({ kind: "player", player: p });
-                  }}
-                />
-              );
-            })
-        )}
+        {state.players
+          .filter((p) => !p.bankrupt)
+          .map((p) => (
+            <CashRow
+              key={p.id}
+              player={p}
+              amount={terms.cashDelta[p.id] ?? 0}
+              onBump={(step) => {
+                setTradeCash(p.id, (terms.cashDelta[p.id] ?? 0) + step);
+              }}
+              onOpen={() => {
+                setEditing(p);
+              }}
+            />
+          ))}
       </div>
     </>
   );
-}
-
-function Pays({ payer, payee }: { payer: Player; payee: Player }) {
-  return (
-    <>
-      <PlayerTag player={payer} />
-      <span className="shrink-0" style={{ opacity: 0.6 }}>
-        pays
-      </span>
-      <PlayerTag player={payee} />
-    </>
-  );
-}
-
-function signedCash(amount: number): string {
-  if (amount === 0) return "$0";
-  return `${amount > 0 ? "+" : "−"}${formatCash(Math.abs(amount))}`;
-}
-
-function signedColor(amount: number): string {
-  if (amount > 0) return "var(--mono-green)";
-  if (amount < 0) return "var(--mono-red)";
-  return "var(--mono-ink)";
 }
 
 // Tap to cycle which player holds a Get-Out-of-Jail-Free card.
@@ -201,7 +108,7 @@ function CardRow({
     <button
       type="button"
       onClick={onCycle}
-      className="flex items-center justify-between rounded px-2 py-1 text-left"
+      className="flex min-h-11 items-center justify-between rounded px-2 text-left"
       style={{ ...TRADE_ROW_STYLE, cursor: "pointer" }}
     >
       <span className="inline-flex items-center gap-1.5">
@@ -219,52 +126,44 @@ function CardRow({
 }
 
 function CashRow({
-  label,
-  amountText,
-  color,
-  subject,
+  player,
+  amount,
   onBump,
   onOpen,
 }: {
-  label: ReactNode;
-  amountText: string;
-  color: string;
-  /** What the row's amount is, for the buttons' accessible names. */
-  subject: string;
+  player: Player;
+  amount: number;
   onBump: (step: number) => void;
   onOpen: () => void;
 }) {
   return (
-    <div
-      className="flex items-center justify-between gap-2 rounded px-2 py-1"
-      style={TRADE_ROW_STYLE}
-    >
-      <span className="flex min-w-0 items-center gap-1">{label}</span>
-      <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex items-center justify-between gap-1 rounded pl-2" style={TRADE_ROW_STYLE}>
+      <PlayerTag player={player} />
+      <div className="flex shrink-0 items-center gap-1">
         <StepButton
-          ariaLabel={`$${CASH_STEP} less: ${subject}`}
+          ariaLabel={`$${CASH_STEP} less for ${player.name}`}
           onClick={() => {
             onBump(-CASH_STEP);
           }}
         >
-          <Minus className="h-3.5 w-3.5" />
+          <Minus className="h-4 w-4" />
         </StepButton>
         <button
           type="button"
-          aria-label={`Enter amount: ${subject}`}
+          aria-label={`Enter ${player.name}'s cash`}
           onClick={onOpen}
-          className="h-7 min-w-16 rounded px-1.5 text-right font-semibold tabular-nums"
-          style={{ ...BUTTON_STYLE, color }}
+          className="h-11 min-w-16 rounded px-1.5 text-right"
+          style={BUTTON_STYLE}
         >
-          {amountText}
+          <TradeCash amount={amount} />
         </button>
         <StepButton
-          ariaLabel={`$${CASH_STEP} more: ${subject}`}
+          ariaLabel={`$${CASH_STEP} more for ${player.name}`}
           onClick={() => {
             onBump(CASH_STEP);
           }}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" />
         </StepButton>
       </div>
     </div>
@@ -291,7 +190,7 @@ function StepButton({
       type="button"
       aria-label={ariaLabel}
       onClick={onClick}
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded"
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded"
       style={BUTTON_STYLE}
     >
       {children}

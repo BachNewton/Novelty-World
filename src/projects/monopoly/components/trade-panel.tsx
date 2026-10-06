@@ -3,7 +3,6 @@
 import type { CSSProperties } from "react";
 import { counteredProposerId, projectTrade, tradeParticipants } from "../engine";
 import { useMonopolyStore } from "../store";
-import { cashPair } from "../trade-cash";
 import type { GameState, Player, TradeTerms } from "../types";
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
 import { Money } from "./money";
@@ -55,7 +54,6 @@ export function TradePanel({ state }: Props) {
     Object.keys(terms.gojfTo).length > 0 ||
     Object.values(terms.cashDelta).some((v) => v !== 0);
   const partyCount = tradeParticipants(state, terms).size;
-  const pair = cashPair(state, terms);
   // Why the trade can't be proposed yet — surfaced on the Propose button itself
   // so we don't need a separate balance/validity row.
   let proposeIssue: string | null = null;
@@ -91,13 +89,7 @@ export function TradePanel({ state }: Props) {
         {/* The proposer's input surface; everyone else reads the outcome
             from TradeHoldings above. */}
         {canEdit && (
-          <TradeInputs
-            key={pair?.join() ?? "players"}
-            state={state}
-            terms={terms}
-            byId={byId}
-            pair={pair}
-          />
+          <TradeInputs state={state} terms={terms} byId={byId} />
         )}
 
         {isPending && approvals && (

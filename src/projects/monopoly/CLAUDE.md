@@ -379,7 +379,7 @@ lobby.ts      pure lobby ops + setup constants
 engine.ts     apply(intent), autoStep, applyXxx reducers
 development.ts pure build planner (planDevelopment)
 manage.ts     manage preview math + manageActorId / isRaiseOnly
-trade-cash.ts pure trade-builder cash entry: keypad reducer + two-party balancing
+trade-cash.ts pure trade-builder cash entry: keypad reducer
 driver.ts     driverRole(state, myId): self | proxy | none
 pacing.ts     playback buffer + drive decision (driveOp, paceTransition)
 reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox

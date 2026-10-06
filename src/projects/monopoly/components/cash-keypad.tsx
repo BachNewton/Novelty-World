@@ -1,17 +1,17 @@
 "use client";
 
-import { ArrowLeftRight, Delete, X } from "lucide-react";
+import { Delete, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { cashEntryValue, openCashEntry, pressCashKey } from "../trade-cash";
 import type { CashKey } from "../trade-cash";
-import { formatCash, TRADE_ROW_STYLE } from "./trade-ui";
+import { TRADE_ROW_STYLE, TradeCash } from "./trade-ui";
 
 interface Props {
   /** The signed amount the keypad opens on. */
   initial: number;
-  /** What the amount means for a sign, e.g. "Kyle pays Jane". */
-  describe: (negative: boolean) => ReactNode;
+  /** Whose amount is being edited. */
+  label: ReactNode;
   onCommit: (value: number) => void;
   onCancel: () => void;
 }
@@ -21,8 +21,8 @@ type KeyAction = CashKey | "ok" | "cancel";
 /** In-panel cash entry, in place of the OS keyboard (which would cover half a
  *  phone's board). Edits stay local until OK, so the synced draft gets one
  *  snapshot per entry rather than one per keystroke. While open it also takes
- *  the desktop keyboard: digits, Backspace, Enter, Escape, and `-` to flip. */
-export function CashKeypad({ initial, describe, onCommit, onCancel }: Props) {
+ *  the desktop keyboard: digits, Backspace, Enter, Escape, and `-`. */
+export function CashKeypad({ initial, label, onCommit, onCancel }: Props) {
   const [entry, setEntry] = useState(() => openCashEntry(initial));
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -68,14 +68,9 @@ export function CashKeypad({ initial, describe, onCommit, onCancel }: Props) {
   return (
     <div ref={rootRef} className="flex flex-col gap-1">
       <div className="flex items-center gap-2 rounded pl-2" style={TRADE_ROW_STYLE}>
-        <span className="flex min-w-0 flex-1 items-center gap-1">
-          {describe(entry.negative)}
-        </span>
-        <span
-          className="text-base font-semibold tabular-nums"
-          style={{ opacity: entry.fresh ? 0.6 : 1 }}
-        >
-          {formatCash(entry.amount)}
+        <span className="flex min-w-0 flex-1 items-center">{label}</span>
+        <span className="text-base" style={{ opacity: entry.fresh ? 0.6 : 1 }}>
+          <TradeCash amount={entry.amount} negative={entry.negative} />
         </span>
         <button
           type="button"
@@ -101,10 +96,10 @@ export function CashKeypad({ initial, describe, onCommit, onCancel }: Props) {
         {digit(5)}
         {digit(6)}
         <Key
-          label={<ArrowLeftRight className="h-4 w-4" />}
-          ariaLabel="Flip direction"
+          label="−"
+          ariaLabel="Negative"
           onClick={() => {
-            act({ kind: "flip" });
+            act({ kind: "negate" });
           }}
         />
         {digit(7)}
@@ -143,7 +138,7 @@ function keyAction(key: string): KeyAction | null {
     case "Backspace":
       return { kind: "back" };
     case "-":
-      return { kind: "flip" };
+      return { kind: "negate" };
     case "Enter":
       return "ok";
     case "Escape":

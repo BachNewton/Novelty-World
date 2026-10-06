@@ -123,10 +123,10 @@ interface MonopolyActions {
    *  staged holder, submitting the updated draft. */
   cycleTradeGojf: (source: CardSource) => void;
 
-  /** Trade-building (proposer only): set the named players' net cash deltas
-   *  to these absolute amounts (0 clears one), submitting the updated draft in
-   *  one snapshot. Absolute, so a replay on a newer head can't double-count. */
-  setTradeCash: (amounts: Readonly<Record<string, number>>) => void;
+  /** Trade-building (proposer only): set a player's net cash delta to this
+   *  absolute amount (0 clears it), submitting the updated draft. Absolute, so
+   *  a replay on a newer head can't double-count. */
+  setTradeCash: (playerId: string, amount: number) => void;
 
   /** Trade-building (proposer only): finalize the current draft into a
    *  proposal awaiting approval. */
@@ -772,11 +772,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       });
     },
 
-    setTradeCash: (amounts) => {
+    setTradeCash: (playerId, amount) => {
       const { state, myPlayerId } = get();
       const draft = state.turn.tradeDraft;
       if (!myPlayerId || !draft || draft.proposerId !== myPlayerId) return;
-      const cashDelta = withCash(draft.cashDelta, amounts);
+      const cashDelta = withCash(draft.cashDelta, playerId, amount);
       predict({
         kind: "update-trade-draft",
         playerId: myPlayerId,
