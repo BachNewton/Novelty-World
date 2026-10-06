@@ -1,21 +1,18 @@
 "use client";
 
-import { KeyRound, Minus, Plus } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { counteredProposerId, projectTrade, tradeParticipants } from "../engine";
 import { useMonopolyStore } from "../store";
-import { PLAYER_COLOR_VAR } from "../theme";
-import type { CardSource, GameState, Player, TradeTerms } from "../types";
+import { cashPair } from "../trade-cash";
+import type { GameState, Player, TradeTerms } from "../types";
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
 import { Money } from "./money";
+import { TradeInputs } from "./trade-inputs";
+import { PlayerTag } from "./trade-ui";
 
 interface Props {
   state: GameState;
 }
-
-// Cash step per +/- tap. Coarse on purpose — most trade cash is round
-// hundreds; a finer entry can come later if it's ever wanted.
-const CASH_STEP = 50;
 
 /** The trade UI, shown to EVERY player while a trade is being built or voted
  *  on — the proposal lives in synced state, so this is a live view, not just
@@ -30,8 +27,6 @@ const CASH_STEP = 50;
  *  The log is hidden by the footer while this is up to make room. */
 export function TradePanel({ state }: Props) {
   const myPlayerId = useMonopolyStore((s) => s.myPlayerId);
-  const bumpTradeCash = useMonopolyStore((s) => s.bumpTradeCash);
-  const cycleTradeGojf = useMonopolyStore((s) => s.cycleTradeGojf);
   const proposeTrade = useMonopolyStore((s) => s.proposeTrade);
   const cancelTrade = useMonopolyStore((s) => s.cancelTrade);
   const acceptTrade = useMonopolyStore((s) => s.acceptTrade);
@@ -60,6 +55,7 @@ export function TradePanel({ state }: Props) {
     Object.keys(terms.gojfTo).length > 0 ||
     Object.values(terms.cashDelta).some((v) => v !== 0);
   const partyCount = tradeParticipants(state, terms).size;
+  const pair = cashPair(state, terms);
   // Why the trade can't be proposed yet — surfaced on the Propose button itself
   // so we don't need a separate balance/validity row.
   let proposeIssue: string | null = null;
@@ -77,10 +73,6 @@ export function TradePanel({ state }: Props) {
   // offer doesn't rule out preferring a better one.
   const canCounter = isPending && !isProposer && myApproval !== undefined;
 
-  const heldCards = (["chance", "communityChest"] as const).filter(
-    (src) => state.jailFreeCards[src] !== undefined,
-  );
-
   return (
     <div className="relative z-10 flex shrink-0 flex-col" style={SECTION_STYLE}>
       <div
@@ -96,42 +88,16 @@ export function TradePanel({ state }: Props) {
 
         <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
 
-        {/* The cash steppers and card-cycle rows are the proposer's *input*
-            surface; everyone else reads the outcome from TradeHoldings above. */}
+        {/* The proposer's input surface; everyone else reads the outcome
+            from TradeHoldings above. */}
         {canEdit && (
-          <>
-            {heldCards.length > 0 && (
-              <div className="flex flex-col gap-1">
-                {heldCards.map((src) => (
-                  <CardRow
-                    key={src}
-                    source={src}
-                    state={state}
-                    terms={terms}
-                    byId={byId}
-                    onCycle={() => {
-                      cycleTradeGojf(src);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1">
-              {state.players
-                .filter((p) => !p.bankrupt)
-                .map((p) => (
-                  <CashRow
-                    key={p.id}
-                    player={p}
-                    amount={terms.cashDelta[p.id] ?? 0}
-                    onBump={(step) => {
-                      bumpTradeCash(p.id, step);
-                    }}
-                  />
-                ))}
-            </div>
-          </>
+          <TradeInputs
+            key={pair?.join() ?? "players"}
+            state={state}
+            terms={terms}
+            byId={byId}
+            pair={pair}
+          />
         )}
 
         {isPending && approvals && (
@@ -236,7 +202,7 @@ function Heading({
  *  one — by diffing the two in a layout they already know. Each party's meta
  *  cell leads with the signed cash the trade moves for them — the log's money
  *  grammar (green in / red out for me, white for others), so the cash on the
- *  table is as legible to a voter as it is to the proposer at the steppers — then
+ *  table is as legible to a voter as it is to the proposer entering it — then
  *  the resulting balance and the 10% bank interest a receiver owes on a
  *  still-mortgaged property. */
 function TradeHoldings({
@@ -320,95 +286,6 @@ function TradeHoldings({
   );
 }
 
-// Proposer-only: tap to cycle which player holds a Get-Out-of-Jail-Free card.
-function CardRow({
-  source,
-  state,
-  terms,
-  byId,
-  onCycle,
-}: {
-  source: CardSource;
-  state: GameState;
-  terms: TradeTerms;
-  byId: ReadonlyMap<string, Player>;
-  onCycle: () => void;
-}) {
-  const base = state.jailFreeCards[source];
-  const holderId = terms.gojfTo[source] ?? base;
-  const holder = holderId ? (byId.get(holderId) ?? null) : null;
-  return (
-    <button
-      type="button"
-      onClick={onCycle}
-      className="flex items-center justify-between rounded px-2 py-1 text-left"
-      style={{ ...ROW_STYLE, cursor: "pointer" }}
-    >
-      <span className="inline-flex items-center gap-1.5">
-        <KeyRound className="h-3.5 w-3.5" style={{ color: "var(--mono-orange)" }} />
-        <span className="font-medium">
-          {source === "chance" ? "Chance" : "Chest"} card
-        </span>
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <span style={{ opacity: 0.4 }}>→</span>
-        {holder ? <PlayerTag player={holder} /> : <span>—</span>}
-      </span>
-    </button>
-  );
-}
-
-// Proposer-only: step a player's net cash delta for the trade up or down.
-function CashRow({
-  player,
-  amount,
-  onBump,
-}: {
-  player: Player;
-  amount: number;
-  onBump: (step: number) => void;
-}) {
-  const color =
-    amount > 0
-      ? "var(--mono-green)"
-      : amount < 0
-        ? "var(--mono-red)"
-        : "var(--mono-ink)";
-  const text =
-    amount === 0
-      ? "$0"
-      : `${amount > 0 ? "+" : "−"}$${Math.abs(amount).toLocaleString("en-US")}`;
-  return (
-    <div className="flex items-center justify-between rounded px-2 py-1" style={ROW_STYLE}>
-      <PlayerTag player={player} />
-      <div className="flex items-center gap-2">
-        <StepButton
-          ariaLabel={`Less cash for ${player.name}`}
-          onClick={() => {
-            onBump(-CASH_STEP);
-          }}
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </StepButton>
-        <span
-          className="w-16 text-right font-semibold tabular-nums"
-          style={{ color }}
-        >
-          {text}
-        </span>
-        <StepButton
-          ariaLabel={`More cash for ${player.name}`}
-          onClick={() => {
-            onBump(CASH_STEP);
-          }}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </StepButton>
-      </div>
-    </div>
-  );
-}
-
 function ApprovalStatus({
   approvals,
   byId,
@@ -431,51 +308,6 @@ function ApprovalStatus({
         );
       })}
     </div>
-  );
-}
-
-const ROW_STYLE: CSSProperties = {
-  backgroundColor: "var(--mono-board)",
-};
-
-function PlayerTag({ player }: { player: Player }) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-1">
-      <span
-        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{
-          backgroundColor: PLAYER_COLOR_VAR[player.color],
-          boxShadow: "0 0 0 1px var(--mono-frame)",
-        }}
-      />
-      <span className="truncate font-semibold">{player.name}</span>
-    </span>
-  );
-}
-
-function StepButton({
-  ariaLabel,
-  onClick,
-  children,
-}: {
-  ariaLabel: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded"
-      style={{
-        backgroundColor: "var(--mono-card)",
-        color: "var(--mono-ink)",
-        boxShadow: "inset 0 0 0 1px var(--mono-frame)",
-      }}
-    >
-      {children}
-    </button>
   );
 }
 

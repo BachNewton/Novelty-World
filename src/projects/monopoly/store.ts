@@ -22,6 +22,7 @@ import {
 import type { DevCommand, MonopolyAction, MonopolyResult } from "./protocol";
 import { rebuildLobbyOverlay, rebuildOverlay } from "./reconcile";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
+import { withCash } from "./trade-cash";
 import type {
   ApplyResult,
   BotStrategy,
@@ -122,9 +123,10 @@ interface MonopolyActions {
    *  staged holder, submitting the updated draft. */
   cycleTradeGojf: (source: CardSource) => void;
 
-  /** Trade-building (proposer only): add `step` (may be negative) to a
-   *  player's staged net cash delta, submitting the updated draft. */
-  bumpTradeCash: (playerId: string, step: number) => void;
+  /** Trade-building (proposer only): set the named players' net cash deltas
+   *  to these absolute amounts (0 clears one), submitting the updated draft in
+   *  one snapshot. Absolute, so a replay on a newer head can't double-count. */
+  setTradeCash: (amounts: Readonly<Record<string, number>>) => void;
 
   /** Trade-building (proposer only): finalize the current draft into a
    *  proposal awaiting approval. */
@@ -770,14 +772,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       });
     },
 
-    bumpTradeCash: (playerId, step) => {
+    setTradeCash: (amounts) => {
       const { state, myPlayerId } = get();
       const draft = state.turn.tradeDraft;
       if (!myPlayerId || !draft || draft.proposerId !== myPlayerId) return;
-      const nextAmount = (draft.cashDelta[playerId] ?? 0) + step;
-      const cashDelta = { ...draft.cashDelta };
-      if (nextAmount === 0) delete cashDelta[playerId];
-      else cashDelta[playerId] = nextAmount;
+      const cashDelta = withCash(draft.cashDelta, amounts);
       predict({
         kind: "update-trade-draft",
         playerId: myPlayerId,
