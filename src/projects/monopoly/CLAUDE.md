@@ -10,7 +10,7 @@ code, don't add it.
 
 Monopoly for players who know the game cold — fast, dense access to the few real
 decisions, nothing else. The whole game collapses to: **buy or auction a landed
-property; bid in auctions; build/sell/mortgage; propose/accept/decline trades;
+property; bid in auctions; build/sell/mortgage; propose/accept/decline/counter trades;
 leave or stay in jail.** Everything else (roll, move, pass GO, pay rent/tax, draw
 and resolve cards, go to jail, bust, detect a winner) is **mechanical and runs on
 its own** — no buttons, no confirmations.
@@ -130,8 +130,16 @@ party). The draft lives in synced `turn.tradeDraft` (everyone watches it live).
 `propose-trade` validates and flips to `trade-pending` with an `approvals` map
 over the **named** parties; **all approve → execute, any decline → cancel.**
 Mortgaged properties **transfer still-mortgaged** and the receiver owes the bank
-**10% interest** (charged through `must-raise-cash`). **Counters aren't built** —
-decline and re-propose (the model is shaped to add them later).
+**10% interest** (charged through `must-raise-cash`).
+
+**Counters.** Any **named** party of a pending trade may `counter-trade` instead
+of voting. A counter is a decline that answers: the proposal dies, logged as a
+`trade-declined` with `countered` set, and `trade-building` opens **at once** for
+the counterer as proposer — jumping the `boundaryQueue`, not joining it — with
+the draft seeded from the rejected terms to edit. Trade ids are unique per
+proposal within a turn, so a vote still aimed at the countered offer is stale and
+rejected. **Bots never counter**; they vote on a counter like any proposal, and
+their re-pitch guards read it as a plain decline of their offer (intended).
 
 ### Auctions
 

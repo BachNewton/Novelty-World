@@ -139,6 +139,10 @@ interface MonopolyActions {
   acceptTrade: () => void;
   declineTrade: () => void;
 
+  /** Reject the pending proposal by answering it: opens the local player's own
+   *  trade builder, seeded with the rejected terms. */
+  counterTrade: () => void;
+
   /** Submit a local UI intent **optimistically**: apply it to the display head
    *  at once for instant feedback, then POST it to the route. The authoritative
    *  result reconciles through the playback pipeline; a conflict or rejection
@@ -805,6 +809,13 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       const pending = state.turn.pendingTrade;
       if (!myPlayerId || !pending) return;
       predict({ kind: "decline-trade", playerId: myPlayerId, tradeId: pending.id });
+    },
+
+    counterTrade: () => {
+      const { state, myPlayerId } = get();
+      const pending = state.turn.pendingTrade;
+      if (!myPlayerId || !pending) return;
+      predict({ kind: "counter-trade", playerId: myPlayerId, tradeId: pending.id });
     },
 
     submit: (intent) => predict(intent),

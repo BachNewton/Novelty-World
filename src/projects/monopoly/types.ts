@@ -254,6 +254,9 @@ export type GameEvent =
       /** The party who declined. A single decline kills the whole proposal, so
        *  this is the first (and only) rejecter — there's never a list. */
       declinedBy: string;
+      /** The decliner answered with a counter-offer: they're now building one
+       *  from these terms. */
+      countered: boolean;
     } & TradeMoves)
   | { kind: "go-to-jail"; reason: "tile" | "card" | "three-doubles" }
   | {
@@ -426,9 +429,7 @@ export interface AuctionState {
 
 /** A finalized trade proposal awaiting approval. Every NAMED participant
  *  (anyone who gives or receives a property, card, or cash) must approve
- *  before it executes; a single decline cancels it. Counters aren't built yet
- *  — a player who dislikes a proposal declines and someone proposes afresh;
- *  see the `counter-trade` TODO on `Intent`. */
+ *  before it executes; a single decline or counter cancels it. */
 export interface PendingTrade extends TradeTerms {
   id: string;
   proposerId: string;
@@ -579,9 +580,10 @@ export type Intent =
   | { kind: "propose-trade"; playerId: string }
   | { kind: "accept-trade"; playerId: string; tradeId: string }
   | { kind: "decline-trade"; playerId: string; tradeId: string }
-  // TODO(counter-trade): let a named party edit a pending proposal and
-  // re-submit it, re-opening approval for everyone. Deferred for now; the
-  // TradeTerms model + update-trade-draft are shaped to support it later.
+  /** A named party rejects the proposal and answers it: the proposal dies (logged
+   *  as countered) and a trade-building intermission opens at once with the
+   *  counterer as proposer, its draft seeded with the rejected terms to edit. */
+  | { kind: "counter-trade"; playerId: string; tradeId: string }
   | { kind: "pay-to-leave-jail"; playerId: string }
   | { kind: "use-jail-card"; playerId: string }
   /** Record a bot's reasoning as a `bot-note` log event (no board change). The

@@ -173,7 +173,7 @@ const PHASE_HINTS: Readonly<Partial<Record<string, string>>> = {
   "jail-decision":
     '"pass" to roll for doubles | {"kind":"pay-to-leave-jail","playerId":ME} | {"kind":"use-jail-card","playerId":ME}',
   "trade-pending":
-    '{"kind":"accept-trade","playerId":ME,"tradeId":ID} | {"kind":"decline-trade","playerId":ME,"tradeId":ID}',
+    '{"kind":"accept-trade","playerId":ME,"tradeId":ID} | {"kind":"decline-trade","playerId":ME,"tradeId":ID} | {"kind":"counter-trade","playerId":ME,"tradeId":ID} (opens your trade-building, seeded with these terms)',
   "trade-building":
     '{"kind":"update-trade-draft","playerId":ME,"terms":{propertyTo,gojfTo,cashDelta}} then {"kind":"propose-trade","playerId":ME} | {"kind":"cancel-trade","playerId":ME}',
   managing:

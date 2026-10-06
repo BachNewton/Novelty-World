@@ -95,7 +95,9 @@ export function apply(state: GameState, intent: Intent): ApplyResult {
   if (intent.kind === "cancel-trade") return applyCancelTrade(state, intent);
   if (intent.kind === "propose-trade") return applyProposeTrade(state, intent);
   if (intent.kind === "accept-trade") return applyAcceptTrade(state, intent);
-  if (intent.kind === "decline-trade") return applyDeclineTrade(state, intent);
+  if (intent.kind === "decline-trade" || intent.kind === "counter-trade") {
+    return applyRejectTrade(state, intent);
+  }
   if (intent.kind === "pay-to-leave-jail") {
     return applyPayToLeaveJail(state, intent);
   }
@@ -1279,6 +1281,20 @@ function isActivePlayer(state: GameState, id: string): boolean {
   return p !== undefined && !p.bankrupt;
 }
 
+/** Whose offer `proposerId`'s open trade counters, or null when it isn't a
+ *  counter. Derived from the log rather than stored: the active turn's latest
+ *  trade outcome is a `trade-declined` that this proposer countered. */
+export function counteredProposerId(
+  state: GameState,
+  proposerId: string,
+): string | null {
+  const last = state.turns
+    .at(-1)
+    ?.events.findLast((e) => e.kind === "trade" || e.kind === "trade-declined");
+  if (last?.kind !== "trade-declined") return null;
+  return last.countered && last.declinedBy === proposerId ? last.proposerId : null;
+}
+
 /** Everyone NAMED by a set of trade terms: the giver and receiver of each
  *  property and card, plus anyone with a non-zero cash delta. These are the
  *  players whose approval a proposal needs. Exported so the trade UI shows the
@@ -1684,14 +1700,20 @@ function applyProposeTrade(
   if (error) return { ok: false, reason: error };
 
   // The proposer is seeded approved iff they're a party; everyone else named
-  // starts unapproved. Id is stable for the single live proposal (rngState is
-  // unchanged by trades) and only needs to outlive this pending trade.
+  // starts unapproved. Trades leave rngState unchanged, so the active turn's
+  // event count is what tells a counter's proposal apart from the one it
+  // answers (the rejection logs an event) — a vote on the old one goes stale.
   const approvals: Record<string, boolean> = {};
   for (const id of tradeParticipants(state, terms)) {
     approvals[id] = id === draft.proposerId;
   }
   const pendingTrade: PendingTrade = {
-    id: `trade-${state.turns.length.toString()}-${state.rngState.toString()}`,
+    id: [
+      "trade",
+      state.turns.length,
+      state.turns[state.turns.length - 1].events.length,
+      state.rngState,
+    ].join("-"),
     proposerId: draft.proposerId,
     propertyTo: terms.propertyTo,
     gojfTo: terms.gojfTo,
@@ -1782,13 +1804,13 @@ function applyAcceptTrade(
   };
 }
 
-function applyDeclineTrade(
+function applyRejectTrade(
   state: GameState,
-  intent: Extract<Intent, { kind: "decline-trade" }>,
+  intent: Extract<Intent, { kind: "decline-trade" | "counter-trade" }>,
 ): ApplyResult {
   const pending = state.turn.pendingTrade;
   if (state.turn.phase !== "trade-pending" || !pending) {
-    return { ok: false, reason: "no trade to decline" };
+    return { ok: false, reason: "no trade to reject" };
   }
   if (intent.tradeId !== pending.id) return { ok: false, reason: "stale trade" };
   if (!(intent.playerId in pending.approvals)) {
@@ -1797,15 +1819,33 @@ function applyDeclineTrade(
   // A single decline kills the whole proposal. Nothing moves, but the rejected
   // offer is logged (with the terms that never executed and who killed it) so
   // players can see what was on the table.
+  const countered = intent.kind === "counter-trade";
   const declinedEvent: GameEvent = {
     kind: "trade-declined",
     declinedBy: intent.playerId,
+    countered,
     ...tradeMovesFrom(state, pending),
   };
   const turns = appendEventToActiveTurn(state.turns, declinedEvent);
+  const cleared = returnToPreRoll({ ...state, turns });
+  if (!countered) return { ok: true, state: cleared, newEvents: [declinedEvent] };
+  // The counter jumps the boundary queue: its builder opens now, seeded with the
+  // rejected terms so the counterer edits the offer rather than rebuilding it.
   return {
     ok: true,
-    state: returnToPreRoll({ ...state, turns }),
+    state: {
+      ...cleared,
+      turn: {
+        ...cleared.turn,
+        phase: "trade-building",
+        tradeDraft: {
+          proposerId: intent.playerId,
+          propertyTo: pending.propertyTo,
+          gojfTo: pending.gojfTo,
+          cashDelta: pending.cashDelta,
+        },
+      },
+    },
     newEvents: [declinedEvent],
   };
 }

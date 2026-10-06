@@ -784,7 +784,9 @@ function tradeRows({
         <VerbCell verb={verb} dim />
         <BodyCell>
           <span style={{ color: "var(--mono-red)", fontWeight: 600 }}>✗</span>
-          <span style={{ opacity: 0.6 }}>declined by</span>
+          <span style={{ opacity: 0.6 }}>
+            {event.countered ? "countered by" : "declined by"}
+          </span>
           {decliner && <PlayerChip player={decliner} />}
         </BodyCell>
         <NumericCell>{null}</NumericCell>

@@ -27,6 +27,7 @@ function repitchBoard(oldAsk: number): GameState {
   const declined: GameEvent = {
     kind: "trade-declined",
     declinedBy: "p2",
+    countered: false,
     proposerId: "p1",
     propertyTo: { [NEW_YORK]: "p2" },
     gojfTo: {},

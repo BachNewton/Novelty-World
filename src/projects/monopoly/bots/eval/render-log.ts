@@ -31,7 +31,7 @@ export function renderHighlight(h: Highlight, nameOf: NameOf): string {
     case "trade":
       return `${t}🤝 ${nameOf(e.proposerId)} trade — ${tradeSummary(e, nameOf)}`;
     case "trade-declined":
-      return `${t}🚫 ${nameOf(e.proposerId)}'s offer declined by ${nameOf(e.declinedBy)} — ${tradeSummary(e, nameOf)}`;
+      return `${t}🚫 ${nameOf(e.proposerId)}'s offer ${e.countered ? "countered" : "declined"} by ${nameOf(e.declinedBy)} — ${tradeSummary(e, nameOf)}`;
     case "bankrupt":
       return `${t}💥 ${nameOf(e.debtorId)} goes bankrupt → ${nameOf(e.creditorId)}`;
     case "winner":

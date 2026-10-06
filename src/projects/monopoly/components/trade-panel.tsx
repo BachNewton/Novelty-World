@@ -2,7 +2,7 @@
 
 import { KeyRound, Minus, Plus } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { projectTrade, tradeParticipants } from "../engine";
+import { counteredProposerId, projectTrade, tradeParticipants } from "../engine";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import type { CardSource, GameState, Player, TradeTerms } from "../types";
@@ -23,8 +23,9 @@ const CASH_STEP = 50;
  *
  *  - `trade-building`: the proposer reassigns properties on the board and sets
  *    cash / cards here; everyone else watches it take shape read-only.
- *  - `trade-pending`: the finalized proposal; each named party approves or
- *    declines. All approvals execute it; any decline cancels it.
+ *  - `trade-pending`: the finalized proposal; each named party approves,
+ *    declines, or counters. All approvals execute it; any decline cancels it;
+ *    a counter cancels it and reopens it as the counterer's own draft.
  *
  *  The log is hidden by the footer while this is up to make room. */
 export function TradePanel({ state }: Props) {
@@ -35,6 +36,7 @@ export function TradePanel({ state }: Props) {
   const cancelTrade = useMonopolyStore((s) => s.cancelTrade);
   const acceptTrade = useMonopolyStore((s) => s.acceptTrade);
   const declineTrade = useMonopolyStore((s) => s.declineTrade);
+  const counterTrade = useMonopolyStore((s) => s.counterTrade);
 
   const turn = state.turn;
   const isPending = turn.phase === "trade-pending";
@@ -46,6 +48,10 @@ export function TradePanel({ state }: Props) {
   const byId = new Map(state.players.map((p) => [p.id, p]));
   const proposer = byId.get(terms.proposerId) ?? null;
   const isProposer = myPlayerId !== null && myPlayerId === terms.proposerId;
+  const counteredId = counteredProposerId(state, terms.proposerId);
+  const counteredName = counteredId
+    ? (byId.get(counteredId)?.name ?? "Someone")
+    : null;
   const canEdit = !isPending && isProposer;
 
   const cashSum = Object.values(terms.cashDelta).reduce((a, b) => a + b, 0);
@@ -67,6 +73,9 @@ export function TradePanel({ state }: Props) {
   const approvals = isPending ? (turn.pendingTrade?.approvals ?? {}) : null;
   const myApproval = approvals && myPlayerId !== null ? approvals[myPlayerId] : undefined;
   const canVote = isPending && myApproval === false;
+  // Countering stays open to a party who already approved: approving this
+  // offer doesn't rule out preferring a better one.
+  const canCounter = isPending && !isProposer && myApproval !== undefined;
 
   const heldCards = (["chance", "communityChest"] as const).filter(
     (src) => state.jailFreeCards[src] !== undefined,
@@ -82,6 +91,7 @@ export function TradePanel({ state }: Props) {
           isPending={isPending}
           isProposer={isProposer}
           proposerName={proposer?.name ?? "Someone"}
+          counteredName={counteredName}
         />
 
         <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
@@ -157,21 +167,29 @@ export function TradePanel({ state }: Props) {
           />
         )}
         {canVote && (
-          <>
-            <PanelButton
-              label="Decline"
-              onClick={() => {
-                declineTrade();
-              }}
-            />
-            <PanelButton
-              label="Approve"
-              variant="primary"
-              onClick={() => {
-                acceptTrade();
-              }}
-            />
-          </>
+          <PanelButton
+            label="Decline"
+            onClick={() => {
+              declineTrade();
+            }}
+          />
+        )}
+        {canCounter && (
+          <PanelButton
+            label="Counter"
+            onClick={() => {
+              counterTrade();
+            }}
+          />
+        )}
+        {canVote && (
+          <PanelButton
+            label="Approve"
+            variant="primary"
+            onClick={() => {
+              acceptTrade();
+            }}
+          />
         )}
       </div>
     </div>
@@ -188,13 +206,20 @@ function Heading({
   isPending,
   isProposer,
   proposerName,
+  counteredName,
 }: {
   isPending: boolean;
   isProposer: boolean;
   proposerName: string;
+  /** Whose offer this trade counters, or null for a fresh trade. */
+  counteredName: string | null;
 }) {
   let text: string;
-  if (isPending) text = `Proposed by ${proposerName} — vote`;
+  if (counteredName !== null) {
+    if (isPending) text = `${proposerName} countered ${counteredName} — vote`;
+    else if (isProposer) text = `Countering ${counteredName}'s offer`;
+    else text = `${proposerName} is countering ${counteredName}'s offer`;
+  } else if (isPending) text = `Proposed by ${proposerName} — vote`;
   else if (isProposer) text = "Trade — tap squares to reassign";
   else text = `${proposerName} is building a trade`;
   return (

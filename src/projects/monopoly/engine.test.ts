@@ -4,6 +4,7 @@ import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
 import {
   apply,
   autoStep,
+  counteredProposerId,
   firstNegativePlayer,
   projectTrade,
   tradeMortgageFees,
@@ -1934,6 +1935,87 @@ describe("trade approval + execution", () => {
       propertyFrom: { 1: "p1" },
       cashDelta: { p1: 60, p2: -60 },
     });
+  });
+
+  it("a counter kills the proposal and opens the counterer's builder seeded with its terms", () => {
+    const start = withOwnership(freshGame("trade-counter"), { 1: "p1" });
+    const building = inTradeBuilding(start, "p1");
+    const terms = { propertyTo: { 1: "p2" }, gojfTo: {}, cashDelta: { p1: 60, p2: -60 } };
+    const staged = apply(building, { kind: "update-trade-draft", playerId: "p1", terms });
+    if (!staged.ok) throw new Error(staged.reason);
+    const proposed = apply(staged.state, { kind: "propose-trade", playerId: "p1" });
+    if (!proposed.ok) throw new Error(proposed.reason);
+    const pending = proposed.state.turn.pendingTrade;
+    if (!pending) throw new Error("expected a pending trade");
+
+    const countered = apply(proposed.state, {
+      kind: "counter-trade",
+      playerId: "p2",
+      tradeId: pending.id,
+    });
+    if (!countered.ok) throw new Error(countered.reason);
+    expect(countered.state.turn.phase).toBe("trade-building");
+    expect(countered.state.turn.pendingTrade).toBeUndefined();
+    expect(countered.state.turn.tradeDraft).toEqual({ proposerId: "p2", ...terms });
+    expect(countered.state.ownership[1]).toBe("p1"); // nothing moved
+    expect(countered.newEvents).toEqual([
+      expect.objectContaining({ kind: "trade-declined", declinedBy: "p2", countered: true }),
+    ]);
+
+    // The counter is a proposal of its own: a vote on the answered one is stale.
+    const raised = apply(countered.state, {
+      kind: "update-trade-draft",
+      playerId: "p2",
+      terms: { ...terms, cashDelta: { p1: 100, p2: -100 } },
+    });
+    if (!raised.ok) throw new Error(raised.reason);
+    const reproposed = apply(raised.state, { kind: "propose-trade", playerId: "p2" });
+    if (!reproposed.ok) throw new Error(reproposed.reason);
+    expect(reproposed.state.turn.pendingTrade?.approvals).toEqual({ p1: false, p2: true });
+    expect(reproposed.state.turn.pendingTrade?.id).not.toBe(pending.id);
+    // Both the counter's draft and its proposal read as answering p1's offer.
+    expect(counteredProposerId(proposed.state, "p1")).toBeNull();
+    expect(counteredProposerId(countered.state, "p2")).toBe("p1");
+    expect(counteredProposerId(reproposed.state, "p2")).toBe("p1");
+    expect(counteredProposerId(reproposed.state, "p1")).toBeNull();
+    const staleVote = apply(reproposed.state, {
+      kind: "accept-trade",
+      playerId: "p1",
+      tradeId: pending.id,
+    });
+    expect(staleVote).toEqual({ ok: false, reason: "stale trade" });
+
+    // A plain decline of the counter ends the exchange: nothing is a counter now.
+    const counterPending = reproposed.state.turn.pendingTrade;
+    if (!counterPending) throw new Error("expected the counter pending");
+    const declined = applyOk(reproposed.state, {
+      kind: "decline-trade",
+      playerId: "p1",
+      tradeId: counterPending.id,
+    });
+    expect(counteredProposerId(declined, "p2")).toBeNull();
+  });
+
+  it("only a named party may counter", () => {
+    const start = withOwnership(freshGame("trade-counter-party"), { 1: "p1" });
+    const building = inTradeBuilding(start, "p1");
+    const staged = apply(building, {
+      kind: "update-trade-draft",
+      playerId: "p1",
+      terms: { propertyTo: { 1: "p2" }, gojfTo: {}, cashDelta: { p1: 60, p2: -60 } },
+    });
+    if (!staged.ok) throw new Error(staged.reason);
+    const proposed = apply(staged.state, { kind: "propose-trade", playerId: "p1" });
+    if (!proposed.ok) throw new Error(proposed.reason);
+    const pending = proposed.state.turn.pendingTrade;
+    if (!pending) throw new Error("expected a pending trade");
+
+    const res = apply(proposed.state, {
+      kind: "counter-trade",
+      playerId: "p3",
+      tradeId: pending.id,
+    });
+    expect(res).toEqual({ ok: false, reason: "not a party to this trade" });
   });
 
   it("executes an out-of-turn trade and returns to the active player's pre-roll", () => {
