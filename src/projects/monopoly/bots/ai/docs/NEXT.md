@@ -6,42 +6,46 @@ with the reason they matter. The rules are in `METHOD.md`.
 
 ## Now
 
-1. **Finish llm-v3 and record it.** v3 targets three causes found in llm-v2's
-   suite run: the debt-plan field read as "houses to sell" when it meant a target
-   level, a single signed trade-cash field whose direction the model got wrong, and
-   thinking that spent its whole budget (partly on the answer format). It compares
-   thinking budgets of 1,200 and 3,000 tokens.
-2. **llm-v4 candidates:**
-   - **Room to reason in quick decisions.** The private note is written before
-     the choice, so it is the model's only reasoning space in quick mode, and it is
-     asked for "at most three short sentences". Compare that against "as long as
-     you need" on the same scenarios. Live games may pay time for quality, so if
-     longer is better it wins.
-   - Whatever v3's remaining failures point to, by cause.
-   - **Strategy primer, separately.** Judgment scenarios show v2 selling a rival
-     the set-completing lot for $400 every time, and dropping out of nearly every
-     auction (llm-v1 bid its whole wallet). General principles of strong play may
-     help, but they shape opinions, so measure them as their own version, never
-     bundled with error fixes.
+1. **llm-v5: the counter as its own answer.** Both of llm-v4's trade errors, and
+   one of llm-v3's, are in writing a counter, not in judging the offer: an empty
+   counter where the note means decline, and a counter that could only be
+   written as giving a lot away because the lot the seat wanted isn't the other
+   side's. The trade vote requires a full `counter` even on accept or decline,
+   and the model fills it whatever its vote. Candidates, by cause: ask for the
+   counter's terms only once "counter" is chosen (a second, short call), and say
+   in the question which lots the counterparty actually holds. Confirm in the
+   call records first, as llm-v4 did with its replay.
+2. **Lots by name, not square number**, if it recurs: one llm-v4 debt answer put
+   the built orange lots' numbers in `mortgage` while its note named the
+   railroad and utility. Once is noise; watch for it in the next runs.
+3. **Strategy primer, separately.** Judgment scenarios show the seat selling a
+   rival the set-completing lot for $400 every time, and dropping out of most
+   auctions (Boardwalk 3x $0 in llm-v4). General principles of strong play may
+   help, but they shape opinions, so measure them as their own version, never
+   bundled with error fixes.
+4. **More reps per verdict.** At 3/54 errors, three reps can no longer tell two
+   versions apart on the original 45 scenarios (llm-v3 and llm-v4 tie there).
+   Use five reps for the error scenarios in a final verdict, and grow the
+   families where errors still show.
 
 ## Next
 
-3. **Slice runner** (`ai:slice`): a few rounds of all-AI play from a seed (early
+5. **Slice runner** (`ai:slice`): a few rounds of all-AI play from a seed (early
    game), from rule-bot-simulated positions at turn ~40 and ~80 (mid and late),
    or from a saved real game. For errors only, never for strength. Each failure it
    finds becomes a scenario. Reuse the scenario harness's call record
    (`eval/record.ts`) and the route's claim/ask/settle path.
-4. **Model comparison**, holding the version fixed: Gemma 4 12B Q6_K
+6. **Model comparison**, holding the version fixed: Gemma 4 12B Q6_K
    (`~/models/gemma-4-12b-it-Q6_K.gguf`, downloaded, untested; needs a server
    config in `bots/ai/servers/` and a check that the adapter's thinking switch,
    `chat_template_kwargs.enable_thinking`, works for its chat template) against
    Qwen3.5-9B. gpt-oss-20b is also on disk, but the launcher's fit check refuses it
    by about 160 MiB at 8k context; it may fit, since the check counts its
    sliding-window layers as full.
-5. **Package the loop** as a project skill (`/monopoly-ai-loop`) once an iteration
+7. **Package the loop** as a project skill (`/monopoly-ai-loop`) once an iteration
    runs smoothly, with a reviewer agent definition carrying the review rubric.
    Test it with a fresh agent that has only the repo.
-6. **Human-proxy probes against AI seats**: point the `/monopoly-probe` fleet
+8. **Human-proxy probes against AI seats**: point the `/monopoly-probe` fleet
    (Claude agents playing a human-marked seat through `played-cli`) at AI seats.
    This is the strength signal until enough human games with flags exist.
 

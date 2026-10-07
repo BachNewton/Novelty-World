@@ -187,6 +187,29 @@ function keepsHouses(id: string, turn: number, set: readonly number[], level: nu
   };
 }
 
+/** In debt beyond what the spare lots' mortgages raise, so houses must be sold
+ *  too. llm-v3 wrote "selling three houses" in its note and an empty sale list
+ *  in its answer; a plan that sells nothing leaves the debt unpaid (unusable).
+ *  Selling a house while a spare lot stays unmortgaged is objective, for the
+ *  same reason as `keepsHouses`. */
+function mustSellHouses(id: string, turn: number, set: readonly number[], level: number, spare: readonly number[], debt: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase: "late",
+    decision: "settle-debt",
+    tests: `$${String(debt)} short, ${String(level)} house(s) on each of ${set.map(nameOf).join(", ")}, and ${spare.map(nameOf).join(" + ")} to mortgage, which falls short: it must sell houses as well.`,
+    build: (s) =>
+      inDebt(built(owning(atTurn(table(s), turn), { [AI]: [...set, ...spare] }), Object.fromEntries(set.map((p) => [p, level]))), -debt),
+    choose: debtChoice,
+    error: (o) => {
+      const state = after(o);
+      const kept = spare.filter((pos) => !state?.mortgaged[pos]);
+      return -housesAdded(o, set) > 0 && kept.length > 0 ? `sold houses while ${kept.map(nameOf).join(" + ")} stayed unmortgaged` : null;
+    },
+  };
+}
+
 // --- The suite -----------------------------------------------------------------
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -434,6 +457,9 @@ export const SCENARIOS: readonly Scenario[] = [
   keepsHouses("debt-keeps-houses", 45, ORANGES, 3, [SQ.reading, SQ.water], 150),
   keepsHouses("debt-keeps-houses-light-blue", 38, LIGHT_BLUES, 2, [SQ.electric, SQ.shortLine], 100),
   keepsHouses("debt-keeps-houses-red", 52, REDS, 1, [SQ.reading, SQ.pennRR], 180),
+  mustSellHouses("debt-must-sell-houses", 47, ORANGES, 3, [SQ.reading, SQ.water], 275),
+  mustSellHouses("debt-must-sell-houses-light-blue", 41, LIGHT_BLUES, 2, [SQ.electric, SQ.shortLine], 225),
+  mustSellHouses("debt-must-sell-houses-red", 56, REDS, 2, [SQ.reading, SQ.pennRR], 320),
   {
     id: "debt-small-shortfall",
     kind: "judgment",

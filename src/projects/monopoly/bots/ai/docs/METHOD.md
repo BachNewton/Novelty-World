@@ -49,6 +49,10 @@ Rules:
   from its view, a consequence left for it to derive, a misleading question),
   never wording aimed at one scenario's answer. Error scenarios have disguised
   variants (other seats, sets, cash) so a fix that only fits the original shows.
+- **Fewer errors from doing less is not progress.** A seat that proposes,
+  builds or bids less also errs less in error scenarios. Read the judgment
+  spread beside the error count, and never keep a change whose errors fell
+  because the seat went passive.
 - **Every real failure becomes a scenario.** The suite only grows, and is the
   loop's memory of what has gone wrong.
 - **Strength is judged against humans or human proxies, never against bots.** AI
@@ -64,7 +68,10 @@ Rules:
 1. Run the scenario subset for the failing error categories (or the full suite
    before a version is called a step forward), and a short slice.
 2. Review: the scoreboard, then the failing calls' full records (prompt, thinking,
-   answer). Group failures by cause.
+   answer, and the raw answer text, which shows what the schema let through).
+   Group failures by cause. To test a suspected cause cheaply, replay the exact
+   failing request a few times with only that one thing changed (a schema
+   shape, a line of the question) before building a version around it.
 3. Fix the largest cause; register it as the next version with a one-line
    hypothesis.
 4. Rerun the same subset, then the full suite. Keep the version only if errors

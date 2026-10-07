@@ -91,6 +91,15 @@ describe("scenario checks, on canned answers", () => {
     expect(record.check?.error).toBeNull();
     expect(record.check?.choice).toBe("mortgages Reading Railroad + Water Works, raises $175");
   });
+
+  it("errors on selling houses while a spare lot stays unmortgaged, not once both are mortgaged", async () => {
+    const llmV4 = { profile: "ai:local" as const, version: "llm-v4" as const };
+    const scenario = byId("debt-must-sell-houses");
+    const both = await runScenario(scenario, llmV4, fakeModel({ ...NOTES, mortgage: [5, 28], sellHouses: { orange: 2 } }), 0, null);
+    const one = await runScenario(scenario, llmV4, fakeModel({ ...NOTES, mortgage: [5], sellHouses: { orange: 4 } }), 0, null);
+    expect(both.check?.error).toBeNull();
+    expect(one.check?.error).toBe("sold houses while Water Works stayed unmortgaged");
+  });
 });
 
 describe("scoreboard", () => {

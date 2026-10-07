@@ -125,3 +125,143 @@ Lesson: the input lesson holds again. Asking in the model's own terms removed
 whole error families, and arithmetic stopped going wrong once every option's
 cash was listed. Instructions about *how to think* did not change how this model
 thinks.
+
+## llm-v4: each option's loss beside its cash; one house count per set (2026-10-07)
+
+Hypothesis: llm-v3's remaining errors come from the view and the answer's
+shape, not from the model's judgment. Each cause was confirmed in v3's call
+records before the fix.
+
+- **The loss of each way to raise cash, stated as a fact.** A mortgage line now
+  says lifting it later costs the mortgage plus 10% ("so mortgaging loses you
+  $10 in all, plus its rent while it stays mortgaged"); a house-sale line says
+  each house sold loses half its cost for good. In a trade, every unmortgaged
+  lot the seat would give away carries "you could mortgage it instead for $X and
+  keep it", and the trade format lists what mortgaging each tradeable lot would
+  raise.
+- **Debt: all the mortgages added up.** The first v4 subset (loss lines only)
+  was no better than v3 on debt (8/18 errors in the debt families). The notes
+  showed why: the model judged each option alone ("Mortgaging my Reading
+  Railroad yields only $100, which is insufficient") and then sold houses
+  instead, never adding the mortgages together or to a few sales. v4 states the
+  total of every mortgage and whether it covers the debt or how far it falls
+  short. With it the same subset dropped to 1/18.
+- **One house count per set.** v3's note/field disagreement ("selling three
+  houses", `sellHouses` empty) was the answer's shape, not the reasoning. Both
+  failing raw answers read `"sellHouses": [\n    \n     ]`: a list opened for
+  an object and closed empty. Replaying the exact failing request 8 times: with
+  v3's list of `{set, houses}` entries, 4 of 4 answers whose note said to sell
+  came back with an empty list; with one integer per set (`{"red": n}`, every set
+  required), 2 of 2 came back `red: 3`. The same list shape let a v3 turn start
+  name the red set three times with a count per lot (4, 4, 3), and the code kept
+  only the last. v4 asks for one count per set, every set named, 0 included, for
+  debt plans and turn-start building alike, with each set's own limit.
+
+New error family (the suite grows): **`debt-must-sell-houses`** (orange, light
+blue, red): debts beyond what the spare lots' mortgages raise, so houses must be
+sold too. An empty sale list leaves the debt unpaid; selling a house while a
+spare lot stays unmortgaged is graded an error, for the same reason as
+`debt-keeps-houses`. llm-v3 scored 6/9 errors on it (5 sold houses with the
+spare lots unmortgaged, 1 empty-list unusable).
+
+Full suite, 40 scenarios x 3, Qwen3.5-9B Q6_K, 4 slots (llm-v3's figures for the
+three new scenarios come from a 9-call run on the same suite):
+
+| | llm-v3 | llm-v4 |
+|---|---|---|
+| Errors in error scenarios | 9/54 | 3/54 |
+| of which the 45 llm-v3 was built on | 3/45 | 3/45 |
+| settle-debt | 8/21 | 1/21 |
+| trade-vote | 1/33 | 2/33 |
+| turn-start | 0/21 | 0/21 |
+| buy, auction, jail | 0 | 0 |
+| Median / p90 call | 7.8 s / 42.7 s | 7.0 s / 42.9 s |
+| Thinking hit its budget | 54/54 | 54/54 |
+
+Kept: errors fall from 9 to 3 on the same suite. On the 45 scenarios llm-v3 was
+built on the totals tie, so the gain is in debts that need both mortgages and
+sales; at three errors in 45 answers, telling versions apart now needs more
+reps.
+
+The mortgage fact did its job in trade votes: in all three
+`vote-below-mortgage-red` answers the note cites the $110 mortgage ("I'm
+passing; $80 is less than the $110 I can get by mortgaging the property
+myself"). Both trade errors left are in **writing the counter**, not in the
+judgment: an empty counter (vote "counter", no lots, no cash) where the note
+means decline, which llm-v3 also produced once; and a counter asking Kyle for
+St. James Place, which he doesn't own, so the schema could only write it as
+giving Kentucky away for nothing. The counter is a required field even on
+accept or decline, and the model fills it whatever its vote.
+
+Remaining debt error: one answer sold three orange houses for a $150 debt the
+two spare mortgages ($175) covered. In the iteration run another answer put the
+built orange lots' square numbers in `mortgage` while its note named the
+railroad and the utility's $175.
+
+Judgments that moved (not graded): Boardwalk at auction 3x $0 (llm-v3 2x $0,
+1x $450); the mutual-completion swap went from llm-v3's 3x decline to 2x
+accept, 1x counter; selling a rival its set-completing lot for $400 stayed 3x
+accept.
+
+### Room to reason in quick decisions (measured, not adopted)
+
+A temporary, unregistered variant of llm-v4 with the private note asked for "as
+long as you need: work the decision through before you answer" (backstop limit
+raised from 1,500 to 6,000 characters, "be brief" kept only for the public note
+and the plan), run on the 22 quick-decision scenarios x 3:
+
+| quick decisions | llm-v4 (three sentences) | longer note |
+|---|---|---|
+| Errors in error scenarios | 1/27 | 5/27 |
+| settle-debt | 1/21 | 5/21 |
+| Median note | 277 chars | 469 chars (max 1,900) |
+| Median / p90 call | about 6 s / 8 s | 7.1 s / 11.0 s |
+
+Longer notes were worse, and the difference is all in debt plans. The extra
+length went into restating the rules and talking itself into selling houses
+("selling houses preserves my income-generating assets"), the very conclusion
+the loss lines argue against. One long note slid back to counting per lot
+("sell 1 house from each of the three Orange properties", answered `orange: 1`,
+leaving $100 owed). Auctions drifted toward $0. The three-sentence note stays:
+live games may pay time for quality, but here more time bought worse answers.
+
+### Does truncated thinking help? (measured, not adopted)
+
+llm-v3's 18 thinking scenarios (trade votes, turn starts) x 3, with thinking
+off (a temporary, unregistered variant):
+
+| | thinking (1,200 tokens) | thinking off |
+|---|---|---|
+| Errors, all 54 answers | 1/54 (final run), 0/54 (budget run) | 2/54 |
+| Median call | about 42 s | 10.9 s |
+| Trades proposed in the 9 propose-direction answers | 9 | 0 |
+| Fresh orange monopoly: builds | 3/3 | 1/3 |
+
+The error counts are within noise of each other, but without thinking the seat
+goes passive: it never proposed a trade, mostly left a fresh monopoly unbuilt,
+and declined more offers. Its two errors were an empty counter and a counter it
+couldn't afford. Truncated thinking doesn't so much prevent errors as make the
+seat act. Passivity scores well on error scenarios, because a seat that
+proposes nothing can't propose wrongly, so error counts alone can't judge
+thinking. Thinking stays on for trade votes and turn starts; whether it is
+worth about 30 s a decision is a question for human games, not the suite.
+
+Lesson: the input lesson holds a third time. Stating a loss beside the cash
+didn't help on its own; the model also needed the sum it wasn't doing. Asking
+for answers in the model's own terms extends to the answer's **shape**: a
+nested list of objects was a trap the grammar let the model fall into, and
+replaying the exact failing request against two schemas found it in 16 calls.
+More room to reason in quick mode made this model worse, and thinking made it
+act more but err no less.
+
+## The loop, after llm-v4
+
+- **2026-10-07: replay before building.** The note/field disagreement in debt
+  plans was diagnosed by replaying the exact failing request with one thing
+  changed (the schema shape), 16 calls, before any version was built around a
+  guess. `METHOD.md`'s review step now says so, and asks for the raw answer text,
+  which is where a schema-shape failure shows.
+- **2026-10-07: count the cost of passivity.** A seat that does less makes fewer
+  errors in error scenarios. A change that lowers errors by making the seat
+  passive (thinking off: no trades proposed) is not an improvement; read the
+  judgment spread alongside the error count.
