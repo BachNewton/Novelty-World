@@ -98,8 +98,28 @@ not just errors.
    patterns. It is a missing fact, so
    a general change: measure it on two model families, and compare prompt length
    with today's window.
+11. **llm-v7: give a trade's receiving seat the proposer's public note.** The
+   table now sees an AI proposer's note as the offer's pitch (`tradePitch` in
+   the engine, shown in the trade panel). A voting seat sees it only as one
+   unlabelled line of "negotiation so far", among the turn's other notes.
+   State it beside the terms as the proposer's message with this offer, public
+   note only, never private reasoning or plan. It is a fact added to the view,
+   so a general change by METHOD's rule: measure it on two model families
+   before calling it one. Option, not built: let a human's offer carry a
+   short message too, so the pitch and this line work the same for every
+   proposer (it would need a field on the proposal, so a state shape change).
 
 ## Loose ends
+
+- **Trade flag categories, for the owner.** Flagging a trade with the general
+  categories is ambiguous ("bad" for the bot, or an offer no human would
+  take). Proposed set for a trade's proposal, counter or vote: "Bad for the
+  bot", "No human would take this", "Fair offer", "Tempting", "Misread the
+  deal", plus "Gave info away" and the free text. Not built: the
+  `monopoly_ai_flags_categories` check constraint in `supabase/monopoly-ai.sql`
+  lists the allowed ids, so new ones need that constraint replaced on the live
+  table first (drop and re-add it, idempotently), then the ids in
+  `AI_FLAG_CATEGORIES` and a trade-aware set in the review dialog.
 
 - The `ai:claude` profile is built but unused: no game has played it yet. Its
   server (`npm run ai:claude-server`) answered a scenario subset through the

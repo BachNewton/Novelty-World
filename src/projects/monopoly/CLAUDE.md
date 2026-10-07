@@ -367,10 +367,14 @@ never assumed.
   start that does nothing) shows no BOT row. A version that **holds auction
   notes** keeps its auction note off the board, and out of llm-v2 seats'
   prompts, until that auction closes (`held.ts`), so it can't give its maximum
-  away.
+  away. Holding is the version's setting, never the UI's: the auction panel
+  shows each AI bidder's note as soon as the game releases it
+  (`liveAuctionNotes`), and once the auction closes the log shows every AI
+  bidder's note under its result (`auctionNotesByResult`), held or not.
 - **Players review AI decisions as they play** (`review.ts`,
   `components/ai-review.tsx`). This is how real games feed the AI's evaluation:
-  an AI's BOT row (or its failure) has a reveal control; opening it **pauses the
+  an AI's BOT row (or its failure) has a reveal control, as does its note
+  wherever else it is shown (a trade offer, an auction); opening it **pauses the
   whole table** and shows that decision's public note, private note, plan,
   version, model and time, with a flag to leave: categories from a fixed set
   (`AI_FLAG_CATEGORIES`, mirrored by a check constraint) and the player's own
@@ -441,7 +445,13 @@ never assumed.
   ping-pong becomes a problem). Every trade question shows the negotiation so
   far (this turn's offers and counters from the log, with what each side said),
   and asks the model to meet the other side partway or decline to end it. On a
-  proposal or counter, the public note is the seat's message to the other side.
+  proposal or counter, the public note is the seat's message to the other side,
+  and it rides with the offer as its **pitch**: `tradePitch` (engine) derives it
+  from the log, never stored (the proposer's bot-note behind the proposal, whose
+  place the pending trade's id records), and the trade panel shows it to the
+  table, since the log is hidden while a trade is up, beside the note each
+  party approved with (`tradeVoteNotes`). A version's trade-vote question may
+  read the pitch too; llm-v5 sees it only as a line of the negotiation.
   From llm-v2 a trade is written from the seat's own side (you give, you get,
   cash you receive, with one counterparty) and states the cash it leaves the
   seat with; the code builds the engine's terms and fails a mismatch, so a sign

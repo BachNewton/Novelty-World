@@ -1,11 +1,14 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { counteredProposerId, projectTrade, tradeParticipants } from "../engine";
+import { counteredProposerId, projectTrade, tradeParticipants, tradePitch, tradeVoteNotes } from "../engine";
 import { useMonopolyStore } from "../store";
 import type { GameState, Player, TradeTerms } from "../types";
+import type { TradeNote } from "../engine";
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
 import { Money } from "./money";
+import { RevealButton, useCanReview } from "./ai-review";
+import { PartyNote } from "./party-note";
 import { TradeInputs } from "./trade-inputs";
 import { PlayerTag } from "./trade-ui";
 
@@ -21,7 +24,10 @@ interface Props {
  *    cash / cards here; everyone else watches it take shape read-only.
  *  - `trade-pending`: the finalized proposal; each named party approves,
  *    declines, or counters. All approvals execute it; any decline cancels it;
- *    a counter cancels it and reopens it as the counterer's own draft.
+ *    a counter cancels it and reopens it as the counterer's own draft. A bot
+ *    proposer's public note rides with its offer as its pitch, and each bot
+ *    party that approved shows the note it voted with, since the log that
+ *    also carries them is hidden while the panel is up.
  *
  *  The log is hidden by the footer while this is up to make room. */
 export function TradePanel({ state }: Props) {
@@ -47,6 +53,12 @@ export function TradePanel({ state }: Props) {
     ? (byId.get(counteredId)?.name ?? "Someone")
     : null;
   const canEdit = !isPending && isProposer;
+  const pitch = isPending ? tradePitch(state) : null;
+  const voteNotes = tradeVoteNotes(state);
+  const notes = [
+    ...(pitch === null ? [] : [{ note: pitch, label: "Pitch" }]),
+    ...voteNotes.map((note) => ({ note, label: "Approved" })),
+  ];
 
   const cashSum = Object.values(terms.cashDelta).reduce((a, b) => a + b, 0);
   const movesSomething =
@@ -83,6 +95,15 @@ export function TradePanel({ state }: Props) {
           proposerName={proposer?.name ?? "Someone"}
           counteredName={counteredName}
         />
+
+        {notes.map(({ note, label }) => (
+          <TradeNoteRow
+            key={`${note.ref.turn.toString()}-${note.ref.index.toString()}`}
+            note={note}
+            label={label}
+            player={byId.get(note.playerId)}
+          />
+        ))}
 
         <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
 
@@ -151,6 +172,21 @@ export function TradePanel({ state }: Props) {
         )}
       </div>
     </div>
+  );
+}
+
+/** A party's note on the offer, with its AI decision's review control, so a
+ *  player can open and flag the decision from the offer itself. */
+function TradeNoteRow({ note, label, player }: { note: TradeNote; label: string; player: Player | undefined }) {
+  const canReview = useCanReview();
+  if (!player) return null;
+  return (
+    <PartyNote
+      label={label}
+      player={player}
+      text={note.text}
+      action={canReview && note.fromAi ? <RevealButton aiName={player.name} refTo={note.ref} /> : undefined}
+    />
   );
 }
 

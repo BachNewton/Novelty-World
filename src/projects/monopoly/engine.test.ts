@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createRng } from "@/shared/lib/seeded-random";
 import { CHANCE, COMMUNITY_CHEST, deckFor } from "./data";
 import {
+  appendEventToActiveTurn,
   apply,
   autoStep,
   counteredProposerId,
   firstNegativePlayer,
   projectTrade,
   tradeMortgageFees,
+  tradePitch,
+  tradeVoteNotes,
 } from "./engine";
 import { freshGame } from "./mocks";
 import type {
@@ -2042,6 +2045,111 @@ describe("trade approval + execution", () => {
     expect(accepted.state.ownership[1]).toBe("p3");
     expect(accepted.state.turn.phase).toBe("pre-roll");
     expect(accepted.state.turn.playerId).toBe("p1"); // p1's turn resumes
+  });
+});
+
+describe("tradePitch", () => {
+  // p1 is human; p2 and p3 are bots, whose notes land in the log.
+  const terms = { propertyTo: { 1: "p3" }, gojfTo: {}, cashDelta: { p2: 60, p3: -60 } };
+  const note = (playerId: string, text: string): Intent => ({ kind: "bot-note", playerId, text });
+
+  function propose(state: GameState, proposerId: string, before: Intent[], draft: TradeTerms = terms): GameState {
+    let working = inTradeBuilding(state, proposerId);
+    for (const intent of [
+      ...before,
+      { kind: "update-trade-draft", playerId: proposerId, terms: draft } as const,
+      { kind: "propose-trade", playerId: proposerId } as const,
+    ]) {
+      working = applyOk(working, intent);
+    }
+    return working;
+  }
+  const start = withOwnership(freshGame("trade-pitch"), { 1: "p2" });
+
+  it("is the note the proposer sent with the offer", () => {
+    const proposed = propose(start, "p2", [note("p2", "Mediterranean for $60 — it completes nothing of mine.")]);
+    expect(tradePitch(proposed)?.text).toBe("Mediterranean for $60 — it completes nothing of mine.");
+  });
+
+  it("is null for an offer sent without one, even right after someone else's note", () => {
+    expect(tradePitch(propose(start, "p2", []))).toBeNull();
+    expect(tradePitch(propose(start, "p2", [note("p2", "an earlier thought"), note("p3", "mine")]))).toBeNull();
+    expect(tradePitch(propose(start, "p2", [note("p2", "")]))).toBeNull();
+    const human = withOwnership(start, { 1: "p1" });
+    const humanTerms = { propertyTo: { 1: "p3" }, gojfTo: {}, cashDelta: { p1: 60, p3: -60 } };
+    expect(tradePitch(propose(human, "p1", [note("p3", "not p1's")], humanTerms))).toBeNull();
+  });
+
+  it("reaches past the proposer's own manage plan, logged in the same submit", () => {
+    const noted = applyOk(inTradeBuilding(start, "p2"), note("p2", "Lifting Baltic, and selling you Mediterranean."));
+    const managed: GameState = {
+      ...noted,
+      turns: appendEventToActiveTurn(noted.turns, { kind: "unmortgage", playerId: "p2", position: 3, cost: 33 }),
+    };
+    const proposed = applyOk(applyOk(managed, { kind: "update-trade-draft", playerId: "p2", terms }), {
+      kind: "propose-trade",
+      playerId: "p2",
+    });
+    expect(tradePitch(proposed)?.text).toBe("Lifting Baltic, and selling you Mediterranean.");
+  });
+
+  it("is the counter's own note once a seat counters, past its decline", () => {
+    const proposed = propose(start, "p2", [note("p2", "My opening offer.")]);
+    const pending = proposed.turn.pendingTrade;
+    if (!pending) throw new Error("expected a pending trade");
+    let working = applyOk(proposed, note("p3", "Too low: $100 and it's yours."));
+    for (const intent of [
+      { kind: "counter-trade", playerId: "p3", tradeId: pending.id },
+      { kind: "update-trade-draft", playerId: "p3", terms: { ...terms, cashDelta: { p2: 100, p3: -100 } } },
+      { kind: "propose-trade", playerId: "p3" },
+    ] as const) {
+      working = applyOk(working, intent);
+    }
+    expect(working.turn.pendingTrade?.proposerId).toBe("p3");
+    expect(tradePitch(working)?.text).toBe("Too low: $100 and it's yours.");
+  });
+
+  it("keeps the proposer's pitch while other parties' votes are logged", () => {
+    const proposed = propose(start, "p2", [note("p2", "A fair price.")]);
+    expect(tradePitch(applyOk(proposed, note("p3", "Thinking it over.")))?.text).toBe("A fair price.");
+  });
+
+  it("is null while no trade is pending", () => {
+    expect(tradePitch(start)).toBeNull();
+    expect(tradePitch(inTradeBuilding(start, "p2"))).toBeNull();
+  });
+});
+
+describe("tradeVoteNotes", () => {
+  // A three-way offer: p2 sells Mediterranean to p3, and p3 and p4 split the price.
+  const threeWay = { propertyTo: { 1: "p3" }, gojfTo: {}, cashDelta: { p2: 60, p3: -40, p4: -20 } };
+  const start = withOwnership(freshGame("trade-votes"), { 1: "p2" });
+  const proposed = [
+    { kind: "bot-note", playerId: "p2", text: "Split it with me." },
+    { kind: "update-trade-draft", playerId: "p2", terms: threeWay },
+    { kind: "propose-trade", playerId: "p2" },
+  ] as const satisfies Intent[];
+
+  it("holds each approving party's note, not the proposer's or a party yet to vote", () => {
+    let state = inTradeBuilding(start, "p2");
+    for (const intent of proposed) state = applyOk(state, intent);
+    const tradeId = state.turn.pendingTrade?.id ?? "";
+    state = applyOk(state, { kind: "bot-note", playerId: "p3", text: "Happy to pay $40." });
+    state = applyOk(state, { kind: "accept-trade", playerId: "p3", tradeId });
+    state = applyOk(state, { kind: "bot-note", playerId: "p4", text: "Still thinking." });
+    expect(state.turn.phase).toBe("trade-pending");
+    const group = state.turns[state.turns.length - 1];
+    expect(tradeVoteNotes(state)).toEqual([
+      { playerId: "p3", text: "Happy to pay $40.", ref: { turn: group.turn, index: group.events.length - 2 }, fromAi: false },
+    ]);
+    expect(tradePitch(state)?.text).toBe("Split it with me.");
+  });
+
+  it("is empty while no one has voted", () => {
+    let state = inTradeBuilding(start, "p2");
+    for (const intent of proposed) state = applyOk(state, intent);
+    expect(tradeVoteNotes(state)).toEqual([]);
+    expect(tradeVoteNotes(start)).toEqual([]);
   });
 });
 

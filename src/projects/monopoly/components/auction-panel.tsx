@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { liveAuctionNotes } from "../bots/ai/held";
 import { SPACES } from "../data";
 import { auctionBidCap, BID_INCREMENT } from "../engine";
 import { ownablePrice } from "../logic";
@@ -8,6 +9,8 @@ import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import type { GameState, Player } from "../types";
 import { SetContextChips } from "./holdings-grid";
+import { RevealButton, useCanReview } from "./ai-review";
+import { PartyNote } from "./party-note";
 
 interface Props {
   state: GameState;
@@ -22,10 +25,14 @@ interface Props {
  *  +$10) at any time — including the leader, to jam it up — or Drop out. The lot
  *  goes to the last bidder standing, or back to the bank if everyone drops
  *  without a bid. The bid chart grows a bar per player as they bid, so the room
- *  can read the standings — and where each player bailed — at a glance. */
+ *  can read the standings — and where each player bailed — at a glance. An AI
+ *  bidder's public note shows beneath, beside its name, as soon as the game
+ *  releases it: live for a version that doesn't hold auction notes; a version
+ *  that does keeps it for the result, shown with the auction row in the log. */
 export function AuctionPanel({ state }: Props) {
   const myPlayerId = useMonopolyStore((s) => s.myPlayerId);
   const submit = useMonopolyStore((s) => s.submit);
+  const canReview = useCanReview();
 
   const auction = state.turn.auction;
   if (!auction) return null;
@@ -46,6 +53,7 @@ export function AuctionPanel({ state }: Props) {
   const myCap = myPlayerId !== null ? auctionBidCap(state, myPlayerId) : 0;
   const canBid = stillIn && nextBid <= myCap;
   const canDrop = stillIn && !isLeader;
+  const notes = liveAuctionNotes(state);
 
   return (
     <div className="relative z-10 flex shrink-0 flex-col" style={SECTION_STYLE}>
@@ -83,6 +91,17 @@ export function AuctionPanel({ state }: Props) {
         </div>
 
         <BidChart auction={auction} participants={participants} printed={printed} />
+
+        {notes.size > 0 && (
+          <div className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "30vh" }}>
+            {participants.flatMap((p) => {
+              const note = notes.get(p.id);
+              if (!note) return [];
+              const action = canReview ? <RevealButton aiName={p.name} refTo={note.ref} /> : undefined;
+              return [<PartyNote key={p.id} label="Note" player={p} text={note.text} action={action} />];
+            })}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0">

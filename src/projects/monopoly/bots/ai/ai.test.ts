@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { freshGame } from "../../mocks";
 import { driveOp, type BotResolver } from "../../pacing";
 import type { AuctionState, GameEvent, GameState, Player, TurnState } from "../../types";
-import { apply } from "../../engine";
+import { apply, tradePitch } from "../../engine";
 import type { AiDecisionRecord } from "../../types";
 import { aiConsoleLines } from "./console";
 import { askModel, claimAi, settleAnswer, type Settled } from "./decide";
 import { aiDecisionFor, auctionProxyIntent } from "./decisions";
 import type { CallMetrics, ModelAdapter, ModelResult } from "./model/adapter";
+import { auctionNotesByResult, liveAuctionNotes } from "./held";
+import { aiDecisionAt } from "./review";
 import { aiSeat, withAiSeat } from "./seat";
 import { DECISION_SPECS } from "./versions/llm-v1/answers";
 import { buildPrompt } from "./versions/llm-v1/prompt";
@@ -419,6 +421,8 @@ describe("the turn-start window", () => {
     expect(settled.kind).toBe("commit");
     expect(settled.state.turn.phase).toBe("trade-pending");
     expect(settled.state.turn.pendingTrade).toMatchObject({ proposerId: AI, propertyTo: { 8: AI } });
+    // Its public note is the offer's pitch, for the table and the other side.
+    expect(tradePitch(settled.state)?.text).toBe(NOTES.publicNote);
   });
 
   it("fails a trade that doesn't balance", () => {
@@ -509,6 +513,11 @@ describe("counters and the negotiation", () => {
     expect(events(state)).toContainEqual(
       expect.objectContaining({ kind: "trade-declined", declinedBy: AI, countered: true }),
     );
+    expect(tradePitch(state)?.text).toBe(COUNTER.publicNote);
+    // The pitch names its decision, so it can be opened for review from the offer.
+    const pitch = tradePitch(state);
+    expect(pitch?.fromAi).toBe(true);
+    if (pitch) expect(aiDecisionAt(state, pitch.ref)?.publicNote).toBe(COUNTER.publicNote);
   });
 
   it("shows the back-and-forth, with what each side said, when the AI votes again", () => {
@@ -526,6 +535,8 @@ describe("counters and the negotiation", () => {
     if (!proposed.ok) throw new Error(proposed.reason);
 
     expect(aiDecisionFor(proposed.state, AI)).toBe("trade-vote");
+    // A human's counter carries no note, so it has no pitch.
+    expect(tradePitch(proposed.state)).toBeNull();
     const history = negotiationLines(proposed.state).join("\n");
     expect(history).toContain("countered by Alex");
     expect(history).toContain("countered by Kyle");
@@ -540,5 +551,61 @@ describe("counters and the negotiation", () => {
   it("still accepts and declines", () => {
     expect(decide(offered, { ...COUNTER, vote: "accept" }).state.ownership[6]).toBe("p1");
     expect(decide(offered, { ...COUNTER, vote: "decline" }).state.turn.phase).not.toBe("trade-pending");
+  });
+});
+
+describe("AI auction notes", () => {
+  const record = (decision: AiDecisionRecord["decision"]): AiDecisionRecord => ({
+    decision,
+    version: "llm-v1",
+    model: null,
+    ms: 1,
+    thinkMs: null,
+    answerMs: null,
+    promptTokens: null,
+    completionTokens: null,
+    thinkHitBudget: null,
+  });
+  const note = (playerId: string, heldForAuction?: number): GameEvent => ({
+    kind: "bot-note",
+    playerId,
+    text: `${playerId}'s note`,
+    ai: record("auction"),
+    ...(heldForAuction === undefined ? {} : { heldForAuction }),
+  });
+  const result = (position: number): GameEvent => ({ kind: "auction", position, winnerId: "p1", price: 100 });
+
+  it("groups each closed auction's AI notes with its result, held or not, leaving other notes alone", () => {
+    const events: GameEvent[] = [
+      { kind: "bot-note", playerId: "p3", text: "a rule bot's live note" },
+      { kind: "bot-note", playerId: AI, text: "a buy note", ai: record("buy") },
+      note(AI, 39),
+      note("p4"),
+      result(39),
+      note(AI, 37),
+      result(37),
+      result(1),
+    ];
+    expect(auctionNotesByResult(events)).toEqual(
+      new Map([
+        [4, [2, 3]],
+        [6, [5]],
+      ]),
+    );
+  });
+
+  it("shows a running auction's notes live only where the version doesn't hold them", () => {
+    const running = auctionState();
+    const withNotes: GameState = {
+      ...running,
+      turns: running.turns.map((t, i) =>
+        i === running.turns.length - 1 ? { ...t, events: [...t.events, result(1), note(AI, 39), note("p4")] } : t,
+      ),
+    };
+    const group = withNotes.turns[withNotes.turns.length - 1];
+    expect(liveAuctionNotes(withNotes)).toEqual(
+      new Map([["p4", { text: "p4's note", ref: { turn: group.turn, index: group.events.length - 1 } }]]),
+    );
+    expect(liveAuctionNotes(withTurn(withNotes, { phase: "post-roll", auction: undefined }))).toEqual(new Map());
   });
 });

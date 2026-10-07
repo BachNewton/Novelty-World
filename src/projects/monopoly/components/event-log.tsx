@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isNoteHeld } from "../bots/ai/held";
+import { auctionNotesByResult, isNoteHeld } from "../bots/ai/held";
 import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
@@ -153,6 +153,34 @@ function TurnFragment({
 }) {
   const actor = playersById.get(turn.playerId);
   if (!actor) return null;
+  // A closed auction's AI notes are shown with its result, each beside its
+  // bidder, rather than where they were written.
+  const auctionNotes = auctionNotesByResult(turn.events);
+  const withResult = new Set([...auctionNotes.values()].flat());
+  const noteRow = (
+    event: Extract<GameEvent, { kind: "bot-note" }>,
+    i: number,
+    nested = false,
+  ): ReactNode => {
+    // An AI's private reasoning and plan stay off the log; its row carries a
+    // control that opens them for review instead.
+    const noteActor = playersById.get(event.playerId);
+    return (
+      <BotNoteRow
+        key={`${turn.turn}-${i}`}
+        actor={noteActor}
+        text={event.text}
+        nested={nested}
+        meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
+        action={
+          canReview && event.ai !== undefined && noteActor ? (
+            <RevealButton aiName={noteActor.name} refTo={{ turn: turn.turn, index: i }} />
+          ) : undefined
+        }
+        clamp={canReview && event.ai !== undefined && noteActor !== undefined}
+      />
+    );
+  };
   return (
     <>
       <div className="py-0.5" style={{ gridColumn: "1 / -1" }}>
@@ -167,25 +195,8 @@ function TurnFragment({
         if (event.kind === "bot-note") {
           // An AI turn start that did nothing says nothing to the table: its
           // public text is empty, so it has no row.
-          if (isHeld(event) || event.text === "") return [];
-          // An AI's private reasoning and plan stay off the log; its row
-          // carries a control that opens them for review instead.
-          const actor = playersById.get(event.playerId);
-          const noteRow: ReactNode[] = [
-            <BotNoteRow
-              key={key}
-              actor={actor}
-              text={event.text}
-              meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
-              action={
-                canReview && event.ai !== undefined && actor ? (
-                  <RevealButton aiName={actor.name} refTo={{ turn: turn.turn, index: i }} />
-                ) : undefined
-              }
-              clamp={canReview && event.ai !== undefined && actor !== undefined}
-            />,
-          ];
-          return noteRow;
+          if (isHeld(event) || event.text === "" || withResult.has(i)) return [];
+          return [noteRow(event, i)];
         }
         // An AI seat's failure reads like a note, flagged red: the game has
         // stalled on that seat and this row is the reason.
@@ -242,6 +253,10 @@ function TurnFragment({
             <PassedGoCells key={`${key}-pass`} mine={myId === turn.playerId} />,
           );
         }
+        for (const index of auctionNotes.get(i) ?? []) {
+          const note = turn.events[index];
+          if (note.kind === "bot-note") cells.push(noteRow(note, index, true));
+        }
         return cells;
       })}
     </>
@@ -288,6 +303,7 @@ function BotNoteRow({
   meta,
   action,
   clamp = false,
+  nested = false,
 }: {
   actor: Player | undefined;
   text: string;
@@ -303,18 +319,23 @@ function BotNoteRow({
    *  (an AI decision, in its review dialog), so one long note can't swamp the
    *  log. */
   clamp?: boolean;
+  /** Hang the row under the event above it (an auction result's bidders),
+   *  aligned with its body, with no label of its own. */
+  nested?: boolean;
 }) {
   return (
     <div
-      className={`flex gap-1.5 py-0.5 text-xs leading-snug ${action ? "min-h-11 items-center" : "items-start"}`}
-      style={{ gridColumn: "1 / -1" }}
+      className={`flex gap-1.5 py-0.5 text-xs leading-snug ${action ? "min-h-11" : ""} ${action && !nested ? "items-center" : "items-start"}`}
+      style={{ gridColumn: nested ? "2 / -1" : "1 / -1" }}
     >
-      <span
-        className="shrink-0 font-mono text-[11px] font-semibold uppercase tracking-wider"
-        style={{ color }}
-      >
-        {label}
-      </span>
+      {!nested && (
+        <span
+          className="shrink-0 font-mono text-[11px] font-semibold uppercase tracking-wider"
+          style={{ color }}
+        >
+          {label}
+        </span>
+      )}
       {actor && <PlayerChip player={actor} />}
       <span
         className={`min-w-0 flex-1 italic [overflow-wrap:anywhere] ${clamp ? "line-clamp-3" : ""}`}

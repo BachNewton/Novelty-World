@@ -25,6 +25,7 @@ import {
   unmortgageCostAt,
 } from "./logic";
 import type {
+  AiDecisionRef,
   ApplyResult,
   AuctionResume,
   AuctionState,
@@ -1295,6 +1296,92 @@ export function counteredProposerId(
   return last.countered && last.declinedBy === proposerId ? last.proposerId : null;
 }
 
+/** A proposal's id names its place in the log: the turn group it was made in
+ *  and how many events that group held then. Trades leave rngState unchanged,
+ *  so that event count is also what tells a counter's proposal apart from the
+ *  one it answers (the rejection logs an event). */
+function tradeIdAt(state: GameState): string {
+  return ["trade", state.turns.length, state.turns[state.turns.length - 1].events.length, state.rngState].join("-");
+}
+
+/** How many of the active turn group's events came before the pending trade
+ *  was proposed, read back from its id (`tradeIdAt`). */
+function eventsBeforeProposal(trade: PendingTrade): number {
+  const count = Number(trade.id.split("-")[2]);
+  if (!Number.isInteger(count)) throw new Error(`trade id ${trade.id} doesn't name its place in the log`);
+  return count;
+}
+
+/** A player's public note about a trade, and where it sits in the log (the
+ *  place a review of it refers to). */
+export interface TradeNote {
+  playerId: string;
+  text: string;
+  ref: AiDecisionRef;
+  /** Written by an AI seat, so its decision can be opened for review. */
+  fromAi: boolean;
+}
+
+function tradeNote(state: GameState, index: number): TradeNote | null {
+  const group = state.turns[state.turns.length - 1];
+  const event = group.events[index];
+  if (event.kind !== "bot-note" || event.text === "") return null;
+  return { playerId: event.playerId, text: event.text, ref: { turn: group.turn, index }, fromAi: event.ai !== undefined };
+}
+
+/** The public note the pending trade's proposer sent with it: their pitch to
+ *  the other side ("I'll give you $600 for New York, since…"), or null when
+ *  they sent none (a human, or an AI turn start whose note is empty). Derived
+ *  from the log rather than stored: a bot's note is written in the same submit
+ *  as the decision it explains, just before it, so it is the proposer's
+ *  bot-note behind the proposal, past only what the same submit logged on the
+ *  way (a counter's own `trade-declined`, a turn start's manage plan). Anything
+ *  else in between means the note belongs to an earlier decision. */
+export function tradePitch(state: GameState): TradeNote | null {
+  const trade = state.turn.pendingTrade;
+  if (state.turn.phase !== "trade-pending" || !trade) return null;
+  const events = state.turns[state.turns.length - 1].events;
+  const proposer = trade.proposerId;
+  for (let index = eventsBeforeProposal(trade) - 1; index >= 0; index--) {
+    const event = events[index];
+    switch (event.kind) {
+      case "bot-note":
+        return event.playerId === proposer ? tradeNote(state, index) : null;
+      case "trade-declined":
+        if (event.countered && event.declinedBy === proposer) continue;
+        return null;
+      case "build":
+      case "sell-building":
+      case "mortgage":
+      case "unmortgage":
+        if (event.playerId === proposer) continue;
+        return null;
+      default:
+        return null;
+    }
+  }
+  return null;
+}
+
+/** The public notes the pending trade's other parties voted with so far, in
+ *  vote order, one per party (its latest). Only an approval can leave a trade
+ *  pending (a decline or counter ends it), so these are the notes of parties
+ *  who approved, written after the proposal. A party who sent none (a human)
+ *  has no entry. */
+export function tradeVoteNotes(state: GameState): TradeNote[] {
+  const trade = state.turn.pendingTrade;
+  if (state.turn.phase !== "trade-pending" || !trade) return [];
+  const events = state.turns[state.turns.length - 1].events;
+  const notes = new Map<string, TradeNote>();
+  for (let index = eventsBeforeProposal(trade); index < events.length; index++) {
+    const note = tradeNote(state, index);
+    if (note === null || note.playerId === trade.proposerId || trade.approvals[note.playerId] !== true) continue;
+    notes.delete(note.playerId);
+    notes.set(note.playerId, note);
+  }
+  return [...notes.values()];
+}
+
 /** Everyone NAMED by a set of trade terms: the giver and receiver of each
  *  property and card, plus anyone with a non-zero cash delta. These are the
  *  players whose approval a proposal needs. Exported so the trade UI shows the
@@ -1700,20 +1787,14 @@ function applyProposeTrade(
   if (error) return { ok: false, reason: error };
 
   // The proposer is seeded approved iff they're a party; everyone else named
-  // starts unapproved. Trades leave rngState unchanged, so the active turn's
-  // event count is what tells a counter's proposal apart from the one it
-  // answers (the rejection logs an event) — a vote on the old one goes stale.
+  // starts unapproved. A counter's proposal gets a new id (`tradeIdAt`), so a
+  // vote on the offer it answers goes stale.
   const approvals: Record<string, boolean> = {};
   for (const id of tradeParticipants(state, terms)) {
     approvals[id] = id === draft.proposerId;
   }
   const pendingTrade: PendingTrade = {
-    id: [
-      "trade",
-      state.turns.length,
-      state.turns[state.turns.length - 1].events.length,
-      state.rngState,
-    ].join("-"),
+    id: tradeIdAt(state),
     proposerId: draft.proposerId,
     propertyTo: terms.propertyTo,
     gojfTo: terms.gojfTo,

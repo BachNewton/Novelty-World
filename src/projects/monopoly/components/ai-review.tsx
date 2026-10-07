@@ -50,8 +50,9 @@ export function useCanReview(): boolean {
   return state.players.some((p) => p.id === myId && p.botStrategy === null);
 }
 
-/** The reveal control on an AI decision's log row: a full 44px tap target
- *  around a small glyph, so it fits the dense log and is still easy to hit. */
+/** The reveal control on an AI decision's note (its log row, or where a trade
+ *  or an auction shows it): a full 44px tap target
+ *  around a small glyph, so it fits a dense row and is still easy to hit. */
 export function RevealButton({ aiName, refTo }: { aiName: string; refTo: AiDecisionRef }) {
   const reviewDecision = useMonopolyStore((s) => s.reviewDecision);
   const show = useReviewUi((s) => s.show);
