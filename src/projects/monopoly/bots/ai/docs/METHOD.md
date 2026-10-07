@@ -76,7 +76,13 @@ Rules:
 
 ## Time
 
-Model calls are the budget. Plan runs in calls, not minutes, and stop a run once
+Two different clocks. **In live games, time is spent wherever it buys quality**: a
+version may think long when that pays off, and decision time is measured as
+information, never minimised for its own sake. **In the loop, the loop's own time is
+the budget**, saved by choosing what to run, never by making a version cheaper than
+its best.
+
+Model calls are the loop's budget. Plan runs in calls, not minutes, and stop a run once
 its answer is clear (an error that shows in two of three reps needs no more reps).
 Early versions differ by a lot, so iterate fast on small subsets; as versions get
 close, each needs more samples, so iterations lengthen.
