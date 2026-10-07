@@ -342,20 +342,51 @@ never assumed.
   carries an `AiDecisionRecord`: the version, the model as its server names it
   (llama.cpp's model file, from `/props`), total time, the thinking and answer
   passes' times, token counts, and whether thinking ran out of budget. The log's
-  THINKS row shows the time; `npm run game:review` prints every record plus
+  BOT row shows the time; `npm run game:review` prints every record plus
   per-seat timing (count, median, p90, by decision kind). This is the evidence a
   new version is judged on.
+- **Every live call is kept in full** in `monopoly_ai_calls`
+  (`supabase/monopoly-ai.sql`): the shared call record (`eval/record.ts`: the
+  server as it described itself, the exact prompt, schema and sampling sent, the
+  raw thinking and answer, what the settle step made of it), plus the decision's
+  place in the log. The game row keeps only the small record above. A call row
+  that can't be stored never fails the decision, but is never silent either: the
+  route logs it and returns it as the response's `warning`, which the client
+  logs too. `game:review -- <id> --prompts` prints each decision's call.
 - **Notes and plan.** Every answer carries a `publicNote` (the existing
   `bot-note`, shown in the log), a `privateNote` (the bot-note's `privateText`)
   and a `plan` (stored in `state.ai`, shown to the model next time; it also rides
-  on the bot-note). Private note and plan reach every client's console and,
-  behind the `SHOW_PRIVATE_NOTES_IN_LOG` flag in `bots/ai/console.ts`, the log's
-  THINKS and PLAN rows: the good-faith model, where all information is public
-  and players are trusted not to use it. An empty public note (llm-v2's turn
+  on the bot-note). Private note and plan stay **off the log**: they reach every
+  client's console, and a player reveals them on request in the review dialog
+  (below). The good-faith model holds: all information is public, and players are
+  trusted not to use what they weren't shown. An empty public note (llm-v2's turn
   start that does nothing) shows no BOT row. A version that **holds auction
   notes** keeps its auction note off the board, and out of llm-v2 seats'
   prompts, until that auction closes (`held.ts`), so it can't give its maximum
   away.
+- **Players review AI decisions as they play** (`review.ts`,
+  `components/ai-review.tsx`). This is how real games feed the AI's evaluation:
+  an AI's BOT row (or its failure) has a reveal control; opening it **pauses the
+  whole table** and shows that decision's public note, private note, plan,
+  version, model and time, with a flag to leave: categories from a fixed set
+  (`AI_FLAG_CATEGORIES`, mirrored by a check constraint) and the player's own
+  words. Every opening is logged (`monopoly_ai_reveals`), flagged or not; a flag
+  (`monopoly_ai_flags`) snapshots what the dialog showed, read from the game by
+  the route, never from the client, and joins to the decision's call row by its
+  log place (`AiDecisionRef`). `game:review` prints both under the decision.
+- **The pause is table-wide state** (`GameState.pause`: who opened it, which
+  decision). While it is set the engine applies nothing and `autoStep` stays
+  put, the pacer drives nothing for anyone, and no new AI claim is made. Every
+  other player sees who is reviewing, and any seated player can **resume**, so an
+  abandoned review can't freeze the game. `review`, `resume` and `flag` are route
+  actions, not intents, and aren't version-guarded: pausing and resuming are
+  idempotent and must land on whatever the game is now. A flag that can't be
+  stored keeps the pause, so it can be sent again. **A model answer that arrives
+  during a pause is held**, not applied (`AiSeat.held`, the seat stays
+  "thinking"): it is weighed against what the model saw at once (an answer the
+  game had already overtaken is stale and simply dropped) and settled when play
+  resumes. Nothing moves during a pause, so it settles against the board it was
+  held on. No timers anywhere: resume is the event.
 - **The prompt is a pure function** of the state, the seat and the question:
   rules first as a fixed system message (a stable prefix the model server can
   reuse), then the seat's view, plan, recent log and question.
@@ -506,7 +537,7 @@ bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the cont
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): strategy (profile@version encoding), spec (the version contract), decisions (what a seat owes + auction proxy bids), decide (claim / ask / settle), held (auction notes held back), console (private notes), model/ (provider adapters + server config), versions/ (the frozen llm-vN bundles + their registry), eval/ (the scenario suite: `npm run ai:scenarios -- <version>`; error scenarios gated, judgment ones recorded; runs/ ignored, scoreboards/ committed), servers/ (local-llm server configs: `npm run ai:llm -- <config>`)
+bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): strategy (profile@version encoding), spec (the version contract), decisions (what a seat owes + auction proxy bids), decide (claim / ask / settle), held (auction notes held back), review (players' reviews: pause, resume, held answers, flag categories), calls (the live call row), console (private notes), model/ (provider adapters + server config), versions/ (the frozen llm-vN bundles + their registry), eval/ (the scenario suite: `npm run ai:scenarios -- <version>`; error scenarios gated, judgment ones recorded; runs/ ignored, scoreboards/ committed), servers/ (local-llm server configs: `npm run ai:llm -- <config>`)
 bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
 bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
 bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype

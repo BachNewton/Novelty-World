@@ -6,6 +6,7 @@ import { useProfile } from "@/shared/lib/profile";
 import { useMonopolyDebugKeys } from "../dev";
 import { useMonopolyStore } from "../store";
 import { MONOPOLY_THEME } from "../theme";
+import { AiReviewLayer } from "./ai-review";
 import { Footer } from "./footer";
 import { Header } from "./header";
 import { LobbyBrowser } from "./lobby-browser";
@@ -80,6 +81,7 @@ function Board() {
       <Header state={state} />
       <Squares />
       <Footer state={state} />
+      <AiReviewLayer />
     </Frame>
   );
 }

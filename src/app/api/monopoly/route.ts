@@ -11,11 +11,23 @@ import {
 import { freshGame } from "@/projects/monopoly/mocks";
 import { isOutdated } from "@/projects/monopoly/state-version";
 import { VERSIONS } from "@/projects/monopoly/bots/versions";
-import { askModel, claimAi, failed, settleAnswer } from "@/projects/monopoly/bots/ai/decide";
-import { modelFor } from "@/projects/monopoly/bots/ai/model/config";
+import { askModel, claimAi, failed, settleAnswer, type Settled } from "@/projects/monopoly/bots/ai/decide";
+import { aiCallRow, gameCallRecord, type CallOutcome } from "@/projects/monopoly/bots/ai/calls";
+import { recording } from "@/projects/monopoly/bots/ai/eval/record";
+import { describeServer, modelFor } from "@/projects/monopoly/bots/ai/model/config";
+import {
+  aiDecisionAt,
+  decisionRefOf,
+  holdDuringPause,
+  isAiFlagCategory,
+  pauseForReview,
+  resumeAfterReview,
+  type AiFlagCategory,
+} from "@/projects/monopoly/bots/ai/review";
 import { isAiStrategy, parseAiStrategy } from "@/projects/monopoly/bots/ai/strategy";
-import { aiSeat } from "@/projects/monopoly/bots/ai/seat";
+import { aiSeat, currentTurnNumber } from "@/projects/monopoly/bots/ai/seat";
 import type {
+  AiDecisionRef,
   BotStrategy,
   GameState,
   Intent,
@@ -37,6 +49,12 @@ const DEV_GAME_ID = "dev";
 // RLS denies client writes, the route writes with the service role and runs
 // the engine, so the authoritative state can't be set to anything illegal.
 const TABLE = "monopoly_games";
+// AI review data (supabase/monopoly-ai.sql), also written only here: every
+// model call a live game makes, every time a player opens an AI decision, and
+// the flags players leave on them.
+const CALLS = "monopoly_ai_calls";
+const REVEALS = "monopoly_ai_reveals";
+const FLAGS = "monopoly_ai_flags";
 
 type Db = ReturnType<typeof createAdminClient>;
 
@@ -83,6 +101,22 @@ function isBotStrategy(v: unknown): v is BotStrategy {
   return typeof v === "string" && (v === "dumb" || v in VERSIONS || isAiStrategy(v));
 }
 
+function parseRef(v: unknown): AiDecisionRef | null {
+  if (!isRecord(v)) return null;
+  const { turn, index } = v;
+  return typeof turn === "number" && Number.isInteger(turn) && typeof index === "number" && Number.isInteger(index)
+    ? { turn, index }
+    : null;
+}
+
+function parseCategories(v: unknown): AiFlagCategory[] | null {
+  if (!Array.isArray(v) || !v.every(isAiFlagCategory)) return null;
+  return [...new Set(v)];
+}
+
+// A flag's own words, kept to a sane size: it's a note on one decision.
+const FLAG_NOTE_MAX = 4000;
+
 function parseDevCommand(v: unknown): DevCommand | null {
   if (!isRecord(v)) return null;
   if (v.kind === "restart") {
@@ -102,6 +136,22 @@ function parseAction(v: unknown): MonopolyAction | null {
     return profile ? { type, profile } : null;
   }
   if (type === "delete") return { type };
+  if (type === "resume") return { type };
+  if (type === "review") {
+    const by = parseProfile(v.by);
+    const ref = parseRef(v.ref);
+    return by && ref ? { type, by, ref } : null;
+  }
+  if (type === "flag") {
+    const by = parseProfile(v.by);
+    const ref = parseRef(v.ref);
+    const categories = parseCategories(v.categories);
+    const note = typeof v.note === "string" ? v.note.trim().slice(0, FLAG_NOTE_MAX) : null;
+    if (!by || !ref || !categories || note === null) return null;
+    // A flag says something: a category, some words, or both.
+    if (categories.length === 0 && note === "") return null;
+    return { type, by, ref, categories, note };
+  }
   // Every op below is version-guarded.
   const fromVersion = v.fromVersion;
   if (typeof fromVersion !== "number") return null;
@@ -196,6 +246,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (action.type === "ai-decide") {
     return aiDecide(supabase, gameId, action);
   }
+  if (action.type === "review") return review(supabase, gameId, action);
+  if (action.type === "resume") return resume(supabase, gameId);
+  if (action.type === "flag") return flag(supabase, gameId, action);
   return mutate(supabase, gameId, action);
 }
 
@@ -422,7 +475,37 @@ async function aiDecide(
   if (claimed.kind === "error") return claimed.response;
   if (claimed.kind === "lost") return lostRace(supabase, gameId);
 
-  const asked = await askModel(modelFor(strategy.profile), claim.state, action.seat, claim.decision);
+  const model = recording(modelFor(strategy.profile));
+  const [asked, server] = await Promise.all([
+    askModel(model.adapter, claim.state, action.seat, claim.decision),
+    describeServer(strategy.profile),
+  ]);
+  // Every call is kept in full, however it ends; the game row keeps only the
+  // small record its log shows.
+  const keep = (outcome: CallOutcome, settled: Settled | null, ref: AiDecisionRef | null) =>
+    storeRow(
+      supabase,
+      CALLS,
+      aiCallRow(
+        gameId,
+        gameCallRecord({
+          gameId,
+          turn: currentTurnNumber(claim.state),
+          seat: action.seat,
+          decision: claim.decision,
+          version: asked.record.version,
+          server,
+          call: model.last(),
+          settle: settled
+            ? { kind: settled.kind, reason: settled.kind === "fail" ? settled.reason : null }
+            : null,
+          at: new Date().toISOString(),
+        }),
+        ref,
+        outcome,
+        settled?.kind === "fail" ? settled.reason : asked.ok ? null : asked.reason,
+      ),
+    );
 
   let latest: GameRow = { state: claim.state, version: claimed.version };
   for (let attempt = 0; attempt < AI_COMMIT_ATTEMPTS; attempt++) {
@@ -431,13 +514,34 @@ async function aiDecide(
     if (aiSeat(latest.state, action.seat).thinking !== claim.decision) {
       return json({ ok: true, state: latest.state, version: latest.version });
     }
-    const settled = asked.ok
-      ? settleAnswer(claim.state, latest.state, action.seat, claim.decision, asked.answer, asked.record)
-      : failed(latest.state, action.seat, claim.decision, asked.reason, asked.record);
-    const write = await casWrite(supabase, gameId, settled.state, latest.version);
-    if (write.kind === "error") return write.response;
-    if (write.kind === "written") {
-      return json({ ok: true, state: settled.state, version: write.version });
+    // A player paused the table to review a decision while the model thought:
+    // the answer waits on the seat until play resumes, so the board doesn't
+    // change under the reviewer.
+    if (latest.state.pause !== null) {
+      const hold = holdDuringPause(
+        claim.state,
+        latest.state,
+        action.seat,
+        claim.decision,
+        asked.ok ? { ok: true, answer: asked.answer } : { ok: false, reason: asked.reason },
+        asked.record,
+      );
+      const write = await casWrite(supabase, gameId, hold.state, latest.version);
+      if (write.kind === "error") return write.response;
+      if (write.kind === "written") {
+        const warning = await keep(hold.kind, null, null);
+        return json({ ok: true, state: hold.state, version: write.version, ...warning });
+      }
+    } else {
+      const settled = asked.ok
+        ? settleAnswer(claim.state, latest.state, action.seat, claim.decision, asked.answer, asked.record)
+        : failed(latest.state, action.seat, claim.decision, asked.reason, asked.record);
+      const write = await casWrite(supabase, gameId, settled.state, latest.version);
+      if (write.kind === "error") return write.response;
+      if (write.kind === "written") {
+        const warning = await keep(settled.kind, settled, decisionRefOf(settled.state, asked.record));
+        return json({ ok: true, state: settled.state, version: write.version, ...warning });
+      }
     }
     const reread = await readRow(supabase, gameId);
     if (!reread.ok) return reread.response;
@@ -448,3 +552,127 @@ async function aiDecide(
     500,
   );
 }
+
+/** Insert a row of AI review data. A failure never fails the action it rides
+ *  on (the game must go on), but it is never silent either: it is logged here
+ *  and handed back as the response's `warning`, which the client logs too. */
+async function storeRow(
+  supabase: Db,
+  table: string,
+  row: object,
+): Promise<{ warning?: string }> {
+  const { error } = await supabase.from(table).insert(row);
+  if (!error) return {};
+  const warning = `couldn't store a ${table} row: ${error.message}`;
+  console.error(`[monopoly] ${warning}`);
+  return { warning };
+}
+
+/** Read, change and write the row until the write lands. For the absolute,
+ *  idempotent ops (pause, resume) that must take effect on whatever the game
+ *  is now, not on the version the client last saw. A change that leaves the
+ *  state as it is writes nothing. */
+async function rewrite(
+  supabase: Db,
+  gameId: string,
+  change: (state: GameState) => Computed,
+): Promise<{ ok: true; row: GameRow } | { ok: false; response: NextResponse }> {
+  for (let attempt = 0; attempt < AI_COMMIT_ATTEMPTS; attempt++) {
+    const read = await readRow(supabase, gameId);
+    if (!read.ok) return read;
+    const result = change(read.row.state);
+    if (!result.ok) return { ok: false, response: json({ ok: false, reason: result.reason }) };
+    if ("noop" in result) return { ok: true, row: read.row };
+    const write = await casWrite(supabase, gameId, result.state, read.row.version);
+    if (write.kind === "error") return { ok: false, response: write.response };
+    if (write.kind === "written") {
+      return { ok: true, row: { state: result.state, version: write.version } };
+    }
+  }
+  return {
+    ok: false,
+    response: json({ ok: false, reason: "couldn't write: the game kept changing" }, 500),
+  };
+}
+
+/** A player opens an AI decision: pause the table, then log the reveal. */
+async function review(
+  supabase: Db,
+  gameId: string,
+  action: Extract<MonopolyAction, { type: "review" }>,
+): Promise<NextResponse> {
+  const paused = await rewrite(supabase, gameId, (state) => {
+    const result = pauseForReview(state, action.by.id, action.ref);
+    if (!result.ok) return result;
+    return result.state === state ? { ok: true, noop: true } : { ok: true, state: result.state };
+  });
+  if (!paused.ok) return paused.response;
+  const warning = await storeRow(supabase, REVEALS, {
+    game_id: gameId,
+    turn: action.ref.turn,
+    event_index: action.ref.index,
+    seat: aiDecisionAt(paused.row.state, action.ref)?.seat ?? null,
+    viewer_id: action.by.id,
+    viewer_name: action.by.name,
+  });
+  return json({ ok: true, state: paused.row.state, version: paused.row.version, ...warning });
+}
+
+function resumed(state: GameState): Computed {
+  const next = resumeAfterReview(state);
+  return next === state ? { ok: true, noop: true } : { ok: true, state: next };
+}
+
+/** Carry on after a review. Anyone at the table may. */
+async function resume(supabase: Db, gameId: string): Promise<NextResponse> {
+  const done = await rewrite(supabase, gameId, resumed);
+  if (!done.ok) return done.response;
+  return json({ ok: true, state: done.row.state, version: done.row.version });
+}
+
+/** Store a player's flag on an AI decision, then resume. What the flag is about
+ *  (the seat, its notes and plan, version and model) is read from the game, so
+ *  a flag always describes what the dialog showed. If the flag can't be stored,
+ *  the table stays paused and the player is told, so it can be sent again
+ *  rather than lost. */
+async function flag(
+  supabase: Db,
+  gameId: string,
+  action: Extract<MonopolyAction, { type: "flag" }>,
+): Promise<NextResponse> {
+  const read = await readRow(supabase, gameId);
+  if (!read.ok) return read.response;
+  const decision = aiDecisionAt(read.row.state, action.ref);
+  if (!decision) return json({ ok: false, reason: "no AI decision there" });
+  const { data: call } = await supabase
+    .from(CALLS)
+    .select("id")
+    .eq("game_id", gameId)
+    .eq("turn", action.ref.turn)
+    .eq("event_index", action.ref.index)
+    .maybeSingle<{ id: number }>();
+  const { error } = await supabase.from(FLAGS).insert({
+    game_id: gameId,
+    turn: action.ref.turn,
+    event_index: action.ref.index,
+    seat: decision.seat,
+    decision: decision.record?.decision ?? null,
+    version: decision.record?.version ?? null,
+    model: decision.record?.model ?? null,
+    call_id: call?.id ?? null,
+    flagger_id: action.by.id,
+    flagger_name: action.by.name,
+    categories: action.categories,
+    note: action.note,
+    shown: {
+      publicNote: decision.publicNote,
+      privateNote: decision.privateNote,
+      plan: decision.plan,
+      failure: decision.failure,
+      record: decision.record,
+    },
+  });
+  if (error) return json({ ok: false, reason: `couldn't store the flag: ${error.message}` }, 500);
+  return resume(supabase, gameId);
+}
+

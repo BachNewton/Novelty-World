@@ -183,6 +183,8 @@ function turnOp(
   botFor: BotResolver,
 ): DriveOp | null {
   if (state.status !== "active") return null;
+  // A player is reviewing an AI decision: nothing moves until someone resumes.
+  if (state.pause !== null) return null;
   // A model call is in flight: its answer is what the table waits on.
   if (anyAiThinking(state)) return null;
   const { phase, playerId } = state.turn;

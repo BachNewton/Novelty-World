@@ -77,6 +77,9 @@ export function initialDecks(rng: Rng): {
  *  these are deterministic; engine functions that need randomness read it out of
  *  `state.rngState` themselves. */
 export function apply(state: GameState, intent: Intent): ApplyResult {
+  // A player is reviewing an AI decision: the table is paused, and nothing is
+  // played until someone resumes (the route's `resume`, not an intent).
+  if (state.pause !== null) return { ok: false, reason: "the game is paused" };
   if (intent.kind === "buy") return applyBuy(state, intent);
   if (intent.kind === "raise-cash") return applyRaiseCash(state, intent);
   if (intent.kind === "decline-buy") return applyDeclineBuy(state, intent);
@@ -2533,6 +2536,7 @@ function applyUseJailCard(
 export function autoStep(
   state: GameState,
 ): { state: GameState; newEvents: readonly GameEvent[] } {
+  if (state.pause !== null) return { state, newEvents: [] };
   // A jailed player's turn: the jail decision is a pre-roll-like boundary. If
   // anyone has armed a trade / manage (the jailed player acting before they
   // roll, or an off-turn player), open that intermission first — it resolves

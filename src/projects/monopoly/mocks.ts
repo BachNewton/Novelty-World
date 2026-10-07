@@ -78,6 +78,7 @@ export function freshGame(
     ),
     boundaryQueue: [],
     ai: {},
+    pause: null,
     rngSeed,
     rngState: rng.getState(),
   };
@@ -174,6 +175,7 @@ export const MOCK_STATE: GameState = {
   ),
   boundaryQueue: [],
   ai: {},
+  pause: null,
   rngSeed: "mock-seed",
   rngState: createRng("mock-seed").getState(),
 };

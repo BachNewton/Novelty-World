@@ -12,11 +12,13 @@ import { aiVersionOf } from "./strategy";
 
 /** Mark the seat as thinking about the decision it owes, or null when it owes
  *  none (already answered, already thinking, or failed — a failed seat is never
- *  asked again). Written before the model call, so no other client starts one. */
+ *  asked again), or while the table is paused. Written before the model call,
+ *  so no other client starts one. */
 export function claimAi(
   state: GameState,
   seat: string,
 ): { state: GameState; decision: AiDecision } | null {
+  if (state.pause !== null) return null;
   const own = aiSeat(state, seat);
   if (own.thinking !== null || own.failure !== null) return null;
   const decision = aiDecisionFor(state, seat);

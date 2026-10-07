@@ -329,10 +329,11 @@ export type GameEvent =
       playerId: string;
       text: string;
       /** An AI seat's private reasoning (see `bots/ai/`). Absent for the
-       *  rule-based bots, whose notes are public only. */
+       *  rule-based bots, whose notes are public only. Revealed on request in
+       *  the review dialog, never shown in the log. */
       privateText?: string;
       /** An AI seat's plan for the coming turns, as it stood after this
-       *  decision; shown beside the private reasoning. */
+       *  decision; revealed alongside the private reasoning. */
       plan?: string;
       /** How an AI seat's decision was made: by which version and model, and
        *  what it cost. */
@@ -546,6 +547,33 @@ export interface AiDecisionRecord {
   thinkHitBudget: boolean | null;
 }
 
+/** Where an AI decision sits in the log: its BOT note (or failure) is event
+ *  `index` of the turn group numbered `turn`. The log only grows, so the place
+ *  is stable for the life of the game, and it is how a review, a flag and the
+ *  decision's call record refer to the same decision. */
+export interface AiDecisionRef {
+  turn: number;
+  index: number;
+}
+
+/** The table is paused while a player reviews an AI decision: nothing is
+ *  driven and no play is accepted until someone resumes. */
+export interface GamePause {
+  /** The player who opened the review. */
+  by: string;
+  /** The decision they are looking at. */
+  ref: AiDecisionRef;
+}
+
+/** A model's answer that arrived while the table was paused. It is kept, not
+ *  applied, and settled against the board once play resumes (nothing moves in
+ *  between), so a pause never lets an answer change the board under a
+ *  reviewer. `fail` keeps a failure (an unusable or illegal answer) the same
+ *  way. */
+export type HeldAnswer =
+  | { kind: "answer"; decision: AiDecision; answer: Record<string, unknown>; record: AiDecisionRecord }
+  | { kind: "fail"; decision: AiDecision; reason: string; record: AiDecisionRecord };
+
 /** An AI seat's own bookkeeping, kept in synced state so every client sees it. */
 export interface AiSeat {
   /** The model's stated plan from its last answer, shown to it in its next
@@ -565,6 +593,9 @@ export interface AiSeat {
    *  fingerprint of the board as it left it (its AI version's own), so a
    *  later turn can skip the call when nothing relevant has changed. */
   turnStart: { turn: number; fingerprint: string } | null;
+  /** An answer that came back while the table was paused, waiting for play to
+   *  resume. The seat stays `thinking` until it is settled. */
+  held: HeldAnswer | null;
 }
 
 /** Per-player automation policy. Drives the auto-play spectrum: the engine
@@ -743,6 +774,9 @@ export interface GameState {
   /** Per-seat AI bookkeeping, keyed by player id. An AI seat has an entry once
    *  it has first been asked something; see `bots/ai/seat.ts` `aiSeat`. */
   ai: Readonly<Partial<Record<string, AiSeat>>>;
+  /** Set while a player reviews an AI decision (see `GamePause`); null in
+   *  play. */
+  pause: GamePause | null;
   /** Immutable identifier for the game's RNG stream. Set once when the
    *  game starts; used to derive the initial `rngState` and useful as a
    *  human-readable handle when debugging. */

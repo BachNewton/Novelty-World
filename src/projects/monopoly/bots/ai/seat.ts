@@ -6,6 +6,7 @@ const EMPTY_SEAT: AiSeat = {
   failure: null,
   auctionMax: null,
   turnStart: null,
+  held: null,
 };
 
 /** A seat's AI bookkeeping; a seat that hasn't been asked anything yet has none. */

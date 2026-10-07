@@ -8,11 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { SHOW_PRIVATE_NOTES_IN_LOG } from "../bots/ai/console";
 import { isNoteHeld } from "../bots/ai/held";
 import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
+import { RevealButton, useCanReview } from "./ai-review";
 import { SetContextChips } from "./holdings-grid";
 import { Money } from "./money";
 import type {
@@ -76,6 +76,7 @@ export function EventLog({ state, extraHeight = "0px" }: Props) {
   };
 
   const playersById = new Map(state.players.map((p) => [p.id, p]));
+  const canReview = useCanReview();
 
   return (
     <div
@@ -107,6 +108,7 @@ export function EventLog({ state, extraHeight = "0px" }: Props) {
               playersById={playersById}
               myId={myId}
               isHeld={(event) => isNoteHeld(state, event, index === state.turns.length - 1)}
+              canReview={canReview}
             />
           ))}
         </div>
@@ -139,12 +141,15 @@ function TurnFragment({
   playersById,
   myId,
   isHeld,
+  canReview,
 }: {
   turn: TurnGroup;
   playersById: ReadonlyMap<string, Player>;
   myId: string | null;
   /** Whether an AI note is still held back (its auction hasn't closed). */
   isHeld: (event: GameEvent) => boolean;
+  /** Whether this player can open AI decisions to review them. */
+  canReview: boolean;
 }) {
   const actor = playersById.get(turn.playerId);
   if (!actor) return null;
@@ -160,36 +165,25 @@ function TurnFragment({
         // past it, or read why the bot acted. The acting bot may be off-turn
         // (an off-turn trade proposal), so it carries its own playerId.
         if (event.kind === "bot-note") {
-          if (isHeld(event)) return [];
           // An AI turn start that did nothing says nothing to the table: its
-          // public text is empty, and only the private rows remain.
-          const noteRow: ReactNode[] =
-            event.text === ""
-              ? []
-              : [<BotNoteRow key={key} actor={playersById.get(event.playerId)} text={event.text} />];
-          if (SHOW_PRIVATE_NOTES_IN_LOG && event.privateText !== undefined) {
-            noteRow.push(
-              <BotNoteRow
-                key={`${key}-private`}
-                actor={playersById.get(event.playerId)}
-                text={event.privateText}
-                label="Thinks"
-                color="var(--mono-neutral)"
-                meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
-              />,
-            );
-          }
-          if (SHOW_PRIVATE_NOTES_IN_LOG && event.plan !== undefined) {
-            noteRow.push(
-              <BotNoteRow
-                key={`${key}-plan`}
-                actor={playersById.get(event.playerId)}
-                text={event.plan}
-                label="Plan"
-                color="var(--mono-neutral)"
-              />,
-            );
-          }
+          // public text is empty, so it has no row.
+          if (isHeld(event) || event.text === "") return [];
+          // An AI's private reasoning and plan stay off the log; its row
+          // carries a control that opens them for review instead.
+          const actor = playersById.get(event.playerId);
+          const noteRow: ReactNode[] = [
+            <BotNoteRow
+              key={key}
+              actor={actor}
+              text={event.text}
+              meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
+              action={
+                canReview && event.ai !== undefined && actor ? (
+                  <RevealButton aiName={actor.name} refTo={{ turn: turn.turn, index: i }} />
+                ) : undefined
+              }
+            />,
+          ];
           return noteRow;
         }
         // An AI seat's failure reads like a note, flagged red: the game has
@@ -203,6 +197,14 @@ function TurnFragment({
               label="Stalled"
               color="var(--mono-red)"
               meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
+              action={
+                canReview && event.ai !== undefined && playersById.has(event.playerId) ? (
+                  <RevealButton
+                    aiName={playersById.get(event.playerId)?.name ?? "AI"}
+                    refTo={{ turn: turn.turn, index: i }}
+                  />
+                ) : undefined
+              }
             />,
           ];
           return failRow;
@@ -283,6 +285,7 @@ function BotNoteRow({
   label = "Bot",
   color = "var(--mono-orange)",
   meta,
+  action,
 }: {
   actor: Player | undefined;
   text: string;
@@ -290,10 +293,14 @@ function BotNoteRow({
   color?: string;
   /** A short fact about the row, set apart at its end (an AI decision's time). */
   meta?: string;
+  /** A control at the row's end (an AI decision's reveal button). A row with
+   *  one is tall enough for its full tap target, so neighbours can't be hit by
+   *  mistake. */
+  action?: ReactNode;
 }) {
   return (
     <div
-      className="flex items-start gap-1.5 py-0.5 text-xs leading-snug"
+      className={`flex gap-1.5 py-0.5 text-xs leading-snug ${action ? "min-h-11 items-center" : "items-start"}`}
       style={{ gridColumn: "1 / -1" }}
     >
       <span
@@ -311,6 +318,7 @@ function BotNoteRow({
           {meta}
         </span>
       )}
+      {action}
     </div>
   );
 }

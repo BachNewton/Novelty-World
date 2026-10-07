@@ -25,7 +25,9 @@ import { rebuildLobbyOverlay, rebuildOverlay } from "./reconcile";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
 import { isOutdated } from "./state-version";
 import { withCash } from "./trade-cash";
+import type { AiFlagCategory } from "./bots/ai/review";
 import type {
+  AiDecisionRef,
   ApplyResult,
   BotStrategy,
   CardSource,
@@ -174,6 +176,23 @@ interface MonopolyActions {
    *  every client's pacer. No-op without a connected game id. */
   aiDecide: (seat: string) => void;
 
+  /** Open an AI decision to review it: the route logs the reveal and pauses
+   *  the whole table (see `GameState.pause`). Resolves once the pause has
+   *  landed, or with why it didn't. */
+  reviewDecision: (ref: AiDecisionRef) => Promise<Outcome>;
+
+  /** Carry on after a review. Any seated player may, so an abandoned pause
+   *  can't freeze the table. */
+  resumeGame: () => Promise<Outcome>;
+
+  /** Store a flag on an AI decision and resume. On failure the table stays
+   *  paused, so the flag can be sent again. */
+  flagDecision: (
+    ref: AiDecisionRef,
+    categories: readonly AiFlagCategory[],
+    note: string,
+  ) => Promise<Outcome>;
+
   /** Submit a debug command (the `dev` hotkeys). The route applies it only
    *  for the reserved `dev` game; any other game ignores it. */
   devCommand: (command: DevCommand) => void;
@@ -200,6 +219,9 @@ interface MonopolyActions {
    *  (the lobby browser's resting state). Safe to call when already parked. */
   disconnect: () => void;
 }
+
+/** How an awaited route action went. */
+export type Outcome = { ok: true } | { ok: false; reason: string };
 
 export type MonopolyStore = {
   myPlayerId: string | null;
@@ -329,6 +351,11 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
   // echo happens to arrive. Mirrors `handlePrediction`'s conflict handling for
   // the optimistic path; the two must stay symmetric on conflicts.
   function handleResult(res: MonopolyResult): void {
+    if (res.ok && "warning" in res && res.warning !== undefined) {
+      // The action went through, but something beside it didn't (an AI call
+      // record or a reveal the route couldn't store). Never silent.
+      console.error(`[monopoly] ${res.warning}`);
+    }
     if (res.ok) {
       // A `delete` result carries no state — but the store never submits one
       // (deletes come from the lobby browser), so there's nothing to fold in.
@@ -349,6 +376,17 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     const { gameId, buffer, version } = get();
     if (!gameId) return;
     void submitAction(gameId, make(authVersion(buffer, version))).then(handleResult);
+  }
+
+  // POST an action the caller waits on (a review, a resume, a flag), fold its
+  // result in like any other, and report whether it landed.
+  async function awaitedOp(action: MonopolyAction): Promise<Outcome> {
+    const { gameId } = get();
+    if (!gameId) return { ok: false, reason: "not connected" };
+    const res = await submitAction(gameId, action);
+    handleResult(res);
+    if (res.ok) return { ok: true };
+    return { ok: false, reason: res.reason ?? "the game changed; try again" };
   }
 
   // Run a batch of intents: POST to the authoritative route as one atomic,
@@ -849,6 +887,20 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
 
     aiDecide: (seat) => {
       versionedOp((fromVersion) => ({ type: "ai-decide", seat, fromVersion }));
+    },
+
+    reviewDecision: (ref) => {
+      const { profile } = get();
+      if (!profile) return Promise.resolve({ ok: false, reason: "no profile" });
+      return awaitedOp({ type: "review", by: profile, ref });
+    },
+
+    resumeGame: () => awaitedOp({ type: "resume" }),
+
+    flagDecision: (ref, categories, note) => {
+      const { profile } = get();
+      if (!profile) return Promise.resolve({ ok: false, reason: "no profile" });
+      return awaitedOp({ type: "flag", by: profile, ref, categories, note });
     },
 
     applyStateUpdate: (next, version) => {

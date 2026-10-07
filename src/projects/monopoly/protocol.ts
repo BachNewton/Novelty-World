@@ -1,5 +1,7 @@
 import type { PlayerProfile } from "@/shared/lib/profile";
+import type { AiFlagCategory } from "./bots/ai/review";
 import type {
+  AiDecisionRef,
   BotStrategy,
   GameState,
   Intent,
@@ -71,7 +73,23 @@ export type MonopolyAction =
    *  thinking (one write), asks its model, and commits the answer (a second
    *  write). Slow — the response arrives once the model has answered. See
    *  `bots/ai/`. */
-  | { type: "ai-decide"; seat: string; fromVersion: number };
+  | { type: "ai-decide"; seat: string; fromVersion: number }
+  /** A player opens an AI decision to review it: the route logs the reveal and
+   *  pauses the table (see `GameState.pause`). Not version-guarded: pausing is
+   *  idempotent, and a pause must land even while the game is moving. */
+  | { type: "review"; by: PlayerProfile; ref: AiDecisionRef }
+  /** Carry on after a review. Anyone at the table may, so an abandoned pause
+   *  can't freeze the game; idempotent, so not version-guarded. */
+  | { type: "resume" }
+  /** Store a player's flag on an AI decision, then resume. The route reads what
+   *  the flag is about from the game itself, never from the client. */
+  | {
+      type: "flag";
+      by: PlayerProfile;
+      ref: AiDecisionRef;
+      categories: readonly AiFlagCategory[];
+      note: string;
+    };
 
 export interface MonopolyRequest {
   gameId: string;
@@ -86,7 +104,9 @@ export interface MonopolyRequest {
  *  route re-reads the winner). The winner is omitted only if the row vanished.
  *  `reason` carries a genuine rejection (illegal intent, write failure). */
 export type MonopolyResult =
-  | { ok: true; state: GameState; version: number }
+  /** `warning` reports something that went wrong beside the action without
+   *  failing it (a call record or reveal that couldn't be stored). */
+  | { ok: true; state: GameState; version: number; warning?: string }
   /** A `delete` succeeded — the row is gone, so there's no state to fold in. */
   | { ok: true; deleted: true }
   | { ok: false; conflict?: boolean; state?: GameState; version?: number; reason?: string };

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import type { AiDecision, GameState } from "../types";
 
-const DECISION_LABEL: Readonly<Record<AiDecision, string>> = {
+/** How a decision reads in a sentence ("thinking about the auction"). */
+export const DECISION_LABEL: Readonly<Record<AiDecision, string>> = {
   "turn-start": "its turn",
   buy: "buying",
   auction: "the auction",

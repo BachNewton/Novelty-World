@@ -143,6 +143,7 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
     preferences: densePreferences(players),
     boundaryQueue: [],
     ai: {},
+    pause: null,
     rngSeed,
     rngState: rng.getState(),
   };

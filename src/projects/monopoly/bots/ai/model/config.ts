@@ -1,3 +1,4 @@
+import { serverInfo, type ServerInfo } from "../eval/record";
 import type { AiProfileId } from "../strategy";
 import type { ModelAdapter } from "./adapter";
 import { openAiCompatible } from "./openai-compatible";
@@ -22,6 +23,16 @@ const ADAPTERS: Readonly<Record<AiProfileId, () => ModelAdapter>> = {
       apiKey: process.env.MONOPOLY_AI_LOCAL_KEY ?? null,
       timeoutMs: numberEnv("MONOPOLY_AI_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
     }),
+};
+
+/** The model server behind a profile, as it describes itself, for the call
+ *  record. Null when it won't say. */
+export function describeServer(profile: AiProfileId): Promise<ServerInfo | null> {
+  return SERVERS[profile]();
+}
+
+const SERVERS: Readonly<Record<AiProfileId, () => Promise<ServerInfo | null>>> = {
+  "ai:local": () => serverInfo(localBaseUrl()),
 };
 
 /** The adapter a profile plays through. Server-only: it reads secrets, and only
