@@ -1,5 +1,5 @@
 import { HOUSE_COST, SPACES } from "../../data";
-import { bankSupply, developmentLevel } from "../../development";
+import { bankSupply, developmentLevel, groupPositions } from "../../development";
 import { hasMonopoly, rentAt, spaceName, unmortgageCostAt } from "../../logic";
 import type { GameState, Player, PropertyColor } from "../../types";
 import { renderHighlight, type NameOf } from "../eval/render-log";
@@ -30,7 +30,7 @@ Rules of this table (the official rules, played by experienced players):
 How to answer:
 - Answer only in the JSON form asked for.
 - "privateNote": your own reasoning, a few sentences. Write it first, and think there. Only you will see it.
-- "publicNote": one short sentence the whole table sees in the game log, in your voice. Never reveal what you'd be willing to pay or accept.
+- "publicNote": one short sentence the whole table sees in the game log, in your voice. When you propose or counter a trade, it is your message to the other side. Never reveal the most you'd pay or the least you'd accept.
 - "plan": one or two sentences to your future self: what you're aiming for over the next few turns. You'll be shown it next time you decide.
 - Stick to the rules above and the facts in your view. Don't invent rules.`;
 
@@ -55,6 +55,7 @@ export function buildPrompt(state: GameState, seat: string, question: string): A
     `You are ${me.name}. It is turn ${String(state.turns.length)}.`,
     `Players, in seat order:\n${state.players.map((p) => playerLine(state, p, seat)).join("\n")}`,
     `The board:\n${boardLines(state, seat).join("\n")}`,
+    `Color sets, from where you stand:\n${setLines(state, seat).join("\n")}`,
     `Your plan from last time: ${plan ?? "(none yet)"}`,
     `Recent events, oldest first:\n${recentEvents(state).join("\n") || "(none yet)"}`,
     `Decision:\n${question}`,
@@ -143,6 +144,35 @@ function boardLines(state: GameState, seat: string): string[] {
   const supply = bankSupply(state);
   lines.push(`Bank: ${String(supply.houses)} houses and ${String(supply.hotels)} hotels left.`);
   return lines;
+}
+
+/** Each color set spelled out for the seat: who holds which lots, whether it
+ *  can build there, and what owning the lot on offer (a landing or an auction)
+ *  would add. Small models misread the raw board ("buying Connecticut completes
+ *  the light blues" with the other two unowned), so the consequence is stated
+ *  rather than left to be worked out. */
+function setLines(state: GameState, seat: string): string[] {
+  const nameOf = nameResolver(state, seat);
+  const onOffer = state.turn.auction?.position ?? state.turn.pendingBuy;
+  return (Object.keys(COLOR_LABEL) as PropertyColor[]).map((color) => {
+    const lots = groupPositions(color);
+    const mine = lots.filter((p) => state.ownership[p] === seat);
+    const holders = lots.map((p) => `${spaceName(p)}: ${nameOf(state.ownership[p] ?? null)}`);
+    const status =
+      mine.length === lots.length
+        ? "your full set, so you can build here"
+        : `you own ${String(mine.length)} of ${String(lots.length)}, so you can't build here yet`;
+    const parts = [`- ${COLOR_LABEL[color]}: ${status} (${holders.join("; ")})`];
+    if (onOffer !== undefined && lots.includes(onOffer) && !state.ownership[onOffer]) {
+      const after = mine.length + 1;
+      parts.push(
+        after === lots.length
+          ? `  Getting ${spaceName(onOffer)} would complete this set for you.`
+          : `  Getting ${spaceName(onOffer)} would give you ${String(after)} of ${String(lots.length)}; still not a full set.`,
+      );
+    }
+    return parts.join("\n");
+  });
 }
 
 function lotStatus(state: GameState, position: number, nameOf: NameOf): string {
