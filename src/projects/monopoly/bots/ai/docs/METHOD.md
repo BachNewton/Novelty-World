@@ -3,7 +3,8 @@
 The rules of the loop that improves Monopoly's AI seats (language models playing a
 seat through the route; see the "AI seats" section of `monopoly/CLAUDE.md`). Read
 this before changing an AI version, a scenario or the loop itself. What each
-version tried and measured is the record in `EVOLUTION.md`, next to this file.
+version tried and measured is the record in `EVOLUTION.md`, next to this file, and
+what the loop does next is the queue in `NEXT.md`.
 
 This is a prototype. Nobody yet knows how far prompt and configuration work can
 take the current local models, so the loop is kept light and these rules are
