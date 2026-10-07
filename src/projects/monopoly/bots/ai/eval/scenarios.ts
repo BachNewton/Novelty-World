@@ -30,6 +30,7 @@ import {
   gives,
   housesAdded,
   nameOf,
+  proposedTerms,
   takes,
   type Outcome,
   type Scenario,
@@ -147,6 +148,48 @@ function counterDirection(id: string, turn: number, lot: number, buyer: string, 
       }),
     choose: voteChoice,
     error: (o) => (did(o, "counter-trade") && gives(o, lot) && cashIn(o) <= 0 ? `countered giving ${nameOf(lot)} away and ${cashIn(o) < 0 ? "paying" : "getting nothing"}` : null),
+  };
+}
+
+/** A lowball offer for a lot, from a player who holds little or nothing the
+ *  seat could want, while the lots it might want sit with the bank or a third
+ *  player. llm-v4 countered asking Kyle for St. James Place, which nobody
+ *  owned, and the answer could only be written as giving Kentucky away for
+ *  nothing. Whatever it votes, a counter that hands the lot over with no lot
+ *  back must bring in at least its mortgage value; anything less is the
+ *  below-mortgage sale, or a giveaway. */
+function counterHoldings(
+  id: string,
+  turn: number,
+  owned: Readonly<Record<string, readonly number[]>>,
+  lot: number,
+  buyer: string,
+  price: number,
+  cash: number,
+): Scenario {
+  const floor = mortgageValueAt(lot) ?? 0;
+  const lotBack = (o: Outcome): boolean => Object.values(proposedTerms(o)?.propertyTo ?? {}).some((to) => to === o.seat);
+  return {
+    id,
+    kind: "error",
+    phase: "late",
+    decision: "trade-vote",
+    tests: `Offered $${String(price)} for its ${nameOf(lot)} (mortgage $${String(floor)}) by a player holding ${
+      (owned[buyer] ?? []).map(nameOf).join(", ") || "no lots"
+    }; the lots it might want are the bank's or a third player's.`,
+    build: (s) =>
+      offered(withCash(owning(atTurn(table(s), turn), owned), { [AI]: cash }), buyer, {
+        propertyTo: { [lot]: buyer },
+        cashDelta: { [AI]: price, [buyer]: -price },
+      }),
+    choose: voteChoice,
+    error: (o) => {
+      if (did(o, "accept-trade") && price < floor) return `sold ${nameOf(lot)} for under its $${String(floor)} mortgage value`;
+      if (did(o, "counter-trade") && gives(o, lot) && !lotBack(o) && cashIn(o) < floor) {
+        return `countered handing ${nameOf(lot)} over for $${String(Math.max(0, cashIn(o)))} and no lot back`;
+      }
+      return null;
+    },
   };
 }
 
@@ -312,6 +355,17 @@ export const SCENARIOS: readonly Scenario[] = [
   belowMortgage("vote-below-mortgage-railroad", "mid", 12, SQ.reading, RIVAL, 50, 900),
   belowMortgage("vote-below-mortgage-utility", "mid", 18, SQ.water, OTHER, 40, 600),
   belowMortgage("vote-below-mortgage-red", "late", 40, SQ.kentucky, FOURTH, 80, 300),
+  counterHoldings("vote-counter-holdings-railroad", 36, { [AI]: [SQ.pennRR], [OTHER]: [SQ.reading, SQ.bAndO] }, SQ.pennRR, RIVAL, 70, 250),
+  counterHoldings("vote-counter-holdings-green", 44, { [AI]: [SQ.pacific], [RIVAL]: [SQ.northCarolina] }, SQ.pacific, OTHER, 120, 350),
+  counterHoldings(
+    "vote-counter-holdings-light-blue",
+    30,
+    { [AI]: [SQ.vermont], [FOURTH]: [SQ.mediterranean], [OTHER]: [SQ.oriental, SQ.connecticut] },
+    SQ.vermont,
+    FOURTH,
+    30,
+    200,
+  ),
   counterDirection("vote-counter-direction", 18, SQ.stJames, RIVAL, 40, 84),
   counterDirection("vote-counter-direction-yellow", 26, SQ.ventnor, OTHER, 50, 60),
   counterDirection("vote-counter-direction-railroad", 34, SQ.shortLine, FOURTH, 20, 30),

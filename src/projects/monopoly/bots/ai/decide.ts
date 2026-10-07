@@ -1,7 +1,7 @@
 import { appendEventToActiveTurn, apply, autoStep } from "../../engine";
 import type { AiDecision, AiDecisionRecord, GameState, Intent } from "../../types";
 import { aiDecisionFor } from "./decisions";
-import type { CallMetrics, ModelAdapter } from "./model/adapter";
+import type { CallMetrics, JsonSchema, ModelAdapter, ModelResult } from "./model/adapter";
 import { aiSeat, currentTurnNumber, withAiSeat } from "./seat";
 import { isRecord, type AiResolution, type AiVersion, type DecisionSpec } from "./spec";
 import { aiVersionOf } from "./strategy";
@@ -65,25 +65,54 @@ export async function askModel(
       record: record(NO_CALL, null),
     };
   }
-  const prompt = version.buildPrompt(state, seat, spec.question(state, seat));
-  const [result, modelName] = await Promise.all([
-    model.complete({
+  const ask = (question: string, schema: JsonSchema, think: boolean, schemaName: string): Promise<ModelResult> => {
+    const prompt = version.buildPrompt(state, seat, question);
+    return model.complete({
       system: prompt.system,
       user: prompt.user,
-      schemaName: decision,
-      schema: spec.schema(state, seat),
-      think: spec.think,
+      schemaName,
+      schema,
+      think,
       thinkTokens: version.call.thinkTokens,
       sampling: version.call.sampling,
-    }),
+    });
+  };
+  const [result, modelName] = await Promise.all([
+    ask(spec.question(state, seat), spec.schema(state, seat), spec.think, decision),
     model.identify(),
   ]);
-  const made = record(result.metrics, modelName);
-  if (!result.ok) return { ok: false, reason: `${result.kind}: ${result.message}`, record: made };
+  const first = readAnswer(result);
+  if (!first.ok) return { ok: false, reason: first.reason, record: record(result.metrics, modelName) };
+  const next = spec.followUp?.(state, seat, first.answer) ?? null;
+  if (next === null) return { ok: true, answer: first.answer, record: record(result.metrics, modelName) };
+
+  const followed = await ask(next.question, next.schema, false, `${decision}-${next.key}`);
+  const both = record(addMetrics(result.metrics, followed.metrics), modelName);
+  const second = readAnswer(followed);
+  if (!second.ok) return { ok: false, reason: `${next.key}: ${second.reason}`, record: both };
+  return { ok: true, answer: { ...first.answer, [next.key]: second.answer }, record: both };
+}
+
+function readAnswer(result: ModelResult): { ok: true; answer: Record<string, unknown> } | { ok: false; reason: string } {
+  if (!result.ok) return { ok: false, reason: `${result.kind}: ${result.message}` };
   if (!isRecord(result.answer) || Array.isArray(result.answer)) {
-    return { ok: false, reason: "the answer wasn't a JSON object", record: made };
+    return { ok: false, reason: "the answer wasn't a JSON object" };
   }
-  return { ok: true, answer: result.answer, record: made };
+  return { ok: true, answer: result.answer };
+}
+
+/** One decision's cost over its calls: times and tokens add up; the thinking
+ *  pass is the first call's, since a follow-up never thinks. */
+function addMetrics(a: CallMetrics, b: CallMetrics): CallMetrics {
+  const sum = (x: number | null, y: number | null): number | null => (x === null || y === null ? null : x + y);
+  return {
+    ms: a.ms + b.ms,
+    thinkMs: a.thinkMs,
+    answerMs: sum(a.answerMs, b.answerMs),
+    promptTokens: sum(a.promptTokens, b.promptTokens),
+    completionTokens: sum(a.completionTokens, b.completionTokens),
+    thinkHitBudget: a.thinkHitBudget,
+  };
 }
 
 /** What becomes of an answer once it is weighed against the latest state:

@@ -93,7 +93,10 @@ its best.
 Model calls are the loop's budget. Plan runs in calls, not minutes, and stop a run once
 its answer is clear (an error that shows in two of three reps needs no more reps).
 Early versions differ by a lot, so iterate fast on small subsets; as versions get
-close, each needs more samples, so iterations lengthen.
+close, each needs more samples, so iterations lengthen. **A verdict takes five reps
+per scenario**, for the new version and, on the error scenarios, its predecessor in
+the same run conditions: at a few errors in fifty answers, three reps can't tell
+two versions apart.
 
 ## What the loop never does on its own
 

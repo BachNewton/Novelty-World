@@ -4,7 +4,7 @@ import type { ModelAdapter } from "../model/adapter";
 import { aiStrategyId, type AiStrategy } from "../strategy";
 import { AI_VERSIONS } from "../versions";
 import { AI } from "./board";
-import { recording, resultOf, type AiCallRecord, type ServerInfo } from "./record";
+import { recordedCalls, recording, type AiCallRecord, type ServerInfo } from "./record";
 import { judge, type Judged, type Outcome, type Scenario } from "./scenario";
 
 /** Run one scenario once: build its position for the version, and put the AI
@@ -42,7 +42,6 @@ export async function runScenario(
 
   const rec = recording(model);
   const asked = await askModel(rec.adapter, claim.state, AI, claim.decision);
-  const call = rec.last();
   const settled: Settled = asked.ok
     ? settleAnswer(claim.state, claim.state, AI, claim.decision, asked.answer, asked.record)
     : failed(claim.state, AI, claim.decision, asked.reason, asked.record);
@@ -52,8 +51,7 @@ export async function runScenario(
   return {
     ...base,
     decision: claim.decision,
-    request: call?.request ?? null,
-    result: call ? resultOf(call.result) : null,
+    ...recordedCalls(rec.calls()),
     metrics: metricsOf(asked.record),
     settle: { kind: settled.kind, reason: settled.kind === "fail" ? settled.reason : null },
     check: verdict,

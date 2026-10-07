@@ -21,6 +21,12 @@ export interface ServerInfo {
   defaults: Readonly<Record<string, number>>;
 }
 
+/** A model result as the record keeps it: the answer as parsed and as given,
+ *  or why there is none. */
+export type RecordedResult =
+  | { ok: true; answer: unknown; raw: string; thoughts: string }
+  | { ok: false; kind: string; message: string };
+
 /** Where a call came from: a scenario repetition, or a decision in a game. */
 export type CallSource =
   | { kind: "scenario"; scenario: string; rep: number }
@@ -35,10 +41,11 @@ export interface AiCallRecord {
   server: ServerInfo | null;
   /** The request exactly as sent: prompt, schema, thinking budget, sampling. */
   request: ModelRequest | null;
-  result:
-    | { ok: true; answer: unknown; raw: string; thoughts: string }
-    | { ok: false; kind: string; message: string }
-    | null;
+  result: RecordedResult | null;
+  /** The decision's follow-up call, when its first answer needed one (a
+   *  counter's terms): sent and answered the same way. Absent when there was
+   *  none. */
+  followUp?: { request: ModelRequest; result: RecordedResult };
   metrics: CallMetrics | null;
   /** What the shared settle step made of the answer. */
   settle: { kind: Settled["kind"]; reason: string | null } | null;
@@ -47,30 +54,48 @@ export interface AiCallRecord {
   check?: Judged;
 }
 
-/** A model adapter that remembers the last request and result it passed
- *  through, so a call made by the shared ask step can be recorded in full. One
- *  per call: concurrent calls each get their own. */
+/** One call as it went to the model and came back. */
+export interface MadeCall {
+  request: ModelRequest;
+  result: ModelResult;
+}
+
+/** A model adapter that remembers every request and result it passed through,
+ *  in order, so a decision made by the shared ask step (one call, or a call
+ *  and its follow-up) can be recorded in full. One per decision: concurrent
+ *  decisions each get their own. */
 export function recording(inner: ModelAdapter): {
   adapter: ModelAdapter;
-  last: () => { request: ModelRequest; result: ModelResult } | null;
+  calls: () => readonly MadeCall[];
 } {
-  let seen: { request: ModelRequest; result: ModelResult } | null = null;
+  const seen: MadeCall[] = [];
   return {
     adapter: {
       identify: () => inner.identify(),
       async complete(request) {
         const result = await inner.complete(request);
-        seen = { request, result };
+        seen.push({ request, result });
         return result;
       },
     },
-    last: () => seen,
+    calls: () => seen,
+  };
+}
+
+/** A decision's calls as the record keeps them: the first, and its follow-up
+ *  if there was one. */
+export function recordedCalls(calls: readonly MadeCall[]): Pick<AiCallRecord, "request" | "result" | "followUp"> {
+  const [first, followUp] = calls as readonly (MadeCall | undefined)[];
+  return {
+    request: first?.request ?? null,
+    result: first ? resultOf(first.result) : null,
+    ...(followUp ? { followUp: { request: followUp.request, result: resultOf(followUp.result) } } : {}),
   };
 }
 
 /** The record's view of a model result: the answer as parsed and as given, or
  *  why there is none. */
-export function resultOf(result: ModelResult): NonNullable<AiCallRecord["result"]> {
+export function resultOf(result: ModelResult): RecordedResult {
   return result.ok
     ? { ok: true, answer: result.answer, raw: result.raw, thoughts: result.thoughts }
     : { ok: false, kind: result.kind, message: result.message };

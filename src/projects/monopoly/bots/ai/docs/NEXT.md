@@ -6,27 +6,28 @@ with the reason they matter. The rules are in `METHOD.md`.
 
 ## Now
 
-1. **llm-v5: the counter as its own answer.** Both of llm-v4's trade errors, and
-   one of llm-v3's, are in writing a counter, not in judging the offer: an empty
-   counter where the note means decline, and a counter that could only be
-   written as giving a lot away because the lot the seat wanted isn't the other
-   side's. The trade vote requires a full `counter` even on accept or decline,
-   and the model fills it whatever its vote. Candidates, by cause: ask for the
-   counter's terms only once "counter" is chosen (a second, short call), and say
-   in the question which lots the counterparty actually holds. Confirm in the
-   call records first, as llm-v4 did with its replay.
-2. **Lots by name, not square number**, if it recurs: one llm-v4 debt answer put
+1. **The empty counter, from the vote's side.** llm-v5's remaining trade
+   errors are counters whose follow-up comes back all "keep", $0, after a
+   message that is half a decline ("I'll take $900 for the set, or I keep it
+   and build"), plus ungraded counters that keep the lot and ask cash for
+   nothing. The terms step can't fix a vote that didn't mean counter: look at
+   the vote's options (a decline that names a price, so "decline, but I'd sell
+   for $X" isn't forced into "counter"), confirmed by replaying llm-v5's empty
+   counters (`eval/runs/*-llm-v5/calls.jsonl`, records with `followUp`) before
+   building it.
+2. **The proposal in the counter's shape**, if proposals start failing: turn
+   starts still write trades in llm-v4's give/get form, whose grammar silently
+   drops a lot the model names on the wrong side. No proposal error in llm-v5's
+   final run, one in its first ("taking Boardwalk and being paid $200"); watch.
+3. **Lots by name, not square number**, if it recurs: one llm-v4 debt answer put
    the built orange lots' numbers in `mortgage` while its note named the
-   railroad and utility. Once is noise; watch for it in the next runs.
-3. **Strategy primer, separately.** Judgment scenarios show the seat selling a
-   rival the set-completing lot for $400 every time, and dropping out of most
-   auctions (Boardwalk 3x $0 in llm-v4). General principles of strong play may
-   help, but they shape opinions, so measure them as their own version, never
-   bundled with error fixes.
-4. **More reps per verdict.** At 3/54 errors, three reps can no longer tell two
-   versions apart on the original 45 scenarios (llm-v3 and llm-v4 tie there).
-   Use five reps for the error scenarios in a final verdict, and grow the
-   families where errors still show.
+   railroad and utility. llm-v5's final run had one debt answer refused for
+   mortgaging a lot whose set still had houses, the same family.
+4. **Strategy primer, separately.** Judgment scenarios show the seat selling a
+   rival the set-completing lot for $400 most of the time, and dropping out of
+   most auctions (Boardwalk 4x $0 in llm-v5). General principles of strong play
+   may help, but they shape opinions, so measure them as their own version,
+   never bundled with error fixes.
 
 ## Next
 

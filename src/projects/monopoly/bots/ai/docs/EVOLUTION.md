@@ -265,3 +265,111 @@ act more but err no less.
   errors in error scenarios. A change that lowers errors by making the seat
   passive (thinking off: no trades proposed) is not an improvement; read the
   judgment spread alongside the error count.
+
+## llm-v5: the counter as its own answer (2026-10-07)
+
+Hypothesis: llm-v4's trade errors are in writing a counter, not in judging the
+offer, and come from the answer's shape: the vote and a full counter in one
+answer, the counter required even on accept or decline, in the proposal's
+give/get form.
+
+Confirmed by replaying llm-v4's failing requests first (about 60 calls):
+
+- **The vote alone, beside each side's holdings** (8 replays of the Kentucky
+  and Reading requests): no counter asked for a lot the other side doesn't hold,
+  and the seat countered far more (5/8, against 0/8 for llm-v4's request
+  unchanged).
+- **The giveaway's terms** (its note asked Kyle for St. James, which nobody
+  owned): in the give/get form, 6/6 wrote "I get St. James Place" in words and
+  left `youGet` empty, because the grammar only allowed other players' lots, so
+  Kentucky went for nothing. The grammar silently dropped what the model meant.
+- **Which side a lot is on.** Given the counter notes from the vote-alone
+  replays, the give/get form wrote the seat's own lot under "I get" in 4/9
+  ("I give nothing; I get the Reading Railroad; Sam pays me $200"), which is
+  llm-v3's and llm-v4's empty counter exactly. Owner-named fields (`fromYou`,
+  `fromKyle`) were worse: the lot was left out in 9/13. **One choice per lot**
+  ("hand over" or "keep" for each of the seat's, "take" or "leave" for each of
+  theirs) matched the note in 6/6 sales and wrote "I'd rather mortgage it and
+  keep it" as keep (3/3); the St. James note, whose return can't exist, still
+  came back as a giveaway once in 4.
+
+llm-v5 asks the vote alone, with what each side could put in a trade (lots,
+cards, cash) and what mortgaging instead would raise. Only "counter" is
+followed by a second, quick call (no thinking, ~3-5 s) for the terms, as one
+choice per lot or card each side holds, then the cash and the cash it ends with.
+The shared machinery gained the follow-up (`DecisionSpec.followUp`): both
+answers settle as one decision, the record adds up both calls' cost, and the
+call record keeps the follow-up. A counter that hands something over and asks
+nothing back fails loudly, since a giveaway was never what the model meant.
+
+The first full run (3/105 errors in error scenarios) showed a new slip: the
+model marked the lot it meant to sell "keep" and asked for cash alone ("I'm
+keeping Pacific; I need at least $250") in 6 counters, 3 of them with no cash
+either, so the trade was empty. Replaying those 9 through a line saying a kept
+lot stays out of the trade, and that a cash-only ask gives them nothing, handed
+the lot over in 17/27. A "decline after all" choice in the follow-up was tried
+alongside it and never chosen (0/27), so it was dropped. Putting the cash
+before the lots (21 replays of the empty counters) cut empties to 1 but dropped
+lots more often, including a real swap, so the order stays.
+
+New error family (the suite grows): **`vote-counter-holdings`** (railroad,
+green, light blue): a lowball offer for a lone lot from a player holding little
+or nothing the seat could want. A counter handing the lot over with no lot back
+must bring in at least its mortgage value.
+
+Final run, 5 reps, Qwen3.5-9B Q6_K, 4 slots; llm-v4 rerun at 5 reps on the
+error scenarios and the trade-vote judgments in the same conditions:
+
+| | llm-v4 | llm-v5 |
+|---|---|---|
+| Errors in error scenarios | 7/105 | 5/105 (first run: 3/105) |
+| trade-vote, error scenarios | 4/45 | 2/45 (2/45) |
+| of which `vote-counter-holdings` | 4/15 | 0/15 (1/15) |
+| trade-vote, judgment scenarios | 1/25 | 3/25 (1/25) |
+| settle-debt (unchanged code) | 3/30 | 3/30 (0/30) |
+| turn-start, buy | 0/30 | 0/30 (1/30) |
+| Counters tried, of 70 trade votes | 19 | 28 (27) |
+| Counters unusable or below mortgage | 5 | 4 (3) |
+| Median trade vote | ~42 s | 39 s, the follow-up included |
+| Median / p90, every call | | 8.7 s / 43.4 s |
+
+Kept: errors in the error scenarios fall from 7 to 5 (trade votes 4 to 2), the
+family built from llm-v4's giveaway goes from 4/15 to 0/15, and across all 70
+trade votes the final run ties llm-v4 at 5 while the seat counters half again
+as often. The counters it writes now match its message: "I'll take $110 for
+Kentucky" goes out as Kentucky for $110, where llm-v4 mostly accepted or
+declined. Debt, buy and turn-start code is unchanged, and their errors moved
+within noise (the one proposal error, "taking Boardwalk and being paid $200",
+was in the first run, on code identical to llm-v4's).
+
+Remaining errors, by cause:
+
+- **The empty counter, still** (4 in the final run): the vote is "counter" but
+  the follow-up comes back all "keep", $0 ("I'll take $900 cash for the set, or
+  I keep it and build" → nothing moves). The message itself is half a decline;
+  the model writes the default for every field. It fails loudly, so it stalls a
+  live game.
+- **Counters asking cash for nothing** (not graded): "keep" the lot and ask
+  $100-$250 for it, a counter the other side can only decline.
+- **Accepting below mortgage once** ("I'll take the cash to keep buying") in
+  `vote-below-mortgage-red`: judgment, not shape.
+- **Debt as llm-v4**: houses sold when mortgages covered the debt, and once an
+  orange mortgage listed while its set still had houses.
+
+Lesson: the input lesson holds a fourth time, now for the grammar itself. An
+enum that only allows valid answers doesn't make answers valid; it silently
+rewrites what the model meant into something legal and wrong (the giveaway). An
+answer the model writes in its own terms (one choice per thing it holds) beat
+both a directional list and named fields, and asking a second question only
+when it is needed made the seat counter more and mean it.
+
+## The loop, after llm-v5
+
+- **2026-10-07: five reps per verdict, with the predecessor rerun.** At three
+  reps llm-v4's debt errors read 1/21; its five-rep rerun, on unchanged code,
+  read 3/30. `METHOD.md` now asks for five reps, and for the previous
+  version on the error scenarios in the same run conditions.
+- **2026-10-07: replay the follow-up, not just the request.** A follow-up's
+  question can be rebuilt from the scenario and the recorded first answer, so a
+  terms-step change was tested on exactly the failing votes (about 50 quick
+  calls) without paying for their 40 s thinking again.

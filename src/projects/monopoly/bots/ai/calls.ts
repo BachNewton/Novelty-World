@@ -1,7 +1,7 @@
 import type { AiDecision, AiDecisionRef } from "../../types";
 import type { Settled } from "./decide";
-import { resultOf, type AiCallRecord, type ServerInfo } from "./eval/record";
-import type { ModelRequest, ModelResult } from "./model/adapter";
+import { recordedCalls, type AiCallRecord, type MadeCall, type ServerInfo } from "./eval/record";
+import type { CallMetrics } from "./model/adapter";
 
 // A live game's model calls, one row each in `monopoly_ai_calls` (see
 // supabase/monopoly-ai.sql). The row is the shared call record as it is, plus
@@ -60,7 +60,10 @@ export function gameCallRecord(c: {
   decision: AiDecision;
   version: string;
   server: ServerInfo | null;
-  call: { request: ModelRequest; result: ModelResult } | null;
+  /** The decision's calls, in order (none when it never reached the model). */
+  calls: readonly MadeCall[];
+  /** What the decision cost over all its calls. */
+  metrics: CallMetrics | null;
   settle: { kind: Settled["kind"]; reason: string | null } | null;
   at: string;
 }): AiCallRecord {
@@ -71,9 +74,8 @@ export function gameCallRecord(c: {
     decision: c.decision,
     version: c.version,
     server: c.server,
-    request: c.call?.request ?? null,
-    result: c.call ? resultOf(c.call.result) : null,
-    metrics: c.call?.result.metrics ?? null,
+    ...recordedCalls(c.calls),
+    metrics: c.calls.length > 0 ? c.metrics : null,
     settle: c.settle,
   };
 }

@@ -330,7 +330,11 @@ never assumed.
   once for a maximum** and the pacer then bids for the seat in $10 steps
   (`auctionProxyIntent`), with no further calls. Answers are constrained to a
   per-decision JSON schema, and the engine is still the judge: every intent
-  goes through `apply`.
+  goes through `apply`. The one exception is a version's **follow-up**: a
+  decision spec may ask a second, quick question (no thinking) that only some
+  first answers need, such as a counter's terms once "counter" is chosen
+  (llm-v5). Both answers settle as one decision, its record adds up both calls'
+  cost, and the call record keeps the follow-up beside the first call.
 - **No fallback, no retry.** An unreachable model, a timeout, a malformed or
   illegal answer, or a legal plan that doesn't finish the job (debt still owed,
   a trade whose stated cash doesn't add up) is committed as an `ai-failed` log
@@ -410,6 +414,8 @@ never assumed.
   with another player and the board changed).
 - **Trades and counters.** A vote is accept, decline, or counter with a full
   trade, carried out as one submit (`counter-trade`, the terms, `propose-trade`).
+  From llm-v5 the vote is asked alone, beside what each side holds, and a
+  counter's terms are its follow-up, one choice per lot or card each side holds.
   There is **no cap on counter rounds** (owner's call; add one only if AI-to-AI
   ping-pong becomes a problem). Every trade question shows the negotiation so
   far (this turn's offers and counters from the log, with what each side said),

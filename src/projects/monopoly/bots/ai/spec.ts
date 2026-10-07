@@ -32,8 +32,20 @@ export interface DecisionSpec {
   think: boolean;
   question: (state: GameState, seat: string) => string;
   schema: (state: GameState, seat: string) => JsonSchema;
+  /** A second, quick question that some first answers need before they can be
+   *  carried out (a counter's terms, once "counter" is chosen), or null when
+   *  the first answer is complete. Its answer goes into the first under `key`,
+   *  and `resolve` reads the two together. */
+  followUp?: (state: GameState, seat: string, answer: Record<string, unknown>) => FollowUp | null;
   resolve: (state: GameState, seat: string, answer: Record<string, unknown>) => Resolved;
   verify?: (after: GameState, seat: string) => string | null;
+}
+
+/** A follow-up question: asked without thinking, with the same view. */
+export interface FollowUp {
+  key: string;
+  question: string;
+  schema: JsonSchema;
 }
 
 /** What the model is sent: a system message that never changes between calls

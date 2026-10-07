@@ -495,7 +495,8 @@ async function aiDecide(
           decision: claim.decision,
           version: asked.record.version,
           server,
-          call: model.last(),
+          calls: model.calls(),
+          metrics: asked.record,
           settle: settled
             ? { kind: settled.kind, reason: settled.kind === "fail" ? settled.reason : null }
             : null,
