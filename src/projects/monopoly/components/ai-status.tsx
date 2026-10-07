@@ -5,6 +5,7 @@ import { Bot } from "lucide-react";
 import type { AiDecision, GameState } from "../types";
 
 const DECISION_LABEL: Readonly<Record<AiDecision, string>> = {
+  "turn-start": "its turn",
   buy: "buying",
   auction: "the auction",
   "settle-debt": "paying its debt",

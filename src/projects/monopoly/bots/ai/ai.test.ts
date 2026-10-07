@@ -2,12 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { freshGame } from "../../mocks";
 import { driveOp, type BotResolver } from "../../pacing";
 import type { AuctionState, GameEvent, GameState, Player, TurnState } from "../../types";
+import { apply } from "../../engine";
+import { DECISION_SPECS } from "./answers";
 import { aiConsoleLines } from "./console";
 import { askModel, claimAi, settleAnswer, type Settled } from "./decide";
 import { aiDecisionFor, auctionProxyIntent } from "./decisions";
 import type { ModelAdapter, ModelResult } from "./model/adapter";
 import { buildPrompt } from "./prompt";
 import { aiSeat, withAiSeat } from "./seat";
+import { negotiationLines } from "./trade-terms";
+import { turnStartFingerprint, turnStartOwed } from "./turn-start";
 
 // p1 is the human, p2 the AI seat, p3/p4 rule-based bots (the dumb baseline, so
 // these tests exercise the AI wiring, not a strategy).
@@ -75,8 +79,9 @@ describe("aiDecisionFor", () => {
     expect(aiDecisionFor(withTurn(atBoardwalk, { playerId: "p3" }), "p3")).toBeNull();
   });
 
-  it("asks nothing at pre-roll: the turn-start window isn't offered yet", () => {
-    expect(aiDecisionFor(withTurn(base, { playerId: AI }), AI)).toBeNull();
+  it("asks the AI seat its turn-start question at its own pre-roll", () => {
+    expect(aiDecisionFor(withTurn(base, { playerId: AI }), AI)).toBe("turn-start");
+    expect(aiDecisionFor(base, AI)).toBeNull();
   });
 
   it("asks a jailed AI seat to choose, unless a boundary is waiting to open first", () => {
@@ -84,7 +89,11 @@ describe("aiDecisionFor", () => {
       playerId: AI,
       phase: "jail-decision",
     });
-    expect(aiDecisionFor(jailed, AI)).toBe("jail");
+    expect(aiDecisionFor(jailed, AI)).toBe("turn-start");
+    const answered = withAiSeat(jailed, AI, {
+      turnStart: { turn: jailed.turns.length, fingerprint: "" },
+    });
+    expect(aiDecisionFor(answered, AI)).toBe("jail");
     const armed: GameState = { ...jailed, boundaryQueue: [{ playerId: "p1", kind: "trade" }] };
     expect(aiDecisionFor(armed, AI)).toBeNull();
   });
@@ -189,10 +198,14 @@ describe("settling an answer", () => {
   });
 
   it("rolls for a jailed seat that chose to roll", () => {
-    const jailed = withTurn(withPlayer(base, AI, { inJail: true, jailTurns: 1, position: 10 }), {
-      playerId: AI,
-      phase: "jail-decision",
-    });
+    const jailed = withAiSeat(
+      withTurn(withPlayer(base, AI, { inJail: true, jailTurns: 1, position: 10 }), {
+        playerId: AI,
+        phase: "jail-decision",
+      }),
+      AI,
+      { turnStart: { turn: base.turns.length, fingerprint: "" } },
+    );
     const settled = decide(jailed, { ...NOTES, choice: "roll" });
     expect(settled.kind).toBe("commit");
     expect(events(settled.state).some((e) => e.kind === "jail-roll")).toBe(true);
@@ -337,5 +350,173 @@ describe("aiConsoleLines", () => {
       { level: "info", text: `[AI] Alex: ${NOTES.privateNote}` },
     ]);
     expect(aiConsoleLines(settled.state, settled.state)).toEqual([]);
+  });
+});
+
+describe("the turn-start window", () => {
+  // The AI seat's own pre-roll, owning the browns outright and Baltic's
+  // neighbour Oriental (6); p1 owns Vermont (8).
+  const start: GameState = withTurn({ ...base, ownership: { 1: AI, 3: AI, 6: AI, 8: "p1" } }, { playerId: AI });
+  const NOTHING = { ...NOTES, build: [], mortgage: [], unmortgage: [], proposeTrade: false, trade: { properties: [], jailCards: [], cash: [] } };
+
+  it("records the answer and leaves the roll to the pacer when the seat does nothing", () => {
+    const settled = decide(start, NOTHING);
+    expect(settled.kind).toBe("commit");
+    expect(settled.state.turn.phase).toBe("pre-roll");
+    expect(aiSeat(settled.state, AI).turnStart?.turn).toBe(start.turns.length);
+    expect(driveOp(settled.state, true, "p1")).toEqual({ kind: "step" });
+  });
+
+  it("builds through the manage window in the same write", () => {
+    const settled = decide(start, {
+      ...NOTHING,
+      build: [
+        { position: 1, level: 1 },
+        { position: 3, level: 1 },
+      ],
+    });
+    expect(settled.kind).toBe("commit");
+    expect(settled.state.houses).toMatchObject({ 1: 1, 3: 1 });
+    expect(settled.state.turn.phase).toBe("pre-roll");
+    expect(settled.state.turn.boundaryServed).toContainEqual({ playerId: AI, kind: "manage" });
+  });
+
+  it("proposes a trade through the trade window, and the other side then votes", () => {
+    const settled = decide(start, {
+      ...NOTHING,
+      proposeTrade: true,
+      trade: {
+        properties: [{ position: 8, to: AI }],
+        jailCards: [],
+        cash: [
+          { player: AI, delta: -150 },
+          { player: "p1", delta: 150 },
+        ],
+      },
+    });
+    expect(settled.kind).toBe("commit");
+    expect(settled.state.turn.phase).toBe("trade-pending");
+    expect(settled.state.turn.pendingTrade).toMatchObject({ proposerId: AI, propertyTo: { 8: AI } });
+  });
+
+  it("fails a trade that doesn't balance", () => {
+    const settled = decide(start, {
+      ...NOTHING,
+      proposeTrade: true,
+      trade: { properties: [{ position: 8, to: AI }], jailCards: [], cash: [{ player: AI, delta: -150 }] },
+    });
+    expect(settled.kind).toBe("fail");
+  });
+
+  describe("skipping the call", () => {
+    // Asked last turn, on this very board, owning no set it could build on.
+    const plain: GameState = withTurn({ ...base, ownership: { 6: AI, 8: "p1" } }, { playerId: AI });
+    const askedBefore = (state: GameState): GameState =>
+      withAiSeat(state, AI, {
+        turnStart: { turn: state.turns.length - 1, fingerprint: turnStartFingerprint(state, AI) },
+      });
+
+    it("skips when nothing relevant changed and the seat can't build or unmortgage", () => {
+      const state = askedBefore(plain);
+      expect(turnStartOwed(state, AI)).toBe(false);
+      expect(driveOp(state, true, "p1")).toEqual({ kind: "step" });
+    });
+
+    it("asks again once ownership changes", () => {
+      const state = { ...askedBefore(plain), ownership: { 6: AI, 8: AI } };
+      expect(turnStartOwed(state, AI)).toBe(true);
+    });
+
+    it("asks again when the seat's cash crosses into another band, but not over pocket change", () => {
+      const state = askedBefore(plain);
+      expect(turnStartOwed(withPlayer(state, AI, { cash: 1560 }), AI)).toBe(false);
+      expect(turnStartOwed(withPlayer(state, AI, { cash: 1000 }), AI)).toBe(true);
+    });
+
+    it("asks every turn while the seat could build", () => {
+      expect(turnStartOwed(askedBefore(start), AI)).toBe(true);
+    });
+
+    it("asks at most once per turn-group", () => {
+      const state = withAiSeat(start, AI, { turnStart: { turn: start.turns.length, fingerprint: "" } });
+      expect(turnStartOwed(state, AI)).toBe(false);
+    });
+  });
+});
+
+describe("counters and the negotiation", () => {
+  // p1 offers $100 for the AI seat's Oriental Avenue.
+  const offered: GameState = withTurn(
+    { ...base, ownership: { 6: AI, 8: "p1" } },
+    {
+      playerId: "p1",
+      phase: "trade-pending",
+      pendingTrade: {
+        id: "t1",
+        proposerId: "p1",
+        propertyTo: { 6: "p1" },
+        gojfTo: {},
+        cashDelta: { p1: -100, [AI]: 100 },
+        approvals: { p1: true, [AI]: false },
+      },
+    },
+  );
+  const COUNTER = {
+    ...NOTES,
+    publicNote: "Oriental is worth more than that: $180.",
+    vote: "counter",
+    counter: {
+      properties: [{ position: 6, to: "p1" }],
+      jailCards: [],
+      cash: [
+        { player: "p1", delta: -180 },
+        { player: AI, delta: 180 },
+      ],
+    },
+  };
+
+  it("counters in one write: the old offer dies and the AI's terms go to a vote", () => {
+    const settled = decide(offered, COUNTER);
+    expect(settled.kind).toBe("commit");
+    const state = settled.state;
+    expect(state.turn.phase).toBe("trade-pending");
+    expect(state.turn.pendingTrade).toMatchObject({
+      proposerId: AI,
+      cashDelta: { p1: -180, [AI]: 180 },
+    });
+    expect(events(state)).toContainEqual(
+      expect.objectContaining({ kind: "trade-declined", declinedBy: AI, countered: true }),
+    );
+  });
+
+  it("shows the back-and-forth, with what each side said, when the AI votes again", () => {
+    const countered = decide(offered, COUNTER).state;
+    // p1 counters back at $140, and the AI is asked again.
+    const back = apply(countered, { kind: "counter-trade", playerId: "p1", tradeId: countered.turn.pendingTrade?.id ?? "" });
+    if (!back.ok) throw new Error(back.reason);
+    const drafted = apply(back.state, {
+      kind: "update-trade-draft",
+      playerId: "p1",
+      terms: { propertyTo: { 6: "p1" }, gojfTo: {}, cashDelta: { p1: -140, [AI]: 140 } },
+    });
+    if (!drafted.ok) throw new Error(drafted.reason);
+    const proposed = apply(drafted.state, { kind: "propose-trade", playerId: "p1" });
+    if (!proposed.ok) throw new Error(proposed.reason);
+
+    expect(aiDecisionFor(proposed.state, AI)).toBe("trade-vote");
+    const history = negotiationLines(proposed.state).join("\n");
+    expect(history).toContain("countered by Alex");
+    expect(history).toContain("countered by Kyle");
+    expect(history).toContain("Oriental is worth more than that: $180.");
+
+    const question = DECISION_SPECS["trade-vote"]?.question(proposed.state, AI) ?? "";
+    expect(question).toContain("Negotiation so far");
+    expect(question).toContain("you receives $140");
+    expect(question).toContain("After this trade Kyle would own 2 of 3 Light blue.");
+  });
+
+  it("still accepts and declines", () => {
+    expect(decide(offered, { ...COUNTER, vote: "accept" }).state.ownership[6]).toBe("p1");
+    expect(decide(offered, { ...COUNTER, vote: "decline" }).state.turn.phase).not.toBe("trade-pending");
   });
 });

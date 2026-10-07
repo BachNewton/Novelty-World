@@ -317,8 +317,10 @@ one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
   the marker clears and the seat is asked afresh.
 - **Notes and plan.** Every answer carries a `publicNote` (the existing
   `bot-note`, shown in the log), a `privateNote` (the bot-note's `privateText`,
-  logged to every client's browser console, never on screen — the good-faith
-  model: all information is public and players are trusted not to look), and a
+  logged to every client's browser console and, behind the
+  `SHOW_PRIVATE_NOTES_IN_LOG` flag in `bots/ai/console.ts`, shown in the game log
+  as a "Thinks" row under the public note — the good-faith model: all
+  information is public and players are trusted not to use it), and a
   `plan` stored in `state.ai`, shown to the model in its next prompt as "your
   plan from last time". The jail "roll" answer commits its note and the roll in
   one write.
@@ -331,11 +333,31 @@ one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
   `MONOPOLY_AI_LOCAL_MODEL`, `MONOPOLY_AI_LOCAL_KEY`, `MONOPOLY_AI_TIMEOUT_MS`,
   `MONOPOLY_AI_THINK_TOKENS`). A client only ever names a profile, never an
   address. A new provider is a new adapter plus a profile.
-- **Not offered yet:** the turn-start window (an AI seat never arms a trade or
-  a build; it just rolls), counters and proposals. `raise-to-buy`, `manage` and
-  `trade-build` are named decisions with no spec, so reaching one fails loudly.
-  The headless sim and RL tooling play rule-based seats only and throw on an AI
-  seat.
+- **Turn-start window.** At its own turn start (its `pre-roll`, or its
+  `jail-decision` before the jail choice, which is then a second question) the
+  seat is asked once per turn-group: an optional full manage plan and an
+  optional trade proposal, then it rolls. The route carries both out in one
+  write through the same boundary machinery a human uses (arm → open the window
+  → commit/propose), so the one-manage/one-trade window per turn-group holds; it
+  never arms at anyone else's boundary. **The call is skipped, with no model,**
+  when the board's turn-start fingerprint (ownership and so every monopoly,
+  mortgages, buildings, Get Out of Jail Free holders, and the seat's cash in
+  $250 bands) is unchanged since it was last asked **and** it can neither build
+  nor lift a mortgage; a seat that could build is asked every turn
+  (`turn-start.ts`).
+- **Trades and counters.** A vote is accept, decline, or counter with a full
+  draft, carried out as one submit (`counter-trade`, the draft, `propose-trade`).
+  There is **no cap on counter rounds** (owner's call; add one only if AI↔AI
+  ping-pong becomes a problem). Every trade question shows the negotiation so
+  far (this turn's offers and counters from the log, with what each side said),
+  and asks the model to meet the other side partway or decline to end it. On a
+  proposal or counter, the public note is the seat's message to the other side.
+- **Thinking** (a reasoning pass before the constrained answer) is used for the
+  turn-start window and trade votes; the quick decisions answer directly.
+- `raise-to-buy`, `manage` and `trade-build` are named decisions with no spec:
+  the seat opens and closes every intermission it uses within one write, so
+  reaching one fails loudly. The headless sim and RL tooling play rule-based
+  seats only and throw on an AI seat.
 
 ## Lobby
 
@@ -450,7 +472,7 @@ bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the cont
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): profiles, decisions (what a seat owes + auction proxy bids), answers (per-decision schema → intents), prompt, decide (claim / ask / settle), console (private notes), model/ (provider adapters + server config)
+bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): profiles, decisions (what a seat owes + auction proxy bids), answers (per-decision schema → ops), turn-start (when the window is owed), trade-terms (trade schema, terms in words, negotiation history), prompt, decide (claim / ask / settle), console (private notes), model/ (provider adapters + server config)
 bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
 bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
 bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype

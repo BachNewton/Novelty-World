@@ -34,7 +34,7 @@ How to answer:
 - "plan": one or two sentences to your future self: what you're aiming for over the next few turns. You'll be shown it next time you decide.
 - Stick to the rules above and the facts in your view. Don't invent rules.`;
 
-const COLOR_LABEL: Readonly<Record<PropertyColor, string>> = {
+export const COLOR_LABEL: Readonly<Record<PropertyColor, string>> = {
   brown: "Brown",
   "light-blue": "Light blue",
   pink: "Pink",

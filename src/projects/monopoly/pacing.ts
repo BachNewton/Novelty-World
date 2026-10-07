@@ -193,6 +193,13 @@ function turnOp(
     // the sole driver of this boundary (including any off-turn bot arming that
     // rides on it), so we stay out.
     if (role === "none") return null;
+    // An AI seat's own turn start: its one turn-start question, when owed
+    // (otherwise it simply rolls). A failed seat is never driven again.
+    if (isAiSeat(state, playerId)) {
+      if (aiSeat(state, playerId).failure !== null) return null;
+      const op = aiOp(state, playerId);
+      if (op) return op;
+    }
     // Proactive arming: consult every bot — the ACTIVE bot for its own
     // build/trade, and any OFF-TURN bot for a trade it wants to open at this
     // turn boundary. The active player's own client is the single driver, so
@@ -201,7 +208,7 @@ function turnOp(
     // `set-queue` arm is honored here (the lone proactive move legal at
     // pre-roll); a redundant arm the queue already reflects is skipped so the
     // pacer falls through to `step`, which drains the queue into the intermission.
-    // AI seats don't arm yet (no turn-start window), so they're skipped.
+    // AI seats act only through their own turn-start question, so they're skipped.
     for (const p of state.players) {
       if (isAiSeat(state, p.id)) continue;
       const bot = botFor(state, p.id);

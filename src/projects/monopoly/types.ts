@@ -502,6 +502,7 @@ export interface TurnState {
 /** A decision an AI seat (a language-model player, `bots/ai/`) can be asked to
  *  make. Each is one model call whose answer is a complete plan. */
 export type AiDecision =
+  | "turn-start"
   | "buy"
   | "auction"
   | "settle-debt"
@@ -526,6 +527,10 @@ export interface AiSeat {
    *  auction; the pacer bids for it up to this, with no further model calls.
    *  Keyed by the lot and the turn-group it was asked in. */
   auctionMax: { position: number; turn: number; max: number } | null;
+  /** The turn-group the seat was last asked its turn-start question in, and a
+   *  fingerprint of the board as it left it (`bots/ai/turn-start.ts`), so a
+   *  later turn can skip the call when nothing relevant has changed. */
+  turnStart: { turn: number; fingerprint: string } | null;
 }
 
 /** Per-player automation policy. Drives the auto-play spectrum: the engine

@@ -1,17 +1,27 @@
-import { auctionBidCap, isLegal, JAIL_FEE, projectTrade, tradeMortgageFees } from "../../engine";
-import { buildingRefundAt, developmentLevel } from "../../development";
-import { heldJailCard, mortgageValueAt, ownablePrice } from "../../logic";
+import { auctionBidCap, isLegal, JAIL_FEE } from "../../engine";
+import { buildingRefundAt, colorAt, developmentLevel, houseCostAt } from "../../development";
+import { hasMonopoly, heldJailCard, mortgageValueAt, ownablePrice, unmortgageCostAt } from "../../logic";
 import type { AiDecision, GameState, Intent } from "../../types";
 import { mortgageablePositions } from "../fallback";
 import type { JsonSchema } from "./model/adapter";
 import { money, playerById, squareLabel } from "./prompt";
+import {
+  describeTerms,
+  negotiationLines,
+  readTrade,
+  recentOfferLines,
+  tradeFormat,
+  tradeSchema,
+} from "./trade-terms";
 
-/** What one answer amounts to once read: the intents to submit (in order), and
- *  the seat's own bookkeeping. `roll` asks the route to run the mechanical roll
- *  straight after, for a jailed seat that chose to roll for doubles. */
+/** One step of carrying out an answer: an intent, or a mechanical `step` (one
+ *  `autoStep`) — the jail roll, or opening a boundary window the seat armed. */
+export type AiOp = { kind: "intent"; intent: Intent } | { kind: "step" };
+
+/** What one answer amounts to once read: the ops to carry out (in order, in one
+ *  write), and the seat's own bookkeeping. */
 export interface AiResolution {
-  intents: Intent[];
-  roll: boolean;
+  ops: AiOp[];
   auctionMax: number | null;
   publicNote: string;
   privateNote: string;
@@ -35,7 +45,12 @@ export interface DecisionSpec {
 
 const NOTE_FIELDS = {
   privateNote: { type: "string", maxLength: 800 },
-  publicNote: { type: "string", maxLength: 200 },
+  publicNote: {
+    type: "string",
+    maxLength: 200,
+    description:
+      "One sentence the whole table sees in the log. On a trade you propose or counter, it is your message to the other side.",
+  },
   plan: { type: "string", maxLength: 300 },
 } as const;
 
@@ -64,7 +79,7 @@ function positionList(allowed: readonly number[]): JsonSchema {
 
 function resolved(
   answer: Record<string, unknown>,
-  fields: Pick<AiResolution, "intents"> & Partial<Pick<AiResolution, "roll" | "auctionMax">>,
+  fields: { intents?: Intent[]; ops?: AiOp[]; auctionMax?: number },
 ): Resolved {
   const { privateNote, publicNote, plan } = answer;
   if (typeof privateNote !== "string" || typeof publicNote !== "string" || typeof plan !== "string") {
@@ -73,8 +88,7 @@ function resolved(
   return {
     ok: true,
     resolution: {
-      intents: fields.intents,
-      roll: fields.roll ?? false,
+      ops: fields.ops ?? (fields.intents ?? []).map((intent) => ({ kind: "intent", intent })),
       auctionMax: fields.auctionMax ?? null,
       publicNote: publicNote.trim(),
       privateNote: privateNote.trim(),
@@ -309,64 +323,182 @@ const jail: DecisionSpec = {
       case "card":
         return resolved(answer, { intents: [{ kind: "use-jail-card", playerId: seat }] });
       case "roll":
-        return resolved(answer, { intents: [], roll: true });
+        return resolved(answer, { ops: [{ kind: "step" }] });
       default:
         return { ok: false, reason: "choice must be pay, card or roll" };
     }
   },
 };
 
+const NEGOTIATE = [
+  `Negotiate toward a deal both sides can live with. If you counter, move toward their last offer rather than repeating your own; if the gap can't close, decline and end it.`,
+  `Your publicNote is your message to the other side: say what you want and why.`,
+];
+
 const tradeVote: DecisionSpec = {
   think: true,
   question: (state, seat) => {
     const trade = state.turn.pendingTrade;
     if (!trade) throw new Error("no pending trade");
-    const name = (id: string): string => (id === seat ? "you" : playerById(state, id).name);
-    const moves: string[] = [];
-    for (const [pos, to] of Object.entries(trade.propertyTo)) {
-      const from = state.ownership[Number(pos)];
-      const mortgaged = state.mortgaged[Number(pos)] ? " (mortgaged)" : "";
-      moves.push(`  - ${squareLabel(Number(pos))}${mortgaged}: ${name(from)} -> ${name(to)}`);
-    }
-    for (const source of ["chance", "communityChest"] as const) {
-      const to = trade.gojfTo[source];
-      if (to === undefined) continue;
-      const from = state.jailFreeCards[source];
-      moves.push(`  - a Get Out of Jail Free card: ${from === undefined ? "?" : name(from)} -> ${name(to)}`);
-    }
-    for (const [id, delta] of Object.entries(trade.cashDelta)) {
-      if (delta !== 0) moves.push(`  - ${name(id)} ${delta > 0 ? "receives" : "pays"} ${money(Math.abs(delta))}`);
-    }
-    const fee = tradeMortgageFees(state, trade)[seat] ?? 0;
-    const after = projectTrade(state, trade).cashById[seat] ?? cashOf(state, seat);
-    const lines = [
-      `${name(trade.proposerId)} proposes a trade:`,
-      ...moves,
-    ];
-    if (fee > 0) lines.push(`You would owe the bank ${money(fee)} interest on the mortgaged lots you receive.`);
-    lines.push(
-      `Your cash would go from ${money(cashOf(state, seat))} to ${money(after)}.`,
-      `Answer "accept" or "decline". Everyone named must accept for it to happen.`,
-    );
-    return lines.join("\n");
+    const proposer = trade.proposerId === seat ? "You" : playerById(state, trade.proposerId).name;
+    const history = negotiationLines(state);
+    return [
+      `${proposer} proposes a trade:`,
+      ...describeTerms(state, seat, trade),
+      `Negotiation so far this turn, oldest first:\n${history.join("\n") || "(this is the opening offer)"}`,
+      `Answer "accept", "decline", or "counter". To counter, put in "counter" the full trade you would accept instead; it replaces theirs, and they then vote on it. Leave "counter" empty otherwise.`,
+      tradeFormat(state, seat),
+      ...NEGOTIATE,
+    ].join("\n");
   },
-  schema: () => answerSchema({ vote: { type: "string", enum: ["accept", "decline"] } }),
+  schema: (state) =>
+    answerSchema({
+      vote: { type: "string", enum: ["accept", "decline", "counter"] },
+      counter: tradeSchema(state),
+    }),
   resolve: (state, seat, answer) => {
     const trade = state.turn.pendingTrade;
     if (!trade) return { ok: false, reason: "no pending trade" };
-    if (answer.vote === "accept") {
-      return resolved(answer, { intents: [{ kind: "accept-trade", playerId: seat, tradeId: trade.id }] });
+    const tradeId = trade.id;
+    switch (answer.vote) {
+      case "accept":
+        return resolved(answer, { intents: [{ kind: "accept-trade", playerId: seat, tradeId }] });
+      case "decline":
+        return resolved(answer, { intents: [{ kind: "decline-trade", playerId: seat, tradeId }] });
+      case "counter": {
+        const counter = readTrade(answer.counter);
+        if (!counter.ok) return counter;
+        return resolved(answer, {
+          intents: [
+            { kind: "counter-trade", playerId: seat, tradeId },
+            { kind: "update-trade-draft", playerId: seat, terms: counter.terms },
+            { kind: "propose-trade", playerId: seat },
+          ],
+        });
+      }
+      default:
+        return { ok: false, reason: "vote must be accept, decline or counter" };
     }
-    if (answer.vote === "decline") {
-      return resolved(answer, { intents: [{ kind: "decline-trade", playerId: seat, tradeId: trade.id }] });
+  },
+};
+
+/** The lots in the seat's complete color sets, which it may build on or sell. */
+function setLots(state: GameState, seat: string): number[] {
+  return Object.entries(state.ownership)
+    .filter(([pos, owner]) => {
+      const color = colorAt(Number(pos));
+      return owner === seat && color !== null && hasMonopoly(state, color, seat);
+    })
+    .map(([pos]) => Number(pos))
+    .sort((a, b) => a - b);
+}
+
+function ownedMortgaged(state: GameState, seat: string): number[] {
+  return Object.entries(state.ownership)
+    .filter(([pos, owner]) => owner === seat && state.mortgaged[Number(pos)])
+    .map(([pos]) => Number(pos));
+}
+
+const turnStart: DecisionSpec = {
+  think: true,
+  question: (state, seat) => {
+    const me = playerById(state, seat);
+    const sets = setLots(state, seat);
+    const mortgaged = ownedMortgaged(state, seat);
+    const lines = [
+      me.inJail
+        ? `It is the start of your turn, in jail, before you choose how to leave it.`
+        : `It is the start of your turn, before you roll.`,
+      `First you may manage your properties, then you may propose one trade. Both are optional; doing neither is often right. You'll then roll${me.inJail ? " (or choose how to leave jail)" : ""}.`,
+      `Managing (one plan, applied all at once, sales and mortgages first):`,
+      `- "build": each lot in your complete color sets and the level it should end at (0-4 houses, 5 a hotel). Sets must stay even, can't have a mortgaged lot, and a level below today's sells buildings.`,
+      `- "mortgage": lots to mortgage. "unmortgage": mortgaged lots to lift.`,
+      sets.length > 0
+        ? `Your complete color sets:\n${sets
+            .map((pos) => `  - ${squareLabel(pos)}: level ${String(developmentLevel(state, pos))}, each house ${money(houseCostAt(pos) ?? 0)}`)
+            .join("\n")}`
+        : `You have no complete color set, so leave "build" empty.`,
+      mortgaged.length > 0
+        ? `Your mortgaged lots:\n${mortgaged
+            .map((pos) => `  - ${squareLabel(pos)}: lifting costs ${money(unmortgageCostAt(pos) ?? 0)}`)
+            .join("\n")}`
+        : `You have no mortgaged lots.`,
+      `Trading: set "proposeTrade" true and fill "trade" to propose one; otherwise false, with "trade" empty. Look for deals that complete a color set for you; the other side must want it too.`,
+      tradeFormat(state, seat),
+      `Recent trade offers in this game, oldest first:\n${recentOfferLines(state, 8).join("\n") || "(none yet)"}`,
+      `Your publicNote is shown to the table; if you propose a trade, it is your message to the other side: pitch it.`,
+    ];
+    return lines.join("\n");
+  },
+  schema: (state, seat) => {
+    const sets = setLots(state, seat);
+    return answerSchema({
+      build: sets.length > 0
+        ? {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                position: { type: "integer", enum: sets },
+                level: { type: "integer", minimum: 0, maximum: 5 },
+              },
+              required: ["position", "level"],
+              additionalProperties: false,
+            },
+          }
+        : { type: "array", maxItems: 0 },
+      mortgage: positionList(ownedUnmortgaged(state, seat)),
+      unmortgage: positionList(ownedMortgaged(state, seat)),
+      proposeTrade: { type: "boolean" },
+      trade: tradeSchema(state),
+    });
+  },
+  resolve: (state, seat, answer) => {
+    const mortgage = readPositions(answer.mortgage);
+    const unmortgage = readPositions(answer.unmortgage);
+    if (!mortgage || !unmortgage || !Array.isArray(answer.build)) {
+      return { ok: false, reason: "build, mortgage and unmortgage must be lists" };
     }
-    return { ok: false, reason: "vote must be accept or decline" };
+    const build: Record<number, number> = {};
+    for (const entry of answer.build) {
+      if (!isRecord(entry) || typeof entry.position !== "number" || typeof entry.level !== "number") {
+        return { ok: false, reason: "each build entry needs a position and a level" };
+      }
+      if (entry.level !== developmentLevel(state, entry.position)) build[entry.position] = entry.level;
+    }
+    const mortgageFlags: Record<number, boolean> = {};
+    for (const pos of mortgage) if (!state.mortgaged[pos]) mortgageFlags[pos] = true;
+    for (const pos of unmortgage) if (state.mortgaged[pos]) mortgageFlags[pos] = false;
+
+    const ops: AiOp[] = [];
+    const intent = (i: Intent): AiOp => ({ kind: "intent", intent: i });
+    if (Object.keys(build).length > 0 || Object.keys(mortgageFlags).length > 0) {
+      ops.push(
+        intent({ kind: "set-queue", playerId: seat, queue: "manage", armed: true }),
+        { kind: "step" },
+        intent({ kind: "manage", playerId: seat, build, mortgage: mortgageFlags }),
+      );
+    }
+    if (answer.proposeTrade === true) {
+      const trade = readTrade(answer.trade);
+      if (!trade.ok) return trade;
+      ops.push(
+        intent({ kind: "set-queue", playerId: seat, queue: "trade", armed: true }),
+        { kind: "step" },
+        intent({ kind: "update-trade-draft", playerId: seat, terms: trade.terms }),
+        intent({ kind: "propose-trade", playerId: seat }),
+      );
+    } else if (answer.proposeTrade !== false) {
+      return { ok: false, reason: "proposeTrade must be true or false" };
+    }
+    return resolved(answer, { ops });
   },
 };
 
 /** The decisions an AI seat can make so far. A decision missing here fails
  *  loudly when the seat reaches it. */
 export const DECISION_SPECS: Readonly<Partial<Record<AiDecision, DecisionSpec>>> = {
+  "turn-start": turnStart,
   buy,
   auction,
   "settle-debt": settleDebt,

@@ -214,7 +214,7 @@ describe("monopoly route — ai-decide", () => {
     const writes: { state: GameState }[] = [];
     const claimed: GameState = {
       ...LANDED,
-      ai: { [AI]: { plan: null, thinking: "buy", failure: null, auctionMax: null } },
+      ai: { [AI]: { plan: null, thinking: "buy", failure: null, auctionMax: null, turnStart: null } },
     };
     createAdminClient.mockReturnValue(
       fakeClient(
@@ -237,7 +237,8 @@ describe("monopoly route — ai-decide", () => {
 
   it("does nothing, without calling the model, when the seat owes nothing", async () => {
     answering({ ok: true, answer: ANSWER, thoughts: "", ms: 1 });
-    const idle: GameState = { ...LANDED, turn: { ...HEAD.turn, playerId: AI } };
+    // Another seat's pre-roll: the AI seat owes nothing.
+    const idle: GameState = { ...LANDED, turn: { ...HEAD.turn, playerId: "p1" } };
     createAdminClient.mockReturnValue(fakeClient([{ data: { state: idle, version: 5 }, error: null }]));
 
     const res = await post({ gameId: "g", action: { type: "ai-decide", seat: AI, fromVersion: 5 } });

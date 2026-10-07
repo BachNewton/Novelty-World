@@ -4,6 +4,7 @@ import { DECISION_SPECS, type AiResolution, type DecisionSpec } from "./answers"
 import { aiDecisionFor } from "./decisions";
 import type { ModelAdapter } from "./model/adapter";
 import { buildPrompt } from "./prompt";
+import { turnStartFingerprint } from "./turn-start";
 import { aiSeat, currentTurnNumber, withAiSeat } from "./seat";
 
 // The route's side of an AI seat, as pure steps around the one async call:
@@ -75,12 +76,12 @@ export function settleAnswer(
   if (!spec) return failed(latest, seat, decision, `an AI seat can't make a "${decision}" decision yet`);
   const read = spec.resolve(asked, seat, answer);
   if (!read.ok) return failed(latest, seat, decision, read.reason);
-  const onAsked = play(asked, seat, spec, read.resolution);
+  const onAsked = play(asked, seat, decision, spec, read.resolution);
   if (!onAsked.ok) return failed(latest, seat, decision, onAsked.reason);
 
   const unclaimed = withAiSeat(latest, seat, { thinking: null });
   if (aiDecisionFor(unclaimed, seat) !== decision) return { kind: "stale", state: unclaimed };
-  const onLatest = play(unclaimed, seat, spec, read.resolution);
+  const onLatest = play(unclaimed, seat, decision, spec, read.resolution);
   if (!onLatest.ok) return { kind: "stale", state: unclaimed };
   return { kind: "commit", state: onLatest.state };
 }
@@ -106,24 +107,39 @@ export function failed(
 type Played = { ok: true; state: GameState } | { ok: false; reason: string };
 
 /** Apply an answer to a state: the public and private notes as one bot-note,
- *  then the intents in order, then the roll it asked for; and record its plan
- *  and auction maximum. All-or-nothing. */
-function play(state: GameState, seat: string, spec: DecisionSpec, r: AiResolution): Played {
+ *  then its ops in order; and record its plan, auction maximum and turn-start
+ *  mark. All-or-nothing. */
+function play(
+  state: GameState,
+  seat: string,
+  decision: AiDecision,
+  spec: DecisionSpec,
+  r: AiResolution,
+): Played {
   const note: Intent = { kind: "bot-note", playerId: seat, text: r.publicNote, privateText: r.privateNote };
   let working = state;
-  for (const intent of [note, ...r.intents]) {
-    const result = apply(working, intent);
-    if (!result.ok) return { ok: false, reason: `${intent.kind} was refused: ${result.reason}` };
+  for (const op of [{ kind: "intent", intent: note } as const, ...r.ops]) {
+    if (op.kind === "step") {
+      const stepped = autoStep(working).state;
+      if (stepped === working) return { ok: false, reason: `the game couldn't advance at ${working.turn.phase}` };
+      working = stepped;
+      continue;
+    }
+    const result = apply(working, op.intent);
+    if (!result.ok) return { ok: false, reason: `${op.intent.kind} was refused: ${result.reason}` };
     working = result.state;
   }
-  if (r.roll) working = autoStep(working).state;
   const problem = spec.verify?.(working, seat) ?? null;
   if (problem !== null) return { ok: false, reason: problem };
   const auctionMax =
     r.auctionMax === null || !state.turn.auction
       ? aiSeat(working, seat).auctionMax
       : { position: state.turn.auction.position, turn: currentTurnNumber(state), max: r.auctionMax };
-  return { ok: true, state: withAiSeat(working, seat, { plan: r.plan, auctionMax }) };
+  const turnStart =
+    decision === "turn-start"
+      ? { turn: currentTurnNumber(state), fingerprint: turnStartFingerprint(working, seat) }
+      : aiSeat(working, seat).turnStart;
+  return { ok: true, state: withAiSeat(working, seat, { plan: r.plan, auctionMax, turnStart }) };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
