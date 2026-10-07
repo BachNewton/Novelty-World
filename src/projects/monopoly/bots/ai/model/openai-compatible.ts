@@ -112,7 +112,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
             {
               messages,
               max_tokens: request.thinkTokens,
-              chat_template_kwargs: { enable_thinking: true },
+              chat_template_kwargs: thinkingSwitch(true),
               ...sampling,
             },
             signal,
@@ -130,7 +130,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
         const final = await chat(
           {
             messages,
-            chat_template_kwargs: { enable_thinking: oneCall },
+            chat_template_kwargs: thinkingSwitch(oneCall),
             response_format: {
               type: "json_schema",
               json_schema: { name: request.schemaName, schema: request.schema },
@@ -142,6 +142,11 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
         metrics.answerMs = Date.now() - answerStarted;
         count(final);
         if (oneCall) thoughts = final.reasoning.trim();
+        // A model that can't stop reasoning (gpt-oss) still reasons before an
+        // answer asked without thinking; kept so the record shows all of it.
+        else if (final.reasoning.trim() !== "") {
+          thoughts = [thoughts, `(answering) ${final.reasoning.trim()}`].filter((t) => t !== "").join("\n\n");
+        }
         let answer: unknown;
         try {
           answer = JSON.parse(final.content);
@@ -189,6 +194,14 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
 function add(total: number | null, more: number | null): number | null {
   if (more === null) return total;
   return (total ?? 0) + more;
+}
+
+/** Thinking on or off, in both switches chat templates read: `enable_thinking`
+ *  (Qwen, Gemma) and `reasoning_effort` (gpt-oss's harmony format, which
+ *  always reasons; "low" is its least, and on it keeps the model's default).
+ *  A template ignores the switch it doesn't use. */
+function thinkingSwitch(on: boolean): Record<string, unknown> {
+  return on ? { enable_thinking: true } : { enable_thinking: false, reasoning_effort: "low" };
 }
 
 function firstMessage(json: unknown): ChatReply | null {

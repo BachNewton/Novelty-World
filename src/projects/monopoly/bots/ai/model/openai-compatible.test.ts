@@ -64,6 +64,20 @@ describe("openAiCompatible", () => {
     expect(second.messages.map((m) => m.content)).toContain("My reasoning so far:\nBoardwalk is worth it.");
   });
 
+  it("turns thinking off in both switches templates read, and keeps reasoning a model gave anyway", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(reply("", "Boardwalk is worth it."))
+      .mockResolvedValueOnce(reply('{"choice":"buy"}', "Need to answer."));
+    const result = await adapter(fetchImpl).complete({ ...REQUEST, think: true });
+    const bodies = fetchImpl.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
+    expect(bodies.map((b) => b.chat_template_kwargs)).toEqual([
+      { enable_thinking: true },
+      { enable_thinking: false, reasoning_effort: "low" },
+    ]);
+    expect(result).toMatchObject({ ok: true, thoughts: "Boardwalk is worth it.\n\n(answering) Need to answer." });
+  });
+
   it("thinks and answers in one call on a server that can", async () => {
     const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(reply('{"choice":"buy"}', "(300 thinking tokens)")));
     const oneCall = openAiCompatible({ baseUrl: "http://model/v1", model: "m", apiKey: null, timeoutMs: 1000, thinksWithAnswer: true, fetch: fetchImpl });

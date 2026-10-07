@@ -1,0 +1,8 @@
+{
+  "label": "Monopoly AI: gpt-oss-20b MXFP4, 1 slot x 9k, q8_0 KV cache",
+  "model": "gpt-oss-20b-MXFP4.gguf",
+  "url": "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-mxfp4.gguf",
+  "context": 9216,
+  "device": "4070",
+  "flags": ["-np", "1", "-ctk", "q8_0", "-ctv", "q8_0"]
+}

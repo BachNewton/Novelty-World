@@ -1,0 +1,8 @@
+{
+  "label": "Monopoly AI: Gemma 4 12B Q6_K, 1 slot x 7.4k, q8_0 KV cache",
+  "model": "gemma-4-12b-it-Q6_K.gguf",
+  "url": "https://huggingface.co/unsloth/gemma-4-12b-it-GGUF/resolve/main/gemma-4-12b-it-Q6_K.gguf",
+  "context": 7552,
+  "device": "4070",
+  "flags": ["-np", "1", "-ctk", "q8_0", "-ctv", "q8_0"]
+}

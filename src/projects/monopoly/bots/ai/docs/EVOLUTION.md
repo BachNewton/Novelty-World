@@ -525,3 +525,107 @@ on the decisions that matter. As a live model it would trade Qwen's errors
 for passivity, a hosted dependency and per-call cost; Sonnet is the model to
 compare a live candidate against, and "fewer errors from doing less" is the
 risk to watch.
+
+## Model axis: Gemma 4 12B and gpt-oss-20b against Qwen3.5-9B, on llm-v5 (2026-10-07)
+
+Question: prompt work on Qwen3.5-9B is near its ceiling (Sonnet makes no
+errors on the same input), so is a different local model better, with the
+version held fixed at llm-v5?
+
+What ran, one model at a time on the RTX 4070 (12 GB), full suite, 5 reps (215
+answers each), every record naming the model from `/props`:
+
+- **Qwen3.5-9B Q6_K** (`qwen9b-4x16k`): llm-v5's final run, 4 slots at once.
+- **Gemma 4 12B Q6_K** (`gemma4-12b-1x7k`): 1 slot, 7.5k context, q8_0 KV
+  cache. The launcher's fit check counts every layer's KV at full width and
+  length (Gemma 4 has 40 sliding-window layers of 48), so this is the most it
+  passes; the server then used ~10 GB of the 12. Its chat template honours
+  `enable_thinking`, and llama.cpp returns the thought in `reasoning_content`
+  (checked with curl first), so the adapter needed nothing.
+- **gpt-oss-20b MXFP4** (`gpt-oss-20b-1x9k`): fits after all. With a q8_0 KV
+  cache the check passes at 9k context, one slot; the server used ~11.4 GB. Its
+  harmony template ignores `enable_thinking` and always reasons (curl: "off"
+  still reasoned at its default, medium effort); `reasoning_effort: "low"` is
+  the least it does, and llama.cpp returns that reasoning in
+  `reasoning_content` and constrains only the final channel to the schema. The
+  adapter now sends both switches (`enable_thinking`, and `reasoning_effort:
+  "low"` when thinking is off; the other templates ignore the switch they don't
+  read) and keeps any reasoning a no-thinking answer came with in the record's
+  thoughts, marked "(answering)".
+
+| | Qwen3.5-9B | Gemma 4 12B | gpt-oss-20b |
+|---|---|---|---|
+| Errors in error scenarios | 5/105 | 8/105 | 17/105 |
+| trade-vote (error + judgment) | 5/70 | 0/70 | 18/70 (7 server 500s) |
+| settle-debt | 3/35 | 8/35 | 3/35 |
+| turn-start | 0/35 | 1/35 | 1/35 |
+| Trade votes: accept / decline / counter / unusable | 17 / 25 / 24 / 4 | 21 / 5 / 44 / 0 | 22 / 29 / 7 / 12 |
+| Turn starts proposing a trade | 12/35 | 12/35 | 9/35 |
+| Thinking finished inside 1,200 tokens | 1/105 | 25/105 | 37/98 |
+| Median / p90, every call | 8.7 s / 43.4 s (4 slots) | 5.0 s / 43.1 s (1 slot) | 4.4 s / 14.2 s (1 slot) |
+| Median quick call / trade vote / turn start | ~6 s / 39 s / 44 s | ~3.5 s / 42 s / 43 s | ~1.5 s / 13 s / 14 s |
+
+Qwen's times are with four calls sharing the card; Gemma's and gpt-oss's are
+one at a time. Gemma writes about 30 tokens a second, Qwen about 55 alone,
+gpt-oss about 130.
+
+Judgments, side by side (Sonnet 5.5's ceiling run for reference):
+
+| | Qwen | Gemma | gpt-oss | Sonnet |
+|---|---|---|---|---|
+| Boardwalk at auction, max | 4x $0, $400 | $350-$400 | 5x $0 | $380-$400 |
+| Blocking a rival's orange | $0-$200 | $200-$250 | 2x $0, $200 | $230-$300 |
+| Completing its own set | $240-$800 | $350-$400 | $240-$250 | $450-$620 |
+| Selling a rival New York for $400 | 3/5 accept | 4/5 counter ("$600"), 1 accept | 2 decline, 1 accept, 1 counter at $200, 1 unusable | 3/3 counter $650-$850 |
+| Distress fire-sale of a completer | 5/5 accept | 5/5 accept | 4/5 accept | decline or $300 |
+| Kentucky offered $80 (mortgage $110) | 2 decline, 2 counter $110-$150, 1 accept | 5/5 counter $120-$200 | 4 decline, 1 accept | counter $220-$240 |
+| Fresh orange monopoly, houses built | 3 (3x), 9 (2x) | 3 (5x) | 3 (4x), 2 | 9 (2x), 6 |
+
+- **Gemma 4 12B** made no trade error in 70 votes and countered most offers
+  (44/70), mostly at or above the lot's value ("The trade offer of $80 is less
+  than the $110 I would get by mortgaging the property myself. I will counter
+  for a higher amount"). It contests auctions the way Sonnet does, which Qwen
+  never did: Boardwalk $350-$400 ("I should bid enough to win but keep a
+  healthy cash reserve"), the rival's orange blocker $200-$250 ("Buying this
+  prevents Sam from completing the set"). It wouldn't sell the set-completing
+  lot for $400 (4/5 "I'd like $600 for New York Avenue"), but in all four the
+  counter's terms step wrote the opposite of the message: hand New York over,
+  take Sam's St. James and Tennessee, $0, so the $600 never reached the offer.
+  That family is graded only in the error scenarios, so the run counts it as a
+  judgment. Its errors are one family, `debt-must-sell-houses`, 8/15: it sells
+  the houses and leaves the spare railroads unmortgaged ("Selling 5 houses from
+  the Red set provides $375, which covers the debt"), the loss lines
+  notwithstanding; Qwen makes 1/15 there.
+- **gpt-oss-20b** is fast, and weak at judgment. It accepted six lowball
+  offers below the lot's mortgage value, reasoning around the fact it was
+  given ("Accepting gives $70 cash and keeps the railroad, better than
+  mortgaging for $100 and losing it"), wrote counters whose cash goes both
+  ways, bid $0 for Boardwalk 5/5, and seven of its trade votes came back as a
+  llama.cpp 500 ("The model produced output that does not match the expected
+  peg-native format"), its harmony output breaking the parser. Its quick
+  reasoning ("(answering) Need to raise 320. Mortgage two railroads gives
+  200...") gets debt arithmetic right, and it finishes its thinking more often
+  than the others, but not in trade votes.
+- **Thinking.** Neither alternative thinks briefly. Gemma finished inside the
+  budget in 25/105, and run to 6,000 tokens it never finished: it looped
+  ("*Wait*, I'll counter for $600. *Wait*, I'll just accept.") past 5,700
+  tokens. gpt-oss, unbounded, finished a turn start at 1,860 tokens and was
+  still restating the board at 7,400 on the New York vote.
+
+Lesson: **Gemma 4 12B is the better player, not the safer one.** On the same
+input it plays the judgments in Sonnet's direction (it contests auctions,
+prices counters at value, won't arm a rival for $400) and makes no trade
+error, where Qwen sells cheap and drops out. Its errors sit in one family,
+debt plans that need both mortgages and sales, which is a quick decision
+llm-v4 fixed for Qwen by stating a sum; and its counter terms can contradict
+its message. Both are version work, and the error count alone (8 against 5)
+hides that the two models fail in different places. gpt-oss-20b is out: three
+times Qwen's errors, broken output, and Qwen's passivity. Gemma costs time:
+it writes half as fast as Qwen, and the fit check holds it to one slot, so a
+suite run takes about 75 minutes instead of 25; a live game, which asks one
+decision at a time, loses little.
+
+Recommendation: **switch to Gemma 4 12B** as the model the loop develops on,
+and keep Qwen as the server default until a version built on Gemma clears the
+`debt-must-sell-houses` family and the counter-terms mismatch (with Qwen rerun
+on the error scenarios beside it, per `METHOD.md`).
