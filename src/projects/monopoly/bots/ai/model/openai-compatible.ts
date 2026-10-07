@@ -7,6 +7,11 @@ export interface OpenAiCompatibleConfig {
   apiKey: string | null;
   /** How long one call may take before it counts as failed. */
   timeoutMs: number;
+  /** Whether the server can think and give a schema-constrained answer in one
+   *  call. Then a thinking request is that one call (its reasoning, if the
+   *  server shares any, comes back beside the answer) instead of a free pass
+   *  followed by the answer. */
+  thinksWithAnswer?: boolean;
   fetch?: typeof fetch;
 }
 
@@ -100,7 +105,8 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
       ];
       try {
         let thoughts = "";
-        if (request.think) {
+        const oneCall = request.think && config.thinksWithAnswer === true;
+        if (request.think && !oneCall) {
           const thinkStarted = Date.now();
           const free = await chat(
             {
@@ -124,7 +130,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
         const final = await chat(
           {
             messages,
-            chat_template_kwargs: { enable_thinking: false },
+            chat_template_kwargs: { enable_thinking: oneCall },
             response_format: {
               type: "json_schema",
               json_schema: { name: request.schemaName, schema: request.schema },
@@ -135,6 +141,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
         );
         metrics.answerMs = Date.now() - answerStarted;
         count(final);
+        if (oneCall) thoughts = final.reasoning.trim();
         let answer: unknown;
         try {
           answer = JSON.parse(final.content);

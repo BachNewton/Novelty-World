@@ -65,6 +65,12 @@ wrong expectation from a model's miss.
 
 ## Loose ends
 
+- The `ai:claude` profile is built but unused: no game has played it yet. Its
+  server (`npm run ai:claude-server`) answered a scenario subset through the
+  profile cleanly; the first real game is the owner's call, and from the
+  deployed site it needs a tunnel and a shared key (`MONOPOLY_AI_CLAUDE_KEY`)
+  first.
+
 - The `local-llm` launcher always passes `-np 1`; a config's own `-np` comes later
   and wins, but llama.cpp warns about the duplicate. Letting a config own `-np` is
   a dotfiles change, for the owner.

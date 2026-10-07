@@ -296,7 +296,7 @@ rule-based policy. It has **no synchronous `Bot`**: the registry never resolves
 one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
 
 **Two axes, one `botStrategy`.** A seat names a **model profile** (which server
-and model it reaches: `ai:local`) and an **AI version** (`llm-vN`), written
+and model it reaches: `ai:local` or `ai:claude`) and an **AI version** (`llm-vN`), written
 `<profile>@<version>` (e.g. `ai:local@llm-v2`). `bots/ai/strategy.ts` is the only
 place that writes or parses it. The lobby lists every version under each
 profile, newest first; a new seat takes the newest.
@@ -401,6 +401,27 @@ never assumed.
   How the model is called (thinking budget, sampling) is the version's, not the
   server's. A client only ever names a profile, never an address. A new provider
   is a new adapter plus a profile.
+- **Claude through the owner's subscription** (`ai:claude`, for the owner's
+  own games). `npm run ai:claude-server -- --model sonnet` starts a local model
+  server (`bots/ai/claude/`, 127.0.0.1:8091) that answers the same
+  OpenAI-compatible requests by running `claude -p` clean, exactly as the
+  scenario ceiling does: one shared invocation, no tools, settings, MCP or
+  saved session. The profile reaches it through `openai-compatible.ts` with no
+  adapter of its own (`MONOPOLY_AI_CLAUDE_URL`, `MONOPOLY_AI_CLAUDE_KEY`). Its
+  differences from llama.cpp: a thinking decision is **one call**, thinking
+  beside the structured answer (`thinksWithAnswer`), because Claude's
+  safeguards can refuse the two-pass shape's answer pass, which feeds its own
+  reasoning back as a turn (seen live, `reasoning_extraction`); the thinking
+  switch is `--effort` (Haiku: its thinking budget), set per server
+  (`--think`, `--quick`; default high and low); sampling and the thinking
+  budget can't be set through the CLI, so a version's aren't applied. Its
+  `/props` names the model and thinking switch, and a run any other model
+  answered fails, so the record names the model that answered. A few calls run
+  at once (`--concurrency`, default 2) and the rest queue. A CLI failure is an
+  HTTP error carrying the CLI's words: no fallback, no retry. If
+  `MONOPOLY_AI_CLAUDE_KEY` is set, the server takes only callers that send it.
+  Reaching it from the deployed site needs a tunnel, which is the owner's to
+  set up.
 - **Turn-start window.** At its own turn start (its `pre-roll`, or its
   `jail-decision` before the jail choice, which is then a second question) the
   seat may be asked once per turn-group: an optional full manage plan and an
@@ -543,7 +564,7 @@ bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the cont
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): strategy (profile@version encoding), spec (the version contract), decisions (what a seat owes + auction proxy bids), decide (claim / ask / settle), held (auction notes held back), review (players' reviews: pause, resume, held answers, flag categories), calls (the live call row), console (private notes), model/ (provider adapters + server config), versions/ (the frozen llm-vN bundles + their registry), eval/ (the scenario suite: `npm run ai:scenarios -- <version>`; error scenarios gated, judgment ones recorded; runs/ ignored, scoreboards/ committed; `--model claude-cli:<model>` runs it on Claude through the `claude` CLI as a ceiling, eval only, never reachable from the route), servers/ (local-llm server configs: `npm run ai:llm -- <config>`)
+bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): strategy (profile@version encoding), spec (the version contract), decisions (what a seat owes + auction proxy bids), decide (claim / ask / settle), held (auction notes held back), review (players' reviews: pause, resume, held answers, flag categories), calls (the live call row), console (private notes), model/ (provider adapters + server config), versions/ (the frozen llm-vN bundles + their registry), eval/ (the scenario suite: `npm run ai:scenarios -- <version>`; error scenarios gated, judgment ones recorded; runs/ ignored, scoreboards/ committed; `--model claude-cli:<model>` runs it on Claude through the `claude` CLI as a ceiling, eval only, never reachable from the route), claude/ (the `ai:claude` model server, `npm run ai:claude-server`, and the `claude -p` invocation it shares with the ceiling), servers/ (local-llm server configs: `npm run ai:llm -- <config>`)
 bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
 bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
 bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype

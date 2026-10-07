@@ -64,6 +64,18 @@ describe("openAiCompatible", () => {
     expect(second.messages.map((m) => m.content)).toContain("My reasoning so far:\nBoardwalk is worth it.");
   });
 
+  it("thinks and answers in one call on a server that can", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.resolve(reply('{"choice":"buy"}', "(300 thinking tokens)")));
+    const oneCall = openAiCompatible({ baseUrl: "http://model/v1", model: "m", apiKey: null, timeoutMs: 1000, thinksWithAnswer: true, fetch: fetchImpl });
+    const result = await oneCall.complete({ ...REQUEST, think: true });
+    expect(result).toMatchObject({ ok: true, answer: { choice: "buy" }, thoughts: "(300 thinking tokens)" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)) as Record<string, unknown>;
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: true });
+    expect(body.response_format).toBeDefined();
+    expect(result.metrics.thinkMs).toBeNull();
+  });
+
   it("measures each pass, sums the tokens and notes a thinking pass that ran out of budget", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

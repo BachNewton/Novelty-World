@@ -8,6 +8,7 @@ import { AI_VERSIONS, type AiVersionLabel } from "./versions";
  *  no server config lives here. */
 export const AI_PROFILES = {
   "ai:local": { label: "Local LLM" },
+  "ai:claude": { label: "Claude" },
 } as const;
 
 export type AiProfileId = keyof typeof AI_PROFILES;

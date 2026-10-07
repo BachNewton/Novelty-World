@@ -15,6 +15,12 @@ export function localBaseUrl(): string {
   return process.env.MONOPOLY_AI_LOCAL_URL ?? "http://127.0.0.1:8090/v1";
 }
 
+/** Where the `ai:claude` profile's server answers: the Claude model server
+ *  (`npm run ai:claude-server`), which speaks the same API through `claude -p`. */
+export function claudeBaseUrl(): string {
+  return process.env.MONOPOLY_AI_CLAUDE_URL ?? "http://127.0.0.1:8091/v1";
+}
+
 const ADAPTERS: Readonly<Record<AiProfileId, () => ModelAdapter>> = {
   "ai:local": () =>
     openAiCompatible({
@@ -22,6 +28,16 @@ const ADAPTERS: Readonly<Record<AiProfileId, () => ModelAdapter>> = {
       model: process.env.MONOPOLY_AI_LOCAL_MODEL ?? "local",
       apiKey: process.env.MONOPOLY_AI_LOCAL_KEY ?? null,
       timeoutMs: numberEnv("MONOPOLY_AI_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
+    }),
+  "ai:claude": () =>
+    openAiCompatible({
+      baseUrl: claudeBaseUrl(),
+      model: "claude",
+      apiKey: process.env.MONOPOLY_AI_CLAUDE_KEY ?? null,
+      timeoutMs: numberEnv("MONOPOLY_AI_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
+      // Claude thinks beside a structured answer; fed its own reasoning back
+      // as a second turn, its safeguards can refuse the answer pass.
+      thinksWithAnswer: true,
     }),
 };
 
@@ -33,6 +49,7 @@ export function describeServer(profile: AiProfileId): Promise<ServerInfo | null>
 
 const SERVERS: Readonly<Record<AiProfileId, () => Promise<ServerInfo | null>>> = {
   "ai:local": () => serverInfo(localBaseUrl()),
+  "ai:claude": () => serverInfo(claudeBaseUrl()),
 };
 
 /** The adapter a profile plays through. Server-only: it reads secrets, and only
