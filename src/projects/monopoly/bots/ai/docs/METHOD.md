@@ -46,6 +46,20 @@ Until the code separates the two, a version tuned for one model is not assumed
 good for another: a new live model gets the latest version re-measured on it, and
 a model-specific setting that hurts it is a reason for that model's own version.
 
+## What a view holds
+
+**The state, plus the history of decisions and public intent, never the history of
+automated actions.** The board, cash and buildings carry every result. History
+adds what the board can't show: what players chose (buys and passes, bids and
+drop-outs, trades proposed, accepted, declined or countered, builds, mortgages,
+how a debt was settled, how jail was left) and what they said they meant to do.
+Rolls, moves, rent, taxes, cards and passing GO happen to players rather than
+being chosen, so they appear only through their results. The one exception is the
+cause of the decision being asked: the question states it ("you landed on
+Boardwalk and owe $1,500 rent"), rather than leaving it in a log. Give the
+history as facts, grouped so patterns are visible, and leave reading the patterns
+to the model.
+
 ## The instruments, and what each may decide
 
 | Instrument | Finds | May decide |

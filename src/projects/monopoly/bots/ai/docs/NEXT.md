@@ -90,11 +90,12 @@ not just errors.
    re-pitch it or walk a price down and the seat can't tell (the rule-based bots
    needed decline-memory for exactly this). Replace the window with a view that
    keeps the whole game's history of play, compact and grouped so patterns can be
-   seen: every trade and every declined or countered offer with its terms and the
-   note that came with it, auction results (what each player paid or dropped out
-   at), and what each player has said publicly. Add only the latest flow (this
-   round) for what just happened. Give the facts and let the model find the
-   patterns; don't write rules for particular patterns. It is a missing fact, so
+   seen, following METHOD's "What a view holds": decisions and public intent
+   only (every trade and declined or countered offer with its terms and note,
+   bids and drop-outs, buys and passes, builds, mortgages, debt settlements),
+   with each question stating its own cause in place of a flow window. Give the
+   facts and let the model find the patterns; don't write rules for particular
+   patterns. It is a missing fact, so
    a general change: measure it on two model families, and compare prompt length
    with today's window.
 
