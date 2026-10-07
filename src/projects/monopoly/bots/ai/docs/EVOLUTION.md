@@ -373,3 +373,74 @@ when it is needed made the seat counter more and mean it.
   question can be rebuilt from the scenario and the recorded first answer, so a
   terms-step change was tested on exactly the failing votes (about 50 quick
   calls) without paying for their 40 s thinking again.
+
+## Ceiling: llm-v5 on Claude Sonnet 5.5 (2026-10-07)
+
+Question: are llm-v5's remaining failures the local model's, or the prompt's and
+the scenarios'? A ceiling run answers it: a strong model gets exactly the
+request Qwen gets and is scored by the same checks.
+
+How: an eval-only adapter (`eval/claude-cli.ts`, imported only by the scenario
+CLI, never by the route) runs the `claude` CLI headless on the owner's
+subscription, clean (no tools, settings, CLAUDE.md, MCP or saved session, from
+an empty folder), with the version's system prompt as the system prompt, the
+view on stdin, and the decision's schema as `--json-schema`. Selected with
+`npm run ai:scenarios -- llm-v5 --model claude-cli:sonnet`; the record names
+the model (`claude-cli/claude-sonnet-5-5`) and the run stops if any other model
+answers. Mapping: a decision that thinks runs at effort `high`, a quick one
+(buy, auction, debt, jail, a counter's terms) at `low`, which still thought a
+little in 13 of 66 quick decisions and none of 26 counter follow-ups. Differences from Qwen's conditions: the CLI can't set
+temperature (llm-v5 pins 0.3), it keeps Claude's thinking to itself (the
+record keeps its token count), and Claude reasons and answers in one call,
+where the prompt's "you'll be asked for the answer separately" describes
+Qwen's two passes.
+
+Full suite, 3 reps (129 decisions, 26 counter follow-ups), 4 at a time; Qwen's
+llm-v5 final run (5 reps) beside it:
+
+| | Qwen3.5-9B Q6_K | Sonnet 5.5 |
+|---|---|---|
+| Errors in error scenarios | 5/105 | 0/63 |
+| trade-vote (error + judgment) | 5/70 | 0/42 |
+| settle-debt | 3/35 | 0/21 |
+| Counters tried, of trade votes | 28/70 | 26/42 |
+| Empty or below-mortgage counters | 4 | 0 |
+| Thinking per thinking call | 1200-token budget, hit 104/105 | 54-487 tokens, never capped |
+| Median / p90, every call | 8.7 s / 43.4 s | 5.6 s / 10.8 s |
+| Median trade vote | ~39 s | 9.4 s |
+
+Judgments, the same inputs:
+
+- **Selling a rival the set-completing lot** (`vote-arms-rival-monopoly`, $400
+  for New York): Qwen accepted 3/5; Sonnet countered 3/3 at $650-$850 ("New
+  York completes your orange set, so it's worth far more than $400 to you").
+  The distress fire-sale (green to the leader with red hotels): Qwen accepted
+  5/5; Sonnet declined 2, countered at $300 once ("Not selling Pennsylvania. It
+  would complete your green set, and $250 doesn't come close").
+- **Auction maximums:** Boardwalk Qwen 4x $0, 1x $400; Sonnet $380-$400.
+  Blocking a rival's orange: Qwen $0-$200, Sonnet $230-$300. Completing its
+  own set: both spread widely ($240-$800 against $450-$620). Into illiquidity:
+  both cautious ($200-$290 against $190-$220).
+- **Counters:** every Sonnet counter hands the lot over for at least its
+  mortgage value, mostly near its price (Kentucky, $80 offered: $220-$240; Qwen
+  $110-$150, a decline or an accept), and
+  it asked a sweetener on the mutual swap (2/3, "yellow out-earns red, add
+  $100"). Proposals pay more to complete a set (Boardwalk $550-$650 against
+  Qwen's $400 or nothing; States $260-$320 against $140-$200).
+- Other spread: Sonnet pays out of jail early (3/3; Qwen rolls 5/5), mortgages
+  one railroad for a small shortfall where Qwen mortgages two, and holding a
+  rival's completer at low cash just rolls (Qwen lifts a mortgage).
+
+No Opus run: Sonnet failed nothing, so there was nothing to explain.
+
+Lesson: **the remaining errors are the local model's, not the prompt's or the
+scenarios'.** The same prompt, view and schemas give a strong model zero errors
+in every family that still fails on Qwen (empty counters, below-mortgage
+sales, debt plans), so no scenario expectation is shown wrong and none of
+llm-v5's input is missing a fact a strong model needs. The judgment gap is
+larger than the error gap, and in the direction strong players go (never arm a
+rival cheaply, contest Boardwalk, price counters at value), so the input
+carries enough to play well; Qwen doesn't draw it out, even with six times
+Sonnet's thinking. Prompt work on Qwen is now working around a model's limits;
+a model comparison, or a strategy primer measured as its own version, is where
+the larger gain is.

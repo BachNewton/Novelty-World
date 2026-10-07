@@ -6,6 +6,15 @@ with the reason they matter. The rules are in `METHOD.md`.
 
 ## Now
 
+**Read every item below through the ceiling.** llm-v5 on Claude Sonnet 5.5
+(`npm run ai:scenarios -- llm-v5 --model claude-cli:sonnet`, see
+`EVOLUTION.md`) made 0/63 errors where Qwen makes 5/105, and played the
+judgments the way strong players do. Every remaining error is the local
+model's, so items 1-3 work around Qwen's limits rather than fix the input:
+keep them cheap, and put the model comparison (item 6) ahead of them. Run the
+ceiling again on any new version or scenario family, to tell a scenario's
+wrong expectation from a model's miss.
+
 1. **The empty counter, from the vote's side.** llm-v5's remaining trade
    errors are counters whose follow-up comes back all "keep", $0, after a
    message that is half a decline ("I'll take $900 for the set, or I keep it
@@ -25,9 +34,12 @@ with the reason they matter. The rules are in `METHOD.md`.
    mortgaging a lot whose set still had houses, the same family.
 4. **Strategy primer, separately.** Judgment scenarios show the seat selling a
    rival the set-completing lot for $400 most of the time, and dropping out of
-   most auctions (Boardwalk 4x $0 in llm-v5). General principles of strong play
-   may help, but they shape opinions, so measure them as their own version,
-   never bundled with error fixes.
+   most auctions (Boardwalk 4x $0 in llm-v5). Sonnet, on the same input,
+   counters that sale at $650-$850 and bids $380-$400 for Boardwalk, so the
+   view carries what the judgment needs; whether Qwen can be told it is the
+   primer's question. It shapes opinions, so measure it as its own version,
+   never bundled with error fixes, and use Sonnet's spread as a reference, not
+   a target.
 
 ## Next
 
@@ -36,7 +48,8 @@ with the reason they matter. The rules are in `METHOD.md`.
    or from a saved real game. For errors only, never for strength. Each failure it
    finds becomes a scenario. Reuse the scenario harness's call record
    (`eval/record.ts`) and the route's claim/ask/settle path.
-6. **Model comparison**, holding the version fixed: Gemma 4 12B Q6_K
+6. **Model comparison**, holding the version fixed (the ceiling says this is
+   where the gain is; another agent may already be running it): Gemma 4 12B Q6_K
    (`~/models/gemma-4-12b-it-Q6_K.gguf`, downloaded, untested; needs a server
    config in `bots/ai/servers/` and a check that the adapter's thinking switch,
    `chat_template_kwargs.enable_thinking`, works for its chat template) against

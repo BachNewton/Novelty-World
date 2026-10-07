@@ -1,4 +1,4 @@
-// `npm run ai:scenarios -- <version> [--reps N] [--only id,…] [--concurrency N]`
+// `npm run ai:scenarios -- <version> [--reps N] [--only id,…] [--concurrency N] [--model claude-cli:<model>]`
 //
 // The suite finds errors fast; only real games decide whether a version plays
 // better (see scenario.ts).
@@ -8,11 +8,17 @@
 // record goes to a run folder under `runs/` (not committed); the scoreboard is
 // printed, written beside it, and copied to `scoreboards/<version>.json`, which
 // is committed so versions compare in git.
+//
+// `--model claude-cli:sonnet` (or `:opus`, or a full model id) runs the suite
+// on a Claude model through the `claude` CLI instead, as a ceiling for the
+// local model (see claude-cli.ts); its scoreboard is
+// `scoreboards/<version>@claude-cli-<model>.json`.
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { localBaseUrl, modelFor } from "../model/config";
 import { AI_VERSIONS, type AiVersionLabel } from "../versions";
+import { claudeCli, claudeCliServer, claudeCliTag, parseClaudeCliModel, type ClaudeCliConfig } from "./claude-cli";
 import { serverInfo, type AiCallRecord } from "./record";
 import { runScenario } from "./run";
 import { SCENARIOS } from "./scenarios";
@@ -21,46 +27,58 @@ import { renderScoreboard, scoreboard } from "./scoreboard";
 const here = dirname(fileURLToPath(import.meta.url));
 
 function usage(message: string): never {
-  console.error(`${message}\nusage: npm run ai:scenarios -- <version> [--reps N] [--only id,…] [--concurrency N]`);
+  console.error(`${message}\nusage: npm run ai:scenarios -- <version> [--reps N] [--only id,…] [--concurrency N] [--model claude-cli:<model>]`);
   console.error(`versions: ${Object.keys(AI_VERSIONS).join(", ")}`);
   process.exit(1);
 }
 
-function parseArgs(argv: readonly string[]): { version: AiVersionLabel; reps: number; only: string[] | null; concurrency: number | null } {
+interface Args {
+  version: AiVersionLabel;
+  reps: number;
+  only: string[] | null;
+  concurrency: number | null;
+  claude: ClaudeCliConfig | null;
+}
+
+function parseArgs(argv: readonly string[]): Args {
   if (argv.length === 0) usage("which version?");
   const [label, ...rest] = argv;
   if (!(label in AI_VERSIONS)) usage(`unknown version "${label}"`);
   let reps = 3;
   let only: string[] | null = null;
   let concurrency: number | null = null;
+  let claude: ClaudeCliConfig | null = null;
   for (let i = 0; i < rest.length; i += 2) {
     if (i + 1 >= rest.length) usage(`${rest[i]} needs a value`);
     const value = rest[i + 1];
     if (rest[i] === "--reps") reps = Number(value);
     else if (rest[i] === "--only") only = value.split(",");
     else if (rest[i] === "--concurrency") concurrency = Number(value);
+    else if (rest[i] === "--model") claude = parseClaudeCliModel(value) ?? usage(`--model takes claude-cli:<model>, not "${value}"`);
     else usage(`unknown option ${rest[i]}`);
   }
   if (!Number.isInteger(reps) || reps < 1) usage("--reps must be a whole number of 1 or more");
   if (concurrency !== null && (!Number.isInteger(concurrency) || concurrency < 1)) usage("--concurrency must be a whole number of 1 or more");
-  return { version: label as AiVersionLabel, reps, only, concurrency };
+  return { version: label as AiVersionLabel, reps, only, concurrency, claude };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const scenarios = args.only ? SCENARIOS.filter((s) => args.only?.includes(s.id)) : SCENARIOS;
   if (args.only && scenarios.length !== args.only.length) usage(`unknown scenario in --only: ${args.only.join(",")}`);
-  const server = await serverInfo(localBaseUrl());
+  const claude = args.claude;
+  const server = claude ? claudeCliServer(claude, args.concurrency ?? 4) : await serverInfo(localBaseUrl());
   if (!server) usage(`no llama.cpp server answering at ${localBaseUrl()} (start one with npm run ai:llm -- <config>)`);
   const concurrency = args.concurrency ?? server.slots ?? 1;
   const at = new Date().toISOString();
-  const runDir = join(here, "runs", `${at.replace(/[:.]/g, "-")}-${args.version}`);
+  const name = claude ? `${args.version}@${claudeCliTag(claude)}` : args.version;
+  const runDir = join(here, "runs", `${at.replace(/[:.]/g, "-")}-${name}`);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- a run folder this CLI names under its own runs/ folder
   mkdirSync(runDir, { recursive: true });
   const callsPath = join(runDir, "calls.jsonl");
 
   const jobs = scenarios.flatMap((scenario) => Array.from({ length: args.reps }, (_, rep) => ({ scenario, rep })));
-  const model = modelFor("ai:local");
+  const model = claude ? claudeCli(claude) : modelFor("ai:local");
   const strategy = { profile: "ai:local" as const, version: args.version };
   const records: AiCallRecord[] = [];
   console.log(`${args.version}: ${String(jobs.length)} calls (${String(scenarios.length)} scenarios x ${String(args.reps)}), ${String(concurrency)} at a time, on ${server.model ?? "?"}`);
@@ -85,8 +103,8 @@ async function main(): Promise<void> {
   writeFileSync(join(runDir, "scoreboard.json"), `${JSON.stringify(board, null, 2)}\n`);
   if (!args.only) {
     mkdirSync(join(here, "scoreboards"), { recursive: true });
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- scoreboards/<version>.json, the version a registered label
-    writeFileSync(join(here, "scoreboards", `${args.version}.json`), `${JSON.stringify(board, null, 2)}\n`);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- scoreboards/<name>.json: a registered version label, plus the Claude model's tag
+    writeFileSync(join(here, "scoreboards", `${name}.json`), `${JSON.stringify(board, null, 2)}\n`);
   }
   console.log(`\n${renderScoreboard(board)}\n\nrecords: ${callsPath}`);
 }
