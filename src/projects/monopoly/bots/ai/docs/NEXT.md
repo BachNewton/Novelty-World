@@ -82,15 +82,21 @@ not just errors.
    do, so measure it on two model families, and watch for new stalls (terms that
    don't net out) and for small models proposing three-way deals they can't
    reason through.
-10. **Trade memory.** A seat sees only the last 30 log events (a few turns at a
-   four-player table) and its own one-sentence plan, so trades and declined
-   offers older than that are forgotten. A human can then re-pitch a declined
-   offer, or walk a price down over several turns, and the seat can't tell (the
-   rule-based bots needed decline-memory for exactly this). Give the view a
-   compact section listing every trade and declined or countered offer this game,
-   with terms and the public notes that came with them. It is a missing fact, so a
-   general change: measure it on two model families, and watch prompt length on the
-   small local models.
+10. **History by what it tells, not the raw log.** A seat sees the last 30 log
+   lines, and most of them are game flow: rolls, rent, cards, passing GO. Those
+   matter only as their results, which the board and cash already show, and they
+   push out what can't be recovered from the board: the history of play between
+   players. Today a declined offer from three turns ago is gone, so a player can
+   re-pitch it or walk a price down and the seat can't tell (the rule-based bots
+   needed decline-memory for exactly this). Replace the window with a view that
+   keeps the whole game's history of play, compact and grouped so patterns can be
+   seen: every trade and every declined or countered offer with its terms and the
+   note that came with it, auction results (what each player paid or dropped out
+   at), and what each player has said publicly. Add only the latest flow (this
+   round) for what just happened. Give the facts and let the model find the
+   patterns; don't write rules for particular patterns. It is a missing fact, so
+   a general change: measure it on two model families, and compare prompt length
+   with today's window.
 
 ## Loose ends
 
