@@ -108,6 +108,29 @@ not just errors.
    before calling it one. Option, not built: let a human's offer carry a
    short message too, so the pitch and this line work the same for every
    proposer (it would need a field on the proposal, so a state shape change).
+12. **Each player's position in one line.** A live Sonnet seat pitched "$620 for
+   Tennessee... funds your builds elsewhere" to a human holding no full set,
+   so nothing to build. Whether a player can build appears only implicitly, as
+   their name in each set's holder list. State it outright per player (cash,
+   full sets, what they can build on), so a pitch starts from the other side's
+   real position. General; add the live call as an error scenario first.
+13. **Ask at every turn start, for a strong model** (model-specific). The
+   turn-start gate skips the model when the seat can't build or lift a mortgage
+   and shares no set, or the board hasn't changed since it was last asked. That
+   saved llm-v1's ~30 s Qwen calls that mostly answered "roll", but it also
+   means the seat never says anything that turn, and can never find the rare
+   plays a skilled player looks for: brokering a trade between two others that
+   leaves it better off, buying a lot for cash with no set at stake, or table
+   talk as play in itself. Live games pay time for quality, so for Sonnet try
+   asking every turn and measure what it buys: proposals made, how often they
+   are accepted, what it says, and the seconds added per AI turn.
+14. **A described board, as an experiment** (its own version, never bundled).
+   The view is a catalogue: square numbers and one line per lot. Lead it with a
+   factual description of each player's situation, written as a person would
+   summarise the table, and keep the listing below for exact numbers. Stick to
+   facts derived from the state: "Sam holds the full orange set with three
+   houses on each", never "Sam is in trouble". Measure on two model families,
+   including whether notes and pitches cite other players' positions correctly.
 
 ## Loose ends
 
