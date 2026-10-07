@@ -235,6 +235,7 @@ describe("llm-v2 prompt and call", () => {
       Promise.resolve({
         ok: true,
         answer: { ...NOTES, choice: "buy", mortgage: [] },
+        raw: "{}",
         thoughts: "",
         metrics: { ms: 1, thinkMs: null, answerMs: 1, promptTokens: null, completionTokens: null, thinkHitBudget: null },
       }),

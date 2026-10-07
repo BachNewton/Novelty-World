@@ -74,3 +74,6 @@ __pycache__/
 
 # family tree layout solver venv (npm run setup:family-tree-solver)
 /src/projects/family-tree/layout/solver/.venv/
+
+# Monopoly AI scenario runs (full call records; the scoreboards are committed)
+/src/projects/monopoly/bots/ai/eval/runs/

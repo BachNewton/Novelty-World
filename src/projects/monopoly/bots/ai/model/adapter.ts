@@ -37,8 +37,11 @@ export interface CallMetrics {
  *  model's (the server answered with something that isn't the asked-for JSON). */
 export type ModelErrorKind = "unreachable" | "timeout" | "bad-answer";
 
+/** A successful call carries the parsed `answer`, the `raw` text it was parsed
+ *  from, and the reasoning pass's `thoughts` (empty without one), so a call can
+ *  be recorded exactly as the model gave it. */
 export type ModelResult =
-  | { ok: true; answer: unknown; thoughts: string; metrics: CallMetrics }
+  | { ok: true; answer: unknown; raw: string; thoughts: string; metrics: CallMetrics }
   | { ok: false; kind: ModelErrorKind; message: string; metrics: CallMetrics };
 
 /** A model provider. Each provider (an OpenAI-compatible server, Anthropic's

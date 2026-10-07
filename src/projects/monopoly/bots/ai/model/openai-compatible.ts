@@ -146,7 +146,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
             metrics: finish(),
           };
         }
-        return { ok: true, answer, thoughts, metrics: finish() };
+        return { ok: true, answer, raw: final.content, thoughts, metrics: finish() };
       } catch (err) {
         if (err instanceof CallError) {
           return { ok: false, kind: err.kind, message: err.message, metrics: finish() };

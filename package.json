@@ -21,6 +21,8 @@
     "sim:optimize": "tsx src/projects/monopoly/bots/eval/optimize-cli.ts",
     "train:rl": "node scripts/fix-tfjs-windows.mjs && tsx src/projects/monopoly/bots/rl/train-cli.ts",
     "game:review": "tsx src/projects/monopoly/bots/eval/review-cli.ts",
+    "ai:llm": "tsx src/projects/monopoly/bots/ai/servers/launch.ts",
+    "ai:scenarios": "tsx src/projects/monopoly/bots/ai/eval/scenarios-cli.ts",
     "game:offers": "tsx src/projects/monopoly/bots/eval/offers-cli.ts",
     "sim:1v3": "tsx src/projects/monopoly/bots/eval/one-v-three-cli.ts",
     "sim:probe-gate": "tsx src/projects/monopoly/bots/eval/probe-gate-cli.ts",

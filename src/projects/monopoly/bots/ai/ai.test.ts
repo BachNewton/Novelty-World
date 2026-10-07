@@ -300,7 +300,7 @@ describe("claimAi", () => {
 
 describe("askModel", () => {
   it("sends the decision's prompt and schema, and reads the answer", async () => {
-    const model = fakeModel({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, thoughts: "", metrics: METRICS });
+    const model = fakeModel({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, raw: "{}", thoughts: "", metrics: METRICS });
     const asked = await askModel(model, atBoardwalk, AI, "buy");
     expect(asked).toEqual({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, record: recordFor("buy") });
     const request = model.complete.mock.calls[0][0] as { user: string; schemaName: string; thinkTokens: number; sampling: unknown };
@@ -321,7 +321,7 @@ describe("askModel", () => {
   });
 
   it("refuses a decision the seat can't make yet without calling the model", async () => {
-    const model = fakeModel({ ok: true, answer: {}, thoughts: "", metrics: METRICS });
+    const model = fakeModel({ ok: true, answer: {}, raw: "{}", thoughts: "", metrics: METRICS });
     const asked = await askModel(model, base, AI, "manage");
     expect(asked.ok).toBe(false);
     expect(model.complete).not.toHaveBeenCalled();

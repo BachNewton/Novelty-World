@@ -8,10 +8,16 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  *  variables. How the model is called (thinking budget, sampling) belongs to
  *  the seat's AI version, not here. A new provider is a new adapter beside
  *  `openai-compatible.ts` and a profile here. */
+/** Where the `ai:local` profile's server answers: an OpenAI-compatible API
+ *  root, ending in `/v1`. */
+export function localBaseUrl(): string {
+  return process.env.MONOPOLY_AI_LOCAL_URL ?? "http://127.0.0.1:8090/v1";
+}
+
 const ADAPTERS: Readonly<Record<AiProfileId, () => ModelAdapter>> = {
   "ai:local": () =>
     openAiCompatible({
-      baseUrl: process.env.MONOPOLY_AI_LOCAL_URL ?? "http://127.0.0.1:8090/v1",
+      baseUrl: localBaseUrl(),
       model: process.env.MONOPOLY_AI_LOCAL_MODEL ?? "local",
       apiKey: process.env.MONOPOLY_AI_LOCAL_KEY ?? null,
       timeoutMs: numberEnv("MONOPOLY_AI_TIMEOUT_MS", DEFAULT_TIMEOUT_MS),
