@@ -15,18 +15,27 @@ import type { ServerInfo } from "./record";
 /** The CLI's thinking control. */
 type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
+/** A version's thinking switch, as the model takes it: a decision that thinks
+ *  gets `think`, a quick one `quick`. Sonnet and Opus take `--effort` (`low`
+ *  thinks little or not at all). Haiku 4.5 accepts `--effort` but ignores it,
+ *  thinking the same at `low` and `max`, so its switch is the CLI's thinking
+ *  budget, `MAX_THINKING_TOKENS`: 0 turns thinking off, null leaves the CLI's
+ *  default. */
+type Thinking =
+  | { by: "effort"; think: Effort; quick: Effort }
+  | { by: "budget"; think: number | null; quick: number };
+
 export interface ClaudeCliConfig {
   /** The full model id, e.g. `claude-sonnet-5-5`. */
   model: string;
-  /** A version's thinking switch, as effort: a decision that thinks gets
-   *  `think`, a quick one `quick`. `low` thinks little or not at all. */
-  effort: { think: Effort; quick: Effort };
+  thinking: Thinking;
   timeoutMs: number;
 }
 
 const ALIASES: Readonly<Record<string, string>> = {
   sonnet: "claude-sonnet-5-5",
   opus: "claude-opus-5-5",
+  haiku: "claude-haiku-4-5-20251001",
 };
 
 /** `claude-cli:<alias or model id>` as the scenario CLI's `--model` takes it,
@@ -34,9 +43,12 @@ const ALIASES: Readonly<Record<string, string>> = {
 export function parseClaudeCliModel(arg: string): ClaudeCliConfig | null {
   const match = /^claude-cli:(.+)$/.exec(arg);
   if (!match) return null;
+  const model = ALIASES[match[1]] ?? match[1];
   return {
-    model: ALIASES[match[1]] ?? match[1],
-    effort: { think: "high", quick: "low" },
+    model,
+    thinking: model.startsWith("claude-haiku-4-5")
+      ? { by: "budget", think: null, quick: 0 }
+      : { by: "effort", think: "high", quick: "low" },
     timeoutMs: 600_000,
   };
 }
@@ -46,7 +58,7 @@ export function parseClaudeCliModel(arg: string): ClaudeCliConfig | null {
  *  temperature is not applied. */
 export function claudeCliServer(config: ClaudeCliConfig, slots: number): ServerInfo {
   return {
-    model: `${claudeCliName(config)} (effort: think=${config.effort.think}, quick=${config.effort.quick})`,
+    model: `${claudeCliName(config)} (${thinkingLabel(config.thinking)})`,
     contextPerSlot: null,
     slots,
     defaults: {},
@@ -56,6 +68,11 @@ export function claudeCliServer(config: ClaudeCliConfig, slots: number): ServerI
 /** A short name for file names: `claude-cli-claude-sonnet-5-5`. */
 export function claudeCliTag(config: ClaudeCliConfig): string {
   return claudeCliName(config).replace("/", "-");
+}
+
+function thinkingLabel(thinking: Thinking): string {
+  if (thinking.by === "effort") return `effort: think=${thinking.think}, quick=${thinking.quick}`;
+  return `thinking budget: think=${thinking.think === null ? "CLI default" : String(thinking.think)}, quick=${String(thinking.quick)}`;
 }
 
 function claudeCliName(config: ClaudeCliConfig): string {
@@ -150,6 +167,7 @@ function runCli(config: ClaudeCliConfig, request: ModelRequest): Promise<CliRun>
   writeFileSync(systemFile, request.system);
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- an empty folder inside it, so no CLAUDE.md or settings load
   mkdirSync(cwd);
+  const thinking = config.thinking;
   const args = [
     "-p",
     "--system-prompt-file", systemFile,
@@ -158,12 +176,18 @@ function runCli(config: ClaudeCliConfig, request: ModelRequest): Promise<CliRun>
     "--strict-mcp-config",
     "--no-session-persistence",
     "--model", config.model,
-    "--effort", request.think ? config.effort.think : config.effort.quick,
+    ...(thinking.by === "effort" ? ["--effort", request.think ? thinking.think : thinking.quick] : []),
     "--output-format", "json",
     "--json-schema", JSON.stringify(request.schema),
   ];
+  const env = { ...process.env };
+  if (thinking.by === "budget") {
+    const budget = request.think ? thinking.think : thinking.quick;
+    if (budget === null) delete env.MAX_THINKING_TOKENS;
+    else env.MAX_THINKING_TOKENS = String(budget);
+  }
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("claude", args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let timedOut = false;

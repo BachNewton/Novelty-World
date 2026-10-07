@@ -9,7 +9,7 @@
 // printed, written beside it, and copied to `scoreboards/<version>.json`, which
 // is committed so versions compare in git.
 //
-// `--model claude-cli:sonnet` (or `:opus`, or a full model id) runs the suite
+// `--model claude-cli:sonnet` (or `:opus`, `:haiku`, or a full model id) runs the suite
 // on a Claude model through the `claude` CLI instead, as a ceiling for the
 // local model (see claude-cli.ts); its scoreboard is
 // `scoreboards/<version>@claude-cli-<model>.json`.

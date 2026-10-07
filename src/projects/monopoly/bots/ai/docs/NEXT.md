@@ -13,7 +13,12 @@ judgments the way strong players do. Every remaining error is the local
 model's, so items 1-3 work around Qwen's limits rather than fix the input:
 keep them cheap, and put the model comparison (item 6) ahead of them. Run the
 ceiling again on any new version or scenario family, to tell a scenario's
-wrong expectation from a model's miss.
+wrong expectation from a model's miss. Haiku 4.5 on the same
+input also made 0/63 errors, but plays passively (sits on a mortgaged monopoly,
+proposes at a third of Sonnet's price) and is no faster than Qwen on trade
+votes and turn starts, so it is not a live-model candidate; the error count
+alone no longer separates models, so the comparison in item 6 must read the
+judgment spread against Sonnet's, not just errors.
 
 1. **The empty counter, from the vote's side.** llm-v5's remaining trade
    errors are counters whose follow-up comes back all "keep", $0, after a

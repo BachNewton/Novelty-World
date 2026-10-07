@@ -444,3 +444,84 @@ carries enough to play well; Qwen doesn't draw it out, even with six times
 Sonnet's thinking. Prompt work on Qwen is now working around a model's limits;
 a model comparison, or a strategy primer measured as its own version, is where
 the larger gain is.
+
+## Ceiling, cheaper: llm-v5 on Claude Haiku 4.5 (2026-10-07)
+
+Question: does a small hosted model already play llm-v5 as cleanly as Sonnet,
+and so could it be the live model? Same adapter, same request, same checks:
+`npm run ai:scenarios -- llm-v5 --model claude-cli:haiku`
+(`claude-haiku-4-5-20251001`; every call's `modelUsage` named it).
+
+Mapping: Haiku 4.5 accepts `--effort` and ignores it. By hand, `low`, `max`
+and no flag all thought 350-570 tokens on the same request; the CLI's thinking
+budget, `MAX_THINKING_TOKENS`, does switch it (0 thought 0). So the adapter's
+thinking switch now has two forms: effort for Sonnet and Opus, a budget for
+Haiku (think: the CLI's default; quick: 0). In the run, 0 of 66 quick
+decisions and 0 of 27 counter follow-ups thought; thinking decisions thought
+556-10,532 tokens (median 2,873, Sonnet 54-487).
+
+Full suite, 3 reps, 4 at a time:
+
+| | Qwen3.5-9B (5 reps) | Haiku 4.5 | Sonnet 5.5 |
+|---|---|---|---|
+| Errors in error scenarios | 5/105 | 0/63 | 0/63 |
+| trade-vote / settle-debt | 5/70, 3/35 | 0/42, 0/21 | 0/42, 0/21 |
+| Counters tried, of trade votes | 28/70 | 27/42 | 26/42 |
+| Counters empty, or contradicting their message | 4 empty, more cash-only | 4/27 (ungraded) | 0/26 |
+| Median / p90, every call | 8.7 s / 43.4 s | 10.3 s / 73.5 s | 5.6 s / 10.8 s |
+| Median trade vote / turn start | ~39 s / ~43 s | 44 s / 43 s | 9.4 s / ~7 s |
+| Median quick call (no thinking) | ~6 s | 8.4 s | ~4 s |
+
+Judgments, the same probes as Sonnet's entry:
+
+- **A rival's $400 for its set-completing New York:** countered 3/3 at
+  $500-$550 ("Orange monopoly is worth more to you than that. I'd do $550"),
+  between Qwen (accepted 3/5) and Sonnet ($650-$850).
+- **The distress sale to the leader:** accepted once ("The cash cushion is
+  more valuable to me than a single property I can't build on"), countered
+  $300 twice. Qwen accepted 5/5; Sonnet declined 2, countered $300 once.
+- **Boardwalk:** 2x $0, 1x $350 (Qwen 4x $0; Sonnet $380-$400). **Blocking a
+  rival's orange:** $150-$220 (Qwen $0-$200; Sonnet $230-$300). Into
+  illiquidity, 3x $120: the most cautious of the three.
+- **Counters** keep to the mortgage floor on unmortgaged lots (Kentucky
+  $110-$150, railroad $100-$150) but sit below Sonnet's (Kentucky $220-$240);
+  the mutual swap asked $20 once and accepted twice.
+- **Proposals** lowball: States $80-$150 (Qwen $140-$200, Sonnet $260-$320),
+  Boardwalk $150 once, with "nothing" or a pointless mortgage in the other two
+  (Sonnet $550-$650).
+- **Turn starts go passive:** "nothing" 3/3 with a mortgaged monopoly and
+  $1,500 ("Red earns nothing until landed on or built, so I'll wait"), where
+  Qwen and Sonnet all lift it; nothing 3/3 on the thin-cash board (both others
+  build 2). The fresh orange monopoly spread from 3 houses to all 10 houses
+  and $0 left.
+- Jail: rolls 9/9 (Sonnet pays or uses the card early).
+
+Haiku's misses, classified (none is a graded error):
+
+- **Counter terms that contradict the vote's message**, 4 of 27: "I'll take
+  $550 for #19" written as New York for St. James + Tennessee + $350; "I'd do
+  $550" with New York kept; "$650 for the complete set" with every lot kept;
+  "Pennsylvania for $300" written as Pennsylvania for Pacific + North Carolina
+  + $50. **The model, intermittently**: replaying those four follow-ups (plus a
+  $150 message written as $120) gave the message's terms 15/15 with thinking off
+  and 15/15 with it on, so neither the prompt nor the thinking mapping causes
+  them; the CLI can't pin temperature, so a rare bad sample gets through. The
+  suite passes them because only an empty trade fails; a counter that keeps
+  every lot and asks cash is the same ungraded family as Qwen's.
+- **Passive turn starts and lowball proposals**: judgment, the model's. The
+  input carries the facts (Sonnet reads the same view and lifts, builds and
+  pays near value), and Haiku's notes cite them correctly; it weighs liquidity
+  far above development. Not an error by the rules; a reason not to promote it.
+- **Small slips in its reasons**: "a single railroad pays $25 rent per pass",
+  three public messages ending in a stray `"`. The model's.
+
+Lesson: **errors don't separate Haiku from Sonnet; judgment and time do.**
+Zero graded errors confirms the ceiling's reading that llm-v5's input is
+complete, now on a much smaller model. But Haiku plays like a cautious
+amateur: right to refuse cheap set-completing sales, wrong to sit on a
+mortgaged monopoly and to lowball every proposal. It also thinks six times as
+long as Sonnet, so it is slower than Sonnet everywhere and no faster than Qwen
+on the decisions that matter. As a live model it would trade Qwen's errors
+for passivity, a hosted dependency and per-call cost; Sonnet is the model to
+compare a live candidate against, and "fewer errors from doing less" is the
+risk to watch.
