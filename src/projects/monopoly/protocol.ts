@@ -66,7 +66,12 @@ export type MonopolyAction =
    *  single-version write. */
   | { type: "submit"; intents: readonly Intent[]; fromVersion: number }
   /** Advance mechanics by one unit (the paced game loop's heartbeat). */
-  | { type: "step"; fromVersion: number };
+  | { type: "step"; fromVersion: number }
+  /** Have an AI seat make the decision it owes: the route marks the seat as
+   *  thinking (one write), asks its model, and commits the answer (a second
+   *  write). Slow — the response arrives once the model has answered. See
+   *  `bots/ai/`. */
+  | { type: "ai-decide"; seat: string; fromVersion: number };
 
 export interface MonopolyRequest {
   gameId: string;

@@ -321,10 +321,22 @@ export type GameEvent =
    *  we, debugging) can see WHY a computer seat acted. This is the lone log
    *  event with no corresponding board change — pure annotation. It's always
    *  written in the same atomic submit as the decision it explains, immediately
-   *  before it, and is generated deterministically by the policy (no live model
-   *  call), so it never breaks deterministic replay. `playerId` is the acting
+   *  before it. A rule-based policy's notes are deterministic; an AI seat's come
+   *  from a model, but the note is stored like any event, so replay holds. `playerId` is the acting
    *  bot (may be off-turn for an off-turn trade proposal), used for attribution. */
-  | { kind: "bot-note"; playerId: string; text: string };
+  | {
+      kind: "bot-note";
+      playerId: string;
+      text: string;
+      /** An AI seat's private reasoning, logged to every client's browser
+       *  console but never shown on the board (see `bots/ai/`). Absent for the
+       *  rule-based bots, whose notes are public only. */
+      privateText?: string;
+    }
+  /** An AI seat failed to make the decision it owed — the model was unreachable,
+   *  timed out, or answered with something unusable or illegal. There is no
+   *  fallback: the game stalls on that seat, and this row says why. */
+  | { kind: "ai-failed"; playerId: string; decision: AiDecision; reason: string };
 
 /** One full play turn, grouping every event that happened while a single
  *  player held the dice. A turn ends when the player ends it (or busts to
@@ -487,6 +499,35 @@ export interface TurnState {
   boundaryServed?: readonly { playerId: string; kind: "trade" | "manage" }[];
 }
 
+/** A decision an AI seat (a language-model player, `bots/ai/`) can be asked to
+ *  make. Each is one model call whose answer is a complete plan. */
+export type AiDecision =
+  | "buy"
+  | "auction"
+  | "settle-debt"
+  | "jail"
+  | "trade-vote"
+  | "raise-to-buy"
+  | "manage"
+  | "trade-build";
+
+/** An AI seat's own bookkeeping, kept in synced state so every client sees it. */
+export interface AiSeat {
+  /** The model's stated plan from its last answer, shown to it in its next
+   *  prompt, so intent carries between otherwise independent calls. */
+  plan: string | null;
+  /** The decision a model call is in flight for. Set before the call, so no
+   *  other client starts a second one; cleared when the answer commits. */
+  thinking: AiDecision | null;
+  /** The decision the seat failed. A failed seat is never driven again: v1 has
+   *  no retry and no fallback, so the game stalls on it, visibly. */
+  failure: { decision: AiDecision; reason: string } | null;
+  /** The most the seat will pay in the current auction, answered once per
+   *  auction; the pacer bids for it up to this, with no further model calls.
+   *  Keyed by the lot and the turn-group it was asked in. */
+  auctionMax: { position: number; turn: number; max: number } | null;
+}
+
 /** Per-player automation policy. Drives the auto-play spectrum: the engine
  *  consults these before prompting for a decision the player has already
  *  decided in advance. */
@@ -590,7 +631,7 @@ export type Intent =
    *  pacer prepends it to the same submit batch as the decision it annotates, so
    *  the two land atomically (see `bots/`, `pacing.ts`). A no-op for a non-bot
    *  seat, so it can never reject the batch and stall a turn. */
-  | { kind: "bot-note"; playerId: string; text: string }
+  | { kind: "bot-note"; playerId: string; text: string; privateText?: string }
   | { kind: "end-turn"; playerId: string };
 
 /** Result of applying an external intent to the state. On success the
@@ -648,6 +689,9 @@ export interface GameState {
    *  (`trade-building` or `managing`) "just before the next roll". Further armed
    *  entries wait their turn after each resolves. */
   boundaryQueue: readonly { playerId: string; kind: "trade" | "manage" }[];
+  /** Per-seat AI bookkeeping, keyed by player id. An AI seat has an entry once
+   *  it has first been asked something; see `bots/ai/seat.ts` `aiSeat`. */
+  ai: Readonly<Partial<Record<string, AiSeat>>>;
   /** Immutable identifier for the game's RNG stream. Set once when the
    *  game starts; used to derive the initial `rngState` and useful as a
    *  human-readable handle when debugging. */

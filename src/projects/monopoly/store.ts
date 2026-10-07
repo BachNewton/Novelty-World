@@ -7,6 +7,7 @@ import {
   developmentLevel,
   groupPositions,
 } from "./development";
+import { aiConsoleLines } from "./bots/ai/console";
 import { apply } from "./engine";
 import { type LobbyOp, lobbyReduce, nextBotId } from "./lobby";
 import { hasMonopoly } from "./logic";
@@ -165,6 +166,12 @@ interface MonopolyActions {
    *  heartbeat. POSTs a `step` to the route. No-op without a connected game
    *  id. Driver eligibility is decided by the pacer, not here. */
   step: () => void;
+
+  /** Ask the route to have an AI seat's model make the decision it owes. The
+   *  request is slow (it returns once the model has answered); meanwhile the
+   *  seat's "thinking" marker arrives through the subscription, which holds
+   *  every client's pacer. No-op without a connected game id. */
+  aiDecide: (seat: string) => void;
 
   /** Submit a debug command (the `dev` hotkeys). The route applies it only
    *  for the reserved `dev` game; any other game ignores it. */
@@ -835,6 +842,10 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       versionedOp((fromVersion) => ({ type: "step", fromVersion }));
     },
 
+    aiDecide: (seat) => {
+      versionedOp((fromVersion) => ({ type: "ai-decide", seat, fromVersion }));
+    },
+
     applyStateUpdate: (next, version) => {
       const { profile, connecting, version: headVersion, buffer } = get();
 
@@ -1026,6 +1037,12 @@ if (typeof window !== "undefined") {
         const seated = profile ? isMember(next.state, profile) : false;
         const myId = seated && profile ? profile.id : null;
         drivenFrom = null;
+        // AI seats' private reasoning goes to the console, never the board
+        // (good-faith model: players are trusted not to read it).
+        for (const line of aiConsoleLines(store.headState, next.state)) {
+          if (line.level === "error") console.error(line.text);
+          else console.info(line.text);
+        }
         // Rebase any pending optimistic intents onto the just-advanced head so the
         // overlay tracks the freshest truth + the user's own edits (a bid bar
         // re-records against the latest high, an arm stays armed as others' turns
@@ -1072,6 +1089,7 @@ if (typeof window !== "undefined") {
       if (!op) return;
       drivenFrom = store.version;
       if (op.kind === "step") store.step();
+      else if (op.kind === "ai") store.aiDecide(op.seat);
       else store.driveIntent(op.intent, op.note);
     } finally {
       pumping = false;

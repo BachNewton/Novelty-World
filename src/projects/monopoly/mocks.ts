@@ -75,6 +75,7 @@ export function freshGame(
       players.map((p) => [p.id, DEFAULT_PREFERENCES]),
     ),
     boundaryQueue: [],
+    ai: {},
     rngSeed,
     rngState: rng.getState(),
   };
@@ -169,6 +170,7 @@ export const MOCK_STATE: GameState = {
     PLAYERS.map((p) => [p.id, DEFAULT_PREFERENCES]),
   ),
   boundaryQueue: [],
+  ai: {},
   rngSeed: "mock-seed",
   rngState: createRng("mock-seed").getState(),
 };

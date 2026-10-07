@@ -10,6 +10,10 @@ import {
 } from "@/projects/monopoly/lobby";
 import { freshGame } from "@/projects/monopoly/mocks";
 import { VERSIONS } from "@/projects/monopoly/bots/versions";
+import { askModel, claimAi, failed, settleAnswer } from "@/projects/monopoly/bots/ai/decide";
+import { modelFor } from "@/projects/monopoly/bots/ai/model/config";
+import { isAiStrategy } from "@/projects/monopoly/bots/ai/profiles";
+import { aiSeat } from "@/projects/monopoly/bots/ai/seat";
 import type {
   BotStrategy,
   GameState,
@@ -70,12 +74,12 @@ function isPlayerIcon(v: unknown): v is PlayerIcon {
   return typeof v === "string" && (PLAYER_ICONS as readonly string[]).includes(v);
 }
 
-// A seat's strategy is a concrete archive identifier: the literal `dumb` or any
-// label in the version archive. Validating against the live `VERSIONS` map (the
-// same source `botFor` resolves through) means a newly registered version is
-// instantly selectable with no list to keep in sync.
+// A seat's strategy is a concrete archive identifier: the literal `dumb`, any
+// label in the version archive, or an AI model profile. Validating against the
+// live `VERSIONS` map (the same source `botFor` resolves through) means a newly
+// registered version is instantly selectable with no list to keep in sync.
 function isBotStrategy(v: unknown): v is BotStrategy {
-  return typeof v === "string" && (v === "dumb" || v in VERSIONS);
+  return typeof v === "string" && (v === "dumb" || v in VERSIONS || isAiStrategy(v));
 }
 
 function parseDevCommand(v: unknown): DevCommand | null {
@@ -152,6 +156,9 @@ function parseAction(v: unknown): MonopolyAction | null {
   if (type === "step") {
     return { type, fromVersion };
   }
+  if (type === "ai-decide") {
+    return typeof v.seat === "string" ? { type, seat: v.seat, fromVersion } : null;
+  }
   return null;
 }
 
@@ -184,6 +191,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   if (action.type === "delete") {
     return remove(supabase, gameId);
+  }
+  if (action.type === "ai-decide") {
+    return aiDecide(supabase, gameId, action);
   }
   return mutate(supabase, gameId, action);
 }
@@ -219,6 +229,12 @@ async function seed(
   return json({ ok: true, state: seeded, version: 0 });
 }
 
+/** A version-guarded action computed in one step; `ai-decide` has its own path. */
+type EngineAction = Exclude<
+  Extract<MonopolyAction, { fromVersion: number }>,
+  { type: "ai-decide" }
+>;
+
 /** Outcome of computing the next state for a version-guarded write.
  *  `noop` means the op was valid but produced no change (e.g. a `step` at a
  *  decision point) — the current row is returned unchanged. */
@@ -237,7 +253,7 @@ function fromLobby(result: LobbyResult): Computed {
  *  guard and write happen in `mutate`. */
 function compute(
   state: GameState,
-  action: Extract<MonopolyAction, { fromVersion: number }>,
+  action: EngineAction,
   rngSeed: string,
 ): Computed {
   switch (action.type) {
@@ -276,21 +292,76 @@ function compute(
   }
 }
 
+type Read =
+  | { ok: true; row: GameRow }
+  | { ok: false; response: NextResponse };
+
+async function readRow(supabase: Db, gameId: string): Promise<Read> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("state, version")
+    .eq("id", gameId)
+    .maybeSingle<GameRow>();
+  if (error) return { ok: false, response: json({ ok: false, reason: error.message }, 500) };
+  if (!data) return { ok: false, response: json({ ok: false, reason: "game not found" }, 404) };
+  return { ok: true, row: data };
+}
+
+/** Outcome of a version-guarded write: it landed, another write landed first
+ *  (the version moved between our read and this write), or the DB failed. */
+type Write =
+  | { kind: "written"; version: number }
+  | { kind: "lost" }
+  | { kind: "error"; response: NextResponse };
+
+async function casWrite(
+  supabase: Db,
+  gameId: string,
+  state: GameState,
+  fromVersion: number,
+): Promise<Write> {
+  const version = fromVersion + 1;
+  const { data: updated, error } = await supabase
+    .from(TABLE)
+    .update({ state, version, updated_at: new Date().toISOString() })
+    .eq("id", gameId)
+    .eq("version", fromVersion)
+    .select("version")
+    .maybeSingle<{ version: number }>();
+  if (error) return { kind: "error", response: json({ ok: false, reason: error.message }, 500) };
+  return updated ? { kind: "written", version } : { kind: "lost" };
+}
+
+/** Lost the optimistic race between our read and write: the version moved
+ *  between the SELECT and the CAS UPDATE, so it matched no row. Re-read the
+ *  winning row and hand it back like a stale-version conflict, so the client
+ *  folds + rebases immediately. Without the winner the client can only wait for
+ *  a Realtime echo to advance its head — which never arrives when the racing
+ *  winner was the client's OWN already-consumed write (its echo is dropped as a
+ *  duplicate), stranding the client's pending outbox and freezing its pump
+ *  (e.g. a human's auction drop racing a bot's bid, both driven by one client). */
+async function lostRace(supabase: Db, gameId: string): Promise<NextResponse> {
+  const { data: winner } = await supabase
+    .from(TABLE)
+    .select("state, version")
+    .eq("id", gameId)
+    .maybeSingle<GameRow>();
+  return winner
+    ? json({ ok: false, conflict: true, state: winner.state, version: winner.version })
+    : json({ ok: false, conflict: true });
+}
+
 /** Read the row, reject a stale `fromVersion` as a conflict, compute the next
  *  state, and write it back under an optimistic CAS guard. Shared by every
  *  version-guarded action (lobby ops and play ops alike). */
 async function mutate(
   supabase: Db,
   gameId: string,
-  action: Extract<MonopolyAction, { fromVersion: number }>,
+  action: EngineAction,
 ): Promise<NextResponse> {
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select("state, version")
-    .eq("id", gameId)
-    .maybeSingle<GameRow>();
-  if (error) return json({ ok: false, reason: error.message }, 500);
-  if (!data) return json({ ok: false, reason: "game not found" }, 404);
+  const read = await readRow(supabase, gameId);
+  if (!read.ok) return read.response;
+  const data = read.row;
 
   // The caller advances from the version it last saw. If the DB has moved on,
   // its view is stale — reject so it rebases rather than computing against an old
@@ -306,36 +377,66 @@ async function mutate(
     return json({ ok: true, state: data.state, version: data.version });
   }
 
-  const newVersion = data.version + 1;
-  const { data: updated, error: writeErr } = await supabase
-    .from(TABLE)
-    .update({
-      state: result.state,
-      version: newVersion,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", gameId)
-    .eq("version", data.version)
-    .select("version")
-    .maybeSingle<{ version: number }>();
-  if (writeErr) return json({ ok: false, reason: writeErr.message }, 500);
-  // Lost the optimistic race between our read and write: the version moved
-  // between the SELECT above and this CAS UPDATE, so it matched no row. Re-read
-  // the winning row and hand it back like a stale-version conflict, so the client
-  // folds + rebases immediately. Without the winner the client can only wait for
-  // a Realtime echo to advance its head — which never arrives when the racing
-  // winner was the client's OWN already-consumed write (its echo is dropped as a
-  // duplicate), stranding the client's pending outbox and freezing its pump
-  // (e.g. a human's auction drop racing a bot's bid, both driven by one client).
-  if (!updated) {
-    const { data: winner } = await supabase
-      .from(TABLE)
-      .select("state, version")
-      .eq("id", gameId)
-      .maybeSingle<GameRow>();
-    return winner
-      ? json({ ok: false, conflict: true, state: winner.state, version: winner.version })
-      : json({ ok: false, conflict: true });
+  const write = await casWrite(supabase, gameId, result.state, data.version);
+  if (write.kind === "error") return write.response;
+  if (write.kind === "lost") return lostRace(supabase, gameId);
+  return json({ ok: true, state: result.state, version: write.version });
+}
+
+// How many times the AI's commit re-reads and re-applies after losing the
+// version race to another write (a human bidding or voting meanwhile). Each
+// loss means someone else's write landed, so the game is moving; the bound only
+// turns a pathological storm of writes into a loud error.
+const AI_COMMIT_ATTEMPTS = 8;
+
+/** Have an AI seat make the decision it owes. Two writes around one slow call:
+ *  the seat is marked as thinking first (so no other client asks too, and every
+ *  client can show it), then the model's answer is weighed against the latest
+ *  row and committed. A failed call or an unusable answer is committed as a
+ *  logged failure that stalls the seat: v1 has no retry and no fallback. */
+async function aiDecide(
+  supabase: Db,
+  gameId: string,
+  action: Extract<MonopolyAction, { type: "ai-decide" }>,
+): Promise<NextResponse> {
+  const read = await readRow(supabase, gameId);
+  if (!read.ok) return read.response;
+  const { state, version } = read.row;
+  if (version !== action.fromVersion) {
+    return json({ ok: false, conflict: true, state, version });
   }
-  return json({ ok: true, state: result.state, version: newVersion });
+  const strategy = state.players.find((p) => p.id === action.seat)?.botStrategy ?? null;
+  if (!isAiStrategy(strategy)) return json({ ok: false, reason: "not an AI seat" });
+
+  const claim = claimAi(state, action.seat);
+  if (!claim) return json({ ok: true, state, version });
+  const claimed = await casWrite(supabase, gameId, claim.state, version);
+  if (claimed.kind === "error") return claimed.response;
+  if (claimed.kind === "lost") return lostRace(supabase, gameId);
+
+  const asked = await askModel(modelFor(strategy), claim.state, action.seat, claim.decision);
+
+  let latest: GameRow = { state: claim.state, version: claimed.version };
+  for (let attempt = 0; attempt < AI_COMMIT_ATTEMPTS; attempt++) {
+    // The claim is ours to settle only while it stands; a game reset under the
+    // call (the dev restart) has dropped it, and there is nothing to commit.
+    if (aiSeat(latest.state, action.seat).thinking !== claim.decision) {
+      return json({ ok: true, state: latest.state, version: latest.version });
+    }
+    const settled = asked.ok
+      ? settleAnswer(claim.state, latest.state, action.seat, claim.decision, asked.answer)
+      : failed(latest.state, action.seat, claim.decision, asked.reason);
+    const write = await casWrite(supabase, gameId, settled.state, latest.version);
+    if (write.kind === "error") return write.response;
+    if (write.kind === "written") {
+      return json({ ok: true, state: settled.state, version: write.version });
+    }
+    const reread = await readRow(supabase, gameId);
+    if (!reread.ok) return reread.response;
+    latest = reread.row;
+  }
+  return json(
+    { ok: false, reason: "the AI's answer couldn't be committed: the game kept changing" },
+    500,
+  );
 }

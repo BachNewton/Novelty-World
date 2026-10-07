@@ -6,6 +6,7 @@ import { driveOp, type BotResolver } from "../../pacing";
 import type { GameState, PropertyColor } from "../../types";
 import { botFor } from "../registry";
 import { simulateGame, type Contender } from "../eval/simulate";
+import { candidateFor } from "./candidates";
 import { bestTrade } from "./trade-search";
 import type { ValueFn } from "./value-net-stub";
 import { valuePolicyBot, valuePolicyStubBot } from "./value-policy";
@@ -109,7 +110,9 @@ describe("value policy (full-capability agent)", () => {
     for (let i = 0; i < 50 && state.status === "active"; i++) {
       const op = driveOp(state, true, null, resolver);
       if (op === null) break;
-      state = op.kind === "step" ? autoStep(state).state : applyOrThrow(state, op.intent);
+      const candidate = candidateFor(op);
+      state =
+        candidate.kind === "step" ? autoStep(state).state : applyOrThrow(state, candidate.intent);
       if (state.ownership[1] === p0 && state.ownership[39] === p1) break;
     }
     expect(state.ownership[1]).toBe(p0);

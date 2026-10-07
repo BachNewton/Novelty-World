@@ -162,6 +162,20 @@ function TurnFragment({
           ];
           return noteRow;
         }
+        // An AI seat's failure reads like a note, flagged red: the game has
+        // stalled on that seat and this row is the reason.
+        if (event.kind === "ai-failed") {
+          const failRow: ReactNode[] = [
+            <BotNoteRow
+              key={key}
+              actor={playersById.get(event.playerId)}
+              text={`couldn't decide (${event.decision}): ${event.reason}. The game is stalled.`}
+              label="Stalled"
+              color="var(--mono-red)"
+            />,
+          ];
+          return failRow;
+        }
         // A trade moves several things at once; like build/sell it gets one
         // row per move rather than a single crammed line. A declined offer
         // renders the same rows, dimmed, plus a "declined by" row. See
@@ -230,9 +244,13 @@ function TurnDivider({ turn, actor }: { turn: number; actor: Player }) {
 function BotNoteRow({
   actor,
   text,
+  label = "Bot",
+  color = "var(--mono-orange)",
 }: {
   actor: Player | undefined;
   text: string;
+  label?: string;
+  color?: string;
 }) {
   return (
     <div
@@ -241,9 +259,9 @@ function BotNoteRow({
     >
       <span
         className="shrink-0 font-mono text-[11px] font-semibold uppercase tracking-wider"
-        style={{ color: "var(--mono-orange)" }}
+        style={{ color }}
       >
-        Bot
+        {label}
       </span>
       {actor && <PlayerChip player={actor} />}
       <span className="min-w-0 italic" style={{ opacity: 0.7 }}>
@@ -385,6 +403,7 @@ function verbFor(event: GameEvent): string {
     case "winner":
       return "WIN";
     case "bot-note":
+    case "ai-failed":
       // Rendered as a full-width row (see `BotNoteRow`), not through the 3-cell
       // grid, so this label is only a fallback for the exhaustive switch.
       return "BOT";
@@ -574,6 +593,7 @@ function EventBody({
       return <PlayerChip player={winner} />;
     }
     case "bot-note":
+    case "ai-failed":
       // Rendered as a full-width row (see `BotNoteRow`), never through this cell.
       return null;
   }
@@ -668,6 +688,7 @@ function cashFor(
     case "bankrupt":
     case "winner":
     case "bot-note":
+    case "ai-failed":
       return null;
   }
 }

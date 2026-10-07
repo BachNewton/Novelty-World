@@ -1255,11 +1255,15 @@ function applyBotNote(
   if (!player || player.botStrategy === null) {
     return { ok: true, state, newEvents: [] };
   }
-  const event: GameEvent = {
-    kind: "bot-note",
-    playerId: intent.playerId,
-    text: intent.text,
-  };
+  const event: GameEvent =
+    intent.privateText === undefined
+      ? { kind: "bot-note", playerId: intent.playerId, text: intent.text }
+      : {
+          kind: "bot-note",
+          playerId: intent.playerId,
+          text: intent.text,
+          privateText: intent.privateText,
+        };
   const turns = appendEventToActiveTurn(state.turns, event);
   return { ok: true, state: { ...state, turns }, newEvents: [event] };
 }
@@ -2615,7 +2619,7 @@ function rollDie(rng: Rng): number {
 // Append an event to the trailing TurnGroup, which is always the active
 // player's: freshGame opens it for the starting player and apply(end-turn)
 // opens a new one for the next player before autoStep runs again.
-function appendEventToActiveTurn(
+export function appendEventToActiveTurn(
   turns: readonly TurnGroup[],
   event: GameEvent,
 ): readonly TurnGroup[] {

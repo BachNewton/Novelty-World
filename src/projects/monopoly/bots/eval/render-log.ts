@@ -16,6 +16,8 @@ export function renderHighlight(h: Highlight, nameOf: NameOf): string {
   switch (e.kind) {
     case "bot-note":
       return `${t}💭 ${nameOf(e.playerId)}: ${e.text}`;
+    case "ai-failed":
+      return `${t}⛔ ${nameOf(e.playerId)} couldn't decide (${e.decision}): ${e.reason}`;
     case "buy":
       return `${t}🛒 ${nameOf(h.actorId)} buys ${spaceName(e.position)} ($${e.price})`;
     case "auction":

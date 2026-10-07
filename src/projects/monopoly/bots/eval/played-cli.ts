@@ -118,6 +118,8 @@ function drive(
         return { state, paused: true, stalled: `no-op step at phase "${state.turn.phase}"` };
       }
       state = next;
+    } else if (op.kind === "ai") {
+      throw new Error(`seat ${op.seat} is an AI seat; played-cli plays rule-based bots only`);
     } else {
       if (op.note !== undefined) {
         const noted = apply(state, {

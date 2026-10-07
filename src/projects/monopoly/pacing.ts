@@ -1,3 +1,6 @@
+import { aiDecisionFor, auctionProxyIntent } from "./bots/ai/decisions";
+import { isAiSeat, isAiStrategy } from "./bots/ai/profiles";
+import { aiSeat, anyAiThinking } from "./bots/ai/seat";
 import { forcedRaiseStep } from "./bots/fallback";
 import { botFor, type Bot, type BotDecision } from "./bots/registry";
 import { deckFor } from "./data";
@@ -67,15 +70,17 @@ export interface Snapshot {
 }
 
 /** What this client should send to the backend to make the active turn
- *  progress: a mechanical `step` (roll / drain to the next decision) or a
- *  decision `intent` proxied for a bot seat. A proxied bot decision may carry a
+ *  progress: a mechanical `step` (roll / drain to the next decision), a
+ *  decision `intent` proxied for a bot seat, or `ai` — ask the route to have an
+ *  AI seat's model make the decision it owes. A proxied bot decision may carry a
  *  `note` — the bot's reasoning — which the store prepends as a `bot-note`
  *  intent in the SAME atomic submit, so the explanation lands just before the
  *  action in the log. Pacer-internal intents (end-turn, the stall-fallback
  *  cancels) carry no note. */
 export type DriveOp =
   | { kind: "step" }
-  | { kind: "intent"; intent: Intent; note?: string };
+  | { kind: "intent"; intent: Intent; note?: string }
+  | { kind: "ai"; seat: string };
 
 /** Resolve the bot policy for a seat, or null if the seat isn't a bot. Injected
  *  into `turnOp` / `driveOp` (defaulting to the strategy registry) so a test can
@@ -83,10 +88,25 @@ export type DriveOp =
  *  bot strategy. */
 export type BotResolver = (state: GameState, playerId: string) => Bot | null;
 
+// An AI seat has no synchronous policy: its decisions come from the route
+// (`aiOp`), so the registry never resolves one.
 const registryBot: BotResolver = (state, playerId) => {
   const p = state.players.find((pl) => pl.id === playerId);
-  return p && p.botStrategy !== null ? botFor(p.botStrategy) : null;
+  return p && p.botStrategy !== null && !isAiStrategy(p.botStrategy)
+    ? botFor(p.botStrategy)
+    : null;
 };
+
+/** The drive op for an AI seat that owes something: its own auction bid or drop
+ *  when it has already answered a maximum (no model call), else the model call.
+ *  Null when it owes nothing, or when it has failed: a failed seat is never
+ *  driven again, so the game stalls there, visibly. */
+function aiOp(state: GameState, seat: string): DriveOp | null {
+  if (aiSeat(state, seat).failure !== null) return null;
+  const proxy = auctionProxyIntent(state, seat);
+  if (proxy) return { kind: "intent", intent: proxy };
+  return aiDecisionFor(state, seat) === null ? null : { kind: "ai", seat };
+}
 
 /** Whether a `set-queue` arm would be a no-op against the current queue (the
  *  bot is already armed / already not armed for that kind). The engine treats
@@ -163,6 +183,8 @@ function turnOp(
   botFor: BotResolver,
 ): DriveOp | null {
   if (state.status !== "active") return null;
+  // A model call is in flight: its answer is what the table waits on.
+  if (anyAiThinking(state)) return null;
   const { phase, playerId } = state.turn;
 
   if (phase === "pre-roll") {
@@ -179,7 +201,9 @@ function turnOp(
     // `set-queue` arm is honored here (the lone proactive move legal at
     // pre-roll); a redundant arm the queue already reflects is skipped so the
     // pacer falls through to `step`, which drains the queue into the intermission.
+    // AI seats don't arm yet (no turn-start window), so they're skipped.
     for (const p of state.players) {
+      if (isAiSeat(state, p.id)) continue;
       const bot = botFor(state, p.id);
       if (!bot) continue;
       const decision = bot(state, p.id);
@@ -215,6 +239,7 @@ function turnOp(
     // policy, else step the jail roll (a null — or any illegal decision —
     // becomes the roll).
     if (driverRole(state, myPlayerId) !== "proxy") return null;
+    if (isAiSeat(state, playerId)) return aiOp(state, playerId);
     const bot = botFor(state, playerId);
     const op = bot ? legalOp(state, playerId, bot) : null;
     return op ?? { kind: "step" };
@@ -226,6 +251,7 @@ function turnOp(
     // cancels back to the buy-decision (where it then declines) rather than
     // wedging the phase.
     if (driverRole(state, myPlayerId) !== "proxy") return null;
+    if (isAiSeat(state, playerId)) return aiOp(state, playerId);
     const bot = botFor(state, playerId);
     const op = bot ? legalOp(state, playerId, bot) : null;
     return (
@@ -236,6 +262,7 @@ function turnOp(
     // Always the active player's landing. Drive a bot buyer; a null or illegal
     // decision declines (the safe, no-commitment default — never buy on a silent
     // bot's behalf). A human's buy is left to their UI.
+    if (isAiSeat(state, playerId)) return aiOp(state, playerId);
     const bot = botFor(state, playerId);
     if (!bot) return null;
     return (
@@ -251,6 +278,7 @@ function turnOp(
     // reached this phase). A human debtor settles via their own UI.
     const debtor = firstNegativePlayer(state);
     if (debtor === null) return null;
+    if (isAiSeat(state, debtor)) return aiOp(state, debtor);
     const bot = botFor(state, debtor);
     if (!bot) return null;
     const op = legalOp(state, debtor, bot);
@@ -266,6 +294,7 @@ function turnOp(
     const pending = state.turn.pendingTrade;
     for (const p of state.players) {
       if (!(p.id in pending.approvals) || pending.approvals[p.id]) continue;
+      if (isAiSeat(state, p.id)) return aiOp(state, p.id);
       const bot = botFor(state, p.id);
       if (!bot) continue;
       return (
@@ -287,6 +316,7 @@ function turnOp(
     const auction = state.turn.auction;
     for (const p of state.players) {
       if (!auction.active.includes(p.id) || p.id === auction.leaderId) continue;
+      if (isAiSeat(state, p.id)) return aiOp(state, p.id);
       const bot = botFor(state, p.id);
       if (!bot) continue;
       return (
@@ -304,6 +334,7 @@ function turnOp(
   if (phase === "managing") {
     const actor = state.turn.managerId;
     if (actor === undefined) return null;
+    if (isAiSeat(state, actor)) return aiOp(state, actor);
     const bot = botFor(state, actor);
     if (!bot) return null;
     return (
@@ -314,6 +345,7 @@ function turnOp(
   if (phase === "trade-building") {
     const actor = state.turn.tradeDraft?.proposerId;
     if (actor === undefined) return null;
+    if (isAiSeat(state, actor)) return aiOp(state, actor);
     const bot = botFor(state, actor);
     if (!bot) return null;
     return (

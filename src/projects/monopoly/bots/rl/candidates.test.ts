@@ -3,7 +3,7 @@ import { isLegal } from "../../engine";
 import { freshGame } from "../../mocks";
 import { driveOp } from "../../pacing";
 import type { GameState } from "../../types";
-import { applyCandidate, legalCandidates } from "./candidates";
+import { applyCandidate, candidateFor, legalCandidates } from "./candidates";
 import { DEFAULT_BOT_VERSION } from "../roles";
 
 function botGame(seed: string): GameState {
@@ -85,9 +85,7 @@ describe("legalCandidates", () => {
       const op = driveOp(state, true, null);
       if (op === null) break;
       state =
-        op.kind === "step"
-          ? applyCandidate(state, { kind: "step" })
-          : applyCandidate(state, { kind: "intent", intent: op.intent });
+        applyCandidate(state, candidateFor(op));
     }
 
     // Sanity: the walk actually exercised real decision phases, not just rolls.

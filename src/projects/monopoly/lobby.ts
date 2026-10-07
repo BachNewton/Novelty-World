@@ -140,6 +140,7 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
     turn: { playerId: player.id, phase: "pre-roll", doublesStreak: 0 },
     preferences: densePreferences(players),
     boundaryQueue: [],
+    ai: {},
     rngSeed,
     rngState: rng.getState(),
   };

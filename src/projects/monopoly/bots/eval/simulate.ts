@@ -219,6 +219,9 @@ function applyOp(
   op: NonNullable<ReturnType<typeof driveOp>>,
 ): GameState {
   if (op.kind === "step") return autoStep(state).state;
+  if (op.kind === "ai") {
+    throw new Error(`seat ${op.seat} is an AI seat; the headless sim plays rule-based bots only`);
+  }
   let next = state;
   if (op.note !== undefined) {
     next = applyOrThrow(next, {

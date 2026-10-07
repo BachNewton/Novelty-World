@@ -35,22 +35,34 @@ export function forcedRaiseStep(
   return sellCheapestBuiltSet(state, playerId);
 }
 
+/** Positions the player could mortgage right now: owned, un-mortgaged, and in a
+ *  color set with no buildings (official rule — those buildings are sold via
+ *  `manage` first). */
+export function mortgageablePositions(
+  state: GameState,
+  playerId: string,
+): number[] {
+  const positions: number[] = [];
+  for (const [posStr, ownerId] of Object.entries(state.ownership)) {
+    if (ownerId !== playerId) continue;
+    const pos = Number(posStr);
+    if (state.mortgaged[pos]) continue;
+    if (builtLotsInGroup(pos, (p) => developmentLevel(state, p)).length > 0) {
+      continue;
+    }
+    if (mortgageValueAt(pos) === null) continue;
+    positions.push(pos);
+  }
+  return positions;
+}
+
 /** Position of the cheapest un-mortgaged, building-free property the player
  *  owns, or null if none can be mortgaged. Cheapest first preserves the more
  *  valuable assets for as long as possible. */
 function cheapestMortgageable(state: GameState, playerId: string): number | null {
   let best: { pos: number; value: number } | null = null;
-  for (const [posStr, ownerId] of Object.entries(state.ownership)) {
-    if (ownerId !== playerId) continue;
-    const pos = Number(posStr);
-    if (state.mortgaged[pos]) continue;
-    // Can't mortgage while any property in this lot's color set is built
-    // (official rule) — those buildings are sold via `manage` instead.
-    if (builtLotsInGroup(pos, (p) => developmentLevel(state, p)).length > 0) {
-      continue;
-    }
-    const value = mortgageValueAt(pos);
-    if (value === null) continue;
+  for (const pos of mortgageablePositions(state, playerId)) {
+    const value = mortgageValueAt(pos) ?? 0;
     if (!best || value < best.value) best = { pos, value };
   }
   return best?.pos ?? null;

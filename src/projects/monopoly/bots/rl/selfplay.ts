@@ -5,6 +5,7 @@ import { driveOp, type DriveOp } from "../../pacing";
 import type { GameState, PlayerCount } from "../../types";
 import { encode, MAX_SEATS } from "./features";
 import { type Action, ACTION_COUNT, applyCandidate, legalActions } from "./actions";
+import { candidateFor } from "./candidates";
 import type { MonoNet, TrainSample } from "./net";
 import { decisionOwner, mctsSearchFull, type MctsOptions } from "./mcts";
 
@@ -245,8 +246,9 @@ function canon(v: unknown): string {
  *  Matching by identical intent (not by resulting state) can only MISS, never
  *  mis-map — a false negative just costs coverage, never a wrong label. */
 function imitationToken(acts: readonly Action[], op: DriveOp): number | null {
-  if (op.kind === "step") return acts.find((a) => a.op.kind === "step")?.token ?? null;
-  const target = canon(op.intent);
+  const candidate = candidateFor(op);
+  if (candidate.kind === "step") return acts.find((a) => a.op.kind === "step")?.token ?? null;
+  const target = canon(candidate.intent);
   const match = acts.find((a) => a.op.kind === "intent" && canon(a.op.intent) === target);
   return match?.token ?? null;
 }
@@ -300,7 +302,7 @@ export function collectRuleGame(
     }
     const next = applyCandidate(
       state,
-      op.kind === "step" ? { kind: "step" } : { kind: "intent", intent: op.intent },
+      candidateFor(op),
     );
     if (next === state) break;
     state = next;

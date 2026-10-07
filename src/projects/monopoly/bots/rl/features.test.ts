@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { freshGame } from "../../mocks";
 import type { GameState } from "../../types";
-import { applyCandidate } from "./candidates";
+import { applyCandidate, candidateFor } from "./candidates";
 import { driveOp } from "../../pacing";
 import { DEFAULT_BOT_VERSION } from "../roles";
 import { encode, FEATURE_COUNT, FEATURE_NAMES } from "./features";
@@ -26,9 +26,7 @@ function visitStates(seed: string, maxOps: number): GameState[] {
     const op = driveOp(state, true, null);
     if (op === null) break;
     state =
-      op.kind === "step"
-        ? applyCandidate(state, { kind: "step" })
-        : applyCandidate(state, { kind: "intent", intent: op.intent });
+      applyCandidate(state, candidateFor(op));
   }
   return seen;
 }

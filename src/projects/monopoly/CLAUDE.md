@@ -249,8 +249,9 @@ reasoning. It is the lone log event with **no board change** — pure annotation
 and the one sanctioned exception to "no event without a state change": it always
 rides in the same atomic submit as the decision it explains (the pacer prepends
 it; `applyBotNote` is lenient — a note for a non-bot seat is a no-op, never a
-rejection, so it can't stall a batch). Notes are generated deterministically by
-the policy (no live model call), so replay is unaffected. Reactive decisions
+rejection, so it can't stall a batch). A rule-based policy's notes are
+deterministic; an AI seat's come from a live model call, but every note is stored
+in state like any event, so replay is unaffected either way. Reactive decisions
 note on the decision; the arm→intermission→commit flows note on the **arm**
 (which explains the plan) and commit silently.
 
@@ -287,6 +288,54 @@ The `claude` strategy's own known limits and refinement roadmap (N-way trades,
 mortgage-to-fund-a-build) live in `bots/CLAUDE.md`, along with the design
 decisions behind it — including why monopoly value is deliberately *not* scaled
 by cash/affordability.
+
+### AI seats (language models)
+
+An AI seat is a bot seat whose `botStrategy` is a **model profile** (`ai:local`,
+`bots/ai/profiles.ts`), not a rule-based policy. It is driven by a language model
+through an API, so it has **no synchronous `Bot`**: the registry never resolves
+one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
+
+- **The route decides for it.** When an AI seat owes a decision
+  (`aiDecisionFor`, shared by pacer and route so they can't disagree), the pacer
+  returns an `ai` drive op and the store posts `ai-decide`. The route writes a
+  **thinking marker** into `state.ai` (version-guarded, so only one client's call
+  wins), calls the model, then weighs the answer against the latest row and
+  commits it in a second write. While any marker is set, **no client drives
+  anything** — the table waits on the answer, and every client shows it.
+- **One call per decision; the answer is a whole plan.** A debt settle is the
+  full sell/mortgage plan; a short buyer names its mortgages; an **auction asks
+  once for a maximum** and the pacer then bids for the seat in $10 steps
+  (`auctionProxyIntent`), with no further calls. Answers are constrained to a
+  per-decision JSON schema (`answers.ts`), and the engine is still the judge:
+  every intent goes through `apply`.
+- **No fallback, no retry (v1).** An unreachable model, a timeout, a malformed
+  or illegal answer, or a legal plan that doesn't finish the job (debt still
+  owed) is committed as an `ai-failed` log event and `AiSeat.failure`. A failed
+  seat is never driven again, so the game **stalls there, visibly**. An answer
+  that was sound but overtaken by another seat's move is **stale**, not failed:
+  the marker clears and the seat is asked afresh.
+- **Notes and plan.** Every answer carries a `publicNote` (the existing
+  `bot-note`, shown in the log), a `privateNote` (the bot-note's `privateText`,
+  logged to every client's browser console, never on screen — the good-faith
+  model: all information is public and players are trusted not to look), and a
+  `plan` stored in `state.ai`, shown to the model in its next prompt as "your
+  plan from last time". The jail "roll" answer commits its note and the roll in
+  one write.
+- **The prompt is a pure function** of the state, the seat and the question
+  (`prompt.ts`): rules first as a fixed system message (a stable prefix the
+  model server can reuse), then the seat's view, plan, recent log and question.
+- **Model-agnostic.** `model/adapter.ts` is the provider interface;
+  `openai-compatible.ts` serves `local-llm` (llama.cpp). `model/config.ts` maps
+  each profile to its adapter from server env (`MONOPOLY_AI_LOCAL_URL`,
+  `MONOPOLY_AI_LOCAL_MODEL`, `MONOPOLY_AI_LOCAL_KEY`, `MONOPOLY_AI_TIMEOUT_MS`,
+  `MONOPOLY_AI_THINK_TOKENS`). A client only ever names a profile, never an
+  address. A new provider is a new adapter plus a profile.
+- **Not offered yet:** the turn-start window (an AI seat never arms a trade or
+  a build; it just rolls), counters and proposals. `raise-to-buy`, `manage` and
+  `trade-build` are named decisions with no spec, so reaching one fails loudly.
+  The headless sim and RL tooling play rule-based seats only and throw on an AI
+  seat.
 
 ## Lobby
 
@@ -396,6 +445,7 @@ bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the cont
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
+bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): profiles, decisions (what a seat owes + auction proxy bids), answers (per-decision schema → intents), prompt, decide (claim / ask / settle), console (private notes), model/ (provider adapters + server config)
 bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
 bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
 bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype

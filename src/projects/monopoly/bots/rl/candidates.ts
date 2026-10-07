@@ -8,6 +8,7 @@ import {
   netWorth,
 } from "../../engine";
 import { hasMonopoly, heldJailCard, spaceName } from "../../logic";
+import type { DriveOp } from "../../pacing";
 import type { GameState, Intent, PropertyColor } from "../../types";
 import { forcedRaiseStep } from "../fallback";
 
@@ -64,6 +65,13 @@ import { forcedRaiseStep } from "../fallback";
 export type CandidateOp =
   | { kind: "intent"; intent: Intent }
   | { kind: "step" };
+
+/** The candidate a pacer drive op amounts to. The learned-bot tooling plays
+ *  rule-based seats only, so an AI seat's model call is an error here. */
+export function candidateFor(op: DriveOp): CandidateOp {
+  if (op.kind === "ai") throw new Error(`seat ${op.seat} is an AI seat; RL tooling plays rule-based bots only`);
+  return op.kind === "step" ? { kind: "step" } : { kind: "intent", intent: op.intent };
+}
 
 /** One legal move available to a seat at the current state, plus a short
  *  human-readable `label` for logging / debugging the action set. */

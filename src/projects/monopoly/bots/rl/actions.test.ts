@@ -3,7 +3,7 @@ import { freshGame } from "../../mocks";
 import type { GameState } from "../../types";
 import { driveOp } from "../../pacing";
 import { DEFAULT_BOT_VERSION } from "../roles";
-import { applyCandidate } from "./candidates";
+import { applyCandidate, candidateFor } from "./candidates";
 import { ACTION_COUNT, ACTION_NAMES, legalActions, legalMask } from "./actions";
 
 /** A fresh 4-bot game at its opening pre-roll. */
@@ -23,7 +23,7 @@ function visitStates(seed: string, maxOps: number): GameState[] {
     seen.push(state);
     const op = driveOp(state, true, null);
     if (op === null) break;
-    state = applyCandidate(state, op.kind === "step" ? { kind: "step" } : { kind: "intent", intent: op.intent });
+    state = applyCandidate(state, candidateFor(op));
   }
   return seen;
 }
