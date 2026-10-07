@@ -328,10 +328,12 @@ export type GameEvent =
       kind: "bot-note";
       playerId: string;
       text: string;
-      /** An AI seat's private reasoning, logged to every client's browser
-       *  console but never shown on the board (see `bots/ai/`). Absent for the
+      /** An AI seat's private reasoning (see `bots/ai/`). Absent for the
        *  rule-based bots, whose notes are public only. */
       privateText?: string;
+      /** An AI seat's plan for the coming turns, as it stood after this
+       *  decision; shown beside the private reasoning. */
+      plan?: string;
     }
   /** An AI seat failed to make the decision it owed — the model was unreachable,
    *  timed out, or answered with something unusable or illegal. There is no
@@ -636,7 +638,7 @@ export type Intent =
    *  pacer prepends it to the same submit batch as the decision it annotates, so
    *  the two land atomically (see `bots/`, `pacing.ts`). A no-op for a non-bot
    *  seat, so it can never reject the batch and stall a turn. */
-  | { kind: "bot-note"; playerId: string; text: string; privateText?: string }
+  | { kind: "bot-note"; playerId: string; text: string; privateText?: string; plan?: string }
   | { kind: "end-turn"; playerId: string };
 
 /** Result of applying an external intent to the state. On success the

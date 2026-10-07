@@ -106,7 +106,7 @@ export function failed(
 
 type Played = { ok: true; state: GameState } | { ok: false; reason: string };
 
-/** Apply an answer to a state: the public and private notes as one bot-note,
+/** Apply an answer to a state: the public and private notes and the plan as one bot-note,
  *  then its ops in order; and record its plan, auction maximum and turn-start
  *  mark. All-or-nothing. */
 function play(
@@ -116,7 +116,7 @@ function play(
   spec: DecisionSpec,
   r: AiResolution,
 ): Played {
-  const note: Intent = { kind: "bot-note", playerId: seat, text: r.publicNote, privateText: r.privateNote };
+  const note: Intent = { kind: "bot-note", playerId: seat, text: r.publicNote, privateText: r.privateNote, plan: r.plan };
   let working = state;
   for (const op of [{ kind: "intent", intent: note } as const, ...r.ops]) {
     if (op.kind === "step") {

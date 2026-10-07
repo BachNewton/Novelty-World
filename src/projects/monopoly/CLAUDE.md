@@ -322,7 +322,8 @@ one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
   as a "Thinks" row under the public note — the good-faith model: all
   information is public and players are trusted not to use it), and a
   `plan` stored in `state.ai`, shown to the model in its next prompt as "your
-  plan from last time". The jail "roll" answer commits its note and the roll in
+  plan from last time". The plan also rides on the bot-note, so the same flag
+  shows it as a "Plan" row and the console line ends with it. The jail "roll" answer commits its note and the roll in
   one write.
 - **The prompt is a pure function** of the state, the seat and the question
   (`prompt.ts`): rules first as a fixed system message (a stable prefix the

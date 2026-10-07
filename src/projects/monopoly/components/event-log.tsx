@@ -172,6 +172,17 @@ function TurnFragment({
               />,
             );
           }
+          if (SHOW_PRIVATE_NOTES_IN_LOG && event.plan !== undefined) {
+            noteRow.push(
+              <BotNoteRow
+                key={`${key}-plan`}
+                actor={playersById.get(event.playerId)}
+                text={event.plan}
+                label="Plan"
+                color="var(--mono-neutral)"
+              />,
+            );
+          }
           return noteRow;
         }
         // An AI seat's failure reads like a note, flagged red: the game has

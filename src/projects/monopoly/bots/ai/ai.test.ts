@@ -152,6 +152,7 @@ describe("settling an answer", () => {
       playerId: AI,
       text: NOTES.publicNote,
       privateText: NOTES.privateNote,
+      plan: NOTES.plan,
     });
   });
 
@@ -347,7 +348,7 @@ describe("aiConsoleLines", () => {
   it("logs new private notes and failures, and nothing already seen", () => {
     const settled = decide(atBoardwalk, { ...NOTES, choice: "buy", mortgage: [] });
     expect(aiConsoleLines(atBoardwalk, settled.state)).toEqual([
-      { level: "info", text: `[AI] Alex: ${NOTES.privateNote}` },
+      { level: "info", text: `[AI] Alex: ${NOTES.privateNote} Plan: ${NOTES.plan}` },
     ]);
     expect(aiConsoleLines(settled.state, settled.state)).toEqual([]);
   });

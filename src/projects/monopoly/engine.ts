@@ -1255,15 +1255,13 @@ function applyBotNote(
   if (!player || player.botStrategy === null) {
     return { ok: true, state, newEvents: [] };
   }
-  const event: GameEvent =
-    intent.privateText === undefined
-      ? { kind: "bot-note", playerId: intent.playerId, text: intent.text }
-      : {
-          kind: "bot-note",
-          playerId: intent.playerId,
-          text: intent.text,
-          privateText: intent.privateText,
-        };
+  const event: GameEvent = {
+    kind: "bot-note",
+    playerId: intent.playerId,
+    text: intent.text,
+    ...(intent.privateText === undefined ? {} : { privateText: intent.privateText }),
+    ...(intent.plan === undefined ? {} : { plan: intent.plan }),
+  };
   const turns = appendEventToActiveTurn(state.turns, event);
   return { ok: true, state: { ...state, turns }, newEvents: [event] };
 }
