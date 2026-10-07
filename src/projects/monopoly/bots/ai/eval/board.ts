@@ -1,5 +1,5 @@
 import { freshGame } from "../../../mocks";
-import type { AuctionState, GameState, PendingTrade, Player, TurnState } from "../../../types";
+import type { AuctionState, GameEvent, GameState, PendingTrade, Player, TurnState } from "../../../types";
 import { currentTurnNumber, withAiSeat } from "../seat";
 
 // Builders for hand-made positions: a fresh four-seat game where every seat is
@@ -88,6 +88,38 @@ export function atTurn(state: GameState, turn: number): GameState {
   return { ...state, turns };
 }
 
+/** Add events to the log, to the latest turn group or to the one `turn`
+ *  names, so a position carries the history that led to it. */
+export function logged(state: GameState, events: readonly GameEvent[], turn = state.turns.length): GameState {
+  if (!state.turns.some((group) => group.turn === turn)) throw new Error(`no turn group ${String(turn)}`);
+  return {
+    ...state,
+    turns: state.turns.map((group) => (group.turn === turn ? { ...group, events: [...group.events, ...events] } : group)),
+  };
+}
+
+/** A player's public note, as the log holds it. */
+export function said(playerId: string, text: string): GameEvent {
+  return { kind: "bot-note", playerId, text };
+}
+
+/** A trade offer `by` turned down (or countered) on the board as it stands. */
+export function turnedDown(
+  state: GameState,
+  proposer: string,
+  by: string,
+  terms: { propertyTo: Readonly<Record<number, string>>; cashDelta: Readonly<Record<string, number>> },
+  countered: boolean,
+): GameEvent {
+  const propertyFrom = Object.fromEntries(Object.keys(terms.propertyTo).map((pos) => [pos, state.ownership[Number(pos)]]));
+  return { kind: "trade-declined", proposerId: proposer, declinedBy: by, countered, gojfTo: {}, gojfFrom: {}, propertyFrom, ...terms };
+}
+
+/** The AI seat's plan from its last answer, which its next prompt shows it. */
+export function planned(state: GameState, plan: string): GameState {
+  return withAiSeat(state, AI, { plan });
+}
+
 /** The AI seat at its own turn start, with the turn-start question already
  *  asked this turn-group, so it owes only the decision the scenario sets up. */
 export function quietTurnStart(state: GameState): GameState {
@@ -129,8 +161,10 @@ export function offered(
   }
   const approvals: Record<string, boolean> = {};
   for (const party of parties) approvals[party] = party === proposer;
+  // A proposal's id names its place in the log, as the engine's do, so the
+  // pitch logged just before it reads as the proposer's message with it.
   const pendingTrade: PendingTrade = {
-    id: "t-scenario",
+    id: `trade-${String(state.turns.length)}-${String(state.turns.at(-1)?.events.length ?? 0)}-scenario`,
     proposerId: proposer,
     gojfTo: {},
     ...terms,

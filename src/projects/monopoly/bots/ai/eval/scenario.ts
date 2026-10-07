@@ -1,5 +1,7 @@
 import { SPACES } from "../../../data";
-import type { AiDecision, GameState, Intent, TradeTerms } from "../../../types";
+import { projectTrade } from "../../../engine";
+import { hasMonopoly } from "../../../logic";
+import type { AiDecision, GameState, Intent, PropertyColor, TradeTerms } from "../../../types";
 import type { Settled } from "../decide";
 import type { AiResolution } from "../spec";
 
@@ -19,8 +21,11 @@ import type { AiResolution } from "../spec";
 //   repetitions. It is never pass or fail.
 //
 // Either kind counts an unusable answer (one the settle step rejects) as an
-// error, since that is never a matter of taste, and so is a proposal or counter
-// whose terms contradict the seat's own message (`termsContradictMessage`). Checks read the decision as
+// error, since that is never a matter of taste, and so are three mistakes that
+// are objective in any position (`SHARED_CHECKS`): a proposal or counter whose
+// terms contradict the seat's own message, a note or plan that claims control
+// over where the seat lands, and a pitch that credits the other side with sets
+// or building it doesn't have. Checks read the decision as
 // intents, never a version's own answer fields, so one scenario measures every
 // version. Error scenarios come with disguised variants (other sets, seats and
 // cash), so a fix that only learned the original position shows up.
@@ -64,8 +69,8 @@ export interface Judged {
 }
 
 /** Judge one answer: an unusable answer is an error in any scenario, and so is
- *  a trade whose terms contradict the seat's own message; otherwise record the
- *  choice, and run the error check if the scenario has one. */
+ *  any of the shared mistakes; otherwise record the choice, and run the error
+ *  check if the scenario has one. */
 export function judge(scenario: Scenario, o: Outcome): Judged {
   if (o.settled.kind === "fail") {
     return { kind: scenario.kind, choice: "unusable", error: `unusable answer: ${o.settled.reason}` };
@@ -73,7 +78,16 @@ export function judge(scenario: Scenario, o: Outcome): Judged {
   if (o.settled.kind === "stale") {
     return { kind: scenario.kind, choice: "stale", error: "the answer went stale against its own position" };
   }
-  return { kind: scenario.kind, choice: scenario.choose(o), error: scenario.error?.(o) ?? termsContradictMessage(o) };
+  return { kind: scenario.kind, choice: scenario.choose(o), error: scenario.error?.(o) ?? sharedError(o) };
+}
+
+/** The first shared mistake in an answer, or null. */
+export function sharedError(o: Outcome): string | null {
+  for (const check of SHARED_CHECKS) {
+    const error = check(o);
+    if (error !== null) return error;
+  }
+  return null;
 }
 
 // --- A trade's terms against its message ---------------------------------------
@@ -136,6 +150,108 @@ export function termsContradictMessage(o: Outcome): string | null {
     .map(([pos]) => nameOf(pos));
   return unnamed.length > 0 ? `the terms move ${unnamed.join(" + ")}, which the message never mentions ("${message}")` : null;
 }
+
+// --- A plan or note that claims control over movement --------------------------
+//
+// Where a player lands is the dice. A live seat's plan said "avoid Väinö's
+// reds", and once in the plan it was fed forward into 12 of the seat's next 13
+// plans, displacing a real one (a cash reserve, a mortgage order). Any note or
+// plan that tells the seat to avoid, stay off, steer clear of, keep away from
+// or dodge a board place states a choice the rules don't offer. The object
+// must be a place: "avoid trades that complete a set" and "avoid mortgaging"
+// are choices. Staying in jail to stay off the board is a real choice, so a
+// seat in jail, or a sentence about jail, passes.
+
+const MOVEMENT_VERB = /\b(?:avoid(?:ing)?|stay(?:ing)?\s+off|steer(?:ing)?\s+clear\s+of|keep(?:ing)?\s+away\s+from|dodg(?:e|ing))\s+/giu;
+
+/** A board place as one word, plural "s" dropped: a color group, the
+ *  railroads, utilities or hotels, or a distinctive word of a lot's name. */
+const PLACES = new Set([
+  ...["brown", "pink", "orange", "red", "yellow", "green", "blue", "railroad", "rail", "utility", "utilitie", "hotel"],
+  ...["mediterranean", "baltic", "oriental", "vermont", "connecticut", "charle", "virginia", "jame", "tennessee", "york"],
+  ...["kentucky", "indiana", "illinoi", "atlantic", "ventnor", "marvin", "pacific", "carolina", "pennsylvania", "park"],
+  ...["boardwalk", "reading", "short", "electric", "water"],
+]);
+const OWNERS = new Set(["the", "his", "her", "their", "your", "my"]);
+
+/** Whether the words after a movement verb name a board place: optionally
+ *  "landing on", then an owner ("the", "his", "Väinö's", "Bot Killer's"),
+ *  then the place ("reds", "light blues", "Boardwalk"). */
+function namesPlace(rest: string): boolean {
+  const words = rest.toLowerCase().replace(/’/g, "'").split(/[^\p{L}']+/u).filter((w) => w !== "");
+  let i = words[0] === "landing" && words[1] === "on" ? 2 : 0;
+  if (OWNERS.has(words[i] ?? "")) i += 1;
+  else if (words[i]?.endsWith("'s")) i += 1;
+  else if (words[i + 1]?.endsWith("'s")) i += 2;
+  const word = words[i] ?? "";
+  if (word === "light" || word === "dark") return (words[i + 1] ?? "").startsWith("blue");
+  return PLACES.has(word.replace(/s$/, ""));
+}
+
+/** The sentence of a note or plan that claims control over where the seat
+ *  lands, or null. */
+export function movementClaim(text: string): string | null {
+  for (const sentence of text.split(/(?<=[.;!?])\s+/)) {
+    if (/\bjail\b/i.test(sentence)) continue;
+    for (const verb of sentence.matchAll(MOVEMENT_VERB)) {
+      if (namesPlace(sentence.slice(verb.index + verb[0].length))) return sentence.trim();
+    }
+  }
+  return null;
+}
+
+/** A note or plan in the answer that claims control over movement, or null. */
+export function claimsMovement(o: Outcome): string | null {
+  if (!o.resolution) return null;
+  const me = o.asked.players.find((p) => p.id === o.seat);
+  if (me?.inJail) return null;
+  const { publicNote, privateNote, plan } = o.resolution;
+  for (const [field, text] of [["plan", plan], ["public note", publicNote], ["private note", privateNote]] as const) {
+    const claim = movementClaim(text);
+    if (claim !== null) return `its ${field} claims control over where it lands ("${claim}")`;
+  }
+  return null;
+}
+
+// --- A pitch that credits the other side with what it doesn't have -------------
+//
+// A live seat pitched "$620 for Tennessee... funds your builds elsewhere" to a
+// player holding no full set, so nothing to build. On a proposal or counter,
+// the public note is the seat's message to the other side; telling them about
+// their own building, houses or monopoly when they hold no full set, and the
+// terms don't complete one for them, is a fact the board contradicts. A
+// negated sentence ("two greens you can't build on") is true and passes.
+
+const CREDITS_BUILDING =
+  /\b(?:your\s+(?:builds?|building|houses|hotels|monopoly|monopolies|full\s+sets?)|build(?:ing)?\s+(?:on|up)\s+your|funds?\s+your|develop(?:ing)?\s+your)\b/i;
+const NEGATED = /\b(?:not|no|nothing|never|without|cannot)\b|n['’]t\b/i;
+
+const PROPERTY_COLORS: readonly PropertyColor[] = [...new Set(SPACES.flatMap((space) => (space.kind === "property" ? [space.color] : [])))];
+
+/** Whether `player` holds a full color set under `ownership`. */
+function holdsFullSet(state: GameState, ownership: GameState["ownership"], player: string): boolean {
+  return PROPERTY_COLORS.some((color) => hasMonopoly({ ...state, ownership }, color, player));
+}
+
+/** A pitch that credits the other side with building it can't do, or null. */
+export function pitchCreditsMissingSet(o: Outcome): string | null {
+  const terms = proposedTerms(o);
+  if (!terms || !o.resolution) return null;
+  const claim = o.resolution.publicNote.split(/(?<=[.;!?])\s+/).find((s) => CREDITS_BUILDING.test(s) && !NEGATED.test(s));
+  if (claim === undefined) return null;
+  const others = new Set([
+    ...Object.keys(terms.cashDelta),
+    ...Object.values(terms.propertyTo),
+    ...Object.keys(terms.propertyTo).map((pos) => o.asked.ownership[Number(pos)]),
+  ]);
+  others.delete(o.seat);
+  const afterTrade = projectTrade(o.asked, terms).ownership;
+  const builds = [...others].some((id) => holdsFullSet(o.asked, o.asked.ownership, id) || holdsFullSet(o.asked, afterTrade, id));
+  return builds ? null : `its pitch credits the other side with building it can't do ("${claim.trim()}")`;
+}
+
+/** The mistakes every scenario checks, judgment ones included. */
+const SHARED_CHECKS: readonly ((o: Outcome) => string | null)[] = [termsContradictMessage, claimsMovement, pitchCreditsMissingSet];
 
 /** The intents the answer became, in order. */
 export function intentsOf(o: Outcome): Intent[] {

@@ -9,14 +9,18 @@ import {
   inDebt,
   jailed,
   landed,
+  logged,
   mortgaging,
   offered,
   OTHER,
   owning,
+  planned,
   RIVAL,
+  said,
   SQ,
   table,
   turnStart,
+  turnedDown,
   withCash,
   withPlayer,
 } from "./board";
@@ -24,12 +28,14 @@ import {
   after,
   cashAfter,
   cashIn,
+  claimsMovement,
   describeTerms,
   describeTurnStart,
   did,
   gives,
   housesAdded,
   nameOf,
+  pitchCreditsMissingSet,
   proposedTerms,
   takes,
   termsContradictMessage,
@@ -278,6 +284,122 @@ function mustSellHouses(id: string, turn: number, set: readonly number[], level:
   };
 }
 
+/** A trade proposal that sets up a pitch about the other side's position: the
+ *  seat owns two of a set, the third with a cash-poor player. What it offers
+ *  is a judgment; a pitch crediting that player with a full set or building
+ *  they don't have is an error (game 5x1c6j: "$620 for Tennessee... funds your
+ *  builds elsewhere", to a player with no full set). The contrast variant gives
+ *  the holder a full set, so the same pitch is true and must pass. */
+function proposePitch(
+  id: string,
+  turn: number,
+  lots: Readonly<Record<string, readonly number[]>>,
+  cash: Readonly<Record<string, number>>,
+  history: (state: GameState) => GameState = (state) => state,
+): Scenario {
+  const [mine, holder] = [lots[AI] ?? [], Object.entries(lots).find(([seat]) => seat !== AI)?.[1] ?? []];
+  return {
+    id,
+    kind: "error",
+    phase: "mid",
+    decision: "turn-start",
+    tests: `Owns ${mine.map(nameOf).join(", ")} with $${String(cash[AI] ?? 0)}; the rest of its set sits with a cash-poor player holding ${holder.map(nameOf).join(", ")}. A pitch must not credit that player with sets or building they don't have.`,
+    build: (s) => turnStart(history(withCash(owning(atTurn(table(s), turn), lots), cash))),
+    choose: describeTurnStart,
+    error: pitchCreditsMissingSet,
+  };
+}
+
+/** The 5x1c6j table at turn 40, with the seat's earlier offer for Tennessee
+ *  declined: the seat (Frank there) holds St. James, New York and a railroad;
+ *  Sam (Dev) holds Tennessee among five lots and two railroads, no full set. */
+const PITCH_ORANGE_LOTS = {
+  [AI]: [SQ.stJames, SQ.newYork, SQ.bAndO],
+  [RIVAL]: [SQ.baltic, SQ.tennessee, SQ.illinois, SQ.atlantic, SQ.ventnor, SQ.pennRR, SQ.shortLine],
+  [OTHER]: [...LIGHT_BLUES, SQ.stCharles, SQ.virginia, SQ.kentucky, SQ.electric],
+  [FOURTH]: [SQ.mediterranean, SQ.marvin, SQ.pacific, SQ.northCarolina, SQ.pennsylvaniaAve],
+};
+
+function pitchOrangeHistory(state: GameState): GameState {
+  const offer = { propertyTo: { [SQ.tennessee]: AI }, cashDelta: { [AI]: -430, [RIVAL]: 430 } };
+  return built(
+    logged(
+      state,
+      [
+        said(AI, "Sam, $430 for Tennessee is over double its price, easy cash for a lot you can't build on alone."),
+        turnedDown(state, AI, RIVAL, offer, false),
+      ],
+      36,
+    ),
+    { [SQ.pacific]: 1 },
+  );
+}
+
+/** A plan or note that claims control over where the seat lands, on a board
+ *  that tempts it: a rival's built set the seat must pass. Movement is the
+ *  dice (game 46181f: "avoid Väinö's reds" entered the seat's plan and was
+ *  repeated in 12 of its next 13). Whatever the seat decides, a note or plan
+ *  telling it to avoid, stay off or dodge a board place is the error. */
+function movementScenario(id: string, phase: Scenario["phase"], decision: Scenario["decision"], tests: string, build: (s: string) => GameState): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase,
+    decision,
+    tests,
+    build,
+    choose: decision === "settle-debt" ? debtChoice : describeTurnStart,
+    error: claimsMovement,
+  };
+}
+
+/** The holder of the third lot offers cash and a railroad for the seat's
+ *  pair. Selling a stuck pair for enough is a judgment (game 46181f: the seat
+ *  took $640 and Reading for both reds, the rival built them and won, and a
+ *  human flagged it). Records the vote and a counter's terms. */
+function sellPairToBlocker(
+  id: string,
+  turn: number,
+  lots: Readonly<Record<string, readonly number[]>>,
+  cash: Readonly<Record<string, number>>,
+  offer: { propertyTo: Readonly<Record<number, string>>; cashDelta: Readonly<Record<string, number>> },
+  negotiation: (state: GameState) => GameState,
+): Scenario {
+  const pair = Object.entries(offer.propertyTo).filter(([, to]) => to === RIVAL).map(([pos]) => nameOf(Number(pos)));
+  return {
+    id,
+    kind: "judgment",
+    phase: "mid",
+    decision: "trade-vote",
+    tests: `The rival holding the third lot offers $${String(offer.cashDelta[AI] ?? 0)} and a railroad for ${pair.join(" and ")}, completing the set for them.`,
+    build: (s) => offered(negotiation(withCash(owning(atTurn(table(s), turn), lots), cash)), RIVAL, offer),
+    choose: voteChoice,
+  };
+}
+
+/** A cash-poor player offers the two lots that complete the seat's set, for
+ *  most of its cash and two of its lots, on a board with a rival's built set.
+ *  Paying all its cash for a set it can't then build is a judgment (game
+ *  46181f: the seat accepted, fell to $275 and was stripped by a $700 rent);
+ *  records the vote and the cash it leaves. */
+function overpayForSet(
+  id: string,
+  turn: number,
+  board: (state: GameState) => GameState,
+  seller: string,
+  offer: { propertyTo: Readonly<Record<number, string>>; cashDelta: Readonly<Record<string, number>> },
+): Scenario {
+  return {
+    id,
+    kind: "judgment",
+    phase: "mid",
+    decision: "trade-vote",
+    tests: `A cash-poor player offers the two lots that complete the seat's set for $${String(-(offer.cashDelta[AI] ?? 0))} and two of its lots, on a board with a rival's built set.`,
+    build: (s) => offered(board(atTurn(table(s), turn)), seller, offer),
+    choose: (o) => `${voteChoice(o)}; keeps $${String(cashAfter(o))}`,
+  };
+}
+
 // --- The suite -----------------------------------------------------------------
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -485,6 +607,107 @@ export const SCENARIOS: readonly Scenario[] = [
     choose: voteChoice,
   },
 
+  sellPairToBlocker(
+    "vote-sell-pair-to-blocker",
+    33,
+    {
+      [AI]: [SQ.kentucky, SQ.illinois, SQ.vermont, SQ.electric, SQ.pacific],
+      [RIVAL]: [SQ.indiana, SQ.reading, SQ.pennRR, SQ.bAndO, SQ.shortLine, SQ.newYork, SQ.atlantic],
+      [OTHER]: [SQ.states],
+      [FOURTH]: [SQ.mediterranean, SQ.connecticut, SQ.tennessee, SQ.northCarolina, SQ.pennsylvaniaAve],
+    },
+    { [AI]: 560, [RIVAL]: 982, [OTHER]: 1485, [FOURTH]: 128 },
+    { propertyTo: { [SQ.kentucky]: RIVAL, [SQ.illinois]: RIVAL, [SQ.reading]: AI }, cashDelta: { [AI]: 640, [RIVAL]: -640 } },
+    (state) => {
+      const first = { propertyTo: { [SQ.kentucky]: RIVAL, [SQ.illinois]: RIVAL }, cashDelta: { [AI]: 640, [RIVAL]: -640 } };
+      const counter = {
+        propertyTo: { [SQ.kentucky]: RIVAL, [SQ.illinois]: RIVAL, [SQ.reading]: AI, [SQ.shortLine]: AI },
+        cashDelta: { [AI]: 640, [RIVAL]: -640 },
+      };
+      return logged(state, [
+        said(RIVAL, "Alex, $640 cash for two reds that cost you $460, a big profit for you."),
+        said(AI, "Sam, I'll hand over both reds for your $640 plus Short Line and Reading Railroad; that makes it fair for the red set."),
+        turnedDown(state, RIVAL, AI, first, true),
+        said(RIVAL, "Alex, two railroads plus $640 is too much; I'll give you $640 and Reading Railroad for both reds."),
+        turnedDown(state, AI, RIVAL, counter, true),
+      ]);
+    },
+  ),
+  sellPairToBlocker(
+    "vote-sell-pair-to-blocker-orange",
+    30,
+    {
+      [AI]: [SQ.stJames, SQ.tennessee, SQ.oriental],
+      [RIVAL]: [SQ.newYork, SQ.reading, SQ.pennRR, SQ.bAndO],
+      [OTHER]: [SQ.atlantic, SQ.ventnor],
+    },
+    { [AI]: 400, [RIVAL]: 900 },
+    { propertyTo: { [SQ.stJames]: RIVAL, [SQ.tennessee]: RIVAL, [SQ.bAndO]: AI }, cashDelta: { [AI]: 520, [RIVAL]: -520 } },
+    (state) => logged(state, [said(RIVAL, "Alex, $520 and B. & O. Railroad for your two oranges is well over what they cost you.")]),
+  ),
+  overpayForSet(
+    "vote-overpay-for-set",
+    42,
+    (state) => {
+      const board = built(
+        mortgaging(
+          withCash(
+            owning(state, {
+              [AI]: [SQ.pacific, SQ.reading, SQ.vermont, SQ.electric],
+              [FOURTH]: [SQ.mediterranean, SQ.connecticut, SQ.tennessee, SQ.northCarolina, SQ.pennsylvaniaAve],
+              [RIVAL]: [...REDS, SQ.bAndO, SQ.shortLine, SQ.pennRR, SQ.newYork, SQ.atlantic],
+              [OTHER]: [SQ.oriental, SQ.states, SQ.virginia],
+            }),
+            { [AI]: 1275, [FOURTH]: 192, [RIVAL]: 83, [OTHER]: 1185 },
+          ),
+          [SQ.atlantic],
+        ),
+        { [SQ.kentucky]: 2, [SQ.indiana]: 2, [SQ.illinois]: 1 },
+      );
+      const greens = { [SQ.northCarolina]: AI, [SQ.pennsylvaniaAve]: AI };
+      return logged(
+        logged(
+          board,
+          [
+            said(AI, "Kyle, $900 cash for two greens that cost $620 gets you out of jail trouble and well clear of Sam's reds."),
+            turnedDown(board, AI, FOURTH, { propertyTo: greens, cashDelta: { [AI]: -900, [FOURTH]: 900 } }, false),
+          ],
+          38,
+        ),
+        [
+          said(AI, "Kyle, $1,000 cash now for two greens you can't build on with Sam's reds bearing down; it keeps you safe."),
+          turnedDown(board, AI, FOURTH, { propertyTo: greens, cashDelta: { [AI]: -1000, [FOURTH]: 1000 } }, true),
+        ],
+      );
+    },
+    FOURTH,
+    {
+      propertyTo: { [SQ.northCarolina]: AI, [SQ.pennsylvaniaAve]: AI, [SQ.reading]: FOURTH, [SQ.vermont]: FOURTH },
+      cashDelta: { [AI]: -1000, [FOURTH]: 1000 },
+    },
+  ),
+  overpayForSet(
+    "vote-overpay-for-set-yellow",
+    36,
+    (state) =>
+      built(
+        withCash(
+          owning(state, {
+            [AI]: [SQ.atlantic, SQ.reading, SQ.pennRR, SQ.oriental],
+            [OTHER]: [SQ.ventnor, SQ.marvin],
+            [RIVAL]: [...ORANGES, SQ.shortLine],
+          }),
+          { [AI]: 1100, [OTHER]: 150, [RIVAL]: 700 },
+        ),
+        { [SQ.stJames]: 3, [SQ.tennessee]: 3, [SQ.newYork]: 3 },
+      ),
+    OTHER,
+    {
+      propertyTo: { [SQ.ventnor]: AI, [SQ.marvin]: AI, [SQ.reading]: OTHER, [SQ.pennRR]: OTHER },
+      cashDelta: { [AI]: -900, [OTHER]: 900 },
+    },
+  ),
+
   // Turn start: building, mortgages, proposals
   proposeDirection("turn-start-propose-direction", 20, [SQ.kentucky, SQ.indiana], OTHER, SQ.illinois, 1300),
   proposeDirection("turn-start-propose-direction-dark-blue", 28, [SQ.park], RIVAL, SQ.boardwalk, 1600),
@@ -535,7 +758,96 @@ export const SCENARIOS: readonly Scenario[] = [
     choose: describeTurnStart,
   },
 
+  proposePitch("turn-start-propose-pitch-orange", 40, PITCH_ORANGE_LOTS, { [AI]: 1399, [RIVAL]: 191, [OTHER]: 92, [FOURTH]: 468 }, pitchOrangeHistory),
+  proposePitch(
+    "turn-start-propose-pitch-red",
+    26,
+    { [AI]: [SQ.kentucky, SQ.illinois, SQ.reading], [OTHER]: [SQ.indiana, SQ.stCharles, SQ.virginia] },
+    { [AI]: 1100, [OTHER]: 150 },
+  ),
+  proposePitch(
+    "turn-start-propose-pitch-dark-blue",
+    30,
+    { [AI]: [SQ.park, SQ.water], [RIVAL]: [SQ.boardwalk, SQ.oriental, SQ.vermont] },
+    { [AI]: 1300, [RIVAL]: 220 },
+  ),
+  proposePitch(
+    "turn-start-propose-pitch-full-set",
+    28,
+    { [AI]: [SQ.stJames, SQ.newYork], [RIVAL]: [SQ.tennessee, ...LIGHT_BLUES] },
+    { [AI]: 1200, [RIVAL]: 200 },
+  ),
+  movementScenario(
+    "turn-start-movement-railroads",
+    "mid",
+    "turn-start",
+    "All four railroads with one rival; the seat holds the light blues, unbuilt, with $180. A note or plan must not claim it can avoid a place.",
+    (s) => turnStart(withCash(owning(atTurn(table(s), 34), { [AI]: LIGHT_BLUES, [RIVAL]: [SQ.reading, SQ.pennRR, SQ.bAndO, SQ.shortLine] }), { [AI]: 180 })),
+  ),
+  movementScenario(
+    "turn-start-movement-dark-blue",
+    "late",
+    "turn-start",
+    "Hotels on a rival's dark blues; the seat holds the light blues at two houses each with $300. A note or plan must not claim it can avoid a place.",
+    (s) =>
+      turnStart(
+        built(withCash(owning(atTurn(table(s), 50), { [AI]: LIGHT_BLUES, [RIVAL]: DARK_BLUES }), { [AI]: 300 }), {
+          ...hotels(DARK_BLUES),
+          [SQ.oriental]: 2,
+          [SQ.vermont]: 2,
+          [SQ.connecticut]: 2,
+        }),
+      ),
+  ),
+
   // Debt
+  movementScenario(
+    "debt-after-built-rival-set",
+    "late",
+    "settle-debt",
+    "Game 46181f, turn 62: $530 short after $700 rent on a rival's reds at three houses; the seat's greens have two houses and its plan says \"avoid reds\". A note or plan must not claim it can avoid a place.",
+    (s) => {
+      const board = built(
+        mortgaging(
+          withCash(
+            owning(atTurn(table(s), 62), {
+              [AI]: [SQ.pacific, SQ.northCarolina, SQ.pennsylvaniaAve, SQ.electric],
+              [RIVAL]: [...REDS, SQ.atlantic, SQ.bAndO, SQ.shortLine],
+              [OTHER]: [SQ.oriental, SQ.states, SQ.virginia, SQ.pennRR],
+              [FOURTH]: [SQ.mediterranean, SQ.vermont, SQ.connecticut, SQ.tennessee, SQ.newYork, SQ.reading, SQ.water],
+            }),
+            { [RIVAL]: 1145, [OTHER]: 893, [FOURTH]: 882 },
+          ),
+          [SQ.electric, SQ.atlantic, SQ.newYork],
+        ),
+        { [SQ.kentucky]: 3, [SQ.indiana]: 3, [SQ.illinois]: 3, [SQ.pacific]: 1, [SQ.northCarolina]: 1 },
+      );
+      const charged = logged(withPlayer(board, AI, { position: SQ.indiana }), [
+        { kind: "roll", dice: [5, 5], doublesStreak: 1, toPosition: SQ.indiana, passedGo: false },
+        { kind: "rent", ownerId: RIVAL, position: SQ.indiana, amount: 700 },
+      ]);
+      return planned(inDebt(charged, -530), "Build greens when cash reaches $200+ above a buffer; avoid reds.");
+    },
+  ),
+  movementScenario(
+    "debt-after-built-rival-set-orange",
+    "late",
+    "settle-debt",
+    "$700 short after $950 rent on a rival's St. James hotel; the seat's yellows have three houses each and Reading is unmortgaged. A note or plan must not claim it can avoid a place.",
+    (s) => {
+      const board = built(owning(atTurn(table(s), 54), { [AI]: [SQ.atlantic, SQ.ventnor, SQ.marvin, SQ.reading], [RIVAL]: ORANGES }), {
+        ...hotels(ORANGES),
+        [SQ.atlantic]: 3,
+        [SQ.ventnor]: 3,
+        [SQ.marvin]: 3,
+      });
+      const charged = logged(withPlayer(board, AI, { position: SQ.stJames }), [
+        { kind: "roll", dice: [4, 2], doublesStreak: 0, toPosition: SQ.stJames, passedGo: false },
+        { kind: "rent", ownerId: RIVAL, position: SQ.stJames, amount: 950 },
+      ]);
+      return inDebt(charged, -700);
+    },
+  ),
   keepsHouses("debt-keeps-houses", 45, ORANGES, 3, [SQ.reading, SQ.water], 150),
   keepsHouses("debt-keeps-houses-light-blue", 38, LIGHT_BLUES, 2, [SQ.electric, SQ.shortLine], 100),
   keepsHouses("debt-keeps-houses-red", 52, REDS, 1, [SQ.reading, SQ.pennRR], 180),

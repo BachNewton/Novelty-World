@@ -4,8 +4,9 @@ import { claimAi } from "../decide";
 import type { CallMetrics, ModelAdapter, ModelResult } from "../model/adapter";
 import { aiStrategyId } from "../strategy";
 import { AI_VERSION_LABELS } from "../versions";
-import { AI } from "./board";
+import { AI, RIVAL } from "./board";
 import { runScenario } from "./run";
+import { movementClaim } from "./scenario";
 import { SCENARIOS } from "./scenarios";
 import { quantile, scoreboard } from "./scoreboard";
 
@@ -160,6 +161,88 @@ describe("a trade's terms against its message, in every scenario", () => {
     );
     expect(record.check?.kind).toBe("error");
     expect(record.check?.error).toMatch(/^the terms move Kentucky Avenue, which the message never mentions/);
+  });
+});
+
+describe("a note or plan that claims control over movement", () => {
+  // Verbatim from games 46181f and 5x1c6j.
+  const claims = [
+    "Use the cash to buy unowned lots and trade with Kyle for the greens or light blues; avoid landing on Väinö's reds.",
+    "Avoid reds, lift green mortgages when cash allows, then rebuild.",
+    "Keep building green; avoid Väinö's railroads and reds; lift Electric mortgage later.",
+    "Lift North Carolina and Pennsylvania as cash allows, then build houses on green; avoid the reds.",
+    "Stay liquid, keep building light blue when cash allows, avoid Frank's orange.",
+  ];
+  const choices = [
+    "Pursue Indiana Avenue for the red set and build houses; avoid trades that complete another player's set.",
+    "If he declines, keep reds and look for other trades or build elsewhere; avoid handing him a monopoly cheaply.",
+    "Keep building houses on the reds with incoming rent and avoid mortgaging.",
+    "Collect red rent, lift mortgages, keep building reds, avoid giving Kyle orange.",
+    "Only $275, so one house ($200) is affordable and boosts green rent. Risk on reds is small this roll, and selling the house plus mortgaging Electric covers the worst case.",
+    "Red squares are far from my position, so building one house ($200) and keeping $180 is safe enough.",
+    "Keep $400 in reserve while red has houses.",
+    "Staying in jail is safe from Dev's railroads.",
+  ];
+
+  for (const text of claims) it(`flags "${text}"`, () => expect(movementClaim(text)).not.toBeNull());
+  for (const text of choices) it(`passes "${text}"`, () => expect(movementClaim(text)).toBeNull());
+
+  const llmV6 = { profile: "ai:local" as const, version: "llm-v6" as const };
+  const debt = { mortgage: [], stillOwed: 330, sellHouses: { green: 2 }, privateNote: "thinking", publicNote: "Selling up." };
+
+  it("errors on a plan that repeats the claim, in its error family", async () => {
+    // Selling both houses and mortgaging all three greens is the one plan that covers $530.
+    const answer = { ...debt, mortgage: [31, 32, 34], plan: "Avoid reds, lift green mortgages when cash allows, then rebuild." };
+    const record = await runScenario(byId("debt-after-built-rival-set"), llmV6, fakeModel(answer), 0, null);
+    expect(record.settle?.kind).toBe("commit");
+    expect(record.check?.error).toBe(`its plan claims control over where it lands ("Avoid reds, lift green mortgages when cash allows, then rebuild.")`);
+  });
+
+  it("checks every scenario, judgment ones included", async () => {
+    const record = await runScenario(byId("buy-first-of-set"), llmV6, fakeModel({ ...NOTES, choice: "buy", mortgage: [], plan: "Dodge the railroads." }), 0, null);
+    expect(record.check?.kind).toBe("judgment");
+    expect(record.check?.error).toMatch(/^its plan claims control over where it lands/);
+  });
+});
+
+describe("a pitch that credits the other side with what it doesn't have", () => {
+  const llmV6 = { profile: "ai:local" as const, version: "llm-v6" as const };
+  // The seat buys Tennessee (#18) from Sam for $620.
+  const propose = (publicNote: string, cash = 1399) =>
+    fakeModel({
+      ...NOTES,
+      publicNote,
+      buildHouses: {},
+      sellHouses: {},
+      mortgage: [],
+      unmortgage: [],
+      proposeTrade: true,
+      trade: {
+        dealInWords: "",
+        counterparty: RIVAL,
+        youGive: { properties: [], jailCards: [] },
+        youGet: { properties: [18], jailCards: [] },
+        cashYouPay: 620,
+        cashYouReceive: 0,
+        yourCashAfter: cash - 620,
+      },
+    });
+  const pitch = "Sam, $620 for Tennessee is more than three times its price, and it funds your builds elsewhere.";
+
+  it("errors when the other side holds no full set", async () => {
+    const record = await runScenario(byId("turn-start-propose-pitch-orange"), llmV6, propose(pitch), 0, null);
+    expect(record.check?.error).toBe(`its pitch credits the other side with building it can't do ("${pitch}")`);
+  });
+
+  it("passes a negated claim, and a pitch that doesn't mention building", async () => {
+    for (const note of ["Sam, $620 for Tennessee, a lot you can't build on alone.", "Sam, $620 for Tennessee is over three times its price."]) {
+      expect((await runScenario(byId("turn-start-propose-pitch-orange"), llmV6, propose(note), 0, null)).check?.error).toBeNull();
+    }
+  });
+
+  it("passes the same pitch when the other side does hold a full set", async () => {
+    const record = await runScenario(byId("turn-start-propose-pitch-full-set"), llmV6, propose(pitch, 1200), 0, null);
+    expect(record.check?.error).toBeNull();
   });
 });
 
