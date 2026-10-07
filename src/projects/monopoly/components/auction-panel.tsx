@@ -10,7 +10,7 @@ import { PLAYER_COLOR_VAR } from "../theme";
 import type { GameState, Player } from "../types";
 import { SetContextChips } from "./holdings-grid";
 import { RevealButton, useCanReview } from "./ai-review";
-import { PartyNote } from "./party-note";
+import { NoteStack, PartyNote } from "./party-note";
 
 interface Props {
   state: GameState;
@@ -93,14 +93,14 @@ export function AuctionPanel({ state }: Props) {
         <BidChart auction={auction} participants={participants} printed={printed} />
 
         {notes.size > 0 && (
-          <div className="flex flex-col gap-1.5 overflow-y-auto" style={{ maxHeight: "30vh" }}>
+          <NoteStack label="Bidders' notes">
             {participants.flatMap((p) => {
               const note = notes.get(p.id);
               if (!note) return [];
               const action = canReview ? <RevealButton aiName={p.name} refTo={note.ref} /> : undefined;
               return [<PartyNote key={p.id} label="Note" player={p} text={note.text} action={action} />];
             })}
-          </div>
+          </NoteStack>
         )}
       </div>
 

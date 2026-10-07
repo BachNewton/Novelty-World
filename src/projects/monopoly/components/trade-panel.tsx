@@ -8,7 +8,7 @@ import type { TradeNote } from "../engine";
 import { HoldingsGrid, SLOT_GROUPS } from "./holdings-grid";
 import { Money } from "./money";
 import { RevealButton, useCanReview } from "./ai-review";
-import { PartyNote } from "./party-note";
+import { NoteStack, PartyNote } from "./party-note";
 import { TradeInputs } from "./trade-inputs";
 import { PlayerTag } from "./trade-ui";
 
@@ -96,14 +96,18 @@ export function TradePanel({ state }: Props) {
           counteredName={counteredName}
         />
 
-        {notes.map(({ note, label }) => (
-          <TradeNoteRow
-            key={`${note.ref.turn.toString()}-${note.ref.index.toString()}`}
-            note={note}
-            label={label}
-            player={byId.get(note.playerId)}
-          />
-        ))}
+        {notes.length > 0 && (
+          <NoteStack label="Notes on this trade">
+            {notes.map(({ note, label }) => (
+              <TradeNoteRow
+                key={`${note.ref.turn.toString()}-${note.ref.index.toString()}`}
+                note={note}
+                label={label}
+                player={byId.get(note.playerId)}
+              />
+            ))}
+          </NoteStack>
+        )}
 
         <TradeHoldings state={state} terms={terms} myPlayerId={myPlayerId} />
 

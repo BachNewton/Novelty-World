@@ -79,3 +79,57 @@ export function PartyNote({
     </figure>
   );
 }
+
+/** Where several notes stack (a multi-party trade, an auction with several AI
+ *  bidders): a section that scrolls on its own, so the terms, the bids and the
+ *  buttons never move out of view. Its cap fits one clamped note with room for
+ *  the next to peek in under a fade, which shows there is more below. */
+export function NoteStack({ label, children }: { label: string; children: ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [moreBelow, setMoreBelow] = useState(false);
+
+  // Re-measured when the box or its notes resize (a note added, "Read all")
+  // and on every scroll.
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    const measure = () => {
+      setOverflows(scroller.scrollHeight > scroller.clientHeight);
+      setMoreBelow(scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 1);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    scroller.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      observer.disconnect();
+      scroller.removeEventListener("scroll", measure);
+    };
+  }, []);
+
+  return (
+    <div className="relative min-w-0 shrink-0">
+      <div
+        ref={scrollRef}
+        role="region"
+        aria-label={label}
+        tabIndex={overflows ? 0 : undefined}
+        className="max-h-44 overflow-y-auto overscroll-y-contain rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <div ref={contentRef} className="flex flex-col gap-1.5">
+          {children}
+        </div>
+      </div>
+      {moreBelow && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-6"
+          style={{ background: "linear-gradient(to bottom, transparent, var(--mono-card))" }}
+        />
+      )}
+    </div>
+  );
+}
