@@ -32,6 +32,7 @@ import {
   nameOf,
   proposedTerms,
   takes,
+  termsContradictMessage,
   type Outcome,
   type Scenario,
 } from "./scenario";
@@ -190,6 +191,30 @@ function counterHoldings(
       }
       return null;
     },
+  };
+}
+
+/** A rival holding two of a set offers a fair-looking price for the seat's
+ *  third. Whether to sell, counter or decline is a judgment; this family exists
+ *  because counters are likely here and the rival holds lots the terms could
+ *  name, which is where Gemma 4 12B's counters went out contradicting their
+ *  message ("I'd like $600 for New York" written as New York for the rival's
+ *  two oranges and $0). Its only error is that contradiction, which every
+ *  scenario checks; here it is gated. */
+function counterMessage(id: string, turn: number, rivalLots: readonly number[], lot: number, buyer: string, price: number, cash: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase: "mid",
+    decision: "trade-vote",
+    tests: `${rivalLots.map(nameOf).join(" and ")} with a rival who offers $${String(price)} for the seat's ${nameOf(lot)}, completing the set. A counter's terms must be the ones its message states.`,
+    build: (s) =>
+      offered(withCash(owning(atTurn(table(s), turn), { [buyer]: rivalLots, [AI]: [lot] }), { [AI]: cash }), buyer, {
+        propertyTo: { [lot]: buyer },
+        cashDelta: { [AI]: price, [buyer]: -price },
+      }),
+    choose: voteChoice,
+    error: termsContradictMessage,
   };
 }
 
@@ -366,6 +391,9 @@ export const SCENARIOS: readonly Scenario[] = [
     30,
     200,
   ),
+  counterMessage("vote-counter-message-red", 20, [SQ.kentucky, SQ.indiana], SQ.illinois, RIVAL, 350, 700),
+  counterMessage("vote-counter-message-yellow", 26, [SQ.atlantic, SQ.ventnor], SQ.marvin, OTHER, 380, 600),
+  counterMessage("vote-counter-message-light-blue", 14, [SQ.oriental, SQ.vermont], SQ.connecticut, FOURTH, 180, 500),
   counterDirection("vote-counter-direction", 18, SQ.stJames, RIVAL, 40, 84),
   counterDirection("vote-counter-direction-yellow", 26, SQ.ventnor, OTHER, 50, 60),
   counterDirection("vote-counter-direction-railroad", 34, SQ.shortLine, FOURTH, 20, 30),

@@ -31,14 +31,13 @@ not just errors.
    making it the live default is the owner's call, since it writes half as
    fast as Qwen. Next for Gemma is not more error work but slices (item 6),
    to find the errors the suite doesn't have.
-
 2. **(Qwen) The empty counter, from the vote's side.** llm-v5's remaining
    trade errors are counters whose follow-up comes back all "keep", $0, after a
    message that is half a decline ("I'll take $900 for the set, or I keep it
    and build"), plus counters that keep the lot and ask cash for nothing, which
    the new terms-against-message check now grades (llm-v6 on Qwen: 9 of its 12
-   trade errors, "I'd rather mortgage it for $150 and keep it"). The terms step can't fix a vote that didn't mean counter: look at
-   the vote's options (a decline that names a price, so "decline, but I'd sell
+   trade errors, "I'd rather mortgage it for $150 and keep it"). The terms
+   step can't fix a vote that didn't mean counter: look at the vote's options (a decline that names a price, so "decline, but I'd sell
    for $X" isn't forced into "counter"), confirmed by replaying llm-v5's empty
    counters (`eval/runs/*-llm-v5/calls.jsonl`, records with `followUp`) before
    building it.

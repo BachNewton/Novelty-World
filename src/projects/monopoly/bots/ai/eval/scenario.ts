@@ -19,7 +19,8 @@ import type { AiResolution } from "../spec";
 //   repetitions. It is never pass or fail.
 //
 // Either kind counts an unusable answer (one the settle step rejects) as an
-// error, since that is never a matter of taste. Checks read the decision as
+// error, since that is never a matter of taste, and so is a proposal or counter
+// whose terms contradict the seat's own message (`termsContradictMessage`). Checks read the decision as
 // intents, never a version's own answer fields, so one scenario measures every
 // version. Error scenarios come with disguised variants (other sets, seats and
 // cash), so a fix that only learned the original position shows up.
@@ -62,8 +63,9 @@ export interface Judged {
   error: string | null;
 }
 
-/** Judge one answer: an unusable answer is an error in any scenario; otherwise
- *  record the choice, and run the error check if the scenario has one. */
+/** Judge one answer: an unusable answer is an error in any scenario, and so is
+ *  a trade whose terms contradict the seat's own message; otherwise record the
+ *  choice, and run the error check if the scenario has one. */
 export function judge(scenario: Scenario, o: Outcome): Judged {
   if (o.settled.kind === "fail") {
     return { kind: scenario.kind, choice: "unusable", error: `unusable answer: ${o.settled.reason}` };
@@ -71,7 +73,68 @@ export function judge(scenario: Scenario, o: Outcome): Judged {
   if (o.settled.kind === "stale") {
     return { kind: scenario.kind, choice: "stale", error: "the answer went stale against its own position" };
   }
-  return { kind: scenario.kind, choice: scenario.choose(o), error: scenario.error?.(o) ?? null };
+  return { kind: scenario.kind, choice: scenario.choose(o), error: scenario.error?.(o) ?? termsContradictMessage(o) };
+}
+
+// --- A trade's terms against its message ---------------------------------------
+//
+// On a proposal or a counter the public note is the seat's message to the other
+// side, so the terms that go out must be the ones it states. Gemma 4 12B wrote
+// "I'd like $600 for New York Avenue" and its terms handed New York over for
+// the rival's two oranges and $0. A mismatch is objective whatever the
+// position, so every scenario checks it, judgment ones included. The check is
+// deliberately loose about wording (a lot counts as named by any distinctive
+// word of its name, its square number, or its group: "the railroad", "your
+// oranges") and only reads dollar amounts the message states.
+
+const GENERIC_WORDS = new Set(["avenue", "place", "railroad", "company", "gardens", "works", "line"]);
+
+/** Whether the message names the lot, loosely. */
+function mentions(message: string, position: number): boolean {
+  const space = SPACES[position];
+  if (!("name" in space)) return false;
+  const text = message.toLowerCase();
+  if (text.includes(`#${String(position)}`) || text.includes(space.name.toLowerCase())) return true;
+  const words = space.name.toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/);
+  if (words.some((w) => w.length >= 4 && !GENERIC_WORDS.has(w) && text.includes(w))) return true;
+  if (space.kind === "railroad") return /\brail/.test(text);
+  if (space.kind === "utility") return /utilit/.test(text);
+  if (space.kind === "property") return text.includes(space.color.replace("-", " "));
+  return false;
+}
+
+/** The dollar amounts a message states. */
+function amountsIn(message: string): number[] {
+  return [...message.matchAll(/\$\s?(\d[\d,]*)/g)].map((m) => Number(m[1].replace(/,/g, "")));
+}
+
+/** How the terms the seat put on the table contradict its own message, or null.
+ *  For a counter, what it keeps from the offer it answers needn't be restated:
+ *  lots moving as the offer had them, and the offer's own cash figure. */
+export function termsContradictMessage(o: Outcome): string | null {
+  const terms = proposedTerms(o);
+  const message = o.resolution?.publicNote ?? "";
+  if (!terms) return null;
+  const seat = o.seat;
+  const offer = o.asked.turn.phase === "trade-pending" ? (o.asked.turn.pendingTrade ?? null) : null;
+  const handsOver =
+    Object.entries(terms.propertyTo).some(([pos, to]) => to !== seat && o.asked.ownership[Number(pos)] === seat) ||
+    Object.entries(terms.gojfTo).some(([source, to]) => to !== seat && o.asked.jailFreeCards[source as keyof typeof o.asked.jailFreeCards] === seat);
+  const cash = cashIn(o);
+  if (!handsOver && cash > 0) return `the terms ask $${String(cash)} and hand nothing over ("${message}")`;
+
+  const offered = offer ? Math.abs(offer.cashDelta[seat] ?? 0) : null;
+  const named = amountsIn(message);
+  const asked = named.filter((amount) => amount !== offered);
+  if (asked.length > 0 && !named.includes(Math.abs(cash))) {
+    const moved = cash === 0 ? "no cash" : `$${String(Math.abs(cash))}`;
+    return `the message names ${asked.map((a) => `$${String(a)}`).join(", ")} but the terms move ${moved} ("${message}")`;
+  }
+  const unnamed = Object.entries(terms.propertyTo)
+    .map(([pos, to]) => [Number(pos), to] as const)
+    .filter(([pos, to]) => offer?.propertyTo[pos] !== to && !mentions(message, pos))
+    .map(([pos]) => nameOf(pos));
+  return unnamed.length > 0 ? `the terms move ${unnamed.join(" + ")}, which the message never mentions ("${message}")` : null;
 }
 
 /** The intents the answer became, in order. */

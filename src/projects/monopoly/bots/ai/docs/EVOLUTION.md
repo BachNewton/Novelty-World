@@ -879,3 +879,130 @@ Lessons:
   result per seat, and count a win fed by another AI seat as weaker evidence.
 - **Check a live record's fields once per new setup.** The server field was
   null for every Claude game, and nobody noticed until a review needed it.
+
+## llm-v6: terms in words first; the debt plan in steps (2026-10-07, on Gemma 4 12B)
+
+The first version developed on Gemma 4 12B (`gemma4-12b-1x7k`, one slot).
+Hypothesis: Gemma's two llm-v5 failure families come from the answers'
+shapes, not from its judgment.
+
+**A new check first.** No check graded a counter whose terms contradict its
+message, so `judge` (`eval/scenario.ts`) now fails any proposal or counter, in
+every scenario, judgment ones included, whose terms contradict the seat's own
+public note (`termsContradictMessage`): a dollar amount the message asks that
+the terms don't move, a lot the terms move that the message never mentions (by
+any distinctive word, square number or group, so loose wording passes), or
+cash asked with nothing handed over. A new error family gates it,
+**`vote-counter-message`** (red, yellow, light blue): a rival holding two of a
+set offers a fair-looking price for the seat's third, where counters are likely
+and the rival holds lots the terms could name. Re-judging every llm-v5 record
+on disk with the check (no model calls) found it in every model but Sonnet:
+
+| llm-v5 records | Contradicting terms, of counters and proposals |
+|---|---|
+| Sonnet 5.5 | 0/35 |
+| Haiku 4.5 | 5/32 ("I'll take $550 for #19" written as $350 and two lots; "$650 for the complete set" with every lot kept) |
+| Gemma 4 12B | 6/56 (4x "$600 for New York" written as New York for St. James + Tennessee and $0) |
+| Qwen3.5-9B | 3/36 final run, 12/40 first run (mostly "I'd rather mortgage it and keep it" written as cash for nothing) |
+| gpt-oss-20b | 3/16 |
+
+Every flagged case read as a real contradiction; none was the check
+misreading loose wording.
+
+Causes, from replaying the failing requests (temperature 0.3; Gemma repeats
+itself almost exactly on a replayed follow-up):
+
+- **Counters.** The follow-up asked for each lot's choice before any cash, and
+  Gemma's lot choices drifted from its message: on the four New York requests
+  it took the rival's two oranges and wrote $0, 12/12. Cash first fixed those
+  (12/12 $600) but is the order llm-v5 rejected for dropping lots on Qwen.
+  Recipient-named choices ("Sam gets it" / "you keep it") changed nothing
+  (4/4 still wrong). A first field, **the counter in one sentence** ("I hand
+  over ...; I take ...; Sam pays me $A"), fixed 12/12 with the order kept. In
+  the first subset it still once wrote "I take Atlantic and Ventnor" after "$500
+  for Marvin Gardens" (4/4 on replay); putting the price before "I take" in the
+  sentence's template fixed that (4/4) and the original failures (14/14).
+- **Debt plans.** Gemma's note, written first, reached for whichever one
+  option covered the debt alone ("Selling 5 houses from the Red set provides
+  $375, which covers the debt"). Stating what's left after every mortgage
+  ("the $120 left takes 2 Red houses") helped the orange set but not the red
+  (4/9 still sold with a railroad kept); listing the two complete plans with
+  what each loses fixed orange and light blue but red still sold 5 (8/9 wrong).
+  **The answer's order** did it: the mortgages first, then `stillOwed` (the
+  debt left after them), then the sales, with the notes last, gave the
+  cheapest plan on every replay (12/12 on the failing red, orange and light
+  blue requests; the keeps-houses positions still mortgaged only).
+
+llm-v6 is llm-v5 with those two changes, both answer shapes:
+
+- the counter's follow-up opens with `termsInWords`, "I hand over <lots>;
+  <name> pays me $A (or: I pay $B, or: no cash); I take <their lots>",
+  matching the message, before the lot choices and cash;
+- the debt plan is answered `mortgage`, `stillOwed`, `sellHouses`, then the
+  notes (`planFirstSchema`); `stillOwed` is a working step, not checked.
+
+Final run, Gemma 4 12B, full suite, 5 reps (230 answers); llm-v5 is its own
+5-rep Gemma run from the model-axis entry, re-judged with the new check, plus
+5 reps on the new family in the same conditions:
+
+| Gemma 4 12B | llm-v5 | llm-v6 |
+|---|---|---|
+| Errors in error scenarios | 17/120 | 1/120 |
+| `debt-must-sell-houses` (3 sets) | 8/15 | 0/15 |
+| `vote-counter-message` (new) | 8/15 | 0/15 |
+| Other trade-vote error scenarios | 1/45 | 1/45 |
+| Contradicting terms in judgment scenarios | 5 | 0 |
+| Counters, of trade votes | 44/70 | 56/85 |
+| `vote-arms-rival-monopoly` | 4 counter "$600" (terms $0 + two lots), 1 accept | 4 counter $600 (terms $600), 1 accept |
+| Debt plans, houses sold where they must be | 3-6 houses | 2, the fewest that cover it |
+| Median quick call / debt / trade vote / turn start | 3.3 s / 4.1 s / 42 s / 43 s | 3.4 s / 4.6 s / 40 s / 44 s |
+
+The one error left: "$50 is a bit low for the Railroad; would you consider
+$150?" written as "Sam pays me $200" (the lot's price). Judgments held: auctions
+$350-$400 for Boardwalk and $200-$220 to block the rival's orange, a fresh
+orange monopoly built (3 houses, 3x), 14/15 proposals on the propose-direction
+family; no sign of a seat doing less.
+
+**Classification (METHOD.md): both changes are general.** Both are answer
+shapes, measured on two families: on Sonnet 5.5 (`--model claude-cli:sonnet`,
+concurrency 2, 3 reps, the debt and counter families and the counter-heavy
+judgments) llm-v6 made 0/45 and then, with the final template, 0/18 errors;
+its counter prices didn't move (New York $650-$900, against llm-v5's
+$650-$850), and its debt plans sell the fewest houses that cover the debt.
+On Qwen3.5-9B (4 slots, 5 reps, trade-vote and debt error families,
+the new family and the New York judgment), llm-v6 made 13/95 against llm-v5's
+8/95 (final run, re-judged) and 9/80 (first run, re-judged, before the new
+family existed): somewhat worse than either llm-v5 run, but in llm-v5's
+vote-side family, not the terms step. 9 of its 12 trade errors ask cash and
+hand nothing over, most after a message that means keep ("I'd rather mortgage
+it for $150 and keep it"); llm-v5 wrote those as an empty, unusable counter or
+the same cash-for-nothing, which the new check now grades. Debt on Qwen: 1/30
+(llm-v5 3/30 and 0/30). By METHOD's rule (helped or neutral on a local and a
+hosted family: Gemma and Sonnet) both changes count as general; Qwen's trade
+votes are the caveat, and item 2 of `NEXT.md` is where they get fixed.
+
+Kept: on Gemma, errors in the error scenarios fall from 17 to 1 in 120, with
+no new family and no drop in counters or proposals. The loop continues on
+Gemma 4 12B.
+
+Lesson: **for a model without thinking, the answer's order is its
+reasoning.** Facts in the question (the remainder after mortgages, two
+complete plans with their losses) moved Gemma part of the way; asking for the
+plan in the order a strong player works it moved it all the way, on every
+model tried. The same held for counters: a first field that restates the
+message in the terms' own form carries it into the fields. And a check
+written for one model's failure found the same failure in four of five
+models' records, at zero model cost, by re-judging what was already on disk.
+
+## The loop, after llm-v6
+
+- **2026-10-07: re-judge the records before running anything.** A new check
+  can be scored on every past run for free: rebuild each scenario, settle the
+  recorded answer (and follow-up) again, and judge it. That measured the
+  terms-against-message check on five models' llm-v5
+  records without a model call, and gave llm-v5's half of the verdict on every
+  old scenario; only the new family needed fresh llm-v5 calls.
+- **2026-10-07: on a single-slot model, iterate on replays, not suites.** A
+  replayed Gemma follow-up or debt plan costs 3-10 s and repeats almost
+  exactly at temperature 0.3, so five shapes were compared in about 150 quick
+  calls; the subset and full runs were only for the verdict.

@@ -102,6 +102,67 @@ describe("scenario checks, on canned answers", () => {
   });
 });
 
+describe("a trade's terms against its message, in every scenario", () => {
+  const llmV6 = { profile: "ai:local" as const, version: "llm-v6" as const };
+  // The fake answers both calls alike, so one object carries the vote and the
+  // counter's terms. The AI holds New York; Sam offers $400 and holds the
+  // other two oranges.
+  const counter = (publicNote: string, give: string, take: string, cashYouReceive: number) =>
+    fakeModel({
+      ...NOTES,
+      publicNote,
+      vote: "counter",
+      termsInWords: "",
+      yourLots: { "#19 New York Avenue": give },
+      theirLots: { "#16 St. James Place": take, "#18 Tennessee Avenue": take },
+      cashYouPay: 0,
+      cashYouReceive,
+      yourCashAfter: 700 + cashYouReceive,
+    });
+  const run = (model: ModelAdapter) => runScenario(byId("vote-arms-rival-monopoly"), llmV6, model, 0, null);
+  const ask = "I'd like $600 for New York Avenue.";
+
+  it("passes terms that match the message", async () => {
+    expect((await run(counter(ask, "hand over", "leave", 600))).check?.error).toBeNull();
+  });
+
+  it("errors, even in a judgment scenario, when the cash the message names never reaches the terms", async () => {
+    const record = await run(counter(ask, "hand over", "take", 0));
+    expect(record.check?.kind).toBe("judgment");
+    expect(record.check?.error).toBe(`the message names $600 but the terms move no cash ("${ask}")`);
+  });
+
+  it("errors on a lot the terms move that the message never mentions", async () => {
+    expect((await run(counter(ask, "hand over", "take", 600))).check?.error).toMatch(/^the terms move St\. James Place \+ Tennessee Avenue, which the message never mentions/);
+  });
+
+  it("errors on terms that ask cash and hand nothing over", async () => {
+    expect((await run(counter(ask, "keep", "leave", 600))).check?.error).toMatch(/^the terms ask \$600 and hand nothing over/);
+  });
+
+  it("gates it in the counter-message family", async () => {
+    const record = await runScenario(
+      byId("vote-counter-message-red"),
+      llmV6,
+      fakeModel({
+        ...NOTES,
+        publicNote: "Illinois is worth more to you; $500 and it's yours.",
+        vote: "counter",
+        termsInWords: "",
+        yourLots: { "#24 Illinois Avenue": "hand over" },
+        theirLots: { "#21 Kentucky Avenue": "take", "#23 Indiana Avenue": "leave" },
+        cashYouPay: 0,
+        cashYouReceive: 500,
+        yourCashAfter: 1200,
+      }),
+      0,
+      null,
+    );
+    expect(record.check?.kind).toBe("error");
+    expect(record.check?.error).toMatch(/^the terms move Kentucky Avenue, which the message never mentions/);
+  });
+});
+
 describe("scoreboard", () => {
   it("takes nearest-rank quantiles", () => {
     expect(quantile([], 0.5)).toBeNull();
