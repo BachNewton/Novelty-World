@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { SHOW_PRIVATE_NOTES_IN_LOG } from "../bots/ai/console";
 import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
@@ -160,6 +161,17 @@ function TurnFragment({
               text={event.text}
             />,
           ];
+          if (SHOW_PRIVATE_NOTES_IN_LOG && event.privateText !== undefined) {
+            noteRow.push(
+              <BotNoteRow
+                key={`${key}-private`}
+                actor={playersById.get(event.playerId)}
+                text={event.privateText}
+                label="Thinks"
+                color="var(--mono-neutral)"
+              />,
+            );
+          }
           return noteRow;
         }
         // An AI seat's failure reads like a note, flagged red: the game has

@@ -1,5 +1,10 @@
 import type { GameEvent, GameState } from "../../types";
 
+/** Whether an AI seat's private reasoning also shows in the game log, under its
+ *  public note. Off, it reaches only the browser console. Typed `boolean` so the
+ *  checks against it read as real conditions whichever way it is set. */
+export const SHOW_PRIVATE_NOTES_IN_LOG: boolean = true;
+
 /** A line for the browser console: an AI seat's private reasoning, or why it
  *  failed. Kept off the board on purpose; players are trusted not to look. */
 export interface AiConsoleLine {
