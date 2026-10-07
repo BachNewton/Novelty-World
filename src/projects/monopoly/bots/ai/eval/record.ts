@@ -101,13 +101,14 @@ export function resultOf(result: ModelResult): RecordedResult {
     : { ok: false, kind: result.kind, message: result.message };
 }
 
-/** Ask a llama.cpp server to describe itself. Null when it doesn't answer like
- *  one (a different OpenAI-compatible server), never a failure: the record then
- *  just says nothing about the server. */
-export async function serverInfo(baseUrl: string): Promise<ServerInfo | null> {
+/** Ask a llama.cpp server to describe itself, with the key its calls carry (a
+ *  keyed server turns away an unkeyed `/props` like any other request). Null
+ *  when it doesn't answer like one (a different OpenAI-compatible server),
+ *  never a failure: the record then just says nothing about the server. */
+export async function serverInfo(baseUrl: string, apiKey: string | null): Promise<ServerInfo | null> {
   const root = baseUrl.replace(/\/v1\/?$/, "");
   try {
-    const res = await fetch(`${root}/props`);
+    const res = await fetch(`${root}/props`, apiKey === null ? {} : { headers: { Authorization: `Bearer ${apiKey}` } });
     if (!res.ok) return null;
     const props: unknown = await res.json();
     if (!isRecord(props)) return null;

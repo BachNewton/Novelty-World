@@ -16,7 +16,7 @@
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { localBaseUrl, modelFor } from "../model/config";
+import { localBaseUrl, localKey, modelFor } from "../model/config";
 import { AI_VERSIONS, type AiVersionLabel } from "../versions";
 import { claudeCli, claudeCliServer, claudeCliTag, parseClaudeCliModel, type ClaudeCliConfig } from "./claude-cli";
 import { serverInfo, type AiCallRecord } from "./record";
@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const scenarios = args.only ? SCENARIOS.filter((s) => args.only?.includes(s.id)) : SCENARIOS;
   if (args.only && scenarios.length !== args.only.length) usage(`unknown scenario in --only: ${args.only.join(",")}`);
   const claude = args.claude;
-  const server = claude ? claudeCliServer(claude, args.concurrency ?? 4) : await serverInfo(localBaseUrl());
+  const server = claude ? claudeCliServer(claude, args.concurrency ?? 4) : await serverInfo(localBaseUrl(), localKey());
   if (!server) usage(`no llama.cpp server answering at ${localBaseUrl()} (start one with npm run ai:llm -- <config>)`);
   const concurrency = args.concurrency ?? server.slots ?? 1;
   const at = new Date().toISOString();

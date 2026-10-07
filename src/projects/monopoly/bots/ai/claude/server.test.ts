@@ -224,7 +224,7 @@ describe("claudeServer", () => {
     expect(result).toMatchObject({ ok: true, answer: { choice: "buy" }, thoughts: "Boardwalk is worth it." });
     expect(run.mock.calls.map(([c]) => c.think)).toEqual([true, false]);
     expect(await adapter.identify()).toBe("claude-sonnet-5-5 (effort: think=high, quick=low) via claude -p");
-    expect((await serverInfo(baseUrl))?.model).toBe("claude-sonnet-5-5 (effort: think=high, quick=low) via claude -p");
+    expect((await serverInfo(baseUrl, null))?.model).toBe("claude-sonnet-5-5 (effort: think=high, quick=low) via claude -p");
   });
 
   it("fails the call with the CLI's own words, never retrying", async () => {
@@ -242,6 +242,17 @@ describe("claudeServer", () => {
     const baseUrl = await serve(vi.fn<typeof runClaude>(), { ...CONFIG, key: "secret" });
     expect((await fetch(`${baseUrl}/models`)).status).toBe(401);
     expect((await fetch(`${baseUrl}/models`, { headers: { Authorization: "Bearer secret" } })).status).toBe(200);
+  });
+
+  it("describes itself to the call record only with the key", async () => {
+    const baseUrl = await serve(vi.fn<typeof runClaude>(), { ...CONFIG, key: "secret" });
+    expect(await serverInfo(baseUrl, null)).toBeNull();
+    expect(await serverInfo(baseUrl, "secret")).toEqual({
+      model: "claude-sonnet-5-5 (effort: think=high, quick=low) via claude -p",
+      contextPerSlot: null,
+      slots: 2,
+      defaults: {},
+    });
   });
 
   it("runs no more calls at once than its concurrency", async () => {
