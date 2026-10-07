@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, ChevronDown, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
-import { AI_PROFILE_IDS, AI_PROFILES, isAiStrategy, type AiProfileId } from "../bots/ai/profiles";
+import {
+  AI_PROFILE_IDS,
+  AI_PROFILES,
+  aiStrategyId,
+  parseAiStrategy,
+  type AiStrategy,
+} from "../bots/ai/strategy";
+import { AI_VERSION_LABELS } from "../bots/ai/versions";
 import { LOBBY_BOTS, type BotOption } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
@@ -255,10 +262,10 @@ function BotRoleSelector({ player }: { player: Player }) {
     });
   }
 
-  const aiProfile = isAiStrategy(player.botStrategy) ? player.botStrategy : null;
+  const ai = parseAiStrategy(player.botStrategy);
   const triggerLabel =
-    aiProfile !== null
-      ? AI_PROFILES[aiProfile].label
+    ai !== null
+      ? `${AI_PROFILES[ai.profile].label} · ${ai.version}`
       : (current?.version ?? player.botStrategy ?? "Bot");
 
   return (
@@ -277,7 +284,7 @@ function BotRoleSelector({ player }: { player: Player }) {
       >
         <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--mono-rail)" }} />
         <span className="flex-1 truncate font-mono">{triggerLabel}</span>
-        {aiProfile === null && <EloTag rating={current?.rating ?? null} />}
+        {ai === null && <EloTag rating={current?.rating ?? null} />}
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
@@ -304,14 +311,19 @@ function BotRoleSelector({ player }: { player: Player }) {
           )}
 
           <SectionHeading>Language model</SectionHeading>
-          {AI_PROFILE_IDS.map((profile) => (
-            <AiOptionRow
-              key={profile}
-              profile={profile}
-              active={player.botStrategy === profile}
-              onSelect={select}
-            />
-          ))}
+          {AI_PROFILE_IDS.flatMap((profile) =>
+            AI_VERSION_LABELS.map((version) => {
+              const strategy = { profile, version };
+              return (
+                <AiOptionRow
+                  key={aiStrategyId(strategy)}
+                  strategy={strategy}
+                  active={player.botStrategy === aiStrategyId(strategy)}
+                  onSelect={select}
+                />
+              );
+            }),
+          )}
 
           <SectionHeading>Best of each family</SectionHeading>
           {LOBBY_BOTS.families.map((fam) =>
@@ -448,14 +460,14 @@ function BotOptionRow({
   );
 }
 
-/** One language-model profile in the menu. It has no Elo: a model isn't rated
- *  on the bot ladder. */
+/** One language-model profile at one AI version in the menu, newest version
+ *  first. It has no Elo: an AI seat isn't rated on the bot ladder. */
 function AiOptionRow({
-  profile,
+  strategy,
   active,
   onSelect,
 }: {
-  profile: AiProfileId;
+  strategy: AiStrategy;
   active: boolean;
   onSelect: (strategy: string) => void;
 }) {
@@ -464,19 +476,19 @@ function AiOptionRow({
       type="button"
       role="option"
       aria-selected={active}
-      onClick={() => { onSelect(profile); }}
+      onClick={() => { onSelect(aiStrategyId(strategy)); }}
       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:brightness-125"
       style={{
         backgroundColor: active ? "var(--mono-orange)" : "transparent",
         color: active ? "var(--mono-card)" : "var(--mono-ink)",
       }}
     >
-      <span className="flex-1 truncate font-semibold">{AI_PROFILES[profile].label}</span>
+      <span className="flex-1 truncate font-semibold">{AI_PROFILES[strategy.profile].label}</span>
       <span
         className="font-mono text-[10px] font-bold"
         style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}
       >
-        {profile}
+        {strategy.version}
       </span>
     </button>
   );

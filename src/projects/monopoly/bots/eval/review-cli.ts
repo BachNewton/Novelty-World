@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { netWorth } from "../../engine";
 import { spaceName } from "../../logic";
 import type { GameEvent, GameState, Player } from "../../types";
+import { loggedAiDecisions, recordLine, seconds, summarizeBySeat } from "./ai-metrics";
 import { renderHighlight, type NameOf } from "./render-log";
 
 /** `npm run game:review` — pull a REAL (human + bot) finished or in-progress game
@@ -176,6 +177,26 @@ async function reviewGame(id: string, quiet: boolean): Promise<void> {
     for (const e of group.events) {
       if (quiet && !DECISION_KINDS.has(e.kind)) continue;
       console.log(renderHighlight({ turn: group.turn, actorId: group.playerId, event: e }, nameOf));
+      // An AI seat's decision also carries its private reasoning, its plan and
+      // how it was made: the evidence a review of the AI needs.
+      if (e.kind === "bot-note" || e.kind === "ai-failed") {
+        if (e.kind === "bot-note" && e.privateText !== undefined) console.log(`        thinks: ${e.privateText}`);
+        if (e.kind === "bot-note" && e.plan !== undefined) console.log(`        plan:   ${e.plan}`);
+        if (e.ai !== undefined) console.log(`        ⏱ ${recordLine(e.ai)}`);
+      }
+    }
+  }
+
+  const aiDecisions = loggedAiDecisions(state);
+  if (aiDecisions.length > 0) {
+    console.log("\n--- AI decisions (time per decision) ---");
+    for (const [seat, { overall, byDecision }] of summarizeBySeat(aiDecisions)) {
+      const failures = aiDecisions.filter((d) => d.playerId === seat && d.failed).length;
+      const versions = [...new Set(aiDecisions.filter((d) => d.playerId === seat).map((d) => `${d.record.version} on ${d.record.model ?? "an unnamed model"}`))];
+      console.log(`  ${nameOf(seat)} (${versions.join("; ")}): ${String(overall.count)} decisions, median ${seconds(overall.medianMs)}, p90 ${seconds(overall.p90Ms)}${failures > 0 ? `, ${String(failures)} failed` : ""}`);
+      for (const [kind, t] of byDecision) {
+        console.log(`      ${kind.padEnd(12)} ${String(t.count).padStart(3)} × median ${seconds(t.medianMs)}, p90 ${seconds(t.p90Ms)}`);
+      }
     }
   }
 

@@ -1,16 +1,15 @@
 import { auctionBidCap, BID_INCREMENT, firstNegativePlayer, hasPendingBoundary } from "../../engine";
 import type { AiDecision, GameState, Intent } from "../../types";
-import { isAiSeat } from "./profiles";
 import { aiSeat, currentTurnNumber } from "./seat";
-import { turnStartOwed } from "./turn-start";
+import { aiVersionOf } from "./strategy";
 
 /** The decision an AI seat owes a model call for right now, or null when it owes
  *  nothing (or isn't an AI seat). One function decides it for both the pacer
  *  (whether to ask the route) and the route (what to ask the model), so the two
  *  can't disagree. It mirrors where the pacer consults a rule-based bot, except:
  *  - the seat's own turn start (its `pre-roll`, or its `jail-decision` before
- *    the jail choice) is one "turn-start" question, asked at most once per
- *    turn-group and skipped when nothing relevant changed (`turnStartOwed`);
+ *    the jail choice) is one "turn-start" question, asked when its AI version's
+ *    `turnStartOwed` says so (at most once per turn-group);
  *    the seat never arms at anyone else's boundary;
  *  - an auction asks once, for a maximum, then the pacer bids for it
  *    (`auctionProxyIntent`), so a seat that already answered owes nothing here.
@@ -18,17 +17,19 @@ import { turnStartOwed } from "./turn-start";
  *  every intermission it uses and closes it in the same write; they are named so
  *  that reaching one fails loudly in the route instead of stalling silently. */
 export function aiDecisionFor(state: GameState, seat: string): AiDecision | null {
-  if (state.status !== "active" || !isAiSeat(state, seat)) return null;
+  const version = aiVersionOf(state, seat);
+  if (state.status !== "active" || version === null) return null;
+  const turnStartOwed = (): boolean => version.turnStartOwed(state, seat);
   const turn = state.turn;
   const active = turn.playerId === seat;
   switch (turn.phase) {
     case "pre-roll":
-      return active && !hasPendingBoundary(state) && turnStartOwed(state, seat)
+      return active && !hasPendingBoundary(state) && turnStartOwed()
         ? "turn-start"
         : null;
     case "jail-decision":
       if (!active || hasPendingBoundary(state)) return null;
-      return turnStartOwed(state, seat) ? "turn-start" : "jail";
+      return turnStartOwed() ? "turn-start" : "jail";
     case "buy-decision":
       return active ? "buy" : null;
     case "raising-cash":

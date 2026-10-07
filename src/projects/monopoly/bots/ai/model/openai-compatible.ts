@@ -1,4 +1,4 @@
-import type { ModelAdapter, ModelRequest, ModelResult } from "./adapter";
+import type { CallMetrics, ModelAdapter, ModelRequest, ModelResult } from "./adapter";
 
 export interface OpenAiCompatibleConfig {
   /** The API root, ending in `/v1`. */
@@ -7,8 +7,6 @@ export interface OpenAiCompatibleConfig {
   apiKey: string | null;
   /** How long one call may take before it counts as failed. */
   timeoutMs: number;
-  /** How many tokens the model may spend reasoning when `think` is on. */
-  thinkTokens: number;
   fetch?: typeof fetch;
 }
 
@@ -20,6 +18,9 @@ interface ChatMessage {
 interface ChatReply {
   content: string;
   reasoning: string;
+  finishReason: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
 }
 
 class CallError extends Error {
@@ -39,16 +40,17 @@ class CallError extends Error {
  *  call, which is what the Betrayal proof of concept found worked. */
 export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
   const doFetch = config.fetch ?? fetch;
+  const headers = {
+    "Content-Type": "application/json",
+    ...(config.apiKey === null ? {} : { Authorization: `Bearer ${config.apiKey}` }),
+  };
 
   async function chat(body: object, signal: AbortSignal): Promise<ChatReply> {
     let res: Response;
     try {
       res = await doFetch(`${config.baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(config.apiKey === null ? {} : { Authorization: `Bearer ${config.apiKey}` }),
-        },
+        headers,
         body: JSON.stringify({ model: config.model, ...body }),
         signal,
       });
@@ -67,9 +69,28 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
     return message;
   }
 
+  async function getJson(path: string): Promise<unknown> {
+    const res = await doFetch(path, { headers, signal: AbortSignal.timeout(config.timeoutMs) });
+    return res.ok ? res.json() : null;
+  }
+
   return {
     async complete(request: ModelRequest): Promise<ModelResult> {
       const started = Date.now();
+      const metrics: CallMetrics = {
+        ms: 0,
+        thinkMs: null,
+        answerMs: null,
+        promptTokens: null,
+        completionTokens: null,
+        thinkHitBudget: null,
+      };
+      const finish = (): CallMetrics => ({ ...metrics, ms: Date.now() - started });
+      const count = (reply: ChatReply): void => {
+        metrics.promptTokens = add(metrics.promptTokens, reply.promptTokens);
+        metrics.completionTokens = add(metrics.completionTokens, reply.completionTokens);
+      };
+      const sampling = request.sampling ?? {};
       // The deadline on an outside service, not a race: a model server that
       // never answers would otherwise hold the seat's "thinking" marker forever.
       const signal = AbortSignal.timeout(config.timeoutMs);
@@ -80,20 +101,26 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
       try {
         let thoughts = "";
         if (request.think) {
+          const thinkStarted = Date.now();
           const free = await chat(
             {
               messages,
-              max_tokens: config.thinkTokens,
+              max_tokens: request.thinkTokens,
               chat_template_kwargs: { enable_thinking: true },
+              ...sampling,
             },
             signal,
           );
+          metrics.thinkMs = Date.now() - thinkStarted;
+          metrics.thinkHitBudget = free.finishReason === "length";
+          count(free);
           thoughts = (free.reasoning || free.content).trim();
           messages.push(
             { role: "assistant", content: `My reasoning so far:\n${thoughts}` },
             { role: "user", content: "Now give your final answer." },
           );
         }
+        const answerStarted = Date.now();
         const final = await chat(
           {
             messages,
@@ -102,22 +129,59 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
               type: "json_schema",
               json_schema: { name: request.schemaName, schema: request.schema },
             },
+            ...sampling,
           },
           signal,
         );
+        metrics.answerMs = Date.now() - answerStarted;
+        count(final);
         let answer: unknown;
         try {
           answer = JSON.parse(final.content);
         } catch {
-          return { ok: false, kind: "bad-answer", message: `the answer wasn't JSON: ${final.content.slice(0, 200)}` };
+          return {
+            ok: false,
+            kind: "bad-answer",
+            message: `the answer wasn't JSON: ${final.content.slice(0, 200)}`,
+            metrics: finish(),
+          };
         }
-        return { ok: true, answer, thoughts, ms: Date.now() - started };
+        return { ok: true, answer, thoughts, metrics: finish() };
       } catch (err) {
-        if (err instanceof CallError) return { ok: false, kind: err.kind, message: err.message };
+        if (err instanceof CallError) {
+          return { ok: false, kind: err.kind, message: err.message, metrics: finish() };
+        }
         throw err;
       }
     },
+
+    async identify(): Promise<string | null> {
+      // llama.cpp reports its model file at the server root's `/props`; any
+      // OpenAI-compatible server lists its models at `/models`. A server that
+      // answers neither just leaves the model unnamed: the call itself reports
+      // whether the server is reachable.
+      const root = config.baseUrl.replace(/\/v1\/?$/, "");
+      try {
+        const props = await getJson(`${root}/props`);
+        if (isRecord(props) && typeof props.model_path === "string") {
+          return props.model_path.split(/[\\/]/).pop() ?? props.model_path;
+        }
+        const models = await getJson(`${config.baseUrl}/models`);
+        if (isRecord(models) && Array.isArray(models.data)) {
+          const first: unknown = models.data[0];
+          if (isRecord(first) && typeof first.id === "string") return first.id;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
   };
+}
+
+function add(total: number | null, more: number | null): number | null {
+  if (more === null) return total;
+  return (total ?? 0) + more;
 }
 
 function firstMessage(json: unknown): ChatReply | null {
@@ -125,9 +189,13 @@ function firstMessage(json: unknown): ChatReply | null {
   const choice: unknown = json.choices[0];
   if (!isRecord(choice) || !isRecord(choice.message)) return null;
   const { content, reasoning_content: reasoning } = choice.message;
+  const usage = isRecord(json.usage) ? json.usage : {};
   return {
     content: typeof content === "string" ? content : "",
     reasoning: typeof reasoning === "string" ? reasoning : "",
+    finishReason: typeof choice.finish_reason === "string" ? choice.finish_reason : null,
+    promptTokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : null,
+    completionTokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : null,
   };
 }
 

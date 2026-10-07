@@ -334,11 +334,24 @@ export type GameEvent =
       /** An AI seat's plan for the coming turns, as it stood after this
        *  decision; shown beside the private reasoning. */
       plan?: string;
+      /** How an AI seat's decision was made: by which version and model, and
+       *  what it cost. */
+      ai?: AiDecisionRecord;
+      /** The lot of the auction this AI note is about, when its version keeps
+       *  the note off the board until that auction closes. */
+      heldForAuction?: number;
     }
   /** An AI seat failed to make the decision it owed — the model was unreachable,
    *  timed out, or answered with something unusable or illegal. There is no
    *  fallback: the game stalls on that seat, and this row says why. */
-  | { kind: "ai-failed"; playerId: string; decision: AiDecision; reason: string };
+  | {
+      kind: "ai-failed";
+      playerId: string;
+      decision: AiDecision;
+      reason: string;
+      /** How the failed call was made and how long it ran. */
+      ai?: AiDecisionRecord;
+    };
 
 /** One full play turn, grouping every event that happened while a single
  *  player held the dice. A turn ends when the player ends it (or busts to
@@ -514,6 +527,25 @@ export type AiDecision =
   | "manage"
   | "trade-build";
 
+/** What one AI decision was made with and what it cost, recorded with it in
+ *  the log so games can be compared across versions and models. The split and
+ *  token counts are null where the call didn't get that far or the server
+ *  didn't report them. */
+export interface AiDecisionRecord {
+  decision: AiDecision;
+  /** The AI version label (`llm-vN`). */
+  version: string;
+  /** The model as its server named it; null when it wouldn't say. */
+  model: string | null;
+  ms: number;
+  thinkMs: number | null;
+  answerMs: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  /** Whether the reasoning pass ran out of budget (null without one). */
+  thinkHitBudget: boolean | null;
+}
+
 /** An AI seat's own bookkeeping, kept in synced state so every client sees it. */
 export interface AiSeat {
   /** The model's stated plan from its last answer, shown to it in its next
@@ -530,7 +562,7 @@ export interface AiSeat {
    *  Keyed by the lot and the turn-group it was asked in. */
   auctionMax: { position: number; turn: number; max: number } | null;
   /** The turn-group the seat was last asked its turn-start question in, and a
-   *  fingerprint of the board as it left it (`bots/ai/turn-start.ts`), so a
+   *  fingerprint of the board as it left it (its AI version's own), so a
    *  later turn can skip the call when nothing relevant has changed. */
   turnStart: { turn: number; fingerprint: string } | null;
 }
@@ -638,7 +670,15 @@ export type Intent =
    *  pacer prepends it to the same submit batch as the decision it annotates, so
    *  the two land atomically (see `bots/`, `pacing.ts`). A no-op for a non-bot
    *  seat, so it can never reject the batch and stall a turn. */
-  | { kind: "bot-note"; playerId: string; text: string; privateText?: string; plan?: string }
+  | {
+      kind: "bot-note";
+      playerId: string;
+      text: string;
+      privateText?: string;
+      plan?: string;
+      ai?: AiDecisionRecord;
+      heldForAuction?: number;
+    }
   | { kind: "end-turn"; playerId: string };
 
 /** Result of applying an external intent to the state. On success the

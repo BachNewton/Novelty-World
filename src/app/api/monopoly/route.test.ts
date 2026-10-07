@@ -145,9 +145,17 @@ describe("monopoly route — ai-decide", () => {
   const LANDED: GameState = {
     ...HEAD,
     players: HEAD.players.map((p) =>
-      p.id === AI ? { ...p, botStrategy: "ai:local", position: 39 } : p,
+      p.id === AI ? { ...p, botStrategy: "ai:local@llm-v1", position: 39 } : p,
     ),
     turn: { ...HEAD.turn, playerId: AI, phase: "buy-decision", pendingBuy: 39 },
+  };
+  const METRICS = {
+    ms: 1200,
+    thinkMs: null,
+    answerMs: 1200,
+    promptTokens: 1500,
+    completionTokens: 60,
+    thinkHitBudget: null,
   };
   const ANSWER = {
     privateNote: "Boardwalk anchors the dark blues.",
@@ -158,11 +166,14 @@ describe("monopoly route — ai-decide", () => {
   };
 
   function answering(result: unknown): void {
-    modelFor.mockReturnValue({ complete: () => Promise.resolve(result) });
+    modelFor.mockReturnValue({
+      complete: () => Promise.resolve(result),
+      identify: () => Promise.resolve("test-model.gguf"),
+    });
   }
 
   it("claims the seat, asks the model, and commits its answer", async () => {
-    answering({ ok: true, answer: ANSWER, thoughts: "", ms: 1 });
+    answering({ ok: true, answer: ANSWER, thoughts: "", metrics: METRICS });
     const writes: { state: GameState }[] = [];
     createAdminClient.mockReturnValue(
       fakeClient(
@@ -182,10 +193,15 @@ describe("monopoly route — ai-decide", () => {
     const committed = writes[1].state;
     expect(committed.ownership[39]).toBe(AI);
     expect(aiSeat(committed, AI)).toMatchObject({ thinking: null, plan: "Get Park Place." });
+    // The note carries how the decision was made: version, model and timing.
+    const note = committed.turns.flatMap((t) => t.events).find((e) => e.kind === "bot-note");
+    expect(note).toMatchObject({
+      ai: { decision: "buy", version: "llm-v1", model: "test-model.gguf", ms: 1200 },
+    });
   });
 
   it("commits a failed call as a logged failure that stalls the seat", async () => {
-    answering({ ok: false, kind: "unreachable", message: "connection refused" });
+    answering({ ok: false, kind: "unreachable", message: "connection refused", metrics: METRICS });
     const writes: { state: GameState }[] = [];
     createAdminClient.mockReturnValue(
       fakeClient(
@@ -210,7 +226,7 @@ describe("monopoly route — ai-decide", () => {
   });
 
   it("re-reads and re-applies the answer when another write lands first", async () => {
-    answering({ ok: true, answer: ANSWER, thoughts: "", ms: 1 });
+    answering({ ok: true, answer: ANSWER, thoughts: "", metrics: METRICS });
     const writes: { state: GameState }[] = [];
     const claimed: GameState = {
       ...LANDED,
@@ -236,7 +252,7 @@ describe("monopoly route — ai-decide", () => {
   });
 
   it("does nothing, without calling the model, when the seat owes nothing", async () => {
-    answering({ ok: true, answer: ANSWER, thoughts: "", ms: 1 });
+    answering({ ok: true, answer: ANSWER, thoughts: "", metrics: METRICS });
     // Another seat's pre-roll: the AI seat owes nothing.
     const idle: GameState = { ...LANDED, turn: { ...HEAD.turn, playerId: "p1" } };
     createAdminClient.mockReturnValue(fakeClient([{ data: { state: idle, version: 5 }, error: null }]));

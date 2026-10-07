@@ -1,17 +1,10 @@
-import { HOUSE_COST, SPACES } from "../../data";
-import { bankSupply, developmentLevel, groupPositions } from "../../development";
-import { hasMonopoly, rentAt, spaceName, unmortgageCostAt } from "../../logic";
-import type { GameState, Player, PropertyColor } from "../../types";
-import { renderHighlight, type NameOf } from "../eval/render-log";
-import { aiSeat } from "./seat";
-
-/** What the model is sent: a system message that never changes between calls
- *  (so the model server can reuse its work on it), and the seat's view plus the
- *  question. */
-export interface AiPrompt {
-  system: string;
-  user: string;
-}
+import { HOUSE_COST, SPACES } from "../../../../data";
+import { bankSupply, developmentLevel, groupPositions } from "../../../../development";
+import { hasMonopoly, rentAt, spaceName, unmortgageCostAt } from "../../../../logic";
+import type { GameState, Player, PropertyColor } from "../../../../types";
+import { renderHighlight, type NameOf } from "../../../eval/render-log";
+import { aiSeat } from "../../seat";
+import type { AiPrompt } from "../../spec";
 
 /** How many of the latest log lines the seat sees. */
 const RECENT_EVENTS = 30;

@@ -1,10 +1,12 @@
-import { auctionBidCap, isLegal, JAIL_FEE } from "../../engine";
-import { buildingRefundAt, colorAt, developmentLevel, houseCostAt } from "../../development";
-import { hasMonopoly, heldJailCard, mortgageValueAt, ownablePrice, unmortgageCostAt } from "../../logic";
-import type { AiDecision, GameState, Intent } from "../../types";
-import { mortgageablePositions } from "../fallback";
-import type { JsonSchema } from "./model/adapter";
-import { money, playerById, squareLabel } from "./prompt";
+import { auctionBidCap, isLegal, JAIL_FEE } from "../../../../engine";
+import { buildingRefundAt, colorAt, developmentLevel, houseCostAt } from "../../../../development";
+import { hasMonopoly, heldJailCard, mortgageValueAt, ownablePrice, unmortgageCostAt } from "../../../../logic";
+import type { AiDecision, GameState, Intent } from "../../../../types";
+import { mortgageablePositions } from "../../../fallback";
+import type { JsonSchema } from "../../model/adapter";
+import { isRecord, readPositions, type AiOp, type DecisionSpec, type Resolved } from "../../spec";
+import { money, playerById, squareLabel } from "./format";
+import { acquisitionLines } from "./prompt";
 import {
   describeTerms,
   negotiationLines,
@@ -14,44 +16,26 @@ import {
   tradeSchema,
 } from "./trade-terms";
 
-/** One step of carrying out an answer: an intent, or a mechanical `step` (one
- *  `autoStep`) — the jail roll, or opening a boundary window the seat armed. */
-export type AiOp = { kind: "intent"; intent: Intent } | { kind: "step" };
-
-/** What one answer amounts to once read: the ops to carry out (in order, in one
- *  write), and the seat's own bookkeeping. */
-export interface AiResolution {
-  ops: AiOp[];
-  auctionMax: number | null;
-  publicNote: string;
-  privateNote: string;
-  plan: string;
-}
-
-export type Resolved = { ok: true; resolution: AiResolution } | { ok: false; reason: string };
-
-/** One decision kind: what the model is asked, the shape its answer must take,
- *  and how that answer becomes intents. `think` gives the model room to reason
- *  before answering, for decisions worth the wait. `verify` checks the state
- *  after the intents apply, for a decision whose answer can be legal yet not
- *  finish the job. */
-export interface DecisionSpec {
-  think: boolean;
-  question: (state: GameState, seat: string) => string;
-  schema: (state: GameState, seat: string) => JsonSchema;
-  resolve: (state: GameState, seat: string, answer: Record<string, unknown>) => Resolved;
-  verify?: (after: GameState, seat: string) => string | null;
-}
-
+// The length limits are a backstop well above the asked-for length: a grammar
+// limit cuts the text off mid-word rather than making the model write less, so
+// brevity is asked for in words.
 const NOTE_FIELDS = {
-  privateNote: { type: "string", maxLength: 800 },
+  privateNote: {
+    type: "string",
+    maxLength: 1500,
+    description: "Your reasoning, at most three short sentences.",
+  },
   publicNote: {
     type: "string",
-    maxLength: 200,
+    maxLength: 400,
     description:
-      "One sentence the whole table sees in the log. On a trade you propose or counter, it is your message to the other side.",
+      "One short sentence the whole table sees in the log. On a trade you propose or counter, it is your message to the other side.",
   },
-  plan: { type: "string", maxLength: 300 },
+  plan: {
+    type: "string",
+    maxLength: 400,
+    description: "One short sentence to your future self about the next few turns.",
+  },
 } as const;
 
 /** An answer schema: the private note first, so the model reasons before it
@@ -97,20 +81,6 @@ function resolved(
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function readPositions(value: unknown): number[] | null {
-  if (!Array.isArray(value)) return null;
-  const positions: number[] = [];
-  for (const v of value) {
-    if (typeof v !== "number" || !Number.isInteger(v)) return null;
-    positions.push(v);
-  }
-  return positions;
-}
-
 function mortgageLines(state: GameState, seat: string): string {
   const lots = mortgageablePositions(state, seat);
   if (lots.length === 0) return "You have nothing you could mortgage.";
@@ -131,7 +101,8 @@ const buy: DecisionSpec = {
     const cash = cashOf(state, seat);
     const lines = [
       `You landed on ${squareLabel(position)}, unowned, price ${money(price)}. You have ${money(cash)}.`,
-      `Answer "buy" to buy it, or "auction" to put it up for auction (you may bid there too).`,
+      ...acquisitionLines(state, seat, position),
+      `Answer "buy" to buy it at ${money(price)}, or "auction" to put it up for auction (everyone may bid, you included).`,
     ];
     if (cash < price) {
       lines.push(
@@ -185,12 +156,17 @@ const auction: DecisionSpec = {
     const a = state.turn.auction;
     if (!a) throw new Error("no auction");
     const leader = a.leaderId === null ? "no bids yet" : `high bid ${money(a.highBid)} by ${playerById(state, a.leaderId).name}`;
+    const cash = cashOf(state, seat);
     return [
       `${squareLabel(a.position)} (price ${money(ownablePrice(a.position) ?? 0)}) is up for auction: ${leader}.`,
-      `You have ${money(cashOf(state, seat))} in cash and could pay at most ${money(auctionBidCap(state, seat))} (by mortgaging and selling if needed).`,
-      `Answer "maxBid": the most you will pay for it. You'll bid for it in $10 steps up to that amount as others bid. Answer 0 to drop out now.`,
+      ...acquisitionLines(state, seat, a.position),
+      `You have ${money(cash)} in cash. Winning at a bid of B leaves you ${money(cash)} minus B; below $0 you would have to mortgage or sell to pay.`,
+      `Rule of thumb: a lot is rarely worth much more than its printed price unless winning it completes a color set for you or stops a rival from completing one. Keep enough cash afterwards to pay a typical rent.`,
+      `Answer "maxBid": the most you will pay for it. You'll bid for it in $10 steps up to that amount as others bid. Answer 0 to drop out now. Your publicNote is shown only after the auction closes.`,
     ].join("\n");
   },
+  // The schema still caps the answer at what the seat could pay, so a bid can
+  // never strand it; the question just doesn't offer that number as a target.
   schema: (state, seat) =>
     answerSchema({ maxBid: { type: "integer", minimum: 0, maximum: auctionBidCap(state, seat) } }),
   resolve: (_state, _seat, answer) => {
@@ -346,15 +322,15 @@ const tradeVote: DecisionSpec = {
       `${proposer} proposes a trade:`,
       ...describeTerms(state, seat, trade),
       `Negotiation so far this turn, oldest first:\n${history.join("\n") || "(this is the opening offer)"}`,
-      `Answer "accept", "decline", or "counter". To counter, put in "counter" the full trade you would accept instead; it replaces theirs, and they then vote on it. Leave "counter" empty otherwise.`,
+      `Answer "accept", "decline", or "counter". To counter, write in "counter" the full trade you would accept instead, from your side; it replaces theirs, and they then vote on it. With accept or decline, "counter" is ignored.`,
       tradeFormat(state, seat),
       ...NEGOTIATE,
     ].join("\n");
   },
-  schema: (state) =>
+  schema: (state, seat) =>
     answerSchema({
       vote: { type: "string", enum: ["accept", "decline", "counter"] },
-      counter: tradeSchema(state),
+      counter: tradeSchema(state, seat),
     }),
   resolve: (state, seat, answer) => {
     const trade = state.turn.pendingTrade;
@@ -366,7 +342,7 @@ const tradeVote: DecisionSpec = {
       case "decline":
         return resolved(answer, { intents: [{ kind: "decline-trade", playerId: seat, tradeId }] });
       case "counter": {
-        const counter = readTrade(answer.counter);
+        const counter = readTrade(state, seat, answer.counter);
         if (!counter.ok) return counter;
         return resolved(answer, {
           intents: [
@@ -423,7 +399,7 @@ const turnStart: DecisionSpec = {
             .map((pos) => `  - ${squareLabel(pos)}: lifting costs ${money(unmortgageCostAt(pos) ?? 0)}`)
             .join("\n")}`
         : `You have no mortgaged lots.`,
-      `Trading: set "proposeTrade" true and fill "trade" to propose one; otherwise false, with "trade" empty. Look for deals that complete a color set for you; the other side must want it too.`,
+      `Trading: set "proposeTrade" true and write "trade" to propose one; with false, "trade" is ignored. Look for deals that complete a color set for you; the other side must want it too.`,
       tradeFormat(state, seat),
       `Recent trade offers in this game, oldest first:\n${recentOfferLines(state, 8).join("\n") || "(none yet)"}`,
       `Your publicNote is shown to the table; if you propose a trade, it is your message to the other side: pitch it.`,
@@ -450,7 +426,7 @@ const turnStart: DecisionSpec = {
       mortgage: positionList(ownedUnmortgaged(state, seat)),
       unmortgage: positionList(ownedMortgaged(state, seat)),
       proposeTrade: { type: "boolean" },
-      trade: tradeSchema(state),
+      trade: tradeSchema(state, seat),
     });
   },
   resolve: (state, seat, answer) => {
@@ -480,7 +456,7 @@ const turnStart: DecisionSpec = {
       );
     }
     if (answer.proposeTrade === true) {
-      const trade = readTrade(answer.trade);
+      const trade = readTrade(state, seat, answer.trade);
       if (!trade.ok) return trade;
       ops.push(
         intent({ kind: "set-queue", playerId: seat, queue: "trade", armed: true }),
@@ -491,7 +467,11 @@ const turnStart: DecisionSpec = {
     } else if (answer.proposeTrade !== false) {
       return { ok: false, reason: "proposeTrade must be true or false" };
     }
-    return resolved(answer, { ops });
+    // A turn start that does nothing puts nothing on the table: its note and
+    // plan are still kept, but no public line says it is rolling.
+    const read = resolved(answer, { ops });
+    if (read.ok && ops.length === 0) read.resolution.publicNote = "";
+    return read;
   },
 };
 

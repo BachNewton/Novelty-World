@@ -26,7 +26,9 @@ export function aiConsoleLines(prev: GameState, next: GameState): AiConsoleLine[
 
 function line(event: GameEvent, name: (id: string) => string): AiConsoleLine[] {
   if (event.kind === "bot-note" && event.privateText !== undefined) {
-    return [{ level: "info", text: `[AI] ${name(event.playerId)}: ${event.privateText}${event.plan === undefined ? "" : ` Plan: ${event.plan}`}` }];
+    const plan = event.plan === undefined ? "" : ` Plan: ${event.plan}`;
+    const time = event.ai === undefined ? "" : ` (${event.ai.version}, ${(event.ai.ms / 1000).toFixed(1)}s)`;
+    return [{ level: "info", text: `[AI] ${name(event.playerId)}: ${event.privateText}${plan}${time}` }];
   }
   if (event.kind === "ai-failed") {
     return [

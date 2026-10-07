@@ -3,25 +3,28 @@ import { freshGame } from "../../mocks";
 import { driveOp, type BotResolver } from "../../pacing";
 import type { AuctionState, GameEvent, GameState, Player, TurnState } from "../../types";
 import { apply } from "../../engine";
-import { DECISION_SPECS } from "./answers";
+import type { AiDecisionRecord } from "../../types";
 import { aiConsoleLines } from "./console";
 import { askModel, claimAi, settleAnswer, type Settled } from "./decide";
 import { aiDecisionFor, auctionProxyIntent } from "./decisions";
-import type { ModelAdapter, ModelResult } from "./model/adapter";
-import { buildPrompt } from "./prompt";
+import type { CallMetrics, ModelAdapter, ModelResult } from "./model/adapter";
 import { aiSeat, withAiSeat } from "./seat";
-import { negotiationLines } from "./trade-terms";
-import { turnStartFingerprint, turnStartOwed } from "./turn-start";
+import { DECISION_SPECS } from "./versions/llm-v1/answers";
+import { buildPrompt } from "./versions/llm-v1/prompt";
+import { negotiationLines } from "./versions/llm-v1/trade-terms";
+import { turnStartFingerprint, turnStartOwed } from "./versions/llm-v1/turn-start";
 
-// p1 is the human, p2 the AI seat, p3/p4 rule-based bots (the dumb baseline, so
-// these tests exercise the AI wiring, not a strategy).
+// The shared AI machinery (claim, ask, settle, pacer, console), exercised
+// through llm-v1, whose own behavior these tests also pin: a registered version
+// never changes. p1 is the human, p2 the AI seat, p3/p4 rule-based bots (the
+// dumb baseline, so these tests exercise the AI wiring, not a strategy).
 const AI = "p2";
 const base: GameState = (() => {
   const game = freshGame("ai-test");
   return {
     ...game,
     players: game.players.map((p) =>
-      p.id === AI ? { ...p, botStrategy: "ai:local" } : p.botStrategy !== null ? { ...p, botStrategy: "dumb" } : p,
+      p.id === AI ? { ...p, botStrategy: "ai:local@llm-v1" } : p.botStrategy !== null ? { ...p, botStrategy: "dumb" } : p,
     ),
   };
 })();
@@ -56,11 +59,24 @@ function auctionState(patch: Partial<AuctionState> = {}): GameState {
   return withTurn(base, { playerId: "p1", phase: "auction", auction });
 }
 
+const METRICS: CallMetrics = {
+  ms: 4100,
+  thinkMs: null,
+  answerMs: 4100,
+  promptTokens: 2000,
+  completionTokens: 90,
+  thinkHitBudget: null,
+};
+
+function recordFor(decision: AiDecisionRecord["decision"]): AiDecisionRecord {
+  return { decision, version: "llm-v1", model: "test-model.gguf", ...METRICS };
+}
+
 /** Claim the seat's decision and settle an answer against the same state. */
 function decide(state: GameState, answer: Record<string, unknown>): Settled {
   const claim = claimAi(state, AI);
   if (!claim) throw new Error("expected a decision to claim");
-  return settleAnswer(claim.state, claim.state, AI, claim.decision, answer);
+  return settleAnswer(claim.state, claim.state, AI, claim.decision, answer, recordFor(claim.decision));
 }
 
 function events(state: GameState): GameEvent[] {
@@ -68,7 +84,7 @@ function events(state: GameState): GameEvent[] {
 }
 
 function fakeModel(result: ModelResult): ModelAdapter & { complete: ReturnType<typeof vi.fn> } {
-  return { complete: vi.fn(() => Promise.resolve(result)) };
+  return { complete: vi.fn(() => Promise.resolve(result)), identify: () => Promise.resolve("test-model.gguf") };
 }
 
 describe("aiDecisionFor", () => {
@@ -153,6 +169,7 @@ describe("settling an answer", () => {
       text: NOTES.publicNote,
       privateText: NOTES.privateNote,
       plan: NOTES.plan,
+      ai: recordFor("buy"),
     });
   });
 
@@ -261,7 +278,7 @@ describe("settling an answer", () => {
     if (!claim) throw new Error("expected a claim");
     // Meanwhile every other bidder dropped and p1 won the lot.
     const moved = withTurn(claim.state, { phase: "post-roll", auction: undefined });
-    const settled = settleAnswer(claim.state, moved, AI, claim.decision, { ...NOTES, maxBid: 200 });
+    const settled = settleAnswer(claim.state, moved, AI, claim.decision, { ...NOTES, maxBid: 200 }, recordFor("auction"));
     expect(settled.kind).toBe("stale");
     expect(aiSeat(settled.state, AI)).toMatchObject({ thinking: null, failure: null });
   });
@@ -283,24 +300,28 @@ describe("claimAi", () => {
 
 describe("askModel", () => {
   it("sends the decision's prompt and schema, and reads the answer", async () => {
-    const model = fakeModel({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, thoughts: "", ms: 5 });
+    const model = fakeModel({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, thoughts: "", metrics: METRICS });
     const asked = await askModel(model, atBoardwalk, AI, "buy");
-    expect(asked).toEqual({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] } });
-    const request = model.complete.mock.calls[0][0] as { user: string; schemaName: string; think: boolean };
+    expect(asked).toEqual({ ok: true, answer: { ...NOTES, choice: "buy", mortgage: [] }, record: recordFor("buy") });
+    const request = model.complete.mock.calls[0][0] as { user: string; schemaName: string; thinkTokens: number; sampling: unknown };
     expect(request.schemaName).toBe("buy");
     expect(request.user).toContain("#39 Boardwalk");
+    // llm-v1 leaves sampling to the server and thinks on 1,200 tokens.
+    expect(request.sampling).toBeNull();
+    expect(request.thinkTokens).toBe(1200);
   });
 
   it("reports a network failure as the reason", async () => {
-    const model = fakeModel({ ok: false, kind: "unreachable", message: "connection refused" });
+    const model = fakeModel({ ok: false, kind: "unreachable", message: "connection refused", metrics: { ...METRICS, ms: 30 } });
     expect(await askModel(model, atBoardwalk, AI, "buy")).toEqual({
       ok: false,
       reason: "unreachable: connection refused",
+      record: { ...recordFor("buy"), ms: 30 },
     });
   });
 
   it("refuses a decision the seat can't make yet without calling the model", async () => {
-    const model = fakeModel({ ok: true, answer: {}, thoughts: "", ms: 1 });
+    const model = fakeModel({ ok: true, answer: {}, thoughts: "", metrics: METRICS });
     const asked = await askModel(model, base, AI, "manage");
     expect(asked.ok).toBe(false);
     expect(model.complete).not.toHaveBeenCalled();
@@ -348,7 +369,7 @@ describe("aiConsoleLines", () => {
   it("logs new private notes and failures, and nothing already seen", () => {
     const settled = decide(atBoardwalk, { ...NOTES, choice: "buy", mortgage: [] });
     expect(aiConsoleLines(atBoardwalk, settled.state)).toEqual([
-      { level: "info", text: `[AI] Alex: ${NOTES.privateNote} Plan: ${NOTES.plan}` },
+      { level: "info", text: `[AI] Alex: ${NOTES.privateNote} Plan: ${NOTES.plan} (llm-v1, 4.1s)` },
     ]);
     expect(aiConsoleLines(settled.state, settled.state)).toEqual([]);
   });

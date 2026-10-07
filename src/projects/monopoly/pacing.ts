@@ -1,5 +1,5 @@
 import { aiDecisionFor, auctionProxyIntent } from "./bots/ai/decisions";
-import { isAiSeat, isAiStrategy } from "./bots/ai/profiles";
+import { isAiSeat, isAiStrategy } from "./bots/ai/strategy";
 import { aiSeat, anyAiThinking } from "./bots/ai/seat";
 import { forcedRaiseStep } from "./bots/fallback";
 import { botFor, type Bot, type BotDecision } from "./bots/registry";

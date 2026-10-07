@@ -13,7 +13,7 @@ import { isOutdated } from "@/projects/monopoly/state-version";
 import { VERSIONS } from "@/projects/monopoly/bots/versions";
 import { askModel, claimAi, failed, settleAnswer } from "@/projects/monopoly/bots/ai/decide";
 import { modelFor } from "@/projects/monopoly/bots/ai/model/config";
-import { isAiStrategy } from "@/projects/monopoly/bots/ai/profiles";
+import { isAiStrategy, parseAiStrategy } from "@/projects/monopoly/bots/ai/strategy";
 import { aiSeat } from "@/projects/monopoly/bots/ai/seat";
 import type {
   BotStrategy,
@@ -413,8 +413,8 @@ async function aiDecide(
   if (version !== action.fromVersion) {
     return json({ ok: false, conflict: true, state, version });
   }
-  const strategy = state.players.find((p) => p.id === action.seat)?.botStrategy ?? null;
-  if (!isAiStrategy(strategy)) return json({ ok: false, reason: "not an AI seat" });
+  const strategy = parseAiStrategy(state.players.find((p) => p.id === action.seat)?.botStrategy ?? null);
+  if (strategy === null) return json({ ok: false, reason: "not an AI seat" });
 
   const claim = claimAi(state, action.seat);
   if (!claim) return json({ ok: true, state, version });
@@ -422,7 +422,7 @@ async function aiDecide(
   if (claimed.kind === "error") return claimed.response;
   if (claimed.kind === "lost") return lostRace(supabase, gameId);
 
-  const asked = await askModel(modelFor(strategy), claim.state, action.seat, claim.decision);
+  const asked = await askModel(modelFor(strategy.profile), claim.state, action.seat, claim.decision);
 
   let latest: GameRow = { state: claim.state, version: claimed.version };
   for (let attempt = 0; attempt < AI_COMMIT_ATTEMPTS; attempt++) {
@@ -432,8 +432,8 @@ async function aiDecide(
       return json({ ok: true, state: latest.state, version: latest.version });
     }
     const settled = asked.ok
-      ? settleAnswer(claim.state, latest.state, action.seat, claim.decision, asked.answer)
-      : failed(latest.state, action.seat, claim.decision, asked.reason);
+      ? settleAnswer(claim.state, latest.state, action.seat, claim.decision, asked.answer, asked.record)
+      : failed(latest.state, action.seat, claim.decision, asked.reason, asked.record);
     const write = await casWrite(supabase, gameId, settled.state, latest.version);
     if (write.kind === "error") return write.response;
     if (write.kind === "written") {

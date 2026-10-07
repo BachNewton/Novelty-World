@@ -1,9 +1,9 @@
-import { SPACES } from "../../data";
-import { builtLotsInGroup, developmentLevel, groupPositions } from "../../development";
-import { projectTrade, tradeMortgageFees } from "../../engine";
-import type { CardSource, GameEvent, GameState, TradeTerms } from "../../types";
-import { renderHighlight, type NameOf } from "../eval/render-log";
-import type { JsonSchema } from "./model/adapter";
+import { SPACES } from "../../../../data";
+import { builtLotsInGroup, developmentLevel, groupPositions } from "../../../../development";
+import { projectTrade, tradeMortgageFees } from "../../../../engine";
+import type { CardSource, GameEvent, GameState, TradeTerms } from "../../../../types";
+import { renderHighlight, type NameOf } from "../../../eval/render-log";
+import type { JsonSchema } from "../../model/adapter";
 import { COLOR_LABEL, money, playerById, squareLabel } from "./prompt";
 
 // A trade as the model writes it, for both a proposal and a counter: lists of

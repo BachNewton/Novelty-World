@@ -291,10 +291,32 @@ by cash/affordability.
 
 ### AI seats (language models)
 
-An AI seat is a bot seat whose `botStrategy` is a **model profile** (`ai:local`,
-`bots/ai/profiles.ts`), not a rule-based policy. It is driven by a language model
-through an API, so it has **no synchronous `Bot`**: the registry never resolves
+An AI seat is a bot seat played by a language model through an API, not by a
+rule-based policy. It has **no synchronous `Bot`**: the registry never resolves
 one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
+
+**Two axes, one `botStrategy`.** A seat names a **model profile** (which server
+and model it reaches: `ai:local`) and an **AI version** (`llm-vN`), written
+`<profile>@<version>` (e.g. `ai:local@llm-v2`). `bots/ai/strategy.ts` is the only
+place that writes or parses it. The lobby lists every version under each
+profile, newest first; a new seat takes the newest.
+
+**AI versions are frozen, like the rule-bot archive.** A version
+(`bots/ai/versions/llm-vN/`, registered in `versions/index.ts`) bundles
+everything we control that shapes play: the prompt and the view it builds, each
+decision's question, schema and answer-to-intent mapping (trade terms included),
+which decisions think, the thinking budget, sampling, the notes' length limits,
+the turn-start gate, and whether auction notes are held. **Change any of it:
+register a new `llm-vN`; never edit a registered one**, so every game's record
+names exactly what played it and versions can be compared on evidence. The
+machinery around a version stays shared and unversioned: claim/ask/settle
+(`decide.ts`), what a seat owes (`decisions.ts`), the adapters, the console, the
+UI. A version may lean on shared engine helpers (and llm-v1 on the eval log
+renderer); a change there is a change to every version that uses it.
+
+**The model is the other axis, outside the bundle.** Which model answers is
+whatever the profile's server is running; it is recorded with every decision,
+never assumed.
 
 - **The route decides for it.** When an AI seat owes a decision
   (`aiDecisionFor`, shared by pacer and route so they can't disagree), the pacer
@@ -302,59 +324,70 @@ one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
   **thinking marker** into `state.ai` (version-guarded, so only one client's call
   wins), calls the model, then weighs the answer against the latest row and
   commits it in a second write. While any marker is set, **no client drives
-  anything** — the table waits on the answer, and every client shows it.
+  anything**: the table waits on the answer, and every client shows it.
 - **One call per decision; the answer is a whole plan.** A debt settle is the
   full sell/mortgage plan; a short buyer names its mortgages; an **auction asks
   once for a maximum** and the pacer then bids for the seat in $10 steps
   (`auctionProxyIntent`), with no further calls. Answers are constrained to a
-  per-decision JSON schema (`answers.ts`), and the engine is still the judge:
-  every intent goes through `apply`.
-- **No fallback, no retry (v1).** An unreachable model, a timeout, a malformed
-  or illegal answer, or a legal plan that doesn't finish the job (debt still
-  owed) is committed as an `ai-failed` log event and `AiSeat.failure`. A failed
-  seat is never driven again, so the game **stalls there, visibly**. An answer
-  that was sound but overtaken by another seat's move is **stale**, not failed:
-  the marker clears and the seat is asked afresh.
+  per-decision JSON schema, and the engine is still the judge: every intent
+  goes through `apply`.
+- **No fallback, no retry.** An unreachable model, a timeout, a malformed or
+  illegal answer, or a legal plan that doesn't finish the job (debt still owed,
+  a trade whose stated cash doesn't add up) is committed as an `ai-failed` log
+  event and `AiSeat.failure`. A failed seat is never driven again, so the game
+  **stalls there, visibly**. An answer that was sound but overtaken by another
+  seat's move is **stale**, not failed: the marker clears and the seat is asked
+  afresh.
+- **Every decision is measured.** Its bot-note (or its `ai-failed` event)
+  carries an `AiDecisionRecord`: the version, the model as its server names it
+  (llama.cpp's model file, from `/props`), total time, the thinking and answer
+  passes' times, token counts, and whether thinking ran out of budget. The log's
+  THINKS row shows the time; `npm run game:review` prints every record plus
+  per-seat timing (count, median, p90, by decision kind). This is the evidence a
+  new version is judged on.
 - **Notes and plan.** Every answer carries a `publicNote` (the existing
-  `bot-note`, shown in the log), a `privateNote` (the bot-note's `privateText`,
-  logged to every client's browser console and, behind the
-  `SHOW_PRIVATE_NOTES_IN_LOG` flag in `bots/ai/console.ts`, shown in the game log
-  as a "Thinks" row under the public note — the good-faith model: all
-  information is public and players are trusted not to use it), and a
-  `plan` stored in `state.ai`, shown to the model in its next prompt as "your
-  plan from last time". The plan also rides on the bot-note, so the same flag
-  shows it as a "Plan" row and the console line ends with it. The jail "roll" answer commits its note and the roll in
-  one write.
-- **The prompt is a pure function** of the state, the seat and the question
-  (`prompt.ts`): rules first as a fixed system message (a stable prefix the
-  model server can reuse), then the seat's view, plan, recent log and question.
+  `bot-note`, shown in the log), a `privateNote` (the bot-note's `privateText`)
+  and a `plan` (stored in `state.ai`, shown to the model next time; it also rides
+  on the bot-note). Private note and plan reach every client's console and,
+  behind the `SHOW_PRIVATE_NOTES_IN_LOG` flag in `bots/ai/console.ts`, the log's
+  THINKS and PLAN rows: the good-faith model, where all information is public
+  and players are trusted not to use it. An empty public note (llm-v2's turn
+  start that does nothing) shows no BOT row. A version that **holds auction
+  notes** keeps its auction note off the board, and out of llm-v2 seats'
+  prompts, until that auction closes (`held.ts`), so it can't give its maximum
+  away.
+- **The prompt is a pure function** of the state, the seat and the question:
+  rules first as a fixed system message (a stable prefix the model server can
+  reuse), then the seat's view, plan, recent log and question.
 - **Model-agnostic.** `model/adapter.ts` is the provider interface;
   `openai-compatible.ts` serves `local-llm` (llama.cpp). `model/config.ts` maps
   each profile to its adapter from server env (`MONOPOLY_AI_LOCAL_URL`,
-  `MONOPOLY_AI_LOCAL_MODEL`, `MONOPOLY_AI_LOCAL_KEY`, `MONOPOLY_AI_TIMEOUT_MS`,
-  `MONOPOLY_AI_THINK_TOKENS`). A client only ever names a profile, never an
-  address. A new provider is a new adapter plus a profile.
+  `MONOPOLY_AI_LOCAL_MODEL`, `MONOPOLY_AI_LOCAL_KEY`, `MONOPOLY_AI_TIMEOUT_MS`).
+  How the model is called (thinking budget, sampling) is the version's, not the
+  server's. A client only ever names a profile, never an address. A new provider
+  is a new adapter plus a profile.
 - **Turn-start window.** At its own turn start (its `pre-roll`, or its
   `jail-decision` before the jail choice, which is then a second question) the
-  seat is asked once per turn-group: an optional full manage plan and an
+  seat may be asked once per turn-group: an optional full manage plan and an
   optional trade proposal, then it rolls. The route carries both out in one
-  write through the same boundary machinery a human uses (arm → open the window
-  → commit/propose), so the one-manage/one-trade window per turn-group holds; it
-  never arms at anyone else's boundary. **The call is skipped, with no model,**
-  when the board's turn-start fingerprint (ownership and so every monopoly,
-  mortgages, buildings, Get Out of Jail Free holders, and the seat's cash in
-  $250 bands) is unchanged since it was last asked **and** it can neither build
-  nor lift a mortgage; a seat that could build is asked every turn
-  (`turn-start.ts`).
+  write through the same boundary machinery a human uses (arm, open the window,
+  commit or propose), so the one-manage/one-trade window per turn-group holds;
+  it never arms at anyone else's boundary. **When it is asked is the version's
+  gate**, skipping the call with no model when there is nothing worth asking
+  (llm-v1: the board unchanged since last asked and nothing to build or lift;
+  llm-v2: only when it could build or lift a mortgage, or shares a color set
+  with another player and the board changed).
 - **Trades and counters.** A vote is accept, decline, or counter with a full
-  draft, carried out as one submit (`counter-trade`, the draft, `propose-trade`).
-  There is **no cap on counter rounds** (owner's call; add one only if AI↔AI
+  trade, carried out as one submit (`counter-trade`, the terms, `propose-trade`).
+  There is **no cap on counter rounds** (owner's call; add one only if AI-to-AI
   ping-pong becomes a problem). Every trade question shows the negotiation so
   far (this turn's offers and counters from the log, with what each side said),
   and asks the model to meet the other side partway or decline to end it. On a
   proposal or counter, the public note is the seat's message to the other side.
-- **Thinking** (a reasoning pass before the constrained answer) is used for the
-  turn-start window and trade votes; the quick decisions answer directly.
+  From llm-v2 a trade is written from the seat's own side (you give, you get,
+  cash you receive, with one counterparty) and states the cash it leaves the
+  seat with; the code builds the engine's terms and fails a mismatch, so a sign
+  slip can't go out as an offer.
 - `raise-to-buy`, `manage` and `trade-build` are named decisions with no spec:
   the seat opens and closes every intermission it uses within one write, so
   reaching one fails loudly. The headless sim and RL tooling play rule-based
@@ -473,7 +506,7 @@ bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the cont
 bots/registry.ts      botFor(botStrategy) -> policy ("dumb" or a version label); re-exports the contract
 bots/decision.ts      Bot / BotDecision contract + move() wrapper
 bots/dumb.ts          dumb (reactive baseline) policy
-bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): profiles, decisions (what a seat owes + auction proxy bids), answers (per-decision schema → ops), turn-start (when the window is owed), trade-terms (trade schema, terms in words, negotiation history), prompt, decide (claim / ask / settle), console (private notes), model/ (provider adapters + server config)
+bots/ai/              AI SEATS — a language model plays the seat through the route (see "AI seats"): strategy (profile@version encoding), spec (the version contract), decisions (what a seat owes + auction proxy bids), decide (claim / ask / settle), held (auction notes held back), console (private notes), model/ (provider adapters + server config), versions/ (the frozen llm-vN bundles + their registry)
 bots/rl/features.ts      PURE seat-relative state encoder for a learned bot — encode(state, playerId) -> fixed-width Float32Array (FEATURE_COUNT / FEATURE_NAMES). Phase 1 of the ML path; input half
 bots/rl/candidates.ts    PURE legal-action enumerator + applyCandidate (1-ply lookahead) for a learned bot — legalCandidates(state, playerId). Phase 1 of the ML path; action half (combinatorial trade/manage construction is a documented heuristic seam)
 bots/rl/value-net-stub.ts  the hybrid loop wired end-to-end — valueNetBot(value) picks argmax over legalCandidates by 1-ply lookahead; heuristicValue + valueNetStubBot bind it to a hand-written value (swap in V(encode(...)) to get the learned bot). Field it via the `value-stub` sim token. NOT a registry/ladder strategy — a prototype
@@ -491,6 +524,7 @@ bots/roles.ts         LOBBY_BOTS — the lobby offering DERIVED from the Elo lad
 bots/eval/simulate.ts      headless self-play driver (per-seat Contenders / strategies)
 bots/eval/simulate-cli.ts  `npm run sim` — watch one bot self-play game (roster, seed, --log)
 bots/eval/render-log.ts    shared per-event log renderer (one line per GameEvent); used by sim --log AND game:review
+bots/eval/ai-metrics.ts    AI decision records out of a game's log + per-seat timing (median / p90 by decision kind); used by game:review
 bots/eval/review-cli.ts    `npm run game:review` — pull a REAL (human+bot) game from the DB and print its play-by-play / standings / holdings / money-flow for analysis (read-only, anon key). See the `/monopoly-game-review` command
 bots/eval/adversary.ts     PURE human-facing LEAKAGE scorer — probeLeakage(label) runs a version's policy on hand-built exploit boards (wallet X-ray ask, complete-into-illiquidity auction, distress fire-sale) and returns a per-scenario leak score (higher = more exploitable by a human). Turns the recurring hand-played probe exploits into a deterministic regression number; no RNG, no game played
 bots/eval/probe-gate-cli.ts  `npm run sim:probe-gate -- <labels…>` — the human-facing leakage SCOREBOARD over adversary.ts. A candidate must not raise its total leakage above its base's; the automated complement to the hand-played `/monopoly-probe` fleet

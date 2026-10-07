@@ -9,12 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import { SHOW_PRIVATE_NOTES_IN_LOG } from "../bots/ai/console";
+import { isNoteHeld } from "../bots/ai/held";
 import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { SetContextChips } from "./holdings-grid";
 import { Money } from "./money";
 import type {
+  AiDecisionRecord,
   CardSource,
   GameEvent,
   GameState,
@@ -98,12 +100,13 @@ export function EventLog({ state, extraHeight = "0px" }: Props) {
           className="grid items-baseline gap-x-3"
           style={{ gridTemplateColumns: GRID_COLUMNS }}
         >
-          {state.turns.map((turn) => (
+          {state.turns.map((turn, index) => (
             <TurnFragment
               key={turn.turn}
               turn={turn}
               playersById={playersById}
               myId={myId}
+              isHeld={(event) => isNoteHeld(state, event, index === state.turns.length - 1)}
             />
           ))}
         </div>
@@ -135,10 +138,13 @@ function TurnFragment({
   turn,
   playersById,
   myId,
+  isHeld,
 }: {
   turn: TurnGroup;
   playersById: ReadonlyMap<string, Player>;
   myId: string | null;
+  /** Whether an AI note is still held back (its auction hasn't closed). */
+  isHeld: (event: GameEvent) => boolean;
 }) {
   const actor = playersById.get(turn.playerId);
   if (!actor) return null;
@@ -154,13 +160,13 @@ function TurnFragment({
         // past it, or read why the bot acted. The acting bot may be off-turn
         // (an off-turn trade proposal), so it carries its own playerId.
         if (event.kind === "bot-note") {
-          const noteRow: ReactNode[] = [
-            <BotNoteRow
-              key={key}
-              actor={playersById.get(event.playerId)}
-              text={event.text}
-            />,
-          ];
+          if (isHeld(event)) return [];
+          // An AI turn start that did nothing says nothing to the table: its
+          // public text is empty, and only the private rows remain.
+          const noteRow: ReactNode[] =
+            event.text === ""
+              ? []
+              : [<BotNoteRow key={key} actor={playersById.get(event.playerId)} text={event.text} />];
           if (SHOW_PRIVATE_NOTES_IN_LOG && event.privateText !== undefined) {
             noteRow.push(
               <BotNoteRow
@@ -169,6 +175,7 @@ function TurnFragment({
                 text={event.privateText}
                 label="Thinks"
                 color="var(--mono-neutral)"
+                meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
               />,
             );
           }
@@ -195,6 +202,7 @@ function TurnFragment({
               text={`couldn't decide (${event.decision}): ${event.reason}. The game is stalled.`}
               label="Stalled"
               color="var(--mono-red)"
+              meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
             />,
           ];
           return failRow;
@@ -264,16 +272,24 @@ function TurnDivider({ turn, actor }: { turn: number; actor: Player }) {
  *  event rows), under an orange "BOT" tag with the acting bot's chip, so it
  *  reads as the bot "speaking" and players can scan past it or read why it
  *  acted. The actor may be off-turn (an off-turn trade proposal). */
+/** How long an AI decision took, as the log shows it: "4.1s". */
+function decisionTime(record: AiDecisionRecord): string {
+  return `${(record.ms / 1000).toFixed(1)}s`;
+}
+
 function BotNoteRow({
   actor,
   text,
   label = "Bot",
   color = "var(--mono-orange)",
+  meta,
 }: {
   actor: Player | undefined;
   text: string;
   label?: string;
   color?: string;
+  /** A short fact about the row, set apart at its end (an AI decision's time). */
+  meta?: string;
 }) {
   return (
     <div
@@ -287,9 +303,14 @@ function BotNoteRow({
         {label}
       </span>
       {actor && <PlayerChip player={actor} />}
-      <span className="min-w-0 italic" style={{ opacity: 0.7 }}>
+      <span className="min-w-0 flex-1 italic" style={{ opacity: 0.7 }}>
         {text}
       </span>
+      {meta !== undefined && (
+        <span className="shrink-0 font-mono text-[10px]" style={{ color: "var(--mono-neutral)" }}>
+          {meta}
+        </span>
+      )}
     </div>
   );
 }

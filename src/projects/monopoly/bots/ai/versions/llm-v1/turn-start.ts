@@ -1,9 +1,9 @@
-import { HOUSE_COST } from "../../data";
-import { bankSupply, developmentLevel, groupPositions } from "../../development";
-import { hasMonopoly, unmortgageCostAt } from "../../logic";
-import type { GameState, PropertyColor } from "../../types";
+import { HOUSE_COST } from "../../../../data";
+import { bankSupply, developmentLevel, groupPositions } from "../../../../development";
+import { hasMonopoly, unmortgageCostAt } from "../../../../logic";
+import type { GameState, PropertyColor } from "../../../../types";
 import { playerById } from "./prompt";
-import { aiSeat, currentTurnNumber } from "./seat";
+import { aiSeat, currentTurnNumber } from "../../seat";
 
 /** Cash moves the fingerprint only when it crosses into another band of this
  *  size, so a seat isn't asked again over every $10 of rent. */

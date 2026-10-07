@@ -8,11 +8,20 @@ const REQUEST: ModelRequest = {
   schemaName: "buy",
   schema: { type: "object" },
   think: false,
+  thinkTokens: 100,
+  sampling: null,
 };
 
-function reply(content: string, reasoning = ""): Response {
+function reply(
+  content: string,
+  reasoning = "",
+  extra: { finish_reason?: string; usage?: { prompt_tokens: number; completion_tokens: number } } = {},
+): Response {
   return new Response(
-    JSON.stringify({ choices: [{ message: { content, reasoning_content: reasoning } }] }),
+    JSON.stringify({
+      choices: [{ message: { content, reasoning_content: reasoning }, finish_reason: extra.finish_reason ?? "stop" }],
+      usage: extra.usage,
+    }),
     { status: 200 },
   );
 }
@@ -23,7 +32,6 @@ function adapter(fetchImpl: typeof fetch, timeoutMs = 1000) {
     model: "local",
     apiKey: "secret",
     timeoutMs,
-    thinkTokens: 100,
     fetch: fetchImpl,
   });
 }
@@ -54,6 +62,38 @@ describe("openAiCompatible", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     const second = JSON.parse(String(fetchImpl.mock.calls[1][1]?.body)) as { messages: { content: string }[] };
     expect(second.messages.map((m) => m.content)).toContain("My reasoning so far:\nBoardwalk is worth it.");
+  });
+
+  it("measures each pass, sums the tokens and notes a thinking pass that ran out of budget", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        reply("", "On and on", { finish_reason: "length", usage: { prompt_tokens: 900, completion_tokens: 100 } }),
+      )
+      .mockResolvedValueOnce(reply('{"choice":"buy"}', "", { usage: { prompt_tokens: 1000, completion_tokens: 40 } }));
+    const result = await adapter(fetchImpl).complete({ ...REQUEST, think: true });
+    expect(result.metrics).toMatchObject({ promptTokens: 1900, completionTokens: 140, thinkHitBudget: true });
+    expect(result.metrics.thinkMs).not.toBeNull();
+    expect(result.metrics.answerMs).not.toBeNull();
+  });
+
+  it("sends a version's sampling on both passes, and the thinking budget", async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(reply("", "hm"))
+      .mockResolvedValueOnce(reply('{"choice":"buy"}'));
+    await adapter(fetchImpl).complete({ ...REQUEST, think: true, sampling: { temperature: 0.3 } });
+    const bodies = fetchImpl.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>);
+    expect(bodies.map((b) => b.temperature)).toEqual([0.3, 0.3]);
+    expect(bodies[0].max_tokens).toBe(100);
+  });
+
+  it("names the model from a llama.cpp server's props", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(new Response(JSON.stringify({ model_path: "C:/Users/kyle/models/Qwen3.5-9B-Q6_K.gguf" }))),
+    );
+    expect(await adapter(fetchImpl).identify()).toBe("Qwen3.5-9B-Q6_K.gguf");
+    expect(fetchImpl.mock.calls[0][0]).toBe("http://model/props");
   });
 
   it("reports an unreachable server", async () => {
