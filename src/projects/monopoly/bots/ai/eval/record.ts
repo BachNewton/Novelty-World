@@ -2,6 +2,7 @@ import type { AiDecision } from "../../../types";
 import type { Settled } from "../decide";
 import type { CallMetrics, ModelAdapter, ModelRequest, ModelResult } from "../model/adapter";
 import { isRecord } from "../spec";
+import type { Judged } from "./scenario";
 
 // One record per model call, with everything that shaped the answer: the
 // server and model that gave it, the version and sampling that asked, the exact
@@ -41,8 +42,9 @@ export interface AiCallRecord {
   metrics: CallMetrics | null;
   /** What the shared settle step made of the answer. */
   settle: { kind: Settled["kind"]; reason: string | null } | null;
-  /** A scenario's verdict on the answer; absent outside scenarios. */
-  check?: { pass: boolean; reason: string };
+  /** A scenario's reading of the answer (absent outside scenarios): what the
+   *  seat chose, and the objective error in it, if any. */
+  check?: Judged;
 }
 
 /** A model adapter that remembers the last request and result it passed

@@ -38,49 +38,58 @@ describe("scenario positions", () => {
   }
 });
 
+describe("scenario kinds", () => {
+  it("gives every error scenario an error check, and no judgment scenario one", () => {
+    for (const s of SCENARIOS) expect(s.error !== undefined).toBe(s.kind === "error");
+  });
+
+  it("disguises every error family with at least one variant", () => {
+    const families = new Map<string, number>();
+    for (const s of SCENARIOS.filter((x) => x.kind === "error")) {
+      const family = s.id.split("-").slice(0, 3).join("-");
+      families.set(family, (families.get(family) ?? 0) + 1);
+    }
+    for (const [family, count] of families) expect(count, family).toBeGreaterThan(1);
+  });
+});
+
 describe("scenario checks, on canned answers", () => {
   const llmV2 = { profile: "ai:local" as const, version: "llm-v2" as const };
 
-  it("passes a buy that completes the set and fails sending it to auction", async () => {
+  it("errors when the set-completing lot goes to auction, and records the choice", async () => {
     const yes = await runScenario(byId("buy-completes-set"), llmV2, fakeModel({ ...NOTES, choice: "buy", mortgage: [] }), 0, null);
-    const no = await runScenario(byId("buy-completes-set"), llmV2, fakeModel({ ...NOTES, choice: "auction", mortgage: [] }), 0, null);
-    expect(yes.check?.pass).toBe(true);
-    expect(no.check).toEqual({ pass: false, reason: "sent it to auction" });
+    const no = await runScenario(byId("buy-completes-set-pink"), llmV2, fakeModel({ ...NOTES, choice: "auction", mortgage: [] }), 0, null);
+    expect(yes.check).toEqual({ kind: "error", choice: "buy", error: null });
+    expect(no.check).toEqual({ kind: "error", choice: "auction", error: "sent the lot that completes its own set to auction" });
   });
 
-  it("judges an auction maximum against the scenario's line", async () => {
-    const sane = await runScenario(byId("auction-boardwalk-trap"), llmV2, fakeModel({ ...NOTES, maxBid: 450 }), 0, null);
-    const wild = await runScenario(byId("auction-boardwalk-trap"), llmV2, fakeModel({ ...NOTES, maxBid: 1400 }), 0, null);
-    expect(sane.check?.pass).toBe(true);
-    expect(wild.check).toEqual({ pass: false, reason: "maximum $1400 is over $600" });
+  it("records a judgment choice without grading it", async () => {
+    const wild = await runScenario(byId("auction-boardwalk"), llmV2, fakeModel({ ...NOTES, maxBid: 1400 }), 0, null);
+    expect(wild.check).toEqual({ kind: "judgment", choice: "max $1400", error: null });
   });
 
-  it("fails an accepted lowball and passes a decline", async () => {
-    const accept = await runScenario(byId("vote-lowball-railroad"), llmV2, fakeModel({ ...NOTES, vote: "accept" }), 0, null);
-    const decline = await runScenario(byId("vote-lowball-railroad"), llmV2, fakeModel({ ...NOTES, vote: "decline" }), 0, null);
-    expect(accept.check?.pass).toBe(false);
-    expect(decline.check?.pass).toBe(true);
+  it("errors on a sale below the mortgage value, not on a decline", async () => {
+    const accept = await runScenario(byId("vote-below-mortgage-railroad"), llmV2, fakeModel({ ...NOTES, vote: "accept" }), 0, null);
+    const decline = await runScenario(byId("vote-below-mortgage-railroad"), llmV2, fakeModel({ ...NOTES, vote: "decline" }), 0, null);
+    expect(accept.check?.error).toBe("sold Reading Railroad for under its $100 mortgage value");
+    expect(decline.check).toEqual({ kind: "error", choice: "decline", error: null });
   });
 
-  it("fails an unusable answer with the settle step's reason, and records the call", async () => {
-    const record = await runScenario(byId("buy-completes-set"), llmV2, fakeModel({ ...NOTES, choice: "maybe" }), 2, null);
-    expect(record.check?.pass).toBe(false);
-    expect(record.check?.reason).toMatch(/^unusable answer:/);
-    expect(record.source).toEqual({ kind: "scenario", scenario: "buy-completes-set", rep: 2 });
-    expect(record.request?.user).toContain("Connecticut");
+  it("counts an unusable answer as an error even in a judgment scenario", async () => {
+    const record = await runScenario(byId("buy-first-of-set"), llmV2, fakeModel({ ...NOTES, choice: "maybe" }), 2, null);
+    expect(record.check?.kind).toBe("judgment");
+    expect(record.check?.choice).toBe("unusable");
+    expect(record.check?.error).toMatch(/^unusable answer:/);
+    expect(record.source).toEqual({ kind: "scenario", scenario: "buy-first-of-set", rep: 2 });
+    expect(record.request?.user).toContain("St. James");
     expect(record.result).toMatchObject({ ok: true, raw: expect.stringContaining("maybe") as unknown as string });
   });
 
-  it("leaves the debt houses standing when mortgages cover it", async () => {
-    const record = await runScenario(
-      byId("debt-keeps-the-houses"),
-      llmV2,
-      fakeModel({ ...NOTES, mortgage: [5, 28], sellBuildings: [] }),
-      0,
-      null,
-    );
+  it("leaves the houses standing when mortgages cover the debt", async () => {
+    const record = await runScenario(byId("debt-keeps-houses"), llmV2, fakeModel({ ...NOTES, mortgage: [5, 28], sellBuildings: [] }), 0, null);
     expect(record.settle?.kind).toBe("commit");
-    expect(record.check?.pass).toBe(true);
+    expect(record.check?.error).toBeNull();
+    expect(record.check?.choice).toBe("mortgages Reading Railroad + Water Works, raises $175");
   });
 });
 
@@ -91,9 +100,9 @@ describe("scoreboard", () => {
     expect(quantile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9)).toBe(9);
   });
 
-  it("tallies passes per scenario, phase and decision", () => {
+  it("counts errors only, and tallies choices", () => {
     const scenario = byId("buy-completes-set");
-    const record = (pass: boolean) => ({
+    const record = (error: string | null) => ({
       source: { kind: "scenario" as const, scenario: scenario.id, rep: 0 },
       at: "",
       seat: AI,
@@ -104,11 +113,11 @@ describe("scoreboard", () => {
       result: null,
       metrics: METRICS,
       settle: null,
-      check: { pass, reason: pass ? "bought" : "sent it to auction" },
+      check: { kind: "error" as const, choice: error ? "auction" : "buy", error },
     });
-    const board = scoreboard("llm-v2", "now", 2, null, [scenario], [record(true), record(false)]);
-    expect(board.scenarios[0]).toMatchObject({ passes: 1, runs: 2, failures: ["sent it to auction"] });
-    expect(board.byPhase.early).toEqual({ passes: 1, runs: 2 });
-    expect(board.byDecision.buy).toEqual({ passes: 1, runs: 2 });
+    const board = scoreboard("llm-v2", "now", 2, null, [scenario], [record(null), record("sent it to auction")]);
+    expect(board.scenarios[0]).toMatchObject({ errors: 1, runs: 2, choices: { buy: 1, auction: 1 }, errorReasons: ["sent it to auction"] });
+    expect(board.errorScenarios).toEqual({ errors: 1, runs: 2 });
+    expect(board.byPhase.early).toEqual({ errors: 1, runs: 2 });
   });
 });

@@ -1,0 +1,597 @@
+{
+  "version": "llm-v2",
+  "at": "2026-10-07T13:22:22.136Z",
+  "reps": 3,
+  "server": {
+    "model": "Qwen3.5-9B-Q6_K.gguf",
+    "contextPerSlot": 16384,
+    "slots": 4,
+    "defaults": {
+      "temperature": 0.8,
+      "top_k": 40,
+      "top_p": 0.95,
+      "min_p": 0.05,
+      "repeat_penalty": 1
+    }
+  },
+  "scenarios": [
+    {
+      "id": "buy-completes-set",
+      "kind": "error",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 6607
+    },
+    {
+      "id": "buy-completes-set-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 6551
+    },
+    {
+      "id": "buy-completes-set-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 4449
+    },
+    {
+      "id": "buy-first-of-set",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 6022
+    },
+    {
+      "id": "buy-third-railroad",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 6636
+    },
+    {
+      "id": "buy-blocks-rival",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 4713
+    },
+    {
+      "id": "buy-leaves-little-for-rent",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 5922
+    },
+    {
+      "id": "auction-boardwalk",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $0": 1,
+        "max $410": 1,
+        "max $400": 1
+      },
+      "medianMs": 5172
+    },
+    {
+      "id": "auction-cheap-lot",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $0": 3
+      },
+      "medianMs": 5166
+    },
+    {
+      "id": "auction-completes-own-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $800": 1,
+        "max $880": 1,
+        "max $240": 1
+      },
+      "medianMs": 5406
+    },
+    {
+      "id": "auction-blocks-rival-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $0": 2,
+        "max $500": 1
+      },
+      "medianMs": 5681
+    },
+    {
+      "id": "auction-complete-into-illiquidity",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $280": 1,
+        "max $120": 1,
+        "max $300": 1
+      },
+      "medianMs": 5892
+    },
+    {
+      "id": "vote-below-mortgage-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Reading Railroad, gets $150": 2,
+        "decline": 1
+      },
+      "medianMs": 39796
+    },
+    {
+      "id": "vote-below-mortgage-utility",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Water Works, gets $150": 2,
+        "decline": 1
+      },
+      "medianMs": 39765
+    },
+    {
+      "id": "vote-below-mortgage-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Kentucky Avenue, gets $200": 1,
+        "counter: gives Kentucky Avenue, gets $150": 2
+      },
+      "medianMs": 39666
+    },
+    {
+      "id": "vote-counter-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 2,
+        "decline": 1
+      },
+      "medianMs": 40232
+    },
+    {
+      "id": "vote-counter-direction-yellow",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Ventnor Avenue, gets $100": 1,
+        "accept": 2
+      },
+      "medianMs": 40276
+    },
+    {
+      "id": "vote-counter-direction-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 2,
+        "decline": 1
+      },
+      "medianMs": 39859
+    },
+    {
+      "id": "vote-arms-rival-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 3
+      },
+      "medianMs": 40365
+    },
+    {
+      "id": "vote-mutual-completion-swap",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 2,
+        "decline": 1
+      },
+      "medianMs": 40324
+    },
+    {
+      "id": "vote-generous-offer",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 1,
+        "counter: gives Mediterranean Avenue, gets $120": 1,
+        "accept": 1
+      },
+      "medianMs": 40129
+    },
+    {
+      "id": "vote-distress-fire-sale",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pennsylvania Avenue, gets $350": 1,
+        "accept": 2
+      },
+      "medianMs": 40557
+    },
+    {
+      "id": "vote-whole-set-handover",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 1,
+        "counter: takes Oriental Avenue, gets $100": 1,
+        "accept": 1
+      },
+      "medianMs": 41044
+    },
+    {
+      "id": "turn-start-propose-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Illinois Avenue, pays $200); keeps $1300": 3
+      },
+      "medianMs": 40544
+    },
+    {
+      "id": "turn-start-propose-direction-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Boardwalk, pays $400); keeps $1600": 2,
+        "nothing": 1
+      },
+      "medianMs": 40440
+    },
+    {
+      "id": "turn-start-propose-direction-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "proposed taking States Avenue and being paid $100"
+      ],
+      "choices": {
+        "proposes (takes States Avenue, pays $140); keeps $900": 2,
+        "proposes (takes States Avenue, gets $100); keeps $900": 1
+      },
+      "medianMs": 40099
+    },
+    {
+      "id": "turn-start-fresh-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 3; keeps $700": 1,
+        "builds 9; keeps $100": 1,
+        "builds 6; keeps $400": 1
+      },
+      "medianMs": 42714
+    },
+    {
+      "id": "turn-start-thin-cash-dangerous-board",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 2; keeps $50": 3
+      },
+      "medianMs": 42062
+    },
+    {
+      "id": "turn-start-mortgaged-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "lifts 3; keeps $1126": 1,
+        "builds 3, lifts 3; keeps $676": 2
+      },
+      "medianMs": 44744
+    },
+    {
+      "id": "turn-start-holds-rival-completer",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "nothing": 2,
+        "mortgages 1; keeps $220": 1
+      },
+      "medianMs": 46864
+    },
+    {
+      "id": "debt-keeps-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 3,
+      "errorReasons": [
+        "unusable answer: manage was refused: can only sell to raise cash",
+        "sold 9 house(s) when mortgaging spare lots covered the debt",
+        "sold 9 house(s) when mortgaging spare lots covered the debt"
+      ],
+      "choices": {
+        "unusable": 1,
+        "sells 9 house(s), raises $450": 2
+      },
+      "medianMs": 5524
+    },
+    {
+      "id": "debt-keeps-houses-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 3,
+      "errorReasons": [
+        "sold 6 house(s) when mortgaging spare lots covered the debt",
+        "sold 6 house(s) when mortgaging spare lots covered the debt",
+        "sold 6 house(s) when mortgaging spare lots covered the debt"
+      ],
+      "choices": {
+        "mortgages Short Line, sells 6 house(s), raises $250": 3
+      },
+      "medianMs": 6064
+    },
+    {
+      "id": "debt-keeps-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 3,
+      "errorReasons": [
+        "sold 3 house(s) when mortgaging spare lots covered the debt",
+        "sold 3 house(s) when mortgaging spare lots covered the debt",
+        "sold 3 house(s) when mortgaging spare lots covered the debt"
+      ],
+      "choices": {
+        "sells 3 house(s), raises $225": 3
+      },
+      "medianMs": 6151
+    },
+    {
+      "id": "debt-small-shortfall",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Boardwalk, raises $200": 3
+      },
+      "medianMs": 5529
+    },
+    {
+      "id": "jail-early",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "roll": 3
+      },
+      "medianMs": 4965
+    },
+    {
+      "id": "jail-early-with-card",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "roll": 2,
+        "card": 1
+      },
+      "medianMs": 5548
+    },
+    {
+      "id": "jail-hotel-board",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "pay": 3
+      },
+      "medianMs": 5778
+    }
+  ],
+  "errors": {
+    "errors": 10,
+    "runs": 111
+  },
+  "errorScenarios": {
+    "errors": 10,
+    "runs": 45
+  },
+  "byPhase": {
+    "early": {
+      "errors": 0,
+      "runs": 24
+    },
+    "mid": {
+      "errors": 1,
+      "runs": 57
+    },
+    "late": {
+      "errors": 9,
+      "runs": 30
+    }
+  },
+  "byDecision": {
+    "buy": {
+      "errors": 0,
+      "runs": 21
+    },
+    "auction": {
+      "errors": 0,
+      "runs": 15
+    },
+    "trade-vote": {
+      "errors": 0,
+      "runs": 33
+    },
+    "turn-start": {
+      "errors": 1,
+      "runs": 21
+    },
+    "settle-debt": {
+      "errors": 9,
+      "runs": 12
+    },
+    "jail": {
+      "errors": 0,
+      "runs": 9
+    }
+  },
+  "timing": {
+    "medianMs": 7511,
+    "p90Ms": 41267,
+    "thinkHitBudget": {
+      "hit": 54,
+      "thought": 54
+    }
+  }
+}

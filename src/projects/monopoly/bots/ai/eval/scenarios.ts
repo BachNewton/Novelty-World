@@ -1,3 +1,4 @@
+import { mortgageValueAt } from "../../../logic";
 import type { GameState } from "../../../types";
 import {
   AI,
@@ -21,27 +22,30 @@ import {
 } from "./board";
 import {
   after,
-  cashOf,
+  cashAfter,
+  cashIn,
+  describeTerms,
+  describeTurnStart,
   did,
-  fail,
+  gives,
   housesAdded,
-  pass,
-  proposedTerms,
-  settledOr,
+  nameOf,
+  takes,
   type Outcome,
   type Scenario,
-  type Verdict,
 } from "./scenario";
 
-// The scenario suite: hand-made positions, each testing one judgement, grouped
-// by phase of the game. A scenario's line is a defensible floor for a strong
-// player, not the best move; its `tests` says why the line is where it is.
-// Every real failure found in a game or slice should become a scenario here, so
-// the suite only grows.
+// The scenario suite: hand-made positions, grouped by phase of the game. Read
+// scenario.ts first: an `error` scenario names an objective mistake and is
+// gated; a `judgment` scenario only records what the seat chose. Error
+// scenarios come in families (the original and disguised variants) so a fix
+// that only learned one position shows up. Every real error found in a game or
+// slice should become a scenario here, so the suite only grows.
 
 const ORANGES = [SQ.stJames, SQ.tennessee, SQ.newYork];
 const REDS = [SQ.kentucky, SQ.indiana, SQ.illinois];
 const DARK_BLUES = [SQ.park, SQ.boardwalk];
+const LIGHT_BLUES = [SQ.oriental, SQ.vermont, SQ.connecticut];
 
 const hotels = (positions: readonly number[]): Record<number, number> =>
   Object.fromEntries(positions.map((pos) => [pos, 5]));
@@ -51,140 +55,226 @@ function dangerousBoard(state: GameState): GameState {
   return built(owning(state, { [RIVAL]: ORANGES, [OTHER]: REDS }), { ...hotels(ORANGES), ...hotels(REDS) });
 }
 
-const auctionMax = (o: Outcome): number | null => o.resolution?.auctionMax ?? null;
+// --- Choice labels ----------------------------------------------------------
 
-function bought(o: Outcome, verdict: (didBuy: boolean) => Verdict): Verdict {
-  return settledOr(o, () => {
-    if (did(o, "buy")) return verdict(true);
-    if (did(o, "decline-buy")) return verdict(false);
-    return fail("neither bought nor sent it to auction");
-  });
-}
+const buyChoice = (o: Outcome): string => (did(o, "buy") ? "buy" : did(o, "decline-buy") ? "auction" : "neither");
 
-const mustBuy = (o: Outcome): Verdict =>
-  bought(o, (yes) => (yes ? pass("bought") : fail("sent it to auction")));
+const maxChoice = (o: Outcome): string => {
+  const max = o.resolution?.auctionMax;
+  return max === null || max === undefined ? "no maximum" : `max $${String(max)}`;
+};
 
-function maxWithin(o: Outcome, low: number, high: number): Verdict {
-  return settledOr(o, () => {
-    const max = auctionMax(o);
-    if (max === null) return fail("no maximum recorded");
-    if (max < low) return fail(`maximum $${String(max)} is under $${String(low)}`);
-    if (max > high) return fail(`maximum $${String(max)} is over $${String(high)}`);
-    return pass(`maximum $${String(max)}`);
-  });
-}
-
-type Vote = "accept" | "decline" | "counter";
-
-function voteOf(o: Outcome): Vote | null {
-  if (did(o, "counter-trade")) return "counter";
+const voteChoice = (o: Outcome): string => {
+  if (did(o, "counter-trade")) return `counter: ${describeTerms(o)}`;
   if (did(o, "accept-trade")) return "accept";
   if (did(o, "decline-trade")) return "decline";
-  return null;
+  return "no vote";
+};
+
+const jailChoice = (o: Outcome): string =>
+  did(o, "use-jail-card") ? "card" : did(o, "pay-to-leave-jail") ? "pay" : "roll";
+
+function debtChoice(o: Outcome): string {
+  const state = after(o);
+  if (!state) return "nothing";
+  const mine = Object.entries(o.asked.ownership).filter(([, owner]) => owner === o.seat).map(([pos]) => Number(pos));
+  const mortgaged = mine.filter((pos) => !o.asked.mortgaged[pos] && state.mortgaged[pos]).map(nameOf);
+  const sold = -housesAdded(o, mine);
+  const raised = cashAfter(o) - (o.asked.players.find((p) => p.id === o.seat)?.cash ?? 0);
+  return [
+    mortgaged.length > 0 ? `mortgages ${mortgaged.join(" + ")}` : null,
+    sold > 0 ? `sells ${String(sold)} house(s)` : null,
+    `raises $${String(raised)}`,
+  ]
+    .filter((p): p is string => p !== null)
+    .join(", ");
 }
 
-/** A vote check: `ok` judges the vote, and a counter's terms when it countered. */
-function voted(o: Outcome, ok: (vote: Vote) => Verdict): Verdict {
-  return settledOr(o, () => {
-    const vote = voteOf(o);
-    return vote === null ? fail("cast no vote") : ok(vote);
-  });
+// --- Error families -----------------------------------------------------------
+
+/** A buy that completes the seat's own set with cash to spare. Sending it to
+ *  auction instead is objective: every rival can then bid for the lot that
+ *  finishes the seat's monopoly, and the seat can at best pay the same. */
+function completesSet(id: string, phase: Scenario["phase"], turn: number, owned: readonly number[], lot: number, cash: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase,
+    decision: "buy",
+    tests: `Owns ${owned.map(nameOf).join(" and ")}, lands on ${nameOf(lot)} with $${String(cash)}: the lot completes its set.`,
+    build: (s) => landed(withCash(owning(atTurn(table(s), turn), { [AI]: owned }), { [AI]: cash }), lot),
+    choose: buyChoice,
+    error: (o) => (did(o, "buy") ? null : "sent the lot that completes its own set to auction"),
+  };
 }
 
-/** Cash the AI receives under the terms it put on the table (negative = pays). */
-function aiCashIn(o: Outcome): number {
-  return proposedTerms(o)?.cashDelta[AI] ?? 0;
+/** A lowball offer for a lot. Selling it for less than its mortgage value is
+ *  objective: mortgaging it would raise more and keep the lot. */
+function belowMortgage(id: string, phase: Scenario["phase"], turn: number, lot: number, buyer: string, price: number, cash: number): Scenario {
+  const floor = mortgageValueAt(lot) ?? 0;
+  const soldBelow = (o: Outcome): boolean =>
+    (did(o, "accept-trade") && price < floor) || (did(o, "counter-trade") && gives(o, lot) && cashIn(o) < floor);
+  return {
+    id,
+    kind: "error",
+    phase,
+    decision: "trade-vote",
+    tests: `Offered $${String(price)} for its lone ${nameOf(lot)}, whose mortgage pays $${String(floor)}.`,
+    build: (s) =>
+      offered(withCash(owning(atTurn(table(s), turn), { [AI]: [lot] }), { [AI]: cash }), buyer, {
+        propertyTo: { [lot]: buyer },
+        cashDelta: { [AI]: price, [buyer]: -price },
+      }),
+    choose: voteChoice,
+    error: (o) => (soldBelow(o) ? `sold ${nameOf(lot)} for under its $${String(floor)} mortgage value` : null),
+  };
 }
 
-function aiGives(o: Outcome, position: number): boolean {
-  const terms = proposedTerms(o);
-  return terms !== null && position in terms.propertyTo && terms.propertyTo[position] !== AI;
+/** A short seat holding a lone mortgaged lot, offered a little for it. Whatever
+ *  it votes, a counter that gives the lot away must bring cash in: terms whose
+ *  cash runs the other way are incoherent (game 0a0e5y). */
+function counterDirection(id: string, turn: number, lot: number, buyer: string, price: number, cash: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase: "mid",
+    decision: "trade-vote",
+    tests: `Short at $${String(cash)} with a lone mortgaged ${nameOf(lot)}; offered $${String(price)} for it. A counter giving it away must bring cash in.`,
+    build: (s) =>
+      offered(mortgaging(withCash(owning(atTurn(table(s), turn), { [AI]: [lot] }), { [AI]: cash }), [lot]), buyer, {
+        propertyTo: { [lot]: buyer },
+        cashDelta: { [AI]: price, [buyer]: -price },
+      }),
+    choose: voteChoice,
+    error: (o) => (did(o, "counter-trade") && gives(o, lot) && cashIn(o) <= 0 ? `countered giving ${nameOf(lot)} away and ${cashIn(o) < 0 ? "paying" : "getting nothing"}` : null),
+  };
 }
+
+/** Owns two of a set, the third with a cash-poor player. Whether to propose is
+ *  a judgment; a proposal that takes the lot AND asks to be paid has its cash
+ *  running backwards, which is an error. */
+function proposeDirection(id: string, turn: number, owned: readonly number[], holder: string, lot: number, cash: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase: "mid",
+    decision: "turn-start",
+    tests: `Owns ${owned.map(nameOf).join(" and ")} with $${String(cash)}; ${nameOf(lot)} sits with a cash-poor player. If it proposes taking the lot, its cash must go out.`,
+    build: (s) =>
+      turnStart(withCash(owning(atTurn(table(s), turn), { [AI]: owned, [holder]: [lot, SQ.reading] }), { [AI]: cash, [holder]: 200 })),
+    choose: describeTurnStart,
+    error: (o) => (takes(o, lot) && cashIn(o) > 0 ? `proposed taking ${nameOf(lot)} and being paid $${String(cashIn(o))}` : null),
+  };
+}
+
+/** In debt, with houses on one set and spare unbuilt lots whose mortgages cover
+ *  the debt. Selling houses (half their cost, gone for good) when a mortgage
+ *  (10% to lift) would do is objective. */
+function keepsHouses(id: string, turn: number, set: readonly number[], level: number, spare: readonly number[], debt: number): Scenario {
+  return {
+    id,
+    kind: "error",
+    phase: "late",
+    decision: "settle-debt",
+    tests: `$${String(debt)} short, ${String(level)} house(s) on each of ${set.map(nameOf).join(", ")}, and ${spare.map(nameOf).join(" + ")} to mortgage, which covers it.`,
+    build: (s) =>
+      inDebt(built(owning(atTurn(table(s), turn), { [AI]: [...set, ...spare] }), Object.fromEntries(set.map((p) => [p, level]))), -debt),
+    choose: debtChoice,
+    error: (o) => {
+      const sold = -housesAdded(o, set);
+      return sold > 0 ? `sold ${String(sold)} house(s) when mortgaging spare lots covered the debt` : null;
+    },
+  };
+}
+
+// --- The suite -----------------------------------------------------------------
 
 export const SCENARIOS: readonly Scenario[] = [
-  // --- Buying ---------------------------------------------------------------
-  {
-    id: "buy-completes-set",
-    phase: "early",
-    decision: "buy",
-    tests: "Owns two light blues, lands on the third with plenty of cash. Completing a set is the strongest buy there is.",
-    build: (s) => landed(withCash(owning(atTurn(table(s), 6), { [AI]: [SQ.oriental, SQ.vermont] }), { [AI]: 1100 }), SQ.connecticut),
-    check: mustBuy,
-  },
+  // Buying
+  completesSet("buy-completes-set", "early", 6, [SQ.oriental, SQ.vermont], SQ.connecticut, 1100),
+  completesSet("buy-completes-set-dark-blue", "mid", 22, [SQ.park], SQ.boardwalk, 900),
+  completesSet("buy-completes-set-pink", "mid", 30, [SQ.stCharles, SQ.states], SQ.virginia, 500),
   {
     id: "buy-first-of-set",
+    kind: "judgment",
     phase: "early",
     decision: "buy",
-    tests: "Second turn, full cash, lands on an orange nobody owns. Early-game lots are bought, not auctioned: an auction only lets a rival have it cheap.",
+    tests: "Second turn, full cash, lands on an orange nobody owns.",
     build: (s) => landed(atTurn(table(s), 2), SQ.stJames),
-    check: mustBuy,
+    choose: buyChoice,
   },
   {
     id: "buy-third-railroad",
+    kind: "judgment",
     phase: "early",
     decision: "buy",
-    tests: "Owns two railroads, lands on a third with $900. Railroad rent doubles with each one owned.",
+    tests: "Owns two railroads, lands on a third with $900.",
     build: (s) => landed(withCash(owning(atTurn(table(s), 8), { [AI]: [SQ.reading, SQ.pennRR] }), { [AI]: 900 }), SQ.bAndO),
-    check: mustBuy,
+    choose: buyChoice,
   },
   {
     id: "buy-blocks-rival",
+    kind: "judgment",
     phase: "mid",
     decision: "buy",
-    tests: "A rival owns two reds; the AI lands on the third with $800. Buying blocks the rival's monopoly.",
+    tests: "A rival owns two reds; the AI lands on the third with $800.",
     build: (s) => landed(withCash(owning(atTurn(table(s), 14), { [RIVAL]: [SQ.kentucky, SQ.indiana] }), { [AI]: 800 }), SQ.illinois),
-    check: mustBuy,
+    choose: buyChoice,
   },
   {
-    id: "buy-leaves-nothing-for-rent",
+    id: "buy-leaves-little-for-rent",
+    kind: "judgment",
     phase: "late",
     decision: "buy",
-    tests:
-      "Late board with hotels on the oranges and reds; the AI has $330 and lands on Pacific ($300). Buying leaves $30 against four-figure rents for a lone lot that earns $26, so it should let it go to auction.",
+    tests: "Hotels on the oranges and reds; the AI has $330 and lands on Pacific ($300), which would leave it $30.",
     build: (s) => landed(withCash(dangerousBoard(atTurn(table(s), 60)), { [AI]: 330 }), SQ.pacific),
-    check: (o) => bought(o, (yes) => (yes ? fail("bought, leaving $30 against hotel rents") : pass("sent it to auction"))),
+    choose: buyChoice,
   },
 
-  // --- Auctions -------------------------------------------------------------
+  // Auctions
   {
-    id: "auction-boardwalk-trap",
+    id: "auction-boardwalk",
+    kind: "judgment",
     phase: "early",
     decision: "auction",
-    tests:
-      "Boardwalk ($400) at auction early, nobody owns Park Place, the AI has $1,500. A lone Boardwalk earns $50 rent; paying more than 1.5x its price is the overbid that sank a seat in game 0a0e5y.",
+    tests: "Boardwalk ($400) at auction early; nobody owns Park Place; the AI has $1,500. Game 0a0e5y sold it for $1,410.",
     build: (s) => auctioning(atTurn(table(s), 4), SQ.boardwalk),
-    check: (o) => maxWithin(o, 0, 600),
+    choose: maxChoice,
   },
   {
     id: "auction-cheap-lot",
+    kind: "judgment",
     phase: "early",
     decision: "auction",
-    tests: "Mediterranean ($60) at auction, nobody owns Baltic. Worth a little over face at most.",
+    tests: "Mediterranean ($60) at auction; nobody owns Baltic.",
     build: (s) => auctioning(atTurn(table(s), 3), SQ.mediterranean),
-    check: (o) => maxWithin(o, 0, 150),
+    choose: maxChoice,
   },
   {
     id: "auction-completes-own-set",
+    kind: "judgment",
     phase: "mid",
     decision: "auction",
-    tests: "Owns two reds with $900; the third is at auction. Should bid at least its price, but keep $100 back.",
+    tests: "Owns two reds with $900; the third is at auction.",
     build: (s) => auctioning(withCash(owning(atTurn(table(s), 16), { [AI]: [SQ.kentucky, SQ.indiana] }), { [AI]: 900 }), SQ.illinois),
-    check: (o) => maxWithin(o, 240, 800),
+    choose: maxChoice,
   },
   {
     id: "auction-blocks-rival-set",
+    kind: "judgment",
     phase: "mid",
     decision: "auction",
-    tests: "A rival owns two oranges; New York ($200) is at auction and the AI has $800. Letting it go cheap hands the rival the best set on the board, so bid at least its price.",
+    tests: "A rival owns two oranges; New York ($200) is at auction; the AI has $800.",
     build: (s) => auctioning(withCash(owning(atTurn(table(s), 16), { [RIVAL]: [SQ.stJames, SQ.tennessee] }), { [AI]: 800 }), SQ.newYork),
-    check: (o) => maxWithin(o, 200, 700),
+    choose: maxChoice,
   },
   {
     id: "auction-complete-into-illiquidity",
+    kind: "judgment",
     phase: "late",
     decision: "auction",
     tests:
-      "Ported from the rule bots' probe instrument (adversary.ts, auction-illiquidity). The AI has two light blues and $300; the completer is at auction at $100, bid by a rival who has a hotel on New York ($1,000 rent). Its reserve line is cash minus a quarter of the worst hit: $50. Winning only by stripping its cash is the winner's curse a human baits.",
+      "Ported from adversary.ts (auction-illiquidity): two light blues and $300; the completer is at auction at $100, bid by a rival with a hotel on New York ($1,000 rent). The rule bots' reserve line is $50.",
     build: (s) => {
       const board = built(
         withCash(owning(atTurn(table(s), 40), { [AI]: [SQ.oriental, SQ.vermont], [FOURTH]: ORANGES }), { [AI]: 300 }),
@@ -192,110 +282,63 @@ export const SCENARIOS: readonly Scenario[] = [
       );
       return auctioning(board, SQ.connecticut, { active: [AI, FOURTH], highBid: 100, leaderId: FOURTH, bids: { [FOURTH]: 100 } });
     },
-    check: (o) => maxWithin(o, 0, 100),
+    choose: maxChoice,
   },
 
-  // --- Trade votes ----------------------------------------------------------
+  // Trade votes
+  belowMortgage("vote-below-mortgage-railroad", "mid", 12, SQ.reading, RIVAL, 50, 900),
+  belowMortgage("vote-below-mortgage-utility", "mid", 18, SQ.water, OTHER, 40, 600),
+  belowMortgage("vote-below-mortgage-red", "late", 40, SQ.kentucky, FOURTH, 80, 300),
+  counterDirection("vote-counter-direction", 18, SQ.stJames, RIVAL, 40, 84),
+  counterDirection("vote-counter-direction-yellow", 26, SQ.ventnor, OTHER, 50, 60),
+  counterDirection("vote-counter-direction-railroad", 34, SQ.shortLine, FOURTH, 20, 30),
   {
     id: "vote-arms-rival-monopoly",
+    kind: "judgment",
     phase: "mid",
     decision: "trade-vote",
-    tests:
-      "A rival with two oranges offers $400 for the AI's New York (price $200). The AI has $700 and no sets. Handing over the board's strongest monopoly for double its price is a classic giveaway: decline, or counter for far more.",
+    tests: "A rival with two oranges offers $400 for the AI's New York (price $200). The AI has $700 and no sets.",
     build: (s) =>
       offered(withCash(owning(atTurn(table(s), 18), { [RIVAL]: [SQ.stJames, SQ.tennessee], [AI]: [SQ.newYork] }), { [AI]: 700 }), RIVAL, {
         propertyTo: { [SQ.newYork]: RIVAL },
         cashDelta: { [AI]: 400, [RIVAL]: -400 },
       }),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return fail("sold the orange completer for $400");
-        if (vote === "counter" && aiGives(o, SQ.newYork) && aiCashIn(o) < 900) {
-          return fail(`countered by selling New York for $${String(aiCashIn(o))}`);
-        }
-        return pass(vote);
-      }),
+    choose: voteChoice,
   },
   {
-    id: "vote-fair-mutual-swap",
+    id: "vote-mutual-completion-swap",
+    kind: "judgment",
     phase: "mid",
     decision: "trade-vote",
-    tests:
-      "The AI has two reds and Atlantic; a rival has Illinois and two yellows. The rival offers Illinois for Atlantic: each completes a set, and the AI's (red) is the stronger. Accept.",
+    tests: "Two reds and Atlantic vs a rival's Illinois and two yellows; the rival offers Illinois for Atlantic, completing a set for each.",
     build: (s) =>
       offered(
         owning(atTurn(table(s), 20), { [AI]: [SQ.kentucky, SQ.indiana, SQ.atlantic], [RIVAL]: [SQ.illinois, SQ.ventnor, SQ.marvin] }),
         RIVAL,
         { propertyTo: { [SQ.illinois]: AI, [SQ.atlantic]: RIVAL }, cashDelta: {} },
       ),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return pass("accepted");
-        if (vote === "counter" && proposedTerms(o)?.propertyTo[SQ.illinois] === AI) return pass("countered, still taking Illinois");
-        return fail(vote === "decline" ? "declined a swap that completes its stronger set" : "countered without Illinois");
-      }),
+    choose: voteChoice,
   },
   {
-    id: "vote-lowball-railroad",
-    phase: "mid",
-    decision: "trade-vote",
-    tests: "A rival offers $50 for the AI's only railroad (price $200). Never accept; a counter must ask at least the price.",
-    build: (s) =>
-      offered(withCash(owning(atTurn(table(s), 12), { [AI]: [SQ.reading] }), { [AI]: 900 }), RIVAL, {
-        propertyTo: { [SQ.reading]: RIVAL },
-        cashDelta: { [AI]: 50, [RIVAL]: -50 },
-      }),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return fail("sold a $200 railroad for $50");
-        if (vote === "counter" && aiGives(o, SQ.reading) && aiCashIn(o) < 200) {
-          return fail(`countered by selling it for $${String(aiCashIn(o))}`);
-        }
-        return pass(vote);
-      }),
-  },
-  {
-    id: "vote-counter-cash-direction",
-    phase: "mid",
-    decision: "trade-vote",
-    tests:
-      "The AI is short ($84) and holds a lone mortgaged St. James Place; a rival offers $40 for it. From game 0a0e5y, where a seat countered by giving the lot away and paying on top. A counter that gives the lot away must bring cash in.",
-    build: (s) =>
-      offered(mortgaging(withCash(owning(atTurn(table(s), 18), { [AI]: [SQ.stJames] }), { [AI]: 84 }), [SQ.stJames]), RIVAL, {
-        propertyTo: { [SQ.stJames]: RIVAL },
-        cashDelta: { [AI]: 40, [RIVAL]: -40 },
-      }),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "counter" && aiGives(o, SQ.stJames) && aiCashIn(o) <= 40) {
-          return fail(`countered giving the lot away for $${String(aiCashIn(o))}`);
-        }
-        return pass(vote === "counter" ? `countered for $${String(aiCashIn(o))}` : vote);
-      }),
-  },
-  {
-    id: "vote-good-offer",
+    id: "vote-generous-offer",
+    kind: "judgment",
     phase: "early",
     decision: "trade-vote",
-    tests: "A rival with no browns offers $250 for the AI's lone Mediterranean (price $60). Nothing about a set changes; take the money.",
+    tests: "A rival with no browns offers $250 for the AI's lone Mediterranean (price $60).",
     build: (s) =>
       offered(owning(atTurn(table(s), 8), { [AI]: [SQ.mediterranean] }), RIVAL, {
         propertyTo: { [SQ.mediterranean]: RIVAL },
         cashDelta: { [AI]: 250, [RIVAL]: -250 },
       }),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return pass("accepted");
-        if (vote === "counter" && aiCashIn(o) >= 250) return pass(`countered for $${String(aiCashIn(o))}`);
-        return fail(vote === "decline" ? "declined $250 for a $60 lot" : `countered for less ($${String(aiCashIn(o))})`);
-      }),
+    choose: voteChoice,
   },
   {
     id: "vote-distress-fire-sale",
+    kind: "judgment",
     phase: "late",
     decision: "trade-vote",
     tests:
-      "Ported from adversary.ts (distress-firesale). The AI is thin on cash ($90) facing a leader with hotels on the reds and two greens; the leader offers $250 for the AI's Pennsylvania Avenue (price $320), the green completer. Arming the leader below book is the fire-sale a human exploits.",
+      "Ported from adversary.ts (distress-firesale): $90 cash, the leader has hotels on the reds and two greens and offers $250 for the AI's Pennsylvania Avenue (price $320), the green completer.",
     build: (s) => {
       const board = built(
         mortgaging(
@@ -311,21 +354,14 @@ export const SCENARIOS: readonly Scenario[] = [
       );
       return offered(board, OTHER, { propertyTo: { [SQ.pennsylvaniaAve]: OTHER }, cashDelta: { [AI]: 250, [OTHER]: -250 } });
     },
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return fail("sold the leader its green completer for $250");
-        if (vote === "counter" && aiGives(o, SQ.pennsylvaniaAve) && aiCashIn(o) < 700) {
-          return fail(`countered by selling it for $${String(aiCashIn(o))}`);
-        }
-        return pass(vote);
-      }),
+    choose: voteChoice,
   },
   {
     id: "vote-whole-set-handover",
+    kind: "judgment",
     phase: "late",
     decision: "trade-vote",
-    tests:
-      "Ported from adversary.ts (set-handover, game 53400q). The AI holds the whole yellow set (two lots mortgaged) and $700; another player offers $550 for all three. Selling a finished monopoly for under its lots' price lost a rule bot the game.",
+    tests: "Ported from adversary.ts (set-handover, game 53400q): the whole yellow set (two lots mortgaged) and $700; another player offers $550 for all three.",
     build: (s) =>
       offered(
         mortgaging(
@@ -341,85 +377,46 @@ export const SCENARIOS: readonly Scenario[] = [
           cashDelta: { [AI]: 550, [FOURTH]: -550 },
         },
       ),
-    check: (o) =>
-      voted(o, (vote) => {
-        if (vote === "accept") return fail("sold the yellow monopoly for $550");
-        if (vote === "counter" && aiGives(o, SQ.marvin) && aiCashIn(o) < 1200) {
-          return fail(`countered by selling the set for $${String(aiCashIn(o))}`);
-        }
-        return pass(vote);
-      }),
+    choose: voteChoice,
   },
 
-  // --- Turn start: building, mortgages, proposals ----------------------------
+  // Turn start: building, mortgages, proposals
+  proposeDirection("turn-start-propose-direction", 20, [SQ.kentucky, SQ.indiana], OTHER, SQ.illinois, 1300),
+  proposeDirection("turn-start-propose-direction-dark-blue", 28, [SQ.park], RIVAL, SQ.boardwalk, 1600),
+  proposeDirection("turn-start-propose-direction-pink", 24, [SQ.stCharles, SQ.virginia], FOURTH, SQ.states, 900),
   {
-    id: "turn-start-build-fresh-monopoly",
+    id: "turn-start-fresh-monopoly",
+    kind: "judgment",
     phase: "mid",
     decision: "turn-start",
-    tests: "A fresh orange monopoly, $1,000 cash, no rival monopolies. Build now (at least three houses), keeping $100 back.",
+    tests: "A fresh orange monopoly, $1,000 cash, no rival monopolies.",
     build: (s) => turnStart(withCash(owning(atTurn(table(s), 15), { [AI]: ORANGES }), { [AI]: 1000 })),
-    check: (o) =>
-      settledOr(o, () => {
-        const added = housesAdded(o, ORANGES);
-        const state = after(o);
-        const cash = state ? cashOf(state, AI) : 0;
-        if (added < 3) return fail(`built ${String(added)} houses`);
-        if (cash < 100) return fail(`built ${String(added)} houses, leaving $${String(cash)}`);
-        return pass(`built ${String(added)}, kept $${String(cash)}`);
-      }),
+    choose: describeTurnStart,
   },
   {
-    id: "turn-start-no-build-into-insolvency",
+    id: "turn-start-thin-cash-dangerous-board",
+    kind: "judgment",
     phase: "late",
     decision: "turn-start",
-    tests:
-      "Owns the dark blues (houses $200) with $450, on a board with hotels on the oranges and reds ($1,000+ rents). Building two houses leaves $50. Keep at least $150.",
+    tests: "The dark blues (houses $200) with $450, on a board with hotels on the oranges and reds.",
     build: (s) => turnStart(withCash(owning(dangerousBoard(atTurn(table(s), 55)), { [AI]: DARK_BLUES }), { [AI]: 450 })),
-    check: (o) =>
-      settledOr(o, () => {
-        const state = after(o);
-        const cash = state ? cashOf(state, AI) : 0;
-        return cash >= 150 ? pass(`kept $${String(cash)}`) : fail(`left itself $${String(cash)}`);
-      }),
+    choose: describeTurnStart,
   },
   {
-    id: "turn-start-lift-dead-monopoly",
+    id: "turn-start-mortgaged-monopoly",
+    kind: "judgment",
     phase: "mid",
     decision: "turn-start",
-    tests: "Owns the whole red set, all mortgaged, with $1,500 on a quiet board. A mortgaged monopoly earns nothing; lifting all three costs about $375.",
+    tests: "The whole red set, all mortgaged, with $1,500 on a quiet board.",
     build: (s) => turnStart(mortgaging(owning(atTurn(table(s), 25), { [AI]: REDS }), REDS)),
-    check: (o) =>
-      settledOr(o, () => {
-        const state = after(o);
-        const still = state ? REDS.filter((pos) => state.mortgaged[pos]) : REDS;
-        return still.length === 0 ? pass("lifted all three") : fail(`${String(still.length)} red lot(s) still mortgaged`);
-      }),
+    choose: describeTurnStart,
   },
   {
-    id: "turn-start-propose-completion",
+    id: "turn-start-holds-rival-completer",
+    kind: "judgment",
     phase: "mid",
     decision: "turn-start",
-    tests:
-      "Owns two reds and $1,300; Illinois sits with a cash-poor player ($300) who has no use for it. Propose buying it, with coherent terms: Illinois comes to the AI, cash goes out, and $150 stays back.",
-    build: (s) =>
-      turnStart(withCash(owning(atTurn(table(s), 20), { [AI]: [SQ.kentucky, SQ.indiana], [OTHER]: [SQ.illinois, SQ.reading] }), { [AI]: 1300, [OTHER]: 300 })),
-    check: (o) =>
-      settledOr(o, () => {
-        const terms = proposedTerms(o);
-        if (!terms) return fail("proposed nothing");
-        if (terms.propertyTo[SQ.illinois] !== AI) return fail("proposed a trade that doesn't bring Illinois");
-        const paid = -(terms.cashDelta[AI] ?? 0);
-        if (paid < 0) return fail(`asked to be paid $${String(-paid)} while taking Illinois`);
-        if (1300 - paid < 150) return fail(`offered $${String(paid)}, leaving under $150`);
-        return pass(`offered $${String(paid)} for Illinois`);
-      }),
-  },
-  {
-    id: "turn-start-wallet-xray",
-    phase: "mid",
-    decision: "turn-start",
-    tests:
-      "Ported from adversary.ts (wallet-xray). The AI holds New York and is cash-poor ($120); another player with $1,200 holds the other two oranges. Selling the completer for under $600 arms the strongest set cheaply, and asking for exactly the buyer's whole wallet is the tell the probes caught.",
+    tests: "Ported from adversary.ts (wallet-xray): holds New York, cash-poor ($120); a player with $1,200 holds the other two oranges.",
     build: (s) =>
       turnStart(
         mortgaging(
@@ -430,68 +427,49 @@ export const SCENARIOS: readonly Scenario[] = [
           [SQ.mediterranean],
         ),
       ),
-    check: (o) =>
-      settledOr(o, () => {
-        if (!aiGives(o, SQ.newYork)) return pass("didn't offer New York");
-        const ask = aiCashIn(o);
-        if (ask < 600) return fail(`offered New York for $${String(ask)}`);
-        if (ask === 1200) return fail("asked for the buyer's exact wallet");
-        return pass(`offered New York for $${String(ask)}`);
-      }),
+    choose: describeTurnStart,
   },
 
-  // --- Debt -----------------------------------------------------------------
+  // Debt
+  keepsHouses("debt-keeps-houses", 45, ORANGES, 3, [SQ.reading, SQ.water], 150),
+  keepsHouses("debt-keeps-houses-light-blue", 38, LIGHT_BLUES, 2, [SQ.electric, SQ.shortLine], 100),
+  keepsHouses("debt-keeps-houses-red", 52, REDS, 1, [SQ.reading, SQ.pennRR], 180),
   {
-    id: "debt-keeps-the-houses",
-    phase: "late",
-    decision: "settle-debt",
-    tests:
-      "The AI is $150 short, with three houses on each orange plus Reading Railroad and Water Works. Mortgaging those two raises $175: the houses (its rent engine) stay.",
-    build: (s) =>
-      inDebt(built(owning(atTurn(table(s), 45), { [AI]: [...ORANGES, SQ.reading, SQ.water] }), { [SQ.stJames]: 3, [SQ.tennessee]: 3, [SQ.newYork]: 3 }), -150),
-    check: (o) =>
-      settledOr(o, () => {
-        const sold = -housesAdded(o, ORANGES);
-        return sold === 0 ? pass("kept every house") : fail(`sold ${String(sold)} orange house(s)`);
-      }),
-  },
-  {
-    id: "debt-raises-only-what-it-needs",
+    id: "debt-small-shortfall",
+    kind: "judgment",
     phase: "mid",
     decision: "settle-debt",
-    tests: "The AI is $40 short and owns two railroads and Boardwalk. One mortgage covers it; mortgaging more costs 10% to lift later. Raise no more than $200.",
+    tests: "$40 short with two railroads and Boardwalk.",
     build: (s) => inDebt(owning(atTurn(table(s), 30), { [AI]: [SQ.reading, SQ.pennRR, SQ.boardwalk] }), -40),
-    check: (o) =>
-      settledOr(o, () => {
-        const state = after(o);
-        const raised = state ? cashOf(state, AI) + 40 : 0;
-        return raised <= 200 ? pass(`raised $${String(raised)}`) : fail(`raised $${String(raised)}`);
-      }),
+    choose: debtChoice,
   },
 
-  // --- Jail -----------------------------------------------------------------
+  // Jail
   {
-    id: "jail-leave-early",
+    id: "jail-early",
+    kind: "judgment",
     phase: "early",
     decision: "jail",
-    tests: "Turn 3, almost nothing owned or built. Jail costs turns of buying; pay to leave.",
+    tests: "Turn 3, almost nothing owned or built.",
     build: (s) => jailed(atTurn(table(s), 3), 0),
-    check: (o) => settledOr(o, () => (did(o, "pay-to-leave-jail") || did(o, "use-jail-card") ? pass("left") : fail("stayed to roll"))),
+    choose: jailChoice,
   },
   {
-    id: "jail-use-card-early",
+    id: "jail-early-with-card",
+    kind: "judgment",
     phase: "early",
     decision: "jail",
-    tests: "Early, holding a Get Out of Jail Free card. Leave, by card or by paying.",
+    tests: "Early, holding a Get Out of Jail Free card.",
     build: (s) => jailed({ ...atTurn(table(s), 5), jailFreeCards: { chance: AI } }, 0),
-    check: (o) => settledOr(o, () => (did(o, "pay-to-leave-jail") || did(o, "use-jail-card") ? pass("left") : fail("stayed to roll"))),
+    choose: jailChoice,
   },
   {
-    id: "jail-stay-on-hotel-board",
+    id: "jail-hotel-board",
+    kind: "judgment",
     phase: "late",
     decision: "jail",
-    tests: "Late game, hotels on the oranges and reds, nothing of the AI's own to build. Jail is a haven from the rents: roll and stay.",
+    tests: "Late game, hotels on the oranges and reds, nothing of its own to build.",
     build: (s) => jailed(withPlayer(dangerousBoard(atTurn(table(s), 70)), AI, { cash: 400 }), 0),
-    check: (o) => settledOr(o, () => (did(o, "pay-to-leave-jail") || did(o, "use-jail-card") ? fail("paid to walk back into the hotels") : pass("stayed"))),
+    choose: jailChoice,
   },
 ];

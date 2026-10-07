@@ -1,5 +1,8 @@
 // `npm run ai:scenarios -- <version> [--reps N] [--only id,…] [--concurrency N]`
 //
+// The suite finds errors fast; only real games decide whether a version plays
+// better (see scenario.ts).
+//
 // Runs the scenario suite against the AI version on the `ai:local` model server
 // (local-llm; start one with `npm run ai:llm -- <config>`). Every call's full
 // record goes to a run folder under `runs/` (not committed); the scoreboard is
@@ -70,9 +73,9 @@ async function main(): Promise<void> {
       records.push(record);
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- the run folder's record file, named by this CLI
       appendFileSync(callsPath, `${JSON.stringify(record)}\n`);
-      const mark = record.check?.pass ? "✓" : "✗";
+      const mark = record.check?.error ? "✗" : record.check?.kind === "judgment" ? "·" : "✓";
       const secs = record.metrics ? `${(record.metrics.ms / 1000).toFixed(1)}s` : "-";
-      console.log(`  ${mark} ${job.scenario.id} #${String(job.rep + 1)} ${secs}  ${record.check?.reason ?? ""}`);
+      console.log(`  ${mark} ${job.scenario.id} #${String(job.rep + 1)} ${secs}  ${record.check?.error ?? record.check?.choice ?? ""}`);
     }
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, () => worker()));

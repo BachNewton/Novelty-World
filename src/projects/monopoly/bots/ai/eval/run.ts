@@ -5,12 +5,12 @@ import { aiStrategyId, type AiStrategy } from "../strategy";
 import { AI_VERSIONS } from "../versions";
 import { AI } from "./board";
 import { recording, resultOf, type AiCallRecord, type ServerInfo } from "./record";
-import type { Outcome, Scenario, Verdict } from "./scenario";
+import { judge, type Judged, type Outcome, type Scenario } from "./scenario";
 
 /** Run one scenario once: build its position for the version, and put the AI
  *  seat's decision through the same claim → ask → settle steps the route uses,
  *  so the suite measures exactly what live games run. Returns the full record
- *  of the call, with the scenario's verdict. */
+ *  of the call, with what the seat chose and any objective error in it. */
 export async function runScenario(
   scenario: Scenario,
   strategy: AiStrategy,
@@ -36,7 +36,7 @@ export async function runScenario(
       result: null,
       metrics: null,
       settle: null,
-      check: { pass: false, reason: `the position is wrong: the seat ${owed}` },
+      check: { kind: scenario.kind, choice: "wrong position", error: `the position is wrong: the seat ${owed}` },
     };
   }
 
@@ -46,7 +46,9 @@ export async function runScenario(
   const settled: Settled = asked.ok
     ? settleAnswer(claim.state, claim.state, AI, claim.decision, asked.answer, asked.record)
     : failed(claim.state, AI, claim.decision, asked.reason, asked.record);
-  const verdict = asked.ok ? judge(scenario, claim.state, asked.answer, settled, strategy) : { pass: false, reason: `no answer: ${asked.reason}` };
+  const verdict: Judged = asked.ok
+    ? judged(scenario, claim.state, asked.answer, settled, strategy)
+    : { kind: scenario.kind, choice: "no answer", error: `no answer: ${asked.reason}` };
   return {
     ...base,
     decision: claim.decision,
@@ -58,17 +60,17 @@ export async function runScenario(
   };
 }
 
-function judge(
+function judged(
   scenario: Scenario,
   asked: Outcome["asked"],
   answer: Record<string, unknown>,
   settled: Settled,
   strategy: AiStrategy,
-): Verdict {
+): Judged {
   const spec = AI_VERSIONS[strategy.version].specs[scenario.decision];
   const read = spec?.resolve(asked, AI, answer);
   const resolution = read?.ok ? read.resolution : null;
-  return scenario.check({ asked, seat: AI, answer, resolution, settled });
+  return judge(scenario, { asked, seat: AI, answer, resolution, settled });
 }
 
 function metricsOf(record: AiDecisionRecord): AiCallRecord["metrics"] {
