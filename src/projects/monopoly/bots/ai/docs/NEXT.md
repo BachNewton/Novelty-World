@@ -22,24 +22,22 @@ votes and turn starts, so it is not a live-model candidate; the error count
 alone no longer separates models: read the judgment spread against Sonnet's,
 not just errors.
 
-1. **Develop on Gemma 4 12B** (`npm run ai:llm -- gemma4-12b-1x7k`; one slot,
-   so a full suite takes ~75 minutes). Its two failure families on llm-v5,
-   both version work: **debt plans that need mortgages and sales**
-   (`debt-must-sell-houses`, 8/15: sells houses with the spare railroads
-   unmortgaged, "Selling 5 houses ... covers the debt"), the family llm-v4
-   fixed for Qwen by stating a sum; and **counter terms that contradict the
-   message** (4/5 on `vote-arms-rival-monopoly`: "I'd like $600 for New York"
-   goes out as New York for Sam's two oranges and $0), which no check grades
-   yet: make it one, in an error scenario, before fixing it. Replay the failing
-   requests first (`eval/runs/2026-10-07T16-59-18-935Z-llm-v5/calls.jsonl`).
-   Switch the server default from Qwen only once a Gemma version clears both,
-   with Qwen rerun beside it on the error scenarios.
+1. **Continue on Gemma 4 12B with llm-v6** (`npm run ai:llm --
+   gemma4-12b-1x7k`; one slot, a full suite ~90 minutes). llm-v6 cleared both
+   llm-v5 families on Gemma (`EVOLUTION.md`: 17/120 errors to 1/120). The
+   one left is a counter whose sentence states the lot's price instead of the
+   message's ("would you consider $150?" written as "Sam pays me $200"); watch
+   it, and build only if it recurs. Gemma is now the model the loop runs on;
+   making it the live default is the owner's call, since it writes half as
+   fast as Qwen. Next for Gemma is not more error work but slices (item 6),
+   to find the errors the suite doesn't have.
 
 2. **(Qwen) The empty counter, from the vote's side.** llm-v5's remaining
    trade errors are counters whose follow-up comes back all "keep", $0, after a
    message that is half a decline ("I'll take $900 for the set, or I keep it
-   and build"), plus ungraded counters that keep the lot and ask cash for
-   nothing. The terms step can't fix a vote that didn't mean counter: look at
+   and build"), plus counters that keep the lot and ask cash for nothing, which
+   the new terms-against-message check now grades (llm-v6 on Qwen: 9 of its 12
+   trade errors, "I'd rather mortgage it for $150 and keep it"). The terms step can't fix a vote that didn't mean counter: look at
    the vote's options (a decline that names a price, so "decline, but I'd sell
    for $X" isn't forced into "counter"), confirmed by replaying llm-v5's empty
    counters (`eval/runs/*-llm-v5/calls.jsonl`, records with `followUp`) before
@@ -170,6 +168,29 @@ not just errors.
    change: measure on two model families against the J1 and J2 judgment
    spreads and later human games, never as a gate, and keep it apart from the
    strategy primer (item 5).
+
+19. **The largest model the card can play live** (model axis). A decision
+   needs at most ~9k tokens of context (trade votes: ~7.5k prompt plus ~1.5k
+   of thinking and answer; buys and debts ~2k), so on the 12 GB card the
+   weights set the limit, and speed rules out the rest: a dense ~32B model
+   only fits with 4-bit weights half in system RAM, at a few tokens a second,
+   which puts a trade vote's thinking past the route's 120 s timeout. A ~30B
+   mixture-of-experts model (a few billion parameters active per token) with
+   its experts in system RAM is the extreme that stays fast enough. Try one
+   with an 8-10k window, measured on llm-v6's error scenarios and its judgment
+   spread against Gemma's and Sonnet's. gpt-oss-20b, the one such model tried,
+   was dropped for its play, so size alone is not expected to help.
+20. **Fine-tuning a local model, once the prompt settles** (model axis). Open
+   weights allow a LoRA fine-tune of a 9-12B model on this card. The realistic
+   data is a strong model's answers to the exact prompts of thousands of
+   simulated positions (distillation); human games are far too few, and
+   learning from wins needs more games than this machine can play. It should
+   cut a small model's stalls and repeated errors, and pull its judgment toward
+   the teacher's, never past it. It binds the model to one version's prompt,
+   so it waits until the general changes (items 10-15, 18) have landed, and
+   the fine-tuned model is a new model with its own scoreboards. Before using
+   Claude's answers as training data, the owner checks Anthropic's terms on
+   training other models with its outputs.
 
 ## Loose ends
 
