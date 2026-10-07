@@ -406,7 +406,11 @@ never assumed.
   server's. A client only ever names a profile, never an address. A new provider
   is a new adapter plus a profile.
 - **Claude through the owner's subscription** (`ai:claude`, for the owner's
-  own games). `npm run ai:claude-server -- --model sonnet` starts a local model
+  own games). For a game on the deployed site, `npm run ai:game-night` does
+  everything: it starts the server with the key from `.env.local`, exposes it
+  through a Tailscale Funnel (the address Vercel's `MONOPOLY_AI_CLAUDE_URL`
+  names), and proves the public path with one keyed request.
+  `npm run ai:claude-server -- --model sonnet` alone starts a local model
   server (`bots/ai/claude/`, 127.0.0.1:8091) that answers the same
   OpenAI-compatible requests by running `claude -p` clean, exactly as the
   scenario ceiling does: one shared invocation, no tools, settings, MCP or
