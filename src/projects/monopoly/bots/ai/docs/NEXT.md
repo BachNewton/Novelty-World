@@ -82,6 +82,15 @@ not just errors.
    do, so measure it on two model families, and watch for new stalls (terms that
    don't net out) and for small models proposing three-way deals they can't
    reason through.
+10. **Trade memory.** A seat sees only the last 30 log events (a few turns at a
+   four-player table) and its own one-sentence plan, so trades and declined
+   offers older than that are forgotten. A human can then re-pitch a declined
+   offer, or walk a price down over several turns, and the seat can't tell (the
+   rule-based bots needed decline-memory for exactly this). Give the view a
+   compact section listing every trade and declined or countered offer this game,
+   with terms and the public notes that came with them. It is a missing fact, so a
+   general change: measure it on two model families, and watch prompt length on the
+   small local models.
 
 ## Loose ends
 
