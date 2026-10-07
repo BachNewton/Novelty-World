@@ -173,11 +173,10 @@ not just errors.
   "no automatic retry" rule, so it is the owner's call; the recorded causes
   first show whether drops are all connect-phase.
 
-- The `ai:claude` profile is built but unused: no game has played it yet. Its
-  server (`npm run ai:claude-server`) answered a scenario subset through the
-  profile cleanly; the first real game is the owner's call, and from the
-  deployed site it needs a tunnel and a shared key (`MONOPOLY_AI_CLAUDE_KEY`)
-  first.
+- The `ai:claude` profile plays live games from the deployed site through
+  `npm run ai:game-night` (the Claude server behind Tailscale Funnel, keyed by
+  `MONOPOLY_AI_CLAUDE_KEY`). It depends on the owner's machine being on, and
+  the lobby doesn't yet show whether it is.
 
 - The `local-llm` launcher's fit check counts every layer's KV cache at full
   width and length, so it holds Gemma 4 12B (40 of 48 layers sliding-window)
