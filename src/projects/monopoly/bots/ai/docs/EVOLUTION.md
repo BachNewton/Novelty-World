@@ -54,3 +54,74 @@ Every thinking decision spent its whole 1,200-token budget, about 27 s each.
   never bots, because the rule-based bots stalled against humans after being
   tuned to beat each other. In-game flags and reveals from human games are the
   main evidence of strength.
+
+## llm-v3: answers in the model's own terms; brief thinking (2026-10-07)
+
+Hypothesis: three of llm-v2's error families come from asking for answers in
+the engine's terms, not the model's, and thinking is spent on restating the
+board and the answer format. Every cause was confirmed in llm-v2's call records
+first.
+
+- **Debt plans, and building at turn start.** llm-v2 asked for each lot's end
+  level; the model read a level as "houses to sell", one per lot ("selling my
+  three light blue houses yields $75" for six houses; a 3-house orange set called
+  "hotels"). The same misreading at turn start planned "3 houses on each red lot
+  ($450 total)" for nine $150 houses, and the commit was refused. llm-v3 asks how
+  many houses to sell (or build) per set and which lots to mortgage, lists every
+  option with the cash it raises or costs, and the code spreads houses evenly.
+- **Trade cash direction.** One signed `cashYouReceive` let a buyer ask to be
+  paid ("takes States Avenue, cashYouReceive 100"). llm-v3 has `cashYouPay` and
+  `cashYouReceive`, never negative, at most one above zero, after the deal in
+  words ("I give …; I get …; I pay $A"), with the stated cash still checked.
+- **Thinking.** The rules now say to think only about the decision, briefly, and
+  leave the format to the answer step.
+
+Full suite, 37 scenarios x 3, Qwen3.5-9B Q6_K, 4 slots:
+
+| | llm-v2 | llm-v3 |
+|---|---|---|
+| Errors in error scenarios | 10/45 | 3/45 |
+| Errors across every answer | 10/111 | 3/111 |
+| settle-debt | 9/12 | 2/12 |
+| trade-vote | 0/33 | 1/33 |
+| turn-start | 1/21 | 0/21 |
+| Median / p90 call | 7.5 s / 41.3 s | 7.8 s / 42.7 s |
+| Thinking hit its budget | 54/54 | 54/54 |
+
+No trade proposal or counter put cash the wrong way in any v3 run (three runs,
+27 proposal and counter-direction answers each).
+
+**The thinking instruction did nothing measurable.** Thoughts stayed about 3,800
+characters, opened with "The user wants me to play Monopoly as Alex", restated
+the board and still debated the answer. A budget comparison on the 18 thinking
+scenarios x 3: at 1,200 tokens, 0 errors in 54 answers, ~42 s a call; at 3,000
+tokens, 1 unusable answer (a trade whose stated cash didn't add up), ~87 s a
+call; judgment choices moved both ways with no pattern. Both hit the budget on
+every call. With 8,000 tokens two trade votes were still thinking when the
+120 s call deadline hit, so this model's thinking runs past ~5,000 tokens on its
+own: any budget is a cut-off, not room to finish. llm-v3 keeps 1,200 because no
+larger budget measured better, not to save time; that is a finding about this
+model's thinking, worth testing again on another model.
+
+Judgments that moved (not graded): auctions are steadier than llm-v2's swing to
+$0 (blocking a rival's orange: 2x $200, 1x $100, against v2's mostly $0);
+accepting the sale of a rival's monopoly-completing lot for $400 stayed 3x
+accept; the fair mutual-completion swap went 3x decline.
+
+Residual errors, and their likely causes:
+
+- **Debt: selling houses before mortgaging**, now with correct arithmetic and a
+  stated reason: "avoids the 10% interest penalty on lifting mortgages later".
+  The model weighs 10% interest against the house sale's loss of half the house
+  cost without seeing the loss. A consequence line can state it.
+- **Debt: the note and the fields disagree.** Twice the note said "sell three
+  houses" and `sellHouses` came back empty. The quick (non-thinking) answer
+  writes the note first, then fields that don't follow it.
+- **Trades: selling a lot below its mortgage value** ("Selling Kentucky for $80
+  boosts my cash"), when mortgaging it raises $110 and keeps it. The question
+  doesn't say what the seat could raise by mortgaging instead.
+
+Lesson: the input lesson holds again. Asking in the model's own terms removed
+whole error families, and arithmetic stopped going wrong once every option's
+cash was listed. Instructions about *how to think* did not change how this model
+thinks.
