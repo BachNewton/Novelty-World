@@ -629,3 +629,75 @@ Recommendation: **switch to Gemma 4 12B** as the model the loop develops on,
 and keep Qwen as the server default until a version built on Gemma clears the
 `debt-must-sell-houses` family and the counter-terms mismatch (with Qwen rerun
 on the error scenarios beside it, per `METHOD.md`).
+
+## Ceiling across versions: llm-v1 to llm-v5 on Sonnet 5.5 (2026-10-07)
+
+Question: llm-v2 to llm-v5 were built against Qwen3.5-9B's errors. Does Sonnet
+need those changes, or do they constrain it? Each frozen version ran the full
+suite on Sonnet 5.5 (`--model claude-cli:sonnet`), 3 reps, 2 at a time (llm-v5's
+run from its ceiling entry, 4 at a time). The `vote-counter-message` family
+(being added alongside llm-v6) ran in llm-v3's and llm-v4's full runs and as a
+9-call subset on llm-v1, llm-v2 and llm-v5. Every version ran every scenario.
+
+| | v1 | v2 | v3 | v4 | v5 |
+|---|---|---|---|---|---|
+| Stalls (unusable, halts a game), of 129 | 12 | 0 | 0 | 0 | 0 |
+| Bad moves (graded), of 129 | 0 | 1 | 0 | 0 | 0 |
+| `vote-counter-message`, graded errors of 9 | 0 | 0 | 2 | 1 | 0 |
+| "Swap my one lot for their two" counters, of 12 | 0 | 5 | 5 | 2 | 0 |
+| Counters, of the 42 common trade votes | 30 | 32 | 30 | 25 | 26 |
+| New York for $400 (arms a rival) | ctr $650-$1,000 | ctr $800, swap, decline | decline, ctr $750-$800 | ctr $800-$850 | ctr $650-$850 |
+| Distress sale to the leader | 3x decline | accept, 2x ctr $300 | 2x decline, ctr $300 | 3x ctr $300 | 2x decline, ctr $300 |
+| Boardwalk / blocking orange, max | $380-$400 / $240-$260 | $380 / $260 | $380-$400 / $250-$260 | $320-$380 / $260-$290 | $380-$400 / $230-$300 |
+| Kentucky ($80 offered) / Water Works counters | $260-$300 / $170-$240 | $240-$280 / $160-$200 | $260 / $200 | 2x decline, $260 / $140-$160 | $220-$240 / $140-$150 |
+| Proposals (States / Boardwalk) | $300 / $500-$600 | $250-$300 / $500-$550 | $300 / $600 | $300 / $500-$650 | $260-$320 / $550-$650 |
+| Median / p90 call | 6.9 s / 10.2 s | 6.2 s / 9.6 s | 6.5 s / 9.4 s | 6.2 s / 9.9 s | 5.6 s / 10.8 s |
+| Median trade vote (counters) | 7.6 s (8.7 s) | 7.1 s (7.2 s) | 7.8 s (8.1 s) | 7.1 s (8.0 s) | 9.4 s (10.4 s) |
+| Median private note | 134 chars | 91 | 108 | 112 | 109 |
+
+- **llm-v1's stalls are all safeguard refusals** ("Sonnet 5.5's safeguards
+  flagged this message"), 12 of 129, mostly quick decisions (6 of 21 buys, 3 of
+  9 jail). Its rules say of the private note "Write it first, and think there",
+  asking for the reasoning in the answer; llm-v2 dropped the phrase. Replaying
+  two refused requests 5 times each: unchanged, 3/10 refused; with only
+  ", and think there" removed, 0/10. The same family as the `ai:claude`
+  server's two-pass refusals: asking Claude to put its reasoning in the output
+  trips the reasoning-extraction safeguard intermittently.
+- **The give/get counter misleads Sonnet too.** In llm-v2 to llm-v4, where the
+  counter is written in the vote's own answer as "I give …; I get …", Sonnet
+  repeatedly countered a sale of its lone set-completer by giving that lot and
+  taking the other side's two, "so I get the full set instead", which leaves
+  neither side with the set. The check grades it only when the message doesn't
+  name the lots (3 of the 12). llm-v1 (lots by owner) and llm-v5 (one choice
+  per lot, after the vote) never did; llm-v5's counters on that family are all
+  clean sales at $300-$650.
+- **Debt and buy fixes are neutral for Sonnet.** llm-v1, which asks for end
+  levels per lot, made no debt error in 21; llm-v2's one bad move (selling red
+  houses with a railroad unmortgaged) didn't recur in llm-v3 to llm-v5.
+- **Judgment barely moves.** Auctions, proposals and turn starts sit in the
+  same ranges for every version. llm-v1 asked the most for New York and
+  declined the distress sale 3/3. llm-v2 once accepted it ("cash now"), and
+  llm-v4 countered at $300 every time, against llm-v5's 2 declines. With 3 reps
+  this is within noise.
+
+Verdict. **Needed:** removing "think there" (llm-v2; without it about one call
+in eleven stalls) and the counter as its own answer, one choice per lot
+(llm-v5). **Neutral:** the grouped view, stakes in buy and auction questions,
+house counts per set, loss lines in debt, two cash fields, and brevity as
+such: llm-v1's longer notes were no better. **Possibly constraining, weakly:**
+llm-v4's "you could mortgage it instead for $X" beside each lot coincides
+with lower asks (Water Works $140-$160 in llm-v4 and llm-v5 against
+$160-$240 before, Kentucky $220-$260 against $260-$300) and more declines
+instead of counters (llm-v4 25/42); the mortgage floor may act as an anchor.
+llm-v5's second call costs Sonnet about 2 s a counter, with no sign of worse
+terms (0 of 26 contradict the message). Low effort on quick decisions and held
+auction notes are the same in every version, so this run can't judge them.
+
+Lesson: **the Qwen-driven changes don't hurt Claude, and two of them it
+needs.** One stops a safeguard stall Qwen never had; the other stops a
+planning slip Sonnet makes too. llm-v5 stays the version for Claude. To test
+the anchor: a version that drops the mortgage-instead line from trade votes
+only, run on Sonnet with llm-v5 beside it at 5 reps on the below-mortgage,
+counter-holdings and counter-direction families, compared on ask prices and
+counter rate, with errors still at zero. Any new version's prompt should not
+ask Claude to put its thinking in the answer.

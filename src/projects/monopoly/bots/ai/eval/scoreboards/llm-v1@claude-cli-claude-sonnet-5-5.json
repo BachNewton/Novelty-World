@@ -1,0 +1,686 @@
+{
+  "version": "llm-v1",
+  "at": "2026-10-07T18:59:36.062Z",
+  "reps": 3,
+  "server": {
+    "model": "claude-cli/claude-sonnet-5-5 (effort: think=high, quick=low)",
+    "contextPerSlot": null,
+    "slots": 2,
+    "defaults": {}
+  },
+  "scenarios": [
+    {
+      "id": "buy-completes-set",
+      "kind": "error",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "buy": 2,
+        "no answer": 1
+      },
+      "medianMs": 7828
+    },
+    {
+      "id": "buy-completes-set-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "buy": 2,
+        "no answer": 1
+      },
+      "medianMs": 5127
+    },
+    {
+      "id": "buy-completes-set-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "no answer": 1,
+        "buy": 2
+      },
+      "medianMs": 6843
+    },
+    {
+      "id": "buy-first-of-set",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 6044
+    },
+    {
+      "id": "buy-third-railroad",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "buy": 2,
+        "no answer": 1
+      },
+      "medianMs": 6220
+    },
+    {
+      "id": "buy-blocks-rival",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "buy": 2,
+        "no answer": 1
+      },
+      "medianMs": 6302
+    },
+    {
+      "id": "buy-leaves-little-for-rent",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "buy": 2,
+        "no answer": 1
+      },
+      "medianMs": 7785
+    },
+    {
+      "id": "auction-boardwalk",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $400": 2,
+        "max $380": 1
+      },
+      "medianMs": 5265
+    },
+    {
+      "id": "auction-cheap-lot",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $60": 3
+      },
+      "medianMs": 5893
+    },
+    {
+      "id": "auction-completes-own-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $600": 1,
+        "max $700": 2
+      },
+      "medianMs": 4388
+    },
+    {
+      "id": "auction-blocks-rival-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $240": 1,
+        "max $260": 2
+      },
+      "medianMs": 4364
+    },
+    {
+      "id": "auction-complete-into-illiquidity",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $220": 2,
+        "max $240": 1
+      },
+      "medianMs": 6419
+    },
+    {
+      "id": "vote-below-mortgage-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Reading Railroad, gets $300": 1,
+        "counter: gives Reading Railroad, gets $250": 2
+      },
+      "medianMs": 7916
+    },
+    {
+      "id": "vote-below-mortgage-utility",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Water Works, gets $170": 1,
+        "counter: gives Water Works, gets $240": 1,
+        "counter: gives Water Works, gets $210": 1
+      },
+      "medianMs": 7242
+    },
+    {
+      "id": "vote-below-mortgage-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Kentucky Avenue, gets $260": 2,
+        "counter: gives Kentucky Avenue, gets $300": 1
+      },
+      "medianMs": 7066
+    },
+    {
+      "id": "vote-counter-holdings-railroad",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pennsylvania Railroad, gets $220": 3
+      },
+      "medianMs": 6615
+    },
+    {
+      "id": "vote-counter-holdings-green",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pacific Avenue, gets $350": 1,
+        "counter: gives Pacific Avenue, gets $400": 1,
+        "counter: gives Pacific Avenue, gets $340": 1
+      },
+      "medianMs": 6630
+    },
+    {
+      "id": "vote-counter-holdings-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 2,
+        "counter: gives Vermont Avenue, gets $170": 1
+      },
+      "medianMs": 6214
+    },
+    {
+      "id": "vote-counter-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives St. James Place, gets $110": 1,
+        "counter: gives St. James Place, gets $80": 1,
+        "counter: gives St. James Place, gets $85": 1
+      },
+      "medianMs": 9772
+    },
+    {
+      "id": "vote-counter-direction-yellow",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Ventnor Avenue, gets $120": 2,
+        "counter: gives Ventnor Avenue, gets $110": 1
+      },
+      "medianMs": 8803
+    },
+    {
+      "id": "vote-counter-direction-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Short Line, gets $50": 1,
+        "counter: gives Short Line, gets $85": 1,
+        "counter: gives Short Line, gets $110": 1
+      },
+      "medianMs": 8756
+    },
+    {
+      "id": "vote-arms-rival-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives New York Avenue, gets $650": 1,
+        "counter: gives New York Avenue, gets $900": 1,
+        "counter: gives New York Avenue, gets $1000": 1
+      },
+      "medianMs": 9311
+    },
+    {
+      "id": "vote-mutual-completion-swap",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Atlantic Avenue, takes Illinois Avenue, gets $100": 2,
+        "accept": 1
+      },
+      "medianMs": 9269
+    },
+    {
+      "id": "vote-generous-offer",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 3
+      },
+      "medianMs": 6716
+    },
+    {
+      "id": "vote-distress-fire-sale",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3
+      },
+      "medianMs": 7647
+    },
+    {
+      "id": "vote-whole-set-handover",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3
+      },
+      "medianMs": 6466
+    },
+    {
+      "id": "turn-start-propose-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Illinois Avenue, pays $320); keeps $1300": 1,
+        "proposes (takes Illinois Avenue, pays $330); keeps $1300": 2
+      },
+      "medianMs": 6796
+    },
+    {
+      "id": "turn-start-propose-direction-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Boardwalk, pays $600); keeps $1600": 1,
+        "proposes (takes Boardwalk, pays $500); keeps $1600": 2
+      },
+      "medianMs": 7524
+    },
+    {
+      "id": "turn-start-propose-direction-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "proposes (takes States Avenue, pays $300); keeps $900": 2,
+        "no answer": 1
+      },
+      "medianMs": 8040
+    },
+    {
+      "id": "turn-start-fresh-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "builds 9; keeps $100": 1,
+        "no answer": 1,
+        "builds 6; keeps $400": 1
+      },
+      "medianMs": 9533
+    },
+    {
+      "id": "turn-start-thin-cash-dangerous-board",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "nothing": 1,
+        "builds 2; keeps $50": 2
+      },
+      "medianMs": 10918
+    },
+    {
+      "id": "turn-start-mortgaged-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 6, lifts 3; keeps $226": 3
+      },
+      "medianMs": 8432
+    },
+    {
+      "id": "turn-start-holds-rival-completer",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "nothing": 3
+      },
+      "medianMs": 6113
+    },
+    {
+      "id": "debt-keeps-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Water Works, raises $175": 3
+      },
+      "medianMs": 5314
+    },
+    {
+      "id": "debt-keeps-houses-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Electric Company + Short Line, raises $175": 2,
+        "mortgages Short Line, raises $100": 1
+      },
+      "medianMs": 7480
+    },
+    {
+      "id": "debt-keeps-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Pennsylvania Railroad, raises $200": 3
+      },
+      "medianMs": 5653
+    },
+    {
+      "id": "debt-must-sell-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Water Works, sells 2 house(s), raises $275": 3
+      },
+      "medianMs": 6872
+    },
+    {
+      "id": "debt-must-sell-houses-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Electric Company + Short Line, sells 2 house(s), raises $225": 3
+      },
+      "medianMs": 7157
+    },
+    {
+      "id": "debt-must-sell-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Pennsylvania Railroad, sells 2 house(s), raises $350": 3
+      },
+      "medianMs": 6840
+    },
+    {
+      "id": "debt-small-shortfall",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "mortgages Reading Railroad, raises $100": 2,
+        "no answer": 1
+      },
+      "medianMs": 7626
+    },
+    {
+      "id": "jail-early",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "pay": 3
+      },
+      "medianMs": 4842
+    },
+    {
+      "id": "jail-early-with-card",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "card": 2,
+        "no answer": 1
+      },
+      "medianMs": 4131
+    },
+    {
+      "id": "jail-hotel-board",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "jail",
+      "runs": 3,
+      "errors": 2,
+      "errorReasons": [
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y",
+        "no answer: unreachable: claude reported an error: success API Error: Sonnet 5.5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Sonnet 5.5.\n\nTry rephrasing the request in a new session or change y"
+      ],
+      "choices": {
+        "no answer": 2,
+        "roll": 1
+      },
+      "medianMs": 5038
+    }
+  ],
+  "errors": {
+    "errors": 12,
+    "runs": 129
+  },
+  "errorScenarios": {
+    "errors": 4,
+    "runs": 63
+  },
+  "byPhase": {
+    "early": {
+      "errors": 3,
+      "runs": 24
+    },
+    "mid": {
+      "errors": 6,
+      "runs": 57
+    },
+    "late": {
+      "errors": 3,
+      "runs": 48
+    }
+  },
+  "byDecision": {
+    "buy": {
+      "errors": 6,
+      "runs": 21
+    },
+    "auction": {
+      "errors": 0,
+      "runs": 15
+    },
+    "trade-vote": {
+      "errors": 0,
+      "runs": 42
+    },
+    "turn-start": {
+      "errors": 2,
+      "runs": 21
+    },
+    "settle-debt": {
+      "errors": 1,
+      "runs": 21
+    },
+    "jail": {
+      "errors": 3,
+      "runs": 9
+    }
+  },
+  "timing": {
+    "medianMs": 6843,
+    "p90Ms": 10220,
+    "thinkHitBudget": {
+      "hit": 0,
+      "thought": 0
+    }
+  }
+}
