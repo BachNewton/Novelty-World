@@ -131,6 +131,14 @@ not just errors.
    facts derived from the state: "Sam holds the full orange set with three
    houses on each", never "Sam is in trouble". Measure on two model families,
    including whether notes and pitches cite other players' positions correctly.
+15. **What a player controls.** A live seat's plan said "avoid red" because of
+   its houses, as if it could choose where it lands. Movement is the dice; the
+   rules primer never says so, nor what a player does choose (buy or pass, bid,
+   trade, build, mortgage, how to pay a debt, how to leave jail, how much cash to
+   keep). Add that to the primer and ask for a plan made of those choices
+   ("keep $400 in reserve while red has houses" is a plan; "avoid red" is not).
+   General: measure on two model families. Grade it as an error scenario: a plan
+   or note that claims control over movement.
 
 ## Loose ends
 
