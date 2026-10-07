@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
+import { stalledAt } from "../bots/ai/review";
 import type { AiDecision, GameState } from "../types";
+import { TryAgainButton } from "./ai-retry";
 
 /** How a decision reads in a sentence ("thinking about the auction"). */
 export const DECISION_LABEL: Readonly<Record<AiDecision, string>> = {
@@ -19,8 +21,9 @@ export const DECISION_LABEL: Readonly<Record<AiDecision, string>> = {
 
 /** Shown to everyone while an AI seat's model is working on a decision, so the
  *  table knows what it is waiting for. A failed seat stays flagged here too,
- *  since the game is stalled on it. */
-export function AiStatus({ state }: { state: GameState }) {
+ *  with why, since the game is stalled on it; a seated player (`canRetry`) can
+ *  ask it to try again. */
+export function AiStatus({ state, canRetry }: { state: GameState; canRetry: boolean }) {
   const rows = state.players.flatMap((player) => {
     const seat = state.ai[player.id];
     if (!seat) return [];
@@ -35,9 +38,17 @@ export function AiStatus({ state }: { state: GameState }) {
       ];
     }
     if (seat.failure !== null) {
+      const at = stalledAt(state, player.id);
       return [
-        <StatusRow key={player.id} color="var(--mono-red)">
-          {player.name} couldn&apos;t decide ({DECISION_LABEL[seat.failure.decision]}). The game is stalled.
+        <StatusRow
+          key={player.id}
+          color="var(--mono-red)"
+          action={
+            canRetry && at !== null ? <TryAgainButton aiName={player.name} seat={player.id} refTo={at} /> : undefined
+          }
+        >
+          {player.name} couldn&apos;t decide ({DECISION_LABEL[seat.failure.decision]}): {seat.failure.reason}. The
+          game is stalled.
         </StatusRow>,
       ];
     }
@@ -56,15 +67,26 @@ function ThinkingRow({ name, decision }: { name: string; decision: AiDecision })
   );
 }
 
-function StatusRow({ color, children }: { color: string; children: React.ReactNode }) {
+function StatusRow({
+  color,
+  action,
+  children,
+}: {
+  color: string;
+  /** A control at the row's end (a stalled seat's Try again). */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div
-      className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold"
+      className={`flex items-center gap-2 px-3 text-xs font-semibold ${action ? "py-1" : "py-1.5"}`}
       style={{ color, backgroundColor: "var(--mono-card)" }}
-      role="status"
     >
       <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0">{children}</span>
+      <span role="status" className={`min-w-0 flex-1 [overflow-wrap:anywhere] ${action ? "line-clamp-3" : ""}`}>
+        {children}
+      </span>
+      {action}
     </div>
   );
 }

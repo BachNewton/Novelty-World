@@ -13,6 +13,8 @@ import {
   holdDuringPause,
   pauseForReview,
   resumeAfterReview,
+  retryFailed,
+  stalledAt,
 } from "./review";
 import { aiSeat, withAiSeat } from "./seat";
 
@@ -151,6 +153,60 @@ describe("answers that arrive during a pause", () => {
 
   it("resuming an unpaused game changes nothing", () => {
     expect(resumeAfterReview(noted)).toBe(noted);
+  });
+});
+
+describe("trying a stalled seat again", () => {
+  // The seat failed its buy: the failure is the log's newest event.
+  const stalled: GameState = (() => {
+    const failed = withAiSeat(thinking, AI, { thinking: null, failure: { decision: "buy", reason: "unreachable: fetch failed" } });
+    const group = failed.turns[failed.turns.length - 1];
+    return {
+      ...failed,
+      turns: [
+        ...failed.turns.slice(0, -1),
+        {
+          ...group,
+          events: [...group.events, { kind: "ai-failed", playerId: AI, decision: "buy", reason: "unreachable: fetch failed", ai: RECORD }],
+        },
+      ],
+    };
+  })();
+  const AT = stalledAt(stalled, AI);
+
+  it("finds the failure the seat is stalled on, and nothing once it isn't", () => {
+    const group = stalled.turns[stalled.turns.length - 1];
+    expect(AT).toEqual({ turn: group.turn, index: group.events.length - 1 });
+    expect(stalledAt(withAiSeat(stalled, AI, { failure: null }), AI)).toBeNull();
+    expect(stalledAt(stalled, HUMAN)).toBeNull();
+  });
+
+  it("clears the failure, keeps it in the log, and lets the pacer ask again", () => {
+    if (AT === null) throw new Error("expected a stall");
+    expect(driveOp(stalled, true, HUMAN)).toBeNull();
+    const retried = retryFailed(stalled, HUMAN, AI, AT);
+    if (!retried.ok) throw new Error(retried.reason);
+    expect(aiSeat(retried.state, AI).failure).toBeNull();
+    expect(retried.state.turns).toBe(stalled.turns);
+    expect(driveOp(retried.state, true, HUMAN)).toEqual({ kind: "ai", seat: AI });
+  });
+
+  it("refuses a seat that isn't stalled, so a second tap changes nothing", () => {
+    if (AT === null) throw new Error("expected a stall");
+    const retried = retryFailed(stalled, HUMAN, AI, AT);
+    if (!retried.ok) throw new Error(retried.reason);
+    expect(retryFailed(retried.state, HUMAN, AI, AT)).toEqual({ ok: false, reason: "that AI isn't stalled" });
+  });
+
+  it("refuses a failure other than the one the seat is stalled on now", () => {
+    if (AT === null) throw new Error("expected a stall");
+    expect(retryFailed(stalled, HUMAN, AI, { turn: AT.turn, index: AT.index - 1 })).toMatchObject({ ok: false });
+  });
+
+  it("is a seated player's call, not a bot's or a stranger's", () => {
+    if (AT === null) throw new Error("expected a stall");
+    expect(retryFailed(stalled, AI, AI, AT)).toMatchObject({ ok: false });
+    expect(retryFailed(stalled, "nobody", AI, AT)).toMatchObject({ ok: false });
   });
 });
 

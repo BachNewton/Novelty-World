@@ -108,6 +108,39 @@ export function decisionRefOf(state: GameState, record: AiDecisionRecord): AiDec
 
 export type Paused = { ok: true; state: GameState } | { ok: false; reason: string };
 
+/** Where the failure a seat is stalled on sits in the log: the seat's latest
+ *  `ai-failed` event, while the seat is still failed. Null when it isn't. */
+export function stalledAt(state: GameState, seat: string): AiDecisionRef | null {
+  if (aiSeat(state, seat).failure === null) return null;
+  for (let g = state.turns.length - 1; g >= 0; g--) {
+    const group = state.turns[g];
+    for (let i = group.events.length - 1; i >= 0; i--) {
+      const event = group.events[i];
+      if (event.kind === "ai-failed" && event.playerId === seat) return { turn: group.turn, index: i };
+    }
+  }
+  return null;
+}
+
+/** A seated player asks a stalled AI seat to try again: the seat's failure
+ *  clears, so the normal drive path asks the model afresh. It must still be
+ *  stalled on the failure at `ref`, the one the player saw, so a double tap, or
+ *  a second player's tap after the seat has moved on (or failed again), changes
+ *  nothing. The failure stays in the log. A person's call, never automatic. */
+export function retryFailed(state: GameState, by: string, seat: string, ref: AiDecisionRef): Paused {
+  if (state.status !== "active") return { ok: false, reason: "the game isn't in play" };
+  const player = state.players.find((p) => p.id === by);
+  if (!player || player.botStrategy !== null) {
+    return { ok: false, reason: "only a seated player can ask an AI to try again" };
+  }
+  const at = stalledAt(state, seat);
+  if (at === null) return { ok: false, reason: "that AI isn't stalled" };
+  if (at.turn !== ref.turn || at.index !== ref.index) {
+    return { ok: false, reason: "that AI is stalled on a different decision now" };
+  }
+  return { ok: true, state: withAiSeat(state, seat, { failure: null }) };
+}
+
 /** Pause the table while `by` reviews the AI decision at `ref`. Only a seated
  *  human can, and only during play. Already paused, the table stays paused as
  *  it is: a second reviewer just reads, and either one's resume carries on. */

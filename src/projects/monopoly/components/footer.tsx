@@ -4,6 +4,7 @@ import { manageActorId } from "../manage";
 import { useMonopolyStore } from "../store";
 import type { GameState } from "../types";
 import { ACTION_BAR_HEIGHT, ActionBar } from "./action-bar";
+import { useCanReview } from "./ai-review";
 import { AiStatus } from "./ai-status";
 import { EventLog } from "./event-log";
 import { PromptSection } from "./prompt-section";
@@ -14,6 +15,7 @@ interface Props {
 
 export function Footer({ state }: Props) {
   const myPlayerId = useMonopolyStore((s) => s.myPlayerId);
+  const canRetry = useCanReview();
 
   // The log gives way to make panel / board room in two distinct cases:
   //
@@ -54,7 +56,7 @@ export function Footer({ state }: Props) {
           "0 -1px 0 var(--mono-frame), 0 -6px 12px rgba(0, 0, 0, 0.75)",
       }}
     >
-      <AiStatus state={state} />
+      <AiStatus state={state} canRetry={canRetry} />
       <PromptSection state={state} />
       {!hideLog && (
         <EventLog

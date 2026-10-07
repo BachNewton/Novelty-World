@@ -185,6 +185,11 @@ interface MonopolyActions {
    *  can't freeze the table. */
   resumeGame: () => Promise<Outcome>;
 
+  /** Ask a stalled AI seat to try again: the route clears its failure if it is
+   *  still stalled on the one at `ref`, and the pump then drives the seat as
+   *  usual. Resolves once that has landed, or with why it didn't. */
+  retryAi: (seat: string, ref: AiDecisionRef) => Promise<Outcome>;
+
   /** Store a flag on an AI decision and resume. On failure the table stays
    *  paused, so the flag can be sent again. */
   flagDecision: (
@@ -896,6 +901,12 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     },
 
     resumeGame: () => awaitedOp({ type: "resume" }),
+
+    retryAi: (seat, ref) => {
+      const { profile } = get();
+      if (!profile) return Promise.resolve({ ok: false, reason: "no profile" });
+      return awaitedOp({ type: "ai-retry", by: profile, seat, ref });
+    },
 
     flagDecision: (ref, categories, note) => {
       const { profile } = get();

@@ -9,10 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import { auctionNotesByResult, isNoteHeld } from "../bots/ai/held";
+import { stalledAt } from "../bots/ai/review";
 import { deckFor, SPACES } from "../data";
 import { useMonopolyStore } from "../store";
 import { PLAYER_COLOR_VAR } from "../theme";
 import { RevealButton, useCanReview } from "./ai-review";
+import { TryAgainButton } from "./ai-retry";
 import { SetContextChips } from "./holdings-grid";
 import { Money } from "./money";
 import type {
@@ -77,6 +79,10 @@ export function EventLog({ state, extraHeight = "0px" }: Props) {
 
   const playersById = new Map(state.players.map((p) => [p.id, p]));
   const canReview = useCanReview();
+  const isStalledOn = (seat: string, turn: number, index: number) => {
+    const at = stalledAt(state, seat);
+    return at !== null && at.turn === turn && at.index === index;
+  };
 
   return (
     <div
@@ -109,6 +115,7 @@ export function EventLog({ state, extraHeight = "0px" }: Props) {
               myId={myId}
               isHeld={(event) => isNoteHeld(state, event, index === state.turns.length - 1)}
               canReview={canReview}
+              isStalledOn={isStalledOn}
             />
           ))}
         </div>
@@ -142,14 +149,18 @@ function TurnFragment({
   myId,
   isHeld,
   canReview,
+  isStalledOn,
 }: {
   turn: TurnGroup;
   playersById: ReadonlyMap<string, Player>;
   myId: string | null;
   /** Whether an AI note is still held back (its auction hasn't closed). */
   isHeld: (event: GameEvent) => boolean;
-  /** Whether this player can open AI decisions to review them. */
+  /** Whether this player can open AI decisions to review them (and ask a
+   *  stalled one to try again). */
   canReview: boolean;
+  /** Whether an AI seat is stalled on the failure at this place in the log. */
+  isStalledOn: (seat: string, turn: number, index: number) => boolean;
 }) {
   const actor = playersById.get(turn.playerId);
   if (!actor) return null;
@@ -198,27 +209,34 @@ function TurnFragment({
           if (isHeld(event) || event.text === "" || withResult.has(i)) return [];
           return [noteRow(event, i)];
         }
-        // An AI seat's failure reads like a note, flagged red: the game has
-        // stalled on that seat and this row is the reason.
+        // An AI seat's failure reads like a note, flagged red. While the game
+        // is stalled on it, this row is the reason, with a Try again under it;
+        // once someone has asked again it stays as the record of what failed.
         if (event.kind === "ai-failed") {
+          const failer = playersById.get(event.playerId);
+          const current = isStalledOn(event.playerId, turn.turn, i);
           const failRow: ReactNode[] = [
             <BotNoteRow
               key={key}
-              actor={playersById.get(event.playerId)}
-              text={`couldn't decide (${event.decision}): ${event.reason}. The game is stalled.`}
-              label="Stalled"
+              actor={failer}
+              text={`couldn't decide (${event.decision}): ${event.reason}.${current ? " The game is stalled." : ""}`}
+              label={current ? "Stalled" : "Failed"}
               color="var(--mono-red)"
               meta={event.ai === undefined ? undefined : decisionTime(event.ai)}
               action={
-                canReview && event.ai !== undefined && playersById.has(event.playerId) ? (
-                  <RevealButton
-                    aiName={playersById.get(event.playerId)?.name ?? "AI"}
-                    refTo={{ turn: turn.turn, index: i }}
-                  />
+                canReview && event.ai !== undefined && failer ? (
+                  <RevealButton aiName={failer.name} refTo={{ turn: turn.turn, index: i }} />
                 ) : undefined
               }
             />,
           ];
+          if (current && canReview && failer) {
+            failRow.push(
+              <div key={`${key}-retry`} className="flex justify-end pb-1" style={{ gridColumn: "1 / -1" }}>
+                <TryAgainButton aiName={failer.name} seat={event.playerId} refTo={{ turn: turn.turn, index: i }} />
+              </div>,
+            );
+          }
           return failRow;
         }
         // A trade moves several things at once; like build/sell it gets one

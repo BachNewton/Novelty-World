@@ -612,6 +612,111 @@ describe("monopoly route — reviewing AI decisions", () => {
   });
 });
 
+describe("monopoly route — trying a stalled AI seat again", () => {
+  const AI = "p2";
+  const ME = { id: HUMAN, name: "Kyle" };
+  // The AI seat failed its buy: the failure is event 0 of turn group 1.
+  const REF = { turn: 1, index: 0 };
+  const STALLED: GameState = {
+    ...HEAD,
+    players: HEAD.players.map((p) => (p.id === AI ? { ...p, botStrategy: "ai:local@llm-v1" } : p)),
+    ai: {
+      [AI]: {
+        plan: null,
+        thinking: null,
+        failure: { decision: "buy", reason: "unreachable: fetch failed" },
+        auctionMax: null,
+        turnStart: null,
+        held: null,
+      },
+    },
+    turns: [
+      {
+        ...HEAD.turns[0],
+        events: [{ kind: "ai-failed", playerId: AI, decision: "buy", reason: "unreachable: fetch failed" }],
+      },
+      ...HEAD.turns.slice(1),
+    ],
+  };
+  const CLEARED: GameState = { ...STALLED, ai: { [AI]: { ...aiSeat(STALLED, AI), failure: null } } };
+  const RETRY = { type: "ai-retry", by: ME, seat: AI, ref: REF };
+
+  it("clears the failure it was asked about, and keeps it in the log", async () => {
+    const writes: { state: GameState }[] = [];
+    createAdminClient.mockReturnValue(
+      fakeClient(
+        [
+          { data: { state: STALLED, version: 9 }, error: null },
+          { data: { version: 10 }, error: null },
+        ],
+        writes,
+      ),
+    );
+
+    const res = await post({ gameId: "g", action: RETRY });
+
+    expect(res).toMatchObject({ ok: true, version: 10 });
+    expect(writes).toHaveLength(1);
+    expect(aiSeat(writes[0].state, AI).failure).toBeNull();
+    expect(writes[0].state.turns[0].events[0]).toMatchObject({ kind: "ai-failed" });
+  });
+
+  it("refuses a seat that isn't stalled, without writing", async () => {
+    const writes: { state: GameState }[] = [];
+    createAdminClient.mockReturnValue(fakeClient([{ data: { state: CLEARED, version: 10 }, error: null }], writes));
+
+    const res = await post({ gameId: "g", action: RETRY });
+
+    expect(res).toMatchObject({ ok: false, reason: "that AI isn't stalled" });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses a failure other than the one the seat is stalled on", async () => {
+    const writes: { state: GameState }[] = [];
+    createAdminClient.mockReturnValue(fakeClient([{ data: { state: STALLED, version: 9 }, error: null }], writes));
+
+    const res = await post({ gameId: "g", action: { ...RETRY, ref: { turn: 1, index: 3 } } });
+
+    expect(res).toMatchObject({ ok: false });
+    expect(writes).toHaveLength(0);
+  });
+
+  it("clears it once when two players tap at the same time", async () => {
+    // Both read the stalled row; the other tap's write lands first, so ours
+    // matches no row, re-reads, finds the seat already asked again, and stops.
+    const writes: { state: GameState }[] = [];
+    createAdminClient.mockReturnValue(
+      fakeClient(
+        [
+          { data: { state: STALLED, version: 9 }, error: null },
+          { data: null, error: null }, // CAS lost to the other tap
+          { data: { state: CLEARED, version: 10 }, error: null },
+        ],
+        writes,
+      ),
+    );
+
+    const res = await post({ gameId: "g", action: RETRY });
+
+    expect(res).toMatchObject({ ok: false, reason: "that AI isn't stalled" });
+    expect(writes).toHaveLength(1);
+  });
+
+  it("is a seated player's call", async () => {
+    createAdminClient.mockReturnValue(fakeClient([{ data: { state: STALLED, version: 9 }, error: null }]));
+
+    const res = await post({ gameId: "g", action: { ...RETRY, by: { id: AI, name: "Bot" } } });
+
+    expect(res).toMatchObject({ ok: false });
+  });
+
+  it("rejects a malformed retry", async () => {
+    const res = await post({ gameId: "g", action: { type: "ai-retry", by: ME, ref: REF } });
+
+    expect(res).toMatchObject({ ok: false, reason: "invalid request" });
+  });
+});
+
 describe("monopoly route — outdated games", () => {
   // A row from before the current GameState shape (here: before versioning).
   const { stateVersion: _dropped, ...unversioned } = HEAD;
@@ -623,6 +728,7 @@ describe("monopoly route — outdated games", () => {
     { type: "ai-decide", seat: HUMAN, fromVersion: 5 },
     { type: "review", by: { id: HUMAN, name: "Kyle" }, ref: { turn: 1, index: 0 } },
     { type: "resume" },
+    { type: "ai-retry", by: { id: HUMAN, name: "Kyle" }, seat: HUMAN, ref: { turn: 1, index: 0 } },
     { type: "flag", by: { id: HUMAN, name: "Kyle" }, ref: { turn: 1, index: 0 }, categories: ["good-move"], note: "" },
   ])("refuses $type on an outdated row without writing", async (action) => {
     const writes: { state: GameState }[] = [];

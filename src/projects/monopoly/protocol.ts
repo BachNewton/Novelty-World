@@ -81,6 +81,12 @@ export type MonopolyAction =
   /** Carry on after a review. Anyone at the table may, so an abandoned pause
    *  can't freeze the game; idempotent, so not version-guarded. */
   | { type: "resume" }
+  /** A seated player asks a stalled AI seat to try again: the route clears the
+   *  seat's failure only while it is still stalled on the failure at `ref` (the
+   *  one the player saw), and the normal drive path asks the model afresh. Not
+   *  version-guarded, like `resume`: it is checked against whatever the game is
+   *  now, so a second tap is refused rather than clearing a newer failure. */
+  | { type: "ai-retry"; by: PlayerProfile; seat: string; ref: AiDecisionRef }
   /** Store a player's flag on an AI decision, then resume. The route reads what
    *  the flag is about from the game itself, never from the client. */
   | {

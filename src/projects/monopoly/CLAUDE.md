@@ -335,13 +335,18 @@ never assumed.
   first answers need, such as a counter's terms once "counter" is chosen
   (llm-v5). Both answers settle as one decision, its record adds up both calls'
   cost, and the call record keeps the follow-up beside the first call.
-- **No fallback, no retry.** An unreachable model, a timeout, a malformed or
-  illegal answer, or a legal plan that doesn't finish the job (debt still owed,
-  a trade whose stated cash doesn't add up) is committed as an `ai-failed` log
-  event and `AiSeat.failure`. A failed seat is never driven again, so the game
-  **stalls there, visibly**. An answer that was sound but overtaken by another
-  seat's move is **stale**, not failed: the marker clears and the seat is asked
-  afresh.
+- **No fallback, no automatic retry.** An unreachable model, a timeout, a
+  malformed or illegal answer, or a legal plan that doesn't finish the job (debt
+  still owed, a trade whose stated cash doesn't add up) is committed as an
+  `ai-failed` log event and `AiSeat.failure`. A failed seat is never driven
+  again, so the game **stalls there, visibly**. A seated player can tap **Try
+  again** (on the AI status bar and the log's Stalled row): the `ai-retry` route
+  action clears the failure only while the seat is still stalled on the one they
+  saw (`retryFailed`, checked on each CAS write, so double taps clear it once),
+  and the normal drive path asks afresh. The failure stays in the log and the
+  new attempt gets its own call row. It is a person's decision, never automatic.
+  An answer that was sound but overtaken by another seat's move is **stale**,
+  not failed: the marker clears and the seat is asked afresh.
 - **Every decision is measured.** Its bot-note (or its `ai-failed` event)
   carries an `AiDecisionRecord`: the version, the model as its server names it
   (llama.cpp's model file, from `/props`), total time, the thinking and answer

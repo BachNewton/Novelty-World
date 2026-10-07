@@ -582,8 +582,9 @@ export interface AiSeat {
   /** The decision a model call is in flight for. Set before the call, so no
    *  other client starts a second one; cleared when the answer commits. */
   thinking: AiDecision | null;
-  /** The decision the seat failed. A failed seat is never driven again: v1 has
-   *  no retry and no fallback, so the game stalls on it, visibly. */
+  /** The decision the seat failed. A failed seat is never driven again: there
+   *  is no automatic retry and no fallback, so the game stalls on it, visibly,
+   *  until a player asks it to try again (which clears this). */
   failure: { decision: AiDecision; reason: string } | null;
   /** The most the seat will pay in the current auction, answered once per
    *  auction; the pacer bids for it up to this, with no further model calls.

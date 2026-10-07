@@ -155,7 +155,8 @@ export function settleAnswer(
 }
 
 /** Record a failure: the reason goes in the log, the seat is marked failed, and
- *  the marker clears. No fallback and no retry; the game stalls on this seat. */
+ *  the marker clears. No fallback and no automatic retry; the game stalls on
+ *  this seat until a player asks it to try again (`retryFailed`). */
 export function failed(
   state: GameState,
   seat: string,

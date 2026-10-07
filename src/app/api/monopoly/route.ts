@@ -22,6 +22,7 @@ import {
   isAiFlagCategory,
   pauseForReview,
   resumeAfterReview,
+  retryFailed,
   type AiFlagCategory,
 } from "@/projects/monopoly/bots/ai/review";
 import { isAiStrategy, parseAiStrategy } from "@/projects/monopoly/bots/ai/strategy";
@@ -137,6 +138,11 @@ function parseAction(v: unknown): MonopolyAction | null {
   }
   if (type === "delete") return { type };
   if (type === "resume") return { type };
+  if (type === "ai-retry") {
+    const by = parseProfile(v.by);
+    const ref = parseRef(v.ref);
+    return by && ref && typeof v.seat === "string" ? { type, by, seat: v.seat, ref } : null;
+  }
   if (type === "review") {
     const by = parseProfile(v.by);
     const ref = parseRef(v.ref);
@@ -248,6 +254,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
   if (action.type === "review") return review(supabase, gameId, action);
   if (action.type === "resume") return resume(supabase, gameId);
+  if (action.type === "ai-retry") return aiRetry(supabase, gameId, action);
   if (action.type === "flag") return flag(supabase, gameId, action);
   return mutate(supabase, gameId, action);
 }
@@ -454,7 +461,8 @@ const AI_COMMIT_ATTEMPTS = 8;
  *  the seat is marked as thinking first (so no other client asks too, and every
  *  client can show it), then the model's answer is weighed against the latest
  *  row and committed. A failed call or an unusable answer is committed as a
- *  logged failure that stalls the seat: v1 has no retry and no fallback. */
+ *  logged failure that stalls the seat: no automatic retry and no fallback
+ *  (a player may ask it to try again: `ai-retry`). */
 async function aiDecide(
   supabase: Db,
   gameId: string,
@@ -627,6 +635,21 @@ function resumed(state: GameState): Computed {
 /** Carry on after a review. Anyone at the table may. */
 async function resume(supabase: Db, gameId: string): Promise<NextResponse> {
   const done = await rewrite(supabase, gameId, resumed);
+  if (!done.ok) return done.response;
+  return json({ ok: true, state: done.row.state, version: done.row.version });
+}
+
+/** A player asks a stalled AI seat to try again. The failure clears only while
+ *  the seat is still stalled on the one the player saw, checked against the row
+ *  each write lands on, so two taps clear it once and the other is refused. The
+ *  failure stays in the log, and the new attempt gets its own call row when a
+ *  client drives the seat again. */
+async function aiRetry(
+  supabase: Db,
+  gameId: string,
+  action: Extract<MonopolyAction, { type: "ai-retry" }>,
+): Promise<NextResponse> {
+  const done = await rewrite(supabase, gameId, (state) => retryFailed(state, action.by.id, action.seat, action.ref));
   if (!done.ok) return done.response;
   return json({ ok: true, state: done.row.state, version: done.row.version });
 }
