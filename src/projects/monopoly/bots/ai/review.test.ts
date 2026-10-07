@@ -6,7 +6,9 @@ import type { AiDecisionRecord, GameState } from "../../types";
 import { aiCallRow } from "./calls";
 import type { AiCallRecord } from "./eval/record";
 import {
+  AI_FLAG_CATEGORIES,
   aiDecisionAt,
+  aiFlagCategoriesFor,
   decisionRefOf,
   holdDuringPause,
   pauseForReview,
@@ -179,5 +181,25 @@ describe("aiCallRow", () => {
       ms: 900,
       record,
     });
+  });
+});
+
+describe("aiFlagCategoriesFor", () => {
+  const ids = (decision: Parameters<typeof aiFlagCategoriesFor>[0]) => aiFlagCategoriesFor(decision).map((c) => c.id);
+
+  it("offers trade categories for a trade and keeps the general ones off it", () => {
+    expect(ids("trade-vote")).toContain("trade-no-human-would-take");
+    expect(ids("trade-build")).toContain("trade-tempting");
+    expect(ids("trade-vote")).not.toContain("bad-strategy");
+    expect(ids("trade-vote")).toContain("leaked-info");
+  });
+
+  it("offers the general categories for any other decision", () => {
+    expect(ids("auction")).toContain("bad-strategy");
+    expect(ids("auction")).not.toContain("trade-fair");
+  });
+
+  it("offers every category for a decision logged without a record", () => {
+    expect(ids(null)).toHaveLength(AI_FLAG_CATEGORIES.length);
   });
 });

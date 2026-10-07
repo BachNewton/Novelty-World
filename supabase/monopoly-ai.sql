@@ -71,17 +71,24 @@ create table if not exists public.monopoly_ai_flags (
   note text not null default '',
   shown jsonb not null,
   created_at timestamptz not null default now(),
-  -- Mirrors AI_FLAG_CATEGORIES in src/projects/monopoly/bots/ai/review.ts.
-  constraint monopoly_ai_flags_categories check (
-    categories <@ array[
-      'misread-board', 'invented-rule', 'bad-strategy', 'leaked-info',
-      'exploitable', 'broke-plan', 'too-slow', 'good-move'
-    ]::text[]
-  ),
   constraint monopoly_ai_flags_says_something check (
     cardinality(categories) > 0 or note <> ''
   )
 );
+
+-- Mirrors AI_FLAG_CATEGORIES in src/projects/monopoly/bots/ai/review.ts.
+-- Dropped and re-added so a changed list reaches an existing table.
+alter table public.monopoly_ai_flags
+  drop constraint if exists monopoly_ai_flags_categories;
+alter table public.monopoly_ai_flags
+  add constraint monopoly_ai_flags_categories check (
+    categories <@ array[
+      'misread-board', 'invented-rule', 'bad-strategy', 'leaked-info',
+      'exploitable', 'broke-plan', 'too-slow', 'good-move',
+      'trade-bad-for-bot', 'trade-no-human-would-take', 'trade-misread',
+      'trade-fair', 'trade-tempting'
+    ]::text[]
+  );
 
 create index if not exists monopoly_ai_flags_decision
   on public.monopoly_ai_flags (game_id, turn, event_index);

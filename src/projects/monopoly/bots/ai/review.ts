@@ -15,20 +15,38 @@ import { aiSeat, withAiSeat } from "./seat";
 
 /** What a player can say about an AI decision. Several may apply at once. */
 export const AI_FLAG_CATEGORIES = [
-  { id: "misread-board", label: "Misread the board" },
-  { id: "invented-rule", label: "Invented a rule" },
-  { id: "bad-strategy", label: "Bad strategy" },
-  { id: "leaked-info", label: "Gave info away" },
-  { id: "exploitable", label: "Exploitable" },
-  { id: "broke-plan", label: "Broke its plan" },
-  { id: "too-slow", label: "Too slow" },
-  { id: "good-move", label: "Good move" },
+  { id: "misread-board", label: "Misread the board", on: "other" },
+  { id: "invented-rule", label: "Invented a rule", on: "any" },
+  { id: "bad-strategy", label: "Bad strategy", on: "other" },
+  // A trade can be good for the bot and still be one no person would take, so
+  // trades are judged from both sides rather than as one "bad strategy".
+  { id: "trade-bad-for-bot", label: "Bad for the bot", on: "trade" },
+  { id: "trade-no-human-would-take", label: "No human would take this", on: "trade" },
+  { id: "trade-misread", label: "Misread the deal", on: "trade" },
+  { id: "leaked-info", label: "Gave info away", on: "any" },
+  { id: "exploitable", label: "Exploitable", on: "any" },
+  { id: "broke-plan", label: "Broke its plan", on: "any" },
+  { id: "too-slow", label: "Too slow", on: "any" },
+  { id: "trade-fair", label: "Fair offer", on: "trade" },
+  { id: "trade-tempting", label: "Tempting", on: "trade" },
+  { id: "good-move", label: "Good move", on: "any" },
 ] as const;
 
 export type AiFlagCategory = (typeof AI_FLAG_CATEGORIES)[number]["id"];
 
 export function isAiFlagCategory(value: unknown): value is AiFlagCategory {
   return AI_FLAG_CATEGORIES.some((c) => c.id === value);
+}
+
+const TRADE_DECISIONS: readonly AiDecision[] = ["trade-vote", "trade-build"];
+
+/** The categories offered for a decision: trade ones for a trade, the general
+ *  ones otherwise, and those that fit both always. A decision with no record
+ *  (logged before records existed) gets every category. */
+export function aiFlagCategoriesFor(decision: AiDecision | null): (typeof AI_FLAG_CATEGORIES)[number][] {
+  if (decision === null) return [...AI_FLAG_CATEGORIES];
+  const scope = TRADE_DECISIONS.includes(decision) ? "trade" : "other";
+  return AI_FLAG_CATEGORIES.filter((c) => c.on === "any" || c.on === scope);
 }
 
 /** One AI decision as the review dialog shows it, read from its log entry: a

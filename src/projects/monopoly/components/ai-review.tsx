@@ -4,14 +4,17 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { Check, Eye, Pause, Play } from "lucide-react";
 import {
-  AI_FLAG_CATEGORIES,
   aiDecisionAt,
+  aiFlagCategoriesFor,
   type AiDecisionView,
   type AiFlagCategory,
 } from "../bots/ai/review";
 import { useMonopolyStore } from "../store";
 import type { AiDecisionRef, GameState } from "../types";
 import { DECISION_LABEL } from "./ai-status";
+
+// Praise reads differently from the criticisms at a glance.
+const PRAISE: ReadonlySet<AiFlagCategory> = new Set(["good-move", "trade-fair", "trade-tempting"]);
 
 // Reviewing an AI decision mid-game. A BOT row's reveal button opens the
 // decision in a dialog (its private reasoning and plan stay off the log), which
@@ -340,10 +343,9 @@ function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState
                 Flag it
               </legend>
               <div className="flex flex-wrap gap-2" role="group" aria-label="What stands out about this decision">
-                {AI_FLAG_CATEGORIES.map((c) => {
+                {aiFlagCategoriesFor(decision.record?.decision ?? null).map((c) => {
                   const on = picked.includes(c.id);
-                  // Praise reads differently from the criticisms at a glance.
-                  const tone = c.id === "good-move" ? "var(--mono-green)" : "var(--mono-orange)";
+                  const tone = PRAISE.has(c.id) ? "var(--mono-green)" : "var(--mono-orange)";
                   return (
                     <button
                       key={c.id}
