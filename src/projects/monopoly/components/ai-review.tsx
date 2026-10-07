@@ -351,7 +351,6 @@ function ReviewDialog({
   const canSubmit = !busy && (picked.length > 0 || note.trim() !== "");
   const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name;
   const aiName = decision ? (nameOf(decision.seat) ?? "AI") : "AI";
-  const pausedBy = state.pause ? (nameOf(state.pause.by) ?? "Someone") : null;
 
   return (
     <Overlay labelledBy={titleId} onEscape={close}>
@@ -371,11 +370,6 @@ function ReviewDialog({
         {decision?.record && (
           <p className="truncate font-mono text-xs" style={{ color: "var(--mono-rail)" }}>
             {meta(decision)}
-          </p>
-        )}
-        {!mine && pausedBy !== null && (
-          <p className="text-sm font-semibold" style={{ color: "var(--mono-rail)" }}>
-            {pausedBy} paused to review this. Leave your own flag; play carries on when they close it.
           </p>
         )}
       </header>
