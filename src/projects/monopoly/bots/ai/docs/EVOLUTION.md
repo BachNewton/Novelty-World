@@ -1006,3 +1006,65 @@ models' records, at zero model cost, by re-judging what was already on disk.
   replayed Gemma follow-up or debt plan costs 3-10 s and repeats almost
   exactly at temperature 0.3, so five shapes were compared in about 150 quick
   calls; the subset and full runs were only for the verdict.
+
+## Does asking again clear a stall? Replays on Gemma 4 12B (2026-10-08)
+
+A stall is a decision whose answer can't settle (refused by the engine, a plan
+that leaves debt, cash that doesn't add up, an empty counter), so the game
+waits on Try again. The question: does a plain re-ask converge, and does it
+converge faster when the retry says why the last answer was refused?
+
+The records: 3,322 scenario calls in `eval/runs/` across all versions and
+models hold 42 stalls, leaving aside network failures (2 Qwen timeouts, 7
+gpt-oss server 500s for output that broke its format) and Sonnet's 13
+safeguard refusals, which arrive as server errors.
+
+| Model | Calls | Stalls |
+|---|---|---|
+| Qwen3.5-9B | 1,713 | 33 |
+| gpt-oss-20b | 219 | 8 |
+| Gemma 4 12B | 499 | 1 |
+| Sonnet 5.5 / Haiku 4.5 (claude-cli) | 886 | 0 (plus 13 safeguard refusals) |
+
+By cause: an empty counter or proposal (`trade is empty`, 14), a manage plan
+the engine refuses (nothing to change, insufficient cash, houses before
+mortgages, sell-only: 11), a debt plan leaving debt (5), trade cash that
+doesn't add up or runs both ways (8), a lot assigned to its own owner or not
+the counterparty's (3), a counter that gives a lot for nothing (1).
+
+What ran: 25 distinct failing requests (llm-v1 to llm-v5, every cause; 24
+first failed on Qwen or gpt-oss, and llm-v5's turn-start-holds-rival-completer
+on both Gemma and gpt-oss), rebuilt from their scenarios (24 of 25 prompts
+byte-identical to the record) and put through the route's ask and settle steps on Gemma 4 12B,
+one at a time. Arm A re-asks the identical request, up to 3 times; arm B adds
+one user message, "Your previous answer was refused: <reason>. Answer
+again.", carrying the latest refusal. 64 calls in all.
+
+| | Converged | Mean attempts | Legal but graded a bad move |
+|---|---|---|---|
+| A: the same request | 25/25 | 1.00 | 5 |
+| B: plus the refusal reason | 25/25 | 1.08 | 7 |
+
+- **Asked plainly, Gemma answered every request validly the first time**,
+  whichever model had stalled on it. Most stalls are a weaker model's, not the request's.
+- **The reason made things worse, not faster.** On llm-v3's
+  turn-start-holds-rival-completer (Qwen's cash that didn't add up), arm B
+  failed twice (the same cash slip, then asking for a lot the other side
+  doesn't own) before a valid third answer; the same request asked plainly
+  passed 7 of 7. On llm-v4's and llm-v5's debt-keeps-houses, "sell the set's
+  buildings before mortgaging" steered Gemma into selling 3 houses that a
+  mortgage would have covered: a valid answer and a worse move.
+- **Gemma's own one stall doesn't repeat**: that request (llm-v5) passed 8
+  of 8 replays. Sonnet's only stalls, llm-v1's safeguard refusals, were
+  already replayed in the ceiling entry above: 3 of 10 identical re-asks
+  refused, so a plain retry clears them too.
+
+Caveat: no Qwen server was up, so Qwen's own stalls weren't re-asked on
+Qwen; a weaker model may fail the same request repeatedly at temperature
+0.3, which this can't show.
+
+Lesson: **a stall on a working model is a rare, non-repeating slip, and a
+plain re-ask clears it.** Telling the model why it was refused adds a second
+instruction that competes with the question's own, and the model follows
+the newest words: it fixed nothing a re-ask didn't and
+twice traded a refusal for a legal bad move.

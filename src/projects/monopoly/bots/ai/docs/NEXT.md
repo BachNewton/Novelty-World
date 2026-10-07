@@ -233,6 +233,13 @@ not just errors.
   polling, and a second failure fails the seat as today. It relaxes AI seats'
   "no automatic retry" rule, so it is the owner's call; the recorded causes
   first show whether drops are all connect-phase.
+  The same could cover an unusable answer (proposal, not built, also the
+  owner's call): when settle fails, ask once more with the identical request,
+  no refusal reason added. Replays on Gemma (EVOLUTION, "Does asking again
+  clear a stall?") cleared 25 of 25 recorded stalls on a plain re-ask, while
+  adding the reason fixed none faster and twice produced a legal bad move.
+  Both attempts would keep their call rows and the first failure its log
+  event, and a second failure stalls the seat as today.
 
 - The `ai:claude` profile plays live games from the deployed site through
   `npm run ai:game-night` (the Claude server behind Tailscale Funnel, keyed by
