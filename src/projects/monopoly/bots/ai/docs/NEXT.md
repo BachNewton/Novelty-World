@@ -180,11 +180,6 @@ not just errors.
   invites strategy complaints. "Bad for the bot" fits them; whether to reword
   "Misread the deal" (say, "Got the terms wrong") is the owner's call.
 
-- **A human's offer went out with its cash backwards** (46181f, turn 59: Kyle
-  asked Väinö to hand over New York and pay $150, then re-sent it as $150 to
-  Väinö). The AI declined it correctly. If it recurs, the trade builder's cash
-  entry is the place to look, not the AI.
-
 - **One automatic retry when the model server is unreachable, for the owner.**
   A live `ai:claude` turn start failed with `TypeError: fetch failed` after
   10.1s, undici's default connect timeout, and the server logged nothing for
