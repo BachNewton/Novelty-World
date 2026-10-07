@@ -74,6 +74,14 @@ not just errors.
 8. **Human-proxy probes against AI seats**: point the `/monopoly-probe` fleet
    (Claude agents playing a human-marked seat through `played-cli`) at AI seats.
    This is the strength signal until enough human games with flags exist.
+9. **Multi-party trades.** The engine accepts trades among three or more players,
+   and a seat voting on one sees every move. But a seat can only propose or
+   counter with one other player: its answer shape names a single
+   counterparty. Let a proposal or counter name moves between several players,
+   as a new version. It is an answer-shape change that widens what the seat can
+   do, so measure it on two model families, and watch for new stalls (terms that
+   don't net out) and for small models proposing three-way deals they can't
+   reason through.
 
 ## Loose ends
 
