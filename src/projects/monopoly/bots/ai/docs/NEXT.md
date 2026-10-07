@@ -191,6 +191,19 @@ not just errors.
    Claude's answers as training data, the owner checks Anthropic's terms on
    training other models with its outputs.
 
+21. **An AI seat against the crowned rule bot, as a curiosity** (never a
+   gate). METHOD's rule stands: no version is judged better, or tuned, for
+   beating bots. But one seat at a table of three crowned rule bots
+   (`bots/champion.ts`; the rule bots' one-versus-three harness) says whether
+   the AI is already past the rule bots at all, which is worth knowing once.
+   The AI seat is asked through the same claim/ask/settle path as live play,
+   so it shares its machinery with the slice runner (item 6). Run on Sonnet
+   at concurrency 1-2: a game is ~80-100 AI calls, so ten games is ~1,000
+   subscription calls and shows only a large gap (from a 25% base). Read the
+   result knowing the rule bots' trade logic may be exploitable in ways a
+   person's isn't: report how each game was won (which trades, with whom),
+   not just the win rate.
+
 ## Loose ends
 
 - **Trade flags are read by their words, for the owner.** The trade-aware
