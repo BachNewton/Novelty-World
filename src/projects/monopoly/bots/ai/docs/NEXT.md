@@ -113,7 +113,8 @@ not just errors.
    so nothing to build. Whether a player can build appears only implicitly, as
    their name in each set's holder list. State it outright per player (cash,
    full sets, what they can build on), so a pitch starts from the other side's
-   real position. General; add the live call as an error scenario first.
+   real position. General; add the live call as an error scenario first (game
+   5x1c6j, call 62; spec E2 in `inbox/46181f-scenarios.md`, item 16).
 13. **Ask at every turn start, for a strong model** (model-specific). The
    turn-start gate skips the model when the seat can't build or lift a mortgage
    and shares no set, or the board hasn't changed since it was last asked. That
@@ -138,19 +139,51 @@ not just errors.
    keep). Add that to the primer and ask for a plan made of those choices
    ("keep $400 in reserve while red has houses" is a plan; "avoid red" is not).
    General: measure on two model families. Grade it as an error scenario: a plan
-   or note that claims control over movement.
+   or note that claims control over movement. Game 46181f made it the live
+   error that matters most: once "avoid Väinö's reds" entered Lisa's plan it was
+   fed forward into 12 of her 13 plans, through the debt settle that broke her
+   (spec E1 in `inbox/46181f-scenarios.md`, item 16).
+16. **Build game 46181f's scenarios** (`inbox/46181f-scenarios.md`): two shared
+   error checks, a plan or note claiming control over movement (E1, with
+   positions) and a pitch crediting the other side with sets or builds it
+   doesn't have (E2, on the `proposeDirection` family), and two judgment
+   scenarios from the human flags, selling the set-completing pair to the
+   holder of the third (J1) and paying all its cash for a set it can't build
+   (J2). Build on llm-v6's `termsContradictMessage` work, run the ceiling on
+   them first, and gate items 12 and 15 on E2 and E1.
+17. **Make a link between a held call and its decision.** A call answered
+   during a review pause is stored once as `held`, with no turn or log index,
+   and nothing links it when the answer settles on resume. In 46181f, 5 of 72
+   decisions (three of them flagged) have no call row in `game:review` and no
+   `call_id` on their flags, and the review lists their calls as "left no log
+   entry". Update the row's place and outcome when the held answer settles, or
+   store the settle as a row of its own that names the held call; either way
+   `game:review` and the flags must find it. A tooling bug, not a version.
+18. **What a set costs to build, in the trade vote.** In 46181f Lisa paid
+   $1,000 and two lots for the greens, falling to $275 with houses at $200, on
+   a board with built reds; her note saw the risk ("Cash drops to $275, which
+   is risky") and accepted anyway, and a $700 rent stripped the set. The vote
+   states the set gained and the cash left, but not what developing it costs
+   (three houses each: $1,800) or the largest rent the seat now faces, and,
+   when a trade arms the other side, not that side's cash after (Väinö's $342
+   after buying the reds: two houses). Missing consequences, so a general
+   change: measure on two model families against the J1 and J2 judgment
+   spreads and later human games, never as a gate, and keep it apart from the
+   strategy primer (item 5).
 
 ## Loose ends
 
-- **Trade flag categories, for the owner.** Flagging a trade with the general
-  categories is ambiguous ("bad" for the bot, or an offer no human would
-  take). Proposed set for a trade's proposal, counter or vote: "Bad for the
-  bot", "No human would take this", "Fair offer", "Tempting", "Misread the
-  deal", plus "Gave info away" and the free text. Not built: the
-  `monopoly_ai_flags_categories` check constraint in `supabase/monopoly-ai.sql`
-  lists the allowed ids, so new ones need that constraint replaced on the live
-  table first (drop and re-add it, idempotently), then the ids in
-  `AI_FLAG_CATEGORIES` and a trade-aware set in the review dialog.
+- **Trade flags are read by their words, for the owner.** The trade-aware
+  categories are live. In 46181f, Bot Killer tagged both of his price
+  disagreements "Misread the deal" ("Don't give up a monopoly for cash"), where
+  the seat had read the deal correctly and priced it differently: the label
+  invites strategy complaints. "Bad for the bot" fits them; whether to reword
+  "Misread the deal" (say, "Got the terms wrong") is the owner's call.
+
+- **A human's offer went out with its cash backwards** (46181f, turn 59: Kyle
+  asked Väinö to hand over New York and pay $150, then re-sent it as $150 to
+  Väinö). The AI declined it correctly. If it recurs, the trade builder's cash
+  entry is the place to look, not the AI.
 
 - **One automatic retry when the model server is unreachable, for the owner.**
   A live `ai:claude` turn start failed with `TypeError: fetch failed` after

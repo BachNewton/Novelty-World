@@ -701,3 +701,181 @@ only, run on Sonnet with llm-v5 beside it at 5 reps on the below-mortgage,
 counter-holdings and counter-direction families, compared on ask prices and
 counter rate, with errors still at zero. Any new version's prompt should not
 ask Claude to put its thinking in the answer.
+
+## First human game: 46181f, llm-v5 on Claude Sonnet 5.5 (2026-10-07)
+
+The first real game with humans against AI seats: two `ai:claude@llm-v5`
+seats (Väinö, Lisa) and two humans (Kyle, Bot Killer) on the deployed site,
+Sonnet 5.5 answering through the owner's laptop and a Tailscale Funnel
+(`npm run ai:game-night`). 85 turns in 44 minutes (20:15 to 20:59 UTC), with
+19 reviews pausing the table. Reviewed from the row and from
+`monopoly_ai_calls`, `monopoly_ai_flags` and `monopoly_ai_reveals`
+(`npm run game:review -- 46181f`).
+
+**Result: an AI won; the humans resigned at turn 85.** Väinö: net worth
+$2,914, hotels on all three reds, a house on each green, two railroads and
+Boardwalk. Kyle: $1,263, no full set. Bot Killer: $175, everything mortgaged.
+Lisa, the other AI, went bankrupt to Väinö at turn 74. It was one AI winning,
+not the AIs, and the deciding trade was between the two AI seats.
+
+**How Väinö won.**
+
+- **Four railroads by turn 17.** It bought Reading, Pennsylvania and Short Line
+  on landing, then offered Bot Killer $300 for B. & O.; Bot Killer countered at
+  $500, Väinö countered at $400 ("$500 leaves me at $12"), and Bot Killer
+  accepted. B. & O. alone paid it $900 in rent, the railroads $1,300 in all.
+- **Blocked, then bought, the reds.** It bought Indiana at turn 29 to block
+  Lisa's set ("blocks Lisa's red set and gives trade leverage") and declined
+  her $300 + Vermont for it. At turn 33 it offered Lisa $640 for her two reds;
+  she countered for $640 and two railroads, it countered with one (Reading),
+  and she accepted: "Reds are stuck for me while Väinö holds Indiana." Väinö
+  built on railroad income (4 houses at turn 37, then 5, 7, 9), and two hits
+  decided the game: Lisa paid $700 on Indiana (turn 62) and Bot Killer $750
+  on Illinois (turn 63), which paid for hotels at turn 65.
+- **Lisa overpaid for the greens and starved.** After three cash-only offers
+  to Kyle for North Carolina and Pennsylvania ($720, $900, $1,000), Kyle
+  countered at $1,000 plus Reading and Vermont, and Lisa accepted, falling to
+  $275 with green houses at $200 each. One $700 rent stripped her set, a red
+  hotel finished her, and the greens went to Väinö in the bankruptcy.
+- **Auctions went to the humans.** Kyle won North Carolina and Pennsylvania at
+  $320 each, Water Works at $90 and Ventnor at $160; Bot Killer won Virginia
+  at $200. The AIs bid near printed price and dropped out once cash ran low.
+
+**Trades.** Five completed: B. & O. (Bot Killer to Väinö, $400), the reds
+(Lisa to Väinö, $640 + Reading), the greens (Kyle to Lisa, $1,000 + Reading +
+Vermont), Pennsylvania Railroad (Väinö to Bot Killer, $150, mortgaged) and New
+York (Väinö to Kyle, $300).
+
+| Offers | Made | Accepted | Countered | Declined |
+|---|---|---|---|---|
+| AI to human: proposals | 6 | 0 | 2 | 4 |
+| AI to human: counters | 3 | 2 | 1 | 0 |
+| Human to AI: proposals | 4 | 1 | 1 | 2 |
+| Human to AI: counters | 3 | 1 | 2 | 0 |
+| AI to AI, proposals and counters | 4 | 1 | 2 | 1 |
+
+So **2 of 9 AI offers to humans were accepted (22%), and none of the 6 AI
+proposals as made**: humans took an AI's terms only after countering. **2 of
+7 human offers to an AI were accepted (29%).** Kyle declined every offer for
+his greens until he named the terms himself. One human offer had its cash
+backwards (Kyle asking Väinö to hand over New York and pay $150; Väinö
+declined, "that's not a deal"), a trade-entry slip on the human side.
+
+**Human feedback.** 12 flags, all by Bot Killer, on 10 decisions; 19 reveals
+(Bot Killer 14, Kyle 5), 12 of them of Lisa's decisions. No flag points to an
+error by METHOD's definition:
+
+- **Praise, 8** (`good-move`): Lisa's Vermont buy, North Carolina bid, $420
+  offer for North Carolina, decline of Kyle's Connecticut-for-Pacific swap
+  ("hands Kyle a full green set for a mediocre light blue piece") and $900
+  offer for the greens; Väinö's $320 offer for Tennessee, $640 offer for the
+  reds, and green rebuild after Lisa's bankruptcy.
+- **Judgment, 4 flags on 3 decisions.** Lisa selling her two reds to the seat
+  holding the third ("Don't give up a monopoly for cash", tagged Misread the
+  deal); her cash-only offers ("Offer property next time with the cash", which
+  Kyle's counter then bore out: he wanted property); and her acceptance of
+  Kyle's $1,000 counter ("No cash to build doesn't make the monopoly
+  valuable", tagged Misread the deal; "No buffer for reds. Mortgage a house
+  is 50%"). Lisa read each deal correctly, and her private notes name the cost
+  ("price is steep", "Cash drops to $275, which is risky"). Strong players
+  dispute these prices, so they become judgment scenarios, never gated ones.
+  Bot Killer tagged price disagreements "Misread the deal" both times, so
+  trade flags are read by their words, not their tag.
+- **Model limit: none flagged.**
+
+**Errors and stalls.** 73 calls: 66 committed in place, 5 held during a
+review and settled on resume, 1 stale (Väinö's turn start overtaken by a
+trade) and 1 failed: Väinö's turn start at turn 41 (20:38 UTC), "unreachable
+… fetch failed" after 10 s, a brief drop on the path to the Funnel (undici's
+connect timeout; the server never saw the request). The table sat stalled about three minutes until a player tapped Try again, and
+the retry answered in 10 s. No answer was refused or unusable, no counter's
+terms contradicted its message (0 of 5), and no debt plan failed. Notes that
+state something false or claim what a player can't do:
+
+- **Plans that claim control over movement.** 12 of Lisa's 13 plans from
+  turn 33 on: "avoid landing on Väinö's reds", "Avoid reds, lift green
+  mortgages …", "avoid Väinö's railroads and reds". Once in the plan, it was
+  fed forward and repeated. The same family as game 5x1c6j's
+  "avoid red"; an error, queued with a scenario spec.
+- **Garbled wording**: Väinö's "$320 cash for Tennessee, nuser-friendly price"
+  ("nuser" is in the raw answer; one in 72 notes, cosmetic), and Lisa's
+  "Indiana plus $300 and Vermont is well above its $220 price", which reads
+  as if Indiana went to Väinö. Not graded.
+- **Small slips a check can't grade**: "two greens that cost $620" (Kyle paid
+  $640 at auction; $620 is the printed price), and the private reason "Kyle
+  holding Reading blocks Väinö's fourth railroad" (Lisa holding it did too).
+- The "$620 for Tennessee … funds your builds elsewhere" pitch to a player
+  with no full set is from the earlier game 5x1c6j (turn 40, call 62), not
+  this one; it stays queued as an error scenario.
+
+Timing per decision (both seats, every call that answered):
+
+| Decision | Calls | Median | p90 | Max |
+|---|---|---|---|---|
+| buy | 16 | 4.8 s | 9.9 s | 10.6 s |
+| auction | 9 | 7.6 s | 14.6 s | 25.2 s |
+| settle-debt | 3 | 5.6 s | 5.8 s | 5.9 s |
+| trade-vote (5 counters with a follow-up) | 11 | 15.0 s | 19.6 s | 19.8 s |
+| turn-start | 33 | 10.0 s | 22.8 s | 57.9 s |
+| all | 72 | 9.6 s | 19.6 s | 57.9 s |
+
+Two turn starts took 56-58 s with ordinary token counts, and nothing in the
+record explains them. Nobody flagged "too slow".
+
+**Tooling found broken.**
+
+- **No live call record named its server.** `record.server` is null, and so
+  is the `model` column, on all 160 `ai:claude` call rows (46181f, 5x1c6j,
+  6u113l). The route's `describeServer` (`model/config.ts`) calls
+  `serverInfo` (`eval/record.ts`), which fetches the server's `/props` with a
+  bare `fetch` and no Authorization header. The Claude model server
+  (`claude/server.ts`) checks the shared key before routing any path,
+  `/props` included, so with `MONOPOLY_AI_CLAUDE_KEY` set (game night
+  requires it, since the Funnel is public) it answers 401, and `serverInfo`
+  takes any non-OK reply as "not a llama.cpp server" and returns null without
+  a word. The game row's decision record still names the model, because it
+  comes from the adapter's `identify()` (`model/openai-compatible.ts`), which
+  asks the same `/props` with the Bearer key. Nothing tested the keyed path:
+  the server test describes a server with no key, scenario runs call the CLI
+  directly, and the route test mocks `describeServer`. An `ai:local` server
+  started with an API key lost its description the same way. Fixed after the
+  game (`serverInfo` now sends the profile's key, with a keyed-server test);
+  the 160 rows stay empty, and the decision records in the game rows are the
+  model's record for those games.
+- **Held calls lose their place.** A call answered during a review pause is
+  stored once, as `held` with no turn or log index, and nothing links it when
+  the answer settles on resume. Five calls here (among them Väinö's Tennessee
+  offer and Lisa's $720 and $900 offers) show in `game:review` as "left no log
+  entry" though each became one, and the three flags on them have no
+  `call_id`.
+
+**What it weighs as evidence.** One game, so a sign, not a verdict, and
+weaker than it looks in three ways. The win came from an AI-to-AI deal (Lisa
+selling Väinö the reds) and an AI's bankruptcy, so it measures the two seats
+together, not either one against the humans. Reveals were heavy: 19, and per
+METHOD the whole table saw each one, including the private reasoning behind
+offers made to the revealer (Lisa's "Kyle is cash-poor, so I'll raise my
+offer" was opened twice, and Kyle later named his price and got it). Reveals
+favour the humans, so they don't inflate the AI's result, but they make the
+game weak evidence of how a seat plays unseen. And the humans gave Väinö its
+engine: B. & O. for $400 completed the railroads that funded the reds.
+
+Lessons:
+
+- **Sonnet on llm-v5 can win a real game against people.** It made no error
+  a check could grade in 73 calls (the movement-control plans are the one
+  family left), the humans praised more decisions than they faulted, and its
+  trade talk read as human enough to negotiate with: humans countered rather
+  than declined.
+- **Its weakness against humans is valuation under pressure, not reading the
+  board.** Every critical flag was about price: selling the set-completing
+  pair, and paying all its cash for a set it then couldn't build. Escalating
+  cash-only offers to a human who just waits ($720, $900, $1,000) let him name
+  the terms. These are judgments: record them as judgment scenarios with
+  Sonnet's spread, and look at what the vote states (the cost of building the
+  set it gains, beside the cash a deal leaves) rather than telling the seat a
+  price.
+- **In a mixed table, AI-to-AI trades decide games.** Read a human game's
+  result per seat, and count a win fed by another AI seat as weaker evidence.
+- **Check a live record's fields once per new setup.** The server field was
+  null for every Claude game, and nobody noticed until a review needed it.
