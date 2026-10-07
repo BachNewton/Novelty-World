@@ -127,6 +127,20 @@ describe("openAiCompatible", () => {
     expect(await adapter(fetchImpl).complete(REQUEST)).toMatchObject({ ok: false, kind: "unreachable" });
   });
 
+  it("keeps a failed fetch's cause, which says whether the request left", async () => {
+    const cause = Object.assign(new Error("Connect Timeout Error (attempted address: model:443, timeout: 10000ms)"), {
+      code: "UND_ERR_CONNECT_TIMEOUT",
+    });
+    const fetchImpl = vi.fn<typeof fetch>(() => Promise.reject(new TypeError("fetch failed", { cause })));
+    const result = await adapter(fetchImpl).complete(REQUEST);
+    expect(result).toMatchObject({
+      ok: false,
+      kind: "unreachable",
+      message:
+        "can't reach http://model/v1: TypeError: fetch failed (UND_ERR_CONNECT_TIMEOUT: Connect Timeout Error (attempted address: model:443, timeout: 10000ms))",
+    });
+  });
+
   it("reports a server that doesn't answer before the deadline as a timeout", async () => {
     // Never answers: settles only when the adapter's deadline aborts it.
     const fetchImpl = vi.fn<typeof fetch>(

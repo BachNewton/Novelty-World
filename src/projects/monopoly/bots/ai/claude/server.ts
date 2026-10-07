@@ -158,6 +158,10 @@ export function claudeServer(config: ClaudeServerConfig, run: typeof runClaude =
     }
     if (req.method !== "POST" || path !== "/v1/chat/completions") throw new RequestError(404, `no ${req.method} ${path}`);
     const call = chatToCall(await readJson(req), config);
+    const label = `${call.think ? "think" : "quick"} ${call.schema ? "json" : "text"}`;
+    // Logged on arrival as well as on finishing, so a caller's failure can be
+    // told apart: a request that never got here, or one that got here and died.
+    log(`${label} arrived`);
     // A caller that gives up (the adapter's own deadline) stops its CLI run, or
     // drops it from the queue before it starts.
     const gone = new AbortController();
@@ -165,10 +169,13 @@ export function claudeServer(config: ClaudeServerConfig, run: typeof runClaude =
       if (!res.writableFinished) gone.abort();
     });
     const result = await queue(async () => {
-      if (gone.signal.aborted) return null;
+      if (gone.signal.aborted) {
+        log(`${label} dropped: the caller left before its turn`);
+        return null;
+      }
       const started = Date.now();
       const outcome = await run(call, gone.signal);
-      log(`${call.think ? "think" : "quick"} ${call.schema ? "json" : "text"} ${outcome.ok ? "ok" : outcome.kind} ${String(Date.now() - started)}ms`);
+      log(`${label} ${outcome.ok ? "ok" : outcome.kind} ${String(Date.now() - started)}ms`);
       return outcome;
     });
     if (result === null) return;

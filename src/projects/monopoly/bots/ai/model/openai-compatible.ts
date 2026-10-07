@@ -63,7 +63,7 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
       if (signal.aborted) {
         throw new CallError("timeout", `no answer within ${String(config.timeoutMs / 1000)}s`);
       }
-      throw new CallError("unreachable", `can't reach ${config.baseUrl}: ${String(err)}`);
+      throw new CallError("unreachable", `can't reach ${config.baseUrl}: ${describeFetchError(err)}`);
     }
     if (!res.ok) {
       throw new CallError("unreachable", `the model server answered ${String(res.status)}: ${await res.text()}`);
@@ -189,6 +189,16 @@ export function openAiCompatible(config: OpenAiCompatibleConfig): ModelAdapter {
       }
     },
   };
+}
+
+/** A failed fetch in words, with its cause: undici's own error is only "fetch
+ *  failed", and the cause (its code, such as `UND_ERR_CONNECT_TIMEOUT` or
+ *  `ENOTFOUND`, and message) is what tells whether the request ever left. */
+function describeFetchError(err: unknown): string {
+  const cause = err instanceof Error ? err.cause : undefined;
+  if (!(cause instanceof Error)) return String(err);
+  const code = "code" in cause && typeof cause.code === "string" ? `${cause.code}: ` : "";
+  return `${String(err)} (${code}${cause.message})`;
 }
 
 function add(total: number | null, more: number | null): number | null {

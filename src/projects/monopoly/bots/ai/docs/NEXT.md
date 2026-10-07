@@ -152,6 +152,27 @@ not just errors.
   table first (drop and re-add it, idempotently), then the ids in
   `AI_FLAG_CATEGORIES` and a trade-aware set in the review dialog.
 
+- **One automatic retry when the model server is unreachable, for the owner.**
+  A live `ai:claude` turn start failed with `TypeError: fetch failed` after
+  10.1s, undici's default connect timeout, and the server logged nothing for
+  it: Vercel never finished connecting to the Funnel relay, while the same
+  decision's `/props` lookup, on its own connection, got through. Failures now
+  carry the fetch error's cause (code and message), and the Claude server logs
+  each request's arrival as well as its end, so the next drop says which it
+  was. Proposal, not built: in `openai-compatible.ts`'s `chat`, when `fetch`
+  throws with a cause code that proves the request never left (connect phase
+  only: `UND_ERR_CONNECT_TIMEOUT`, `ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`),
+  send it once more on the same deadline signal. It can't double-answer: no
+  byte of the request reached the server. It must not cover a timeout (the
+  signal aborted), any HTTP status (the server or the relay got the request,
+  including the CLI's own failures sent back as 502), a bad answer, or a
+  socket closed after sending (`ECONNRESET`, `UND_ERR_SOCKET`), which may have
+  reached the server. This isn't the clock-based retry the repo rules out: it
+  fires on the failure event itself, at most once, with no delay and no
+  polling, and a second failure fails the seat as today. It relaxes AI seats'
+  "no automatic retry" rule, so it is the owner's call; the recorded causes
+  first show whether drops are all connect-phase.
+
 - The `ai:claude` profile is built but unused: no game has played it yet. Its
   server (`npm run ai:claude-server`) answered a scenario subset through the
   profile cleanly; the first real game is the owner's call, and from the
