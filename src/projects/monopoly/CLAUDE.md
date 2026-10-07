@@ -409,11 +409,15 @@ submit them; pure transforms live in `dev-ops.ts`. Debug helpers stay in
 
 ## Database / state shape changes
 
-**No legacy / back-fill handling (pre-launch).** Treat stored data as disposable:
-a `GameState` may be assumed to match the *current* type exactly. Don't write
-migration shims or default-fill new fields — **wipe the rows instead** (delete
-from `public.monopoly_games` via the psql one-liner in the root CLAUDE.md, then
-refresh). **Remove this allowance when the game goes live.**
+**Every state carries its shape version; old games go read-only, not migrated.**
+`GameState.stateVersion` stamps the shape a row was written under, and
+`STATE_VERSION` (`state-version.ts`) is the current one. **Bump it in the same
+change that alters `GameState`'s shape.** A row stamped otherwise (or unstamped,
+from before versioning) is **outdated**: the lobby browser still lists it, greyed
+out and unopenable but deletable; opening it by URL shows an "outdated version"
+screen and never folds it into the store; and the route refuses every action on
+it except `delete`. So code may assume a loaded `GameState` matches the current
+type exactly: no migration shims, no default-filling, and no wiping rows.
 
 ## File layout
 
@@ -434,6 +438,7 @@ pacing.ts     playback buffer + drive decision (driveOp, paceTransition)
 reconcile.ts  pure rebuildOverlay: replay/rebase the optimistic outbox
 store.ts      Zustand store, "use client", route client + playback pump
 mocks.ts      MOCK_STATE fixture + freshGame seed
+state-version.ts  STATE_VERSION + isOutdated: the GameState shape stamp
 dev-ops.ts / dev.ts   dev-only state transforms + hotkeys
 bots/                 THREE GROUPS. Flat top level = what a SEAT PLAYS (the contract,
                       the registry, the lobby derivation, the crown pointer, the

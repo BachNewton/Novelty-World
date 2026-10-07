@@ -9,6 +9,7 @@ import {
   type LobbyResult,
 } from "@/projects/monopoly/lobby";
 import { freshGame } from "@/projects/monopoly/mocks";
+import { isOutdated } from "@/projects/monopoly/state-version";
 import { VERSIONS } from "@/projects/monopoly/bots/versions";
 import { askModel, claimAi, failed, settleAnswer } from "@/projects/monopoly/bots/ai/decide";
 import { modelFor } from "@/projects/monopoly/bots/ai/model/config";
@@ -292,6 +293,8 @@ function compute(
   }
 }
 
+const OUTDATED_REASON = "this game uses an outdated version and can't be played";
+
 type Read =
   | { ok: true; row: GameRow }
   | { ok: false; response: NextResponse };
@@ -304,6 +307,11 @@ async function readRow(supabase: Db, gameId: string): Promise<Read> {
     .maybeSingle<GameRow>();
   if (error) return { ok: false, response: json({ ok: false, reason: error.message }, 500) };
   if (!data) return { ok: false, response: json({ ok: false, reason: "game not found" }, 404) };
+  // A row written under an older GameState shape can't be fed to the engine; it
+  // can only be deleted, which doesn't read the row.
+  if (isOutdated(data.state)) {
+    return { ok: false, response: json({ ok: false, reason: OUTDATED_REASON }, 409) };
+  }
   return { ok: true, row: data };
 }
 

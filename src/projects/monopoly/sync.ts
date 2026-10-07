@@ -4,6 +4,7 @@ import { createClient } from "@/shared/lib/supabase/client";
 import { isLocalhost } from "@/shared/lib/utils";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import type { MonopolyAction, MonopolyResult } from "./protocol";
+import { isOutdated } from "./state-version";
 import type { GameState, Player } from "./types";
 
 // One row per game in public.monopoly_games (see supabase/monopoly.sql).
@@ -36,6 +37,8 @@ export interface GameSummary {
   players: readonly Player[];
   /** Row `updated_at` (ISO 8601) — when the game was last touched/played. */
   updatedAt: string;
+  /** Written under an older `GameState` shape: listed, but can't be opened. */
+  outdated: boolean;
 }
 
 /** List games for the lobby browser: every row, newest first — joinable
@@ -60,6 +63,7 @@ export async function listGames(): Promise<GameSummary[]> {
       status: r.state.status,
       players: r.state.players,
       updatedAt: r.updated_at,
+      outdated: isOutdated(r.state),
     }));
 }
 

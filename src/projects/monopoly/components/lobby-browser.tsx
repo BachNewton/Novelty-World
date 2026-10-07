@@ -289,9 +289,10 @@ function GameRow({
 
   // Tap opens the game; pressing and holding requests deletion (which opens the
   // confirm dialog). A hold has no horizontal motion, so it never collides with
-  // the browser's swipe-to-go-back gesture.
+  // the browser's swipe-to-go-back gesture. An outdated game can't be opened,
+  // but can still be held to delete.
   const { holding, fillDurationMs, handlers } = useHoldToActivate({
-    onActivate: () => { onOpen(game.id); },
+    onActivate: () => { if (!game.outdated) onOpen(game.id); },
     onHold: () => { onDelete(game); },
   });
 
@@ -300,8 +301,15 @@ function GameRow({
       <button
         type="button"
         {...handlers}
-        aria-label={`${cta} game ${game.id}. Press and hold to delete.`}
-        className="relative flex w-full select-none items-center gap-3 overflow-hidden rounded-lg px-3 py-3 text-left transition-colors hover:brightness-125"
+        aria-label={
+          game.outdated
+            ? `Game ${game.id} uses an outdated version and can't be opened. Press and hold to delete.`
+            : `${cta} game ${game.id}. Press and hold to delete.`
+        }
+        aria-disabled={game.outdated}
+        className={`relative flex w-full select-none items-center gap-3 overflow-hidden rounded-lg px-3 py-3 text-left transition-colors ${
+          game.outdated ? "cursor-default opacity-50 grayscale" : "hover:brightness-125"
+        }`}
         style={{ backgroundColor: "var(--mono-card)", WebkitTouchCallout: "none", touchAction: "manipulation" }}
       >
         {/* Hold affordance: a red wash sweeps across as the press is held, and
@@ -338,9 +346,15 @@ function GameRow({
               {winner ? `${winner.name} won` : "Ended"}
             </span>
           )}
-          <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
-            {cta}
-          </span>
+          {game.outdated ? (
+            <span className="text-sm font-semibold" style={{ color: "var(--mono-rail)" }}>
+              Outdated version
+            </span>
+          ) : (
+            <span className="text-sm font-semibold" style={{ color: "var(--mono-orange)" }}>
+              {cta}
+            </span>
+          )}
           <span className="whitespace-nowrap text-[0.7rem]" style={{ color: "var(--mono-rail)" }}>
             {formatLastPlayed(game.updatedAt)}
           </span>

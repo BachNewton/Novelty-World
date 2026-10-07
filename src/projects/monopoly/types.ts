@@ -661,6 +661,10 @@ export interface GameState {
    *  the lobby flow (`createLobby`) starts `lobby` and `startGame` flips it
    *  to `active`. */
   status: GameStatus;
+  /** The shape version this state was written under (`STATE_VERSION` in
+   *  `state-version.ts`). A row stamped with another version is outdated: listed,
+   *  never played. */
+  stateVersion: number;
   players: readonly Player[];
   /** position -> player id; absent means unowned. */
   ownership: Readonly<Record<number, string>>;

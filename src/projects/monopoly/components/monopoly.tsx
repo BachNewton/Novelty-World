@@ -27,6 +27,7 @@ export function Monopoly() {
   const connecting = useMonopolyStore((s) => s.connecting);
   const storeGameId = useMonopolyStore((s) => s.gameId);
   const status = useMonopolyStore((s) => s.state.status);
+  const outdated = useMonopolyStore((s) => s.outdated);
 
   // Avoid a hydration mismatch (and a wrong-screen flash): the URL is only
   // readable after mount, so render the themed frame empty until then.
@@ -47,6 +48,14 @@ export function Monopoly() {
     return (
       <Frame>
         <Connecting />
+      </Frame>
+    );
+  }
+
+  if (outdated) {
+    return (
+      <Frame>
+        <Outdated onExit={() => { navigate(null); }} />
       </Frame>
     );
   }
@@ -96,6 +105,30 @@ function Connecting() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center" style={{ color: "var(--mono-rail)" }}>
       <Loader2 className="h-8 w-8 animate-spin" aria-hidden="true" />
+    </div>
+  );
+}
+
+/** Shown instead of the board for a game written under an older `GameState`
+ *  shape, which the engine can't read. */
+function Outdated({ onExit }: { onExit: () => void }) {
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 px-4 text-center">
+      <h1 className="text-xl font-black" style={{ color: "var(--mono-ink)" }}>
+        This game uses an outdated version
+      </h1>
+      <p className="max-w-sm text-sm" style={{ color: "var(--mono-rail)" }}>
+        It was saved by an older version of Monopoly and can&apos;t be played any
+        more. You can delete it from the game list.
+      </p>
+      <button
+        type="button"
+        onClick={onExit}
+        className="rounded-lg px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
+        style={{ backgroundColor: "var(--mono-orange)", color: "var(--mono-frame)" }}
+      >
+        Back to games
+      </button>
     </div>
   );
 }

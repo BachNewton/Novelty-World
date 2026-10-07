@@ -23,6 +23,7 @@ import {
 import type { DevCommand, MonopolyAction, MonopolyResult } from "./protocol";
 import { rebuildLobbyOverlay, rebuildOverlay } from "./reconcile";
 import { loadGame, submitAction, subscribeGame, type LoadedGame } from "./sync";
+import { isOutdated } from "./state-version";
 import { withCash } from "./trade-cash";
 import type {
   ApplyResult,
@@ -245,6 +246,9 @@ export type MonopolyStore = {
    *  show a "Connecting…" placeholder instead of briefly flashing the stale
    *  default game while the row loads. False while parked. */
   connecting: boolean;
+  /** The connected row was written under an older `GameState` shape. It is
+   *  never folded into the store (the engine can't read it); the UI says so. */
+  outdated: boolean;
   /** The optimistic overlay: the confirmed head with the still-unconfirmed
    *  local intents (`outbox`) folded on top. Non-null only while a prediction
    *  is outstanding, and `state` mirrors it. Cleared once the confirmed head
@@ -543,6 +547,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
     profile: null,
     syncError: null,
     connecting: false,
+    outdated: false,
     optimistic: null,
     outbox: [],
     lobbyOutbox: [],
@@ -924,6 +929,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         // Gate the UI on a "Connecting…" placeholder until the first
         // authoritative state lands, so the stale default game never flashes.
         connecting: true,
+        outdated: false,
       });
 
       // Subscribe before loading so an update landing in the gap isn't
@@ -945,9 +951,19 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       if (activeGameId !== gameId) return;
 
       // applyStateUpdate re-derives the seat and clears `connecting`, so each
-      // success branch funnels through it rather than repeating that logic.
+      // success branch funnels through it rather than repeating that logic. An
+      // outdated row is never folded in: nothing will ever write to it again,
+      // so the subscription goes too.
+      const admit = (row: LoadedGame): void => {
+        if (isOutdated(row.state)) {
+          teardownSubscription();
+          set({ outdated: true, connecting: false });
+          return;
+        }
+        get().applyStateUpdate(row.state, row.version);
+      };
       if (loaded) {
-        get().applyStateUpdate(loaded.state, loaded.version);
+        admit(loaded);
         return;
       }
 
@@ -964,7 +980,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
       if (res.conflict) {
         const row = await loadGame(gameId);
         if (activeGameId !== gameId || !row) return;
-        get().applyStateUpdate(row.state, row.version);
+        admit(row);
         return;
       }
       set({ syncError: res.reason ?? "failed to create game", connecting: false });
@@ -985,6 +1001,7 @@ export const useMonopolyStore = create<MonopolyStore>((set, get) => {
         myPlayerId: null,
         syncError: null,
         connecting: false,
+        outdated: false,
       });
     },
   };
@@ -1135,10 +1152,10 @@ if (typeof window !== "undefined") {
   // three are idempotent — the version guard and the conflict-fold collapse a
   // redundant drive — so firing this on every resume event is safe.
   const resync = (): void => {
-    const { gameId, connecting } = useMonopolyStore.getState();
+    const { gameId, connecting, outdated } = useMonopolyStore.getState();
     // Nothing connected, or connect() is still establishing the row — don't race
-    // a second subscription / load against it.
-    if (!gameId || connecting || activeGameId !== gameId) return;
+    // a second subscription / load against it. An outdated row is never loaded.
+    if (!gameId || connecting || outdated || activeGameId !== gameId) return;
 
     // Rebuild the postgres-changes subscription (mirrors connect): the old
     // socket may be dead and the channel won't re-join on its own.

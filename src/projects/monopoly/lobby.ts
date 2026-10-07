@@ -5,6 +5,7 @@ import { DEFAULT_BOT_VERSION } from "./bots/roles";
 import { BOT_NAMES } from "./bot-names";
 import { PLAYER_COLORS, PLAYER_ICONS } from "./data";
 import { initialDecks } from "./engine";
+import { STATE_VERSION } from "./state-version";
 import type {
   BotStrategy,
   GameState,
@@ -129,6 +130,7 @@ export function createLobby(host: PlayerProfile, rngSeed: string): GameState {
   const rng = createRng(rngSeed);
   const decks = initialDecks(rng);
   return {
+    stateVersion: STATE_VERSION,
     status: "lobby",
     players,
     ownership: {},

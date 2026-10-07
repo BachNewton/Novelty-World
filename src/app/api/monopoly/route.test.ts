@@ -254,3 +254,38 @@ describe("monopoly route — ai-decide", () => {
     expect(res).toMatchObject({ ok: false, reason: "not an AI seat" });
   });
 });
+
+describe("monopoly route — outdated games", () => {
+  // A row from before the current GameState shape (here: before versioning).
+  const { stateVersion: _dropped, ...unversioned } = HEAD;
+  const OUTDATED = unversioned as GameState;
+
+  it.each([
+    { type: "submit", intents: [ARM], fromVersion: 5 },
+    { type: "step", fromVersion: 5 },
+    { type: "ai-decide", seat: HUMAN, fromVersion: 5 },
+  ])("refuses $type on an outdated row without writing", async (action) => {
+    const writes: { state: GameState }[] = [];
+    createAdminClient.mockReturnValue(
+      fakeClient([{ data: { state: OUTDATED, version: 5 }, error: null }], writes),
+    );
+
+    const res = await post({ gameId: "g", action });
+
+    expect(res).toMatchObject({ ok: false });
+    if (res.ok) throw new Error("expected a refusal");
+    expect(res.reason).toMatch(/outdated version/);
+    expect(res.conflict).toBeUndefined();
+    expect(writes).toHaveLength(0);
+  });
+
+  it("still deletes an outdated row", async () => {
+    createAdminClient.mockReturnValue({
+      from: () => ({ delete: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
+    });
+
+    const res = await post({ gameId: "g", action: { type: "delete" } });
+
+    expect(res).toEqual({ ok: true, deleted: true });
+  });
+});
