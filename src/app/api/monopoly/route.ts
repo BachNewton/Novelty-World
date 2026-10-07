@@ -16,6 +16,7 @@ import { aiCallRow, gameCallRecord, type CallOutcome } from "@/projects/monopoly
 import { recording } from "@/projects/monopoly/bots/ai/eval/record";
 import { describeServer, modelFor } from "@/projects/monopoly/bots/ai/model/config";
 import {
+  afterFlag,
   aiDecisionAt,
   decisionRefOf,
   holdDuringPause,
@@ -612,8 +613,7 @@ async function review(
 ): Promise<NextResponse> {
   const paused = await rewrite(supabase, gameId, (state) => {
     const result = pauseForReview(state, action.by.id, action.ref);
-    if (!result.ok) return result;
-    return result.state === state ? { ok: true, noop: true } : { ok: true, state: result.state };
+    return result.ok ? changed(state, result.state) : result;
   });
   if (!paused.ok) return paused.response;
   const warning = await storeRow(supabase, REVEALS, {
@@ -627,14 +627,14 @@ async function review(
   return json({ ok: true, state: paused.row.state, version: paused.row.version, ...warning });
 }
 
-function resumed(state: GameState): Computed {
-  const next = resumeAfterReview(state);
-  return next === state ? { ok: true, noop: true } : { ok: true, state: next };
+/** A change for `rewrite`: nothing to write when it left the state as it was. */
+function changed(before: GameState, after: GameState): Computed {
+  return after === before ? { ok: true, noop: true } : { ok: true, state: after };
 }
 
 /** Carry on after a review. Anyone at the table may. */
 async function resume(supabase: Db, gameId: string): Promise<NextResponse> {
-  const done = await rewrite(supabase, gameId, resumed);
+  const done = await rewrite(supabase, gameId, (state) => changed(state, resumeAfterReview(state)));
   if (!done.ok) return done.response;
   return json({ ok: true, state: done.row.state, version: done.row.version });
 }
@@ -654,7 +654,8 @@ async function aiRetry(
   return json({ ok: true, state: done.row.state, version: done.row.version });
 }
 
-/** Store a player's flag on an AI decision, then resume. What the flag is about
+/** Store a player's flag on an AI decision. The opener's flag resumes the
+ *  table; anyone else's leaves it paused (`afterFlag`). What the flag is about
  *  (the seat, its notes and plan, version and model) is read from the game, so
  *  a flag always describes what the dialog showed. If the flag can't be stored,
  *  the table stays paused and the player is told, so it can be sent again
@@ -697,6 +698,8 @@ async function flag(
     },
   });
   if (error) return json({ ok: false, reason: `couldn't store the flag: ${error.message}` }, 500);
-  return resume(supabase, gameId);
+  const done = await rewrite(supabase, gameId, (state) => changed(state, afterFlag(state, action.by.id)));
+  if (!done.ok) return done.response;
+  return json({ ok: true, state: done.row.state, version: done.row.version });
 }
 

@@ -93,7 +93,8 @@ Rules:
   which is how the rule-based bots stalled against humans. All-AI play exists only
   to find errors.
 - A game in which a human revealed an AI's private reasoning is weaker evidence of
-  strength against that AI; reveals are recorded so such games can be weighed.
+  strength against that AI, since the whole table sees a revealed decision;
+  reveals are recorded so such games can be weighed.
 
 ## One iteration
 

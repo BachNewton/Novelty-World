@@ -6,6 +6,7 @@ import { Check, Eye, Pause, Play } from "lucide-react";
 import {
   aiDecisionAt,
   aiFlagCategoriesFor,
+  sharedReviewFor,
   type AiDecisionView,
   type AiFlagCategory,
 } from "../bots/ai/review";
@@ -18,24 +19,29 @@ const PRAISE: ReadonlySet<AiFlagCategory> = new Set(["good-move", "trade-fair", 
 
 // Reviewing an AI decision mid-game. A BOT row's reveal button opens the
 // decision in a dialog (its private reasoning and plan stay off the log), which
-// pauses the whole table; the player can flag it, and closing resumes play.
-// Everyone else sees the pause and can resume it themselves, so an abandoned
-// review never freezes the game.
+// pauses the whole table and opens the same dialog for every seated human, so
+// the table reads it together and each player can leave their own flag. The
+// opener's close resumes play. Anyone else may close their own copy, which
+// leaves the table paused with a Resume button, so an abandoned review never
+// freezes the game. Resuming closes every copy.
 
 interface ReviewUi {
-  /** The decision this client has open, or null. */
-  open: AiDecisionRef | null;
+  /** The decision this client just opened, shown at once rather than when its
+   *  pause lands; from then on the pause says what is open. */
+  pending: AiDecisionRef | null;
   /** The control that opened it, which gets focus back on close. */
   opener: HTMLElement | null;
   show: (ref: AiDecisionRef, opener: HTMLElement | null) => void;
+  landed: () => void;
   hide: () => void;
 }
 
 const useReviewUi = create<ReviewUi>((set) => ({
-  open: null,
+  pending: null,
   opener: null,
-  show: (ref, opener) => set({ open: ref, opener }),
-  hide: () => set({ open: null, opener: null }),
+  show: (ref, opener) => set({ pending: ref, opener }),
+  landed: () => set({ pending: null }),
+  hide: () => set({ pending: null, opener: null }),
 }));
 
 /** The latest authoritative state this client knows of. A pause must show the
@@ -59,6 +65,7 @@ export function useCanReview(): boolean {
 export function RevealButton({ aiName, refTo }: { aiName: string; refTo: AiDecisionRef }) {
   const reviewDecision = useMonopolyStore((s) => s.reviewDecision);
   const show = useReviewUi((s) => s.show);
+  const landed = useReviewUi((s) => s.landed);
   return (
     <button
       type="button"
@@ -66,7 +73,11 @@ export function RevealButton({ aiName, refTo }: { aiName: string; refTo: AiDecis
         // The log toggles its height on a click; this one is ours.
         e.stopPropagation();
         show(refTo, e.currentTarget);
-        void reviewDecision(refTo);
+        void reviewDecision(refTo).then((res) => {
+          // Paused: the pause holds the dialog open now, and lifting it closes
+          // it. Refused: it stays up as it is, for this player to close.
+          if (res.ok) landed();
+        });
       }}
       aria-label={`Review ${aiName}'s reasoning (pauses the game)`}
       title="See its reasoning and flag it"
@@ -78,13 +89,37 @@ export function RevealButton({ aiName, refTo }: { aiName: string; refTo: AiDecis
   );
 }
 
-/** Mounted once on the board: this client's review dialog, or the pause notice
- *  every other player at the table sees. */
+/** Mounted once on the board: the review dialog every seated player sees while
+ *  the table is paused (or that this player has just opened), or, once they
+ *  have closed their copy, the pause notice with its Resume button. */
 export function AiReviewLayer() {
-  const open = useReviewUi((s) => s.open);
+  const pending = useReviewUi((s) => s.pending);
+  const myId = useMonopolyStore((s) => s.myPlayerId);
   const latest = useLatestState();
-  if (open !== null) return <ReviewDialog refTo={open} state={latest} />;
-  if (latest.pause !== null) return <PauseNotice state={latest} />;
+  const pause = latest.pause;
+  const pauseKey = pause === null ? null : `${pause.by}:${String(pause.ref.turn)}:${String(pause.ref.index)}`;
+  // The pause whose copy this player closed. It stays closed until that pause
+  // lifts (the render-time reset, not an effect, so it never flashes back).
+  const [closedKey, setClosedKey] = useState<string | null>(null);
+  if (closedKey !== null && closedKey !== pauseKey) setClosedKey(null);
+
+  const shared = closedKey === null ? sharedReviewFor(latest, myId) : null;
+  const refTo = pause === null ? pending : shared;
+  if (refTo !== null) {
+    const mine = pause === null || pause.by === myId;
+    return (
+      <ReviewDialog
+        key={`${String(refTo.turn)}:${String(refTo.index)}`}
+        refTo={refTo}
+        state={latest}
+        mine={mine}
+        onCloseCopy={() => {
+          setClosedKey(pauseKey);
+        }}
+      />
+    );
+  }
+  if (pause !== null) return <PauseNotice state={latest} />;
   return null;
 }
 
@@ -234,13 +269,12 @@ function PauseNotice({ state }: { state: GameState }) {
       setBusy(false);
     });
   };
-  const reviewer = pause.by === myId ? "You are" : `${name(pause.by)} is`;
   return (
     <Overlay labelledBy={titleId} onEscape={() => {}}>
       <div className="flex flex-col gap-4 p-5" style={{ paddingBottom: "max(20px, env(safe-area-inset-bottom))" }}>
         <PausedBadge />
         <h2 id={titleId} className="text-xl font-black leading-tight">
-          {reviewer} reviewing {decision ? `${name(decision.seat)}'s` : "an AI"} decision
+          {name(pause.by)} is reviewing {decision ? `${name(decision.seat)}'s` : "an AI"} decision
         </h2>
         <p className="text-base leading-relaxed" style={{ color: "var(--mono-rail)" }}>
           Play carries on when they close it. Anyone at the table can resume now.
@@ -263,10 +297,21 @@ function PauseNotice({ state }: { state: GameState }) {
   );
 }
 
-/** This client's review of one AI decision: everything it said and planned,
- *  and a flag to leave on it. Closing resumes play; submitting a flag stores it
- *  and resumes. */
-function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState }) {
+/** This client's copy of the review of one AI decision: everything it said and
+ *  planned, and a flag to leave on it. For the player who opened it (`mine`),
+ *  closing resumes play and so does their flag; anyone else's close or flag
+ *  closes only their own copy and leaves the table paused. */
+function ReviewDialog({
+  refTo,
+  state,
+  mine,
+  onCloseCopy,
+}: {
+  refTo: AiDecisionRef;
+  state: GameState;
+  mine: boolean;
+  onCloseCopy: () => void;
+}) {
   const titleId = useId();
   const noteId = useId();
   const hide = useReviewUi((s) => s.hide);
@@ -280,12 +325,16 @@ function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState
   const decision = aiDecisionAt(state, refTo);
 
   const finish = () => {
+    if (!mine) {
+      onCloseCopy();
+      return;
+    }
     hide();
     opener?.focus();
   };
   const close = () => {
     finish();
-    void resumeGame();
+    if (mine) void resumeGame();
   };
   const submit = () => {
     setBusy(true);
@@ -300,7 +349,9 @@ function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState
     setPicked((now) => (now.includes(id) ? now.filter((c) => c !== id) : [...now, id]));
   };
   const canSubmit = !busy && (picked.length > 0 || note.trim() !== "");
-  const aiName = decision ? (state.players.find((p) => p.id === decision.seat)?.name ?? "AI") : "AI";
+  const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name;
+  const aiName = decision ? (nameOf(decision.seat) ?? "AI") : "AI";
+  const pausedBy = state.pause ? (nameOf(state.pause.by) ?? "Someone") : null;
 
   return (
     <Overlay labelledBy={titleId} onEscape={close}>
@@ -320,6 +371,11 @@ function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState
         {decision?.record && (
           <p className="truncate font-mono text-xs" style={{ color: "var(--mono-rail)" }}>
             {meta(decision)}
+          </p>
+        )}
+        {!mine && pausedBy !== null && (
+          <p className="text-sm font-semibold" style={{ color: "var(--mono-rail)" }}>
+            {pausedBy} paused to review this. Leave your own flag; play carries on when they close it.
           </p>
         )}
       </header>
@@ -412,7 +468,7 @@ function ReviewDialog({ refTo, state }: { refTo: AiDecisionRef; state: GameState
             className="flex min-h-12 flex-1 items-center justify-center whitespace-nowrap rounded-xl px-3 text-base font-bold transition-colors hover:bg-white/10 disabled:opacity-60"
             style={{ border: "2px solid var(--mono-neutral)", color: "var(--mono-ink)" }}
           >
-            Close &amp; resume
+            {mine ? "Close & resume" : "Close"}
           </button>
           <button
             type="button"

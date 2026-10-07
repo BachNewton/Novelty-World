@@ -9,9 +9,10 @@ import { failed, settleAnswer, type Settled } from "./decide";
 import { isAiStrategy } from "./strategy";
 import { aiSeat, withAiSeat } from "./seat";
 
-// Players reviewing an AI decision mid-game: opening one pauses the table, a
-// flag records what they thought of it, and resuming carries on. Pure; the
-// route does the reads, the writes and the flag/reveal rows.
+// Players reviewing an AI decision mid-game: opening one pauses the table and
+// shows it to every seated human, a flag records what each of them thought of
+// it, and resuming carries on. Pure; the route does the reads, the writes and
+// the flag/reveal rows.
 
 /** What a player can say about an AI decision. Several may apply at once. */
 export const AI_FLAG_CATEGORIES = [
@@ -153,6 +154,23 @@ export function pauseForReview(state: GameState, by: string, ref: AiDecisionRef)
   if (aiDecisionAt(state, ref) === null) return { ok: false, reason: "no AI decision there" };
   if (state.pause !== null) return { ok: true, state };
   return { ok: true, state: { ...state, pause: { by, ref } } };
+}
+
+/** The decision `viewer`'s screen shows while the table is paused: the paused
+ *  one, for every seated human, so the whole table reads it together. Null for
+ *  a spectator or a bot, and when nothing is paused. */
+export function sharedReviewFor(state: GameState, viewer: string | null): AiDecisionRef | null {
+  if (state.pause === null || viewer === null) return null;
+  const seated = state.players.some((p) => p.id === viewer && p.botStrategy === null);
+  return seated ? state.pause.ref : null;
+}
+
+/** After `by` has flagged a decision. The opener's flag ends their review, so
+ *  it resumes the table as their "close & resume" does; anyone else's flag is
+ *  one voice among the table's and leaves the pause as it is, so it never
+ *  resumes play out from under the opener. */
+export function afterFlag(state: GameState, by: string): GameState {
+  return state.pause?.by === by ? resumeAfterReview(state) : state;
 }
 
 /** Carry on after a review: lift the pause and settle any answer that came back

@@ -380,18 +380,26 @@ never assumed.
   `components/ai-review.tsx`). This is how real games feed the AI's evaluation:
   an AI's BOT row (or its failure) has a reveal control, as does its note
   wherever else it is shown (a trade offer, an auction); opening it **pauses the
-  whole table** and shows that decision's public note, private note, plan,
-  version, model and time, with a flag to leave: categories from a fixed set
-  (`AI_FLAG_CATEGORIES`, mirrored by a check constraint) and the player's own
-  words. Every opening is logged (`monopoly_ai_reveals`), flagged or not; a flag
+  whole table** and opens the same dialog for **every seated human**
+  (`sharedReviewFor`), so the table reads it together: that decision's public
+  note, private note, plan, version, model and time, with a flag each player
+  can leave: categories from a fixed set (`AI_FLAG_CATEGORIES`, mirrored by a
+  check constraint) and their own words. Every opening is logged
+  (`monopoly_ai_reveals`), flagged or not, under the player who opened it: the
+  table has no column for who else saw it, so a reveal row means the whole
+  table saw that decision; a flag
   (`monopoly_ai_flags`) snapshots what the dialog showed, read from the game by
   the route, never from the client, and joins to the decision's call row by its
   log place (`AiDecisionRef`). `game:review` prints both under the decision.
 - **The pause is table-wide state** (`GameState.pause`: who opened it, which
   decision). While it is set the engine applies nothing and `autoStep` stays
-  put, the pacer drives nothing for anyone, and no new AI claim is made. Every
-  other player sees who is reviewing, and any seated player can **resume**, so an
-  abandoned review can't freeze the game. `review`, `resume` and `flag` are route
+  put, the pacer drives nothing for anyone, and no new AI claim is made. **Only
+  the opener ends a review by acting on it**: their close resumes, and so does
+  their flag. Anyone else's flag is stored and leaves the pause as it is
+  (`afterFlag`), so it can't resume play while the opener is still reading, and
+  closing their copy leaves the table paused with a Resume button. Any seated
+  player can **resume**, so an abandoned review can't freeze the game, and
+  resuming closes every copy. `review`, `resume` and `flag` are route
   actions, not intents, and aren't version-guarded: pausing and resuming are
   idempotent and must land on whatever the game is now. A flag that can't be
   stored keeps the pause, so it can be sent again. **A model answer that arrives

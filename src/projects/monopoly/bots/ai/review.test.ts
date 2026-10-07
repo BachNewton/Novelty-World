@@ -7,6 +7,7 @@ import { aiCallRow } from "./calls";
 import type { AiCallRecord } from "./eval/record";
 import {
   AI_FLAG_CATEGORIES,
+  afterFlag,
   aiDecisionAt,
   aiFlagCategoriesFor,
   decisionRefOf,
@@ -14,6 +15,7 @@ import {
   pauseForReview,
   resumeAfterReview,
   retryFailed,
+  sharedReviewFor,
   stalledAt,
 } from "./review";
 import { aiSeat, withAiSeat } from "./seat";
@@ -117,6 +119,40 @@ describe("while paused", () => {
   it("the pacer drives nothing, for anyone", () => {
     expect(driveOp(paused, true, HUMAN)).toBeNull();
     expect(driveOp({ ...thinking, ai: {}, pause: paused.pause }, true, HUMAN)).toBeNull();
+  });
+});
+
+describe("a review the whole table shares", () => {
+  // A second human takes the seat a rule bot had.
+  const other = base.players.find((p) => p.id !== HUMAN && p.id !== AI)?.id ?? "p3";
+  const twoHumans: GameState = {
+    ...noted,
+    players: noted.players.map((p) => (p.id === other ? { ...p, botStrategy: null } : p)),
+  };
+  const paused: GameState = { ...twoHumans, pause: { by: HUMAN, ref: REF } };
+
+  it("shows the paused decision to every seated human, not just its opener", () => {
+    expect(sharedReviewFor(paused, HUMAN)).toEqual(REF);
+    expect(sharedReviewFor(paused, other)).toEqual(REF);
+  });
+
+  it("shows nothing to a bot, a spectator, or anyone when the table isn't paused", () => {
+    expect(sharedReviewFor(paused, AI)).toBeNull();
+    expect(sharedReviewFor(paused, "spectator")).toBeNull();
+    expect(sharedReviewFor(paused, null)).toBeNull();
+    expect(sharedReviewFor(twoHumans, HUMAN)).toBeNull();
+  });
+
+  it("the opener's flag resumes the table", () => {
+    expect(afterFlag(paused, HUMAN).pause).toBeNull();
+  });
+
+  it("anyone else's flag leaves the table paused under the opener", () => {
+    expect(afterFlag(paused, other)).toBe(paused);
+  });
+
+  it("a flag with no pause changes nothing", () => {
+    expect(afterFlag(noted, HUMAN)).toBe(noted);
   });
 });
 

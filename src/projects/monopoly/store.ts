@@ -190,8 +190,9 @@ interface MonopolyActions {
    *  usual. Resolves once that has landed, or with why it didn't. */
   retryAi: (seat: string, ref: AiDecisionRef) => Promise<Outcome>;
 
-  /** Store a flag on an AI decision and resume. On failure the table stays
-   *  paused, so the flag can be sent again. */
+  /** Store a flag on an AI decision. The review's opener resumes the table
+   *  with it; anyone else's flag leaves it paused (`afterFlag`). On failure the
+   *  table stays paused, so the flag can be sent again. */
   flagDecision: (
     ref: AiDecisionRef,
     categories: readonly AiFlagCategory[],
