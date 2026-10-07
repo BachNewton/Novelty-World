@@ -28,6 +28,24 @@ Two axes, kept apart so a result can be traced to its cause:
   the model and server settings the server itself reports, so a run is never
   attributed to the wrong model.
 
+**A version is measured on a model, never in general.** Its results belong to the
+(version, model) pair, so scoreboards are named for both. A change found on one
+model is one of two kinds, and its EVOLUTION entry says which and why:
+
+- **General**: a fact added to the view, a consequence spelled out, an answer
+  shape that no longer invites a mistake, a check that makes a bad answer fail
+  visibly. These fix the input, so they should help any model. Call a change
+  general only after it has been measured on at least two models of different
+  families (a local model and a hosted one), and it helped or was neutral on both.
+- **Model-specific**: thinking on or off and its budget, effort, sampling,
+  brevity or length instructions, splitting one answer into steps, anything
+  that works around one model's weakness. These may hold back a stronger model.
+  They are kept only for the model they were measured on.
+
+Until the code separates the two, a version tuned for one model is not assumed
+good for another: a new live model gets the latest version re-measured on it, and
+a model-specific setting that hurts it is a reason for that model's own version.
+
 ## The instruments, and what each may decide
 
 | Instrument | Finds | May decide |
