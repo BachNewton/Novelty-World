@@ -182,6 +182,7 @@ function TurnFragment({
                   <RevealButton aiName={actor.name} refTo={{ turn: turn.turn, index: i }} />
                 ) : undefined
               }
+              clamp={canReview && event.ai !== undefined && actor !== undefined}
             />,
           ];
           return noteRow;
@@ -286,6 +287,7 @@ function BotNoteRow({
   color = "var(--mono-orange)",
   meta,
   action,
+  clamp = false,
 }: {
   actor: Player | undefined;
   text: string;
@@ -297,6 +299,10 @@ function BotNoteRow({
    *  one is tall enough for its full tap target, so neighbours can't be hit by
    *  mistake. */
   action?: ReactNode;
+  /** Cut the text to a few lines: for a row whose full text is a tap away
+   *  (an AI decision, in its review dialog), so one long note can't swamp the
+   *  log. */
+  clamp?: boolean;
 }) {
   return (
     <div
@@ -310,7 +316,10 @@ function BotNoteRow({
         {label}
       </span>
       {actor && <PlayerChip player={actor} />}
-      <span className="min-w-0 flex-1 italic" style={{ opacity: 0.7 }}>
+      <span
+        className={`min-w-0 flex-1 italic [overflow-wrap:anywhere] ${clamp ? "line-clamp-3" : ""}`}
+        style={{ opacity: 0.7 }}
+      >
         {text}
       </span>
       {meta !== undefined && (

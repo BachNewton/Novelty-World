@@ -432,7 +432,7 @@ function Section({ title, tone, children }: { title: string; tone?: string; chil
       <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: tone ?? "var(--mono-rail)" }}>
         {title}
       </h3>
-      <p className="max-w-prose whitespace-pre-wrap text-base leading-relaxed">{children}</p>
+      <p className="max-w-prose whitespace-pre-wrap text-base leading-relaxed [overflow-wrap:anywhere]">{children}</p>
     </section>
   );
 }
