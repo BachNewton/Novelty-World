@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, ChevronDown, LogOut, Play, Plus, X } from "lucide-react";
 import { useProfile } from "@/shared/lib/profile";
 import { ProfileEditor } from "@/shared/components/profile-editor";
+import { AI_PROFILE_IDS, AI_PROFILES, isAiStrategy, type AiProfileId } from "../bots/ai/profiles";
 import { LOBBY_BOTS, type BotOption } from "../bots/roles";
 import { PLAYER_COLORS, PLAYER_ICONS } from "../data";
 import { MAX_PLAYERS, MIN_PLAYERS } from "../lobby";
@@ -254,7 +255,11 @@ function BotRoleSelector({ player }: { player: Player }) {
     });
   }
 
-  const triggerLabel = current?.version ?? player.botStrategy ?? "Bot";
+  const aiProfile = isAiStrategy(player.botStrategy) ? player.botStrategy : null;
+  const triggerLabel =
+    aiProfile !== null
+      ? AI_PROFILES[aiProfile].label
+      : (current?.version ?? player.botStrategy ?? "Bot");
 
   return (
     <div ref={ref} className="relative pl-12">
@@ -272,7 +277,7 @@ function BotRoleSelector({ player }: { player: Player }) {
       >
         <Bot className="h-3.5 w-3.5 shrink-0" aria-hidden="true" style={{ color: "var(--mono-rail)" }} />
         <span className="flex-1 truncate font-mono">{triggerLabel}</span>
-        <EloTag rating={current?.rating ?? null} />
+        {aiProfile === null && <EloTag rating={current?.rating ?? null} />}
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
@@ -297,6 +302,16 @@ function BotRoleSelector({ player }: { player: Player }) {
               />
             </>
           )}
+
+          <SectionHeading>Language model</SectionHeading>
+          {AI_PROFILE_IDS.map((profile) => (
+            <AiOptionRow
+              key={profile}
+              profile={profile}
+              active={player.botStrategy === profile}
+              onSelect={select}
+            />
+          ))}
 
           <SectionHeading>Best of each family</SectionHeading>
           {LOBBY_BOTS.families.map((fam) =>
@@ -429,6 +444,40 @@ function BotOptionRow({
           {option.version}
         </span>
       )}
+    </button>
+  );
+}
+
+/** One language-model profile in the menu. It has no Elo: a model isn't rated
+ *  on the bot ladder. */
+function AiOptionRow({
+  profile,
+  active,
+  onSelect,
+}: {
+  profile: AiProfileId;
+  active: boolean;
+  onSelect: (strategy: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={() => { onSelect(profile); }}
+      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:brightness-125"
+      style={{
+        backgroundColor: active ? "var(--mono-orange)" : "transparent",
+        color: active ? "var(--mono-card)" : "var(--mono-ink)",
+      }}
+    >
+      <span className="flex-1 truncate font-semibold">{AI_PROFILES[profile].label}</span>
+      <span
+        className="font-mono text-[10px] font-bold"
+        style={{ color: active ? "var(--mono-card)" : "var(--mono-orange)" }}
+      >
+        {profile}
+      </span>
     </button>
   );
 }

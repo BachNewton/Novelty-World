@@ -4,6 +4,7 @@ import { manageActorId } from "../manage";
 import { useMonopolyStore } from "../store";
 import type { GameState } from "../types";
 import { ACTION_BAR_HEIGHT, ActionBar } from "./action-bar";
+import { AiStatus } from "./ai-status";
 import { EventLog } from "./event-log";
 import { PromptSection } from "./prompt-section";
 
@@ -53,6 +54,7 @@ export function Footer({ state }: Props) {
           "0 -1px 0 var(--mono-frame), 0 -6px 12px rgba(0, 0, 0, 0.75)",
       }}
     >
+      <AiStatus state={state} />
       <PromptSection state={state} />
       {!hideLog && (
         <EventLog
