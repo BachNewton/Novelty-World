@@ -6,21 +6,20 @@ with the reason they matter. The rules are in `METHOD.md`.
 
 ## Now
 
-**Read every item below through the ceiling.** llm-v5 on Claude Sonnet 5.5
-(`npm run ai:scenarios -- llm-v5 --model claude-cli:sonnet`, see
-`EVOLUTION.md`) made 0/63 errors where Qwen makes 5/105, and played the
-judgments the way strong players do. Every remaining error is the local
-model's. The model comparison is done (`EVOLUTION.md`, "Model axis"): Gemma 4
-12B plays the judgments in Sonnet's direction with no trade errors, so the loop
-now develops on Gemma (item 1), and the Qwen-specific items below it are
-re-read on Gemma before any is built. Run the
-ceiling again on any new version or scenario family, to tell a scenario's
-wrong expectation from a model's miss. Haiku 4.5 on the same
-input also made 0/63 errors, but plays passively (sits on a mortgaged monopoly,
-proposes at a third of Sonnet's price) and is no faster than Qwen on trade
-votes and turn starts, so it is not a live-model candidate; the error count
-alone no longer separates models: read the judgment spread against Sonnet's,
-not just errors.
+**Where the loop stands.** Claude Sonnet 5.5 is the likely live model: it
+answers in seconds, never gave an unusable answer, and beat both humans in the
+first live game (`EVOLUTION.md`), while the local models are weaker and
+slower. Gemma 4 12B stays the development model and the second family that
+tells a general change from a Sonnet-specific one (METHOD); Qwen is kept only
+for comparison, and a ~30B mixture-of-experts model fit the card but played
+worse (item 19). The newest general version is llm-v8, and llm-v12 is its
+Sonnet-only form for game night (item 24). Sonnet's remaining errors are the
+movement claims carried forward in its plan (item 22) and some false pitches,
+so the suite still separates Sonnet versions, but barely: its strength from
+here is measured against people, so human-proxy probes (item 8) are the next
+instrument to build. Run Sonnet on any new version or scenario family, to tell
+a scenario's wrong expectation from a model's miss, and read the judgment
+spread beside the error count.
 
 1. **Continue on Gemma 4 12B with llm-v8** (`npm run ai:llm --
    gemma4-12b-1x7k`; one slot). llm-v7 added the facts from game 46181f
