@@ -1,0 +1,8 @@
+{
+  "label": "Monopoly AI: Qwen3.6-35B-A3B UD-IQ4_XS, 1 slot x 10k, q8_0 KV cache, 18 layers' experts in system RAM",
+  "model": "Qwen3.6-35B-A3B-UD-IQ4_XS.gguf",
+  "url": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/resolve/main/Qwen3.6-35B-A3B-UD-IQ4_XS.gguf",
+  "context": 10240,
+  "device": "4070",
+  "flags": ["-np", "1", "-ctk", "q8_0", "-ctv", "q8_0", "--n-cpu-moe", "18", "-b", "2048", "-ub", "2048", "--load-mode", "mmap"]
+}

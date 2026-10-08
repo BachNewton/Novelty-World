@@ -114,10 +114,19 @@ not just errors.
    only fits with 4-bit weights half in system RAM, at a few tokens a second,
    which puts a trade vote's thinking past the route's 120 s timeout. A ~30B
    mixture-of-experts model (a few billion parameters active per token) with
-   its experts in system RAM is the extreme that stays fast enough. Try one
-   with an 8-10k window, measured on llm-v6's error scenarios and its judgment
-   spread against Gemma's and Sonnet's. gpt-oss-20b, the one such model tried,
-   was dropped for its play, so size alone is not expected to help.
+   its experts in system RAM is the extreme that stays fast enough.
+   **Measured: Qwen3.6-35B-A3B (UD-IQ4_XS, `qwen36-35b-a3b-1x10k`) fits, with
+   a 10k slot, and is fast enough** (trade votes median 38.5 s, max 56 s;
+   faster than Gemma), **but plays worse on llm-v8**: 17/160 errors against
+   Gemma's 1/160, most of them quick debt plans whose numbers come before
+   its reasoning, and more passive judgments (`EVOLUTION.md`, "Model axis:
+   Qwen3.6-35B-A3B"). Not adopted; Gemma stays the loop's model. What's left
+   is the owner's: local-llm's fit check refuses any config that keeps
+   experts in system RAM (it counts the whole file against the card), so the
+   config only runs through llama-server directly until the launcher counts
+   just what stays on the card; and the model holds ~9 GB of system RAM,
+   against the launcher's rule. Reopen only if Gemma's 7.5k slot becomes the
+   blocker (item 23) and a debt-thinking version for Qwen is worth building.
 20. **Fine-tuning a local model, once the prompt settles** (model axis). Open
    weights allow a LoRA fine-tune of a 9-12B model on this card. The realistic
    data is a strong model's answers to the exact prompts of thousands of

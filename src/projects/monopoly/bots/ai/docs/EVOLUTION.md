@@ -1446,3 +1446,91 @@ turn starts the gate skips, no leaked maximum), and the combination adds no
 error. Lesson: when a combined version's parts touch disjoint decisions,
 comparing its requests to its parents' proves the combination before any
 answer is spent, and leaves only sampling to measure.
+
+## Model axis: Qwen3.6-35B-A3B on llm-v8, the largest model the card plays (2026-10-08)
+
+Question (item 19): does a ~30B mixture-of-experts model, its experts in
+system RAM, play better than Gemma 4 12B at a speed the route's 120 s timeout
+allows? Version held at llm-v8.
+
+**The model.** Qwen3.6-35B-A3B (35B parameters, ~3B active per token: 256
+experts, 8 routed plus 1 shared; Gated DeltaNet layers between attention
+layers, so its KV cache is small), unsloth's UD-IQ4_XS GGUF, 17.7 GB. Server
+config `qwen36-35b-a3b-1x10k`: one slot, 10k context (llm-v8's long-game
+votes need ~9k; Gemma's slot holds 7.5k), q8_0 KV cache, the expert tensors of
+18 of its 40 layers in system RAM (`--n-cpu-moe 18`), the rest on the card
+(~10.9 of 12 GB), a 2048-token batch, and the model memory-mapped
+(`--load-mode mmap`).
+
+- **The launcher can't start it yet.** local-llm's fit check counts the whole
+  file against the card (17.7 GB > 12 GB) and refuses, whatever the flags.
+  The run used llama-server directly with the launcher's own arguments plus
+  the config's flags. The launcher is a dotfile, so the change is a proposal
+  for the owner: when the flags keep experts in system RAM (`--n-cpu-moe`,
+  `--cpu-moe`, `-ot`), count only what stays on the card, and check the rest
+  against free system RAM instead.
+- **Memory-map it.** The launcher's `--load-mode none` (right for a model
+  wholly on the card) read the experts into ~12 GB of private memory and left
+  the machine 1.6 GB free; mapped, the experts are file pages Windows can drop
+  under pressure. Even so the server's working set is ~9 GB, and with this
+  machine's other load free RAM fell under 1 GB during the run: it breaks
+  local-llm's rule that system RAM stays free for dev work.
+- **The batch size is what makes it fast enough.** The card is an eGPU, and
+  with the experts in RAM llama.cpp copies them to the card for each prompt
+  batch, so prompt reading ran ~180-215 tokens/s at the default 512-token
+  batch (a cold first call ~100); at 2048, ~390-490. Writing runs ~42
+  tokens/s either way (Gemma ~30). The game's rules prefix stays cached.
+
+Speed: trade votes median 38.5 s, max 56 s (the slowest prompt, ~10k tokens
+over both passes); turn starts 38.4 s; buys and debts 3.6 s and 5.0 s.
+Gemma on the same scenarios: ~42 s, ~42 s and ~4.5 s; Sonnet 5.5 through the
+CLI: ~6-14 s votes, ~7 s turn starts, ~6 s debts. A turn-85 vote (a ~7.5k
+prompt read fresh) adds ~10 s, so well inside 120 s.
+
+Run: llm-v8, the same 38 scenarios as Gemma's llm-v8 run, 5 reps (190
+answers, scoreboard `llm-v8@qwen36-35b-a3b.json`).
+
+| | Gemma 4 12B | Qwen3.6-35B-A3B | Sonnet 5.5 |
+|---|---|---|---|
+| Errors in error scenarios | 1/160 | 17/160 | 10/50 (its 10 families) |
+| Debt plans (quick decisions) | 1/40 | 13/40 | 6/20 |
+| Trade votes, terms against message | 0/75 | 3/75 | not run |
+| Turn starts | 0/45 | 1/45 | 4/30 |
+| Trade votes: accept / decline / counter / unusable | 18 / 5 / 63 / 4 | 23 / 25 / 41 / 1 | |
+| Proposals in the 7 propose families | 29/35 | 28/35 | 20/20 (the 4 it ran) |
+| Thinking finished inside 1,200 tokens | 21/135 | 5/135 | |
+
+- **Its errors are quick debt plans.** A debt answer doesn't think, and the
+  schema asks for the plan before the private note, so Qwen commits the
+  numbers first and reasons after: `debt-must-sell-houses` 5/5 left $100
+  owed with "sells 0", its own note saying "Selling 2 houses from the Orange
+  set raises $100"; `debt-after-built-rival-set` 4/5 mortgaged the built
+  greens before selling their houses, reading the coupling line as an order
+  ("This implies I MUST sell houses before I can mortgage") and then
+  answering the opposite; `-light-blue` 3/5 sold five houses with Electric
+  Company unmortgaged. Gemma, with the same shape, gets these right; Sonnet's
+  debt errors are plan claims, not arithmetic. The trade-vote errors are the
+  empty counter Qwen3.5-9B made (item 2): "I'll counter with $150 for the
+  property" whose terms ask $150 and hand nothing over.
+- **Its judgments run more passive than Gemma's, and partly away from
+  Sonnet's.** It declines 25 of 90 votes (Gemma 5): a $300 offer for a
+  stranded green 4/5 (Gemma counters at $200-$250), and the over-priced
+  complete-your-set offers Sonnet accepts or counters 5/5 (3/5 and 4/5
+  decline). It does follow Sonnet where Gemma doesn't: selling a blocker pair
+  4/5 accept (Sonnet 4/5), the walked-down red offer 3/5 decline (Sonnet 5/5).
+  It prices proposals lower (Tennessee $100-$250 against Gemma's $150-$300 and
+  Sonnet's $300-$650; Boardwalk for Park Place plus $50-$100) and builds less
+  (1-2 houses in 6 of the 10 movement turn starts, where Sonnet builds 3 in
+  all 10).
+
+**Verdict: fits and is fast enough, plays worse; not adopted.** It is the
+largest model this card can play live, faster per decision than Gemma, with
+the slot llm-v8's long games need. But on llm-v8 it makes 17 errors where
+Gemma makes 1, and its judgment spread moves toward passivity, so it does
+not replace Gemma, and it costs ~9 GB of system RAM the launcher's rule
+keeps free. Its errors cluster in one shape, a quick decision whose fields
+come before its reasoning; thinking on debt plans, or asking for the note
+first, might clear them, but that is model-specific work for a model that
+isn't the loop's (METHOD.md). Lesson: as item 19 expected, size alone
+doesn't help; what this model family needs is to reason before it commits
+numbers, which Gemma does without being asked.
