@@ -47,6 +47,8 @@ export const SYMBOLS = {
   "lebanon-flag": { name: "Flag of Lebanon" },
   "slovene-tricolour": { name: "Slovene tricolour (white, blue and red)" },
   "slovenia-flag": { name: "Flag of Slovenia" },
+  "romanian-tricolour": { name: "Romanian tricolour (blue, yellow and red)" },
+  "romania-flag": { name: "Flag of Romania" },
   "sicily-trinacria": { name: "The Trinacria of Sicily" },
   "bavaria-lozenges": { name: "The white and blue lozenges of Bavaria" },
   "prussia-flag": { name: "Black and white of Prussia (the Prussian eagle)" },
@@ -252,6 +254,10 @@ export const PEOPLE_TIMELINES: Record<PeopleCode, readonly PeopleEra[]> = {
       "Act on the Coat of Arms, Flag and Anthem of the Republic of Slovenia and on the Slovene National Flag (Uradni list RS 67/1994)",
       "National Assembly of Slovenia, \"Državni simboli\"",
     ]),
+  ],
+  romanian: [
+    era(null, 1989, "The Romanian lands", "romanian-tricolour"),
+    era(1989, null, "Romania", "romania-flag"),
   ],
 };
 

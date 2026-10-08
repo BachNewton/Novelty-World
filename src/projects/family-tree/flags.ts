@@ -21,6 +21,7 @@ import lb from "svg-country-flags/svg/lb.svg";
 import nl from "svg-country-flags/svg/nl.svg";
 import no from "svg-country-flags/svg/no.svg";
 import pl from "svg-country-flags/svg/pl.svg";
+import ro from "svg-country-flags/svg/ro.svg";
 import se from "svg-country-flags/svg/se.svg";
 import si from "svg-country-flags/svg/si.svg";
 import ua from "svg-country-flags/svg/ua.svg";
@@ -51,6 +52,7 @@ export const FLAGS: Record<PeopleCode, Flag> = {
   ukrainian: { src: ua, width: 3, height: 2, country: "Ukraine" },
   lebanese: { src: lb, width: 3, height: 2, country: "Lebanon" },
   slovene: { src: si, width: 2, height: 1, country: "Slovenia" },
+  romanian: { src: ro, width: 3, height: 2, country: "Romania" },
 };
 
 export function flagOf(code: HeritageCode): Flag {
