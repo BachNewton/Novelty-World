@@ -405,6 +405,51 @@ export const SYMBOL_ART: Partial<Record<SymbolId, SymbolArt>> = {
       "The common Commons file Flag_of_Poland.svg draws pure white and crimson #DC143C, whose white falls outside the act's tolerance, so it was not used. " +
       "Why it represents the people: white and red are the Poles' own colours from the Sejm's resolution of 1831, carried through the partitions and the uprisings of 1830 and 1863 when Poland had no state, never the partitioning powers', and the national flag from 1919; the colours were unspecified before 1980.",
   },
+  "romania-flag": {
+    kind: "published",
+    format: "svg",
+    sha1: "36b353013c3044eb705d37975db75f489f08e8fc",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Romania.svg",
+    author: "AdiJapan (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-simple, Insignia, PD-RO-exempt",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "Constitution of Romania (1991), article 12(1): the flag is a tricolour, the colours arranged vertically from the pole: blue, yellow, red",
+      "Law 75/1994 on flying the flag of Romania (Monitorul Oficial no. 237, 26 August 1994), article 1 and annex 1, as replaced by Law 176/2023 (Monitorul Oficial no. 550, 20 June 2023), article I point 4: width 2/3 of the length, each colour 1/3 of the length; blue Pantone 280c, CMYK 100-70-0-10, RGB 0-43-127; yellow 116c, 0-10-95-0, 252-209-22; red 186c, 0-90-80-5, 206-17-38",
+      "Chamber of Deputies, PL-x 196/2021, the law as sent for promulgation with its annex: https://www.cdep.ro/ords/pls/proiecte/upl_pck2015.proiect?nr=196&an=2021",
+      "Flags of the World, \"Romania\" (Decree-Law no. 2 of 27 December 1989 restoring the plain tricolour; the 2:3 ratio): https://www.fotw.info/flags/ro.html",
+    ],
+    checked:
+      "Three equal vertical bands, blue at the hoist, yellow, red, at 2:3: the file is viewBox 3 by 2 with bands of 1. " +
+      "Blue #002B7F, yellow #FCD116 and red #CE1126 are exactly the RGB values of the annex Law 176/2023 put into Law 75/1994, checked in the text the Chamber of Deputies sent for promulgation. " +
+      "The talk page's colour disputes are settled by that annex: the 2006-07 threads predate any official value, and the 2023-25 edit requests to switch to a separate \"2023\" file were declined, rightly, since that file's yellow #FFD116 is not the law's 252-209-22. " +
+      "The file history's last design change was in 2007 (the current colours); a 2012 replacement with another editor's drawing was reverted within two days, and the 2016 upload only redrew the bands as overlapping rectangles (no visible seams), with the same geometry and colours. " +
+      "Why it represents the people: the plain tricolour the Romanians restored themselves in December 1989, cutting the communist emblem out of their flags, and kept by their own constitution of 1991.",
+  },
+  "romanian-tricolour": {
+    kind: "published",
+    format: "svg",
+    sha1: "36b353013c3044eb705d37975db75f489f08e8fc",
+    source: "https://commons.wikimedia.org/wiki/File:Flag_of_Romania.svg",
+    author: "AdiJapan (Wikimedia Commons)",
+    license: "public-domain",
+    licenseBasis: "Commons: PD-simple, Insignia, PD-RO-exempt",
+    attribution: "",
+    proportions: { width: 3, height: 2 },
+    checkedAgainst: [
+      "Constitution of Romania (1866), article 124: the colours of the United Principalities are blue, yellow and red",
+      "Laws of 24 April 1867 and 23 March 1872 on the flag, as quoted by Flags of the World: the colours vertical, blue at the hoist, yellow, red; the civil flag the army's without the arms in the middle: https://www.fotw.info/flags/ro-1872.html",
+      "Flags of the World, \"Romania, Revolutionary era, 1989\": flags with the emblem cut out from 17 December 1989, and Decree-Law no. 2 of 27 December 1989 defining the flag as \"the traditional tricolor of Romania\": https://www.fotw.info/flags/ro-hole.html",
+      "Law 75/1994, annex 1, as replaced by Law 176/2023: the same tricolour at 2:3 with official colours",
+    ],
+    checked:
+      "The plain vertical tricolour, blue at the hoist, yellow, red, in equal bands at 2:3: the file is viewBox 3 by 2 with bands of 1, the same file as romania-flag, because the people's own flag before 1989 is the same design. " +
+      "Before 1994 no act set the shades (the 1866 constitution and the 1867 and 1872 laws name the colours only, and Law 75/1994 named cobalt blue, chrome yellow and vermilion red as pigments), so any true blue, yellow and red is faithful; the file draws the 2023 annex's values, #002B7F, #FCD116, #CE1126. " +
+      "The Commons \"as viewed\" file Flag_of_Romania_(1867–1948).svg was rejected: its brighter shades rest on an antique-flag sales listing, and its own colour table disagrees with what it draws. " +
+      "Why it represents the people: the plain tricolour was the Romanians' civil and national flag from 1867. The state flags of 1948-1989 carried the communist emblem, which Romanians cut out of their flags in December 1989 and replaced with this tricolour as \"the traditional tricolor\", so for births under the communist state the people's own symbol is the plain tricolour, not the regime's flag.",
+  },
   "scotland-flag": {
     kind: "published",
     format: "svg",

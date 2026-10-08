@@ -17,6 +17,8 @@ import italyTricolour from "@/projects/family-tree/symbol-art/italy-tricolour.sv
 import lebanonCedar from "@/projects/family-tree/symbol-art/lebanon-cedar.svg";
 import lebanonFlag from "@/projects/family-tree/symbol-art/lebanon-flag.svg";
 import polandFlag from "@/projects/family-tree/symbol-art/poland-flag.svg";
+import romaniaFlag from "@/projects/family-tree/symbol-art/romania-flag.svg";
+import romanianTricolour from "@/projects/family-tree/symbol-art/romanian-tricolour.svg";
 import scotlandFlag from "@/projects/family-tree/symbol-art/scotland-flag.svg";
 import sloveneTricolour from "@/projects/family-tree/symbol-art/slovene-tricolour.svg";
 import sloveniaFlag from "@/projects/family-tree/symbol-art/slovenia-flag.svg";
@@ -37,6 +39,8 @@ export const SYMBOL_ART_URLS: Partial<Record<SymbolId, string | StaticImageData>
   "lebanon-cedar": lebanonCedar,
   "lebanon-flag": lebanonFlag,
   "poland-flag": polandFlag,
+  "romania-flag": romaniaFlag,
+  "romanian-tricolour": romanianTricolour,
   "scotland-flag": scotlandFlag,
   "slovene-tricolour": sloveneTricolour,
   "slovenia-flag": sloveniaFlag,
