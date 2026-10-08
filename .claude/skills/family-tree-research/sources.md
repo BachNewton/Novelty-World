@@ -218,6 +218,24 @@ is in `methods.md` ("Finding a line's origin").
   husband in a soldiers' home.
 - **Pennsylvania death certificates 1906–1970** are not on FamilySearch
   (they are on a paid site: out). List one as a gap, not a null.
+- **Italy, Campobasso, Civil Registration (State Archive), 1809–1918**
+  (collection 1968528; it runs past 1918 for deaths): an immigrant's exact
+  US birth date finds the birth act, which names the parents; the parents'
+  death acts (indexed mainly 1900s–1940s) give their age, birthplace and
+  parents, and name the spouse. For Campobasso city, births are indexed
+  about 1809–1835 and 1866 on, marriages from about 1866; births of about
+  1840–1865 and marriages before 1866 are images only (on Antenati), so a
+  null there is a coverage gap. Full Text does not cover them.
+- **Portale Antenati** (`antenati.cultura.gov.it`, free, no login): the
+  Italian state archives' register images, found by
+  `/search-registry/?localita=<town>&anno=<year>&tipologia=Matrimoni`
+  (the results list every series in the province; pick the town's).
+  The viewer paints in a background tab only after "Massimizza la finestra"
+  and a wait for the image tiles, and a whole spread is too small to read:
+  zoom before screenshotting. Restoration-era (1809–1865) marriage
+  registers have no name index at the end. Opening the IIIF image URLs
+  directly meets a Cloudflare check: leave the tab open and ask the owner
+  to clear it.
 - **Hungary Civil Registration 1895–1980**: births, marriages, deaths;
   search the native name forms. Hungarian law opens births at 90 years,
   marriages at 60 and deaths at 30, so births stop about 1920;
