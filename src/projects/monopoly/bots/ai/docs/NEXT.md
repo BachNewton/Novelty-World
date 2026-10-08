@@ -22,15 +22,16 @@ votes and turn starts, so it is not a live-model candidate; the error count
 alone no longer separates models: read the judgment spread against Sonnet's,
 not just errors.
 
-1. **Continue on Gemma 4 12B with llm-v6** (`npm run ai:llm --
-   gemma4-12b-1x7k`; one slot, a full suite ~90 minutes). llm-v6 cleared both
-   llm-v5 families on Gemma (`EVOLUTION.md`: 17/120 errors to 1/120). The
-   one left is a counter whose sentence states the lot's price instead of the
-   message's ("would you consider $150?" written as "Sam pays me $200"); watch
-   it, and build only if it recurs. Gemma is now the model the loop runs on;
-   making it the live default is the owner's call, since it writes half as
-   fast as Qwen. Next for Gemma is not more error work but slices (item 6),
-   to find the errors the suite doesn't have.
+1. **Continue on Gemma 4 12B with llm-v8** (`npm run ai:llm --
+   gemma4-12b-1x7k`; one slot). llm-v7 added the facts from game 46181f
+   (each player's sets, what a player controls, the proposer's message, what
+   a completed set costs) and llm-v8 replaced the log window with the history
+   of play; both are general and leave Gemma at 0-1 errors in 160
+   (`EVOLUTION.md`). llm-v8's history grows with the game and nears the 7.5k
+   slot in a long one (item 23). The counter that states the lot's price
+   instead of the message's recurred once on llm-v7 ("Would you consider
+   $80?" written as $100); still watch only. Next for Gemma is slices (item
+   6), to find the errors the suite doesn't have.
 2. **(Qwen) The empty counter, from the vote's side.** llm-v5's remaining
    trade errors are counters whose follow-up comes back all "keep", $0, after a
    message that is half a decline ("I'll take $900 for the set, or I keep it
@@ -79,39 +80,6 @@ not just errors.
    do, so measure it on two model families, and watch for new stalls (terms that
    don't net out) and for small models proposing three-way deals they can't
    reason through.
-10. **History by what it tells, not the raw log.** A seat sees the last 30 log
-   lines, and most of them are game flow: rolls, rent, cards, passing GO. Those
-   matter only as their results, which the board and cash already show, and they
-   push out what can't be recovered from the board: the history of play between
-   players. Today a declined offer from three turns ago is gone, so a player can
-   re-pitch it or walk a price down and the seat can't tell (the rule-based bots
-   needed decline-memory for exactly this). Replace the window with a view that
-   keeps the whole game's history of play, compact and grouped so patterns can be
-   seen, following METHOD's "What a view holds": decisions and public intent
-   only (every trade and declined or countered offer with its terms and note,
-   bids and drop-outs, buys and passes, builds, mortgages, debt settlements),
-   with each question stating its own cause in place of a flow window. Give the
-   facts and let the model find the patterns; don't write rules for particular
-   patterns. It is a missing fact, so
-   a general change: measure it on two model families, and compare prompt length
-   with today's window.
-11. **llm-v7: give a trade's receiving seat the proposer's public note.** The
-   table now sees an AI proposer's note as the offer's pitch (`tradePitch` in
-   the engine, shown in the trade panel). A voting seat sees it only as one
-   unlabelled line of "negotiation so far", among the turn's other notes.
-   State it beside the terms as the proposer's message with this offer, public
-   note only, never private reasoning or plan. It is a fact added to the view,
-   so a general change by METHOD's rule: measure it on two model families
-   before calling it one. Option, not built: let a human's offer carry a
-   short message too, so the pitch and this line work the same for every
-   proposer (it would need a field on the proposal, so a state shape change).
-12. **Each player's position in one line.** A live Sonnet seat pitched "$620 for
-   Tennessee... funds your builds elsewhere" to a human holding no full set,
-   so nothing to build. Whether a player can build appears only implicitly, as
-   their name in each set's holder list. State it outright per player (cash,
-   full sets, what they can build on), so a pitch starts from the other side's
-   real position. General; add the live call as an error scenario first (game
-   5x1c6j, call 62; spec E2 in `inbox/46181f-scenarios.md`, item 16).
 13. **Ask at every turn start, for a strong model** (model-specific). The
    turn-start gate skips the model when the seat can't build or lift a mortgage
    and shares no set, or the board hasn't changed since it was last asked. That
@@ -129,25 +97,6 @@ not just errors.
    facts derived from the state: "Sam holds the full orange set with three
    houses on each", never "Sam is in trouble". Measure on two model families,
    including whether notes and pitches cite other players' positions correctly.
-15. **What a player controls.** A live seat's plan said "avoid red" because of
-   its houses, as if it could choose where it lands. Movement is the dice; the
-   rules primer never says so, nor what a player does choose (buy or pass, bid,
-   trade, build, mortgage, how to pay a debt, how to leave jail, how much cash to
-   keep). Add that to the primer and ask for a plan made of those choices
-   ("keep $400 in reserve while red has houses" is a plan; "avoid red" is not).
-   General: measure on two model families. Grade it as an error scenario: a plan
-   or note that claims control over movement. Game 46181f made it the live
-   error that matters most: once "avoid Väinö's reds" entered Lisa's plan it was
-   fed forward into 12 of her 13 plans, through the debt settle that broke her
-   (spec E1 in `inbox/46181f-scenarios.md`, item 16).
-16. **Build game 46181f's scenarios** (`inbox/46181f-scenarios.md`): two shared
-   error checks, a plan or note claiming control over movement (E1, with
-   positions) and a pitch crediting the other side with sets or builds it
-   doesn't have (E2, on the `proposeDirection` family), and two judgment
-   scenarios from the human flags, selling the set-completing pair to the
-   holder of the third (J1) and paying all its cash for a set it can't build
-   (J2). Build on llm-v6's `termsContradictMessage` work, run the ceiling on
-   them first, and gate items 12 and 15 on E2 and E1.
 17. **Make a link between a held call and its decision.** A call answered
    during a review pause is stored once as `held`, with no turn or log index,
    and nothing links it when the answer settles on resume. In 46181f, 5 of 72
@@ -156,18 +105,6 @@ not just errors.
    entry". Update the row's place and outcome when the held answer settles, or
    store the settle as a row of its own that names the held call; either way
    `game:review` and the flags must find it. A tooling bug, not a version.
-18. **What a set costs to build, in the trade vote.** In 46181f Lisa paid
-   $1,000 and two lots for the greens, falling to $275 with houses at $200, on
-   a board with built reds; her note saw the risk ("Cash drops to $275, which
-   is risky") and accepted anyway, and a $700 rent stripped the set. The vote
-   states the set gained and the cash left, but not what developing it costs
-   (three houses each: $1,800) or the largest rent the seat now faces, and,
-   when a trade arms the other side, not that side's cash after (Väinö's $342
-   after buying the reds: two houses). Missing consequences, so a general
-   change: measure on two model families against the J1 and J2 judgment
-   spreads and later human games, never as a gate, and keep it apart from the
-   strategy primer (item 5).
-
 19. **The largest model the card can play live** (model axis). A decision
    needs at most ~9k tokens of context (trade votes: ~7.5k prompt plus ~1.5k
    of thinking and answer; buys and debts ~2k), so on the 12 GB card the
@@ -186,7 +123,8 @@ not just errors.
    learning from wins needs more games than this machine can play. It should
    cut a small model's stalls and repeated errors, and pull its judgment toward
    the teacher's, never past it. It binds the model to one version's prompt,
-   so it waits until the general changes (items 10-15, 18) have landed, and
+   so it waits until the general changes have landed (items 13 and 14 are
+   the last queued; llm-v7 and llm-v8 landed the rest), and
    the fine-tuned model is a new model with its own scoreboards. Before using
    Claude's answers as training data, the owner checks Anthropic's terms on
    training other models with its outputs.
@@ -203,6 +141,32 @@ not just errors.
    result knowing the rule bots' trade logic may be exploitable in ways a
    person's isn't: report how each game was won (which trades, with whom),
    not just the win rate.
+
+22. **A movement claim fed forward in the plan (Sonnet).** llm-v7's rules say
+   where a player lands is the dice and ask for a plan made of choices. That
+   cut Sonnet's "avoid the reds" from 8/15 to 1-2/15 where no claim was
+   already in its plan, but in `debt-after-built-rival-set`, whose stored plan
+   ends "avoid reds.", Sonnet repeats it 4-5/5 on every version (Gemma 0-1/5).
+   Two wordings didn't move it (`EVOLUTION.md`, llm-v7). The cause to test is
+   the plan being fed back: try showing the last plan only as the seat's own
+   words to check, or asking for the plan before the notes, replayed on both
+   models. Also read the check's edges: it flags "avoid Sam's railroads risk by
+   keeping some cash" and "avoid red squares' damage by staying liquid", reserve
+   plans phrased with "avoid"; whether those count is the owner's call.
+23. **llm-v8's history on a long game, for Gemma's slot.** On 46181f the
+   history adds ~23 tokens a turn (4,433 tokens of view at turn 85 against the
+   window's 2,518), so a turn-85 trade vote with Gemma's 1.2k thinking is
+   ~7.1k of the 7.5k slot. Before llm-v8 plays a long live game on Gemma, either
+   a larger slot (the launcher's sliding-window fit check, a loose end) or a
+   more compact history: older buys and jail exits as counts per player, for
+   instance, keeping every offer and plan. Measure on a long real game's log,
+   never by trimming to a window.
+24. **Which version the live `ai:claude` seats play: the owner's call.** They
+   play llm-v5. On Sonnet, llm-v7 cut the new families' errors from 17/40
+   (llm-v6) to 8/40 (false pitches, movement claims) with none in the older
+   error families (0/72); llm-v8 is the same plus the history (10/40, 0/10). Recommendation: llm-v7 for game night, llm-v8 once a
+   live game shows the history reads well. A new seat takes the newest version
+   (llm-v8) unless another is picked.
 
 ## Loose ends
 

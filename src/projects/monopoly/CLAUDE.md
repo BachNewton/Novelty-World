@@ -410,7 +410,8 @@ never assumed.
   held on. No timers anywhere: resume is the event.
 - **The prompt is a pure function** of the state, the seat and the question:
   rules first as a fixed system message (a stable prefix the model server can
-  reuse), then the seat's view, plan, recent log and question.
+  reuse), then the seat's view, plan, recent log (from llm-v8, the game's
+  history of decisions and public notes instead) and question.
 - **Model-agnostic.** `model/adapter.ts` is the provider interface;
   `openai-compatible.ts` serves `local-llm` (llama.cpp). `model/config.ts` maps
   each profile to its adapter from server env (`MONOPOLY_AI_LOCAL_URL`,
@@ -468,7 +469,8 @@ never assumed.
   place the pending trade's id records), and the trade panel shows it to the
   table, since the log is hidden while a trade is up, beside the note each
   party approved with (`tradeVoteNotes`). A version's trade-vote question may
-  read the pitch too; llm-v5 sees it only as a line of the negotiation.
+  read the pitch too; llm-v5 sees it only as a line of the negotiation, and
+  from llm-v7 the vote states it beside the terms as the proposer's message.
   From llm-v2 a trade is written from the seat's own side (you give, you get,
   cash you receive, with one counterparty) and states the cash it leaves the
   seat with; the code builds the engine's terms and fails a mismatch, so a sign

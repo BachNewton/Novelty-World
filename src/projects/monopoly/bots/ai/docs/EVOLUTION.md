@@ -1068,3 +1068,212 @@ plain re-ask clears it.** Telling the model why it was refused adds a second
 instruction that competes with the question's own, and the model follows
 the newest words: it fixed nothing a re-ask didn't and
 twice traded a refusal for a legal bad move.
+
+## Scenarios from 46181f and 5x1c6j: two shared checks (2026-10-08)
+
+Built from `inbox/46181f-scenarios.md` (now deleted; NEXT items 12, 15 and
+16). Two checks join `termsContradictMessage` in `judge`, run on every answer,
+judgment scenarios included (`eval/scenario.ts`):
+
+- **`claimsMovement`**: a note or plan that tells the seat to avoid, stay off,
+  steer clear of, keep away from or dodge a board place (a color group, the
+  railroads, utilities or hotels, a lot's name, possessives included). Skipped
+  for a seat in jail and any sentence about jail. Every fixture from the spec
+  passes.
+- **`pitchCreditsMissingSet`**: on a proposal or counter, a public note that
+  credits the other side with building, houses or a full set ("your builds",
+  "build on your pinks") when they hold no full set and the terms don't
+  complete one. Negated sentences pass. A first version also flagged "fund
+  your next purchases"; it now needs building words after "fund your".
+
+New error families (5 reps each per version): `turn-start-propose-pitch-*`
+(5x1c6j call 62's table, red and dark-blue disguises, and a contrast where the
+holder has the full light blues, so the pitch is true), `turn-start-movement-*`
+(a rival's four railroads; a rival's dark-blue hotels) and
+`debt-after-built-rival-set` (46181f call 149, with its stored plan "...;
+avoid reds.") plus an orange-hotel disguise. Judgment families:
+`vote-sell-pair-to-blocker` (J1, call 122, with its whole negotiation and
+pitch), `vote-overpay-for-set` (J2, call 132, with the earlier cash offers)
+and their variants, and `vote-repitched-lower` (two: a rival walks down an
+offer the seat declined 16 turns earlier, behind 32 lines of ordinary play,
+for item 10). Scenario trades now carry an id that names their place in the
+log, as the engine's do, so a version can read the pitch.
+
+Re-judging what was on disk: Gemma's llm-v6 suite (230 answers) and Sonnet's
+llm-v6 subset have no movement claim or false pitch; Sonnet's llm-v5 suite has
+three movement claims, all in judgment scenarios on hotel boards ("avoid the
+orange and red hotels"); one Qwen llm-v6 plan said "avoid landing on
+railroads until I can lift the mortgage".
+
+llm-v6 baseline on the new families (5 reps):
+
+| llm-v6 | Gemma 4 12B | Sonnet 5.5 |
+|---|---|---|
+| Pitch family (20) | 0 | 4 ("money to build on your pink set", "build on your light blues") |
+| Movement, turn starts (10) | 1 ("avoid Sam's hotels") | 3 |
+| Movement, debt (10) | 0 | 10 (5/5 with the fed-forward plan, 5/5 without) |
+| Error scenarios | 1/40 | 17/40 |
+
+The ceiling fails the new checks far more than Gemma: Sonnet writes the
+idiom ("avoid reds") and the friendly pitch; Gemma's notes rarely do. Both
+errors are real by the spec's definition, and both are Sonnet's live
+failures, so for once the ceiling is the model the scenarios gate.
+
+## llm-v7: facts added to the view (2026-10-08)
+
+Hypothesis: the pitch, plan and trade errors come from facts the view leaves
+for the model to derive. llm-v6 plus:
+
+- **Each player's position** (item 12) on their player line: "no full set",
+  or "full sets: Red (houses 3/3/3), Dark blue (unbuilt, a lot mortgaged);
+  can build on Red".
+- **What a player controls** (item 15): the rules say where you land is the
+  dice and list a player's choices; the plan is asked for as "made of your
+  choices".
+- **The proposer's message** (item 11): a trade vote states "<proposer>'s
+  message with this offer: ..." (`tradePitch`, the public note only), or that
+  they sent none.
+- **What a completed set costs** (item 18): a trade that completes a set says
+  what three houses a lot costs and the cash its new owner would start with
+  ("Sam would have $342 after this trade: enough for 2 houses on Red at $150
+  each"), and the vote states the largest rent on the board.
+- **A built set's lots in a debt** (found here): the debt question said
+  "Mortgages: none" when the only spare lots sat in a built set, and Sonnet on
+  llm-v7 then sold the houses alone, leaving the debt unpaid, 4/5 (llm-v6
+  5/5 found the plan anyway). It now says what those lots raise once the
+  set's houses are sold. Written first as "after selling them all, mortgaging
+  raises ...", it broke Gemma 5/5: its debt answer lists mortgages first, so
+  it mortgaged all three greens and sold one house, which the engine refused.
+  Stated as a coupling ("a plan that mortgages any of them must also sell all
+  2 of its houses, for +$200"), both models gave the right plan 5/5.
+
+Two wordings were measured and dropped on the way. The no-set line first read
+"no full set, so nothing to build on": Gemma, reasoning "I can't build on it
+anyway", accepted three below-mortgage offers in `vote-counter-holdings`
+(llm-v6 0/15); replayed with the phrase removed, 1/10. It is now the plain
+fact. And on Sonnet's fed-forward "avoid reds" plan, neither asking for the
+plan "made of your choices (...). Where you land is the dice" in its field
+description nor "check it against the board and the rules above, and keep only
+what you can choose" on the stored plan moved it (5/5 and 5/5): reverted.
+
+Final runs, 5 reps, error families plus the new judgment families (Gemma:
+190 answers, the debt families re-run after the coupling wording; Sonnet:
+the new families at 5 reps and the older error families and eight judgments
+at 3):
+
+| Errors | Gemma llm-v6 | Gemma llm-v7 | Sonnet llm-v6 | Sonnet llm-v7 |
+|---|---|---|---|---|
+| Older error families | 1/120 | 1/120 | 0/48 (+ llm-v5 0/63) | 0/72 |
+| Pitch family | 0/20 | 0/20 | 4/20 | 2/20 |
+| Movement, turn starts | 1/10 | 0/10 | 3/10 | 0/10 |
+| Movement, debt | 0/10 | 0/10 | 10/10 | 6/10 |
+| Unusable, contradicting or movement answers in the new judgments | 4/20 | 5/30 | 6/20 | 0/30 |
+
+The remaining Sonnet movement errors are almost all the fed-forward case
+(`debt-after-built-rival-set`, 5/5 then 4-5/5 on every rerun): with no claim in
+its stored plan, the primer took Sonnet from 8/15 to 1-2/15. Gemma's judgment
+unusables are its own (`vote-overpay-for-set-yellow`: a counter asking the
+$150 seller to pay, refused by the engine, 4/5 on both versions).
+
+Judgments, beside the errors (no sign of a seat doing less):
+
+- Gemma proposals on the propose families: 31/35 (llm-v6), 29/35 (llm-v7);
+  Illinois $150-$300 then $200-$300. Counters on the trade-vote error
+  families were as frequent as before.
+- J1, the stuck reds: Gemma 4 accept, 1 counter (llm-v6) and 3 accept, 2
+  counter at $640 plus two railroads (llm-v7). Sonnet spread wide on both:
+  2 accept, 1 decline, counters at $500-$780 (llm-v6); 1 accept, 2 decline,
+  counters at $800-$850 (llm-v7; an earlier llm-v7 run, before the final
+  wording, accepted 4/5).
+- J2, all its cash for the greens: 5/5 accept on both models and both
+  versions. Stating the $1,800 to build them and the $250 top rent moved
+  nothing; this is a judgment for human games to settle.
+- Sonnet on the older judgments: Boardwalk $380 (3x), blocking the orange
+  $230-$260, arming a rival's orange countered at $650-$800 or declined, the
+  same as llm-v5 and llm-v6.
+
+**Classification (METHOD.md): general.** Every change is a fact added to the
+view, and the version helped or was neutral on both families: Gemma's errors
+held at their floor (1/160, against llm-v6's 2/160) with the same play, and Sonnet's
+fell from 17/40 to 8/40 on the new families with no new error elsewhere.
+Two wordings that hurt one model were dropped (above), not kept for the other.
+The one model-specific finding is the fed-forward plan: Sonnet repeats a
+claim it finds in its own stored plan even with the primer; that is item 15's
+remainder.
+
+## llm-v8: the history of play in place of the log window (2026-10-08)
+
+Hypothesis (item 10, METHOD's "What a view holds"): the 30-line log window is
+mostly rolls, rent and cards, which the board already shows, and it pushes
+out what the board can't: a declined offer from a few turns back. llm-v7 with
+the window replaced by the whole game's history of decisions and public
+intent (`versions/llm-v8/history.ts`), grouped: trade offers and how they were
+answered, auctions (who passed, who won, at what), lots bought at the printed
+price (one line per player), building, selling and mortgaging (one line per
+plan, with the levels it left), leaving jail (per player), and the rest
+(bankruptcies, a seat that couldn't decide, notes no decision followed). Each
+note sits beside the decision it explains. Nothing happening to players
+appears. Since the window is gone, each question states its own cause
+(`causes.ts`): the debt says what charged it ("You owe this after paying $700
+rent on Indiana Avenue to Sam"), an auction who landed on the lot and passed,
+the jail question how the seat got there; the turn start loses its "recent
+trade offers", which the history holds whole.
+
+**Prompt length**, game 46181f's real log (llama.cpp's tokenizer, the view
+and rules without the question):
+
+| Turn | llm-v7 (30-line window) | llm-v8 (history) |
+|---|---|---|
+| 40 | 2,623 tokens | 3,300 |
+| 60 | 2,687 | 4,004 |
+| 85 (the game's end) | 2,518 | 4,433 |
+
+The window holds steady; the history grows with the game, ~23 tokens a turn
+here (20 trade offers, 25 buys, 18 build and mortgage plans, 10 jail exits).
+A trade vote adds ~1.5k for its question and Gemma's thinking budget 1.2k, so
+at turn 85 a vote is ~7.1k of the 7.5k slot `gemma4-12b-1x7k` gives: a longer
+or more trade-heavy game would overflow it. On Sonnet it is no concern.
+
+Runs, 5 reps, the same sets as llm-v7:
+
+| Errors | Gemma llm-v7 | Gemma llm-v8 | Sonnet llm-v7 | Sonnet llm-v8 |
+|---|---|---|---|---|
+| Older error families | 1/120 | 0/120 | 0/72 (3 reps) | not re-run: no log in them, so the view is llm-v7's |
+| Pitch family | 0/20 | 0/20 | 2/20 | 2/20 |
+| Movement, turn starts | 0/10 | 0/10 | 0/10 | 2/10 |
+| Movement, debt | 0/10 | 1/10 | 6/10 | 6/10 |
+| Unusable or flagged answers in the new judgments | 5/30 | 4/30 | 0/30 | 0/30 |
+
+Judgments: where the history matters, `vote-repitched-lower` (a rival walks
+an offer down after the seat refused it with a stated price), llm-v8's seats
+use it. Sonnet: "Sam, you offered $550 earlier and now $420? Illinois
+completes your set, so it's $800 or I keep it"; llm-v7 declined as often
+(8/10 on both) without being able to say why. Gemma on llm-v8 countered
+8/10, at $500-$600 (declined 1, accepted 1), where llm-v7 declined 5,
+accepted 2 and countered 3 (one at $200 plus the rival's two lots). Gemma's proposals held (29/35 on both
+versions; the Boardwalk families lowest, 4/10 against 7/10). J1 and J2
+didn't move (Gemma accepts J2 3-5/5 throughout; Sonnet 5/5).
+
+**Classification: general, neutral on errors.** A fact change, neutral on
+both families' error counts; what it adds shows in the judgments, where both
+models now cite the history. The cost is length, which matters only on the
+single 7.5k Gemma slot (above): a longer game needs a larger slot or a more
+compact history before llm-v8 plays live on Gemma.
+
+## The loop, after llm-v8
+
+- **2026-10-08: a scenario family whose ceiling fails is still an error
+  family.** Sonnet failed the new movement and pitch checks far more than
+  Gemma, which inverts the usual reading of the ceiling: here the scenarios
+  measure the live model's own failure. The ceiling rule stands for telling a
+  wrong expectation from a miss; it doesn't make the ceiling's answers right.
+- **2026-10-08: a fix's wording can help one model and break another, so
+  every fix is replayed on both before a run.** The debt line that cured
+  Sonnet's unpaid plans broke Gemma 5/5, because Gemma's answer order put the
+  mortgages first; the version's other parts were run for two hours on the
+  broken wording before it showed. Replay the changed decision on both
+  models first (5 calls each), then run.
+- **2026-10-08: a shared single slot halves the loop's speed.** Another
+  agent's replays shared the Gemma slot for an hour; trade votes went from
+  ~40 s to ~75 s each. Plan Gemma runs in calls, and expect the wall clock to
+  double when the slot is shared.
