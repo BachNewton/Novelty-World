@@ -299,7 +299,10 @@ one, and the pacer never consults one for it. Everything lives in `bots/ai/`.
 and model it reaches: `ai:local` or `ai:claude`) and an **AI version** (`llm-vN`), written
 `<profile>@<version>` (e.g. `ai:local@llm-v2`). `bots/ai/strategy.ts` is the only
 place that writes or parses it. The lobby lists every version under each
-profile, newest first; a new seat takes the newest.
+profile, newest first; a new seat takes the newest general one
+(`DEFAULT_AI_VERSION`). A version tuned and measured on one model only
+(`MODEL_SPECIFIC` in `versions/index.ts`, e.g. the Sonnet experiments
+llm-v9 to llm-v11) is listed but never the default.
 
 **AI versions are frozen, like the rule-bot archive.** A version
 (`bots/ai/versions/llm-vN/`, registered in `versions/index.ts`) bundles
@@ -312,7 +315,10 @@ names exactly what played it and versions can be compared on evidence. The
 machinery around a version stays shared and unversioned: claim/ask/settle
 (`decide.ts`), what a seat owes (`decisions.ts`), the adapters, the console, the
 UI. A version may lean on shared engine helpers (and llm-v1 on the eval log
-renderer); a change there is a change to every version that uses it.
+renderer); a change there is a change to every version that uses it. A
+version that changes one part of another may import the rest from it
+(llm-v9 to llm-v11 from llm-v8): a registered version is frozen, so what it
+shares can't drift.
 
 **The model is the other axis, outside the bundle.** Which model answers is
 whatever the profile's server is running; it is recorded with every decision,
@@ -454,7 +460,8 @@ never assumed.
   gate**, skipping the call with no model when there is nothing worth asking
   (llm-v1: the board unchanged since last asked and nothing to build or lift;
   llm-v2: only when it could build or lift a mortgage, or shares a color set
-  with another player and the board changed).
+  with another player and the board changed; llm-v9, for Sonnet, asks every
+  turn).
 - **Trades and counters.** A vote is accept, decline, or counter with a full
   trade, carried out as one submit (`counter-trade`, the terms, `propose-trade`).
   From llm-v5 the vote is asked alone, beside what each side holds, and a

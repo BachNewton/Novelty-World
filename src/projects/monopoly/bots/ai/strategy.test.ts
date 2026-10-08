@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aiStrategyId, isAiStrategy, parseAiStrategy } from "./strategy";
-import { AI_VERSION_LABELS, AI_VERSIONS, DEFAULT_AI_VERSION } from "./versions";
+import { AI_VERSION_LABELS, AI_VERSIONS, DEFAULT_AI_VERSION, MODEL_SPECIFIC } from "./versions";
 
 describe("an AI seat's strategy encoding", () => {
   it("round-trips a profile and a version", () => {
@@ -19,11 +19,11 @@ describe("an AI seat's strategy encoding", () => {
 });
 
 describe("the AI version registry", () => {
-  it("lists every version once, newest first, and defaults to the newest", () => {
+  it("lists every version once, newest first, and defaults to the newest that isn't model-specific", () => {
     expect([...AI_VERSION_LABELS].sort()).toEqual(Object.keys(AI_VERSIONS).sort());
     const numbers = AI_VERSION_LABELS.map((label) => Number(label.replace("llm-v", "")));
     expect(numbers).toEqual([...numbers].sort((a, b) => b - a));
-    expect(DEFAULT_AI_VERSION).toBe(AI_VERSION_LABELS[0]);
+    expect(DEFAULT_AI_VERSION).toBe(AI_VERSION_LABELS.find((label) => !(label in MODEL_SPECIFIC)));
   });
 
   it("files each version under its own label", () => {

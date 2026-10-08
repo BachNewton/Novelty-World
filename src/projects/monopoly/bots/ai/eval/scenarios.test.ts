@@ -31,12 +31,24 @@ describe("scenario positions", () => {
 
   for (const version of AI_VERSION_LABELS) {
     for (const scenario of SCENARIOS) {
-      it(`${version}: ${scenario.id} owes exactly "${scenario.decision}"`, () => {
+      it(`${version}: ${scenario.id} owes exactly "${scenario.decision}"${scenario.gated === true ? " or, gated, nothing" : ""}`, () => {
         const state = scenario.build(aiStrategyId({ profile: "ai:local", version }));
-        expect(claimAi(state, AI)?.decision).toBe(scenario.decision);
+        const owed = claimAi(state, AI)?.decision ?? null;
+        if (scenario.gated === true) expect([scenario.decision, null]).toContain(owed);
+        else expect(owed).toBe(scenario.decision);
       });
     }
   }
+
+  it("gates every gated turn start under llm-v8, and asks it under llm-v9, which asks every turn", () => {
+    const gated = SCENARIOS.filter((s) => s.gated === true);
+    expect(gated.length).toBeGreaterThan(0);
+    for (const scenario of gated) {
+      const owed = (version: "llm-v8" | "llm-v9") => claimAi(scenario.build(aiStrategyId({ profile: "ai:local", version })), AI)?.decision ?? null;
+      expect(owed("llm-v8"), scenario.id).toBeNull();
+      expect(owed("llm-v9"), scenario.id).toBe("turn-start");
+    }
+  });
 });
 
 describe("scenario kinds", () => {
@@ -247,6 +259,24 @@ describe("a pitch that credits the other side with what it doesn't have", () => 
   it("passes the same pitch when the other side does hold a full set", async () => {
     const record = await runScenario(byId("turn-start-propose-pitch-full-set"), llmV6, propose(pitch, 1200), 0, null);
     expect(record.check?.error).toBeNull();
+  });
+});
+
+describe("an auction note that gives the maximum away", () => {
+  const run = (version: "llm-v8" | "llm-v11", publicNote: string, maxBid: number) =>
+    runScenario(byId("auction-boardwalk"), { profile: "ai:local", version }, fakeModel({ ...NOTES, publicNote, maxBid }), 0, null);
+
+  it("errors on a note shown while the auction runs that names the maximum, give or take two bids", async () => {
+    expect((await run("llm-v11", "I'll go to $400 for Boardwalk.", 400)).check?.error).toBe(
+      `its public note, shown while the auction runs, gives away its $400 maximum ("I'll go to $400 for Boardwalk.")`,
+    );
+    expect((await run("llm-v11", "Up to $380, no more.", 400)).check?.error).toMatch(/gives away its \$400 maximum/);
+  });
+
+  it("passes a held note, another figure, or a seat that drops out", async () => {
+    expect((await run("llm-v8", "I'll go to $400 for Boardwalk.", 400)).check?.error).toBeNull();
+    expect((await run("llm-v11", "Boardwalk is worth far more than $250.", 400)).check?.error).toBeNull();
+    expect((await run("llm-v11", "Not for $400.", 0)).check?.error).toBeNull();
   });
 });
 

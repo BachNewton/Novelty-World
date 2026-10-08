@@ -1,5 +1,7 @@
 import { mortgageValueAt } from "../../../logic";
 import type { GameState } from "../../../types";
+import { withAiSeat } from "../seat";
+import { aiVersionOf } from "../strategy";
 import {
   AI,
   atTurn,
@@ -451,6 +453,23 @@ function repitchedOffer(id: string, lot: number, rivalLots: readonly number[], f
   };
 }
 
+/** A turn start where llm-v8's gate makes no call: nothing to build or lift,
+ *  and no shared set (or a board unchanged since the seat was last asked). A
+ *  skilled player still looks for plays here: buying a lot for cash, taking a
+ *  rival's completer out of play, or saying something to the table. What the
+ *  seat does is a judgment; whether asking finds anything is NEXT item 13. */
+function gatedTurnStart(id: string, turn: number, tests: string, build: (s: string) => GameState): Scenario {
+  return { id, kind: "judgment", phase: "mid", decision: "turn-start", tests, gated: true, build: (s) => turnStart(build(s)), choose: describeTurnStart };
+}
+
+/** The seat was asked its turn start four turn-groups ago, over this same
+ *  board, and planned `plan`. */
+function askedBefore(state: GameState, plan: string): GameState {
+  const version = aiVersionOf(state, AI);
+  if (!version) throw new Error("the seat isn't an AI seat");
+  return withAiSeat(planned(state, plan), AI, { turnStart: { turn: state.turns.length - 4, fingerprint: version.turnStartFingerprint(state, AI) } });
+}
+
 // --- The suite -----------------------------------------------------------------
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -810,6 +829,62 @@ export const SCENARIOS: readonly Scenario[] = [
       ),
     choose: describeTurnStart,
   },
+
+  gatedTurnStart(
+    "turn-start-gated-quiet-board",
+    18,
+    "A quiet board: the seat shares no color set and can't build; four players with scattered lots and $800-$1,000 each.",
+    (s) =>
+      withCash(
+        owning(atTurn(table(s), 18), {
+          [AI]: [SQ.oriental, SQ.atlantic, SQ.reading],
+          [RIVAL]: [SQ.stJames, SQ.kentucky, SQ.pennRR],
+          [OTHER]: [SQ.pacific, SQ.mediterranean],
+          [FOURTH]: [SQ.park, SQ.electric],
+        }),
+        { [AI]: 900, [RIVAL]: 1000, [OTHER]: 850, [FOURTH]: 800 },
+      ),
+  ),
+  gatedTurnStart(
+    "turn-start-gated-broker-completer",
+    24,
+    "A rival holds two oranges; a cash-poor third player ($90) holds New York; the seat ($1,100) shares no set. It could buy New York out of the rival's reach.",
+    (s) =>
+      withCash(
+        owning(atTurn(table(s), 24), {
+          [AI]: [SQ.vermont, SQ.reading, SQ.marvin],
+          [RIVAL]: [SQ.stJames, SQ.tennessee, SQ.bAndO],
+          [OTHER]: [SQ.newYork, SQ.baltic],
+          [FOURTH]: [SQ.pacific, SQ.water],
+        }),
+        { [AI]: 1100, [RIVAL]: 1200, [OTHER]: 90, [FOURTH]: 700 },
+      ),
+  ),
+  gatedTurnStart(
+    "turn-start-gated-cash-for-railroad",
+    28,
+    "The seat holds three railroads and $900; a cash-poor player ($70) holds the fourth. Railroads aren't a color set, so llm-v8's gate never asks.",
+    (s) =>
+      withCash(
+        owning(atTurn(table(s), 28), {
+          [AI]: [SQ.reading, SQ.pennRR, SQ.bAndO, SQ.baltic],
+          [FOURTH]: [SQ.shortLine, SQ.kentucky],
+          [RIVAL]: [SQ.atlantic, SQ.ventnor, SQ.indiana],
+          [OTHER]: [SQ.park, SQ.stCharles],
+        }),
+        { [AI]: 900, [FOURTH]: 70, [RIVAL]: 1100, [OTHER]: 600 },
+      ),
+  ),
+  gatedTurnStart(
+    "turn-start-gated-unchanged-board",
+    30,
+    "Holds Illinois; a rival with $1,000 holds the other two reds. Asked four turns ago over the same board, it planned to hold out for $700; llm-v8's gate doesn't ask again.",
+    (s) =>
+      askedBefore(
+        withCash(owning(atTurn(table(s), 30), { [AI]: [SQ.illinois, SQ.oriental], [RIVAL]: [SQ.kentucky, SQ.indiana] }), { [AI]: 700, [RIVAL]: 1000 }),
+        "Hold Illinois unless Sam offers $700 or more for it.",
+      ),
+  ),
 
   proposePitch("turn-start-propose-pitch-orange", 40, PITCH_ORANGE_LOTS, { [AI]: 1399, [RIVAL]: 191, [OTHER]: 92, [FOURTH]: 468 }, pitchOrangeHistory),
   proposePitch(

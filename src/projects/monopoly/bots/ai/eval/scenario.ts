@@ -21,11 +21,12 @@ import type { AiResolution } from "../spec";
 //   repetitions. It is never pass or fail.
 //
 // Either kind counts an unusable answer (one the settle step rejects) as an
-// error, since that is never a matter of taste, and so are three mistakes that
+// error, since that is never a matter of taste, and so are four mistakes that
 // are objective in any position (`SHARED_CHECKS`): a proposal or counter whose
 // terms contradict the seat's own message, a note or plan that claims control
-// over where the seat lands, and a pitch that credits the other side with sets
-// or building it doesn't have. Checks read the decision as
+// over where the seat lands, a pitch that credits the other side with sets or
+// building it doesn't have, and an auction note shown while the auction runs
+// that gives the seat's maximum away. Checks read the decision as
 // intents, never a version's own answer fields, so one scenario measures every
 // version. Error scenarios come with disguised variants (other sets, seats and
 // cash), so a fix that only learned the original position shows up.
@@ -59,6 +60,11 @@ export interface Scenario {
   choose: (outcome: Outcome) => string;
   /** For an error scenario: the objective mistake in this answer, or null. */
   error?: (outcome: Outcome) => string | null;
+  /** A turn start that a version's gate may skip: llm-v8's skips a seat that
+   *  can't build or lift a mortgage and shares no set, or whose board hasn't
+   *  changed since it was last asked. A version that skips it makes no call
+   *  (the seat just rolls), which is recorded as "not asked", never an error. */
+  gated?: boolean;
 }
 
 /** A scenario's verdict on one answer. Only `error` counts against a version. */
@@ -250,8 +256,33 @@ export function pitchCreditsMissingSet(o: Outcome): string | null {
   return builds ? null : `its pitch credits the other side with building it can't do ("${claim.trim()}")`;
 }
 
+// --- An auction note that gives the maximum away --------------------------------
+//
+// A seat answers an auction with the most it will pay, and the pacer bids for
+// it in $10 steps up to that. A public note the table reads while the auction
+// is still running, naming that maximum, lets every rival bid it up to the
+// last dollar or stop just short. A version that holds its auction notes until
+// the close can't leak this way, so only a note the game shows at once is
+// checked. A note naming another figure (the lot's price, a bluff) passes.
+
+/** How close a stated amount may come to the maximum before it gives it away:
+ *  two of the pacer's $10 steps. */
+const LEAK_MARGIN = 20;
+
+/** An auction note shown while the auction runs that names the seat's
+ *  maximum, or null. */
+export function leaksAuctionMax(o: Outcome): string | null {
+  const max = o.resolution?.auctionMax ?? null;
+  const state = after(o);
+  if (max === null || max === 0 || !state) return null;
+  const note = state.turns.at(-1)?.events.findLast((e) => e.kind === "bot-note" && e.playerId === o.seat);
+  if (note?.kind !== "bot-note" || note.heldForAuction !== undefined) return null;
+  const named = amountsIn(note.text).find((amount) => Math.abs(amount - max) <= LEAK_MARGIN);
+  return named === undefined ? null : `its public note, shown while the auction runs, gives away its $${String(max)} maximum ("${note.text}")`;
+}
+
 /** The mistakes every scenario checks, judgment ones included. */
-const SHARED_CHECKS: readonly ((o: Outcome) => string | null)[] = [termsContradictMessage, claimsMovement, pitchCreditsMissingSet];
+const SHARED_CHECKS: readonly ((o: Outcome) => string | null)[] = [termsContradictMessage, claimsMovement, pitchCreditsMissingSet, leaksAuctionMax];
 
 /** The intents the answer became, in order. */
 export function intentsOf(o: Outcome): Intent[] {

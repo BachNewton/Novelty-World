@@ -27,6 +27,9 @@ export async function runScenario(
     server,
   };
   const claim = claimAi(scenario.build(aiStrategyId(strategy)), AI);
+  if (claim === null && scenario.gated === true) {
+    return { ...base, decision: scenario.decision, request: null, result: null, metrics: null, settle: null, check: { kind: scenario.kind, choice: "not asked", error: null } };
+  }
   if (claim?.decision !== scenario.decision) {
     const owed = claim ? `owes "${claim.decision}"` : "owes nothing";
     return {
