@@ -80,18 +80,17 @@ not just errors.
    do, so measure it on two model families, and watch for new stalls (terms that
    don't net out) and for small models proposing three-way deals they can't
    reason through.
-13. **The Sonnet versions in a live game** (model-specific). llm-v9 (asks
-   at every turn start: found a play in 6 of 20 turns llm-v8's gate skips,
-   no errors, ~6 s a call) and llm-v11 (auction notes shown live: no leaked
-   maximum in 35 notes) are kept for Sonnet; llm-v10 (no "mortgage it
-   instead" line) was dropped (`EVOLUTION.md`, "Three Sonnet-specific
-   experiments"). Each changes one thing in llm-v8, so neither has the other's
-   change: a version with both, plus whatever item 24 settles, is the
-   candidate for the live `ai:claude` seats. Watch in a live game: llm-v11's
-   lower Boardwalk maximum ($300 in 6 of 10, against llm-v8's $380), and
-   whether every-turn asks miss a completer to buy out of a rival's reach
-   (0/5 in `turn-start-gated-broker-completer`). A turn start that does nothing
-   still shows no line; letting it speak (table talk as play) is a further
+13. **llm-v12 in a live game** (model-specific). llm-v12 is llm-v8 with
+   llm-v9's every-turn ask and llm-v11's live auction notes, kept on Sonnet
+   (`EVOLUTION.md`, "llm-v12"): both effects hold, no new errors, and it is
+   the candidate for the live `ai:claude` seats (item 24). Watch in a live
+   game: the lower Boardwalk maximum, which repeated ($300 in 5 of 10, below
+   $380 in 8 of 10, against llm-v8's $380 in 7 of 10), and whether
+   every-turn asks miss a completer to buy out of a rival's reach (0/10
+   across llm-v9 and llm-v12 in `turn-start-gated-broker-completer`). Asking
+   every turn also gives llm-v8's false pitch (~15-20% of Sonnet's
+   proposals) more turns to appear in. A turn start that does nothing still
+   shows no line; letting it speak (table talk as play) is a further
    change, measured on its own.
 14. **A described board, as an experiment** (its own version, never bundled).
    The view is a catalogue: square numbers and one line per lot. Lead it with a
@@ -168,9 +167,12 @@ not just errors.
    play llm-v5. On Sonnet, llm-v7 cut the new families' errors from 17/40
    (llm-v6) to 8/40 (false pitches, movement claims) with none in the older
    error families (0/72); llm-v8 is the same plus the history (10/40, 0/10). Recommendation: llm-v7 for game night, llm-v8 once a
-   live game shows the history reads well. A new seat takes the newest
+   live game shows the history reads well.
+   **For the owner, game night:** if the history (llm-v8) is trusted live,
+   play the `ai:claude` seats on llm-v12 (llm-v8 plus both kept Sonnet
+   changes); otherwise llm-v7. Nothing live or default was changed. A new seat takes the newest
    general version (llm-v8) unless another is picked; the Sonnet-only
-   llm-v9 and llm-v11 (item 13) are listed but never the default.
+   llm-v9, llm-v11 and llm-v12 (item 13) are listed but never the default.
 
 ## Loose ends
 

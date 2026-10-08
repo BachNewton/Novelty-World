@@ -1377,3 +1377,72 @@ the table sees what the seat says while it bids.
 Lesson: **a crutch built for a weak model can be measured off a strong one
 cheaply**, but removing it can move judgment as well as errors, as the
 mortgage line showed: read the spread, not only the error count.
+
+## llm-v12: llm-v9 and llm-v11 together, for Sonnet (2026-10-08). Kept.
+
+NEXT item 13's candidate for the live `ai:claude` seats: llm-v8 asked at
+every turn start (llm-v9's `turnStartOwed`) with its auction notes shown live
+(llm-v11's specs, `holdAuctionNotes: false`). It imports all three frozen
+versions and adds nothing of its own, so it is **model-specific** like its
+parts and listed in `MODEL_SPECIFIC`; a new seat still defaults to llm-v8.
+
+Hypothesis: the two changes touch different decisions, so each effect holds as
+it did alone and the combination adds no error. The run confirmed the first
+half before any answer was read: every request llm-v12 sent is byte-identical
+to its parent's in the same scenario (the gated turn starts to llm-v9's, the
+auctions to llm-v11's, the turn-start error scenarios to llm-v8's). What
+differs below is sampling.
+
+Ran on Claude Sonnet 5.5 (`--model claude-cli:sonnet`, two calls at a time):
+the four gated turn starts and five auctions at 5 reps (Boardwalk and own-set
+at 10), every error scenario once, then the six turn-start error scenarios
+whose single pass failed, at 5 reps for llm-v8 and 4 more for llm-v12 in the
+same conditions. 141 decisions, ~149 CLI calls with counter follow-ups.
+
+| Sonnet 5.5, 5 reps | llm-v9 alone | llm-v12 |
+|---|---|---|
+| Quiet board | 5 roll | 5 roll |
+| Broker (New York) | 5 roll | 5 roll; still none sees the completer |
+| Cash for a railroad | 5 proposals, $240-$280 | 5 proposals, $240-$280; 1 false pitch ("gives you a quick boost to build on your own sets") |
+| Unchanged board | 4 roll, 1 offer | 5 roll |
+| Plays found / errors | 6/20, 0/20 | 5/20, 1/20 |
+| Turn-start time, median / p90 | 5.6 s / 7.2 s | 6.4 s / 7.4 s |
+
+| Sonnet 5.5 | llm-v8 (held) | llm-v11 (live) | llm-v12 (live) |
+|---|---|---|---|
+| Notes naming a dollar amount | 0/35 | 0/35 | 0/35 |
+| `leaksAuctionMax` | n/a | 0/35 | 0/35 |
+| "Face value" on Mediterranean | 1/5 | 3/5 | 3/5 |
+| Boardwalk maximum (10) | $380 x7, $400 x2, $360 | $300 x6, $380 x3, $360 | $300 x5, $380 x2, $320, $330, $340 |
+| Completes own set (10), median | $480 | $455 | $560 ($420-$600) |
+| Blocks a rival / cheap lot / into illiquidity | $230-$260 / $60 / $180-$200 | $230-$260 / $60 / $190-$240 | $230-$260 / $60 / $200-$250 |
+
+Errors, all 32 error scenarios once: 4/32, all in the two turn-start
+families llm-v8 already fails on Sonnet (false pitches 2/4, movement claims
+2/2); buys, trade votes, proposal direction and debts 0/26. Re-run in the same
+conditions on those six scenarios, whose requests are llm-v8's to the byte:
+
+| Turn-start error families, Sonnet | llm-v8 (5 reps) | llm-v12 (1 + 4 reps) |
+|---|---|---|
+| False pitch ("gives you money to build on your pinks") | 3/20 | 4/20 |
+| Movement claim ("avoid Sam's railroads if possible") | 3/10 | 3/10 |
+
+No new error family, and the old ones at llm-v8's rate. The one gated-turn
+error is the same false pitch: asking every turn gives Sonnet more pitches to
+write, so the llm-v8 pitch rate (~15-20% of proposals) now applies to more
+turns. That is llm-v8's error, carried, not llm-v12's.
+
+**Boardwalk, v11's open question: it repeats.** $300 in 5 of 10 and below
+$380 in 8 of 10, against llm-v8's $380 in 7 of 10, on a request identical to
+llm-v11's. So the live-note sentence, not chance, lowers Sonnet's Boardwalk
+maximum. Its notes hint why: telling the table "only below its price" or "not
+above its value" seems to commit it to a cap it then honours. Still a
+judgment, not an error; nothing was changed to chase it. Its own-set maximum
+moved the other way (median $560 against $455 and $480), so the sentence
+doesn't simply lower bids.
+
+**Verdict: kept, for Sonnet.** Each effect holds as it did alone (plays at
+turn starts the gate skips, no leaked maximum), and the combination adds no
+error. Lesson: when a combined version's parts touch disjoint decisions,
+comparing its requests to its parents' proves the combination before any
+answer is spent, and leaves only sampling to measure.
