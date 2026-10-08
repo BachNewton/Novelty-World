@@ -80,16 +80,19 @@ not just errors.
    do, so measure it on two model families, and watch for new stalls (terms that
    don't net out) and for small models proposing three-way deals they can't
    reason through.
-13. **Ask at every turn start, for a strong model** (model-specific). The
-   turn-start gate skips the model when the seat can't build or lift a mortgage
-   and shares no set, or the board hasn't changed since it was last asked. That
-   saved llm-v1's ~30 s Qwen calls that mostly answered "roll", but it also
-   means the seat never says anything that turn, and can never find the rare
-   plays a skilled player looks for: brokering a trade between two others that
-   leaves it better off, buying a lot for cash with no set at stake, or table
-   talk as play in itself. Live games pay time for quality, so for Sonnet try
-   asking every turn and measure what it buys: proposals made, how often they
-   are accepted, what it says, and the seconds added per AI turn.
+13. **The Sonnet versions in a live game** (model-specific). llm-v9 (asks
+   at every turn start: found a play in 6 of 20 turns llm-v8's gate skips,
+   no errors, ~6 s a call) and llm-v11 (auction notes shown live: no leaked
+   maximum in 35 notes) are kept for Sonnet; llm-v10 (no "mortgage it
+   instead" line) was dropped (`EVOLUTION.md`, "Three Sonnet-specific
+   experiments"). Each changes one thing in llm-v8, so neither has the other's
+   change: a version with both, plus whatever item 24 settles, is the
+   candidate for the live `ai:claude` seats. Watch in a live game: llm-v11's
+   lower Boardwalk maximum ($300 in 6 of 10, against llm-v8's $380), and
+   whether every-turn asks miss a completer to buy out of a rival's reach
+   (0/5 in `turn-start-gated-broker-completer`). A turn start that does nothing
+   still shows no line; letting it speak (table talk as play) is a further
+   change, measured on its own.
 14. **A described board, as an experiment** (its own version, never bundled).
    The view is a catalogue: square numbers and one line per lot. Lead it with a
    factual description of each player's situation, written as a person would
@@ -123,7 +126,7 @@ not just errors.
    learning from wins needs more games than this machine can play. It should
    cut a small model's stalls and repeated errors, and pull its judgment toward
    the teacher's, never past it. It binds the model to one version's prompt,
-   so it waits until the general changes have landed (items 13 and 14 are
+   so it waits until the general changes have landed (item 14 is
    the last queued; llm-v7 and llm-v8 landed the rest), and
    the fine-tuned model is a new model with its own scoreboards. Before using
    Claude's answers as training data, the owner checks Anthropic's terms on
@@ -165,8 +168,9 @@ not just errors.
    play llm-v5. On Sonnet, llm-v7 cut the new families' errors from 17/40
    (llm-v6) to 8/40 (false pitches, movement claims) with none in the older
    error families (0/72); llm-v8 is the same plus the history (10/40, 0/10). Recommendation: llm-v7 for game night, llm-v8 once a
-   live game shows the history reads well. A new seat takes the newest version
-   (llm-v8) unless another is picked.
+   live game shows the history reads well. A new seat takes the newest
+   general version (llm-v8) unless another is picked; the Sonnet-only
+   llm-v9 and llm-v11 (item 13) are listed but never the default.
 
 ## Loose ends
 

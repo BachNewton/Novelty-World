@@ -301,8 +301,8 @@ and model it reaches: `ai:local` or `ai:claude`) and an **AI version** (`llm-vN`
 place that writes or parses it. The lobby lists every version under each
 profile, newest first; a new seat takes the newest general one
 (`DEFAULT_AI_VERSION`). A version tuned and measured on one model only
-(`MODEL_SPECIFIC` in `versions/index.ts`, e.g. the Sonnet experiments
-llm-v9 to llm-v11) is listed but never the default.
+(`MODEL_SPECIFIC` in `versions/index.ts`, e.g. the Sonnet versions
+llm-v9 and llm-v11) is listed but never the default.
 
 **AI versions are frozen, like the rule-bot archive.** A version
 (`bots/ai/versions/llm-vN/`, registered in `versions/index.ts`) bundles
@@ -317,7 +317,7 @@ machinery around a version stays shared and unversioned: claim/ask/settle
 UI. A version may lean on shared engine helpers (and llm-v1 on the eval log
 renderer); a change there is a change to every version that uses it. A
 version that changes one part of another may import the rest from it
-(llm-v9 to llm-v11 from llm-v8): a registered version is frozen, so what it
+(llm-v9 and llm-v11 from llm-v8): a registered version is frozen, so what it
 shares can't drift.
 
 **The model is the other axis, outside the bundle.** Which model answers is

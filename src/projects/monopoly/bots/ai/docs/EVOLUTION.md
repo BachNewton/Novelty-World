@@ -1277,3 +1277,103 @@ compact history before llm-v8 plays live on Gemma.
   agent's replays shared the Gemma slot for an hour; trade votes went from
   ~40 s to ~75 s each. Plan Gemma runs in calls, and expect the wall clock to
   double when the slot is shared.
+
+## Three Sonnet-specific experiments on llm-v8 (2026-10-08)
+
+Built for the live `ai:claude` seats, so each is **model-specific**: one change
+to llm-v8, measured on Claude Sonnet 5.5 only (`--model claude-cli:sonnet`,
+two calls at a time, 5 reps per scenario beside llm-v8 in the same runs, 10
+where a judgment moved). Each imports the rest of the frozen llm-v8 instead of
+copying it. They are listed in `MODEL_SPECIFIC` (`versions/index.ts`), so a
+new seat still defaults to llm-v8, the newest general version. 290 decisions
+(~405 CLI calls with counter follow-ups) in all.
+
+### llm-v9: ask at every turn start (NEXT item 13). Kept, for Sonnet.
+
+Hypothesis: llm-v8's gate (ask only when the seat can build or lift a
+mortgage, or shares a color set and the board changed) hides plays a skilled
+player finds. Four new judgment scenarios, `turn-start-gated-*`, are turn
+starts where llm-v8 makes no call (the harness now records those as "not
+asked", 20/20 for llm-v8): a quiet board, a broker chance (a rival holds two
+oranges, a $90 player holds New York), cash for a lot (the seat holds three
+railroads, a $70 player the fourth: railroads aren't a color set, so llm-v8
+never asks) and an unchanged board (holds Illinois beside a rival's two
+reds, asked four turns ago).
+
+| llm-v9, 5 reps each | What it did |
+|---|---|
+| Quiet board | 5 roll |
+| Broker (New York) | 5 roll; none saw the completer |
+| Cash for a railroad | 5 proposals, $240-$280 for Short Line ($200 printed), pitched to the $70 player's need for cash |
+| Unchanged board | 4 roll, 1 offers $500 for the rival's two reds |
+
+Errors 0/20 (no false pitch, no movement claim). Median 5.6 s per call, p90
+7.2 s: that is what every AI turn start adds. Table talk: a turn start that
+does nothing still shows no line (llm-v8's rule), and its notes would have
+been "Rolling." anyway, so asking buys plays, not chat. Kept: 6 of 20 asks
+found a real play the gate never offers, none was a bad one, and the cost is
+seconds on Sonnet (on a 30-40 s local model it would not be worth it, which
+is why it is model-specific).
+
+### llm-v10: no "mortgage it instead for $X" in trades. Dropped.
+
+Hypothesis: llm-v4's mortgage line (beside each lot the seat would give away,
+and as a list of what mortgaging each lot raises, in votes, counters and
+proposals) anchors Sonnet's asks low. llm-v10 removes both. Ran the trade-vote
+error families (below-mortgage, counter-holdings, counter-message: 45
+answers) and the judgments J1, J2, repitched and arms-rival.
+
+| Sonnet 5.5 | llm-v8 | llm-v10 |
+|---|---|---|
+| Errors, trade-vote error families | 1/45 | 0/45 |
+| Errors, all answers (incl. the 10-rep judgments) | 4/110 (terms naming another price than the message) | 1/100 (a movement claim) |
+| Sales below the mortgage value | 0 | 0 (the guard isn't needed on Sonnet) |
+| Counters that sell, error families | 27/45 | 32/45 |
+| Mean ask, Pacific / Marvin / Kentucky / Water Works | $330 / $688 / $255 / $146 | $372 / $780 / $270 / $172 |
+| Ask, Connecticut (counter-message) | $450 x5 | $400-$420 |
+| `vote-arms-rival-monopoly` (10 reps) | 7 counter $700-$1,000, 3 decline | 1 counter $900, 9 decline |
+| J1, the stuck reds (10) | 6 accept, 1 decline, 3 counter | 8 accept, 2 counter |
+| J1 orange (10) | 9 sell the pair (+ railroads, $400-$640), 1 buys New York | 3 sell, 7 buy New York instead |
+| Repitched New York (10) | 7 counter $650-$700, 3 decline | 5 counter, 5 decline |
+| J2 (5) | 5 accept | 5 accept |
+
+The asks rose a little in four families and fell in one: no clear anchor.
+What moved is elsewhere: without the line, Sonnet counters a rival's
+set-completing offer far less (1/10 against 7/10) and accepts more of the J1
+sale a human flagged in 46181f (8/10 against 6/10). Its fewer errors are the
+counters it no longer makes (every llm-v8 error was a counter's terms), which
+METHOD rules out as progress. Dropped and unregistered; the code is in commit
+9d8d1fc. Lesson: the line does more than set a floor; it reminds a strong
+model it can keep the lot and still raise cash, which seems to be what makes it
+counter rather than accept or walk away.
+
+### llm-v11: auction notes shown live. Kept, for Sonnet.
+
+llm-v2 began holding an AI seat's auction note until the auction closes
+(`holdAuctionNotes`, `held.ts`), because weaker models wrote their maximum
+into it. llm-v11 shows it at once (`holdAuctionNotes: false`) and its
+question says so ("shown to the table at once, while the auction runs"). A
+new shared check, `leaksAuctionMax` (`eval/scenario.ts`), fails a note the game
+shows while the auction runs that names an amount within $20 of the seat's
+maximum; a held note can't leak, so it never fires on llm-v2 to llm-v10.
+Ran the five auction judgments (Boardwalk and own-set at 10 reps).
+
+| Sonnet 5.5 | llm-v8 (held) | llm-v11 (live) |
+|---|---|---|
+| Notes naming a dollar amount | 0/35 | 0/35 |
+| `leaksAuctionMax` | n/a (0 would have leaked) | 0/35 |
+| Maximum given in words ("up to face value", Mediterranean at its $60 face) | 1/5 | 3/5 |
+| Boardwalk maximum (10) | $380 x7, $400 x2, $360 | $300 x6, $380 x3, $360 |
+| Completes own set (10) | median $480 | median $455 |
+| Blocks a rival, cheap lot, into illiquidity | $230-$260, $60, $180-$200 | $230-$260, $60, $190-$240 |
+
+Sonnet's notes stay table talk with no figure in them ("Illinois completes my
+set, I'm bidding"), held or not, and no bluff appeared. The one way it gives a
+maximum away is "face value" on a lot whose maximum is its price, which costs a
+$60 lot nothing. Its Boardwalk maximum fell ($300 in 6 of 10), a judgment, not
+an error: watch it in live games. Kept: the crutch isn't needed on Sonnet, and
+the table sees what the seat says while it bids.
+
+Lesson: **a crutch built for a weak model can be measured off a strong one
+cheaply**, but removing it can move judgment as well as errors, as the
+mortgage line showed: read the spread, not only the error count.
