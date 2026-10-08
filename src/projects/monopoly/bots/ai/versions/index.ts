@@ -9,6 +9,7 @@ import { LLM_V7 } from "./llm-v7";
 import { LLM_V8 } from "./llm-v8";
 import { LLM_V9 } from "./llm-v9";
 import { LLM_V11 } from "./llm-v11";
+import { LLM_V12 } from "./llm-v12";
 
 /** Every AI version a seat can play, by label. A version is a frozen bundle of
  *  everything we control about how a model plays (`AiVersion`): changing any of
@@ -25,12 +26,13 @@ export const AI_VERSIONS = {
   "llm-v8": LLM_V8,
   "llm-v9": LLM_V9,
   "llm-v11": LLM_V11,
+  "llm-v12": LLM_V12,
 } as const satisfies Readonly<Record<string, AiVersion>>;
 
 export type AiVersionLabel = keyof typeof AI_VERSIONS;
 
 /** Newest first: the order the lobby lists them in. */
-export const AI_VERSION_LABELS: readonly AiVersionLabel[] = ["llm-v11", "llm-v9", "llm-v8", "llm-v7", "llm-v6", "llm-v5", "llm-v4", "llm-v3", "llm-v2", "llm-v1"];
+export const AI_VERSION_LABELS: readonly AiVersionLabel[] = ["llm-v12", "llm-v11", "llm-v9", "llm-v8", "llm-v7", "llm-v6", "llm-v5", "llm-v4", "llm-v3", "llm-v2", "llm-v1"];
 
 /** Versions tuned and measured on one model only (METHOD.md, "model-specific"),
  *  by the model they were measured on. They stay selectable, but are never a
@@ -38,6 +40,7 @@ export const AI_VERSION_LABELS: readonly AiVersionLabel[] = ["llm-v11", "llm-v9"
 export const MODEL_SPECIFIC: Readonly<Partial<Record<AiVersionLabel, string>>> = {
   "llm-v9": "Claude Sonnet 5.5",
   "llm-v11": "Claude Sonnet 5.5",
+  "llm-v12": "Claude Sonnet 5.5",
 };
 
 /** The version a new AI seat plays unless another is picked: the newest one
