@@ -477,7 +477,8 @@ reading anything public; cite only generically in the tree.
   the people searched, so expect public-only views. Read only: never message,
   follow, friend, react, comment or post. Keep a human pace: if Facebook
   shows a checkpoint, a warning or a login challenge, stop using it and
-  report it.
+  report it. The owner clearing the checkpoint and signing in again has
+  restored it.
 - Find accounts through an anchor: the full name plus a relative's name, or
   mutual friends with a known relative, which pick the right namesake.
   Searching a name without an anchor relative wastes time. An obituary's

@@ -136,7 +136,11 @@ in `sources.md`.
    old count still narrows a living person's children at that date ("a
    grandson" of someone with one child is that child's son).
 3. **Each child's obituary**: it names siblings, including half-siblings the
-   tree doesn't have.
+   tree doesn't have. Where the couple is still living, an **aunt's or
+   uncle's obituary** does the same work: it names the living sibling with
+   their current spouse ("sister, Given (Spouse) Surname") and the nieces
+   and nephews with theirs. A rare birth surname searched exactly in the
+   state reaches it.
 4. **Grave records' family links** (see `sources.md`): quickest for a dead
    family, never proof that an unlinked child doesn't exist. Tie an unlinked
    person by another clue (a twin's identical birth date and county).
