@@ -111,6 +111,13 @@ images, cited as "FamilySearch 3:1:XXXX"). The way into the 1800–1870
 generations, where no census states relationships: county deed, will,
 probate and orphans' court books, and published genealogies. What they tie
 is in `methods.md` ("Finding a line's origin").
+It also reaches **recent living generations** the indexes miss: Lake County,
+Ohio marriage applications 1955–2017 (each names both parties' parents, the
+mother by maiden name, birthplaces and ages, and any earlier marriage with
+its minor children), the Ohio Obituary Collection 1970–2014, and Cuyahoga
+probate estate files. Search two rare surnames together (a married name and
+a birth surname) or a parent's name with a rare surname. Naturalization
+petitions there list the petitioner's children with birth dates.
 
 - Plain keyword queries work: a quoted head of family plus a child's name
   (`"Given Surname" Child`), or a quoted name plus "deceased". Place filters
@@ -311,7 +318,9 @@ is in `methods.md` ("Finding a line's origin").
 **Coverage limits** (a null here says little; don't log it as the step done):
 
 - Ohio County Marriages is thin for Cuyahoga and Lake after about 1940, and
-  lacks some counties' 1930s marriages entirely.
+  lacks some counties' 1930s marriages entirely. Lake's later marriages are
+  in Full Text (above). The Cuyahoga probate site's case search
+  (`probate.cuyahogacounty.us`) timed out from here.
 - Indexed Michigan marriages effectively stop around 1952 (few after 1925).
 - California births after 1995 and Kentucky marriages after 1999 are not
   indexed; marriages after about 1990 are mostly absent everywhere.
