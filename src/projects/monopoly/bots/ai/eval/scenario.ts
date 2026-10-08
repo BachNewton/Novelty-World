@@ -223,7 +223,7 @@ export function claimsMovement(o: Outcome): string | null {
 // negated sentence ("two greens you can't build on") is true and passes.
 
 const CREDITS_BUILDING =
-  /\b(?:your\s+(?:builds?|building|houses|hotels|monopoly|monopolies|full\s+sets?)|build(?:ing)?\s+(?:on|up)\s+your|funds?\s+your|develop(?:ing)?\s+your)\b/i;
+  /\b(?:your\s+(?:builds?|building|houses|hotels|monopoly|monopolies|full\s+sets?)|build(?:ing)?\s+(?:on|up)\s+your|funds?\s+your\s+(?:build|houses|hotels)|develop(?:ing)?\s+your)\b/i;
 const NEGATED = /\b(?:not|no|nothing|never|without|cannot)\b|n['’]t\b/i;
 
 const PROPERTY_COLORS: readonly PropertyColor[] = [...new Set(SPACES.flatMap((space) => (space.kind === "property" ? [space.color] : [])))];

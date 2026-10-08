@@ -1,0 +1,719 @@
+{
+  "version": "llm-v7",
+  "at": "2026-10-08T01:09:35.677Z",
+  "reps": 5,
+  "server": {
+    "model": "claude-cli/claude-sonnet-5-5 (effort: think=high, quick=low)",
+    "contextPerSlot": null,
+    "slots": 2,
+    "defaults": {}
+  },
+  "scenarios": [
+    {
+      "id": "buy-completes-set",
+      "kind": "error",
+      "phase": "early",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 3818
+    },
+    {
+      "id": "buy-completes-set-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 4024
+    },
+    {
+      "id": "buy-completes-set-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 3763
+    },
+    {
+      "id": "buy-leaves-little-for-rent",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "buy",
+      "runs": 3,
+      "errors": 1,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"Collect green properties, trade for sets, keep cash buffer, avoid red and orange.\")"
+      ],
+      "choices": {
+        "buy": 3
+      },
+      "medianMs": 4674
+    },
+    {
+      "id": "auction-boardwalk",
+      "kind": "judgment",
+      "phase": "early",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $380": 3
+      },
+      "medianMs": 4030
+    },
+    {
+      "id": "auction-blocks-rival-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $230": 1,
+        "max $260": 2
+      },
+      "medianMs": 4433
+    },
+    {
+      "id": "auction-complete-into-illiquidity",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "auction",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "max $200": 2,
+        "max $240": 1
+      },
+      "medianMs": 3985
+    },
+    {
+      "id": "vote-below-mortgage-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3
+      },
+      "medianMs": 4354
+    },
+    {
+      "id": "vote-below-mortgage-utility",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Water Works, gets $150": 2,
+        "counter: gives Water Works, gets $170": 1
+      },
+      "medianMs": 9078
+    },
+    {
+      "id": "vote-below-mortgage-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Kentucky Avenue, gets $240": 2,
+        "decline": 1
+      },
+      "medianMs": 9402
+    },
+    {
+      "id": "vote-counter-holdings-railroad",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pennsylvania Railroad, gets $200": 2,
+        "counter: gives Pennsylvania Railroad, gets $260": 1
+      },
+      "medianMs": 9149
+    },
+    {
+      "id": "vote-counter-holdings-green",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pacific Avenue, gets $350": 2,
+        "decline": 1
+      },
+      "medianMs": 9254
+    },
+    {
+      "id": "vote-counter-holdings-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3
+      },
+      "medianMs": 5472
+    },
+    {
+      "id": "vote-counter-message-red",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3
+      },
+      "medianMs": 5002
+    },
+    {
+      "id": "vote-counter-message-yellow",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Marvin Gardens, gets $750": 1,
+        "counter: gives Marvin Gardens, gets $800": 1,
+        "counter: gives Marvin Gardens, gets $620": 1
+      },
+      "medianMs": 11339
+    },
+    {
+      "id": "vote-counter-message-light-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Connecticut Avenue, gets $500": 1,
+        "decline": 1,
+        "counter: gives Connecticut Avenue, gets $400": 1
+      },
+      "medianMs": 10224
+    },
+    {
+      "id": "vote-counter-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives St. James Place, gets $100": 1,
+        "counter: gives St. James Place, gets $110": 2
+      },
+      "medianMs": 10422
+    },
+    {
+      "id": "vote-counter-direction-yellow",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Ventnor Avenue, gets $110": 2,
+        "counter: gives Ventnor Avenue, gets $140": 1
+      },
+      "medianMs": 10893
+    },
+    {
+      "id": "vote-counter-direction-railroad",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Short Line, gets $70": 2,
+        "counter: gives Short Line, gets $90": 1
+      },
+      "medianMs": 11762
+    },
+    {
+      "id": "vote-arms-rival-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives New York Avenue, gets $650": 1,
+        "decline": 1,
+        "counter: gives New York Avenue, gets $800": 1
+      },
+      "medianMs": 11188
+    },
+    {
+      "id": "vote-distress-fire-sale",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "trade-vote",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives Pennsylvania Avenue, gets $300": 2,
+        "accept": 1
+      },
+      "medianMs": 11684
+    },
+    {
+      "id": "vote-sell-pair-to-blocker",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 2,
+        "counter: gives Kentucky Avenue + Illinois Avenue, takes Reading Railroad, gets $800": 1,
+        "accept": 1,
+        "counter: gives Kentucky Avenue + Illinois Avenue, takes Reading Railroad, gets $850": 1
+      },
+      "medianMs": 14714
+    },
+    {
+      "id": "vote-sell-pair-to-blocker-orange",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: takes New York Avenue, pays $300": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes B. & O. Railroad, gets $650": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes B. & O. Railroad, gets $700": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes Pennsylvania Railroad + B. & O. Railroad, gets $520": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes Pennsylvania Railroad + B. & O. Railroad, gets $600": 1
+      },
+      "medianMs": 13513
+    },
+    {
+      "id": "vote-repitched-lower",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 4,
+        "counter: gives New York Avenue, takes St. James Place + Tennessee Avenue, pays $200": 1
+      },
+      "medianMs": 5742
+    },
+    {
+      "id": "vote-repitched-lower-red",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 4,
+        "counter: gives Illinois Avenue, takes Kentucky Avenue + Indiana Avenue, pays $300": 1
+      },
+      "medianMs": 6084
+    },
+    {
+      "id": "vote-overpay-for-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept; keeps $275": 5
+      },
+      "medianMs": 8069
+    },
+    {
+      "id": "vote-overpay-for-set-yellow",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: takes Ventnor Avenue + Marvin Gardens, pays $550; keeps $1100": 2,
+        "counter: takes Ventnor Avenue + Marvin Gardens, pays $600; keeps $1100": 1,
+        "counter: gives Reading Railroad, takes Ventnor Avenue + Marvin Gardens, pays $350; keeps $1100": 1,
+        "counter: takes Ventnor Avenue + Marvin Gardens, pays $650; keeps $1100": 1
+      },
+      "medianMs": 12200
+    },
+    {
+      "id": "turn-start-propose-direction",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Illinois Avenue, pays $300); keeps $1300": 2,
+        "proposes (takes Illinois Avenue, pays $320); keeps $1300": 1
+      },
+      "medianMs": 6526
+    },
+    {
+      "id": "turn-start-propose-direction-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Boardwalk, pays $650); keeps $1600": 1,
+        "proposes (takes Boardwalk, pays $600); keeps $1600": 1,
+        "proposes (takes Boardwalk, pays $550); keeps $1600": 1
+      },
+      "medianMs": 7399
+    },
+    {
+      "id": "turn-start-propose-direction-pink",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes States Avenue, pays $320); keeps $900": 1,
+        "proposes (takes States Avenue, pays $280); keeps $900": 1,
+        "proposes (takes States Avenue, pays $300); keeps $900": 1
+      },
+      "medianMs": 6877
+    },
+    {
+      "id": "turn-start-fresh-monopoly",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 6; keeps $400": 2,
+        "builds 9; keeps $100": 1
+      },
+      "medianMs": 8950
+    },
+    {
+      "id": "turn-start-thin-cash-dangerous-board",
+      "kind": "judgment",
+      "phase": "late",
+      "decision": "turn-start",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 2; keeps $50": 3
+      },
+      "medianMs": 9673
+    },
+    {
+      "id": "turn-start-propose-pitch-orange",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Tennessee Avenue, pays $600); keeps $1399": 2,
+        "proposes (takes Tennessee Avenue, pays $700); keeps $1399": 1,
+        "proposes (takes Tennessee Avenue, pays $650); keeps $1399": 2
+      },
+      "medianMs": 7843
+    },
+    {
+      "id": "turn-start-propose-pitch-red",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 2,
+      "errorReasons": [
+        "its pitch credits the other side with building it can't do (\"Jordan, $350 cash for Indiana is well above its $220 price, and it gives you money to build on your pinks.\")",
+        "its pitch credits the other side with building it can't do (\"Jordan, $380 cash for Indiana gives you a big boost to build on your pinks.\")"
+      ],
+      "choices": {
+        "proposes (takes Indiana Avenue, pays $350); keeps $1100": 3,
+        "proposes (takes Indiana Avenue, pays $380); keeps $1100": 1,
+        "proposes (takes Indiana Avenue, pays $320); keeps $1100": 1
+      },
+      "medianMs": 6552
+    },
+    {
+      "id": "turn-start-propose-pitch-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Boardwalk, pays $500); keeps $1300": 2,
+        "proposes (takes Boardwalk, pays $350); keeps $1300": 1,
+        "proposes (gives Water Works, takes Boardwalk, pays $300); keeps $1300": 1,
+        "proposes (takes Boardwalk, pays $600); keeps $1300": 1
+      },
+      "medianMs": 7258
+    },
+    {
+      "id": "turn-start-propose-pitch-full-set",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Tennessee Avenue, pays $400); keeps $1200": 4,
+        "proposes (takes Tennessee Avenue, pays $320); keeps $1200": 1
+      },
+      "medianMs": 7063
+    },
+    {
+      "id": "turn-start-movement-railroads",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 3; keeps $30": 5
+      },
+      "medianMs": 7832
+    },
+    {
+      "id": "turn-start-movement-dark-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 3; keeps $150": 5
+      },
+      "medianMs": 7590
+    },
+    {
+      "id": "debt-after-built-rival-set",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 5,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"avoid reds.\")",
+        "its plan claims control over where it lands (\"avoid red landing luck.\")",
+        "its plan claims control over where it lands (\"avoid reds.\")",
+        "its plan claims control over where it lands (\"Collect rent, lift green mortgages when cash allows, rebuild greens, avoid reds if possible.\")",
+        "its plan claims control over where it lands (\"avoid red squares if possible.\")"
+      ],
+      "choices": {
+        "mortgages Pacific Avenue + North Carolina Avenue + Pennsylvania Avenue, sells 2 house(s), raises $660": 5
+      },
+      "medianMs": 5975
+    },
+    {
+      "id": "debt-after-built-rival-set-orange",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 1,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"Rebuild yellow houses when cash allows, lift Reading mortgage, and avoid orange.\")"
+      ],
+      "choices": {
+        "mortgages Reading Railroad, sells 8 house(s), raises $700": 5
+      },
+      "medianMs": 5960
+    },
+    {
+      "id": "debt-keeps-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Water Works, raises $175": 3
+      },
+      "medianMs": 4257
+    },
+    {
+      "id": "debt-keeps-houses-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Electric Company + Short Line, raises $175": 2,
+        "mortgages Short Line, raises $100": 1
+      },
+      "medianMs": 4322
+    },
+    {
+      "id": "debt-keeps-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Pennsylvania Railroad, raises $200": 3
+      },
+      "medianMs": 4663
+    },
+    {
+      "id": "debt-must-sell-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Water Works, sells 2 house(s), raises $275": 5
+      },
+      "medianMs": 6159
+    },
+    {
+      "id": "debt-must-sell-houses-light-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 3,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Electric Company + Short Line, sells 2 house(s), raises $225": 3
+      },
+      "medianMs": 5687
+    },
+    {
+      "id": "debt-must-sell-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Pennsylvania Railroad, sells 2 house(s), raises $350": 5
+      },
+      "medianMs": 5607
+    }
+  ],
+  "errors": {
+    "errors": 9,
+    "runs": 170
+  },
+  "errorScenarios": {
+    "errors": 8,
+    "runs": 116
+  },
+  "byPhase": {
+    "early": {
+      "errors": 0,
+      "runs": 6
+    },
+    "mid": {
+      "errors": 2,
+      "runs": 103
+    },
+    "late": {
+      "errors": 7,
+      "runs": 61
+    }
+  },
+  "byDecision": {
+    "buy": {
+      "errors": 1,
+      "runs": 12
+    },
+    "auction": {
+      "errors": 0,
+      "runs": 9
+    },
+    "trade-vote": {
+      "errors": 0,
+      "runs": 72
+    },
+    "turn-start": {
+      "errors": 2,
+      "runs": 45
+    },
+    "settle-debt": {
+      "errors": 6,
+      "runs": 32
+    }
+  },
+  "timing": {
+    "medianMs": 7061,
+    "p90Ms": 13274,
+    "thinkHitBudget": {
+      "hit": 0,
+      "thought": 0
+    }
+  }
+}

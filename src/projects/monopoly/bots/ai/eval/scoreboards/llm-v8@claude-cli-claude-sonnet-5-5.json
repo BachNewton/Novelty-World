@@ -1,0 +1,294 @@
+{
+  "version": "llm-v8",
+  "at": "2026-10-08T01:12:56.625Z",
+  "reps": 5,
+  "server": {
+    "model": "claude-cli/claude-sonnet-5-5 (effort: think=high, quick=low)",
+    "contextPerSlot": null,
+    "slots": 2,
+    "defaults": {}
+  },
+  "scenarios": [
+    {
+      "id": "vote-sell-pair-to-blocker",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept": 4,
+        "counter: gives Kentucky Avenue + Illinois Avenue, takes Reading Railroad, gets $760": 1
+      },
+      "medianMs": 11136
+    },
+    {
+      "id": "vote-sell-pair-to-blocker-orange",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: gives St. James Place + Tennessee Avenue, takes B. & O. Railroad, gets $650": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes B. & O. Railroad, gets $620": 1,
+        "counter: gives St. James Place + Tennessee Avenue, takes Pennsylvania Railroad + B. & O. Railroad, gets $500": 1,
+        "counter: gives Oriental Avenue, takes New York Avenue, pays $300": 1,
+        "counter: takes New York Avenue + B. & O. Railroad, pays $350": 1
+      },
+      "medianMs": 13557
+    },
+    {
+      "id": "vote-repitched-lower",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 3,
+        "counter: gives New York Avenue, gets $650": 1,
+        "counter: gives New York Avenue, gets $600": 1
+      },
+      "medianMs": 5455
+    },
+    {
+      "id": "vote-repitched-lower-red",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "decline": 5
+      },
+      "medianMs": 6514
+    },
+    {
+      "id": "vote-overpay-for-set",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "accept; keeps $275": 5
+      },
+      "medianMs": 8514
+    },
+    {
+      "id": "vote-overpay-for-set-yellow",
+      "kind": "judgment",
+      "phase": "mid",
+      "decision": "trade-vote",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "counter: takes Ventnor Avenue + Marvin Gardens, pays $500; keeps $1100": 2,
+        "counter: gives Reading Railroad, takes Ventnor Avenue + Marvin Gardens, pays $400; keeps $1100": 1,
+        "counter: takes Ventnor Avenue + Marvin Gardens, pays $650; keeps $1100": 1,
+        "counter: gives Reading Railroad + Pennsylvania Railroad, takes Ventnor Avenue + Marvin Gardens, pays $150; keeps $1100": 1
+      },
+      "medianMs": 12472
+    },
+    {
+      "id": "turn-start-propose-pitch-orange",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 1,
+      "errorReasons": [
+        "its pitch credits the other side with building it can't do (\"Sam, $650 cash for Tennessee, more than three times its price, and you can use it to build on your reds and yellows.\")"
+      ],
+      "choices": {
+        "proposes (takes Tennessee Avenue, pays $650); keeps $1399": 4,
+        "proposes (takes Tennessee Avenue, pays $600); keeps $1399": 1
+      },
+      "medianMs": 7084
+    },
+    {
+      "id": "turn-start-propose-pitch-red",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 1,
+      "errorReasons": [
+        "its pitch credits the other side with building it can't do (\"Use it to build up your pink set.\")"
+      ],
+      "choices": {
+        "proposes (takes Indiana Avenue, pays $350); keeps $1100": 2,
+        "proposes (takes Indiana Avenue, pays $400); keeps $1100": 2,
+        "proposes (takes Indiana Avenue, pays $320); keeps $1100": 1
+      },
+      "medianMs": 6721
+    },
+    {
+      "id": "turn-start-propose-pitch-dark-blue",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Boardwalk, pays $450); keeps $1300": 2,
+        "proposes (takes Boardwalk, pays $550); keeps $1300": 1,
+        "proposes (takes Boardwalk, pays $500); keeps $1300": 2
+      },
+      "medianMs": 7493
+    },
+    {
+      "id": "turn-start-propose-pitch-full-set",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "proposes (takes Tennessee Avenue, pays $400); keeps $1200": 1,
+        "proposes (takes Tennessee Avenue, pays $380); keeps $1200": 1,
+        "proposes (takes Tennessee Avenue, pays $300); keeps $1200": 2,
+        "proposes (takes Tennessee Avenue, pays $350); keeps $1200": 1
+      },
+      "medianMs": 7142
+    },
+    {
+      "id": "turn-start-movement-railroads",
+      "kind": "error",
+      "phase": "mid",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 2,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"avoid Sam's railroads risk by keeping some cash.\")",
+        "its plan claims control over where it lands (\"Collect rent on light blue, add houses as cash comes in, and avoid Sam's railroads where I can.\")"
+      ],
+      "choices": {
+        "builds 3; keeps $30": 5
+      },
+      "medianMs": 7418
+    },
+    {
+      "id": "turn-start-movement-dark-blue",
+      "kind": "error",
+      "phase": "late",
+      "decision": "turn-start",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "builds 3; keeps $150": 5
+      },
+      "medianMs": 7942
+    },
+    {
+      "id": "debt-after-built-rival-set",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 4,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"Lift green mortgages when cash allows, rebuild greens, avoid reds.\")",
+        "its plan claims control over where it lands (\"avoid Sam's reds.\")",
+        "its plan claims control over where it lands (\"hope to avoid Sam's reds.\")",
+        "its plan claims control over where it lands (\"avoid red squares' damage by staying liquid.\")"
+      ],
+      "choices": {
+        "mortgages Pacific Avenue + North Carolina Avenue + Pennsylvania Avenue, sells 2 house(s), raises $660": 5
+      },
+      "medianMs": 5406
+    },
+    {
+      "id": "debt-after-built-rival-set-orange",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 2,
+      "errorReasons": [
+        "its plan claims control over where it lands (\"Rebuild yellow houses as cash comes in, lift Reading mortgage when possible, and avoid orange.\")",
+        "its plan claims control over where it lands (\"Rebuild Yellow when cash allows, lift the Reading mortgage, and avoid Sam's orange hotels.\")"
+      ],
+      "choices": {
+        "mortgages Reading Railroad, sells 8 house(s), raises $700": 5
+      },
+      "medianMs": 5575
+    },
+    {
+      "id": "debt-must-sell-houses",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Water Works, sells 2 house(s), raises $275": 5
+      },
+      "medianMs": 6275
+    },
+    {
+      "id": "debt-must-sell-houses-red",
+      "kind": "error",
+      "phase": "late",
+      "decision": "settle-debt",
+      "runs": 5,
+      "errors": 0,
+      "errorReasons": [],
+      "choices": {
+        "mortgages Reading Railroad + Pennsylvania Railroad, sells 2 house(s), raises $350": 5
+      },
+      "medianMs": 6127
+    }
+  ],
+  "errors": {
+    "errors": 10,
+    "runs": 80
+  },
+  "errorScenarios": {
+    "errors": 10,
+    "runs": 50
+  },
+  "byPhase": {
+    "mid": {
+      "errors": 4,
+      "runs": 55
+    },
+    "late": {
+      "errors": 6,
+      "runs": 25
+    }
+  },
+  "byDecision": {
+    "trade-vote": {
+      "errors": 0,
+      "runs": 30
+    },
+    "turn-start": {
+      "errors": 4,
+      "runs": 30
+    },
+    "settle-debt": {
+      "errors": 6,
+      "runs": 20
+    }
+  },
+  "timing": {
+    "medianMs": 7142,
+    "p90Ms": 12972,
+    "thinkHitBudget": {
+      "hit": 0,
+      "thought": 0
+    }
+  }
+}

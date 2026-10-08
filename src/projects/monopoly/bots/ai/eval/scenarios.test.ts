@@ -235,7 +235,11 @@ describe("a pitch that credits the other side with what it doesn't have", () => 
   });
 
   it("passes a negated claim, and a pitch that doesn't mention building", async () => {
-    for (const note of ["Sam, $620 for Tennessee, a lot you can't build on alone.", "Sam, $620 for Tennessee is over three times its price."]) {
+    for (const note of [
+      "Sam, $620 for Tennessee, a lot you can't build on alone.",
+      "Sam, $620 for Tennessee is over three times its price.",
+      "Sam, $620 for Tennessee, so you can fund your next purchases.",
+    ]) {
       expect((await runScenario(byId("turn-start-propose-pitch-orange"), llmV6, propose(note), 0, null)).check?.error).toBeNull();
     }
   });

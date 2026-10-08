@@ -400,6 +400,57 @@ function overpayForSet(
   };
 }
 
+/** Ordinary play between two turns: each player rolls, moves and pays a
+ *  little rent, so the log fills with what happens to players while no one
+ *  decides anything. */
+function quietPlay(state: GameState, from: number, to: number, landlord: string, rentLot: number): GameState {
+  let out = state;
+  for (let turn = from; turn <= to; turn++) {
+    const position = (turn * 7) % 40;
+    out = logged(
+      out,
+      [
+        { kind: "roll", dice: [3, 4], doublesStreak: 0, toPosition: position, passedGo: position < 7 },
+        { kind: "rent", ownerId: landlord, position: rentLot, amount: 14 },
+      ],
+      turn,
+    );
+  }
+  return out;
+}
+
+/** A rival walks down an offer the seat turned down many turns ago, after
+ *  enough ordinary play that a 30-line log window no longer shows it. What
+ *  the seat answers is a judgment; whether it can see its own earlier price
+ *  and reason is what a history of play is for (NEXT item 10). */
+function repitchedOffer(id: string, lot: number, rivalLots: readonly number[], first: number, second: number, refusal: string): Scenario {
+  return {
+    id,
+    kind: "judgment",
+    phase: "mid",
+    decision: "trade-vote",
+    tests: `A rival holding ${rivalLots.map(nameOf).join(" and ")} offered $${String(first)} for the seat's ${nameOf(lot)} on turn 14 and was declined; on turn 30, after ordinary play, it offers $${String(second)}.`,
+    build: (s) => {
+      const board = withCash(owning(atTurn(table(s), 30), { [RIVAL]: rivalLots, [AI]: [lot] }), { [AI]: 700, [RIVAL]: 900 });
+      const offer = (price: number) => ({ propertyTo: { [lot]: RIVAL }, cashDelta: { [AI]: price, [RIVAL]: -price } });
+      const declined = logged(
+        board,
+        [
+          said(RIVAL, `Alex, $${String(first)} for ${nameOf(lot)} is well over its price.`),
+          said(AI, refusal),
+          turnedDown(board, RIVAL, AI, offer(first), false),
+        ],
+        14,
+      );
+      const later = logged(quietPlay(declined, 15, 30, RIVAL, rivalLots[0]), [
+        said(RIVAL, `Alex, $${String(second)} cash for ${nameOf(lot)}, easy money for a lot you can't build on.`),
+      ]);
+      return offered(later, RIVAL, offer(second));
+    },
+    choose: voteChoice,
+  };
+}
+
 // --- The suite -----------------------------------------------------------------
 
 export const SCENARIOS: readonly Scenario[] = [
@@ -645,6 +696,8 @@ export const SCENARIOS: readonly Scenario[] = [
     { propertyTo: { [SQ.stJames]: RIVAL, [SQ.tennessee]: RIVAL, [SQ.bAndO]: AI }, cashDelta: { [AI]: 520, [RIVAL]: -520 } },
     (state) => logged(state, [said(RIVAL, "Alex, $520 and B. & O. Railroad for your two oranges is well over what they cost you.")]),
   ),
+  repitchedOffer("vote-repitched-lower", SQ.newYork, [SQ.stJames, SQ.tennessee], 500, 400, "New York completes your oranges, Sam; I won't sell it for under $700."),
+  repitchedOffer("vote-repitched-lower-red", SQ.illinois, [SQ.kentucky, SQ.indiana], 550, 420, "Not for $550, Sam. Illinois finishes your reds, so it's worth $800 to you."),
   overpayForSet(
     "vote-overpay-for-set",
     42,
