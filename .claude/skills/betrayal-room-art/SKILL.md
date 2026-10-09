@@ -217,7 +217,7 @@ Add the definition to `BENCH_ROOMS` in `rooms/index.ts`; the bench and
   close-up when done. For anything more, a throwaway Playwright script
   modelled on `shots.mjs` drives `window.__betrayalBench` (views, zoom,
   `setResolution` to see the art at 270p for a small phone or native for
-  detail, `setCamera("free")` and mouse drags for an orbit camera). It must
+  detail, and mouse drags on the canvas to orbit from the current view). It must
   live inside the repo while it runs (packages resolve from the script's
   folder); delete it afterwards. Wait on `isReady()` and the frame counter
   advancing, never a sleep.
@@ -247,7 +247,11 @@ are clean, and the room is registered. The builder reports back:
 - the room's file and the one-sentence identity;
 - the path of the final contact sheet (and the label of the run before it,
   for comparison);
-- its light count and shadow-casting lights against the limits;
+- its light count and shadow-casting lights against the limits, and
+  whether a limit held the room back: what it would do with more lights
+  or shadows, and what it settled for instead. The limits are a starting
+  budget, not a ceiling the art must always fit under: say so whenever
+  the workaround made the room worse;
 - any piece promoted to the kit, and the re-shot room it came from;
 - anything that needs the owner's eye or decision, and any gap found in
   the foundation (reported, not patched around).

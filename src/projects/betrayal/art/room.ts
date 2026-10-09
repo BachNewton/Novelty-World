@@ -10,6 +10,9 @@ export const WALL_THICKNESS = 0.2;
 export const CUT_HEIGHT = 0.45;
 export const DOOR_WIDTH = 1.1;
 export const DOOR_HEIGHT = 2.3;
+/** The house's front door is drawn larger than the others. */
+export const FRONT_DOOR_WIDTH = 1.7;
+export const FRONT_DOOR_HEIGHT = 2.9;
 export const WINDOW_WIDTH = 1.0;
 export const WINDOW_SILL = 1.0;
 export const WINDOW_TOP = 2.5;
@@ -82,6 +85,8 @@ export interface RoomDefinition {
   mood: Mood;
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
+  /** Holes cut through the floor (a stairwell), as x and z ranges in room metres. */
+  floorOpenings?: { x: [number, number]; z: [number, number] }[];
   /** Where the scale-reference explorer pawn stands. */
   pawn?: [x: number, z: number];
 }

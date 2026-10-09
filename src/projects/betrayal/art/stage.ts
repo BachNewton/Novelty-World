@@ -9,6 +9,8 @@ import {
   CUT_HEIGHT,
   DOOR_HEIGHT,
   DOOR_WIDTH,
+  FRONT_DOOR_HEIGHT,
+  FRONT_DOOR_WIDTH,
   TILE,
   WAINSCOT_DEPTH,
   WAINSCOT_HEIGHT,
@@ -80,7 +82,10 @@ export function roomTile(id: string): RoomTile {
 function openings(tile: RoomTile, edge: Edge): Opening[] {
   const result: Opening[] = [];
   const door = tile.doors.includes(edge);
-  if (door) result.push({ kind: "door", centre: 0, width: DOOR_WIDTH, bottom: 0, top: DOOR_HEIGHT });
+  if (door) {
+    const front = tile.frontDoor === edge;
+    result.push({ kind: "door", centre: 0, width: front ? FRONT_DOOR_WIDTH : DOOR_WIDTH, bottom: 0, top: front ? FRONT_DOOR_HEIGHT : DOOR_HEIGHT });
+  }
   if (tile.windows.includes(edge)) {
     result.push({ kind: "window", centre: door ? 1.7 : 0, width: WINDOW_WIDTH, bottom: WINDOW_SILL, top: WINDOW_TOP });
   }
@@ -249,6 +254,26 @@ export function moonPosition(def: RoomDefinition): THREE.Vector3 {
   );
 }
 
+/** The floor slab as rectangles [x0, x1, z0, z1] covering the tile around its
+ *  openings: the tile is cut on every opening's edges, and each cell outside
+ *  the openings is kept. With no openings it is the whole tile. */
+function floorPieces(holes: NonNullable<RoomDefinition["floorOpenings"]>): [number, number, number, number][] {
+  const half = TILE / 2;
+  const cuts = (axis: "x" | "z") => [...new Set([-half, half, ...holes.flatMap((hole) => hole[axis])])].sort((a, b) => a - b);
+  const xs = cuts("x");
+  const zs = cuts("z");
+  const pieces: [number, number, number, number][] = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < zs.length - 1; j++) {
+      const cx = (xs[i] + xs[i + 1]) / 2;
+      const cz = (zs[j] + zs[j + 1]) / 2;
+      const open = holes.some(({ x, z }) => cx > x[0] && cx < x[1] && cz > z[0] && cz < z[1]);
+      if (!open) pieces.push([xs[i], xs[i + 1], zs[j], zs[j + 1]]);
+    }
+  }
+  return pieces;
+}
+
 /** Builds an explorer figure. The seed gives each figure its own phase, so
  *  several in one room never move in step. */
 export type ExplorerBuilder = (seed: string) => THREE.Object3D;
@@ -272,7 +297,9 @@ export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = 
 
   const floorMaterial = textured(def.floor());
   const slab = flat("sootLight");
-  root.add(box([TILE, 0.2, TILE], [slab, slab, floorMaterial, slab, slab, slab], [0, -0.2, 0]));
+  for (const [x0, x1, z0, z1] of floorPieces(def.floorOpenings ?? [])) {
+    root.add(box([x1 - x0, 0.2, z1 - z0], [slab, slab, floorMaterial, slab, slab, slab], [(x0 + x1) / 2, -0.2, (z0 + z1) / 2]));
+  }
 
   const ceiling = box([TILE, 0.1, TILE], SHADOW_ONLY, [0, WALL_HEIGHT, 0]);
   ceiling.userData.shadowOnly = true;
