@@ -29,6 +29,28 @@ function webglLimits(): string {
     .join("\n");
 }
 
+/** What three.js logs as errors (a shader that fails to compile or link,
+ *  too many texture units), kept for the report. */
+const logged: string[] = [];
+const consoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  logged.push(args.map(String).join(" ").slice(0, 600));
+  consoleError(...args);
+};
+const consoleWarn = console.warn.bind(console);
+console.warn = (...args: unknown[]) => {
+  logged.push(`warn: ${args.map(String).join(" ").slice(0, 600)}`);
+  consoleWarn(...args);
+};
+
+function loggedSoFar(): string {
+  return logged.length === 0 ? "Console: nothing logged" : `Console:\n${logged.slice(-8).join("\n")}`;
+}
+
+function report(headline: string): string {
+  return `${headline}\n\n${loggedSoFar()}\n\n${webglLimits()}`;
+}
+
 export class CrashReport extends Component<{ children: ReactNode }, { report: string | null }> {
   state: { report: string | null } = { report: null };
 
@@ -43,14 +65,11 @@ export class CrashReport extends Component<{ children: ReactNode }, { report: st
 
   contextLost = (event: Event) => {
     const message = event instanceof WebGLContextEvent ? event.statusMessage : "";
-    this.setState({ report: `The GPU dropped the WebGL context (webglcontextlost)${message ? `: ${message}` : ""}
-
-${webglLimits()}` });
+    this.setState({ report: report(`The GPU dropped the WebGL context (webglcontextlost)${message ? `: ${message}` : ""}`) });
   };
 
   static getDerivedStateFromError(error: unknown) {
-    const detail = error instanceof Error ? `${error.message}\n\n${error.stack ?? ""}` : String(error);
-    return { report: `${detail}\n\n${webglLimits()}` };
+    return { report: report(error instanceof Error ? `${error.message}\n\n${error.stack ?? ""}` : String(error)) };
   }
 
   render() {

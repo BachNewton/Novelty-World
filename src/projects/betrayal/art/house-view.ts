@@ -393,6 +393,11 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     const { scene, camera, renderer, container } = ctx;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Diagnostic for the owner's phone, which loses the WebGL context in the
+    // house but not on the bench: `?shadows=off` turns every shadow off, and
+    // `?shadows=moon` keeps only the moon's. Remove once the cause is found.
+    const shadows = new URLSearchParams(window.location.search).get("shadows");
+    if (shadows === "off") renderer.shadowMap.enabled = false;
     renderer.domElement.style.imageRendering = "pixelated";
     renderer.toneMappingExposure = 1.5;
     camera.fov = FIELD_OF_VIEW;
@@ -405,6 +410,7 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       CAST.map((member) => ({ ...member, room: snapshot.explorers.find((explorer) => explorer.id === member.id)?.room ?? member.room })),
     );
     house = built;
+    if (shadows === "moon") for (const light of built.rooms.flatMap((room) => room.part.lights)) light.castShadow = false;
     scene.add(built.root);
     scene.fog = built.fog;
     scene.background = built.background;
