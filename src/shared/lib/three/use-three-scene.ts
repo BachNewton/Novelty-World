@@ -49,8 +49,9 @@ export interface BloomOptions {
 }
 
 export interface ThreeSceneOptions {
-  /** Overlay a three.js FPS/ms stats panel in the top-left corner. */
+  /** Overlay a three.js FPS/ms stats panel, in the top-left corner unless `statsCorner` says otherwise. */
   stats?: boolean;
+  statsCorner?: "top-left" | "top-right";
   /**
    * Overlay a per-pass **GPU-time** panel (`EXT_disjoint_timer_query_webgl2`). Unlike
    * the `stats` panel — which measures CPU submit time and frame cadence — this reports
@@ -296,6 +297,7 @@ export function useThreeScene(
   // hold it so the mount effect can stay dependency-free without going stale.
   const setupRef = useRef(setup);
   const showStatsRef = useRef(options.stats ?? false);
+  const statsCornerRef = useRef(options.statsCorner ?? "top-left");
   const gpuStatsRef = useRef(options.gpuStats ?? false);
   const antialiasRef = useRef(options.antialias ?? true);
   const bloomRef = useRef(options.bloom ?? false);
@@ -547,6 +549,10 @@ export function useThreeScene(
     const stats = showStatsRef.current ? new Stats() : undefined;
     if (stats) {
       stats.showPanel(0);
+      if (statsCornerRef.current === "top-right") {
+        stats.dom.style.left = "auto";
+        stats.dom.style.right = "0";
+      }
       container.appendChild(stats.dom);
     }
     if (gpuTimer) container.appendChild(gpuTimer.dom);

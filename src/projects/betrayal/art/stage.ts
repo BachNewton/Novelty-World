@@ -21,6 +21,7 @@ import {
   WINDOW_WIDTH,
   wallTurn,
   type LightSpec,
+  type Mood,
   type RoomDefinition,
 } from "./room";
 import { box, flat, glow, group, textured } from "./shapes";
@@ -278,12 +279,40 @@ function floorPieces(holes: NonNullable<RoomDefinition["floorOpenings"]>): [numb
  *  several in one room never move in step. */
 export type ExplorerBuilder = (seed: string) => THREE.Object3D;
 
-export interface StageOptions {
-  /** Who stands at the room's pawn spot; the scale pawn unless told otherwise. */
-  explorer?: ExplorerBuilder;
+export interface RoomOptions {
+  /** Who stands at the room's pawn spot (the scale pawn unless told
+   *  otherwise); null leaves it empty. */
+  explorer?: ExplorerBuilder | null;
+  /** Doors (by printed edge) drawn shut: in the house, a door that opens onto
+   *  the wall of the room beyond. */
+  closedDoors?: Edge[];
 }
 
-export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = () => pawn() }: StageOptions = {}): Stage {
+/** A plain door leaf shut in a doorway, in the middle of the wall's thickness. */
+function shutLeaf(height: number, material: THREE.Material): THREE.Mesh {
+  return box([DOOR_WIDTH, Math.min(DOOR_HEIGHT, height), 0.06], material, [0, 0, 0]);
+}
+
+/** One room built in its own tile frame (centred on the origin, unturned),
+ *  without the light the whole scene shares (the fill, the moon and the fog):
+ *  the bench stands one on its own, and the house lays many out. */
+export interface RoomPart {
+  root: THREE.Group;
+  /** Cuts down the walls on the edges the test names, and hides what hangs
+   *  above the cut on any of them. Edges are the tile's printed edges. */
+  cutWalls: (isCut: (edge: Edge) => boolean) => void;
+  /** Poses everything that moves (flickering lights, animated pieces) for this moment. */
+  update: (seconds: number) => void;
+  /** The explorer standing where the room puts its pawn, if it has one. */
+  explorer: THREE.Object3D | null;
+  /** The room's own point lights. */
+  lights: THREE.PointLight[];
+  /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
+  ready: Promise<void>;
+  dispose: () => void;
+}
+
+export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () => pawn(), closedDoors = [] }: RoomOptions = {}): RoomPart {
   const tile = roomTile(def.id);
   const root = group();
   const wallTexture = def.wall();
@@ -309,8 +338,13 @@ export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = 
   for (const edge of EDGES) {
     if (tile.passages.includes(edge)) continue;
     const holes = openings(tile, edge);
-    const full = placeOnEdge(buildWall(edgeLength(edge), holes, WALL_HEIGHT, parts), edge);
-    const cut = placeOnEdge(buildWall(edgeLength(edge), holes, CUT_HEIGHT, parts), edge);
+    const wall = (height: number) => {
+      const built = buildWall(edgeLength(edge), holes, height, parts);
+      if (closedDoors.includes(edge)) built.add(shutLeaf(height, parts.trim));
+      return placeOnEdge(built, edge);
+    };
+    const full = wall(WALL_HEIGHT);
+    const cut = wall(CUT_HEIGHT);
     root.add(full, cut);
     walls.push({ edge, full, cut });
   }
@@ -325,23 +359,11 @@ export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = 
   }
 
   let explorer: THREE.Object3D | null = null;
-  if (def.pawn) {
+  if (def.pawn && buildExplorer) {
     explorer = buildExplorer(`${def.id}:explorer`);
     explorer.position.set(def.pawn[0], 0, def.pawn[1]);
     root.add(explorer);
   }
-
-  const { mood } = def;
-  root.add(new THREE.HemisphereLight(paletteHex(mood.ambientColour), paletteHex("void"), mood.ambient * 6));
-
-  const moon = new THREE.DirectionalLight(paletteHex("moonLight"), mood.moon * 6);
-  moon.position.copy(moonPosition(def));
-  moon.castShadow = true;
-  moon.shadow.mapSize.set(1024, 1024);
-  Object.assign(moon.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 30 });
-  moon.shadow.camera.updateProjectionMatrix();
-  moon.shadow.bias = -0.0015;
-  root.add(moon, moon.target);
 
   const live: LiveLight[] = [];
   const addLight = (spec: Omit<LightSpec, "at">, position: THREE.Vector3) => {
@@ -381,22 +403,17 @@ export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = 
       if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
     }
   });
-  const ready = Promise.all([...textures].map(textureReady)).then(() => undefined);
-
-  const fogColour = paletteHex(mood.fog.colour);
 
   return {
     root,
-    fog: new THREE.Fog(fogColour, 1, 100),
-    background: new THREE.Color(fogColour),
-    setCutaway: (cameraDirection) => {
+    cutWalls: (isCut) => {
       for (const { edge, full, cut } of walls) {
-        const facing = OUTWARD[edge].dot(cameraDirection) > 0.01;
-        setShadowOnly(full, facing);
-        cut.visible = facing;
+        const down = isCut(edge);
+        setShadowOnly(full, down);
+        cut.visible = down;
       }
       for (const { edges, object } of hung) {
-        object.visible = edges.every((edge) => OUTWARD[edge].dot(cameraDirection) <= 0.01);
+        object.visible = !edges.some(isCut);
       }
     },
     update: (seconds) => {
@@ -406,18 +423,59 @@ export function buildRoomStage(def: RoomDefinition, { explorer: buildExplorer = 
       for (const animation of animations) animation(seconds);
     },
     explorer,
-    ready,
-    dispose: () => {
-      root.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          const own = (object.userData as { material?: THREE.Material | THREE.Material[] }).material ?? object.material;
-          for (const material of (Array.isArray(own) ? own : [own]) as THREE.Material[]) {
-            if (material !== SHADOW_ONLY) material.dispose();
-          }
-        }
-        if (object instanceof THREE.Light) object.dispose();
-      });
-    },
+    lights: live.map(({ light }) => light),
+    ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
+    dispose: () => disposeTree(root),
+  };
+}
+
+/** Frees the geometry, materials and lights under a root. */
+export function disposeTree(root: THREE.Object3D) {
+  root.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      object.geometry.dispose();
+      const own = (object.userData as { material?: THREE.Material | THREE.Material[] }).material ?? object.material;
+      for (const material of (Array.isArray(own) ? own : [own]) as THREE.Material[]) {
+        if (material !== SHADOW_ONLY) material.dispose();
+      }
+    }
+    if (object instanceof THREE.Light) object.dispose();
+  });
+}
+
+/** The light a whole scene shares: a fill from above, and the moon shining
+ *  from `moonAt` (relative to `centre`), its shadow covering a square `reach`
+ *  metres either side of `centre`. */
+export function sceneLight(
+  mood: Mood,
+  moonAt: THREE.Vector3,
+  { centre = new THREE.Vector3(), reach = 6, mapSize = 1024 } = {},
+): { fill: THREE.HemisphereLight; moon: THREE.DirectionalLight } {
+  const fill = new THREE.HemisphereLight(paletteHex(mood.ambientColour), paletteHex("void"), mood.ambient * 6);
+  const moon = new THREE.DirectionalLight(paletteHex("moonLight"), mood.moon * 6);
+  moon.position.copy(moonAt).add(centre);
+  moon.target.position.copy(centre);
+  moon.castShadow = true;
+  moon.shadow.mapSize.set(mapSize, mapSize);
+  Object.assign(moon.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: 30 });
+  moon.shadow.camera.updateProjectionMatrix();
+  moon.shadow.bias = -0.0015;
+  return { fill, moon };
+}
+
+export function buildRoomStage(def: RoomDefinition, options: RoomOptions = {}): Stage {
+  const room = buildRoom(def, options);
+  const { fill, moon } = sceneLight(def.mood, moonPosition(def));
+  const root = group(room.root, fill, moon, moon.target);
+  const fogColour = paletteHex(def.mood.fog.colour);
+  return {
+    root,
+    fog: new THREE.Fog(fogColour, 1, 100),
+    background: new THREE.Color(fogColour),
+    setCutaway: (cameraDirection) => room.cutWalls((edge) => OUTWARD[edge].dot(cameraDirection) > 0.01),
+    update: room.update,
+    explorer: room.explorer,
+    ready: room.ready,
+    dispose: () => disposeTree(root),
   };
 }

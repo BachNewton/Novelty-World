@@ -38,14 +38,15 @@ interface Session {
 type Problem = { kind: "rejected" | "error"; message: string };
 
 const ArtBench = dynamic(() => import("../art/bench-view").then((m) => m.ArtBench), { ssr: false });
+const HouseScreen = dynamic(() => import("../art/house-screen").then((m) => m.HouseScreen), { ssr: false });
 
 function subscribeToNothing(): () => void {
   return () => undefined;
 }
 
-/** `?bench=<room-id>` opens the art bench instead of the game, and
- *  `?game=<code>` opens a shared game. The server render has no URL, so it
- *  renders nothing and the page picks after hydrating. */
+/** `?bench=<room-id>` opens the art bench instead of the game, `?house` the
+ *  house view prototype, and `?game=<code>` opens a shared game. The server
+ *  render has no URL, so it renders nothing and the page picks after hydrating. */
 export function Betrayal() {
   const search = useSyncExternalStore(
     subscribeToNothing,
@@ -55,7 +56,9 @@ export function Betrayal() {
   if (search === null) return null;
   const params = new URLSearchParams(search);
   const bench = params.get("bench");
-  return bench ? <ArtBench room={bench} /> : <DebugGame code={params.get("game")} />;
+  if (bench) return <ArtBench room={bench} />;
+  if (params.has("house")) return <HouseScreen />;
+  return <DebugGame code={params.get("game")} />;
 }
 
 function viewsOf(state: GameState): GameView[] {

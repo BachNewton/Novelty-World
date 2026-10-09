@@ -96,7 +96,7 @@ export function ArtBench({ room }: { room: string }) {
   );
 }
 
-function BenchButton({
+export function BenchButton({
   label,
   onClick,
   disabled = false,

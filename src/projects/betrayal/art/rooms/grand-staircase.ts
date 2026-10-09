@@ -9,8 +9,12 @@ const STAIR_MID = (STAIR.back + STAIR.front) / 2;
 /** The flight rises through the ceiling here: the balustrade stops where its
  *  rail would meet it. */
 const LAST_BALUSTER = Math.floor((3.2 - RAIL) / STAIR.rise);
-/** Steps whose treads stay below the cut height stay when the top wall is cut. */
-const LOW_STEPS = Math.floor(CUT_HEIGHT / STAIR.rise + 1e-6);
+/** The flight is the room's identity, so when its wall is cut it is cut
+ *  higher than the wall: its first steps stay, and the cut top of the rest
+ *  reads as a landing, rather than a stub no higher than the skirting. */
+const STAIR_CUT = 7 * STAIR.rise;
+/** Steps whose treads stay below the stair's cut stay when the top wall is cut. */
+const LOW_STEPS = Math.floor(STAIR_CUT / STAIR.rise + 1e-6);
 
 /** The front (riser) edge of step `i`, counted from 1 at the foot. */
 const riserX = (i: number) => STAIR.foot - (i - 1) * STAIR.going;
@@ -25,7 +29,7 @@ function beam(b: Batch, from: THREE.Vector3, to: THREE.Vector3, size: [number, n
 /**
  * The staircase, built in room coordinates, as the part of it between heights
  * `from` and `to`, dropped by `from` so it can be placed at that height: the
- * part below the cut height stands on the floor, the rest hangs with the top
+ * part below the stair's cut stands on the floor, the rest hangs with the top
  * wall and hides when the camera cuts that wall away.
  */
 function staircase(from: number, to: number): THREE.Group {
@@ -59,20 +63,25 @@ function staircase(from: number, to: number): THREE.Group {
       for (const x of [x1 - 0.08, x1 - 0.22]) b.block([0.04, RAIL, 0.04], "woodMid", [x, at(top), STAIR.front - 0.06]);
     }
   }
-  if (from > 0) {
-    const nose = (x: number) => ((STAIR.foot - x) / STAIR.going) * STAIR.rise;
+  const nose = (x: number) => ((STAIR.foot - x) / STAIR.going) * STAIR.rise;
+  const stringer = (x: number) => new THREE.Vector3(x, nose(x) - 0.05 - from, STAIR.front + 0.03);
+  /** Where the stringer passes from the standing part of the flight to the hung part. */
+  const split = riserX(LOW_STEPS + 1) - 0.1;
+  if (from === 0) {
+    // It overlaps the hung part by a centimetre, so the join shows no crack.
+    beam(b, stringer(riserX(3) - 0.1), stringer(split - 0.01), [0.24, 0.06], "woodMid");
+  } else {
     const railEnd = riserX(LAST_BALUSTER) - STAIR.going;
     const rail = (x: number) => new THREE.Vector3(x, nose(x) + RAIL + STAIR.rise - from, STAIR.front - 0.06);
     beam(b, rail(STAIR.foot - 0.05), rail(railEnd), [0.07, 0.08], "woodDark");
-    const stringer = (x: number, lift: number) => new THREE.Vector3(x, nose(x) + lift - from, STAIR.front + 0.03);
-    beam(b, stringer(riserX(LOW_STEPS + 1) - 0.1, -0.05), stringer(-INNER, -0.05), [0.24, 0.06], "woodMid");
+    beam(b, stringer(split), stringer(-INNER), [0.24, 0.06], "woodMid");
   }
   return group(b.mesh());
 }
 
 /** A small door in the side of the flight, into the cupboard under the stairs,
  *  standing a little open on the dark. Faces +z. */
-function cupboardDoor(drop: number): THREE.Group {
+function cupboardDoor(): THREE.Group {
   const width = 0.62;
   const height = 1.35;
   const leaf = group(
@@ -82,9 +91,7 @@ function cupboardDoor(drop: number): THREE.Group {
   );
   leaf.position.set(-width / 2, 0, 0.02);
   leaf.rotation.y = -0.55;
-  const result = group(box([width, height, 0.02], flat("void"), [0, 0, 0.005]), box([width + 0.1, 0.05, 0.03], flat("woodDark"), [0, height, 0.015]), leaf);
-  result.position.y = -drop;
-  return group(result);
+  return group(box([width, height, 0.02], flat("void"), [0, 0, 0.005]), box([width + 0.1, 0.05, 0.03], flat("woodDark"), [0, height, 0.015]), leaf);
 }
 
 /** A brass candle sconce on the wall above the flight, to light the climb. Faces +z. */
@@ -174,10 +181,10 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   ...SUITE,
   props: [
     { build: () => runner({ from: 0.2, to: 3, finished: ["from"] }), at: [0, 0] },
-    { build: () => staircase(0, CUT_HEIGHT), at: [0, 0] },
-    { build: () => staircase(CUT_HEIGHT, 4), at: [0, 0], y: CUT_HEIGHT, walls: ["top"] },
+    { build: () => staircase(0, STAIR_CUT), at: [0, 0] },
+    { build: () => staircase(STAIR_CUT, 4), at: [0, 0], y: STAIR_CUT, walls: ["top"] },
     { build: newel, at: [STAIR.foot - 0.04, STAIR.front - 0.06] },
-    { build: () => cupboardDoor(CUT_HEIGHT), at: [-1.0, STAIR.front + 0.01], y: CUT_HEIGHT, walls: ["top"] },
+    { build: cupboardDoor, at: [-1.0, STAIR.front + 0.01] },
     { build: sconce, ...onWall("top", -0.6, { y: 2.55, out: 0.02 }) },
     { build: () => pictureFrame({ frame: "brass" }), ...onWall("top", 0.75, { y: 1.45 }) },
     { build: () => pictureFrame({ frame: "woodLight" }), ...onWall("top", -0.15, { y: 2.1 }) },
