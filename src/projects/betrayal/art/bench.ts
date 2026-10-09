@@ -24,10 +24,7 @@ const ZOOMS = [1, 1.6, 2.4];
 const EXPLORER_AIM = 0.85;
 const EXPLORER_RADIUS = 0.9;
 
-/** The dollhouse camera steps between four fixed views; the free camera is
- *  three's orbit controls, for looking around a room by hand. */
-export type CameraMode = "dollhouse" | "free";
-/** What the dollhouse camera frames: the whole room, or the explorer standing in it. */
+/** What the camera's presets frame: the whole room, or the explorer standing in it. */
 export type Subject = "room" | "explorer";
 
 export interface BenchSnapshot {
@@ -35,7 +32,6 @@ export interface BenchSnapshot {
   roomName: string;
   view: number;
   zoom: number;
-  camera: CameraMode;
   resolution: Resolution;
   explorer: string;
   subject: Subject;
@@ -48,7 +44,6 @@ export interface BenchApi {
   setRoom: (id: string) => void;
   setView: (view: number) => void;
   setZoom: (zoom: number) => void;
-  setCamera: (mode: CameraMode) => void;
   setResolution: (resolution: Resolution) => void;
   /** Who stands at the room's pawn spot (see `explorers()`). */
   setExplorer: (id: string) => void;
@@ -77,7 +72,8 @@ function explorer(id: string): BenchExplorer {
   return found;
 }
 
-/** The art bench: one room on its own, with an orbiting dollhouse camera.
+/** The art bench: one room on its own, under an orbit camera that the presets
+ *  (four views, zoom, framing) place and the user can drag from there.
  *  Plain state outside React, so the page and screenshot tools drive the same thing. */
 export function createBench(initialRoom: string) {
   const firstRoom = definition(initialRoom).id;
@@ -86,7 +82,6 @@ export function createBench(initialRoom: string) {
     roomName: roomTile(firstRoom).name,
     view: 0,
     zoom: ZOOMS[0],
-    camera: "dollhouse",
     resolution: DEFAULT_RESOLUTION,
     explorer: BENCH_EXPLORERS[0].id,
     subject: "room",
@@ -96,7 +91,6 @@ export function createBench(initialRoom: string) {
   let mounted: {
     rebuild: () => void;
     settle: () => void;
-    enterCamera: (mode: CameraMode) => void;
     applyResolution: () => void;
   } | null = null;
   let stageReady = false;
@@ -118,21 +112,15 @@ export function createBench(initialRoom: string) {
       url.searchParams.set("bench", id);
       window.history.replaceState(window.history.state, "", url);
       mounted?.rebuild();
+      mounted?.settle();
     },
     setView: (view) => {
-      api.setCamera("dollhouse");
       update({ ...snapshot, view: ((view % 4) + 4) % 4 });
       mounted?.settle();
     },
     setZoom: (zoom) => {
-      api.setCamera("dollhouse");
       update({ ...snapshot, zoom });
       mounted?.settle();
-    },
-    setCamera: (mode) => {
-      if (mode === snapshot.camera) return;
-      update({ ...snapshot, camera: mode });
-      mounted?.enterCamera(mode);
     },
     setResolution: (resolution) => {
       update({ ...snapshot, resolution });
@@ -142,9 +130,9 @@ export function createBench(initialRoom: string) {
       explorer(id);
       update({ ...snapshot, explorer: id });
       mounted?.rebuild();
+      mounted?.settle();
     },
     setSubject: (subject) => {
-      api.setCamera("dollhouse");
       update({ ...snapshot, subject });
       mounted?.settle();
     },
@@ -186,12 +174,10 @@ export function createBench(initialRoom: string) {
     let angle = viewAngle(snapshot.view);
     let zoom = snapshot.zoom;
     let seconds = 0;
-    const settle = () => {
-      settled = false;
-    };
+    /** Whether the presets place the camera, or the user's hand on the orbit controls does. */
+    let byHand = false;
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enabled = false;
     controls.enableDamping = true;
     controls.minDistance = 1;
     controls.maxDistance = 40;
@@ -204,7 +190,7 @@ export function createBench(initialRoom: string) {
       return Math.max(ROOM_RADIUS / Math.sin(vertical / 2), ROOM_HALF_WIDTH / Math.sin(horizontal / 2));
     };
 
-    const dollhouseTarget = () => {
+    const presetTarget = () => {
       if (snapshot.subject === "explorer" && stage?.explorer) {
         return stage.explorer.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, EXPLORER_AIM, 0));
       }
@@ -227,14 +213,16 @@ export function createBench(initialRoom: string) {
     };
 
     const placeCamera = () => {
-      if (snapshot.camera === "free") {
-        controls.update();
+      controls.update();
+      if (byHand) {
         frameRoom(controls.target, camera.position.distanceTo(controls.target));
         return;
       }
+      // The update above only drains the controls' leftover drag momentum: a
+      // preset overwrites the whole pose, so none of it reaches a preset shot.
       const fit = fitDistance();
       const distance = snapshot.subject === "explorer" && stage?.explorer ? (fit * EXPLORER_RADIUS) / ROOM_RADIUS : fit;
-      const target = dollhouseTarget();
+      const target = presetTarget();
       const direction = new THREE.Vector3(
         Math.sin(angle) * Math.cos(ELEVATION),
         Math.sin(ELEVATION),
@@ -242,20 +230,19 @@ export function createBench(initialRoom: string) {
       );
       camera.position.copy(target).addScaledVector(direction, distance / zoom);
       camera.lookAt(target);
+      controls.target.copy(target);
       frameRoom(target, fit);
     };
 
-    /** The free camera starts where the dollhouse camera is, and the dollhouse
-     *  camera turns back from wherever the free one left off. */
-    const enterCamera = (mode: CameraMode) => {
-      if (mode === "free") {
-        controls.target.copy(dollhouseTarget());
-        controls.enabled = true;
-        settled = true;
-        return;
-      }
-      controls.enabled = false;
-      angle = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
+    /** A drag takes the camera from wherever the preset put it. */
+    controls.addEventListener("start", () => {
+      byHand = true;
+      settled = true;
+    });
+    /** A preset turns the camera back from wherever the hand left it. */
+    const settle = () => {
+      if (byHand) angle = Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
+      byHand = false;
       settled = false;
     };
 
@@ -266,7 +253,7 @@ export function createBench(initialRoom: string) {
       if (Math.abs(renderer.getPixelRatio() - ratio) > 0.001) ctx.setPixelRatio(ratio);
     };
 
-    mounted = { rebuild, settle, enterCamera, applyResolution };
+    mounted = { rebuild, settle, applyResolution };
     rebuild();
     window.__betrayalBench = api;
 
@@ -275,7 +262,7 @@ export function createBench(initialRoom: string) {
         frames++;
         seconds = snapshot.frozenAt ?? seconds + delta;
         stage?.update(seconds);
-        if (snapshot.camera === "dollhouse") {
+        if (!byHand) {
           let goal = viewAngle(snapshot.view);
           goal += Math.round((angle - goal) / (Math.PI * 2)) * Math.PI * 2;
           const ease = Math.min(1, delta * 8);

@@ -70,13 +70,6 @@ export function ArtBench({ room }: { room: string }) {
         >
           {state.subject === "explorer" ? "Framing: explorer" : "Framing: room"}
         </button>
-        <button
-          type="button"
-          onClick={() => bench.api.setCamera(state.camera === "free" ? "dollhouse" : "free")}
-          className="pointer-events-auto rounded border border-(--bt-line) bg-(--bt-panel) px-2 py-1 text-sm"
-        >
-          {state.camera === "free" ? "Free camera: on" : "Free camera: off"}
-        </button>
         <span className="rounded border border-(--bt-danger) px-2 text-xs font-semibold tracking-wide text-(--bt-danger) uppercase">
           Art bench
         </span>
