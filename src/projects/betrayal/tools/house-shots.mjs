@@ -6,12 +6,13 @@
 // at FREEZE_AT for every shot, so two runs differ only where the art does.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label] [--native]
+// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label] [--res=<short side>]
 // Writes to src/projects/betrayal/.shots/<label>/house/ (gitignored): every floor from the four views,
 // the whole house stacked, close views of single rooms, a phone shot, and three contact sheets:
 // sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone). Those
 // judge the art, so the choices' glow and route are hidden in them. sheet-spill.png shows light between rooms: the
-// lit Foyer beside the dark Dining Room, through an open doorway and, turned, through a solid wall. sheet-play.png shows the stand-in
+// lit Foyer beside the dark Dining Room, through an open doorway and, turned, through a solid wall. sheet-outdoors.png
+// shows an outdoor tile (the Graveyard) among indoor ones, from every view and close. sheet-play.png shows the stand-in
 // decision: a focused choice with its route preview (desktop and phone), "Stop here" focused, and a walk up the grand
 // staircase frozen at several moments, ending with the room framed close as the explorer enters it.
 
@@ -22,8 +23,9 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const [LABEL = "latest"] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
-/** Draws at the screen's own resolution rather than the view's low default. */
-const NATIVE = process.argv.includes("--native");
+/** Draws at this short side in pixels instead of the view's native default, e.g. --res=540. */
+const RES_FLAG = process.argv.find((arg) => arg.startsWith("--res="));
+const RES = RES_FLAG === undefined ? null : Number(RES_FLAG.slice("--res=".length));
 const FREEZE_AT = 2;
 const OUTDIR = join(HERE, "..", ".shots", LABEL, "house");
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
@@ -57,11 +59,11 @@ async function openHouse(viewport, layout = null) {
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalHouse" in window, null, { timeout: 30000 });
   await page.evaluate(
-    ({ at, native }) => {
+    ({ at, res }) => {
       window.__betrayalHouse.freezeClock(at);
-      if (native) window.__betrayalHouse.setResolution(null);
+      if (res !== null) window.__betrayalHouse.setResolution(res);
     },
-    { at: FREEZE_AT, native: NATIVE },
+    { at: FREEZE_AT, res: RES },
   );
   return page;
 }
@@ -161,6 +163,14 @@ for (const layout of ["spill-doorway", "spill-wall"]) {
   await page.close();
 }
 
+// An outdoor tile among indoor ones: every view of the floor, and the Graveyard close.
+const outdoors = [];
+const outdoorPage = await openHouse(DESKTOP, "outdoors");
+for (const view of [0, 1, 2, 3]) outdoors.push(await capture(outdoorPage, `outdoors-${view}`, { floor: "ground", view }));
+outdoors.push(await capture(outdoorPage, "outdoors-close-graveyard-0", { focus: "graveyard", view: 0 }));
+outdoors.push(await capture(outdoorPage, "outdoors-close-graveyard-2", { focus: "graveyard", view: 2 }));
+await outdoorPage.close();
+
 const dataUrl = (path) =>
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- reads back the screenshots this run just wrote
   `data:image/png;base64,${readFileSync(path).toString("base64")}`;
@@ -182,4 +192,5 @@ await contactSheet("upper", upper, 2);
 await contactSheet("house", house, 3);
 await contactSheet("play", play, 3);
 await contactSheet("spill", spill, 2);
+await contactSheet("outdoors", outdoors, 2);
 await browser.close();

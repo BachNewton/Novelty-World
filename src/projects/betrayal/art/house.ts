@@ -3,7 +3,7 @@ import { EDGES, FLOORS, type Layout } from "../engine/board";
 import { CATALOG } from "../data";
 import type { FloorId } from "../types";
 import { animationOf, type Animation } from "./animate";
-import type { Stride } from "./explorers/figure";
+import { ADULT_WALK, hopHeight, walkingOf, type Stride, type Walking } from "./explorers/figure";
 import { doorways, printedEdge, tileTurn, wallIsCut } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineBaker, type Baker } from "./bake";
@@ -14,8 +14,8 @@ import { paletteHex, type PaletteKey } from "./palette";
 import { TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
-import { buildRoom, disposeTree, type ExplorerBuilder } from "./stage";
-import { plaster, textureReady, woodPlanks } from "./textures";
+import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
+import { earth, flagstones, plaster, textureReady, woodPlanks } from "./textures";
 /** How far apart the floors are stacked when the whole house shows at once:
  *  far enough apart that one floor never hides the one below. */
 export const STACK_GAP = 7;
@@ -23,8 +23,6 @@ export const STACK_GAP = 7;
 const RING = { inner: 0.4, outer: 0.55, height: 0.03 };
 /** A second explorer in a room stands this far from the pawn spot, towards the middle of the room. */
 const MAKE_ROOM = 0.9;
-/** How high a walking miniature hops off the floor at each step. */
-const HOP = 0.04;
 /** A room offered as a choice glows on its floor: a fill, and a border just inside its walls. */
 const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
 /** A stair offered as a choice glows along its run: a band this wide, edged with rails. */
@@ -93,9 +91,20 @@ export interface House {
   dispose: () => void;
 }
 
-/** A plain room for a tile with no art yet: bare boards and plaster, its doors
- *  and windows from the tile data, and nothing in it. */
+/** A plain room for a tile with no art yet: bare boards and plaster (or, out
+ *  of doors, bare earth inside a fieldstone wall), its doors and windows from
+ *  the tile data, and nothing in it. */
 export function shellRoom(id: string): RoomDefinition {
+  if (roomTile(id).outside) {
+    return {
+      id,
+      floor: () => earth({ seed: id }),
+      wall: () => flagstones({ stonePx: 6, seed: id }),
+      trim: "ash",
+      props: [],
+      pawn: [0.8, 0.8],
+    };
+  }
   return {
     id,
     floor: () => woodPlanks({ seed: id }),
@@ -117,12 +126,13 @@ export function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? shellRoom(id);
 }
 
-/** An explorer with their player's colour round the base. */
-function marked({ id, build, colour }: HouseExplorer, gait: (seconds: number) => Stride): THREE.Group {
+/** An explorer with their player's colour round the base, and how the figure walks. */
+function marked({ id, build, colour }: HouseExplorer, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
   const ring = new THREE.Mesh(new THREE.RingGeometry(RING.inner, RING.outer, 24), glow(colour));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = RING.height;
-  return group(build(`${id}:explorer`, gait), ring);
+  const figure = build(`${id}:explorer`, gait);
+  return { marked: group(figure, ring), walking: walkingOf(figure) };
 }
 
 function texturesUnder(root: THREE.Object3D): Promise<void> {
@@ -144,6 +154,7 @@ interface Walker {
   at: HousePoint;
   heading: number;
   walk: Walk | null;
+  walking: Walking;
 }
 
 /** The glow on a room's floor that marks it as a choice: a faint fill and a
@@ -273,8 +284,17 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
 
   const walkers = new Map<string, Walker>();
   for (const explorer of explorers) {
-    const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], at: spot(explorer.room, 0), heading: tileTurn(tileOf(explorer.room).rotation), walk: null };
-    const figure = marked(explorer, (seconds) => (walker.walk ? walkPose(walker.walk, seconds).stride : { phase: 0, amount: 0 }));
+    const walker: Walker = {
+      holder: group(),
+      probe: { value: [] },
+      animations: [],
+      at: spot(explorer.room, 0),
+      heading: tileTurn(tileOf(explorer.room).rotation),
+      walk: null,
+      walking: ADULT_WALK,
+    };
+    const { marked: figure, walking } = marked(explorer, (seconds) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 }));
+    walker.walking = walking;
     figure.traverse((object) => {
       const animation = animationOf(object);
       if (animation) walker.animations.push(animation);
@@ -292,10 +312,10 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
   const poseWalker = (walker: Walker, seconds: number) => {
     let hop = 0;
     if (walker.walk) {
-      const pose = walkPose(walker.walk, seconds);
+      const pose = walkPose(walker.walk, seconds, walker.walking.step);
       walker.at = pose.point;
       walker.heading = pose.heading;
-      hop = Math.abs(Math.sin(pose.stride.phase)) * HOP * pose.stride.amount;
+      hop = hopHeight(walker.walking, pose.stride);
     }
     walker.holder.position.copy(scenePoint(walker.at));
     walker.holder.position.y += hop;

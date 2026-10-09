@@ -12,6 +12,7 @@ import {
   DOOR_WIDTH,
   FRONT_DOOR_HEIGHT,
   FRONT_DOOR_WIDTH,
+  OUTDOOR,
   TILE,
   WAINSCOT_DEPTH,
   WAINSCOT_HEIGHT,
@@ -24,7 +25,8 @@ import {
   type PropPlacement,
   type RoomDefinition,
 } from "./room";
-import { box, flat, glow, group, textured } from "./shapes";
+import type { PaletteKey } from "./palette";
+import { batch, box, flat, glow, group, projectUvs, textured } from "./shapes";
 import { pixelTexture, textureReady } from "./textures";
 
 export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
@@ -177,6 +179,78 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
   return wall;
 }
 
+/** Iron railings along x between `x0` and `x1`, standing on the low wall:
+ *  bars with a knob at the top, held by two rails. */
+function railings(bars: ReturnType<typeof batch>, x0: number, x1: number, iron: PaletteKey) {
+  const { railing } = OUTDOOR;
+  const length = x1 - x0;
+  const count = Math.max(1, Math.round(length / 0.15));
+  const step = length / count;
+  const tall = railing - CUT_HEIGHT;
+  for (let i = 0; i < count; i++) {
+    const x = x0 + (i + 0.5) * step;
+    bars.block([0.03, tall, 0.03], iron, [x, CUT_HEIGHT - 0.01, 0]);
+    bars.add([0.05, 0.05, 0.05], iron, new THREE.Matrix4().compose(new THREE.Vector3(x, railing, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 4, Math.PI / 4)), new THREE.Vector3(1, 1, 1)));
+  }
+  for (const y of [CUT_HEIGHT + 0.1, railing - 0.17]) bars.block([length + 0.01, 0.04, 0.045], iron, [(x0 + x1) / 2, y, 0]);
+}
+
+/**
+ * One outdoor edge, built along x with its inner face towards +z (see
+ * `OUTDOOR`): a low wall exactly the cut height tall, with stone piers either
+ * side of each gate and, on an edge that holds the corners, at its ends.
+ * Standing full, it adds iron railings and the piers' upper part with their
+ * caps; cut, it is the low wall alone, the piers cut level with it.
+ */
+function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, iron: PaletteKey): THREE.Group {
+  const stone = textured(surface);
+  const edge = group();
+  const half = WALL_THICKNESS / 2;
+  const { pier, pierTop } = OUTDOOR;
+  const coping = 0.06;
+  const capHeight = 0.16;
+  const holeEdges = holes.flatMap((hole) => [hole.centre - hole.width / 2, hole.centre + hole.width / 2]);
+  const piers = holes.flatMap((hole) => [hole.centre - hole.width / 2 - pier / 2, hole.centre + hole.width / 2 + pier / 2]);
+  if (corners) piers.push(-length / 2 + pier / 2, length / 2 - pier / 2);
+  /** How far a railing stops short of a span's end: a pier there, or the corner pier of the edge it meets. */
+  const inset = (x: number) => (holeEdges.some((at) => Math.abs(at - x) < 1e-6) || corners ? pier : pier - WALL_THICKNESS);
+  const bars = batch();
+  for (const span of spans(length, holes, CUT_HEIGHT)) {
+    const w = span.x1 - span.x0;
+    if (w <= 0.001) continue;
+    const cx = (span.x0 + span.x1) / 2;
+    const body = box([w, CUT_HEIGHT - coping, WALL_THICKNESS], stone, [cx, 0, 0]);
+    // The coping overhangs the room side only, so it never reaches into the tile next door.
+    const top = box([w, coping, WALL_THICKNESS + 0.03], stone, [cx, CUT_HEIGHT - coping, 0.015]);
+    body.userData.body = true;
+    top.userData.body = true;
+    edge.add(body, top);
+    if (full) railings(bars, span.x0 + inset(span.x0), span.x1 - inset(span.x1), iron);
+  }
+  for (const x of piers) {
+    const body = box([pier, full ? pierTop - capHeight : CUT_HEIGHT, pier], stone, [x, 0, pier / 2 - half]);
+    body.userData.body = true;
+    edge.add(body);
+    if (full) {
+      const cap = new THREE.ConeGeometry(pier / Math.SQRT2, capHeight, 4).rotateY(Math.PI / 4).translate(x, pierTop - capHeight / 2, pier / 2 - half);
+      edge.add(new THREE.Mesh(projectUvs(cap, surface), stone));
+    }
+  }
+  if (full) edge.add(bars.mesh());
+  return edge;
+}
+
+/** An iron gate shut in a gateway, in the middle of the low wall's thickness. */
+function shutGate(full: boolean, iron: PaletteKey): THREE.Mesh {
+  const bars = batch();
+  const top = full ? OUTDOOR.railing : CUT_HEIGHT;
+  const count = 7;
+  const step = DOOR_WIDTH / count;
+  for (let i = 0; i < count; i++) bars.block([0.03, top - 0.05, 0.03], iron, [-DOOR_WIDTH / 2 + (i + 0.5) * step, 0.05, 0]);
+  for (const y of full ? [0.12, top - 0.17] : [0.12]) bars.block([DOOR_WIDTH + 0.01, 0.04, 0.045], iron, [0, y, 0]);
+  return bars.mesh();
+}
+
 function edgeLength(edge: Edge): number {
   return edge === "top" || edge === "bottom" ? TILE : TILE - WALL_THICKNESS * 2;
 }
@@ -293,18 +367,23 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     root.add(piece);
   }
 
+  if (tile.outside && tile.windows.length > 0) throw new Error(`${def.id} is outdoors, with no wall to hold its windows`);
   // The unseen ceiling: it only stops light in the bake, so moonlight gets in through the windows alone.
-  const ceiling = box([TILE, 0.1, TILE], flat("void"), [0, WALL_HEIGHT, 0]);
-  ceiling.userData.bakeOnly = true;
-  root.add(ceiling);
+  // Outdoors there is none, and the moon falls on the whole tile.
+  if (!tile.outside) {
+    const ceiling = box([TILE, 0.1, TILE], flat("void"), [0, WALL_HEIGHT, 0]);
+    ceiling.userData.bakeOnly = true;
+    root.add(ceiling);
+  }
 
   const walls: RoomPart["walls"] = [];
   for (const edge of EDGES) {
     if (tile.passages.includes(edge)) continue;
     const holes = openings(tile, edge);
     const wall = (height: number) => {
-      const built = buildWall(edgeLength(edge), holes, height, parts);
-      if (closedDoors.includes(edge)) built.add(shutLeaf(height, parts.trim));
+      const full = height === WALL_HEIGHT;
+      const built = tile.outside ? buildBoundary(edgeLength(edge), holes, full, edge === "top" || edge === "bottom", wallTexture, def.trim) : buildWall(edgeLength(edge), holes, height, parts);
+      if (closedDoors.includes(edge)) built.add(tile.outside ? shutGate(full, def.trim) : shutLeaf(height, parts.trim));
       const placed = placeOnEdge(built, edge);
       placed.userData.piece = { shell: edge } satisfies Piece;
       return placed;

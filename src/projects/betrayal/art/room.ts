@@ -20,6 +20,16 @@ export const WAINSCOT_HEIGHT = 1.0;
 /** How far the wainscot panelling stands off the wall face. A piece backed
  *  against a wall must not put a face in this plane, or the two fight. */
 export const WAINSCOT_DEPTH = 0.03;
+/**
+ * An outdoor tile (the tile data's `outside`) has no walls and no ceiling.
+ * Its edges are a low wall of the room's `wall` surface, exactly the cut
+ * height tall so cutting it changes nothing, with iron railings of its
+ * `trim` colour above, which the cut takes away. Stone piers stand either
+ * side of each gate (a door) and at the corners, square and flush with the
+ * tile's edge, so they reach `PIER` − `WALL_THICKNESS` into the walkable floor.
+ */
+export const OUTDOOR = { railing: 1.25, pier: 0.3, pierTop: 1.45 };
+
 /** Half the walkable floor: props stay within ±INNER of the centre. */
 export const INNER = TILE / 2 - WALL_THICKNESS;
 

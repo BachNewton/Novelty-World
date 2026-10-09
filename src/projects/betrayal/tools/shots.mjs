@@ -4,7 +4,7 @@
 // waits on its events (room built, textures decoded, camera settled, frames rendered), never a sleep.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--idle] [--compare=<room-id>] [--native]
+// Usage:  node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--explorer-zoom=<z>] [--idle] [--compare=<room-id>] [--res=<short side>]
 //         node src/projects/betrayal/tools/shots.mjs --all [label]
 //
 // One room writes to src/projects/betrayal/.shots/<label>/<room-id>/ (gitignored): view-0..3.png (desktop
@@ -12,7 +12,8 @@
 // and contact-sheet.png combining them; props/<n>.png, every prop framed close at full resolution from the
 // view that faces it, and close-ups.png combining them. --explorer picks who stands at the room's pawn spot
 // (the bench's first explorer by default; `pawn` is the plain scale pawn). --idle also writes
-// idle-strip.png: the explorer at a run of frozen times, to judge the idle animation. --compare=<room-id>
+// idle-strip.png: the explorer at a run of frozen times, to judge the idle animation. --explorer-zoom=0.5
+// frames the explorer shots wider, for a figure bigger than a person. --compare=<room-id>
 // also shoots that room the same way (views and close-up, same explorer, clock and resolution) and writes
 // compare-<room-id>.png, the two side by side, to judge whether they look like one house.
 //
@@ -37,8 +38,10 @@ const [ROOM, LABEL = "latest"] = ALL ? [null, ...POSITIONAL] : POSITIONAL;
 const EXPLORER = flag("explorer");
 const COMPARE = flag("compare");
 const IDLE = FLAGS.includes("--idle");
-/** Draws the room at the screen's own resolution rather than the bench's low default. */
-const NATIVE = FLAGS.includes("--native");
+/** Zooms the explorer framing out (below 1) for a figure wider than a person: a big monster, or a line-up. */
+const EXPLORER_ZOOM = Number(flag("explorer-zoom") ?? 1);
+/** Draws the room at this short side in pixels instead of the bench's native default, e.g. --res=540. */
+const RES = flag("res") === undefined ? null : Number(flag("res"));
 const FREEZE_AT = 2;
 /** The idle strip's frozen times: every 1.5 s over 24 s, long enough to catch his occasional gestures. */
 const IDLE_TIMES = Array.from({ length: 16 }, (_, i) => i * 1.5);
@@ -94,7 +97,7 @@ async function openBench(room, viewport) {
   const known = await page.evaluate(() => window.__betrayalBench.rooms());
   if (!known.includes(room)) throw new Error(`The bench has no room "${room}"; it has: ${known.join(", ")}`);
   await page.evaluate(
-    ({ explorer, frozenAt, native }) => {
+    ({ explorer, frozenAt, res }) => {
       const bench = window.__betrayalBench;
       if (explorer) {
         if (!bench.explorers().includes(explorer)) {
@@ -103,9 +106,9 @@ async function openBench(room, viewport) {
         bench.setExplorer(explorer);
       }
       bench.freezeClock(frozenAt);
-      if (native) bench.setResolution(null);
+      if (res !== null) bench.setResolution(res);
     },
-    { explorer: EXPLORER, frozenAt: FREEZE_AT, native: NATIVE },
+    { explorer: EXPLORER, frozenAt: FREEZE_AT, res: RES },
   );
   return page;
 }
@@ -216,13 +219,13 @@ if (ALL) {
 const OUTDIR = outdir(ROOM);
 const desktop = await openBench(ROOM, DESKTOP);
 const shots = await shootViews(desktop, OUTDIR);
-shots.push({ name: "explorer", path: await capture(desktop, join(OUTDIR, "explorer.png"), { view: 0, subject: "explorer", chrome: false }) });
+shots.push({ name: "explorer", path: await capture(desktop, join(OUTDIR, "explorer.png"), { view: 0, zoom: EXPLORER_ZOOM, subject: "explorer", chrome: false }) });
 const idle = [];
 if (IDLE) {
   const clip = { x: (DESKTOP.width - 640) / 2, y: 0, width: 640, height: DESKTOP.height };
   for (const at of IDLE_TIMES) {
     const name = `idle-${at.toFixed(1)}s`;
-    idle.push({ name, path: await capture(desktop, join(OUTDIR, `${name}.png`), { view: 0, subject: "explorer", chrome: false, at, clip }) });
+    idle.push({ name, path: await capture(desktop, join(OUTDIR, `${name}.png`), { view: 0, zoom: EXPLORER_ZOOM, subject: "explorer", chrome: false, at, clip }) });
   }
 }
 const props = await shootProps(desktop, outdir(ROOM, "props"));

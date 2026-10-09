@@ -356,11 +356,14 @@ ledger.
 - **Touching is not joined.** Two boxes that only meet leave a crack the
   dark behind shows through as a line of dots; overlap neighbours by a few
   millimetres (the Library's books do).
-- **Nothing stands less than about 1.5 cm proud.** At the bench's 540p, one
-  screen pixel covers 7 to 16 mm of the room, so a detail standing 5 mm off
-  a surface draws as a broken row of dots. Make it flush instead: a slice
-  of the surface in its own colour (the Library's book bands), or part of
-  the texture.
+- **Judge detail at native resolution, and by what the player must read.**
+  The review shots draw at the screen's own resolution, as players will see
+  it. Fine detail is for close views; anything the room's identity or a
+  rule depends on must read as a shape at house distance, not as a relief.
+  A detail of another colour standing only millimetres off a surface fights
+  it at a distance and flickers: stand it a centimetre or more proud, or
+  make it flush, a slice of the surface in its own colour (the Library's
+  book bands) or part of the texture.
 - **Merge many small pieces** with `batch()`: one mesh, coloured by palette
   key per box. Shelves of books, rails, rungs, a heap of debris.
 - **Glows, pools and beams use `lightMaterial`**: it adds light to whatever
@@ -412,8 +415,9 @@ room that only works when an opening is live.
   All looking is through headless Playwright.
 - **Shoot a labelled run:**
   `node src/projects/betrayal/tools/shots.mjs <room-id> <room-id>-v<n> --compare=<room-id>`
-  (`--native` draws at the screen's own resolution instead of the bench's
-  default; the render resolution isn't decided, so judge both),
+  (it draws at the screen's own resolution, the default; `--res=540` draws
+  at a low short side instead, a secondary check while the owner hasn't
+  ruled the low-resolution look out),
   a new label each round so rounds can be compared. It writes, under
   `src/projects/betrayal/.shots/<label>/<room-id>/` (gitignored):
   `contact-sheet.png` (the four dollhouse views, a close-up, the explorer
@@ -425,7 +429,7 @@ room that only works when an opening is live.
   frozen for every shot, so two runs differ only where the art does.
   `--explorer=<id>` picks who stands in the room; `--idle` adds
   `idle-strip.png`, the explorer at a run of frozen times, for judging an
-  animation. `house-shots.mjs` (also with `--native`) writes
+  animation. `house-shots.mjs` (also native by default, with `--res`) writes
   `sheet-spill.png`: light from a lit room into a dark one through a
   doorway, and the same pair through a wall. If building the room throws
   (a light limit, a pixel character

@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { batch, box, cylinder, flat, group, lathe, textured } from "../shapes";
 import { pixelTexture, TEXELS_PER_METRE, type PixelLegend } from "../textures";
-import { burst, figureBase, reach, STANDING, type Gait, type Reach } from "./figure";
+import { ADULT_WALK, BASE_TOP, burst, figureBase, pose, reach, STANDING, swing, walks, type Gait, type Limb } from "./figure";
 
 /*
  * Professor Longfellow: a slight, elderly scholar, all Knowledge and no Might.
@@ -15,7 +15,6 @@ import { burst, figureBase, reach, STANDING, type Gait, type Reach } from "./fig
  * the numbers can be checked against the room; each pivot sits at its joint.
  */
 
-const BASE_TOP = 0.08;
 const WAIST = 0.7;
 /** The legs swing from the hips, at the waist. */
 const HIP = WAIST - BASE_TOP;
@@ -139,14 +138,8 @@ function book(): THREE.Group {
   return result;
 }
 
-interface Arm {
-  shoulder: THREE.Group;
-  elbow: THREE.Group;
-  at: THREE.Vector3;
-}
-
 /** An upper arm hanging from the shoulder pivot and a forearm from the elbow pivot, ending in a hand. */
-function arm(side: -1 | 1, coat: THREE.Material): Arm {
+function arm(side: -1 | 1, coat: THREE.Material): Limb {
   const elbow = group(
     box([0.085, FOREARM, 0.09], coat, [0, -FOREARM, 0]),
     box([0.07, HAND, 0.06], flat("bone"), [0, -FOREARM - HAND + 0.01, 0]),
@@ -156,20 +149,6 @@ function arm(side: -1 | 1, coat: THREE.Material): Arm {
   const at = new THREE.Vector3(side * SHOULDER[0], SHOULDER[1] - WAIST, 0);
   shoulder.position.copy(at);
   return { shoulder, elbow, at };
-}
-
-/** Blends a limb between two poses: 0 is `from`, 1 is `to`. */
-function pose(limb: Arm, from: Reach, to: Reach, amount: number) {
-  limb.shoulder.quaternion.slerpQuaternions(from.shoulder, to.shoulder, amount);
-  limb.elbow.quaternion.slerpQuaternions(from.elbow, to.elbow, amount);
-}
-
-/** Swings a piece built in place about a hip at `at`, turning it `angle`
- *  forward. At rest its transform is exactly the identity, so a figure that
- *  never walks is drawn exactly as it was built. */
-function swing(piece: THREE.Group, at: THREE.Vector3, angle: number) {
-  piece.rotation.x = angle;
-  piece.position.copy(at).sub(at.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), angle));
 }
 
 /** Professor Longfellow as a miniature on a round base, about 1.6 m tall,
@@ -223,7 +202,7 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   const body = group(rightLeg, leftLeg, hips);
   body.position.y = BASE_TOP;
 
-  const figure = group(figureBase(), body, rightShoe, leftShoe);
+  const figure = walks(group(figureBase(), body, rightShoe, leftShoe), ADULT_WALK);
 
   const rng = createRng(seed);
   const breathPhase = rng.next() * Math.PI * 2;

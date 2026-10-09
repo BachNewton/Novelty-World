@@ -18,7 +18,7 @@ import { group } from "./shapes";
  *  draws at the screen's own resolution. */
 export type Resolution = number | null;
 const RESOLUTIONS: Resolution[] = [270, 360, 540, 720, 1080, null];
-const DEFAULT_RESOLUTION = 540;
+const DEFAULT_RESOLUTION: Resolution = null;
 const FIELD_OF_VIEW = 32;
 const ELEVATION = THREE.MathUtils.degToRad(40);
 /** How far the room reaches from its centre on screen: across (corner to

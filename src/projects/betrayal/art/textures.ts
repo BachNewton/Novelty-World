@@ -304,6 +304,52 @@ export function panelling({ ramp = RAMPS.wood, panelPx = 24, seed = "panels" }: 
   });
 }
 
+export interface EarthOptions {
+  /** Dark to light: pits, the body of the soil, clods. */
+  soil?: Ramp;
+  /** Dark to light: grass blades, then their tips. An empty ramp is bare earth. */
+  grass?: Ramp;
+  /** How many patches of grass grow over one texture. */
+  patches?: number;
+  size?: number;
+  seed?: string;
+}
+
+/** Bare earth with clods and pebbles, and patches of rough grass: the ground of an outdoor room. */
+export function earth({ soil = ["soot", "woodDark", "wood"], grass = ["wraithDark", "wraith"], patches = 7, size = 64, seed = "earth" }: EarthOptions = {}): THREE.Texture {
+  return cached(`earth:${soil.join()}:${grass.join()}:${patches}:${size}:${seed}`, () => {
+    const { element, context } = canvas(size, size);
+    const paint = painter(context);
+    const rng = createRng(seed);
+    const dot = (x: number, y: number, w: number, h: number, colour: PaletteKey) => paint((x + size) % size, (y + size) % size, w, h, colour);
+    paint(0, 0, size, size, soil[Math.min(1, soil.length - 1)]);
+    for (let i = 0; i < size * 1.5; i++) dot(between(rng, 0, size), between(rng, 0, size), between(rng, 1, 2), 1, soil[0]);
+    for (let i = 0; i < size; i++) dot(between(rng, 0, size), between(rng, 0, size), between(rng, 1, 3), 1, soil[soil.length - 1]);
+    for (let i = 0; i < size / 4; i++) {
+      const x = between(rng, 0, size);
+      const y = between(rng, 0, size);
+      dot(x, y, 1, 1, "stoneDark");
+      dot(x, y - 1, 1, 1, "stone");
+    }
+    if (grass.length === 0) return finish(element, true);
+    for (let patch = 0; patch < patches; patch++) {
+      const cx = between(rng, 0, size);
+      const cy = between(rng, 0, size);
+      const radius = between(rng, 4, 10);
+      for (let tuft = 0; tuft < radius * radius * 0.6; tuft++) {
+        const angle = rng.next() * Math.PI * 2;
+        const r = Math.sqrt(rng.next()) * radius;
+        const x = cx + Math.round(Math.cos(angle) * r);
+        const y = cy + Math.round(Math.sin(angle) * r * 0.7);
+        const tall = between(rng, 1, 3);
+        dot(x, y - tall + 1, 1, tall, grass[0]);
+        dot(x, y - tall, 1, 1, grass[grass.length - 1]);
+      }
+    }
+    return finish(element, true);
+  });
+}
+
 /** Maps each character of a pixel grid to a palette colour; `null` is transparent. */
 export type PixelLegend = Record<string, PaletteKey | null>;
 

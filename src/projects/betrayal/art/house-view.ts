@@ -19,7 +19,7 @@ import { roomTile } from "./stage";
 /** Pixels on the screen's short side, as on the bench; null is native. */
 export type Resolution = number | null;
 const RESOLUTIONS: Resolution[] = [270, 360, 540, 720, 1080, null];
-const DEFAULT_RESOLUTION = 540;
+const DEFAULT_RESOLUTION: Resolution = null;
 const FIELD_OF_VIEW = 32;
 const ELEVATION = THREE.MathUtils.degToRad(40);
 const PITCH_RANGE = [THREE.MathUtils.degToRad(12), THREE.MathUtils.degToRad(85)] as const;
