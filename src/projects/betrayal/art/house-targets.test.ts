@@ -60,8 +60,12 @@ describe("targetPlace", () => {
     const cell: Target = { id: "c", kind: "cell", floor: "basement", x: 1, y: 0 };
     expect(targetPlace(cell, context("ground")).mark).toBeNull();
     expect(targetPlace(cell, context("basement")).mark).toEqual({ id: "c", kind: "cell", floor: "basement", x: 1, y: 0 });
-    const ghost = targetPlace({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, doors: ["top", "left"] }, context("all"));
-    expect(ghost.mark).toEqual({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, doors: ["top", "left"] });
+    const doors = [
+      { direction: "top", doorway: "joined" },
+      { direction: "left", doorway: "unexplored" },
+    ] as const;
+    const ghost = targetPlace({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, tile: "kitchen", rotation: 1, doors }, context("all"));
+    expect(ghost.mark).toEqual({ id: "g", kind: "ghost", floor: "ground", x: 0, y: 1, doors });
   });
 
   it("rings a figure, itself or another, as a box the pointer can hit", () => {

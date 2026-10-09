@@ -33,27 +33,37 @@ function Hint({ glyphs, does }: { glyphs: ReactNode; does: string }) {
   );
 }
 
-/** What each control does, for the input the player last used. A mouse and a
- *  finger point at what they want, so they get no hints. */
+/** What each control does, for the input the player last used: a
+ *  controller's buttons, or the keys and mouse. A finger has the on-screen
+ *  buttons, so it gets no hints. */
 function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: Phase; walking: boolean; stopping: boolean }) {
   const go = stopping ? "stop" : "walk";
-  if (walking || input === "mouse" || input === "touch") return null;
+  if (walking || input === "touch") return null;
   const pad = input === "pad";
   const hints =
     phase === "entering"
       ? [<Hint key="skip" glyphs={pad ? <Glyph round>A</Glyph> : <Glyph>Enter</Glyph>} does="go on" />]
       : pad
         ? [
-            <Hint key="move" glyphs={<><Glyph round>L</Glyph><Glyph>✚</Glyph></>} does="choose" />,
+            <Hint key="pan" glyphs={<Glyph round>L</Glyph>} does="look" />,
             <Hint key="go" glyphs={<Glyph round>A</Glyph>} does={go} />,
-            <Hint key="orbit" glyphs={<><Glyph round>R</Glyph><Glyph>LB</Glyph><Glyph>RB</Glyph></>} does="turn" />,
+            <Hint key="back" glyphs={<Glyph round>B</Glyph>} does="back" />,
+            <Hint key="next" glyphs={<><Glyph>LB</Glyph><Glyph>RB</Glyph></>} does="next" />,
+            <Hint key="orbit" glyphs={<Glyph round>R</Glyph>} does="turn, tilt" />,
             <Hint key="zoom" glyphs={<><Glyph>LT</Glyph><Glyph>RT</Glyph></>} does="zoom" />,
+            <Hint key="floor" glyphs={<Glyph>✚</Glyph>} does="floor" />,
+            <Hint key="recentre" glyphs={<Glyph round>Y</Glyph>} does="recentre" />,
           ]
         : [
-            <Hint key="move" glyphs={<><Glyph>←↑↓→</Glyph><Glyph>WASD</Glyph></>} does="choose" />,
-            <Hint key="go" glyphs={<Glyph>Enter</Glyph>} does={go} />,
+            <Hint key="pan" glyphs={<Glyph>WASD</Glyph>} does="look" />,
+            <Hint key="go" glyphs={<Glyph>Click</Glyph>} does={go} />,
+            <Hint key="next" glyphs={<Glyph>Tab</Glyph>} does="next" />,
             <Hint key="orbit" glyphs={<><Glyph>Q</Glyph><Glyph>E</Glyph></>} does="turn" />,
-            <Hint key="zoom" glyphs={<><Glyph>+</Glyph><Glyph>−</Glyph></>} does="zoom" />,
+            <Hint key="tilt" glyphs={<><Glyph>T</Glyph><Glyph>G</Glyph></>} does="tilt" />,
+            <Hint key="drag" glyphs={<Glyph>Right-drag</Glyph>} does="turn, tilt" />,
+            <Hint key="zoom" glyphs={<Glyph>Wheel</Glyph>} does="zoom" />,
+            <Hint key="floor" glyphs={<><Glyph>R</Glyph><Glyph>F</Glyph></>} does="floor" />,
+            <Hint key="recentre" glyphs={<Glyph>C</Glyph>} does="recentre" />,
           ];
   return <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{hints}</div>;
 }
@@ -94,9 +104,14 @@ export function HouseScreen() {
     focused && shown.floor !== "all" && focused.floor !== shown.floor ? (FLOORS.indexOf(focused.floor) > FLOORS.indexOf(shown.floor) ? "Up to the " : "Down to the ") : "";
   const [minZoom, maxZoom] = view.scene.zoomRange;
   const labelRef = useRef<HTMLDivElement>(null);
+  const reticleRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     view.scene.setLabel(labelRef.current);
-    return () => view.scene.setLabel(null);
+    view.scene.setReticle(reticleRef.current);
+    return () => {
+      view.scene.setLabel(null);
+      view.scene.setReticle(null);
+    };
   }, [view]);
 
   const status =
@@ -109,6 +124,11 @@ export function HouseScreen() {
   return (
     <div style={BETRAYAL_THEME} className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
       <div ref={containerRef} className="absolute inset-0" />
+      <div
+        ref={reticleRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-(--bt-muted) data-[snapped=true]:border-(--bt-accent)"
+      />
       <div
         ref={labelRef}
         className="pointer-events-none invisible absolute top-0 left-0 rounded border border-(--bt-accent) bg-(--bt-panel) px-2 py-0.5 text-sm whitespace-nowrap"
@@ -185,17 +205,20 @@ export function HouseScreen() {
           <Hints input={shown.input} phase={state.phase} walking={shown.walking} stopping={focused?.stop === true} />
         </section>
         <div className="flex justify-center gap-2">
-          <BenchButton label="Orbit left" onClick={() => view.api.turn(-1)}>
-            ⟲
+          <BenchButton label="Floor down" disabled={shown.floor === floors[0]} onClick={() => view.api.stepFloor(-1)}>
+            ▼
+          </BenchButton>
+          <BenchButton label="Floor up" disabled={shown.floor === floors[floors.length - 2]} onClick={() => view.api.stepFloor(1)}>
+            ▲
+          </BenchButton>
+          <BenchButton label="Recentre" onClick={() => view.api.recentre()}>
+            ◎
           </BenchButton>
           <BenchButton label="Zoom out" disabled={shown.zoom <= minZoom} onClick={() => view.api.setZoom(shown.zoom / 1.5)}>
             −
           </BenchButton>
           <BenchButton label="Zoom in" disabled={shown.zoom >= maxZoom} onClick={() => view.api.setZoom(shown.zoom * 1.5)}>
             +
-          </BenchButton>
-          <BenchButton label="Orbit right" onClick={() => view.api.turn(1)}>
-            ⟳
           </BenchButton>
         </div>
       </div>

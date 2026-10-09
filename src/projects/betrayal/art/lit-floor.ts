@@ -238,6 +238,106 @@ function litRoom(
 
 type Built = ReturnType<typeof litRoom>;
 
+/** A room shown as a ghost of itself: drawn as it would be placed, merged
+ *  the same way, but never baked. */
+export interface GhostRoom {
+  root: THREE.Group;
+  setCut: (isCut: (edge: Edge) => boolean) => void;
+  update: (seconds: number) => void;
+  dispose: () => void;
+}
+
+/** How a ghost room looks: how see-through, the colour its own colours are
+ *  lit by, and how much of that it shows now (from 0 to 1), for a slow pulse. */
+export interface GhostLook {
+  opacity: number;
+  glow: { value: THREE.Color };
+  fade: { value: number };
+}
+
+// Its colours, mostly drained towards grey and lit cold: still the room, but plainly not yet a real one.
+const GHOST_FRAGMENT = /* glsl */ `#include <emissivemap_fragment>
+totalEmissiveRadiance += mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.299, 0.587, 0.114 ) ) ), 0.65 ) * ghostGlow;
+diffuseColor.a *= ghostFade;`;
+
+/** A ghost's lit surfaces: Lambert, lit by the scene's live light plus its own colours times the glow. */
+function patchGhost(shader: THREE.WebGLProgramParametersWithUniforms, look: GhostLook) {
+  shader.uniforms.ghostGlow = look.glow;
+  shader.uniforms.ghostFade = look.fade;
+  shader.fragmentShader = inject(shader.fragmentShader, "void main() {", "uniform vec3 ghostGlow;\nuniform float ghostFade;\nvoid main() {");
+  shader.fragmentShader = inject(shader.fragmentShader, "#include <emissivemap_fragment>", GHOST_FRAGMENT);
+}
+
+/** A material of a ghost's moving piece: see-through, and its lit surfaces glowing as a ghost's do. */
+function ghostPieceMaterial(material: THREE.Material, look: GhostLook): THREE.Material {
+  const ghost = material.clone();
+  ghost.transparent = true;
+  ghost.opacity = material.opacity * look.opacity;
+  if (ghost instanceof THREE.MeshLambertMaterial) {
+    ghost.onBeforeCompile = (shader) => patchGhost(shader, look);
+    ghost.customProgramCacheKey = () => "betrayal-ghost-piece";
+  }
+  return ghost;
+}
+
+/**
+ * A frozen room drawn as a ghost: see-through, lit by its own colours and the
+ * scene's live light instead of a bake, so it shows at once, costs about what
+ * the placed room will, and reads as not yet real. Its walls cut as a placed
+ * room's do.
+ */
+export function ghostRoom(room: FrozenRoom, look: GhostLook): GhostRoom {
+  const cut = { value: new THREE.Vector4() };
+  const root = new THREE.Group();
+  const material = ({ params }: Bucket): THREE.Material => {
+    const common = { vertexColors: true, map: params.map, alphaTest: params.alphaTest, side: params.side, transparent: true, opacity: params.opacity * look.opacity, toneMapped: params.toneMapped };
+    if (params.lit) {
+      const lit = new THREE.MeshLambertMaterial(common);
+      lit.onBeforeCompile = (shader) => {
+        patchCut(shader, cut);
+        patchGhost(shader, look);
+      };
+      lit.customProgramCacheKey = () => "betrayal-ghost";
+      return lit;
+    }
+    const unlit = new THREE.MeshBasicMaterial({ ...common, blending: params.blending, depthWrite: params.depthWrite, fog: params.fog });
+    unlit.onBeforeCompile = (shader) => patchCut(shader, cut);
+    unlit.customProgramCacheKey = () => "betrayal-cut";
+    return unlit;
+  };
+  for (const bucket of room.buckets) root.add(new THREE.Mesh(bucket.geometry, material(bucket)));
+  for (const { holder } of room.dynamics) {
+    holder.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = false;
+      const swap = (old: THREE.Material) => {
+        const ghost = ghostPieceMaterial(old, look);
+        old.dispose();
+        return ghost;
+      };
+      object.material = Array.isArray(object.material) ? (object.material as THREE.Material[]).map(swap) : swap(object.material as THREE.Material);
+    });
+    root.add(holder);
+  }
+  return {
+    root,
+    setCut: (isCut) => {
+      cut.value.fromArray(EDGES.map((edge) => (isCut(edge) ? 1 : 0)));
+      for (const { holder, hidesWith } of room.dynamics) holder.visible = !hidesWith.some(isCut);
+    },
+    update: (seconds) => {
+      for (const animation of room.animations) animation(seconds);
+    },
+    dispose: () => {
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        for (const each of [object.material].flat() as THREE.Material[]) each.dispose();
+      });
+    },
+  };
+}
+
 /** Every bake scene gets its own id, so workers shared between floors never confuse two. */
 let scenes = 0;
 

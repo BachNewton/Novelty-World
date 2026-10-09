@@ -8,7 +8,7 @@ const BUTTON = "rounded border border-(--bt-line) px-3 py-1 text-sm";
 
 function link(shared: SharedGame): string {
   const url = new URL(window.location.href);
-  url.search = new URLSearchParams({ game: encodeGame(shared) }).toString();
+  url.search = new URLSearchParams({ debug: "", game: encodeGame(shared) }).toString();
   return url.toString();
 }
 

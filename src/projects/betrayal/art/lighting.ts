@@ -91,6 +91,25 @@ export function explorerLight(): THREE.PointLight {
   return new THREE.PointLight(paletteHex("boneLight"), 2.5, 3.5, 2);
 }
 
+/**
+ * A live light a figure carries, at a held candle's flame: amber, as a
+ * flame's light is, and wavering with it. It casts no shadow (only
+ * `MAX_LIVE_SHADOWS` lights may), so nothing blocks it: its range is kept
+ * short, a pool of light round the figure that fades out before the walls
+ * of a room, so it barely reaches through a wall into the next. It lights
+ * the room round its figure as the figure moves, and helps find that
+ * figure in a dark room.
+ */
+export const CARRIED_LIGHT = { colour: "amber" as PaletteKey, intensity: 1.8, range: 3, decay: 1, flicker: 0.2 };
+
+export function carriedLight(): THREE.PointLight {
+  const { colour, intensity, range, decay } = CARRIED_LIGHT;
+  // A gentler fall-off than a real light's, so the flame lights the floor round the figure without burning out the hand and coat beside it.
+  const light = new THREE.PointLight(paletteHex(colour), intensity, range, decay);
+  light.castShadow = false;
+  return light;
+}
+
 export function fillLight(): THREE.HemisphereLight {
   const { sky, ground, intensity } = HOUSE_LIGHT.fill;
   return new THREE.HemisphereLight(paletteHex(sky), paletteHex(ground), intensity);

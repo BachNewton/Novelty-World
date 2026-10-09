@@ -10,7 +10,7 @@ import { decodeGame, replay, type SharedGame } from "../share";
 import { logLines, seatLabel, type LogLine } from "./describe";
 import { ErrorBox } from "./error-box";
 import { EventLog } from "./event-log";
-import { boardFocus } from "./focus";
+import { boardFocus } from "../play/choices";
 import { House } from "./house";
 import { errorText, PendingPanel } from "./pending-panel";
 import { SharePanel } from "./share-panel";
@@ -39,14 +39,17 @@ type Problem = { kind: "rejected" | "error"; message: string };
 
 const ArtBench = dynamic(() => import("../art/bench-view").then((m) => m.ArtBench), { ssr: false });
 const HouseScreen = dynamic(() => import("../art/house-screen").then((m) => m.HouseScreen), { ssr: false });
+const PlayGame = dynamic(() => import("./play/play-game").then((m) => m.PlayGame), { ssr: false });
 
 function subscribeToNothing(): () => void {
   return () => undefined;
 }
 
-/** `?bench=<room-id>` opens the art bench instead of the game, `?house` the
- *  house view prototype, and `?game=<code>` opens a shared game. The server
- *  render has no URL, so it renders nothing and the page picks after hydrating. */
+/** The game is the page. `?bench=<room-id>` opens the art bench instead,
+ *  `?house` the house view prototype, and `?debug` the playtesting view, with
+ *  `?debug&game=<code>` (or an older link's bare `?game=<code>`) opening a
+ *  shared game there. The server render has no URL, so it renders nothing
+ *  and the page picks after hydrating. */
 export function Betrayal() {
   const search = useSyncExternalStore(
     subscribeToNothing,
@@ -58,7 +61,8 @@ export function Betrayal() {
   const bench = params.get("bench");
   if (bench) return <ArtBench room={bench} />;
   if (params.has("house")) return <HouseScreen />;
-  return <DebugGame code={params.get("game")} />;
+  if (params.has("debug") || params.has("game")) return <DebugGame code={params.get("game")} />;
+  return <PlayGame />;
 }
 
 function viewsOf(state: GameState): GameView[] {

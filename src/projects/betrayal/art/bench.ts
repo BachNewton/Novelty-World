@@ -34,8 +34,10 @@ const EXPLORER_RADIUS = 0.9;
 const PROP_RADIUS = 0.3;
 
 /** What the camera's presets frame: the whole room, the explorer standing in
- *  it, or one prop (by its place in the room's `props`). */
-export type Subject = "room" | "explorer" | { prop: number };
+ *  it, one prop (by its place in the room's `props`), or a close-up of a
+ *  named part of the explorer (a hand's grip), the `nth` so named, framed
+ *  `radius` metres round. */
+export type Subject = "room" | "explorer" | { prop: number } | { part: string; nth?: number; radius: number };
 
 /** A prop as the bench lists it: its label, its turn (it faces +z unturned),
  *  and the walls it hangs on, which hide it in any view that cuts one of them. */
@@ -267,8 +269,19 @@ export function createBench(initialRoom: string) {
       return found.getBoundingSphere(new THREE.Sphere());
     };
 
+    /** Where the named part of the explorer the subject frames is. */
+    const partAt = ({ part, nth = 0 }: { part: string; nth?: number }): THREE.Vector3 => {
+      const found: THREE.Object3D[] = [];
+      stage?.explorer?.traverse((object) => {
+        if (object.name === part) found.push(object);
+      });
+      const object = found.at(nth);
+      if (!object) throw new Error(`The explorer has no part "${part}" #${nth}`);
+      return object.getWorldPosition(new THREE.Vector3());
+    };
+
     const presetTarget = () => {
-      if (typeof snapshot.subject === "object") return propBounds(snapshot.subject.prop).center;
+      if (typeof snapshot.subject === "object") return "part" in snapshot.subject ? partAt(snapshot.subject) : propBounds(snapshot.subject.prop).center;
       if (snapshot.subject === "explorer" && stage?.explorer) {
         return stage.explorer.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, EXPLORER_AIM, 0));
       }
@@ -301,7 +314,13 @@ export function createBench(initialRoom: string) {
       const fit = fitDistance();
       const subject = snapshot.subject;
       const radius =
-        typeof subject === "object" ? Math.max(propBounds(subject.prop).radius, PROP_RADIUS) : subject === "explorer" && stage?.explorer ? EXPLORER_RADIUS : ROOM_RADIUS;
+        typeof subject === "object"
+          ? "part" in subject
+            ? subject.radius
+            : Math.max(propBounds(subject.prop).radius, PROP_RADIUS)
+          : subject === "explorer" && stage?.explorer
+            ? EXPLORER_RADIUS
+            : ROOM_RADIUS;
       const distance = (fit * radius) / ROOM_RADIUS;
       const target = presetTarget();
       const direction = new THREE.Vector3(

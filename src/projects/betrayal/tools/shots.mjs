@@ -6,6 +6,8 @@
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
 // Usage:  node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--explorer-zoom=<z>] [--idle] [--compare=<room-id>] [--res=<short side>]
 //         node src/projects/betrayal/tools/shots.mjs --all [label]
+//         --every=<s> --frames=<n> --from=<s> set the idle strip's spacing, length and start (see IDLE_TIMES);
+//         --strip-view=<n> shoots it from another view.
 //
 // One room writes to src/projects/betrayal/.shots/<label>/<room-id>/ (gitignored): view-0..3.png (desktop
 // dollhouse views), phone.png (360×780 portrait), close-up.png, explorer.png (the explorer framed close),
@@ -43,8 +45,15 @@ const EXPLORER_ZOOM = Number(flag("explorer-zoom") ?? 1);
 /** Draws the room at this short side in pixels instead of the bench's native default, e.g. --res=540. */
 const RES = flag("res") === undefined ? null : Number(flag("res"));
 const FREEZE_AT = 2;
-/** The idle strip's frozen times: every 1.5 s over 24 s, long enough to catch his occasional gestures. */
-const IDLE_TIMES = Array.from({ length: 16 }, (_, i) => i * 1.5);
+/** Where the idle strip starts: at 0 by default, or --from=<s>. */
+const FREEZE_AT_STRIP = Number(flag("from") ?? 0);
+/** The idle strip's frozen times: by default every 1.5 s over 24 s, long enough to catch the occasional gestures.
+ *  --every=<s> and --frames=<n> change the spacing and count: --every=0.04 --frames=16 shows a walk or run at
+ *  real speed, a frame every 40 ms. */
+const IDLE_EVERY = Number(flag("every") ?? 1.5);
+/** The view the idle strip is shot from: --strip-view=1 sees a line-up side on, to judge a gait. */
+const STRIP_VIEW = Number(flag("strip-view") ?? 0);
+const IDLE_TIMES = Array.from({ length: Number(flag("frames") ?? 16) }, (_, i) => FREEZE_AT_STRIP + i * IDLE_EVERY);
 if (!ROOM && !ALL) {
   console.error("usage: node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--idle] [--compare=<room-id>]");
   console.error("       node src/projects/betrayal/tools/shots.mjs --all [label]");
@@ -224,8 +233,8 @@ const idle = [];
 if (IDLE) {
   const clip = { x: (DESKTOP.width - 640) / 2, y: 0, width: 640, height: DESKTOP.height };
   for (const at of IDLE_TIMES) {
-    const name = `idle-${at.toFixed(1)}s`;
-    idle.push({ name, path: await capture(desktop, join(OUTDIR, `${name}.png`), { view: 0, zoom: EXPLORER_ZOOM, subject: "explorer", chrome: false, at, clip }) });
+    const name = `idle-${at.toFixed(2)}s`;
+    idle.push({ name, path: await capture(desktop, join(OUTDIR, `${name}.png`), { view: STRIP_VIEW, zoom: EXPLORER_ZOOM, subject: "explorer", chrome: false, at, clip }) });
   }
 }
 const props = await shootProps(desktop, outdir(ROOM, "props"));
@@ -247,7 +256,7 @@ ${cell(shots[2])}${cell(shots[3])}${cell(shots[5])}
 await writeSheet(join(OUTDIR, "close-ups.png"), `${ROOM} · ${LABEL} · every prop, close`, grid(4, props));
 
 if (IDLE) {
-  await writeSheet(join(OUTDIR, "idle-strip.png"), `${ROOM} · ${LABEL} · idle, one frame every ${IDLE_TIMES[1] - IDLE_TIMES[0]} s`, grid(8, idle, 8));
+  await writeSheet(join(OUTDIR, "idle-strip.png"), `${ROOM} · ${LABEL} · idle, one frame every ${IDLE_EVERY} s`, grid(8, idle, 8));
 }
 
 if (COMPARE) {

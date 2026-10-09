@@ -8,16 +8,16 @@ import type { SharedGame } from "../share";
 import { ErrorBox } from "./error-box";
 import { compactScenario, ScenarioForm } from "./scenario-form";
 
-const MIN_SEATS = 3;
+export const MIN_SEATS = 3;
 const MAX_SEATS = 6;
 
 const FIELD = "min-w-0 rounded border border-(--bt-line) bg-(--bt-bg) px-2 py-1";
 const BUTTON = "rounded border border-(--bt-line) px-3 py-1 disabled:opacity-40";
 
-type Seats = SharedGame["game"]["seats"];
+export type Seats = SharedGame["game"]["seats"];
 
 /** One explorer from each of the first few character cards. */
-function defaultSeats(characters: Character[], count: number): Seats {
+export function defaultSeats(characters: Character[], count: number): Seats {
   const cards = [...new Set(characters.map((c) => c.card))];
   return cards.slice(0, count).map((card, index) => ({
     name: `Player ${index + 1}`,
@@ -25,7 +25,7 @@ function defaultSeats(characters: Character[], count: number): Seats {
   }));
 }
 
-function today(): SharedGame["game"]["today"] {
+export function today(): SharedGame["game"]["today"] {
   const now = new Date();
   return { month: now.getMonth() + 1, day: now.getDate() };
 }
@@ -53,19 +53,6 @@ export function StartForm({
   const [scenario, setScenario] = useState<Scenario>(() => initial?.scenario ?? {});
   const [code, setCode] = useState("");
 
-  const cardOf = (id: string) => characters.find((c) => c.id === id)?.card;
-  const update = (index: number, change: Partial<Seats[number]>) => {
-    setSeats(seats.map((s, i) => (i === index ? { ...s, ...change } : s)));
-  };
-  const addSeat = () => {
-    const taken = new Set(seats.map((s) => cardOf(s.character)));
-    const free = characters.find((c) => !taken.has(c.card));
-    setSeats([
-      ...seats,
-      { name: `Player ${seats.length + 1}`, character: free?.id ?? "" },
-    ]);
-  };
-
   return (
     <div className="flex max-w-3xl flex-col gap-4">
       <form
@@ -83,65 +70,7 @@ export function StartForm({
         }}
       >
         <h2 className="text-lg font-semibold">New hot-seat game</h2>
-        {seats.map((seat, index) => {
-          const takenByOthers = new Set(
-            seats.filter((_, i) => i !== index).map((s) => cardOf(s.character)),
-          );
-          return (
-            <div key={index} className="flex flex-wrap items-center gap-2">
-              <span className="w-14 text-sm text-(--bt-muted)">Seat {index}</span>
-              <input
-                className={`${FIELD} flex-1`}
-                value={seat.name}
-                aria-label={`Seat ${index} name`}
-                onChange={(e) => {
-                  update(index, { name: e.target.value });
-                }}
-              />
-              <select
-                className={`${FIELD} flex-1`}
-                value={seat.character}
-                aria-label={`Seat ${index} character`}
-                onChange={(e) => {
-                  update(index, { character: e.target.value });
-                }}
-              >
-                <option value="" disabled>
-                  Choose an explorer
-                </option>
-                {characters.map((c) => (
-                  <option
-                    key={c.id}
-                    value={c.id}
-                    disabled={takenByOthers.has(c.card)}
-                  >
-                    {c.name} ({c.card})
-                  </option>
-                ))}
-              </select>
-            </div>
-          );
-        })}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={BUTTON}
-            disabled={seats.length >= MAX_SEATS}
-            onClick={addSeat}
-          >
-            Add seat
-          </button>
-          <button
-            type="button"
-            className={BUTTON}
-            disabled={seats.length <= MIN_SEATS}
-            onClick={() => {
-              setSeats(seats.slice(0, -1));
-            }}
-          >
-            Remove seat
-          </button>
-        </div>
+        <SeatPickers characters={characters} seats={seats} onChange={setSeats} />
 
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-(--bt-muted)">Seed</span>
@@ -222,5 +151,92 @@ export function StartForm({
         </div>
       </form>
     </div>
+  );
+}
+
+/** A name and an explorer for each seat, one explorer per character card, and 3 to 6 seats. */
+export function SeatPickers({
+  characters,
+  seats,
+  onChange,
+}: {
+  characters: Character[];
+  seats: Seats;
+  onChange: (seats: Seats) => void;
+}) {
+  const cardOf = (id: string) => characters.find((c) => c.id === id)?.card;
+  const update = (index: number, change: Partial<Seats[number]>) => {
+    onChange(seats.map((s, i) => (i === index ? { ...s, ...change } : s)));
+  };
+  const addSeat = () => {
+    const taken = new Set(seats.map((s) => cardOf(s.character)));
+    const free = characters.find((c) => !taken.has(c.card));
+    onChange([
+      ...seats,
+      { name: `Player ${seats.length + 1}`, character: free?.id ?? "" },
+    ]);
+  };
+  return (
+    <>
+      {seats.map((seat, index) => {
+        const takenByOthers = new Set(
+          seats.filter((_, i) => i !== index).map((s) => cardOf(s.character)),
+        );
+        return (
+          <div key={index} className="flex flex-wrap items-center gap-2">
+            <span className="w-14 text-sm text-(--bt-muted)">Seat {index}</span>
+            <input
+              className={`${FIELD} flex-1`}
+              value={seat.name}
+              aria-label={`Seat ${index} name`}
+              onChange={(e) => {
+                update(index, { name: e.target.value });
+              }}
+            />
+            <select
+              className={`${FIELD} flex-1`}
+              value={seat.character}
+              aria-label={`Seat ${index} character`}
+              onChange={(e) => {
+                update(index, { character: e.target.value });
+              }}
+            >
+              <option value="" disabled>
+                Choose an explorer
+              </option>
+              {characters.map((c) => (
+                <option
+                  key={c.id}
+                  value={c.id}
+                  disabled={takenByOthers.has(c.card)}
+                >
+                  {c.name} ({c.card})
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={BUTTON}
+          disabled={seats.length >= MAX_SEATS}
+          onClick={addSeat}
+        >
+          Add seat
+        </button>
+        <button
+          type="button"
+          className={BUTTON}
+          disabled={seats.length <= MIN_SEATS}
+          onClick={() => {
+            onChange(seats.slice(0, -1));
+          }}
+        >
+          Remove seat
+        </button>
+      </div>
+    </>
   );
 }

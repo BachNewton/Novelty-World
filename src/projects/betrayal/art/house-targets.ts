@@ -3,7 +3,8 @@ import type { Layout } from "../engine/board";
 import { placed } from "../engine/board";
 import type { ChoiceLayout } from "../input/controls";
 import type { Point, ScreenPoint, Target as PointerTarget } from "../input/navigate";
-import type { Edge, FloorId } from "../types";
+import type { GhostDoor } from "../play/ghost";
+import type { Edge, FloorId, Rotation } from "../types";
 import type { FloorChoice, Mark } from "./house";
 import { DIRECTION } from "./house-layout";
 import { inHouse, shownOn, type HousePoint, type Stairway } from "./house-walk";
@@ -35,8 +36,9 @@ export type Target = { id: string } & (
   | { kind: "doorway"; room: string; direction: Edge }
   /** An empty cell on a floor. */
   | { kind: "cell"; floor: FloorId; x: number; y: number }
-  /** A tile not yet placed, shown at a cell with its doors (board directions). */
-  | { kind: "ghost"; floor: FloorId; x: number; y: number; doors: readonly Edge[] }
+  /** A room tile not yet placed, shown as a ghost on a cell, turned
+   *  `rotation` quarter turns, with what its doorways would do there. */
+  | { kind: "ghost"; floor: FloorId; x: number; y: number; tile: string; rotation: Rotation; doors: readonly GhostDoor[] }
   /** Another figure. */
   | { kind: "figure"; figure: string }
   /** The figure whose turn it is, choosing itself. */

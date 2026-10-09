@@ -8,8 +8,8 @@ import { loadRuleNotes, ruleDetail, type RuleNotes } from "../data/rule-notes";
 
 let notes: Promise<RuleNotes> | null = null;
 
-/** The rule notes load once, the first time anyone asks why. */
-function ruleNotes(): Promise<RuleNotes> {
+/** The rule notes load once, the first time they are needed. */
+export function ruleNotes(): Promise<RuleNotes> {
   notes ??= loadRuleNotes();
   return notes;
 }
@@ -43,7 +43,7 @@ export function Why({ engine, rule }: { engine: Engine; rule: RuleView }) {
   );
 }
 
-function RuleDetail({ rule }: { rule: RuleView }) {
+export function RuleDetail({ rule }: { rule: RuleView }) {
   const texts = ruleDetail(use(ruleNotes()), rule);
   if (rule.hiddenRuling)
     return (

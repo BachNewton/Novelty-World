@@ -10,7 +10,7 @@ import {
   turn,
 } from "../engine/board";
 import type { Engine } from "../engine/step-loop";
-import type { Focus } from "./focus";
+import type { Focus } from "../play/choices";
 import type { GameView } from "../engine/view";
 import { SEAT_BG } from "./theme";
 

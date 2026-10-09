@@ -21,10 +21,16 @@ export function PendingPanel({
   engine,
   view,
   onAction,
+  choices,
+  seatDot,
 }: {
   engine: Engine;
   view: GameView;
   onAction: (action: Action) => void;
+  /** The choices to list, where another part of the screen offers the rest. */
+  choices?: Choice[];
+  /** The class colouring the viewing seat's dot; by default its seat colour. */
+  seatDot?: string;
 }) {
   if (view.result) {
     const { winners, rule } = view.result;
@@ -97,7 +103,7 @@ export function PendingPanel({
         <Why engine={engine} rule={pending.rule} />
       </div>
       <h3 className="flex items-center gap-1.5 font-semibold">
-        <span className={`inline-block size-2.5 rounded-full ${SEAT_BG[viewer]}`} />
+        <span className={`inline-block size-2.5 rounded-full ${seatDot ?? SEAT_BG[viewer]}`} />
         {seatLabel(view, viewer)}
       </h3>
       {detail.answer !== null ? (
@@ -106,7 +112,7 @@ export function PendingPanel({
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {detail.choices.map((c: Choice) => (
+          {(choices ?? detail.choices).map((c: Choice) => (
             <ChoiceButton
               key={JSON.stringify(c.choice)}
               label={c.label}

@@ -81,20 +81,20 @@ async function settle(page) {
   await page.waitForFunction((n) => window.__betrayalHouse.frameCount() >= n + 2, frame, { timeout: 10000 });
 }
 
-async function capture(page, name, { floor = "ground", view = 0, zoom = 1, focus = null, chrome = false } = {}) {
+async function capture(page, name, { floor = "ground", view = 0, focus = null, chrome = false } = {}) {
   await page.evaluate(
-    ({ floor, view, zoom, focus, chrome }) => {
+    ({ floor, view, focus, chrome }) => {
       const house = window.__betrayalHouse;
       house.showChoices(false);
       house.setFloor(floor);
       house.setCloseUp(focus);
       house.setView(view);
-      house.setZoom(zoom);
+      house.fit();
       document.querySelectorAll(".pointer-events-none").forEach((el) => {
         el.style.visibility = chrome ? "" : "hidden";
       });
     },
-    { floor, view, zoom, focus, chrome },
+    { floor, view, focus, chrome },
   );
   await page.waitForFunction(() => window.__betrayalHouse.isReady(), null, { timeout: 60000 });
   const frame = await page.evaluate(() => window.__betrayalHouse.frameCount());

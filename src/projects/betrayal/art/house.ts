@@ -1,15 +1,16 @@
 import * as THREE from "three";
-import { EDGES, FLOORS, placed, type Layout } from "../engine/board";
+import { EDGES, FLOORS, liftTile, placed, type Layout } from "../engine/board";
 import { CATALOG } from "../data";
+import type { GhostDoor, GhostDoorway } from "../play/ghost";
 import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
-import { ADULT_WALK, hopHeight, walkingOf, type Stride, type Walking } from "./explorers/figure";
+import { ADULT_WALK, isGrounded, walkingOf, type Stride, type Walking } from "./explorers/figure";
 import { closedDoors, diffLayout, DIRECTION, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineBaker, type Baker } from "./bake";
 import { freezeRoom, type FrozenRoom } from "./freeze";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
-import { createLitFloor, patchProbe, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
+import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
 import { DOOR_WIDTH, explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
@@ -27,8 +28,17 @@ const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
 const STAIR_MARK = { width: 1.1, rail: 0.1, lift: 0.06 };
 /** A doorway offered as a choice glows across it: a pad this deep, half each side of the wall. */
 const DOORWAY_MARK = { depth: 1.4 };
-/** A ghost tile's doors show as bright bars this long at its edges. */
-const GHOST_DOOR = { length: DOOR_WIDTH, depth: 0.3 };
+/** What a ghost tile's doorways would do, marked at its edges: a bridge
+ *  across a doorway joined to the room beside it, a cross on a door facing a
+ *  wall (on the ghost's side for its own door, on the neighbour's for theirs),
+ *  and an arrow out of a door onto an empty cell. Sizes in metres. */
+const GHOST_DOOR = { bridge: 2.6, bridgeWidth: DOOR_WIDTH, cross: 1.5, crossFrom: 0.9, arrow: 0.95, arrowFrom: 0.3, bar: 0.26, lift: 0.03 };
+/** The colour each doorway of a ghost tile is marked in, here and in the panel's key:
+ *  cold teal for a way through, red for a false door, moonlight for the unexplored. */
+export const GHOST_DOORWAY_COLOUR: Record<GhostDoorway, PaletteKey> = { joined: "tideLight", blind: "scarlet", shut: "scarlet", unexplored: "moonLight" };
+/** A ghost room is see-through, and lit by its own colours (tinted moonlight) rather than a bake. It breathes:
+ *  its opacity falls to `low` of itself and back every `period` seconds. */
+const GHOST_LOOK = { opacity: 0.5, glow: 1.1, low: 0.6, period: 2.4 };
 /** A figure offered as a choice glows in a ring round its colour ring. */
 const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: 0.035 };
 /** The route preview: a dot every `every` metres, kept clear of where the walk starts and ends, at most `most` of them. */
@@ -58,8 +68,8 @@ export type Mark = { id: string } & (
   | { kind: "room"; room: string }
   /** An empty cell: a border alone, round where a room could go. */
   | { kind: "cell"; floor: FloorId; x: number; y: number }
-  /** A room not yet placed, at a cell, with its doors (board directions). */
-  | { kind: "ghost"; floor: FloorId; x: number; y: number; doors: readonly Edge[] }
+  /** A room not yet placed, at a cell, with what its doorways would do. */
+  | { kind: "ghost"; floor: FloorId; x: number; y: number; doors: readonly GhostDoor[] }
   /** The stair out of `room` towards the room it links to. */
   | { kind: "stair"; room: string; toward: string }
   /** A doorway out of `room`, on a board direction. */
@@ -121,6 +131,10 @@ export interface House {
   focusMark: (focused: string | null) => void;
   /** Dots along the path a walk would take, on the floors it crosses; null clears them. */
   showRoute: (path: readonly HousePoint[] | null) => void;
+  /** Shows a room not yet placed as a ghost of itself, at a cell and turned
+   *  as given, without baking it; null takes it away. A room just placed or
+   *  moved shows as a ghost too, until it is baked and shows itself. */
+  setGhost: (ghost: PlacedTile | null) => void;
   fog: THREE.Fog;
   background: THREE.Color;
   /** Resolves once the house as first laid out is built and baked. */
@@ -169,7 +183,8 @@ function marked({ id, build, colour }: HouseFigure, gait: (seconds: number) => S
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = RING.height;
   const figure = build(`${id}:explorer`, gait);
-  return { marked: group(figure, ring), walking: walkingOf(figure) };
+  // A figure that floats has no base for the ring to go round.
+  return { marked: isGrounded(figure) ? group(figure, ring) : group(figure), walking: walkingOf(figure) };
 }
 
 function texturesUnder(root: THREE.Object3D): Promise<void> {
@@ -210,16 +225,58 @@ function tileMark(fill: THREE.Material | null, border: THREE.Material): THREE.Gr
   return mark;
 }
 
-/** A tile not yet placed: the room glow, with a bright bar at each of its doors. */
-function ghostMark(doors: readonly Edge[], fill: THREE.Material, border: THREE.Material): THREE.Group {
-  const mark = tileMark(fill, border);
-  const at = TILE / 2 - MARK.inset - GHOST_DOOR.depth / 2;
-  for (const door of doors) {
-    const { x, z } = DIRECTION[door];
-    const [w, d] = x === 0 ? [GHOST_DOOR.length, GHOST_DOOR.depth] : [GHOST_DOOR.depth, GHOST_DOOR.length];
-    mark.add(box([w, 0.01, d], border, [x * at, MARK.height + 0.005, z * at]));
+/** A flat bar on the floor, `length` long and `width` wide, centred at
+ *  (x, z) in the cell's frame, its length turned `angle` radians from the +z axis. */
+function floorBar(x: number, z: number, length: number, width: number, angle: number, material: THREE.Material): THREE.Mesh {
+  const bar = box([width, 0.01, length], material, [0, 0, 0]);
+  bar.rotation.y = angle;
+  bar.position.set(x, MARK.height + GHOST_DOOR.lift, z);
+  return bar;
+}
+
+/** What one doorway of a ghost tile would do, marked on the floor at its edge. */
+function doorwayFate({ direction, doorway }: GhostDoor, material: THREE.Material): THREE.Object3D {
+  const { x, z } = DIRECTION[direction];
+  const along = Math.atan2(x, z);
+  const at = (out: number): [number, number] => [x * out, z * out];
+  const edge = TILE / 2;
+  const { cross, crossFrom, arrow, arrowFrom, bar } = GHOST_DOOR;
+  switch (doorway) {
+    case "joined":
+      return floorBar(...at(edge), GHOST_DOOR.bridge, GHOST_DOOR.bridgeWidth, along, material);
+    case "blind":
+    case "shut": {
+      const centre = at(doorway === "blind" ? edge - crossFrom : edge + crossFrom);
+      return group(floorBar(...centre, cross, bar, along + Math.PI / 4, material), floorBar(...centre, cross, bar, along - Math.PI / 4, material));
+    }
+    case "unexplored": {
+      // An arrow out of the door: a shaft from the doorway, and two arms running back from its tip, 45 degrees either side.
+      const tip = edge + arrowFrom + arrow;
+      const [tx, tz] = at(tip);
+      const arm = (sign: number) => {
+        const back = along + Math.PI + (sign * Math.PI) / 4;
+        return floorBar(tx + (Math.sin(back) * arrow) / 2, tz + (Math.cos(back) * arrow) / 2, arrow, bar, back, material);
+      };
+      const shaft = tip - edge + arrowFrom;
+      return group(arm(1), arm(-1), floorBar(...at(tip - shaft / 2), shaft, bar, along, material));
+    }
   }
+}
+
+/** A tile not yet placed: the room glow, with what each of its doorways would do. */
+function ghostMark(doors: readonly GhostDoor[], fill: THREE.Material, border: THREE.Material, fates: Record<GhostDoorway, THREE.Material>): THREE.Group {
+  const mark = tileMark(fill, border);
+  for (const door of doors) mark.add(doorwayFate(door, fates[door.doorway]));
   return mark;
+}
+
+/** A room shown as a ghost: as built, and the holder that lays it at its cell. */
+interface Ghost {
+  tile: PlacedTile;
+  room: GhostRoom;
+  holder: THREE.Group;
+  /** Its doors drawn shut, as a key: a ghost turned another way may need others shut. */
+  shut: string;
 }
 
 /** A doorway offered as a choice: a pad across it on the floor, with a border, half inside the room. */
@@ -349,6 +406,8 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     return work;
   };
 
+  /** Whether the house as first laid out is in: rooms placed after it show as ghosts while they bake. */
+  let started = false;
   const setLayout = (next: Layout): LayoutChange => {
     const change = diffLayout(layout, next, CATALOG);
     const touched = new Set<FloorId>();
@@ -380,6 +439,12 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       }
     }
     lastCut = "";
+    if (started) for (const id of [...change.added, ...change.moved]) settle(id);
+    for (const id of change.removed) {
+      const ghost = settling.get(id);
+      if (ghost) dropGhost(ghost);
+      settling.delete(id);
+    }
     return change;
   };
 
@@ -404,15 +469,12 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     return walker;
   };
   const poseWalker = (walker: Walker, seconds: number) => {
-    let hop = 0;
     if (walker.walk) {
       const pose = walkPose(walker.walk, seconds, walker.walking.step);
       walker.at = pose.point;
       walker.heading = pose.heading;
-      hop = hopHeight(walker.walking, pose.stride);
     }
     walker.holder.position.copy(scenePoint(walker.at));
-    walker.holder.position.y += hop;
     walker.holder.rotation.y = walker.heading;
     walker.holder.visible = shows(walker.at.floor);
     lighting.get(walker.at.floor)?.probeAt(new THREE.Vector3(walker.at.x, walker.at.y, walker.at.z), walker.probe.value);
@@ -436,6 +498,9 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   const softBorder = glowing("moonLight", 0.35);
   const focusFill = glowing("amber", 0.14);
   const focusBorder = glowing("amber", 1);
+  const fate = (doorway: GhostDoorway) => glowing(GHOST_DOORWAY_COLOUR[doorway], 0.6);
+  const fates: Record<GhostDoorway, THREE.Material> = { joined: fate("joined"), blind: fate("blind"), shut: fate("shut"), unexplored: fate("unexplored") };
+  const ghostLook = { opacity: GHOST_LOOK.opacity, glow: { value: new THREE.Color(paletteHex("moonLight")).multiplyScalar(GHOST_LOOK.glow) }, fade: { value: 1 } };
 
   /** A floor's level, which a mark on it shows and hides with. */
   const floorHolder = (floor: FloorId): THREE.Object3D => {
@@ -456,7 +521,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       }
       case "cell":
       case "ghost": {
-        const object = mark.kind === "cell" ? tileMark(null, border) : ghostMark(mark.doors, fill, border);
+        const object = mark.kind === "cell" ? tileMark(null, border) : ghostMark(mark.doors, fill, border, fates);
         object.position.set(mark.x * TILE, 0, mark.y * TILE);
         return { object, parent: floorHolder(mark.floor) };
       }
@@ -491,6 +556,67 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     marks = [];
   };
 
+  /** The room the player is placing, and the rooms just placed that are still baking, shown as ghosts. */
+  let choosing: Ghost | null = null;
+  const settling = new Map<string, Ghost>();
+  /** The way the camera last looked, for cutting a ghost's walls as the house's are cut. */
+  let viewedFrom: { x: number; z: number } | null = null;
+  let viewFocus: string | null = null;
+  const ghosts = () => [...(choosing ? [choosing] : []), ...settling.values()];
+  const cutGhost = (ghost: Ghost) => {
+    if (!viewedFrom) return;
+    const around: Layout = { tiles: [...liftTile(layout, ghost.tile.tile).tiles, ghost.tile] };
+    const camera = viewedFrom;
+    const cut = EDGES.filter((direction) => wallIsCut(around, ghost.tile, direction, camera, viewFocus)).map((direction) => printedEdge(direction, ghost.tile.rotation));
+    ghost.room.setCut((edge) => cut.includes(edge));
+  };
+  /** A ghost of a room at a cell, turned as given, with the doors that would face a wall there drawn shut. */
+  const ghostOf = (tile: PlacedTile, shut: Edge[]): Ghost => {
+    const room = ghostRoom(freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: shut })), ghostLook);
+    const holder = group(room.root);
+    const ghost: Ghost = { tile, room, holder, shut: shut.join() };
+    layGhost(ghost, tile);
+    return ghost;
+  };
+  const layGhost = (ghost: Ghost, tile: PlacedTile) => {
+    ghost.tile = tile;
+    ghost.holder.position.set(tile.x * TILE, 0, tile.y * TILE);
+    ghost.holder.rotation.y = tileTurn(tile.rotation);
+    floorHolder(tile.floor).add(ghost.holder);
+    cutGhost(ghost);
+  };
+  const dropGhost = (ghost: Ghost) => {
+    ghost.holder.removeFromParent();
+    ghost.room.dispose();
+  };
+  const setGhost = (tile: PlacedTile | null) => {
+    if (!tile) {
+      if (choosing) dropGhost(choosing);
+      choosing = null;
+      return;
+    }
+    const around: Layout = { tiles: [...liftTile(layout, tile.tile).tiles, tile] };
+    const shut = closedDoors(around, CATALOG, tile);
+    if (choosing?.tile.tile === tile.tile && choosing.shut === shut.join()) layGhost(choosing, tile);
+    else {
+      if (choosing) dropGhost(choosing);
+      choosing = ghostOf(tile, shut);
+    }
+  };
+  /** A room just placed or moved shows as a ghost until it is baked and shows itself. */
+  const settle = (id: string) => {
+    const old = settling.get(id);
+    if (old) dropGhost(old);
+    const tile = tileOf(id);
+    const ghost = ghostOf({ ...tile }, closedDoors(layout, CATALOG, tile));
+    settling.set(id, ghost);
+    void (shownWhen.get(id) ?? Promise.resolve()).then(() => {
+      if (settling.get(id) !== ghost) return;
+      dropGhost(ghost);
+      settling.delete(id);
+    });
+  };
+
   // Every dot of the route is one instance, so the whole route is one draw call.
   const dotGeometry = new THREE.BoxGeometry(ROUTE.size, 0.015, ROUTE.size);
   const route = new THREE.InstancedMesh(dotGeometry, glowing("flame", 0.9), ROUTE.most);
@@ -519,6 +645,7 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
   };
 
   setLayout(initial);
+  started = true;
   const first = floors();
   showFloor(first.includes("ground") ? "ground" : (first[0] ?? "ground"));
   const ready = Promise.all([...[...placements.values()].map(({ room }) => room.ready), texturesUnder(root), ...[...shownWhen.values()]]).then(() => {
@@ -545,6 +672,11 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     corners,
     setCutaway: (cameraDirection, focus) => {
       const camera = { x: cameraDirection.x, z: cameraDirection.y };
+      if (viewedFrom?.x !== camera.x || viewedFrom.z !== camera.z || viewFocus !== focus) {
+        viewedFrom = camera;
+        viewFocus = focus;
+        for (const ghost of ghosts()) cutGhost(ghost);
+      }
       const cuts = layout.tiles.map((tile) => EDGES.filter((direction) => wallIsCut(layout, tile, direction, camera, focus)).map((direction) => printedEdge(direction, tile.rotation)));
       const key = JSON.stringify(cuts);
       if (key === lastCut) return;
@@ -557,6 +689,8 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
     update: (seconds) => {
       for (const lit of lighting.values()) lit.update(seconds);
       for (const walker of walkers.values()) poseWalker(walker, seconds);
+      for (const ghost of ghosts()) ghost.room.update(seconds);
+      ghostLook.fade.value = 1 - (1 - GHOST_LOOK.low) * (0.5 - 0.5 * Math.cos((seconds * Math.PI * 2) / GHOST_LOOK.period));
       if (active) activeLight.position.copy(active.holder.position).add(EXPLORER_LIGHT_OFFSET);
       const pulse = 0.5 + 0.5 * Math.sin(seconds * 3);
       focusFill.opacity = 0.1 + 0.1 * pulse;
@@ -630,11 +764,13 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House
       routeShown = path ? routeDots(path) : [];
       placeRoute();
     },
+    setGhost,
     fog,
     background: fog.color.clone(),
     ready,
     dispose: () => {
       clearMarks();
+      for (const ghost of ghosts()) dropGhost(ghost);
       for (const lit of lighting.values()) lit.dispose();
       disposeTree(root);
       dotGeometry.dispose();
