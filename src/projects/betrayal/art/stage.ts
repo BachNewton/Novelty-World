@@ -207,10 +207,8 @@ function railings(bars: ReturnType<typeof batch>, x0: number, x1: number, iron: 
 function buildBoundary(length: number, holes: Opening[], full: boolean, corners: boolean, surface: THREE.Texture, iron: PaletteKey): THREE.Group {
   const stone = textured(surface);
   const edge = group();
-  const half = WALL_THICKNESS / 2;
-  const { pier, pierTop } = OUTDOOR;
+  const { pier } = OUTDOOR;
   const coping = 0.06;
-  const capHeight = 0.16;
   const holeEdges = holes.flatMap((hole) => [hole.centre - hole.width / 2, hole.centre + hole.width / 2]);
   const piers = holes.flatMap((hole) => [hole.centre - hole.width / 2 - pier / 2, hole.centre + hole.width / 2 + pier / 2]);
   if (corners) piers.push(-length / 2 + pier / 2, length / 2 - pier / 2);
@@ -229,17 +227,31 @@ function buildBoundary(length: number, holes: Opening[], full: boolean, corners:
     edge.add(body, top);
     if (full) railings(bars, span.x0 + inset(span.x0), span.x1 - inset(span.x1), iron);
   }
-  for (const x of piers) {
-    const body = box([pier, full ? pierTop - capHeight : CUT_HEIGHT, pier], stone, [x, 0, pier / 2 - half]);
-    body.userData.body = true;
-    edge.add(body);
-    if (full) {
-      const cap = new THREE.ConeGeometry(pier / Math.SQRT2, capHeight, 4).rotateY(Math.PI / 4).translate(x, pierTop - capHeight / 2, pier / 2 - half);
-      edge.add(new THREE.Mesh(projectUvs(cap, surface), stone));
-    }
-  }
+  for (const x of piers) edge.add(...buildPier(x, full ? 0 : null, stone, surface));
   if (full) edge.add(bars.mesh());
   return edge;
+}
+
+/** A stone pier on an outdoor edge, square and flush with the tile's edge
+ *  (in the edge's frame, as `buildBoundary`), from `from` up to its capped
+ *  top; null for one cut level with the low wall. */
+function buildPier(x: number, from: number | null, stone: THREE.Material, surface: THREE.Texture): THREE.Mesh[] {
+  const { pier, pierTop } = OUTDOOR;
+  const capHeight = 0.16;
+  const z = pier / 2 - WALL_THICKNESS / 2;
+  const body = box([pier, from === null ? CUT_HEIGHT : pierTop - capHeight - from, pier], stone, [x, from ?? 0, z]);
+  body.userData.body = true;
+  if (from === null) return [body];
+  const cap = new THREE.ConeGeometry(pier / Math.SQRT2, capHeight, 4).rotateY(Math.PI / 4).translate(x, pierTop - capHeight / 2, z);
+  return [body, new THREE.Mesh(projectUvs(cap, surface), stone)];
+}
+
+/** A side wall's corner above the cut height (in the wall's frame, as
+ *  `buildWall`), standing on the cut-down wall across its end. */
+function cornerAbove(x: number, parts: WallParts): THREE.Mesh {
+  const body = box([WALL_THICKNESS, WALL_HEIGHT - CUT_HEIGHT, WALL_THICKNESS], parts.wall, [x, CUT_HEIGHT, 0]);
+  body.userData.body = true;
+  return body;
 }
 
 /** An iron gate shut in a gateway, in the middle of the low wall's thickness. */
@@ -422,6 +434,14 @@ export interface RoomPart {
   root: THREE.Group;
   /** The full and the cut-down wall on each edge that has one. */
   walls: { edge: Edge; full: THREE.Object3D; cut: THREE.Object3D }[];
+  /**
+   * The corners of the side walls above the cut height. A tile's corners
+   * belong to its top and bottom walls, which run the tile's full width,
+   * between which the side walls stand. Where a side wall stands and the
+   * wall across its end is cut, its corner stands with it, so the side wall
+   * still reaches the tile's edge and meets the wall of the next tile along.
+   */
+  corners: { side: Edge; end: Edge; object: THREE.Object3D }[];
   /** Pieces hung on walls above the cut height, which hide when any of their walls is cut. */
   hung: { edges: Edge[]; object: THREE.Object3D }[];
   /** Shows the full or the cut wall on each edge, for looking at the room as built. */
@@ -493,6 +513,22 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     walls.push({ edge, full, cut });
   }
 
+  const corners: RoomPart["corners"] = [];
+  for (const side of ["left", "right"] as const) {
+    if (tile.passages.includes(side)) continue;
+    for (const along of [-1, 1]) {
+      const x = along * (TILE / 2 - (tile.outside ? OUTDOOR.pier : WALL_THICKNESS) / 2);
+      const built = tile.outside ? group(...buildPier(x, CUT_HEIGHT, textured(wallTexture), wallTexture)) : group(cornerAbove(x, parts));
+      const object = placeOnEdge(built, side);
+      object.updateMatrixWorld(true);
+      const end: Edge = object.localToWorld(new THREE.Vector3(x, 0, 0)).z < 0 ? "top" : "bottom";
+      if (tile.passages.includes(end)) continue;
+      object.userData.piece = { shell: side } satisfies Piece;
+      root.add(object);
+      corners.push({ side, end, object });
+    }
+  }
+
   const hung: RoomPart["hung"] = [];
   for (const prop of def.props) {
     // A holder takes the placement, so a transform the build gives its piece is kept.
@@ -537,6 +573,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
   return {
     root,
     walls,
+    corners,
     hung,
     cutWalls: (isCut) => {
       for (const { edge, full, cut } of walls) {
@@ -544,6 +581,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
         full.visible = !down;
         cut.visible = down;
       }
+      for (const { side, end, object } of corners) object.visible = !isCut(side) && isCut(end);
       for (const { edges, object } of hung) object.visible = !edges.some(isCut);
     },
     update: (seconds) => {

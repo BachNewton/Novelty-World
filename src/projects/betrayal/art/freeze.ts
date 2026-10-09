@@ -360,8 +360,11 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
     roles.set(full, role([edge], ROLE_HIDE_WHEN_CUT));
     roles.set(cut, role([edge], ROLE_SHOW_WHEN_CUT));
   }
+  for (const { side, end, object } of part.corners) {
+    roles.set(object, EDGES.map((edge) => (edge === side ? ROLE_HIDE_WHEN_CUT : edge === end ? ROLE_SHOW_WHEN_CUT : ROLE_ALWAYS)) as CutRole);
+  }
   for (const { edges, object } of part.hung) roles.set(object, role(edges, ROLE_HIDE_WHEN_CUT));
-  const fullWalls = new Map(part.walls.map(({ edge, full }) => [full, OUTWARD[edge]] as const));
+  const fullWalls = new Map([...part.walls.map(({ edge, full }) => [full, OUTWARD[edge]] as const), ...part.corners.map(({ side, object }) => [object, OUTWARD[side]] as const)]);
   /** The way a full wall's outside faces, for a mesh of one: the house never shows a standing wall from outside. */
   const outsideOf = (object: THREE.Object3D): THREE.Vector2 | undefined => {
     for (let o: THREE.Object3D | null = object; o && o !== root; o = o.parent) {
