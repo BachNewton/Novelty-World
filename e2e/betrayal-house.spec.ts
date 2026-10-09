@@ -231,3 +231,14 @@ test.describe("controller", () => {
     await stopped(page, "dining-room");
   });
 });
+
+test("a resolution above the pixel-ratio cap holds at the cap through a resize", async ({ page }) => {
+  await openHouse(page);
+  await page.evaluate(() => window.__betrayalHouse?.setResolution(1080));
+  // 1080p on a 240px-tall view asks for 4.5 device pixels per CSS pixel, past the house's cap of 4.
+  await page.setViewportSize({ width: 400, height: 240 });
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("canvas");
+    return canvas !== null && canvas.clientHeight === 240 && canvas.height === 240 * 4;
+  });
+});

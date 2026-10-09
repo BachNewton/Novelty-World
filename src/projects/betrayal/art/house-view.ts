@@ -560,7 +560,7 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       const shortSide = snapshot.resolution;
       const { clientWidth, clientHeight } = container;
       const ratio = shortSide === null ? window.devicePixelRatio : shortSide / Math.min(clientWidth, clientHeight);
-      if (Math.abs(renderer.getPixelRatio() - ratio) > 0.001) ctx.setPixelRatio(ratio);
+      ctx.setPixelRatio(ratio);
     };
 
     /** Shows what the snapshot says: the floor, whose turn it is, and the choices with the focused one's route. */

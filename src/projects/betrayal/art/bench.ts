@@ -326,7 +326,7 @@ export function createBench(initialRoom: string) {
       const shortSide = snapshot.resolution;
       const { clientWidth, clientHeight } = ctx.container;
       const ratio = shortSide === null ? window.devicePixelRatio : shortSide / Math.min(clientWidth, clientHeight);
-      if (Math.abs(renderer.getPixelRatio() - ratio) > 0.001) ctx.setPixelRatio(ratio);
+      ctx.setPixelRatio(ratio);
     };
 
     mounted = { rebuild, settle, applyResolution };

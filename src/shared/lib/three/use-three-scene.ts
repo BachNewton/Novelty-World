@@ -489,8 +489,13 @@ export function useThreeScene(
     // `resize` is defined below (it closes over `handlers`), so route setPixelRatio
     // through a holder that's filled in once resize exists.
     let applyResize = () => {};
+    // A scene may set the ratio from its own `onResize` (to hold a fixed render resolution), and
+    // `applyResize` calls `onResize` again: an unchanged ratio must end there, or that loop never
+    // does. Compared after the clamp, since the caller asks for the unclamped value every time.
     const setPixelRatio = (ratio: number) => {
-      renderer.setPixelRatio(Math.min(ratio, maxPixelRatio));
+      const clamped = Math.min(ratio, maxPixelRatio);
+      if (clamped === renderer.getPixelRatio()) return;
+      renderer.setPixelRatio(clamped);
       applyResize();
     };
 
