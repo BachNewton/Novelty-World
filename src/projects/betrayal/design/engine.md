@@ -96,8 +96,10 @@ A test builds a late-game Widow's Walk state (a full house, many monsters, every
 
 **Forced steps.** After applying an action, the engine runs a step loop until it reaches a real decision or the end of the game:
 1. Pop the next step off the step stack and run it. A step may emit events, change state, push more steps, or raise a decision.
-2. If a raised decision has exactly one legal choice, take it, recorded as a forced step with the rule that forced it. Otherwise pause on it. A ready wait always pauses.
+2. If a raised decision has exactly one legal choice, take it, recorded as a forced step with the rule that forced it, unless its kind always asks. Otherwise pause on it. A ready wait always pauses.
 3. After every step, re-check the conditions (section 5). Any that turned true push their effects.
+
+**A player's act always asks.** Auto-taking removes meaningless steps (a roll with nothing to add, a room that fits one way, damage that can land one way), never a player's act. A decision kind may declare that it always asks, and then a single legal choice still pauses for its seat, so the player sees it happen rather than losing track of the game. The turn's own decision always asks while a figure can act on it: when ending the turn is all that's left, the game waits for the player to end it. A turn with no one able to act (a dead or sleeping explorer's, a monster turn with no monster ready) has no act to take, and passes as a forced step. Answering a trade offered to you always asks too. Bookkeeping decisions (rotation, damage split and kind, the roll options, choose-one, room placement, how an attack is made) stay forced when they leave one choice.
 
 Monopoly gets credit here: separating real choices (actions) from obvious ones (the engine's own steps) worked well, and this loop does the same thing. The loop has a fixed step bound and throws if it exceeds it. An endless loop is a bug, and it must fail loudly rather than be cut short silently.
 

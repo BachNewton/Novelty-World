@@ -85,7 +85,7 @@ describe("a shared game", () => {
 
   it("refuses a code shared by an older engine rather than misreplay it", () => {
     const bytes = new TextEncoder().encode(
-      JSON.stringify({ ...shared, format: 1 }),
+      JSON.stringify({ ...shared, format: 2 }),
     );
     const old = btoa(String.fromCharCode(...bytes));
     expect(() => decodeGame(old)).toThrow(/older version/);

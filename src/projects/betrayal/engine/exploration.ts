@@ -345,6 +345,18 @@ function floorOf(state: GameState, room: string): FloorId {
   return tile.floor;
 }
 
+/** Whether the turn has a figure able to act. Its choices, ending it among
+ *  them, are then the player's to take; a turn with no one to act passes
+ *  at once. */
+function someoneActs(engine: Engine, state: GameState): boolean {
+  const figure = state.turn?.acting ?? null;
+  if (figure === null) return readyActors(state).length > 0;
+  return (
+    inPlay(figureOf(state, figure)) &&
+    askPermission(engine, state, "canAct", { figure }).allowed
+  );
+}
+
 function turnCandidates(engine: Engine, state: GameState): TurnChoice[] {
   const end: TurnChoice = { act: "end" };
   const turn = state.turn;
@@ -921,6 +933,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
     candidates: (state, _p, _seat, engine) => turnCandidates(engine, state),
     label: (state, _p, choice, engine) =>
       describeTurnChoice(engine, state, choice),
+    alwaysAsks: (state, _p, engine) => someoneActs(engine, state),
     resolve: (state, p, choice, ctx) => {
       const work = takeTurnChoice(ctx.engine, state, p.seat, choice);
       if (typeof work === "string") return work;
@@ -965,6 +978,7 @@ export const EXPLORATION_DECISIONS: Record<string, DecisionKind> = {
 
   "trade-offer": defineDecision<Trade, boolean>({
     candidates: () => [true, false],
+    alwaysAsks: () => true,
     label: (_state, _p, accept) =>
       accept ? "Accept the trade" : "Decline the trade",
     resolve: (state, p, accept, ctx) => {

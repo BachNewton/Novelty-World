@@ -28,6 +28,7 @@ const options = (decision: Decision) =>
 const RULES: Rules = {
   steps: {
     ask: (_state, params, ctx) => ctx.decide([0], "pick", params, RULE),
+    "ask-act": (_state, params, ctx) => ctx.decide([0], "act", params, RULE),
     "ask-all": (_state, _params, ctx) =>
       ctx.decide([0, 1, 2], "vote", null, RULE),
     "wait-all": (_state, _params, ctx) => ctx.waitForReady([0, 1], RULE),
@@ -43,6 +44,16 @@ const RULES: Rules = {
         const choice = decision.answers[0];
         if (choice === "bad") return "bad is never allowed";
         ctx.emit("picked", RULE, { choice, roll: ctx.random.dice(3) });
+        return null;
+      },
+    },
+    act: {
+      candidates: (_state, decision) => options(decision),
+      label: (_state, _decision, choice) => `Do ${String(choice)}`,
+      alwaysAsks: () => true,
+      resolve: (_state, decision, ctx) => {
+        if (decision.answers[0] === "bad") return "bad is never allowed";
+        ctx.emit("acted", RULE, decision.answers[0]);
         return null;
       },
     },
@@ -123,6 +134,20 @@ describe("the step loop", () => {
       "picked",
       "note",
     ]);
+  });
+
+  it("waits for a player's act even when it has one legal choice", () => {
+    const state = start(ENGINE, fresh(), [
+      { kind: "ask-act", params: { options: ["bad", "ok"] } },
+      note("after"),
+    ]);
+    expect(pendingDecision(state).kind).toBe("act");
+    expect(state.lastEvents).toEqual([]);
+    expect(choices(ENGINE, state, 0)).toEqual([
+      { choice: "ok", label: "Do ok" },
+    ]);
+    const next = applied(state, pick(state, "ok"));
+    expect(next.lastEvents.map((e) => e.type)).toEqual(["acted", "note"]);
   });
 
   it("lists only choices that apply, and rejects the rest", () => {

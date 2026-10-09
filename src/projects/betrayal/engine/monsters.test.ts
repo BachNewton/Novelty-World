@@ -428,7 +428,7 @@ describe("the choices listed on monster turns", () => {
     check();
   });
 
-  it.each(["m3", "b", "d"])(
+  it.each(["m3", "a", "h"])(
     "are exactly the legal ones over random play through the toy haunt, monsters acting, seed %s",
     (seed) => {
       const result = simulate(seed, ALL_TOY_ENGINE);

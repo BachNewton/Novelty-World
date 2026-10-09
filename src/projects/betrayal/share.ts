@@ -15,7 +15,7 @@ export interface SharedGame {
 
 /** Raise it whenever recorded actions may mean something else to the engine,
  *  so an older code fails plainly instead of replaying into a different game. */
-const SHARE_FORMAT = 2;
+const SHARE_FORMAT = 3;
 
 export function encodeGame(shared: SharedGame): string {
   const json = JSON.stringify({ format: SHARE_FORMAT, ...shared });

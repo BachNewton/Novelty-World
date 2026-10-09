@@ -794,11 +794,13 @@ describe("Webs (cards/events.md)", () => {
   it("after 3 failed attempts you break free on your next turn and take it normally", () => {
     let state = stuck((s) => explorer(s, 1).cards.push("angel-feather"));
     state = choose(state, "End your turn");
-    // Ox fails, and with nothing left to do his turn ends.
+    // Ox fails, and with nothing left to do he ends his turn.
     state = choose(choose(state, FREE), "the result is 0");
+    expect(labels(state)).toEqual(["End your turn"]);
+    state = choose(state, "End your turn");
     expect(state.turn?.seat).toBe(2);
     // Father Rhinehardt fails too: the third attempt. Zoe's turn comes.
-    state = firstFailure(state);
+    state = choose(firstFailure(state), "End your turn");
     expect(state.turn?.seat).toBe(0);
     expect(explorer(state, 0).cards).not.toContain("webs");
     expect(labels(state).some((l) => l.startsWith("Move"))).toBe(true);

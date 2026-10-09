@@ -9,8 +9,10 @@ import type { GameState } from "./types";
 // simulation.ts for what is checked at every write). A failure names its
 // seed, which replays the same game: simulate("s123").
 
-/** The longest game, seed s104, plays a long haunt 13 out in about 20
- *  seconds, every choice dry-run at every decision; the rest take under 7. */
+/** The longest games, a long haunt 13 played out with every choice dry-run
+ *  at every decision, take about 15 seconds; most take under 2. A game
+ *  stuck in a loop never yields to this timeout: the simulation's own
+ *  turn limits fail it instead. */
 const GAME_TIMEOUT = 40_000;
 
 const seeds = (count: number) =>
@@ -26,7 +28,7 @@ const played = (result: SimulationResult) => {
  *  engine up must not change it; a deliberate change to the rules or the
  *  policy that changes the game updates it. */
 const S104_WRITES =
-  "16b72e5643c02a47c5fd55279d54db31c129d456a85044cba58fdb33101b91da";
+  "df1c82c9c742cee4a66e20b496992d7ab9dba3b6e5bf3c0d687dc683f9fa1098";
 const writes = createHash("sha256");
 const hashWrites = (state: GameState) => {
   writes.update(JSON.stringify(state));

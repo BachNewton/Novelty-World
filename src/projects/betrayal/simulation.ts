@@ -28,8 +28,10 @@ export interface SimulationResult {
   kinds: Record<string, number>;
 }
 
-/** Turns a game may take before the policy is judged to have stalled. */
-const TURN_LIMIT = 600;
+/** Turns a game may take, passed ones included, before the policy is judged to have stalled. */
+const TURN_LIMIT = 3_000;
+/** Decisions one turn may take before the policy is judged to be stuck in it. */
+const TURN_DECISION_LIMIT = 200;
 /** Rounds still played once no explorer can reach a room left to discover. */
 const ROUNDS_AFTER_FULL = 2;
 /** Writes remembered for a failure's report. */
@@ -97,7 +99,6 @@ export function simulate(
     const kinds: Record<string, number> = {};
     let decisions = 0;
     let turns = 0;
-    let turnSeat = state.turn?.seat ?? -1;
     let actionsThisTurn = 0;
     let fullAt: number | null = null;
     for (;;) {
@@ -117,6 +118,10 @@ export function simulate(
         turns - fullAt >= ROUNDS_AFTER_FULL * state.seats.length
       )
         return { seed, ending: "house-full", turns, decisions, kinds };
+      if (actionsThisTurn > TURN_DECISION_LIMIT)
+        throw new Error(
+          `A turn has taken over ${TURN_DECISION_LIMIT} decisions without ending`,
+        );
       if (turns > TURN_LIMIT)
         throw new Error(
           `The game hasn't ended after ${TURN_LIMIT} turns (${state.status}, ${state.board.stack.length} rooms left in the stack)`,
@@ -174,9 +179,13 @@ export function simulate(
       );
       checkState(engine, state);
       onWrite(state);
-      if (state.turn && state.turn.seat !== turnSeat) {
-        turnSeat = state.turn.seat;
-        turns++;
+      // Several turns can start in one write (every other seat's passing at
+      // once), even coming back round to the same seat.
+      const started = state.lastEvents.filter(
+        (event) => event.type === "turn-started",
+      ).length;
+      if (started > 0) {
+        turns += started;
         actionsThisTurn = 0;
       }
     }
@@ -283,6 +292,9 @@ function pickChoice(
   listed: Choice[],
   actionsThisTurn: number,
 ): Choice {
+  // A lone choice draws nothing, so a player's act the engine waits for
+  // leaves the game's random course as a forced step would.
+  if (listed.length === 1) return listed[0];
   const open = kind === "turn" ? openRooms(engine, state) : new Set<string>();
   const weights = listed.map((c) =>
     kind === "turn"

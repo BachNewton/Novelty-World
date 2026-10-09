@@ -30,7 +30,7 @@ import {
   step,
 } from "./effects";
 import { NO_HAUNT_ENGINE, simulate } from "../simulation";
-import { choices, start } from "./step-loop";
+import { choices, start, type Engine } from "./step-loop";
 
 const labels = (state: GameState) => offered(state).map((c) => c.label);
 
@@ -83,16 +83,78 @@ describe("the turn", () => {
     for (const room of ["Foyer", "Grand Staircase", "Upper Landing"])
       state = choose(state, `Move to the ${room}`);
     expect(moving(state)).toBe(true);
-    // The fourth move uses the last of it. Ending the turn is then the only choice, so the engine takes it.
+    // The fourth move uses the last of it.
     state = choose(state, "Move to the Grand Staircase");
-    expect(eventTypes(state)).toContain("forced");
-    expect(state.turn?.seat).toBe(1);
+    expect(moving(state)).toBe(false);
   });
 
   it("passes to the next seat when a turn ends", () => {
     const state = choose(testGame(), "End your turn");
     expect(state.turn?.seat).toBe(1);
     expect(waitingOn(state)).toBe(1);
+  });
+});
+
+describe("forced steps and the player's acts", () => {
+  it("waits for the player to end a turn with nothing else left", () => {
+    let state = testGame();
+    for (const room of [
+      "Foyer",
+      "Grand Staircase",
+      "Upper Landing",
+      "Grand Staircase",
+    ])
+      state = choose(state, `Move to the ${room}`);
+    expect(pendingDecision(state).kind).toBe("turn");
+    expect(labels(state)).toEqual(["End your turn"]);
+    expect(eventTypes(state)).not.toContain("forced");
+    expect(state.turn?.seat).toBe(0);
+    state = choose(state, "End your turn");
+    expect(state.turn?.seat).toBe(1);
+  });
+
+  it("waits for the answer to a trade offer, even with one way to answer it", () => {
+    const offer = ENGINE.rules.decisions["trade-offer"];
+    if (!offer) throw new Error("No trade-offer decision");
+    const declineOnly: Engine = {
+      ...ENGINE,
+      rules: {
+        ...ENGINE.rules,
+        decisions: {
+          ...ENGINE.rules.decisions,
+          "trade-offer": { ...offer, candidates: () => [false] },
+        },
+      },
+    };
+    const state = testGame();
+    explorer(state, 0).cards = ["axe"];
+    explorer(state, 1).cards = ["lucky-stone"];
+    const after = choose(
+      state,
+      "Offer Ox Bellows your Axe for their Lucky Stone",
+      declineOnly,
+    );
+    expect(pendingDecision(after).kind).toBe("trade-offer");
+    expect(waitingOn(after)).toBe(1);
+    expect(offered(after, declineOnly).map((c) => c.label)).toEqual([
+      "Decline the trade",
+    ]);
+    expect(eventTypes(after)).not.toContain("forced");
+  });
+
+  it("still takes the one way a room can be placed itself", () => {
+    // A four-door hallway fits any way round.
+    const state = choose(
+      testGame({ stack: ["creaky-hallway"] }),
+      "Explore through the north door",
+    );
+    expect(state.lastEvents).toContainEqual(
+      expect.objectContaining({
+        type: "forced",
+        data: expect.objectContaining({ kind: "rotation" }) as unknown,
+      }),
+    );
+    expect(at(state, 0).room).toBe("creaky-hallway");
   });
 });
 

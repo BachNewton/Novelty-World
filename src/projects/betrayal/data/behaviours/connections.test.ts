@@ -126,14 +126,10 @@ describe("Barrier rooms: the Chasm (rooms.md, rules.md p. 7)", () => {
       (s) => rolls(s)[0].result < 3,
     );
     expect(at(state, 0).side).toBe("left");
-    // Without movement, and with the roll tried, ending the turn is all that's left.
+    // Without movement, and with the roll tried, ending the turn is all
+    // that's left, and it is still the player's to take.
     expect(eventTypes(state)).toContain("movement-ended");
-    expect(state.lastEvents).toContainEqual(
-      expect.objectContaining({
-        type: "forced",
-        data: expect.objectContaining({ label: "End your turn" }) as unknown,
-      }),
-    );
+    expect(labels(state)).toEqual(["End your turn"]);
   });
 
   it("discovering it puts the explorer on the side of the door they came through", () => {
@@ -339,8 +335,9 @@ describe("Secret Stairs (cards/events.md)", () => {
   });
 
   it("stays a way between the floors on later turns, drawing no card", () => {
-    // With movement over after the draw, Zoe's turn ends by itself.
+    // With movement over after the draw, Zoe can only end her turn.
     let state = choose(draw(), "Go through");
+    state = choose(state, "End your turn");
     while (state.turn?.seat !== 0) state = choose(state, "End your turn");
     state = choose(state, "Move to the Ballroom");
     expect(roomOf(state)).toBe("ballroom");

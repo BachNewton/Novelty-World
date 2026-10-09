@@ -73,6 +73,7 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
     engine: Engine,
   ) => C[];
   label: (state: GameState, params: P, choice: C, engine: Engine) => string;
+  alwaysAsks?: (state: GameState, params: P, engine: Engine) => boolean;
   resolve: (
     state: GameState,
     params: P,
@@ -81,11 +82,14 @@ export function defineDecision<P extends Json, C extends Json>(kind: {
     answers: Record<number, C>,
   ) => string | null;
 }): DecisionKind {
+  const asks = kind.alwaysAsks;
   return {
     candidates: (state, decision, seat, engine) =>
       kind.candidates(state, decision.params as P, seat, engine),
     label: (state, decision, choice, engine) =>
       kind.label(state, decision.params as P, choice as C, engine),
+    alwaysAsks: (state, decision, engine) =>
+      asks?.(state, decision.params as P, engine) ?? false,
     resolve: (state, decision, ctx) => {
       const answers = decision.answers as Record<number, C>;
       return kind.resolve(

@@ -59,6 +59,10 @@ export interface DecisionKind {
     choice: Json,
     engine: Engine,
   ) => string;
+  /** Whether the decision is the player's to take even when it leaves one
+   *  legal choice: a player's act, which they must see happen, not a step
+   *  of bookkeeping. Without it, a single legal choice is a forced step. */
+  alwaysAsks?: (state: GameState, decision: Decision, engine: Engine) => boolean;
   /** Applies the answers once every addressee has given one. Returns why, when an answer can't apply. */
   resolve: (
     state: GameState,
@@ -298,7 +302,8 @@ function answer(
 }
 
 /** Runs queued work until the game pauses or the work runs out. A decision
- *  with exactly one legal choice is a forced step: the engine takes it.
+ *  with exactly one legal choice is a forced step, which the engine takes,
+ *  unless its kind always asks.
  *  Conditions are checked after every step, so a goal met partway through
  *  a move ends the game there. */
 function run(engine: Engine, draft: GameState, write: Write): void {
@@ -313,7 +318,10 @@ function run(engine: Engine, draft: GameState, write: Write): void {
       const legal = choices(engine, draft, pending.seats[0]);
       if (legal.length === 0)
         throw new Error(`Decision ${pending.kind} has no legal choice`);
-      if (legal.length === 1) {
+      if (
+        legal.length === 1 &&
+        !decisionKind(engine, pending.kind).alwaysAsks?.(draft, pending, engine)
+      ) {
         write.ctx.emit("forced", pending.rule, {
           seat: pending.seats[0],
           kind: pending.kind,

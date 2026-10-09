@@ -423,8 +423,10 @@ describe("Mystic Slide", () => {
 
   it("lets any explorer in the Slide's room make the same roll on a later turn", () => {
     let state = findSeed(play, (s) => rolls(s)[0].result >= 5);
-    // The card ended Zoe's movement, so her turn has ended on its own.
+    // The card ended Zoe's movement, so ending her turn is all that's left.
     expect(roomOf(state)).toBe("basement-landing");
+    expect(labels(state)).toEqual(["End your turn"]);
+    state = choose(state, "End your turn");
     // Sent on by the Ballroom's own card, she never enters the Ballroom.
     expect(
       state.lastEvents.some(
