@@ -23,6 +23,7 @@ import {
   wallTurn,
   type LightSpec,
   type Mood,
+  type PropPlacement,
   type RoomDefinition,
 } from "./room";
 import { box, flat, glow, group, textured } from "./shapes";
@@ -146,7 +147,9 @@ function buildWall(length: number, holes: Opening[], height: number, parts: Wall
     const h = span.y1 - span.y0;
     if (w <= 0.001 || h <= 0.001) continue;
     const cx = (span.x0 + span.x1) / 2;
-    wall.add(box([w, h, WALL_THICKNESS], parts.wall, [cx, span.y0, 0]));
+    const body = box([w, h, WALL_THICKNESS], parts.wall, [cx, span.y0, 0]);
+    body.userData.body = true;
+    wall.add(body);
     if (span.y0 === 0) {
       const x0 = span.x0 + underCasing(span.x0);
       const x1 = span.x1 - underCasing(span.x1);
@@ -295,6 +298,17 @@ function shutLeaf(height: number, material: THREE.Material): THREE.Mesh {
   return box([DOOR_WIDTH, Math.min(DOOR_HEIGHT, height), 0.06], material, [0, 0, 0]);
 }
 
+/** What a top-level piece of a built room is: part of the shell (the floor,
+ *  or the wall on an edge, with all its dressing), or a placed prop. Tools
+ *  that look at one piece at a time (the overlap check, the close-ups) read
+ *  it. Within a wall, `userData.body` marks the wall itself, apart from its
+ *  dressing (wainscot, skirting, crown, casings and sills). */
+export type Piece = { shell: Edge | "floor" } | { prop: PropPlacement };
+
+export function pieceOf(object: THREE.Object3D): Piece | undefined {
+  return (object.userData as { piece?: Piece }).piece;
+}
+
 /** One room built in its own tile frame (centred on the origin, unturned),
  *  without the light the whole scene shares (the fill, the moon and the fog):
  *  the bench stands one on its own, and the house lays many out. */
@@ -329,7 +343,9 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
   const floorMaterial = textured(def.floor());
   const slab = flat("sootLight");
   for (const [x0, x1, z0, z1] of floorPieces(def.floorOpenings ?? [])) {
-    root.add(box([x1 - x0, 0.2, z1 - z0], [slab, slab, floorMaterial, slab, slab, slab], [(x0 + x1) / 2, -0.2, (z0 + z1) / 2]));
+    const piece = box([x1 - x0, 0.2, z1 - z0], [slab, slab, floorMaterial, slab, slab, slab], [(x0 + x1) / 2, -0.2, (z0 + z1) / 2]);
+    piece.userData.piece = { shell: "floor" } satisfies Piece;
+    root.add(piece);
   }
 
   const ceiling = box([TILE, 0.1, TILE], SHADOW_ONLY, [0, WALL_HEIGHT, 0]);
@@ -343,7 +359,9 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     const wall = (height: number) => {
       const built = buildWall(edgeLength(edge), holes, height, parts);
       if (closedDoors.includes(edge)) built.add(shutLeaf(height, parts.trim));
-      return placeOnEdge(built, edge);
+      const placed = placeOnEdge(built, edge);
+      placed.userData.piece = { shell: edge } satisfies Piece;
+      return placed;
     };
     const full = wall(WALL_HEIGHT);
     const cut = wall(CUT_HEIGHT);
@@ -356,6 +374,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     const object = prop.build();
     object.position.set(prop.at[0], prop.y ?? 0, prop.at[1]);
     object.rotation.y = THREE.MathUtils.degToRad(prop.turn ?? 0);
+    object.userData.piece = { prop } satisfies Piece;
     root.add(object);
     if (prop.walls && (prop.y ?? 0) >= CUT_HEIGHT) hung.push({ edges: prop.walls, object });
   }

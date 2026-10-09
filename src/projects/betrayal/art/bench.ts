@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { BENCH_EXPLORERS, type BenchExplorer } from "./explorers";
-import { DEFAULT_FOCUS, type RoomDefinition } from "./room";
+import type { Edge } from "../types";
+import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
-import { buildRoomStage, roomTile, type Stage } from "./stage";
+import { buildRoomStage, pieceOf, roomTile, type Stage } from "./stage";
 
 /** The art is drawn at this many pixels on the screen's short side and scaled
  *  up with hard edges, for the chunky retro look on every screen size. Null
@@ -23,9 +24,20 @@ const ZOOMS = [1, 1.6, 2.4];
 /** Framing the explorer: the height the camera aims at, and how far round it the frame reaches. */
 const EXPLORER_AIM = 0.85;
 const EXPLORER_RADIUS = 0.9;
+/** Framing a prop: the least it frames round the prop's centre, so a small one still shows where it lies. */
+const PROP_RADIUS = 0.3;
 
-/** What the camera's presets frame: the whole room, or the explorer standing in it. */
-export type Subject = "room" | "explorer";
+/** What the camera's presets frame: the whole room, the explorer standing in
+ *  it, or one prop (by its place in the room's `props`). */
+export type Subject = "room" | "explorer" | { prop: number };
+
+/** A prop as the bench lists it: its label, its turn (it faces +z unturned),
+ *  and the walls it hangs on, which hide it in any view that cuts one of them. */
+export interface BenchProp {
+  label: string;
+  turn: number;
+  walls: Edge[];
+}
 
 export interface BenchSnapshot {
   roomId: string;
@@ -54,6 +66,8 @@ export interface BenchApi {
   isReady: () => boolean;
   rooms: () => string[];
   explorers: () => string[];
+  /** The room's props, in the order the subject numbers them. */
+  props: () => BenchProp[];
 }
 
 declare global {
@@ -142,6 +156,12 @@ export function createBench(initialRoom: string) {
     isReady: () => stageReady && settled,
     rooms: () => BENCH_ROOMS.map((room) => room.id),
     explorers: () => BENCH_EXPLORERS.map((figure) => figure.id),
+    props: () =>
+      definition(snapshot.roomId).props.map((prop) => ({
+        label: pieceLabel(prop),
+        turn: prop.turn ?? 0,
+        walls: (prop.y ?? 0) >= CUT_HEIGHT ? (prop.walls ?? []) : [],
+      })),
   };
 
   function mount(ctx: ThreeSceneContext): ThreeSceneHandlers {
@@ -190,7 +210,21 @@ export function createBench(initialRoom: string) {
       return Math.max(ROOM_RADIUS / Math.sin(vertical / 2), ROOM_HALF_WIDTH / Math.sin(horizontal / 2));
     };
 
+    /** The sphere round the prop the subject names, as built in the room. */
+    const propBounds = (index: number): THREE.Sphere => {
+      const placement = definition(snapshot.roomId).props.at(index);
+      const built: THREE.Object3D[] = [];
+      stage?.root.traverse((object) => built.push(object));
+      const found = built.find((object) => {
+        const piece = pieceOf(object);
+        return piece !== undefined && "prop" in piece && piece.prop === placement;
+      });
+      if (!found) throw new Error(`${snapshot.roomId} has no prop ${index}`);
+      return new THREE.Box3().setFromObject(found).getBoundingSphere(new THREE.Sphere());
+    };
+
     const presetTarget = () => {
+      if (typeof snapshot.subject === "object") return propBounds(snapshot.subject.prop).center;
       if (snapshot.subject === "explorer" && stage?.explorer) {
         return stage.explorer.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, EXPLORER_AIM, 0));
       }
@@ -221,7 +255,10 @@ export function createBench(initialRoom: string) {
       // The update above only drains the controls' leftover drag momentum: a
       // preset overwrites the whole pose, so none of it reaches a preset shot.
       const fit = fitDistance();
-      const distance = snapshot.subject === "explorer" && stage?.explorer ? (fit * EXPLORER_RADIUS) / ROOM_RADIUS : fit;
+      const subject = snapshot.subject;
+      const radius =
+        typeof subject === "object" ? Math.max(propBounds(subject.prop).radius, PROP_RADIUS) : subject === "explorer" && stage?.explorer ? EXPLORER_RADIUS : ROOM_RADIUS;
+      const distance = (fit * radius) / ROOM_RADIUS;
       const target = presetTarget();
       const direction = new THREE.Vector3(
         Math.sin(angle) * Math.cos(ELEVATION),

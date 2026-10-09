@@ -40,6 +40,34 @@ export interface Placement {
 
 export interface PropPlacement extends Placement {
   build: () => THREE.Object3D;
+  /** What the overlap check and the close-ups call it; defaults to the
+   *  build function's own name, when it has one. */
+  name?: string;
+  /** Contacts it is built to make, which the overlap check accepts. */
+  contacts?: Contact[];
+}
+
+/**
+ * A piece meant to pass into another, or to share a face with it, declared
+ * in one line with its reason: `{ with: "left", because: "it has fallen against the wall" }`.
+ */
+export interface Contact {
+  /** A wall's edge, `floor`, a keep-clear zone (`pawn`, `doorway top`), or another piece's name. */
+  with: string;
+  because: string;
+}
+
+/** A piece's name: its own, or its build function's (an inline arrow is
+ *  named `build` after the field, which says nothing). */
+export function pieceName(prop: PropPlacement): string {
+  const own = prop.build.name;
+  return prop.name ?? (own && own !== "build" ? own : "prop");
+}
+
+/** A piece's name and where it stands, which tells apart pieces of one name. */
+export function pieceLabel(prop: PropPlacement): string {
+  const [x, z] = prop.at;
+  return `${pieceName(prop)} at (${x.toFixed(2)}, ${z.toFixed(2)})${prop.y ? ` up ${prop.y.toFixed(2)}` : ""}`;
 }
 
 /** A light of its own (a fire's glow, a lamp); candles in the kit bring theirs. */

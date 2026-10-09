@@ -28,6 +28,7 @@ export const PALETTE = {
   bloodDark: "#3d0d13",
   blood: "#6e1620",
   bloodLight: "#9c2a33",
+  scarlet: "#d9443a",
 
   verdigrisDark: "#1b3532",
   verdigris: "#3a6b5d",
@@ -36,6 +37,18 @@ export const PALETTE = {
   bruiseDark: "#24172e",
   bruise: "#432a55",
   bruiseLight: "#6d4f86",
+  violet: "#a97ad8",
+
+  wraithDark: "#1e2a12",
+  wraith: "#4e6d22",
+  wraithLight: "#a3c552",
+
+  gold: "#e6bd2c",
+  goldLight: "#ffe873",
+
+  tideDark: "#10303a",
+  tide: "#2a7480",
+  tideLight: "#7cc9c4",
 
   moonDark: "#18243a",
   moon: "#3f5d88",
@@ -48,7 +61,9 @@ export function paletteHex(key: PaletteKey): string {
   return PALETTE[key];
 }
 
-/** Dark-to-light runs of one hue, for generators that shade with palette steps. */
+/** Dark-to-light runs of one hue, for generators that shade with palette steps.
+ *  The runs that end bright enough to glow carry the lighting language (see
+ *  the room-art skill): moon, fire, scarlet, violet, wraith, gold and tide. */
 export const RAMPS = {
   soot: ["void", "soot", "sootLight", "ash"],
   stone: ["ash", "stoneDark", "stone", "stoneLight"],
@@ -59,6 +74,11 @@ export const RAMPS = {
   verdigris: ["verdigrisDark", "verdigris", "verdigrisLight"],
   bruise: ["bruiseDark", "bruise", "bruiseLight"],
   moon: ["moonDark", "moon", "moonLight"],
+  scarlet: ["bloodDark", "blood", "bloodLight", "scarlet"],
+  violet: ["bruiseDark", "bruise", "bruiseLight", "violet"],
+  wraith: ["wraithDark", "wraith", "wraithLight"],
+  gold: ["brass", "gold", "goldLight"],
+  tide: ["tideDark", "tide", "tideLight"],
 } as const satisfies Record<string, readonly PaletteKey[]>;
 
 export type Ramp = readonly PaletteKey[];
