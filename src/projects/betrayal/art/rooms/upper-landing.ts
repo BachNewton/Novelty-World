@@ -3,7 +3,7 @@ import { animated } from "../animate";
 import { candelabra, candle, cobweb, pictureFrame, table } from "../kit";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, box, glow, group } from "../shapes";
-import { newel, RAIL, runner, STAIR, suiteMood, SUITE } from "./starting-tile";
+import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 /** The stairwell along the top wall, where the grand staircase comes up from
  *  the ground floor: its head is at `head`, and it falls away towards the
@@ -124,7 +124,6 @@ export const UPPER_LANDING: RoomDefinition = {
     { build: () => pictureFrame({ frame: "brass" }), ...onWall("bottom", -1.7, { y: 1.4 }) },
     { build: () => cobweb({ form: "slung" }), at: [INNER - 0.29, INNER - 0.29], y: 3.05, turn: 45, walls: ["right", "bottom"] },
   ],
-  mood: suiteMood(0),
   focus: [-0.8, 0.6, -1.8],
   pawn: [0.8, -0.9],
   // Down the head of the flight, over the middle of each tread, to the last step showing in the well.

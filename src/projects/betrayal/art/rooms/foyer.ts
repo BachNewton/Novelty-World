@@ -4,7 +4,7 @@ import { candle, table } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { WALL_HEIGHT, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe } from "../shapes";
-import { runner, suiteMood, SUITE } from "./starting-tile";
+import { runner, SUITE } from "./starting-tile";
 
 const CHANDELIER_ARMS = 6;
 
@@ -70,7 +70,7 @@ function chandelier(): THREE.Group {
   swing.traverse((child) => {
     child.userData.noShadow = true;
   });
-  swing.add(lightAnchor({ colour: "amber", intensity: 9, range: 10, flicker: 0.1, shadow: true }, [0, -1.0, 0]));
+  swing.add(lightAnchor({ colour: "amber", intensity: 9, range: 10, flicker: 0.1 }, [0, -1.0, 0]));
   swing.position.y = WALL_HEIGHT;
   return group(
     animated(swing, (seconds) => {
@@ -191,7 +191,6 @@ export const FOYER: RoomDefinition = {
     { build: deadPalm, at: [-2.25, 2.2] },
     { build: () => table({ length: 0.8, width: 0.4, height: 0.5 }), ...onWall("top", 1.7, { out: 0.25 }) },
   ],
-  mood: suiteMood(0),
   focus: [0, 1.4, 0],
   pawn: [-1.0, 0.8],
 };

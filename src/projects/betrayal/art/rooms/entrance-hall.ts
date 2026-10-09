@@ -4,7 +4,7 @@ import { paletteHex, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, FRONT_DOOR_HEIGHT, FRONT_DOOR_WIDTH, WALL_THICKNESS, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, pixelPlane } from "../shapes";
 import { pixelTexture, svgTexture, TEXELS_PER_METRE } from "../textures";
-import { runner, suiteMood, SUITE } from "./starting-tile";
+import { runner, SUITE } from "./starting-tile";
 
 const LEAF_TOP = 2.32;
 const TRANSOM = 0.08;
@@ -75,7 +75,7 @@ function frontDoor(from: number, to: number): THREE.Group {
 }
 
 /** A standing lamp with a glass shade, one each side of the front door. */
-function torchere(shadow: boolean): THREE.Group {
+function torchere(): THREE.Group {
   const brass = flat("brass");
   const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.26, 6), glow("amber"));
   shade.position.y = 1.62;
@@ -87,7 +87,7 @@ function torchere(shadow: boolean): THREE.Group {
   result.traverse((child) => {
     child.userData.noShadow = true;
   });
-  result.add(lightAnchor({ colour: "amber", intensity: 5, range: 7, flicker: 0.05, shadow }, [0, 1.45, 0]));
+  result.add(lightAnchor({ colour: "amber", intensity: 5, range: 7, flicker: 0.05 }, [0, 1.45, 0]));
   return result;
 }
 
@@ -147,13 +147,12 @@ export const ENTRANCE_HALL: RoomDefinition = {
     { build: () => runner({ from: -3, to: 2.62, finished: ["to"] }), at: [0, 0] },
     { build: () => frontDoor(0, CUT_HEIGHT), ...onWall("right", 0, { out: -WALL_THICKNESS / 2 }) },
     { build: () => frontDoor(CUT_HEIGHT, 4), ...onWall("right", 0, { y: CUT_HEIGHT, out: -WALL_THICKNESS / 2 }) },
-    { build: () => torchere(true), at: [2.3, -1.3] },
-    { build: () => torchere(false), at: [2.3, 1.3] },
+    { build: torchere, at: [2.3, -1.3] },
+    { build: torchere, at: [2.3, 1.3] },
     { build: umbrellaStand, at: [2.35, 2.15] },
     { build: settle, ...onWall("top", 1.5, { out: 0.3 }) },
     ...PRINTS.map(([x, z, turn]) => ({ build: footprint, at: [x, z] as [number, number], turn })),
   ],
-  mood: { ...suiteMood(0.9), moonFrom: "right" },
   focus: [1.6, 1.3, 0],
   pawn: [-0.9, -0.9],
 };

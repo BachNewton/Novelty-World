@@ -6,6 +6,8 @@ import { BETRAYAL_THEME } from "../components/theme";
 import { FLOOR_NAMES, FLOORS } from "../engine/board";
 import type { InputKind } from "../input/controls";
 import { BenchButton } from "./bench-view";
+import type { Layout } from "../engine/board";
+import { HOUSE_FIXTURE, SPILL_LAYOUTS } from "./house-layout";
 import { createHouseView, type FloorChoice, type HouseSnapshot } from "./house-view";
 
 /** A key or button name, drawn as the thing pressed: a keycap, or a controller's round button. */
@@ -53,10 +55,20 @@ function Hints({ input, phase, stopping }: { input: InputKind; phase: HouseSnaps
   return <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">{hints}</div>;
 }
 
+/** The layout `?layout=<name>` asks for (one of `SPILL_LAYOUTS`, for judging
+ *  light between rooms), or the fixture house. */
+function chosenLayout(): Layout {
+  const name = new URLSearchParams(window.location.search).get("layout");
+  if (name === null) return HOUSE_FIXTURE;
+  const layout = SPILL_LAYOUTS[name] as Layout | undefined;
+  if (!layout) throw new Error(`No house layout "${name}"; there are: ${Object.keys(SPILL_LAYOUTS).join(", ")}`);
+  return layout;
+}
+
 /** The house view prototype (`?house`): a whole house of rooms, full screen,
  *  with two explorers taking turns to walk where the player chooses. */
 export function HouseScreen() {
-  const [view] = useState(() => createHouseView());
+  const [view] = useState(() => createHouseView(chosenLayout()));
   const state = useSyncExternalStore(view.subscribe, view.snapshot, view.snapshot);
   const containerRef = useThreeScene(view.mount, {
     antialias: false,

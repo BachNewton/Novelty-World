@@ -70,7 +70,8 @@ export function pieceLabel(prop: PropPlacement): string {
   return `${pieceName(prop)} at (${x.toFixed(2)}, ${z.toFixed(2)})${prop.y ? ` up ${prop.y.toFixed(2)}` : ""}`;
 }
 
-/** A light of its own (a fire's glow, a lamp); candles in the kit bring theirs. */
+/** A light of its own (a fire's glow, a lamp); candles in the kit bring theirs.
+ *  Every light is baked, shadows and all, and spills through open doorways. */
 export interface LightSpec {
   at: [x: number, y: number, z: number];
   colour: PaletteKey;
@@ -78,22 +79,8 @@ export interface LightSpec {
   intensity: number;
   /** Metres beyond which the light has no effect. */
   range: number;
-  /** 0 is steady; 0.15 is a candle's gentle waver, 0.3 a fire. */
+  /** 0 is steady; 0.15 is a candle's gentle waver, 0.3 a fire; at most 0.5. */
   flicker?: number;
-  /** Casts shadows. Costly: at most two per room. */
-  shadow?: boolean;
-}
-
-export interface Mood {
-  /** Fill light everywhere, 0–1. Keep it low; darkness is the point. */
-  ambient: number;
-  ambientColour: PaletteKey;
-  /** Cool moonlight key, 0–2. */
-  moon: number;
-  /** Where the moon shines in from; defaults to the room's first window, else the top edge. */
-  moonFrom?: Edge;
-  /** `density` is how much the far side of the room fades into `colour`, 0–1. */
-  fog: { colour: PaletteKey; density: number };
 }
 
 /** The close-up's aim when a room names none: just above the middle of the floor. */
@@ -110,7 +97,6 @@ export interface RoomDefinition {
   trim: PaletteKey;
   props: PropPlacement[];
   lights?: LightSpec[];
-  mood: Mood;
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
   /** Holes cut through the floor (a stairwell), as x and z ranges in room metres. */

@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { stubCanvas } from "./headless";
 import { checkRoom } from "./overlap";
 import type { Contact } from "./room";
 import { BENCH_ROOMS } from "./rooms";
@@ -68,29 +69,7 @@ const BASELINE: Record<string, string[]> = {
   ],
 };
 
-/*
- * Textures draw on a 2D canvas, which Node lacks. The check reads only
- * geometry, and a texture's pixels never change its shape (only its size
- * does, which the stand-in canvas keeps), so a canvas that draws nothing
- * builds every room headless.
- */
-beforeAll(() => {
-  const context = new Proxy(
-    {},
-    {
-      get: (_, name) => (name === "getImageData" ? (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }) : () => undefined),
-      set: () => true,
-    },
-  );
-  vi.stubGlobal("document", { createElement: () => ({ width: 0, height: 0, getContext: () => context }) });
-  vi.stubGlobal(
-    "Image",
-    class {
-      src = "";
-      decode = () => Promise.resolve();
-    },
-  );
-});
+beforeAll(stubCanvas);
 
 describe("room overlaps", () => {
   it("accepts a declared contact, and reports one that no longer happens", () => {

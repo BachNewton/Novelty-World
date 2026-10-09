@@ -545,14 +545,14 @@ export const LIBRARY: RoomDefinition = {
     { build: () => rug({ width: 3.2, length: 2.2, field: "verdigrisDark", border: "soot", motif: "verdigris", fringe: "boneDark" }), at: [-0.3, -1.0] },
     { build: desk, at: [0.4, -1.05], turn: 180 },
     { build: () => chair({ cushion: "verdigris" }), at: [0.45, -1.85] },
-    { build: () => candelabra({ arms: 3, intensity: 4, shadow: true }), at: [0.95, -1.2], y: 0.77 },
+    { build: () => candelabra({ arms: 3, intensity: 4 }), at: [0.95, -1.2], y: 0.77 },
     { build: () => openBook({ cover: "verdigrisDark" }), at: [0.25, -0.95], y: 0.77, turn: -8 },
     { build: inkwell, at: [-0.15, -1.25], y: 0.77 },
     { build: () => bookPile("desk", 3), at: [-0.12, -0.8], y: 0.77, turn: 15 },
 
     { build: wingback, at: [-1.6, -1.35], turn: 45 },
     { build: sideTable, at: [-0.85, -1.95] },
-    { build: () => candle({ height: 0.16, intensity: 2, shadow: true }), at: [-0.8, -1.9], y: 0.64 },
+    { build: () => candle({ height: 0.16, intensity: 2 }), at: [-0.8, -1.9], y: 0.64 },
     { build: () => bookPile("table", 2), at: [-0.95, -2.02], y: 0.64, turn: 40 },
     { build: () => bookPile("chair", 5), at: [-2.05, -0.9], turn: -20 },
 
@@ -565,12 +565,6 @@ export const LIBRARY: RoomDefinition = {
     ...SHEETS.map(([x, z, turn]) => ({ build: looseSheet, at: [x, z] as [number, number], turn })),
   ],
   lights: [{ at: [0.7, 0.35, 0.5], colour: "verdigrisLight", intensity: 1.6, range: 3 }],
-  mood: {
-    ambient: 0.65,
-    ambientColour: "moon",
-    moon: 0,
-    fog: { colour: "soot", density: 0.4 },
-  },
   focus: [-0.2, 0.8, -0.8],
   pawn: [0.1, 1.7],
 };

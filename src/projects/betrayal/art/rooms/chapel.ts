@@ -256,7 +256,7 @@ function altar(): THREE.Group {
   for (const [x, length] of [[0.33, 0.12], [0.38, 0.24], [-0.7, 0.16]]) {
     result.add(box([0.025, length, 0.02], flat("boneLight"), [x, slab - length, 0.452]));
   }
-  result.add(lightAnchor({ colour: "amber", intensity: 6, range: 8, flicker: 0.12, shadow: true }, [0, top + 0.55, 0.75]));
+  result.add(lightAnchor({ colour: "amber", intensity: 6, range: 8, flicker: 0.12 }, [0, top + 0.55, 0.75]));
   return result;
 }
 
@@ -420,12 +420,6 @@ export const CHAPEL: RoomDefinition = {
     cornerWeb(1, 1),
     cornerWeb(1, -1),
   ],
-  mood: {
-    ambient: 0.4,
-    ambientColour: "moon",
-    moon: 1.4,
-    fog: { colour: "soot", density: 0.4 },
-  },
   focus: [0, 1.0, 1.2],
   pawn: [0.15, -1.6],
 };

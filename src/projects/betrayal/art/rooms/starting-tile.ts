@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { lightAnchor } from "../light-anchor";
 import { box, flat, glow, group, lathe } from "../shapes";
-import { TILE, type Mood, type RoomDefinition } from "../room";
+import { TILE, type RoomDefinition } from "../room";
 import { panelling, pixelTexture, svgTexture, TEXELS_PER_METRE, wallpaper } from "../textures";
 
 /*
@@ -88,18 +88,8 @@ export function newel(): THREE.Group {
   result.traverse((child) => {
     child.userData.noShadow = true;
   });
-  result.add(lightAnchor({ colour: "amber", intensity: 4, range: 7, flicker: 0.06, shadow: true }, [0.25, 1.45, 0.35]));
+  result.add(lightAnchor({ colour: "amber", intensity: 4, range: 7, flicker: 0.06 }, [0.25, 1.45, 0.35]));
   return result;
-}
-
-/** The hall's shared light: candle-warm lamps against a cool, low fill. */
-export function suiteMood(moon: number): Mood {
-  return {
-    ambient: moon > 0 ? 0.4 : 0.55,
-    ambientColour: "moon",
-    moon,
-    fog: { colour: "soot", density: 0.4 },
-  };
 }
 
 const RUNNER_WIDTH = 1.0;

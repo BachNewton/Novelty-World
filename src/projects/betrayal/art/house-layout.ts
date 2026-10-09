@@ -29,6 +29,19 @@ export const HOUSE_FIXTURE: Layout = {
   ],
 };
 
+/** Two small houses for judging light between rooms: the lit Foyer with the
+ *  dark, empty Dining Room above it, joined by an open doorway, and the same
+ *  pair with the Dining Room turned to put a solid wall there. The Library
+ *  below is where the house view's explorer starts. */
+const SPILL_ROOMS: Layout["tiles"] = [
+  { tile: "foyer", floor: "ground", x: 0, y: 0, rotation: 0 },
+  { tile: "library", floor: "ground", x: 0, y: 1, rotation: 2 },
+];
+export const SPILL_LAYOUTS: Record<string, Layout> = {
+  "spill-doorway": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 1 }] },
+  "spill-wall": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 3 }] },
+};
+
 /** Each board direction as a horizontal unit vector in the scene. */
 export const DIRECTION: Record<Edge, { x: number; z: number }> = {
   top: { x: 0, z: -1 },

@@ -3,9 +3,15 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/use-three-scene";
 import { BENCH_EXPLORERS, type BenchExplorer } from "./explorers";
 import type { Edge } from "../types";
-import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type RoomDefinition } from "./room";
+import { freezeRoom } from "./freeze";
+import { budgetGuard, fillLight, HOUSE_LIGHT, houseFog } from "./lighting";
+import type { Baker } from "./bake";
+import { workerBaker } from "./bake-workers";
+import { createLitFloor, type Rebake } from "./lit-floor";
+import { CUT_HEIGHT, DEFAULT_FOCUS, pieceLabel, type PropPlacement, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
-import { buildRoomStage, pieceOf, roomTile, type Stage } from "./stage";
+import { buildRoom, OUTWARD, roomTile, type ExplorerBuilder } from "./stage";
+import { group } from "./shapes";
 
 /** The art is drawn at this many pixels on the screen's short side and scaled
  *  up with hard edges, for the chunky retro look on every screen size. Null
@@ -68,6 +74,8 @@ export interface BenchApi {
   explorers: () => string[];
   /** The room's props, in the order the subject numbers them. */
   props: () => BenchProp[];
+  /** The last bake of the room's light: which rooms, and how long it took. */
+  bake: () => Rebake | null;
 }
 
 declare global {
@@ -75,6 +83,35 @@ declare global {
     __betrayalBench?: BenchApi;
   }
 }
+
+/** One room on its own, lit exactly as the house lights it: baked, under the
+ *  house's fill and moon, laid unturned. */
+function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker: Baker) {
+  const part = buildRoom(def, { explorer: explorerBuilder });
+  const explorer = part.explorer;
+  const frozen = freezeRoom(def.id, part);
+  const floor = createLitFloor(baker);
+  const bake = floor.place([{ id: def.id, room: frozen, matrix: new THREE.Matrix4() }]);
+  const fog = houseFog();
+  let isCut: (edge: Edge) => boolean = () => false;
+  const cut = () => floor.rooms.get(def.id)?.setCut(isCut);
+  return {
+    root: group(floor.root, fillLight()),
+    fog,
+    background: fog.color.clone(),
+    setCutaway: (cameraDirection: THREE.Vector2) => {
+      isCut = (edge) => OUTWARD[edge].dot(cameraDirection) > 0.01;
+      cut();
+    },
+    update: floor.update,
+    explorer,
+    bounds: (prop: PropPlacement) => frozen.bounds.get(prop),
+    bake,
+    ready: Promise.all([frozen.ready, bake.then(cut)]).then(() => undefined),
+    dispose: floor.dispose,
+  };
+}
+type Stage = ReturnType<typeof benchStage>;
 
 function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? BENCH_ROOMS[0];
@@ -108,6 +145,7 @@ export function createBench(initialRoom: string) {
     applyResolution: () => void;
   } | null = null;
   let stageReady = false;
+  let lastBake: Rebake | null = null;
   let settled = false;
   let frames = 0;
 
@@ -118,6 +156,7 @@ export function createBench(initialRoom: string) {
 
   const api: BenchApi = {
     frameCount: () => frames,
+    bake: () => lastBake,
     setRoom: (id) => {
       const room = definition(id);
       if (room.id !== id) throw new Error(`The bench has no room "${id}"`);
@@ -174,6 +213,8 @@ export function createBench(initialRoom: string) {
     camera.near = 0.1;
     camera.far = 200;
 
+    const guard = budgetGuard(renderer);
+    const baker = workerBaker();
     let stage: Stage | null = null;
     const rebuild = () => {
       if (stage) {
@@ -181,7 +222,10 @@ export function createBench(initialRoom: string) {
         stage.dispose();
       }
       stageReady = false;
-      const built = buildRoomStage(definition(snapshot.roomId), { explorer: explorer(snapshot.explorer).build });
+      const built = benchStage(definition(snapshot.roomId), explorer(snapshot.explorer).build, baker);
+      void built.bake.then((bake) => {
+        if (stage === built) lastBake = bake;
+      });
       stage = built;
       scene.add(built.root);
       scene.fog = built.fog;
@@ -213,14 +257,9 @@ export function createBench(initialRoom: string) {
     /** The sphere round the prop the subject names, as built in the room. */
     const propBounds = (index: number): THREE.Sphere => {
       const placement = definition(snapshot.roomId).props.at(index);
-      const built: THREE.Object3D[] = [];
-      stage?.root.traverse((object) => built.push(object));
-      const found = built.find((object) => {
-        const piece = pieceOf(object);
-        return piece !== undefined && "prop" in piece && piece.prop === placement;
-      });
+      const found = placement && stage?.bounds(placement);
       if (!found) throw new Error(`${snapshot.roomId} has no prop ${index}`);
-      return new THREE.Box3().setFromObject(found).getBoundingSphere(new THREE.Sphere());
+      return found.getBoundingSphere(new THREE.Sphere());
     };
 
     const presetTarget = () => {
@@ -241,7 +280,7 @@ export function createBench(initialRoom: string) {
       if (facing.lengthSq() > 1e-6) cutaway = facing.normalize();
       stage.setCutaway(cutaway);
       const fog = stage.fog;
-      const density = definition(snapshot.roomId).mood.fog.density;
+      const density = HOUSE_LIGHT.fog.density;
       fog.near = Math.max(0, distance - ROOM_RADIUS);
       fog.far = fog.near + (ROOM_RADIUS * 2) / Math.max(density, 0.01);
     };
@@ -296,6 +335,7 @@ export function createBench(initialRoom: string) {
 
     return {
       onFrame: (delta) => {
+        guard.check();
         frames++;
         seconds = snapshot.frozenAt ?? seconds + delta;
         stage?.update(seconds);
@@ -323,6 +363,7 @@ export function createBench(initialRoom: string) {
           scene.remove(stage.root);
           stage.dispose();
         }
+        baker.dispose();
         mounted = null;
         delete window.__betrayalBench;
       },

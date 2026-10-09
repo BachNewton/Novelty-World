@@ -6,10 +6,13 @@ import { attachControls, type ChoiceLayout, type InputKind } from "../input/cont
 import type { Point } from "../input/navigate";
 import type { FloorId } from "../types";
 import { longfellow } from "./explorers/longfellow";
-import { buildHouse, definition, HOUSE_MOOD, stairMark, tileCorners, type House, type HouseExplorer } from "./house";
+import { buildHouse, definition, stairMark, tileCorners, type House, type HouseExplorer } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
 import { afterLeg, inHouse, moveIsOver, nextLegs, shownOn, walkPath, walkPose, type Shown, type Stairway, type Walk } from "./house-walk";
 import { pawn } from "./kit/pawn";
+import { workerBaker } from "./bake-workers";
+import type { Rebake } from "./lit-floor";
+import { budgetGuard, HOUSE_LIGHT, LIGHTMAP, MAX_DRAW_CALLS, MAX_TEXTURE_UNITS } from "./lighting";
 import { TILE } from "./room";
 import { roomTile } from "./stage";
 
@@ -88,14 +91,18 @@ export interface HouseSnapshot {
 export interface HouseStats {
   calls: number;
   triangles: number;
-  /** Point lights in the rooms showing, and how many of them cast shadows. */
-  pointLights: number;
-  shadowLights: number;
+  /** Baked lights in the rooms showing, and the live lights in the scene. */
+  bakedLights: number;
+  liveLights: number;
   /** The CPU time of the last render call, in ms. */
   renderMs: number;
+  /** The most texture units any compiled shader uses, and what the device offers one. */
+  textureUnitsUsed: number;
   maxTextureUnits: number;
   maxFragmentUniforms: number;
   drawingBuffer: [number, number];
+  /** How long each floor's first bake took, in ms. */
+  bakeMs: Partial<Record<FloorId, number>>;
 }
 
 export interface HouseApi {
@@ -113,6 +120,8 @@ export interface HouseApi {
   /** The rooms on a floor, as tile ids. */
   rooms: (floor: FloorId) => string[];
   stats: () => HouseStats;
+  /** Rebuilds a room and re-bakes it with its neighbours, as discovering or moving it in play would. */
+  rebake: (room: string) => Promise<Rebake>;
   /** Moves the focus cursor to a choice. */
   focus: (room: string) => void;
   /** Commits a choice: the active explorer walks there. */
@@ -381,6 +390,10 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       if (!mounted) throw new Error("The house view is not mounted");
       return mounted.stats();
     },
+    rebake: (room) => {
+      if (!house) throw new Error("The house view is not mounted");
+      return house.rebake(room);
+    },
     focus,
     choose,
     confirm,
@@ -393,9 +406,10 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     const { scene, camera, renderer, container } = ctx;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
-    // Diagnostic for the owner's phone, which loses the WebGL context in the
-    // house but not on the bench: `?shadows=off` turns every shadow off, and
-    // `?shadows=moon` keeps only the moon's. Remove once the cause is found.
+    // Diagnostic for the owner's phone, which lost the WebGL context in the
+    // house but not on the bench: `?shadows=off` turns live shadow maps off.
+    // Since the bake there are none, so `?shadows=moon` and `off` draw what
+    // the default draws. Remove once the phone is confirmed.
     const shadows = new URLSearchParams(window.location.search).get("shadows");
     if (shadows === "off") renderer.shadowMap.enabled = false;
     renderer.domElement.style.imageRendering = "pixelated";
@@ -405,12 +419,13 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     camera.far = 400;
     container.style.touchAction = "none";
 
+    const baker = workerBaker();
     const built = buildHouse(
       layout,
       CAST.map((member) => ({ ...member, room: snapshot.explorers.find((explorer) => explorer.id === member.id)?.room ?? member.room })),
+      baker,
     );
     house = built;
-    if (shadows === "moon") for (const light of built.rooms.flatMap((room) => room.part.lights)) light.castShadow = false;
     scene.add(built.root);
     scene.fog = built.fog;
     scene.background = built.background;
@@ -477,7 +492,7 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       built.setCutaway(cutaway, snapshot.closeUp);
       const radius = new THREE.Sphere().setFromPoints(framed).radius;
       built.fog.near = Math.max(0, fit - radius);
-      built.fog.far = built.fog.near + (radius * 2) / Math.max(HOUSE_MOOD.fog.density, 0.01);
+      built.fog.far = built.fog.near + (radius * 2) / Math.max(HOUSE_LIGHT.fog.density, 0.01);
       return aim.distanceTo(target) < 0.01 && Math.abs(want - distance) < 0.01;
     };
 
@@ -575,18 +590,25 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     };
 
     const gl = renderer.getContext();
+    const guard = budgetGuard(renderer);
+    let liveLights = 0;
+    scene.traverse((object) => {
+      if (object instanceof THREE.Light) liveLights++;
+    });
     const stats = (): HouseStats => {
-      const lights = built.rooms.filter((room) => snapshot.floor === "all" || room.floor === snapshot.floor).flatMap((room) => room.part.lights);
+      const baked = built.rooms.filter((room) => snapshot.floor === "all" || room.floor === snapshot.floor).flatMap((room) => room.room.lights);
       const size = renderer.getDrawingBufferSize(new THREE.Vector2());
       return {
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
-        pointLights: lights.length,
-        shadowLights: lights.filter((light) => light.castShadow).length,
+        bakedLights: baked.length,
+        liveLights,
         renderMs: ctx.mainRenderMs(),
+        textureUnitsUsed: guard.samplers(),
         maxTextureUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS) as number,
         maxFragmentUniforms: gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS) as number,
         drawingBuffer: [size.x, size.y],
+        bakeMs: Object.fromEntries([...built.bakes].map(([floor, bake]) => [floor, Math.round(bake.ms)])),
       };
     };
     const screenPoint = (room: string) => {
@@ -595,13 +617,32 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       return at && { x: at.x + rect.left, y: at.y + rect.top };
     };
 
+    // What the phone test needs at a glance, under the frame-rate panel: the
+    // draw calls and texture units the budgets hold, and how long the bake took.
+    const readout = document.createElement("pre");
+    readout.className = "pointer-events-none absolute top-12 right-0 m-0 bg-(--bt-panel) px-1 text-[10px] leading-tight text-(--bt-muted)";
+    container.appendChild(readout);
+    const showReadout = () => {
+      const now = stats();
+      const bake = Object.entries(now.bakeMs).map(([floor, ms]) => `${floor} ${ms}`).join(", ");
+      readout.textContent = [
+        `draw ${now.calls}/${MAX_DRAW_CALLS} · tri ${Math.round(now.triangles / 1000)}k`,
+        `tex units ${now.textureUnitsUsed}/${Math.min(now.maxTextureUnits, MAX_TEXTURE_UNITS)} (gpu ${now.maxTextureUnits})`,
+        `render ${now.renderMs.toFixed(1)} ms · ${now.drawingBuffer.join("×")}`,
+        `bake ms: ${bake || "…"}`,
+        `lightmap ${LIGHTMAP.texelsPerMetre}/m ${LIGHTMAP.filter}`,
+      ].join("\n");
+    };
+
     mounted = { sync, settle, turn, applyResolution, stats, screenPoint };
     sync();
     window.__betrayalHouse = api;
 
     return {
       onFrame: (delta) => {
+        guard.check();
         frames++;
+        if (frames % 10 === 0) showReadout();
         seconds = snapshot.frozenAt ?? seconds + delta;
         controls.frame(delta);
         if (walking) {
@@ -641,9 +682,11 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
         placeCamera(1);
       },
       dispose: () => {
+        readout.remove();
         controls.dispose();
         scene.remove(built.root);
         built.dispose();
+        baker.dispose();
         house = null;
         houseReady = false;
         mounted = null;

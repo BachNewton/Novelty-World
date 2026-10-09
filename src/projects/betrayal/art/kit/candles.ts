@@ -10,7 +10,6 @@ export interface CandleOptions {
   /** Gives the candle a real light; without one its flame still glows. */
   light?: boolean;
   intensity?: number;
-  shadow?: boolean;
 }
 
 /** A piece holding a light would throw its own silhouette across the room. */
@@ -33,7 +32,6 @@ export function candle({
   wax = "bone",
   light = true,
   intensity = 2.5,
-  shadow = false,
 }: CandleOptions = {}): THREE.Group {
   const result = group(
     cylinder(0.028, height, flat(wax), [0, 0, 0], { sides: 6 }),
@@ -42,7 +40,7 @@ export function candle({
   );
   noShadows(result);
   if (light) {
-    result.add(lightAnchor({ colour: "amber", intensity, range: 5, flicker: 0.15, shadow }, [0, height + 0.08, 0]));
+    result.add(lightAnchor({ colour: "amber", intensity, range: 5, flicker: 0.15 }, [0, height + 0.08, 0]));
   }
   return result;
 }
@@ -51,7 +49,6 @@ export interface CandelabraOptions {
   arms?: 3 | 5;
   metal?: PaletteKey;
   intensity?: number;
-  shadow?: boolean;
 }
 
 /** A standing candelabra for a table or mantel, about half a metre tall,
@@ -60,7 +57,6 @@ export function candelabra({
   arms = 3,
   metal = "brass",
   intensity = 5,
-  shadow = false,
 }: CandelabraOptions = {}): THREE.Group {
   const material = flat(metal);
   const result = group(
@@ -83,6 +79,6 @@ export function candelabra({
   bar.position.y = armY;
   result.add(bar);
   noShadows(result);
-  result.add(lightAnchor({ colour: "amber", intensity, range: 7, flicker: 0.12, shadow }, [0, armY + 0.25, 0]));
+  result.add(lightAnchor({ colour: "amber", intensity, range: 7, flicker: 0.12 }, [0, armY + 0.25, 0]));
   return result;
 }

@@ -420,7 +420,7 @@ export function checkRoom(def: RoomDefinition, at = 2): OverlapReport {
   const faces: Face[] = [];
   room.root.traverse((object) => {
     if (!(object instanceof THREE.Mesh) || !showing(object)) return;
-    if ((object.userData as { shadowOnly?: boolean }).shadowOnly) return;
+    if ((object.userData as { bakeOnly?: boolean }).bakeOnly) return;
     readMesh(object, ownerOf(object), parts, faces);
   });
   const clearParts: Part[] = [];

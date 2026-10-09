@@ -4,7 +4,7 @@
 // waits on its events (room built, textures decoded, camera settled, frames rendered), never a sleep.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--idle] [--compare=<room-id>]
+// Usage:  node src/projects/betrayal/tools/shots.mjs <room-id> [label] [--explorer=<id>] [--idle] [--compare=<room-id>] [--native]
 //         node src/projects/betrayal/tools/shots.mjs --all [label]
 //
 // One room writes to src/projects/betrayal/.shots/<label>/<room-id>/ (gitignored): view-0..3.png (desktop
@@ -37,6 +37,8 @@ const [ROOM, LABEL = "latest"] = ALL ? [null, ...POSITIONAL] : POSITIONAL;
 const EXPLORER = flag("explorer");
 const COMPARE = flag("compare");
 const IDLE = FLAGS.includes("--idle");
+/** Draws the room at the screen's own resolution rather than the bench's low default. */
+const NATIVE = FLAGS.includes("--native");
 const FREEZE_AT = 2;
 /** The idle strip's frozen times: every 1.5 s over 24 s, long enough to catch his occasional gestures. */
 const IDLE_TIMES = Array.from({ length: 16 }, (_, i) => i * 1.5);
@@ -86,13 +88,13 @@ async function openBench(room, viewport) {
   page.on("console", (m) => {
     if (m.type() === "error") console.error("page console error:", m.text());
   });
-  await page.goto(`${BASE}?bench=${encodeURIComponent(room)}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}?bench=${encodeURIComponent(room)}`, { waitUntil: "load" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalBench" in window, null, { timeout: 30000 });
   const known = await page.evaluate(() => window.__betrayalBench.rooms());
   if (!known.includes(room)) throw new Error(`The bench has no room "${room}"; it has: ${known.join(", ")}`);
   await page.evaluate(
-    ({ explorer, frozenAt }) => {
+    ({ explorer, frozenAt, native }) => {
       const bench = window.__betrayalBench;
       if (explorer) {
         if (!bench.explorers().includes(explorer)) {
@@ -101,8 +103,9 @@ async function openBench(room, viewport) {
         bench.setExplorer(explorer);
       }
       bench.freezeClock(frozenAt);
+      if (native) bench.setResolution(null);
     },
-    { explorer: EXPLORER, frozenAt: FREEZE_AT },
+    { explorer: EXPLORER, frozenAt: FREEZE_AT, native: NATIVE },
   );
   return page;
 }

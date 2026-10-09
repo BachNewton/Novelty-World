@@ -59,7 +59,7 @@ export const DRAWING_ROOM: RoomDefinition = {
   props: [
     { build: () => rug({ width: 2.6, length: 3.4 }), at: [0, 0] },
     { build: () => table({ length: 1.7, width: 0.9, runner: "bone" }), at: [0, 0] },
-    { build: () => candelabra({ arms: 5, shadow: true }), at: [0, 0], y: 0.76 },
+    { build: () => candelabra({ arms: 5 }), at: [0, 0], y: 0.76 },
     { build: () => chair(), at: [-0.45, -0.75] },
     { build: () => chair(), at: [0.45, -0.75] },
     { build: () => chair(), at: [-0.45, 0.75], turn: 180 },
@@ -73,12 +73,6 @@ export const DRAWING_ROOM: RoomDefinition = {
     { build: () => candle({ height: 0.18, intensity: 1.2 }), at: [2.5, -1.9], y: 0.7 },
   ],
   lights: [{ at: [-2.3, 0.6, -1.6], colour: "ember", intensity: 5, range: 6, flicker: 0.3 }],
-  mood: {
-    ambient: 0.4,
-    ambientColour: "moon",
-    moon: 1.2,
-    fog: { colour: "soot", density: 0.4 },
-  },
   focus: [0, 0.8, 0],
   pawn: [1.3, 1.7],
 };

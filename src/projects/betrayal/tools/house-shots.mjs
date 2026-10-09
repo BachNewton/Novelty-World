@@ -6,11 +6,12 @@
 // at FREEZE_AT for every shot, so two runs differ only where the art does.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label]
+// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label] [--native]
 // Writes to src/projects/betrayal/.shots/<label>/house/ (gitignored): every floor from the four views,
 // the whole house stacked, close views of single rooms, a phone shot, and three contact sheets:
 // sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone). Those
-// judge the art, so the choices' glow and route are hidden in them. sheet-play.png shows the stand-in
+// judge the art, so the choices' glow and route are hidden in them. sheet-spill.png shows light between rooms: the
+// lit Foyer beside the dark Dining Room, through an open doorway and, turned, through a solid wall. sheet-play.png shows the stand-in
 // decision: a focused choice with its route preview (desktop and phone), "Stop here" focused, and a walk up the grand
 // staircase frozen at several moments, ending with the room framed close as the explorer enters it.
 
@@ -21,6 +22,8 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const [LABEL = "latest"] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+/** Draws at the screen's own resolution rather than the view's low default. */
+const NATIVE = process.argv.includes("--native");
 const FREEZE_AT = 2;
 const OUTDIR = join(HERE, "..", ".shots", LABEL, "house");
 const BASE = process.env.BETRAYAL_URL ?? "http://localhost:3001/board-games/betrayal";
@@ -44,16 +47,22 @@ async function failOnPageError(error) {
   process.exit(1);
 }
 
-async function openHouse(viewport) {
+async function openHouse(viewport, layout = null) {
   const page = await browser.newPage({ viewport });
   page.on("pageerror", (error) => void failOnPageError(error));
   page.on("console", (m) => {
     if (m.type() === "error") console.error("page console error:", m.text());
   });
-  await page.goto(`${BASE}?house`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}?house${layout ? `&layout=${layout}` : ""}`, { waitUntil: "load" });
   await page.addStyleTag({ content: "nextjs-portal{display:none!important}" });
   await page.waitForFunction(() => "__betrayalHouse" in window, null, { timeout: 30000 });
-  await page.evaluate((at) => window.__betrayalHouse.freezeClock(at), FREEZE_AT);
+  await page.evaluate(
+    ({ at, native }) => {
+      window.__betrayalHouse.freezeClock(at);
+      if (native) window.__betrayalHouse.setResolution(null);
+    },
+    { at: FREEZE_AT, native: NATIVE },
+  );
   return page;
 }
 
@@ -143,6 +152,15 @@ await phonePlay.evaluate(() => window.__betrayalHouse.focus("foyer"));
 play.push(await shoot(phonePlay, "play-phone"));
 await phonePlay.close();
 
+// Light between rooms: the lit Foyer and the dark Dining Room, through an open doorway and through a wall.
+const spill = [];
+for (const layout of ["spill-doorway", "spill-wall"]) {
+  const page = await openHouse(DESKTOP, layout);
+  spill.push(await capture(page, `${layout}-floor`, { floor: "ground", view: 2 }));
+  spill.push(await capture(page, `${layout}-dining-room`, { focus: "dining-room", view: 2 }));
+  await page.close();
+}
+
 const dataUrl = (path) =>
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- reads back the screenshots this run just wrote
   `data:image/png;base64,${readFileSync(path).toString("base64")}`;
@@ -163,4 +181,5 @@ await contactSheet("ground", ground, 2);
 await contactSheet("upper", upper, 2);
 await contactSheet("house", house, 3);
 await contactSheet("play", play, 3);
+await contactSheet("spill", spill, 2);
 await browser.close();

@@ -1,11 +1,11 @@
 import * as THREE from "three";
 import { ROOMS } from "../data/rooms";
 import type { Edge, RoomTile } from "../types";
-import { animationOf, type Animation } from "./animate";
 import type { Gait } from "./explorers/figure";
 import { pawn } from "./kit/pawn";
+import { animationOf } from "./animate";
 import { anchoredLight } from "./light-anchor";
-import { paletteHex } from "./palette";
+import { MAX_FLICKER, type BakedLight } from "./lighting";
 import {
   CUT_HEIGHT,
   DOOR_HEIGHT,
@@ -21,24 +21,18 @@ import {
   WINDOW_TOP,
   WINDOW_WIDTH,
   wallTurn,
-  type LightSpec,
-  type Mood,
   type PropPlacement,
   type RoomDefinition,
 } from "./room";
 import { box, flat, glow, group, textured } from "./shapes";
 import { pixelTexture, textureReady } from "./textures";
 
-const EDGES: Edge[] = ["top", "right", "bottom", "left"];
-const MAX_LIGHTS = 8;
-const MAX_SHADOW_LIGHTS = 2;
-/** Draws nothing but stays in the shadow pass. Full walls the camera has cut
- *  away wear it, so the light doesn't change as the camera orbits; so does the
- *  unseen ceiling, so moonlight only gets in through the windows. */
-const SHADOW_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+export const EDGES: Edge[] = ["top", "right", "bottom", "left"];
+/** Baked lights cost load time, not frame time; this bounds the bake. */
+const MAX_LIGHTS = 16;
 
 /** Which way each edge's wall faces out of the room. */
-const OUTWARD: Record<Edge, THREE.Vector2> = {
+export const OUTWARD: Record<Edge, THREE.Vector2> = {
   top: new THREE.Vector2(0, -1),
   right: new THREE.Vector2(1, 0),
   bottom: new THREE.Vector2(0, 1),
@@ -59,21 +53,6 @@ interface Span {
   x1: number;
   y0: number;
   y1: number;
-}
-
-export interface Stage {
-  root: THREE.Group;
-  fog: THREE.Fog;
-  background: THREE.Color;
-  /** Cut down the walls between the camera and the room, for a camera looking from this horizontal direction. */
-  setCutaway: (cameraDirection: THREE.Vector2) => void;
-  /** Poses everything that moves (flickering lights, animated pieces) for this moment. */
-  update: (seconds: number) => void;
-  /** The explorer standing where the room puts its pawn, if it has a place for one. */
-  explorer: THREE.Object3D | null;
-  /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
-  ready: Promise<void>;
-  dispose: () => void;
 }
 
 export function roomTile(id: string): RoomTile {
@@ -209,54 +188,17 @@ function placeOnEdge(object: THREE.Object3D, edge: Edge): THREE.Group {
   return holder;
 }
 
-function setShadowOnly(object: THREE.Object3D, shadowOnly: boolean) {
-  object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    const data = child.userData as { material?: THREE.Material | THREE.Material[] };
-    data.material ??= child.material as THREE.Material | THREE.Material[];
-    child.material = shadowOnly ? SHADOW_ONLY : data.material;
-  });
-}
-
-function flickerAt(seconds: number, phase: number): number {
-  return (
-    0.5 * Math.sin(seconds * 7.3 + phase) +
-    0.3 * Math.sin(seconds * 13.1 + phase * 2.1) +
-    0.2 * Math.sin(seconds * 23.7 + phase * 3.7)
-  );
-}
-
-interface LiveLight {
-  light: THREE.PointLight;
-  base: number;
-  flicker: number;
-  phase: number;
-}
-
-function pointLight(spec: Omit<LightSpec, "at">): THREE.PointLight {
-  const light = new THREE.PointLight(paletteHex(spec.colour), spec.intensity, spec.range, 2);
-  if (spec.shadow) {
-    light.castShadow = true;
-    light.shadow.mapSize.set(256, 256);
-    light.shadow.camera.near = 0.05;
-    light.shadow.bias = -0.004;
-  }
-  return light;
-}
-
 /**
- * Where the room's moon stands; it shines towards the centre of the floor. The
- * moonlight's direction is the reverse of this, so a piece built to line up
- * with it (a shaft of light through a window) follows the stage's own moon.
+ * Where a room's moon fakes are built from: high beyond its first window (or
+ * its top edge), shining towards the middle of the floor. A piece lined up
+ * with it (a shaft of light through a window) follows it. The baked moon
+ * comes from a fixed corner of the board instead, so such a fake lies off
+ * the real moonlight by the tile's turn and the corner's angle.
  */
 export function moonPosition(def: RoomDefinition): THREE.Vector3 {
-  const outward = OUTWARD[def.mood.moonFrom ?? roomTile(def.id).windows.at(0) ?? "top"];
+  const outward = OUTWARD[roomTile(def.id).windows.at(0) ?? "top"];
   const elevation = THREE.MathUtils.degToRad(50);
-  return new THREE.Vector3(
-    outward.x * Math.cos(elevation) * 12 + 1,
-    Math.sin(elevation) * 12,
-    outward.y * Math.cos(elevation) * 12 + 0.6,
-  );
+  return new THREE.Vector3(outward.x * Math.cos(elevation) * 12 + 1, Math.sin(elevation) * 12, outward.y * Math.cos(elevation) * 12 + 0.6);
 }
 
 /** The floor slab as rectangles [x0, x1, z0, z1] covering the tile around its
@@ -309,20 +251,23 @@ export function pieceOf(object: THREE.Object3D): Piece | undefined {
   return (object.userData as { piece?: Piece }).piece;
 }
 
-/** One room built in its own tile frame (centred on the origin, unturned),
- *  without the light the whole scene shares (the fill, the moon and the fog):
- *  the bench stands one on its own, and the house lays many out. */
+/** One room as built, in its own tile frame (centred on the origin,
+ *  unturned): every piece as its own object, before `freezeRoom` merges what
+ *  stands still for drawing and baking. The overlap check reads it as it is. */
 export interface RoomPart {
   root: THREE.Group;
-  /** Cuts down the walls on the edges the test names, and hides what hangs
-   *  above the cut on any of them. Edges are the tile's printed edges. */
+  /** The full and the cut-down wall on each edge that has one. */
+  walls: { edge: Edge; full: THREE.Object3D; cut: THREE.Object3D }[];
+  /** Pieces hung on walls above the cut height, which hide when any of their walls is cut. */
+  hung: { edges: Edge[]; object: THREE.Object3D }[];
+  /** Shows the full or the cut wall on each edge, for looking at the room as built. */
   cutWalls: (isCut: (edge: Edge) => boolean) => void;
-  /** Poses everything that moves (flickering lights, animated pieces) for this moment. */
+  /** Poses its animated pieces for this moment. */
   update: (seconds: number) => void;
   /** The explorer standing where the room puts its pawn, if it has one. */
   explorer: THREE.Object3D | null;
-  /** The room's own point lights. */
-  lights: THREE.PointLight[];
+  /** The room's own lights, all baked. */
+  lights: BakedLight[];
   /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
   ready: Promise<void>;
   dispose: () => void;
@@ -348,11 +293,12 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     root.add(piece);
   }
 
-  const ceiling = box([TILE, 0.1, TILE], SHADOW_ONLY, [0, WALL_HEIGHT, 0]);
-  ceiling.userData.shadowOnly = true;
+  // The unseen ceiling: it only stops light in the bake, so moonlight gets in through the windows alone.
+  const ceiling = box([TILE, 0.1, TILE], flat("void"), [0, WALL_HEIGHT, 0]);
+  ceiling.userData.bakeOnly = true;
   root.add(ceiling);
 
-  const walls: { edge: Edge; full: THREE.Group; cut: THREE.Group }[] = [];
+  const walls: RoomPart["walls"] = [];
   for (const edge of EDGES) {
     if (tile.passages.includes(edge)) continue;
     const holes = openings(tile, edge);
@@ -369,7 +315,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     walls.push({ edge, full, cut });
   }
 
-  const hung: { edges: Edge[]; object: THREE.Object3D }[] = [];
+  const hung: RoomPart["hung"] = [];
   for (const prop of def.props) {
     const object = prop.build();
     object.position.set(prop.at[0], prop.y ?? 0, prop.at[1]);
@@ -386,40 +332,24 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     root.add(explorer);
   }
 
-  const live: LiveLight[] = [];
-  const addLight = (spec: Omit<LightSpec, "at">, position: THREE.Vector3) => {
-    const light = pointLight(spec);
-    light.position.copy(position);
-    root.add(light);
-    live.push({ light, base: spec.intensity, flicker: spec.flicker ?? 0, phase: live.length * 1.9 });
-  };
   root.updateMatrixWorld(true);
-  const anchors: THREE.Object3D[] = [];
-  const animations: Animation[] = [];
+  const lights: BakedLight[] = [];
   root.traverse((object) => {
-    if (anchoredLight(object)) anchors.push(object);
-    const animation = animationOf(object);
-    if (animation) animations.push(animation);
+    const spec = anchoredLight(object);
+    if (spec) lights.push({ ...spec, flicker: spec.flicker ?? 0, at: object.getWorldPosition(new THREE.Vector3()) });
   });
-  for (const anchor of anchors) {
-    const spec = anchoredLight(anchor);
-    if (spec) addLight(spec, anchor.getWorldPosition(new THREE.Vector3()));
-  }
-  for (const spec of def.lights ?? []) addLight(spec, new THREE.Vector3(...spec.at));
-  if (live.length > MAX_LIGHTS) throw new Error(`${def.id} has ${live.length} lights; the most a room may have is ${MAX_LIGHTS}`);
-  const shadowed = live.filter(({ light }) => light.castShadow).length;
-  if (shadowed > MAX_SHADOW_LIGHTS) {
-    throw new Error(`${def.id} has ${shadowed} shadow-casting lights; the most a room may have is ${MAX_SHADOW_LIGHTS}`);
-  }
+  for (const { at, ...spec } of def.lights ?? []) lights.push({ ...spec, flicker: spec.flicker ?? 0, at: new THREE.Vector3(...at) });
+  if (lights.length > MAX_LIGHTS) throw new Error(`${def.id} has ${lights.length} lights; the most a room may bake is ${MAX_LIGHTS}`);
+  const deep = lights.find((light) => light.flicker > MAX_FLICKER);
+  if (deep) throw new Error(`${def.id} has a light flickering by ${deep.flicker}; the most is ${MAX_FLICKER}`);
 
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     const materials = (Array.isArray(object.material) ? object.material : [object.material]) as THREE.Material[];
     const unlit = materials.every((material) => material instanceof THREE.MeshBasicMaterial);
-    const data = object.userData as { noShadow?: boolean; shadowOnly?: boolean };
-    object.castShadow = data.shadowOnly === true || (!unlit && !data.noShadow);
-    object.receiveShadow = !unlit;
+    const data = object.userData as { noShadow?: boolean; bakeOnly?: boolean };
+    object.castShadow = data.bakeOnly === true || (!unlit && !data.noShadow);
     for (const material of materials) {
       if ("map" in material && material.map instanceof THREE.Texture) textures.add(material.map);
     }
@@ -427,76 +357,33 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
 
   return {
     root,
+    walls,
+    hung,
     cutWalls: (isCut) => {
       for (const { edge, full, cut } of walls) {
         const down = isCut(edge);
-        setShadowOnly(full, down);
+        full.visible = !down;
         cut.visible = down;
       }
-      for (const { edges, object } of hung) {
-        object.visible = !edges.some(isCut);
-      }
+      for (const { edges, object } of hung) object.visible = !edges.some(isCut);
     },
     update: (seconds) => {
-      for (const { light, base, flicker, phase } of live) {
-        light.intensity = base * (1 + flicker * flickerAt(seconds, phase));
-      }
-      for (const animation of animations) animation(seconds);
+      root.traverse((object) => animationOf(object)?.(seconds));
     },
     explorer,
-    lights: live.map(({ light }) => light),
-    ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
+    lights,
     dispose: () => disposeTree(root),
+    ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
   };
 }
 
-/** Frees the geometry, materials and lights under a root. */
+/** Frees the geometry and materials under a root. */
 export function disposeTree(root: THREE.Object3D) {
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) {
       object.geometry.dispose();
-      const own = (object.userData as { material?: THREE.Material | THREE.Material[] }).material ?? object.material;
-      for (const material of (Array.isArray(own) ? own : [own]) as THREE.Material[]) {
-        if (material !== SHADOW_ONLY) material.dispose();
-      }
+      for (const material of [object.material].flat() as THREE.Material[]) material.dispose();
     }
     if (object instanceof THREE.Light) object.dispose();
   });
-}
-
-/** The light a whole scene shares: a fill from above, and the moon shining
- *  from `moonAt` (relative to `centre`), its shadow covering a square `reach`
- *  metres either side of `centre`. */
-export function sceneLight(
-  mood: Mood,
-  moonAt: THREE.Vector3,
-  { centre = new THREE.Vector3(), reach = 6, mapSize = 1024 } = {},
-): { fill: THREE.HemisphereLight; moon: THREE.DirectionalLight } {
-  const fill = new THREE.HemisphereLight(paletteHex(mood.ambientColour), paletteHex("void"), mood.ambient * 6);
-  const moon = new THREE.DirectionalLight(paletteHex("moonLight"), mood.moon * 6);
-  moon.position.copy(moonAt).add(centre);
-  moon.target.position.copy(centre);
-  moon.castShadow = true;
-  moon.shadow.mapSize.set(mapSize, mapSize);
-  Object.assign(moon.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: 30 });
-  moon.shadow.camera.updateProjectionMatrix();
-  moon.shadow.bias = -0.0015;
-  return { fill, moon };
-}
-
-export function buildRoomStage(def: RoomDefinition, options: RoomOptions = {}): Stage {
-  const room = buildRoom(def, options);
-  const { fill, moon } = sceneLight(def.mood, moonPosition(def));
-  const root = group(room.root, fill, moon, moon.target);
-  const fogColour = paletteHex(def.mood.fog.colour);
-  return {
-    root,
-    fog: new THREE.Fog(fogColour, 1, 100),
-    background: new THREE.Color(fogColour),
-    setCutaway: (cameraDirection) => room.cutWalls((edge) => OUTWARD[edge].dot(cameraDirection) > 0.01),
-    update: room.update,
-    explorer: room.explorer,
-    ready: room.ready,
-    dispose: () => disposeTree(root),
-  };
 }

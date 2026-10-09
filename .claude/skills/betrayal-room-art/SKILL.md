@@ -27,20 +27,24 @@ differently from how it looks alone:
   exception is the close view of a room an explorer has just entered, which
   keeps its back walls standing, as the bench does.
 - **The house owns the light a room can't**: one fill, one fog and one moon,
-  shining from a fixed corner of the board, for every room (`HOUSE_MOOD` in
-  `house.ts`). A room brings only its own lamps, glows and fakes.
+  shining from a fixed corner of the board, for every room (`HOUSE_LIGHT` in
+  `lighting.ts`). A room brings only its own lamps, glows and fakes.
+- **Light runs between rooms.** A room's lamps are baked with the whole
+  floor in the way, so they spill through open doorways and passages onto
+  the rooms next door, and walls (and a shut door) stop them. A room is lit
+  partly by its neighbours, and lights them in turn.
 - **Explorers stand at the room's `pawn` spot** (a second one 90 cm from it,
   towards the middle of the room), and walk in through the centre of each
   doorway and up and down the stairs.
 
 **The bench** (`?bench=<room-id>`) shows one room on its own, under an orbit
 camera, with only the two walls facing the camera cut. It is where a room is
-built and judged up close. Its light comes from the room's own `mood`, which
-is a preview of the house's and nothing more: the house ignores it. So the
-bench is the workshop, and the house is the test: anything that reads only
-because a wall is standing, or only under the bench's light, fails in the
-house. `tools/house-shots.mjs` shoots the house view, which shows the rooms
-in its fixture layout.
+built and judged up close. It lights the room exactly as the house does
+(the same bake, the house's fill and moon, the tile laid unturned), but with
+no neighbours, so no light spills in. So the bench is the workshop, and the
+house is the test: anything that reads only because a wall is standing, or
+only without its neighbours, fails in the house. `tools/house-shots.mjs`
+shoots the house view, which shows the rooms in its fixture layout.
 
 ## The foundation
 
@@ -50,9 +54,18 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   3.2 m), the layout constants, `RoomDefinition`, `Mood`, `LightSpec`,
   placements, `Contact` and `onWall`.
 - `stage.ts`: builds the shell from the definition (floor, walls, wainscot,
-  trim, doors and windows from the room data), places the props, adds the
-  lights, and cuts the walls away for the camera. Its limits throw; see
-  "Rules". `pieceOf` says what each built piece is (a prop, the floor, a wall).
+  trim, doors and windows from the room data), places the props and gathers
+  their lights. Its limits throw; see "Rules". `pieceOf` says what each built
+  piece is (a prop, the floor, a wall).
+- `lighting.ts`, `freeze.ts`, `bake.ts`, `lit-floor.ts`: how a built room is
+  drawn. `freezeRoom` merges every still piece into a few meshes by how it
+  draws, and lays out the room's lightmap; the bake (run on workers by
+  `bake-workers.ts`) works out each lamp's and the moon's light, shadows and
+  all, into that lightmap and into light probes; `createLitFloor` draws a
+  floor of baked rooms, cuts their walls for the camera, and re-bakes a room
+  and its neighbours when the layout changes. `lighting.ts` holds the
+  house's light, the lightmap's density and filtering (`LIGHTMAP`), and the
+  render budgets. Room work doesn't change them.
 - `palette.ts`: `PALETTE`, its keys and `RAMPS`. The only colours there are.
   The ramps that end bright enough to glow carry the lighting language.
 - `textures.ts`: seeded generators (`woodPlanks`, `flagstones`, `plaster`,
@@ -62,11 +75,13 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `shapes.ts`: `box` and `cylinder` stand on their base, not their centre,
   so props are built bottom-up; `lathe`, `pixelPlane`, `batch`, and the
   materials `flat`, `textured`, `glow` and `lightMaterial`.
-- `light-anchor.ts`: `lightAnchor` puts a real light inside a prop, so the
-  light moves with it.
+- `light-anchor.ts`: `lightAnchor` puts a light inside a prop, so the light
+  goes wherever the prop is placed. It is baked where the prop stands when
+  the room is built.
 - `animate.ts`: `animated` marks a piece the stage poses every frame from
   the clock (a pure function of the seconds, so a frozen clock always shows
-  the same pose), the way `lightAnchor` marks a light.
+  the same pose), the way `lightAnchor` marks a light. An animated piece is
+  kept out of the merge and lit by the room's light probes.
 - `kit/`: pieces several rooms share (candles, a candelabra, table, chair,
   rug, picture frame, cobweb, the scale pawn).
 - `explorers/`: the explorer figures, rigid parts on pivots at the joints,
@@ -135,10 +150,11 @@ Colour means something, in light, glows and decals alike:
 | Gold | the holy: the Blessing, the Holy Symbol, the Chapel | `gold` |
 | Cyan | water | `tide` |
 
-Lean into coloured and moving light, but fake most of it: glows, additive
-pools and beams (`lightMaterial`), and short-lived lights. Only the room's
-permanent signature lights count against its light budget (see "Rules"),
-so spend the real lights on the signature and fake the rest.
+Lean into coloured light. A lamp is baked, so it costs load time, not frame
+time: a room may give each source it shows (every sconce, the hearth, the
+glowing book) a light of its own, with shadows. Fake what a point light
+can't give: a surface that is its own light (`glow`), and coloured pools
+and beams through glass (`lightMaterial`).
 
 ### The ledger
 
@@ -218,14 +234,13 @@ the piece off the wall face.
 
 A room is one file, `rooms/<room-id>.ts`, exporting one `RoomDefinition`:
 surfaces (floor, wall, optional wainscot, trim colour) from its zone, props,
-lights of its own, the bench's `mood`, the close-up `focus`, and where the
-explorer stands (`pawn`). The bench stands its first explorer there, a
+lights of its own, the close-up `focus`, and where the explorer stands
+(`pawn`). The bench stands its first explorer there, a
 person at 1.6 m; shoot with `--explorer=pawn` for the plain scale pawn.
 Props the room alone needs are functions in that file, each with a one-line
 doc comment saying what it is and which way it faces. Give every seeded
 texture a seed of the room's own, so rooms don't repeat each other's
-pattern. Set `mood` to the house's values (`HOUSE_MOOD`), with `moon` 0 for
-a windowless room, so the bench previews the house.
+pattern.
 
 A room with a stair link gives `stairs` a walk path for each room it links
 to: points in room metres from its floor up (or down) the flight to where
@@ -288,21 +303,40 @@ ledger.
   corner piece names both walls. A prop below the cut height stays visible.
   So split tall wall furniture: a base no taller than the cut height on the
   floor, and the rest hung on the wall above it.
-- **Lights are limited.** At most 8 point lights per room, and at most 2 of
-  them casting shadows; the stage throws past either. Kit candles bring a
-  light each unless told not to, and every `lightAnchor` counts. Give a
-  cluster of flames one light (as the candelabra does), and make the rest
-  of the flames glow without lights. A piece that holds a light must not
-  cast shadows itself (mark it `noShadow`, as the kit's candles do), or it
-  throws its own silhouette over the room; so must glass and decals.
-- **A light stays in its tile.** A light that casts no shadow shines through
-  walls into the rooms around it, so keep its `range` inside its own tile.
+- **Lights are baked, and many are allowed.** A room's lights (its
+  `lights`, and every `lightAnchor` in its props) are baked into its
+  lightmap when it is built, every one with shadows: up to 16 a room (the
+  stage throws past it; each costs load time, not frame time). Kit candles
+  bring a light each unless told not to. A cluster of flames still takes
+  one light, as the candelabra does: lights a few centimetres apart only
+  bake slower.
+- **What stays live is limited.** Only what moves is lit live: the active
+  explorer's light, and in time a carried candle or a haunt's short event
+  light. At most two live lights may cast shadows, and those are the
+  house's to add, never a room's. A room has no live lights.
+- **Flicker modulates the baked light.** A light's `flicker` (at most 0.5)
+  makes everything it lights waver, its spill next door included. Flames
+  share four flicker signals, so two candles may waver in step. A `glow`
+  doesn't flicker, nor does the probe light on an animated piece or an
+  explorer.
+- **Light spills; walls stop it.** A lamp lights whatever it reaches within
+  its `range`, through doorways and passages into the next room, and stops
+  at walls and shut doors. Give a light the range its brightness deserves,
+  not one cut to its tile.
+- **What breaks the bake.** A light inside a piece that casts shadows is
+  smothered by it: a piece that holds a light must not cast shadows (mark
+  it `noShadow`, as the kit's candles do), nor may glass and decals. A
+  piece that moves after the build (an `animated` one) is baked where it
+  stands when built, so its shadow stays there, and so does a light
+  anchored in it. Changing a light while the game runs (dimming a lamp,
+  putting out a candle) needs a re-bake: report the need rather than
+  faking it.
 - **The house owns the fill, the fog and the moon.** A room can't set its
-  own: `mood` only lights the bench. A windowless room lights itself with
-  its own lamps and glows, never with more fill. The moon comes in only
-  through windows (the unseen ceiling and every wall, cut or not, stay in
-  the shadow pass), and in the house it shines from one corner of the board,
-  so how much of it a window lets in depends on how the tile is turned.
+  own. A windowless room lights itself with its own lamps and glows and
+  what spills in from next door, never with more fill. The moon comes in
+  only through windows (the unseen ceiling and every wall, cut or not,
+  stop it in the bake), and it shines from one corner of the board, so how
+  much of it a window lets in depends on how the tile is turned.
 - **Shared code.** Room-specific props stay in the room's file. A piece goes
   to `kit/` only when a second room needs it: then move it there in the
   same change, generalise it with options, switch the first room to the kit
@@ -333,14 +367,18 @@ ledger.
   is behind, so the surface still shows through. `glow` is for things that
   are their own light (flames, embers, stained glass seen face on).
 - **A fake lined up with the moon must follow the house's moon.** The
-  Chapel builds its shaft and floor pool along `moonPosition`, which is the
-  bench's moon: in the house, where the moon comes from a corner of the
-  board, its pool lies about 45° off the real moonlight (known, left for
-  the review pass). A room's build doesn't yet learn where the house's moon
-  is, so a new room avoids moon-aligned fakes, or reports the need.
-- **Animated pieces' shadows stand still in the house**: it redraws shadows
-  only when something moves for good. Make the motion read without its
-  shadow (the rocking chair's sway, the chandelier's swing).
+  Chapel builds its shaft and floor pool along `moonPosition`, straight out
+  of its own window, but the baked moon comes from a corner of the board,
+  so the pool lies off the real moonlight, on the bench too (known, left
+  for the review pass). A room's build doesn't learn how its tile is
+  turned, so a new room avoids moon-aligned fakes, or reports the need.
+- **Animated pieces' shadows stand still**: they are baked where the piece
+  stands when built. Make the motion read without its shadow (the rocking
+  chair's sway, the chandelier's swing).
+- **Small faces take one light value.** A face under 40 cm each way gets a
+  single lightmap texel, so no shadow edge ever crosses a book or a candle:
+  it reads as flat-shaded. A shadow meant to show has to fall on something
+  larger.
 - **A cut-wall-height base under tall wall furniture** keeps the room open
   when that wall is cut, as the Library's bookcases do: the cupboard stays,
   the shelves above hide with the wall.
@@ -359,7 +397,7 @@ be passed. Today the house tells the stage which doors are false, and the
 stage shuts them with a plain closed leaf in the trim colour, so a false
 door looks like an ordinary closed one. A window against a neighbour is a
 **false window**: it lets no moonlight in, because the neighbour's wall
-behind it stays in the shadow pass; but its glass still glows as if
+behind it stops the moon in the bake; but its glass still glows as if
 moonlit, and a room's own moon fakes (the Chapel's pool) still show. How a
 false door should look (boarded or bricked, rather than an ordinary closed
 door) and how a false window should look are the stage's to settle, not a
@@ -373,7 +411,9 @@ room that only works when an opening is live.
 - **Never use the chrome-devtools MCP**; it drives the owner's real browser.
   All looking is through headless Playwright.
 - **Shoot a labelled run:**
-  `node src/projects/betrayal/tools/shots.mjs <room-id> <room-id>-v<n> --compare=<room-id>`,
+  `node src/projects/betrayal/tools/shots.mjs <room-id> <room-id>-v<n> --compare=<room-id>`
+  (`--native` draws at the screen's own resolution instead of the bench's
+  default; the render resolution isn't decided, so judge both),
   a new label each round so rounds can be compared. It writes, under
   `src/projects/betrayal/.shots/<label>/<room-id>/` (gitignored):
   `contact-sheet.png` (the four dollhouse views, a close-up, the explorer
@@ -385,7 +425,10 @@ room that only works when an opening is live.
   frozen for every shot, so two runs differ only where the art does.
   `--explorer=<id>` picks who stands in the room; `--idle` adds
   `idle-strip.png`, the explorer at a run of frozen times, for judging an
-  animation. If building the room throws (a light limit, a pixel character
+  animation. `house-shots.mjs` (also with `--native`) writes
+  `sheet-spill.png`: light from a lit room into a dark one through a
+  doorway, and the same pair through a wall. If building the room throws
+  (a light limit, a pixel character
   missing from its legend, a room id the data doesn't have), the run stops
   at once with that error.
 - **Read every sheet each round**: the contact sheet, the close-ups and the
@@ -450,11 +493,11 @@ builder reports back:
   run before it, for comparison);
 - the overlap check's result: passing, and every contact the room declares,
   with its reason;
-- its light count and shadow-casting lights against the limits, and
-  whether a limit held the room back: what it would do with more lights
-  or shadows, and what it settled for instead. The limits are a starting
-  budget, not a ceiling the art must always fit under: say so whenever
-  the workaround made the room worse;
+- its light count against the limit, and how its light reads in the house
+  beside its neighbours (what spills in, what it throws next door); and
+  whether a limit held the room back, and what it settled for instead.
+  The limits are a starting budget, not a ceiling the art must always fit
+  under: say so whenever the workaround made the room worse;
 - any piece promoted to the kit, and the re-shot room it came from;
 - anything that needs the owner's eye or decision, and any gap found in
   the foundation (reported, not patched around).

@@ -3,7 +3,7 @@ import { candle, pictureFrame } from "../kit";
 import type { PaletteKey } from "../palette";
 import { CUT_HEIGHT, INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, group, type Batch } from "../shapes";
-import { newel, RAIL, runner, STAIR, suiteMood, SUITE } from "./starting-tile";
+import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 const STAIR_MID = (STAIR.back + STAIR.front) / 2;
 /** The flight rises through the ceiling here: the balustrade stops where its
@@ -192,7 +192,6 @@ export const GRAND_STAIRCASE: RoomDefinition = {
     { build: () => clock("foot"), ...onWall("left", -0.9) },
     { build: () => clock("case"), ...onWall("left", -0.9, { y: CUT_HEIGHT }) },
   ] satisfies PropPlacement[],
-  mood: suiteMood(1.2),
   focus: [0.4, 1.0, -1.6],
   pawn: [1.2, 0.5],
   // Up the middle of the carpet, over the middle of each tread, into the dark above.
