@@ -17,7 +17,6 @@ import { SharePanel } from "./share-panel";
 import { HauntText, SidePanel } from "./side-panel";
 import { StartForm } from "./start-form";
 import { BETRAYAL_THEME } from "./theme";
-import { CrashReport } from "../art/crash-report";
 
 /** Whose view: a seat, or a spectator (null). */
 type Viewer = number | null;
@@ -57,18 +56,8 @@ export function Betrayal() {
   if (search === null) return null;
   const params = new URLSearchParams(search);
   const bench = params.get("bench");
-  if (bench)
-    return (
-      <CrashReport>
-        <ArtBench room={bench} />
-      </CrashReport>
-    );
-  if (params.has("house"))
-    return (
-      <CrashReport>
-        <HouseScreen />
-      </CrashReport>
-    );
+  if (bench) return <ArtBench room={bench} />;
+  if (params.has("house")) return <HouseScreen />;
   return <DebugGame code={params.get("game")} />;
 }
 

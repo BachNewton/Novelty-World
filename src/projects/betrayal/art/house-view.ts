@@ -406,12 +406,6 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     const { scene, camera, renderer, container } = ctx;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
-    // Diagnostic for the owner's phone, which lost the WebGL context in the
-    // house but not on the bench: `?shadows=off` turns live shadow maps off.
-    // Since the bake there are none, so `?shadows=moon` and `off` draw what
-    // the default draws. Remove once the phone is confirmed.
-    const shadows = new URLSearchParams(window.location.search).get("shadows");
-    if (shadows === "off") renderer.shadowMap.enabled = false;
     renderer.domElement.style.imageRendering = "pixelated";
     renderer.toneMappingExposure = 1.5;
     camera.fov = FIELD_OF_VIEW;
