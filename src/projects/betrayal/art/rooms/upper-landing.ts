@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { animated } from "../animate";
-import { candelabra, candle, cobweb, pictureFrame, table } from "../kit";
+import { candelabra, candle, cobweb, pictureFrame, pitShell, table } from "../kit";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
-import { batch, box, glow, group } from "../shapes";
+import { batch, group } from "../shapes";
 import { newel, RAIL, runner, STAIR, SUITE } from "./starting-tile";
 
 /** The stairwell along the top wall, where the grand staircase comes up from
@@ -36,33 +36,8 @@ function stairHead(): THREE.Group {
     b.block([0.03, 0.03, STAIR.carpet + 0.1], "brass", [x1 - 0.03, top, MID]);
   }
   b.block([0.08, 0.055, depth + 0.03], "woodMid", [HEAD + 0.01, -0.04, MID + 0.015]);
-  return group(b.mesh(), shaft());
-}
-
-/**
- * The dark shaft of the well below the floor, unlit and in the background's
- * own colour: looking down the well it is the dark the flight falls into, and
- * from outside the room, where the flight would show below the floor slab, it
- * cannot be told from the background.
- */
-function shaft(): THREE.Group {
-  const dark = glow("soot");
-  dark.side = THREE.DoubleSide;
-  // The background is drawn without tone mapping, so the shaft must be too to match it exactly.
-  dark.toneMapped = false;
-  const top = -0.2;
-  const bottom = -WELL_DEPTH - 0.05;
-  const height = top - bottom;
-  const [x0, x1] = [-TILE / 2, HEAD + 0.07];
-  const [z0, z1] = [-TILE / 2, EDGE + 0.04];
-  const side = (w: number, d: number, x: number, z: number) => box([w, height, d], dark, [x, bottom, z]);
-  return group(
-    side(x1 - x0, 0.01, (x0 + x1) / 2, z0),
-    side(x1 - x0, 0.01, (x0 + x1) / 2, z1),
-    side(0.01, z1 - z0, x0, (z0 + z1) / 2),
-    side(0.01, z1 - z0, x1, (z0 + z1) / 2),
-    box([x1 - x0, 0.01, z1 - z0], dark, [(x0 + x1) / 2, bottom, (z0 + z1) / 2]),
-  );
+  // The dark of the well below the floor, which the flight falls into.
+  return group(b.mesh(), pitShell({ x: [-TILE / 2, HEAD + 0.07], z: [-TILE / 2, EDGE + 0.04], bottom: -WELL_DEPTH - 0.05 }));
 }
 
 /** The balustrade along the landing edge of the well, its rail running into

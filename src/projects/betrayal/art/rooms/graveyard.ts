@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
+import { lantern } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, type PaletteKey } from "../palette";
 import type { PropPlacement, RoomDefinition } from "../room";
@@ -200,19 +201,9 @@ function wisp(): THREE.Group {
 /** A lantern on an iron post by the gate, its candle guttering behind smoked glass. Faces +z. */
 function gateLantern(): THREE.Group {
   const iron = flat("soot");
-  const post = cylinder(0.03, 1.45, iron, [0, 0, 0], { sides: 6 });
-  const foot = box([0.18, 0.06, 0.18], iron);
-  const arm = box([0.32, 0.03, 0.03], iron, [0.14, 1.36, 0]);
-  const cage = group(
-    box([0.17, 0.02, 0.17], iron, [0, 0, 0]),
-    box([0.15, 0.17, 0.15], glow("amber"), [0, 0.02, 0]),
-    new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.1, 4).rotateY(Math.PI / 4).translate(0, 0.24, 0), iron),
-  );
-  for (const [x, z] of [[-0.08, -0.08], [0.08, -0.08], [-0.08, 0.08], [0.08, 0.08]]) cage.add(box([0.02, 0.19, 0.02], iron, [x, 0.01, z]));
-  cage.position.set(0.27, 1.1, 0);
-  cage.traverse((part) => (part.userData.noShadow = true));
-  cage.add(lightAnchor({ colour: "amber", intensity: 1.3, range: 4.5, flicker: 0.2 }, [0, 0.11, 0]));
-  return group(foot, post, arm, cage);
+  const light = lantern({ width: 0.15, height: 0.17, intensity: 1.3, range: 4.5, flicker: 0.2 });
+  light.position.set(0.27, 1.34, 0);
+  return group(box([0.18, 0.06, 0.18], iron), cylinder(0.03, 1.45, iron, [0, 0, 0], { sides: 6 }), box([0.32, 0.03, 0.03], iron, [0.14, 1.36, 0]), light);
 }
 
 /** Low fog lying over the yard in drifting layers of moonlit haze, thickest

@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { createRng, type Rng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { lightAnchor } from "../light-anchor";
+import { cask, coil, crate, lantern, strand } from "../kit";
 import type { PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lightMaterial, pixelPlane, projectUvs, textured } from "../shapes";
+import { batch, box, flat, group, lightMaterial, pixelPlane, projectUvs, textured } from "../shapes";
 import { flagstones, pixelTexture, TEXELS_PER_METRE, woodPlanks } from "../textures";
 
 /** The hole in the floor the lake fills, along the left and bottom walls; the
@@ -380,24 +380,6 @@ function hullHalf(z: number, y: number): number {
   return at(bottom0, bottom1) + (at(top0, top1) - at(bottom0, bottom1)) * u;
 }
 
-/** A hooded iron lantern, lit, its light anchored at the flame. Origin at the hook. */
-function lantern(): THREE.Group {
-  const iron = flat("soot");
-  const result = group(
-    box([0.16, 0.02, 0.16], iron, [0, -0.04, 0]),
-    cylinder(0.1, 0.06, iron, [0, -0.02, 0], { top: 0.02, sides: 4 }),
-    box([0.14, 0.02, 0.14], iron, [0, -0.24, 0]),
-    box([0.1, 0.17, 0.1], glow("amber"), [0, -0.22, 0]),
-    box([0.04, 0.09, 0.04], glow("flame"), [0, -0.2, 0]),
-  );
-  for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) result.add(box([0.018, 0.2, 0.018], iron, [x * 0.065, -0.24, z * 0.065]));
-  result.traverse((child) => {
-    child.userData.noShadow = true;
-  });
-  result.add(lightAnchor({ colour: "amber", intensity: 5, range: 8, flicker: 0.15 }, [0, -0.15, 0.05]));
-  return result;
-}
-
 /** An empty rowing boat, its oars shipped and its bow lantern lit, rocking
  *  gently at its mooring. Bow towards +z. */
 function boat(): THREE.Group {
@@ -421,12 +403,7 @@ function boat(): THREE.Group {
   }
   b.block([0.04, 0.82, 0.04], "woodDark", [0, floorY, 0.66]);
   b.block([0.04, 0.04, 0.26], "woodDark", [0, 0.755, 0.76]);
-  const rope = new THREE.Vector3(...MOORING).sub(new THREE.Vector3(0, 0.26, 0.9));
-  b.add(
-    [0.03, 0.03, rope.length()],
-    "boneDark",
-    new THREE.Matrix4().lookAt(rope, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)).setPosition(new THREE.Vector3(0, 0.26, 0.9).addScaledVector(rope, 0.5)),
-  );
+  strand(b, new THREE.Vector3(0, 0.26, 0.9), new THREE.Vector3(...MOORING), 0.03, "boneDark");
 
   const light = lantern();
   light.position.set(0, 0.72, 0.86);
@@ -503,34 +480,17 @@ function footprints(): THREE.Mesh {
 
 /** A coil of wet rope lying on the stone, a loose end trailing. */
 function ropeCoil(): THREE.Group {
-  const rope = flat("boneDark");
-  const result = group();
-  [0.2, 0.17, 0.14].forEach((radius, i) => {
-    const turn = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.028, 4, 10), rope);
-    turn.rotation.x = -Math.PI / 2;
-    turn.position.set(i * 0.015, 0.028 + i * 0.045, 0);
-    result.add(turn);
-  });
-  result.add(box([0.5, 0.05, 0.05], rope, [0.42, 0, 0.12]));
-  return result;
+  return group(coil(), box([0.5, 0.05, 0.05], flat("boneDark"), [0.42, 0, 0.12]));
 }
 
 /** Two stacked crates and a barrel, stores for the boat long left. Faces +z. */
 function stores(): THREE.Group {
-  const b = batch();
-  const crate = (size: number, at: [number, number, number], colour: PaletteKey) => {
-    b.block([size, size, size], colour, at);
-    for (const y of [0.04, size - 0.08]) b.block([size + 0.02, 0.06, size + 0.02], "woodDark", [at[0], at[1] + y, at[2]]);
-  };
-  crate(0.55, [0, 0, 0], "woodMid");
-  crate(0.42, [0.05, 0.55, 0.02], "wood");
-  const result = group(b.mesh());
-  const barrel = cylinder(0.24, 0.7, flat("wood"), [0, 0, 0], { sides: 9 });
-  const hoops = [0.1, 0.55].map((y) => cylinder(0.255, 0.05, flat("soot"), [0, y, 0], { sides: 9 }));
-  const standing = group(barrel, ...hoops);
-  standing.position.set(-0.05, 0, 0.7);
-  result.add(standing);
-  return result;
+  const below = crate([0.55, 0.55, 0.55], "woodMid");
+  const above = crate([0.42, 0.42, 0.42]);
+  above.position.set(0.05, 0.55, 0.02);
+  const barrel = cask({ height: 0.7, lid: false });
+  barrel.position.set(-0.05, 0, 0.7);
+  return group(below, above, barrel);
 }
 
 /** The Underground Lake: a black lake filling half the cellar floor, glowing

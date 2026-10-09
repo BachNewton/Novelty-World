@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createRng, pick, uniform } from "@/shared/lib/seeded-random";
 import type { Edge } from "../../types";
 import { animated } from "../animate";
-import { candle, cobweb } from "../kit";
+import { chamberstick, cobweb } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
@@ -347,21 +347,6 @@ function pastry(): THREE.Group {
   return group(dust, sheet, pin, bowl, dough);
 }
 
-/** A brass chamberstick with a candle burnt halfway. */
-function chamberstick(intensity: number): THREE.Group {
-  const brass = flat("brass");
-  const taper = candle({ height: 0.12, intensity });
-  taper.position.y = 0.06;
-  return group(
-    noShadows(group(
-      cylinder(0.09, 0.02, brass, [0, 0, 0], { top: 0.08, sides: 8 }),
-      cylinder(0.03, 0.04, brass, [0, 0.02, 0], { sides: 6 }),
-      box([0.1, 0.012, 0.02], brass, [0.11, 0.012, 0]),
-    )),
-    taper,
-  );
-}
-
 /** The ceiling rack over the table: a wooden frame on four chains, hung with
  *  copper and iron pans, a ladle and bunches of drying herbs. Its origin is
  *  the floor below it; it runs along x. */
@@ -441,7 +426,7 @@ function dresserBase(): THREE.Group {
   crock.position.set(-0.65, 0.87, back + 0.42);
   const jar = lathe([[0, 0], [0.07, 0], [0.08, 0.16], [0.05, 0.19], [0, 0.19]], flat("woodLight"), 8);
   jar.position.set(-0.4, 0.87, back + 0.42);
-  const light = chamberstick(1.8);
+  const light = chamberstick({ intensity: 1.8 });
   light.position.set(0.55, 0.87, back + 0.42);
   result.add(crock, jar, light);
   return result;
@@ -624,7 +609,7 @@ export const KITCHEN: RoomDefinition = {
     { build: cabbage, at: at(0.25, -0.22), y: ON_TABLE },
     { build: loaf, at: at(-0.78, 0.2), y: ON_TABLE, turn: 20 },
     { build: pastry, at: at(-0.55, -0.22), y: ON_TABLE },
-    { build: () => chamberstick(1.6), name: "tableCandle", at: at(0.3, 0.3), y: ON_TABLE },
+    { build: () => chamberstick({ intensity: 1.6 }), name: "tableCandle", at: at(0.3, 0.3), y: ON_TABLE },
 
     { build: dresserBase, ...onWall("bottom", 1.0) },
     { build: dresserRack, ...onWall("bottom", 1.0, { y: 0.87 }) },

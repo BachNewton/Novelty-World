@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createRng, uniform } from "@/shared/lib/seeded-random";
 import type { Edge } from "../../types";
 import { animated } from "../animate";
+import { pitHaze, pitShell } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { CUT_HEIGHT, DOOR_HEIGHT, onWall, type PropPlacement, type RoomDefinition } from "../room";
@@ -222,32 +223,12 @@ function pulley(side: -1 | 1, cable: boolean): THREE.Group {
   return result;
 }
 
-/**
- * The slot's dark: the shaft below the cab floor, unlit and in the
- * background's own colour, with a violet haze rising out of it.
- */
+/** The slot's dark: the shaft below the cab floor, with a violet haze rising out of it. */
 function slotShaft(): THREE.Group {
-  const dark = glow("soot");
-  dark.side = THREE.DoubleSide;
-  // The background is drawn without tone mapping, so the shaft must be too to match it exactly.
-  dark.toneMapped = false;
-  const top = -0.2;
-  const bottom = -SLOT.depth;
-  const height = top - bottom;
-  const w = SLOT.x[1] - SLOT.x[0];
-  const d = SLOT.z[1] - SLOT.z[0];
-  const haze = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.02, d - 0.02), lightMaterial(0.55));
-  (haze.material as THREE.MeshBasicMaterial).color = new THREE.Color(hex("bruiseLight"));
-  haze.rotation.x = -Math.PI / 2;
-  haze.position.y = -0.35;
-  haze.userData.noShadow = true;
+  const [w, d] = [SLOT.x[1] - SLOT.x[0], SLOT.z[1] - SLOT.z[0]];
   return group(
-    box([w, height, 0.01], dark, [0, bottom, -d / 2]),
-    box([w, height, 0.01], dark, [0, bottom, d / 2]),
-    box([0.01, height, d], dark, [-w / 2, bottom, 0]),
-    box([0.01, height, d], dark, [w / 2, bottom, 0]),
-    box([w, 0.01, d], dark, [0, bottom, 0]),
-    haze,
+    pitShell({ x: [-w / 2, w / 2], z: [-d / 2, d / 2], bottom: -SLOT.depth }),
+    pitHaze({ x: [-w / 2 + 0.01, w / 2 - 0.01], z: [-d / 2 + 0.01, d / 2 - 0.01], y: -0.35, colour: "bruiseLight", opacity: 0.55 }),
   );
 }
 

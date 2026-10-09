@@ -1,10 +1,9 @@
 import * as THREE from "three";
-import { candle, chair, pictureFrame, rug, table } from "../kit";
-import { lightAnchor } from "../light-anchor";
-import { paletteHex, RAMPS, type PaletteKey } from "../palette";
-import { CUT_HEIGHT, INNER, onWall, WINDOW_WIDTH, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, group, lathe, lightMaterial, textured } from "../shapes";
-import { panelling, svgTexture, TEXELS_PER_METRE, wallpaper, woodPlanks } from "../textures";
+import { candle, chair, chamberstick, pictureFrame, rug, table, windowPool } from "../kit";
+import { RAMPS, type PaletteKey } from "../palette";
+import { CUT_HEIGHT, INNER, onWall, type RoomDefinition } from "../room";
+import { batch, box, flat, group, lathe, textured } from "../shapes";
+import { panelling, wallpaper, woodPlanks } from "../textures";
 
 /** The bed's footprint in its own frame: across x, and from the wall (z = 0) out to its foot. */
 const BED = { width: 1.6, length: 2.15, posts: 2.2, mattress: 0.66 };
@@ -158,22 +157,6 @@ function nightstand(): THREE.Group {
   );
 }
 
-/** A brass chamberstick with a candle burnt almost to the dish: the room's one flame. */
-function chamberstick(): THREE.Group {
-  const brass = flat("brass");
-  const dish = group(
-    cylinder(0.08, 0.015, brass, [0, 0, 0], { sides: 8 }),
-    cylinder(0.035, 0.03, brass, [0, 0.015, 0], { sides: 6 }),
-    box([0.06, 0.02, 0.025], brass, [0.1, 0.03, 0]),
-  );
-  dish.traverse((child) => {
-    child.userData.noShadow = true;
-  });
-  const stub = candle({ height: 0.07, light: false });
-  stub.position.y = 0.045;
-  return group(dish, stub, lightAnchor({ colour: "amber", intensity: 8, range: 8, flicker: 0.15 }, [0, 0.4, 0]));
-}
-
 /** A ewer standing in its basin, and a closed book beside them, on a nightstand top. */
 function washstandThings(): THREE.Group {
   const china = flat("boneLight");
@@ -291,34 +274,6 @@ const SITTER_LEGEND = {
   h: "void",
 } as const;
 
-/** The pool of moonlight a window lays on the floor in front of it, its
- *  leading drawn as a lattice. Stylised: it falls straight out of the window,
- *  not along the house's moon. Built at the bottom wall's face, lying on the floor. */
-function moonPool(): THREE.Mesh {
-  const near = WINDOW_WIDTH / 2 + 0.05;
-  const far = WINDOW_WIDTH / 2 + 0.3;
-  const reach = 1.4;
-  const w = Math.round(far * 2 * TEXELS_PER_METRE);
-  const h = Math.round(reach * TEXELS_PER_METRE);
-  const lead = paletteHex("void");
-  const glass = paletteHex("moonDark");
-  const midX = Math.round(w / 2);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">
-<rect width="${w}" height="${h}" fill="${glass}"/>
-<rect x="${midX - 1}" width="2" height="${h}" fill="${lead}"/>
-<rect y="${Math.round(h / 3)}" width="${w}" height="2" fill="${lead}"/>
-<rect y="${Math.round((h * 2) / 3)}" width="${w}" height="2" fill="${lead}"/>
-</svg>`;
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute([-near, 0.02, 0, near, 0.02, 0, far, 0.02, -reach, -far, 0.02, -reach], 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute([(far - near) / (far * 2), 0, (far + near) / (far * 2), 0, 1, 1, 0, 1], 2));
-  geometry.setIndex([0, 2, 1, 0, 3, 2]);
-  geometry.computeVertexNormals();
-  const pool = new THREE.Mesh(geometry, lightMaterial(0.9, { map: svgTexture(svg, w, h) }));
-  pool.userData.noShadow = true;
-  return pool;
-}
-
 /** A small rug laid where feet meet the floor getting out of bed. */
 function bedsideRug(): THREE.Mesh {
   return rug({ width: 2.2, length: 1.0, field: "bloodDark", border: "woodDark", motif: "brass", fringe: "boneDark" });
@@ -349,7 +304,7 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: fourPosterBed, ...onWall("right", 0, { out: 0.05 }) },
     { build: testerBack, ...onWall("right", 0, { y: 1.45, out: 0.06 }) },
     { build: nightstand, ...onWall("right", -1.35, { out: 0.02 }) },
-    { build: chamberstick, at: [INNER - 0.24, -1.3], y: 0.64 },
+    { build: () => chamberstick({ height: 0.07, intensity: 8, range: 8, lift: 0.27 }), name: "chamberstick", at: [INNER - 0.24, -1.3], y: 0.64 },
     { build: nightstand, ...onWall("right", 1.35, { out: 0.02 }) },
     { build: washstandThings, at: [INNER - 0.24, 1.32], y: 0.64, turn: -90 },
     { build: slippers, at: [1.75, 1.2], turn: 8 },
@@ -359,9 +314,9 @@ export const MASTER_BEDROOM: RoomDefinition = {
     { build: () => table({ length: 1.0, width: 0.45, height: 0.74 }), name: "dressingTable", ...onWall("left", -1.5, { out: 0.25 }) },
     { build: () => candle({ height: 0.22, intensity: 4 }), name: "dressingCandle", at: [-INNER + 0.22, 1.85], y: 0.74 },
     { build: lookingGlass, ...onWall("left", -1.5, { y: 1.12 }) },
-    { build: () => chair({ cushion: "bloodDark" }), name: "watchingChair", at: [-1.7, 1.0], turn: 60, contacts: [{ with: "watchingChair", because: "the kit chair's back rail is flush with its posts, a kit fault for the review pass" }] },
+    { build: () => chair({ cushion: "bloodDark" }), name: "watchingChair", at: [-1.7, 1.0], turn: 60 },
     { build: () => pictureFrame({ art: { rows: SITTER, legend: SITTER_LEGEND }, frame: "brass" }), name: "portrait", ...onWall("top", 1.4, { y: 1.35 }) },
-    { build: moonPool, at: [0, INNER] },
+    { build: () => windowPool(), name: "windowPool", ...onWall("bottom", 0) },
   ],
   lights: [{ at: [0, 1.4, INNER - 0.8], colour: "moonLight", intensity: 6, range: 6 }],
   focus: [1.6, 0.9, 0],

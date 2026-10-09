@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
-import { candle, cobweb } from "../kit";
+import { candle, cask, cobweb, coil, crate, lantern, pitHaze, pitShell, slung, strand } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lightMaterial, projectUvs, textured, type Batch } from "../shapes";
+import { batch, box, group, projectUvs, textured, type Size } from "../shapes";
 import { bricks, flagstones } from "../textures";
 
 /** The gulf, wall to wall from the top edge to the bottom: one stretch of its
@@ -94,64 +94,13 @@ function gulf(): THREE.Group {
   const last = COURSE[COURSE.length - 1];
   wall(last.x[0], last.x[1], INNER - LINING, INNER);
   const material = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, fog: false });
-  const result = group(...pieces.map((piece) => new THREE.Mesh(piece, material)), haze(-0.9, 0.12), haze(-1.6, 0.25), haze(-2.6, 0.5), shell());
+  const haze = (y: number, opacity: number) => pitHaze({ x: GULF_X, z: [-TILE / 2 + 0.2, TILE / 2 - 0.2], y, colour: "wraithLight", opacity, fade: true });
+  const shell = pitShell({ x: [GULF_X[0] - 0.06, GULF_X[1] + 0.06], z: [-TILE / 2, TILE / 2], bottom: -6 });
+  const result = group(...pieces.map((piece) => new THREE.Mesh(piece, material)), haze(-0.9, 0.12), haze(-1.6, 0.25), haze(-2.6, 0.5), shell);
   // The glow far below, lighting the underside of the bridge and the walls where the gulf meets them.
   result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1 }, [0, -3.6, -1.4]));
   result.add(lightAnchor({ colour: "wraithLight", intensity: 14, range: 4.5, flicker: 0.1 }, [0, -3.6, 1.5]));
   return result;
-}
-
-/** A sheet of sickly light across the gulf at `y`, brightest down its middle. */
-function haze(y: number, opacity: number): THREE.Mesh {
-  const [x0, x1] = GULF_X;
-  const geometry = new THREE.PlaneGeometry(x1 - x0, TILE - 0.4, 4, 1).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, y, 0);
-  const centre = (x0 + x1) / 2;
-  const half = (x1 - x0) / 2;
-  const position = geometry.getAttribute("position");
-  const colours: number[] = [];
-  const bright = new THREE.Color(paletteHex("wraithLight"));
-  for (let i = 0; i < position.count; i++) {
-    const fall = 1 - Math.abs(position.getX(i) - centre) / half;
-    colours.push(...bright.clone().multiplyScalar(0.25 + 0.75 * fall).toArray());
-  }
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colours, 3));
-  return new THREE.Mesh(geometry, lightMaterial(opacity, { vertexColors: true }));
-}
-
-/** The dark round and under the gulf, in the background's own colour. */
-function shell(): THREE.Group {
-  const dark = glow("soot");
-  dark.side = THREE.DoubleSide;
-  // The background is drawn without tone mapping, so the shell must be too to match it exactly.
-  dark.toneMapped = false;
-  const top = -0.2;
-  const bottom = -6;
-  const height = top - bottom;
-  const [x0, x1] = [GULF_X[0] - 0.06, GULF_X[1] + 0.06];
-  const [z0, z1] = [-TILE / 2, TILE / 2];
-  const side = (w: number, d: number, x: number, z: number) => box([w, height, d], dark, [x, bottom, z]);
-  return group(
-    side(x1 - x0, 0.01, (x0 + x1) / 2, z0),
-    side(x1 - x0, 0.01, (x0 + x1) / 2, z1),
-    side(0.01, z1 - z0, x0, 0),
-    side(0.01, z1 - z0, x1, 0),
-    box([x1 - x0, 0.01, z1 - z0], dark, [(x0 + x1) / 2, bottom, 0]),
-  );
-}
-
-/** A box from `a` to `b` (its centreline), `thick` square: a rope's length, a leaning plank. */
-function strand(b: Batch, a: THREE.Vector3, to: THREE.Vector3, thick: number, colour: PaletteKey) {
-  const along = to.clone().sub(a);
-  const turn = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), along.clone().normalize());
-  const middle = a.clone().add(to).multiplyScalar(0.5);
-  b.add([along.length() + thick * 0.6, thick, thick], colour, new THREE.Matrix4().compose(middle, turn, new THREE.Vector3(1, 1, 1)));
-}
-
-/** A rope slung between two points, sagging `sag` at its middle. */
-function slung(b: Batch, a: THREE.Vector3, to: THREE.Vector3, sag: number, colour: PaletteKey = "boneDark") {
-  const steps = 8;
-  const point = (t: number) => a.clone().lerp(to, t).add(new THREE.Vector3(0, -sag * 4 * t * (1 - t), 0));
-  for (let i = 0; i < steps; i++) strand(b, point(i / steps), point((i + 1) / steps), 0.025, colour);
 }
 
 /**
@@ -217,33 +166,6 @@ function handLines(): THREE.Group {
   return group(b.mesh());
 }
 
-/** An iron lantern, hung from its ring: a pierced cage round a candle, the one
- *  warm light of the room. Its origin is the hook. */
-function lantern(): THREE.Group {
-  const iron = flat("soot");
-  const cage = batch();
-  const w = 0.16;
-  const h = 0.22;
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cage.block([0.02, h, 0.02], "ash", [(sx * w) / 2, -h - 0.05, (sz * w) / 2]);
-  cage.block([w + 0.04, 0.03, w + 0.04], "ash", [0, -h - 0.08, 0]);
-  const panes = new THREE.Mesh(new THREE.BoxGeometry(w - 0.02, h - 0.02, w - 0.02).translate(0, -h / 2 - 0.05, 0), lightMaterial(0.3));
-  (panes.material as THREE.MeshBasicMaterial).color.set(paletteHex("amber"));
-  const flame = new THREE.Mesh(new THREE.OctahedronGeometry(0.03, 0).scale(1, 2, 1).translate(0, -h + 0.02, 0), glow("flame"));
-  const result = group(
-    cage.mesh(),
-    cylinder(0.1, 0.06, iron, [0, -0.05, 0], { top: 0.02, sides: 4 }),
-    cylinder(0.025, 0.05, iron, [0, -0.05, 0], { sides: 4 }),
-    cylinder(0.03, 0.09, flat("bone"), [0, -h - 0.05, 0], { sides: 6 }),
-    flame,
-    panes,
-  );
-  result.traverse((child) => {
-    child.userData.noShadow = true;
-  });
-  result.add(lightAnchor({ colour: "amber", intensity: 3.2, range: 6, flicker: 0.15 }, [0, -h + 0.06, 0]));
-  return result;
-}
-
 /** An iron ring bolted into the floor, with a rope knotted to it running off
  *  over the gulf's edge and straight down: someone went down, or tried to. */
 function ropeDown(): THREE.Group {
@@ -259,12 +181,9 @@ function ropeDown(): THREE.Group {
   strand(b, knot, lip, 0.03, "boneDark");
   strand(b, lip, new THREE.Vector3(lip.x - 0.04, -2.4, lip.z + 0.05), 0.03, "boneDark");
   // The slack, coiled beside the ring.
-  for (let k = 0; k < 10; k++) {
-    const a = (k / 10) * Math.PI * 2;
-    const c = ((k + 1) / 10) * Math.PI * 2;
-    strand(b, new THREE.Vector3(0.22 + Math.cos(a) * 0.16, 0.015, 0.18 + Math.sin(a) * 0.13), new THREE.Vector3(0.22 + Math.cos(c) * 0.16, 0.015, 0.18 + Math.sin(c) * 0.13), 0.03, "boneDark");
-  }
-  return group(b.mesh());
+  const slack = coil({ radii: [0.15], thick: 0.015 });
+  slack.position.set(0.22, 0, 0.18);
+  return group(b.mesh(), slack);
 }
 
 /** A flagstone broken from the gulf's edge, tipped half into the dark. */
@@ -290,29 +209,19 @@ function rubble(): THREE.Group {
   return group(b.mesh());
 }
 
-/** Stacked crates and a barrel, stores left in the cellar. Backs onto −z. */
+/** Stacked crates, stores left in the cellar. Backs onto −z. */
 function stores(): THREE.Group {
-  const b = batch();
-  const crate = (w: number, h: number, d: number, x: number, y: number, z: number) => {
-    b.block([w, h, d], "wood", [x, y, z]);
-    for (const sx of [-1, 1]) b.block([0.05, h + 0.01, d + 0.02], "woodDark", [x + (sx * (w - 0.05)) / 2, y - 0.005, z]);
-    b.block([w - 0.1, 0.05, d + 0.015], "woodMid", [x, y + h / 2 - 0.025, z]);
-  };
-  crate(0.6, 0.5, 0.55, 0, 0, 0);
-  crate(0.5, 0.42, 0.45, 0.04, 0.5, -0.02);
-  crate(0.5, 0.45, 0.5, 0.62, 0, 0.05);
-  return group(b.mesh());
-}
-
-/** An upright cask on its end, hooped in iron. */
-function cask(): THREE.Group {
-  const staves = flat("woodMid");
-  const hoop = flat("soot");
+  const stack: [Size, [number, number, number]][] = [
+    [[0.6, 0.5, 0.55], [0, 0, 0]],
+    [[0.5, 0.42, 0.45], [0.04, 0.5, -0.02]],
+    [[0.5, 0.45, 0.5], [0.62, 0, 0.05]],
+  ];
   return group(
-    cylinder(0.24, 0.72, staves, [0, 0, 0], { sides: 10, top: 0.24 }),
-    cylinder(0.255, 0.04, hoop, [0, 0.1, 0], { sides: 10 }),
-    cylinder(0.255, 0.04, hoop, [0, 0.58, 0], { sides: 10 }),
-    cylinder(0.22, 0.02, flat("wood"), [0, 0.72, 0], { sides: 10 }),
+    ...stack.map(([size, at]) => {
+      const piece = crate(size);
+      piece.position.set(...at);
+      return piece;
+    }),
   );
 }
 
@@ -337,13 +246,13 @@ export const CHASM: RoomDefinition = {
       ],
     },
     { build: handLines, at: [0, 0] },
-    { build: lantern, at: [-POST_X + 0.3, -RAIL_Z], y: 1.0, contacts: [{ with: "handLines", because: "its ring hangs on the arm of the near post" }] },
+    { build: () => lantern({ width: 0.14, height: 0.2, intensity: 3.2, range: 6 }), name: "lantern", at: [-POST_X + 0.3, -RAIL_Z], y: 1.0, contacts: [{ with: "handLines", because: "its ring hangs on the arm of the near post" }] },
     { build: ropeDown, at: [1.45, -1.3], contacts: [{ with: "gulf", because: "the rope runs over the edge and down the rock" }, { with: "floor", because: "the rope bends over the floor's broken edge" }] },
     { build: tippedFlag, at: [COURSE[3].x[0], 1.25], contacts: [{ with: "gulf", because: "it has broken from the edge and tipped into the gulf" }, { with: "floor", because: "its back edge still rests on the floor" }] },
     { build: rubble, at: [-1.75, 1.55], contacts: [{ with: "floor", because: "the broken stone lies bedded in the floor's dust" }] },
     { build: rubble, at: [1.9, 2.1], turn: 70, contacts: [{ with: "floor", because: "the broken stone lies bedded in the floor's dust" }] },
     { build: stores, ...onWall("top", -1.65, { out: 0.32 }) },
-    { build: cask, at: [2.25, -2.3] },
+    { build: () => cask(), name: "cask", at: [2.25, -2.3] },
     { build: () => candle({ height: 0.08, intensity: 1.8 }), name: "candle", at: [2.3, -2.25], y: 0.74 },
     { build: () => candle({ height: 0.12, intensity: 1.8 }), name: "candle", at: [-1.55, -2.45], y: 0.92 },
     { build: () => cobweb({ form: "slung" }), name: "cobweb", at: [INNER - 0.29, -INNER + 0.29], y: 3.05, turn: -135, walls: ["right", "top"] },

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { paletteHex, type PaletteKey } from "../palette";
-import { box, flat, group, pixelPlane } from "../shapes";
+import { WINDOW_WIDTH } from "../room";
+import { box, flat, group, lightMaterial, pixelPlane } from "../shapes";
 import { pixelTexture, svgTexture, TEXELS_PER_METRE, type PixelLegend } from "../textures";
 
 export interface RugOptions {
@@ -143,4 +144,38 @@ export function pictureFrame({
     box([border, h, 0.05], moulding, [w / 2 - border / 2, 0, 0.025]),
     box([width, height, 0.02], flat("soot"), [0, border, 0.01]),
   );
+}
+
+export interface WindowPoolOptions {
+  /** How far the pool reaches into the room, in metres. */
+  reach?: number;
+  glass?: PaletteKey;
+  lead?: PaletteKey;
+  opacity?: number;
+}
+
+/** The pool of light a window lays on the floor in front of it, its leading
+ *  drawn as a lattice. Stylised: it falls straight out of the window, not
+ *  along the house's moon, so it is right however the tile is turned. Place
+ *  it at the window's wall face (its origin), with `onWall`; it lies on the floor, reaching out along +z. */
+export function windowPool({ reach = 1.4, glass = "moonDark", lead = "void", opacity = 0.9 }: WindowPoolOptions = {}): THREE.Mesh {
+  const near = WINDOW_WIDTH / 2 + 0.05;
+  const far = WINDOW_WIDTH / 2 + 0.3;
+  const w = Math.round(far * 2 * TEXELS_PER_METRE);
+  const h = Math.round(reach * TEXELS_PER_METRE);
+  const midX = Math.round(w / 2);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges">
+<rect width="${w}" height="${h}" fill="${paletteHex(glass)}"/>
+<rect x="${midX - 1}" width="2" height="${h}" fill="${paletteHex(lead)}"/>
+<rect y="${Math.round(h / 3)}" width="${w}" height="2" fill="${paletteHex(lead)}"/>
+<rect y="${Math.round((h * 2) / 3)}" width="${w}" height="2" fill="${paletteHex(lead)}"/>
+</svg>`;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute([-near, 0.02, 0, near, 0.02, 0, far, 0.02, reach, -far, 0.02, reach], 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute([(far - near) / (far * 2), 0, (far + near) / (far * 2), 0, 1, 1, 0, 1], 2));
+  geometry.setIndex([0, 1, 2, 0, 2, 3]);
+  geometry.computeVertexNormals();
+  const pool = new THREE.Mesh(geometry, lightMaterial(opacity, { map: svgTexture(svg, w, h) }));
+  pool.userData.noShadow = true;
+  return pool;
 }

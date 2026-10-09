@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { cobweb } from "../kit";
+import { cobweb, crate } from "../kit";
 import { lightAnchor } from "../light-anchor";
 import { flickerOf, flickerSignal } from "../lighting";
 import type { PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
-import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane, textured } from "../shapes";
-import { bricks, flagstones, pixelTexture, woodPlanks } from "../textures";
+import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane } from "../shapes";
+import { bricks, flagstones, pixelTexture } from "../textures";
 
 /** Where the furnace stands, its fire-door facing the left doorway. */
 const FURNACE: [x: number, z: number] = [1.35, -0.45];
@@ -364,8 +364,8 @@ function rake(): THREE.Group {
 
 /** Two crates of kindling stacked in the far corner. */
 function crates(): THREE.Group {
-  const planks = textured(woodPlanks({ plankPx: 5, size: 32, seed: "furnace-room-crate" }));
-  const top = box([0.5, 0.42, 0.5], planks, [0, 0.6, 0]);
+  const top = crate([0.5, 0.42, 0.5]);
+  top.position.y = 0.6;
   top.rotation.y = 0.3;
   const kindling = batch();
   const rng = createRng("furnace-room-kindling");
@@ -377,7 +377,7 @@ function crates(): THREE.Group {
     );
     kindling.add([0.5, 0.04, 0.05], pick(rng, ["woodLight", "woodMid"] as const), matrix);
   }
-  return group(box([0.62, 0.6, 0.62], planks, [0, 0, 0]), top, kindling.mesh());
+  return group(crate([0.62, 0.6, 0.62], "woodMid"), top, kindling.mesh());
 }
 
 /** The Furnace Room: a squat iron furnace with pale ducts reaching for the

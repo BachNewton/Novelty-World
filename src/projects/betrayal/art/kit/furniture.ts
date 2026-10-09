@@ -73,9 +73,10 @@ export function chair({ wood = RAMPS.wood, cushion = "blood", back = 1.15 }: Cha
   for (const x of [-half, half]) {
     result.add(box([leg, back, leg], frame, [x, 0, -half]));
   }
+  // The top rail caps the back posts, standing proud of them; the lower rail sits between them, inset.
   result.add(
-    box([size, 0.08, leg], frame, [0, back - 0.08, -half]),
-    box([size, 0.05, leg], dark, [0, seat + 0.12, -half]),
+    box([size + 0.02, 0.08, leg + 0.02], frame, [0, back - 0.07, -half]),
+    box([size - leg * 2 + 0.01, 0.05, leg - 0.016], dark, [0, seat + 0.12, -half]),
   );
   for (const x of [-0.09, 0, 0.09]) {
     result.add(box([0.04, back - seat - 0.28, 0.02], dark, [x, seat + 0.17, -half]));
