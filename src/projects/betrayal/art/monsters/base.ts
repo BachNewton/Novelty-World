@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import type { PaletteKey } from "../palette";
 import { BASE_TOP } from "../explorers/figure";
-import { cylinder, flat, glow, group } from "../shapes";
+import { figureMaterial, form, plinth } from "../forms";
+import type { PaletteKey } from "../palette";
+import { glow, group } from "../shapes";
 
 export interface MonsterOptions {
   /** Shown stunned (rules.md, How Monsters Work): it misses its next turn,
@@ -17,13 +18,23 @@ export function ghostly(colour: PaletteKey, map?: THREE.Texture): THREE.MeshBasi
   return material;
 }
 
+/** A glowing figure's material, coloured by its geometry's colours (shade
+ *  them with `glowShaded`), kept out of tone mapping as `ghostly` is.
+ *  `brightness` dims the whole glow, for a spectre stunned. */
+export function spectral(brightness = 1): THREE.MeshBasicMaterial {
+  const material = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+  material.color.setScalar(brightness);
+  material.toneMapped = false;
+  return material;
+}
+
 /**
  * A monster's round base: the explorers' base, as wide as the monster needs,
  * with an arrow inlaid at its front edge when the way it faces matters (it
  * faces +z). The arrow is sunk into the rim, so it reads as paint, not a part.
  */
 export function monsterBase(radius: number, { rim = "stoneDark", arrow }: { rim?: PaletteKey; arrow?: PaletteKey } = {}): THREE.Group {
-  const result = group(cylinder(radius, BASE_TOP, flat(rim), [0, 0, 0], { top: radius - 0.02, sides: radius > 0.6 ? 24 : 16 }));
+  const result = group(form(figureMaterial(), plinth(radius, radius - 0.02, BASE_TOP, rim, radius > 0.6 ? 96 : 64)));
   if (arrow) {
     const size = radius * 0.32;
     const shape = new THREE.Shape([

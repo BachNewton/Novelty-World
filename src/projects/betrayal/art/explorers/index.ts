@@ -20,11 +20,12 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "ox", name: "Ox Bellows", build: ox },
   { id: "zoe", name: "Zoe Ingstrom", build: zoe },
   { id: "explorer-line-up", name: "Every explorer, with the pawn", build: (seed) => explorerLineUp(seed) },
-  { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, true) },
+  { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, "walk") },
+  { id: "explorer-run", name: "Every explorer running on the spot", build: (seed) => explorerLineUp(seed, "run") },
   // Monsters stand where an explorer would, so the bench can judge them in a room.
   { id: "banshee", name: "The Banshee", build: (seed, gait) => banshee(seed, gait) },
   { id: "banshee-stunned", name: "The Banshee, stunned", build: (seed, gait) => banshee(seed, gait, { stunned: true }) },
   { id: "spider", name: "The Spider", build: (seed, gait) => spider(seed, gait) },
   { id: "spider-stunned", name: "The Spider, stunned", build: (seed, gait) => spider(seed, gait, { stunned: true }) },
-  { id: "monster-line-up", name: "Monsters beside Longfellow and the pawn", build: (seed) => monsterLineUp(seed) },
+  { id: "monster-line-up", name: "Every figure, monsters and explorers, with the pawn", build: (seed) => monsterLineUp(seed) },
 ];

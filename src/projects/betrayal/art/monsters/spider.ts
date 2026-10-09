@@ -1,33 +1,48 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { BASE_TOP, burst, reach, STANDING, walks, type Gait } from "../explorers/figure";
-import { cylinder, flat, group } from "../shapes";
+import {
+  ball,
+  ellipsoid,
+  figureMaterial,
+  form,
+  intersect,
+  loft,
+  mergeAll,
+  onSurface,
+  plinth,
+  rod,
+  roughened,
+  sculpt,
+  skin,
+  union,
+  type Section,
+  type Solid,
+  type Vec3,
+} from "../forms";
 import { paletteHex, type PaletteKey } from "../palette";
-import { ghostly, monsterBase, type MonsterOptions } from "./base";
+import { group } from "../shapes";
+import { ghostly, type MonsterOptions } from "./base";
 
 /*
- * The Spider of haunt 04: a giant spider, big enough to have eaten an explorer.
- * Read at a glance: eight long legs arched high above a low body, their knees
- * as high as a person's head, red-banded like a red-kneed tarantula, and a
- * bloated abdomen marked with the traitor's red chevrons. Eight red eyes glow
- * at the front. The traitor's red also smoulders faintly in its chitin, so its
- * shape holds in the darkest room. Every part is a rigid low-poly shape on a
- * pivot; the legs are posed by the explorers' reach, each foot planted on the
- * base. It faces +z, its eyes and fangs that way.
+ * The Spider of haunt 04: a giant red-kneed tarantula, a threat to any
+ * explorer. Read at a glance, from the house's whole-floor distance: eight
+ * long, thin legs arched high above a low body, smouldering red so their
+ * lines show on the darkest floor, each knee a pale knob at the top of its
+ * arch with a glowing red band below it and each ankle banded red again, so
+ * every leg reads as jointed, not as a tube; a bloated black abdomen with the
+ * traitor's red chevrons glowing along its curve, the body smouldering more
+ * faintly so it never sinks into a dark floor; big jaws with pale fangs, and
+ * eight red eyes on a turret at the front. It faces +z.
  *
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
 
 const BASE_RADIUS = 1.15;
-/** The middle of the head-and-chest, where the legs join. */
 const BODY_HEIGHT = 0.52;
 const FEMUR = 0.8;
 const TIBIA = 1.0;
-/** The legs, front to back on the right side (+x); the left mirrors them. Each
- *  hip is on the body, and each foot rests on the base at an angle from
- *  straight ahead and a distance from the middle of the base. */
 const LEGS = [
   { hip: 0.42, angle: 28, reach: 1.02 },
   { hip: 0.3, angle: 62, reach: 0.98 },
@@ -35,177 +50,272 @@ const LEGS = [
   { hip: 0.06, angle: 148, reach: 1.04 },
 ] as const;
 const HIP_X = 0.2;
-/** How far a planted foot travels back in one step of the scuttle: a step is half a cycle of either set of legs. */
 const FOOT_TRAVEL = 0.27;
+const ABDOMEN = { centre: [0, 0.2, -0.52] as Vec3, radii: [0.42, 0.38, 0.6] as Vec3 };
 
-/** The traitor's red smouldering in its body, so it keeps its shape in the
- *  darkest room instead of going black; lit, it is only a red cast. */
-function chitin(material: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
-  material.emissive.set(paletteHex("bloodDark"));
-  material.emissiveIntensity = 0.38;
+/** The traitor's red smouldering in its chitin, so a dark body never sinks into a dark floor. */
+function chitin(material: THREE.MeshLambertMaterial, glow: PaletteKey = "bloodDark", intensity = 0.45): THREE.MeshLambertMaterial {
+  material.emissive.set(paletteHex(glow));
+  material.emissiveIntensity = intensity;
   return material;
 }
 
-/** A faceted ellipsoid: a low-poly gem of a body part, flat-shaded. */
-function ovoid(radii: [number, number, number], material: THREE.Material, at: [number, number, number]): THREE.Mesh {
-  const geometry = new THREE.IcosahedronGeometry(1, 1);
-  geometry.scale(...radii);
-  geometry.translate(...at);
-  return new THREE.Mesh(geometry, material);
+/** Short stiff bristles standing out of a limb segment, as a tarantula's: thin
+ *  points round the segment from `top` down to `bottom` (both ≤ 0), at
+ *  radii given along it, each leaning down the limb. */
+function bristles(top: number, bottom: number, radiusAt: (y: number) => number, count: number, seed: number, colour: PaletteKey): THREE.BufferGeometry[] {
+  return Array.from({ length: count }, (_, i) => {
+    const y = top + ((bottom - top) * (i + 0.5)) / count;
+    const angle = i * 2.39996 + seed;
+    const out = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    const root = out.clone().multiplyScalar(radiusAt(y) * 0.8).setY(y);
+    const tip = out.clone().multiplyScalar(radiusAt(y) + 0.045).setY(y - 0.035);
+    return loft(
+      [
+        { at: root.toArray(), radius: 0.009, colour },
+        { at: tip.toArray(), radius: 0.004, colour },
+      ],
+      { sides: 4, ends: ["flat", "point"] },
+    );
+  });
 }
+
+/** A leg segment hanging from its pivot: a tube through its profile of
+ *  [height, radius, colour] sections, top down, banded in their colours. */
+function segment(profile: readonly [number, number, PaletteKey][], end: "round" | "point"): THREE.BufferGeometry {
+  const sections: Section[] = profile.map(([y, radius, colour]) => ({ at: [0, y, 0], radius, colour }));
+  return loft(sections, { sides: 12, ends: ["round", end] });
+}
+
+function profileRadius(profile: readonly [number, number, PaletteKey][]): (y: number) => number {
+  return (y) => {
+    for (let i = 1; i < profile.length; i++) {
+      const [y0, r0] = profile[i - 1];
+      const [y1, r1] = profile[i];
+      if (y <= y0 && y >= y1) return r0 + ((r1 - r0) * (y - y0)) / (y1 - y0);
+    }
+    return profile[profile.length - 1][1];
+  };
+}
+
+/** The upper leg, from the hip's knob to the knee: thin and dark. */
+const FEMUR_PROFILE: readonly [number, number, PaletteKey][] = [
+  [0.05, 0.064, "ash"],
+  [-0.04, 0.068, "soot"],
+  [-0.12, 0.06, "soot"],
+  [-0.42, 0.058, "soot"],
+  [-0.74, 0.05, "soot"],
+  [-FEMUR + 0.01, 0.056, "soot"],
+];
+/** The long lower leg: the knee's pale knob, a dark shank, the ankle and a
+ *  dark foot tapering to a claw. The red bands that glow at the knee and
+ *  ankle are drawn over it (`BANDS`). */
+const TIBIA_PROFILE: readonly [number, number, PaletteKey][] = [
+  [0.075, 0.07, "boneDark"],
+  [0, 0.082, "boneDark"],
+  [-0.05, 0.062, "boneDark"],
+  [-0.08, 0.056, "soot"],
+  [-0.42, 0.048, "soot"],
+  [-0.64, 0.04, "soot"],
+  [-0.72, 0.042, "ash"],
+  [-0.78, 0.036, "soot"],
+  [-0.9, 0.028, "soot"],
+  [-TIBIA + 0.04, 0.018, "soot"],
+];
+/** The glowing red bands round each lower leg, from its knee: [middle, half height]. */
+const BANDS: readonly [number, number][] = [
+  [-0.115, 0.04],
+  [-0.69, 0.028],
+];
+
+/** The head-and-chest: a domed carapace with a groove, the eye turret, the
+ *  knobs the legs turn in, and the waist to the abdomen. */
+function thorax(): THREE.BufferGeometry {
+  const shape = sculpt()
+    .add(ellipsoid([0, 0.03, 0.27], [0.27, 0.16, 0.34]), "ash")
+    .add(ellipsoid([0, 0.12, 0.46], [0.17, 0.09, 0.12]), "ash", 0.07)
+    .add(rod([0, 0.0, 0.05], [0, 0.04, -0.06], 0.08, 0.07), "sootLight", 0.04)
+    .carve(ball([0, 0.22, 0.24], 0.04), { blend: 0.04, colour: "sootLight" })
+    .paint((_, y) => (y < -0.05 ? -1 : 1), "sootLight");
+  for (const side of [-1, 1]) for (const { hip } of LEGS) shape.add(ball([side * HIP_X, 0, hip], 0.085), "sootLight", 0.05);
+  return shape.geometry(0.014);
+}
+
+/** The right-hand eyes, as the original's, a little larger: [x, y, z, radius]; the left mirror them. */
+const EYES: readonly [number, number, number, number][] = [
+  [0.055, 0.12, 0.62, 0.054],
+  [0.15, 0.12, 0.56, 0.038],
+  [0.08, 0.19, 0.55, 0.034],
+  [0.17, 0.17, 0.48, 0.03],
+];
+
+function eyes(): THREE.BufferGeometry {
+  return mergeAll(
+    EYES.flatMap(([x, y, z, radius]) =>
+      [-1, 1].map((side) => {
+        const geometry = new THREE.SphereGeometry(radius, 14, 10);
+        geometry.translate(side * x, y, z);
+        geometry.deleteAttribute("uv");
+        return geometry;
+      }),
+    ),
+  );
+}
+
+function abdomenSolid(): Solid {
+  return union(
+    ellipsoid(ABDOMEN.centre, ABDOMEN.radii),
+    ellipsoid([0, 0.2, -0.3], [0.31, 0.28, 0.3]),
+  );
+}
+
+/** The bloated abdomen, with its spinnerets. */
+function abdomen(solid: Solid): THREE.BufferGeometry {
+  const shape = sculpt().add(roughened(solid, 0.01, 0.07), "sootLight");
+  for (const side of [-1, 1]) shape.add(rod([side * 0.045, 0.12, -1.06], [side * 0.06, 0.15, -1.16], 0.035, 0.018), "ash", 0.03);
+  return shape.geometry(0.02);
+}
+
+/** The traitor's red chevrons down its back, pointing forward and smaller
+ *  towards the tail: lying in a thin skin over the abdomen, so they follow its curve. */
+function markings(solid: Solid): THREE.BufferGeometry {
+  const [cx, cy, cz] = ABDOMEN.centre;
+  const [, ry, rz] = ABDOMEN.radii;
+  const on = (point: Vec3) => onSurface(solid.distance, point);
+  const chevrons = [-0.35, 0.05, 0.45, 0.8].map((along, i) => {
+    const size = 1 - i * 0.2;
+    const [w, h, t] = [0.2 * size, 0.13 * size, 0.07 * size];
+    const apex = new THREE.Vector3(...on([cx, cy + ry * Math.cos(along), cz - rz * Math.sin(along)]));
+    // Forward along the surface, towards the head.
+    const forward = new THREE.Vector3(0, Math.sin(along), Math.cos(along));
+    const arm = (sideways: number) => on(apex.clone().addScaledVector(forward, -h).add(new THREE.Vector3(sideways * w, 0, 0)).toArray());
+    const middle = (sideways: number) => on(apex.clone().addScaledVector(forward, -h / 2).add(new THREE.Vector3((sideways * w) / 2, 0, 0)).toArray());
+    const tip = apex.toArray();
+    return union(rod(tip, middle(-1), t / 2), rod(middle(-1), arm(-1), t / 2), rod(tip, middle(1), t / 2), rod(middle(1), arm(1), t / 2));
+  });
+  return sculpt().add(intersect(skin(solid, -0.01, 0.012), union(...chevrons)), "scarlet").geometry(0.008);
+}
+
+/** One of the pair of jaws under the eyes, hanging from its root: a heavy
+ *  chelicera and its curved pale fang, curling in towards the middle. */
+function jaw(side: -1 | 1): THREE.BufferGeometry {
+  const shape = sculpt()
+    .add(ellipsoid([0, -0.08, 0], [0.058, 0.115, 0.064]), "ash")
+    .add(ellipsoid([0, -0.15, 0.01], [0.045, 0.05, 0.05]), "sootLight", 0.03);
+  const fang = loft(
+    [
+      { at: [side * 0.01, -0.17, 0.02], radius: 0.026, colour: "boneDark" },
+      { at: [-side * 0.01, -0.23, 0.04], radius: 0.019, colour: "boneDark" },
+      { at: [-side * 0.03, -0.28, 0.02], radius: 0.01, colour: "boneDark" },
+    ],
+    { sides: 8, ends: ["round", "point"] },
+  );
+  return mergeAll([shape.geometry(0.01), fang]);
+}
+
+function palpSegment(length: number, from: number, to: number, end: PaletteKey): THREE.BufferGeometry {
+  return segment(
+    [
+      [0.01, from, "ash"],
+      [-length * 0.5, (from + to) / 2 + 0.004, "ash"],
+      [-length + 0.02, to, end],
+      [-length, to * 0.9, end],
+    ],
+    "round",
+  );
+}
+
+function meshParts() {
+  const belly = abdomenSolid();
+  return {
+    base: plinth(BASE_RADIUS, BASE_RADIUS - 0.02, BASE_TOP, "soot", 96),
+    thorax: thorax(),
+    eyes: eyes(),
+    abdomen: abdomen(belly),
+    markings: markings(belly),
+    jaws: [jaw(1), jaw(-1)],
+    palps: { root: palpSegment(0.22, 0.034, 0.03, "ash"), tip: palpSegment(0.2, 0.03, 0.026, "sootLight") },
+    femurs: [0, 1, 2, 3].map((i) =>
+      mergeAll([segment(FEMUR_PROFILE, "round"), ...bristles(-0.12, -0.7, profileRadius(FEMUR_PROFILE), 10, i * 1.3, "stoneDark")]),
+    ),
+    band: (() => {
+      const tube = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true);
+      tube.deleteAttribute("uv");
+      return tube;
+    })(),
+    tibias: [0, 1, 2, 3].map((i) =>
+      mergeAll([segment(TIBIA_PROFILE, "point"), ...bristles(-0.2, -0.62, profileRadius(TIBIA_PROFILE), 10, i * 0.7, "stoneDark")]),
+    ),
+  };
+}
+type Parts = ReturnType<typeof meshParts>;
+/** Meshed once on first use and shared by every spider: none of it depends on the seed. */
+let meshed: Parts | undefined;
 
 interface Leg {
   hip: THREE.Group;
   knee: THREE.Group;
-  /** The hip, in the body's frame. */
   at: THREE.Vector3;
-  /** The foot at rest, in the figure's frame. */
   foot: THREE.Vector3;
   side: -1 | 1;
-  /** Which of the two sets of four it steps with. */
   set: 0 | 1;
 }
 
-/** A tapering piece of a limb hanging from its pivot, from `top` down to `bottom` (both ≤ 0), in one palette colour. */
-function segment(top: number, bottom: number, radii: [top: number, bottom: number], colour: PaletteKey): THREE.BufferGeometry {
-  const geometry = new THREE.CylinderGeometry(radii[0], radii[1], top - bottom, 6).toNonIndexed();
-  geometry.translate(0, (top + bottom) / 2, 0);
-  const { r, g, b } = new THREE.Color(paletteHex(colour));
-  const count = geometry.getAttribute("position").count;
-  geometry.setAttribute("color", new THREE.BufferAttribute(new Float32Array(count * 3).map((_, i) => [r, g, b][i % 3]), 3));
-  return geometry;
-}
-
-/** Segments of different colours as one mesh, so a banded bone is one draw. */
-function bone(material: THREE.Material, ...segments: THREE.BufferGeometry[]): THREE.Mesh {
-  const merged = mergeGeometries(segments);
-  for (const piece of segments) piece.dispose();
-  return new THREE.Mesh(merged, material);
-}
-
-/** A leg: a thick upper segment from the hip, and a long lower one banded red
- *  below the knee and at the ankle, ending in a dark point. */
-function leg(side: -1 | 1, index: number, material: THREE.Material): Leg {
+function leg(side: -1 | 1, index: number, material: THREE.Material, parts: Parts): Leg {
   const { hip: hipZ, angle, reach: distance } = LEGS[index];
-  const knee = group(
-    bone(
-      material,
-      segment(0.05, -0.06, [0.095, 0.08], "sootLight"),
-      segment(-0.06, -0.17, [0.08, 0.075], "bloodLight"),
-      segment(-0.17, -TIBIA * 0.7, [0.075, 0.055], "ash"),
-      segment(-TIBIA * 0.7, -TIBIA * 0.76, [0.058, 0.052], "bloodLight"),
-      segment(-TIBIA * 0.76, -TIBIA, [0.052, 0.01], "sootLight"),
-    ),
-  );
+  const knee = group(form(material, parts.tibias[index]));
   knee.position.y = -FEMUR;
-  const hip = group(bone(material, segment(0.04, -FEMUR + 0.02, [0.1, 0.082], "ash")), knee);
+  const hip = group(form(material, parts.femurs[index]), knee);
   const at = new THREE.Vector3(side * HIP_X, 0, hipZ);
   hip.position.copy(at);
   const radians = (angle * Math.PI) / 180;
   const foot = new THREE.Vector3(side * Math.sin(radians) * distance, BASE_TOP, 0.12 + Math.cos(radians) * distance);
-  // Alternate sets of four, as a spider walks: front-left with second-right, and so on.
   const set = ((index + (side === 1 ? 0 : 1)) % 2) as 0 | 1;
   return { hip, knee, at, foot, side, set };
 }
 
-/** Eight eyes in two rows across the front of the head, as one mesh. */
-function eyes(material: THREE.Material): THREE.Mesh {
-  const parts: THREE.BufferGeometry[] = [];
-  const eye = (radius: number, x: number, y: number, z: number) => {
-    const geometry = new THREE.IcosahedronGeometry(radius, 0);
-    geometry.translate(x, y, z);
-    parts.push(geometry);
-  };
-  for (const side of [-1, 1]) {
-    eye(0.05, side * 0.055, 0.12, 0.62);
-    eye(0.034, side * 0.15, 0.12, 0.56);
-    eye(0.03, side * 0.08, 0.19, 0.55);
-    eye(0.026, side * 0.17, 0.17, 0.48);
-  }
-  return new THREE.Mesh(mergeGeometries(parts), material);
-}
-
-const ABDOMEN = { centre: new THREE.Vector3(0, 0.2, -0.52), radii: new THREE.Vector3(0.46, 0.38, 0.6) };
-
-/** The traitor's red down its back: chevrons pointing forward, smaller towards
- *  the tail, each sunk into the abdomen along its curve so only its face shows. */
-function markings(material: THREE.Material): THREE.Mesh {
-  const parts = [-0.35, 0.05, 0.45, 0.8].map((along, i) => {
-    const size = 1 - i * 0.2;
-    const [w, h, t] = [0.2 * size, 0.13 * size, 0.07 * size];
-    const shape = new THREE.Shape([
-      new THREE.Vector2(-w, -h),
-      new THREE.Vector2(0, 0),
-      new THREE.Vector2(w, -h),
-      new THREE.Vector2(w, -h + t),
-      new THREE.Vector2(0, t),
-      new THREE.Vector2(-w, -h + t),
-    ]);
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
-    // Lay it on the surface, pointing forward: `along` is the angle back from the top of the abdomen.
-    geometry.translate(0, 0, -0.07);
-    geometry.rotateX(-Math.PI / 2);
-    const { centre, radii } = ABDOMEN;
-    const point = new THREE.Vector3(0, centre.y + radii.y * Math.cos(along), centre.z - radii.z * Math.sin(along));
-    const normal = new THREE.Vector3(0, (point.y - centre.y) / radii.y ** 2, (point.z - centre.z) / radii.z ** 2).normalize();
-    geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal));
-    geometry.translate(point.x, point.y, point.z);
-    return geometry;
-  });
-  return new THREE.Mesh(mergeGeometries(parts), material);
-}
-
-/** One of the pair of fanged jaws under the eyes, hanging from its root. */
-function jaw(side: -1 | 1, materials: { body: THREE.Material; fang: THREE.Material }): THREE.Group {
-  const result = group(
-    cylinder(0.035, 0.2, materials.body, [0, -0.2, 0], { top: 0.06, sides: 5 }),
-    cylinder(0.004, 0.12, materials.fang, [0, -0.3, 0], { top: 0.03, sides: 4 }),
-  );
-  result.position.set(side * 0.06, 0.02, 0.6);
-  result.rotation.x = 0.35;
-  return result;
-}
-
-/** A feeler beside the jaws: two short segments. */
-function palp(side: -1 | 1, material: THREE.Material): { root: THREE.Group; tip: THREE.Group } {
-  const tip = group(cylinder(0.02, 0.2, material, [0, -0.2, 0], { top: 0.032, sides: 5 }));
-  tip.position.y = -0.2;
-  const root = group(cylinder(0.032, 0.22, material, [0, -0.21, 0], { top: 0.038, sides: 5 }), tip);
-  root.position.set(side * 0.13, 0.02, 0.56);
-  return { root, tip };
-}
-
-/**
- * The Spider on its broad base, its body at hip height to a person and its
- * knees above their head; about 2.2 m across the legs. Its idle: it breathes,
- * shifts one leg or another to a new hold, twitches its feelers, and now and
- * then rears up, lifting its two front legs to show its fangs. Stunned, it
- * drops onto the base with its legs curled in under it, as a spider does, and
- * its eyes go dark red. Moving, it scuttles: its legs step in two alternating
- * sets of four with the walk's stride, and its body runs low and level.
- */
+/** The Spider. */
 export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false }: MonsterOptions = {}): THREE.Group {
-  const banded = chitin(new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
-  const materials = {
-    leg: chitin(flat("ash")),
-    body: chitin(flat("ash")),
-    belly: chitin(flat("sootLight")),
-    fang: flat("boneDark"),
-  };
+  meshed ??= meshParts();
+  const parts = meshed;
+  const material = chitin(figureMaterial());
+  // The legs smoulder brighter than the body, so their lines show on the darkest floor.
+  const legMaterial = chitin(figureMaterial(), "blood", stunned ? 0.3 : 0.5);
   const red = ghostly(stunned ? "blood" : "scarlet");
 
-  const thorax = ovoid([0.27, 0.17, 0.34], materials.body, [0, 0.03, 0.27]);
-  const abdomenPivot = group(ovoid(ABDOMEN.radii.toArray(), materials.belly, ABDOMEN.centre.toArray()), markings(red));
+  const abdomenPivot = group(form(material, parts.abdomen), form(red, parts.markings));
   abdomenPivot.position.set(0, 0.04, 0.0);
   abdomenPivot.rotation.x = -0.12;
 
   const legs: Leg[] = [];
-  for (const side of [1, -1] as const) for (let i = 0; i < LEGS.length; i++) legs.push(leg(side, i, banded));
-  const jaws = [jaw(1, materials), jaw(-1, materials)];
-  const palps = [palp(1, materials.leg), palp(-1, materials.leg)];
-  const body = group(thorax, abdomenPivot, eyes(red), ...jaws, ...palps.map((p) => p.root), ...legs.map((l) => l.hip));
+  for (const side of [1, -1] as const) for (let i = 0; i < LEGS.length; i++) legs.push(leg(side, i, legMaterial, parts));
+  const jaws = ([1, -1] as const).map((side, i) => {
+    const piece = group(form(material, parts.jaws[i]));
+    piece.position.set(side * 0.06, 0.02, 0.6);
+    piece.rotation.x = 0.35;
+    return piece;
+  });
+  const palps = ([1, -1] as const).map((side) => {
+    const tip = group(form(material, parts.palps.tip));
+    tip.position.y = -0.2;
+    const root = group(form(material, parts.palps.root), tip);
+    root.position.set(side * 0.13, 0.02, 0.56);
+    return { root, tip };
+  });
+  const body = group(form(material, parts.thorax), abdomenPivot, form(red, parts.eyes), ...jaws, ...palps.map((p) => p.root), ...legs.map((l) => l.hip));
 
-  const figure = group(monsterBase(BASE_RADIUS, { rim: "soot" }), body);
+  // Every leg's glowing bands, drawn in one call, follow the legs each frame.
+  const bands = new THREE.InstancedMesh(parts.band, red, legs.length * BANDS.length);
+  bands.frustumCulled = false;
+  body.add(bands);
+  const tibiaRadius = profileRadius(TIBIA_PROFILE);
+  const bandShapes = BANDS.map(([y, half]) => {
+    const radius = tibiaRadius(y) + 0.008;
+    return new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), new THREE.Quaternion(), new THREE.Vector3(radius, half * 2, radius));
+  });
+  const placed = new THREE.Matrix4();
+
+  const figure = group(form(figureMaterial(), parts.base), body);
 
   const rng = createRng(seed);
   const offset = rng.next() * 100;
@@ -214,7 +324,6 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
   const target = new THREE.Vector3();
   const bend = new THREE.Vector3();
 
-  // It scuttles level, without a miniature's hop, each foot planted for a whole step.
   return walks(animated(figure, (clock) => {
     const seconds = clock + offset;
     const breath = Math.sin((seconds / 3.1) * Math.PI * 2 + breathPhase);
@@ -231,14 +340,12 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
 
     legs.forEach((limb, i) => {
       if (stunned) {
-        // Crumpled in towards the body, knees drawn up and feet tucked beneath, as a spider lies when struck.
-        target.set(limb.foot.x - limb.at.x, 0, limb.foot.z - limb.at.z).setLength(0.42).add(limb.at);
+        target.set(limb.foot.x - limb.at.x, 0, limb.foot.z - limb.at.z).setLength(0.47).add(limb.at);
         target.y = -0.18;
         bend.set(limb.side, 1.2, 0);
       } else {
         target.copy(limb.foot);
         if (rear > 0 && i % LEGS.length === 0) {
-          // The front pair lifts high and forward over its head, the threat display.
           target.lerp(new THREE.Vector3(limb.side * 0.45, 1.55, 1.05), rear);
         }
         if (stride.amount > 0) {
@@ -257,9 +364,13 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
       const posed = reach(limb.at, target, FEMUR, TIBIA, bend);
       limb.hip.quaternion.copy(posed.shoulder);
       limb.knee.quaternion.copy(posed.elbow);
+      limb.hip.updateMatrix();
+      limb.knee.updateMatrix();
+      bandShapes.forEach((shape, j) => bands.setMatrixAt(i * BANDS.length + j, placed.multiplyMatrices(limb.hip.matrix, limb.knee.matrix).multiply(shape)));
     });
 
-    // Feelers twitch, jaws work; rearing, the jaws spread.
+    bands.instanceMatrix.needsUpdate = true;
+
     palps.forEach(({ root, tip }, i) => {
       const twitch = burst(seconds, `${seed}:palp${i}`, { every: 2.2, lasts: 0.6, chance: 0.6 }).amount;
       root.rotation.x = stunned ? 1.2 : 0.55 + twitch * 0.35 - rear * 0.3;

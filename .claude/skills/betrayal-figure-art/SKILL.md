@@ -1,46 +1,68 @@
 ---
 name: betrayal-figure-art
-description: Build or rework the 3D art of one Betrayal at House on the Hill figure (src/projects/betrayal/art/): an explorer miniature now, and monsters and other figures that stand and walk in the house. Built as code from rigid parts on pivots, with a procedural idle and walk, and reviewed from screenshots until done. Use whenever an explorer's or other figure's art is built, extended or reworked, or the owner asks for one ("do Vivian next", "make Ox heavier").
+description: Build or rework the 3D art of one Betrayal at House on the Hill figure (src/projects/betrayal/art/): an explorer miniature, a monster, or any other figure that stands, walks and runs in the house. Sculpted in code from smooth signed-distance forms and lofts, as rigid parts on pivots, with a procedural idle, walk and run, and reviewed from screenshots until done. Use whenever an explorer's, monster's or other figure's art is built, extended or reworked, or the owner asks for one ("do Vivian next", "make Ox heavier").
 ---
 
 # Betrayal figure art
 
-A figure is a board-game miniature on a round base: an explorer, and in
-time a monster or an ally, standing in the dollhouse rooms and walking
-between them. Claude makes all of the art, so a figure is code, built to
-Claude's strengths: boxes, cylinders and lathes with adjustable dimensions,
-joined rigidly at pivots, coloured from one palette, with a face as a strip
-of pixel art. Nothing is sculpted, nothing is painted, and nothing has a
-skeleton or a keyframe file: every movement is a pure function of the
-stage's clock. Read "Visual style" in `src/projects/betrayal/CLAUDE.md`
-first, then the room-art skill (`.claude/skills/betrayal-room-art/SKILL.md`)
-for the palette rules, the lighting language and the review loop, which
-figures share with rooms.
+A figure is a board-game miniature on a round base: an explorer, a monster
+or an ally, standing in the dollhouse rooms and walking between them.
+
+**Claude makes the art, so lean into Claude's strengths and find workarounds
+for its weaknesses.** Building organic forms from formulas in code is a
+strength: a head is a few ellipsoids blended together, a sleeve is a rod, a
+skirt is a function of height and angle, and every number can be measured
+and changed. Judging fine anatomy from screenshots is a weakness: a face or a
+hand can look fine in one frame and wrong in the next, and small errors hide
+in dark pixels. Work round it with what screenshots do judge well: line-ups
+beside the other figures and the scale pawn, close-ups in a lit and a dim
+room, readability checks at the house's distance, and tests for what the
+eye misses. Never polish a detail that only shows in a close-up while the
+figure doesn't read from the house.
+
+Read "Visual style" in `src/projects/betrayal/CLAUDE.md` first, then the
+room-art skill (`.claude/skills/betrayal-room-art/SKILL.md`) for the palette
+rules, the lighting language and the review loop, which figures share with
+rooms.
 
 ## The foundation
 
 Everything lives in `src/projects/betrayal/art/`. Read these before building:
 
-- `explorers/figure.ts`: what every figure shares. The base and its top
-  (`figureBase`, `BASE_TOP`); `miniatureHeight`, the one scale every
-  explorer is built to; the walk contract (`Stride`, `Gait`, `Walking`,
-  `walks`, `walkingOf`, `legSwing`, `hopHeight`, `swing`); the two-bone arm
-  (`Limb`, `reach`, `pose`, `limbEnd`); and `burst`, the seeded occasional
-  movement every idle is built from.
-- `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`: the finished explorers.
-  Longfellow is the reference for an ordinary adult; Ox for a big, heavy
-  body; Zoe for a child, with a held object that hangs from her hand. Read
-  all three before the first part.
+- `forms.ts`: the smooth-form toolkit. Signed-distance solids (`ball`,
+  `ellipsoid`, `rod`, `chain`, `roundBox`, `ring`, `stretched`, `roughened`,
+  `union`, `intersect`, `skin`), `sculpt` to add, carve and paint them into
+  one coloured mesh, `loft` for tubes and ribbons through rings, `painted` and
+  `mergeAll` for explicit geometry, `surfaceAt` and `onSurface` to lay
+  details on a sculpted surface, `glowShaded` for glowing figures, `plinth`
+  for a base, `figureMaterial` and `form`. The figure tones (`TONES`, such as
+  `skin`) are colours mixed from two palette colours that only figures wear.
+  `forms.test.ts` tests the meshing.
+- `explorers/figure.ts`: what every figure shares. `BASE_TOP`;
+  `miniatureHeight`, the one scale every explorer is built to; the walk and
+  run contract (`Walking`, `walks`, `walkingOf`, `Pace`, `Stride`, `Gait`,
+  `stepLength`, `hopHeight`, `legSwing`, `swing`), and `stride` with its
+  `StrideRig`, which walks or runs a two-legged figure; `arm`, `Limb`,
+  `reach`, `pose` and `limbEnd` for two-bone arms; and `burst`, the seeded
+  occasional movement every idle is built from.
+- `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`: the explorers. Longfellow is
+  the reference for an ordinary adult and for a held object riding a hand;
+  Ox for a big, heavy body and a held thing that follows the hand (the coin);
+  Zoe for a child, a sculpted skirt from a custom distance, and a doll that
+  hangs from her hand. Read all three before the first part.
+- `monsters/spider.ts`, `banshee.ts`, `base.ts`: the monsters, and what they
+  share (`monsterBase`, `ghostly`, `spectral`, `MonsterOptions`).
 - `explorers/line-up.ts`: every explorer side by side with the scale pawn,
-  standing or walking on the spot, for the review. A new explorer joins it.
+  standing, walking or running on the spot. `monsters/index.ts`'s
+  `monsterLineUp` stands every figure, monsters and explorers, with the pawn.
+  A new figure joins the line-ups.
 - `explorers/index.ts`: `BENCH_EXPLORERS`, who the bench can stand in a room.
-- `explorers/overlap.test.ts`: the figures' overlap check (see "Build it").
+- `explorers/fighting-faces.ts` and `explorers/overlap.test.ts`: the figures'
+  overlap check (see "Build it").
 - `animate.ts`: `animated`, which marks the piece the stage poses each frame.
-- `palette.ts`, `shapes.ts`, `textures.ts`: colours, the shape builders and
-  `batch`, and `pixelTexture` with `TEXELS_PER_METRE`, the one pixel size.
-- `house.ts` and `house-walk.ts`: how the house stands, walks, marks and
-  lights a figure. Read them to know the contract; figure work changes them
-  only when the contract itself needs to grow.
+- `house.ts` and `house-walk.ts`: how the house stands, walks, runs, marks
+  and lights a figure. Read them to know the contract; figure work changes
+  them only when the contract itself needs to grow.
 - `kit/pawn.ts`: the plain 1.6 m scale pawn rooms are judged against.
 
 The character's facts come from `content/characters.md` and
@@ -53,17 +75,17 @@ they know, and the colour of their card.
   returns one object, built facing +z with its right hand on −x, standing on
   its base at the origin. The seed offsets its clock, so two figures never
   move in step.
-- **The house places it and turns it** to face the way it walks; the figure
+- **The house places it and turns it** to face the way it goes; the figure
   never moves its own root. It hops the whole miniature, base and all, at
-  each step, by the figure's declared hop.
+  each step, by the figure's declared hop (more when running).
 - **The house rings it** in the player's colour, a glowing ring round the
   base on the floor, and lights the active explorer with a soft warm light
   from above. Everything else on the figure is lit live by the room's light
   probes: no figure brings a light of its own, and nothing on an explorer
   glows (a monster may: see Monsters).
-- **The base is the same for every explorer**: `figureBase`, 36 cm across
-  the top's radius, 8 cm high. A big body overhangs it a little; a small
-  one stands in the middle of it. The ring is sized to the base, so a
+- **The base is the same for every explorer**: a `plinth` 36 cm across the
+  top's radius, 8 cm high (`BASE_TOP`). A big body overhangs it a little; a
+  small one stands in the middle of it. The ring is sized to the base, so a
   figure that needs a bigger base asks the house first.
 
 ## Body, proportion and scale
@@ -78,41 +100,68 @@ then the joints down from it.
 quarter of the body for an adult, nearer a third for a child) so faces and
 hair read from the house's distance. Then exaggerate what makes the body
 itself: Ox's shoulders are wider than his base is deep and his head is
-small on top; Zoe's head is as big as Longfellow's on a body two thirds
-his height, over a bell of skirt. Weight is width and depth, never
-sculpting: a heavy figure is a wedge of boxes.
+small on top; Zoe's head is as big as Longfellow's on a body two thirds his
+height, over a bell of skirt. Weight is width and depth: a heavy figure is
+a wedge.
 
-**Pixels match the house.** A head is an eight-sided column wrapped in one
-strip of pixel art at `TEXELS_PER_METRE`, so its pixels are the rooms'
-pixels: 24 texels round for every head so far, and as many high as the
-head is tall (Ox 9, Longfellow 10, Zoe 8). The face is the strip's middle
-eight columns; the sides carry ears, sideburns, spectacle arms; the back
-is hair. A dome over the crown rounds the column, and a small box nose
-gives the profile.
+## Sculpting the forms
 
-## Rigid parts and pivots
+A figure is rigid parts on pivots, and each part is one smooth mesh, built
+once in code:
 
+- **Signed-distance sculpting** for anything organic or soft: heads, hands,
+  torsos, coats, a spider's body. In `sculpt()`, `add` blends a solid on with
+  a fillet, `carve` cuts one away (eye sockets, a mouth, a skirt's slits) and
+  `paint` recolours a region of the surface without changing its shape (a
+  buzz cut, a waistcoat, stubble, a pupil). `geometry(cell)` meshes it.
+- **Lofts** for limbs, ribbons and anything banded: a leg segment, a scarf's
+  end lying on a coat, a lock of hair, a fang, a tatter. A loft is a ring per
+  section, each with its colour, so bands are crisp.
+- **Explicit geometry** for hard or very thin parts (a book's covers and
+  pages, spectacle rims, a coin), `painted` one palette colour and merged
+  into the same part's mesh with `mergeAll`.
+- **Mesh once, cache per module.** Nothing about a part's shape depends on
+  the seed, so a module meshes all its parts on first use (`meshed ??=
+  meshParts()`) and every copy of the figure shares them. Meshing is the
+  expensive step; building another figure is cheap.
+- **One material per figure**: `figureMaterial()`, a smooth Lambert lit by
+  vertex colours, since the house's light probes light Lambert. Each rigid
+  part is one mesh in one draw, however many colours it wears.
+- **Grid cell**: 6–9 mm for heads and hands, 12–15 mm for bodies. Never
+  sculpt a feature thinner than about two cells; it breaks up. Anything
+  finer (wire rims, bristles) is a loft or explicit geometry.
+- **Lay details on the surface** with `surfaceAt` (march in along z to the
+  surface at an (x, y): buttons, lapels, a chest letter) and `onSurface`
+  (the nearest surface point: markings following a curve). Measured, not
+  guessed, so they sit on the form and never float or sink.
+- **Hair is soft masses**: blended ellipsoids, rods and lofted locks, never
+  spikes. A sheet down the back reads as long hair from above; separate thin
+  strands read as antennae.
+- **Faces**: the house's cameras look down and its probes are cool, so a
+  face in plain `bone` reads grey-blue and dark. Skin is the `skin` tone
+  (bone warmed towards amber); give the face a brow, a nose and cheeks that
+  catch the light from above, and a head that doesn't bow its face away
+  unless the pose means it (Longfellow reads his book). Eyes are white with a
+  small dark iris and a glint, sunk under the brow: big black eyes read as
+  holes and turn eerie, which only a spirit should be.
+- **Don't optimise triangle counts** (70–100k per figure is normal) until
+  the house shows they are a problem; the draw count is what's budgeted.
 - **Build each part at its joint.** A group's origin is the pivot it turns
-  about: the neck, a shoulder, an elbow, the hips. Parts are boxes and
-  cylinders built bottom-up from that pivot, so turning the group swings
-  the part as a joint would. Measure every size in metres and every height
-  from the floor in the constants, so the numbers can be checked against
-  the room.
-- **The usual chain** is base, then the body (legs and hips), then the
-  chest on the hips, carrying the neck and the two shoulders. Shoes stand
-  outside the body, on the figure itself, so the body's sway leaves the
-  feet planted.
-- **Arms are two-bone limbs**: posed with `reach` to a target in the
-  chest's frame, blended between poses with `pose`. A held object either
-  rides the forearm (a book), or follows the hand with `limbEnd` and keeps
-  its own orientation (Zoe's doll hangs straight down; Ox's coin flips
-  above his fist).
-- **Parts overlap a few millimetres** at every joint, so no crack opens as
-  they turn. Faces of different colour never share a plane: a trim or a
-  patch stands a centimetre or more proud (Ox's chest letter), or is a slice of
-  the surface in its own colour.
-- **Many small parts merge** with `batch()`: trims, stripes, a doll, a shoe
-  and its sole.
+  about: the neck, a shoulder, an elbow, the hips. Measure every size in
+  metres and every height from the floor in the constants. The usual chain
+  is base, then the body (legs and hips), then the chest on the hips,
+  carrying the neck and the two shoulders. Shoes stand outside the body, on
+  the figure itself, so the body's sway leaves the feet planted.
+- **Arms** are two meshes joined by `arm`, posed with `reach` to a target in
+  the chest's frame and blended between poses with `pose`. A held object
+  either rides the forearm or follows the hand with `limbEnd` and keeps its
+  own orientation (Zoe's doll hangs straight down; Ox's coin flips above his
+  fist).
+- **Joints overlap**: parts pass into each other at every joint, so no
+  crack opens as they turn. Where two parts meet, one must clearly cover the
+  other (a sleeve cap inside a jacket's shoulder, a trouser leg ending inside
+  the shoe): two surfaces of different colour within a millimetre of each
+  other fight, and the overlap check catches them.
 
 ## Colour and identity
 
@@ -128,104 +177,142 @@ file.
 - **One dominant colour from the card**, where the card's colour serves: Ox's
   card is red, so his jacket is; Zoe's is yellow, so her dress is. Pair it
   with one contrasting secondary (Ox's cream sleeves, Zoe's copper hair).
-  Read the explorers already built and take no dominant colour another
-  explorer already wears.
+  Take no dominant colour another explorer already wears.
 - **Explorers are warm and human**: in the lighting language, amber means
   human. Clothes may take any palette colour as cloth, but nothing on an
   explorer glows, and sickly green, violet and red light stay the
   supernatural's and the traitor's.
 - **Eerie, never gory**, as in the rooms.
 
-The player-colour ring is the house's, and the active explorer's light; a
-figure doesn't count on either to be read.
-
 ## Idle personality
 
 A figure is never still. Its idle is three layers:
 
 1. **Breathing and weight**: a slow breath in the chest, a sway of weight
-   from foot to foot, on periods that suit the body (Ox breathes deep and
-   slow; Zoe hums and nods to a quick tune).
+   from foot to foot, on periods that suit the body.
 2. **One or two signature gestures** from `burst`, at irregular seeded times,
    that say who this is: Longfellow pushes his spectacles up his nose; Ox
    fishes out a shiny coin, flips it and admires it; Zoe twirls to see her
    skirt fly out.
 3. **A glimpse of their fear**, where the character's facts give one: Ox
-   hunches and glances into the dark; Zoe clutches her doll and peeks
-   behind her for the boogeyman.
+   hunches and glances over his shoulder into the dark; Zoe clutches her doll
+   and peeks behind her for the boogeyman.
 
 Every pose is a pure function of the clock (the bench freezes it), so a
 frozen time always draws the same frame. A gesture that would fight the
-walk (a twirl) eases out as the stride eases in; one that doesn't (a
-glance, the coin) carries on while walking.
+stride eases out as the stride eases in (Zoe's twirl); one that doesn't
+carries on while walking (a glance, the coin) but eases out running, when
+the arms pump.
 
-## The walk contract
+## The walk and run contract
 
-The house walks every figure at one pace (`WALK_SPEED`), so a turn takes as
-long whoever walks. Each figure declares how it steps, with `walks(figure,
-{ step, hop })` on its root:
+**The gait rule (owner decision).** Before the haunt, every explorer walks.
+After the haunt starts, heroes run and the traitor walks calmly; in a
+hidden-traitor haunt everyone runs, since a gait must never reveal hidden
+information. Monsters keep their own movement. The house chooses the pace
+per walk (`Walk.pace` in `house-walk.ts`); nothing chooses it from game
+state yet.
+
+**One speed per pace.** The house moves every figure at `WALK_SPEED` walking
+and `RUN_SPEED` running, so a turn takes as long whoever moves. Stride and
+cadence show the character, never speed. Each figure declares its walk with
+`walks(figure, { step, hop })` on its root:
 
 - **`step`**, metres per step, sets the cadence: a long step at the shared
-  pace is a slow, heavy gait (Ox), a short one a quick patter (Zoe). The
-  house turns distance walked into the stride's `phase` with it.
+  pace is a slow, heavy gait (Ox), a short one a quick patter (Zoe).
 - **`hop`**, how high the miniature lifts at each step: low for a heavy
   figure, high for a skipping one.
 
-The figure turns the stride into movement itself. Swing each leg from the
-hip by `legSwing(walking, leg)`, the angle at which a planted foot travels
-exactly one step, so feet don't skate; swing the shoes about the same hip
-with `swing`, which leaves a resting figure exactly as built; swing the free
-arms against the legs; and add what makes the gait the body's own (Ox rolls
-from foot to foot and twists his shoulders; Zoe's pigtails bounce). At
-`amount` 0 every walking piece is back at its built pose. A figure that
-declares nothing walks as Longfellow does.
+**The run is the walk scaled.** A run's step is `RUN_STRIDE` times the walk's
+(so cadence stays in character, a little faster), its bound `RUN_HOP` times
+the hop, its leg swing `RUN_SWING` times the walk's, its arm swing `RUN_ARM`
+times, with the elbows bent near square and the chest leaning well forward.
+The run factors are shared in `figure.ts`; a figure gets its run for free
+from its walk.
+
+**`stride(rig, gait(clock))` moves a two-legged figure**, after its idle has
+posed it: it swings the legs and shoes from the hips by `legSwing` (walking,
+so a planted foot travels exactly one step and doesn't skate), swings the
+free arms against the legs, bends their elbows running, and leans the chest.
+It returns the step, −1 to 1, for the figure's own touches: Ox rolls from
+foot to foot and twists his shoulders, Zoe's pigtails bounce. The rig lists
+only the free arms (Longfellow's left hand holds his book), and every arm in
+it must be posed by the idle each frame, since the stride turns it from
+there. At `amount` 0 every piece is back as built. A figure with another
+body plan (a spider's eight legs, a spectre's glide) moves itself from the
+gait, and declares a step and hop that pace it.
 
 ## Monsters and other figures
 
-A monster is a figure like an explorer: rigid parts on pivots, an idle and a walk driven by the clock, and the same contract with the house. Three things differ.
+A monster is a figure like an explorer: rigid parts on pivots, sculpted the
+same way, an idle and a movement driven by the clock, and the same contract
+with the house. These rules differ:
 
-**It carries its colour from the lighting language.** Ghosts and spectres are made of light: `glow` and `lightMaterial` in the `wraith` ramp, with tone mapping off so they keep their colour. A solid creature gets a faint `bloodDark` emissive glow in its body (the traitor's red). Without it, a dark creature on a dark floor loses its shape entirely. A glowing pool on the base doesn't work: it reads as paint. Live lights stay the house's.
+**It carries its colour from the lighting language.** Ghosts and spectres
+are made of light: the `wraith` ramp, glowing and additive materials, with
+tone mapping off so they keep their colour. A glowing solid part is
+`spectral()`, vertex-coloured and unlit, with its geometry `glowShaded` once
+so its sculpted form still shows; veils, halos, mist and rings are additive
+`lightMaterial`s. A solid creature gets a faint `bloodDark` emissive glow in
+its body (the traitor's red); without it a dark creature on a dark floor
+loses its shape. Thin dark limbs need more: the Spider's legs smoulder
+brighter than its body and carry glowing bands at the joints. A glowing pool
+on the base doesn't work: it reads as paint. Live lights stay the house's.
 
-**Its size comes from the rules.** "Giant" means a threat to an explorer: shoot it beside Longfellow and the scale pawn in `monsterLineUp`. A big monster gets a bigger base (`monsterBase`), dark to tell it from an explorer's. If facing matters to its haunt, the base carries an arrow in the monster's colour.
+**Its size comes from the rules.** "Giant" means a threat to an explorer:
+shoot it beside the explorers and the scale pawn in `monsterLineUp`. A big
+monster gets a bigger base (`monsterBase`), dark to tell it from an
+explorer's. If facing matters to its haunt, the base carries an arrow in the
+monster's colour.
 
-**It has a stunned pose.** A stunned monster misses its next turn (rules.md, How Monsters Work). Give it a pose of its own that reads at house distance, not a dimmer idle: the Spider crumples, the Banshee slumps.
+**It has a stunned pose.** A stunned monster misses its next turn (rules.md,
+How Monsters Work). Give it a pose of its own that reads at house distance,
+not a dimmer idle: the Spider crumples, the Banshee slumps.
 
-Keep a monster within the draw-call budget the tests enforce (36 per figure today): merge parts that never move relative to each other. Swarms (bats, rats) are one shape copied many times and drawn in a single call, never many separate figures.
+**It keeps within the draw budget** the tests enforce (36 per figure): merge
+parts that never move relative to each other. Many copies of one shape that
+move are one `InstancedMesh` in a single draw (the Spider's sixteen leg
+bands follow its legs each frame); swarms (bats, rats) are the same, never
+many separate figures.
 
 ## Build it
 
-An explorer is one file, `explorers/<id>.ts`, exporting its builder. Open
-it with a comment: who the character is, from the data, and how they read
-at a glance. Then, in order:
+A figure is one file, exporting its builder. Open it with a comment: who the
+character is, from the data, and how they read at a glance. Then, in order:
 
 1. The constants: top of the head from `miniatureHeight`, the waist (the
-   hip pivot), the neck, the shoulders, the limb lengths, and the
-   `Walking` with its reason.
-2. The head: its pixel strip and legend, dome, nose, and hair pieces.
-3. The torso, the arms, the legs and shoes, each at its pivot.
-4. The poses the arms reach for, then the animation: idle layers first,
-   then the walk.
-5. Register it in `BENCH_EXPLORERS` and add it to the line-up.
+   hip pivot), the neck, the shoulders, the limb lengths, and the `Walking`
+   with its reason.
+2. Each part as a function returning its geometry, at its pivot, head
+   first; then `meshParts`, cached in the module.
+3. The builder: the groups at their pivots, the arm poses, the `StrideRig`,
+   then the animation: idle layers first, then `stride` and the figure's
+   own touches.
+4. Register it in `BENCH_EXPLORERS` and add it to the line-ups and the
+   overlap test.
 
 **Run the overlap check** after every change:
-`npx vitest run src/projects/betrayal/art/explorers/overlap.test.ts` stands
-each explorer alone in a bare room, at moments through its idle, standing
-and in full stride, and fails on any two faces of the figure that fight. A
-figure's own parts pass into each other at its joints on purpose, so only
-fighting faces count. Add a new explorer to its list.
+`npx vitest run src/projects/betrayal/art/explorers/overlap.test.ts` poses
+each figure at moments through its idle, standing, walking and running (and
+each monster standing and stunned), and fails on any two of its parts whose
+surfaces of different colour lie within a millimetre of each other, facing
+the same way, where nothing covers them. It looks each triangle up in a grid
+of the others, so it takes a second or two a figure. The finding names the
+two parts by their order in the figure, their colours, and a point near the
+fight: move one surface clearly inside or clear of the other.
 
 ## Readability checks
 
-- **The line-up**: every explorer side by side with the pawn, the same
-  light and framing. Heights true to the data, silhouettes and colours
-  distinct, one family of style.
-- **The house**: `?house` with the figure standing in for the active
-  explorer, and for the other one. A temporary local change to the cast in
-  `house-view.ts` is fine for the shots; revert it before finishing. Judge
-  the whole-floor views and the phone shot from `house-shots.mjs`: can you
-  name the figure without its ring, lit and unlit?
-- **The walk**: the walking line-up's strip, and `house-shots.mjs`'s walk up
-  the grand staircase with the figure walking it.
+- **The line-ups**: every explorer side by side with the pawn, and every
+  figure with the monsters, the same light and framing. Heights true to the
+  data, silhouettes and colours distinct, one family of style.
+- **The house's distance**: can you name the figure without its ring, lit
+  and unlit, at the whole-floor view and on the phone? Shoot it in the
+  house (`?house`, with the figure in the cast) or, when the house view
+  can't take it, shoot the bench's view 0 and scale it to a third, about
+  the whole-floor distance.
+- **The walk and the run**: the walking and running line-ups' strips, and
+  the house's walk up the grand staircase with the figure walking it.
 
 ## The review loop
 
@@ -234,33 +321,33 @@ the room-art skill.
 
 - **One figure close**:
   `node src/projects/betrayal/tools/shots.mjs <room-id> <label> --explorer=<id> --idle`
-  writes the explorer framed close and `idle-strip.png`, sixteen frozen
-  frames 1.5 s apart, which catch the idle's gestures. Shoot in a dim room
-  and a lit one: the Drawing Room's table is lit, its corners dark.
-- **The line-up**: the same with `--explorer=explorer-line-up` (standing) or
-  `--explorer=explorer-walk` (walking on the spot, in slow motion, with each
-  figure's own step and hop) and `--explorer-zoom=0.6` to frame the row.
-  The walking strip shows each gait through its cycle. The line-up faces
-  the first view, so read `explorer.png`; the idle strip crops to the
-  middle of the row.
+  writes the figure framed close and `idle-strip.png`, sixteen frozen frames
+  1.5 s apart, which catch the idle's gestures. Shoot in a lit room and a
+  dim one: the Drawing Room's table is lit, its corners dark; the Chapel is
+  dim. `--explorer-zoom=0.45` frames a monster.
+- **The line-ups**: the same with `--explorer=explorer-line-up` (standing),
+  `explorer-walk` or `explorer-run` (on the spot, in slow motion, with each
+  figure's own step and hop), or `monster-line-up` (every figure), and
+  `--explorer-zoom=0.6` (0.35 for every figure) to frame the row. Read
+  `explorer.png`; the idle strip crops to the middle of the row.
 - **The house**: `node src/projects/betrayal/tools/house-shots.mjs <label>`
-  with the figure in the cast, as above.
+  with the figure in the cast.
 
 Judge each round in this order, and don't polish detail while a higher item
 fails:
 
-1. **Read at a glance**: in the house's whole-floor view and on the phone,
-   is the figure named at once by silhouette and colour? Against the
+1. **Read at a glance**: at the house's whole-floor distance and on the
+   phone, is the figure named at once by silhouette and colour? Against the
    line-up, is it distinct, and is its height right?
 2. **Pose and proportion**: does it stand like the character (weight, age,
    build)? Do the joints bend the right way through every frame?
 3. **Idle**: do the gestures say who this is, at irregular times, and read
    at the bench's distance? Is any frame broken (a hand through the body, a
    held thing floating)?
-4. **Walk**: no skating feet, the cadence suits the body, nothing pops as
-   the stride eases in and out.
-5. **Detail**: the face's pixels, cracks at joints, fighting faces, parts
-   too thin to draw.
+4. **Walk and run**: no skating feet walking, the cadence suits the body,
+   the run leans and pumps, nothing pops as the stride eases in and out.
+5. **Detail**: the face, cracks at joints, fighting faces, parts too thin to
+   mesh.
 
 Then `npm run lint`, `npm run typecheck`, `npx vitest run
 src/projects/betrayal/art` and `npx playwright test
@@ -275,18 +362,22 @@ e2e/betrayal-house.spec.ts`, all clean.
 - **Small held things vanish.** A doll or a coin under about 25 cm, in a
   dark colour, disappears at the house's distance; make it pale, or let it
   be a close-up detail only, never the identity.
-- **The overlap check finds shared back faces**: a sole and a leg ending in
-  the same plane fight; step one back a few millimetres.
+- **Coincident surfaces hide at joints**: a sleeve cap the size of the
+  jacket's shoulder, a skirt's top inside a coat's waist, a sash lying on a
+  skirt. Make one clearly bigger, or end one inside the other.
+- **Thin dark limbs vanish on dark floors**: a spider's legs read as legs
+  only once they smoulder and carry bright bands at the joints and a pale
+  knob at each knee, the top of the arch.
 - **A child's walk is a short step, not a slow one**: at the house's one
   pace, Zoe's short step makes the quick patter by itself.
 
 ## Done means
 
 The figure reads at a glance in the house and on the phone, distinct in the
-line-up; its idle and walk play without a broken frame; the overlap check
-passes standing and walking; lint, typecheck, the art tests and the house
-e2e are clean; it is registered and in the line-up; and any temporary cast
-change is reverted. The builder reports back:
+line-ups; its idle, walk and run play without a broken frame; the overlap
+check passes; lint, typecheck, the art tests and the house e2e are clean;
+it is registered and in the line-ups; and any temporary cast change is
+reverted. The builder reports back:
 
 - the figure's file, its one-line identity, and its idle;
 - the paths of the final line-up sheet and idle strip;

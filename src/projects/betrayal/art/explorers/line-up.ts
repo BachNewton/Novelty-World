@@ -3,7 +3,7 @@ import { animated } from "../animate";
 import { pawn } from "../kit/pawn";
 import { group } from "../shapes";
 import type { ExplorerBuilder } from "../stage";
-import { ADULT_WALK, hopHeight, STANDING, walkingOf, type Stride, type Walking } from "./figure";
+import { ADULT_WALK, hopHeight, STANDING, stepLength, walkingOf, type Pace, type Stride, type Walking } from "./figure";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
 import { zoe } from "./zoe";
@@ -12,25 +12,27 @@ import { zoe } from "./zoe";
 const EXPLORERS: readonly ExplorerBuilder[] = [ox, longfellow, zoe];
 /** How far apart the line-up stands its figures: a base and a hand's width. */
 const SPACING = 0.85;
-/** The line-up's walk on the spot, in slow motion, in metres a second: slow
- *  enough that frames 1.5 s apart catch each figure at a new point in its
- *  stride rather than the same one. */
-const TREADMILL = 0.12;
+/** The line-up's walk and run on the spot, in slow motion, in metres a
+ *  second: slow enough that frames 1.5 s apart catch each figure at a new
+ *  point in its stride rather than the same one. The run is faster in the
+ *  same ratio as the house's paces. */
+const TREADMILL: Record<Pace, number> = { walk: 0.12, run: 0.2 };
 
-function treadmill({ step }: Walking, seconds: number): Stride {
-  return { phase: ((seconds * TREADMILL) / step) * Math.PI, amount: 1 };
+function treadmill(walking: Walking, pace: Pace, seconds: number): Stride {
+  const running = pace === "run";
+  return { phase: ((seconds * TREADMILL[pace]) / stepLength(walking.step, running)) * Math.PI, amount: 1, running };
 }
 
 /**
  * The explorers in a row, tallest first, with the scale pawn at the end,
  * across the bench's first view and facing it, as for a cast photo: for judging their heights, silhouettes and colours against each
- * other. `walking` walks them on the spot, each with its own step and hop,
- * as the house walks them.
+ * other. With a `pace`, they walk or run on the spot, each with its own step
+ * and hop, as the house moves them.
  */
-export function explorerLineUp(seed = "line-up", walking = false): THREE.Group {
+export function explorerLineUp(seed = "line-up", pace?: Pace): THREE.Group {
   const figures = EXPLORERS.map((build, i) => {
     let declared = ADULT_WALK;
-    const figure = build(`${seed}:${i}`, walking ? (seconds) => treadmill(declared, seconds) : STANDING);
+    const figure = build(`${seed}:${i}`, pace ? (seconds) => treadmill(declared, pace, seconds) : STANDING);
     declared = walkingOf(figure);
     return figure;
   });
@@ -44,7 +46,7 @@ export function explorerLineUp(seed = "line-up", walking = false): THREE.Group {
   });
   return animated(group(...holders), (seconds) => {
     for (const [i, figure] of figures.entries()) {
-      holders[i].position.y = walking ? hopHeight(walkingOf(figure), treadmill(walkingOf(figure), seconds)) : 0;
+      holders[i].position.y = pace ? hopHeight(walkingOf(figure), treadmill(walkingOf(figure), pace, seconds)) : 0;
     }
   });
 }

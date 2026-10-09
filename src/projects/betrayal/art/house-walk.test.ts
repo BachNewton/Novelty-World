@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CATALOG } from "../data";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { afterLeg, inHouse, moveIsOver, nextLegs, reachable, shownOn, walkLength, walkPath, walkPose, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
+import { afterLeg, inHouse, moveIsOver, nextLegs, reachable, shownOn, walkLength, walkPath, walkPose, RUN_SPEED, WALK_SPEED, type HousePoint, type Stairway } from "./house-walk";
 import { TILE } from "./room";
 
 describe("reachable", () => {
@@ -184,6 +184,13 @@ describe("walkPose", () => {
     expect(pose.stride.amount).toBe(1);
     near(at(6).point, { floor: "ground", x: 4, y: 0, z: 2 });
     expect(at(6).heading).toBeCloseTo(0);
+  });
+
+  it("runs at running pace, with a longer stride, when the walk is a run", () => {
+    const pose = walkPose({ ...walk, pace: "run" }, 10 + 2 / RUN_SPEED, 0.5);
+    near(pose.point, { floor: "ground", x: 2, y: 0, z: 0 });
+    expect(pose.stride.running).toBe(true);
+    expect(pose.stride.phase).toBeLessThan(walkPose(walk, 10 + 2 / WALK_SPEED, 0.5).stride.phase);
   });
 
   it("turns through a corner rather than snapping round it", () => {

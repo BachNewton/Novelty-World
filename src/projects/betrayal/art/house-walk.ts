@@ -1,6 +1,6 @@
 import { connections, EDGES, neighbourCell, placed, type Layout } from "../engine/board";
 import type { Catalog, FloorId, PlacedTile } from "../types";
-import { ADULT_WALK, type Stride } from "./explorers/figure";
+import { ADULT_WALK, stepLength, type Pace, type Stride } from "./explorers/figure";
 import { DIRECTION, tileTurn } from "./house-layout";
 import { TILE } from "./room";
 
@@ -149,6 +149,8 @@ export function walkPath(layout: Layout, route: readonly string[], from: HousePo
  *  Every figure keeps it, so a turn takes as long whoever walks; a figure's
  *  own step sets its cadence. */
 export const WALK_SPEED = 2.2;
+/** Running pace, shared by every figure as the walking pace is. */
+export const RUN_SPEED = 3.6;
 /** Metres over which a walker gets into its stride, and out of it. */
 const EASE = 0.5;
 /** How far either side of the walker its heading looks, so it turns through
@@ -159,6 +161,8 @@ export interface Walk {
   path: HousePoint[];
   /** When the walk began, on the stage's clock. */
   start: number;
+  /** Walked unless it says otherwise. */
+  pace?: Pace;
 }
 
 /** The length of each leg of a path; a change of floor has none. */
@@ -204,10 +208,11 @@ export interface WalkPose {
 }
 
 /** Where a walker is, and how it moves, at a moment on the stage's clock,
- *  taking steps `step` metres long. */
+ *  taking walking steps `step` metres long (a run lengthens them). */
 export function walkPose(walk: Walk, seconds: number, step = ADULT_WALK.step): WalkPose {
+  const running = walk.pace === "run";
   const total = walkLength(walk.path);
-  const distance = Math.min(total, Math.max(0, (seconds - walk.start) * WALK_SPEED));
+  const distance = Math.min(total, Math.max(0, (seconds - walk.start) * (running ? RUN_SPEED : WALK_SPEED)));
   const here = along(walk.path, distance);
   const behind = along(walk.path, distance - LOOK).point;
   const ahead = along(walk.path, distance + LOOK).point;
@@ -218,7 +223,7 @@ export function walkPose(walk: Walk, seconds: number, step = ADULT_WALK.step): W
   return {
     point: here.point,
     heading,
-    stride: { phase: (distance / step) * Math.PI, amount: Math.max(0, ease) },
+    stride: { phase: (distance / stepLength(step, running)) * Math.PI, amount: Math.max(0, ease), running },
     done: distance >= total,
   };
 }
