@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
 import { PALETTE, type PaletteKey } from "./palette";
-import { DOOR_HEIGHT, DOOR_WIDTH, TILE, pieceLabel, pieceName, type PropPlacement, type RoomDefinition } from "./room";
+import { DOOR_HEIGHT, DOOR_WIDTH, TILE, explorerSpots, pieceLabel, pieceName, type PropPlacement, type RoomDefinition } from "./room";
 import { buildRoom, pieceOf, roomTile } from "./stage";
 
 /*
@@ -9,7 +9,7 @@ import { buildRoom, pieceOf, roomTile } from "./stage";
  *
  * - A solid passing too far (`PASS_INTO`) into another piece, a wall, the
  *   floor, or a keep-clear zone (a doorway and the lane the house walks
- *   through it, and the spot an explorer stands on). The small overlaps that
+ *   through it, and the two spots explorers stand on). The small overlaps that
  *   hide cracks between neighbours stay under it. A wall is its body: a
  *   piece may stand into the dressing (skirting, wainscot, casings), which
  *   it hides. Light (beams and pools, which write no depth) is not solid.
@@ -21,7 +21,10 @@ import { buildRoom, pieceOf, roomTile } from "./stage";
  * Geometry is exact: every mesh is split into its separate solids (each box
  * of a batch, each book), and each solid is tested as its convex hull with
  * the separating-axis test, so a piece lying at an angle is judged by its
- * real shape, not its bounding box. A piece's own parts are built into each
+ * real shape, not its bounding box. Solids that touch share corners; where
+ * that joins them into something that isn't convex (a frame of four strips,
+ * a lining round a hole), it is split again along its convex edges, so its
+ * hull never fills the hole. A piece's own parts are built into each
  * other on purpose (a candle in its holder), so a piece is never tested
  * against itself for passing into, only for z-fighting.
  */
@@ -134,6 +137,90 @@ function addAxis(axes: Map<string, THREE.Vector3>, v: THREE.Vector3) {
   if (key && !axes.has(key)) axes.set(key, v.clone().normalize());
 }
 
+interface Triangle {
+  /** Vertex indices, and the corners where they lie. */
+  ids: [number, number, number];
+  keys: [string, string, string];
+  points: [THREE.Vector3, THREE.Vector3, THREE.Vector3];
+  normal: THREE.Vector3;
+}
+
+/** Whether every point lies on or behind the plane of every triangle: the triangles bound a convex solid. */
+function convex(triangles: Triangle[]): boolean {
+  const points = triangles.flatMap((triangle) => triangle.points);
+  return triangles.every(({ normal, points: [a] }) => {
+    const offset = normal.dot(a);
+    return points.every((point) => normal.dot(point) - offset <= 1e-5);
+  });
+}
+
+function unionFind(size: number) {
+  const parent = Array.from({ length: size }, (_, i) => i);
+  const root = (i: number): number => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  };
+  return { root, join: (a: number, b: number) => (parent[root(a)] = root(b)) };
+}
+
+/** Whether a point lies on or behind a triangle's plane. */
+function behindPlane({ normal, points: [a] }: Triangle, point: THREE.Vector3): boolean {
+  return normal.dot(point) - normal.dot(a) <= 1e-5;
+}
+
+/**
+ * Splits triangles that touching solids joined into one non-convex lump back
+ * into those solids. Each piece grows from a triangle across the edges it
+ * shares, taking a neighbour that is part of the same face (they share its
+ * vertices) or meets it at a convex edge (each behind the other's plane), and
+ * only while the piece stays convex. Two boxes that only touch meet flush or
+ * at a hollow edge, so they come apart. Returns null when a piece isn't a
+ * closed convex solid (a lathe, a hull), which is then judged whole as before.
+ */
+function convexPieces(triangles: Triangle[]): Triangle[][] | null {
+  const byEdge = new Map<string, number[]>();
+  triangles.forEach(({ keys }, t) => {
+    for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) {
+      const key = [keys[a], keys[b]].sort().join("|");
+      const list = byEdge.get(key);
+      if (list) list.push(t);
+      else byEdge.set(key, [t]);
+    }
+  });
+  const strictlyBehind = (from: Triangle, other: Triangle) =>
+    other.points.every((point) => behindPlane(from, point)) && other.points.some((point) => from.normal.dot(point) - from.normal.dot(from.points[0]) < -1e-6);
+  const taken = new Set<number>();
+  const pieces: Triangle[][] = [];
+  for (let seed = 0; seed < triangles.length; seed++) {
+    if (taken.has(seed)) continue;
+    taken.add(seed);
+    const piece = [triangles[seed]];
+    const frontier = [seed];
+    while (frontier.length) {
+      const t = frontier.pop() as number;
+      const triangle = triangles[t];
+      for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) {
+        for (const n of byEdge.get([triangle.keys[a], triangle.keys[b]].sort().join("|")) ?? []) {
+          if (taken.has(n)) continue;
+          const other = triangles[n];
+          const sameFace = triangle.ids.filter((id) => other.ids.includes(id)).length >= 2;
+          if (!sameFace && !(strictlyBehind(triangle, other) && strictlyBehind(other, triangle))) continue;
+          const stays = piece.every((member) => other.points.every((point) => behindPlane(member, point)) && member.points.every((point) => behindPlane(other, point)));
+          if (!stays) continue;
+          taken.add(n);
+          piece.push(other);
+          frontier.push(n);
+        }
+      }
+    }
+    pieces.push(piece);
+  }
+  return pieces.every((piece) => piece.length >= 4) ? pieces : null;
+}
+
 /** Splits a mesh into its separate solids and lists its faces, in room coordinates. */
 function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[]) {
   const geometry = mesh.geometry;
@@ -147,48 +234,35 @@ function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[]) 
   // Vertices at one place are one corner, so the faces of a box join into one solid.
   const cornerKey = world.map((point) => `${point.x.toFixed(5)},${point.y.toFixed(5)},${point.z.toFixed(5)}`);
   const first = new Map<string, number>();
-  const parent = cornerKey.map((key, i) => {
+  const corners = unionFind(position.count);
+  cornerKey.forEach((key, i) => {
     const seen = first.get(key);
     if (seen === undefined) first.set(key, i);
-    return seen ?? i;
+    else corners.join(i, seen);
   });
-  const root = (i: number): number => {
-    while (parent[i] !== i) {
-      parent[i] = parent[parent[i]];
-      i = parent[i];
-    }
-    return i;
-  };
   for (let t = 0; t < count; t += 3) {
-    const a = root(vertexAt(t));
-    parent[root(vertexAt(t + 1))] = a;
-    parent[root(vertexAt(t + 2))] = a;
+    corners.join(vertexAt(t + 1), vertexAt(t));
+    corners.join(vertexAt(t + 2), vertexAt(t));
   }
 
-  const solids = new Map<number, { points: Map<string, THREE.Vector3>; normals: Map<string, THREE.Vector3>; edges: Map<string, THREE.Vector3> }>();
+  const lumps = new Map<number, Triangle[]>();
   for (let t = 0; t < count; t += 3) {
-    const ids = [vertexAt(t), vertexAt(t + 1), vertexAt(t + 2)];
+    const ids: Triangle["ids"] = [vertexAt(t), vertexAt(t + 1), vertexAt(t + 2)];
     const [a, b, c] = ids.map((i) => world[i]);
     const normal = b.clone().sub(a).cross(c.clone().sub(a));
     if (normal.lengthSq() < 1e-14) continue;
     normal.normalize();
-    const key = root(ids[0]);
-    let solid = solids.get(key);
-    if (!solid) {
-      solid = { points: new Map(), normals: new Map(), edges: new Map() };
-      solids.set(key, solid);
-    }
-    for (const i of ids) solid.points.set(cornerKey[i], world[i]);
-    addAxis(solid.normals, normal);
-    addAxis(solid.edges, b.clone().sub(a));
-    addAxis(solid.edges, c.clone().sub(b));
-    addAxis(solid.edges, a.clone().sub(c));
+    const key = corners.root(ids[0]);
+    const lump = lumps.get(key);
+    const triangle: Triangle = { ids, keys: [cornerKey[ids[0]], cornerKey[ids[1]], cornerKey[ids[2]]], points: [a, b, c], normal };
+    if (lump) lump.push(triangle);
+    else lumps.set(key, [triangle]);
 
     const material = materialOf(mesh, t / 3, geometry);
     const vertexColour = colours && "vertexColors" in material && material.vertexColors ? new THREE.Color().fromBufferAttribute(colours, ids[0]) : null;
     const { look, colour } = lookOf(material, vertexColour);
-    const corners: Face["corners"] = [a, b, c];
-    faces.push({ id: faces.length, owner, mesh, corners, normal, offset: normal.dot(a), look, colour });
+    const faceCorners: Face["corners"] = [a, b, c];
+    faces.push({ id: faces.length, owner, mesh, corners: faceCorners, normal, offset: normal.dot(a), look, colour });
     if (material.side === THREE.DoubleSide) {
       const back = normal.clone().negate();
       faces.push({ id: faces.length, owner, mesh, corners: [a, c, b], normal: back, offset: back.dot(a), look, colour });
@@ -197,17 +271,28 @@ function readMesh(mesh: THREE.Mesh, owner: Owner, parts: Part[], faces: Face[]) 
 
   const matter = [mesh.material].flat().every((material) => material.depthWrite);
   const body = owner.kind !== "shell" || owner.name === "floor" || (mesh.userData as { body?: boolean }).body === true;
-  for (const solid of solids.values()) {
-    const points = [...solid.points.values()];
-    const normals = [...solid.normals.values()];
-    const thinnest = Math.min(...normals.map((n) => spread(points, n)));
+  const solids = [...lumps.values()].flatMap((lump) => (convex(lump) ? [lump] : (convexPieces(lump) ?? [lump])));
+  for (const solid of solids) {
+    const pointMap = new Map<string, THREE.Vector3>();
+    const normals = new Map<string, THREE.Vector3>();
+    const edges = new Map<string, THREE.Vector3>();
+    for (const { keys, points: [a, b, c], normal } of solid) {
+      keys.forEach((key, k) => pointMap.set(key, [a, b, c][k]));
+      addAxis(normals, normal);
+      addAxis(edges, b.clone().sub(a));
+      addAxis(edges, c.clone().sub(b));
+      addAxis(edges, a.clone().sub(c));
+    }
+    const points = [...pointMap.values()];
+    const axes = [...normals.values()];
+    const thinnest = Math.min(...axes.map((n) => spread(points, n)));
     parts.push({
       id: parts.length,
       owner,
       mesh,
       points,
-      normals,
-      edges: [...solid.edges.values()],
+      normals: axes,
+      edges: [...edges.values()],
       box: new THREE.Box3().setFromPoints(points),
       solid: matter && thinnest > 1e-4,
       thickness: thinnest,
@@ -364,13 +449,16 @@ function planeIndex(faces: Face[]) {
   return { files, near };
 }
 
+const ZONE_LABELS: Record<string, string> = { pawn: "the pawn's spot", "second spot": "the second explorer's spot" };
+
 function zoneOwner(name: string): Owner {
-  return { name, label: name === "pawn" ? "the pawn's spot" : `the ${name}`, kind: "zone" };
+  return { name, label: ZONE_LABELS[name] ?? `the ${name}`, kind: "zone" };
 }
 
 /** The keep-clear zones as solid meshes in room coordinates: each doorway and
- *  passage with the lane the house walks straight through it, and the spot an
- *  explorer stands on. The front door leads out of the house, so no one walks it. */
+ *  passage with the lane the house walks straight through it, and the spots
+ *  explorers stand on (`pawn`, and the `second spot` beside it). The front
+ *  door leads out of the house, so no one walks it. */
 function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
   const tile = roomTile(def.id);
   const result: { owner: Owner; mesh: THREE.Mesh }[] = [];
@@ -388,8 +476,10 @@ function zones(def: RoomDefinition): { owner: Owner; mesh: THREE.Mesh }[] {
     result.push({ owner: zoneOwner(`doorway ${edge}`), mesh: new THREE.Mesh(geometry) });
   }
   if (def.pawn) {
-    const geometry = new THREE.CylinderGeometry(PAWN_CLEAR, PAWN_CLEAR, 1.8, 8).translate(def.pawn[0], 0.9, def.pawn[1]);
-    result.push({ owner: zoneOwner("pawn"), mesh: new THREE.Mesh(geometry) });
+    explorerSpots(def.pawn).forEach(([x, z], slot) => {
+      const geometry = new THREE.CylinderGeometry(PAWN_CLEAR, PAWN_CLEAR, 1.8, 8).translate(x, 0.9, z);
+      result.push({ owner: zoneOwner(slot === 0 ? "pawn" : "second spot"), mesh: new THREE.Mesh(geometry) });
+    });
   }
   return result;
 }

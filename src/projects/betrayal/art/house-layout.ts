@@ -1,4 +1,4 @@
-import { EDGES, neighbourCell, opposite, openings, roomAt, type Layout } from "../engine/board";
+import { EDGES, neighbourCell, opposite, openings, placementsAt, roomAt, type Layout } from "../engine/board";
 import type { Catalog, Edge, PlacedTile, Rotation } from "../types";
 
 /*
@@ -40,12 +40,45 @@ const SPILL_ROOMS: Layout["tiles"] = [
 export const SPILL_LAYOUTS: Record<string, Layout> = {
   "spill-doorway": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 1 }] },
   "spill-wall": { tiles: [...SPILL_ROOMS, { tile: "dining-room", floor: "ground", x: 0, y: -1, rotation: 3 }] },
-  /** An outdoor tile among indoor ones: the Graveyard through the Foyer's
-   *  doorway, and the Dining Room's solid wall along its side. */
-  outdoors: {
-    tiles: [...SPILL_ROOMS, { tile: "graveyard", floor: "ground", x: 0, y: -1, rotation: 0 }, { tile: "dining-room", floor: "ground", x: 1, y: -1, rotation: 0 }],
-  },
 };
+
+/** A house for reviewing one room as the house shows it, and the rooms its two explorers start in. */
+export interface ReviewHouse {
+  layout: Layout;
+  /** Where the first explorer starts (the room under review), and the second (a neighbour). */
+  starts: [string, string];
+}
+
+/**
+ * A small house round one room, for judging it the way the house shows it:
+ * the room unturned at the middle of the first floor it may lie on, and
+ * through each of its doorways a room joined to it, placed as the rules
+ * allow (one of its doors facing back). The neighbours are the first tiles,
+ * by id, that are indoors, may lie on that floor, aren't starting tiles and
+ * aren't in `avoid` (the rooms with art of their own, so the neighbours are
+ * plain shells). The room's own explorer stands in it, the second next door.
+ */
+export function reviewHouse(room: string, catalog: Catalog, avoid: ReadonlySet<string>): ReviewHouse {
+  const tile = catalog.rooms[room] as Catalog["rooms"][string] | undefined;
+  if (!tile) throw new Error(`No room tile "${room}"`);
+  const floor = tile.floors[0];
+  const centre: PlacedTile = { tile: room, floor, x: 0, y: 0, rotation: 0 };
+  const layout: Layout = { tiles: [centre] };
+  const candidates = Object.values(catalog.rooms)
+    .filter((other) => other.id !== room && !other.outside && !other.start && other.floors.includes(floor) && !avoid.has(other.id))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  for (const direction of openings(catalog, centre)) {
+    const spot = { floor, ...neighbourCell(centre, direction) };
+    const back = opposite(direction);
+    const neighbour = candidates
+      .filter((other) => !layout.tiles.some((placedTile) => placedTile.tile === other.id))
+      .map((other) => ({ other, placement: placementsAt(layout, catalog, other.id, spot, [back]).at(0) }))
+      .find(({ placement }) => placement !== undefined);
+    if (!neighbour?.placement) throw new Error(`No plain room can join ${room} through its ${direction} doorway`);
+    layout.tiles.push({ tile: neighbour.other.id, ...spot, rotation: neighbour.placement.rotation });
+  }
+  return { layout, starts: [room, layout.tiles.at(1)?.tile ?? room] };
+}
 
 /** Each board direction as a horizontal unit vector in the scene. */
 export const DIRECTION: Record<Edge, { x: number; z: number }> = {

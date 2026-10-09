@@ -10,6 +10,8 @@ export interface CandleOptions {
   /** Gives the candle a real light; without one its flame still glows. */
   light?: boolean;
   intensity?: number;
+  /** Metres its light reaches. */
+  range?: number;
 }
 
 /** A piece holding a light would throw its own silhouette across the room. */
@@ -32,6 +34,7 @@ export function candle({
   wax = "bone",
   light = true,
   intensity = 2.5,
+  range = 5,
 }: CandleOptions = {}): THREE.Group {
   const result = group(
     cylinder(0.028, height, flat(wax), [0, 0, 0], { sides: 6 }),
@@ -40,7 +43,7 @@ export function candle({
   );
   noShadows(result);
   if (light) {
-    result.add(lightAnchor({ colour: "amber", intensity, range: 5, flicker: 0.15 }, [0, height + 0.08, 0]));
+    result.add(lightAnchor({ colour: "amber", intensity, range, flicker: 0.15 }, [0, height + 0.08, 0]));
   }
   return result;
 }

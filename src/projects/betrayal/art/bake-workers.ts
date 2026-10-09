@@ -35,7 +35,7 @@ export function workerBaker(): Baker & { dispose: () => void } {
       slot.job = job;
       const message: BakeJob = { sceneId: job.sceneId, scene: slot.sceneId === job.sceneId ? null : job.scene, ...job.samples };
       slot.sceneId = job.sceneId;
-      slot.worker.postMessage(message, [job.samples.position.buffer, job.samples.normal.buffer]);
+      slot.worker.postMessage(message, [job.samples.position.buffer, job.samples.normal.buffer, job.samples.within.buffer]);
     }
   };
   for (const slot of pool) {
@@ -58,7 +58,7 @@ export function workerBaker(): Baker & { dispose: () => void } {
     const parts: Promise<Gathered>[] = [];
     for (let start = 0; start < count; start += chunk) {
       const end = Math.min(count, start + chunk);
-      const part = { position: samples.position.slice(start * 3, end * 3), normal: samples.normal.slice(start * 3, end * 3) };
+      const part = { position: samples.position.slice(start * 3, end * 3), normal: samples.normal.slice(start * 3, end * 3), within: samples.within.slice(start * 6, end * 6) };
       parts.push(new Promise((resolve, reject) => queue.push({ scene, sceneId, samples: part, resolve, reject })));
     }
     pump();

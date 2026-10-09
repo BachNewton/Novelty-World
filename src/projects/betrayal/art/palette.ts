@@ -20,6 +20,10 @@ export const PALETTE = {
   woodMid: "#643b24",
   woodLight: "#86552f",
 
+  brickDark: "#3f1a14",
+  brick: "#66301f",
+  brickLight: "#86472f",
+
   brass: "#9c7536",
   ember: "#b85620",
   amber: "#e89a35",
@@ -69,6 +73,7 @@ export const RAMPS = {
   stone: ["ash", "stoneDark", "stone", "stoneLight"],
   bone: ["boneDark", "bone", "boneLight"],
   wood: ["woodDark", "wood", "woodMid", "woodLight"],
+  brick: ["brickDark", "brick", "brickLight"],
   fire: ["ember", "amber", "flame"],
   blood: ["bloodDark", "blood", "bloodLight"],
   verdigris: ["verdigrisDark", "verdigris", "verdigrisLight"],

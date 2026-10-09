@@ -91,7 +91,16 @@ export interface LightSpec {
   range: number;
   /** 0 is steady; 0.15 is a candle's gentle waver, 0.3 a fire; at most 0.5. */
   flicker?: number;
+  /** What it wavers with (see `FlickerSignal`); a flame picks one of the four flame signals by default. */
+  signal?: FlickerSignal;
 }
+
+/**
+ * What a light wavers with: one of the four flame signals (0–3), or `water`,
+ * the slow swell of light thrown off water. A glow that names the same signal
+ * and reads `flickerOf` wavers in step with the light.
+ */
+export type FlickerSignal = 0 | 1 | 2 | 3 | "water";
 
 /** The close-up's aim when a room names none: just above the middle of the floor. */
 export const DEFAULT_FOCUS: [x: number, y: number, z: number] = [0, 0.4, 0];
@@ -109,8 +118,8 @@ export interface RoomDefinition {
   lights?: LightSpec[];
   /** Where the close-up looks. Defaults to `DEFAULT_FOCUS`. */
   focus?: [x: number, y: number, z: number];
-  /** Holes cut through the floor (a stairwell), as x and z ranges in room metres. */
-  floorOpenings?: { x: [number, number]; z: [number, number] }[];
+  /** Holes cut through the floor (a stairwell, a lake), in room metres. */
+  floorOpenings?: FloorOpening[];
   /** Where the scale-reference explorer pawn stands, and where an explorer
    *  in the house stands in the room. */
   pawn?: [x: number, z: number];
@@ -119,6 +128,26 @@ export interface RoomDefinition {
    *  where the stair leaves the room. A walk between the two rooms goes up
    *  one room's stair and down the other's. */
   stairs?: Record<string, [x: number, y: number, z: number][]>;
+}
+
+/** A hole through the floor: a rectangle, as x and z ranges, or a polygon of
+ *  [x, z] corners (either winding, not crossing itself) for a ragged edge. */
+export type FloorOpening = { x: [number, number]; z: [number, number] } | { polygon: [x: number, z: number][] };
+
+/** Each explorer after the first in a room stands this much further from the pawn spot, towards the middle of the room. */
+const MAKE_ROOM = 0.9;
+
+/** Where the explorer in `slot` stands in a room: the pawn spot for the
+ *  first (0), then `MAKE_ROOM` further towards the middle for each after. */
+export function explorerSpot(pawn: [x: number, z: number], slot: number): [x: number, z: number] {
+  const [x, z] = pawn;
+  const towardMiddle = Math.min((slot * MAKE_ROOM) / Math.max(Math.hypot(x, z), 1e-6), 1);
+  return [x * (1 - towardMiddle), z * (1 - towardMiddle)];
+}
+
+/** The spots kept clear and lit for explorers: the pawn spot and the second spot. */
+export function explorerSpots(pawn: [x: number, z: number]): [x: number, z: number][] {
+  return [explorerSpot(pawn, 0), explorerSpot(pawn, 1)];
 }
 
 const WALL_TURN: Record<Edge, number> = { top: 0, right: -90, bottom: 180, left: 90 };

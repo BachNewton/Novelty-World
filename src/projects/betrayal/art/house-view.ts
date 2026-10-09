@@ -39,12 +39,17 @@ interface CastMember extends HouseExplorer {
   name: string;
 }
 
-/** Two explorers for the prototype, taking turns: Longfellow in the Library,
- *  and a recoloured scale pawn in the Foyer. */
-const CAST: CastMember[] = [
-  { id: "longfellow", name: "Professor Longfellow", room: "library", build: longfellow, colour: "amber" },
-  { id: "pawn", name: "The scale pawn", room: "foyer", build: () => pawn({ colour: "bone" }), colour: "verdigrisLight" },
-];
+/** Two explorers for the prototype, taking turns: Longfellow, and a
+ *  recoloured scale pawn, in the rooms they start in. */
+function cast([first, second]: readonly [string, string]): CastMember[] {
+  return [
+    { id: "longfellow", name: "Professor Longfellow", room: first, build: longfellow, colour: "amber" },
+    { id: "pawn", name: "The scale pawn", room: second, build: () => pawn({ colour: "bone" }), colour: "verdigrisLight" },
+  ];
+}
+
+/** Where the fixture house's explorers start: Longfellow in the Library, the pawn in the Foyer. */
+export const FIXTURE_STARTS: readonly [string, string] = ["library", "foyer"];
 
 export type FloorChoice = FloorId | "all";
 
@@ -200,7 +205,8 @@ const stairway: Stairway = (room, toward) => definition(room).stairs?.[toward];
  *  by mouse, touch, keyboard or controller, and the explorer walks there.
  *  Plain state outside React, so the page, tests and screenshot tools drive
  *  the same thing. */
-export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
+export function createHouseView(layout: Layout = HOUSE_FIXTURE, starts: readonly [string, string] = FIXTURE_STARTS) {
+  const CAST = cast(starts);
   const floors = FLOORS.filter((floor) => layout.tiles.some((tile) => tile.floor === floor));
   const floorOf = (room: string) => {
     const tile = layout.tiles.find((placed) => placed.tile === room);
@@ -212,7 +218,7 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
   let snapshot: HouseSnapshot = {
     view: 0,
     zoom: 1,
-    floor: "ground",
+    floor: floorOf(starts[0]),
     closeUp: null,
     resolution: DEFAULT_RESOLUTION,
     frozenAt: null,

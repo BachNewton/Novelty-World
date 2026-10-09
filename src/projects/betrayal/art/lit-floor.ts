@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import type { Edge } from "../types";
-import { bakeScene, PROBE_FLOATS, PROBE_SPREAD, roomLight, roomSamples, type Baker, type RoomLight } from "./bake";
-import type { Bucket, FrozenRoom } from "./freeze";
-import { flickerSignal, LIGHTMAP, MAX_FLICKER } from "./lighting";
+import { bakeScene, PROBE_FLOATS, roomLight, roomSamples, type Baker, type RoomLight } from "./bake";
+import { PROBE_GRID, type Bucket, type FrozenRoom } from "./freeze";
+import { flickerOf, flickerSignal, LIGHTMAP, MAX_FLICKER } from "./lighting";
 import { TILE } from "./room";
 import { EDGES } from "./stage";
 
@@ -68,7 +68,7 @@ function inject(source: string, anchor: string, replacement: string): string {
 const FLICKERING_LIGHTMAP = inject(
   THREE.ShaderChunk.lights_fragment_maps,
   "irradiance += lightMapIrradiance;",
-  `irradiance += lightMapIrradiance * ( 1.0 + dot( texture2D( flickerMap, vLightMapUv ) * ${MAX_FLICKER.toFixed(3)}, flickerSignal ) );`,
+  `irradiance += lightMapIrradiance * ( 1.0 + dot( texture2D( flickerMap, vLightMapUv ) * ${MAX_FLICKER.toFixed(3)}, flickerSignal ) + lightMapTexel.a * ${MAX_FLICKER.toFixed(3)} * waterSignal );`,
 );
 
 const PROBE_FRAGMENT = /* glsl */ `
@@ -115,12 +115,37 @@ export function patchProbe(object: THREE.Object3D): ProbeUniform {
   return uniform;
 }
 
-/** The probe light at a point in a room's frame: the room's 3 × 3 grid, read bilinearly. */
-function readProbes(probes: Float32Array, x: number, z: number, out: THREE.Vector3[]): THREE.Vector3[] {
-  const gx = THREE.MathUtils.clamp(x / PROBE_SPREAD + 1, 0, 2);
-  const gz = THREE.MathUtils.clamp(z / PROBE_SPREAD + 1, 0, 2);
-  const i = Math.min(Math.floor(gx), 1);
-  const j = Math.min(Math.floor(gz), 1);
+/** How near an explorer's spot a walker takes that spot's own probe, fading from the grid's. */
+const SPOT_REACH = 0.6;
+
+function addProbe(probes: Float32Array, probe: number, weight: number, out: THREE.Vector3[]) {
+  out.forEach((face, f) => {
+    const at = probe * PROBE_FLOATS + f * 3;
+    face.x += probes[at] * weight;
+    face.y += probes[at + 1] * weight;
+    face.z += probes[at + 2] * weight;
+  });
+}
+
+/** One probe's light, into `out`. */
+function readProbe(probes: Float32Array, probe: number, out: THREE.Vector3[]): THREE.Vector3[] {
+  for (const face of out) face.set(0, 0, 0);
+  addProbe(probes, probe, 1, out);
+  return out;
+}
+
+/**
+ * The probe light at a point in a room's frame, for a walker: the floor grid
+ * read bilinearly, leaving out probes buried in a piece, and near an
+ * explorer's spot, that spot's own probe.
+ */
+function readProbes(room: FrozenRoom, probes: Float32Array, x: number, z: number, out: THREE.Vector3[]): THREE.Vector3[] {
+  const { count, spread } = PROBE_GRID;
+  const cell = (v: number) => THREE.MathUtils.clamp(((v / spread + 1) / 2) * (count - 1), 0, count - 1);
+  const gx = cell(x);
+  const gz = cell(z);
+  const i = Math.min(Math.floor(gx), count - 2);
+  const j = Math.min(Math.floor(gz), count - 2);
   const fx = gx - i;
   const fz = gz - j;
   const corners: [number, number, number][] = [
@@ -129,19 +154,38 @@ function readProbes(probes: Float32Array, x: number, z: number, out: THREE.Vecto
     [i, j + 1, (1 - fx) * fz],
     [i + 1, j + 1, fx * fz],
   ];
-  out.forEach((face, f) => {
-    face.set(0, 0, 0);
-    for (const [ci, cj, weight] of corners) {
-      const at = (cj * 3 + ci) * PROBE_FLOATS + f * 3;
-      face.x += probes[at] * weight;
-      face.y += probes[at + 1] * weight;
-      face.z += probes[at + 2] * weight;
-    }
-  });
+  for (const face of out) face.set(0, 0, 0);
+  let total = 0;
+  for (const [ci, cj, weight] of corners) {
+    const probe = room.probes.grid[cj * count + ci];
+    if (probe === null || weight === 0) continue;
+    addProbe(probes, probe, weight, out);
+    total += weight;
+  }
+  if (total > 0) for (const face of out) face.divideScalar(total);
+  else {
+    // Every probe round it is buried: the nearest open one stands in.
+    const open = room.probes.grid.flatMap((probe, k) => (probe === null ? [] : [{ probe, d: ((k % count) - gx) ** 2 + (Math.floor(k / count) - gz) ** 2 }]));
+    const nearest = open.sort((a, b) => a.d - b.d).at(0);
+    if (!nearest) throw new Error(`${room.id} has no open probe on its floor`);
+    readProbe(probes, nearest.probe, out);
+  }
+  const spot = room.probes.spots.map((candidate) => ({ ...candidate, d: Math.hypot(candidate.x - x, candidate.z - z) })).sort((a, b) => a.d - b.d)[0] as { probe: number; d: number } | undefined;
+  if (spot && spot.d < SPOT_REACH) {
+    const t = 1 - spot.d / SPOT_REACH;
+    for (const face of out) face.multiplyScalar(1 - t);
+    addProbe(probes, spot.probe, t, out);
+  }
   return out;
 }
 
-function litRoom(id: string, room: FrozenRoom, matrix: THREE.Matrix4, flicker: { value: THREE.Vector4 }): LitRoom & { lightmap: THREE.DataTexture; flickerMap: THREE.DataTexture; probes: { uniform: ProbeUniform; at: THREE.Vector3 }[] } {
+function litRoom(
+  id: string,
+  room: FrozenRoom,
+  matrix: THREE.Matrix4,
+  flicker: { value: THREE.Vector4 },
+  water: { value: number },
+): LitRoom & { lightmap: THREE.DataTexture; flickerMap: THREE.DataTexture; probes: { uniform: ProbeUniform; probe: number }[] } {
   const { width, height } = room.texels;
   const lightmap = lightmapTexture(new Uint16Array(width * height * 4), width, height, THREE.HalfFloatType);
   const flickerMap = lightmapTexture(new Uint8Array(width * height * 4), width, height, THREE.UnsignedByteType);
@@ -158,7 +202,8 @@ function litRoom(id: string, room: FrozenRoom, matrix: THREE.Matrix4, flicker: {
         patchCut(shader, cut);
         shader.uniforms.flickerMap = { value: flickerMap };
         shader.uniforms.flickerSignal = flicker;
-        shader.fragmentShader = inject(shader.fragmentShader, "void main() {", "uniform sampler2D flickerMap;\nuniform vec4 flickerSignal;\nvoid main() {");
+        shader.uniforms.waterSignal = water;
+        shader.fragmentShader = inject(shader.fragmentShader, "void main() {", "uniform sampler2D flickerMap;\nuniform vec4 flickerSignal;\nuniform float waterSignal;\nvoid main() {");
         shader.fragmentShader = inject(shader.fragmentShader, "#include <lights_fragment_maps>", FLICKERING_LIGHTMAP);
       };
       lit.customProgramCacheKey = () => "betrayal-baked";
@@ -170,9 +215,9 @@ function litRoom(id: string, room: FrozenRoom, matrix: THREE.Matrix4, flicker: {
     return unlit;
   };
   for (const bucket of room.buckets) root.add(new THREE.Mesh(bucket.geometry, material(bucket)));
-  const probes = room.dynamics.map(({ holder, at }) => {
+  const probes = room.dynamics.map(({ holder, probe }) => {
     root.add(holder);
-    return { uniform: patchProbe(holder), at };
+    return { uniform: patchProbe(holder), probe };
   });
 
   return {
@@ -186,6 +231,7 @@ function litRoom(id: string, room: FrozenRoom, matrix: THREE.Matrix4, flicker: {
     probes,
     setCut: (isCut) => {
       cut.value.fromArray(EDGES.map((edge) => (isCut(edge) ? 1 : 0)));
+      for (const { holder, hidesWith } of room.dynamics) holder.visible = !hidesWith.some(isCut);
     },
   };
 }
@@ -198,6 +244,7 @@ let scenes = 0;
 export function createLitFloor(baker: Baker): LitFloor {
   const root = new THREE.Group();
   const flicker = { value: new THREE.Vector4() };
+  const water = { value: 0 };
   const rooms = new Map<string, Built>();
   const inverse = new THREE.Matrix4();
   const local = new THREE.Vector3();
@@ -228,7 +275,7 @@ export function createLitFloor(baker: Baker): LitFloor {
     }
     if (!nearest?.light) return out.map((face) => face.set(0, 0, 0));
     local.copy(point).applyMatrix4(inverse.copy(nearest.matrix).invert());
-    return readProbes(nearest.light.probes, local.x, local.z, out);
+    return readProbes(nearest.room, nearest.light.probes, local.x, local.z, out);
   };
 
   let queue: Promise<void> = Promise.resolve();
@@ -249,7 +296,7 @@ export function createLitFloor(baker: Baker): LitFloor {
       if (rooms.has(id)) continue;
       changed.add(id);
       centres.push(centre(matrix));
-      rooms.set(id, litRoom(id, room, matrix, flicker));
+      rooms.set(id, litRoom(id, room, matrix, flicker, water));
     }
     // A change re-bakes the rooms next to it too: their light now meets new walls and doorways.
     const affected = new Set([...rooms.values()].filter((built) => changed.has(built.id) || centres.some((at) => at.distanceTo(centre(built.matrix)) < TILE * 1.01)).map((built) => built.id));
@@ -266,9 +313,7 @@ export function createLitFloor(baker: Baker): LitFloor {
       built.lightmap.needsUpdate = true;
       built.flickerMap.image.data = light.flicker;
       built.flickerMap.needsUpdate = true;
-      for (const probe of built.probes) {
-        readProbes(light.probes, probe.at.x, probe.at.z, probe.uniform.value);
-      }
+      for (const { uniform, probe } of built.probes) readProbe(light.probes, probe, uniform.value);
       // A new room shows once it has its light, never black while it bakes.
       if (built.root.parent !== root) root.add(built.root);
     }
@@ -290,6 +335,7 @@ export function createLitFloor(baker: Baker): LitFloor {
     probeAt,
     update: (seconds) => {
       flickerSignal(seconds, flicker.value);
+      water.value = flickerOf(seconds, "water");
       for (const built of rooms.values()) for (const animation of built.room.animations) animation(seconds);
     },
     dispose: () => {

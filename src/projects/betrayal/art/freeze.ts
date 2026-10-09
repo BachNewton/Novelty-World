@@ -10,7 +10,9 @@ import type { PropPlacement } from "./room";
  * how it draws, into a handful of meshes, so a room costs a few draw calls
  * rather than hundreds; and every lit surface gets a place in the room's
  * lightmap (a second set of UVs, `uv1`), which the bake fills. What moves
- * (the explorer, animated pieces) stays as it was, lit by light probes.
+ * (the explorer, animated pieces) stays as it was, lit by light probes: one
+ * at each moving piece, one at each spot an explorer stands on, and a grid
+ * over the floor for explorers walking between them.
  *
  * Walls come and go as the camera cuts them, so every merged vertex carries
  * its role per edge (`cutRole`): shown always, hidden when that edge is cut
@@ -69,12 +71,34 @@ export interface Texels {
   normal: Float32Array;
 }
 
-/** A moving piece, kept as built and lit by a probe at `at`. */
+/** A moving piece, kept as built and lit by its own probe. */
 export interface Dynamic {
   holder: THREE.Object3D;
-  /** Where its probe is read, in the room's frame (for a piece that never leaves it). */
-  at: THREE.Vector3;
+  /** Its probe, by index into the room's `probes`. */
+  probe: number;
   explorer: boolean;
+  /** The walls it hangs on above the cut height: it hides when any of them is cut, as still pieces do. */
+  hidesWith: Edge[];
+}
+
+/** Probes over the floor: `count` × `count`, from −`spread` to `spread` each way, at `height`. */
+export const PROBE_GRID = { count: 7, spread: 2.7, height: 1 };
+
+/** Where the bake takes a light probe, in the room's frame. */
+export interface Probe {
+  at: THREE.Vector3;
+  /** The bounds of the piece it lights: shadow rays start where they leave
+   *  them, so the piece doesn't shadow its own light, nor hide a lamp it holds. */
+  within: THREE.Box3 | null;
+}
+
+/** A room's probes, and which is which. */
+export interface Probes {
+  all: Probe[];
+  /** The floor grid, row by row along z, by index into `all`; null where a piece stands at the probe's height. */
+  grid: (number | null)[];
+  /** One for each explorer spot, by index into `all`, at the grid's height. */
+  spots: { x: number; z: number; probe: number }[];
 }
 
 export interface FrozenRoom {
@@ -83,8 +107,11 @@ export interface FrozenRoom {
   texels: Texels;
   /** Triangles that stop light, nine floats each, in the room's frame. */
   casters: Float32Array;
+  /** Triangles that shut each doorway and passage in the bake when no room lies beyond it. */
+  plugs: Partial<Record<Edge, Float32Array>>;
   lights: BakedLight[];
   dynamics: Dynamic[];
+  probes: Probes;
   animations: Animation[];
   /** Each prop's bounds as built, for framing it. */
   bounds: Map<PropPlacement, THREE.Box3>;
@@ -369,6 +396,7 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
   const buckets = new Map<string, Gathering>();
   const lit: LitTriangle[] = [];
   const casters: number[] = [];
+  const plugs: Partial<Record<Edge, number[]>> = {};
   const meshes: THREE.Mesh[] = [];
   root.traverse((object) => {
     if (object instanceof THREE.Mesh) meshes.push(object);
@@ -395,6 +423,8 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
     const outside = outsideOf(mesh);
     const castsInBake = mesh.castShadow && !explorer && !cutRole.includes(ROLE_SHOW_WHEN_CUT);
     const bakeOnly = (mesh.userData as { bakeOnly?: boolean }).bakeOnly === true;
+    const plug = (mesh.userData as { plug?: Edge }).plug;
+    const stops = plug ? (plugs[plug] ??= []) : casters;
     for (const group of groups) {
       const material = (Array.isArray(mesh.material) ? mesh.material[group.materialIndex ?? 0] : mesh.material) as THREE.Material;
       const params = drawParams(material);
@@ -415,7 +445,7 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
         const normal = points[1].clone().sub(points[0]).cross(points[2].clone().sub(points[0]));
         if (normal.lengthSq() < 1e-14) continue;
         normal.normalize();
-        if (castsInBake) for (const p of points) casters.push(p.x, p.y, p.z);
+        if (castsInBake) for (const p of points) stops.push(p.x, p.y, p.z);
         if (dynamic || bakeOnly || !bucket) continue;
         const vertex = bucket.position.length / 3;
         ids.forEach((id, k) => {
@@ -465,14 +495,32 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
       return { params: bucket.params, geometry };
     });
 
+  const all: Probe[] = [];
+  const probe = (at: THREE.Vector3, within: THREE.Box3 | null) => all.push({ at, within }) - 1;
+  const standing = [...bounds.values()];
+  const { count, spread, height: probeHeight } = PROBE_GRID;
+  const grid: (number | null)[] = [];
+  for (let j = 0; j < count; j++) {
+    for (let i = 0; i < count; i++) {
+      const at = new THREE.Vector3(((i / (count - 1)) * 2 - 1) * spread, probeHeight, ((j / (count - 1)) * 2 - 1) * spread);
+      grid.push(standing.some((box) => box.containsPoint(at)) ? null : probe(at, null));
+    }
+  }
+  const spots = part.spots.map(([x, z]) => ({ x, z, probe: probe(new THREE.Vector3(x, probeHeight, z), null) }));
+
   const dynamics: Dynamic[] = moving.map(({ object, explorer }) => {
     const parent = object.parent;
     if (!parent) throw new Error("A moving piece has no parent");
+    // Its bounds in the room are read while it is still in place, before the holder takes it.
+    const within = new THREE.Box3().setFromObject(object);
+    const hidesWith = EDGES.filter((_, k) => roleOf(object)[k] === ROLE_HIDE_WHEN_CUT);
     const holder = new THREE.Group();
     holder.matrixAutoUpdate = false;
     holder.matrix.copy(parent.matrixWorld);
+    holder.matrixWorld.copy(parent.matrixWorld);
     holder.add(object);
-    return { holder, at: new THREE.Box3().setFromObject(object).getCenter(new THREE.Vector3()), explorer };
+    const own = explorer && spots.length > 0 ? spots[0].probe : probe(within.getCenter(new THREE.Vector3()), within);
+    return { holder, probe: own, explorer, hidesWith };
   });
   const animations: Animation[] = [];
   for (const { holder } of dynamics) {
@@ -484,6 +532,18 @@ export function freezeRoom(id: string, part: RoomPart): FrozenRoom {
 
   for (const mesh of still) mesh.geometry.dispose();
 
-  return { id, buckets: frozenBuckets, texels, casters: new Float32Array(casters), lights: part.lights, dynamics, animations, bounds, ready: part.ready };
+  return {
+    id,
+    buckets: frozenBuckets,
+    texels,
+    casters: new Float32Array(casters),
+    plugs: Object.fromEntries(Object.entries(plugs).map(([edge, triangles]) => [edge, new Float32Array(triangles)])),
+    lights: part.lights,
+    dynamics,
+    probes: { all, grid, spots },
+    animations,
+    bounds,
+    ready: part.ready,
+  };
 }
 

@@ -8,10 +8,10 @@ import { doorways, printedEdge, tileTurn, wallIsCut } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineBaker, type Baker } from "./bake";
 import { freezeRoom, type FrozenRoom } from "./freeze";
-import { fillLight, houseFog } from "./lighting";
+import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
 import { createLitFloor, patchProbe, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
-import { TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
@@ -21,8 +21,6 @@ import { earth, flagstones, plaster, textureReady, woodPlanks } from "./textures
 export const STACK_GAP = 7;
 /** The explorer marker: a ring of the player's colour round the base. */
 const RING = { inner: 0.4, outer: 0.55, height: 0.03 };
-/** A second explorer in a room stands this far from the pawn spot, towards the middle of the room. */
-const MAKE_ROOM = 0.9;
 /** A room offered as a choice glows on its floor: a fill, and a border just inside its walls. */
 const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
 /** A stair offered as a choice glows along its run: a band this wide, edged with rails. */
@@ -277,9 +275,8 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
   const spot = (room: string, slot: number): HousePoint => {
     const pawnSpot = definition(room).pawn;
     if (!pawnSpot) throw new Error(`${room} has no spot for an explorer to stand on`);
-    const [x, z] = pawnSpot;
-    const towardMiddle = Math.min((slot * MAKE_ROOM) / Math.max(Math.hypot(x, z), 1e-6), 1);
-    return inHouse(layout, room, [x * (1 - towardMiddle), 0, z * (1 - towardMiddle)]);
+    const [x, z] = explorerSpot(pawnSpot, slot);
+    return inHouse(layout, room, [x, 0, z]);
   };
 
   const walkers = new Map<string, Walker>();
@@ -326,7 +323,7 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
   };
   /** One light follows whoever's turn it is, so the scene's count of lights
    *  never changes: a change recompiles every material. */
-  const activeLight = new THREE.PointLight(paletteHex("boneLight"), 2.5, 3.5, 2);
+  const activeLight = explorerLight();
   root.add(activeLight);
   let active: Walker | null = null;
 
@@ -421,7 +418,7 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
     update: (seconds) => {
       for (const lit of lighting.values()) lit.update(seconds);
       for (const walker of walkers.values()) poseWalker(walker, seconds);
-      if (active) activeLight.position.copy(active.holder.position).add(new THREE.Vector3(0, 2.4, 0.3));
+      if (active) activeLight.position.copy(active.holder.position).add(EXPLORER_LIGHT_OFFSET);
       const pulse = 0.5 + 0.5 * Math.sin(seconds * 3);
       focusFill.opacity = 0.1 + 0.1 * pulse;
       focusBorder.opacity = 0.7 + 0.3 * pulse;

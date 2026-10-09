@@ -7,40 +7,11 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, onWall, type PropPlacement, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane, textured } from "../shapes";
-import { flagstones, pixelTexture, woodPlanks } from "../textures";
-
-interface BrickOptions {
-  bodies: readonly PaletteKey[];
-  mortar: PaletteKey;
-  speck: PaletteKey;
-  seed: string;
-}
-
-/** Brick in stretcher bond, 8 by 4 texels a brick with its joint, as a
- *  repeating pixel texture: each brick a body colour, a few flecked. */
-function brickwork({ bodies, mortar, speck, seed }: BrickOptions): THREE.Texture {
-  const size = 64;
-  const rng = createRng(`kitchen-brick:${seed}`);
-  const keys = ["a", "b", "c", "d"].slice(0, bodies.length);
-  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => "m"));
-  for (let course = 0; course < size / 4; course++) {
-    const offset = (course % 2) * 4;
-    for (let brick = -1; brick < size / 8; brick++) {
-      const body = pick(rng, keys);
-      for (let y = course * 4; y < course * 4 + 3; y++) {
-        for (let x = 0; x < 7; x++) grid[y][(brick * 8 + offset + x + size) % size] = body;
-      }
-      if (rng.next() < 0.3) grid[course * 4 + 1 + Math.floor(rng.next() * 2)][(brick * 8 + offset + 1 + Math.floor(rng.next() * 5) + size) % size] = "s";
-    }
-  }
-  const legend: Record<string, PaletteKey> = { m: mortar, s: speck };
-  keys.forEach((key, i) => (legend[key] = bodies[i]));
-  return pixelTexture(grid.map((row) => row.join("")), legend, true);
-}
+import { bricks, flagstones, pixelTexture, woodPlanks } from "../textures";
 
 /** Old, grimy limewash over brick above the dado; bare, smoke-browned brick below it. */
-const LIMEWASH = (): THREE.Texture => brickwork({ bodies: ["boneDark", "boneDark", "stoneLight"], mortar: "stone", speck: "stoneDark", seed: "wash" });
-const BARE_BRICK = (): THREE.Texture => brickwork({ bodies: ["woodMid", "wood", "woodLight"], mortar: "stoneDark", speck: "soot", seed: "dado" });
+const LIMEWASH = (): THREE.Texture => bricks({ ramp: ["stoneDark", "boneDark", "boneDark", "stoneLight", "stoneLight"], mortar: "stone", wear: 0, seed: "kitchen-brick:wash" });
+const BARE_BRICK = (): THREE.Texture => bricks({ mortar: "stoneDark", seed: "kitchen-brick:dado" });
 
 /** Scrubbed deal: the pale boards of a working table. */
 const DEAL: readonly PaletteKey[] = ["boneDark", "bone", "bone", "boneLight"];

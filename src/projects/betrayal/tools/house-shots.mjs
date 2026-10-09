@@ -6,15 +6,20 @@
 // at FREEZE_AT for every shot, so two runs differ only where the art does.
 //
 // Prereq: dev server on :3001 (npm run dev) + `npx playwright install chromium` (one-time).
-// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label] [--res=<short side>]
+// Usage:  node src/projects/betrayal/tools/house-shots.mjs [label] [--res=<short side>] [--room=<room-id>]
 // Writes to src/projects/betrayal/.shots/<label>/house/ (gitignored): every floor from the four views,
 // the whole house stacked, close views of single rooms, a phone shot, and three contact sheets:
 // sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone). Those
 // judge the art, so the choices' glow and route are hidden in them. sheet-spill.png shows light between rooms: the
-// lit Foyer beside the dark Dining Room, through an open doorway and, turned, through a solid wall. sheet-outdoors.png
-// shows an outdoor tile (the Graveyard) among indoor ones, from every view and close. sheet-play.png shows the stand-in
+// lit Foyer beside the dark Dining Room, through an open doorway and, turned, through a solid wall. sheet-room-graveyard.png
+// shows an outdoor tile among indoor ones (see --room). sheet-play.png shows the stand-in
 // decision: a focused choice with its route preview (desktop and phone), "Stop here" focused, and a walk up the grand
 // staircase frozen at several moments, ending with the room framed close as the explorer enters it.
+//
+// --room=<room-id> shoots only that room, in a small house built round it (?house&layout=room:<room-id>): plain rooms
+// joined to every doorway, so every wall between rooms is cut as the house cuts it. It writes sheet-room-<room-id>.png:
+// the floor from the four views, the room framed close from two (its back walls standing, as when an explorer enters),
+// and a phone shot, with Longfellow at the room's pawn spot and the scale pawn next door.
 
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -23,6 +28,8 @@ import { dirname, join } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const [LABEL = "latest"] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+/** Shoots only this room, in a house built round it, e.g. --room=kitchen. */
+const ROOM = process.argv.find((arg) => arg.startsWith("--room="))?.slice("--room=".length) ?? null;
 /** Draws at this short side in pixels instead of the view's native default, e.g. --res=540. */
 const RES_FLAG = process.argv.find((arg) => arg.startsWith("--res="));
 const RES = RES_FLAG === undefined ? null : Number(RES_FLAG.slice("--res=".length));
@@ -98,6 +105,44 @@ async function capture(page, name, { floor = "ground", view = 0, zoom = 1, focus
   return { name, path };
 }
 
+const dataUrl = (path) =>
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- reads back the screenshots this run just wrote
+  `data:image/png;base64,${readFileSync(path).toString("base64")}`;
+const cell = (shot) =>
+  `<figure style="margin:0"><img src="${dataUrl(shot.path)}" style="width:100%;display:block;image-rendering:pixelated"><figcaption>${shot.name}</figcaption></figure>`;
+const sheet = await browser.newPage({ viewport: { width: 2000, height: 200 } });
+async function contactSheet(name, shots, columns) {
+  await sheet.setContent(`<!doctype html><html><body style="margin:0;padding:16px;background:#111;color:#bbb;font:14px sans-serif">
+<h1 style="margin:0 0 12px;font-size:18px">house · ${name} · ${LABEL}</h1>
+<div style="display:grid;grid-template-columns:repeat(${columns},1fr);gap:12px;align-items:start">${shots.map(cell).join("")}</div>
+</body></html>`);
+  await sheet.waitForFunction(() => [...document.images].every((img) => img.complete && img.naturalWidth > 0));
+  const path = join(OUTDIR, `sheet-${name}.png`);
+  await sheet.screenshot({ path, fullPage: true });
+  console.log("wrote", path);
+}
+/** One room in a house built round it: the floor from every view, the room close, and a phone shot. */
+async function shootRoom(room) {
+  const layout = `room:${room}`;
+  const shots = [];
+  const page = await openHouse(DESKTOP, layout);
+  const floor = await page.evaluate(() => window.__betrayalHouse.state().floor);
+  for (const view of [0, 1, 2, 3]) shots.push(await capture(page, `room-${room}-${view}`, { floor, view }));
+  shots.push(await capture(page, `room-${room}-close-0`, { floor, focus: room, view: 0 }));
+  shots.push(await capture(page, `room-${room}-close-2`, { floor, focus: room, view: 2 }));
+  await page.close();
+  const phone = await openHouse(PHONE, layout);
+  shots.push(await capture(phone, `room-${room}-phone`, { floor, view: 0, chrome: true }));
+  await phone.close();
+  return shots;
+}
+
+if (ROOM) {
+  await contactSheet(`room-${ROOM}`, await shootRoom(ROOM), 3);
+  await browser.close();
+  process.exit(0);
+}
+
 const desktop = await openHouse(DESKTOP);
 const ground = [];
 const upper = [];
@@ -163,34 +208,10 @@ for (const layout of ["spill-doorway", "spill-wall"]) {
   await page.close();
 }
 
-// An outdoor tile among indoor ones: every view of the floor, and the Graveyard close.
-const outdoors = [];
-const outdoorPage = await openHouse(DESKTOP, "outdoors");
-for (const view of [0, 1, 2, 3]) outdoors.push(await capture(outdoorPage, `outdoors-${view}`, { floor: "ground", view }));
-outdoors.push(await capture(outdoorPage, "outdoors-close-graveyard-0", { focus: "graveyard", view: 0 }));
-outdoors.push(await capture(outdoorPage, "outdoors-close-graveyard-2", { focus: "graveyard", view: 2 }));
-await outdoorPage.close();
-
-const dataUrl = (path) =>
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- reads back the screenshots this run just wrote
-  `data:image/png;base64,${readFileSync(path).toString("base64")}`;
-const cell = (shot) =>
-  `<figure style="margin:0"><img src="${dataUrl(shot.path)}" style="width:100%;display:block;image-rendering:pixelated"><figcaption>${shot.name}</figcaption></figure>`;
-const sheet = await browser.newPage({ viewport: { width: 2000, height: 200 } });
-async function contactSheet(name, shots, columns) {
-  await sheet.setContent(`<!doctype html><html><body style="margin:0;padding:16px;background:#111;color:#bbb;font:14px sans-serif">
-<h1 style="margin:0 0 12px;font-size:18px">house · ${name} · ${LABEL}</h1>
-<div style="display:grid;grid-template-columns:repeat(${columns},1fr);gap:12px;align-items:start">${shots.map(cell).join("")}</div>
-</body></html>`);
-  await sheet.waitForFunction(() => [...document.images].every((img) => img.complete && img.naturalWidth > 0));
-  const path = join(OUTDIR, `sheet-${name}.png`);
-  await sheet.screenshot({ path, fullPage: true });
-  console.log("wrote", path);
-}
 await contactSheet("ground", ground, 2);
 await contactSheet("upper", upper, 2);
 await contactSheet("house", house, 3);
 await contactSheet("play", play, 3);
 await contactSheet("spill", spill, 2);
-await contactSheet("outdoors", outdoors, 2);
+await contactSheet("room-graveyard", await shootRoom("graveyard"), 3);
 await browser.close();

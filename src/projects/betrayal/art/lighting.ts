@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { paletteHex, type PaletteKey } from "./palette";
+import type { FlickerSignal } from "./room";
 
 /*
  * How the house is lit. Almost everything in it stands still, so its light is
@@ -50,11 +51,13 @@ export interface BakedLight {
   range: number;
   /** 0 is steady; 0.15 a candle, 0.3 a fire. At most `MAX_FLICKER`. */
   flicker: number;
+  /** What it wavers with; unset, a flame signal is picked by its place in the room. */
+  signal?: FlickerSignal;
 }
 
 /** The deepest flicker the flicker map can hold. */
 export const MAX_FLICKER = 0.5;
-/** Flickering lights share this many independent flicker signals, so
+/** Flames share this many independent flicker signals (water has one more of its own, see `flickerOf`), so
  *  neighbouring flames don't waver in step. */
 export const FLICKER_CHANNELS = 4;
 
@@ -62,9 +65,30 @@ function flickerAt(seconds: number, phase: number): number {
   return 0.5 * Math.sin(seconds * 7.3 + phase) + 0.3 * Math.sin(seconds * 13.1 + phase * 2.1) + 0.2 * Math.sin(seconds * 23.7 + phase * 3.7);
 }
 
-/** Each flicker channel's signal at a moment, between −1 and 1. */
+const PHASES = [0, 1.9, 3.8, 5.7];
+
+/** The slow swell of light off water: a few seconds a wave, unlike a flame's quick waver. */
+function waterAt(seconds: number): number {
+  return 0.6 * Math.sin(seconds * 1.15) + 0.4 * Math.sin(seconds * 1.9 + 1.3);
+}
+
+/** Each flame channel's signal at a moment, between −1 and 1. */
 export function flickerSignal(seconds: number, out: THREE.Vector4): THREE.Vector4 {
-  return out.set(flickerAt(seconds, 0), flickerAt(seconds, 1.9), flickerAt(seconds, 3.8), flickerAt(seconds, 5.7));
+  return out.set(...(PHASES.map((phase) => flickerAt(seconds, phase)) as [number, number, number, number]));
+}
+
+/** One signal at a moment, between −1 and 1: the same the baked light it
+ *  names wavers by, so a glow can follow its light. */
+export function flickerOf(seconds: number, signal: FlickerSignal): number {
+  return signal === "water" ? waterAt(seconds) : flickerAt(seconds, PHASES[signal]);
+}
+
+/** Where the light that picks out the explorer whose turn it is hangs, above their feet. */
+export const EXPLORER_LIGHT_OFFSET = new THREE.Vector3(0, 2.4, 0.3);
+
+/** The live light over the explorer whose turn it is, in the house and on the bench alike. */
+export function explorerLight(): THREE.PointLight {
+  return new THREE.PointLight(paletteHex("boneLight"), 2.5, 3.5, 2);
 }
 
 export function fillLight(): THREE.HemisphereLight {

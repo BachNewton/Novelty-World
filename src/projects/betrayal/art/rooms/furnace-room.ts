@@ -3,11 +3,11 @@ import { createRng, pick } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { cobweb } from "../kit";
 import { lightAnchor } from "../light-anchor";
-import { flickerSignal } from "../lighting";
+import { flickerOf, flickerSignal } from "../lighting";
 import type { PaletteKey } from "../palette";
 import { INNER, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lathe, lightMaterial, pixelPlane, textured } from "../shapes";
-import { flagstones, pixelTexture, woodPlanks, type PixelLegend } from "../textures";
+import { bricks, flagstones, pixelTexture, woodPlanks } from "../textures";
 
 /** Where the furnace stands, its fire-door facing the left doorway. */
 const FURNACE: [x: number, z: number] = [1.35, -0.45];
@@ -15,36 +15,6 @@ const FURNACE: [x: number, z: number] = [1.35, -0.45];
 const BODY = 0.66;
 /** Height of the collar the ducts rise from. */
 const COLLAR = 1.5;
-
-/** Staggered courses of brick, 25 by 12 cm, shaded from the ramp. */
-function bricks(ramp: readonly PaletteKey[], mortar: PaletteKey, seed: string): THREE.Texture {
-  const rng = createRng(seed);
-  const size = 32;
-  const course = 4;
-  const length = 8;
-  const grid = Array.from({ length: size }, () => Array.from({ length: size }, () => "m"));
-  const shade = (i: number) => String.fromCharCode(97 + i);
-  for (let y = 0; y < size; y += course) {
-    const offset = (y / course) % 2 === 0 ? 0 : length / 2;
-    for (let start = offset; start < size + offset; start += length) {
-      const body = shade(1 + Math.floor(rng.next() * (ramp.length - 2)));
-      for (let dx = 0; dx < length - 1; dx++) {
-        const x = (start + dx) % size;
-        for (let dy = 0; dy < course - 1; dy++) grid[y + dy][x] = body;
-        if (dx > 0 && rng.next() < 0.3) grid[y][x] = shade(ramp.length - 1);
-        if (rng.next() < 0.4) grid[y + course - 2][x] = shade(0);
-      }
-      if (rng.next() < 0.25) grid[y + 1][(start + 2 + Math.floor(rng.next() * 3)) % size] = shade(0);
-    }
-  }
-  const legend: PixelLegend = { m: mortar };
-  ramp.forEach((key, i) => (legend[shade(i)] = key));
-  return pixelTexture(
-    grid.map((row) => row.join("")),
-    legend,
-    true,
-  );
-}
 
 /** A straight round pipe from one point to another. */
 function pipe(from: THREE.Vector3, to: THREE.Vector3, radius: number, material: THREE.Material, sides = 8): THREE.Mesh {
@@ -163,7 +133,8 @@ function furnace(): THREE.Group {
   result.add(seam);
 
   result.add(
-    lightAnchor({ colour: "amber", intensity: 30, range: 12, flicker: 0.5 }, [0, 0.56, 0.95]),
+    // Flame signal 1, which the floor's glowing cracks waver with too.
+    lightAnchor({ colour: "amber", intensity: 30, range: 12, flicker: 0.5, signal: 1 }, [0, 0.56, 0.95]),
     lightAnchor({ colour: "ember", intensity: 8, range: 7, flicker: 0.45 }, [0, 0.12, 0.98]),
     lightAnchor({ colour: "ember", intensity: 5, range: 6, flicker: 0.4 }, [0.1, 0.5, -0.95]),
   );
@@ -318,12 +289,10 @@ function scorchedFloor(): THREE.Group {
   const crackTexture = pixelTexture(cracks, { a: "amber", e: "ember" });
   const glowing = lightMaterial(1, { map: crackTexture });
   const crackPlane = floorDecal(crackTexture, 0.014, glowing);
-  const signal = new THREE.Vector4();
   return group(
     floorDecal(pixelTexture(soot, { v: "void", s: "soot" }), 0.006),
     animated(crackPlane, (seconds) => {
-      flickerSignal(seconds, signal);
-      glowing.opacity = 0.8 + 0.2 * signal.y;
+      glowing.opacity = 0.8 + 0.2 * flickerOf(seconds, 1);
     }),
   );
 }
@@ -418,8 +387,8 @@ function crates(): THREE.Group {
 export const FURNACE_ROOM: RoomDefinition = {
   id: "furnace-room",
   floor: () => flagstones({ ramp: ["ash", "stoneDark", "stone", "stoneLight"], mortar: "soot", stonePx: 12, seed: "furnace-room" }),
-  wall: () => bricks(["woodDark", "wood", "woodMid", "woodLight", "boneDark"], "stoneDark", "furnace-room"),
-  wainscot: () => bricks(["soot", "sootLight", "ash", "stoneDark"], "soot", "furnace-room-soot"),
+  wall: () => bricks({ mortar: "stoneDark", seed: "furnace-room" }),
+  wainscot: () => bricks({ ramp: ["soot", "sootLight", "ash", "stoneDark"], seed: "furnace-room-soot" }),
   trim: "soot",
   props: [
     { build: scorchedFloor, at: FURNACE },

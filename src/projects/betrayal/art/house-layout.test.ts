@@ -3,7 +3,7 @@ import { CATALOG } from "../data";
 import { EDGES, neighbourCell, openings, opposite, placementsAt, roomAt, startingBoard, turn, type Layout } from "../engine/board";
 import { randomFor } from "../engine/random";
 import type { Edge, Rotation } from "../types";
-import { DIRECTION, doorways, HOUSE_FIXTURE, printedEdge, tileTurn, wallIsCut } from "./house-layout";
+import { DIRECTION, doorways, HOUSE_FIXTURE, printedEdge, reviewHouse, tileTurn, wallIsCut } from "./house-layout";
 
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 /** View 0's camera, looking from the bottom-right corner. */
@@ -118,4 +118,23 @@ describe("doorways", () => {
   it("leaves out passages and the locked front door", () => {
     expect(of("grand-staircase")).toEqual({});
   });
+});
+
+describe("reviewHouse", () => {
+  const withArt = new Set(["drawing-room", "chapel", "library", "kitchen", "chasm", "furnace-room", "graveyard", "underground-lake"]);
+  for (const room of ["kitchen", "chasm", "furnace-room", "graveyard", "underground-lake", "upper-landing", "foyer"]) {
+    it(`${room}: joins a plain room to every doorway, each placed legally`, () => {
+      const { layout, starts } = reviewHouse(room, CATALOG, withArt);
+      const centre = tile(layout, room);
+      expect(starts[0]).toBe(room);
+      expect(layout.tiles).toHaveLength(openings(CATALOG, centre).length + 1);
+      for (const direction of openings(CATALOG, centre)) {
+        const cell = neighbourCell(centre, direction);
+        const next = roomAt(layout, centre.floor, cell.x, cell.y);
+        if (!next) throw new Error(`Nothing through ${room}'s ${direction} doorway`);
+        expect(withArt.has(next.tile) || CATALOG.rooms[next.tile].outside).toBe(false);
+        expect(openings(CATALOG, next)).toContain(opposite(direction));
+      }
+    });
+  }
 });

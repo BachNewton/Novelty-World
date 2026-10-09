@@ -304,6 +304,51 @@ export function panelling({ ramp = RAMPS.wood, panelPx = 24, seed = "panels" }: 
   });
 }
 
+export interface BrickOptions {
+  /** Dark to light: the shadow along a brick's foot and its chips, the bodies
+   *  (every key but the first and last, or all of a two-key ramp), and the
+   *  light along a brick's top. */
+  ramp?: Ramp;
+  mortar?: PaletteKey;
+  /** How worn the faces are, 0–1: how often a brick's top catches the light and its foot is shadowed. 0 is flat colour, chips only. */
+  wear?: number;
+  /** Texture size in texels (64 = 2 m). */
+  size?: number;
+  seed?: string;
+}
+
+/** Brick in stretcher bond, 25 × 12.5 cm a brick with its joint (8 × 4
+ *  texels): each brick a body colour from the ramp, its top edge catching the
+ *  light and its foot in shadow here and there, the odd one chipped. */
+export function bricks({ ramp = RAMPS.brick, mortar = "soot", wear = 0.35, size = 64, seed = "bricks" }: BrickOptions = {}): THREE.Texture {
+  return cached(`bricks:${ramp.join()}:${mortar}:${wear}:${size}:${seed}`, () => {
+    const { element, context } = canvas(size, size);
+    const paint = painter(context);
+    const rng = createRng(seed);
+    const at = (x: number, y: number, colour: PaletteKey) => paint((x + size) % size, y, 1, 1, colour);
+    const shadow = ramp[0];
+    const light = ramp[ramp.length - 1];
+    const bodies = ramp.length > 2 ? ramp.slice(1, -1) : ramp;
+    paint(0, 0, size, size, mortar);
+    for (let course = 0; course < size / 4; course++) {
+      const y = course * 4;
+      const offset = (course % 2) * 4;
+      for (let brick = 0; brick < size / 8; brick++) {
+        const x0 = brick * 8 + offset;
+        const body = pick(rng, bodies);
+        paint(x0, y, 7, 3, body);
+        paint(x0 - size, y, 7, 3, body);
+        for (let dx = 0; dx < 7; dx++) {
+          if (dx > 0 && rng.next() < wear * 0.8) at(x0 + dx, y, light);
+          if (rng.next() < wear) at(x0 + dx, y + 2, shadow);
+        }
+        if (rng.next() < 0.3) at(x0 + 1 + between(rng, 0, 4), y + 1, shadow);
+      }
+    }
+    return finish(element, true);
+  });
+}
+
 export interface EarthOptions {
   /** Dark to light: pits, the body of the soil, clods. */
   soil?: Ramp;

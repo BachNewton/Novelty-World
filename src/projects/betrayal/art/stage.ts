@@ -21,7 +21,9 @@ import {
   WINDOW_SILL,
   WINDOW_TOP,
   WINDOW_WIDTH,
+  explorerSpots,
   wallTurn,
+  type FloorOpening,
   type PropPlacement,
   type RoomDefinition,
 } from "./room";
@@ -275,24 +277,112 @@ export function moonPosition(def: RoomDefinition): THREE.Vector3 {
   return new THREE.Vector3(outward.x * Math.cos(elevation) * 12 + 1, Math.sin(elevation) * 12, outward.y * Math.cos(elevation) * 12 + 0.6);
 }
 
-/** The floor slab as rectangles [x0, x1, z0, z1] covering the tile around its
- *  openings: the tile is cut on every opening's edges, and each cell outside
- *  the openings is kept. With no openings it is the whole tile. */
-function floorPieces(holes: NonNullable<RoomDefinition["floorOpenings"]>): [number, number, number, number][] {
+/** How thick the floor slab is. */
+const SLAB = 0.2;
+/** How far a polygonal opening's rectangle cut reaches past the polygon, so the infill round it never meets it. */
+const INFILL_MARGIN = 0.1;
+
+type Rect = [x0: number, x1: number, z0: number, z1: number];
+
+/** The rectangle cut from the slab for an opening: a rectangle opening itself,
+ *  or a polygon's bounds grown by `INFILL_MARGIN` (within the tile), which
+ *  `polygonInfill` then floors back up to the polygon's edge. */
+function openingRect(opening: FloorOpening, id: string): Rect {
+  if (!("polygon" in opening)) return [opening.x[0], opening.x[1], opening.z[0], opening.z[1]];
   const half = TILE / 2;
-  const cuts = (axis: "x" | "z") => [...new Set([-half, half, ...holes.flatMap((hole) => hole[axis])])].sort((a, b) => a - b);
-  const xs = cuts("x");
-  const zs = cuts("z");
-  const pieces: [number, number, number, number][] = [];
+  const xs = opening.polygon.map(([x]) => x);
+  const zs = opening.polygon.map(([, z]) => z);
+  if (opening.polygon.length < 3) throw new Error(`${id} has a floor opening with fewer than three corners`);
+  if (Math.max(...xs.map(Math.abs), ...zs.map(Math.abs)) > half - 0.01) throw new Error(`${id} has a floor opening reaching within 1 cm of the tile's edge; keep it inside the tile`);
+  return [Math.max(-half, Math.min(...xs) - INFILL_MARGIN), Math.min(half, Math.max(...xs) + INFILL_MARGIN), Math.max(-half, Math.min(...zs) - INFILL_MARGIN), Math.min(half, Math.max(...zs) + INFILL_MARGIN)];
+}
+
+/** The floor slab as rectangles [x0, x1, z0, z1] covering the tile around the
+ *  openings' rectangles: the tile is cut on every rectangle's edges, and each
+ *  cell outside them is kept. With no openings it is the whole tile. */
+function floorPieces(holes: Rect[]): Rect[] {
+  const half = TILE / 2;
+  const cuts = (axis: 0 | 2) => [...new Set([-half, half, ...holes.flatMap((hole) => [hole[axis], hole[axis + 1]])])].sort((a, b) => a - b);
+  const xs = cuts(0);
+  const zs = cuts(2);
+  const pieces: Rect[] = [];
   for (let i = 0; i < xs.length - 1; i++) {
     for (let j = 0; j < zs.length - 1; j++) {
       const cx = (xs[i] + xs[i + 1]) / 2;
       const cz = (zs[j] + zs[j + 1]) / 2;
-      const open = holes.some(({ x, z }) => cx > x[0] && cx < x[1] && cz > z[0] && cz < z[1]);
+      const open = holes.some(([x0, x1, z0, z1]) => cx > x0 && cx < x1 && cz > z0 && cz < z1);
       if (!open) pieces.push([xs[i], xs[i + 1], zs[j], zs[j + 1]]);
     }
   }
   return pieces;
+}
+
+/**
+ * The slab between a polygonal opening and the rectangle cut round it: the
+ * ring between them in triangles, each a closed prism of the slab's depth, so
+ * every piece of the floor is convex. Tops take the floor's material, sides
+ * and bottoms the slab's, and the tops come first, in one run, so they light
+ * as one floor rather than as scattered scraps.
+ */
+function polygonInfill(rect: Rect, polygon: [number, number][], floorMaterial: THREE.Material, slab: THREE.Material, texture: THREE.Texture): THREE.Mesh {
+  const [x0, x1, z0, z1] = rect;
+  const outline = [new THREE.Vector2(x0, z0), new THREE.Vector2(x1, z0), new THREE.Vector2(x1, z1), new THREE.Vector2(x0, z1)];
+  const hole = polygon.map(([x, z]) => new THREE.Vector2(x, z));
+  // Earcut wants the outline clockwise and the hole anticlockwise, as three's ShapeGeometry gives them.
+  if (!THREE.ShapeUtils.isClockWise(outline)) outline.reverse();
+  if (THREE.ShapeUtils.isClockWise(hole)) hole.reverse();
+  const points = [...outline, ...hole];
+  const triangles = THREE.ShapeUtils.triangulateShape(outline, [hole]);
+  /** Corners in the order that faces up: anticlockwise seen from above. */
+  const upward = ([a, b, c]: number[]) => {
+    const [pa, pb, pc] = [points[a], points[b], points[c]];
+    const turn = (pb.x - pa.x) * (pc.y - pa.y) - (pb.y - pa.y) * (pc.x - pa.x);
+    // x right and z towards the viewer: a positive turn in (x, z) is clockwise seen from above.
+    return turn > 0 ? [a, c, b] : [a, b, c];
+  };
+  // Every face has corners of its own, so it lights flat; a side's two triangles share theirs, so they read as one face.
+  const position: number[] = [];
+  const tops: number[] = [];
+  const rest: number[] = [];
+  const corner = (i: number, y: number) => position.push(points[i].x, y, points[i].y) / 3 - 1;
+  for (const triangle of triangles) {
+    const [a, b, c] = upward(triangle);
+    tops.push(corner(a, 0), corner(b, 0), corner(c, 0));
+    rest.push(corner(a, -SLAB), corner(c, -SLAB), corner(b, -SLAB));
+    for (const [p, q] of [[a, b], [b, c], [c, a]]) {
+      const [pTop, pFoot, qFoot, qTop] = [corner(p, 0), corner(p, -SLAB), corner(q, -SLAB), corner(q, 0)];
+      rest.push(pTop, pFoot, qFoot, pTop, qFoot, qTop);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+  geometry.setIndex([...tops, ...rest]);
+  geometry.computeVertexNormals();
+  geometry.addGroup(0, tops.length, 0);
+  geometry.addGroup(tops.length, rest.length, 1);
+  return new THREE.Mesh(projectUvs(geometry, texture), [floorMaterial, slab]);
+}
+
+/**
+ * Bake-only plugs across a room's doorways and passages, on the tile's edge.
+ * In the house a doorway with no room beyond it leads into the dark of the
+ * unexplored house, not out under the moon, so the bake shuts it there and
+ * on the bench (see `bakeScene`). The front door leads outside, so it stays open.
+ */
+function doorwayPlugs(tile: RoomTile): THREE.Mesh[] {
+  if (tile.outside) return [];
+  const plugs: THREE.Mesh[] = [];
+  for (const edge of EDGES) {
+    const passage = tile.passages.includes(edge);
+    if (!passage && (!tile.doors.includes(edge) || tile.frontDoor === edge)) continue;
+    const [width, height] = passage ? [TILE, WALL_HEIGHT] : [DOOR_WIDTH + 0.02, DOOR_HEIGHT + 0.01];
+    const plug = new THREE.Mesh(new THREE.PlaneGeometry(width, height).translate(0, height / 2, -TILE / 2), flat("void"));
+    plug.rotation.y = THREE.MathUtils.degToRad(wallTurn(edge));
+    plug.userData.bakeOnly = true;
+    plug.userData.plug = edge;
+    plugs.push(plug);
+  }
+  return plugs;
 }
 
 /** Builds an explorer figure. The seed gives each figure its own phase, so
@@ -342,6 +432,8 @@ export interface RoomPart {
   explorer: THREE.Object3D | null;
   /** The room's own lights, all baked. */
   lights: BakedLight[];
+  /** Where explorers stand (the pawn spot, then the second spot), if the room has a pawn spot. */
+  spots: [x: number, z: number][];
   /** Resolves once every texture has its pixels (SVG decals decode asynchronously). */
   ready: Promise<void>;
   dispose: () => void;
@@ -359,10 +451,15 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     trim: flat(def.trim),
   };
 
-  const floorMaterial = textured(def.floor());
+  const floorTexture = def.floor();
+  const floorMaterial = textured(floorTexture);
   const slab = flat("sootLight");
-  for (const [x0, x1, z0, z1] of floorPieces(def.floorOpenings ?? [])) {
-    const piece = box([x1 - x0, 0.2, z1 - z0], [slab, slab, floorMaterial, slab, slab, slab], [(x0 + x1) / 2, -0.2, (z0 + z1) / 2]);
+  const holes = def.floorOpenings ?? [];
+  const floor: THREE.Mesh[] = floorPieces(holes.map((hole) => openingRect(hole, def.id))).map(([x0, x1, z0, z1]) =>
+    box([x1 - x0, SLAB, z1 - z0], [slab, slab, floorMaterial, slab, slab, slab], [(x0 + x1) / 2, -SLAB, (z0 + z1) / 2]),
+  );
+  for (const hole of holes) if ("polygon" in hole) floor.push(polygonInfill(openingRect(hole, def.id), hole.polygon, floorMaterial, slab, floorTexture));
+  for (const piece of floor) {
     piece.userData.piece = { shell: "floor" } satisfies Piece;
     root.add(piece);
   }
@@ -375,6 +472,8 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     ceiling.userData.bakeOnly = true;
     root.add(ceiling);
   }
+  const plugs = doorwayPlugs(tile);
+  if (plugs.length) root.add(...plugs);
 
   const walls: RoomPart["walls"] = [];
   for (const edge of EDGES) {
@@ -396,7 +495,8 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
 
   const hung: RoomPart["hung"] = [];
   for (const prop of def.props) {
-    const object = prop.build();
+    // A holder takes the placement, so a transform the build gives its piece is kept.
+    const object = group(prop.build());
     object.position.set(prop.at[0], prop.y ?? 0, prop.at[1]);
     object.rotation.y = THREE.MathUtils.degToRad(prop.turn ?? 0);
     object.userData.piece = { prop } satisfies Piece;
@@ -451,6 +551,7 @@ export function buildRoom(def: RoomDefinition, { explorer: buildExplorer = () =>
     },
     explorer,
     lights,
+    spots: def.pawn ? explorerSpots(def.pawn) : [],
     dispose: () => disposeTree(root),
     ready: Promise.all([...textures].map(textureReady)).then(() => undefined),
   };

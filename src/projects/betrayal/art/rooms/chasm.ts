@@ -5,7 +5,7 @@ import { lightAnchor } from "../light-anchor";
 import { paletteHex, RAMPS, type PaletteKey } from "../palette";
 import { INNER, TILE, onWall, type RoomDefinition } from "../room";
 import { batch, box, cylinder, flat, glow, group, lightMaterial, projectUvs, textured, type Batch } from "../shapes";
-import { flagstones, pixelTexture } from "../textures";
+import { bricks, flagstones } from "../textures";
 
 /** The gulf, wall to wall from the top edge to the bottom: one stretch of its
  *  ragged course after another, each with the floor's broken edge either side. */
@@ -27,30 +27,6 @@ const DECK = 0.012;
 const POST_X = 1.08;
 const RAIL_Z = 0.46;
 const GULF_X: [number, number] = [Math.min(...COURSE.map((c) => c.x[0])), Math.max(...COURSE.map((c) => c.x[1]))];
-
-/** Coursed brick, three texels a course, laid in stretcher bond above the stone footing. */
-function brick(): THREE.Texture {
-  const rng = createRng("chasm-brick");
-  const size = 64;
-  const bodies = ["w", "m", "m", "s", "w", "m"];
-  const rows: string[] = [];
-  for (let course = 0; course < size / 4; course++) {
-    const shift = course % 2 === 0 ? 0 : 4;
-    const [top, middle, foot] = [[], [], []].map(() => Array<string>(size).fill(" "));
-    for (let b = 0; b < size / 8; b++) {
-      const body = pick(rng, bodies);
-      const chip = rng.next() < 0.3 ? 1 + Math.floor(rng.next() * 5) : -1;
-      for (let k = 0; k < 7; k++) {
-        const x = (shift + b * 8 + k) % size;
-        top[x] = k === 0 ? "l" : body;
-        middle[x] = k === chip ? "d" : body;
-        foot[x] = "d";
-      }
-    }
-    rows.push(top.join(""), middle.join(""), foot.join(""), " ".repeat(size));
-  }
-  return pixelTexture(rows, { " ": "soot", w: "woodMid", m: "wood", s: "stoneDark", d: "woodDark", l: "woodLight" }, true);
-}
 
 /** Rough rock, for the sides of the gulf. */
 function rock(): THREE.Texture {
@@ -346,7 +322,7 @@ function cask(): THREE.Group {
 export const CHASM: RoomDefinition = {
   id: "chasm",
   floor: () => flagstones({ seed: "chasm" }),
-  wall: brick,
+  wall: () => bricks({ seed: "chasm-brick" }),
   wainscot: () => flagstones({ ramp: RAMPS.stone, stonePx: 10, seed: "chasm-footing" }),
   trim: "stoneDark",
   floorOpenings: COURSE,

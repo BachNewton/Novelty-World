@@ -4,7 +4,7 @@ import type { ThreeSceneContext, ThreeSceneHandlers } from "@/shared/lib/three/u
 import { BENCH_EXPLORERS, type BenchExplorer } from "./explorers";
 import type { Edge } from "../types";
 import { freezeRoom } from "./freeze";
-import { budgetGuard, fillLight, HOUSE_LIGHT, houseFog } from "./lighting";
+import { budgetGuard, EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, HOUSE_LIGHT, houseFog } from "./lighting";
 import type { Baker } from "./bake";
 import { workerBaker } from "./bake-workers";
 import { createLitFloor, type Rebake } from "./lit-floor";
@@ -85,7 +85,8 @@ declare global {
 }
 
 /** One room on its own, lit exactly as the house lights it: baked, under the
- *  house's fill and moon, laid unturned. */
+ *  house's fill and moon, laid unturned, as a house of one room, with the
+ *  house's light over the explorer whose turn it is. */
 function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker: Baker) {
   const part = buildRoom(def, { explorer: explorerBuilder });
   const explorer = part.explorer;
@@ -95,8 +96,12 @@ function benchStage(def: RoomDefinition, explorerBuilder: ExplorerBuilder, baker
   const fog = houseFog();
   let isCut: (edge: Edge) => boolean = () => false;
   const cut = () => floor.rooms.get(def.id)?.setCut(isCut);
+  // The explorer standing in the room is the one whose turn it is, so it has the house's light over it.
+  const overExplorer = explorerLight();
+  if (explorer) overExplorer.position.copy(explorer.getWorldPosition(new THREE.Vector3())).add(EXPLORER_LIGHT_OFFSET);
+  overExplorer.visible = explorer !== null;
   return {
-    root: group(floor.root, fillLight()),
+    root: group(floor.root, fillLight(), overExplorer),
     fog,
     background: fog.color.clone(),
     setCutaway: (cameraDirection: THREE.Vector2) => {
