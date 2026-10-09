@@ -87,8 +87,14 @@ export interface RoomDefinition {
   focus?: [x: number, y: number, z: number];
   /** Holes cut through the floor (a stairwell), as x and z ranges in room metres. */
   floorOpenings?: { x: [number, number]; z: [number, number] }[];
-  /** Where the scale-reference explorer pawn stands. */
+  /** Where the scale-reference explorer pawn stands, and where an explorer
+   *  in the house stands in the room. */
   pawn?: [x: number, z: number];
+  /** For each room a fixed link (a stair) joins this one to, the way an
+   *  explorer walks it: points in room metres, from this room's floor to
+   *  where the stair leaves the room. A walk between the two rooms goes up
+   *  one room's stair and down the other's. */
+  stairs?: Record<string, [x: number, y: number, z: number][]>;
 }
 
 const WALL_TURN: Record<Edge, number> = { top: 0, right: -90, bottom: 180, left: 90 };

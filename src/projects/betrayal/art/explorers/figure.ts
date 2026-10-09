@@ -8,6 +8,20 @@ export function figureBase(rim: PaletteKey = "boneDark"): THREE.Mesh {
   return cylinder(0.36, 0.08, flat(rim), [0, 0, 0], { top: 0.34, sides: 12 });
 }
 
+/** How a figure moves its legs at a moment: `phase` runs on with the distance
+ *  walked (a full turn is two steps), and `amount` eases from 0, standing,
+ *  to 1, in full stride. */
+export interface Stride {
+  phase: number;
+  amount: number;
+}
+
+/** Where a figure is in its stride at a moment on the stage's clock. A figure
+ *  that is never walked stands still. */
+export type Gait = (seconds: number) => Stride;
+
+export const STANDING: Gait = () => ({ phase: 0, amount: 0 });
+
 /** A limb's two rotations: the shoulder (or hip) and the elbow (or knee). */
 export interface Reach {
   shoulder: THREE.Quaternion;

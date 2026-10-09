@@ -14,6 +14,8 @@ const MID = (STAIR.back + STAIR.front) / 2;
 /** The edge of the well on the landing side, where the balustrade stands. */
 const EDGE = -1.41;
 const WELL_DEPTH = 1.9;
+/** The whole steps of the flight that show in the well. */
+const WELL_STEPS = Math.floor((HEAD - WELL.x[0]) / STAIR.going);
 
 /** The head of the grand staircase climbing up out of the well, in the
  *  ground floor's own measure and dress, with the lining of the well. */
@@ -125,4 +127,12 @@ export const UPPER_LANDING: RoomDefinition = {
   mood: suiteMood(0),
   focus: [-0.8, 0.6, -1.8],
   pawn: [0.8, -0.9],
+  // Down the head of the flight, over the middle of each tread, to the last step showing in the well.
+  stairs: {
+    "grand-staircase": [
+      [HEAD + 0.8, 0, MID],
+      [HEAD + STAIR.going / 2, 0, MID],
+      [HEAD - (WELL_STEPS - 0.5) * STAIR.going, -WELL_STEPS * STAIR.rise, MID],
+    ],
+  },
 };

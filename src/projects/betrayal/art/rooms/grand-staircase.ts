@@ -195,4 +195,12 @@ export const GRAND_STAIRCASE: RoomDefinition = {
   mood: suiteMood(1.2),
   focus: [0.4, 1.0, -1.6],
   pawn: [1.2, 0.5],
+  // Up the middle of the carpet, over the middle of each tread, into the dark above.
+  stairs: {
+    "upper-landing": [
+      [STAIR.foot + 0.8, 0, STAIR_MID],
+      [STAIR.foot + STAIR.going / 2, 0, STAIR_MID],
+      [STAIR.foot - (STAIR.steps - 0.5) * STAIR.going, STAIR.steps * STAIR.rise, STAIR_MID],
+    ],
+  },
 };

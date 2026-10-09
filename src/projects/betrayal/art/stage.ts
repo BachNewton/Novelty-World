@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { ROOMS } from "../data/rooms";
 import type { Edge, RoomTile } from "../types";
 import { animationOf, type Animation } from "./animate";
+import type { Gait } from "./explorers/figure";
 import { pawn } from "./kit/pawn";
 import { anchoredLight } from "./light-anchor";
 import { paletteHex } from "./palette";
@@ -276,8 +277,9 @@ function floorPieces(holes: NonNullable<RoomDefinition["floorOpenings"]>): [numb
 }
 
 /** Builds an explorer figure. The seed gives each figure its own phase, so
- *  several in one room never move in step. */
-export type ExplorerBuilder = (seed: string) => THREE.Object3D;
+ *  several in one room never move in step; `gait` says when it walks, for a
+ *  figure that can (on the bench, none does). */
+export type ExplorerBuilder = (seed: string, gait?: Gait) => THREE.Object3D;
 
 export interface RoomOptions {
   /** Who stands at the room's pawn spot (the scale pawn unless told

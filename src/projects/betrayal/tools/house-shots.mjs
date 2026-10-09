@@ -9,7 +9,10 @@
 // Usage:  node src/projects/betrayal/tools/house-shots.mjs [label]
 // Writes to src/projects/betrayal/.shots/<label>/house/ (gitignored): every floor from the four views,
 // the whole house stacked, close views of single rooms, a phone shot, and three contact sheets:
-// sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone).
+// sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone). Those
+// judge the art, so the choices' glow and route are hidden in them. sheet-play.png shows the stand-in
+// decision: a focused choice with its route preview (desktop and phone), and a walk up the grand
+// staircase frozen at several moments, ending with the room framed close as the explorer enters it.
 
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync } from "node:fs";
@@ -54,12 +57,19 @@ async function openHouse(viewport) {
   return page;
 }
 
+async function settle(page) {
+  await page.waitForFunction(() => window.__betrayalHouse.isReady(), null, { timeout: 60000 });
+  const frame = await page.evaluate(() => window.__betrayalHouse.frameCount());
+  await page.waitForFunction((n) => window.__betrayalHouse.frameCount() >= n + 2, frame, { timeout: 10000 });
+}
+
 async function capture(page, name, { floor = "ground", view = 0, zoom = 1, focus = null, chrome = false } = {}) {
   await page.evaluate(
     ({ floor, view, zoom, focus, chrome }) => {
       const house = window.__betrayalHouse;
+      house.showChoices(false);
       house.setFloor(floor);
-      house.setFocus(focus);
+      house.setCloseUp(focus);
       house.setView(view);
       house.setZoom(zoom);
       document.querySelectorAll(".pointer-events-none").forEach((el) => {
@@ -99,6 +109,38 @@ const phone = await openHouse(PHONE);
 house.push(await capture(phone, "phone", { floor: "ground", view: 0, chrome: true }));
 await phone.close();
 
+/** The stand-in decision as a player sees it, with the page's own panel and hints. */
+async function shoot(page, name) {
+  await settle(page);
+  const path = join(OUTDIR, `${name}.png`);
+  await page.screenshot({ path });
+  console.log("wrote", path);
+  return { name, path };
+}
+const play = [];
+const choosing = await openHouse(DESKTOP);
+// A key press first, so the panel shows the keyboard's hints.
+await choosing.keyboard.press("ArrowLeft");
+await choosing.evaluate(() => window.__betrayalHouse.focus("dining-room"));
+play.push(await shoot(choosing, "play-focused"));
+await choosing.evaluate(() => window.__betrayalHouse.focus("upper-landing"));
+play.push(await shoot(choosing, "play-focused-upstairs"));
+// A walk from the Library up the grand staircase, frozen at moments along it.
+await choosing.evaluate(() => window.__betrayalHouse.choose("upper-landing"));
+for (const after of [1.2, 4.2, 5.2, 5.9, 6.6]) {
+  await choosing.evaluate((at) => window.__betrayalHouse.freezeClock(at), FREEZE_AT + after);
+  play.push(await shoot(choosing, `play-walk-${after}`));
+}
+await choosing.evaluate(() => window.__betrayalHouse.freezeClock(null));
+await choosing.waitForFunction(() => window.__betrayalHouse.state().phase === "entering", null, { timeout: 30000 });
+await choosing.evaluate((at) => window.__betrayalHouse.freezeClock(at), FREEZE_AT);
+play.push(await shoot(choosing, "play-entering"));
+await choosing.close();
+const phonePlay = await openHouse(PHONE);
+await phonePlay.evaluate(() => window.__betrayalHouse.focus("foyer"));
+play.push(await shoot(phonePlay, "play-phone"));
+await phonePlay.close();
+
 const dataUrl = (path) =>
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- reads back the screenshots this run just wrote
   `data:image/png;base64,${readFileSync(path).toString("base64")}`;
@@ -118,4 +160,5 @@ async function contactSheet(name, shots, columns) {
 await contactSheet("ground", ground, 2);
 await contactSheet("upper", upper, 2);
 await contactSheet("house", house, 3);
+await contactSheet("play", play, 3);
 await browser.close();

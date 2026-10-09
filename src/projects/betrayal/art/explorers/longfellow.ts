@@ -3,7 +3,7 @@ import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
 import { batch, box, cylinder, flat, group, lathe, textured } from "../shapes";
 import { pixelTexture, TEXELS_PER_METRE, type PixelLegend } from "../textures";
-import { burst, figureBase, reach, type Reach } from "./figure";
+import { burst, figureBase, reach, STANDING, type Gait, type Reach } from "./figure";
 
 /*
  * Professor Longfellow: a slight, elderly scholar, all Knowledge and no Might.
@@ -17,6 +17,11 @@ import { burst, figureBase, reach, type Reach } from "./figure";
 
 const BASE_TOP = 0.08;
 const WAIST = 0.7;
+/** The legs swing from the hips, at the waist. */
+const HIP = WAIST - BASE_TOP;
+/** How far a leg swings forward and back in full stride, and the free arm. */
+const LEG_SWING = 0.42;
+const ARM_SWING = 0.3;
 const NECK = 1.18;
 const SHOULDER: [number, number] = [0.22, 1.12];
 const UPPER_ARM = 0.28;
@@ -159,10 +164,19 @@ function pose(limb: Arm, from: Reach, to: Reach, amount: number) {
   limb.elbow.quaternion.slerpQuaternions(from.elbow, to.elbow, amount);
 }
 
+/** Swings a piece built in place about a hip at `at`, turning it `angle`
+ *  forward. At rest its transform is exactly the identity, so a figure that
+ *  never walks is drawn exactly as it was built. */
+function swing(piece: THREE.Group, at: THREE.Vector3, angle: number) {
+  piece.rotation.x = angle;
+  piece.position.copy(at).sub(at.clone().applyAxisAngle(new THREE.Vector3(1, 0, 0), angle));
+}
+
 /** Professor Longfellow as a miniature on a round base, about 1.6 m tall,
  *  reading his book; he breathes, shifts his weight, glances up, and now and
- *  then pushes his spectacles back up his nose. */
-export function longfellow(seed = "longfellow"): THREE.Group {
+ *  then pushes his spectacles back up his nose. When `gait` walks him, his
+ *  legs and free arm swing and he leans into the walk, his book still open. */
+export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Group {
   const coat = flat("verdigris");
 
   const neck = group(head());
@@ -200,20 +214,16 @@ export function longfellow(seed = "longfellow"): THREE.Group {
   hips.position.y = WAIST - BASE_TOP;
 
   const trousers = flat("ash");
-  const body = group(
-    box([0.11, WAIST - BASE_TOP + 0.02, 0.13], trousers, [-0.065, 0, 0]),
-    box([0.11, WAIST - BASE_TOP + 0.02, 0.13], trousers, [0.065, 0, 0]),
-    hips,
-  );
+  const shoe = flat("woodDark");
+  // The trouser legs swing in the body from the hip; the shoes stand outside it, so its sway leaves them planted.
+  const [rightLeg, leftLeg] = [-0.065, 0.065].map((x) => group(box([0.11, HIP + 0.02, 0.13], trousers, [x, 0, 0])));
+  const [rightShoe, leftShoe] = [-0.065, 0.065].map((x) => group(box([0.12, 0.06, 0.2], shoe, [x, BASE_TOP, 0.03])));
+  const hipInBody = new THREE.Vector3(0, HIP, 0);
+  const hipInFigure = new THREE.Vector3(0, WAIST, 0);
+  const body = group(rightLeg, leftLeg, hips);
   body.position.y = BASE_TOP;
 
-  const shoe = flat("woodDark");
-  const figure = group(
-    figureBase(),
-    body,
-    box([0.12, 0.06, 0.2], shoe, [-0.065, BASE_TOP, 0.03]),
-    box([0.12, 0.06, 0.2], shoe, [0.065, BASE_TOP, 0.03]),
-  );
+  const figure = group(figureBase(), body, rightShoe, leftShoe);
 
   const rng = createRng(seed);
   const breathPhase = rng.next() * Math.PI * 2;
@@ -241,5 +251,21 @@ export function longfellow(seed = "longfellow"): THREE.Group {
     neck.rotation.z = sway * 0.01;
 
     pose(right, hangs, spectacles, gesture.amount);
+
+    const stride = gait(clock);
+    if (stride.amount > 0) {
+      const step = Math.sin(stride.phase) * stride.amount;
+      swing(rightLeg, hipInBody, step * LEG_SWING);
+      swing(leftLeg, hipInBody, -step * LEG_SWING);
+      swing(rightShoe, hipInFigure, step * LEG_SWING);
+      swing(leftShoe, hipInFigure, -step * LEG_SWING);
+      right.shoulder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -step * ARM_SWING));
+      chest.rotation.x += 0.08 * stride.amount;
+    } else {
+      for (const piece of [rightLeg, leftLeg, rightShoe, leftShoe]) {
+        piece.rotation.x = 0;
+        piece.position.set(0, 0, 0);
+      }
+    }
   });
 }
