@@ -308,7 +308,7 @@ fight: move one surface clearly inside or clear of the other.
   data, silhouettes and colours distinct, one family of style.
 - **The house's distance**: can you name the figure without its ring, lit
   and unlit, at the whole-floor view and on the phone? Shoot it in the
-  house (`?house`, with the figure in the cast) or, when the house view
+  house (`?house`, with the figure in the demo's cast in `art/house-demo.ts`) or, when the house view
   can't take it, shoot the bench's view 0 and scale it to a third, about
   the whole-floor distance.
 - **The walk and the run**: the walking and running line-ups' strips, and
@@ -331,7 +331,7 @@ the room-art skill.
   `--explorer-zoom=0.6` (0.35 for every figure) to frame the row. Read
   `explorer.png`; the idle strip crops to the middle of the row.
 - **The house**: `node src/projects/betrayal/tools/house-shots.mjs <label>`
-  with the figure in the cast.
+  with the figure in the demo's cast (`art/house-demo.ts`).
 
 Judge each round in this order, and don't polish detail while a higher item
 fails:

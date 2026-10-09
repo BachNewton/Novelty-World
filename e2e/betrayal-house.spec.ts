@@ -1,10 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * The Betrayal house view's stand-in decision, once per input method: each
+ * The Betrayal house demo's stand-in decision, once per input method: each
  * test walks Longfellow a leg to a chosen room and then stops his move there,
- * ending his turn. Every wait is on the view's own state
- * (window.__betrayalHouse), never a pause.
+ * ending his turn. Choices are named by target id (`walk:<room>`, `stop`).
+ * Every wait is on the view's own state (window.__betrayalHouse), never a pause.
  */
 
 const HOUSE = "/board-games/betrayal?house";
@@ -25,33 +25,33 @@ async function openHouse(page: Page): Promise<void> {
     throw error;
   });
   await page.goto(HOUSE);
-  await page.waitForFunction(() => window.__betrayalHouse?.isReady() === true && window.__betrayalHouse.state().phase === "choosing", null, {
+  await page.waitForFunction(() => window.__betrayalHouse?.isReady() === true && window.__betrayalHouse.state().phase === "choosing" && !window.__betrayalHouse.state().walking, null, {
     timeout: 60_000,
   });
 }
 
 const focused = (page: Page) => page.evaluate(() => window.__betrayalHouse?.state().focused ?? null);
 
-/** Where Longfellow stands: the choice that stops his move there. */
-const standing = (page: Page) => page.evaluate(() => window.__betrayalHouse?.state().explorers[0].room ?? "");
+/** The choice that stops Longfellow's move where he stands. */
+const STOP = "stop";
 
-async function screenPoint(page: Page, room: string): Promise<Point> {
-  const at = await page.evaluate((target) => window.__betrayalHouse?.screenPoint(target) ?? null, room);
-  if (!at) throw new Error(`${room} has no place on screen`);
+async function screenPoint(page: Page, id: string): Promise<Point> {
+  const at = await page.evaluate((target) => window.__betrayalHouse?.screenPoint(target) ?? null, id);
+  if (!at) throw new Error(`${id} has no place on screen`);
   return at;
 }
 
 /** A room to walk to, other than the focused one, on the floor showing,
  *  whose spot on the screen is open house (not under the page's panels). */
-async function openChoice(page: Page): Promise<{ room: string; at: Point }> {
+async function openChoice(page: Page): Promise<{ id: string; room: string; at: Point }> {
   const found = await page.evaluate(() => {
     const house = window.__betrayalHouse;
     if (!house) throw new Error("No house view");
     const state = house.state();
     for (const choice of state.choices) {
-      if (choice.stop || choice.room === state.focused || choice.floor !== state.floor) continue;
-      const at = house.screenPoint(choice.room);
-      if (at && document.elementFromPoint(at.x, at.y) instanceof HTMLCanvasElement) return { room: choice.room, at };
+      if (choice.stop || choice.id === state.focused || choice.floor !== state.floor) continue;
+      const at = house.screenPoint(choice.id);
+      if (at && document.elementFromPoint(at.x, at.y) instanceof HTMLCanvasElement) return { id: choice.id, room: choice.room, at };
     }
     return null;
   });
@@ -59,14 +59,14 @@ async function openChoice(page: Page): Promise<{ room: string; at: Point }> {
   return found;
 }
 
-/** Waits for Longfellow to stand in `room` and the camera to settle, offered
- *  his next leg or, with `turnOver`, with the turn passed to the pawn. */
+/** Waits for Longfellow to stand in `room`, his walk over and the camera
+ *  settled, offered his next leg or, with `turnOver`, with the turn passed to the pawn. */
 async function arrived(page: Page, room: string, { turnOver = false } = {}): Promise<void> {
   await page.waitForFunction(
     ([target, over]) => {
       const house = window.__betrayalHouse;
       const state = house?.state();
-      return state?.phase === "choosing" && state.active === (over ? 1 : 0) && state.explorers[0].room === target && house?.isReady() === true;
+      return state?.phase === "choosing" && !state.walking && state.active === (over ? 1 : 0) && state.explorers[0].room === target && house?.isReady() === true;
     },
     [room, turnOver] as const,
     { timeout: 45_000 },
@@ -75,67 +75,67 @@ async function arrived(page: Page, room: string, { turnOver = false } = {}): Pro
 
 const stopped = (page: Page, room: string) => arrived(page, room, { turnOver: true });
 
-/** Presses directions until the focus reaches `room`: each press goes the way
- *  the room lies on screen from the focused choice, along the larger axis. */
-async function steer(page: Page, room: string, press: (direction: Direction) => Promise<void>): Promise<void> {
+/** Presses directions until the focus reaches the choice `id`: each press goes
+ *  the way it lies on screen from the focused choice, along the larger axis. */
+async function steer(page: Page, id: string, press: (direction: Direction) => Promise<void>): Promise<void> {
   for (let tries = 0; tries < 8; tries++) {
     const now = await focused(page);
-    if (now === room) return;
+    if (now === id) return;
     const from = await screenPoint(page, now ?? "");
-    const to = await screenPoint(page, room);
+    const to = await screenPoint(page, id);
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     await press(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
     await page.waitForFunction((was) => window.__betrayalHouse?.state().focused !== was, now);
   }
-  throw new Error(`The focus never reached ${room}`);
+  throw new Error(`The focus never reached ${id}`);
 }
 
 /** Hovers a choice where it shows on screen, checks it took the focus without
  *  changing floor, and clicks it. */
-async function clickThrough(page: Page, room: string): Promise<void> {
+async function clickThrough(page: Page, id: string): Promise<void> {
   const floor = await page.evaluate(() => window.__betrayalHouse?.state().floor);
-  const at = await screenPoint(page, room);
+  const at = await screenPoint(page, id);
   await page.mouse.move(at.x, at.y);
-  await expect.poll(() => focused(page)).toBe(room);
+  await expect.poll(() => focused(page)).toBe(id);
   expect(await page.evaluate(() => window.__betrayalHouse?.state().floor)).toBe(floor);
   await page.mouse.click(at.x, at.y);
 }
 
 test("mouse: hovering a room focuses it, a click walks there, and a click where he stands stops", async ({ page }) => {
   await openHouse(page);
-  const { room, at } = await openChoice(page);
+  const { id, room, at } = await openChoice(page);
   await page.mouse.move(at.x, at.y);
-  await expect.poll(() => focused(page)).toBe(room);
+  await expect.poll(() => focused(page)).toBe(id);
   await page.mouse.click(at.x, at.y);
-  await page.waitForFunction(() => window.__betrayalHouse?.state().phase === "walking");
+  await page.waitForFunction(() => window.__betrayalHouse?.state().walking === true);
   await arrived(page, room);
-  await clickThrough(page, await standing(page));
+  await clickThrough(page, STOP);
   await stopped(page, room);
 });
 
 test("mouse: up the stairs and on to an upper room in one turn, then back down", async ({ page }) => {
   await openHouse(page);
   // On the ground floor, the Upper Landing shows as the grand staircase's run: 3 of his 4 spaces.
-  await clickThrough(page, "upper-landing");
+  await clickThrough(page, "walk:upper-landing");
   await arrived(page, "upper-landing");
   const after = await page.evaluate(() => window.__betrayalHouse?.state());
   expect(after?.floor).toBe("upper");
   expect(after?.left).toBe(1);
   // His last space takes him on into the Drawing Room, which spends his move and ends the turn.
-  await clickThrough(page, "drawing-room");
+  await clickThrough(page, "walk:drawing-room");
   await stopped(page, "drawing-room");
   // The pawn walks to the Library and stops, and the view follows Longfellow back upstairs.
-  await page.evaluate(() => window.__betrayalHouse?.choose("library"));
+  await page.evaluate(() => window.__betrayalHouse?.choose("walk:library"));
   await page.waitForFunction(() => {
     const state = window.__betrayalHouse?.state();
-    return state?.phase === "choosing" && state.explorers[1].room === "library";
+    return state?.phase === "choosing" && !state.walking && state.explorers[1].room === "library";
   }, null, { timeout: 45_000 });
-  await page.evaluate(() => window.__betrayalHouse?.choose("library"));
+  await page.evaluate(() => window.__betrayalHouse?.choose("stop"));
   await page.waitForFunction(() => window.__betrayalHouse?.state().active === 0 && window.__betrayalHouse.isReady(), null, { timeout: 45_000 });
   expect(await page.evaluate(() => window.__betrayalHouse?.state().floor)).toBe("upper");
   // On the upper floor, the Grand Staircase shows as the flight down the well.
-  await clickThrough(page, "grand-staircase");
+  await clickThrough(page, "walk:grand-staircase");
   await arrived(page, "grand-staircase");
 });
 
@@ -143,12 +143,12 @@ test("keyboard: arrows move the focus across the screen, and Enter walks there o
   await openHouse(page);
   const keys = { up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight" } as const;
   const arrow = (direction: Direction) => page.keyboard.press(keys[direction]);
-  await steer(page, "dining-room", arrow);
+  await steer(page, "walk:dining-room", arrow);
   await expect(page.getByText("Enter", { exact: true })).toBeVisible();
   await page.keyboard.press("Enter");
   await arrived(page, "dining-room");
   expect(await page.evaluate(() => window.__betrayalHouse?.state().left)).toBe(2);
-  await steer(page, await standing(page), arrow);
+  await steer(page, STOP, arrow);
   await page.keyboard.press("Enter");
   await stopped(page, "dining-room");
 });
@@ -158,15 +158,15 @@ test.describe("touch", () => {
 
   test("a tap focuses a room, and a second tap on it walks there or stops", async ({ page }) => {
     await openHouse(page);
-    const { room, at } = await openChoice(page);
+    const { id, room, at } = await openChoice(page);
     await page.touchscreen.tap(at.x, at.y);
-    await expect.poll(() => focused(page)).toBe(room);
+    await expect.poll(() => focused(page)).toBe(id);
     expect(await page.evaluate(() => window.__betrayalHouse?.state().phase)).toBe("choosing");
     await page.touchscreen.tap(at.x, at.y);
     await arrived(page, room);
-    const here = await screenPoint(page, await standing(page));
+    const here = await screenPoint(page, STOP);
     await page.touchscreen.tap(here.x, here.y);
-    await expect.poll(() => focused(page)).toBe(room);
+    await expect.poll(() => focused(page)).toBe(STOP);
     expect(await page.evaluate(() => window.__betrayalHouse?.state().active)).toBe(0);
     await page.touchscreen.tap(here.x, here.y);
     await stopped(page, room);
@@ -222,14 +222,34 @@ test.describe("controller", () => {
       const was = await page.evaluate(() => JSON.stringify(window.__betrayalHouse?.state().choices));
       await press(page, 0, () => page.waitForFunction((w) => JSON.stringify(window.__betrayalHouse?.state().choices) !== w, was));
     };
-    await steer(page, "dining-room", dpad);
+    await steer(page, "walk:dining-room", dpad);
     await expect(page.getByText("walk", { exact: true })).toBeVisible();
     await pressA();
     await arrived(page, "dining-room");
-    await steer(page, await standing(page), dpad);
+    await steer(page, STOP, dpad);
     await pressA();
     await stopped(page, "dining-room");
   });
+});
+
+test("input during a walk fast-forwards it and acts, rather than being ignored", async ({ page }) => {
+  await openHouse(page);
+  // With the clock stopped, the walk to the Foyer never ends on its own.
+  await page.evaluate(() => {
+    window.__betrayalHouse?.freezeClock(100);
+    window.__betrayalHouse?.choose("walk:foyer");
+  });
+  const during = await page.evaluate(() => window.__betrayalHouse?.state());
+  expect(during?.walking).toBe(true);
+  expect(during?.phase).toBe("choosing");
+  const next = during?.choices.find((choice) => choice.id === during.focused);
+  if (!next || next.stop) throw new Error("No next leg is offered while he walks");
+  await page.keyboard.press("Enter");
+  // The walk to the Foyer is over at once, and the next leg is taken from there.
+  await page.waitForFunction((room) => window.__betrayalHouse?.state().explorers[0].room === room, next.room);
+  expect(await page.evaluate(() => window.__betrayalHouse?.state().left)).toBe(4 - 1 - next.steps);
+  await page.evaluate(() => window.__betrayalHouse?.freezeClock(null));
+  await arrived(page, next.room);
 });
 
 test("a resolution above the pixel-ratio cap holds at the cap through a resize", async ({ page }) => {

@@ -1,17 +1,17 @@
 import * as THREE from "three";
-import { EDGES, FLOORS, type Layout } from "../engine/board";
+import { EDGES, FLOORS, placed, type Layout } from "../engine/board";
 import { CATALOG } from "../data";
-import type { FloorId } from "../types";
+import type { Edge, FloorId, PlacedTile } from "../types";
 import { animationOf, type Animation } from "./animate";
 import { ADULT_WALK, hopHeight, walkingOf, type Stride, type Walking } from "./explorers/figure";
-import { doorways, printedEdge, tileTurn, wallIsCut } from "./house-layout";
+import { closedDoors, diffLayout, DIRECTION, printedEdge, tileTurn, wallIsCut, type LayoutChange } from "./house-layout";
 import { inHouse, walkLength, walkPose, type HousePoint, type Walk } from "./house-walk";
 import { inlineBaker, type Baker } from "./bake";
 import { freezeRoom, type FrozenRoom } from "./freeze";
 import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lighting";
 import { createLitFloor, patchProbe, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
-import { explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { DOOR_WIDTH, explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
@@ -25,13 +25,21 @@ const RING = { inner: 0.4, outer: 0.55, height: 0.03 };
 const MARK = { inset: 0.35, border: 0.12, height: 0.04 };
 /** A stair offered as a choice glows along its run: a band this wide, edged with rails. */
 const STAIR_MARK = { width: 1.1, rail: 0.1, lift: 0.06 };
+/** A doorway offered as a choice glows across it: a pad this deep, half each side of the wall. */
+const DOORWAY_MARK = { depth: 1.4 };
+/** A ghost tile's doors show as bright bars this long at its edges. */
+const GHOST_DOOR = { length: DOOR_WIDTH, depth: 0.3 };
+/** A figure offered as a choice glows in a ring round its colour ring. */
+const FIGURE_MARK = { inner: 0.68, outer: 0.82, height: 0.035 };
 /** The route preview: a dot every `every` metres, kept clear of where the walk starts and ends, at most `most` of them. */
 const ROUTE = { every: 0.5, size: 0.14, clear: 0.6, most: 160 };
 
-export interface HouseExplorer {
+export type FloorChoice = FloorId | "all";
+
+/** A figure standing in the house: an explorer (or anything built like one)
+ *  with its player's colour round the base. */
+export interface HouseFigure {
   id: string;
-  /** The room the explorer starts in, at its pawn spot. */
-  room: string;
   build: ExplorerBuilder;
   colour: PaletteKey;
 }
@@ -45,13 +53,38 @@ export interface PlacedRoom {
   centre: THREE.Vector3;
 }
 
+/** A glow on the house marking something a decision offers, by its id. */
+export type Mark = { id: string } & (
+  | { kind: "room"; room: string }
+  /** An empty cell: a border alone, round where a room could go. */
+  | { kind: "cell"; floor: FloorId; x: number; y: number }
+  /** A room not yet placed, at a cell, with its doors (board directions). */
+  | { kind: "ghost"; floor: FloorId; x: number; y: number; doors: readonly Edge[] }
+  /** The stair out of `room` towards the room it links to. */
+  | { kind: "stair"; room: string; toward: string }
+  /** A doorway out of `room`, on a board direction. */
+  | { kind: "doorway"; room: string; direction: Edge }
+  | { kind: "figure"; figure: string }
+);
+
 export interface House {
   root: THREE.Group;
-  rooms: PlacedRoom[];
+  readonly layout: Layout;
+  readonly rooms: PlacedRoom[];
   /** The floors that have rooms, bottom to top. */
-  floors: FloorId[];
+  readonly floors: FloorId[];
+  /** Lays out the house anew: rooms added, removed or moved are built (and
+   *  rooms whose doors now open on a wall or no longer do), and re-baked with
+   *  their neighbours. A floor gets its lighting the first time a room is on it. */
+  setLayout: (layout: Layout) => LayoutChange;
+  /** Resolves once a room is placed with its light, or at once if it already is. */
+  roomShown: (room: string) => Promise<void>;
+  /** Whether every room placed so far is built and baked. */
+  built: () => boolean;
   /** Shows one floor, or every floor stacked apart. */
-  showFloor: (floor: FloorId | "all") => void;
+  showFloor: (floor: FloorChoice) => void;
+  /** The centre in the scene of a cell, with its floor stacked as it shows. */
+  cellCentre: (floor: FloorId, x: number, y: number) => THREE.Vector3;
   /** The corners of every room showing: one floor, or all of them. */
   corners: () => THREE.Vector3[];
   /** Cuts the walls for a camera looking from this horizontal direction,
@@ -70,21 +103,27 @@ export interface House {
   /** Where an explorer stands in a room: its pawn spot, or for a second
    *  explorer there (`slot` 1), beside it, towards the middle of the room. */
   spot: (room: string, slot: number) => HousePoint;
-  /** Stands an explorer still at a point, facing `heading` (or as it last faced). */
-  stand: (explorer: string, point: HousePoint, heading?: number) => void;
-  /** Walks an explorer, posed from the clock at every update. */
-  walk: (explorer: string, walk: Walk) => void;
-  /** Where an explorer is now. */
-  explorerAt: (explorer: string) => HousePoint;
-  /** Picks out the explorer whose turn it is, with a soft light over them. */
-  setActive: (explorer: string) => void;
-  /** Lights up what a decision offers, on its floor: rooms by their id, and
-   *  stairs by `stairMark`. The focused one glows clearly, the others softly. */
-  markChoices: (marks: readonly string[], focused: string | null) => void;
+  /** The way a figure faces standing in a room it has just been put in: as the room is turned. */
+  roomHeading: (room: string) => number;
+  addFigure: (figure: HouseFigure, at: HousePoint, heading: number) => void;
+  removeFigure: (id: string) => void;
+  /** Stands a figure still at a point, facing `heading` (or as it last faced). */
+  stand: (figure: string, point: HousePoint, heading?: number) => void;
+  /** Walks a figure, posed from the clock at every update. */
+  walk: (figure: string, walk: Walk) => void;
+  /** Where a figure is now. */
+  figureAt: (figure: string) => HousePoint;
+  /** Picks out the figure whose turn it is, with a soft light over them; null for nobody. */
+  setActive: (figure: string | null) => void;
+  /** Lights up what a decision offers. The focused mark glows clearly, the others softly. */
+  setMarks: (marks: readonly Mark[], focused: string | null) => void;
+  /** Moves the clear glow to another of the marks showing. */
+  focusMark: (focused: string | null) => void;
   /** Dots along the path a walk would take, on the floors it crosses; null clears them. */
   showRoute: (path: readonly HousePoint[] | null) => void;
   fog: THREE.Fog;
   background: THREE.Color;
+  /** Resolves once the house as first laid out is built and baked. */
   ready: Promise<void>;
   dispose: () => void;
 }
@@ -124,8 +163,8 @@ export function definition(id: string): RoomDefinition {
   return BENCH_ROOMS.find((room) => room.id === id) ?? shellRoom(id);
 }
 
-/** An explorer with their player's colour round the base, and how the figure walks. */
-function marked({ id, build, colour }: HouseExplorer, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
+/** A figure with their player's colour round the base, and how the figure walks. */
+function marked({ id, build, colour }: HouseFigure, gait: (seconds: number) => Stride): { marked: THREE.Group; walking: Walking } {
   const ring = new THREE.Mesh(new THREE.RingGeometry(RING.inner, RING.outer, 24), glow(colour));
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = RING.height;
@@ -155,23 +194,43 @@ interface Walker {
   walking: Walking;
 }
 
-/** The glow on a room's floor that marks it as a choice: a faint fill and a
- *  border just inside its walls. */
-function choiceMark(fill: THREE.Material, border: THREE.Material): THREE.Group {
+/** The glow on a tile's floor that marks it as a choice: a faint fill (none
+ *  for an empty cell) and a border just inside its walls. */
+function tileMark(fill: THREE.Material | null, border: THREE.Material): THREE.Group {
   const span = TILE - MARK.inset * 2;
-  const pane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), fill);
-  pane.rotation.x = -Math.PI / 2;
-  pane.position.y = MARK.height - 0.01;
   const edge = (w: number, d: number, x: number, z: number) => box([w, 0.01, d], border, [x, MARK.height, z]);
   const off = span / 2 - MARK.border / 2;
-  const mark = group(pane, edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span, -off, 0), edge(MARK.border, span, off, 0));
-  mark.visible = false;
+  const mark = group(edge(span, MARK.border, 0, -off), edge(span, MARK.border, 0, off), edge(MARK.border, span, -off, 0), edge(MARK.border, span, off, 0));
+  if (fill) {
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(span, span), fill);
+    pane.rotation.x = -Math.PI / 2;
+    pane.position.y = MARK.height - 0.01;
+    mark.add(pane);
+  }
   return mark;
 }
 
-/** The mark of the stair that leads from one room to another it links to. */
-export function stairMark(from: string, toward: string): string {
-  return `stair:${from}>${toward}`;
+/** A tile not yet placed: the room glow, with a bright bar at each of its doors. */
+function ghostMark(doors: readonly Edge[], fill: THREE.Material, border: THREE.Material): THREE.Group {
+  const mark = tileMark(fill, border);
+  const at = TILE / 2 - MARK.inset - GHOST_DOOR.depth / 2;
+  for (const door of doors) {
+    const { x, z } = DIRECTION[door];
+    const [w, d] = x === 0 ? [GHOST_DOOR.length, GHOST_DOOR.depth] : [GHOST_DOOR.depth, GHOST_DOOR.length];
+    mark.add(box([w, 0.01, d], border, [x * at, MARK.height + 0.005, z * at]));
+  }
+  return mark;
+}
+
+/** A doorway offered as a choice: a pad across it on the floor, with a border, half inside the room. */
+function doorwayMark(direction: Edge, fill: THREE.Material, border: THREE.Material): THREE.Group {
+  const { x, z } = DIRECTION[direction];
+  const [w, d] = x === 0 ? [DOOR_WIDTH, DOORWAY_MARK.depth] : [DOORWAY_MARK.depth, DOOR_WIDTH];
+  const centre: [number, number, number] = [(x * TILE) / 2, MARK.height, (z * TILE) / 2];
+  const rim = MARK.border;
+  const pane = box([w, 0.005, d], fill, [centre[0], MARK.height - 0.01, centre[2]]);
+  const edge = (ew: number, ed: number, ox: number, oz: number) => box([ew, 0.01, ed], border, [centre[0] + ox, MARK.height, centre[2] + oz]);
+  return group(pane, edge(w, rim, 0, -(d - rim) / 2), edge(w, rim, 0, (d - rim) / 2), edge(rim, d, -(w - rim) / 2, 0), edge(rim, d, (w - rim) / 2, 0));
 }
 
 /** The glow along a stair's run, in its room's frame: a faint band over the
@@ -197,8 +256,15 @@ function stairGlow(run: readonly (readonly [number, number, number])[], fill: TH
     const edge = (STAIR_MARK.width - STAIR_MARK.rail) / 2;
     mark.add(piece(STAIR_MARK.width, 0, fill), piece(STAIR_MARK.rail, -edge, border), piece(STAIR_MARK.rail, edge, border));
   }
-  mark.visible = false;
   return mark;
+}
+
+/** A ring round a figure's colour ring. */
+function figureMark(border: THREE.Material): THREE.Mesh {
+  const ring = new THREE.Mesh(new THREE.RingGeometry(FIGURE_MARK.inner, FIGURE_MARK.outer, 32), border);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = FIGURE_MARK.height;
+  return ring;
 }
 
 /** Points every so often along a path, leaving its ends bare: the start is
@@ -222,56 +288,108 @@ function routeDots(path: readonly HousePoint[]): HousePoint[] {
   return dots;
 }
 
-/** Every placed room of an engine layout, each built in its own frame and laid
- *  at its cell and rotation, on its floor, and the explorers in it, who walk
- *  between rooms. */
-export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], baker: Baker = inlineBaker()): House {
-  const root = group();
-  const floors = FLOORS.filter((floor) => layout.tiles.some((tile) => tile.floor === floor));
-  const levels = new Map(floors.map((floor) => [floor, group()] as const));
-  const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("ground")) * STACK_GAP;
+/** How high a floor stands in the scene, stacked round the ground floor. */
+const level = (floor: FloorId) => (FLOORS.indexOf(floor) - FLOORS.indexOf("ground")) * STACK_GAP;
 
-  /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
-  const placement = (tile: Layout["tiles"][number]) => {
-    const shut = doorways(layout, CATALOG, tile).flatMap(({ edge, doorway }) => (doorway === "blind" ? [edge] : []));
-    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: shut }));
-    const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
-    return { id: tile.tile, room, matrix };
-  };
-  const placements = new Map(layout.tiles.map((tile) => [tile.tile, placement(tile)] as const));
-  const lighting = new Map(floors.map((floor) => [floor, createLitFloor(baker)] as const));
+/** An engine layout as a house of rooms, each built in its own frame and laid
+ *  at its cell and rotation, on its floor, and the figures in it, who walk
+ *  between rooms. Both change as play goes on. */
+export function buildHouse(initial: Layout, baker: Baker = inlineBaker()): House {
+  const root = group();
+  let layout: Layout = { tiles: [] };
+  const levels = new Map<FloorId, THREE.Group>();
+  const lighting = new Map<FloorId, LitFloor>();
   const bakes = new Map<FloorId, Rebake>();
-  const placeFloor = (floor: FloorId): Promise<Rebake> => {
-    const lit = lighting.get(floor);
-    if (!lit) throw new Error(`The house has no floor "${floor}"`);
-    return lit.place(layout.tiles.filter((tile) => tile.floor === floor).map((tile) => placements.get(tile.tile)).filter((placed) => placed !== undefined));
-  };
-  const baked = Promise.all(
-    floors.map(async (floor) => {
-      const lit = lighting.get(floor);
-      if (lit) levels.get(floor)?.add(lit.root);
-      bakes.set(floor, await placeFloor(floor));
-    }),
-  );
-  const rooms: PlacedRoom[] = layout.tiles.map((tile) => {
-    const placed = placements.get(tile.tile);
-    if (!placed) throw new Error(`${tile.tile} was not built`);
-    return { id: tile.tile, floor: tile.floor, room: placed.room, centre: new THREE.Vector3(tile.x * TILE, level(tile.floor), tile.y * TILE) };
-  });
-  for (const [floor, holder] of levels) {
-    holder.position.y = level(floor);
-    root.add(holder);
-  }
+  const placements = new Map<string, { id: string; room: FrozenRoom; matrix: THREE.Matrix4 }>();
+  /** Each room's wait to be shown with its light, while it is pending. */
+  const shownWhen = new Map<string, Promise<void>>();
+  let pending = 0;
+  /** The walls last cut, so they are cut again only when that changes; cleared when rooms change. */
+  let lastCut = "";
   root.add(fillLight());
 
-  let showing: FloorId | "all" = "ground";
+  let showing: FloorChoice = "ground";
   const shows = (floor: FloorId) => showing === "all" || showing === floor;
-  const scenePoint = (point: HousePoint) => new THREE.Vector3(point.x, point.y + level(point.floor), point.z);
-  const tileOf = (room: string) => {
-    const tile = layout.tiles.find((placed) => placed.tile === room);
+  const floors = () => FLOORS.filter((floor) => layout.tiles.some((tile) => tile.floor === floor));
+
+  const tileOf = (room: string): PlacedTile => {
+    const tile = placed(layout, room);
     if (!tile) throw new Error(`The house has no room "${room}"`);
     return tile;
   };
+  /** A tile built, frozen and laid at its cell and rotation on its floor's frame. */
+  const placement = (tile: PlacedTile) => {
+    const room = freezeRoom(tile.tile, buildRoom(definition(tile.tile), { explorer: null, closedDoors: closedDoors(layout, CATALOG, tile) }));
+    const matrix = new THREE.Matrix4().compose(new THREE.Vector3(tile.x * TILE, 0, tile.y * TILE), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tileTurn(tile.rotation), 0)), new THREE.Vector3(1, 1, 1));
+    return { id: tile.tile, room, matrix };
+  };
+  /** The floor's lighting, made (and its level stacked) the first time a room is on it. */
+  const floorLighting = (floor: FloorId): LitFloor => {
+    const existing = lighting.get(floor);
+    if (existing) return existing;
+    const lit = createLitFloor(baker);
+    const holder = group(lit.root);
+    holder.position.y = level(floor);
+    holder.visible = shows(floor);
+    levels.set(floor, holder);
+    lighting.set(floor, lit);
+    root.add(holder);
+    return lit;
+  };
+  const placeFloor = (floor: FloorId): Promise<Rebake> =>
+    floorLighting(floor).place(layout.tiles.filter((tile) => tile.floor === floor).flatMap((tile) => placements.get(tile.tile) ?? []));
+  /** Tracks work on the house until it is done, so readiness waits for it. */
+  const track = <T>(work: Promise<T>): Promise<T> => {
+    pending++;
+    const done = () => {
+      pending--;
+      lastCut = "";
+    };
+    work.then(done, done);
+    return work;
+  };
+
+  const setLayout = (next: Layout): LayoutChange => {
+    const change = diffLayout(layout, next, CATALOG);
+    const touched = new Set<FloorId>();
+    for (const id of change.removed) {
+      touched.add(tileOf(id).floor);
+      placements.delete(id);
+    }
+    for (const id of change.moved) touched.add(tileOf(id).floor);
+    layout = { tiles: next.tiles.map((tile) => ({ ...tile })) };
+    for (const id of change.rebuilt) {
+      const tile = tileOf(id);
+      touched.add(tile.floor);
+      const fresh = placement(tile);
+      placements.set(id, fresh);
+      void track(fresh.room.ready);
+    }
+    for (const floor of FLOORS.filter((candidate) => touched.has(candidate))) {
+      const baked = track(
+        placeFloor(floor).then((rebake) => {
+          if (!bakes.has(floor)) bakes.set(floor, rebake);
+          return rebake;
+        }),
+      );
+      for (const tile of layout.tiles.filter((candidate) => candidate.floor === floor && change.rebuilt.includes(candidate.tile))) {
+        const shown = baked.then(() => {
+          shownWhen.delete(tile.tile);
+        });
+        shownWhen.set(tile.tile, shown);
+      }
+    }
+    lastCut = "";
+    return change;
+  };
+
+  const scenePoint = (point: HousePoint) => new THREE.Vector3(point.x, point.y + level(point.floor), point.z);
+  const cellCentre = (floor: FloorId, x: number, y: number) => new THREE.Vector3(x * TILE, level(floor), y * TILE);
+  const rooms = (): PlacedRoom[] =>
+    layout.tiles.flatMap((tile) => {
+      const placedRoom = placements.get(tile.tile);
+      return placedRoom ? [{ id: tile.tile, floor: tile.floor, room: placedRoom.room, centre: cellCentre(tile.floor, tile.x, tile.y) }] : [];
+    });
   const spot = (room: string, slot: number): HousePoint => {
     const pawnSpot = definition(room).pawn;
     if (!pawnSpot) throw new Error(`${room} has no spot for an explorer to stand on`);
@@ -280,30 +398,9 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
   };
 
   const walkers = new Map<string, Walker>();
-  for (const explorer of explorers) {
-    const walker: Walker = {
-      holder: group(),
-      probe: { value: [] },
-      animations: [],
-      at: spot(explorer.room, 0),
-      heading: tileTurn(tileOf(explorer.room).rotation),
-      walk: null,
-      walking: ADULT_WALK,
-    };
-    const { marked: figure, walking } = marked(explorer, (seconds) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 }));
-    walker.walking = walking;
-    figure.traverse((object) => {
-      const animation = animationOf(object);
-      if (animation) walker.animations.push(animation);
-    });
-    walker.probe = patchProbe(figure);
-    walker.holder.add(figure);
-    root.add(walker.holder);
-    walkers.set(explorer.id, walker);
-  }
   const walkerOf = (id: string) => {
     const walker = walkers.get(id);
-    if (!walker) throw new Error(`The house has no explorer "${id}"`);
+    if (!walker) throw new Error(`The house has no figure "${id}"`);
     return walker;
   };
   const poseWalker = (walker: Walker, seconds: number) => {
@@ -339,70 +436,112 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
   const softBorder = glowing("moonLight", 0.35);
   const focusFill = glowing("amber", 0.14);
   const focusBorder = glowing("amber", 1);
-  const marks = new Map<string, { soft: THREE.Group; focused: THREE.Group }>(
-    rooms.map((room) => {
-      const soft = choiceMark(softFill, softBorder);
-      const focused = choiceMark(focusFill, focusBorder);
-      // On the room's own floor, so they show and hide with it.
-      for (const mark of [soft, focused]) {
-        mark.position.set(room.centre.x, 0, room.centre.z);
-        levels.get(room.floor)?.add(mark);
+
+  /** A floor's level, which a mark on it shows and hides with. */
+  const floorHolder = (floor: FloorId): THREE.Object3D => {
+    floorLighting(floor);
+    const holder = levels.get(floor);
+    if (!holder) throw new Error(`The house has no level for "${floor}"`);
+    return holder;
+  };
+  /** The marks showing, each drawn soft and focused, one of them visible. */
+  let marks: { id: string; soft: THREE.Object3D; focused: THREE.Object3D }[] = [];
+  const markOf = (mark: Mark, fill: THREE.Material, border: THREE.Material): { object: THREE.Object3D; parent: THREE.Object3D } => {
+    switch (mark.kind) {
+      case "room": {
+        const tile = tileOf(mark.room);
+        const object = tileMark(fill, border);
+        object.position.set(tile.x * TILE, 0, tile.y * TILE);
+        return { object, parent: floorHolder(tile.floor) };
       }
-      return [room.id, { soft, focused }] as const;
-    }),
-  );
-  // Every stair run, laid with its room, for when the room it leads to is offered from this floor.
-  for (const tile of layout.tiles) {
-    for (const [toward, run] of Object.entries(definition(tile.tile).stairs ?? {})) {
-      const [soft, focused] = [stairGlow(run, softFill, softBorder), stairGlow(run, focusFill, focusBorder)];
-      for (const mark of [soft, focused]) {
-        mark.position.set(tile.x * TILE, 0, tile.y * TILE);
-        mark.rotation.y = tileTurn(tile.rotation);
-        levels.get(tile.floor)?.add(mark);
+      case "cell":
+      case "ghost": {
+        const object = mark.kind === "cell" ? tileMark(null, border) : ghostMark(mark.doors, fill, border);
+        object.position.set(mark.x * TILE, 0, mark.y * TILE);
+        return { object, parent: floorHolder(mark.floor) };
       }
-      marks.set(stairMark(tile.tile, toward), { soft, focused });
+      case "stair": {
+        const tile = tileOf(mark.room);
+        const run = definition(mark.room).stairs?.[mark.toward];
+        if (!run) throw new Error(`${mark.room} has no stair towards ${mark.toward}`);
+        const object = stairGlow(run, fill, border);
+        object.position.set(tile.x * TILE, 0, tile.y * TILE);
+        object.rotation.y = tileTurn(tile.rotation);
+        return { object, parent: floorHolder(tile.floor) };
+      }
+      case "doorway": {
+        const tile = tileOf(mark.room);
+        const object = doorwayMark(mark.direction, fill, border);
+        object.position.set(tile.x * TILE, 0, tile.y * TILE);
+        return { object, parent: floorHolder(tile.floor) };
+      }
+      case "figure":
+        return { object: figureMark(border), parent: walkerOf(mark.figure).holder };
     }
-  }
+  };
+  const clearMarks = () => {
+    for (const { soft, focused } of marks) {
+      for (const object of [soft, focused]) {
+        object.removeFromParent();
+        object.traverse((child) => {
+          if (child instanceof THREE.Mesh) child.geometry.dispose();
+        });
+      }
+    }
+    marks = [];
+  };
 
   // Every dot of the route is one instance, so the whole route is one draw call.
   const dotGeometry = new THREE.BoxGeometry(ROUTE.size, 0.015, ROUTE.size);
   const route = new THREE.InstancedMesh(dotGeometry, glowing("flame", 0.9), ROUTE.most);
   route.frustumCulled = false;
+  route.count = 0;
   root.add(route);
   let routeShown: HousePoint[] = [];
   const placeRoute = () => {
-    const showing = routeShown.filter((dot) => shows(dot.floor));
-    if (showing.length > ROUTE.most) throw new Error(`A route of ${showing.length} dots; the most is ${ROUTE.most}`);
+    const showingDots = routeShown.filter((dot) => shows(dot.floor));
+    if (showingDots.length > ROUTE.most) throw new Error(`A route of ${showingDots.length} dots; the most is ${ROUTE.most}`);
     const place = new THREE.Matrix4();
-    showing.forEach((dot, i) => {
+    showingDots.forEach((dot, i) => {
       const at = scenePoint(dot);
       route.setMatrixAt(i, place.makeTranslation(at.x, at.y + MARK.height, at.z));
     });
-    route.count = showing.length;
+    route.count = showingDots.length;
     route.instanceMatrix.needsUpdate = true;
   };
 
-  const corners = () => rooms.filter((room) => shows(room.floor)).flatMap((room) => tileCorners(room.centre));
-  const showFloor = (floor: FloorId | "all") => {
+  const corners = () => rooms().filter((room) => shows(room.floor)).flatMap((room) => tileCorners(room.centre));
+  const showFloor = (floor: FloorChoice) => {
     showing = floor;
     for (const [id, holder] of levels) holder.visible = shows(id);
     for (const walker of walkers.values()) walker.holder.visible = shows(walker.at.floor);
     placeRoute();
   };
-  showFloor(floors.includes("ground") ? "ground" : floors[0]);
 
-  let lastCut = "";
-  // Rooms join their floor once baked, so the walls are cut again then.
-  const ready = Promise.all([...[...placements.values()].map(({ room }) => room.ready), texturesUnder(root), baked]).then(() => {
+  setLayout(initial);
+  const first = floors();
+  showFloor(first.includes("ground") ? "ground" : (first[0] ?? "ground"));
+  const ready = Promise.all([...[...placements.values()].map(({ room }) => room.ready), texturesUnder(root), ...[...shownWhen.values()]]).then(() => {
     lastCut = "";
   });
 
   const fog = houseFog();
   return {
     root,
-    rooms,
-    floors,
+    get layout() {
+      return layout;
+    },
+    get rooms() {
+      return rooms();
+    },
+    get floors() {
+      return floors();
+    },
+    setLayout,
+    roomShown: (room) => shownWhen.get(room) ?? Promise.resolve(),
+    built: () => pending === 0,
     showFloor,
+    cellCentre,
     corners,
     setCutaway: (cameraDirection, focus) => {
       const camera = { x: cameraDirection.x, z: cameraDirection.y };
@@ -425,18 +564,37 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
     },
     lighting,
     bakes,
-    rebake: async (room) => {
+    rebake: (room) => {
       const tile = tileOf(room);
-      const fresh = placement(tile);
-      placements.set(room, fresh);
-      const placed = rooms.find((candidate) => candidate.id === room);
-      if (placed) placed.room = fresh.room;
-      const rebake = await placeFloor(tile.floor);
-      lastCut = "";
-      return rebake;
+      placements.set(room, placement(tile));
+      return track(placeFloor(tile.floor));
     },
     scenePoint,
     spot,
+    roomHeading: (room) => tileTurn(tileOf(room).rotation),
+    addFigure: (figure, at, heading) => {
+      if (walkers.has(figure.id)) throw new Error(`The house already has a figure "${figure.id}"`);
+      const walker: Walker = { holder: group(), probe: { value: [] }, animations: [], at, heading, walk: null, walking: ADULT_WALK };
+      const { marked: built, walking } = marked(figure, (seconds) => (walker.walk ? walkPose(walker.walk, seconds, walker.walking.step).stride : { phase: 0, amount: 0 }));
+      walker.walking = walking;
+      built.traverse((object) => {
+        const animation = animationOf(object);
+        if (animation) walker.animations.push(animation);
+      });
+      walker.probe = patchProbe(built);
+      walker.holder.add(built);
+      walker.holder.visible = shows(at.floor);
+      root.add(walker.holder);
+      walkers.set(figure.id, walker);
+      void track(texturesUnder(built));
+    },
+    removeFigure: (id) => {
+      const walker = walkerOf(id);
+      if (active === walker) active = null;
+      walker.holder.removeFromParent();
+      disposeTree(walker.holder);
+      walkers.delete(id);
+    },
     stand: (id, point, heading) => {
       const walker = walkerOf(id);
       walker.walk = null;
@@ -446,14 +604,26 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
     walk: (id, walk) => {
       walkerOf(id).walk = walk;
     },
-    explorerAt: (id) => walkerOf(id).at,
+    figureAt: (id) => walkerOf(id).at,
     setActive: (id) => {
-      active = walkerOf(id);
+      active = id === null ? null : walkerOf(id);
     },
-    markChoices: (choices, focused) => {
-      for (const [id, { soft, focused: lit }] of marks) {
+    setMarks: (wanted, focused) => {
+      clearMarks();
+      marks = wanted.map((mark) => {
+        const soft = markOf(mark, softFill, softBorder);
+        const lit = markOf(mark, focusFill, focusBorder);
+        soft.object.visible = mark.id !== focused;
+        lit.object.visible = mark.id === focused;
+        soft.parent.add(soft.object);
+        lit.parent.add(lit.object);
+        return { id: mark.id, soft: soft.object, focused: lit.object };
+      });
+    },
+    focusMark: (focused) => {
+      for (const { id, soft, focused: lit } of marks) {
+        soft.visible = id !== focused;
         lit.visible = id === focused;
-        soft.visible = id !== focused && choices.includes(id);
       }
     },
     showRoute: (path) => {
@@ -464,6 +634,7 @@ export function buildHouse(layout: Layout, explorers: HouseExplorer[] = [], bake
     background: fog.color.clone(),
     ready,
     dispose: () => {
+      clearMarks();
       for (const lit of lighting.values()) lit.dispose();
       disposeTree(root);
       dotGeometry.dispose();

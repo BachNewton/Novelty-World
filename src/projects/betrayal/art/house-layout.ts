@@ -144,3 +144,47 @@ export function doorways(layout: Layout, catalog: Catalog, tile: PlacedTile): { 
     return [{ edge, doorway }];
   });
 }
+
+/** The doors of a placed room that open on another room's wall, by printed
+ *  edge: the house builds them shut. */
+export function closedDoors(layout: Layout, catalog: Catalog, tile: PlacedTile): Edge[] {
+  return doorways(layout, catalog, tile).flatMap(({ edge, doorway }) => (doorway === "blind" ? [edge] : []));
+}
+
+/** What changes in the house when its layout changes, by tile id. */
+export interface LayoutChange {
+  added: string[];
+  removed: string[];
+  /** On another cell, floor or rotation. */
+  moved: string[];
+  /** Built afresh: added, moved, or with a door that now opens on a wall or
+   *  no longer does, because a neighbour came or went. */
+  rebuilt: string[];
+  /** Baked again: every room rebuilt, and every room beside a cell a rebuilt
+   *  or removed room stood on or now stands on, whose light it can now block
+   *  or let through. The lit floor works this out itself, the same way. */
+  rebaked: string[];
+}
+
+const samePlace = (a: PlacedTile, b: PlacedTile) => a.floor === b.floor && a.x === b.x && a.y === b.y && a.rotation === b.rotation;
+
+export function diffLayout(before: Layout, after: Layout, catalog: Catalog): LayoutChange {
+  const was = new Map(before.tiles.map((tile) => [tile.tile, tile] as const));
+  const now = new Map(after.tiles.map((tile) => [tile.tile, tile] as const));
+  const added = after.tiles.filter((tile) => !was.has(tile.tile)).map((tile) => tile.tile);
+  const removed = before.tiles.filter((tile) => !now.has(tile.tile)).map((tile) => tile.tile);
+  const moved = after.tiles.filter((tile) => {
+    const old = was.get(tile.tile);
+    return old !== undefined && !samePlace(old, tile);
+  }).map((tile) => tile.tile);
+  const reshut = after.tiles.filter((tile) => {
+    const old = was.get(tile.tile);
+    return old !== undefined && samePlace(old, tile) && closedDoors(before, catalog, old).join() !== closedDoors(after, catalog, tile).join();
+  }).map((tile) => tile.tile);
+  const rebuilt = [...added, ...moved, ...reshut];
+  const changedCells = [...rebuilt.flatMap((id) => [was.get(id), now.get(id)]), ...removed.map((id) => was.get(id))].filter((tile) => tile !== undefined);
+  const beside = (tile: PlacedTile) =>
+    changedCells.some((cell) => cell.floor === tile.floor && Math.abs(cell.x - tile.x) + Math.abs(cell.y - tile.y) === 1);
+  const rebaked = after.tiles.filter((tile) => rebuilt.includes(tile.tile) || beside(tile)).map((tile) => tile.tile);
+  return { added, removed, moved, rebuilt, rebaked };
+}

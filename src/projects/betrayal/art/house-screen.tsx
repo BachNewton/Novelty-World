@@ -9,7 +9,8 @@ import { BenchButton } from "./bench-view";
 import type { Layout } from "../engine/board";
 import { CATALOG } from "../data";
 import { HOUSE_FIXTURE, reviewHouse, SPILL_LAYOUTS } from "./house-layout";
-import { createHouseView, FIXTURE_STARTS, type FloorChoice, type HouseSnapshot } from "./house-view";
+import { createHouseDemo, FIXTURE_STARTS, type Phase } from "./house-demo";
+import type { FloorChoice } from "./house-scene";
 import { BENCH_ROOMS } from "./rooms";
 
 /** A key or button name, drawn as the thing pressed: a keycap, or a controller's round button. */
@@ -34,9 +35,9 @@ function Hint({ glyphs, does }: { glyphs: ReactNode; does: string }) {
 
 /** What each control does, for the input the player last used. A mouse and a
  *  finger point at what they want, so they get no hints. */
-function Hints({ input, phase, stopping }: { input: InputKind; phase: HouseSnapshot["phase"]; stopping: boolean }) {
+function Hints({ input, phase, walking, stopping }: { input: InputKind; phase: Phase; walking: boolean; stopping: boolean }) {
   const go = stopping ? "stop" : "walk";
-  if (phase === "walking" || input === "mouse" || input === "touch") return null;
+  if (walking || input === "mouse" || input === "touch") return null;
   const pad = input === "pad";
   const hints =
     phase === "entering"
@@ -74,31 +75,32 @@ function chosenHouse(): { layout: Layout; starts: readonly [string, string] } {
 export function HouseScreen() {
   const [view] = useState(() => {
     const { layout, starts } = chosenHouse();
-    return createHouseView(layout, starts);
+    return createHouseDemo(layout, starts);
   });
   const state = useSyncExternalStore(view.subscribe, view.snapshot, view.snapshot);
+  const shown = useSyncExternalStore(view.scene.subscribe, view.scene.view, view.scene.view);
   const containerRef = useThreeScene(view.mount, {
     antialias: false,
     maxPixelRatio: 4,
     stats: true,
     statsCorner: "top-right",
   });
-  const floors: FloorChoice[] = [...view.floors, "all"];
-  const rooms = state.floor === "all" ? [] : view.api.rooms(state.floor);
+  const floors: FloorChoice[] = [...view.api.floors(), "all"];
+  const rooms = shown.floor === "all" ? [] : view.api.rooms(shown.floor);
   const explorer = state.explorers[state.active];
-  const focused = state.choices.find((choice) => choice.room === state.focused);
+  const focused = state.choices.find((choice) => choice.id === state.focused);
   /** A focused room on another floor shows here as the stair to it, so its tag says which way the stair goes. */
   const stair =
-    focused && state.floor !== "all" && focused.floor !== state.floor ? (FLOORS.indexOf(focused.floor) > FLOORS.indexOf(state.floor) ? "Up to the " : "Down to the ") : "";
-  const [minZoom, maxZoom] = view.zoomRange;
+    focused && shown.floor !== "all" && focused.floor !== shown.floor ? (FLOORS.indexOf(focused.floor) > FLOORS.indexOf(shown.floor) ? "Up to the " : "Down to the ") : "";
+  const [minZoom, maxZoom] = view.scene.zoomRange;
   const labelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    view.setLabel(labelRef.current);
-    return () => view.setLabel(null);
+    view.scene.setLabel(labelRef.current);
+    return () => view.scene.setLabel(null);
   }, [view]);
 
   const status =
-    state.phase === "walking"
+    shown.walking
       ? `${explorer.name} is walking…`
       : state.phase === "entering"
         ? `${explorer.name} enters the ${view.roomName(explorer.room)}.`
@@ -130,7 +132,7 @@ export function HouseScreen() {
             key={floor}
             type="button"
             onClick={() => view.api.setFloor(floor)}
-            className={`pointer-events-auto rounded border px-2 py-1 text-sm ${state.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : "border-(--bt-line) bg-(--bt-panel)"}`}
+            className={`pointer-events-auto rounded border px-2 py-1 text-sm ${shown.floor === floor ? "border-(--bt-accent) bg-(--bt-room)" : "border-(--bt-line) bg-(--bt-panel)"}`}
           >
             {floor === "all" ? "All floors" : FLOOR_NAMES[floor]}
           </button>
@@ -139,7 +141,7 @@ export function HouseScreen() {
           <span className="text-(--bt-muted)">Room</span>
           <select
             className="bg-(--bt-panel) text-(--bt-ink)"
-            value={state.closeUp ?? ""}
+            value={shown.closeUp ?? ""}
             disabled={rooms.length === 0}
             onChange={(event) => view.api.setCloseUp(event.target.value || null)}
           >
@@ -155,10 +157,10 @@ export function HouseScreen() {
           <span className="text-(--bt-muted)">Resolution</span>
           <select
             className="bg-(--bt-panel) text-(--bt-ink)"
-            value={state.resolution ?? "native"}
+            value={shown.resolution ?? "native"}
             onChange={(event) => view.api.setResolution(event.target.value === "native" ? null : Number(event.target.value))}
           >
-            {view.resolutions.map((resolution) => (
+            {view.scene.resolutions.map((resolution) => (
               <option key={resolution ?? "native"} value={resolution ?? "native"}>
                 {resolution === null ? "Native" : `${resolution}p`}
               </option>
@@ -175,21 +177,21 @@ export function HouseScreen() {
           className="pointer-events-auto flex flex-col gap-2 rounded border border-(--bt-line) bg-(--bt-panel) p-2 text-sm sm:w-80"
         >
           <p>{status}</p>
-          {state.phase === "entering" && (
+          {state.phase === "entering" && !shown.walking && (
             <button type="button" onClick={() => view.api.confirm()} className="min-h-11 rounded border border-(--bt-line) bg-(--bt-room) px-3 py-1">
               Go on
             </button>
           )}
-          <Hints input={state.input} phase={state.phase} stopping={focused?.stop === true} />
+          <Hints input={shown.input} phase={state.phase} walking={shown.walking} stopping={focused?.stop === true} />
         </section>
         <div className="flex justify-center gap-2">
           <BenchButton label="Orbit left" onClick={() => view.api.turn(-1)}>
             ⟲
           </BenchButton>
-          <BenchButton label="Zoom out" disabled={state.zoom <= minZoom} onClick={() => view.api.setZoom(state.zoom / 1.5)}>
+          <BenchButton label="Zoom out" disabled={shown.zoom <= minZoom} onClick={() => view.api.setZoom(shown.zoom / 1.5)}>
             −
           </BenchButton>
-          <BenchButton label="Zoom in" disabled={state.zoom >= maxZoom} onClick={() => view.api.setZoom(state.zoom * 1.5)}>
+          <BenchButton label="Zoom in" disabled={shown.zoom >= maxZoom} onClick={() => view.api.setZoom(shown.zoom * 1.5)}>
             +
           </BenchButton>
           <BenchButton label="Orbit right" onClick={() => view.api.turn(1)}>

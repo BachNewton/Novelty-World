@@ -3,7 +3,7 @@ import { CATALOG } from "../data";
 import { EDGES, neighbourCell, openings, opposite, placementsAt, roomAt, startingBoard, turn, type Layout } from "../engine/board";
 import { randomFor } from "../engine/random";
 import type { Edge, Rotation } from "../types";
-import { DIRECTION, doorways, HOUSE_FIXTURE, printedEdge, reviewHouse, tileTurn, wallIsCut } from "./house-layout";
+import { diffLayout, DIRECTION, doorways, HOUSE_FIXTURE, printedEdge, reviewHouse, tileTurn, wallIsCut } from "./house-layout";
 
 const ROTATIONS: Rotation[] = [0, 1, 2, 3];
 /** View 0's camera, looking from the bottom-right corner. */
@@ -137,4 +137,49 @@ describe("reviewHouse", () => {
       }
     });
   }
+});
+
+describe("diffLayout", () => {
+  const tiles = HOUSE_FIXTURE.tiles;
+  const diff = (after: Layout["tiles"]) => {
+    const change = diffLayout(HOUSE_FIXTURE, { tiles: after }, CATALOG);
+    const sorted = (ids: string[]) => [...ids].sort();
+    return { added: sorted(change.added), removed: sorted(change.removed), moved: sorted(change.moved), rebuilt: sorted(change.rebuilt), rebaked: sorted(change.rebaked) };
+  };
+
+  it("finds nothing to do when nothing changes", () => {
+    expect(diff(tiles.map((t) => ({ ...t })))).toEqual({ added: [], removed: [], moved: [], rebuilt: [], rebaked: [] });
+  });
+
+  it("builds an added room and re-bakes it with the rooms beside it", () => {
+    expect(diff([...tiles, { tile: "kitchen", floor: "ground", x: 0, y: 1, rotation: 0 }])).toEqual({
+      added: ["kitchen"],
+      removed: [],
+      moved: [],
+      rebuilt: ["kitchen"],
+      rebaked: ["grand-staircase", "kitchen", "library"],
+    });
+  });
+
+  it("re-bakes only on the room's own floor, which may be new to the house's lighting", () => {
+    expect(diff([...tiles, { tile: "furnace-room", floor: "basement", x: 1, y: 0, rotation: 0 }]).rebaked).toEqual(["basement-landing", "furnace-room"]);
+  });
+
+  it("re-bakes the rooms a removed room stood beside, building nothing", () => {
+    expect(diff(tiles.filter((t) => t.tile !== "bedroom"))).toEqual({ added: [], removed: ["bedroom"], moved: [], rebuilt: [], rebaked: ["upper-landing"] });
+  });
+
+  it("rebuilds a turned room, and the neighbours whose doors now meet a wall or no longer do", () => {
+    const change = diff(tiles.map((t) => (t.tile === "chapel" ? { ...t, rotation: 0 as const } : t)));
+    expect(change.moved).toEqual(["chapel"]);
+    expect(change.rebuilt).toEqual(["chapel", "entrance-hall", "library"]);
+    // The Foyer is rebuilt by nothing, but stands beside the rebuilt Library.
+    expect(change.rebaked).toEqual(["chapel", "entrance-hall", "foyer", "library"]);
+  });
+
+  it("re-bakes round both the cell a room leaves and the one it moves to, on either floor", () => {
+    const change = diff(tiles.map((t) => (t.tile === "dining-room" ? { ...t, floor: "upper" as const, x: 0, y: -1 } : t)));
+    expect(change.moved).toEqual(["dining-room"]);
+    expect(change.rebaked).toEqual(["dining-room", "foyer", "upper-landing"]);
+  });
 });

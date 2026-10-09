@@ -1,4 +1,4 @@
-// Screenshots of the Betrayal house view (?house, see ../art/house-view.ts), for judging how rooms
+// Screenshots of the Betrayal house view (?house, see ../art/house-scene.ts and the stand-in game driving it, ../art/house-demo.ts), for judging how rooms
 // join into a house without a browser open.
 //
 // Drives the view's control surface (window.__betrayalHouse) over Playwright and waits on its events
@@ -177,25 +177,25 @@ const play = [];
 const choosing = await openHouse(DESKTOP);
 // A key press first, so the panel shows the keyboard's hints.
 await choosing.keyboard.press("ArrowLeft");
-await choosing.evaluate(() => window.__betrayalHouse.focus("dining-room"));
+await choosing.evaluate(() => window.__betrayalHouse.focus("walk:dining-room"));
 play.push(await shoot(choosing, "play-focused"));
-await choosing.evaluate(() => window.__betrayalHouse.focus("library"));
+await choosing.evaluate(() => window.__betrayalHouse.focus("stop"));
 play.push(await shoot(choosing, "play-stop"));
-await choosing.evaluate(() => window.__betrayalHouse.focus("upper-landing"));
+await choosing.evaluate(() => window.__betrayalHouse.focus("walk:upper-landing"));
 play.push(await shoot(choosing, "play-focused-upstairs"));
 // A walk from the Library up the grand staircase, frozen at moments along it.
-await choosing.evaluate(() => window.__betrayalHouse.choose("upper-landing"));
+await choosing.evaluate(() => window.__betrayalHouse.choose("walk:upper-landing"));
 for (const after of [1.2, 4.2, 5.2, 5.9, 6.6]) {
   await choosing.evaluate((at) => window.__betrayalHouse.freezeClock(at), FREEZE_AT + after);
   play.push(await shoot(choosing, `play-walk-${after}`));
 }
 await choosing.evaluate(() => window.__betrayalHouse.freezeClock(null));
-await choosing.waitForFunction(() => window.__betrayalHouse.state().phase === "entering", null, { timeout: 30000 });
+await choosing.waitForFunction(() => window.__betrayalHouse.state().closeUp === "upper-landing", null, { timeout: 30000 });
 await choosing.evaluate((at) => window.__betrayalHouse.freezeClock(at), FREEZE_AT);
 play.push(await shoot(choosing, "play-entering"));
 await choosing.close();
 const phonePlay = await openHouse(PHONE);
-await phonePlay.evaluate(() => window.__betrayalHouse.focus("foyer"));
+await phonePlay.evaluate(() => window.__betrayalHouse.focus("walk:foyer"));
 play.push(await shoot(phonePlay, "play-phone"));
 await phonePlay.close();
 
