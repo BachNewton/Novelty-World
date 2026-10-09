@@ -5,8 +5,9 @@ import { BETRAYAL_THEME } from "../components/theme";
 import { ErrorBox } from "../components/error-box";
 
 // Diagnostic: the house view fails on the owner's phone but not in headless
-// Chromium, and production hides the error. This shows the error with the
-// device's WebGL limits so the cause can be found; remove it once it is.
+// Chromium, and production hides the error. This shows a thrown error, or the
+// GPU dropping the WebGL context, with the device's WebGL limits so the cause
+// can be found; remove it once it is.
 
 function webglLimits(): string {
   const gl = document.createElement("canvas").getContext("webgl2");
@@ -30,6 +31,22 @@ function webglLimits(): string {
 
 export class CrashReport extends Component<{ children: ReactNode }, { report: string | null }> {
   state: { report: string | null } = { report: null };
+
+  componentDidMount() {
+    // The canvas fires it and it doesn't bubble, so listen in the capture phase.
+    window.addEventListener("webglcontextlost", this.contextLost, true);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("webglcontextlost", this.contextLost, true);
+  }
+
+  contextLost = (event: Event) => {
+    const message = event instanceof WebGLContextEvent ? event.statusMessage : "";
+    this.setState({ report: `The GPU dropped the WebGL context (webglcontextlost)${message ? `: ${message}` : ""}
+
+${webglLimits()}` });
+  };
 
   static getDerivedStateFromError(error: unknown) {
     const detail = error instanceof Error ? `${error.message}\n\n${error.stack ?? ""}` : String(error);
