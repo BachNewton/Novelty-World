@@ -22,6 +22,14 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "explorer-line-up", name: "Every explorer, with the pawn", build: (seed) => explorerLineUp(seed) },
   { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, "walk") },
   { id: "explorer-run", name: "Every explorer running on the spot", build: (seed) => explorerLineUp(seed, "run") },
+  { id: "explorer-walk-side", name: "Every explorer walking on the spot, side on", build: (seed) => explorerLineUp(seed, "walk", undefined, { sideOn: true }) },
+  { id: "explorer-run-side", name: "Every explorer running on the spot, side on", build: (seed) => explorerLineUp(seed, "run", undefined, { sideOn: true }) },
+  // Stand-in props in the right hand, until items have art: one for all, or one each (spear, revolver, candle).
+  { id: "explorer-revolver", name: "Every explorer holding a revolver", build: (seed) => explorerLineUp(seed, undefined, "revolver") },
+  { id: "explorer-candle", name: "Every explorer holding a candle", build: (seed) => explorerLineUp(seed, undefined, "candle") },
+  { id: "explorer-spear", name: "Every explorer holding a spear", build: (seed) => explorerLineUp(seed, undefined, "spear") },
+  { id: "explorer-armed-walk", name: "Every explorer walking, holding a prop each", build: (seed) => explorerLineUp(seed, "walk", "each") },
+  { id: "explorer-armed-run", name: "Every explorer running, holding a prop each", build: (seed) => explorerLineUp(seed, "run", "each") },
   // Monsters stand where an explorer would, so the bench can judge them in a room.
   { id: "banshee", name: "The Banshee", build: (seed, gait) => banshee(seed, gait) },
   { id: "banshee-stunned", name: "The Banshee, stunned", build: (seed, gait) => banshee(seed, gait, { stunned: true }) },

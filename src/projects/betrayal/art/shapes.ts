@@ -12,7 +12,7 @@ export function flat(colour: PaletteKey): THREE.MeshLambertMaterial {
 export function glow(colour: PaletteKey, map?: THREE.Texture): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
     color: map ? 0xffffff : paletteHex(colour),
-    map,
+    map: map ?? null,
     fog: false,
     transparent: Boolean(map),
     alphaTest: map ? 0.5 : 0,
@@ -29,7 +29,7 @@ export function lightMaterial(
   { map, vertexColors = false }: { map?: THREE.Texture; vertexColors?: boolean } = {},
 ): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({
-    map,
+    map: map ?? null,
     vertexColors,
     transparent: true,
     opacity,

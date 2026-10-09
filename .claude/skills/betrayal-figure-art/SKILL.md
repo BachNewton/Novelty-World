@@ -41,10 +41,18 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
 - `explorers/figure.ts`: what every figure shares. `BASE_TOP`;
   `miniatureHeight`, the one scale every explorer is built to; the walk and
   run contract (`Walking`, `walks`, `walkingOf`, `Pace`, `Stride`, `Gait`,
-  `stepLength`, `hopHeight`, `legSwing`, `swing`), and `stride` with its
-  `StrideRig`, which walks or runs a two-legged figure; `arm`, `Limb`,
-  `reach`, `pose` and `limbEnd` for two-bone arms; and `burst`, the seeded
-  occasional movement every idle is built from.
+  `stepLength`, `hopHeight`), `leg` and `Leg` (thigh, shin and shoe),
+  `stride` with its `StrideRig`, which walks or runs a two-legged figure;
+  `legPoints` and `pushAside` for cloth the legs push (coat tails); `reach`
+  and `pose` for two-bone limbs (`arm` builds a monster's simple arm);
+  `joins` and `Joint` for the joints the clipping check allows; and
+  `burst`, the seeded occasional movement every idle is built from.
+- `explorers/hands.ts`: every explorer's arm and hand (`buildArm`,
+  `handParts`, `Arm`, `Hand`), hand poses (`RELAXED`, `OPEN`, `fist`,
+  `holding`), arm poses (`reachWrist`, `gripAt`, `pointHand`, `between`,
+  `poseArm`), and the held-prop interface (`Prop`, `holdIn`, `handsOf`,
+  `aimGrip`). `explorers/props.ts`: the stand-in props (revolver, candle,
+  spear) until items get art.
 - `explorers/longfellow.ts`, `ox.ts`, `zoe.ts`: the explorers. Longfellow is
   the reference for an ordinary adult and for a held object riding a hand;
   Ox for a big, heavy body and a held thing that follows the hand (the coin);
@@ -58,7 +66,8 @@ Everything lives in `src/projects/betrayal/art/`. Read these before building:
   A new figure joins the line-ups.
 - `explorers/index.ts`: `BENCH_EXPLORERS`, who the bench can stand in a room.
 - `explorers/fighting-faces.ts` and `explorers/overlap.test.ts`: the figures'
-  overlap check (see "Build it").
+  overlap check; `explorers/clipping.ts`, with `explorers/clipping.test.ts`
+  and `monsters/clipping.test.ts`: the clipping check (see "Build it").
 - `animate.ts`: `animated`, which marks the piece the stage poses each frame.
 - `house.ts` and `house-walk.ts`: how the house stands, walks, runs, marks
   and lights a figure. Read them to know the contract; figure work changes
@@ -152,16 +161,60 @@ once in code:
   is base, then the body (legs and hips), then the chest on the hips,
   carrying the neck and the two shoulders. Shoes stand outside the body, on
   the figure itself, so the body's sway leaves the feet planted.
-- **Arms** are two meshes joined by `arm`, posed with `reach` to a target in
-  the chest's frame and blended between poses with `pose`. A held object
-  either rides the forearm or follows the hand with `limbEnd` and keeps its
-  own orientation (Zoe's doll hangs straight down; Ox's coin flips above his
-  fist).
+- **Arms and hands** are built by `buildArm`: the upper arm hangs from the
+  shoulder, the forearm from the elbow, the hand from the wrist, each its own
+  mesh at its pivot. The figure sculpts its sleeves (the upper arm with a
+  round shoulder cap and an elbow ball, the forearm with a cuff and the wrist
+  inside it); the hand is shared (`handParts(side, scale, skin)`): a palm
+  with the heel of the thumb and a knuckle ridge, a thumb, and four fingers
+  in three rows of knuckles, each row one part, so the fingers curl
+  together. A hand is built hanging along −y, thumb forward (+z), palm
+  towards the body; `scale` sizes it (Ox 1.3, Zoe 0.55).
+- **Pose an arm** with an `ArmPose` (shoulder, elbow and wrist):
+  `reachWrist` reaches the wrist for a point in the chest's frame, `gripAt`
+  puts the grip at a whole placement (Longfellow's book), `pointHand` points
+  an open hand (the spectacles), `between` and `poseArm` blend. Pose the
+  hand with `poseHand`: `RELAXED` empty, `OPEN` for a gesture, `fist(hand)`
+  running, and `holding(hand, empty)` wherever it might hold something.
+- **The grip contract.** Every hand has a `grip`, a named group in the palm
+  where a held thing attaches: its +y runs along the held thing's handle,
+  out past the thumb and index finger; its +z runs along the hand towards
+  the fingertips. A `Prop` is built round that frame (its handle centred on
+  the origin along y), and says its handle's radius and how it is carried:
+  `"hang"` (swings at the side with the arm: a revolver, muzzle down) or
+  `"upright"` (held up before the body, its axis kept upright by `aimGrip`
+  after the stride: a candle, a spear). `holdIn(hand, prop)` attaches it and
+  moves the grip to fit the handle, and `holding` closes the hand round it
+  exactly: each finger bone lies tangent to the handle. A hand holds one
+  thing; `holdIn(hand, null)` empties it; `handsOf(figure)` finds a figure's
+  hands. Each explorer keeps a hand free for an item (Longfellow's and Zoe's
+  right, either of Ox's); a gesture that needs that hand (spectacles, coin,
+  twirl) waits while it holds something, the arm swings less carrying
+  upright, and pumps less running with something hanging. A figure's own
+  things use the same contract: the book is gripped at its edge, the doll
+  dangles from the grip (a counter-turned group keeps it hanging), the coin
+  rests on the grip's thumb end.
 - **Joints overlap**: parts pass into each other at every joint, so no
   crack opens as they turn. Where two parts meet, one must clearly cover the
   other (a sleeve cap inside a jacket's shoulder, a trouser leg ending inside
   the shoe): two surfaces of different colour within a millimetre of each
-  other fight, and the overlap check catches them.
+  other fight, and the overlap check catches them. Declare each joint with
+  `joins` (the two parts, the pivot, and a reach about twice the limb's
+  radius; more where a deep bend folds one into the other, as a running
+  knee does). Nothing else may pass through anything (the clipping check).
+- **Every part keeps its solid.** Sculptures and lofts carry their solid on
+  the geometry; explicit geometry (a torus rim, a coin, a book's boards, an
+  instanced band) is given one with `shaped(geometry, solid)`, and
+  `mergeAll` unions them. The clipping check throws on a part without one.
+- **Cloth round the legs is hollow and moves.** A skirt or a coat's tails is
+  a shell a cloth's thickness, never a solid the legs sit inside, so a leg
+  can swing within it. Longfellow's tails are open at the front (the legs
+  swing out through it) and pushed back by the calves (`pushAside`, given
+  the shell's exact solid: a sculpture's distance is exact only in sign,
+  since it skips carves for points already outside); Zoe's bell billows
+  front to back as far as her knees and heels need. A hem low over the hips
+  (Ox's jacket) ends above the hip pivot, over a seat the thighs swing
+  from.
 
 ## Colour and identity
 
@@ -223,22 +276,35 @@ cadence show the character, never speed. Each figure declares its walk with
 - **`hop`**, how high the miniature lifts at each step: low for a heavy
   figure, high for a skipping one.
 
-**The run is the walk scaled.** A run's step is `RUN_STRIDE` times the walk's
-(so cadence stays in character, a little faster), its bound `RUN_HOP` times
-the hop, its leg swing `RUN_SWING` times the walk's, its arm swing `RUN_ARM`
-times, with the elbows bent near square and the chest leaning well forward.
-The run factors are shared in `figure.ts`; a figure gets its run for free
-from its walk.
+**The cadence comes from the pace and the step.** At `WALK_SPEED` (1.5 m/s,
+in `house-walk.ts`) an adult's 0.6 m step is 2.5 steps a second, Ox's
+0.7 m about 2, and Zoe's 0.4 m a child's patter near 4. Keep a walking step
+about as long as the leg from hip to ankle: longer goose-steps, shorter
+scurries.
+
+**The run is the walk scaled.** A run's step is `RUN_STRIDE` (2) times the
+walk's, so at `RUN_SPEED` an adult takes about three steps a second; its
+bound is `RUN_HOP` times the hop; each foot is down for only `RUN_STANCE` of
+the stride, so both are off the floor between steps; the heels kick up
+behind, the arms pump `RUN_ARM` times further with the elbows bent near
+square, and the body and the chest lean forward. The run factors are shared
+in `figure.ts`; a figure gets its run for free from its walk.
 
 **`stride(rig, gait(clock))` moves a two-legged figure**, after its idle has
-posed it: it swings the legs and shoes from the hips by `legSwing` (walking,
-so a planted foot travels exactly one step and doesn't skate), swings the
-free arms against the legs, bends their elbows running, and leans the chest.
+posed it: each foot is planted on the base and slides back exactly as fast
+as the floor goes by (so it never skates), rolling from heel to toe, then
+lifts and swings forward; the legs reach for the feet through bending knees
+(each leg a thigh and a shin, built by `leg`), the body sinks a little over
+a foot at full stretch, a foot in the air hangs square to its shin, and no
+sole ever dips into the base. It swings the free arms against the legs,
+bends their elbows running, and leans the chest. The house hops the
+miniature over each planted foot walking, and bounds it between steps
+running (`hopHeight`).
 It returns the step, −1 to 1, for the figure's own touches: Ox rolls from
 foot to foot and twists his shoulders, Zoe's pigtails bounce. The rig lists
 only the free arms (Longfellow's left hand holds his book), and every arm in
 it must be posed by the idle each frame, since the stride turns it from
-there. At `amount` 0 every piece is back as built. A figure with another
+there. At `amount` 0 the feet stand as built and the knees are soft. A figure with another
 body plan (a spider's eight legs, a spectre's glide) moves itself from the
 gait, and declares a step and hop that pace it.
 
@@ -291,7 +357,23 @@ character is, from the data, and how they read at a glance. Then, in order:
 4. Register it in `BENCH_EXPLORERS` and add it to the line-ups and the
    overlap test.
 
-**Run the overlap check** after every change:
+**Run the clipping check** after every change: `npx vitest run
+src/projects/betrayal/art/explorers/clipping.test.ts` (and
+`monsters/clipping.test.ts`). It asks each part's surface points how deep
+they lie inside every other part's solid, in that part's frame, and reports
+two parts whose surfaces cross (each partly inside the other) by more than
+2 mm, away from every declared joint; a part tucked wholly inside another
+never shows and is no finding. It samples each explorer through 90 s of
+idle (every gesture comes round several times), walking and running on the
+spot at the house's pace over several strides off the beat, and again
+holding each stand-in prop; each monster idle, stunned and moving. It
+remembers every pair's pose by geometry, so a pose seen once on any copy of
+a figure is never checked again, and a run takes about ten seconds. A
+finding names both parts, how deep each lies in the other, and where: fix
+the shape, the pivot or the pose, never a joint's reach, unless the crossing
+really is the joint folding.
+
+**Run the overlap check** too:
 `npx vitest run src/projects/betrayal/art/explorers/overlap.test.ts` poses
 each figure at moments through its idle, standing, walking and running (and
 each monster standing and stunned), and fails on any two of its parts whose
@@ -326,10 +408,19 @@ the room-art skill.
   dim one: the Drawing Room's table is lit, its corners dark; the Chapel is
   dim. `--explorer-zoom=0.45` frames a monster.
 - **The line-ups**: the same with `--explorer=explorer-line-up` (standing),
-  `explorer-walk` or `explorer-run` (on the spot, in slow motion, with each
-  figure's own step and hop), or `monster-line-up` (every figure), and
+  `explorer-walk` or `explorer-run` (on the spot at the house's own pace,
+  each figure with its own step and hop; `explorer-walk-side` and
+  `explorer-run-side` turn them side on), `explorer-revolver`,
+  `explorer-candle` and `explorer-spear` (each holding that stand-in),
+  `explorer-armed-walk` and `explorer-armed-run` (a prop each), or
+  `monster-line-up` (every figure), and
   `--explorer-zoom=0.6` (0.35 for every figure) to frame the row. Read
-  `explorer.png`; the idle strip crops to the middle of the row.
+  `explorer.png`; the idle strip crops to the middle of the row. Judge a
+  gait at real speed with `--every=0.04 --frames=16`; `--strip-view` and
+  `--from` move the strip's view and start. The bench subject
+  `{ part: "right grip", nth, radius }` frames a named part of the nth
+  figure close, for a close-up of a hand. Judge figures in the Foyer: it is
+  lit, and dark legs vanish in the Drawing Room's corners.
 - **The house**: `node src/projects/betrayal/tools/house-shots.mjs <label>`
   with the figure in the demo's cast (`art/house-demo.ts`).
 
@@ -370,6 +461,20 @@ e2e/betrayal-house.spec.ts`, all clean.
   knob at each knee, the top of the arch.
 - **A child's walk is a short step, not a slow one**: at the house's one
   pace, Zoe's short step makes the quick patter by itself.
+- **A gait reads slow or floaty for two reasons**: frames far apart (the
+  bench once walked the line-up in slow motion), and feet that never plant
+  (legs swung as pendulums lift both feet off the base at full stretch and
+  slide them as they sweep). Plant the feet and let the knees bend.
+- **Rigid parts at a deep bend fold into each other**: a running knee, an
+  elbow brought up to the face. Give such joints a bigger reach, or keep the
+  pose from folding past about a right angle.
+- **Move a hand round an obstacle in two stages**: a pose blend is a
+  straight slerp, so a hand going from the side to the face cuts through a
+  held book; go out and up first (Longfellow's spectacles, Zoe lifting her
+  doll clear of her skirt before clutching it).
+- **Legs that fan from one line collide**: the Spider's knobs ring its
+  thorax, each leg facing its own foot, each knee rising straight over the
+  line to its foot, and neighbouring legs step a quarter stride apart.
 
 ## Done means
 

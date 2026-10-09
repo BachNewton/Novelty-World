@@ -2,10 +2,32 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { ball, chain, ellipsoid, figureMaterial, form, loft, mergeAll, painted, plinth, ring, rod, roundBox, sculpt, stretched, surfaceAt, type Section, type Vec3 } from "../forms";
+import {
+  ball,
+  chain,
+  ellipsoid,
+  figureMaterial,
+  form,
+  loft,
+  mergeAll,
+  painted,
+  plinth,
+  ring,
+  rod,
+  roundBox,
+  sculpt,
+  shaped,
+  stretched,
+  surfaceAt,
+  union,
+  type Section,
+  type Solid,
+  type Vec3,
+} from "../forms";
 import type { PaletteKey } from "../palette";
 import { group } from "../shapes";
-import { ADULT_WALK, arm, BASE_TOP, burst, pose, reach, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
+import { ADULT_WALK, BASE_TOP, burst, joins, leg, legJoints, legPoints, pushAside, soleEnds, STANDING, stride, walks, type Gait, type StrideRig } from "./figure";
+import { aimGrip, blendPose, buildArm, fist, gripAt, handParts, hasHands, holding, holdIn, OPEN, pointHand, poseArm, poseHand, reachWrist, RELAXED, type Prop } from "./hands";
 
 /*
  * Professor Longfellow: a slight, elderly scholar, all Knowledge and no Might.
@@ -19,14 +41,19 @@ import { ADULT_WALK, arm, BASE_TOP, burst, pose, reach, STANDING, stride, walks,
 
 const WAIST = 0.7;
 const HIP = WAIST - BASE_TOP;
-const ARM_SWING = 0.3;
+const ARM_SWING = 0.32;
 const NECK = 1.18;
 const SHOULDER: [number, number] = [0.22, 1.12];
 const UPPER_ARM = 0.28;
-const FOREARM = 0.24;
-const HAND = 0.08;
-const LOWER_ARM = FOREARM + HAND / 2;
+/** From the elbow to the wrist. */
+const FOREARM = 0.22;
 const LEG_X = 0.065;
+/** The ankle, in the shoe, and the leg's two bones from the hip down to it. */
+const ANKLE = BASE_TOP + 0.062;
+const THIGH = 0.28;
+const SHIN = 0.28;
+/** How far the coat's tails follow the thighs as they swing. */
+const TAIL_FOLLOW = 0.8;
 
 /** The head on its neck, in the neck's frame: a bald dome over a long face,
  *  white brows, moustache and short beard, brass spectacles, and wild white
@@ -82,6 +109,7 @@ function spectaclesFrame(): THREE.BufferGeometry {
   const parts = [-1, 1].flatMap((side) => {
     const rim = painted(new THREE.TorusGeometry(0.029, 0.005, 6, 24), "brass");
     rim.translate(side * 0.043, 0.19, 0.134);
+    shaped(rim, ring([side * 0.043, 0.19, 0.134], 0.029, 0.005, [Math.PI / 2, 0, 0]));
     return [rim, wire([[side * 0.071, 0.194, 0.128], [side * 0.112, 0.199, 0.06], [side * 0.117, 0.2, 0.025]], 0.0045)];
   });
   return mergeAll([...parts, wire([[-0.015, 0.193, 0.141], [0, 0.198, 0.143], [0.015, 0.193, 0.141]], 0.004)]);
@@ -118,17 +146,39 @@ function torso(): THREE.BufferGeometry {
   return mergeAll([shape.geometry(0.012), frontEnd, backEnd]);
 }
 
-/** The coat's skirts from the waist to the knee, split up the front and back, with pocket flaps. */
-function skirt(): THREE.BufferGeometry {
+/** One of the coat's tails, from the waist to the knee, in the hips' frame: a
+ *  hollow half-cone round its own leg, split from its fellow up the back.
+ *  The coat hangs open, so its front edge falls away from the waist towards
+ *  the hem. Hollow and open, it lets the leg swing forward through the
+ *  front, and the calf push it back from behind. */
+function tailShell(side: -1 | 1) {
+  const [top, hem, thick] = [0.06, -0.33, 0.016];
+  const centre = side * 0.05;
+  const down = (y: number) => THREE.MathUtils.clamp((top - y) / (top - hem), 0, 1);
+  const cone = (x: number, y: number, z: number, inset: number) => {
+    const t = down(y);
+    const rx = 0.105 + 0.05 * t - inset;
+    const rz = 0.11 + 0.042 * t - inset;
+    return (Math.hypot((x - centre) / rx, z / rz) - 1) * Math.min(rx, rz);
+  };
+  const bounds: Pick<Solid, "min" | "max"> = { min: [side < 0 ? -0.22 : 0, hem - 0.01, -0.17], max: [side < 0 ? 0 : 0.22, top + 0.01, 0.17] };
+  const outside: Solid = { distance: (x, y, z) => Math.max(cone(x, y, z, 0), y - top, hem - y, 0.003 - side * x), ...bounds };
+  const hollow: Solid = { distance: (x, y, z) => cone(x, y, z, thick), ...bounds };
+  /** The open front: in front of the hips and nearer the middle than the front edge. */
+  const front: Solid = { distance: (x, y, z) => Math.max(0.01 - z, side * x - (0.13 + 0.03 * down(y))), ...bounds };
+  const shell: Solid = { distance: (x, y, z) => Math.max(outside.distance(x, y, z), -hollow.distance(x, y, z), -front.distance(x, y, z)), ...bounds };
+  return { outside, hollow, front, shell };
+}
+
+/** A coat tail's mesh: the shell lined dark, with a pocket flap on its side. */
+function tail(side: -1 | 1): THREE.BufferGeometry {
+  const { outside, hollow, front } = tailShell(side);
   return sculpt()
-    .add(stretched(rod([0, 0.07, 0], [0, -0.3, 0], 0.155, 0.205), [0, 0, 0], [1, 1, 0.72]), "verdigris")
-    .carve(roundBox([0, 0.4, 0], [0.5, 0.3, 0.5], 0))
-    .carve(roundBox([0, -0.62, 0], [0.5, 0.29, 0.5], 0), { blend: 0.012 })
-    .carve(roundBox([0, -0.27, 0.16], [0.01, 0.12, 0.06], 0.008), { blend: 0.01, colour: "verdigrisDark" })
-    .carve(roundBox([0, -0.27, -0.16], [0.01, 0.12, 0.06], 0.008), { blend: 0.01, colour: "verdigrisDark" })
-    .add(roundBox([0.16, -0.06, 0.07], [0.05, 0.01, 0.03], 0.008, [0, 0.75, 0.15]), "verdigrisDark", 0.004)
-    .add(roundBox([-0.16, -0.06, 0.07], [0.05, 0.01, 0.03], 0.008, [0, -0.75, -0.15]), "verdigrisDark", 0.004)
-    .geometry(0.014);
+    .add(outside, "verdigris")
+    .add(roundBox([side * 0.16, -0.06, 0.075], [0.05, 0.01, 0.03], 0.008, [0, side * 0.75, side * 0.15]), "verdigrisDark", 0.004)
+    .carve(hollow, { colour: "verdigrisDark" })
+    .carve(front)
+    .geometry(0.008);
 }
 
 /** An open book, pages up, spread along x, its origin the middle of its spine:
@@ -156,45 +206,73 @@ function book(): THREE.BufferGeometry {
     }
     parts.push(...leaf);
   }
-  return mergeAll(parts);
+  const leaves = [-1, 1].map((side) => {
+    const middle = new THREE.Vector3(side * 0.077, 0.015, 0).applyAxisAngle(new THREE.Vector3(0, 0, 1), side * 0.1).add(new THREE.Vector3(0, 0.012, 0));
+    return roundBox([middle.x, middle.y, middle.z], [0.072, 0.015, 0.101], 0.01, [0, 0, side * 0.1]);
+  });
+  return shaped(mergeAll(parts), union(roundBox([0, 0.007, 0], [0.165, 0.007, 0.112], 0.005), ...leaves));
 }
 
-/** The forearm from the elbow, with its turned-back cuff and a hand: palm, thumb and four fingers. */
-function forearm(side: -1 | 1): THREE.BufferGeometry {
-  const shape = sculpt()
-    .add(rod([0, 0.015, 0], [0, -0.2, 0], 0.046, 0.04), "verdigris")
-    .add(ring([0, -0.198, 0], 0.036, 0.016), "verdigrisDark", 0.004)
-    .add(rod([0, -0.21, 0], [0, -0.245, 0.003], 0.022, 0.021), "skin")
-    .add(ellipsoid([0, -0.265, 0.004], [0.022, 0.044, 0.036]), "skin", 0.012)
-    .add(rod([-side * 0.014, -0.24, 0.026], [-side * 0.024, -0.282, 0.045], 0.012, 0.01), "skin", 0.008);
-  for (const z of [-0.021, -0.006, 0.009, 0.024]) shape.add(rod([0, -0.288, z], [side * 0.004, -0.318, z * 1.1], 0.011, 0.009), "skin", 0.006);
-  return shape.geometry(0.009);
+/** Where the book is held, in its own frame: by the left page's outer edge,
+ *  a little nearer him than its middle, the hand under the cover with its
+ *  palm up and its fingers curled round the edge. The edge runs along the
+ *  grip's axis, away from him. */
+const BOOK_GRIP = new THREE.Matrix4()
+  .makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0))
+  .setPosition(0.152, 0.016, -0.03);
+
+/** His book as a prop, held at its edge. */
+function heldBook(geometry: THREE.BufferGeometry, mesh: (geometry: THREE.BufferGeometry, name: string) => THREE.Mesh): Prop {
+  const pages = mesh(geometry, "book");
+  BOOK_GRIP.clone().invert().decompose(pages.position, pages.quaternion, pages.scale);
+  return { object: group(pages), handle: 0.012, carry: "hang" };
 }
 
+/** The forearm from the elbow to the wrist: a sleeve with a turned-back cuff,
+ *  and the wrist inside it. */
+function forearm(): THREE.BufferGeometry {
+  return sculpt()
+    .add(ball([0, -0.004, 0], 0.046), "verdigris")
+    .add(rod([0, -0.01, 0], [0, -FOREARM + 0.03, 0], 0.047, 0.041), "verdigris", 0.02)
+    .add(ring([0, -FOREARM + 0.028, 0], 0.036, 0.016), "verdigrisDark", 0.004)
+    .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.016, 0.002], 0.021, 0.019), "skin")
+    .geometry(0.008);
+}
+
+/** The upper arm from the shoulder to the elbow: a coat sleeve, round at the shoulder. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
     .add(ball([0, -0.005, 0], 0.058), "verdigris")
-    .add(rod([0, -0.01, 0], [0, -UPPER_ARM, 0], 0.054, 0.045), "verdigris", 0.03)
-    .geometry(0.014);
+    .add(rod([0, -0.01, 0], [0, -UPPER_ARM, 0], 0.054, 0.046), "verdigris", 0.03)
+    .add(ball([0, -UPPER_ARM, 0], 0.045), "verdigris", 0.01)
+    .geometry(0.012);
 }
 
-/** A trouser leg from the hip to the ankle, in the body's frame. */
-function leg(x: number): THREE.BufferGeometry {
+/** A trouser leg from the hip to the knee, hanging from the hip. */
+function thigh(): THREE.BufferGeometry {
   return sculpt()
-    .add(chain([[x, HIP + 0.02, 0], [x, 0.33, 0.012], [x, 0.05, -0.004]], [0.058, 0.047, 0.038]), "ash")
-    .add(stretched(ring([x, 0.175, -0.004], 0.042, 0.01), [x, 0.175, -0.004], [1, 1, 1.05]), "ash", 0.02)
-    .geometry(0.014);
+    .add(rod([0, 0.03, 0], [0, -THIGH, 0.006], 0.058, 0.048), "ash")
+    .add(ball([0, -THIGH, 0.004], 0.047), "ash", 0.02)
+    .geometry(0.012);
+}
+
+/** A trouser leg from the knee to the shoe, with a turn-up, its end inside the shoe. */
+function shin(): THREE.BufferGeometry {
+  return sculpt()
+    .add(rod([0, 0, 0.004], [0, -SHIN + 0.005, -0.004], 0.046, 0.036), "ash")
+    .add(stretched(ring([0, -SHIN + 0.04, -0.003], 0.041, 0.01), [0, -SHIN + 0.04, -0.003], [1, 1, 1.05]), "ash", 0.02)
+    .geometry(0.01);
 }
 
 /** A shoe standing on the base: a rounded toe and heel, a dark sole. */
-function shoe(x: number): THREE.BufferGeometry {
-  return sculpt()
+function shoe(x: number) {
+  const shape = sculpt()
     .add(ellipsoid([x, BASE_TOP + 0.03, 0.085], [0.05, 0.035, 0.075]), "woodDark")
     .add(ellipsoid([x, BASE_TOP + 0.035, -0.03], [0.046, 0.04, 0.055]), "woodDark", 0.04)
     .add(rod([x, BASE_TOP + 0.04, -0.015], [x, BASE_TOP + 0.065, -0.01], 0.034), "woodDark", 0.02)
     .carve(roundBox([x, BASE_TOP - 0.1, 0], [0.2, 0.1, 0.3], 0))
-    .paint((_, y) => (y < BASE_TOP + 0.011 ? -1 : 1), "soot")
-    .geometry(0.01);
+    .paint((_, y) => (y < BASE_TOP + 0.011 ? -1 : 1), "soot");
+  return { geometry: shape.geometry(0.01), ...soleEnds(shape.distance, x) };
 }
 
 /** Every part's geometry, meshed once on first use: none of it depends on the
@@ -203,12 +281,14 @@ function meshParts() {
   return {
     head: head(),
     torso: torso(),
-    skirt: skirt(),
+    tails: [tail(-1), tail(1)],
     book: book(),
     upperArm: upperArm(),
-    /** The right forearm, then the left. */
-    forearms: [forearm(-1), forearm(1)],
-    legs: [leg(-LEG_X), leg(LEG_X)],
+    forearm: forearm(),
+    /** The right hand, then the left. */
+    hands: [handParts(-1), handParts(1)],
+    thigh: thigh(),
+    shin: shin(),
     shoes: [shoe(-LEG_X), shoe(LEG_X)],
     base: plinth(0.36, 0.34, BASE_TOP, "boneDark"),
   };
@@ -216,59 +296,92 @@ function meshParts() {
 type Parts = ReturnType<typeof meshParts>;
 let meshed: Parts | undefined;
 
+const UP = new THREE.Vector3(0, 1, 0);
+/** The middles of a shoe's heel and toe, as built (x set per foot): what a kicked-up foot pushes the coat with. */
+const SHOE_POINTS = [new THREE.Vector3(0, BASE_TOP + 0.035, -0.03), new THREE.Vector3(0, BASE_TOP + 0.03, 0.085)];
+
 /** Professor Longfellow as a miniature on a round base, 5'11" at the house's
  *  scale. He breathes and shifts his weight as he reads; now and then he
  *  pushes his spectacles up his nose, and now and then he glances up from the
- *  page. He walks with an ordinary adult's step, the book held up before him. */
+ *  page. He walks with an ordinary adult's step, the book held up before him.
+ *  His left hand holds the book; his right hand is free to hold anything else. */
 export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Group {
   meshed ??= meshParts();
   const parts = meshed;
   const material = figureMaterial();
-  const mesh = (geometry: THREE.BufferGeometry) => form(material, geometry);
+  const mesh = (geometry: THREE.BufferGeometry, name: string) => {
+    const made = form(material, geometry);
+    made.name = name;
+    return made;
+  };
 
-  const neck = group(mesh(parts.head));
+  const face = mesh(parts.head, "head");
+  const neck = group(face);
   neck.position.y = NECK - WAIST;
 
-  const holding = group(mesh(parts.book));
-  holding.position.set(0.02, 0.33, 0.25);
-  holding.rotation.set(-0.45, -0.1, 0);
-  const bookEdge = new THREE.Vector3(0.11, -0.01, -0.07).applyEuler(holding.rotation).add(holding.position);
-
   const limb = (side: -1 | 1) =>
-    arm(mesh(parts.upperArm), mesh(parts.forearms[side < 0 ? 0 : 1]), new THREE.Vector3(side * SHOULDER[0], SHOULDER[1] - WAIST, 0), UPPER_ARM);
+    buildArm(
+      mesh,
+      { upperArm: parts.upperArm, forearm: parts.forearm, hand: parts.hands[side < 0 ? 0 : 1] },
+      side,
+      new THREE.Vector3(side * SHOULDER[0], SHOULDER[1] - WAIST, 0),
+      UPPER_ARM,
+      FOREARM,
+      1,
+    );
   const left = limb(1);
   const right = limb(-1);
-  const holds = reach(left.at, bookEdge, UPPER_ARM, LOWER_ARM, new THREE.Vector3(1, -0.6, -0.4));
-  const hangs = reach(right.at, right.at.clone().add(new THREE.Vector3(-0.02, -0.52, 0.07)), UPPER_ARM, LOWER_ARM, new THREE.Vector3(-0.3, 0, -1));
-  const spectacles = reach(right.at, new THREE.Vector3(0, NECK - WAIST + 0.28, 0.17), UPPER_ARM, LOWER_ARM, new THREE.Vector3(-1, -0.8, 0));
-  left.shoulder.quaternion.copy(holds.shoulder);
-  left.elbow.quaternion.copy(holds.elbow);
+  holdIn(left.hand, heldBook(parts.book, mesh));
 
-  const trunk = mesh(parts.torso);
-  const chest = group(trunk, neck, left.shoulder, right.shoulder, holding);
-  const hips = group(mesh(parts.skirt), chest);
+  // The book held up to read, in the chest's frame, and the left hand at its edge.
+  const reading = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 0.33, 0.25), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.45, -0.1, 0)), new THREE.Vector3(1, 1, 1));
+  const holds = gripAt(left, reading.multiply(BOOK_GRIP), new THREE.Vector3(1, -0.6, -0.4));
+  const hangs = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.05, -0.48, 0.06)), new THREE.Vector3(-0.3, 0, -1));
+  const carries = reachWrist(right, right.at.clone().add(new THREE.Vector3(0, -0.3, 0.22)), new THREE.Vector3(-0.2, 0, -1));
+  // He pushes his spectacles up with his fingertips, the palm towards his face,
+  // bringing his hand up past the book's right edge.
+  const aside = reachWrist(right, right.at.clone().add(new THREE.Vector3(-0.2, -0.1, 0.2)), new THREE.Vector3(-0.4, -1, -0.4));
+  const towards = new THREE.Vector3(0.12, 0.95, -0.28).normalize();
+  const bridge = new THREE.Vector3(0.0, NECK - WAIST + 0.2, 0.185);
+  const spectacles = pointHand(reachWrist(right, bridge.clone().addScaledVector(towards, -0.115), new THREE.Vector3(-1, -0.4, -0.2)), towards, Math.PI / 2);
+
+  const trunk = mesh(parts.torso, "torso");
+  const chest = group(trunk, neck, left.shoulder, right.shoulder);
+  const tails = parts.tails.map((geometry, i) => group(mesh(geometry, i === 0 ? "right tail" : "left tail")));
+  const tailShells = ([-1, 1] as const).map((side) => tailShell(side).shell);
+  const hips = group(...tails, chest);
   hips.position.y = WAIST - BASE_TOP;
 
-  const [rightLeg, leftLeg] = parts.legs.map((geometry) => group(mesh(geometry)));
-  const [rightShoe, leftShoe] = parts.shoes.map((geometry) => group(mesh(geometry)));
-  const hipInBody = new THREE.Vector3(0, HIP, 0);
-  const hipInFigure = new THREE.Vector3(0, WAIST, 0);
-  const body = group(rightLeg, leftLeg, hips);
+  const legs = ([-1, 1] as const).map((side, i) => {
+    const { geometry, heel, toe } = parts.shoes[i];
+    const name = side < 0 ? "right" : "left";
+    const shoe = group(mesh(geometry, `${name} shoe`));
+    return leg(mesh(parts.thigh, `${name} thigh`), mesh(parts.shin, `${name} shin`), shoe, new THREE.Vector3(side * LEG_X, HIP, 0), THIGH, SHIN, {
+      ankle: new THREE.Vector3(side * LEG_X, ANKLE, -0.012),
+      heel,
+      toe,
+    });
+  }) as unknown as StrideRig["legs"];
+  const body = group(legs[0].hip, legs[1].hip, hips);
   body.position.y = BASE_TOP;
 
-  const figure = walks(group(mesh(parts.base), body, rightShoe, leftShoe), ADULT_WALK);
-  // His left hand holds the book, so only his right arm swings.
-  const rig: StrideRig = {
-    walking: ADULT_WALK,
-    legs: [rightLeg, leftLeg],
-    shoes: [rightShoe, leftShoe],
-    hipInBody,
-    hipInFigure,
-    leg: HIP,
-    arms: [{ limb: right, side: -1, swing: ARM_SWING }],
-    chest,
-    lean: 0.08,
-  };
+  const figure = walks(group(mesh(parts.base, "base"), body, legs[0].shoe, legs[1].shoe), ADULT_WALK);
+  hasHands(figure, { right: right.hand, left: left.hand });
+  joins(figure, [
+    { parts: [face, trunk], at: neck, radius: 0.1 },
+    { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.1 },
+    { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.1 },
+    { parts: [tails[0], trunk], at: hips, radius: 0.23 },
+    { parts: [tails[1], trunk], at: hips, radius: 0.23 },
+    ...left.joints,
+    ...right.joints,
+    ...legs.flatMap((one) => legJoints(one, trunk, 0.13, 0.11, 0.09)),
+  ]);
+
+  // His left hand holds the book, so only his right arm swings: freely when
+  // empty or hanging something at his side, little when he carries it upright.
+  const swinging = { limb: right, side: -1 as const, swing: ARM_SWING };
+  const rig: StrideRig = { walking: ADULT_WALK, legs, body, rest: BASE_TOP, arms: [swinging], chest, lean: 0.08 };
 
   const rng = createRng(seed);
   const breathPhase = rng.next() * Math.PI * 2;
@@ -280,8 +393,10 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
     const breath = Math.sin((seconds / 4.2) * Math.PI * 2 + breathPhase);
     const sway = Math.sin((seconds / 9.5) * Math.PI * 2 + swayPhase);
     const moving = gait(clock);
-    // Running, he needs his free arm: the spectacles wait.
-    const gesture = burst(seconds, `${seed}:spectacles`, { every: 9, lasts: 2, chance: 0.7 }).amount * (moving.running ? 1 - moving.amount : 1);
+    const running = moving.running ? moving.amount : 0;
+    const held = right.hand.held;
+    // His spectacles wait while his right hand is full, or he runs.
+    const gesture = held ? 0 : burst(seconds, `${seed}:spectacles`, { every: 9, lasts: 2, chance: 0.7 }).amount * (1 - running);
     const glance = burst(seconds, `${seed}:glance`, { every: 6, lasts: 2.6, chance: 0.6 });
 
     body.rotation.z = sway * 0.02;
@@ -297,8 +412,28 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
     neck.rotation.x = 0.28 - gesture * 0.33 - look * 0.2;
     neck.rotation.z = sway * 0.01;
 
-    pose(right, hangs, spectacles, gesture);
+    poseArm(left, holds, holds, 0);
+    const upright = held?.carry === "upright";
+    poseArm(right, upright ? carries : hangs, aside, THREE.MathUtils.clamp(gesture * 2, 0, 1));
+    if (gesture > 0.5) poseArm(right, aside, spectacles, gesture * 2 - 1);
+    poseHand(right.hand, held ? holding(right.hand, RELAXED) : blendPose(blendPose(RELAXED, OPEN, gesture), fist(right.hand), running * 0.7));
+    swinging.swing = upright ? ARM_SWING * 0.3 : ARM_SWING;
 
     stride(rig, moving);
+    if (upright) aimGrip(right.hand, figure, UP, 1);
+
+    // Each tail follows its thigh back, streams behind running, and is pushed aside wherever the leg would pass through it.
+    hips.updateMatrix();
+    const intoHips = hips.matrix.clone().invert();
+    for (const one of legs) one.shoe.updateMatrix();
+    const intoBody = body.matrix.clone().invert();
+    for (const [i, one] of legs.entries()) {
+      const down = new THREE.Vector3(0, -1, 0).applyQuaternion(one.hip.quaternion);
+      // A thigh swinging forward passes out through the open front; one swinging back carries the tail with it.
+      const rest = Math.max(0, Math.atan2(-down.z, -down.y)) * TAIL_FOLLOW + running * 0.3;
+      const shoe = SHOE_POINTS.map((at) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius: 0.05 }));
+      const swept = [...legPoints(one, 0.06, 0.05), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
+      tails[i].rotation.x = pushAside(tailShells[i], tails[i].position, swept, rest, { least: -0.15 });
+    }
   });
 }

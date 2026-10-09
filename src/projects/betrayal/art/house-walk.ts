@@ -148,7 +148,7 @@ export function walkPath(layout: Layout, route: readonly string[], from: HousePo
 /** Walking pace, in metres a second along the path: slow enough to follow.
  *  Every figure keeps it, so a turn takes as long whoever walks; a figure's
  *  own step sets its cadence. */
-export const WALK_SPEED = 2.2;
+export const WALK_SPEED = 1.5;
 /** Running pace, shared by every figure as the walking pace is. */
 export const RUN_SPEED = 3.6;
 /** Metres over which a walker gets into its stride, and out of it. */

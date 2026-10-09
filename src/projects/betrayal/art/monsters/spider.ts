@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { BASE_TOP, burst, reach, STANDING, walks, type Gait } from "../explorers/figure";
+import { BASE_TOP, burst, joins, reach, STANDING, walks, type Gait, type Joint } from "../explorers/figure";
 import {
   ball,
+  drum,
   ellipsoid,
   figureMaterial,
   form,
@@ -15,7 +16,9 @@ import {
   rod,
   roughened,
   sculpt,
+  shaped,
   skin,
+  solidOf,
   union,
   type Section,
   type Solid,
@@ -43,14 +46,18 @@ const BASE_RADIUS = 1.15;
 const BODY_HEIGHT = 0.52;
 const FEMUR = 0.8;
 const TIBIA = 1.0;
+/** Each leg: its knob on the thorax's rim (across and along, on the left), the way its foot lies (degrees from
+ *  straight ahead) and how far off. The knobs ring the thorax, each leg facing its own foot, so neighbouring legs
+ *  fan apart from the root and their knees never meet. */
 const LEGS = [
-  { hip: 0.42, angle: 28, reach: 1.02 },
-  { hip: 0.3, angle: 62, reach: 0.98 },
-  { hip: 0.18, angle: 112, reach: 0.96 },
-  { hip: 0.06, angle: 148, reach: 1.04 },
+  { hip: [0.18, 0.43], angle: 38, reach: 1.02 },
+  { hip: [0.245, 0.32], angle: 70, reach: 0.98 },
+  { hip: [0.25, 0.2], angle: 108, reach: 0.96 },
+  { hip: [0.19, 0.085], angle: 142, reach: 1.04 },
 ] as const;
-const HIP_X = 0.2;
-const FOOT_TRAVEL = 0.27;
+/** The middle of the thorax, which the feet lie round. */
+const MIDDLE = 0.27;
+const FOOT_TRAVEL = 0.2;
 const ABDOMEN = { centre: [0, 0.2, -0.52] as Vec3, radii: [0.42, 0.38, 0.6] as Vec3 };
 
 /** The traitor's red smouldering in its chitin, so a dark body never sinks into a dark floor. */
@@ -100,8 +107,8 @@ function profileRadius(profile: readonly [number, number, PaletteKey][]): (y: nu
 
 /** The upper leg, from the hip's knob to the knee: thin and dark. */
 const FEMUR_PROFILE: readonly [number, number, PaletteKey][] = [
-  [0.05, 0.064, "ash"],
-  [-0.04, 0.068, "soot"],
+  [0.05, 0.054, "ash"],
+  [-0.04, 0.058, "soot"],
   [-0.12, 0.06, "soot"],
   [-0.42, 0.058, "soot"],
   [-0.74, 0.05, "soot"],
@@ -134,10 +141,10 @@ function thorax(): THREE.BufferGeometry {
   const shape = sculpt()
     .add(ellipsoid([0, 0.03, 0.27], [0.27, 0.16, 0.34]), "ash")
     .add(ellipsoid([0, 0.12, 0.46], [0.17, 0.09, 0.12]), "ash", 0.07)
-    .add(rod([0, 0.0, 0.05], [0, 0.04, -0.06], 0.08, 0.07), "sootLight", 0.04)
+    .add(rod([0, 0.0, 0.05], [0, 0.04, -0.16], 0.08, 0.06), "sootLight", 0.04)
     .carve(ball([0, 0.22, 0.24], 0.04), { blend: 0.04, colour: "sootLight" })
     .paint((_, y) => (y < -0.05 ? -1 : 1), "sootLight");
-  for (const side of [-1, 1]) for (const { hip } of LEGS) shape.add(ball([side * HIP_X, 0, hip], 0.085), "sootLight", 0.05);
+  for (const side of [-1, 1]) for (const { hip } of LEGS) shape.add(ball([side * hip[0], 0, hip[1]], 0.085), "sootLight", 0.05);
   return shape.geometry(0.014);
 }
 
@@ -146,7 +153,7 @@ const EYES: readonly [number, number, number, number][] = [
   [0.055, 0.12, 0.62, 0.054],
   [0.15, 0.12, 0.56, 0.038],
   [0.08, 0.19, 0.55, 0.034],
-  [0.17, 0.17, 0.48, 0.03],
+  [0.12, 0.18, 0.47, 0.03],
 ];
 
 function eyes(): THREE.BufferGeometry {
@@ -156,7 +163,7 @@ function eyes(): THREE.BufferGeometry {
         const geometry = new THREE.SphereGeometry(radius, 14, 10);
         geometry.translate(side * x, y, z);
         geometry.deleteAttribute("uv");
-        return geometry;
+        return shaped(geometry, ball([side * x, y, z], radius));
       }),
     ),
   );
@@ -165,7 +172,7 @@ function eyes(): THREE.BufferGeometry {
 function abdomenSolid(): Solid {
   return union(
     ellipsoid(ABDOMEN.centre, ABDOMEN.radii),
-    ellipsoid([0, 0.2, -0.3], [0.31, 0.28, 0.3]),
+    ellipsoid([0, 0.2, -0.3], [0.26, 0.28, 0.3]),
   );
 }
 
@@ -225,6 +232,14 @@ function palpSegment(length: number, from: number, to: number, end: PaletteKey):
   );
 }
 
+/** A leg segment with its bristles merged on. Bristles are hair-fine, so the
+ *  segment's solid stands for the whole: two legs' bristles may brush. */
+function bristled(segmentGeometry: THREE.BufferGeometry, hairs: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const solid = solidOf(segmentGeometry);
+  const merged = mergeAll([segmentGeometry, ...hairs]);
+  return solid ? shaped(merged, solid) : merged;
+}
+
 function meshParts() {
   const belly = abdomenSolid();
   return {
@@ -235,17 +250,13 @@ function meshParts() {
     markings: markings(belly),
     jaws: [jaw(1), jaw(-1)],
     palps: { root: palpSegment(0.22, 0.034, 0.03, "ash"), tip: palpSegment(0.2, 0.03, 0.026, "sootLight") },
-    femurs: [0, 1, 2, 3].map((i) =>
-      mergeAll([segment(FEMUR_PROFILE, "round"), ...bristles(-0.12, -0.7, profileRadius(FEMUR_PROFILE), 10, i * 1.3, "stoneDark")]),
-    ),
+    femurs: [0, 1, 2, 3].map((i) => bristled(segment(FEMUR_PROFILE, "round"), bristles(-0.12, -0.7, profileRadius(FEMUR_PROFILE), 10, i * 1.3, "stoneDark"))),
     band: (() => {
       const tube = new THREE.CylinderGeometry(1, 1, 1, 16, 1, true);
       tube.deleteAttribute("uv");
-      return tube;
+      return shaped(tube, drum([0, 0, 0], 1, 0.5));
     })(),
-    tibias: [0, 1, 2, 3].map((i) =>
-      mergeAll([segment(TIBIA_PROFILE, "point"), ...bristles(-0.2, -0.62, profileRadius(TIBIA_PROFILE), 10, i * 0.7, "stoneDark")]),
-    ),
+    tibias: [0, 1, 2, 3].map((i) => bristled(segment(TIBIA_PROFILE, "point"), bristles(-0.2, -0.62, profileRadius(TIBIA_PROFILE), 10, i * 0.7, "stoneDark"))),
   };
 }
 type Parts = ReturnType<typeof meshParts>;
@@ -258,20 +269,29 @@ interface Leg {
   at: THREE.Vector3;
   foot: THREE.Vector3;
   side: -1 | 1;
-  set: 0 | 1;
+  /** Where in the stride this leg steps: a wave runs back along each side, each leg a quarter stride behind the one in front, so neighbours never swing together. */
+  wave: number;
+}
+
+/** A part of the spider, named for the clipping check's findings. */
+function named(mesh: THREE.Mesh, name: string): THREE.Mesh {
+  mesh.name = name;
+  return mesh;
 }
 
 function leg(side: -1 | 1, index: number, material: THREE.Material, parts: Parts): Leg {
-  const { hip: hipZ, angle, reach: distance } = LEGS[index];
-  const knee = group(form(material, parts.tibias[index]));
+  const { hip: knob, angle, reach: distance } = LEGS[index];
+  const name = `${side < 0 ? "right" : "left"} leg ${index + 1}`;
+  const knee = group(named(form(material, parts.tibias[index]), `${name} tibia`));
   knee.position.y = -FEMUR;
-  const hip = group(form(material, parts.femurs[index]), knee);
-  const at = new THREE.Vector3(side * HIP_X, 0, hipZ);
+  const hip = group(named(form(material, parts.femurs[index]), `${name} femur`), knee);
+  const at = new THREE.Vector3(side * knob[0], 0, knob[1]);
   hip.position.copy(at);
   const radians = (angle * Math.PI) / 180;
-  const foot = new THREE.Vector3(side * Math.sin(radians) * distance, BASE_TOP, 0.12 + Math.cos(radians) * distance);
-  const set = ((index + (side === 1 ? 0 : 1)) % 2) as 0 | 1;
-  return { hip, knee, at, foot, side, set };
+  // The claw's point rests on the base, not in it.
+  const foot = new THREE.Vector3(side * Math.sin(radians) * distance, BASE_TOP + 0.035, MIDDLE + Math.cos(radians) * distance);
+  const wave = (index * 0.5 + (side === 1 ? 0 : 1)) * Math.PI;
+  return { hip, knee, at, foot, side, wave };
 }
 
 /** The Spider. */
@@ -283,29 +303,36 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
   const legMaterial = chitin(figureMaterial(), "blood", stunned ? 0.3 : 0.5);
   const red = ghostly(stunned ? "blood" : "scarlet");
 
-  const abdomenPivot = group(form(material, parts.abdomen), form(red, parts.markings));
-  abdomenPivot.position.set(0, 0.04, 0.0);
+  const belly = named(form(material, parts.abdomen), "abdomen");
+  const chevrons = named(form(red, parts.markings), "markings");
+  const abdomenPivot = group(belly, chevrons);
+  abdomenPivot.position.set(0, 0.04, -0.12);
   abdomenPivot.rotation.x = -0.12;
 
   const legs: Leg[] = [];
   for (const side of [1, -1] as const) for (let i = 0; i < LEGS.length; i++) legs.push(leg(side, i, legMaterial, parts));
   const jaws = ([1, -1] as const).map((side, i) => {
-    const piece = group(form(material, parts.jaws[i]));
+    const piece = group(named(form(material, parts.jaws[i]), side < 0 ? "right jaw" : "left jaw"));
     piece.position.set(side * 0.06, 0.02, 0.6);
     piece.rotation.x = 0.35;
     return piece;
   });
   const palps = ([1, -1] as const).map((side) => {
-    const tip = group(form(material, parts.palps.tip));
+    const tip = group(named(form(material, parts.palps.tip), side < 0 ? "right palp tip" : "left palp tip"));
     tip.position.y = -0.2;
-    const root = group(form(material, parts.palps.root), tip);
-    root.position.set(side * 0.13, 0.02, 0.56);
+    const root = group(named(form(material, parts.palps.root), side < 0 ? "right palp" : "left palp"), tip);
+    root.position.set(side * 0.15, 0.02, 0.57);
     return { root, tip };
   });
-  const body = group(form(material, parts.thorax), abdomenPivot, form(red, parts.eyes), ...jaws, ...palps.map((p) => p.root), ...legs.map((l) => l.hip));
+  const thorax = named(form(material, parts.thorax), "thorax");
+  const eyes = named(form(red, parts.eyes), "eyes");
+  const turret = group();
+  turret.position.set(0, 0.15, 0.55);
+  const body = group(thorax, abdomenPivot, eyes, turret, ...jaws, ...palps.map((p) => p.root), ...legs.map((l) => l.hip));
 
   // Every leg's glowing bands, drawn in one call, follow the legs each frame.
   const bands = new THREE.InstancedMesh(parts.band, red, legs.length * BANDS.length);
+  bands.name = "bands";
   bands.frustumCulled = false;
   body.add(bands);
   const tibiaRadius = profileRadius(TIBIA_PROFILE);
@@ -315,7 +342,27 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
   });
   const placed = new THREE.Matrix4();
 
-  const figure = group(form(figureMaterial(), parts.base), body);
+  const figure = group(named(form(figureMaterial(), parts.base), "base"), body);
+  const partOf = (pivot: THREE.Object3D) => pivot.children[0];
+  joins(figure, [
+    // The eyes are set into the turret, the chevrons into the abdomen's skin.
+    { parts: [eyes, thorax], at: turret, radius: 0.2 },
+    { parts: [chevrons, belly], at: abdomenPivot, radius: 1.2 },
+    { parts: [belly, thorax], at: abdomenPivot, radius: 0.32 },
+    ...jaws.map((piece): Joint => ({ parts: [partOf(piece), thorax], at: piece, radius: 0.16 })),
+    ...palps.flatMap(({ root, tip }): Joint[] => [
+      { parts: [partOf(root), thorax], at: root, radius: 0.09 },
+      { parts: [partOf(tip), partOf(root)], at: tip, radius: 0.07 },
+    ]),
+    // A leg turns in its knob on the thorax, folds at the knee, and wears its bands round the shank below it.
+    // Each side's legs fan out from knobs set close together along the thorax.
+    ...legs.flatMap(({ hip }, i): Joint[] => (i % LEGS.length === LEGS.length - 1 ? [] : [{ parts: [partOf(hip), partOf(legs[i + 1].hip)], at: hip, radius: 0.25 }])),
+    ...legs.flatMap(({ hip, knee }): Joint[] => [
+      { parts: [partOf(hip), thorax], at: hip, radius: 0.22 },
+      { parts: [partOf(hip), partOf(knee)], at: knee, radius: 0.17 },
+      { parts: [partOf(hip), bands], at: knee, radius: 0.2 },
+    ]),
+  ]);
 
   const rng = createRng(seed);
   const offset = rng.next() * 100;
@@ -334,22 +381,23 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
     body.rotation.x = stunned ? 0.08 : -rear * 0.32 + stride.amount * 0.04;
     body.rotation.z = stunned ? 0.06 : 0;
     abdomenPivot.scale.setScalar(1 + breath * 0.02);
-    abdomenPivot.rotation.x = -0.12 + rear * 0.25 + (stunned ? 0.18 : 0);
+    // Rearing, it lowers its abdomen behind it, braced.
+    abdomenPivot.rotation.x = -0.12 - rear * 0.12 + (stunned ? 0.18 : 0);
     body.updateMatrix();
     toBody.copy(body.matrix).invert();
 
     legs.forEach((limb, i) => {
       if (stunned) {
-        target.set(limb.foot.x - limb.at.x, 0, limb.foot.z - limb.at.z).setLength(0.47).add(limb.at);
-        target.y = -0.18;
-        bend.set(limb.side, 1.2, 0);
+        target.set(limb.foot.x - limb.at.x, 0, limb.foot.z - limb.at.z).setLength(0.8).add(limb.at);
+        target.y = -0.17;
+        bend.set(0, 1, 0);
       } else {
         target.copy(limb.foot);
         if (rear > 0 && i % LEGS.length === 0) {
-          target.lerp(new THREE.Vector3(limb.side * 0.45, 1.55, 1.05), rear);
+          target.lerp(new THREE.Vector3(limb.side * 0.7, 1.45, 1.0), rear);
         }
         if (stride.amount > 0) {
-          const cycle = stride.phase + limb.set * Math.PI;
+          const cycle = stride.phase + limb.wave;
           target.z += Math.sin(cycle) * FOOT_TRAVEL * stride.amount;
           target.y += Math.max(0, Math.cos(cycle)) * 0.16 * stride.amount;
         } else {
@@ -359,7 +407,10 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
           target.z += (shift.pick - 0.5) * 0.14 * shift.amount;
         }
         target.applyMatrix4(toBody);
-        bend.set(limb.side * 0.5, 1, limb.at.z * 0.5);
+        // Each knee rises over the line to its own foot, so neighbouring legs, fanning apart, keep their knees apart;
+        // a front leg raised to threaten bends its knee out and forward, clear of the carapace.
+        bend.set(0, 1, 0);
+        if (rear > 0 && i % LEGS.length === 0) bend.lerp(new THREE.Vector3(limb.side * 0.6, 0.4, 1), rear);
       }
       const posed = reach(limb.at, target, FEMUR, TIBIA, bend);
       limb.hip.quaternion.copy(posed.shoulder);
@@ -373,12 +424,14 @@ export function spider(seed = "spider", gait: Gait = STANDING, { stunned = false
 
     palps.forEach(({ root, tip }, i) => {
       const twitch = burst(seconds, `${seed}:palp${i}`, { every: 2.2, lasts: 0.6, chance: 0.6 }).amount;
-      root.rotation.x = stunned ? 1.2 : 0.55 + twitch * 0.35 - rear * 0.3;
+      // The palps reach down and forward from under the eyes, folding at their joint; stunned, they fold back under.
+      root.rotation.x = stunned ? 0.1 : -0.45 - twitch * 0.3 - rear * 0.25;
       root.rotation.z = (i ? -1 : 1) * 0.15;
-      tip.rotation.x = stunned ? -1.4 : -0.9 + twitch * 0.3;
+      tip.rotation.x = stunned ? 1.0 : 0.7 - twitch * 0.3;
     });
     jaws.forEach((piece, i) => {
-      piece.rotation.z = (i ? 1 : -1) * (0.05 + rear * 0.3 + (stunned ? 0 : Math.max(0, Math.sin(seconds * 3.7)) * 0.05));
+      // The jaws work apart, each swinging out to its own side.
+      piece.rotation.z = (i ? -1 : 1) * (0.05 + rear * 0.15 + (stunned ? 0 : Math.max(0, Math.sin(seconds * 3.7)) * 0.05));
     });
   }), { step: FOOT_TRAVEL * 2, hop: 0 });
 }

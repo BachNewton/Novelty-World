@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { BASE_TOP } from "../explorers/figure";
-import { figureMaterial, form, plinth } from "../forms";
+import { BASE_TOP, joins } from "../explorers/figure";
+import { figureMaterial, form, plinth, roundBox, shaped } from "../forms";
 import type { PaletteKey } from "../palette";
 import { glow, group } from "../shapes";
 
@@ -34,7 +34,9 @@ export function spectral(brightness = 1): THREE.MeshBasicMaterial {
  * faces +z). The arrow is sunk into the rim, so it reads as paint, not a part.
  */
 export function monsterBase(radius: number, { rim = "stoneDark", arrow }: { rim?: PaletteKey; arrow?: PaletteKey } = {}): THREE.Group {
-  const result = group(form(figureMaterial(), plinth(radius, radius - 0.02, BASE_TOP, rim, radius > 0.6 ? 96 : 64)));
+  const plate = form(figureMaterial(), plinth(radius, radius - 0.02, BASE_TOP, rim, radius > 0.6 ? 96 : 64));
+  plate.name = "base";
+  const result = group(plate);
   if (arrow) {
     const size = radius * 0.32;
     const shape = new THREE.Shape([
@@ -46,8 +48,15 @@ export function monsterBase(radius: number, { rim = "stoneDark", arrow }: { rim?
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false });
     // Lay it flat, point forward, its top 5 mm proud of the base.
     geometry.rotateX(Math.PI / 2);
+    const middle = new THREE.Vector3(0, BASE_TOP - 0.015, radius - 0.04 - size + size * 0.35);
     geometry.translate(0, BASE_TOP + 0.005, radius - 0.04 - size);
-    result.add(new THREE.Mesh(geometry, ghostly(arrow)));
+    const inlay = new THREE.Mesh(shaped(geometry, roundBox(middle.toArray(), [size * 0.7, 0.02, size * 0.65], 0)), ghostly(arrow));
+    inlay.name = "arrow";
+    const set = group();
+    set.position.copy(middle);
+    result.add(inlay, set);
+    // The arrow is set into the rim, as an inlay.
+    joins(result, [{ parts: [inlay, plate], at: set, radius: size * 1.2 }]);
   }
   return result;
 }

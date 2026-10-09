@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { arm, BASE_TOP, burst, pose, reach, STANDING, walks, type Gait, type Limb } from "../explorers/figure";
+import { arm, BASE_TOP, burst, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
 import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section, type Tone } from "../forms";
 import { paletteHex } from "../palette";
 import { group, lightMaterial } from "../shapes";
@@ -192,7 +192,11 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
   meshed ??= meshParts();
   const parts = meshed;
   const glowing = spectral(stunned ? 0.5 : 1);
-  const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material = glowing) => new THREE.Mesh(geometry, material);
+  const mesh = (geometry: THREE.BufferGeometry, material: THREE.Material = glowing, name = "") => {
+    const made = new THREE.Mesh(geometry, material);
+    made.name = name;
+    return made;
+  };
   const halo = light(stunned ? 0.12 : 0.28);
   const veil = light(stunned ? 0.35 : 0.75);
   const mist = light(stunned ? 0.25 : 0.5);
@@ -205,28 +209,40 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
     piece.rotation.y = angle;
     return piece;
   });
-  const hem = group(mesh(parts.robe), mesh(parts.veil, veil), mesh(parts.halo, halo), ...tatters);
+  const robe = mesh(parts.robe, glowing, "robe");
+  const hem = group(robe, mesh(parts.veil, veil), mesh(parts.halo, halo), ...tatters);
 
   // Her hair: one sheet hanging from the back of her crown to between her
   // shoulders, splitting into ragged locks that stream behind her. A sheet
   // hugging her back reads as long hair from above; separate strands read as antennae.
   const locks = parts.locks.map((geometry, i) => {
-    const end = group(mesh(geometry));
+    const end = group(mesh(geometry, glowing, `lock ${i + 1}`));
     const x = -0.075 + i * 0.05;
     end.position.set(x, 0.3, 0.016);
-    end.rotation.z = x * 1.5;
+    // Her hair hangs upside down from its root, so this fans the locks apart.
+    end.rotation.z = -x * 2;
     return end;
   });
-  const maneRoot = group(mesh(parts.mane), ...locks);
+  const mane = mesh(parts.mane, glowing, "mane");
+  const maneRoot = group(mane, ...locks);
   maneRoot.position.set(0, 0.36, -0.1);
 
   const rings = [wailRing(), wailRing(), wailRing()];
   const mouth = group(...rings);
   mouth.position.set(...MOUTH);
-  const neck = group(mesh(parts.head), maneRoot, mouth);
+  const face = mesh(parts.head, glowing, "head");
+  const neck = group(face, maneRoot, mouth);
   neck.position.y = NECK;
 
-  const limb = (side: -1 | 1) => arm(mesh(parts.upperArm), mesh(parts.forearms[side < 0 ? 0 : 1]), new THREE.Vector3(side * SHOULDER[0], SHOULDER[1], 0), UPPER_ARM);
+  const limb = (side: -1 | 1) => {
+    const name = side < 0 ? "right" : "left";
+    return arm(
+      mesh(parts.upperArm, glowing, `${name} upper arm`),
+      mesh(parts.forearms[side < 0 ? 0 : 1], glowing, `${name} forearm`),
+      new THREE.Vector3(side * SHOULDER[0], SHOULDER[1], 0),
+      UPPER_ARM,
+    );
+  };
   const left = limb(1);
   const right = limb(-1);
   const bend = (side: number) => new THREE.Vector3(side, -0.2, -1);
@@ -235,12 +251,13 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
     reaching: reach(of.at, toward(of, [side * 0.05, -0.18, 0.5]), UPPER_ARM, LOWER_ARM, bend(side)),
     beckoning: reach(of.at, toward(of, [side * 0.12, 0.02, 0.48]), UPPER_ARM, LOWER_ARM, bend(side)),
     flung: reach(of.at, toward(of, [side * 0.45, 0.4, 0.12]), UPPER_ARM, LOWER_ARM, new THREE.Vector3(side, -1, 0)),
-    limp: reach(of.at, toward(of, [side * 0.06, -0.55, 0.12]), UPPER_ARM, LOWER_ARM, new THREE.Vector3(0, 0, -1)),
+    limp: reach(of.at, toward(of, [side * 0.15, -0.5, 0.2]), UPPER_ARM, LOWER_ARM, new THREE.Vector3(0, 0, -1)),
   });
   const leftPoses = poses(left, 1);
   const rightPoses = poses(right, -1);
 
-  const chest = group(mesh(parts.torso), neck, left.shoulder, right.shoulder);
+  const torso = mesh(parts.torso, glowing, "torso");
+  const chest = group(torso, neck, left.shoulder, right.shoulder);
   const body = group(hem, chest);
   body.position.y = WAIST;
 
@@ -252,7 +269,19 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
   });
   const stand = group(...wisps);
 
-  const figure = group(monsterBase(BASE_RADIUS, { arrow: "wraithLight" }), stand, body);
+  const figure = joins(group(monsterBase(BASE_RADIUS, { arrow: "wraithLight" }), stand, body), [
+    { parts: [face, torso], at: neck, radius: 0.12 },
+    // Her hair is a sheet from the back of her crown, splitting into locks where it ends.
+    { parts: [mane, face], at: maneRoot, radius: 0.18 },
+    ...locks.map((end): Joint => ({ parts: [end, mane], at: end, radius: 0.13 })),
+    ...locks.slice(1).map((end, i): Joint => ({ parts: [end, locks[i]], at: end, radius: 0.08 })),
+    // Her robe hangs from her waist, inside her bodice.
+    { parts: [robe, torso], at: body, radius: 0.2 },
+    ...[left, right].flatMap((of): Joint[] => [
+      { parts: [of.shoulder.children[0], torso], at: of.shoulder, radius: 0.1 },
+      { parts: [of.shoulder.children[0], of.elbow.children[0]], at: of.elbow, radius: 0.1 },
+    ]),
+  ]);
 
   const swayPhase = rng.next() * Math.PI * 2;
   const offset = rng.next() * 100;
@@ -289,9 +318,9 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
 
       // Her hair hangs down her back, its locks rippling; wailing or gliding, it lifts and streams behind.
       // Stunned, her head and chest bow forward, so her hair turns further to keep hanging down.
-      maneRoot.rotation.x = stunned ? -3.75 : -2.85 + wail * 0.75 + glide * 0.5 + drift * 0.04;
+      maneRoot.rotation.x = stunned ? -2.6 : -2.85 + wail * 0.75 + glide * 0.5 + drift * 0.04;
       locks.forEach((end, i) => {
-        end.rotation.x = stunned ? 0 : 0.25 + Math.sin(seconds * 2.4 + i * 1.3) * 0.25 + wail * 0.3;
+        end.rotation.x = stunned ? 0 : 0.25 + Math.sin(seconds * 2.4 + i * 0.5) * 0.18 + wail * 0.3;
       });
 
       if (stunned) {

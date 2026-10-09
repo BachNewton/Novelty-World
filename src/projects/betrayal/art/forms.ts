@@ -48,6 +48,20 @@ export interface Solid {
   max: Vec3;
 }
 
+/**
+ * Keeps the solid a geometry was meshed from with it, so a figure's parts can
+ * be asked how deep a point lies inside them (the figures' clipping check).
+ * Sculptures and lofts keep theirs; explicit geometry is given one here.
+ */
+export function shaped<T extends THREE.BufferGeometry>(geometry: T, solid: Solid): T {
+  geometry.userData.solid = solid;
+  return geometry;
+}
+
+export function solidOf(geometry: THREE.BufferGeometry): Solid | undefined {
+  return (geometry.userData as { solid?: Solid }).solid;
+}
+
 function bounds(centre: Vec3, reach: Vec3): Pick<Solid, "min" | "max"> {
   return {
     min: [centre[0] - reach[0], centre[1] - reach[1], centre[2] - reach[2]],
@@ -141,6 +155,23 @@ export function roundBox(centre: Vec3, half: Vec3, round: number, rotation: Vec3
       const qy = Math.abs(p.y) - half[1] + round;
       const qz = Math.abs(p.z) - half[2] + round;
       return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - round;
+    },
+    ...bounds(centre, [reach, reach, reach]),
+  };
+}
+
+/** A drum (a cylinder with rounded edges) round `centre`, its axis along its
+ *  local y, `half` its half-height, turned by `rotation`: a coin, a candle, a shaft. */
+export function drum(centre: Vec3, radius: number, half: number, round = 0, rotation: Vec3 = [0, 0, 0]): Solid {
+  const local = orient(centre, rotation);
+  const p = new THREE.Vector3();
+  const reach = Math.hypot(radius, half);
+  return {
+    distance: (x, y, z) => {
+      local(x, y, z, p);
+      const dx = Math.hypot(p.x, p.z) - radius + round;
+      const dy = Math.abs(p.y) - half + round;
+      return Math.min(Math.max(dx, dy), 0) + Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) - round;
     },
     ...bounds(centre, [reach, reach, reach]),
   };
@@ -304,7 +335,7 @@ export function sculpt() {
       const { min, max } = shape.bounds();
       const net = surfaceNet(shape.distance, min, max, cell);
       settle(net.positions, shape.distance, cell);
-      return colouredGeometry(net, shape.distance, shape.colourAt, cell);
+      return shaped(colouredGeometry(net, shape.distance, shape.colourAt, cell), { distance: shape.distance, ...shape.bounds() });
     },
   };
   return shape;
@@ -641,7 +672,60 @@ export function loft(
     for (let c = 0; c < 3; c++) colours.set([r, g, b], (t * 3 + c) * 3);
   });
   geometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
-  return geometry;
+  return shaped(geometry, loftSolid(at, radii, across, tangents, sections.length === 1 ? ["round", "round"] : ends));
+}
+
+/**
+ * A loft's solid, close enough to judge clipping by: each band between two
+ * rings an elliptic tube tapering from one to the next, and each end a
+ * half-ellipsoid as long as the loft's cap or point (none for a flat end).
+ */
+function loftSolid(
+  at: readonly THREE.Vector3[],
+  radii: readonly (readonly number[])[],
+  across: readonly THREE.Vector3[],
+  tangents: readonly THREE.Vector3[],
+  ends: readonly ["round" | "point" | "flat", "round" | "point" | "flat"],
+): Solid {
+  const last = at.length - 1;
+  const capLength = (end: number, kind: "round" | "point" | "flat") =>
+    kind === "point" ? Math.max(...radii[end]) * 2.5 : kind === "round" ? Math.min(...radii[end]) : 0;
+  const caps = [capLength(0, ends[0]), capLength(last, ends[1])];
+  const others = across.map((n, i) => tangents[i].clone().cross(n));
+  const d = new THREE.Vector3();
+  const band = (i: number, x: number, y: number, z: number): number => {
+    const a = at[i];
+    const j = Math.min(i + 1, last);
+    const axis = at[j].clone().sub(a);
+    const length = axis.length();
+    d.set(x - a.x, y - a.y, z - a.z);
+    const t = length > 0 ? d.dot(axis) / (length * length) : 0;
+    // Past the loft's first or last ring, a point lies off its end.
+    const cap = t < 0 && i === 0 ? caps[0] : t > 1 && j === last ? caps[1] : null;
+    const along = t < 0 ? t * length : t > 1 ? (t - 1) * length : 0;
+    const clamped = THREE.MathUtils.clamp(t, 0, 1);
+    const rx = radii[i][0] + (radii[j][0] - radii[i][0]) * clamped;
+    const ry = radii[i][1] + (radii[j][1] - radii[i][1]) * clamped;
+    d.addScaledVector(axis, -clamped);
+    const u = d.dot(across[i]) / rx;
+    const v = d.dot(others[i]) / ry;
+    const least = Math.min(rx, ry);
+    if (along === 0) return (Math.hypot(u, v) - 1) * least;
+    // Past a ring between two bands, the next band takes over: end this one flat.
+    if (cap === null) return Math.max((Math.hypot(u, v) - 1) * least, Math.abs(along));
+    if (cap === 0) return Math.max((Math.hypot(u, v) - 1) * least, Math.abs(along));
+    return (Math.hypot(u, v, along / cap) - 1) * least;
+  };
+  const reach = Math.max(...radii.flat()) + Math.max(...caps);
+  return {
+    distance: (x, y, z) => {
+      let nearest = Infinity;
+      for (let i = 0; i < Math.max(1, last); i++) nearest = Math.min(nearest, band(i, x, y, z));
+      return nearest;
+    },
+    min: [0, 1, 2].map((k) => Math.min(...at.map((p) => p.getComponent(k))) - reach) as unknown as Vec3,
+    max: [0, 1, 2].map((k) => Math.max(...at.map((p) => p.getComponent(k))) + reach) as unknown as Vec3,
+  };
 }
 
 /** Gives a whole geometry one palette colour, for merging with others into one vertex-coloured mesh. */
@@ -653,7 +737,8 @@ export function painted(geometry: THREE.BufferGeometry, colour: Tone): THREE.Buf
   for (let i = 0; i < count; i++) colours.set([r, g, b], i * 3);
   flatGeometry.setAttribute("color", new THREE.BufferAttribute(colours, 3));
   flatGeometry.deleteAttribute("uv");
-  return flatGeometry;
+  const solid = solidOf(geometry);
+  return solid ? shaped(flatGeometry, solid) : flatGeometry;
 }
 
 /** A figure's lit, smooth-shaded material, coloured by its geometry's palette colours. */
@@ -679,9 +764,11 @@ export function glowShaded(geometry: THREE.BufferGeometry, depth = 0.45): THREE.
 
 /** Coloured geometries merged into one, the pieces freed. */
 export function mergeAll(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const solids = geometries.map(solidOf);
   const merged = mergeGeometries(geometries);
+  merged.userData = {};
   for (const geometry of geometries) geometry.dispose();
-  return merged;
+  return solids.every((solid): solid is Solid => solid !== undefined) ? shaped(merged, union(...solids)) : merged;
 }
 
 /** Where a surface lies at (x, y), marched in along z from the front
@@ -721,5 +808,5 @@ export function plinth(radius: number, topRadius: number, top: number, colour: T
     new THREE.Vector2(topRadius - bevel, top),
     new THREE.Vector2(0, top),
   ];
-  return painted(new THREE.LatheGeometry(profile, sides), colour);
+  return shaped(painted(new THREE.LatheGeometry(profile, sides), colour), drum([0, top / 2, 0], radius, top / 2));
 }
