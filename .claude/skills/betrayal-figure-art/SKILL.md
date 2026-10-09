@@ -400,9 +400,17 @@ turning, its hands reaching that way, and whoever places it turns it to
 face along the grid (the Banshee, whose facing haunt 08 depends on).
 
 **Its size comes from the rules.** "Giant" means a threat to an explorer:
-shoot it beside the explorers and the scale pawn in `monsterLineUp`. A big
-monster that stands gets a bigger base (`monsterBase`), dark to tell it from
-an explorer's.
+shoot it beside the explorers and the scale pawn in `monsterLineUp`. Every
+figure is in one of three size classes: **small** (swarms and animals),
+**person-sized** (explorers, companions, most named monsters, zombies and
+cultists) or **large** (the Spider, the Dragon, the Demon Lord, the
+Ouroboros heads: a handful of figures, each in one haunt). A figure is
+never shrunk to fit a room. A person-sized figure stands on one of a room's
+standing spots; a large one takes a spot and spreads over its neighbours.
+How a large one fits a crowded room waits for the first haunt that has one;
+the lead idea is a "crowded pose" of its own (the Spider coiled), used when
+its full spread doesn't fit. A big monster that stands gets a bigger base
+(`monsterBase`), dark to tell it from an explorer's.
 
 **It has a stunned pose.** A stunned monster misses its next turn (rules.md,
 How Monsters Work). Give it a pose of its own that reads at house distance,
@@ -412,7 +420,7 @@ not a dimmer idle: the Spider crumples, the Banshee slumps.
 parts that never move relative to each other. Many copies of one shape that
 move are one `InstancedMesh` in a single draw (the Spider's sixteen leg
 bands follow its legs each frame); swarms (bats, rats) are the same, never
-many separate figures.
+many separate figures, clustered round a standing spot.
 
 ## Build it
 
@@ -427,8 +435,9 @@ character is, from the data, and how they read at a glance. Then, in order:
 3. The builder: the groups at their pivots, the arm poses, the `StrideRig`,
    then the animation: idle layers first, then `stride` and the figure's
    own touches.
-4. Register it in `BENCH_EXPLORERS` and add it to the line-ups and the
-   overlap test.
+4. Register it in `BENCH_EXPLORERS` and in `art/explorers/by-character.ts`
+   (so the game shows it instead of a pawn), and add it to the line-ups and
+   the overlap, clipping and gait tests.
 
 **Run the clipping check** after every change: `npx vitest run
 src/projects/betrayal/art/explorers/clipping.test.ts` (and
@@ -560,8 +569,8 @@ e2e/betrayal-house.spec.ts`, all clean.
 ## Done means
 
 The figure reads at a glance in the house and on the phone, distinct in the
-line-ups; its idle, walk and run play without a broken frame; the overlap
-check passes; lint, typecheck, the art tests and the house e2e are clean;
+line-ups; its idle, walk and run play without a broken frame; the
+clipping, gait and overlap checks pass; lint, typecheck, the art tests and the house e2e are clean;
 it is registered and in the line-ups; and any temporary cast change is
 reverted. The builder reports back:
 

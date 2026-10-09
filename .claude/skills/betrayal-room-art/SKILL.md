@@ -7,15 +7,16 @@ description: Build or rework the 3D art of one Betrayal at House on the Hill roo
 
 Each room tile of the house is a little 3D room, seen as a dollhouse with the
 walls nearest the camera cut away. Read "Visual style" in
-`src/projects/betrayal/CLAUDE.md` first. The 3D house is a prototype, not
-yet the decided presentation (see `design/presentation.md`).
+`src/projects/betrayal/CLAUDE.md` first. The 3D house is the game's
+presentation (see `design/presentation.md`).
 
 **Claude makes the art, so lean into Claude's strengths and find
 workarounds for its weaknesses.** All of it is code: low-poly shapes with
 adjustable dimensions, small pixel textures drawn only from one palette and
 shown with hard pixel edges, SVG decals snapped to that palette, and
-lighting (candles, moonlight, fog, glows) to carry the mood. Nothing is
-sculpted and nothing is painted. When a thing is hard to model (water, fire,
+lighting (candles, moonlight, fog, glows) to carry the mood. A room is
+built from simple shapes, never sculpted (figures are: see the
+`betrayal-figure-art` skill), and nothing is painted. When a thing is hard to model (water, fire,
 a deep pit, a face), don't model it harder: fake it with what works (a
 stepping pixel texture, a glow on a light's flicker signal, an unlit
 self-shaded lining, a silhouette and a colour).
@@ -38,9 +39,9 @@ differently from how it looks alone:
   floor in the way, so they spill through open doorways and passages onto
   the rooms next door, and walls (and a shut door) stop them. A room is lit
   partly by its neighbours, and lights them in turn.
-- **Explorers stand at the room's `pawn` spot**, a second one at the second
-  spot (90 cm from it, towards the middle of the room), and walk in through
-  the centre of each doorway and up and down the stairs.
+- **Figures stand on the room's standing spots** (see "Standing spots"),
+  and walk in through the centre of each doorway and up and down the
+  stairs.
 
 **The bench** (`?bench=<room-id>`) shows one room on its own, under an orbit
 camera, with only the two walls facing the camera cut. It is where a room is
@@ -221,7 +222,10 @@ Landing's marble breaks the upper floor's boards; four rooms (the starting
 hall and the Upper Landing) share one dress and one amber light, so
 telling them apart rests on their shapes alone; and green is the
 supernatural in the Library, the Chasm, the Graveyard and the Kitchen, so
-no two of them should sit on one floor with the same green source.
+no two of them should sit on one floor with the same green source. The
+Furnace Room's mouth turns to face a corner. The owner's taste calls on the
+Master Bedroom, Mystic Elevator, Kitchen and Underground Lake wait for the
+owner (`design/v1-play.md`).
 
 ## Workflow
 
@@ -269,10 +273,29 @@ in, so wall dressing comes last. Keep clear:
 - **Every doorway and passage**: nothing stands in its 40 cm depth (the two
   walls between rooms), nor in the lane the house walks straight in through
   its centre, 80 cm deep from the tile's edge.
-- **Both explorer spots**: the pawn spot and the second spot are keep-clear
-  zones, floor and air above it alike. Choose `pawn` in open floor, with
-  open floor towards the middle of the room as well.
+- **Every standing spot**: a keep-clear zone, floor and air above it alike.
 - **Windows**, unless blocking one is the point.
+
+#### Standing spots
+
+Every room defines **six standing spots**, and the room's designer chooses
+them where they make sense in that room: in open floor, where a figure
+standing there reads and doesn't hide the identity. The house fills them in
+order, so the first is the prime spot, for the active explorer: put it in
+open floor, with open floor towards the middle of the room as well. Each
+spot must be clear for a base and reachable from the doors, and the
+overlap check verifies both. The existing rooms define only `pawn`, with a
+second spot derived from it (`explorerSpots`, 90 cm towards the middle),
+and the check so far tests only that those two are clear: the review pass
+gives every room six, and the check its reachability test and the open
+floor report below.
+
+**Leave room for a big monster.** A large monster (the Spider, the Dragon)
+may stand in a room one day, taking a spot and spreading over its
+neighbours. No room reserves a spot for one, but where it doesn't cost the
+room's identity, keep tall clutter out of the middle of the floor. The
+overlap check reports each room's largest open floor circle (it never fails
+on it), and the review pass reviews the numbers.
 
 Use `onWall` for anything backed against a wall: `along` is metres from the
 wall's centre, positive to the right as you face the wall, and `out` stands
@@ -309,7 +332,7 @@ builds each room in a worker with a time limit, so a build that loops
 forever fails alone instead of hanging the run. It fails when a solid
 passes into another piece, a wall's body or the floor by more than 2 cm (or
 a third of the thinner piece, so a book half sunk in the floor counts),
-when a piece stands in a doorway's lane or on either explorer spot, or when
+when a piece stands in a doorway's lane or on a standing spot, or when
 two faces of different colour share a plane facing the same way
 (z-fighting). It tests each piece's real shape, splitting touching solids
 into convex parts, so a fallen bookcase is judged as it lies. The few
@@ -357,7 +380,7 @@ ledger.
   (`pixelPlane` does it for you), and draw SVGs at that pixel size, never
   finer. Pixel art moves a whole texel at a time, never smoothly (the
   Underground Lake's water steps its texture by whole texels).
-- **Doorways and both explorer spots stay clear** (see "Lay it out"); the
+- **Doorways and the standing spots stay clear** (see "Lay it out"); the
   overlap check enforces it.
 - **Wall-hung props and the cutaway.** A wall that is cut stands only to
   `CUT_HEIGHT`. A prop placed with `walls` (which `onWall` sets) and a `y`
@@ -549,10 +572,12 @@ be passed. The house tells the stage which doors are false, and the stage
 shuts them with a plain closed leaf in the trim colour (a shut gate
 outdoors). A window against a neighbour is a **false window**: it lets no
 moonlight in, because the neighbour's wall behind it stops the moon in the
-bake; but its glass still glows as if moonlit. How a false door or window
-should look is the stage's to settle, not a room's: build the room for its
-real openings, and report anything about a room that only works when an
-opening is live.
+bake; but its glass still glows as if moonlit. Both matter to the rules
+(haunts make false doors passable, and many cards ask whether a window
+faces outside), so both are to be drawn visibly blocked, boarded or
+bricked, as generic stage pieces: the stage's to build, not a room's. Build
+the room for its real openings, and report anything about a room that only
+works when an opening is live.
 
 ## The review loop
 
@@ -563,8 +588,9 @@ opening is live.
 - **Shoot a labelled run on the bench:**
   `node src/projects/betrayal/tools/shots.mjs <room-id> <room-id>-v<n> --compare=<room-id>`,
   a new label each round so rounds can be compared. It draws at the
-  screen's native resolution, the review default; `--res=540` draws at a
-  low short side, a secondary check. It writes, under
+  screen's native resolution, as the game does (a lowered render is not
+  the house's look); `--res=<short side>` draws smaller, for a performance
+  or debug check only. It writes, under
   `src/projects/betrayal/.shots/<label>/<room-id>/` (gitignored):
   `contact-sheet.png` (the four dollhouse views, a close-up, the explorer
   framed close and a phone view); `close-ups.png`, every prop framed close
@@ -623,6 +649,12 @@ Then `npm run lint` and `npm run typecheck`, both clean, and the overlap
 check passing.
 
 ### A review pass over many rooms
+
+A pass over the 14 rooms built so far is pending; `design/v1-play.md`
+("Where we left off") lists what it covers, and the ledger's notes above
+are part of it. Besides the checks below, a review pass empties the overlap
+check's baseline, gives each room its six standing spots, and reviews each
+room's largest open floor circle.
 
 When several rooms are reviewed together, shoot them all:
 `node src/projects/betrayal/tools/shots.mjs --all <label>` writes, under

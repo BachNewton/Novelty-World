@@ -1,6 +1,6 @@
 # Betrayal at House on the Hill
 
-A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. The engine is being built, milestone by milestone, from `design/engine.md`; until the real UI exists, its page is a plain hot-seat debug view. What follows is the decided design direction.
+A faithful digital recreation of the board game and its Widow's Walk expansion: explore a haunted house room by room until the haunt begins and one player turns traitor. It is for the owner and close friends only. The engine is being built, milestone by milestone, from `design/engine.md`, and the game is played in a 3D house on one device (`design/v1-play.md`), with the plain debug view at `?debug`. What follows is the decided design direction.
 
 ## Haunts
 
@@ -17,22 +17,32 @@ Pure and deterministic, with a seeded random number generator in the game state,
 
 ## Who it's for
 
-Average players: neither first-timers nor experts. The game carries the rules so players don't have to: forced steps happen automatically, legal choices are offered rather than remembered, and every rule the engine applies is explained in plain language as it happens ("You entered the Junk Room: roll Might to leave. You rolled 3, success"). Automation is for convenience and to take away the mental load of interpreting rules, not for speed. Automatic steps play out visibly, at a pace a player can follow, and are kept in a readable game log. This is unlike Monopoly, which aimed at fast, expert play.
+Average players: neither first-timers nor experts. The game carries the rules so players don't have to: forced steps happen automatically, legal choices are offered rather than remembered, and every rule the engine applies is explained in plain language as it happens ("You entered the Junk Room: roll Might to leave. You rolled 3, success"). Automation is for convenience and to take away the mental load of interpreting rules, not for speed. Automatic steps play out visibly, at a pace a player can follow, and are explained in the moment, in the status box (see "Presentation and input"), rather than in a log. This is unlike Monopoly, which aimed at fast, expert play.
 
 ## Visual style
 
 Betrayal has its own style, separate from Novelty World's bright, quirky one: it's a gothic haunted-house horror game, and its look should be dark, eerie and atmospheric. Its colours come from its own design tokens, scoped to the project. All art is original, never copied from the published game.
 
-Claude makes all of the art, so all of it is built in code, playing to what Claude does well: simple shapes with adjustable dimensions, small pixel-art textures drawn only from one limited palette and shown with hard pixel edges, SVG decals, and lighting to carry the mood. It avoids what Claude does badly: sculpted organic models and painted illustration. Claude checks its own art from screenshots before the owner sees it.
+**Claude makes all of the art, so the style leans into Claude's strengths and finds workarounds for its weaknesses.** All of it is built in code: simple shapes with adjustable dimensions; figures sculpted from formulas (signed-distance forms and lofts, meshed when built), since organic forms built from formulas are a strength; small pixel-art textures drawn only from one limited palette, the art's texture style; SVG decals; and lighting to carry the mood. It avoids painted illustration, and fakes what is hard to model (water, fire, a deep pit) with what works. Claude checks its own art from screenshots before the owner sees it.
 
-Whether the house is shown in 2D, 3D or both is not decided; `design/presentation.md` holds the proposals. A 3D prototype lives in `art/`: each room tile is a little room, seen as a dollhouse with the walls nearest the camera cut away. A room is a short data definition (materials, props, lights, mood) on a shared stage that builds the shell, with doors and windows taken from the room data. Props a single room needs live in that room's file; pieces several rooms share go in the kit. Explorers are miniatures on a base, built from rigid parts joined at pivots. Animation is procedural, driven by the stage's clock, with no skeletons or keyframe files. The art bench (`?bench=<room-id>`) shows one room on its own, and `tools/shots.mjs` freezes the clock and screenshots it from every view.
+**The game is shown as a 3D house**, in `art/`: each room tile is a little room, seen as a dollhouse with the walls between rooms cut down. It renders at native resolution: a lowered render resolution is not a style but a cheap, unearned trick. A room is a short data definition (materials, props, lights, mood) on a shared stage that builds the shell, with doors and windows taken from the room data. Props a single room needs live in that room's file; pieces several rooms share go in the kit. Light is baked: a room's lamps spill through doorways into the rooms next door, and walls stop them. **Colour has a meaning** in light: cold moon blue is the baseline, warm amber human, sickly green supernatural, red danger and the traitor, violet magic and omens, gold holy. Figures are miniatures on a base, built from rigid parts joined at pivots; animation is procedural, driven by the stage's clock, with no skeletons or keyframe files. The art bench (`?bench=<room-id>`) shows one room on its own, and `tools/shots.mjs` freezes the clock and screenshots it from every view. The `betrayal-room-art` and `betrayal-figure-art` skills hold how a room and a figure are built and reviewed.
 
 ## Presentation and input
 
-- **Logic and presentation are fully separate.** The engine knows nothing about rendering. The UI reads game state and sends intents, so the presentation (React components, a 2D canvas, three.js) can be swapped without touching game logic.
-- **Every input method picks from the pending decision's choices.** Touch, mouse, keyboard and an Xbox controller (through the shared `gamepad` library) are interchangeable ways of choosing among the legal options the engine offers. Adding an input method never touches game logic.
-- **Phones:** a touch-friendly layout; the board plus panels pulled in when needed.
-- **Desktop:** mouse and keyboard, using whatever screen shape the player has. Extra width (ultrawide) goes to always-visible side panels, such as character cards, held cards and the game log, not to a stretched board.
+`design/presentation.md` holds the design in full.
+
+- **Logic and presentation are fully separate.** The engine knows nothing about rendering. The UI reads game state and sends intents, so the presentation can be swapped without touching game logic.
+- **Three input methods**: a controller (through the shared `gamepad` library), touch, and keyboard + mouse, one method with the two used together. Each picks among the legal options the engine offers, and adding one never touches game logic. Hints follow the last-used input.
+- **A free strategy camera** on every input: pan, turn, tilt from near eye level to near top-down, zoom, change floor, and recentre on the active explorer. Game events only pan it; the player's turn, tilt, zoom and chosen floor are theirs.
+- **Controls never change meaning with what's under the cursor**: the wheel always zooms.
+- **Decisions about places live in the house** (glowing rooms, doorways and stairs, a ghost tile to place). Every other decision is in **one status box**: what happened, why (the rule behind it, its full text a tap away), and what you can do now, End turn included.
+- **Preview before commit**: pointing at a choice shows what it would do before anything is sent. There is no undo.
+- **Dice** are the engine's: no physical dice, but each die's value and the outcome in words. **Cards** play out in the room, held cards live on the figure, and a panel appears only where nothing else works. There is no game log panel in v1.
+- **Phones and desktops** both: from 360px wide to ultrawide, with the house never stretched.
+
+## Hot-seat
+
+One device, three to six seats, as a feature, not a stand-in. The screen shows only the view of the seat holding the device, and players look away from what isn't theirs. Ending the turn is passing the device: there is no handover banner, and a question for another seat mid-turn names that seat in its prompt. When online play comes, the seats move to devices.
 
 ## Responsiveness
 
@@ -53,7 +63,7 @@ Betrayal keeps the replay and removes those causes:
 - **Client sync is one pure function** over four events: server state, local action, accepted, rejected. There are no flags outside it, and its tests include duplicated, reordered and dropped updates. Only states with a higher version are kept, and nothing waits on a particular update arriving.
 - **The engine emits events, and the presentation animates them.** Animation never holds up sync or input. The server runs mechanical steps through to the next decision in one write.
 - **The client reloads the state** whenever its subscription (re)connects and whenever a tab wakes or comes back online.
-- **Most interaction is local UI state** that never reaches the server: hovering, choosing a path, browsing cards, selecting before confirming. Only committing a decision is sent.
+- **Most interaction is local UI state** that never reaches the server: hovering, choosing a path, browsing cards, selecting before confirming. Only committing a decision is sent. (A live preview is broadcast to the other players, but never written; see "Online play".)
 - **Actions are absolute** ("set this", never "add one"), so replaying one can't change its meaning.
 
 Under the good-faith model, a client being able to work out dice from the seed is accepted.
@@ -77,6 +87,8 @@ Server-authoritative: a route handler is the single writer, using the pure engin
 
 Players are trusted to act in good faith and look only at what the UI shows them. So all state, hidden information included (the traitor's half of a haunt, a player's cards), lives in that one public row, and the UI decides what each player sees. There is no per-player secret storage.
 
+**Live previews.** Other players see the acting player's preview before it is committed (the choice in focus, a route, a ghost being turned, a trade being built), so the game feels live. A preview is ephemeral UI state, never game state: sent over a Supabase Realtime broadcast on the same connection as the game row's subscription, never stored, never validated, dropped on commit. It never leaks a secret: only public decisions are previewed, filtered by the per-seat view. Not PeerJS: its star hangs on a host's tab while players drop and rejoin, and it would add a second network, with its NAT failures, beside the row's. It stays an upgrade path only if previews ever feel laggy.
+
 ## Content
 
 The source of truth for the game's rules is `content/`, written from the owner's copies of the 2nd edition and Widow's Walk:
@@ -98,7 +110,7 @@ Where the books are ambiguous or contradict themselves, the files say so in a `>
 
 ## Scope
 
-The base game, working end to end, comes first; Widow's Walk follows. Its content is already recorded, so the engine is designed with all of it in view, and nothing in the engine may hard-code base-game counts such as three floors or fifty haunts.
+The base game, working end to end, comes first; Widow's Walk follows. Widow's Walk UI and art wait for it, unless a Widow's Walk decision would change a base-game one. Its content is already recorded, so the engine is designed with all of it in view, and nothing in the engine may hard-code base-game counts such as three floors or fifty haunts.
 
 ## Prior art in this repo
 
@@ -110,7 +122,9 @@ Monopoly (`src/projects/monopoly/`) is the closest existing project: a turn-base
 
 `design/engine.md` is the engine design built on it: layers, game state, decisions and events, randomness, the rules interface, the haunt format, the content pipeline, server, client sync, testing and build order, with the lessons from Monopoly folded in.
 
-`design/presentation.md` holds proposals for the screen, none of them decided: a UI built around the pending decision, layouts per device, one shared screen with phones as controllers, 2D or 3D or both, what still needs art, and the open questions.
+`design/presentation.md` is the presentation: the house and the status box, input and the camera, moving, placing rooms, dice, cards, the cutaway, light, figures in rooms, the art's scope, and the open questions. `design/card-presentation.md` sorts every card by how it shows in the house, and `design/cutaway-research.md` is the research behind the cutaway, with its sources.
+
+`design/v1-play.md` is the plan for local hot-seat play: its phases, the architecture as built, and where work left off.
 
 `design/ai-players.md` records a proof of concept with local models playing the exploration phase, what it showed about the view text an AI needs, and the options for AI seats later.
 
@@ -122,4 +136,4 @@ Keep the main session thin. Delegate each substantial unit of work (a phase, an 
 
 Milestones 1 to 3 are built: the engine plays the whole game before the haunt, and haunt 13, Perchance to Dream, plays start to finish in one browser, reached by the haunt roll or the page's "start haunt 13" scenario. Every other haunt still stops the game at its reveal. The playtesting tools are built: the page can start from a scenario (stacked decks and room stack, rooms in the house, explorers placed with chosen traits and cards, or "start haunt N"), set up by the engine's own setup so it stays reproducible; a game can be shared as a link (`?game=<code>`) that replays it from its seed, scenario and actions; the log reads by turn and each line can show "why?" (the rule's text and its rulings, from `data/rule-notes.json`, which holds a haunt's cited rulings but never its halves' text); and the board highlights what the pending decision offers. The haunt framework is the kit in `kit/` (setup parts, shared statuses, rule changes, triggers and objective actions written for any haunt), compiled into a haunt-layer rule source, with `viewFor` as the per-seat view the page renders. A toy haunt in `test/` still sweeps the framework under every haunt number.
 
-Next is **milestone 4: online play** (`design/engine.md` sections 8, 9 and 13): the SQL, the commit routine and route, the sync reducer and store, the shared game-list lobby, seats, and the two-client e2e. Its UI design starts there too, and the owner leads it.
+Next is **v1: local hot-seat play** in the 3D house (`design/v1-play.md`), before online play (milestone 4). Done: phase 0 (the house scene split from its demo), phase 1 (the playable skeleton: sync, store, seats, choices, the play screen, setup and resume), the free camera on three inputs, the rotation ghost, the status box, and the forced-step refinement. Next, in order: the review pass over the 14 rooms; the cutaway markings prototype; phase 2 (moves of several rooms, walking, preview before commit); phases 3 to 8; then the remaining base rooms and explorers. `design/v1-play.md` holds the detail and the owner's open questions.

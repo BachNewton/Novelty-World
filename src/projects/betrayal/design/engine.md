@@ -372,7 +372,7 @@ Realtime doesn't resend changes missed while a connection was down, and a phone 
 
 Input is never locked by sync. The UI may wait to show a decision's prompt until the events that led to it have played, so the game stays readable, but that is a presentation choice made locally.
 
-**Local UI state stays local.** Hovering, planning a path, browsing cards and selecting before confirming never reach the server. Monopoly sent its staging edits to the server. Here only committing a decision sends anything, and a planned path is sent as the chain of single-step actions described in section 3.
+**Local UI state stays local.** Hovering, planning a path, browsing cards and selecting before confirming never reach the server. Monopoly sent its staging edits to the server. Here only committing a decision sends anything, and a planned path is sent as the chain of single-step actions described in section 3. A live preview of a public decision goes to the other players over a Realtime broadcast, never into the row (`presentation.md`, "Live previews online").
 
 ### What became of Monopoly's problems
 
@@ -434,9 +434,9 @@ Bug fixes start with a regression test that fails first, a habit Monopoly showed
 
 This is brief, because the UI gets its own design.
 - The presentation renders `viewFor` and `describe` and nothing else, so it can be React components, a canvas or three.js without touching the engine.
-- Every input method (touch, mouse, keyboard, an Xbox controller through `gamepad`) picks among the pending decision's choices. Adding an input method never touches game logic.
-- Every automatic step appears in a readable log, in plain language, with its rule. Each log line can show "why?": the rule's source and, where a ruling applies, the ruling and its authority. A rule reference may name the one ruling behind an event, by the id its note carries in `content/` (`> Note [id]:`); "why?" then shows only that ruling, and a test fails when the code cites an id no note has.
-- On phones, the board takes the screen and panels pull in when needed. On desktop, extra width goes to always-visible panels (character card, held cards, log), not to a stretched board.
+- Every input method (a controller through `gamepad`, touch, and keyboard + mouse) picks among the pending decision's choices. Adding an input method never touches game logic.
+- Every automatic step is told in plain language, with its rule: in the play screen's status box, and in the debug view's log. Each can show "why?": the rule's source and, where a ruling applies, the ruling and its authority. A rule reference may name the one ruling behind an event, by the id its note carries in `content/` (`> Note [id]:`); "why?" then shows only that ruling, and a test fails when the code cites an id no note has.
+- The house takes the screen on phones and desktops alike, never stretched; `presentation.md` holds the rest.
 - The look follows Betrayal's own gothic style, from tokens scoped to the project.
 
 ## 13. Build order
@@ -446,8 +446,10 @@ Each milestone ends with something playable and tested.
 1. **Foundations.** The model types, the state format with migrations, the randomness, the board with its queries (connection, adjacency, line of sight, distance by route), and the step loop. Typed data for rooms, characters, cards, tokens and the chart, with the agreement tests. Before this, settle the unresolved notes that exploration touches (for example, how the Collapsed Room's basement tile is drawn, and whether the Mystic Elevator may leave a floor if leaving would seal it off).
 2. **Exploration, no haunt.** Setup, turns, moving, discovering, room text, every card, traits, item rules and the haunt roll. When a roll succeeds, the game shows the haunt number and stops. Played in one browser on a plain debug UI.
 3. **One haunt end to end.** The questions and layers, starting with combat and death; sides and turn order; the kit parts haunt 13 needs; conditions and results; `viewFor`. A dev-only "start haunt N" makes haunt work quick to reach. After the base game, the same path becomes the rulebook's optional "select the haunt" rule (p. 16), a per-game setting. Haunt 13 played start to finish in one browser.
-4. **Online.** The SQL, the commit routine and route, the sync reducer and store, the shared game-list lobby extracted from Monopoly, seats, and the two-client e2e. The UI design starts here, in parallel.
-5. **The remaining base haunts,** in batches by the kit parts they share, in the order the survey ranks them. Each batch first settles its unresolved notes and adds its kit parts. Haunt 35 comes last. Then add the real UI.
+Before milestone 4 comes **local hot-seat play** in the 3D house, with the real UI (`v1-play.md`). It builds the sync reducer and store against a local stand-in for the server.
+
+4. **Online.** The SQL, the commit routine and route, the shared game-list lobby extracted from Monopoly, seats, live previews over Realtime broadcast, and the two-client e2e, with the sync reducer and store from local play.
+5. **The remaining base haunts,** in batches by the kit parts they share, in the order the survey ranks them. Each batch first settles its unresolved notes and adds its kit parts. Haunt 35 comes last.
 
 **The base game, working end to end with every seat human, is the end of milestone 5.** After it:
 
