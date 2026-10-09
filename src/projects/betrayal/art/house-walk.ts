@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { connections, EDGES, neighbourCell, placed, type Layout } from "../engine/board";
 import type { Catalog, FloorId, PlacedTile } from "../types";
 import { ADULT_WALK, stepLength, type Pace, type Stride } from "./explorers/figure";
@@ -223,7 +224,8 @@ export function walkPose(walk: Walk, seconds: number, step = ADULT_WALK.step): W
   return {
     point: here.point,
     heading,
-    stride: { phase: (distance / stepLength(step, running)) * Math.PI, amount: Math.max(0, ease), running },
+    // Eased smoothly, so the stride never lurches as it starts or reaches full swing.
+    stride: { phase: (distance / stepLength(step, running)) * Math.PI, amount: THREE.MathUtils.smoothstep(ease, 0, 1), running },
     done: distance >= total,
   };
 }

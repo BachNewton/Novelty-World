@@ -115,12 +115,45 @@ function spectaclesFrame(): THREE.BufferGeometry {
   return mergeAll([...parts, wire([[-0.015, 0.193, 0.141], [0, 0.198, 0.143], [0.015, 0.193, 0.141]], 0.004)]);
 }
 
-/** The coat from the waist up, open over the waistcoat, with lapels, buttons and the scarf. */
-function torso(): THREE.BufferGeometry {
+/** The scarf's ends: half their width and thickness, how clear of the coat
+ *  they lie, and where each comes out of the knot under his chin, in the chest's frame. */
+export const SCARF = {
+  width: 0.038,
+  thick: 0.009,
+  gap: 0.004,
+  knots: [
+    [-0.07, 0.47, 0.06],
+    [0.075, 0.47, 0.03],
+  ] as const satisfies readonly Vec3[],
+};
+
+/** A ribbon section's middle, near `at`, lifted out along the coat's slope
+ *  until the ribbon's whole width, across x, lies clear of the coat. */
+function lying(coat: (x: number, y: number, z: number) => number, at: Vec3): Vec3 {
+  const point = new THREE.Vector3(...at);
+  const clearance = SCARF.thick + SCARF.gap;
+  const clearest = () => Math.min(...[-1, -0.5, 0, 0.5, 1].map((k) => coat(point.x + k * SCARF.width, point.y, point.z)));
+  const e = 0.001;
+  for (let i = 0; i < 80 && clearest() < clearance; i++) {
+    const slope = new THREE.Vector3(
+      coat(point.x + e, point.y, point.z) - coat(point.x - e, point.y, point.z),
+      coat(point.x, point.y + e, point.z) - coat(point.x, point.y - e, point.z),
+      coat(point.x, point.y, point.z + e) - coat(point.x, point.y, point.z - e),
+    ).normalize();
+    point.addScaledVector(slope, 0.001);
+  }
+  return [point.x, point.y, point.z];
+}
+
+/** The coat from the waist up, open over the waistcoat, with lapels, buttons
+ *  and the scarf wound round the collar; and the scarf's two ends, a part of
+ *  their own lying on the coat, so the clipping check sees them against it. */
+function torso(): { coat: THREE.BufferGeometry; scarf: THREE.BufferGeometry } {
   const shape = sculpt()
     .add(ellipsoid([0, 0.27, 0], [0.165, 0.2, 0.11]), "verdigris")
     .add(ellipsoid([0, 0.09, 0.005], [0.138, 0.15, 0.097]), "verdigris", 0.08);
-  for (const side of [-1, 1]) shape.add(rod([side * 0.05, 0.43, -0.01], [side * 0.2, 0.395, -0.005], 0.05, 0.062), "verdigris", 0.06);
+  // The shoulders reach out over the tops of the sleeves, so a sleeve's round top sits inside one and never shows as a ball.
+  for (const side of [-1, 1]) shape.add(rod([side * 0.05, 0.43, -0.01], [side * 0.218, 0.4, -0.004], 0.05, 0.064), "verdigris", 0.06);
   const opening = (y: number) => 0.03 + (0.43 - y) * 0.2;
   shape.paint((x, y, z) => (z > 0.03 && y < 0.43 && Math.abs(x) < opening(y) ? -1 : 1), "brass");
   // The lapels: the coat's edges stand proud either side of the opening.
@@ -135,15 +168,19 @@ function torso(): THREE.BufferGeometry {
 
   // The scarf: wound round the neck, one end down his right front, the other
   // thrown back over his left shoulder. Its ends are ribbons lofted down the
-  // coat, so their stripes are crisp.
-  const onCoat = (x: number, y: number, facing: 1 | -1): Vec3 => [x, y, surfaceAt(shape.distance, x, y, facing) + facing * 0.011];
-  const band = (at: Vec3, colour: PaletteKey): Section => ({ at, radius: [0.042, 0.009], colour });
+  // coat, so their stripes are crisp, each section lifted off the coat until
+  // the ribbon's whole width clears it: a flat ribbon laid on a curved coat
+  // by its middle alone sinks into it at the edges.
+  const band = (at: Vec3, colour: PaletteKey): Section => ({ at: lying(shape.distance, at), radius: [SCARF.width, SCARF.thick], colour });
+  const onCoat = (x: number, y: number, facing: 1 | -1): Vec3 => [x, y, surfaceAt(shape.distance, x, y, facing)];
   const striped = (x: number, facing: 1 | -1, heights: number[]) =>
     heights.map((y, i) => band(onCoat(x, y, facing), i % 2 === 1 && i < heights.length - 2 ? "bone" : "bloodLight"));
-  const frontEnd = loft([band([-0.07, 0.47, 0.06], "bloodLight"), ...striped(-0.08, 1, [0.4, 0.3, 0.195, 0.17, 0.15, 0.12, 0.1])]);
-  const backEnd = loft([band([0.075, 0.47, 0.03], "bloodLight"), band([0.1, 0.45, -0.07], "bloodLight"), ...striped(0.095, -1, [0.4, 0.33, 0.3, 0.28, 0.26, 0.24, 0.22])]);
+  // Each end starts tucked into the knot under the chin.
+  const knot = (at: Vec3): Section => ({ at, radius: [SCARF.width, SCARF.thick], colour: "bloodLight" });
+  const frontEnd = loft([knot(SCARF.knots[0]), ...striped(-0.08, 1, [0.4, 0.3, 0.195, 0.17, 0.15, 0.12, 0.1])]);
+  const backEnd = loft([knot(SCARF.knots[1]), band([0.1, 0.45, -0.07], "bloodLight"), ...striped(0.095, -1, [0.4, 0.33, 0.3, 0.28, 0.26, 0.24, 0.22])]);
   shape.add(ring([0, 0.445, 0.005], 0.075, 0.034, [0.18, 0, 0]), "bloodLight", 0.008);
-  return mergeAll([shape.geometry(0.012), frontEnd, backEnd]);
+  return { coat: shape.geometry(0.012), scarf: mergeAll([frontEnd, backEnd]) };
 }
 
 /** One of the coat's tails, from the waist to the knee, in the hips' frame: a
@@ -166,8 +203,20 @@ function tailShell(side: -1 | 1) {
   const hollow: Solid = { distance: (x, y, z) => cone(x, y, z, thick), ...bounds };
   /** The open front: in front of the hips and nearer the middle than the front edge. */
   const front: Solid = { distance: (x, y, z) => Math.max(0.01 - z, side * x - (0.13 + 0.03 * down(y))), ...bounds };
-  const shell: Solid = { distance: (x, y, z) => Math.max(outside.distance(x, y, z), -hollow.distance(x, y, z), -front.distance(x, y, z)), ...bounds };
-  return { outside, hollow, front, shell };
+  /** How far a leg's point, of a radius, is clear in front of the tail's
+   *  inside back: a point beside the tail, above its top or below its hem
+   *  doesn't press on it. */
+  const margin = ({ x, y, z }: THREE.Vector3, radius: number) => {
+    const t = down(y);
+    const across = (x - centre) / (0.105 + 0.05 * t - thick);
+    const back = -(0.11 + 0.042 * t - thick) * Math.sqrt(Math.max(0, 1 - across * across));
+    const pressing =
+      (1 - THREE.MathUtils.smoothstep(Math.abs(across), 1, 1.3)) *
+      THREE.MathUtils.smoothstep(y + radius, hem - 0.04, hem) *
+      (1 - THREE.MathUtils.smoothstep(y - radius, top - 0.03, top));
+    return z - radius - back + (1 - pressing) * 0.5;
+  };
+  return { outside, hollow, front, margin };
 }
 
 /** A coat tail's mesh: the shell lined dark, with a pocket flap on its side. */
@@ -229,37 +278,37 @@ function heldBook(geometry: THREE.BufferGeometry, mesh: (geometry: THREE.BufferG
 }
 
 /** The forearm from the elbow to the wrist: a sleeve with a turned-back cuff,
- *  and the wrist inside it. */
+ *  and the wrist inside it. Its rounded top at the elbow is no wider than the
+ *  sleeve, and covers the upper arm's narrower end however far the elbow bends. */
 function forearm(): THREE.BufferGeometry {
   return sculpt()
-    .add(ball([0, -0.004, 0], 0.046), "verdigris")
-    .add(rod([0, -0.01, 0], [0, -FOREARM + 0.03, 0], 0.047, 0.041), "verdigris", 0.02)
+    .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.046, 0.041), "verdigris")
     .add(ring([0, -FOREARM + 0.028, 0], 0.036, 0.016), "verdigrisDark", 0.004)
     .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.016, 0.002], 0.021, 0.019), "skin")
     .geometry(0.008);
 }
 
-/** The upper arm from the shoulder to the elbow: a coat sleeve, round at the shoulder. */
+/** The upper arm from the shoulder to the elbow: a coat sleeve, round at the
+ *  shoulder, tapering to the elbow, where it ends inside the forearm's top. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(ball([0, -0.005, 0], 0.058), "verdigris")
-    .add(rod([0, -0.01, 0], [0, -UPPER_ARM, 0], 0.054, 0.046), "verdigris", 0.03)
-    .add(ball([0, -UPPER_ARM, 0], 0.045), "verdigris", 0.01)
+    .add(rod([0, -0.005, 0], [0, -UPPER_ARM, 0], 0.05, 0.039), "verdigris")
     .geometry(0.012);
 }
 
-/** A trouser leg from the hip to the knee, hanging from the hip. */
+/** A trouser leg from the hip to the knee, hanging from the hip, tapering to
+ *  the knee, where it ends inside the shin's top. */
 function thigh(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0.03, 0], [0, -THIGH, 0.006], 0.058, 0.048), "ash")
-    .add(ball([0, -THIGH, 0.004], 0.047), "ash", 0.02)
+    .add(rod([0, 0.03, 0], [0, -THIGH, 0.004], 0.058, 0.04), "ash")
     .geometry(0.012);
 }
 
-/** A trouser leg from the knee to the shoe, with a turn-up, its end inside the shoe. */
+/** A trouser leg from the knee to the shoe, with a turn-up, its end inside
+ *  the shoe; its rounded top covers the thigh's end at the knee. */
 function shin(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0, 0.004], [0, -SHIN + 0.005, -0.004], 0.046, 0.036), "ash")
+    .add(rod([0, 0, 0.004], [0, -SHIN + 0.005, -0.004], 0.047, 0.036), "ash")
     .add(stretched(ring([0, -SHIN + 0.04, -0.003], 0.041, 0.01), [0, -SHIN + 0.04, -0.003], [1, 1, 1.05]), "ash", 0.02)
     .geometry(0.01);
 }
@@ -345,10 +394,18 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   const bridge = new THREE.Vector3(0.0, NECK - WAIST + 0.2, 0.185);
   const spectacles = pointHand(reachWrist(right, bridge.clone().addScaledVector(towards, -0.115), new THREE.Vector3(-1, -0.4, -0.2)), towards, Math.PI / 2);
 
-  const trunk = mesh(parts.torso, "torso");
+  const trunk = mesh(parts.torso.coat, "torso");
+  const scarf = mesh(parts.torso.scarf, "scarf");
+  // Where each of the scarf's ends comes out of its knot, tucked into the wound collar.
+  const knots = SCARF.knots.map((at) => {
+    const knot = group();
+    knot.position.set(at[0], at[1], at[2]);
+    return knot;
+  });
+  trunk.add(scarf, ...knots);
   const chest = group(trunk, neck, left.shoulder, right.shoulder);
   const tails = parts.tails.map((geometry, i) => group(mesh(geometry, i === 0 ? "right tail" : "left tail")));
-  const tailShells = ([-1, 1] as const).map((side) => tailShell(side).shell);
+  const tailMargins = ([-1, 1] as const).map((side) => tailShell(side).margin);
   const hips = group(...tails, chest);
   hips.position.y = WAIST - BASE_TOP;
 
@@ -369,6 +426,7 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
   hasHands(figure, { right: right.hand, left: left.hand });
   joins(figure, [
     { parts: [face, trunk], at: neck, radius: 0.1 },
+    ...knots.map((knot) => ({ parts: [scarf, trunk] as const, at: knot, radius: 0.05 })),
     { parts: [left.shoulder.children[0], trunk], at: left.shoulder, radius: 0.1 },
     { parts: [right.shoulder.children[0], trunk], at: right.shoulder, radius: 0.1 },
     { parts: [tails[0], trunk], at: hips, radius: 0.23 },
@@ -433,7 +491,7 @@ export function longfellow(seed = "longfellow", gait: Gait = STANDING): THREE.Gr
       const rest = Math.max(0, Math.atan2(-down.z, -down.y)) * TAIL_FOLLOW + running * 0.3;
       const shoe = SHOE_POINTS.map((at) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius: 0.05 }));
       const swept = [...legPoints(one, 0.06, 0.05), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
-      tails[i].rotation.x = pushAside(tailShells[i], tails[i].position, swept, rest, { least: -0.15 });
+      tails[i].rotation.x = pushAside(tailMargins[i], tails[i].position, swept, rest);
     }
   });
 }

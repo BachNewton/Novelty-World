@@ -44,12 +44,15 @@ describe("the fighting-faces check", () => {
   });
 });
 
+/** A figure's first check pays for meshing its parts, which under a full test run's load can pass five seconds. */
+const LIMIT = { timeout: 15_000 };
+
 describe("figures", () => {
   const striding: Gait = () => ({ phase: Math.PI / 2, amount: 1 });
   const running: Gait = () => ({ phase: Math.PI / 2, amount: 1, running: true });
   for (const [name, build] of Object.entries(EXPLORERS)) {
     for (const [how, gait] of [["standing", STANDING], ["walking", striding], ["running", running]] as const) {
-      it(`${name}, ${how}, has no fighting faces`, () => {
+      it(`${name}, ${how}, has no fighting faces`, LIMIT, () => {
         const figure = build(name, gait);
         for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
       });
@@ -57,7 +60,7 @@ describe("figures", () => {
   }
   for (const [name, build] of Object.entries({ banshee, spider })) {
     for (const stunned of [false, true]) {
-      it(`the ${name}${stunned ? ", stunned," : ""} has no fighting faces`, () => {
+      it(`the ${name}${stunned ? ", stunned," : ""} has no fighting faces`, LIMIT, () => {
         const figure = build(name, STANDING, { stunned });
         for (const at of MOMENTS) expect(fightingFaces(posedAt(figure, at)).map((finding) => `${at}s: ${finding}`)).toEqual([]);
       });

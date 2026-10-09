@@ -1,20 +1,22 @@
 import * as THREE from "three";
 import { createRng } from "@/shared/lib/seeded-random";
 import { animated } from "../animate";
-import { arm, BASE_TOP, burst, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
+import { arm, burst, floats, joins, pose, reach, STANDING, walks, type Gait, type Joint, type Limb } from "../explorers/figure";
 import { ball, ellipsoid, glowShaded, loft, rod, sculpt, stretched, type Section, type Tone } from "../forms";
 import { paletteHex } from "../palette";
 import { group, lightMaterial } from "../shapes";
-import { monsterBase, spectral, type MonsterOptions } from "./base";
+import { floorGlow, spectral, type MonsterOptions } from "./base";
 
 /*
  * The Banshee: a wailing spirit in sickly green, the supernatural's colour.
- * Read at a glance: a glowing woman taller than an explorer, hovering on a
- * twist of mist where a miniature's flying stand would be, her robe tattered
- * into points and fading to a veil, her long hair streaming, her mouth a
- * black hole. When she wails she throws her head back and flings her arms
- * wide, and rings of light pulse out of her mouth. She faces +z, as the arrow
- * on her base shows (haunt 08 turns her by it). She is all glow and no
+ * Read at a glance: a glowing woman taller than an explorer, floating free of
+ * the floor with no base (a digital figure needs no flying stand), a soft
+ * pool of her green light on the floor beneath her, her robe tattered into
+ * points and fading to a veil, her long hair streaming, her mouth a black
+ * hole. When she wails she throws her head back and flings her arms wide,
+ * and rings of light pulse out of her mouth. She faces +z squarely, her body
+ * and her reaching hands showing which way: haunt 08 turns her by it, so
+ * whoever places her turns her to face along the grid. She is all glow and no
  * paint: she lights herself, so she reads in the darkest room without a live
  * light. Her solid parts glow in vertex colours shaded once from above, so
  * her sculpted form shows though no light falls on her; her veil, halo,
@@ -23,7 +25,8 @@ import { monsterBase, spectral, type MonsterOptions } from "./base";
  * Every size is in metres, every height from the floor; each pivot sits at its joint.
  */
 
-const BASE_RADIUS = 0.42;
+/** The pool of her light on the floor beneath her. */
+const GLOW_RADIUS = 0.55;
 /** Her waist, where the robe hangs from and the chest turns. */
 const WAIST = 1.22;
 const HEM = 0.5;
@@ -141,18 +144,6 @@ function wailRing(): THREE.Mesh {
   return new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 32), material);
 }
 
-/** The mist she hovers on, one of three twists rising from the base. */
-function wisp(i: number, height: number): THREE.BufferGeometry {
-  return loft(
-    [
-      { at: [0, 0, 0], radius: 0.05 + i * 0.03, colour: "wraith" },
-      { at: [0.01, height * 0.5, 0], radius: 0.055 + i * 0.032, colour: "wraith" },
-      { at: [0, height + 0.02, 0], radius: 0.07 + i * 0.035, colour: "wraith" },
-    ],
-    { sides: 14, ends: ["flat", "flat"] },
-  );
-}
-
 function meshParts() {
   const lockLengths = [0.3, 0.38, 0.34, 0.27];
   return {
@@ -166,7 +157,6 @@ function meshParts() {
     tatters: [0.3, 0.42, 0.34, 0.46, 0.28, 0.4].map(tatter),
     upperArm: glowShaded(upperArm()),
     forearms: [glowShaded(forearm(-1)), glowShaded(forearm(1))],
-    wisps: [0, 1, 2].map((i) => wisp(i, (HEM - BASE_TOP + 0.05) / 3)),
   };
 }
 type Parts = ReturnType<typeof meshParts>;
@@ -181,7 +171,7 @@ function light(opacity: number): THREE.MeshBasicMaterial {
 }
 
 /**
- * The Banshee hovering over her base, about 1.95 m to the crown. Her idle:
+ * The Banshee floating free of the floor, about 1.95 m to the crown. Her idle:
  * she drifts up and down, sways, her tatters and hair ripple, her hands reach
  * slowly forward, and every few seconds she wails. Stunned, she sinks low,
  * slumps with her head bowed and her arms hanging, and her glow dims to its
@@ -261,15 +251,12 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
   const body = group(hem, chest);
   body.position.y = WAIST;
 
-  // The mist she hovers on, twisting up from the base to her hem: her flying stand.
-  const wisps = parts.wisps.map((geometry, i) => {
-    const piece = group(mesh(geometry, mist));
-    piece.position.y = BASE_TOP + (i * (HEM - BASE_TOP + 0.05)) / 3;
-    return piece;
-  });
-  const stand = group(...wisps);
+  // No base: she floats, and her light pools on the floor beneath her.
+  const pool = floorGlow(GLOW_RADIUS, "wraith", stunned ? 0.35 : 0.6);
+  const poolMaterial = pool.material as THREE.MeshBasicMaterial;
+  const resting = poolMaterial.opacity;
 
-  const figure = joins(group(monsterBase(BASE_RADIUS, { arrow: "wraithLight" }), stand, body), [
+  const figure = joins(group(pool, body), [
     { parts: [face, torso], at: neck, radius: 0.12 },
     // Her hair is a sheet from the back of her crown, splitting into locks where it ends.
     { parts: [mane, face], at: maneRoot, radius: 0.18 },
@@ -288,7 +275,7 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
   const sink = stunned ? -0.22 : 0;
 
   // She glides: no hop, and the step only paces how her tatters stream.
-  return walks(
+  return floats(walks(
     animated(figure, (clock) => {
       const seconds = clock + offset;
       const glide = gait(clock).amount;
@@ -302,14 +289,12 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
       body.rotation.x = glide * 0.25;
       chest.rotation.x = stunned ? 0.5 : -wail * 0.18 + drift * 0.02;
       neck.rotation.x = stunned ? 0.45 : 0.08 - wail * 0.55;
-      neck.rotation.y = stunned ? 0 : sway * 0.25 * (1 - wail);
+      // Her head barely turns from the way she faces, so her facing always reads.
+      neck.rotation.y = stunned ? 0 : sway * 0.08 * (1 - wail);
       neck.rotation.z = sway * 0.04;
 
-      // The mist leans after her as she drifts and sways, its top following her hem.
-      wisps.forEach((piece, i) => {
-        piece.rotation.z = sway * 0.08 * (i + 1) - body.rotation.z * 0.3;
-        piece.rotation.x = Math.sin(seconds * 1.7 + i) * 0.06 - glide * 0.25 * (i + 1);
-      });
+      // Her light on the floor is brighter as she drifts lower, and flares as she wails.
+      poolMaterial.opacity = resting * (1 - drift * 0.2 + wail * 0.4);
 
       // Tatters ripple, and stream back as she glides.
       tatters.forEach((piece, i) => {
@@ -351,5 +336,5 @@ export function banshee(seed = "banshee", gait: Gait = STANDING, { stunned = fal
       halo.opacity = stunned ? 0.1 + Math.max(0, Math.sin(seconds * 5.3)) * 0.06 : 0.24 + wail * 0.25;
     }),
     { step: 0.9, hop: 0 },
-  );
+  ));
 }

@@ -43,8 +43,23 @@ export function jointsOf(figure: THREE.Object3D): Joint[] {
   return (figure.userData as { joints?: Joint[] }).joints ?? [];
 }
 
+/** Declares a figure that floats free of the floor (a spirit): it has no
+ *  base, only a mark on the floor beneath it, and nothing that stands on a
+ *  base (an explorer's colour ring) is put round it. Every other figure is
+ *  grounded, on its base. */
+export function floats<T extends THREE.Object3D>(figure: T): T {
+  figure.userData.grounded = false;
+  return figure;
+}
+
+export function isGrounded(figure: THREE.Object3D): boolean {
+  return (figure.userData as { grounded?: boolean }).grounded !== false;
+}
+
 /** How a figure walks: metres per step (a stride cycle is two steps) and how
- *  high the miniature hops off the floor at each one. A longer step at the
+ *  much it bounces at each one: walking, how far it sinks into its knees as
+ *  both feet are down; running, a third of how high it bounds off its base
+ *  between steps. A longer step at the
  *  house's one walking pace is a slower cadence, a shorter one a quicker. A
  *  figure's run is its walk scaled by the shared run factors below, so the
  *  cadence and bounce that give a walk its character carry into the run. */
@@ -70,12 +85,23 @@ export const RUN_STRIDE = 2;
 const RUN_HOP = 3;
 /** The share of a stride each foot spends planted: walking, both feet are
  *  down for a moment at every step; running, neither is, between steps. */
-const WALK_STANCE = 0.6;
+const WALK_STANCE = 0.55;
 const RUN_STANCE = 0.26;
+/** A runner's foot is down while the floor slides this many leg lengths
+ *  under it at most: a short-legged runner's stance is shorter, or it would
+ *  have to sink deep to reach a foot landing far ahead. */
+const RUN_STANCE_LEGS = 0.9;
+
+/** The share of a stride each of a figure's feet spends planted. */
+function stanceOf(rig: StrideRig, running: boolean): number {
+  if (!running) return WALK_STANCE;
+  const leg = rig.legs[0].thigh + rig.legs[0].shin;
+  return Math.min(RUN_STANCE, (RUN_STANCE_LEGS * leg) / (2 * stepLength(rig.walking.step, true)));
+}
 /** How far the foot rolls, in radians: back onto the heel as it lands (toe
  *  up), and forward onto the toe as it pushes off (heel up). A runner lands
  *  nearer flat-footed and pushes off harder. */
-const WALK_ROLL = { strike: -0.32, push: 0.55 };
+const WALK_ROLL = { strike: -0.45, push: 0.6 };
 const RUN_ROLL = { strike: -0.12, push: 0.8 };
 /** How high a swinging foot lifts, for each metre of leg: walking, just
  *  clear of the floor; running, the heel kicks up behind. */
@@ -108,12 +134,17 @@ export function walkingOf(figure: THREE.Object3D): Walking {
   return (figure.userData as { walking?: Walking }).walking ?? ADULT_WALK;
 }
 
-/** How high a walking miniature is off the floor: walking, it rises over each
- *  planted foot, as a walker vaults over a straight leg; running, it bounds
- *  between steps, when neither foot is down. */
-export function hopHeight({ hop }: Walking, { phase, amount, running = false }: Stride): number {
-  const lift = running ? Math.abs(Math.sin(phase)) ** 1.5 * RUN_HOP : Math.abs(Math.cos(phase));
-  return lift * hop * amount;
+/** How high a running figure bounds off its base between steps, when
+ *  neither foot is down: nothing while a foot is planted, rising and falling
+ *  smoothly through the flight. A walker always has a foot down, so it never
+ *  leaves the base; its hop sinks it into its knees instead (see `stride`). */
+function hopHeight({ hop }: Walking, { phase, amount, running = false }: Stride, stance: number): number {
+  if (!running) return 0;
+  // Half a stride, one step: a foot is down for its first and last `stance`, both off the floor between.
+  const half = phase / Math.PI - Math.floor(phase / Math.PI);
+  const flight = (half - stance) / (1 - 2 * stance);
+  if (flight <= 0 || flight >= 1) return 0;
+  return Math.sin(Math.PI * flight) ** 2 * hop * RUN_HOP * amount;
 }
 
 /** How a figure moves its legs at a moment: `phase` runs on with the distance
@@ -217,6 +248,8 @@ export interface StrideRig {
   /** What leans into the stride, and how far walking. */
   chest: THREE.Object3D;
   lean: number;
+  /** How high, as a share of everyone's, a swinging foot lifts: less under a skirt. */
+  lifts?: number;
 }
 
 const ACROSS = new THREE.Vector3(1, 0, 0);
@@ -254,8 +287,7 @@ function plantedFoot(leg: Leg, u: number, range: number, roll: { strike: number;
 /** Where a foot is `cycle` of the way through its stride: planted, sliding
  *  back under the figure exactly as fast as the floor goes by, then lifted
  *  and swung forward to land again. */
-function footAt(leg: Leg, cycle: number, step: number, running: boolean): Foot {
-  const stance = running ? RUN_STANCE : WALK_STANCE;
+function footAt(leg: Leg, cycle: number, step: number, running: boolean, stance: number, lifts: number): Foot {
   const roll = running ? RUN_ROLL : WALK_ROLL;
   const range = step * stance;
   const c = cycle - Math.floor(cycle);
@@ -263,15 +295,23 @@ function footAt(leg: Leg, cycle: number, step: number, running: boolean): Foot {
   const u = (c - stance) / (1 - stance);
   const from = plantedFoot(leg, 1, range, roll);
   const to = plantedFoot(leg, 0, range, roll);
-  // A runner's heel kicks up behind, then the knee drives the foot forward and down to land.
-  const forward = running ? THREE.MathUtils.smootherstep(u, 0.2, 1) : THREE.MathUtils.smoothstep(u, 0, 1);
-  const lift = (running ? Math.sin(Math.PI * Math.min(1, u * 1.5)) * RUN_LIFT : Math.sin(Math.PI * u) * WALK_LIFT) * (leg.thigh + leg.shin);
+  // The foot leaves the floor going back as fast as the floor, swings
+  // forward, and comes back to the floor's pace to land, so it never stops
+  // dead at either end: a curve from where it lifts to where it lands that
+  // starts and ends at the floor's speed. A runner's carries it on back
+  // further, the heel kicking up behind, before the knee drives it forward.
+  const slide = (-2 * range * (1 - stance)) / stance;
+  const [u2, u3] = [u * u, u * u * u];
+  const forward = THREE.MathUtils.smoothstep(u, 0, 1);
   const ankle = from.ankle.clone().lerp(to.ankle, forward);
-  ankle.y += lift;
+  ankle.z = from.ankle.z * (2 * u3 - 3 * u2 + 1) + to.ankle.z * (-2 * u3 + 3 * u2) + slide * (u3 - 2 * u2 + u + (u3 - u2));
+  // It rises and settles gently; a runner's heel rises early and high.
+  const rising = running ? u * (1.6 - 0.6 * u) : u;
+  ankle.y += Math.sin(Math.PI * rising) ** 2 * (running ? RUN_LIFT : WALK_LIFT) * lifts * (leg.thigh + leg.shin);
   return {
     roll: from.roll + (to.roll - from.roll) * forward,
     ankle,
-    planted: 1 - THREE.MathUtils.smoothstep(u, 0, 0.15),
+    planted: 1 - THREE.MathUtils.smoothstep(u, 0, 0.05),
     hanging: THREE.MathUtils.smoothstep(u, 0, 0.2) * (1 - THREE.MathUtils.smoothstep(u, 0.7, 1)),
   };
 }
@@ -284,8 +324,47 @@ function soleLift(leg: Leg, roll: number, ankle: THREE.Vector3): number {
   return Math.max(0, BASE_TOP - lowest);
 }
 
+/** How far short of straight a leg eases to a stop as its foot swings out of reach, in metres, so the knee never snaps straight. */
+const SOFT_REACH = 0.012;
+
+/** The furthest a knee folds, in radians from straight. */
+const DEEPEST_KNEE = 2.2;
+
 /** How far a foot in the air points its toe down past square to the shin. */
 const POINTED = 0.25;
+
+/** Where each foot is at a phase of the stride, eased in by `amount`, in the figure's frame. */
+function feetAt(rig: StrideRig, phase: number, amount: number, running: boolean, lean: number): Foot[] {
+  const length = stepLength(rig.walking.step, running);
+  const stance = stanceOf(rig, running);
+  return rig.legs.map((leg, i) => {
+    const moving = footAt(leg, phase / (Math.PI * 2) + stance / 2 + i * 0.5, length, running, stance, rig.lifts ?? 1);
+    // A runner's feet land under the hips, which lean ahead of the feet.
+    const ahead = Math.sin(lean) * (leg.at.y + rig.rest) * 0.8;
+    const ankle = leg.ankle.clone().lerp(moving.ankle, amount);
+    ankle.z += ahead;
+    return { roll: moving.roll * amount, ankle, planted: moving.planted, hanging: moving.hanging * amount };
+  });
+}
+
+/** How far the body, standing at its rest, must sink for every planted foot to be within its leg's reach. */
+function sinkFor(rig: StrideRig, feet: readonly Foot[]): number {
+  let drop = 0;
+  for (const [i, leg] of rig.legs.entries()) {
+    const hip = leg.at.clone().applyMatrix4(rig.body.matrix);
+    const { ankle, planted } = feet[i];
+    const reachable = (leg.thigh + leg.shin) * 0.995 - SOFT_REACH;
+    const across = Math.hypot(hip.x - ankle.x, hip.z - ankle.z);
+    const height = Math.sqrt(Math.max(0, reachable * reachable - across * across));
+    drop = Math.max(drop, (hip.y - ankle.y - height) * planted);
+  }
+  return drop;
+}
+
+/** How many phases of a step the body's sink is worked out from. */
+const DIP_SAMPLES = 24;
+/** How many times its declared hop a walker sinks into its knees at each step. */
+const WALK_DIP = 0.5;
 
 /**
  * Walks or runs a figure, after its idle has posed it. Each foot is planted
@@ -301,39 +380,48 @@ const POINTED = 0.25;
 export function stride(rig: StrideRig, { phase, amount, running = false }: Stride): number {
   const step = Math.sin(phase) * amount;
   const run = running ? amount : 0;
-  const length = stepLength(rig.walking.step, running);
-  const stance = running ? RUN_STANCE : WALK_STANCE;
   const lean = run * RUN_BODY_LEAN;
-
-  const feet = rig.legs.map((leg, i) => {
-    const moving = footAt(leg, phase / (Math.PI * 2) + stance / 2 + i * 0.5, length, running);
-    // A runner's feet land under the hips, which lean ahead of the feet.
-    const ahead = Math.sin(lean) * (leg.at.y + rig.rest) * 0.8;
-    const ankle = leg.ankle.clone().lerp(moving.ankle, amount);
-    ankle.z += ahead;
-    return { roll: moving.roll * amount, ankle, planted: moving.planted, hanging: moving.hanging * amount };
-  });
 
   rig.body.rotation.x = lean;
   rig.body.position.y = rig.rest;
   rig.body.updateMatrix();
-  // The hips sink until every planted foot is within the leg's reach, knees soft.
-  let drop = run * RUN_CROUCH * (rig.legs[0].thigh + rig.legs[0].shin);
-  for (const [i, leg] of rig.legs.entries()) {
-    const hip = leg.at.clone().applyMatrix4(rig.body.matrix);
-    const { ankle, planted } = feet[i];
-    const reachable = (leg.thigh + leg.shin) * 0.985;
-    const across = Math.hypot(hip.x - ankle.x, hip.z - ankle.z);
-    const height = Math.sqrt(Math.max(0, reachable * reachable - across * across));
-    drop = Math.max(drop, (hip.y - ankle.y - height) * planted);
-  }
-  rig.body.position.y = rig.rest - drop;
+  // The hips sink until every planted foot is within the leg's reach, knees
+  // soft. Sinking only as each foot needs it would drop the body the moment a
+  // foot lands far ahead, so the body rises and falls smoothly once a step,
+  // lowest where the step needs it most (as a walker's feet are both down, or
+  // as a runner lands), as deep as the step ever needs.
+  const needs = Array.from({ length: DIP_SAMPLES }, (_, k) => {
+    const at = (k / DIP_SAMPLES) * Math.PI;
+    return { at, need: sinkFor(rig, feetAt(rig, at, amount, running, lean)) };
+  });
+  const [across, along] = needs.reduce(([y, x], { at, need }) => [y + need * Math.sin(2 * at), x + need * Math.cos(2 * at)], [0, 0]);
+  const lowest = Math.atan2(across, along) / 2;
+  const dip = (at: number) => Math.cos(at - lowest) ** 2;
+  const least = Math.min(...needs.map(({ need }) => need));
+  const deepest = Math.max(0, ...needs.map(({ at, need }) => (need - least) / Math.max(dip(at), 0.5)));
+  let drop = least + deepest * dip(phase);
+  drop += run * RUN_CROUCH * (rig.legs[0].thigh + rig.legs[0].shin);
+  // A bouncier walker sinks further into its knees at each step, as both feet are down.
+  drop += rig.walking.hop * WALK_DIP * (amount - run) * Math.sin(phase) ** 2;
+  // A runner bounds between steps: the whole figure off its base, feet and all.
+  const bound = hopHeight(rig.walking, { phase, amount, running }, stanceOf(rig, running));
+  const feet = feetAt(rig, phase, amount, running, lean);
+  for (const foot of feet) foot.ankle.y += bound;
+  rig.body.position.y = rig.rest - drop + bound;
   rig.body.updateMatrix();
   const toBody = rig.body.matrix.clone().invert();
 
   const bodyTurn = new THREE.Quaternion().setFromRotationMatrix(rig.body.matrix);
   for (const [i, leg] of rig.legs.entries()) {
     const { roll, ankle, hanging } = feet[i];
+    // A foot still in the air beyond the leg's reach is held in reach, a little off the floor, so the shin never leaves the shoe.
+    const hip = leg.at.clone().applyMatrix4(rig.body.matrix);
+    const reachable = (leg.thigh + leg.shin) * 0.995 - SOFT_REACH;
+    const distance = ankle.distanceTo(hip);
+    if (distance > reachable) ankle.sub(hip).setLength(reachable + SOFT_REACH * Math.tanh((distance - reachable) / SOFT_REACH)).add(hip);
+    // A heel kicked up behind folds the knee only so far, so the calf never folds into the thigh.
+    const folded = Math.sqrt(leg.thigh ** 2 + leg.shin ** 2 + 2 * leg.thigh * leg.shin * Math.cos(DEEPEST_KNEE)) + SOFT_REACH;
+    if (distance < folded) ankle.sub(hip).setLength(folded - SOFT_REACH * Math.tanh((folded - distance) / SOFT_REACH)).add(hip);
     let posed = reach(leg.at, ankle.clone().applyMatrix4(toBody), leg.thigh, leg.shin, FORWARD);
     // In the air, the foot hangs from the shin, square to it and pointed a little, as a heel kicks up behind.
     const shin = new THREE.Vector3(0, -1, 0).applyQuaternion(bodyTurn.clone().multiply(posed.shoulder).multiply(posed.elbow));
@@ -467,28 +555,50 @@ export function legPoints(leg: Leg, thighRadius: number, shinRadius: number, { s
 }
 
 /**
- * Cloth pushed aside by the legs: how far to turn a hanging piece (a coat's
- * tail) about its pivot's x axis, nearest to `rest`, so that none of
- * `points` (in the pivot's parent frame) lies within its radius of the
- * piece's solid. `pivot` is where the piece hangs from in that frame; it
- * turns no further forward than `least`.
+ * Cloth pushed back by the legs: how far to turn a hanging piece (a coat's
+ * tail) about its pivot's x axis, back from `rest` (the hem going back), so
+ * that every one of `points` (in the pivot's parent frame; `pivot` is where
+ * the piece hangs from there) sits in front of the cloth's inside. `margin`
+ * says, in the piece's own frame, how far a point of a given radius is clear
+ * in front of the cloth (negative: the cloth must go back). Each point needs
+ * the cloth turned back only as far as it must, found to a hair, and the
+ * cloth turns as far as the most demanding point needs: so it follows the
+ * legs smoothly, never jumping from one side of a leg to the other.
  */
 export function pushAside(
-  solid: { distance: (x: number, y: number, z: number) => number },
+  margin: (local: THREE.Vector3, radius: number) => number,
   pivot: THREE.Vector3,
   points: readonly Swept[],
   rest: number,
-  { least = -Infinity, reach = 1.4 }: { least?: number; reach?: number } = {},
+  { reach = 1.4 }: { reach?: number } = {},
 ): number {
   const local = new THREE.Vector3();
-  const clear = (angle: number) =>
-    points.every(({ at, radius }) => {
-      local.copy(at).sub(pivot).applyAxisAngle(ACROSS, -angle);
-      return solid.distance(local.x, local.y, local.z) > radius;
-    });
-  const step = 0.02;
-  for (let k = 0; k * step <= reach; k++) {
-    for (const angle of k === 0 ? [rest] : [rest + k * step, rest - k * step]) if (angle >= least && clear(angle)) return angle;
+  const clear = (at: THREE.Vector3, radius: number, angle: number) => margin(local.copy(at).sub(pivot).applyAxisAngle(ACROSS, -angle), radius) >= 0;
+  let angle = rest;
+  for (const { at, radius } of points) {
+    if (clear(at, radius, angle)) continue;
+    // The first angle back from here that clears the point, found by small
+    // steps (it may clear, then not, further back) and then to a hair.
+    let blocked = angle;
+    while (blocked < rest + reach && !clear(at, radius, blocked + PUSH_STEP)) blocked += PUSH_STEP;
+    if (blocked >= rest + reach) {
+      angle = rest + reach;
+      continue;
+    }
+    let open = blocked + PUSH_STEP;
+    for (let i = 0; i < 12; i++) {
+      const middle = (blocked + open) / 2;
+      if (clear(at, radius, middle)) open = middle;
+      else blocked = middle;
+    }
+    angle = open;
   }
-  return rest;
+  // Let go of the cloth gently: a little past what the legs need, easing into
+  // the rest, rather than snapping from following a leg to hanging.
+  return rest + RELEASE * Math.log1p(Math.exp((angle - rest) / RELEASE));
 }
+
+/** The steps, in radians, cloth pushed by the legs is turned back by as it looks for where it clears them. */
+const PUSH_STEP = 0.004;
+/** How softly, in radians, cloth the legs push eases back to its rest. */
+const RELEASE = 0.1;

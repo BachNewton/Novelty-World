@@ -4,7 +4,7 @@ import { animated } from "../animate";
 import { ball, drum, ellipsoid, figureMaterial, form, painted, plinth, ring, rod, roundBox, sculpt, shaped, stretched, surfaceAt, type Vec3 } from "../forms";
 import { group } from "../shapes";
 import { BASE_TOP, burst, joins, leg, legJoints, miniatureHeight, soleEnds, STANDING, stride, walks, type Gait, type StrideRig, type Walking } from "./figure";
-import { aimGrip, blendPose, buildArm, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
+import { aimGrip, blendPose, buildArm, closedRound, fist, handParts, hasHands, holding, holdIn, poseArm, poseHand, reachWrist, RELAXED, type Arm, type Prop } from "./hands";
 
 /*
  * Ox Bellows: a huge young linebacker, all Might, who is afraid of the dark
@@ -75,7 +75,8 @@ function jacket(): THREE.BufferGeometry {
     .add(ellipsoid([0, -0.04, 0], [0.2, 0.11, 0.135]), "moon")
     .add(roundBox([0, 0.07, 0], [0.215, 0.12, 0.15], 0.08), "bloodLight", 0.02)
     .add(roundBox([0, 0.29, 0], [0.25, 0.15, 0.175], 0.1), "bloodLight", 0.08);
-  for (const side of [-1, 1]) shape.add(rod([side * 0.08, 0.42, -0.01], [side * 0.22, 0.43, 0], 0.085, 0.09), "bloodLight", 0.08);
+  // The shoulders reach out over the tops of the sleeves, set in at the seam, so a sleeve's round top never shows as a ball.
+  for (const side of [-1, 1]) shape.add(rod([side * 0.08, 0.42, -0.01], [side * 0.26, 0.44, 0], 0.085, 0.1), "bloodLight", 0.08);
   shape
     .add(stretched(ring([0, -0.04, 0], 0.19, 0.035), [0, -0.04, 0], [1.1, 1, 0.76]), "bloodDark", 0.01)
     .paint((_, y) => (Math.abs(y + 0.015) < 0.011 && y > -0.03 ? -1 : 1), "boneLight")
@@ -87,30 +88,28 @@ function jacket(): THREE.BufferGeometry {
   return shape.geometry(0.013);
 }
 
-/** A cream leather sleeve on a thick upper arm, set in under the jacket's shoulder. */
+/** A cream leather sleeve on a thick upper arm, set in under the jacket's
+ *  shoulder, tapering to the elbow, where it ends inside the forearm's top. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(ball([0, -0.03, 0], 0.084), "boneLight")
-    .add(rod([0, -0.04, 0], [0, -UPPER_ARM, 0], 0.084, 0.068), "boneLight", 0.04)
-    .add(ball([0, -UPPER_ARM, 0], 0.066), "boneLight", 0.01)
+    .add(rod([0, -0.03, 0], [0, -UPPER_ARM, 0], 0.08, 0.06), "boneLight")
     .geometry(0.012);
 }
 
 /** The forearm from the elbow to the wrist: a cream sleeve, a red ribbed cuff, and a thick wrist. */
 function forearm(): THREE.BufferGeometry {
   return sculpt()
-    .add(ball([0, -0.004, 0], 0.066), "boneLight")
-    .add(rod([0, -0.01, 0], [0, -FOREARM + 0.03, 0], 0.068, 0.06), "boneLight", 0.02)
+    .add(rod([0, 0, 0], [0, -FOREARM + 0.03, 0], 0.068, 0.06), "boneLight")
     .add(ring([0, -FOREARM + 0.03, 0], 0.05, 0.022), "bloodDark", 0.006)
     .add(rod([0, -FOREARM + 0.05, 0], [0, -FOREARM + 0.02, 0.002], 0.03, 0.027), "skin")
     .geometry(0.009);
 }
 
-/** A jeans leg from the hip to the knee, hanging from the hip. */
+/** A jeans leg from the hip to the knee, hanging from the hip, tapering to
+ *  the knee, where it ends inside the shin's top. */
 function thigh(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0.03, 0], [0, -THIGH, 0.008], 0.092, 0.08), "moon")
-    .add(ball([0, -THIGH, 0.006], 0.078), "moon", 0.02)
+    .add(rod([0, 0.03, 0], [0, -THIGH, 0.006], 0.092, 0.07), "moon")
     .geometry(0.013);
 }
 
@@ -158,6 +157,8 @@ type Parts = ReturnType<typeof meshParts>;
 let meshed: Parts | undefined;
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** How far into bringing the coin out his fist has closed and the coin is in it. */
+const COIN_OUT = 0.15;
 
 /** Ox Bellows as a miniature on a round base, 6'4" at the house's scale.
  *  He breathes deep and slow and shifts his great weight; now and then he
@@ -253,7 +254,9 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
     const admiring = free ? shiny.amount * (1 - running) : 0;
     const glance = burst(seconds, `${seed}:dark`, { every: 7, lasts: 2.2, chance: 0.55 });
     const look = glance.amount * (1 - admiring);
-    if (free) holdIn(right.hand, admiring > 0 ? lucky : null);
+    // His fist closes as he brings the coin out, and only then is it in it.
+    const closing = THREE.MathUtils.smoothstep(admiring, 0, COIN_OUT);
+    if (free) holdIn(right.hand, admiring >= COIN_OUT ? lucky : null);
 
     body.rotation.z = sway * 0.025;
     chest.rotation.z = sway * -0.015;
@@ -274,7 +277,8 @@ export function ox(seed = "ox", gait: Gait = STANDING): THREE.Group {
     ] as const) {
       const upright = arm.hand.held?.carry === "upright";
       poseArm(arm, upright ? own.carries : own.hangs, side === "right" ? admires : own.hangs, side === "right" ? admiring : 0);
-      poseHand(arm.hand, holding(arm.hand, blendPose(RELAXED, fist(arm.hand), Math.max(running, 0.25))));
+      const empty = blendPose(RELAXED, fist(arm.hand), Math.max(running, 0.25));
+      poseHand(arm.hand, side === "right" && free ? blendPose(empty, closedRound(arm.hand, lucky.handle), closing) : holding(arm.hand, empty));
       swings[side].swing = upright ? ARM_SWING * 0.3 : ARM_SWING;
     }
 

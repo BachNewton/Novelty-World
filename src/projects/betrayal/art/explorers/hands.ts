@@ -242,7 +242,12 @@ export function fist(hand: Hand): HandPose {
 
 /** The pose that closes a hand round what it holds, or `empty` if it holds nothing. */
 export function holding(hand: Hand, empty: HandPose): HandPose {
-  return hand.held ? grasp(hand.held.handle, hand.scale, -hand.side).pose : empty;
+  return hand.held ? closedRound(hand, hand.held.handle) : empty;
+}
+
+/** The pose that closes a hand round a handle `radius` thick, held or about to be. */
+export function closedRound(hand: Hand, radius: number): HandPose {
+  return grasp(radius, hand.scale, -hand.side).pose;
 }
 
 /**

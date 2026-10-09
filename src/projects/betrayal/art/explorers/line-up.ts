@@ -1,10 +1,9 @@
 import type * as THREE from "three";
-import { animated } from "../animate";
 import { RUN_SPEED, WALK_SPEED } from "../house-walk";
 import { pawn } from "../kit/pawn";
 import { group } from "../shapes";
 import type { ExplorerBuilder } from "../stage";
-import { ADULT_WALK, hopHeight, STANDING, stepLength, walkingOf, type Gait, type Pace, type Stride, type Walking } from "./figure";
+import { ADULT_WALK, STANDING, stepLength, walkingOf, type Gait, type Pace, type Stride, type Walking } from "./figure";
 import { handsOf, holdIn, type Prop } from "./hands";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
@@ -48,7 +47,7 @@ function holdingIn(figure: THREE.Object3D, prop: Prop) {
  * The explorers in a row, tallest first, with the scale pawn at the end,
  * across the bench's first view and facing it, as for a cast photo: for judging their heights, silhouettes and colours against each
  * other. With a `pace`, they walk or run on the spot at the house's pace,
- * each with its own step and hop, as the house moves them. With `holding`,
+ * each with its own step and bounce, as the house moves them. With `holding`,
  * each holds a stand-in prop in the right hand. `sideOn` turns each to walk
  * across the first view, to judge a gait in profile.
  */
@@ -67,9 +66,5 @@ export function explorerLineUp(seed = "line-up", pace?: Pace, holding?: Holding,
     holder.rotation.y = Math.PI / 4 + (sideOn && i < figures.length ? -Math.PI / 2 : 0);
     return holder;
   });
-  return animated(group(...holders), (seconds) => {
-    for (const [i, figure] of figures.entries()) {
-      holders[i].position.y = pace ? hopHeight(walkingOf(figure), treadmill(walkingOf(figure), pace, seconds)) : 0;
-    }
-  });
+  return group(...holders);
 }

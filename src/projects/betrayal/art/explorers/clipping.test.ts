@@ -1,6 +1,7 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 import { beforeAll, describe, expect, it } from "vitest";
 import { animationOf } from "../animate";
+import { loft, mergeAll, solidOf, surfaceAt, type Section, type Vec3 } from "../forms";
 import { stubCanvas } from "../headless";
 import type { ExplorerBuilder } from "../stage";
 import { clipping } from "./clipping";
@@ -67,4 +68,46 @@ describe.each(Object.entries(EXPLORERS))("%s", (name, build) => {
       }
     });
   }
+});
+
+/*
+ * Longfellow's scarf once clipped through his coat unseen: its ends were
+ * merged into the coat's mesh, and the check only ever compares one part
+ * with another, so a ribbon sinking into the coat it lay on was never asked
+ * about. Its ends are a part of their own now. The old ends, laid on the coat
+ * by their middles 11 mm off it, are rebuilt here as they were and must be
+ * caught, while the ends as built pass.
+ */
+describe("longfellow's scarf", () => {
+  const scarfOf = (figure: THREE.Object3D) => {
+    const found = figure.getObjectByName("scarf");
+    const coat = figure.getObjectByName("torso");
+    if (!(found instanceof THREE.Mesh) || !(coat instanceof THREE.Mesh)) throw new Error("Longfellow's scarf is not a part of its own");
+    return { scarf: found, coat };
+  };
+
+  /** The scarf's ends as they were first built, from the coat's own solid. */
+  function oldEnds(coat: THREE.Mesh): THREE.BufferGeometry {
+    const solid = solidOf(coat.geometry as THREE.BufferGeometry);
+    if (!solid) throw new Error("The coat has no solid");
+    const onCoat = (x: number, y: number, facing: 1 | -1): Vec3 => [x, y, surfaceAt(solid.distance, x, y, facing) + facing * 0.011];
+    const band = (at: Vec3, colour: Section["colour"]): Section => ({ at, radius: [0.042, 0.009], colour });
+    const striped = (x: number, facing: 1 | -1, heights: number[]) =>
+      heights.map((y, i) => band(onCoat(x, y, facing), i % 2 === 1 && i < heights.length - 2 ? "bone" : "bloodLight"));
+    return mergeAll([
+      loft([band([-0.07, 0.47, 0.06], "bloodLight"), ...striped(-0.08, 1, [0.4, 0.3, 0.195, 0.17, 0.15, 0.12, 0.1])]),
+      loft([band([0.075, 0.47, 0.03], "bloodLight"), band([0.1, 0.45, -0.07], "bloodLight"), ...striped(0.095, -1, [0.4, 0.33, 0.3, 0.28, 0.26, 0.24, 0.22])]),
+    ]);
+  }
+
+  it("catches the old scarf's ends sinking into the coat", LIMIT, () => {
+    const figure = longfellow("old scarf");
+    const { scarf, coat } = scarfOf(figure);
+    scarf.geometry = oldEnds(coat);
+    expect(clipsThrough(figure, [0]).some((finding) => finding.includes("scarf"))).toBe(true);
+  });
+
+  it("lays the ends clear of the coat", LIMIT, () => {
+    expect(clipsThrough(longfellow("scarf"), IDLE.slice(0, 40))).toEqual([]);
+  });
 });

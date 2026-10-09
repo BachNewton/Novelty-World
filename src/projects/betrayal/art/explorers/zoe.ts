@@ -129,18 +129,16 @@ function skirt(): THREE.BufferGeometry {
 /** A puffed yellow sleeve over a thin bare upper arm. */
 function upperArm(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, -0.02, 0], [0, -UPPER_ARM, 0], 0.026, 0.023), "skin")
+    .add(rod([0, -0.02, 0], [0, -UPPER_ARM, 0], 0.026, 0.019), "skin")
     .add(ellipsoid([0, -0.035, 0], [0.052, 0.05, 0.054]), "gold", 0.01)
     .add(ring([0, -0.075, 0], 0.036, 0.009), "boneLight", 0.004)
-    .add(ball([0, -UPPER_ARM, 0], 0.022), "skin", 0.006)
     .geometry(0.0055);
 }
 
 /** A thin bare forearm, from the elbow to the wrist. */
 function forearm(): THREE.BufferGeometry {
   return sculpt()
-    .add(ball([0, -0.002, 0], 0.022), "skin")
-    .add(rod([0, -0.004, 0], [0, -FOREARM + 0.008, 0.002], 0.023, 0.017), "skin", 0.008)
+    .add(rod([0, 0, 0], [0, -FOREARM + 0.008, 0.002], 0.023, 0.017), "skin")
     .geometry(0.0055);
 }
 
@@ -165,8 +163,7 @@ function doll(): THREE.BufferGeometry {
 /** A white sock from the hip to the knee, hanging from the hip. */
 function thigh(): THREE.BufferGeometry {
   return sculpt()
-    .add(rod([0, 0.02, 0], [0, -THIGH, 0.004], 0.033, 0.03), "boneLight")
-    .add(ball([0, -THIGH, 0.002], 0.029), "boneLight", 0.01)
+    .add(rod([0, 0.02, 0], [0, -THIGH, 0.002], 0.033, 0.025), "boneLight")
     .geometry(0.007);
 }
 
@@ -216,15 +213,25 @@ const CRADLED = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.
 /** The middles of a shoe's heel and toe, as built (x set per foot): what a kicked-up foot pushes the skirt with. */
 const SHOE_POINTS = [new THREE.Vector3(0, BASE_TOP + 0.024, -0.02), new THREE.Vector3(0, BASE_TOP + 0.022, 0.015), new THREE.Vector3(0, BASE_TOP + 0.02, 0.05)];
 
+/** The skirt's depth front to back, as a scale of its width, as it hangs. */
+const REST_DEPTH = 0.8;
+/** The furthest it billows, front to back: past this a bell of skirt reads as a disc. */
+const BILLOW_MOST = 1.45;
+
 /** How far the skirt must stretch front to back, as a scale of its depth,
  *  for every swept point above its hem to lie inside it: a raised knee or a
  *  heel kicked up behind billows it out. */
 function billowFor(points: readonly Swept[]): number {
-  let scale = 0;
+  let scale = REST_DEPTH;
   for (const { at, radius } of points) {
-    if (at.y - radius > SKIRT.top || at.y + radius < SKIRT.petticoat) continue;
+    // How near the point is to the skirt's height: one coming up from below (or down from above) billows it gradually, fully by the time it reaches it.
+    const within =
+      THREE.MathUtils.smoothstep(at.y + radius - SKIRT.petticoat, -0.1, 0) * THREE.MathUtils.smoothstep(SKIRT.top - at.y + radius, -0.03, 0);
+    if (within === 0) continue;
     const inside = skirtRadius(THREE.MathUtils.clamp(at.y, SKIRT.hem, SKIRT.top)) * 0.94 - SKIRT.cloth / 0.85;
-    scale = Math.max(scale, (Math.abs(at.z) + radius) / inside);
+    // The skirt stretches front to back only, so a point off to the side needs it stretched further.
+    const depth = Math.sqrt(Math.max(inside * inside - at.x * at.x, (inside * 0.3) ** 2));
+    scale = Math.max(scale, REST_DEPTH + ((Math.abs(at.z) + radius) / depth - REST_DEPTH) * within);
   }
   return scale;
 }
@@ -268,15 +275,15 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   const right = limb(-1);
   const bend = new THREE.Vector3(0, 0, -1);
   const wristAt = (of: Arm, offset: [number, number, number]) => of.at.clone().add(new THREE.Vector3(...offset));
-  const leftHangs = reachWrist(left, wristAt(left, [0.15, -0.19, 0.08]), bend);
+  const leftHangs = reachWrist(left, wristAt(left, [0.15, -0.16, 0.08]), bend);
   const rightHangs = reachWrist(right, wristAt(right, [-0.1, -0.2, 0.06]), bend);
   const leftLifts = reachWrist(left, new THREE.Vector3(0.27, 0.02, 0.17), new THREE.Vector3(1, -0.6, -0.4));
   const leftHugs = reachWrist(left, new THREE.Vector3(0.1, 0.14, 0.19), new THREE.Vector3(1, -0.5, -0.3));
   const leftOut = reachWrist(left, wristAt(left, [0.21, -0.1, 0]), bend);
   const rightOut = reachWrist(right, wristAt(right, [-0.19, -0.13, 0]), bend);
-  const rightCarries = reachWrist(right, wristAt(right, [-0.15, -0.05, 0.19]), new THREE.Vector3(-0.3, 0, -1));
+  const rightCarries = reachWrist(right, wristAt(right, [-0.15, 0.01, 0.19]), new THREE.Vector3(-0.3, 0, -1));
   // A thing hanging from her hand is held out from her skirt.
-  const rightHolds = reachWrist(right, wristAt(right, [-0.13, -0.17, 0.1]), bend);
+  const rightHolds = reachWrist(right, wristAt(right, [-0.17, -0.15, 0.1]), bend);
 
   // The doll hangs from her fist by its arm, whichever way her hand turns.
   const dangling = group(mesh(parts.doll, "doll"));
@@ -286,7 +293,7 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   const top = mesh(parts.bodice, "bodice");
   const chest = group(top, neck, left.shoulder, right.shoulder);
   const dress = group(mesh(parts.skirt, "skirt"));
-  dress.scale.z = 0.8;
+  dress.scale.z = REST_DEPTH;
   const hips = group(dress, chest);
   hips.position.y = WAIST - BASE_TOP;
 
@@ -320,7 +327,7 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
   ]);
   // The doll arm swings less: she keeps it close, and clutches it running.
   const swings = { right: { limb: right, side: -1 as const, swing: ARM_SWING, pump: 1 }, left: { limb: left, side: 1 as const, swing: ARM_SWING * 0.6 } };
-  const rig: StrideRig = { walking: ZOE_WALK, legs, body, rest: BASE_TOP, arms: [swings.right, swings.left], chest, lean: 0.05 };
+  const rig: StrideRig = { walking: ZOE_WALK, legs, body, rest: BASE_TOP, arms: [swings.right, swings.left], chest, lean: 0.05, lifts: 0.35 };
 
   const rng = createRng(seed);
   const tunePhase = rng.next() * Math.PI * 2;
@@ -383,7 +390,7 @@ export function zoe(seed = "zoe", gait: Gait = STANDING): THREE.Group {
       const shoe = SHOE_POINTS.map((at) => ({ at: at.clone().setX(one.ankle.x).applyMatrix4(one.shoe.matrix).applyMatrix4(intoBody), radius: 0.05 }));
       return [...legPoints(one, 0.044, 0.036, { from: 0.1 }), ...shoe].map(({ at, radius }) => ({ at: at.applyMatrix4(intoHips), radius }));
     });
-    dress.scale.set(flare, 1, Math.max(0.8 * flare, billowFor(swept)));
+    dress.scale.set(flare, 1, Math.max(REST_DEPTH * flare, Math.min(BILLOW_MOST, billowFor(swept))));
 
     // The doll hangs straight down from her fist, swaying to the tune; she clutches it across her chest when scared.
     const hanging = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, tune * 0.08 * humming + spinning * 1.1));
