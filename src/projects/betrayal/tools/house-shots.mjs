@@ -11,7 +11,7 @@
 // the whole house stacked, close views of single rooms, a phone shot, and three contact sheets:
 // sheet-ground.png, sheet-upper.png and sheet-house.png (stacked, basement, close views, phone). Those
 // judge the art, so the choices' glow and route are hidden in them. sheet-play.png shows the stand-in
-// decision: a focused choice with its route preview (desktop and phone), and a walk up the grand
+// decision: a focused choice with its route preview (desktop and phone), "Stop here" focused, and a walk up the grand
 // staircase frozen at several moments, ending with the room framed close as the explorer enters it.
 
 import { chromium } from "playwright";
@@ -123,6 +123,8 @@ const choosing = await openHouse(DESKTOP);
 await choosing.keyboard.press("ArrowLeft");
 await choosing.evaluate(() => window.__betrayalHouse.focus("dining-room"));
 play.push(await shoot(choosing, "play-focused"));
+await choosing.evaluate(() => window.__betrayalHouse.focus("library"));
+play.push(await shoot(choosing, "play-stop"));
 await choosing.evaluate(() => window.__betrayalHouse.focus("upper-landing"));
 play.push(await shoot(choosing, "play-focused-upstairs"));
 // A walk from the Library up the grand staircase, frozen at moments along it.

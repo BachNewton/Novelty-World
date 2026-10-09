@@ -48,6 +48,35 @@ export function reachable(layout: Layout, catalog: Catalog, from: string, moveme
   return [...routes].map(([room, route]) => ({ room, route })).sort((a, b) => a.route.length - b.route.length || (a.room < b.room ? -1 : 1));
 }
 
+/**
+ * An explorer's move this turn: where they stand, and the spaces of movement
+ * they have left. A move is made in legs, each to a room within what is left
+ * and spending its route's length, a stair step costing a space like any
+ * other. The real engine moves a space at a time, which is a leg of one.
+ */
+export interface Move {
+  room: string;
+  left: number;
+}
+
+/** The legs a move can take next: every room within the movement left. */
+export function nextLegs(layout: Layout, catalog: Catalog, move: Move): Reach[] {
+  return reachable(layout, catalog, move.room, move.left);
+}
+
+/** The move after a leg along `reach`, which must start where the move stands and fit what is left. */
+export function afterLeg(move: Move, reach: Reach): Move {
+  const spent = reach.route.length - 1;
+  if (reach.route[0] !== move.room) throw new Error(`A leg from ${reach.route[0]} can't continue a move standing in ${move.room}`);
+  if (spent > move.left) throw new Error(`A leg of ${spent} spaces is more than the ${move.left} left`);
+  return { room: reach.room, left: move.left - spent };
+}
+
+/** Whether a move is over without being stopped: nothing left to spend, or nowhere it can reach. */
+export function moveIsOver(layout: Layout, catalog: Catalog, move: Move): boolean {
+  return move.left === 0 || nextLegs(layout, catalog, move).length === 0;
+}
+
 function tileOf(layout: Layout, room: string): PlacedTile {
   const tile = placed(layout, room);
   if (!tile) throw new Error(`${room} is not in the house`);

@@ -30,7 +30,8 @@ function Hint({ glyphs, does }: { glyphs: ReactNode; does: string }) {
 
 /** What each control does, for the input the player last used. A mouse and a
  *  finger point at what they want, so they get no hints. */
-function Hints({ input, phase }: { input: InputKind; phase: HouseSnapshot["phase"] }) {
+function Hints({ input, phase, stopping }: { input: InputKind; phase: HouseSnapshot["phase"]; stopping: boolean }) {
+  const go = stopping ? "stop" : "walk";
   if (phase === "walking" || input === "mouse" || input === "touch") return null;
   const pad = input === "pad";
   const hints =
@@ -39,13 +40,13 @@ function Hints({ input, phase }: { input: InputKind; phase: HouseSnapshot["phase
       : pad
         ? [
             <Hint key="move" glyphs={<><Glyph round>L</Glyph><Glyph>✚</Glyph></>} does="choose" />,
-            <Hint key="go" glyphs={<Glyph round>A</Glyph>} does="walk" />,
+            <Hint key="go" glyphs={<Glyph round>A</Glyph>} does={go} />,
             <Hint key="orbit" glyphs={<><Glyph round>R</Glyph><Glyph>LB</Glyph><Glyph>RB</Glyph></>} does="turn" />,
             <Hint key="zoom" glyphs={<><Glyph>LT</Glyph><Glyph>RT</Glyph></>} does="zoom" />,
           ]
         : [
             <Hint key="move" glyphs={<><Glyph>←↑↓→</Glyph><Glyph>WASD</Glyph></>} does="choose" />,
-            <Hint key="go" glyphs={<Glyph>Enter</Glyph>} does="walk" />,
+            <Hint key="go" glyphs={<Glyph>Enter</Glyph>} does={go} />,
             <Hint key="orbit" glyphs={<><Glyph>Q</Glyph><Glyph>E</Glyph></>} does="turn" />,
             <Hint key="zoom" glyphs={<><Glyph>+</Glyph><Glyph>−</Glyph></>} does="zoom" />,
           ];
@@ -82,7 +83,7 @@ export function HouseScreen() {
       ? `${explorer.name} is walking…`
       : state.phase === "entering"
         ? `${explorer.name} enters the ${view.roomName(explorer.room)}.`
-        : `${explorer.name}: where to? Up to 4 spaces.`;
+        : `${explorer.name} · ${state.left} of ${state.movement} spaces left`;
 
   return (
     <div style={BETRAYAL_THEME} className="fixed inset-0 bg-(--bt-bg) text-(--bt-ink)">
@@ -94,7 +95,13 @@ export function HouseScreen() {
         {focused && (
           <>
             {stair}
-            {focused.name} <span className="text-(--bt-muted)">· {focused.steps === 1 ? "1 space" : `${focused.steps} spaces`}</span>
+            {focused.name}
+            {!focused.stop && (
+              <span className="text-(--bt-muted)">
+                {" "}
+                · {focused.steps} of {state.left} {state.left === 1 ? "space" : "spaces"}
+              </span>
+            )}
           </>
         )}
       </div>
@@ -154,7 +161,7 @@ export function HouseScreen() {
               Go on
             </button>
           )}
-          <Hints input={state.input} phase={state.phase} />
+          <Hints input={state.input} phase={state.phase} stopping={focused?.stop === true} />
         </section>
         <div className="flex justify-center gap-2">
           <BenchButton label="Orbit left" onClick={() => view.api.turn(-1)}>

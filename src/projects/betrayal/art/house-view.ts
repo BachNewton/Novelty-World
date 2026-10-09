@@ -8,7 +8,7 @@ import type { FloorId } from "../types";
 import { longfellow } from "./explorers/longfellow";
 import { buildHouse, definition, HOUSE_MOOD, stairMark, tileCorners, type House, type HouseExplorer } from "./house";
 import { HOUSE_FIXTURE } from "./house-layout";
-import { inHouse, reachable, shownOn, walkPath, walkPose, type Shown, type Stairway, type Walk } from "./house-walk";
+import { afterLeg, inHouse, moveIsOver, nextLegs, shownOn, walkPath, walkPose, type Shown, type Stairway, type Walk } from "./house-walk";
 import { pawn } from "./kit/pawn";
 import { TILE } from "./room";
 import { roomTile } from "./stage";
@@ -45,13 +45,15 @@ const CAST: CastMember[] = [
 
 export type FloorChoice = FloorId | "all";
 
-/** A room the stand-in decision offers. */
+/** What the stand-in decision offers: a room to walk to, or stopping in the
+ *  room the explorer stands in, which ends the turn. */
 export interface Choice {
   room: string;
   name: string;
   /** Spaces of movement it takes. */
   steps: number;
   floor: FloorId;
+  stop: boolean;
 }
 
 /** Choosing where to go; walking there (input waits); or standing in a room
@@ -69,6 +71,9 @@ export interface HouseSnapshot {
   explorers: { id: string; name: string; room: string }[];
   /** Whose turn it is, by index into `explorers`. */
   active: number;
+  /** The active explorer's movement this turn, and the spaces of it left. */
+  movement: number;
+  left: number;
   phase: Phase;
   choices: Choice[];
   /** The choice the focus cursor is on. */
@@ -204,6 +209,8 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     frozenAt: null,
     explorers: CAST.map(({ id, name, room }) => ({ id, name, room })),
     active: 0,
+    movement: MOVEMENT,
+    left: MOVEMENT,
     phase: "choosing",
     choices: [],
     focused: null,
@@ -239,19 +246,35 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
     for (const listener of listeners) listener();
   }
 
-  /** Puts the active explorer's decision: every room within a move. */
+  /** Puts the active explorer's next leg: every room within the movement
+   *  left, and stopping where they stand. */
   function offer(next: HouseSnapshot): HouseSnapshot {
     const explorer = next.explorers[next.active];
-    const reaches = reachable(layout, CATALOG, explorer.room, MOVEMENT);
+    const reaches = nextLegs(layout, CATALOG, { room: explorer.room, left: next.left });
     routes = new Map(reaches.map((reach) => [reach.room, reach.route]));
-    const choices = reaches.map((reach) => ({ room: reach.room, name: roomName(reach.room), steps: reach.route.length - 1, floor: floorOf(reach.room) }));
-    return { ...next, phase: "choosing", closeUp: null, choices, focused: choices.at(0)?.room ?? null, floor: floorOf(explorer.room) };
+    const choices: Choice[] = [
+      ...reaches.map((reach) => ({ room: reach.room, name: roomName(reach.room), steps: reach.route.length - 1, floor: floorOf(reach.room), stop: false })),
+      { room: explorer.room, name: "Stop here", steps: 0, floor: floorOf(explorer.room), stop: true },
+    ];
+    return { ...next, phase: "choosing", closeUp: null, choices, focused: choices[0].room, floor: floorOf(explorer.room) };
   }
   snapshot = offer(snapshot);
 
   function nextTurn() {
     enteringUntil = null;
-    update(offer({ ...snapshot, active: (snapshot.active + 1) % snapshot.explorers.length }));
+    update(offer({ ...snapshot, active: (snapshot.active + 1) % snapshot.explorers.length, left: snapshot.movement }));
+  }
+
+  /** After a leg: the next leg, or, when the move is over, the next explorer's turn. */
+  function continueTurn(next: HouseSnapshot) {
+    enteringUntil = null;
+    const explorer = next.explorers[next.active];
+    if (moveIsOver(layout, CATALOG, { room: explorer.room, left: next.left })) {
+      snapshot = next;
+      nextTurn();
+    } else {
+      update(offer(next));
+    }
   }
 
   /** The point a walk to `room` ends on: the pawn spot, or beside it when someone already stands there. */
@@ -284,10 +307,15 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
 
   function choose(room: string) {
     if (snapshot.phase === "entering") {
+      continueTurn(snapshot);
+      return;
+    }
+    if (snapshot.phase !== "choosing" || !house) return;
+    if (snapshot.choices.some((choice) => choice.stop && choice.room === room)) {
       nextTurn();
       return;
     }
-    if (snapshot.phase !== "choosing" || !routes.has(room) || !house) return;
+    if (!routes.has(room)) return;
     const explorer = snapshot.explorers[snapshot.active].id;
     walking = { explorer, room, walk: { path: pathTo(house, room), start: seconds } };
     house.walk(explorer, walking.walk);
@@ -295,25 +323,27 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
   }
 
   function confirm() {
-    if (snapshot.phase === "entering") nextTurn();
+    if (snapshot.phase === "entering") continueTurn(snapshot);
     else if (snapshot.focused !== null) choose(snapshot.focused);
   }
 
-  /** The walk is over: the explorer stands in the room, which is framed close
-   *  with its walls up if it is new to them, and then the turn passes. */
+  /** The leg is over: the explorer stands in the room, which is framed close
+   *  with its walls up if it is new to them, and then the move goes on. */
   function arrive() {
     if (!walking || !house) return;
     const { explorer, room } = walking;
     walking = null;
     house.stand(explorer, house.explorerAt(explorer));
+    const from = snapshot.explorers[snapshot.active].room;
+    const { left } = afterLeg({ room: from, left: snapshot.left }, { room, route: routes.get(room) ?? [] });
     const explorers = snapshot.explorers.map((member) => (member.id === explorer ? { ...member, room } : member));
     if (visited.has(room)) {
-      update(offer({ ...snapshot, explorers, active: (snapshot.active + 1) % explorers.length }));
+      continueTurn({ ...snapshot, explorers, left });
       return;
     }
     visited.add(room);
     enteringUntil = seconds + ENTERING_SECONDS;
-    update({ ...snapshot, explorers, phase: "entering", closeUp: room, floor: floorOf(room) });
+    update({ ...snapshot, explorers, left, phase: "entering", closeUp: room, floor: floorOf(room) });
   }
 
   const setFloor = (floor: FloorChoice) => {
@@ -533,7 +563,8 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
       };
       const marks = offering ? snapshot.choices.flatMap((choice) => markOf(choice.room) ?? []) : [];
       built.markChoices(marks, offering && snapshot.focused !== null ? markOf(snapshot.focused) : null);
-      built.showRoute(offering && snapshot.focused !== null ? pathTo(built, snapshot.focused) : null);
+      const going = offering && snapshot.focused !== null && routes.has(snapshot.focused) ? snapshot.focused : null;
+      built.showRoute(going === null ? null : pathTo(built, going));
       settled = false;
     };
 
@@ -573,7 +604,7 @@ export function createHouseView(layout: Layout = HOUSE_FIXTURE) {
           if (snapshot.floor !== "all" && pose.point.floor !== snapshot.floor) update({ ...snapshot, floor: pose.point.floor });
           if (pose.done) arrive();
         }
-        if (enteringUntil !== null && seconds >= enteringUntil) nextTurn();
+        if (enteringUntil !== null && seconds >= enteringUntil) continueTurn(snapshot);
         built.update(seconds);
 
         const ease = Math.min(1, delta * EASE_RATE);
