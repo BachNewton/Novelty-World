@@ -5,7 +5,7 @@ import { FLOORS, placed, type Layout } from "../engine/board";
 import { attachControls, usesReticle, type ChoiceLayout, type InputKind } from "../input/controls";
 import { panOnFloor } from "../input/gestures";
 import { cycleChoice, pickTarget, reticleTarget, stepFloor, type Point } from "../input/navigate";
-import type { FloorId } from "../types";
+import type { Edge, FloorId } from "../types";
 import type { Pace } from "./explorers/figure";
 import { buildHouse, definition, tileCorners, type FloorChoice, type House, type HouseFigure } from "./house";
 import type { LayoutChange } from "./house-layout";
@@ -51,6 +51,8 @@ const RETICLE_SNAP = FINGER;
 export interface FigureSpec extends HouseFigure {
   room: string;
   slot: number;
+  /** In a barrier room, the side it stands on. */
+  side?: Edge | null;
 }
 
 /** What the camera pans to: one room, with its back walls standing; or these rooms on the floor showing. */
@@ -59,7 +61,7 @@ export type Framing = { closeUp: string } | { rooms: readonly string[] };
 /** A beat of animation. Each resolves when it has played out, or at once on `finish`. */
 export type Beat =
   /** A figure walks (or runs) its route of rooms to its place (`slot`) in the last, which is where it then rests. */
-  | { kind: "walk"; figure: string; route: readonly string[]; slot: number; pace?: Pace }
+  | { kind: "walk"; figure: string; route: readonly string[]; slot: number; side?: Edge | null; pace?: Pace }
   /** A room placed by `setLayout` shows, once it is baked with its light. */
   | { kind: "appear"; room: string }
   /** The camera pans to something, keeping the player's angles and zoom, or
@@ -289,6 +291,11 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   let dismissed: string | null = null;
   /** The reticle's choice as the driver was last told it. */
   let reticleSelected: string | null = null;
+  /** The order the next and previous choice go round in, fixed at the first
+   *  jump until the choices change: a jump can change floor, which moves a
+   *  choice shown as its stairs, so reading the order off the screen again
+   *  would skip choices. */
+  let cycleOrder: string[] | null = null;
 
   const playing = new Set<Playing>();
   let mounted: {
@@ -393,7 +400,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
   }
 
   function placeFigure(house: House, figure: FigureSpec) {
-    house.addFigure(figure, house.spot(figure.room, figure.slot), house.roomHeading(figure.room));
+    house.addFigure(figure, house.spot(figure.room, figure.slot, figure.side), house.roomHeading(figure.room));
   }
 
   function setFigures(specs: readonly FigureSpec[]) {
@@ -412,7 +419,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
       figures.set(spec.id, { ...spec });
       if (!house) continue;
       if (!old) placeFigure(house, spec);
-      else if ((old.room !== spec.room || old.slot !== spec.slot) && !walking.has(spec.id)) house.stand(spec.id, house.spot(spec.room, spec.slot));
+      else if ((old.room !== spec.room || old.slot !== spec.slot || old.side !== spec.side) && !walking.has(spec.id)) house.stand(spec.id, house.spot(spec.room, spec.slot, spec.side));
     }
     mounted?.sync();
   }
@@ -423,6 +430,7 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
     if (ids(next) !== ids(targets)) {
       pinned = null;
       dismissed = null;
+      cycleOrder = null;
     }
     // A ghost put on a new cell is shown: its floor, and the camera panned to it.
     const [ghost, was] = [ghostOf(next), ghostOf(targets)];
@@ -474,19 +482,19 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
           const figure = figureOf(beat.figure);
           for (const other of [...playing]) if (other.walk?.figure === beat.figure) other.end();
           const destination = beat.route[beat.route.length - 1];
-          figures.set(beat.figure, { ...figure, room: destination, slot: beat.slot });
+          figures.set(beat.figure, { ...figure, room: destination, slot: beat.slot, side: beat.side ?? null });
           const house = mounted?.house;
           if (!house) {
             resolve();
             return;
           }
-          const walk: Walk = { path: walkPath(layout, beat.route, house.figureAt(beat.figure), house.spot(destination, beat.slot), stairway), start: seconds, pace: beat.pace };
+          const walk: Walk = { path: walkPath(layout, beat.route, house.figureAt(beat.figure), house.spot(destination, beat.slot, beat.side), stairway), start: seconds, pace: beat.pace };
           house.walk(beat.figure, walk);
           start(
             () => walkPose(walk, seconds).done,
             () => {
               const rest = figureOf(beat.figure);
-              house.stand(beat.figure, house.spot(rest.room, rest.slot), walkPose(walk, Infinity).heading);
+              house.stand(beat.figure, house.spot(rest.room, rest.slot, rest.side), walkPose(walk, Infinity).heading);
               if (following === beat.figure) following = null;
             },
           );
@@ -805,7 +813,12 @@ export function createHouseScene(initial: Layout, { readout: showsReadout = fals
         input.back?.();
       },
       cycle: (step) => {
-        const id = cycleChoice(layoutNow().points, selection(), step, centre());
+        const points = layoutNow().points;
+        const current = selection();
+        // Read again when the selection isn't in it: a choice behind the camera when it was read.
+        if (cycleOrder === null || (current !== null && !cycleOrder.includes(current))) cycleOrder = [...points].sort((a, b) => a.x - b.x || a.y - b.y).map((point) => point.id);
+        const at = current === null ? -1 : cycleOrder.indexOf(current);
+        const id = at === -1 ? cycleChoice(points, current, step, centre()) : cycleOrder[(at + step + cycleOrder.length) % cycleOrder.length];
         if (id === null) return;
         focusTarget(id);
         const place = placesOf(house).find((candidate) => candidate.id === id)?.place;

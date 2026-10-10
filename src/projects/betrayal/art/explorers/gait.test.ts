@@ -8,6 +8,7 @@ import { walkingOf, type Pace } from "./figure";
 import { explorerLineUp } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 
 /*
@@ -23,7 +24,7 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt };
 /** Samples a second: fine enough that the fastest foot's step barely changes from one sample to the next. */
 const RATE = 600;
 /** The most a point's step may be longer than the steps either side of it. */

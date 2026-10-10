@@ -10,6 +10,7 @@ import { handsOf, holdIn } from "./hands";
 import { onTheSpot } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { rhinehardt } from "./rhinehardt";
 import { STAND_INS } from "./props";
 import { zoe } from "./zoe";
 
@@ -25,7 +26,7 @@ import { zoe } from "./zoe";
 
 beforeAll(stubCanvas);
 
-const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe };
+const EXPLORERS: Record<string, ExplorerBuilder> = { longfellow, ox, zoe, rhinehardt };
 
 function clipsThrough(figure: THREE.Object3D, times: readonly number[]): string[] {
   const found = new Map<string, string>();

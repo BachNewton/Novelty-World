@@ -1,4 +1,5 @@
 import type { RoomDefinition } from "../room";
+import { BASEMENT_LANDING } from "./basement-landing";
 import { CHAPEL } from "./chapel";
 import { CHASM } from "./chasm";
 import { DRAWING_ROOM } from "./drawing-room";
@@ -11,8 +12,10 @@ import { KITCHEN } from "./kitchen";
 import { LIBRARY } from "./library";
 import { MASTER_BEDROOM } from "./master-bedroom";
 import { MYSTIC_ELEVATOR } from "./mystic-elevator";
+import { STAIRS_FROM_BASEMENT } from "./stairs-from-basement";
 import { UNDERGROUND_LAKE } from "./underground-lake";
 import { UPPER_LANDING } from "./upper-landing";
+import { WINE_CELLAR } from "./wine-cellar";
 
 /** Every room the art bench can show, in the order it lists them. */
-export const BENCH_ROOMS: readonly RoomDefinition[] = [DRAWING_ROOM, CHAPEL, LIBRARY, GRAND_STAIRCASE, FOYER, ENTRANCE_HALL, UPPER_LANDING, MASTER_BEDROOM, CHASM, MYSTIC_ELEVATOR, FURNACE_ROOM, KITCHEN, GRAVEYARD, UNDERGROUND_LAKE];
+export const BENCH_ROOMS: readonly RoomDefinition[] = [DRAWING_ROOM, CHAPEL, LIBRARY, GRAND_STAIRCASE, FOYER, ENTRANCE_HALL, UPPER_LANDING, MASTER_BEDROOM, CHASM, MYSTIC_ELEVATOR, FURNACE_ROOM, KITCHEN, GRAVEYARD, UNDERGROUND_LAKE, BASEMENT_LANDING, STAIRS_FROM_BASEMENT, WINE_CELLAR];

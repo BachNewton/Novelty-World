@@ -80,7 +80,7 @@ function figuresOf(view: GameView): FigureSpec[] {
     const slot = counts.get(room) ?? 0;
     counts.set(room, slot + 1);
     const colour = figureColour(ENGINE, figure.definition);
-    return [{ id: figure.id, build: figureFor(figure.definition, colour), colour, room, slot }];
+    return [{ id: figure.id, build: figureFor(figure.definition, colour), colour, room, slot, side: figure.place?.side ?? null }];
   });
 }
 
@@ -221,7 +221,7 @@ export function PlayScreen({ store, onLeave }: { store: PlayStore; onLeave: () =
     const walk = walking.current;
     walking.current = null;
     const rooms = walk && walkedRooms(walk, view);
-    if (walk && rooms) void scene.play({ kind: "walk", figure: walk.figure, route: rooms, slot: slotOf(view, walk.figure, rooms[rooms.length - 1]), pace: paceOf(view, walk.figure) });
+    if (walk && rooms) void scene.play({ kind: "walk", figure: walk.figure, route: rooms, slot: slotOf(view, walk.figure, rooms[rooms.length - 1]), side: view.figures[walk.figure].place?.side ?? null, pace: paceOf(view, walk.figure) });
     scene.setFigures(figuresOf(view));
     scene.setActive(activeFigure(view));
   }, [scene, view]);

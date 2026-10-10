@@ -194,4 +194,13 @@ export const FOYER: RoomDefinition = {
   focus: [0, 1.4, 0],
   pawn: [-1.0, 0.8],
   spots: [[-0.3, 0.3], [-1.05, -0.05], [-0.35, -0.55], [0.45, -0.15], [0.5, 0.75]],
+  // To the secret door at the foot of the bottom wall, beside the front-door
+  // side of the runner, and down through it to the cellar stair.
+  stairs: {
+    "stairs-from-basement": [
+      [1.15, 0, 1.6],
+      [1.15, 0, 2.45],
+      [1.15, -1.0, 2.75],
+    ],
+  },
 };

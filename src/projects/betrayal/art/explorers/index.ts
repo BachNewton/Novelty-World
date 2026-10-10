@@ -4,6 +4,7 @@ import type { ExplorerBuilder } from "../stage";
 import { explorerLineUp } from "./line-up";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 
 export interface BenchExplorer {
@@ -19,6 +20,7 @@ export const BENCH_EXPLORERS: readonly BenchExplorer[] = [
   { id: "pawn", name: "Scale pawn", build: () => pawn() },
   { id: "ox", name: "Ox Bellows", build: ox },
   { id: "zoe", name: "Zoe Ingstrom", build: zoe },
+  { id: "rhinehardt", name: "Father Rhinehardt", build: rhinehardt },
   { id: "explorer-line-up", name: "Every explorer, with the pawn", build: (seed) => explorerLineUp(seed) },
   { id: "explorer-walk", name: "Every explorer walking on the spot", build: (seed) => explorerLineUp(seed, "walk") },
   { id: "explorer-run", name: "Every explorer running on the spot", build: (seed) => explorerLineUp(seed, "run") },

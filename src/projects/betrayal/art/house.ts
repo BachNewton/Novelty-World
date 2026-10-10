@@ -13,7 +13,7 @@ import { EXPLORER_LIGHT_OFFSET, explorerLight, fillLight, houseFog } from "./lig
 import { DEFAULT_MARKINGS, type Markings } from "./markings";
 import { createLitFloor, ghostRoom, patchProbe, type GhostRoom, type LitFloor, type ProbeUniform, type Rebake } from "./lit-floor";
 import { paletteHex, type PaletteKey } from "./palette";
-import { DOOR_WIDTH, explorerSpot, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
+import { DOOR_WIDTH, explorerSpot, standingSpots, TILE, WALL_HEIGHT, type RoomDefinition } from "./room";
 import { BENCH_ROOMS } from "./rooms";
 import { box, glow, group, lightMaterial } from "./shapes";
 import { buildRoom, disposeTree, roomTile, type ExplorerBuilder } from "./stage";
@@ -112,9 +112,10 @@ export interface House {
   rebake: (room: string) => Promise<Rebake>;
   /** Where in the scene a point in the house is, with its floor stacked as it shows. */
   scenePoint: (point: HousePoint) => THREE.Vector3;
-  /** Where an explorer stands in a room: its pawn spot, or for a second
-   *  explorer there (`slot` 1), beside it, towards the middle of the room. */
-  spot: (room: string, slot: number) => HousePoint;
+  /** Where an explorer stands in a room: the room's standing spots in the
+   *  order it fills them, the first its pawn spot; in a barrier room, those
+   *  on `side`, the explorer's own side of it. */
+  spot: (room: string, slot: number, side?: Edge | null) => HousePoint;
   /** The way a figure faces standing in a room it has just been put in: as the room is turned. */
   roomHeading: (room: string) => number;
   addFigure: (figure: HouseFigure, at: HousePoint, heading: number) => void;
@@ -458,10 +459,15 @@ export function buildHouse(initial: Layout, baker: Baker = inlineBaker(), markin
       const placedRoom = placements.get(tile.tile);
       return placedRoom ? [{ id: tile.tile, floor: tile.floor, room: placedRoom.room, centre: cellCentre(tile.floor, tile.x, tile.y) }] : [];
     });
-  const spot = (room: string, slot: number): HousePoint => {
-    const pawnSpot = definition(room).pawn;
-    if (!pawnSpot) throw new Error(`${room} has no spot for an explorer to stand on`);
-    const [x, z] = explorerSpot(pawnSpot, slot);
+  const spot = (room: string, slot: number, side: Edge | null = null): HousePoint => {
+    const all = standingSpots(definition(room));
+    if (all.length === 0) throw new Error(`${room} has no spot for an explorer to stand on`);
+    // A side is a printed door edge, so in the room's own frame: top is -z, right +x.
+    const toward = side === null ? null : { top: [0, -1], right: [1, 0], bottom: [0, 1], left: [-1, 0] }[side];
+    const onSide = toward === null ? all : all.filter(([x, z]) => x * toward[0] + z * toward[1] > 0);
+    const spots = onSide.length > 0 ? onSide : all;
+    // More explorers than spots share them, edging towards the middle of the room.
+    const [x, z] = slot < spots.length ? spots[slot] : explorerSpot(spots[slot % spots.length], Math.floor(slot / spots.length));
     return inHouse(layout, room, [x, 0, z]);
   };
 

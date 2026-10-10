@@ -14,7 +14,7 @@ import { routeRooms } from "../../play/preview";
 /** Where an explorer stands among the explorers in its room, in the order the
  *  screen fills a room's spots: the order of the view's figures. */
 export function slotOf(view: GameView, figure: string, room: string): number {
-  const here = Object.values(view.figures).filter((other) => other.kind === "explorer" && other.alive && (other.id === figure ? true : other.place?.room === room));
+  const here = Object.values(view.figures).filter((other) => other.kind === "explorer" && other.alive && (other.id === figure || other.place?.room === room));
   return Math.max(0, here.findIndex((other) => other.id === figure));
 }
 
@@ -23,8 +23,7 @@ export function slotOf(view: GameView, figure: string, room: string): number {
  *  route takes there, where the room it leaves from has one. */
 export function sceneTarget(target: PlaceTarget, view: GameView): Target {
   const { preview } = target;
-  const end = target.kind === "room" ? target.room : target.room;
-  const route = preview && { figure: preview.figure, rooms: routeRooms(preview), slot: slotOf(view, preview.figure, end) };
+  const route = preview && { figure: preview.figure, rooms: routeRooms(preview), slot: slotOf(view, preview.figure, target.room), side: target.kind === "room" ? target.side : null };
   return target.kind === "room"
     ? { id: target.id, kind: "room", room: target.room, ...(route ? { route } : {}) }
     : { id: target.id, kind: "doorway", room: target.room, direction: target.direction, ...(route ? { route } : {}) };

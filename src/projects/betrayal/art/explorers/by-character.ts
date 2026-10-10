@@ -4,6 +4,7 @@ import type { PaletteKey } from "../palette";
 import type { ExplorerBuilder } from "../stage";
 import { longfellow } from "./longfellow";
 import { ox } from "./ox";
+import { rhinehardt } from "./rhinehardt";
 import { zoe } from "./zoe";
 
 /** The characters with a figure of their own, by character id. */
@@ -11,6 +12,7 @@ const FIGURES: Partial<Record<string, ExplorerBuilder>> = {
   "professor-longfellow": longfellow,
   "ox-bellows": ox,
   "zoe-ingstrom": zoe,
+  "father-rhinehardt": rhinehardt,
 };
 
 /** The pawn standing in for a character without a figure, one per colour, so
